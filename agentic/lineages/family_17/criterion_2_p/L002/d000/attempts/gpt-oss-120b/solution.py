@@ -1,0 +1,72 @@
+import sys
+from collections import deque
+
+def solve() -> None:
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+    it = iter(data)
+    q = next(it)
+    t = next(it)
+    n_left = q
+    n_right = q  # platforms count
+    adj = [[] for _ in range(n_left + 1)]
+    for _ in range(t):
+        a = next(it)
+        b = next(it)
+        # a in [1,q], b in [q+1,2q]
+        adj[a].append(b - q)  # map platform index to 1..q
+
+    NIL = 0
+    pair_u = [NIL] * (n_left + 1)
+    pair_v = [NIL] * (n_right + 1)
+    dist = [0] * (n_left + 1)
+
+    def bfs() -> bool:
+        dq = deque()
+        for u in range(1, n_left + 1):
+            if pair_u[u] == NIL:
+                dist[u] = 0
+                dq.append(u)
+            else:
+                dist[u] = -1
+        found = False
+        while dq:
+            u = dq.popleft()
+            for v in adj[u]:
+                pu = pair_v[v]
+                if pu == NIL:
+                    found = True
+                elif dist[pu] == -1:
+                    dist[pu] = dist[u] + 1
+                    dq.append(pu)
+        return found
+
+    def dfs(u: int) -> bool:
+        for v in adj[u]:
+            pu = pair_v[v]
+            if pu == NIL or (dist[pu] == dist[u] + 1 and dfs(pu)):
+                pair_u[u] = v
+                pair_v[v] = u
+                return True
+        dist[u] = -1
+        return False
+
+    matching = 0
+    while bfs():
+        for u in range(1, n_left + 1):
+            if pair_u[u] == NIL and dfs(u):
+                matching += 1
+
+    if matching != q:
+        sys.stdout.write("NO")
+        return
+
+    out_lines = ["YES"]
+    for u in range(1, n_left + 1):
+        v = pair_u[u] + q  # convert back to original id
+        out_lines.append(f"{u} {v}")
+    sys.stdout.write("\n".join(out_lines))
+
+if __name__ == "__main__":
+    solve()

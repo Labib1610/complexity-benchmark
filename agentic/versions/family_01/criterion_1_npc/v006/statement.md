@@ -1,16 +1,16 @@
-# Problem A — Zone Distribution
+# Production Schedule
 
 Time limit: 2 s   Memory limit: 256 MB
 
-A cloud application runs across three availability zones labeled 1, 2, 3. There are n microservices. Some pairs of microservices provide redundant backups for each other and must not be placed in the same availability zone to prevent simultaneous failures. Assign every microservice to exactly one of the three availability zones so that no redundant pair shares a zone, or report that it is impossible.
+A manufacturing facility operates continuously across three daily production shifts labeled 1, 2, and 3. The facility employs $n$ machine operators. Due to past safety incidents, certain pairs of operators cannot be scheduled during the same shift. You must assign each operator to exactly one of the three production shifts such that no two operators with a recorded safety conflict work at the same time. If no such schedule can be created, you must report that it is impossible.
 
 ## Input
-The first line contains two integers n and m — the number of microservices and the number of redundant pairs (1 ≤ n ≤ 40, 0 ≤ m ≤ n·(n−1)/2).
-Each of the next m lines contains two integers u v — a redundant pair.
+The first line contains two integers $n$ and $m$ — the number of machine operators and the number of safety conflicts ($1 \le n \le 40$, $0 \le m \le n \cdot (n-1)/2$).
+Each of the next $m$ lines contains two integers $u$ and $v$ — a pair of operators with a safety conflict.
 
 ## Output
-If no valid assignment exists, print a single line NO.
-Otherwise print YES on the first line. On the second line print n integers z₁ z₂ … zₙ (each in {1,2,3}), where zᵢ is the availability zone of microservice i. Among all valid assignments output the lexicographically smallest sequence (compare z₁ first, then z₂, and so on).
+If no valid schedule exists, print a single line NO.
+Otherwise print YES on the first line. On the second line print $n$ integers $s_1, s_2, \dots, s_n$ (each in $\{1,2,3\}$), where $s_i$ is the shift of operator $i$. Any valid schedule is accepted.
 
 ## Example 1
 Input:

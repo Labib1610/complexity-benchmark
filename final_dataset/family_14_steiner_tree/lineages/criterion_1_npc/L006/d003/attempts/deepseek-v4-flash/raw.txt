@@ -1,0 +1,89 @@
+We can model this as finding the minimum spanning tree (MST) that connects all the primary currencies, but we may also use non-primary currencies as intermediate nodes.  
+
+The key is to treat all currencies as nodes, and the swap agreements as weighted edges. We need the minimum total weight to connect all primary nodes (they don’t have to be directly connected, just in the same component).  
+
+This is exactly the **Steiner tree** problem, but since `t ≤ 10`, we can solve it with a bitmask DP over the primary nodes.
+
+Here’s the implementation:  
+
+```python
+import sys
+import heapq
+
+input = sys.stdin.readline
+
+n, m, t = map(int, input().split())
+primary = list(map(int, input().split()))
+primary_set = set(primary)
+
+# Map primary currencies to bit indices
+idx = {node: i for i, node in enumerate(primary)}
+
+# Build graph
+graph = [[] for _ in range(n + 1)]
+for _ in range(m):
+    u, v, w = map(int, input().split())
+    graph[u].append((v, w))
+    graph[v].append((u, w))
+
+# If only one primary, answer is 0
+if t == 1:
+    print(0)
+    sys.exit()
+
+# All-pairs shortest paths from each primary node
+INF = 10**18
+dist = [[INF] * (n + 1) for _ in range(t)]
+for i, node in enumerate(primary):
+    d = dist[i]
+    d[node] = 0
+    pq = [(0, node)]
+    while pq:
+        du, u = heapq.heappop(pq)
+        if du != d[u]:
+            continue
+        for v, w in graph[u]:
+            nd = du + w
+            if nd < d[v]:
+                d[v] = nd
+                heapq.heappush(pq, (nd, v))
+
+# DP over subsets of primary nodes
+# dp[mask][v] = min cost to connect primary nodes in mask, ending at node v
+dp = [[INF] * (n + 1) for _ in range(1 << t)]
+
+# Initialize: for each primary node, cost 0 to be at that node with its own bit set
+for i, node in enumerate(primary):
+    dp[1 << i][node] = 0
+
+# Steiner DP
+for mask in range(1 << t):
+    # Combine subsets
+    sub = (mask - 1) & mask
+    while sub:
+        other = mask ^ sub
+        if sub < other:  # avoid double work
+            for v in range(1, n + 1):
+                dp[mask][v] = min(dp[mask][v], dp[sub][v] + dp[other][v])
+        sub = (sub - 1) & mask
+
+    # Dijkstra relaxation for this mask
+    pq = []
+    for v in range(1, n + 1):
+        if dp[mask][v] < INF:
+            heapq.heappush(pq, (dp[mask][v], v))
+    while pq:
+        du, u = heapq.heappop(pq)
+        if du != dp[mask][u]:
+            continue
+        for v, w in graph[u]:
+            nd = du + w
+            if nd < dp[mask][v]:
+                dp[mask][v] = nd
+                heapq.heappush(pq, (nd, v))
+
+# Answer is min over all nodes of dp[full_mask][node]
+full_mask = (1 << t) - 1
+ans = min(dp[full_mask][v] for v in range(1, n + 1))
+print(ans)
+```

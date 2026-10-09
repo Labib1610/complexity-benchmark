@@ -1,0 +1,250 @@
+**Solution Explanation**
+
+For a set of vertices `S` let  
+
+```
+dp[mask][v] = minimum total power of a set of channels
+             that connects all terminals whose bits are 1 in mask
+             and whose whole network is contained in the subgraph
+             and that contains vertex v
+```
+
+`mask` is a bitmask of the `t ( ≤ 10 )` core controllers.
+The answer is `min_v dp[full][v]` where `full = (1<<t)-1`.
+
+The classic *Steiner tree* DP works as follows.
+
+--------------------------------------------------------------------
+### 1.   Initialisation
+For each terminal `i` (its node number is `term[i]`)
+
+```
+dp[1<<i][ term[i] ] = 0
+```
+
+All other entries are `+∞`.
+
+--------------------------------------------------------------------
+### 2.   DP over masks  
+
+For every non‑empty mask `M` (in increasing order)
+
+* **Combine two smaller masks**  
+  For every proper non‑empty submask `S` of `M`
+
+```
+T = M ^ S                     # the complementary part
+for every vertex v:
+        dp[M][v] = min( dp[M][v] , dp[S][v] + dp[T][v] )
+```
+
+After this step `dp[M][v]` is the cheapest way to build two
+disjoint Steiner trees for `S` and `T` that both end in the same
+vertex `v`.  
+The union of the two trees is a Steiner tree for `M` (still ending in `v`).
+
+* **Propagate through edges (Dijkstra)**  
+  The tree may be extended by ordinary graph edges.
+  For a fixed mask `M` the values `dp[M][*]` are a set of source
+  distances; running Dijkstra with all vertices as sources gives the
+  cheapest way to reach any other vertex using additional edges.
+
+```
+run Dijkstra with initial distance dp[M][v] for all v
+(the heap is filled with (dp[M][v], v) for every v where dp[M][v] < INF)
+```
+
+After Dijkstra finishes, `dp[M][*]` is optimal for mask `M`.
+
+--------------------------------------------------------------------
+### 3.   Result
+`answer = min_v dp[full][v]`
+
+--------------------------------------------------------------------
+### 4.   Correctness Proof  
+
+We prove that the algorithm returns the minimum possible total power.
+
+---
+
+#### Lemma 1  
+For any mask `M` and vertex `v`, after the *combine* step
+`dp[M][v]` equals the minimum total power of a union of two Steiner
+trees for a partition `S , T` of `M` that both contain `v`.
+
+*Proof.*  
+The combine step enumerates every non‑empty proper submask `S` of `M`
+(and `T = M \ S`). For each vertex `v` it tries the sum
+`dp[S][v] + dp[T][v]`. By induction on the size of the mask (smaller masks
+already hold the optimal values) this sum is exactly the optimum for that
+partition. Taking the minimum over all partitions yields the claim. ∎
+
+
+
+#### Lemma 2  
+After the Dijkstra step for a mask `M`,
+`dp[M][v]` equals the minimum total power of **any** Steiner tree
+connecting the terminals of `M` and containing vertex `v`.
+
+*Proof.*  
+Consider any Steiner tree `X` for mask `M` that contains `v`.
+Pick a vertex `u` of `X` that is the *closest* to the set of terminals
+(of `M`) in terms of the DP value before Dijkstra.
+The part of `X` that lies inside the subgraph induced by the terminals
+(and possibly other vertices) and ends at `u` has cost at least
+`dp[M][u]` (by Lemma&nbsp;1, because before Dijkstra we already have the
+optimal cost for trees that end at a single vertex).  
+The remaining edges of `X` form a path from `u` to `v`. Dijkstra
+computes the cheapest possible such path using edge weights, therefore
+the total cost found by Dijkstra for reaching `v` is ≤ the cost of `X`.  
+Conversely, Dijkstra only adds edge costs to an already feasible tree,
+so the obtained cost is achievable. Hence after Dijkstra `dp[M][v]`
+is exactly the optimum. ∎
+
+
+
+#### Lemma 3  
+For every mask `M` and vertex `v`, after processing mask `M`
+the table entry `dp[M][v]` is optimal.
+
+*Proof by induction on the number of bits in `M`.*  
+
+*Base*: `|M| = 1`. The only feasible tree is the empty set at the
+terminal itself, which we initialise to `0`. No edges are needed,
+so the value is optimal.
+
+*Induction step*: assume the statement true for all proper submasks of
+`M`.  
+First the combine step uses only optimal values of smaller masks,
+hence by Lemma&nbsp;1 it yields the optimum among trees that are a union
+of two optimal sub‑trees meeting at a common vertex.  
+Then Dijkstra expands those trees with arbitrary edge paths, and by
+Lemma&nbsp;2 the resulting values are optimal among **all** Steiner trees
+for `M`. ∎
+
+
+
+#### Lemma 4  
+`answer = min_v dp[full][v]` equals the minimum total power of a set of
+channels that connects all core controllers.
+
+*Proof.*  
+Any feasible set of channels forms a Steiner tree for the full mask.
+It contains at least one vertex `v`; its total power is ≥ `dp[full][v]`
+by optimality of `dp`. Therefore the minimum over `v` is a lower bound.
+Conversely, for the vertex `v*` attaining the minimum, `dp[full][v*]`
+corresponds to an actual Steiner tree (Lemma&nbsp;3), which is a feasible
+solution with exactly that cost. Hence the bound is tight. ∎
+
+
+
+#### Theorem  
+The algorithm outputs the minimum possible total power required to
+provision channels so that all core controllers can exchange telemetry.
+
+*Proof.*  
+By Lemma&nbsp;3 all table entries are optimal after processing their mask.
+Applying Lemma&nbsp;4 to the full mask gives that the printed value is
+exactly the optimum. ∎
+
+
+
+--------------------------------------------------------------------
+### 5.   Complexity Analysis  
+
+* `states = 2^t ≤ 1024`, `n ≤ 100`, `m ≤ 4950`.
+
+*Combine step*  
+For each mask we iterate over its non‑empty proper submasks.
+The total number of `(mask, submask)` pairs is `3^t`.  
+For each pair we scan all `n` vertices.
+
+```
+O( 3^t * n )   ≤ 3^10 * 100 ≈ 5.9·10^5
+```
+
+*Dijkstra*  
+For each mask we run Dijkstra once.
+With a binary heap: `O( (n + m) log n )` per mask.
+
+```
+O( 2^t * (n+m) log n ) ≤ 1024 * 5050 * log 100  < 6·10^6
+```
+
+Both limits easily fit into the 5 s time limit.
+
+Memory: `dp` array of size `2^t * n` → at most `1024 * 100 = 102 400` integers.
+
+--------------------------------------------------------------------
+### 6.   Reference Implementation  (Python 3)
+
+```python
+import sys
+import heapq
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    t = int(next(it))
+    terminals = [int(next(it)) - 1 for _ in range(t)]
+
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        w = int(next(it))
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+
+    INF = 10**18
+    full = (1 << t) - 1
+    dp = [[INF] * n for _ in range(full + 1)]
+
+    # initialisation
+    for i, node in enumerate(terminals):
+        dp[1 << i][node] = 0
+
+    # process masks
+    for mask in range(1, full + 1):
+        # combine submasks
+        sub = (mask - 1) & mask
+        while sub:
+            other = mask ^ sub
+            # to avoid duplicate work we can enforce sub < other, but not needed
+            for v in range(n):
+                val = dp[sub][v] + dp[other][v]
+                if val < dp[mask][v]:
+                    dp[mask][v] = val
+            sub = (sub - 1) & mask
+
+        # Dijkstra to propagate through edges
+        heap = []
+        dist = dp[mask]
+        for v in range(n):
+            if dist[v] < INF:
+                heap.append((dist[v], v))
+        heapq.heapify(heap)
+
+        while heap:
+            d, u = heapq.heappop(heap)
+            if d != dist[u]:
+                continue
+            for v, w in adj[u]:
+                nd = d + w
+                if nd < dist[v]:
+                    dist[v] = nd
+                    heapq.heappush(heap, (nd, v))
+
+    ans = min(dp[full])
+    print(ans)
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above
+and conforms to the required input‑output format.

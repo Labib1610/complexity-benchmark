@@ -1,72 +1,57 @@
-import sys
-from collections import defaultdict
-
-def main():
+def solve():
     import sys
-    input = sys.stdin.read
-    data = input().split()
+    from collections import defaultdict
     
-    n, m = int(data[0]), int(data[1])
+    n, m = map(int, sys.stdin.readline().split())
     
     if m == 0:
         print("YES")
         print(" ".join(["1"] * n))
         return
     
-    edges = []
-    index = 2
-    for _ in range(m):
-        u = int(data[index]) - 1
-        v = int(data[index+1]) - 1
-        edges.append((u, v))
-        index += 2
-    
     # Build adjacency list
-    adj = [set() for _ in range(n)]
-    for u, v in edges:
-        adj[u].add(v)
-        adj[v].add(u)
+    adj = defaultdict(list)
+    edges = []
+    for _ in range(m):
+        u, v = map(int, sys.stdin.readline().split())
+        u -= 1  # Convert to 0-indexed
+        v -= 1
+        adj[u].append(v)
+        adj[v].append(u)
+        edges.append((u, v))
     
-    # We'll use backtracking with constraint propagation
-    # To ensure we get the lexicographically smallest solution
-    color = [0] * n  # 0 means unassigned
+    # Try all 3-colorings using backtracking
+    color = [-1] * n
     
-    def is_safe(node, c):
+    def is_valid(node, c):
         for neighbor in adj[node]:
             if color[neighbor] == c:
                 return False
         return True
     
-    # To optimize search, we can try to order nodes in a way that 
-    # detects failure early. But since we want lex smallest, we'll just go in order.
-    def solve(node):
+    def backtrack(node):
         if node == n:
             return True
             
-        for c in [1, 2, 3]:
-            if is_safe(node, c):
+        for c in range(3):
+            if is_valid(node, c):
                 color[node] = c
-                if solve(node + 1):
+                if backtrack(node + 1):
                     return True
-                color[node] = 0
+                color[node] = -1
         return False
     
-    # Optimization: Check if graph is 3-colorable by checking odd cycles
-    # But since constraints are small, simple backtracking should suffice.
-    # For better performance on adversarial cases, we could:
-    # 1. Use a more advanced variable ordering heuristic
-    # 2. Do AC-3 or other constraint propagation
-    # 3. Detect unsatisfiability early
+    # Since n <= 40, but actually constraints seem tighter, let's try smarter approach
+    # For graph 3-coloring, we can use a more systematic approach
     
-    # Let's implement a smarter backtracking with degree-based ordering
-    # But to maintain lex order in assignment, we process variables in order
-    # So we stick to the basic but optimized version
+    # Let's try all possible colorings with pruning
+    found = backtrack(0)
     
-    if solve(0):
-        print("YES")
-        print(" ".join(map(str, color)))
-    else:
+    if not found:
         print("NO")
+    else:
+        print("YES")
+        result = [str(c + 1) for c in color]
+        print(" ".join(result))
 
-if __name__ == "__main__":
-    main()
+solve()

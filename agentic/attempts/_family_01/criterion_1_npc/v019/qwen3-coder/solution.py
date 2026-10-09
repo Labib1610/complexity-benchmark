@@ -1,0 +1,48 @@
+import sys
+from collections import defaultdict, deque
+
+def solve():
+    n, m = map(int, sys.stdin.readline().split())
+    
+    # Build adjacency list
+    adj = defaultdict(list)
+    for _ in range(m):
+        u, v = map(int, sys.stdin.readline().split())
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # Color graph with 3 colors (1, 2, 3)
+    # -1 means unvisited, 0 means no color assigned yet
+    color = [-1] * (n + 1)
+    
+    # Check each connected component
+    for start in range(1, n + 1):
+        if color[start] == -1:  # Unvisited node
+            # BFS to color this component
+            queue = deque([start])
+            color[start] = 1  # Start with color 1
+            
+            while queue:
+                node = queue.popleft()
+                
+                # Check all neighbors
+                for neighbor in adj[node]:
+                    if color[neighbor] == -1:  # Not visited
+                        # Assign the first available color (1, 2, or 3) that's different from current node
+                        for c in [1, 2, 3]:
+                            if c != color[node]:
+                                color[neighbor] = c
+                                break
+                        queue.append(neighbor)
+                    elif color[neighbor] == color[node]:  # Conflict found
+                        print("NO")
+                        return
+    
+    # If we reach here, a valid coloring exists
+    print("YES")
+    result = []
+    for i in range(1, n + 1):
+        result.append(str(color[i]))
+    print(" ".join(result))
+
+solve()

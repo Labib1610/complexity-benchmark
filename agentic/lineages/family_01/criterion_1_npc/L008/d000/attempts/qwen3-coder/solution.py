@@ -1,39 +1,55 @@
+import sys
+from collections import defaultdict
+
 def solve():
     n, m = map(int, input().split())
     
+    if m == 0:
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
+    
     # Build adjacency list
-    adj = [[] for _ in range(n + 1)]
+    adj = defaultdict(set)
+    edges = []
     for _ in range(m):
         u, v = map(int, input().split())
-        adj[u].append(v)
-        adj[v].append(u)
+        adj[u].add(v)
+        adj[v].add(u)
+        edges.append((u, v))
     
-    # Color the graph with 3 colors (1, 2, 3)
-    # -1: unvisited, 0: color 1, 1: color 2, 2: color 3
-    colors = [-1] * (n + 1)
+    # Try all 3-colorings using backtracking
+    color = [0] * (n + 1)  # color[i] represents the shift for operator i
     
-    # Check if we can 3-color the graph
-    def dfs(node, color):
-        colors[node] = color
+    def is_valid(node, c):
         for neighbor in adj[node]:
-            if colors[neighbor] == -1:
-                if not dfs(neighbor, (color + 1) % 3):
-                    return False
-            elif colors[neighbor] == color:
+            if color[neighbor] == c:
                 return False
         return True
     
-    # Try to color each component
-    for i in range(1, n + 1):
-        if colors[i] == -1:
-            if not dfs(i, 0):
-                print("NO")
-                return
+    def backtrack(node):
+        if node > n:
+            return True
+            
+        for c in range(1, 4):
+            if is_valid(node, c):
+                color[node] = c
+                if backtrack(node + 1):
+                    return True
+                color[node] = 0
+        return False
     
-    print("YES")
-    result = []
+    # Optimization: start with node that has maximum degree
+    max_degree_node = 1
     for i in range(1, n + 1):
-        result.append(str(colors[i] + 1))
-    print(" ".join(result))
+        if len(adj[i]) > len(adj[max_degree_node]):
+            max_degree_node = i
+    
+    # But we still need to assign all nodes, so let's just try standard backtracking
+    if backtrack(1):
+        print("YES")
+        print(" ".join(map(str, color[1:])))
+    else:
+        print("NO")
 
 solve()

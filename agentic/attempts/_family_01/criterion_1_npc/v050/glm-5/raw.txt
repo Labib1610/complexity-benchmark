@@ -1,0 +1,200 @@
+Looking at this problem, I need to assign each module one of 3 axes (1, 2, 3) such that connected modules have perpendicular (different) axes.
+
+This is essentially a graph coloring problem with 3 colors. Since n ≤ 40, I can use backtracking with constraint propagation.
+
+Key observations:
+- Each connected component can be solved independently
+- If a component is bipartite (2-colorable), I can use 2 colors and it works
+- If a component has odd cycles, I need to check if 3-coloring is possible
+
+For 3-coloring, I'll use backtracking with the following optimizations:
+- Order vertices by degree (highest first) to fail fast
+- For each vertex, try only colors not used by already-colored neighbors
+- Use the fact that if a component is bipartite, we can always 2-color it
+
+Let me think about the bipartite case more carefully. If a component is bipartite, we can 2-color it (using colors 1 and 2, say). This always works since adjacent vertices get different colors.
+
+For non-bipartite components (containing odd cycles), we need 3-coloring. With n ≤ 40, backtracking should work if we're smart about it.
+
+Actually, let me reconsider. A simpler approach: try to 2-color each component first (bipartite check). If that succeeds for all components, we're done. If a component isn't bipartite, we need to try 3-coloring it.
+
+For 3-coloring with backtracking and good pruning, it should be fast enough for n ≤ 40.
+
+```python
+def solve():
+    import sys
+    input_data = sys.stdin.read().split()
+    idx = 0
+    n = int(input_data[idx]); idx += 1
+    m = int(input_data[idx]); idx += 1
+    
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(input_data[idx]) - 1; idx += 1
+        v = int(input_data[idx]) - 1; idx += 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    color = [0] * n
+    
+    # Try 2-coloring first (bipartite check)
+    def try_bipartite(start):
+        from collections import deque
+        queue = deque([start])
+        color[start] = 1
+        component = [start]
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if color[v] == 0:
+                    color[v] = 3 - color[u]
+                    queue.append(v)
+                    component.append(v)
+                elif color[v] == color[u]:
+                    return None
+        return component
+    
+    # 3-coloring with backtracking
+    def backtrack(vertices, idx):
+        if idx == len(vertices):
+            return True
+        u = vertices[idx]
+        used = set()
+        for v in adj[u]:
+            if color[v] != 0:
+                used.add(color[v])
+        for c in [1, 2, 3]:
+            if c not in used:
+                color[u] = c
+                if backtrack(vertices, idx + 1):
+                    return True
+                color[u] = 0
+        return False
+    
+    visited = [False] * n
+    for i in range(n):
+        if not visited[i]:
+            # Find component
+            comp = []
+            stack = [i]
+            visited[i] = True
+            while stack:
+                u = stack.pop()
+                comp.append(u)
+                for v in adj[u]:
+                    if not visited[v]:
+                        visited[v] = True
+                        stack.append(v)
+            
+            # Reset colors for this component
+            for u in comp:
+                color[u] = 0
+            
+            # Try bipartite first
+            result = try_bipartite(i)
+            if result is None:
+                # Reset and try 3-coloring
+                for u in comp:
+                    color[u] = 0
+                # Order by degree descending
+                comp_sorted = sorted(comp, key=lambda x: -len(adj[x]))
+                if not backtrack(comp_sorted, 0):
+                    print("NO")
+                    return
+    
+    print("YES")
+    print(' '.join(map(str, color)))
+
+solve()
+```
+
+Wait, there's an issue. When I call `try_bipartite`, it modifies `color` for the component. If it fails, I need to reset. Let me also make sure the backtracking resets properly.
+
+Actually, looking more carefully, the backtracking already handles reset by setting `color[u] = 0` when backtracking. And if `try_bipartite` returns None, I reset the component colors before trying 3-coloring.
+
+Let me trace through Example 1: 4 nodes, edges form a graph where 1-2, 1-3, 2-3 form a triangle (odd cycle), plus 1-4, 2-4. The triangle makes it non-bipartite, so we need 3-coloring. The answer 1 2 3 3 works: 1⊥2, 1⊥3, 2⊥3, 1⊥3(4), 2⊥3(4). ✓
+
+Example 2: Complete graph K4, which needs 4 colors. Should output NO. ✓
+
+The solution looks correct. Let me clean it up:
+
+```python
+def solve():
+    import sys
+    from collections import deque
+    input_data = sys.stdin.read().split()
+    idx = 0
+    n = int(input_data[idx]); idx += 1
+    m = int(input_data[idx]); idx += 1
+    
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(input_data[idx]) - 1; idx += 1
+        v = int(input_data[idx]) - 1; idx += 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    color = [0] * n
+    visited = [False] * n
+    
+    def backtrack(vertices, idx):
+        if idx == len(vertices):
+            return True
+        u = vertices[idx]
+        used = set()
+        for v in adj[u]:
+            if color[v] != 0:
+                used.add(color[v])
+        for c in [1, 2, 3]:
+            if c not in used:
+                color[u] = c
+                if backtrack(vertices, idx + 1):
+                    return True
+                color[u] = 0
+        return False
+    
+    for i in range(n):
+        if not visited[i]:
+            comp = []
+            stack = [i]
+            visited[i] = True
+            while stack:
+                u = stack.pop()
+                comp.append(u)
+                for v in adj[u]:
+                    if not visited[v]:
+                        visited[v] = True
+                        stack.append(v)
+            
+            for u in comp:
+                color[u] = 0
+            
+            # Try bipartite
+            queue = deque([i])
+            color[i] = 1
+            bipartite = True
+            while queue and bipartite:
+                u = queue.popleft()
+                for v in adj[u]:
+                    if color[v] == 0:
+                        color[v] = 3 - color[u]
+                        queue.append(v)
+                    elif color[v] == color[u]:
+                        bipartite = False
+                        break
+            
+            if not bipartite:
+                for u in comp:
+                    color[u] = 0
+                comp_sorted = sorted(comp, key=lambda x: -len(adj[x]))
+                if not backtrack(comp_sorted, 0):
+                    print("NO")
+                    return
+    
+    print("YES")
+    print(' '.join(map(str, color)))
+
+solve()
+```
+
+This should work correctly for all cases.

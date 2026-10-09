@@ -1,0 +1,90 @@
+```python
+import sys
+import heapq
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    t = int(input_data[2])
+    
+    critical = [int(x) for x in input_data[3:3+t]]
+    
+    if t <= 1:
+        print(0)
+        return
+    
+    edges = []
+    idx = 3 + t
+    for _ in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx+1])
+        w = int(input_data[idx+2])
+        edges.append((u, v, w))
+        idx += 3
+        
+    # The problem asks for the minimum cost to connect all critical nodes in a graph.
+    # Since transpositions (u, v) act as edges in a graph, and the group generated
+    # by a set of transpositions connects nodes in the same connected component,
+    # this is equivalent to finding a Steiner Tree in the graph where the 
+    # terminals are the critical labels.
+    
+    # Steiner Tree problem is NP-hard, but t is small (t <= 10).
+    # We use the Dreyfus-Wagner algorithm.
+    
+    dist = [[float('inf')] * (n + 1) for _ in range(n + 1)]
+    for i in range(1, n + 1):
+        dist[i][i] = 0
+        
+    adj = [[] for _ in range(n + 1)]
+    for u, v, w in edges:
+        if w < dist[u][v]:
+            dist[u][v] = dist[v][u] = w
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+        
+    # Floyd-Warshall for all-pairs shortest paths
+    for k in range(1, n + 1):
+        for i in range(1, n + 1):
+            for j in range(1, n + 1):
+                if dist[i][j] > dist[i][k] + dist[k][j]:
+                    dist[i][j] = dist[i][k] + dist[k][j]
+                    
+    # dp[mask][i] is the min cost to connect the subset of critical nodes
+    # represented by mask, with i being a node in the resulting tree.
+    dp = [[float('inf')] * (n + 1) for _ in range(1 << t)]
+    
+    for i in range(t):
+        dp[1 << i][critical[i]] = 0
+        
+    for mask in range(1, 1 << t):
+        # Update dp[mask][i] using submasks
+        submask = (mask - 1) & mask
+        while submask > 0:
+            for i in range(1, n + 1):
+                dp[mask][i] = min(dp[mask][i], dp[submask][i] + dp[mask ^ submask][i])
+            submask = (submask - 1) & mask
+            
+        # Update dp[mask][i] using shortest paths
+        pq = []
+        for i in range(1, n + 1):
+            if dp[mask][i] != float('inf'):
+                heapq.heappush(pq, (dp[mask][i], i))
+        
+        while pq:
+            d, u = heapq.heappop(pq)
+            if d > dp[mask][u]:
+                continue
+            for v, w in adj[u]:
+                if dp[mask][v] > d + w:
+                    dp[mask][v] = d + w
+                    heapq.heappush(pq, (dp[mask][v], v))
+                    
+    ans = min(dp[(1 << t) - 1][i] for i in range(1, n + 1))
+    print(ans)
+
+solve()
+```

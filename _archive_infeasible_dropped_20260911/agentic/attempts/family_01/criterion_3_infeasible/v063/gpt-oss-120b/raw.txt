@@ -1,0 +1,250 @@
+**Solution Explanation**
+
+For every bot we know the list of bots it conflicts with.
+The conflict graph is undirected, we have to output a triangle  
+`a – b – c – a` (three pairwise conflicting bots) with the smallest
+lexicographic order `(a,b,c)` (`a<b<c`).
+
+--------------------------------------------------------------------
+
+#### 1.   Observations  
+
+* `n ≤ 2000`.  
+  A set of neighbours of a vertex fits into a bitset of `n` bits  
+  (`2000` bits ≈ `250` bytes).  
+  Python’s integer type already works as an arbitrary length bitset and
+  supports fast bitwise operations (`&`, `|`, `^`, `>>`, …).
+
+* For a fixed edge `{a,b}` a third vertex `c` forms a triangle iff  
+
+  `c` is a neighbour of **both** `a` and `b`.
+
+  With bitsets this is exactly the intersection of the two neighbour
+  bitsets.
+
+* To obtain the required ordering we may simply try all edges
+  in the order  
+
+  `a = 1 … n` , `b` – neighbour of `a` with `b > a`.  
+  The first triangle we meet is already the lexicographically smallest
+  one, because `a` is minimal, then `b`, then the smallest possible `c`.
+
+--------------------------------------------------------------------
+
+#### 2.   Data structures  
+
+* `mask[v]` – integer, bit `u` is set (`1`) iff `{v,u}` is an edge.
+* `adj[v]` – list of neighbours of `v` (kept unsorted, we only use the
+  condition `b > a` while iterating).
+
+--------------------------------------------------------------------
+
+#### 3.   Algorithm  
+
+```
+read n, m
+mask = [0] * n
+adj  = [[] for _ in range(n)]
+
+for each edge (u,v):
+        u-- ; v--                     # to 0‑based
+        mask[u] |= 1 << v
+        mask[v] |= 1 << u
+        adj[u].append(v)
+        adj[v].append(u)
+
+full = (1 << n) - 1                    # n low bits are 1
+
+for a = 0 … n-1:
+        for b in adj[a]:
+                if b <= a: continue   # we need a < b
+                common = mask[a] & mask[b]          # neighbours of both
+                # keep only vertices with index > b
+                gt_mask = full ^ ((1 << (b+1)) - 1)  # bits 0..b are 0
+                cand = common & gt_mask
+                if cand != 0:
+                        # lowest set bit = smallest possible c
+                        low = cand & -cand
+                        c = low.bit_length() - 1
+                        output a+1, b+1, c+1
+                        terminate
+```
+
+All operations on the bitsets are `O(1)` on a 2000‑bit integer.
+The outer loops visit every edge once, therefore the total running time
+is `O(m)` ( ≤ 2·10⁵ ) and the memory consumption is `O(n)`.
+
+--------------------------------------------------------------------
+
+#### 4.   Correctness Proof  
+
+We prove that the algorithm prints exactly the lexicographically smallest
+triangle.
+
+---
+
+##### Lemma 1  
+For any two distinct vertices `x` and `y` the expression  
+`mask[x] & mask[y]` has a set bit at position `z` **iff**
+edges `{x,z}` and `{y,z}` both exist.
+
+**Proof.**  
+`mask[x]` has a `1` at position `z` exactly when `{x,z}` is an edge,
+similarly for `mask[y]`. The bitwise `&` is `1` only when both bits are `1`,
+i.e. when both edges exist. ∎
+
+
+
+##### Lemma 2  
+During the iteration with fixed `a<b` the variable `cand`
+contains exactly the vertices `c` such that `{a,c}` and `{b,c}` are edges
+and `c > b`.
+
+**Proof.**  
+`common = mask[a] & mask[b]` (Lemma&nbsp;1) is the set of all common neighbours
+of `a` and `b`.  
+`gt_mask` has `1` precisely at positions larger than `b`.  
+`cand = common & gt_mask` therefore keeps only those common neighbours whose
+index is larger than `b`. ∎
+
+
+
+##### Lemma 3  
+If `cand ≠ 0` then `c = (cand & -cand).bit_length() - 1`
+is the smallest vertex index satisfying the conditions of Lemma&nbsp;2.
+
+**Proof.**  
+`cand & -cand` isolates the lowest set bit of `cand`.  
+`bit_length() - 1` converts this bit into its zero‑based index.
+Because it is the lowest set bit, the obtained `c` is the smallest index
+present in `cand`. ∎
+
+
+
+##### Lemma 4  
+When the algorithm prints a triple `(a,b,c)` it is a triangle
+(`a<b<c` and all three edges exist).
+
+**Proof.**  
+`a<b` by the loop condition.  
+`c` is taken from `cand`, therefore `c>b` (Lemma&nbsp;2) and edges
+`{a,c}` and `{b,c}` exist (again Lemma&nbsp;2).  
+Edge `{a,b}` exists because `b` is taken from `adj[a]`. ∎
+
+
+
+##### Lemma 5  
+Let `T` be the set of all triangles of the graph.
+The algorithm outputs the triangle with the smallest lexicographic order.
+
+**Proof.**  
+Consider the outer loops:
+
+* The first loop enumerates `a = 1,2,…`.  
+  The first printed triangle therefore has the smallest possible `a`
+  among all triangles (otherwise a triangle with a smaller `a` would have
+  been found earlier).
+
+* For this fixed `a`, the inner loop enumerates all neighbours `b>a`
+  in the order they appear in `adj[a]`.  
+  Since `adj[a]` contains exactly the vertices adjacent to `a`,
+  the first printed triangle has the smallest possible `b` among
+  triangles whose first vertex equals this `a`.
+
+* For this pair `(a,b)` Lemma&nbsp;3 chooses the smallest feasible `c`.
+
+Thus the printed triple is lexicographically minimal among all triangles. ∎
+
+
+
+##### Theorem  
+The algorithm always terminates and prints three integers
+`a<b<c` that form a triangle, and this triple is the lexicographically
+smallest triangle of the given graph.
+
+**Proof.**  
+
+*Termination.*  
+The graph is guaranteed to contain at least one triangle.
+During the enumeration every edge `{a,b}` with `a<b` is examined once.
+For a triangle `{a,b,c}` with `a<b<c` the edge `{a,b}` will be examined,
+and Lemma&nbsp;2 guarantees that `cand` is non‑empty, therefore the algorithm
+will print and stop. Hence it terminates.
+
+*Correctness.*  
+By Lemma&nbsp;4 the printed triple is a triangle.
+By Lemma&nbsp;5 it is the lexicographically smallest one.
+∎
+
+
+
+--------------------------------------------------------------------
+
+#### 5.   Complexity Analysis  
+
+*Memory*  
+`mask` – `n` integers, each ≤ 2ⁿ, i.e. `O(n)` bits → `O(n)` memory.  
+`adj` – stores each edge twice → `O(m)` integers.  
+Overall `O(n + m)` ≤ `2·10⁵ + 2000`.
+
+*Time*  
+
+* building the structures: `O(m)`  
+* main loops: each unordered edge is processed once, each processing does a
+  constant number of big‑integer operations on 2000‑bit numbers → `O(m)`
+
+With the given limits (`m ≤ 2·10⁵`) the program easily fits into the
+2 seconds time limit.
+
+--------------------------------------------------------------------
+
+#### 6.   Reference Implementation  (Python 3)
+
+```python
+import sys
+
+def solve() -> None:
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+
+    mask = [0] * n
+    adj = [[] for _ in range(n)]
+
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        mask[u] |= 1 << v
+        mask[v] |= 1 << u
+        adj[u].append(v)
+        adj[v].append(u)
+
+    full = (1 << n) - 1          # lower n bits are 1
+
+    for a in range(n):
+        ma = mask[a]
+        for b in adj[a]:
+            if b <= a:
+                continue
+            # vertices adjacent to both a and b
+            common = ma & mask[b]
+            # keep only vertices with index > b
+            gt_mask = full ^ ((1 << (b + 1)) - 1)
+            cand = common & gt_mask
+            if cand:
+                # lowest set bit -> smallest possible c
+                low = cand & -cand
+                c = low.bit_length() - 1
+                # output in 1‑based, increasing order
+                sys.stdout.write(f"{a+1} {b+1} {c+1}")
+                return
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above
+and conforms to the required input‑output format.

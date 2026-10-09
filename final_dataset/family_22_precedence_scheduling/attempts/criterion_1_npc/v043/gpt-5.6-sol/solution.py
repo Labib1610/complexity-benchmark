@@ -1,0 +1,263 @@
+import sys
+import heapq
+
+sys.setrecursionlimit(1_000_000)
+
+data = list(map(int, sys.stdin.buffer.read().split()))
+if not data:
+    sys.exit()
+
+it = iter(data)
+n = next(it)
+M = next(it)
+T = next(it)
+m = next(it)
+
+adj = [[] for _ in range(n)]
+indeg = [0] * n
+pred_mask = [0] * n
+succ_mask = [0] * n
+
+for _ in range(m):
+    a = next(it) - 1
+    b = next(it) - 1
+    adj[a].append(b)
+    indeg[b] += 1
+    pred_mask[b] |= 1 << a
+    succ_mask[a] |= 1 << b
+
+if n == 0:
+    print("YES")
+    print()
+    sys.exit()
+
+if M <= 0 or T <= 0 or n > M * T:
+    print("NO")
+    sys.exit()
+
+# Topological order and cycle detection.
+deg = indeg[:]
+queue = [i for i in range(n) if deg[i] == 0]
+head = 0
+topo = []
+
+while head < len(queue):
+    u = queue[head]
+    head += 1
+    topo.append(u)
+    for v in adj[u]:
+        deg[v] -= 1
+        if deg[v] == 0:
+            queue.append(v)
+
+if len(topo) != n:
+    print("NO")
+    sys.exit()
+
+# Longest path length from each vertex to a sink, including itself.
+bottom = [1] * n
+for u in reversed(topo):
+    best = 0
+    for v in adj[u]:
+        if bottom[v] > best:
+            best = bottom[v]
+    bottom[u] = best + 1 if best else 1
+
+if max(bottom) > T:
+    print("NO")
+    sys.exit()
+
+# Fast critical-path list scheduling.
+deg = indeg[:]
+heap = []
+for i in range(n):
+    if deg[i] == 0:
+        heapq.heappush(heap, (-bottom[i], -len(adj[i]), i))
+
+greedy_answer = [0] * n
+done = 0
+day = 0
+
+while done < n and heap:
+    day += 1
+    batch = []
+    for _ in range(min(M, len(heap))):
+        _, _, u = heapq.heappop(heap)
+        batch.append(u)
+
+    newly_available = []
+    for u in batch:
+        greedy_answer[u] = day
+        done += 1
+        for v in adj[u]:
+            deg[v] -= 1
+            if deg[v] == 0:
+                newly_available.append(v)
+
+    for v in newly_available:
+        heapq.heappush(heap, (-bottom[v], -len(adj[v]), v))
+
+if done == n and day <= T:
+    print("YES")
+    print(*greedy_answer)
+    sys.exit()
+
+# Exact branch-and-bound search. This is necessarily exponential in the
+# general case, since the stated scheduling problem is NP-complete.
+D0 = min(T, n)
+all_mask = (1 << n) - 1
+failed = set()
+chosen_days = []
+
+def search(completed, days_left):
+    remaining_mask = all_mask ^ completed
+    if remaining_mask == 0:
+        return True
+    if days_left == 0:
+        return False
+
+    remaining_count = remaining_mask.bit_count()
+    if remaining_count > M * days_left:
+        return False
+
+    state = (completed, days_left)
+    if state in failed:
+        return False
+
+    available = 0
+    mandatory = 0
+    frequencies = [0] * (days_left + 1)
+
+    x = remaining_mask
+    while x:
+        bit = x & -x
+        u = bit.bit_length() - 1
+        b = bottom[u]
+
+        if b > days_left:
+            failed.add(state)
+            return False
+
+        frequencies[b] += 1
+        if pred_mask[u] & remaining_mask == 0:
+            available |= bit
+            if b == days_left:
+                mandatory |= bit
+        elif b == days_left:
+            failed.add(state)
+            return False
+
+        x -= bit
+
+    # Every task with bottom length at least k must fit into the first
+    # days_left-k+1 remaining days.
+    cumulative = 0
+    for b in range(days_left, 0, -1):
+        cumulative += frequencies[b]
+        if cumulative > (days_left - b + 1) * M:
+            failed.add(state)
+            return False
+
+    available_count = available.bit_count()
+    if available_count == 0:
+        failed.add(state)
+        return False
+
+    target = min(M, available_count)
+    mandatory_count = mandatory.bit_count()
+    if mandatory_count > target:
+        failed.add(state)
+        return False
+
+    # If every available task must be selected, there is no branch.
+    if target == available_count:
+        chosen_days.append(available)
+        if search(completed | available, days_left - 1):
+            return True
+        chosen_days.pop()
+        failed.add(state)
+        return False
+
+    optional_mask = available ^ mandatory
+    need = target - mandatory_count
+
+    if need == 0:
+        chosen_days.append(mandatory)
+        if search(completed | mandatory, days_left - 1):
+            return True
+        chosen_days.pop()
+        failed.add(state)
+        return False
+
+    # Available vertices having the same direct successor set are symmetric.
+    grouped = {}
+    x = optional_mask
+    while x:
+        bit = x & -x
+        u = bit.bit_length() - 1
+        grouped.setdefault(succ_mask[u], []).append(bit)
+        x -= bit
+
+    groups = list(grouped.values())
+    groups.sort(
+        key=lambda g: (
+            -bottom[g[0].bit_length() - 1],
+            -len(g),
+            g[0].bit_length()
+        )
+    )
+
+    suffix = [0] * (len(groups) + 1)
+    for i in range(len(groups) - 1, -1, -1):
+        suffix[i] = suffix[i + 1] + len(groups[i])
+
+    def choose_groups(index, left, selected):
+        if left == 0:
+            choice = mandatory | selected
+            chosen_days.append(choice)
+            if search(completed | choice, days_left - 1):
+                return True
+            chosen_days.pop()
+            return False
+
+        if index == len(groups) or suffix[index] < left:
+            return False
+
+        group = groups[index]
+        maximum = min(len(group), left)
+        minimum = max(0, left - suffix[index + 1])
+
+        prefix_masks = [0] * (maximum + 1)
+        value = 0
+        for j in range(1, maximum + 1):
+            value |= group[j - 1]
+            prefix_masks[j] = value
+
+        for take in range(maximum, minimum - 1, -1):
+            if choose_groups(
+                index + 1,
+                left - take,
+                selected | prefix_masks[take]
+            ):
+                return True
+        return False
+
+    if choose_groups(0, need, 0):
+        return True
+
+    failed.add(state)
+    return False
+
+if not search(0, D0):
+    print("NO")
+else:
+    answer = [0] * n
+    for day_index, mask in enumerate(chosen_days, 1):
+        x = mask
+        while x:
+            bit = x & -x
+            answer[bit.bit_length() - 1] = day_index
+            x -= bit
+
+    print("YES")
+    print(*answer)

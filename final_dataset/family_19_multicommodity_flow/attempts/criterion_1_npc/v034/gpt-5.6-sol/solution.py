@@ -1,0 +1,356 @@
+import sys
+from collections import deque, defaultdict
+
+sys.setrecursionlimit(1_000_000)
+
+
+class Dinic:
+    __slots__ = ("n", "g", "level", "it")
+
+    def __init__(self, n):
+        self.n = n
+        self.g = [[] for _ in range(n)]
+        self.level = [-1] * n
+        self.it = [0] * n
+
+    def add_edge(self, u, v, cap, edge_id=-1):
+        a = [v, cap, len(self.g[v]), edge_id, cap]
+        b = [u, 0, len(self.g[u]), -1, 0]
+        self.g[u].append(a)
+        self.g[v].append(b)
+        return a
+
+    def bfs(self, s, t):
+        level = self.level
+        for i in range(self.n):
+            level[i] = -1
+        level[s] = 0
+        q = deque([s])
+        while q:
+            u = q.popleft()
+            for e in self.g[u]:
+                if e[1] > 0 and level[e[0]] < 0:
+                    level[e[0]] = level[u] + 1
+                    if e[0] == t:
+                        return True
+                    q.append(e[0])
+        return level[t] >= 0
+
+    def dfs(self, u, t, f):
+        if u == t:
+            return f
+        g = self.g
+        level = self.level
+        i = self.it[u]
+        while i < len(g[u]):
+            self.it[u] = i
+            e = g[u][i]
+            if e[1] > 0 and level[e[0]] == level[u] + 1:
+                got = self.dfs(e[0], t, min(f, e[1]))
+                if got:
+                    e[1] -= got
+                    g[e[0]][e[2]][1] += got
+                    return got
+            i += 1
+            self.it[u] = i
+        return 0
+
+    def max_flow(self, s, t, limit):
+        if s == t:
+            return limit
+        flow = 0
+        while flow < limit and self.bfs(s, t):
+            self.it = [0] * self.n
+            while flow < limit:
+                pushed = self.dfs(s, t, limit - flow)
+                if not pushed:
+                    break
+                flow += pushed
+        return flow
+
+
+def flow_for_pair(n, edges, capacities, s, t, demand, need_usage=False):
+    if demand == 0 or s == t:
+        return (demand, [0] * len(edges)) if need_usage else demand
+
+    dinic = Dinic(n)
+    refs = []
+    for i, ((u, v), cap) in enumerate(zip(edges, capacities)):
+        if cap > 0:
+            refs.append((i, dinic.add_edge(u, v, cap, i)))
+    value = dinic.max_flow(s, t, demand)
+
+    if not need_usage:
+        return value
+
+    usage = [0] * len(edges)
+    for i, e in refs:
+        usage[i] = e[4] - e[1]
+    return value, usage
+
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+
+    it = iter(data)
+    n = next(it)
+    m = next(it)
+    k = next(it)
+
+    orders = []
+    grouped = defaultdict(list)
+    for idx in range(k):
+        s = next(it) - 1
+        t = next(it) - 1
+        d = next(it)
+        orders.append((s, t, d))
+        if d > 0 and s != t:
+            grouped[(s, t)].append((idx, d))
+
+    edges = []
+    capacities = []
+    outgoing = [[] for _ in range(n)]
+    for eid in range(m):
+        u = next(it) - 1
+        v = next(it) - 1
+        cap = next(it)
+        edges.append((u, v))
+        capacities.append(cap)
+        if cap > 0:
+            outgoing[u].append(eid)
+
+    groups = []
+    for (s, t), members in grouped.items():
+        groups.append({
+            "s": s,
+            "t": t,
+            "d": sum(d for _, d in members),
+            "members": members,
+            "paths": None
+        })
+
+    if not groups:
+        out = ["YES"]
+        zero = " ".join(["0"] * m)
+        out.extend(zero for _ in range(k))
+        sys.stdout.write("\n".join(out))
+        return
+
+    initial_feasible = True
+    for g in groups:
+        if flow_for_pair(n, edges, capacities, g["s"], g["t"], g["d"]) < g["d"]:
+            initial_feasible = False
+            break
+    if not initial_feasible:
+        print("NO")
+        return
+
+    def rough_score(g):
+        s, t = g["s"], g["t"]
+        seen = [False] * n
+        seen[s] = True
+        q = deque([s])
+        edge_count = 0
+        while q:
+            u = q.popleft()
+            for eid in outgoing[u]:
+                edge_count += 1
+                v = edges[eid][1]
+                if not seen[v]:
+                    seen[v] = True
+                    q.append(v)
+        return edge_count, -g["d"]
+
+    base_order = sorted(range(len(groups)), key=lambda x: rough_score(groups[x]))
+    variants = [
+        base_order,
+        list(reversed(base_order)),
+        sorted(range(len(groups)), key=lambda x: -groups[x]["d"]),
+        sorted(range(len(groups)), key=lambda x: groups[x]["d"]),
+    ]
+
+    seen_orders = set()
+    solution = None
+
+    for order in variants:
+        key = tuple(order)
+        if key in seen_orders:
+            continue
+        seen_orders.add(key)
+
+        residual = capacities[:]
+        plans = [None] * len(groups)
+        ok = True
+        for gi in order:
+            g = groups[gi]
+            val, usage = flow_for_pair(
+                n, edges, residual, g["s"], g["t"], g["d"], True
+            )
+            if val < g["d"]:
+                ok = False
+                break
+            plans[gi] = usage
+            for eid, x in enumerate(usage):
+                residual[eid] -= x
+        if ok:
+            solution = plans
+            break
+
+    def enumerate_paths(g):
+        if g["paths"] is not None:
+            return g["paths"]
+
+        s, t = g["s"], g["t"]
+        paths = []
+        visited = [False] * n
+        visited[s] = True
+        current = []
+
+        def dfs(u):
+            if u == t:
+                paths.append(tuple(current))
+                return
+            for eid in outgoing[u]:
+                v = edges[eid][1]
+                if not visited[v]:
+                    visited[v] = True
+                    current.append(eid)
+                    dfs(v)
+                    current.pop()
+                    visited[v] = False
+
+        dfs(s)
+        paths.sort(key=len)
+        g["paths"] = paths
+        return paths
+
+    if solution is None:
+        order = base_order
+        residual = capacities[:]
+        plans = [None] * len(groups)
+        failed_states = set()
+
+        def future_feasible(pos):
+            for j in range(pos, len(order)):
+                g = groups[order[j]]
+                if flow_for_pair(
+                    n, edges, residual, g["s"], g["t"], g["d"]
+                ) < g["d"]:
+                    return False
+            return True
+
+        def solve_group(pos):
+            if pos == len(order):
+                return True
+
+            state = (pos, tuple(residual))
+            if state in failed_states:
+                return False
+
+            gi = order[pos]
+            g = groups[gi]
+            paths = enumerate_paths(g)
+            plan = [0] * m
+
+            def choose_path(start_idx, remaining):
+                if remaining == 0:
+                    plans[gi] = plan[:]
+                    if future_feasible(pos + 1) and solve_group(pos + 1):
+                        return True
+                    plans[gi] = None
+                    return False
+
+                if flow_for_pair(
+                    n, edges, residual, g["s"], g["t"], remaining
+                ) < remaining:
+                    return False
+
+                for pi in range(start_idx, len(paths)):
+                    path = paths[pi]
+                    bottleneck = remaining
+                    for eid in path:
+                        if residual[eid] < bottleneck:
+                            bottleneck = residual[eid]
+                    if bottleneck <= 0:
+                        continue
+
+                    for amount in range(bottleneck, 0, -1):
+                        for eid in path:
+                            residual[eid] -= amount
+                            plan[eid] += amount
+
+                        if choose_path(pi + 1, remaining - amount):
+                            return True
+
+                        for eid in path:
+                            residual[eid] += amount
+                            plan[eid] -= amount
+                return False
+
+            if choose_path(0, g["d"]):
+                return True
+
+            failed_states.add(state)
+            return False
+
+        if solve_group(0):
+            solution = plans
+
+    if solution is None:
+        print("NO")
+        return
+
+    answer = [[0] * m for _ in range(k)]
+
+    for gi, g in enumerate(groups):
+        remaining_flow = solution[gi][:]
+
+        for order_idx, demand in g["members"]:
+            need = demand
+            while need > 0:
+                prev_node = [-1] * n
+                prev_edge = [-1] * n
+                q = deque([g["s"]])
+                prev_node[g["s"]] = g["s"]
+
+                while q and prev_node[g["t"]] == -1:
+                    u = q.popleft()
+                    for eid in outgoing[u]:
+                        if remaining_flow[eid] <= 0:
+                            continue
+                        v = edges[eid][1]
+                        if prev_node[v] == -1:
+                            prev_node[v] = u
+                            prev_edge[v] = eid
+                            q.append(v)
+                            if v == g["t"]:
+                                break
+
+                if prev_node[g["t"]] == -1:
+                    print("NO")
+                    return
+
+                path = []
+                v = g["t"]
+                amount = need
+                while v != g["s"]:
+                    eid = prev_edge[v]
+                    path.append(eid)
+                    if remaining_flow[eid] < amount:
+                        amount = remaining_flow[eid]
+                    v = prev_node[v]
+
+                for eid in path:
+                    remaining_flow[eid] -= amount
+                    answer[order_idx][eid] += amount
+                need -= amount
+
+    out = ["YES"]
+    out.extend(" ".join(map(str, row)) for row in answer)
+    sys.stdout.write("\n".join(out))
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,118 @@
+import sys
+from collections import deque
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    M = int(next(it))
+    T = int(next(it))
+    m = int(next(it))
+    adj = [[] for _ in range(n)]
+    indeg = [0]*n
+    for _ in range(m):
+        a = int(next(it))-1
+        b = int(next(it))-1
+        adj[a].append(b)
+        indeg[b] += 1
+
+    # topological order and earliest slot
+    q = deque([i for i in range(n) if indeg[i]==0])
+    topo = []
+    earliest = [1]*n
+    while q:
+        u = q.popleft()
+        topo.append(u)
+        for v in adj[u]:
+            if earliest[v] < earliest[u]+1:
+                earliest[v] = earliest[u]+1
+            indeg[v] -= 1
+            if indeg[v]==0:
+                q.append(v)
+    if len(topo)!=n:
+        print("NO")
+        return
+    if any(e > T for e in earliest):
+        print("NO")
+        return
+
+    # Build flow network
+    # nodes: 0 source, 1..n tasks, n+1 .. n+T slots, last sink
+    N = 1 + n + T + 1
+    SRC = 0
+    TASK0 = 1
+    SLOT0 = 1 + n
+    SNK = N-1
+
+    class Edge:
+        __slots__ = ('to','cap','rev')
+        def __init__(self,to,cap,rev):
+            self.to=to;self.cap=cap;self.rev=rev
+
+    graph=[[] for _ in range(N)]
+    def add_edge(fr,to,cap):
+        graph[fr].append(Edge(to,cap,len(graph[to])))
+        graph[to].append(Edge(fr,0,len(graph[fr])-1))
+
+    for i in range(n):
+        add_edge(SRC, TASK0+i, 1)
+        for t in range(earliest[i], T+1):
+            add_edge(TASK0+i, SLOT0+(t-1), 1)
+    for t in range(T):
+        add_edge(SLOT0+t, SNK, M)
+
+    level=[0]*N
+    itp=[0]*N
+    def bfs():
+        for i in range(N): level[i]=-1
+        dq=deque([SRC])
+        level[SRC]=0
+        while dq:
+            v=dq.popleft()
+            for e in graph[v]:
+                if e.cap and level[e.to]==-1:
+                    level[e.to]=level[v]+1
+                    dq.append(e.to)
+        return level[SNK]!=-1
+
+    def dfs(v,f):
+        if v==SNK:
+            return f
+        for i in range(itp[v], len(graph[v])):
+            itp[v]=i
+            e=graph[v][i]
+            if e.cap and level[e.to]==level[v]+1:
+                ret=dfs(e.to, min(f, e.cap))
+                if ret:
+                    e.cap-=ret
+                    graph[e.to][e.rev].cap+=ret
+                    return ret
+        return 0
+
+    flow=0
+    INF=10**9
+    while bfs():
+        itp=[0]*N
+        while True:
+            f=dfs(SRC, INF)
+            if not f: break
+            flow+=f
+
+    if flow!=n:
+        print("NO")
+        return
+
+    # retrieve assignment
+    ans=[0]*n
+    for i in range(n):
+        for e in graph[TASK0+i]:
+            if SLOT0 <= e.to < SLOT0+T and e.cap==0:  # used edge
+                ans[i]=e.to - SLOT0 + 1
+                break
+    print("YES")
+    print(' '.join(map(str, ans)))
+
+if __name__ == "__main__":
+    solve()

@@ -1,0 +1,32 @@
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    j = int(data[0])
+    A = [0]*j
+    B = [0]*j
+    idx = 1
+    for i in range(j):
+        A[i] = int(data[idx]); B[i] = int(data[idx+1])
+        idx += 2
+    
+    total_A = sum(A)
+    
+    # Sort by B descending
+    order = sorted(range(j), key=lambda i: -B[i])
+    
+    # Compute prefix sums of A in sorted order
+    prefix = 0
+    best = 0
+    for i in order:
+        prefix += A[i]
+        val = prefix + B[i]
+        if val > best:
+            best = val
+    
+    ans = max(total_A, best)
+    print(ans)
+
+solve()

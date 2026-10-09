@@ -1,0 +1,88 @@
+import sys
+import heapq
+from collections import defaultdict
+
+def dijkstra(graph, start, n):
+    dist = [float('inf')] * (n + 1)
+    dist[start] = 0
+    pq = [(0, start)]
+    
+    while pq:
+        d, u = heapq.heappop(pq)
+        if d > dist[u]:
+            continue
+            
+        for v, w in graph[u]:
+            if dist[u] + w < dist[v]:
+                dist[v] = dist[u] + w
+                heapq.heappush(pq, (dist[v], v))
+                
+    return dist
+
+def find_mst_cost(n, edges):
+    if not edges:
+        return 0
+        
+    # Union-Find for Kruskal's algorithm
+    parent = list(range(n + 1))
+    
+    def find(x):
+        if parent[x] != x:
+            parent[x] = find(parent[x])
+        return parent[x]
+    
+    def union(x, y):
+        px, py = find(x), find(y)
+        if px != py:
+            parent[px] = py
+            return True
+        return False
+    
+    # Sort edges by weight
+    edges.sort()
+    
+    total_cost = 0
+    edge_count = 0
+    
+    for weight, u, v in edges:
+        if union(u, v):
+            total_cost += weight
+            edge_count += 1
+            if edge_count == n - 1:
+                break
+                
+    return total_cost
+
+# Read input
+n, m, t = map(int, input().split())
+priority_locations = list(map(int, input().split()))
+
+# If there's only one priority location, no links needed
+if t <= 1:
+    print(0)
+    sys.exit()
+
+# Build graph
+graph = defaultdict(list)
+for _ in range(m):
+    u, v, w = map(int, input().split())
+    graph[u].append((v, w))
+    graph[v].append((u, w))
+
+# Compute shortest distances between all pairs of priority locations
+# First, run Dijkstra from each priority location
+distances = {}
+for loc in priority_locations:
+    distances[loc] = dijkstra(graph, loc, n)
+
+# Build a complete graph of priority locations with shortest path weights
+edges = []
+for i in range(t):
+    for j in range(i + 1, t):
+        u, v = priority_locations[i], priority_locations[j]
+        weight = distances[u][v]
+        edges.append((weight, i, j))
+
+# Find MST of this complete graph
+result = find_mst_cost(t, edges)
+print(result)

@@ -1,48 +1,52 @@
 def solve():
     import sys
-    input = sys.stdin.read
-    data = input().split()
+    from collections import defaultdict
     
-    n = int(data[0])
-    m = int(data[1])
+    n, m = map(int, sys.stdin.readline().split())
     
-    # Create adjacency list for the graph
-    adj = [[] for _ in range(n + 1)]
-    index = 2
+    if m == 0:
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
+    
+    # Build adjacency list
+    adj = defaultdict(set)
+    edges = []
     for _ in range(m):
-        u = int(data[index])
-        v = int(data[index + 1])
-        adj[u].append(v)
-        adj[v].append(u)
-        index += 2
+        u, v = map(int, sys.stdin.readline().split())
+        adj[u].add(v)
+        adj[v].add(u)
+        edges.append((u, v))
     
-    # Try all possible assignments in lexicographical order
-    # We can use backtracking with pruning
-    assignment = [0] * (n + 1)  # assignment[i] = block of employee i
+    # Try all 3-colorings
+    # We'll use backtracking
+    color = [0] * (n + 1)  # color[i] is the color of node i, 0 means unassigned
     
-    def is_valid(employee, block):
-        # Check if assigning 'block' to 'employee' conflicts with neighbors
-        for neighbor in adj[employee]:
-            if assignment[neighbor] == block:
+    def is_safe(node, c):
+        for neighbor in adj[node]:
+            if color[neighbor] == c:
                 return False
         return True
     
-    def backtrack(employee):
-        if employee > n:
+    def backtrack(node):
+        if node > n:
             return True
             
-        for block in range(1, 4):
-            if is_valid(employee, block):
-                assignment[employee] = block
-                if backtrack(employee + 1):
+        if color[node] != 0:
+            return backtrack(node + 1)
+            
+        for c in range(1, 4):
+            if is_safe(node, c):
+                color[node] = c
+                if backtrack(node + 1):
                     return True
-                assignment[employee] = 0  # Backtrack
+                color[node] = 0
         return False
     
-    # Start backtracking from employee 1
+    # Check if graph is 3-colorable
     if backtrack(1):
         print("YES")
-        print(' '.join(map(str, assignment[1:])))
+        print(" ".join(map(str, color[1:])))
     else:
         print("NO")
 

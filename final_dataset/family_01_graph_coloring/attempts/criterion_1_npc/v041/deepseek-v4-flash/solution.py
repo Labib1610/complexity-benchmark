@@ -1,0 +1,33 @@
+n, m = map(int, input().split())
+edges = [[] for _ in range(n)]
+for _ in range(m):
+    u, v = map(int, input().split())
+    u -= 1
+    v -= 1
+    edges[u].append(v)
+    edges[v].append(u)
+
+color = [0] * n
+
+def ok(idx, c):
+    for nb in edges[idx]:
+        if color[nb] == c:
+            return False
+    return True
+
+def dfs(idx):
+    if idx == n:
+        return True
+    for c in range(1, 4):
+        if ok(idx, c):
+            color[idx] = c
+            if dfs(idx + 1):
+                return True
+            color[idx] = 0
+    return False
+
+if dfs(0):
+    print("YES")
+    print(" ".join(str(c) for c in color))
+else:
+    print("NO")

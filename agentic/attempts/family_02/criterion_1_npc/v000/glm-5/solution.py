@@ -1,0 +1,100 @@
+import sys
+sys.setrecursionlimit(200000)
+
+def solve():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    clauses = []
+    for _ in range(m):
+        c = [int(next(it)) for _ in range(3)]
+        clauses.append(c)
+    
+    # Build implication graph
+    # Node indices: 0 to 2n-1
+    # For task i (1-indexed): (i-1)*2 is False, (i-1)*2+1 is True
+    # Literal x: if x > 0, node = (x-1)*2+1; if x < 0, node = (-x-1)*2
+    
+    N = 2 * n
+    adj = [[] for _ in range(N)]
+    radj = [[] for _ in range(N)]
+    
+    for c in clauses:
+        # Clause: (a or b or c)
+        # Add edges: not a -> b, not a -> c, not b -> a, not b -> c, not c -> a, not c -> b
+        lits = c
+        nodes = []
+        for x in lits:
+            if x > 0:
+                nodes.append((x - 1) * 2 + 1)
+            else:
+                nodes.append((-x - 1) * 2)
+        
+        # not of a node: flip last bit
+        not_nodes = [v ^ 1 for v in nodes]
+        
+        # not a -> b, not a -> c
+        adj[not_nodes[0]].append(nodes[1])
+        adj[not_nodes[0]].append(nodes[2])
+        # not b -> a, not b -> c
+        adj[not_nodes[1]].append(nodes[0])
+        adj[not_nodes[1]].append(nodes[2])
+        # not c -> a, not c -> b
+        adj[not_nodes[2]].append(nodes[0])
+        adj[not_nodes[2]].append(nodes[1])
+    
+    # Build reverse graph
+    for u in range(N):
+        for v in adj[u]:
+            radj[v].append(u)
+    
+    # Kosaraju's algorithm
+    visited = [False] * N
+    order = []
+    
+    def dfs1(u):
+        visited[u] = True
+        for v in adj[u]:
+            if not visited[v]:
+                dfs1(v)
+        order.append(u)
+    
+    for u in range(N):
+        if not visited[u]:
+            dfs1(u)
+    
+    comp = [-1] * N
+    def dfs2(u, c):
+        comp[u] = c
+        for v in radj[u]:
+            if comp[v] == -1:
+                dfs2(v, c)
+    
+    cid = 0
+    for u in reversed(order):
+        if comp[u] == -1:
+            dfs2(u, cid)
+            cid += 1
+    
+    # Check satisfiability
+    for i in range(n):
+        if comp[2*i] == comp[2*i+1]:
+            print("NO")
+            return
+    
+    # Build assignment
+    assignment = [0] * n
+    for i in range(n):
+        if comp[2*i+1] > comp[2*i]:
+            assignment[i] = 1
+        else:
+            assignment[i] = 0
+    
+    print("YES")
+    print(" ".join(map(str, assignment)))
+
+solve()

@@ -1,0 +1,95 @@
+import sys
+import heapq
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    t = int(next(it))
+    
+    anchors = set()
+    for _ in range(t):
+        anchors.add(int(next(it)))
+    
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        w = int(next(it))
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+    
+    # If only one anchor, no connections needed
+    if t <= 1:
+        print(0)
+        return
+    
+    # Multi-source Dijkstra from all anchors
+    INF = float('inf')
+    dist = [INF] * (n + 1)
+    source = [0] * (n + 1)  # which anchor is the closest
+    pq = []
+    
+    for a in anchors:
+        dist[a] = 0
+        source[a] = a
+        heapq.heappush(pq, (0, a, a))
+    
+    while pq:
+        d, u, src = heapq.heappop(pq)
+        if d != dist[u] or src != source[u]:
+            continue
+        for v, w in adj[u]:
+            if dist[v] > d + w:
+                dist[v] = d + w
+                source[v] = src
+                heapq.heappush(pq, (dist[v], v, src))
+    
+    # Build graph of anchor-to-anchor connections
+    anchor_list = list(anchors)
+    anchor_index = {a: i for i, a in enumerate(anchor_list)}
+    k = len(anchor_list)
+    
+    # Find minimum edge between each pair of anchors
+    min_edge = [[INF] * k for _ in range(k)]
+    
+    for u in range(1, n + 1):
+        for v, w in adj[u]:
+            su = source[u]
+            sv = source[v]
+            if su != sv:
+                i = anchor_index[su]
+                j = anchor_index[sv]
+                cost = dist[u] + w + dist[v]
+                if cost < min_edge[i][j]:
+                    min_edge[i][j] = cost
+                    min_edge[j][i] = cost
+    
+    # MST on anchors using Prim's algorithm
+    in_mst = [False] * k
+    min_cost = [INF] * k
+    min_cost[0] = 0
+    total = 0
+    
+    for _ in range(k):
+        # Find minimum cost vertex not in MST
+        u = -1
+        for v in range(k):
+            if not in_mst[v] and (u == -1 or min_cost[v] < min_cost[u]):
+                u = v
+        
+        in_mst[u] = True
+        total += min_cost[u]
+        
+        # Update neighbors
+        for v in range(k):
+            if not in_mst[v] and min_edge[u][v] < min_cost[v]:
+                min_cost[v] = min_edge[u][v]
+    
+    print(total)
+
+if __name__ == "__main__":
+    solve()

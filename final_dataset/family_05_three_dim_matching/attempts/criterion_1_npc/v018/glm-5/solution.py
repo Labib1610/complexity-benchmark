@@ -1,0 +1,85 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    k = int(next(it))
+    t = int(next(it))
+    
+    configs = []
+    for _ in range(t):
+        x = int(next(it))
+        y = int(next(it))
+        z = int(next(it))
+        configs.append((x, y, z))
+    
+    # We need to select k configurations such that:
+    # - Each specialist 1..k appears exactly once
+    # - Each machine 1..k appears exactly once
+    # - Each time slot 1..k appears exactly once
+    
+    # This is a 3D matching problem. Since k <= 22, we can use DP with bitmask.
+    # State: (used_specialists, used_machines, used_time)
+    # But this would be 2^22 * 2^22 * 2^22 which is too large.
+    # 
+    # Better approach: DP with (used_specialists, used_machines) -> best used_time mask
+    # For each config (x, y, z), we can transition from state (S, M) to (S|1<<(x-1), M|1<<(y-1))
+    # and update the time mask by setting bit z.
+    # We need to track which config was used to reach each state.
+    
+    # dp[S][M] = (T, prev_S, prev_M, config_idx) where T is the time mask achieved
+    # We want to find if dp[(1<<k)-1][(1<<k)-1] has T = (1<<k)-1
+    
+    # Since k <= 22, S and M each have 2^22 states. This is still too large.
+    # 
+    # Alternative: Use meet-in-the-middle or other techniques.
+    # 
+    # Actually, let's try a different approach: iterate through configs and build up.
+    # We can use a dictionary to store reachable states.
+    
+    # dp is a dict: (S, M) -> (T, prev_S, prev_M, config_idx)
+    dp = {}
+    dp[(0, 0)] = (0, -1, -1, -1)  # (T, prev_S, prev_M, config_idx)
+    
+    for idx, (x, y, z) in enumerate(configs):
+        xb = 1 << (x - 1)
+        yb = 1 << (y - 1)
+        zb = 1 << (z - 1)
+        
+        # Collect new states to add (to avoid modifying dict while iterating)
+        new_states = []
+        for (S, M), (T, _, _, _) in dp.items():
+            if (S & xb) == 0 and (M & yb) == 0 and (T & zb) == 0:
+                new_S = S | xb
+                new_M = M | yb
+                new_T = T | zb
+                new_states.append((new_S, new_M, new_T, S, M, idx))
+        
+        for new_S, new_M, new_T, S, M, idx_config in new_states:
+            if (new_S, new_M) not in dp:
+                dp[(new_S, new_M)] = (new_T, S, M, idx_config)
+            else:
+                # Keep the state with larger T (more time slots used)
+                existing_T = dp[(new_S, new_M)][0]
+                if new_T > existing_T:
+                    dp[(new_S, new_M)] = (new_T, S, M, idx_config)
+    
+    target = (1 << k) - 1
+    if (target, target) in dp and dp[(target, target)][0] == target:
+        print("YES")
+        # Reconstruct the solution
+        result = []
+        S, M = target, target
+        while S != 0 or M != 0:
+            T, prev_S, prev_M, idx_config = dp[(S, M)]
+            result.append(configs[idx_config])
+            S, M = prev_S, prev_M
+        for x, y, z in result:
+            print(x, y, z)
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()

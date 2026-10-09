@@ -1,5 +1,5 @@
-import sys
 from collections import deque
+import sys
 
 input = sys.stdin.readline
 
@@ -12,26 +12,30 @@ for _ in range(m):
     adj[u].append(v)
     adj[v].append(u)
 
-color = [-1] * n  # -1 = uncolored, 0 = 1, 1 = 2
-
-def bfs(start):
-    q = deque([start])
-    color[start] = 0  # try 1 first
-    while q:
-        u = q.popleft()
-        for v in adj[u]:
-            if color[v] == -1:
-                color[v] = 1 - color[u]
-                q.append(v)
-            elif color[v] == color[u]:
-                return False
-    return True
+color = [-1] * n
+possible = True
 
 for i in range(n):
     if color[i] == -1:
-        if not bfs(i):
-            print("NO")
-            sys.exit()
+        # BFS to color component, start with 0 (mode 1)
+        color[i] = 0
+        q = deque([i])
+        while q:
+            u = q.popleft()
+            for v in adj[u]:
+                if color[v] == -1:
+                    color[v] = 1 - color[u]
+                    q.append(v)
+                elif color[v] == color[u]:
+                    possible = False
+                    break
+            if not possible:
+                break
+    if not possible:
+        break
 
-print("YES")
-print(' '.join(str(color[i] + 1) for i in range(n)))
+if not possible:
+    print("NO")
+else:
+    print("YES")
+    print(" ".join(str(c + 1) for c in color))

@@ -1,0 +1,48 @@
+import sys
+from collections import deque
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    M = int(next(it))
+    T = int(next(it))
+    m = int(next(it))
+
+    adj = [[] for _ in range(n)]
+    indeg = [0] * n
+    for _ in range(m):
+        a = int(next(it)) - 1
+        b = int(next(it)) - 1
+        adj[a].append(b)
+        indeg[b] += 1
+
+    ready = deque([i for i in range(n) if indeg[i] == 0])
+    assign = [0] * n
+    processed = 0
+
+    for day in range(1, T + 1):
+        cnt = 0
+        # take up to M modules ready for this shift
+        while ready and cnt < M:
+            v = ready.popleft()
+            assign[v] = day
+            processed += 1
+            cnt += 1
+            for nb in adj[v]:
+                indeg[nb] -= 1
+                if indeg[nb] == 0:
+                    ready.append(nb)
+        if processed == n:
+            break
+
+    if processed == n:
+        sys.stdout.write("YES\n")
+        sys.stdout.write(" ".join(map(str, assign)) + "\n")
+    else:
+        sys.stdout.write("NO\n")
+
+if __name__ == "__main__":
+    solve()

@@ -1,0 +1,72 @@
+import sys
+from collections import defaultdict
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    index = 2
+    edges = []
+    adj = defaultdict(set)
+    
+    for _ in range(m):
+        u = int(data[index])
+        v = int(data[index+1])
+        index += 2
+        if u > v:
+            u, v = v, u
+        edges.append((u, v))
+        adj[u].add(v)
+        adj[v].add(u)
+    
+    # Convert edges to a set for O(1) lookup
+    edge_set = set(edges)
+    
+    # We need to find a triangle: three nodes a, b, c such that all three edges exist
+    # Since we want the lexicographically smallest one, we iterate through all triplets
+    # in lexicographical order
+    
+    # To optimize, instead of checking all triplets, we can check for each edge (u,v),
+    # and see if there exists a node w such that (u,w) and (v,w) are also edges.
+    
+    # First, let's sort the adjacency list for consistent ordering
+    sorted_nodes = list(range(1, n+1))
+    
+    min_triangle = None
+    
+    # For each node u
+    for u in sorted_nodes:
+        neighbors_u = sorted(list(adj[u]))
+        # For every pair of neighbors of u
+        for i in range(len(neighbors_u)):
+            v = neighbors_u[i]
+            if v <= u:
+                continue
+            for j in range(i+1, len(neighbors_u)):
+                w = neighbors_u[j]
+                if w <= u or w <= v:
+                    continue
+                # Check if v and w are connected
+                if v in adj and w in adj[v]:
+                    # Found a triangle: u, v, w
+                    triangle = tuple(sorted([u, v, w]))
+                    if min_triangle is None or triangle < min_triangle:
+                        min_triangle = triangle
+                        break
+            if min_triangle is not None:
+                break
+        if min_triangle is not None:
+            break
+                
+    if min_triangle is None:
+        # Fallback: check all combinations (not efficient for large inputs)
+        pass
+        
+    print(min_triangle[0], min_triangle[1], min_triangle[2])
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,177 @@
+```python
+import sys
+from array import array
+from collections import deque
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+
+    n, m, budget = data[0], data[1], data[2]
+    adj = [[] for _ in range(n)]
+    adj_mask = [0] * n
+    edges = []
+
+    idx = 3
+    for _ in range(m):
+        u = data[idx] - 1
+        v = data[idx + 1] - 1
+        idx += 2
+        adj[u].append(v)
+        adj[v].append(u)
+        adj_mask[u] |= 1 << v
+        adj_mask[v] |= 1 << u
+        edges.append((u, v))
+
+    if n == 1:
+        if budget >= 0:
+            print("YES")
+            print(1)
+        else:
+            print("NO")
+        return
+
+    if budget < n - 1:
+        print("NO")
+        return
+
+    def try_order(order):
+        pos = [0] * n
+        for i, v in enumerate(order, 1):
+            pos[v] = i
+        total = 0
+        for u, v in edges:
+            total += abs(pos[u] - pos[v])
+            if total > budget:
+                return None
+        return pos
+
+    # Natural vertex order.
+    result = try_order(range(n))
+    if result is not None:
+        print("YES")
+        print(*result)
+        return
+
+    def farthest(start):
+        parent = [-1] * n
+        dist = [0] * n
+        stack = [start]
+        parent[start] = start
+        best = start
+        while stack:
+            u = stack.pop()
+            if dist[u] > dist[best]:
+                best = u
+            for v in adj[u]:
+                if parent[v] == -1:
+                    parent[v] = u
+                    dist[v] = dist[u] + 1
+                    stack.append(v)
+        return best
+
+    endpoint = farthest(farthest(0))
+
+    # DFS preorder from a diameter endpoint.
+    order = []
+    stack = [(endpoint, -1)]
+    while stack:
+        u, p = stack.pop()
+        order.append(u)
+        for v in reversed(adj[u]):
+            if v != p:
+                stack.append((v, u))
+
+    result = try_order(order)
+    if result is not None:
+        print("YES")
+        print(*result)
+        return
+
+    # BFS order from a diameter endpoint.
+    order = []
+    q = deque([endpoint])
+    parent = [-1] * n
+    parent[endpoint] = endpoint
+    while q:
+        u = q.popleft()
+        order.append(u)
+        for v in adj[u]:
+            if parent[v] == -1:
+                parent[v] = u
+                q.append(v)
+
+    result = try_order(order)
+    if result is not None:
+        print("YES")
+        print(*result)
+        return
+
+    # Exact subset DP:
+    # dp[S] is the minimum sum of cut sizes encountered while constructing S.
+    # Appending a vertex to prefix S adds cut(S) to the arrangement cost.
+    size = 1 << n
+    inf = budget + 1
+
+    cut_type = 'b' if n <= 127 else ('h' if n <= 32767 else 'i')
+    cut = array(cut_type, [0]) * size
+
+    degrees = [len(adj[v]) for v in range(n)]
+    for mask in range(1, size):
+        bit = mask & -mask
+        v = bit.bit_length() - 1
+        rest = mask ^ bit
+        cut[mask] = (
+            cut[rest]
+            + degrees[v]
+            - 2 * ((adj_mask[v] & rest).bit_count())
+        )
+
+    dp_type = 'I' if inf <= 0xFFFFFFFF else 'Q'
+    dp = array(dp_type, [inf]) * size
+    parent_type = 'B' if n <= 255 else 'H'
+    choice = array(parent_type, [0]) * size
+    dp[0] = 0
+
+    for mask in range(1, size):
+        bits = mask
+        best = inf
+        best_v = 0
+
+        while bits:
+            bit = bits & -bits
+            rest = mask ^ bit
+            previous = dp[rest]
+
+            if previous < best:
+                value = previous + cut[rest]
+                if value < best:
+                    best = value
+                    best_v = bit.bit_length() - 1
+
+            bits ^= bit
+
+        dp[mask] = best
+        choice[mask] = best_v
+
+    full = size - 1
+    if dp[full] > budget:
+        print("NO")
+        return
+
+    labels = [0] * n
+    mask = full
+    position = n
+    while mask:
+        v = choice[mask]
+        labels[v] = position
+        position -= 1
+        mask ^= 1 << v
+
+    print("YES")
+    print(*labels)
+
+if __name__ == "__main__":
+    main()
+```

@@ -1,0 +1,136 @@
+import sys
+from collections import defaultdict, deque
+
+def solve():
+    n, m = map(int, sys.stdin.readline().split())
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(["0"] * n))
+        return
+    
+    # Build implication graph
+    # For variable x: 2*x represents x=True, 2*x+1 represents x=False
+    # So for switch i: node 2*i is ON, node 2*i+1 is OFF
+    
+    graph = defaultdict(list)
+    reverse_graph = defaultdict(list)
+    
+    for _ in range(m):
+        l1, l2 = map(int, sys.stdin.readline().split())
+        
+        # l1 and l2 are literals
+        # l1 > 0 means switch |l1| is ON
+        # l1 < 0 means switch |l1| is OFF
+        # The constraint is (l1 OR l2)
+        
+        # Convert to implication: (~l1 -> l2) and (~l2 -> l1)
+        
+        # ~l1 -> l2
+        if l1 > 0:  # ~l1 means switch l1 is OFF (2*l1+1)
+            from_node = 2 * l1 + 1
+        else:  # ~l1 means switch |l1| is ON (2*|l1|)
+            from_node = 2 * (-l1)
+            
+        if l2 > 0:  # l2 means switch l2 is ON (2*l2)
+            to_node = 2 * l2
+        else:  # l2 means switch |l2| is OFF (2*|l2|+1)
+            to_node = 2 * (-l2) + 1
+            
+        graph[from_node].append(to_node)
+        reverse_graph[to_node].append(from_node)
+        
+        # ~l2 -> l1
+        if l2 > 0:  # ~l2 means switch l2 is OFF (2*l2+1)
+            from_node = 2 * l2 + 1
+        else:  # ~l2 means switch |l2| is ON (2*|l2|)
+            from_node = 2 * (-l2)
+            
+        if l1 > 0:  # l1 means switch l1 is ON (2*l1)
+            to_node = 2 * l1
+        else:  # l1 means switch |l1| is OFF (2*|l1|+1)
+            to_node = 2 * (-l1) + 1
+            
+        graph[from_node].append(to_node)
+        reverse_graph[to_node].append(from_node)
+    
+    # Find strongly connected components using Kosaraju's algorithm
+    visited = [False] * (2 * n + 2)
+    order = []
+    
+    def dfs1(node):
+        if visited[node]:
+            return
+        visited[node] = True
+        for neighbor in graph[node]:
+            dfs1(neighbor)
+        order.append(node)
+    
+    # First DFS on original graph
+    for i in range(2 * n + 2):
+        if not visited[i]:
+            dfs1(i)
+    
+    # Second DFS on transpose graph
+    visited = [False] * (2 * n + 2)
+    scc_id = [-1] * (2 * n + 2)
+    scc_count = 0
+    
+    def dfs2(node, component_id):
+        if visited[node]:
+            return
+        visited[node] = True
+        scc_id[node] = component_id
+        for neighbor in reverse_graph[node]:
+            dfs2(neighbor, component_id)
+    
+    # Process in reverse order
+    for node in reversed(order):
+        if not visited[node]:
+            dfs2(node, scc_count)
+            scc_count += 1
+    
+    # Check if any variable and its negation are in the same SCC
+    for i in range(1, n + 1):
+        on_node = 2 * i
+        off_node = 2 * i + 1
+        if scc_id[on_node] == scc_id[off_node]:
+            print("NO")
+            return
+    
+    # Assign values based on SCC topological order
+    # SCC with higher index in order comes first in topological sort
+    scc_order = [-1] * scc_count
+    for i in range(2 * n + 2):
+        scc_order[scc_id[i]] = i
+    
+    assignment = [-1] * (n + 1)
+    
+    # Process SCCs in reverse topological order
+    scc_topo = sorted(range(scc_count), key=lambda x: scc_order[x], reverse=True)
+    
+    for component in scc_topo:
+        # Find a node in this component
+        nodes_in_component = [i for i in range(2 * n + 2) if scc_id[i] == component]
+        for node in nodes_in_component:
+            var_index = (node // 2)
+            if var_index == 0:
+                continue
+            if assignment[var_index] == -1:
+                # If node is even, it represents ON
+                # If node is odd, it represents OFF
+                if node % 2 == 0:  # ON node
+                    assignment[var_index] = 1
+                else:  # OFF node
+                    assignment[var_index] = 0
+    
+    print("YES")
+    result = []
+    for i in range(1, n + 1):
+        if assignment[i] == -1:
+            result.append("0")
+        else:
+            result.append(str(assignment[i]))
+    print(" ".join(result))
+
+solve()

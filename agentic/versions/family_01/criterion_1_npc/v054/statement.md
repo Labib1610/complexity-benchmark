@@ -1,27 +1,20 @@
-# Problem A — Shift Allocation Protocol
+# Shift Separation
 
-Time limit: 2 s
-Memory limit: 256 MB
+Time limit: 2 s   Memory limit: 256 MB
 
-A corporate processing center is overhauling its induction pipeline. The pipeline operates in a dedicated orientation hall containing exactly 8 rows of 5 biometric scanning stations.
+A manufacturing facility maintains a roster of $n$ operators. The facility's operations center is equipped with exactly 40 control consoles, meaning the roster size $n$ is at least one and will never exceed the number of available consoles. Over time, management has recorded $m$ specific pairs of operators who exhibit detrimental friction when working together. The number of such records $m$ can range from none at all up to the theoretical maximum where every operator has friction with every other operator. Company policy strictly dictates that any two operators in a recorded pair cannot be assigned to the same shift. 
 
-During the initial phase, a cohort of new hires is processed. Each individual in the cohort is assigned a unique identifier from $1$ to $n$.
+The facility operates continuously, utilizing exactly three distinct shifts: shift 1, shift 2, and shift 3. 
 
-Next, a background screening system cross-references the cohort to find individuals with documented prior grievances. It produces a list of conflicting pairs. 
-
-The core requirement is to allocate each person to a daily work shift. There are exactly three available shifts, designated by the integers 1, 2, and 3. Safety regulations dictate that if two individuals are listed as a conflicting pair, they must be allocated to different shifts.
-
-Finally, the automated credential system must receive a complete allocation. An allocation is formatted as a sequence of $n$ shift numbers, where the $i$-th number is the shift assigned to the individual with identifier $i$. When several valid allocations exist that satisfy all safety regulations, the system requires the one that is lexicographically smallest (i.e., comparing the shift of hire 1 first, then hire 2, and so on). If it is impossible to allocate the shifts without violating safety regulations, the system must abort the pipeline.
-
-Your objective is to build the logic that processes the cohort size and the list of conflicts to produce the required shift sequence or the abort signal.
+Your task is to determine if it is possible to assign every single operator to exactly one of these three shifts such that the separation policy is never violated. If such an arrangement exists, you must also provide it.
 
 ## Input
-The first line contains two integers $n$ and $m$. The integer $n$ represents the cohort size; it is at least 1 and at most the total number of scanning stations in the orientation hall. The integer $m$ represents the number of conflicting pairs; it is at least 0 and at most the total number of possible distinct pairs of individuals in the cohort.
-Each of the next $m$ lines contains two integers $u$ and $v$, representing the identifiers of two individuals who have a documented grievance and cannot share the same shift.
+The first line contains two integers $n$ and $m$ — the number of operators and the number of friction pairs.
+Each of the following $m$ lines contains two integers $u$ and $v$, indicating that operator $u$ and operator $v$ cannot share a shift.
 
 ## Output
-If there is no way to allocate shifts safely, print a single line containing `NO`.
-Otherwise, print `YES` on the first line. On the second line, print $n$ integers separated by spaces, each being 1, 2, or 3, representing the shift allocation for each individual from $1$ to $n$. Among all valid allocations, output the sequence that is lexicographically smallest.
+If there is no way to assign all operators without violating the policy, print a single line containing `NO`.
+Otherwise, print `YES` on the first line. On the second line, print $n$ integers $s_1, s_2, \dots, s_n$ (each being 1, 2, or 3), where $s_i$ represents the shift assigned to operator $i$. If multiple valid assignments exist, any of them will be accepted.
 
 ## Example 1
 Input:

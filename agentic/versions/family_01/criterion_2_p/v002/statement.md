@@ -1,16 +1,16 @@
-# Problem B — Zone Isolation
+# Problem B — Frequencies and Interference
 
 Time limit: 1 s   Memory limit: 256 MB
 
-The same data center now maintains only two security zones, labeled 1 and 2. With n servers and m interference pairs, assign each server a zone so that no interfering pair shares a zone, or report impossibility.
+A communication network now uses only two frequencies, labeled 1 and 2. With $n$ radio towers and $m$ interfering pairs, assign each tower a frequency so that no interfering pair shares a frequency, or report impossibility.
 
 ## Input
-The first line contains two integers n and m (1 ≤ n ≤ 2·10⁵, 0 ≤ m ≤ 2·10⁵).
-Each of the next m lines contains two integers u v — an interfering pair.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$).
+Each of the next $m$ lines contains two integers $u$ and $v$ — an interfering pair of towers.
 
 ## Output
 If no valid assignment exists, print a single line NO.
-Otherwise print YES, then a second line with n integers z₁ … zₙ (each in {1,2}), the lexicographically smallest valid assignment.
+Otherwise print YES, then a second line with $n$ integers $f_1 \dots f_n$ (each in $\{1,2\}$), the lexicographically smallest valid assignment.
 
 ## Example 1
 Input:

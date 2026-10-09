@@ -1,0 +1,30 @@
+import sys
+
+data = list(map(int, sys.stdin.buffer.read().split()))
+n, m = data[0], data[1]
+
+adj = [0] * (n + 1)
+pos = 2
+for _ in range(m):
+    u, v = data[pos], data[pos + 1]
+    pos += 2
+    adj[u] |= 1 << v
+    adj[v] |= 1 << u
+
+full_mask = (1 << (n + 1)) - 1
+higher = [0] * (n + 1)
+for i in range(n + 1):
+    higher[i] = full_mask ^ ((1 << (i + 1)) - 1)
+
+for a in range(1, n + 1):
+    candidates_b = adj[a] & higher[a]
+    while candidates_b:
+        lowest = candidates_b & -candidates_b
+        b = lowest.bit_length() - 1
+        candidates_b ^= lowest
+
+        common = adj[a] & adj[b] & higher[b]
+        if common:
+            c = (common & -common).bit_length() - 1
+            print(a, b, c)
+            sys.exit()

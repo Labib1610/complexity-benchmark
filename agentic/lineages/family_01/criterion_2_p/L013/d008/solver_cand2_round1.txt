@@ -1,6 +1,21 @@
 ```python
 import sys
 
+# The condition: f(x) = x^2 - (g_u + g_v)x + 2 has a minimum of -0.25.
+# The minimum of a quadratic ax^2 + bx + c is at x = -b/(2a).
+# Here, a=1, b=-(g_u + g_v), c=2.
+# Min value = f((g_u + g_v)/2) = ((g_u + g_v)/2)^2 - (g_u + g_v)^2/2 + 2 = -0.25
+# -(g_u + g_v)^2 / 4 + 2 = -0.25
+# (g_u + g_v)^2 / 4 = 2.25
+# (g_u + g_v)^2 = 9
+# g_u + g_v = 3
+# Since g_i \in {1, 2}, the only way g_u + g_v = 3 is if one is 1 and the other is 2.
+# This means the graph must be bipartite, and for every edge (u, v), g_u != g_v.
+# Stability metric: sum_{i=1}^n (2 - g_i) / (i-1)!
+# To maximize this, we want (2 - g_i) to be 1 (i.e., g_i = 1) for small i.
+# If g_i = 1, term is 1/(i-1)!. If g_i = 2, term is 0.
+# We want g_i = 1 for as many small i as possible.
+
 def solve():
     input_data = sys.stdin.read().split()
     if not input_data:
@@ -11,83 +26,52 @@ def solve():
     idx = 2
     for _ in range(m):
         u = int(input_data[idx])
-        v = int(input_data[idx + 1])
+        v = int(input_data[idx+1])
         adj[u].append(v)
         adj[v].append(u)
         idx += 2
 
-    # Protocol 1: 1->3, 2->5, 3->4, 4->2, 5->1
-    # Permutation P1: [5, 4, 1, 3, 2] (0-indexed: 0->2, 1->4, 2->3, 3->1, 4->0)
-    p1 = [2, 4, 3, 1, 0]
-    # Protocol 2: 1->5, 2->4, 3->1, 4->3, 5->2
-    # Permutation P2: [3, 5, 4, 2, 1] (0-indexed: 0->4, 1->3, 2->0, 3->2, 4->1)
-    p2 = [4, 3, 0, 2, 1]
-
-    def compose(p_a, p_b):
-        return [p_b[p_a[i]] for i in range(5)]
-
-    identity = [0, 1, 2, 3, 4]
-    
-    # Check if P_i composed with P_j is identity
-    # Transparent if P_i(P_j(x)) = x for all x
-    # Since these are permutations, P_i(P_j(x)) = x iff P_j = P_i^-1
-    # P1^-1: 0->4, 1->3, 2->0, 3->2, 4->1 (which is P2)
-    # P2^-1: 0->2, 1->4, 2->3, 3->1, 4->0 (which is P1)
-    # So transparent if (P1, P2) or (P2, P1)
-    
-    # This is a 2-coloring problem:
-    # If u and v are connected, they must have different protocols.
-    # If the graph is bipartite, we can color it.
-    
-    color = [0] * (n + 1)
+    color = [-1] * (n + 1)
     for i in range(1, n + 1):
-        if color[i] == 0:
-            stack = [(i, 1)]
-            color[i] = 1
+        if color[i] == -1:
+            # BFS to check bipartiteness and assign colors
+            stack = [(i, 0)]
+            color[i] = 0
             component = []
             while stack:
                 u, c = stack.pop()
                 component.append((u, c))
                 for v in adj[u]:
-                    if color[v] == 0:
-                        color[v] = 3 - c
-                        stack.append((v, 3 - c))
+                    if color[v] == -1:
+                        color[v] = 1 - c
+                        stack.append((v, 1 - c))
                     elif color[v] == c:
                         print("NO")
                         return
             
-            # To get lexicographically smallest, for each component,
-            # we have two choices: (start with 1) or (start with 2).
-            # We pick the one that makes the smallest node index have 1.
-            comp_nodes = sorted([u for u, c in component])
-            first_node = comp_nodes[0]
+            # For each component, we have two choices:
+            # Choice 0: nodes with color 0 get g=1, nodes with color 1 get g=2
+            # Choice 1: nodes with color 0 get g=2, nodes with color 1 get g=1
+            # We pick the choice that makes the smallest index i have g_i = 1.
             
-            # If we set color[first_node] = 1, check the sequence
-            # If we set color[first_node] = 2, check the sequence
-            # Actually, just set color[first_node] = 1 and propagate.
-            # Since it's bipartite, the coloring is fixed once one node is set.
-            # We need to ensure the smallest node in the component gets 1 if possible.
-            # Wait, the coloring is fixed relative to the first node.
-            # If we set color[first_node] = 1, all others are determined.
-            # If we set color[first_node] = 2, all others are flipped.
-            # We compare the two resulting sequences for this component.
+            min_node = min(node for node, c in component)
+            # Find color of min_node
+            c_min = [c for node, c in component if node == min_node][0]
             
-            c1 = {}
-            c2 = {}
-            for u, c in component:
-                c1[u] = c
-                c2[u] = 3 - c
-            
-            seq1 = [c1[u] for u in comp_nodes]
-            seq2 = [c2[u] for u in comp_nodes]
-            
-            if seq1 < seq2:
-                for u in comp_nodes: color[u] = c1[u]
+            # If c_min == 0, Choice 0 gives g_{min_node} = 1.
+            # If c_min == 1, Choice 1 gives g_{min_node} = 1.
+            if c_min == 0:
+                for node, c in component:
+                    color[node] = c
             else:
-                for u in comp_nodes: color[u] = c2[u]
+                for node, c in component:
+                    color[node] = 1 - c
 
     print("YES")
-    print(*(color[1:]))
+    res = []
+    for i in range(1, n + 1):
+        res.append(str(color[i] + 1))
+    print(" ".join(res))
 
 solve()
 ```

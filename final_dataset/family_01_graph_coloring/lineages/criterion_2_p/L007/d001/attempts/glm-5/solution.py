@@ -1,0 +1,50 @@
+import sys
+from collections import deque
+
+def solve():
+    # Read all input at once for efficiency
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    iterator = iter(input_data)
+    try:
+        n = int(next(iterator))
+        m = int(next(iterator))
+    except StopIteration:
+        return
+
+    # Build adjacency list
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(next(iterator))
+        v = int(next(iterator))
+        adj[u].append(v)
+        adj[v].append(u)
+
+    # Values: 0 (unassigned), 1 or 2
+    values = [0] * (n + 1)
+    
+    for i in range(1, n + 1):
+        if values[i] == 0:
+            # Start BFS for this component
+            queue = deque([i])
+            values[i] = 1
+            
+            while queue:
+                u = queue.popleft()
+                for v in adj[u]:
+                    if values[v] == 0:
+                        values[v] = 3 - values[u]
+                        queue.append(v)
+                    elif values[v] == values[u]:
+                        # Conflict found
+                        print("NO")
+                        return
+
+    # If valid, print the assignment
+    print("YES")
+    print(*(values[1:n+1]))
+
+if __name__ == '__main__':
+    solve()

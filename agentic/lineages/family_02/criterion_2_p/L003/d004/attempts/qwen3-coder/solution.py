@@ -1,0 +1,244 @@
+import sys
+import threading
+
+def main():
+    import sys
+    sys.setrecursionlimit(1 << 25)
+    
+    n, m = map(int, sys.stdin.readline().split())
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
+    
+    # Build implication graph for 2-SAT
+    # Variables: x[i] represents microservice i+1 in primary env (1) or not (0)
+    # For each clause (a or b), we add edges (!a -> b) and (!b -> a)
+    
+    adj = [[] for _ in range(2 * n)]
+    adj_rev = [[] for _ in range(2 * n)]
+    
+    def add_clause(a, b):
+        # a or b
+        # equivalent to: not a implies b, not b implies a
+        adj[a ^ 1].append(b)
+        adj[b ^ 1].append(a)
+        adj_rev[b].append(a ^ 1)
+        adj_rev[a].append(b ^ 1)
+    
+    for _ in range(m):
+        l1, l2 = map(int, sys.stdin.readline().split())
+        # l1 corresponds to variable (abs(l1)-1)*2 + (0 if l1<0 else 1)
+        # But actually, let's think differently:
+        # Let x[i] = 1 if microservice i+1 is in primary env
+        # Probe v with v>0 warns if microservice |v| is in secondary (x[|v|-1]=0)
+        # Probe v with v<0 warns if microservice |v| is in primary  (x[|v|-1]=1)
+        # So for a protocol (l1,l2), we want NOT(warn1 AND warn2)
+        # I.e., warn1=0 OR warn2=0
+        # warn1=1 iff (l1>0 and x[|l1|-1]=0) or (l1<0 and x[|l1|-1]=1)
+        # warn1=0 iff (l1>0 and x[|l1|-1]=1) or (l1<0 and x[|l1|-1]=0)
+        # Similarly for warn2
+        
+        # So the constraint is:
+        # [(l1>0 and !x[|l1|-1]) or (l1<0 and x[|l1|-1])] = False 
+        # OR
+        # [(l2>0 and !x[|l2|-1]) or (l2<0 and x[|l2|-1])] = False
+        #
+        # This is equivalent to:
+        # [!(l1>0 and !x[|l1|-1]) or !(l2>0 and !x[|l2|-1])] 
+        # Which simplifies to:
+        # [(l1<=0 or x[|l1|-1]) or (l2<=0 or x[|l2|-1])]
+        # 
+        # Actually, let's reframe:
+        # warn1 happens if:
+        #   l1 > 0 and microservice |l1| is in secondary (x[|l1|-1] = 0)
+        #   l1 < 0 and microservice |l1| is in primary  (x[|l1|-1] = 1)
+        # So warn1 = (l1 > 0 and !x[|l1|-1]) or (l1 < 0 and x[|l1|-1])
+        # We want NOT(warn1 AND warn2) = NOT(warn1) OR NOT(warn2)
+        # NOT(warn1) = NOT((l1>0 and !x) or (l1<0 and x)) = (l1<=0 or x) and (l1>=0 or !x)
+        #            = (!l1>0 or x) and (!l1<0 or !x) 
+        # Hmm, perhaps easier to encode directly:
+        # warn1 is true when:
+        #   l1 positive and x_{|l1|-1} = 0
+        #   l1 negative and x_{|l1|-1} = 1
+        # So NOT warn1 is:
+        #   l1 positive and x_{|l1|-1} = 1
+        #   l1 negative and x_{|l1|-1} = 0
+        # Which is just x_{|l1|-1} = (l1>0)
+        
+        # Let's define variables x[0], ..., x[n-1]
+        # For each protocol (l1,l2), we want:
+        # NOT( (probe1_warns) AND (probe2_warns) )
+        # = NOT(probe1_warns) OR NOT(probe2_warns)
+        # 
+        # probe1_warns = (l1>0 and x[abs(l1)-1]==0) or (l1<0 and x[abs(l1)-1]==1)
+        # NOT(probe1_warns) = (l1>0 and x[abs(l1)-1]==1) or (l1<0 and x[abs(l1)-1]==0)
+        #                   = x[abs(l1)-1] == (l1>0)
+        #
+        # So the clause is:
+        # (x[abs(l1)-1] == (l1>0)) OR (x[abs(l2)-1] == (l2>0))
+        # In terms of boolean logic:
+        # (x[abs(l1)-1] == (l1>0)) OR (x[abs(l2)-1] == (l2>0))
+        # This is equivalent to:
+        # (x_a == val_a) OR (x_b == val_b)
+        # Which expands to four cases, but it's easier to convert to CNF:
+        # NOT((x_a != val_a) AND (x_b != val_b))
+        # So we forbid the case where both are false
+        # That means we have a clause: (x_a == val_a) OR (x_b == val_b)
+        # In 2-SAT, this is tricky. Let's think of it as:
+        # If x_a != val_a AND x_b != val_b, then contradiction.
+        # So we can model it as: 
+        # (x_a == val_a) OR (x_b == val_b)
+        # Which is equivalent to:
+        # (x_a OR x_b) if val_a=1,val_b=1
+        # (!x_a OR x_b) if val_a=0,val_b=1 etc.
+        # 
+        # Let's compute val_a = (l1>0), val_b = (l2>0)
+        # And a = abs(l1)-1, b = abs(l2)-1
+        # Then we want (x_a == val_a) OR (x_b == val_b)
+        # Which is equivalent to: NOT(x_a != val_a AND x_b != val_b)
+        # In 2-SAT, we can't directly express this, so we use the standard reduction:
+        # We introduce the forbidden combination and negate it.
+        # Forbidden: (x_a != val_a) AND (x_b != val_b)
+        # So we add clauses to prevent this:
+        # If x_a != val_a, then x_b must == val_b
+        # If x_b != val_b, then x_a must == val_a
+        # 
+        # So we add:
+        # (x_a == val_a) OR (x_b == val_b)
+        # This is equivalent to:
+        # (!x_a OR !x_b) if val_a=1,val_b=1 => x_a + x_b >= 1
+        # (!x_a OR x_b) if val_a=1,val_b=0 => x_a <= x_b
+        # (x_a OR !x_b) if val_a=0,val_b=1 => x_b <= x_a  
+        # (x_a OR x_b) if val_a=0,val_b=0 => x_a + x_b >= 0 (always true)
+        # 
+        # Wait, that's not right. Let's go back to basics.
+        # We want to forbid (x_a != val_a AND x_b != val_b)
+        # Which means we want at least one of (x_a == val_a) or (x_b == val_b)
+        # This is a disjunction, which we can encode in 2-SAT.
+        # 
+        # Let's denote:
+        # A = (x_a == val_a) = (x_a XOR !val_a) == 0
+        # B = (x_b == val_b) = (x_b XOR !val_b) == 0
+        # We want A OR B
+        # 
+        # In 2-SAT, we can represent this as:
+        # (!(!A) OR !(!B)) = (A OR B) - but that's circular.
+        # 
+        # Actually, let's think of it as:
+        # If NOT A, then B must hold.
+        # If NOT B, then A must hold.
+        # 
+        # NOT A = (x_a != val_a) = (x_a XOR val_a) = 1
+        # NOT B = (x_b != val_b) = (x_b XOR val_b) = 1
+        # 
+        # So we add clauses:
+        # (NOT A) -> B  which is same as A OR B
+        # (NOT B) -> A  which is same as B OR A
+        # Both are the same clause A OR B
+        # 
+        # So we just need to add the clause (A OR B)
+        # Where A = (x_a == val_a) and B = (x_b == val_b)
+        # 
+        # To encode (x_a == val_a) as a literal:
+        # If val_a = 1, then A = x_a, literal is x_a
+        # If val_a = 0, then A = !x_a, literal is !x_a
+        # Same for B
+        # 
+        # So the clause is:
+        # (x_a if val_a else !x_a) OR (x_b if val_b else !x_b)
+        # 
+        # In terms of indices for SAT solver:
+        # Variable x_i corresponds to literals 2*i (for !x_i) and 2*i+1 (for x_i)
+        # So:
+        # - if val_a=1, literal for A is 2*a+1
+        # - if val_a=0, literal for A is 2*a
+        # - if val_b=1, literal for B is 2*b+1  
+        # - if val_b=0, literal for B is 2*b
+        # 
+        # The clause is A OR B, so we add this clause to our 2-SAT instance.
+        
+        a = abs(l1) - 1
+        b = abs(l2) - 1
+        val_a = l1 > 0
+        val_b = l2 > 0
+        
+        lit_a = 2 * a + (1 if val_a else 0)
+        lit_b = 2 * b + (1 if val_b else 0)
+        
+        # Add clause lit_a OR lit_b
+        # This is equivalent to (!lit_a -> lit_b) and (!lit_b -> lit_a)
+        # But in our adjacency list representation, we add:
+        # !lit_a -> lit_b and !lit_b -> lit_a
+        # !lit_a is lit_a ^ 1
+        # !lit_b is lit_b ^ 1
+        
+        adj[lit_a ^ 1].append(lit_b)
+        adj[lit_b ^ 1].append(lit_a)
+        adj_rev[lit_b].append(lit_a ^ 1)
+        adj_rev[lit_a].append(lit_b ^ 1)
+    
+    # Now run Kosaraju's algorithm to check 2-SAT satisfiability
+    visited = [False] * (2 * n)
+    order = []
+    
+    def dfs1(u):
+        if visited[u]:
+            return
+        visited[u] = True
+        for v in adj[u]:
+            dfs1(v)
+        order.append(u)
+    
+    for u in range(2 * n):
+        dfs1(u)
+    
+    # Reset visited for second DFS
+    visited = [False] * (2 * n)
+    components = [-1] * (2 * n)
+    comp_count = 0
+    
+    def dfs2(u):
+        if visited[u]:
+            return
+        visited[u] = True
+        components[u] = comp_count
+        for v in adj_rev[u]:
+            dfs2(v)
+    
+    for u in reversed(order):
+        if not visited[u]:
+            dfs2(u)
+            comp_count += 1
+            
+    # Check if any variable and its negation are in the same SCC
+    for i in range(n):
+        if components[2*i] == components[2*i + 1]:
+            print("NO")
+            return
+            
+    # Otherwise, construct solution
+    # In 2-SAT, if component index is higher, the literal is true
+    assignment = [False] * n
+    # Create pairs of (component_index, variable_index)
+    comp_list = [(components[2*i], components[2*i+1], i) for i in range(n)]
+    
+    # For each variable, assign it based on which literal (positive or negative) 
+    # has higher component index in reverse topological order
+    for comp_x, comp_not_x, i in comp_list:
+        if comp_x > comp_not_x:
+            assignment[i] = True  # x_i = True (Primary)
+        else:
+            assignment[i] = False # x_i = False (Secondary)
+            
+    print("YES")
+    result = []
+    for a in assignment:
+        if a:
+            result.append("1")
+        else:
+            result.append("0")
+    print(" ".join(result))
+
+threading.Thread(target=main).start()

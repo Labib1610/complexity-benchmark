@@ -1,0 +1,61 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [set() for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u].add(v)
+        adj[v].add(u)
+    
+    # Check if any node has degree >= 3 (needs 4 colors)
+    for i in range(n):
+        if len(adj[i]) >= 3:
+            print("NO")
+            return
+    
+    # Find all edges (pairs of reactive chemicals)
+    edges = []
+    for u in range(n):
+        for v in adj[u]:
+            if u < v:
+                edges.append((u, v))
+    
+    # Try all 3^n assignments
+    # For n <= 40, this is too slow, but we can optimize
+    # Since max degree is 2, the graph is a collection of paths and cycles
+    # We can use backtracking with pruning
+    
+    assignment = [0] * n
+    
+    def backtrack(idx):
+        if idx == n:
+            return True
+        # Try colors 1, 2, 3
+        for color in range(1, 4):
+            valid = True
+            for neighbor in adj[idx]:
+                if neighbor < idx and assignment[neighbor] == color:
+                    valid = False
+                    break
+            if valid:
+                assignment[idx] = color
+                if backtrack(idx + 1):
+                    return True
+                assignment[idx] = 0
+        return False
+    
+    if backtrack(0):
+        print("YES")
+        print(' '.join(map(str, assignment)))
+    else:
+        print("NO")
+
+solve()

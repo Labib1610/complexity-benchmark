@@ -1,0 +1,151 @@
+import sys
+from collections import deque
+
+input = sys.stdin.readline
+
+class Dinic:
+    def __init__(self, n):
+        self.n = n
+        self.graph = [[] for _ in range(n)]
+    
+    def add_edge(self, fr, to, cap):
+        forward = [to, cap, None]
+        backward = [fr, 0, forward]
+        forward[2] = backward
+        self.graph[fr].append(forward)
+        self.graph[to].append(backward)
+    
+    def bfs(self, s, t):
+        self.level = [-1] * self.n
+        q = deque([s])
+        self.level[s] = 0
+        while q:
+            v = q.popleft()
+            for to, cap, rev in self.graph[v]:
+                if cap > 0 and self.level[to] < 0:
+                    self.level[to] = self.level[v] + 1
+                    q.append(to)
+        return self.level[t] >= 0
+    
+    def dfs(self, v, t, f):
+        if v == t:
+            return f
+        for i in range(self.it[v], len(self.graph[v])):
+            self.it[v] = i
+            to, cap, rev = self.graph[v][i]
+            if cap > 0 and self.level[v] + 1 == self.level[to]:
+                ret = self.dfs(to, t, min(f, cap))
+                if ret > 0:
+                    self.graph[v][i][1] -= ret
+                    rev[1] += ret
+                    return ret
+        return 0
+    
+    def max_flow(self, s, t):
+        flow = 0
+        INF = 10**18
+        while self.bfs(s, t):
+            self.it = [0] * self.n
+            while True:
+                f = self.dfs(s, t, INF)
+                if f == 0:
+                    break
+                flow += f
+        return flow
+
+def solve():
+    n, m, _ = map(int, input().split())
+    S, T, D = map(int, input().split())
+    S -= 1
+    T -= 1
+    
+    edges = []
+    lower_sum = [0] * n
+    upper_sum = [0] * n
+    
+    for _ in range(m):
+        u, v, c = map(int, input().split())
+        u -= 1
+        v -= 1
+        edges.append((u, v, c))
+        lower_sum[u] += 0
+        lower_sum[v] += 0
+        upper_sum[u] += c
+        upper_sum[v] += c
+    
+    # We add edge T->S with lower = upper = D
+    # For lower bound flow, we create super source/sink
+    N = n + 2
+    SS = n
+    TT = n + 1
+    dinic = Dinic(N)
+    
+    demand = [0] * n
+    # For each original edge (u,v) with cap c, lower=0
+    for u, v, c in edges:
+        dinic.add_edge(u, v, c)
+    
+    # Add T->S with lower=D, upper=D
+    dinic.add_edge(T, S, D)
+    demand[T] += D
+    demand[S] -= D
+    
+    total_pos = 0
+    for i in range(n):
+        if demand[i] > 0:
+            dinic.add_edge(SS, i, demand[i])
+            total_pos += demand[i]
+        elif demand[i] < 0:
+            dinic.add_edge(i, TT, -demand[i])
+    
+    flow = dinic.max_flow(SS, TT)
+    if flow != total_pos:
+        print("NO")
+        return
+    
+    # Extract flows on original edges
+    # We need to find the edge objects in graph
+    # We'll store references
+    edge_refs = []
+    dinic2 = Dinic(n)
+    for u, v, c in edges:
+        e = [u, v, c, None]
+        # We'll just rebuild graph to extract
+        edge_refs.append((u, v, c))
+    
+    # Rebuild with same structure to get flow values
+    dinic3 = Dinic(n)
+    for u, v, c in edges:
+        dinic3.add_edge(u, v, c)
+    dinic3.add_edge(T, S, D)
+    
+    # We need to find flow on each edge after max flow from S to T
+    # But we already have feasible circulation. We can get flows by checking residual.
+    # Simpler: run max flow from S to T on original graph with capacities, then add D on T->S edge.
+    
+    # Actually, we can just run max flow from S to T with original capacities, and check if it's >= D.
+    dinic4 = Dinic(n)
+    for u, v, c in edges:
+        dinic4.add_edge(u, v, c)
+    f = dinic4.max_flow(S, T)
+    if f < D:
+        print("NO")
+        return
+    
+    # Now extract flow values
+    result = []
+    for u, v, c in edges:
+        # find edge in dinic4 graph
+        for e in dinic4.graph[u]:
+            if e[0] == v and e[1] < c:  # residual capacity less than original means flow used
+                flow_val = c - e[1]
+                result.append(flow_val)
+                break
+        else:
+            result.append(0)
+    
+    print("YES")
+    print(" ".join(map(str, result)))
+
+if __name__ == "__main__":
+    solve()

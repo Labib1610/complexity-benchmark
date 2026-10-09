@@ -1,0 +1,83 @@
+import sys
+from collections import deque
+
+input = sys.stdin.readline
+
+class MaxFlow:
+    def __init__(self, n):
+        self.n = n
+        self.adj = [[] for _ in range(n)]
+    
+    def add_edge(self, u, v, cap):
+        self.adj[u].append([v, cap, len(self.adj[v])])
+        self.adj[v].append([u, 0, len(self.adj[u]) - 1])
+    
+    def bfs(self, s, t, level):
+        for i in range(self.n):
+            level[i] = -1
+        q = deque([s])
+        level[s] = 0
+        while q:
+            u = q.popleft()
+            for v, cap, rev in self.adj[u]:
+                if cap > 0 and level[v] < 0:
+                    level[v] = level[u] + 1
+                    q.append(v)
+        return level[t] >= 0
+    
+    def dfs(self, u, t, f, it, level):
+        if u == t:
+            return f
+        while it[u] < len(self.adj[u]):
+            v, cap, rev = self.adj[u][it[u]]
+            if cap > 0 and level[v] == level[u] + 1:
+                ret = self.dfs(v, t, min(f, cap), it, level)
+                if ret > 0:
+                    self.adj[u][it[u]][1] -= ret
+                    self.adj[v][rev][1] += ret
+                    return ret
+            it[u] += 1
+        return 0
+    
+    def max_flow(self, s, t):
+        flow = 0
+        level = [-1] * self.n
+        INF = 10**18
+        while self.bfs(s, t, level):
+            it = [0] * self.n
+            while True:
+                f = self.dfs(s, t, INF, it, level)
+                if f == 0:
+                    break
+                flow += f
+        return flow
+
+n, m, _ = map(int, input().split())
+s, t, d = map(int, input().split())
+s -= 1
+t -= 1
+
+edges = []
+mf = MaxFlow(n)
+
+for _ in range(m):
+    u, v, cap = map(int, input().split())
+    u -= 1
+    v -= 1
+    edges.append((u, v, cap))
+    mf.add_edge(u, v, cap)
+
+flow = mf.max_flow(s, t)
+if flow < d:
+    print("NO")
+else:
+    print("YES")
+    result = []
+    for u, v, cap in edges:
+        # Find the forward edge capacity left (original cap - remaining capacity)
+        for vv, cap_left, rev in mf.adj[u]:
+            if vv == v:
+                used = cap - cap_left
+                result.append(used)
+                break
+    print(" ".join(map(str, result)))

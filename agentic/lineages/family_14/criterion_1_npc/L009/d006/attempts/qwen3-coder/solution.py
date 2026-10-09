@@ -1,0 +1,118 @@
+import sys
+import heapq
+from collections import defaultdict
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    idx = 0
+    n = int(data[idx])
+    idx += 1
+    m = int(data[idx])
+    idx += 1
+    t = int(data[idx])
+    idx += 1
+    
+    targets = list(map(int, data[idx:idx+t]))
+    idx += t
+    targets = [x - 1 for x in targets]  # Convert to 0-based indexing
+    
+    edges = []
+    for _ in range(m):
+        u = int(data[idx]) - 1
+        v = int(data[idx+1]) - 1
+        w = int(data[idx+2])
+        idx += 3
+        edges.append((w, u, v))
+    
+    # If there's only one target, the condition is automatically satisfied
+    if t <= 1:
+        print(0)
+        return
+    
+    # We need to ensure that all targets have the same value under any linear functional
+    # that vanishes on our selected vectors.
+    # This is equivalent to ensuring that the differences between any two targets
+    # can be expressed as linear combinations of our selected vectors.
+    # In graph terms, we want all targets to be in the same connected component.
+    
+    # So we need to find the minimum cost to connect all targets.
+    # This is a Steiner tree problem, but since t is small (<= 10), we can use the following approach:
+    # 1. Compute shortest paths between all pairs of nodes (Floyd-Warshall or multiple Dijkstra)
+    # 2. Create a complete graph on the targets where edge weights are shortest path distances
+    # 3. Find the minimum spanning tree of this complete graph (since t is small)
+    
+    # Since n <= 100 and t <= 10, we can run Dijkstra from each target to get all-pairs shortest paths
+    # among targets.
+    
+    # Build adjacency list
+    adj = [[] for _ in range(n)]
+    for w, u, v in edges:
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+    
+    # Function to run Dijkstra from a source
+    def dijkstra(src):
+        dist = [float('inf')] * n
+        dist[src] = 0
+        pq = [(0, src)]
+        while pq:
+            d, u = heapq.heappop(pq)
+            if d > dist[u]:
+                continue
+            for v, w in adj[u]:
+                if dist[u] + w < dist[v]:
+                    dist[v] = dist[u] + w
+                    heapq.heappush(pq, (dist[v], v))
+        return dist
+    
+    # Get shortest distances from each target to all other nodes
+    target_dists = []
+    for target in targets:
+        target_dists.append(dijkstra(target))
+    
+    # Now create a complete graph on targets with edge weights as shortest path distances
+    # and find its MST using Prim's or Kruskal's algorithm.
+    
+    # Generate all edges of the complete graph on targets
+    mst_edges = []
+    for i in range(t):
+        for j in range(i+1, t):
+            u, v = targets[i], targets[j]
+            weight = target_dists[i][v]  # This is the shortest path distance between u and v
+            mst_edges.append((weight, i, j))
+    
+    # Sort edges by weight for Kruskal's algorithm
+    mst_edges.sort()
+    
+    # Union-Find data structure for Kruskal's
+    parent = list(range(t))
+    
+    def find(x):
+        if parent[x] != x:
+            parent[x] = find(parent[x])
+        return parent[x]
+    
+    def union(x, y):
+        px, py = find(x), find(y)
+        if px != py:
+            parent[px] = py
+            return True
+        return False
+    
+    # Kruskal's algorithm to find MST
+    total_cost = 0
+    edges_used = 0
+    for weight, u, v in mst_edges:
+        if union(u, v):
+            total_cost += weight
+            edges_used += 1
+            if edges_used == t - 1:
+                break
+    
+    print(total_cost)
+
+if __name__ == "__main__":
+    main()

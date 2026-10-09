@@ -1,5 +1,4 @@
 import sys
-
 sys.setrecursionlimit(10000)
 
 def solve() -> None:
@@ -9,71 +8,70 @@ def solve() -> None:
     it = iter(data)
     n = int(next(it))
     m = int(next(it))
-    adj = [[] for _ in range(n)]
+    adj = [0] * n
+    edges = []
     for _ in range(m):
         u = int(next(it)) - 1
         v = int(next(it)) - 1
-        adj[u].append(v)
-        adj[v].append(u)
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+        edges.append((u, v))
 
-    # possible colors bitmask: bit 0 for color1, bit1 for color2, bit2 for color3
-    poss = [(1 << 3) - 1] * n
-    color = [0] * n  # 0 = unassigned, else 1..3
+    # order vertices by degree descending
+    order = sorted(range(n), key=lambda x: -adj[x].bit_count())
+    pos_in_order = [0] * n
+    for i, v in enumerate(order):
+        pos_in_order[v] = i
 
-    # stack for backtracking changes: (vertex, previous_mask)
-    changes = []
+    colors = [0] * n  # 0 unassigned, 1..3 colors
 
-    def assign(v: int, col: int) -> bool:
-        """assign color col (1..3) to vertex v, propagate constraints.
-        return False if conflict arises."""
-        mask = 1 << (col - 1)
-        if not (poss[v] & mask):
-            return False
-        # set exact mask
-        changes.append((v, poss[v]))
-        poss[v] = mask
-        color[v] = col
-        # propagate to neighbors
-        for nb in adj[v]:
-            if color[nb]:
-                if color[nb] == col:
-                    return False
-                continue
-            if poss[nb] & mask:
-                newmask = poss[nb] & ~mask
-                if newmask == 0:
-                    return False
-                changes.append((nb, poss[nb]))
-                poss[nb] = newmask
-        return True
+    # adjacency in order indices for quick check
+    adj_order = [0] * n
+    for i, v in enumerate(order):
+        mask = 0
+        for u in range(n):
+            if (adj[v] >> u) & 1:
+                mask |= 1 << pos_in_order[u]
+        adj_order[i] = mask
 
-    def undo(to_len: int) -> None:
-        while len(changes) > to_len:
-            v, prev = changes.pop()
-            poss[v] = prev
-            if prev != (1 << 3) - 1 and (prev & (prev - 1)) == 0:
-                # was a single color before, keep it
-                color[v] = (prev.bit_length())
-            else:
-                color[v] = 0
+    found = False
 
-    def dfs(idx: int) -> bool:
+    def dfs(idx: int):
+        nonlocal found
+        if found:
+            return
         if idx == n:
-            return True
-        # try colors 1..3 for vertex idx
-        for c in (1, 2, 3):
-            snap = len(changes)
-            if assign(idx, c):
-                if dfs(idx + 1):
-                    return True
-            undo(snap)
-        return False
+            found = True
+            return
+        # try colors 1..3
+        neigh_mask = adj_order[idx]
+        # collect colors used by already colored neighbors
+        used = 0
+        for c in range(1, 4):
+            conflict = False
+            # check neighbors with same color
+            nb = neigh_mask
+            while nb:
+                lsb = nb & -nb
+                j = (lsb.bit_length() - 1)
+                if colors[order[j]] == c:
+                    conflict = True
+                    break
+                nb ^= lsb
+            if not conflict:
+                colors[order[idx]] = c
+                dfs(idx + 1)
+                if found:
+                    return
+                colors[order[idx]] = 0
 
-    if dfs(0):
-        print("YES")
-        print(' '.join(map(str, color)))
-    else:
+    dfs(0)
+
+    if not found:
         print("NO")
+    else:
+        print("YES")
+        print(' '.join(str(colors[i]) for i in range(n)))
 
 if __name__ == "__main__":
     solve()

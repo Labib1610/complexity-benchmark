@@ -1,4 +1,7 @@
-def solve():
+import sys
+from collections import defaultdict
+
+def main():
     import sys
     input = sys.stdin.read
     data = input().split()
@@ -6,50 +9,55 @@ def solve():
     n = int(data[0])
     m = int(data[1])
     
-    # Build adjacency list
-    adj = [[] for _ in range(n + 1)]
-    idx = 2
+    if m == 0:
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
+    
+    edges = []
+    index = 2
     for _ in range(m):
-        u = int(data[idx])
-        v = int(data[idx + 1])
+        u = int(data[index]) - 1
+        v = int(data[index+1]) - 1
+        edges.append((u, v))
+        index += 2
+    
+    # Build adjacency list
+    adj = [[] for _ in range(n)]
+    for u, v in edges:
         adj[u].append(v)
         adj[v].append(u)
-        idx += 2
     
-    # Try all 3^40 combinations using backtracking with pruning
-    # But since n <= 40, and we need lex smallest, we can do iterative deepening or just backtrack smartly
-    # We'll use backtracking that tries colors 1,2,3 in order for lex smallest
+    # Try to 3-color the graph
+    color = [-1] * n
     
-    color = [0] * (n + 1)  # color[i] is the phase of vehicle i
-    
-    def is_safe(node, c):
+    def dfs(node, c):
+        color[node] = c
         for neighbor in adj[node]:
-            if color[neighbor] == c:
+            if color[neighbor] == -1:
+                if not dfs(neighbor, 1 - c if c != 1 else 2):
+                    return False
+            elif color[neighbor] == c:
                 return False
         return True
     
-    def backtrack(node):
-        if node > n:
-            return True
-            
-        for c in [1, 2, 3]:
-            if is_safe(node, c):
-                color[node] = c
-                if backtrack(node + 1):
-                    return True
-                color[node] = 0
-        return False
+    # Check if the graph is 3-colorable
+    for i in range(n):
+        if color[i] == -1:
+            if not dfs(i, 0):
+                print("NO")
+                return
     
-    # This approach might be too slow for n=40 in worst case
-    # Let's think differently - this is a graph 3-coloring problem
-    # For small n, backtracking should work, but let's optimize:
-    # Try to prune search space early
-    
-    # Actually, let's just implement basic backtracking and see
-    if backtrack(1):
-        print("YES")
-        print(' '.join(map(str, color[1:])))
-    else:
-        print("NO")
+    print("YES")
+    result = []
+    for c in color:
+        if c == 0:
+            result.append("1")
+        elif c == 1:
+            result.append("2")
+        else:
+            result.append("3")
+    print(" ".join(result))
 
-solve()
+if __name__ == "__main__":
+    main()

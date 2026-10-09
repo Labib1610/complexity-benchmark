@@ -1,21 +1,29 @@
-# Problem B — Zone Isolation
+# Orbital Resonance
 
 Time limit: 1 s
 Memory limit: 256 MB
 
-A data center contains $n$ servers. You must assign each server to an operational zone. The only permitted zones are 1 and 2.
+A deep space communications network consists of $n$ relay satellites, numbered 1 through $n$. Within this network, there are $m$ known proximity hazards. Each hazard involves a specific pair of satellites that are physically too close to one another.
 
-The system has $m$ active interference links. Each link connects a specific pair of servers. To prevent cascading failures, you must ensure that no interference link connects two servers assigned to the same zone.
+To stabilize the network, you must establish a directional calibration link for each hazard. For each hazard between satellite $u$ and satellite $v$, you must designate exactly one of them as the 'emitter' for that hazard, and the other as the 'absorber'. This means the emitter contributes $+1$ to its calibration balance, and the absorber contributes $-1$.
 
-Determine if it is possible to assign a valid zone to all $n$ servers such that every interference link connects servers in different zones.
+Let $d_i$ be the total number of hazards involving satellite $i$. Let $C_i$ be the net calibration balance of satellite $i$ (the sum of its $+1$ and $-1$ contributions from all the hazards it is involved in).
+
+A system-wide failure will occur unless every satellite $i$ achieves absolute calibration resonance, defined as the condition $|C_i| = d_i$.
+
+If a safe configuration of links is possible, every satellite must be assigned a tuning parameter $s_i$ based on its resonance state:
+- If $C_i = d_i$, the satellite is assigned $s_i = 1$. (Note: isolated satellites have $C_i = 0$ and $d_i = 0$, so they satisfy $C_i = d_i$ and receive $s_i = 1$).
+- If $C_i = -d_i$ and $d_i > 0$, the satellite is assigned $s_i = 2$.
+
+Your task is to determine if there is a valid configuration of links for all $m$ hazards that prevents any system-wide failures. If such a configuration is possible, you must output it. If there are multiple valid ways to assign the parameters, you must choose the one whose sequence of assignments $s_1, s_2, \dots, s_n$ is lexicographically smallest.
 
 ## Input
 The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$).
-Each of the next $m$ lines contains two integers $u$ and $v$ — the indices of a pair of servers connected by an interference link.
+Each of the next $m$ lines contains two integers $u$ and $v$ — a proximity hazard between satellite $u$ and satellite $v$.
 
 ## Output
-If no valid zone assignment is possible, print a single line NO.
-Otherwise, print YES on the first line. On the second line, print $n$ integers $z_1 \dots z_n$ (where each $z_i \in \{1,2\}$) representing the valid assignment. If multiple valid assignments exist, output the lexicographically smallest sequence $z_1 \dots z_n$.
+If no safe configuration exists, print a single line containing `NO`.
+Otherwise, print `YES` on the first line. On the second line, print $n$ integers $s_1, \dots, s_n$ (each being either 1 or 2), representing the tuning parameter assigned to each satellite from 1 to $n$. This sequence must be the lexicographically smallest valid assignment.
 
 ## Example 1
 Input:

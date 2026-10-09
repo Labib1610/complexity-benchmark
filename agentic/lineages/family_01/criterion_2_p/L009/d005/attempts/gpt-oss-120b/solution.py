@@ -1,54 +1,57 @@
 import sys
-from collections import deque
+sys.setrecursionlimit(1 << 25)
 
 def solve() -> None:
     data = sys.stdin.read().strip().split()
     if not data:
         return
     it = iter(data)
-    n = int(next(it))
-    m = int(next(it))
-    adj = [[] for _ in range(n + 1)]
+    n = int(next(it)); m = int(next(it))
+    adj = [[] for _ in range(n+1)]
     for _ in range(m):
         u = int(next(it)); v = int(next(it))
         adj[u].append(v)
         adj[v].append(u)
 
-    colour = [-1] * (n + 1)          # 0 / 1
-    ans = [0] * (n + 1)
+    color = [ -1 ] * (n+1)          # 0 or 1
+    answer = [0] * (n+1)
 
-    for start in range(1, n + 1):
-        if colour[start] != -1:
+    from collections import deque
+
+    for start in range(1, n+1):
+        if color[start] != -1:
             continue
         # BFS this component
         q = deque([start])
-        colour[start] = 0
+        color[start] = 0
         comp = [start]
+        ok = True
         while q:
-            x = q.popleft()
-            cx = colour[x]
-            for y in adj[x]:
-                if colour[y] == -1:
-                    colour[y] = cx ^ 1
-                    q.append(y)
-                    comp.append(y)
-                elif colour[y] == cx:
+            u = q.popleft()
+            for v in adj[u]:
+                if color[v] == -1:
+                    color[v] = color[u] ^ 1
+                    q.append(v)
+                    comp.append(v)
+                elif color[v] == color[u]:
                     print("NO")
                     return
-        # decide mapping for lexicographically smallest
-        min_v = min(comp)
-        if colour[min_v] == 0:
-            # colour 0 -> p=1
+        # decide orientation for lexicographically smallest
+        min_vertex = min(comp)
+        # if min_vertex currently has parity 0, keep mapping 0->1,1->2
+        # else swap
+        if color[min_vertex] == 0:
             for v in comp:
-                ans[v] = 1 if colour[v] == 0 else 2
+                answer[v] = 1 if color[v] == 0 else 2
         else:
-            # swap
             for v in comp:
-                ans[v] = 2 if colour[v] == 0 else 1
+                answer[v] = 1 if color[v] == 1 else 2
 
-    # output
-    out = ["YES", " ".join(str(ans[i]) for i in range(1, n + 1))]
-    sys.stdout.write("\n".join(out))
+    # isolated vertices (no edges) are already handled: they form a component of size 1,
+    # min_vertex == that vertex, color = 0, so assigned 1.
+
+    print("YES")
+    print(' '.join(str(answer[i]) for i in range(1, n+1)))
 
 if __name__ == "__main__":
     solve()

@@ -1,224 +1,191 @@
 **Solution Explanation**
 
-For every module we have to choose a tier `1 … 3`.
-For each given pair `(u , v)` the two modules must obtain *different* tiers.
-The task is to decide whether such an assignment exists and, if it does,
-output the lexicographically smallest one (module 1 first, then module 2 …).
-
-`n ≤ 40`, therefore an exponential back‑tracking search is fast enough,
-but we have to prune the search aggressively.
+For every person we have to choose one of three shifts  
+(1, 2, 3) such that two people that are in conflict never obtain the same
+shift.
+The conflict graph has at most `n = 40` vertices, therefore an exponential
+search with strong pruning is fast enough.
 
 --------------------------------------------------------------------
 
 #### 1.   Data structures  
 
 * `adj[v]` – list of neighbours of vertex `v` (0‑based indices).  
-* `color[v]` – current colour of `v` (`0` = not coloured yet).  
-* `possible[v]` – a 3‑bit mask, bit *i* (`i = 0,1,2`) tells whether colour `i+1`
-  is still allowed for `v`.  
-  Initially `possible[v] = 0b111` for all vertices.
+* `col[v]` – current colour of `v` (`0` = not coloured yet, otherwise `1…3`).  
+* `poss[v]` – bit mask of still possible colours for `v`.  
+  bit `0` → colour 1, bit `1` → colour 2, bit `2` → colour 3.  
+  Initially `poss[v] = 0b111 = 7` for every vertex.  
+
+Because `n ≤ 40` all structures are tiny.
 
 --------------------------------------------------------------------
 
-#### 2.   Forward checking  
+#### 2.   Backtracking with forward checking  
 
-When we colour a vertex `v` with colour `c`
+The algorithm is a depth‑first search that always colours one still
+uncoloured vertex.
 
-```
-for every uncoloured neighbour u of v:
-        delete colour c from possible[u]
-```
+* **Variable ordering (MRV)** – choose the vertex with the smallest
+  number of still possible colours (`popcount(poss[v])`).  
+  This reduces branching dramatically.
 
-If for some neighbour `possible[u]` becomes `0`, the current partial
-assignment can never be extended – we backtrack immediately.
-All deletions are stored on a stack so that they can be undone when we
-return from the recursive call.
+* **Value ordering** – try the possible colours in any order
+  (`1,2,3`).
 
-The already coloured neighbours are handled separately:
-before trying a colour for `v` we compute the set of colours that are still
-compatible with them.
+* **Forward checking** – after fixing a colour for vertex `v`
+  the same colour is removed from the possibility masks of all still
+  uncoloured neighbours.
+  If a neighbour loses its last possible colour the current branch is
+  impossible and we backtrack immediately.
 
---------------------------------------------------------------------
+All changes of `poss[·]` are stored on a stack (`changed`) so they can be
+restored when the recursion returns.
 
-#### 3.   Recursive search – lexicographic order  
+The recursion stops successfully when every vertex is coloured.
 
-Vertices are processed **exactly** in the order `1,2,…,n`
-(the required lexicographic order).  
-For the current vertex `v`
-
-```
-mask = possible[v]                     # colours still allowed by forward checking
-for each already coloured neighbour u:
-        mask &= ~(1 << (color[u]-1))   # forbid the colour used by u
-try colours 1,2,3 in this order:
-        if colour is present in mask:
-                colour v, propagate, recurse to v+1
-                if recursion succeeds → whole search succeeds
-                undo all changes and try next colour
-```
-
-The first complete colouring found by this procedure is
-the lexicographically smallest one, because
-
-* vertices are fixed in increasing order,
-* for each vertex colours are tried increasingly.
+The whole search explores at most `3^40` states, but the MRV heuristic and
+forward checking prune the tree heavily; for `n = 40` it easily fits into
+the 2 seconds limit.
 
 --------------------------------------------------------------------
 
-#### 4.   Correctness Proof  
+#### 3.   Correctness Proof  
 
-We prove that the algorithm prints `YES` and the lexicographically smallest
-valid assignment iff such an assignment exists.
+We prove that the algorithm prints **YES** and a correct assignment
+iff a 3‑colouring exists, otherwise prints **NO**.
 
 ---
 
 ##### Lemma 1  
-During the search `possible[v]` always contains exactly the colours that are
-still feasible for `v` with respect to the already coloured vertices
-*excluding* the colours of already coloured neighbours (those are removed
-later by the mask computation).
+During the search `poss[v]` always contains exactly the colours that can
+still be assigned to `v` without violating already fixed colours.
 
 **Proof.**  
-Initially all three colours are feasible, so the statement holds.
-Assume it holds before colouring a vertex `x` with colour `c`.
-For every uncoloured neighbour `y` we delete `c` from `possible[y]`,
-which is precisely the new restriction introduced by the new edge
-`(x , y)`. No other vertex is affected.
-Thus after the deletions the invariant again holds. ∎
+Initially all three colours are possible, which is correct.
+When a vertex `x` receives colour `c`, the algorithm removes `c` from
+`poss[y]` for every uncoloured neighbour `y`.  
+No other colour is removed, and no colour is added later.
+Thus after the removal `poss[y]` contains precisely the colours that do not
+conflict with the already fixed neighbours. ∎
 
 
 
 ##### Lemma 2  
-When the algorithm tries a colour `c` for vertex `v`,
-`c` is compatible with **all** already coloured neighbours of `v`.
+If the algorithm reaches a recursive call where some vertex has
+`poss[v] = 0`, then the current partial assignment cannot be extended to
+a full proper 3‑colouring.
 
 **Proof.**  
-Before the trial we compute  
-
-```
-mask = possible[v]  &
-       (for each coloured neighbour u :  not colour[u])
-```
-
-All colours used by coloured neighbours are explicitly removed from `mask`,
-hence any colour taken from `mask` differs from every coloured neighbour. ∎
+By Lemma&nbsp;1 `poss[v] = 0` means that *every* colour would conflict with
+an already coloured neighbour, therefore any extension would create a
+conflict. ∎
 
 
 
 ##### Lemma 3  
-If the algorithm reaches recursion depth `k` (i.e. vertices `0 … k‑1`
-are coloured) then the partial assignment satisfies all constraints
-among those `k` vertices.
+Whenever the algorithm assigns a colour to a vertex, the partial
+assignment remains proper (no two adjacent coloured vertices share a
+colour).
 
 **Proof.**  
-Induction over `k`.  
-*Base* `k = 0` – trivially true.  
-*Step*: assume it holds for `k`. When vertex `k` is coloured,
-by Lemma&nbsp;2 its colour differs from every already coloured neighbour,
-and by Lemma&nbsp;1 all forward‑checked restrictions are respected.
-Therefore the enlarged assignment (now `k+1` vertices) also satisfies
-all constraints. ∎
+A colour `c` is assigned to vertex `v` only if `c ∈ poss[v]`.  
+By Lemma&nbsp;1 this means that none of the already coloured neighbours of
+`v` uses colour `c`. Hence the new assignment does not create a conflict. ∎
 
 
 
 ##### Lemma 4  
-If the algorithm backtracks from a partial assignment,
-that partial assignment cannot be extended to a full proper 3‑colouring.
+If the algorithm outputs a colouring, it is a valid 3‑colouring of the
+whole graph.
 
 **Proof.**  
-Backtracking occurs only when for some uncoloured vertex `u`
-`possible[u]` becomes empty after a colour assignment.
-By Lemma&nbsp;1 this means *every* colour would conflict with an already
-coloured neighbour, therefore no extension exists. ∎
+The algorithm stops only when every vertex is coloured.
+By Lemma&nbsp;3 the partial assignment is proper after each step, therefore
+the final complete assignment is proper.
+All colours are taken from `{1,2,3}` by construction. ∎
 
 
 
 ##### Lemma 5  
-If a proper 3‑colouring exists, the recursive search will eventually find
-one.
+If a proper 3‑colouring exists, the algorithm will eventually find one
+(and thus output **YES**).
 
 **Proof.**  
-Consider any proper colouring `C`.  
-Traverse the recursion tree following the branch that at each vertex `v`
-chooses exactly `C(v)`.  
-Because `C` is proper, when we reach vertex `v` the colour `C(v)` is still
-present in `mask` (it does not clash with already coloured neighbours),
-hence the algorithm will try it and the branch is not pruned.
-Thus the leaf corresponding to `C` is reachable and will be reported. ∎
+Consider any fixed proper 3‑colouring `C`.  
+During the search the algorithm explores *all* possibilities that are
+compatible with the already made decisions (it never discards a colour
+that could still lead to a solution, because it only removes colours
+that would immediately create a conflict – Lemma&nbsp;1).  
+Therefore there exists a path in the search tree that follows exactly
+the colours of `C`.  
+The algorithm performs a depth‑first traversal of the whole tree, so it
+will eventually walk along that path and reach a leaf where all vertices
+are coloured. At that leaf it outputs the found colouring. ∎
 
 
 
 ##### Lemma 6  
-The first complete colouring output by the algorithm is the lexicographically
-smallest among all proper colourings.
+If the algorithm finishes without finding a colouring, then no proper
+3‑colouring exists.
 
 **Proof.**  
-The recursion processes vertices in increasing order.
-For a fixed prefix of colours the algorithm explores the three possibilities
-for the next vertex in the order `1,2,3`.  
-Consequently the depth‑first search enumerates all colourings in exactly
-lexicographic order.  
-The first one that satisfies all constraints (by Lemma&nbsp;3) is therefore
-the smallest. ∎
+Assume the contrary: a proper 3‑colouring `C` exists but the algorithm
+fails.  
+During the exhaustive depth‑first search every possible colour choice
+that does **not** immediately contradict already fixed colours is tried.
+Whenever a branch is cut off, it is because some vertex obtained
+`poss = 0` (Lemma&nbsp;2), i.e. no colour can be assigned without conflict.
+Consequently **no** extension of the current partial assignment can be a
+proper colouring.  
+Thus the branch that would follow `C` cannot be cut off, contradicting the
+assumption that the algorithm never reaches a full colouring. ∎
 
 
 
 ##### Theorem  
 The program prints  
 
-* `NO` iff the graph is not 3‑colourable,  
-* otherwise `YES` and the lexicographically smallest proper 3‑colouring.
+* `YES` and a correct shift assignment **iff** a feasible assignment exists,
+* otherwise prints `NO`.
 
 **Proof.**  
+*If* the program prints `YES`, by Lemma&nbsp;4 the printed assignment is a
+valid 3‑colouring, therefore a feasible assignment exists.  
 
-*If the program prints `YES`*: it has found a complete assignment.
-By Lemma&nbsp;3 it respects all constraints, hence a proper 3‑colouring
-exists.
-
-*If the program prints `NO`*: the search exhausted the whole tree.
-Every leaf either violated a constraint (Lemma&nbsp;3) or was pruned
-(Lemma&nbsp;4).  
-If a proper colouring existed, Lemma&nbsp;5 guarantees a leaf representing
-it would be reachable and not pruned – contradiction.  
-Thus no proper colouring exists.
-
-When a proper colouring exists, Lemma&nbsp;5 guarantees the algorithm finds
-one, and Lemma&nbsp;6 guarantees the first found one is lexicographically
-minimal. ∎
+*Only‑if*: if a feasible assignment exists, Lemma&nbsp;5 guarantees that
+the algorithm will find one and print `YES`.  
+If the algorithm prints `NO`, it terminated without finding a colouring,
+hence by Lemma&nbsp;6 no feasible assignment exists. ∎
 
 
 
 --------------------------------------------------------------------
 
-#### 5.   Complexity Analysis  
+#### 4.   Complexity Analysis  
 
-`n ≤ 40`.
+*`n ≤ 40`*  
 
-*Each recursive step*  
+Let `T` be the number of visited search nodes.
 
-* tries at most three colours,
-* iterates over the neighbours of the current vertex ( ≤ n‑1 ).
+* Each recursive step scans all vertices to pick the MRV vertex  
+  → `O(n)` time.
+* Updating neighbours touches each edge at most once per assignment  
+  → `O(m)` per level, but summed over the whole search it is `O(T·Δ)` where
+  `Δ` is the maximum degree ( ≤ n).
 
-All other operations are `O(1)`.  
-Hence the work of one node of the search tree is `O(deg(v))`.
+In practice `T` is far below `3^n` because of pruning; for the worst
+theoretical bound we can only state `O(3^n)`.  
+Memory consumption:  
 
-In the worst case the algorithm may explore the whole 3‑ary tree,
-`O(3^n)`, which is exponential (NP‑complete problem).  
-With `n = 40` and the strong pruning from forward checking the actual
-running time is far below the limit (empirically well under a few
-milliseconds for random dense graphs).
+* adjacency list `O(n + m)`,
+* arrays `col`, `poss` of size `n`,
+* recursion depth `n`.
 
-Memory consumption:
-
-* adjacency lists – `O(n + m) ≤ O(n^2)`,
-* arrays `color`, `possible` – `O(n)`,
-* recursion stack – depth `n`.
-
-Overall `O(n^2)` memory, well inside the 256 MiB limit.
+All well below the limits (a few kilobytes).
 
 --------------------------------------------------------------------
 
-#### 6.   Reference Implementation  (Python 3)
+#### 5.   Reference Implementation  (Python 3)
 
 ```python
 import sys
@@ -242,66 +209,72 @@ def solve() -> None:
         adj[u].append(v)
         adj[v].append(u)
 
-    # 0 = uncoloured, otherwise 1..3
-    color = [0] * n
-    # 3-bit mask, bit i -> colour i+1 allowed
-    possible = [0b111] * n
+    # possible colours mask, bits 0..2 correspond to colours 1..3
+    poss = [0b111] * n
+    col = [0] * n                     # 0 = uncoloured, else 1..3
+    popcnt = [0, 1, 1, 2, 1, 2, 2, 3]  # for numbers 0..7
 
-    # depth‑first search, vertices processed in order 0..n-1
-    def dfs(v: int) -> bool:
-        if v == n:
+    # choose vertex with Minimum Remaining Values (fewest possible colours)
+    def select_vertex() -> int:
+        best = -1
+        best_cnt = 4
+        for v in range(n):
+            if col[v] == 0:
+                cnt = popcnt[poss[v]]
+                if cnt < best_cnt:
+                    best_cnt = cnt
+                    best = v
+                    if cnt == 1:
+                        break
+        return best
+
+    def dfs() -> bool:
+        # all coloured?
+        if all(col[v] != 0 for v in range(n)):
             return True
 
-        # colours still allowed by forward checking
-        mask = possible[v]
-        # forbid colours already used by coloured neighbours
-        for nb in adj[v]:
-            c = color[nb]
-            if c:
-                mask &= ~(1 << (c - 1))
-        if mask == 0:
-            return False
-
-        for col in (1, 2, 3):
-            bit = 1 << (col - 1)
-            if not (mask & bit):
+        v = select_vertex()
+        mask = poss[v]
+        # try colours 1,2,3
+        for colour in (1, 2, 3):
+            bit = 1 << (colour - 1)
+            if mask & bit == 0:
                 continue
 
             # assign colour
-            color[v] = col
-            changed = []          # list of (vertex, old_mask)
+            col[v] = colour
+            changed = []          # (neighbor, old_mask)
+            ok = True
 
-            conflict = False
             for nb in adj[v]:
-                if color[nb] == 0:
-                    if possible[nb] & bit:
-                        old = possible[nb]
-                        new = old & ~bit
-                        possible[nb] = new
-                        changed.append((nb, old))
-                        if new == 0:
-                            conflict = True
+                if col[nb] == 0 and (poss[nb] & bit):
+                    new_mask = poss[nb] & ~bit
+                    if new_mask != poss[nb]:
+                        changed.append((nb, poss[nb]))
+                        poss[nb] = new_mask
+                        if new_mask == 0:
+                            ok = False
                             break
-            if not conflict:
-                if dfs(v + 1):
-                    return True
 
-            # undo changes
-            for nb, old in changed:
-                possible[nb] = old
-            color[v] = 0
+            if ok and dfs():
+                return True
+
+            # revert changes
+            for nb, old in reversed(changed):
+                poss[nb] = old
+            col[v] = 0
 
         return False
 
-    if dfs(0):
-        out = ['YES', ' '.join(str(c) for c in color)]
+    if dfs():
+        out = ["YES", " ".join(str(c) for c in col)]
     else:
-        out = ['NO']
-    sys.stdout.write('\n'.join(out))
+        out = ["NO"]
+    sys.stdout.write("\n".join(out))
 
 if __name__ == "__main__":
     solve()
 ```
 
 The program follows exactly the algorithm proven correct above
-and conforms to the required input / output format.
+and conforms to the required input‑output format.

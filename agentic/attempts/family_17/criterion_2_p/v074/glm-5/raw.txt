@@ -1,0 +1,1356 @@
+This is a bipartite matching problem. We have $q$ assets on the left (tags $1..q$) and $q$ assets on the right (tags $q+1..2q$). We need a perfect matching in a bipartite graph with up to $q = 100000$ nodes on each side and $t = 400000$ edges.
+
+We need a perfect matching (all $2q$ assets covered). Since both sides have exactly $q$ nodes, a perfect matching covers all nodes on both sides.
+
+Standard approach: Hopcroft-Karp algorithm. With $q = 10^5$ and $t = 4 \times 10^5$, Hopcroft-Karp runs in $O(E \sqrt{V})$ which is $4 \times 10^5 \times \sqrt{2 \times 10^5} \approx 4 \times 10^5 \times 450 \approx 1.8 \times 10^8$... that might be too slow in Python if implemented naively. But Hopcroft-Karp typically converges much faster in practice. Still, Python needs careful implementation.
+
+Alternative: Since we need a *perfect* matching, we could use a different approach. Actually, there's a classic trick: for bipartite graphs where we need perfect matching, we can use the "Kuhn's algorithm with ordering heuristics" or Hopcroft-Karp.
+
+Let me think about performance. In Python, Hopcroft-Karp with adjacency lists using arrays and BFS/DFS might be feasible. Let me write an efficient implementation.
+
+Actually, a common efficient approach in Python for Hopcroft-Karp:
+- Use adjacency lists as lists of lists (or flat arrays).
+- BFS phase: compute layers, find augmenting paths.
+- DFS phase: find vertex-disjoint augmenting paths.
+
+Let me write it carefully.
+
+Let me denote left nodes $0..q-1$ (asset $a$), right nodes $0..q-1$ (asset $b - q$).
+
+Edges: $t$ up to 400000.
+
+Hopcroft-Karp implementation:
+
+```python
+import sys
+from collections import deque
+
+def main():
+    input_data = sys.stdin.buffer.read().split()
+    idx = 0
+    q = int(input_data[idx]); idx += 1
+    t = int(input_data[idx]); idx += 1
+    
+    # adjacency
+    adj = [[] for _ in range(q)]
+    for _ in range(t):
+        a = int(input_data[idx]) - 1; idx += 1
+        b = int(input_data[idx]) - 1 - q; idx += 1
+        adj[a].append(b)
+    
+    # match_left[u] = right node matched to left u, or -1
+    # match_right[v] = left node matched to right v, or -1
+    match_left = [-1] * q
+    match_right = [-1] * q
+    
+    INF = float('inf')
+    
+    matched = 0
+    # Greedy initial matching
+    for u in range(q):
+        for v in adj[u]:
+            if match_right[v] == -1:
+                match_left[u] = v
+                match_right[v] = u
+                matched += 1
+                break
+    
+    # Hopcroft-Karp
+    dist = [0] * q
+    # BFS from free left nodes
+    ...
+```
+
+Standard Hopcroft-Karp:
+
+```python
+from collections import deque
+
+def bfs():
+    queue = deque()
+    for u in range(q):
+        if match_left[u] == -1:
+            dist[u] = 0
+            queue.append(u)
+        else:
+            dist[u] = INF
+    found = False
+    while queue:
+        u = queue.popleft()
+        for v in adj[u]:
+            w = match_right[v]
+            if w == -1:
+                found = True
+            elif dist[w] == INF:
+                dist[w] = dist[u] + 1
+                queue.append(w)
+    return found
+
+def dfs(u):
+    stack-based or recursive?
+```
+
+Recursive DFS with depth up to $\sqrt{V}$ layers... Actually the DFS in Hopcroft-Karp follows augmenting paths of length up to the current phase's layer limit. Depth of recursion could be up to path length which can be $O(V)$ in the worst case within a phase? No — in Hopcroft-Karp, in phase $k$, augmenting paths have length at least $2k-1$, and we only augment along paths of length equal to the shortest. The DFS depth is bounded by the layer distance, which is bounded by the shortest augmenting path length in this phase. In the worst case, path lengths can be long (up to $O(V)$ in later phases? No — after $\sqrt{V}$ phases, we're done, but within a phase, the shortest augmenting path length can be large). Hmm, actually the DFS depth is bounded by the maximum dist value we explore, which is bounded by the shortest augmenting path length found in BFS. In the worst case this could be large (e.g., a long path graph). With $q = 10^5$, recursion depth could exceed Python's limit. Better to use iterative DFS.
+
+Let me write an iterative DFS for Hopcroft-Karp.
+
+Actually, there's a well-known efficient iterative implementation. Let me think.
+
+Alternative approach: Since this is a "perfect matching or report impossible" problem, and the graph structure is bipartite with equal sides, maybe there's something special? No, it's just general bipartite matching. The problem is from some contest (looks like a standard bipartite matching problem, maybe from Codeforces with the "synchronized deployment" flavor — actually this looks like it could be a rephrased version of a classic problem).
+
+Hmm wait, actually this might be a problem where the intended solution is different. Let me re-read: "an even number of assets, sequentially tagged from 1 to 2q". Links connect $a \le q$ with $b > q$. Need perfect matching. Yes, it's bipartite perfect matching. With $q \le 10^5$ and $t \le 4 \times 10^5$.
+
+Hopcroft-Karp in Python: worst case $O(E\sqrt{V})$. With careful implementation using arrays and avoiding function call overhead, it should be OK within 2 seconds? Python is slow; $1.8 \times 10^8$ basic operations would take way too long. But in practice, Hopcroft-Karp usually finishes in far fewer phases. However, adversarial inputs could make it slow.
+
+Hmm, but wait — maybe there's a special structure. Let me think again... The problem says "Determine whether the safety registry allows for a roster that fully commits all 2q assets." This is just bipartite perfect matching. There's no additional structure given. So we need a general algorithm.
+
+One important note: for a perfect matching to exist, every node must have degree ≥ 1. Also, Hall's condition. But no special structure.
+
+Let me think about how to make Hopcroft-Karp fast in Python.
+
+Key optimizations:
+1. Use flat arrays (lists) for adjacency: store edges in CSR format (offsets + targets). This makes iteration faster.
+2. Use iterative DFS with explicit stack, storing iterator positions.
+3. Use local variable caching inside loops.
+
+Alternatively, use Kuhn's algorithm with the "greedy init" and heuristics — but Kuhn is $O(V \cdot E)$ worst case = $10^5 \times 4 \times 10^5 = 4 \times 10^{10}$, way too slow in the worst case. Though with random ordering heuristics it's often fast, adversarial cases kill it.
+
+Hopcroft-Karp is the way. Let me write it.
+
+Actually, there's another thought: maybe use scipy? `scipy.sparse.csgraph.maximum_bipartite_matching` implements Hopcroft-Karp in C. That would be very fast. But is scipy allowed/available? The problem says "Python 3". Typically in competitive programming judges, scipy may or may not be available. It's risky. Let me write pure Python but optimized, and maybe consider scipy as primary with fallback? Hmm, output must be deterministic; using scipy if available would be safest for performance. But if scipy isn't available, the code fails. Let me write pure Python Hopcroft-Karp, carefully optimized.
+
+Let me think about the worst case more carefully. Hopcroft-Karp phases: at most $O(\sqrt{V})$ phases where $V = 2q = 2 \times 10^5$, so ~450 phases. Each phase is $O(E) = 4 \times 10^5$ edge traversals for BFS plus DFS. Total worst case ~$450 \times 2 \times 4\times10^5 \times$ constant ≈ $3.6 \times 10^8$ operations. In Python that's maybe 100+ seconds. Too slow for adversarial inputs.
+
+But in practice, the number of phases is usually small (like 10-20), and each phase's work is proportional to edges touched. Hmm, but the problem setters might have adversarial tests. This problem appears to be from a specific contest — "Problem B — Synchronized Asset Deployment". The constraints $q \le 10^5$, $t \le 4 \times 10^5$ suggest they expect an $O(E\sqrt{V})$ solution, which in C++ is trivial. For Python, we need to be clever.
+
+Hmm, wait. Let me reconsider. Maybe the problem has a special structure I'm missing. "The inventory consists of an even number of assets, sequentially tagged from 1 to 2q." Links: $1 \le a \le q < b \le 2q$. That's it — general bipartite graph.
+
+Hmm, this looks like it could be from Codeforces Round... "2q assets, q pairs, cross links" — this is exactly the classic problem "Perfect Matching" in bipartite graphs. E.g., Codeforces problem 1139D? No. Maybe it's from a Codeforces problem like "D. Domino for Young"? No.
+
+Actually, this strongly resembles Codeforces problem 1707... hmm, or maybe it's from a recent contest where the intended solution is Hopcroft-Karp. Let me just go with Hopcroft-Karp.
+
+Alternatively — maybe there's a randomized/algebraic approach? For bipartite perfect matching, there's the Tutte matrix / determinant approach, but that's for general graphs and is $O(V^\omega)$, too slow.
+
+OK here's my plan: implement Hopcroft-Karp in pure Python with heavy optimization:
+
+1. Read input fast with `sys.stdin.buffer.read().split()`.
+2. Build CSR adjacency: `adj_start` array of size q+1, `adj_list` array of size t.
+3. Greedy initial matching.
+4. Hopcroft-Karp phases with BFS (using a list as queue with index pointer) and iterative DFS.
+
+Let me write the iterative DFS carefully. The standard recursive version:
+
+```python
+def dfs(u):
+    for v in adj[u]:
+        w = match_right[v]
+        if w == -1 or (dist[w] == dist[u] + 1 and dfs(w)):
+            match_left[u] = v
+            match_right[v] = u
+            return True
+    dist[u] = INF
+    return False
+```
+
+Wait, the standard version: in DFS, for each neighbor $v$ of $u$: let $w = match_right[v]$. If $w == -1$ (free right node) or ($dist[w] == dist[u]+1$ and $dfs(w)$ succeeds), then augment: set match. Actually the standard formulation:
+
+```
+def try_kuhn_dfs(u):
+    for v in adj[u]:
+        w = match_right[v]
+        if w == -1 or (dist[w] == dist[u] + 1 and dfs(w)):
+            match_left[u] = v
+            match_right[v] = u
+            return True
+    dist[u] = INF  # mark dead
+    return False
+```
+
+Hmm, careful: when $w == -1$, we should also check that we're at the end of the layering? In standard Hopcroft-Karp, BFS computes dist for left nodes; free right nodes are at the "end". The condition for augmenting: we find a free right node $v$. But we need the path to be a shortest augmenting path — actually in HK, any augmenting path found via the layered graph with dist increasing by 1 each step and ending at a free right vertex is fine (it's a shortest one). Actually, we need to be careful: if $dist[u]$ is the layer and we find a free $v$ adjacent to $u$, the path length is $2 \cdot dist[u] + 1$... The BFS sets dist for left nodes; free right nodes are treated as terminal. The standard HK: BFS from all free left vertices, alternating through unmatched/matched edges; if we reach a free right vertex, we found shortest augmenting path. In DFS phase, we only follow edges $u \to v$ where $match\_right[v] = w$ with $dist[w] = dist[u]+1$, or $match\_right[v] = -1$ (free). But we should only accept free $v$ when... hmm, actually if $v$ is free and adjacent to $u$ where $u$ is in the layered graph, then the path from a free left node to $u$ has length $dist[u]$ (in left-node layer counts), and adding edge $u \to v$ gives an augmenting path. But is it shortest? The BFS would have terminated at layer $dist[u]$ if a free right node was reachable at that layer... Standard implementations just accept it. Let me recall the classic implementation (e.g., from e-maxx or competitive programming references):
+
+Classic Hopcroft-Karp pseudocode:
+
+```
+function BFS():
+    for each u in left:
+        if match_left[u] == NIL:
+            dist[u] = 0
+            queue.push(u)
+        else:
+            dist[u] = INF
+    dist[NIL] = INF
+    while queue not empty:
+        u = queue.pop()
+        if dist[u] < dist[NIL]:
+            for v in adj[u]:
+                w = match_right[v]  (paired of v)
+                if dist[w] == INF:
+                    dist[w] = dist[u] + 1
+                    queue.push(w)
+    return dist[NIL] != INF
+
+function DFS(u):
+    if u != NIL:
+        for v in adj[u]:
+            w = match_right[v]
+            if dist[w] == dist[u] + 1:   // dist[NIL] is finite
+                if DFS(w):
+                    match_left[u] = v
+                    match_right[v] = u
+                    return True
+        dist[u] = INF
+        return False
+    return True
+```
+
+The NIL trick: treat unmatched right vertices as pointing to NIL, and NIL's dist is set to the layer at which the first free right vertex is found. Then DFS follows only edges leading to right vertices whose partner has dist = dist[u]+1, and free right vertices have "partner NIL" with dist[NIL] finite. This ensures only shortest augmenting paths are used, and paths in the same phase are vertex-disjoint.
+
+The NIL trick version: dist[NIL] gets set when we pop a left node $u$ with $dist[u] < dist[NIL]$ and see a free right neighbor $v$: then $dist[NIL] = dist[u]+1$ (first time). This bounds the layering.
+
+For the iterative version, I'll handle it without NIL by using a sentinel. Let me use arrays of size q for left, and match_right of size q, with -1 meaning free. I can simulate NIL by using index q as NIL: match_right array of size q+1 where match_right[v] for free v is... hmm, that doesn't directly work since NIL is a left-node concept in dist but a right-node concept in match.
+
+Alternative cleaner approach: define `pair_right` of size q (right node -> left partner or -1). In BFS, dist over left nodes 0..q-1 plus a special value for "free right node reached". Let me define dist array of size q+1 where index q represents NIL (the virtual left node that free right nodes are "matched" to). And pair_right[v] = partner or q (NIL) when free. Then:
+
+BFS:
+```
+dist = [INF] * (q+1)
+queue = []
+for u in range(q):
+    if pair_left[u] == -1:
+        dist[u] = 0
+        queue.append(u)
+head = 0
+while head < len(queue):
+    u = queue[head]; head += 1
+    if dist[u] < dist[NIL]:
+        for v in adj[u]:
+            w = pair_right[v]
+            if dist[w] == INF:
+                dist[w] = dist[u] + 1
+                queue.append(w)
+return dist[NIL] != INF
+```
+
+Wait but if pair_right[v] == NIL (free), then w = q, and dist[q] gets set. But then in the queue, we'd pop NIL... and iterate adj[NIL] which doesn't exist. Need to guard: when popping u, if u == NIL, skip (or don't push NIL). Actually in the classic implementation, NIL is pushed but adj[NIL] is empty (NIL has no adjacency), so it's fine. Let me just make sure: when u == q (NIL), we skip the adjacency loop. Or simply don't push NIL into the queue at all — we just need dist[NIL] set. But careful: dist[NIL] should be set to the minimum over reachable free right nodes. If we don't push NIL, then when we later pop u with dist[u] < dist[NIL]... hmm, the condition `dist[u] < dist[NIL]` prunes exploration beyond the shortest augmenting path length. If NIL is not pushed, that's fine — we never need to expand NIL.
+
+Actually wait, there's subtlety: multiple free right nodes can be adjacent; the first one found sets dist[NIL]; subsequent ones found at the same layer would have dist[w] == dist[NIL] != INF so they're skipped. Good.
+
+DFS (iterative): For left node u (start from free left nodes only? No — in HK, DFS is called on all free left nodes; actually the standard calls DFS(u) for each u with pair_left[u] == NIL... hmm, actually the standard main loop:
+
+```
+matching = 0
+while BFS():
+    for each u in left:
+        if pair_left[u] == NIL:
+            if DFS(u):
+                matching += 1
+```
+
+Yes. And DFS(u) for free u explores the layered graph.
+
+Iterative DFS with explicit stack. The tricky part: we need to iterate over adjacency of each left node, remembering position. Stack entries: (u, edge_iterator_index). When we find a valid edge (v with dist[pair_right[v]] == dist[u]+1), we push (pair_right[v], 0) — i.e., move to the next left node in the path — and remember that if the child succeeds, we set pair for u to v. Hmm, we need to remember which v we were trying. Let me structure:
+
+```
+def dfs(u0):
+    # returns True if augmenting path found from free left node u0
+    stack = [(u0, start_index[u0])]
+    path_v = []  # the right nodes chosen at each level
+    ...
+```
+
+Let me think of a clean iterative formulation:
+
+```
+def try_augment(u0):
+    stack = [u0]
+    ptr = {u0: 0}  # current adjacency pointer
+    # We'll use an array it[] reset per DFS? That's O(q) per DFS — too slow if many DFS calls.
+```
+
+Hmm, per-DFS pointer array initialization is a problem. Instead, store pointers in the stack frames.
+
+Stack frame: [u, edge_ptr, chosen_v]. Algorithm:
+
+```
+stack = [[u0, start[u0], -1]]
+while stack:
+    frame = stack[-1]
+    u = frame[0]
+    advanced = False
+    i = frame[1]
+    end = start[u+1]
+    du1 = dist[u] + 1
+    while i < end:
+        v = adj_flat[i]
+        i += 1
+        w = pair_right[v]
+        if dist[w] == du1:
+            # try this edge
+            frame[1] = i
+            frame[2] = v
+            if w == NIL:  # free right node -> augmenting path complete
+                # augment along the stack
+                for fr in stack:
+                    pair_left[fr[0]] = fr[2]
+                    pair_right[fr[2]] = fr[0]
+                return True
+            stack.append([w, start[w], -1])
+            advanced = True
+            break
+    if not advanced:
+        # exhausted u's edges without success
+        frame[1] = i
+        dist[u] = INF  # dead end
+        stack.pop()
+return False
+```
+
+Wait, but there's an issue: when child w fails (popped with dist[w] = INF), the parent resumes its edge loop from frame[1], trying the next edge. That's correct. But note: after child w fails, dist[w] = INF, so any other parent edge pointing to w will fail the dist check — good, that's the pruning.
+
+But careful: when we pop the child and continue the parent's loop, the parent's `while i < end` continues from stored frame[1]. Good.
+
+Also, the augment step: when we find free v at frame u, the path is stack of frames, each with chosen v. We set pair_left[u] = v and pair_right[v] = u for each frame in the stack. But wait — the last frame's chosen v is the free right node; earlier frames' chosen v are the right nodes whose partners are the next frame's u. Yes, that's the alternating path. Correct.
+
+Hmm, but one subtlety: in the classic HK DFS, when we successfully augment through node u (i.e., dfs(w) returned True), we set pair_left[u] = v, pair_right[v] = u and return True. In my iterative version, the augment happens at the deepest level, and then we set pairs for all frames along the stack. Correct.
+
+Another subtlety: after augmenting, dist values along the path are not reset — but that's fine because the phase ends... no wait, the phase continues: we call try_augment for other free left nodes in the same phase. The dist values of nodes on used augmenting paths: their pair changed. Could a subsequent DFS in the same phase reuse them? The vertex-disjointness in HK comes from the fact that used left nodes... hmm. Let me think. In classic HK, after DFS(u) succeeds, the nodes on the augmenting path have their matching changed. A later DFS(u') in the same phase might reach a node on the previous path. Would that break correctness (not vertex-disjointness per se, but correctness of the matching)?
+
+Actually, the classic HK guarantees that augmenting paths found in the same phase are vertex-disjoint, ensuring the matching remains valid and the total is a proper augmentation. Let me verify: Suppose DFS(u') reaches left node w that was on a previous augmenting path in this phase. w is now matched to some v'. In the layered graph, dist[w] is its BFS layer. The edge from u'' (previous frame) to some right node v'' with pair_right[v''] == w requires dist[w] == dist[u''] + 1. Since w is now matched (pair_right[v''] = w means v'' is matched to w)... wait, if w was on the previous augmenting path, w got matched to a new right node. For DFS(u') to traverse into w, it needs an edge from some frame node x to right node y with pair_right[y] == w. But pair_right[y] == w means y is matched to w — y is w's current partner. Since w just got matched to a new node v_new (from the previous augmentation), pair_right[v_new] = w. So DFS(u') could traverse edge x -> v_new -> w. Is that a problem?
+
+In classic HK analysis, this cannot happen because... hmm, actually let me think. In the classic implementation, after DFS succeeds along a path, the dist values along the path are unchanged. But the key invariant: in the DFS phase, once a node is used in an augmenting path, can it be used again? 
+
+Let me recall the classic proof: The DFS phase finds a maximal set of vertex-disjoint shortest augmenting paths. The mechanism: when DFS(u) fails, dist[u] is set to INF, removing u from the layered graph. When DFS(u) succeeds, the path is removed from the graph implicitly because... hmm.
+
+Let me think concretely. Path P1: u0 - v1 - w1 - v2 - w2 - ... - vk(free). After augmentation: pair_left[u0] = v1, pair_right[v1] = u0, pair_left[w1] = v2, pair_right[v2] = w1, ..., pair_right[vk] = w_{k-1} (or u0 if k=1).
+
+Now DFS(u0') starts. It explores edges x -> y where dist[pair_right[y]] == dist[x]+1. Could it reach u0? u0 is at dist 0 (it was free at BFS time). For another DFS to reach u0, it needs an edge x -> y with pair_right[y] == u0 and dist[u0] == dist[x]+1, i.e., dist[x] = -1. Impossible since dist ≥ 0. So u0 can't be re-entered. Good.
+
+Could it reach w1 (dist 1)? Needs edge x -> y with pair_right[y] == w1, dist[x] = 0. x is a free left node (dist 0). y = v2 (w1's new partner). So if free left node x has edge to v2, DFS(x) would try y = v2, pair_right[v2] = w1, dist[w1] = 1 = dist[x]+1. ✓. So it would push w1 and continue from w1. Then from w1, it explores edges w1 -> z with dist[pair_right[z]] == 2. w1's old partner v1 is now matched to u0 (dist[u0] = 0 ≠ 2), so edge w1->v1 fails. Other edges from w1 to right nodes matched to dist-2 left nodes... those were available before too. Hmm, so DFS(x) could go x -> v2 -> w1 -> ... and find another augmenting path that shares vertices w1, v2 with P1? But wait — if it succeeds, the augmentation would re-match w1 to a different right node and v2 to x. Then the matching is still valid (each node in exactly one pair) because we're just re-augmenting along a path that starts at free x and ends at a free right node. The path x -> v2 -> w1 -> ... -> free is an alternating path w.r.t. the *current* matching. Augmenting along it keeps a valid matching. So correctness (valid matching) is preserved regardless.
+
+The concern for HK is the complexity bound and that paths found are shortest. Hmm, but actually there's a subtle issue: the classic HK guarantees that within a phase, the augmenting paths found are vertex-disjoint, which gives the $\sqrt{V}$ phase bound. If paths could share vertices, the analysis might break... Let me think again about whether the classic implementation can find overlapping paths in the same phase.
+
+Hmm, in the classic implementation, when DFS succeeds through w1, the pairs change. For a later DFS to enter w1 via v2 (w1's new partner), as computed above, it's possible if some free x (dist 0) is adjacent to v2. But wait — would BFS have dist[w1] = 1 and the path x -> v2 -> w1 be part of the layered graph? Yes. But here's the thing: in the classic HK, after the first augmentation through w1, is w1 still "usable"? Let me look at the standard proof: The DFS phase finds a maximal set of vertex-disjoint shortest augmenting paths. The argument: DFS from free vertices only follows layered edges; when a vertex fails, it's removed (dist = INF); when a path succeeds, all vertices on it... hmm, in the classic implementation, vertices on a successful path are NOT explicitly removed. But the claim is that they can't be part of another shortest augmenting path in the same phase. Why?
+
+Because: after augmenting along P1, the vertices on P1 have their matched partners changed. For another path to use left vertex w1 (dist 1), it must enter w1 via its current partner v2 from a dist-0 vertex x. But then the path would be x -> v2 -> w1 -> ... For this to be a shortest augmenting path in the layered graph, it continues from w1 via edges to right nodes whose partners are at dist 2, etc. Hmm, so it seems possible in principle?
+
+Wait, no. Let me reconsider. Actually I recall that in Hopcroft-Karp, the DFS phase does produce vertex-disjoint paths, and the mechanism is exactly this: a left vertex w at dist k can only be entered via its matched partner. After w is used in an augmenting path, its partner changed from v_old to v_new. For a subsequent DFS to enter w, it needs an edge from a dist-(k-1) left vertex to v_new. Hmm.
+
+Hold on, let me reconsider: is it actually possible for two shortest augmenting paths (w.r.t. the original matching M at phase start) to share a vertex after the first is applied? If P1 and P2 are vertex-disjoint shortest augmenting paths w.r.t. M, applying P1 then P2 (both w.r.t. M) — P2 is still an augmenting path w.r.t. M⊕P1 if they're vertex-disjoint. The DFS finds paths w.r.t. the evolving matching, but the claim is they're all shortest w.r.t. M and vertex-disjoint.
+
+Hmm, let me think about whether the classic implementation could produce a path that reuses a vertex. Suppose P1 = u0 -> v1 -> w1 -> v2 (free). So u0 (dist 0) - v1 - w1 (dist 1) - v2 free. After: pair(u0,v1), pair(w1,v2).
+
+Now DFS(u0') where u0' is another free left node, dist 0, adjacent to v2. Edge u0' -> v2: pair_right[v2] = w1, dist[w1] = 1 = dist[u0']+1 ✓. So we go to w1. From w1, edges to right nodes y with dist[pair_right[y]] == 2. Note v1 now has pair_right[v1] = u0, dist[u0] = 0, so edge w1->v1 fails. Suppose w1 has another edge to v3, where pair_right[v3] = w2 with dist[w2] = 2. Then continue: w2 -> ... -> free right node at the end. So P2 = u0' -> v2 -> w1 -> v3 -> w2 -> ... -> free. This path shares v2 and w1 with P1!
+
+Is that a bug in the classic implementation? Let me check: after applying P1 and then P2, is the matching valid? P2 as an alternating path w.r.t. current matching M1 = M⊕P1: u0' is free ✓ (in M1, u0' unmatched). Edge u0'-v2: v2 is matched (to w1) in M1 ✓ non-matching edge. v2-w1: matching edge in M1 ✓. w1-v3: non-matching ✓ (w1 matched to v2). v3-w2: matching ✓. ... ends at free right node ✓. So P2 is a valid augmenting path w.r.t. M1, and M1⊕P2 is a valid matching. So correctness holds — the algorithm maintains a valid matching and augments by 1 each successful DFS. The final matching is valid.
+
+But does the complexity bound still hold? The HK bound relies on: after each phase, the shortest augmenting path length increases. The phase finds a *maximal* set of vertex-disjoint shortest augmenting paths. If paths overlap, then... hmm, the number of augmentations per phase could exceed the size of a maximal vertex-disjoint set. Hmm, wait, but actually can the scenario above happen? Let me re-examine.
+
+In the scenario: P1 = u0 - v1 - w1 - v2(free). For P2 to reuse w1 via v2: u0' (free, dist 0) adjacent to v2. But wait — BFS: dist[w1] = 1 means w1 is matched (in M) to v1, and v1 is adjacent to some dist-0 free left node. v2 was free at BFS time. u0' adjacent to v2 with u0' free: then in BFS, when we popped... hmm, BFS from free left nodes: u0' at dist 0, its neighbor v2 is free, so dist[NIL] would be set to 1 (if not already). And u0 adjacent to v1 (matched to w1), dist[w1] = 1. Also w1 adjacent to v2 (free). So both P1 and P2... wait P2 = u0' - v2 - w1 - v3 - w2 - ... For P2 to be a shortest augmenting path, its length must equal dist[NIL]... 
+
+Hmm wait, in the DFS, we accept reaching a free right node only when... In the classic implementation with the NIL trick: dist[NIL] is set during BFS to the first-found free right node's layer. In DFS, edge x -> y is traversable iff dist[pair_right[y]] == dist[x]+1. For free y, pair_right[y] = NIL, so traversable iff dist[NIL] == dist[x]+1. So a free right node y is only accepted as the path end when dist[x] = dist[NIL] - 1, i.e., the path has exactly the shortest length. 
+
+In my scenario: dist[NIL] would be 1 (since u0' at dist 0 is adjacent to free v2, BFS sets dist[NIL] = 1). Then in DFS: DFS(u0) explores edges: u0 -> v1: pair_right[v1] = w1, dist[w1] = 1 = 0+1 ✓, go to w1. From w1: edge to v2: pair_right[v2] = NIL, dist[NIL] = 1, need dist[w1]+1 = 2 = dist[NIL]? No, 2 ≠ 1. So edge w1 -> v2 is NOT traversable! Hmm wait, that means P1 = u0 - v1 - w1 - v2 is not usable? But it has length 3 (edges), while dist[NIL] = 1 means shortest augmenting paths have length 1 (direct edge from free left to free right). So P1 (length 3) is not shortest, correctly excluded.
+
+OK so in this scenario, the phase would only augment along length-1 paths. Let me redo the scenario so that P1 is shortest. For P1 = u0 - v1 - w1 - v2(free) to be shortest (length 3), dist[NIL] must be 3... wait, dist[NIL] in terms of left-layer counts: dist[u0] = 0, dist[w1] = 1, and v2 free found from w1: dist[NIL] = dist[w1]+1 = 2. Path length in edges = 2*dist[NIL] - 1 = 3. ✓.
+
+For P2 to reuse w1: P2 = u0' - v2 - w1 - v3 - w2 - ... - free. u0' free at dist 0, adjacent to v2. But v2 was free during BFS, so BFS from u0' would see neighbor v2 free and set dist[NIL] ≤ 1. But we said dist[NIL] = 2. Contradiction! So if dist[NIL] = 2, no free left node is adjacent to a free right node... but v2 is free and u0' is free and adjacent — contradiction. So the scenario is impossible. 
+
+Let me think about it more generally: after P1 is applied, could a subsequent DFS enter a vertex of P1? The vertices of P1: left u0 (dist 0), right v1, left w1 (dist 1), right v2 (now matched), etc. To enter left vertex w at dist k ≥ 1 (on P1), the DFS must come via w's current partner. After P1, w's partner is the right node that was the *next* on P1 (the one closer to the free end). Say P1 = x0 - y1 - x1 - y2 - x2 - ... - x_{k} - y_{k+1}(free), where x_i are left (dist i), y_i right. After P1: pair(x_i, y_{i+1}) for all i.
+
+For DFS' to enter x_i (i ≥ 1), it must traverse edge from some left node z at dist i-1 to y_{i+1} (x_i's new partner). But y_{i+1} at BFS time: for i+1 ≤ k, y_{i+1} was matched to x_i... wait no. Before P1: pair(x_j, y_j) for j ≥ 1 (y_j matched to x_j), and y_{k+1} free. After P1: pair(x_j, y_{j+1}).
+
+DFS' enters x_i via edge z -> y_{i+1} where dist[z] = i-1 and pair_right[y_{i+1}] = x_i. Case i+1 ≤ k: y_{i+1} was matched to x_{i+1} before P1 (dist[x_{i+1}] = i+1... wait, hmm, that doesn't matter for entering). Hmm wait, I need pair_right[y_{i+1}] = x_i *currently* (after P1). Yes after P1, pair(x_i, y_{i+1}). So DFS' at z (dist i-1) sees edge z -> y_{i+1}, pair_right[y_{i+1}] = x_i, dist[x_i] = i = dist[z]+1 ✓. So DFS' enters x_i. Then from x_i, DFS' continues via edges to right nodes whose partners are at dist i+1. Note: y_{i+2} (x_i's old... no wait). Hmm, from x_i, the edge to y_{i+1}: pair_right[y_{i+1}] = x_i itself now — dist[x_i] = i ≠ i+1, fails. Edge x_i -> y_i (its old partner): pair_right[y_i] = x_{i-1} now (after P1), dist[x_{i-1}] = i-1 ≠ i+1, fails. Other edges x_i -> y: pair_right[y] = some left node at dist i+1 — these are the same options as before P1 (except y_{i+1}, y_i changed). So DFS' from x_i continues as if... it could find a path to a free right node at dist[NIL]-1... 
+
+Hmm wait, but for DFS' to enter x_i, DFS' itself must be an alternating path from a free left node z0 (dist 0) through the layered graph. The path so far: z0 (dist 0) -> ... -> z (dist i-1) -> y_{i+1} -> x_i (dist i). This path uses vertices z0, ..., z, y_{i+1}, x_i. y_{i+1} and x_i are on P1. So the paths would share vertices. But then the combined augmentation... Let me check whether this can actually happen given BFS layers. 
+
+Hmm, wait. I realize the concern is about whether the classic HK implementation maintains the invariant. Let me look at it from the perspective of known correctness: the classic Hopcroft–Karp implementation (with NIL, dist over left vertices + NIL, BFS + DFS as I described) is a well-known correct algorithm with the $O(E\sqrt{V})$ bound. It's proven correct in textbooks. The vertex-disjointness within a phase: I believe the proof shows that the DFS phase finds a maximal set of vertex-disjoint shortest augmenting paths, and the mechanism is: (1) failed vertices are removed via dist=INF; (2) successful paths — the claim is that once a shortest augmenting path is used, its vertices cannot be part of another shortest augmenting path found later in the same phase. 
+
+Let me try to see why: Suppose P1 (shortest, length 2d-1 where dist[NIL] = d) is applied. Could there be another shortest augmenting path P2 (w.r.t. M⊕P1) that shares vertices with P1, and would the DFS find it? If P2 shares vertex with P1, then P1 ⊕ P2... Hmm, actually here's a cleaner way to think: shortest augmenting paths w.r.t. M form a structure where... Let me think about whether P2 (w.r.t. M1 = M⊕P1) that shares vertices with P1 can be shortest w.r.t. M as well... 
+
+Actually, you know what — the key question for correctness of the *matching* is just that each DFS finds a valid augmenting path w.r.t. the current matching, which I verified structurally (the DFS only follows edges x->y where pair_right[y] is at the next layer, and pair_right[y] is the *current* partner; the path alternates non-matching/matching edges correctly w.r.t. current matching; ends at free right node). Wait, is that right? In DFS, from left node x at dist k, we take edge x -> y (any registered edge, so it's a non-matching edge? Not necessarily — could x -> y be a matching edge currently? If pair_left[x] == y currently, then pair_right[y] = x, and dist[x] = k, need dist[x] == k+1 — false. So matching edges are never traversed. ✓). Then from y we go to pair_right[y] = x' (matching edge, unless y free in which case we augment). So the path alternates: non-matching, matching, non-matching, matching, ..., ending with a non-matching edge to a free right node. Starts at free left node (we only call DFS on free left nodes... wait, do we? In the main loop, we call DFS(u) for u with pair_left[u] == NIL at the *start of the phase*? Or check current?).
+
+Hmm, important: in the main loop, after previous augmentations in the same phase, some initially-free left nodes are now matched. The classic implementation:
+
+```
+while BFS():
+    for each u in left:
+        if pair_left[u] == NIL:
+            if DFS(u): matching++
+```
+
+The check `pair_left[u] == NIL` is the *current* state. Since each successful DFS matches exactly the starting free left node u (pair_left[u] gets set), and DFS only starts at free nodes, each augmentation increases matching by 1 and the start node becomes matched. But could a DFS started at u fail because... whatever, the point is the matching stays valid.
+
+So the matching validity is guaranteed. The only question is the complexity bound (number of phases). The HK theorem: if in each phase we augment along a *maximal set of vertex-disjoint shortest paths*, then after $\sqrt{V}$... hmm, but if paths overlap, is the set still "maximal vertex-disjoint"? 
+
+Let me look for the actual proof mechanism in the classic implementation. I recall now: the classic implementation DOES guarantee vertex-disjointness. Here's the argument: Consider DFS phase. When DFS(u) succeeds along path P, all left vertices on P have their partners changed. Claim: no subsequent DFS can enter any left vertex of P. 
+
+Suppose subsequent DFS enters left vertex x_i of P (x_i at dist i ≥ 1; x_0 the start can't be re-entered as shown). Entry is via edge z -> y where y = current partner of x_i = y_{i+1} (the right node following x_i on P). So z (dist i-1) has an edge to y_{i+1}. Now, before P was applied, y_{i+1} was: if i+1 ≤ k (i.e., y_{i+1} matched to x_{i+1} in M), or y_{k+1} free if i = k.
+
+Sub-case A: i = k (x_i is the last left vertex on P, y_{i+1} = y_{k+1} was free in M). z at dist k-1 has edge to y_{k+1}. But y_{k+1} was free during BFS, and z was at layer k-1 < dist[NIL]-1 = k-1... wait dist[NIL] = d. Hmm, let me recompute: P has left vertices x_0..x_k, so dist[NIL] = d means the free right node is found at layer d, i.e., k = d-1? Let me redo: BFS layers: x_0 at 0, x_1 at 1, ..., x_j at j. The free right node y_{k+1} is adjacent to x_k, so dist[NIL] = k+1 = d. So k = d-1.
+
+Sub-case A: z at dist d-2 has edge to y_d (free in M). During BFS, when z was popped (dist d-2 < dist[NIL]... well, dist[NIL] was set when first free right node found; if z popped before that... hmm, order matters). If z has an edge to free right node y_d, then when z is popped in BFS, it would set dist[NIL] ≤ d-1 < d. Contradiction with dist[NIL] = d — unless z was popped after dist[NIL] was already set to d, in which case the condition `dist[u] < dist[NIL]` (d-2 < d ✓) still holds, so z is expanded and would see y_d free → dist[NIL] = min(d, d-1)... wait, the BFS code: when popping z with dist[z] < dist[NIL], for each neighbor y: w = pair_right[y]; if dist[w] == INF: dist[w] = dist[z]+1. For free y, w = NIL: if dist[NIL] == INF: dist[NIL] = dist[z]+1 = d-1. But dist[NIL] is already d ≠ INF, so no update. Hmm! So dist[NIL] stays d even though a shorter connection exists?
+
+Wait, that can't be right — BFS processes nodes in layer order (it's a BFS!), so all dist d-2 nodes are popped before any dist d-1 node is popped, and dist[NIL] is set the first time any node at layer ≤ d-2 sees a free neighbor. Since z at layer d-2 sees free y_d, dist[NIL] would be set to ≤ d-1 when z is popped, which happens before... hmm, unless dist[NIL] was already set to something ≤ d-1 earlier. Either way, dist[NIL] ≤ d-1 < d. Contradiction with dist[NIL] = d. 
+
+Wait, but hold on: is it possible that z is at dist d-2 but BFS never popped z? BFS pops all nodes it assigns dist to (except NIL if we don't push it — but the condition for setting dist[NIL] is checked when popping z). z has dist d-2 assigned, so z is in the queue, and will be popped (BFS runs until queue empty). When popped, dist[z] = d-2 < dist[NIL] (current value). If dist[NIL] is still INF at that time, z's free neighbor sets it to d-1. If dist[NIL] was already set (to some value ≤ ... hmm, could dist[NIL] have been set to d already by the time z is popped? dist[NIL] = d is set by a node at layer d-1. Nodes at layer d-1 are popped after all layer d-2 nodes (BFS order). So when z (layer d-2) is popped, dist[NIL] is either INF or ≤ d-1 (set by another layer ≤ d-2 node). If INF → set to d-1 < d. Contradiction. ✓.
+
+So sub-case A is impossible: no z at dist d-2 adjacent to y_d... wait, I need z at dist k-1 = d-2 adjacent to y_{k+1} = y_d. Shown impossible. ✓.
+
+Sub-case B: i+1 ≤ k, i.e., y_{i+1} was matched to x_{i+1} in M (dist[x_{i+1}] = i+1). z at dist i-1 has edge to y_{i+1}. During BFS, when z popped (dist i-1 < dist[NIL] = d... need i-1 < d ✓ since i ≤ k = d-1), neighbor y_{i+1}: w = pair_right[y_{i+1}] = x_{i+1} (in M), dist[x_{i+1}] = i+1. Was dist[x_{i+1}] already assigned? x_{i+1} is on P, so dist[x_{i+1}] = i+1 assigned during BFS. When was it assigned? It could have been assigned by another node z' at dist i before z was popped, or... BFS assigns dist[x_{i+1}] = i+1 the first time any dist-i node with edge to y_{i+1} is popped. Hmm, so it's possible that dist[x_{i+1}] was already i+1 when z is popped (assigned via z' at layer i). Then z's edge to y_{i+1} doesn't update anything. So no contradiction here! So sub-case B is NOT ruled out by BFS.
+
+Hmm. So: z at dist i-1, edge z -> y_{i+1}, where y_{i+1} currently (after P1) matched to x_i. DFS' from some free start reaches z, then goes z -> y_{i+1} -> x_i. Then from x_i, continues. So DFS' CAN enter x_i (a vertex used by P1). Then the path P2 found shares x_i, y_{i+1} with P1. Then P2 is an augmenting path w.r.t. M1 = M⊕P1. Applying it: x_i gets re-matched from y_{i+1} to something else, y_{i+1} gets matched to z. Matching stays valid. But the paths P1 and P2 are not vertex-disjoint!
+
+Hmm wait, but wait. Let me double check that DFS' reaching z means DFS' has a valid path so far, and then entering x_i, and eventually finding a free right node at layer d-1... The path P2 would be: z0 (free, dist 0) -> ... -> z (dist i-1) -> y_{i+1} -> x_i (dist i) -> ... -> free right node via layered edges. All left vertices at increasing dist. The path length: 2d-1 edges (same as P1). So P2 is also shortest. And it shares x_i, y_{i+1} with P1.
+
+But hold on — is this actually reachable given the DFS mechanics? After P1 was applied, dist[x_i] is still i (not reset). pair_right[y_{i+1}] = x_i. So yes, DFS' at z sees edge z -> y_{i+1} with dist[pair_right[y_{i+1}]] = dist[x_i] = i = dist[z]+1 ✓. Enters x_i. From x_i: edges x_i -> y: need dist[pair_right[y]] = i+1 (current partners). y_{i+2}: pair_right[y_{i+2}] = x_{i+1} (after P1), dist[x_{i+1}] = i+1 ✓!! So from x_i, edge to y_{i+2} is traversable, entering x_{i+1} — also on P1! So DFS' could follow P1's vertices forward: x_i -> y_{i+2} -> x_{i+1} -> y_{i+3} -> x_{i+2} -> ... -> x_k -> y_{k+1}? But y_{k+1} = y_d: pair_right[y_d] = x_k now (after P1), dist[x_k] = k = d-1, need dist = k+1 = d... dist[pair_right[y_d]] = dist[x_k] = d-1 ≠ d. So edge x_k -> y_d fails now. Hmm interesting. So DFS' following P1's forward vertices gets stuck at x_k (unless x_k has other edges to right nodes whose current partners are at dist d... but dist[NIL] = d and free right nodes have pair NIL with dist[NIL] = d — wait! Free right nodes y: pair_right[y] = NIL, dist[NIL] = d. So edge x_k -> y (free) is traversable iff dist[NIL] = dist[x_k]+1 = d ✓!! So x_k can reach ANY free right node adjacent to it. But after P1, y_d is matched to x_k, so y_d is no longer free. Other free right nodes y' adjacent to x_k: pair_right[y'] = NIL, dist[NIL] = d = dist[x_k]+1 ✓ → augmenting path found!
+
+So P2 = z0 ... z -> y_{i+1} -> x_i -> y_{i+2} -> x_{i+1} -> ... -> x_k -> y' (free). This shares a whole suffix of P1! And it's a valid augmenting path w.r.t. M1. Applying it gives a valid matching. So the classic HK implementation CAN find overlapping paths within a phase?!
+
+Hmm wait, but that would break the HK complexity proof... Let me reconsider. Actually hold on. Let me re-examine: does this really happen, or am I missing a detail of the classic implementation? Let me recall the exact classic implementation (from Wikipedia):
+
+```
+function BFS():
+    for each u in U:
+        if Pair_U[u] == NIL:
+            Dist[u] = 0
+            Enqueue(Q, u)
+        else:
+            Dist[u] = ∞
+    Dist[NIL] = ∞
+    while Empty(Q) == false:
+        u = Dequeue(Q)
+        if Dist[u] < Dist[NIL]:
+            for each v in Adj[u]:
+                if Dist[Pair_V[v]] == ∞:
+                    Dist[Pair_V[v]] = Dist[u] + 1
+                    Enqueue(Q, Pair_V[v])
+    return Dist[NIL] != ∞
+
+function DFS(u):
+    if u != NIL:
+        for each v in Adj[u]:
+            if Dist[Pair_V[v]] == Dist[u] + 1:
+                if DFS(Pair_V[v]) == true:
+                    Pair_V[v] = u
+                    Pair_U[u] = v
+                    return true
+        Dist[u] = ∞
+        return false
+    return true
+```
+
+Yes, this is the classic. And in DFS, when the path reaches a free right node v (Pair_V[v] == NIL), DFS(NIL) returns true. So my analysis holds: the classic implementation can, within a phase, find augmenting paths that share vertices with previously found paths in the same phase.
+
+Hmm wait, but actually, let me reconsider sub-case B more carefully. For DFS' to enter x_i via z -> y_{i+1}: z at dist i-1 with an edge to y_{i+1}. In M, y_{i+1} is matched to x_{i+1}. Hmm wait wait wait. I think I made an error: after P1 is applied, pair(x_i, y_{i+1}). For DFS' to enter x_i, it traverses edge z -> y_{i+1} and needs pair_right[y_{i+1}] = x_i — yes that's the current state. OK that's what I said.
+
+Hmm, so let me construct a concrete example to test whether the classic HK really produces overlapping paths in one phase:
+
+Left: {a0, a1, a2, b1, b2}, wait let me use the structure: P1 = x0 - y1 - x1 - y2 - x2 - y3(free). So M: x1-y1, x2-y2. Free: x0, y3. Edges: x0-y1, x1-y1, x1-y2, x2-y2, x2-y3.
+
+BFS: dist[x0] = 0 (free). x1, x2: matched, dist ∞ initially. Pop x0: neighbors y1: pair(y1) = x1, dist[x1] = 1, push. Pop x1: dist[x1] = 1 < dist[NIL] (∞): neighbors y1 (pair x1, dist 1 ≠ ∞, skip), y2 (pair x2, dist[x2] = 2, push). Pop x2: dist 2 < ∞: neighbors y2 (skip), y3: free → dist[NIL] = 3. Queue empty. dist[NIL] = 3. So d = 3, shortest augmenting path length 5 edges: x0-y1-x1-y2-x2-y3. ✓.
+
+Now add: z at dist 1 adjacent to y2, and z free... wait, z must be at dist i-1 where x_i entered. Let me have DFS' start at z0 free with path to z. Simplest: z0 = z, free, dist 0? No wait, z must be at dist i-1. Let me pick i = 1: enter x1 via y2. z at dist 0 (free) with edge to y2. But wait — if free z has edge to y2 (matched to x2 in M), that's fine, dist[x2] = 2 via... hmm, but also need to check sub-case A impossibility doesn't apply here (i=1, i+1=2 ≤ k=2, sub-case B ✓).
+
+So: add left node z (free) with edge z-y2. Also, for P2 to complete: from x1 (entered), follow forward: x1 -> y2? No wait, P2 = z -> y2 -> x1 -> then from x1 need edge to right node with partner at dist 2: y2's pair is now x1 (dist 1) ✗; x1's edges: y1 (pair x0 now, dist 0 ✗), y2 (✗). Hmm, x1 has no other edges in my example. So DFS' from z: z -> y2 (pair x1... wait after P1, pair(y2) = x1). dist[x1] = 1 = dist[z]+1 ✓. Enter x1. From x1: edges y1 (pair_right[y1] = x0, dist[x0] = 0 ≠ 2 ✗), y2 (pair = x1, dist 1 ≠ 2 ✗). Dead end. dist[x1] = ∞, backtrack. z has no more edges. DFS' fails. OK so in this small example, no overlap issue materializes into a second augmenting path. Let me extend: give x1 another edge y2' where pair(y2') = x2' at dist 2, and x2' has edge to a free right node y3'. Hmm, but wait: if x2' at dist 2 has an edge to free y3', then during BFS, popping x2' would set dist[NIL] = 3 (already 3, fine, but the check `if dist[NIL] == ∞` — it's 3, not ∞, so no update; fine, dist[NIL] stays 3 ✓).
+
+So graph: 
+Left: x0, x1, x2, x2', z. Right: y1, y2, y3, y2', y3'.
+M: x1-y1, x2-y2, x2'-y2'.
+Free left: x0, z. Free right: y3, y3'.
+Edges: x0-y1, x1-y1, x1-y2, x2-y2, x2-y3, x1-y2', x2'-y2', x2'-y3', z-y2.
+
+BFS: dist[x0] = 0, dist[z] = 0. Pop x0: y1 → dist[x1] = 1. Pop z: y2 → dist[x2] = 1?? Wait, z-y2: pair(y2) = x2, so dist[x2] = 1. Hmm! But earlier I said x2 at dist 2 via x1-y2. BFS takes the first: dist[x2] = 1 (via z). Then pop x1 (dist 1): y1 (pair x1, skip), y2 (pair x2, dist already 1, skip), y2' → dist[x2'] = 2. Pop x2 (dist 1): y2 (skip), y3 free → dist[NIL] = 2!! 
+
+Oh no, dist[NIL] = 2 now, not 3. Because z (free, dist 0) → y2 → x2 (dist 1) → y3 (free) gives augmenting path z-y2-x2-y3 of length 3 < 5. Right! The presence of z changes the shortest path length. Of course — z-y2-x2-y3 is an augmenting path of length 3. So my attempt to construct overlap fails because the new free node z creates shorter augmenting paths.
+
+Hmm interesting. So maybe there's a deeper reason overlapping can't happen. Let me think again...
+
+Claim: In the DFS phase, paths found are vertex-disjoint. Proof attempt: Suppose P1 found first, then P2 shares vertex with P1. Consider the first shared vertex along P2 (from its start). Hmm, let me think about what P2 sharing a suffix of P1 means...
+
+Alternative approach: trust the classic implementation — it's from Wikipedia, it's the standard Hopcroft-Karp, proven correct with the O(E√V) bound. Actually, let me recall the HK proof: The DFS phase finds a maximal set of vertex-disjoint shortest augmenting paths. Hmm, but my analysis above suggested sharing is possible... but the example construction failed. Let me think about why sharing is impossible in general.
+
+Suppose P2 (found after P1 in the same phase) shares vertices with P1. Both are shortest (length 2d-1, dist[NIL] = d). P2 is augmenting w.r.t. M1 = M ⊕ P1. 
+
+Key fact: P1 and P2 are both shortest augmenting paths w.r.t. their respective matchings (P1 w.r.t. M, P2 w.r.t. M1). 
+
+Hmm, let me think about the symmetric difference or use the property of shortest augmenting paths: In M, the shortest augmenting path length is 2d-1. All augmenting paths found in the phase have this length. 
+
+Consider M2 = M1 ⊕ P2 = M ⊕ P1 ⊕ P2. |M2| = |M| + 2. If P1 and P2 were vertex-disjoint, M ⊕ P1 ⊕ P2 = M ⊕ (P1 ∪ P2). If they share vertices, still fine as sets.
+
+Alternative: think of it as — the phase performs a sequence of augmentations, each along a shortest augmenting path w.r.t. the current matching. Does the phase bound still hold? The HK phase-count proof: after a phase, dist[NIL] (shortest augmenting path length) strictly increases. The proof: suppose after the phase, there's an augmenting path of length 2d-1 w.r.t. the new matching M'. The phase found a maximal set of vertex-disjoint shortest paths... if paths overlap, "maximal set of vertex-disjoint shortest paths" isn't what we computed. Hmm.
+
+OK let me just think really carefully about whether the classic implementation can produce overlapping paths, because if it can, the complexity bound might not hold (though correctness does — the matching is always valid, and the algorithm terminates when BFS finds no augmenting path, so the final matching is maximum). Actually wait — even if the bound doesn't hold in theory, correctness holds. And in practice... hmm, but I want the theoretical guarantee for the time limit.
+
+Let me reconsider. Actually, I recall that this exact question has been studied, and the classic implementation is correct with the O(E√V) bound. The Wikipedia pseudocode is the standard. Let me re-derive why paths in a phase are vertex-disjoint.
+
+Setting: BFS computes dist over left vertices (and NIL). DFS phase: for each free left u (in M... note: as the phase progresses, u's that get matched are skipped by the `if Pair_U[u] == NIL` check — but actually in Wikipedia's version, the main loop is:
+
+```
+function Hopcroft-Karp:
+    for each u in U: Pair_U[u] = NIL
+    for each v in V: Pair_V[v] = NIL
+    matching = 0
+    while BFS() == true:
+        for each u in U:
+            if Pair_U[u] == NIL:
+                if DFS(u) == true:
+                    matching = matching + 1
+    return matching
+```
+
+The check `Pair_U[u] == NIL` is evaluated at the time u is considered, i.e., after previous augmentations in the phase. So only currently-free left vertices start DFS. ✓ (as I noted).
+
+Now, invariant during the DFS phase: I'll show that when DFS(u) is called and succeeds, the found path P uses only vertices not used by previous successful paths in this phase... 
+
+Hmm, let me think about what happens to dist values. When a DFS fails, all vertices on the failed exploration get dist = ∞ (dead). When a DFS succeeds, the path vertices keep their dist values, but their partners change.
+
+Let me reconsider the entry into a used vertex x_i (on P1, dist i ≥ 1) via edge z -> y_{i+1} (current partner of x_i). For this, z at dist i-1 must have edge to y_{i+1}, and DFS' must reach z. 
+
+Now here's a thought: consider the moment P1 was found. P1 = x0 y1 x1 y2 ... x_{k} y_{k+1}, k = d-1. When DFS(x0) succeeded, it went through x0 -> y1 -> x1 -> ... Each step: from x_j, edge to y_{j+1} with dist[pair(y_{j+1})] = j+1. 
+
+For DFS' to enter x_i via y_{i+1} from z (dist i-1): but wait — during DFS(x0)'s exploration, when it was at x_{i-1}... hmm, not necessarily related to z.
+
+Let me think about BFS again: z at dist i-1 has edge to y_{i+1}. In M, pair(y_{i+1}) = x_{i+1} (for i+1 ≤ k) with dist[x_{i+1}] = i+1. When z was popped in BFS (dist i-1 < d), it saw y_{i+1}: if dist[x_{i+1}] was already set (to i+1), no update. Fine. But ALSO: hmm, wait. Actually here's the thing — I want to find whether z -> y_{i+1} -> x_i is possible AFTER P1. pair(y_{i+1}) after P1 is x_i. dist[x_i] = i. For DFS' at z: dist[z] + 1 = i ✓. So the edge is traversable. The question is whether the overall scenario is consistent — my small example failed because z's presence created a shorter path. Let me see if that's forced in general.
+
+z is at dist i-1 ≥ 0. If i-1 = 0, z is free. z has edge to y_{i+1}, which in M is matched to x_{i+1} (dist i+1). Hmm, if i = 1: z free (dist 0), edge z-y2, pair(y2) = x2 (dist 2). In my example this made dist[x2] = 1 via z, creating shorter paths. In general: z free with edge to y_{i+1}: BFS from z: dist[x_{i+1}] ≤ 1. But we assumed dist[x_{i+1}] = i+1 ≥ 2. Contradiction unless i+1 ≤ 1, i.e., i = 0 — but entry into x_0 is impossible (dist[x_0] = 0, need dist[z] = -1). Wait, unless dist[x_{i+1}] was set to i+1 BEFORE z was processed... BFS processes dist-0 nodes first. z is dist 0 (free). When z is popped, for neighbor y_{i+1}: pair(y_{i+1}) = x_{i+1}, dist[x_{i+1}] is ∞ at that time (x_{i+1} gets dist i+1 ≥ 2 only from dist-(i)-nodes... wait no: dist[x_{i+1}] = i+1 means it's set by a node at dist i. Nodes at dist i ≥ 1 are popped after z (dist 0). Hmm, but dist[x_{i+1}] could be set before z is *popped*? No: dist values are assigned when popped nodes scan neighbors. z is popped in the first layer (all dist-0 nodes are popped before any dist-1 node is popped... wait, is that true? BFS queue: all dist-0 nodes enqueued first, then processing pops them; when a dist-0 node's neighbor gets dist 1, it's enqueued after all dist-0 nodes. So yes, all dist-0 pops happen before dist-1 pops. When z (dist 0) is popped, no dist-i node (i ≥ 1) has been popped yet, so dist[x_{i+1}] (which requires a pop at dist i ≥ 1... wait, i ≥ 1 so dist[x_{i+1}] = i+1 ≥ 2, set by popping a node at dist i ≥ 1 — hasn't happened yet). Hmm wait, unless i = 0: then dist[x_1] = 1, set by popping a dist-0 node — could happen before z is popped. But i ≥ 1 for entering x_i (x_0 can't be entered). So for i ≥ 1: when z (dist 0) is popped, dist[x_{i+1}] = ∞ still, so BFS sets dist[x_{i+1}] = 1. But x_{i+1} is on P1 with dist i+1 ≥ 2. Contradiction! So if i-1 = 0 (z free), impossible. 
+
+Now i-1 ≥ 1: z at dist i-1 ≥ 1, so z is matched in M (only free nodes have dist 0... wait, no: dist is assigned to matched nodes too; free nodes get dist 0, matched nodes get dist ≥ 1 if reachable). z at dist i-1 ≥ 1 means z is matched in M. But DFS' starts at a free left node and reaches z via z's current partner. Hmm wait — how does DFS' reach z? Via edge w -> pair(z) from w at dist i-2. So pair(z) = some right node y_z, and w at dist i-2 has edge to y_z.
+
+Hmm OK this is getting complicated. Let me just trust the classic implementation — it's the standard, well-vetted Hopcroft-Karp. Actually, let me look at this from a different angle: I recall that in the classic HK, within a phase, the set of augmenting paths found IS vertex-disjoint, and the proof is in the original paper / standard references. My attempted counterexample failed, and the general argument for why entry into used vertices is impossible:
+
+For DFS' to enter x_i (used by P1) via y_{i+1} from z at dist i-1: Consider BFS layers. z at dist i-1 with edge to y_{i+1}. In M, pair(y_{i+1}) = x_{i+1}, dist[x_{i+1}] = i+1. For dist[x_{i+1}] to be i+1 (not smaller), when BFS popped nodes at dist ≤ i-1 that are adjacent to y_{i+1}... specifically z at dist i-1 is adjacent to y_{i+1}: when z was popped, if dist[x_{i+1}] was still ∞, it would be set to i, contradicting dist[x_{i+1}] = i+1. So dist[x_{i+1}] was already set when z was popped — set by some node at dist ≤ i-1... wait, dist[x_{i+1}] = i+1 means it was set by a node at dist i. Nodes at dist i are popped after nodes at dist i-1 (including z). Hmm wait, no: dist[x_{i+1}] = i+1 requires the setter at dist i. But z at dist i-1 is popped BEFORE any dist-i node is popped. So when z is popped, dist[x_{i+1}] is still ∞ (since only dist-≤(i-1) nodes have been popped, and they would have set it to ≤ i). So z's edge to y_{i+1} sets dist[x_{i+1}] ≤ i. But x_{i+1} is on P1 with dist[x_{i+1}] = i+1. CONTRADICTION! 
+
+Wait, but hold on: this argument shows that NO node at dist i-1 can be adjacent to y_{i+1} (where pair(y_{i+1}) = x_{i+1}, dist = i+1) — because BFS would have assigned a smaller dist. Hmm, but wait: that's saying the edge z -> y_{i+1} can't exist for z at dist i-1... but that's exactly the condition needed for DFS' to enter x_i after P1 (pair(y_{i+1}) = x_i, dist[x_i] = i = dist[z]+1). But BFS-wise, the edge z -> y_{i+1} with z at dist i-1 would have set dist[x_{i+1}] ≤ i < i+1. Contradiction. But WAIT: this argument would also prohibit P1 itself! P1 uses edge x_i -> y_{i+1} with dist[x_i] = i and pair(y_{i+1}) = x_{i+1} at dist i+1. By the same argument, when x_i (dist i) was popped, if dist[x_{i+1}] was ∞, it'd be set to i+1 ✓ — consistent. The BFS argument: for z at dist i-1 adjacent to y_{i+1}: z popped before dist-i nodes; dist[x_{i+1}] = i+1 is set by a dist-i node, popped after z. So when z popped, dist[x_{i+1}] = ∞ → set to i. But it's i+1. Contradiction. ✓✓.
+
+So: no left node at dist i-1 is adjacent to y_{i+1} where pair(y_{i+1}) is at dist i+1. Hence after P1 (pair(y_{i+1}) = x_i at dist i), for DFS' to enter x_i via y_{i+1}, it needs a node at dist i-1 adjacent to y_{i+1} — impossible by the BFS argument! 
+
+Wait, but I should double check the case i+1 = k+1, i.e., y_{i+1} = y_{k+1} = y_d, the free right node at the end of P1. Entry into x_k... wait I handled sub-case A earlier: z at dist d-2 adjacent to y_d (free in M): when z popped, dist[NIL] would be set to ≤ d-1 < d. Contradiction ✓ (shown earlier).
+
+And entry into x_0 (dist 0): needs node at dist -1. Impossible ✓.
+
+What about entering via a right node NOT on P1 but... hmm, wait, I only considered entering x_i via y_{i+1} (its post-P1 partner). Entry into x_i requires traversing edge w -> y where pair(y) = x_i currently. After P1, the only right node with pair = x_i is y_{i+1}. ✓. So all cases covered: entry into any used left vertex is impossible. What about right vertices? A right vertex y on P1 being used by P2: P2 uses y means y is an endpoint of an edge from a left vertex of P2... if all left vertices of P2 are disjoint from P1's, can P2 use y_{j} (on P1)? y_j's current partner (after P1) is x_{j-1}... wait after P1: pair(x_t, y_{t+1}) for all t, and y_1's partner is x_0. So y_{t+1} is matched to x_t. For P2 (disjoint left vertices from P1) to use right node y_{t+1}: P2 contains edge ... -> y_{t+1} -> pair(y_{t+1}) = x_t — but x_t is on P1, so P2 would contain x_t. Contradiction with left-disjointness. Unless y_{t+1} is the END of P2 (free right node) — but y_{t+1} is matched after P1, not free. So no. ✓.
+
+Also the free right node y_d at the end of P1: after P1 it's matched to x_{d-1}. For P2 to end at y_d, y_d must be free — it's not. ✓.
+
+So paths within a phase ARE vertex-disjoint in the classic implementation. My earlier concern was unfounded — the BFS layering prevents it. 
+
+So the classic Hopcroft-Karp is correct with O(E√V) bound. Now, implementation in Python with performance in mind.
+
+Worst-case phases: O(√(2q)) ≈ 450. Each phase: BFS O(E) + DFS O(E) (amortized, since failed vertices are killed). So worst case ~450 × 2 × 400K = 360M elementary steps. Python: way too slow (each "step" involves several bytecode ops). Realistically ~30-60+ seconds. Hmm.
+
+But wait — the worst case for HK phases requires specific adversarial graphs. Typical random graphs: matching found in few phases. The problem is from some judge — I don't know the test data. Given it's "Problem B" with 2s TL (probably originally for C++), Python solutions might get 3-4x or be expected to use fast approaches. Since I must produce Python, let me optimize as much as possible.
+
+Options to speed up:
+1. Use arrays (lists) with integer indices, avoid dicts, avoid function call overhead (inline BFS/DFS in main loop, or use local variable references).
+2. Represent adjacency in CSR form with a flat list.
+3. Possibly use bit manipulation? Not obviously.
+4. Use PyPy-style optimizations don't apply; assume CPython.
+
+Alternative: use `scipy.sparse.csgraph.maximum_bipartite_matching` — implemented in Cython, very fast (Hopcroft-Karp). If the judge has scipy, this solves it instantly. Many judges (Codeforces) have numpy but scipy... Codeforces has scipy available for Python. Actually yes, Codeforces Python has scipy. This problem looks like it might be from Codeforces (the format "Time limit 2s, Memory 256MB"). Hmm, but the problem statement style ("Problem B — Synchronized Asset Deployment") suggests a specific contest, maybe a local/school contest (e.g., based on Codeforces problem 1139? or a mirror). 
+
+Hmm, actually this looks like it could be from "Innopolis" or similar. Let me think about what's safest: write pure-Python Hopcroft-Karp, highly optimized. If tests are adversarial for HK, pure Python might TLE. But I have no better pure-Python option. Alternatively, try scipy with a fallback to pure Python:
+
+```python
+try:
+    from scipy.sparse import csr_matrix
+    from scipy.sparse.csgraph import maximum_bipartite_matching
+    # use it
+except ImportError:
+    # pure python HK
+```
+
+That's a reasonable belt-and-suspenders approach. But careful: scipy's maximum_bipartite_matching returns a matching (not necessarily perfect); we check if it's perfect. Its implementation is Hopcroft-Karp (actually it's based on a push-relabel or HK? The docs say it uses Hopcroft-Karp). It returns for each left node the matched right node or -1.
+
+Wait, but there's a subtlety: scipy's maximum_bipartite_matching requires the graph as csr_matrix with a specific convention: rows = one part, columns = other part. `maximum_bipartite_matching(graph, perm_type='row' or 'column')`. With perm_type='column', it returns for each column... let me recall: The function computes a matching of rows to columns... Actually: "maximum_bipartite_matching(graph, perm_type='column')" returns an array `perm` of length equal to... Hmm. Let me recall the API: Given a sparse matrix `graph` ( csr), `maximum_bipartite_matching(graph, perm_type='column')` returns a matching where `perm[i]` gives... The docs: "Returns an array of length n_row (if perm_type='column') giving the matched column for each row, or -1". Hmm, I think: perm_type='column' → the returned perm has size = number of columns? Let me think. From scipy docs:
+
+```
+scipy.sparse.csgraph.maximum_bipartite_matching(graph, perm_type='row')
+```
+
+"perm_type: 'row' or 'column'. Which output is returned: if 'row', the output is an array of length n_col giving the row each column is matched to; if 'column', output is array of length n_row giving the column each row is matched to."
+
+Hmm, I don't remember exactly. Let me think... From scipy documentation example:
+
+```python
+>>> from scipy.sparse import csr_matrix
+>>> from scipy.sparse.csgraph import maximum_bipartite_matching
+>>> graph = csr_matrix([[1,0,0],[0,1,0],[0,0,1]])
+>>> maximum_bipartite_matching(graph, perm_type='column')
+array([0, 1, 2], dtype=int32)
+```
+
+Hmm, in this example the matrix is 3x3 identity. With perm_type='column', the result [0,1,2] — length 3 = n_row = n_col. Ambiguous. Let me recall the actual doc text: "Returns: perm: ndarray — the matching... if perm_type is 'column', the result is a matching of rows to columns: perm[i] is the column matched to row i? or..."
+
+From scipy docs (I recall): "maximum_bipartite_matching(graph, perm_type='row'): ... perm_type : str, 'row' or 'column'. Which output is returned: if 'row', the output is an array of length n_col... hmm.
+
+Actually the doc says: 
+
+"Returns: **perm** : ndarray — A matching of the rows or columns of the matrix. If perm_type='row', the output is an array of length n_row... "
+
+Hmm, I genuinely don't remember. Let me look at it from the semantics: The function's purpose: given bipartite graph as sparse matrix (rows = left, cols = right, entries = edges), compute maximum matching. The example in docs:
+
+```
+>>> print(graph.toarray())
+[[1 0 0]
+ [0 0 0]
+ [0 0 1]
+ [0 0 1]
+ [1 0 1]]
+>>> maximum_bipartite_matching(graph, perm_type='row')
+array([0, 2, 2, 2, 2]...)
+```
+
+Hmm no. Let me actually recall the real doc example:
+
+```python
+>>> from scipy.sparse.csgraph import maximum_bipartite_matching
+>>> from scipy.sparse import csr_matrix
+>>> arr = csr_matrix([[1,1,0],[1,0,1],[0,1,0]])
+>>> maximum_bipartite_matching(arr, perm_type='column')
+array([0, 2, 1], dtype=int32)
+```
+
+Hmm, I'm not sure. The safest is to handle both conventions robustly: after calling, check the output length. If len == q (n_rows), interpret as row→col; if len == q (n_cols)... both are q here! Ugh, since the graph is square (q × q), both interpretations have length q. 
+
+OK here's the doc text (I'm fairly confident now, having seen it): 
+
+"perm_type : {'row', 'column'}, optional. Which output is returned: if 'row', the output is an array of length n_row... no wait.
+
+Let me think about the semantics differently: 'column' means "the permutation of columns", i.e., for each column, which row it's matched to? Or "matching to columns", i.e., for each row, which column? 
+
+From scipy source/docs: "maximum_bipartite_matching(graph, perm_type='row')": "Returns a matching of the rows to the columns of the matrix... The returned array, perm, satisfies: if perm_type='row', then graph[i, perm[i]] is an edge for each i in range(n_row)?? 
+
+Hmm. Actually I found it (memory): the doc example:
+
+```
+>>> graph = csr_matrix([
+... [1, 0, 0],
+... [0, 1, 0],
+... [0, 0, 1]])
+>>> maximum_bipartite_matching(graph, perm_type='column')
+array([0, 1, 2], dtype=int32)
+>>> maximum_bipartite_matching(graph, perm_type='row')
+array([0, 1, 2], dtype=int32)
+```
+
+Not helpful (symmetric example). 
+
+OK, alternative: avoid ambiguity by verifying the result ourselves: after getting perm (array of length q with values in [-1, q-1] or maybe values index into rows/cols), we can validate: if perm_type='column' returns "for each row, matched column" then edges (i, perm[i]) should exist in our edge set. We can just check: count how many i have (i, perm[i]) as a valid edge; if all matched i satisfy it, interpretation is row→col. Otherwise try col→row. Since we have the edge set, we can disambiguate. But simpler: build the matching, verify validity, and if invalid, flip. Actually even simpler: we don't need to trust scipy's convention at all — we can verify and fix:
+
+Given perm array of length q: interpretation A: match_left[i] = perm[i]. Interpretation B: match_right[j] = perm[j], i.e., match_left[perm[j]] = j. Check which interpretation yields a valid matching (all matched pairs are actual edges, no duplicates). If both valid (possible), either is fine (both are valid matchings!). Actually if interpretation A yields a valid matching, use it; else use B. If both invalid... shouldn't happen if scipy is correct under one of them.
+
+Hmm, but there's a subtlety: scipy's maximum_bipartite_matching might require the matrix to have specific structure? It treats the sparse matrix as a bipartite adjacency: graph[i,j] nonzero means edge between row i and column j. Yes.
+
+Also note: scipy's function might not handle duplicate entries — csr_matrix from COO with duplicates sums them; entries > 0 fine. We should make entries exactly 1 (duplicates sum to 2, still nonzero — fine, it just checks nonzero? I believe it uses the sparsity structure). Also self-loops irrelevant here.
+
+Also, scipy version matters: maximum_bipartite_matching added in scipy 1.4? Actually it was added in scipy 1.4.0 (as `scipy.sparse.csgraph.maximum_bipartite_matching`). Older scipy (1.3) doesn't have it. Codeforces has scipy 1.x recent. OK.
+
+But hmm, relying on scipy is risky if the judge doesn't have it. The fallback pure-Python HK handles that. But if the judge has neither... no, pure Python always works, just maybe slow.
+
+Actually, wait. Let me reconsider the problem source. "Problem B — Synchronized Asset Deployment" with q up to 1e5 and t up to 4e5. This smells like a rephrased Codeforces problem. Let me think which one: bipartite perfect matching with left 1..q, right q+1..2q... Hmm, this is exactly the structure of problems about "complete matching in bipartite graph" — e.g., Codeforces 1468I? Or "AtCoder"? Hmm, or maybe it's from the "ICPC" style. The phrase "If there are multiple valid rosters, any one is acceptable" is standard.
+
+Actually — could this be Codeforces problem 1707B? No. Hmm, what about CF Educational Round problem "Perfect Matching"? There's CF 1139D no... There's a known problem: CF Round 700+ "Berland Regional"? No.
+
+Whatever. Let me also consider: maybe the intended solution is NOT general bipartite matching but something simpler due to hidden structure? Re-reading the problem statement once more: "The inventory consists of an even number of assets, sequentially tagged from 1 to 2q." "a link is only valid if it bridges the two halves: connect one asset with tag ≤ q to another with tag > q." "registry of specific links that passed safety checks." "select a subset of registered links... every asset in exactly one selected link." — Yes, general bipartite perfect matching. No hidden structure. The constraints (1e5, 4e5) match HK.
+
+So: plan — pure Python optimized Hopcroft-Karp, with optional scipy fast path. Actually, let me reconsider whether to include the scipy path at all. If the judge is Codeforces-like with scipy available, it's a huge win. If not available, ImportError → fallback. The risk: scipy available but behaves unexpectedly (e.g., returns maximum matching but I misinterpret). I'll add validation: check that the scipy result is a valid matching covering all vertices; if not... hmm, but if my interpretation is wrong, I might wrongly output NO. Let me handle interpretation carefully:
+
+```python
+perm = maximum_bipartite_matching(csr, perm_type='column')
+# perm could be row->col or col->row mapping; determine by checking validity
+```
+
+Validation for interpretation A (perm[i] = col matched to row i): all i with perm[i] >= 0: edge (i, perm[i]) must exist, and perm values distinct. If valid and covers all (all >= 0), output. Else interpretation B: perm[j] = row matched to col j: check edge (perm[j], j) exists for perm[j] >= 0, distinct rows. If valid and covers all, output. If neither, fall back to pure Python HK (which will give the correct answer regardless).
+
+Hmm, but there's a subtle failure mode: interpretation A gives a valid *partial* matching (not perfect) while the true answer is YES with a different maximum matching? No — scipy computes MAXIMUM matching. If interpretation A is the correct one and the maximum matching is perfect, then perm has all >= 0. If interpretation A is wrong (it's actually col->row), then interpreting as row->col would likely produce invalid pairs (edges don't exist) — caught by validation. But could a wrong interpretation accidentally produce a valid perfect matching? If perm is actually col→row (i.e., perm[j] = row matched to column j) and I read it as row→col (match_left[i] = perm[i]): the pairs (i, perm[i]) — are they edges? Not necessarily. If they happen to all be edges and distinct — then it IS a valid perfect matching, so outputting it is correct anyway! Great — so validation-based approach is sound: if interpretation A validates as a perfect matching, output it (it's genuinely valid, regardless of scipy's convention). Otherwise try B; if B validates, output. Otherwise fall back to pure Python. 
+
+Edge case: scipy returns matching with -1s (not perfect) under the correct interpretation → answer NO. But under the wrong interpretation it might validate as perfect?? If the true maximum matching is not perfect, could the wrong interpretation produce a "valid perfect matching"? If it validates, it's a real perfect matching (all pairs are real edges, distinct) — contradiction with maximum matching not perfect. So if either interpretation validates as perfect, answer is YES with that roster. If the true answer is YES, the correct interpretation WILL validate as perfect (scipy's maximum matching is perfect). So: if A validates perfect → YES. elif B validates perfect → YES. else → but wait, could the answer be YES but scipy's output under the correct interpretation fails my validation due to a bug? Only if scipy is broken. Also duplicates in the matching: scipy's matching has distinct partners by definition. OK.
+
+Also, potential issue: scipy's maximum_bipartite_matching with perm_type='column' — hmm, one more consideration: I recall that scipy's implementation requires the graph in CSR format and it treats it as "the bipartite graph represented by the matrix" — but there was a note: "the matrix is interpreted as a bipartite graph where rows and columns are the two sets". Also there's a note that it works with csr only (not coo). Fine.
+
+Hmm, actually, I realize I should double check the scipy function name and behavior more carefully, since I'll write code from memory:
+
+`from scipy.sparse.csgraph import maximum_bipartite_matching` — yes, exists since scipy 1.4? Hmm, actually I think it appeared in scipy 1.4.0. Wait, no — I recall it being available earlier... Let me think: scipy 1.4.0 release notes (Dec 2019) mention "scipy.sparse.csgraph.maximum_bipartite_matching" added? Hmm, I actually recall it differently: there was `scipy.sparse.csgraph.maximum_bipartite_matching` added in 1.4.0. Before that, there was `scipy.sparse.csgraph.maximum_bipartite_matching`... no. There was a deprecated `maximum_bipartite_matching` in `scipy.sparse.csgraph`? I'm fairly confident it's 1.4.0+. Codeforces currently has scipy 1.7-1.10 depending on the Python version. Fine.
+
+Signature: `maximum_bipartite_matching(graph, perm_type='row')`. graph must be CSR or CSC or dense? Docs: "graph : sparse matrix — Input sparse in CSR format". 
+
+Return: "perm : ndarray — An array of length n_row (if perm_type='row')... " ugh. OK whatever, my validation approach handles it. But one more subtlety: if perm_type='column' returns array of length n_col giving "the row matched to each column"... with n_row == n_col == q, both interpretations get tested. 
+
+Hmm wait, actually now I genuinely recall the doc: "Returns: perm : ndarray. The matching... perm[i] gives the... if perm_type is 'row', then the output gives the matching of rows: perm[i] is the row matched to column i? ..." 
+
+I'll just rely on validation. Also handle: scipy might raise on empty graph (t=0): maximum_bipartite_matching on a matrix with no entries — should return all -1. Fine. Also q≥1 always.
+
+Also, potential scipy quirk: it might require indices to be int32; csr_matrix built from coo with q=1e5, t=4e5 — indices fit int32 (1e5 < 2^31). Fine.
+
+Now, the pure-Python fallback: optimized Hopcroft-Karp. Let me write it very carefully for speed.
+
+Actually, you know, let me reconsider: maybe I should make the pure-Python HK the primary and only solution, but write it as fast as possible. The scipy path adds complexity and risk (e.g., if scipy exists but something weird happens). But the performance risk of pure Python is real. Let me include both: try scipy first (fast, safe with validation), fall back to pure Python HK. If scipy result validates as perfect matching → print. If scipy says not perfect (under correct interpretation)... hmm, tricky: if the correct interpretation gives a non-perfect maximum matching, answer is NO. But how do I know which interpretation is correct when neither validates as perfect? E.g., true answer NO: correct interpretation gives matching with some -1s; wrong interpretation gives garbage that fails validation. Then I should print NO. But what if... the true answer is YES but scipy has a bug? Unlikely. What if the true answer is NO but one of the interpretations accidentally validates as perfect? Impossible as argued (a validated perfect matching is a genuine perfect matching).
+
+So decision logic:
+1. Try scipy. Get perm.
+2. If interpretation A validates as perfect matching → YES, output.
+3. Elif interpretation B validates as perfect → YES, output.
+4. Else: determine the correct interpretation to decide YES/NO? Hmm. If neither validates as perfect, the answer could still be... NO (scipy correct, max matching imperfect) — or YES with scipy broken (won't happen). But wait: what if the correct interpretation's result IS a valid matching but not perfect, and I mis-validate? My validation checks: for interpretation A: for all i: perm[i] != -1 (perfect) and edges (i, perm[i]) exist and all distinct. If the correct interpretation is A and the matching is not perfect, A-validation fails (some -1). B-validation: perm read as col→row: pairs (perm[j], j) for perm[j] != -1... for a NO case, B-validation would fail (either -1s or invalid edges). Then I'd fall through to... I need to output NO. But how do I distinguish "NO because scipy says max matching is imperfect" from "scipy output misinterpreted"? 
+
+Simplest robust approach: if neither interpretation validates as a perfect matching, run the pure-Python HK to decide (it's correct regardless). But then for NO cases, we always run the slow path... For NO cases, HK might be slow too. Hmm. But actually for NO cases, HK often terminates fast? Not necessarily.
+
+Alternative: figure out the correct interpretation definitively. I can determine scipy's convention empirically at runtime! Construct a tiny test graph where the two interpretations differ, call scipy on it, and see. E.g., graph 2x3: rows {0,1}, cols {0,1,2}, edges: row0-col0 only... hmm, need a case where row→col vs col→row readings differ observably. E.g., 1x2 matrix (n_row=1, n_col=2): edge (0,0). perm_type='column': if result has length 2 → it's per-column (col→row mapping); if length 1 → per-row. That distinguishes! But our real graph is square... I can call scipy on a tiny non-square test matrix first to learn the convention, then apply to the real one. 
+
+Test: `m = csr_matrix((1, 2))` with m[0,0] = 1. `perm = maximum_bipartite_matching(m, perm_type='column')`. If len(perm) == 2: perm is indexed by columns → perm[j] = row matched to col j (col→row). If len(perm) == 1: perm[i] = col matched to row i (row→col). Then apply the learned convention to the real result. This is clean and robust. Also do the same test for perm_type='row' if needed — I'll just use one perm_type and learn its meaning.
+
+Hmm, but wait: does scipy's function even accept non-square matrices? Yes, bipartite matching with parts of different sizes is fine.
+
+But honestly, the validation approach plus convention-detection can be combined: learn convention via test → interpret → validate → if validation fails (shouldn't, if scipy is correct), fall back to pure Python. If interpreted matching is perfect → YES; else → NO. This avoids running pure Python in NO cases. And if anything raises an exception (ImportError, weird behavior), fall back to pure Python entirely.
+
+Hmm, wait, actually, let me simplify: I recall now with higher confidence. The scipy doc says:
+
+```
+maximum_bipartite_matching(graph, perm_type='row')
+...
+Returns
+perm : ndarray
+    An array of length n_row... 
+```
+
+No wait. Ugh. Let me think about the example from the actual scipy docs, which I've seen multiple times:
+
+```python
+>>> from scipy.sparse import csr_matrix
+>>> from scipy.sparse.csgraph import maximum_bipartite_matching
+>>> graph = csr_matrix([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
+>>> maximum_bipartite_matching(graph, perm_type='column')
+array([0, 1, 2], dtype=int32)
+```
+
+Hmm, and there's a bigger example in the docs with a 5x3 or so matrix... I remember the docs having an example like:
+
+```python
+>>> graph = csr_matrix([
+... [0, 1, 0, 1],
+... [1, 0, 1, 0],
+... [1, 1, 0, 0]])
+>>> maximum_bipartite_matching(graph, perm_type='row')
+array([1, 0, -1, 2]...)
+```
+
+Hmm no. I really don't remember. The convention-detection test is the way to go. Actually — hmm, wait. Let me reconsider: maybe I'm overcomplicating. Let me look at this from the "perm_type" semantics: 'row' likely means "the returned permutation is for rows", i.e., perm has one entry per row: perm[i] = the column matched to row i. And 'column' means one entry per column: perm[j] = the row matched to column j. That's my best guess: perm_type names which side the output is indexed by. With the test I can verify.
+
+Test matrix: shape (2, 3) — 2 rows, 3 cols. Edges: (0,0), (1,1). perm_type='column': if output length 3 → indexed by columns (perm[j] = row for col j). If length 2 → indexed by rows. Then I know.
+
+Hmm, but actually there's another subtlety I now recall about scipy's maximum_bipartite_matching: I think there was a BUG in some scipy versions where it required the matrix to be square or crashed on certain inputs? Hmm. I vaguely recall issues with `maximum_bipartite_matching` and explicit zero entries or duplicate entries. Let me make the matrix clean: use `csr_matrix((data, (rows, cols)), shape=(q,q))` with data all 1, then `.sum_duplicates()` and maybe `.eliminate_zeros()` — duplicates sum to ≥1, never zero, so fine. Also ensure dtype int32 for indices? Default from coo with Python ints → int32 if small enough? The indices dtype depends; scipy handles internally. The function requires CSR; `coo.tocsr()` gives CSR.
+
+Hmm, also I recall scipy's maximum_bipartite_matching docs mention: "The input graph should be in CSR format, and the algorithm assumes that the matrix is a biadjacency matrix." And there's a note: "This implementation uses the Hopcroft-Karp algorithm". 
+
+Also potential issue: scipy might return int32 array with -1 for unmatched. Fine.
+
+OK here's another thought — maybe skip scipy entirely and just write really good pure Python HK? Let me estimate pure-Python HK performance on plausible worst-case tests. The number of HK phases on adversarial instances (e.g., chains designed to force many phases) can reach ~√V ≈ 450. Each phase costs O(E) = 400K edge scans for BFS + up to O(E) for DFS. In Python, an optimized inner loop over a flat list does maybe 10-20M simple operations/sec... a BFS phase scanning 400K edges with the loop body doing several list index operations: maybe 0.3-0.5 sec per phase. 450 phases → 150+ sec. Way too slow for adversarial. For typical tests (few phases), fine.
+
+Given the problem is presumably from a real contest with real tests, and the TL is 2s (C++ oriented), Python submissions were probably not anticipated, or the tests aren't adversarial for HK. But to be safe, scipy-first with pure-Python fallback is the best strategy. If scipy is present (very likely on modern judges), we're fast. If not, we do our best with pure Python.
+
+Hmm, wait, actually — maybe I should reconsider the problem source once more. "Problem B — Synchronized Asset Deployment". Time limit 2s, memory 256MB. q ≤ 100000, t ≤ 400000. This is likely from a specific contest... The structure "1 ≤ a ≤ q < b ≤ 2q" and needing perfect matching... This is EXACTLY Codeforces problem 1707... no. Hmm, could be from "Codeforces Round #xxx Div 2 B"? A Div 2 B wouldn't require HK. But this is labeled "Problem B" of some contest — maybe a national olympiad or a camp where B is harder. The constraints with t up to 4e5 strongly suggest HK intended.
+
+Alternatively, maybe it's from the "Southern Subregional" or "Innopolis Open"... Doesn't matter. Let me also consider: is there any chance the intended solution is greedy/flow with special structure like intervals? No — links are arbitrary.
+
+OK let me now write the code.
+
+```python
+import sys
+
+def main():
+    data = sys.stdin.buffer.read().split()
+    q = int(data[0]); t = int(data[1])
+    # edges
+    # Build CSR
+    # left node i in [0,q), right node j in [0,q) representing asset q+1+j
+    ...
+```
+
+Plan:
+
+1. Parse all ints fast. Use `data = sys.stdin.buffer.read().split()`, then map to ints. For t up to 4e5, that's 800K ints + 2. Converting: `vals = list(map(int, data))` — fast enough (~0.1s for 800K tokens).
+
+2. Build CSR adjacency: 
+   - deg = [0]*q; for each edge: deg[a-1] += 1.
+   - start = prefix sums.
+   - adj_flat = [0]*t; fill using a moving pointer copy of start.
+
+3. Greedy initial matching: for each left u, scan its edges for a free right v. This is O(E) and typically matches most nodes.
+
+4. Hopcroft-Karp loop.
+
+Let me write the HK carefully with all optimizations:
+
+```python
+def solve_pure(q, t, ea, eb):
+    # ea[i], eb[i]: left and right endpoints (0-indexed)
+    # build CSR
+    start = [0]*(q+1)
+    for i in range(t):
+        start[ea[i]+1] += 1
+    for i in range(q):
+        start[i+1] += start[i]
+    adj = [0]*t
+    pos = start[:]  # copy; pos[u] is next insertion index... careful: start has q+1 entries
+    # Actually use pos = list(start) then fill:
+    for i in range(t):
+        u = ea[i]
+        adj[pos[u]] = eb[i]
+        pos[u] += 1
+    ...
+```
+
+Hmm, `pos = start[:]` copies q+1 entries; then `pos[u]` for u in [0,q). After filling, pos[u] == start[u+1]. Good.
+
+Greedy:
+
+```python
+pair_l = [-1]*q   # left -> right
+pair_r = [-1]*q   # right -> left
+matched = 0
+for u in range(q):
+    for idx in range(start[u], start[u+1]):
+        v = adj[idx]
+        if pair_r[v] < 0:
+            pair_r[v] = u
+            pair_l[u] = v
+            matched += 1
+            break
+```
+
+This is O(E) total (each edge scanned at most once per u... actually the loop breaks on first free v; worst case scans all edges of u). Fine.
+
+HK phases:
+
+```python
+INF = float('inf')  # or a large int like q+1... use a big int to avoid float comparisons? Int comparisons are fine and maybe faster than float. Use INF = 1 << 30.
+NIL = q  # sentinel index for dist and pair arrays of size q+1
+
+dist = [INF]*(q+1)
+pair_r_ext = pair_r + [NIL]?? 
+```
+
+Hmm, the NIL trick: pair_right[v] for free v should act as NIL with dist[NIL]. I can handle it inline: when checking `dist[pair_r[v]]`, if pair_r[v] == -1, use dist[NIL]. To avoid branching, extend pair_r: `pair_r_x = pair_r[:] ; pair_r_x.append(NIL)` — no wait, the mapping: for free right v, pair is NIL = q. So define `pr = pair_r` but when v free, pr[v] = -1, and I want dist[-1]... Alternative: use index shift: let pair arrays use NIL = q as the "partner" of free right nodes: i.e., maintain pair_r with values in [0, q] where q means free. Then dist array of size q+1, dist[NIL=q]. And pair_l with values in [0, q] where q means free (NIL). Then:
+
+- BFS: for u in range(q): if pair_l[u] == q: dist[u] = 0, enqueue; else dist[u] = INF. dist[NIL] = INF.
+- When popping u: if dist[u] < dist[NIL]: for v in adj[u]: w = pair_r[v]; if dist[w] == INF: dist[w] = dist[u]+1; enqueue w (if w != NIL... if w == NIL, we set dist[NIL] and could skip enqueuing — but enqueuing NIL is harmless if we guard adjacency access; better: don't enqueue NIL. But careful: `if dist[w] == INF` — for w == NIL, dist[NIL] == INF initially → set dist[NIL] = dist[u]+1, and skip enqueue. But subsequent free-right discoveries: dist[NIL] != INF → skip. Good.)
+
+Wait, but there's a subtlety: if we don't enqueue NIL, then when we pop u with dist[u] < dist[NIL]... the pruning condition `dist[u] < dist[NIL]` still works. ✓.
+
+- DFS from free left u (pair_l[u] == q... but note: as phase progresses, pair_l changes; the main loop checks current pair_l[u] == q).
+
+DFS iterative with stack of frames. Let me write it:
+
+```python
+# per phase:
+# BFS
+queue = [u for u in range(q) if pair_l[u] == q]
+# set dist for all: free -> 0, matched -> INF
+```
+
+Setting dist each phase: O(q) per phase — with 450 phases, 450 * 100K = 45M operations just for resets. Hmm, that's significant but unavoidable-ish. Can optimize: dist array reset via slice assignment? `dist[:] = ...` needs a source list. We could do: `for u in free_list: dist[u] = 0` and for matched ones dist[u] = INF — that's a full O(q) loop anyway. Alternative: use a "timestamp" trick: dist2 = [(timestamp, value)]... more overhead per access. Better: just do the O(q) reset with a fast loop:
+
+```python
+INF = q+5  # sentinel large
+# reset:
+# dist = [INF]*(q+1) each phase: creating a new list of size q+1 each phase: 450 * 100K = 45M element writes via list multiplication — list multiplication is fast C-level! [INF]*(q+1) is very fast (~1ms for 100K). Then set dist[u]=0 for free u.
+```
+
+Yes! `dist = [INF] * (q+1)` is C-speed. Then loop over free nodes: but finding free nodes requires scanning pair_l: O(q) Python loop per phase — 450 × 100K = 45M iterations of a simple loop with condition — maybe 3-5 seconds. Hmm. Optimization: maintain a list of currently-free left nodes! After each phase, the free set shrinks. Maintain `free_left` list; at the start of each phase, rebuild it by filtering: `free_left = [u for u in free_left if pair_l[u] == q]` — total work proportional to |free_left| which shrinks... but in early phases free_left is large (q - greedy_matched). Hmm, but the total across phases: phase k has at most (q - matched_k) free nodes, and matched grows by ≥1 per phase... no, that doesn't bound the sum well. Worst case: greedy matches few, and each phase augments few → free list stays large → sum ~ 450 × 100K = 45M. Same. But list comprehension is faster than explicit loop. `[u for u in free_left if pair_l[u]==q]` — ~50-100ns per element → 45M × 80ns ≈ 3.6s. Hmm, too slow if adversarial.
+
+Alternative: avoid rebuilding: iterate over the old free list in the main phase loop, checking pair_l[u] == q inline (skip matched). The BFS initialization also needs dist[u] = 0 for free u — do it in the same comprehension? We need both the queue and dist. 
+
+```python
+queue = []
+dist = [INF]*(q+1)
+for u in free_left:
+    if pair_l[u] == q:
+        dist[u] = 0
+        queue.append(u)
+```
+
+That's one pass over free_left per phase. Same cost. Hmm.
+
+Alternatively, note: BFS queue can just be `queue = [u for u in free_left if pair_l[u] == q]` and dist set in the same comprehension? Can't set dist inside a comprehension cleanly... Could do: `dist = [INF]*(q+1)` then `for u in queue: dist[u] = 0` — two passes but both cheap-ish.
+
+Honestly, if the number of phases is large, we're doomed anyway due to O(E) per phase. The reset cost O(q) is dominated by O(E) = 4q per phase. So don't over-optimize resets; focus on the edge-scan loops.
+
+Actually, let me reconsider the whole approach. What about implementing HK where the BFS and DFS are fused... no. What about a different algorithm: since we need a PERFECT matching, there's the approach via "Kuhn with random order + current-arc optimization" — no, HK is the standard.
+
+Alternatively: implement HK with the DFS replaced by a "retreat" style... same thing.
+
+Another idea: use bitset-based Kuhn? For dense graphs bitsets help; here E = 4q, average degree 4 — sparse. Bitsets don't help.
+
+OK let me just write the best pure-Python HK I can, plus the scipy fast path. Let me also think: maybe implement the DFS phase using a different technique that's more Python-friendly: the "partition refinement"... no.
+
+Actually, here's a thought for the pure-Python fallback: implement HK but with the DFS done via an explicit stack where stack frames are stored in preallocated arrays (not lists of lists) to reduce allocation overhead. Frame: (u, edge_ptr). Store chosen v implicitly: when we advance from u via edge index i (pointing to v = adj[i]), we can recover v later as adj[i]. So stack can be two parallel lists or a list of ints encoding (u << 20 | ptr)? With q, t up to... ptr up to t=4e5 < 2^19; u < 1e5 < 2^17. Encode frame as u * T + ptr or (u << 19) | ptr. Decoding via shifts — fast. Or keep a separate `path_edges` list storing the edge index chosen at each level, and `stack` storing u. Let me design:
+
+Iterative DFS(u0) where u0 is free:
+
+```python
+# stack_u: list of left nodes on current path
+# stack_ei: list of "current edge index" for each node on path
+# stack_chose: list of chosen edge index (the edge used to go deeper) — needed for augmentation
+```
+
+Actually for augmentation, when we reach a free right node v via edge index ei from node u (top of stack), we augment: for each level, the chosen edge index gives v; pair: (u_level, v_level). The chosen edges: for the top level, the edge that found free v; for lower levels, the edge they used to go deeper. So I need to record, for each stack level, the edge index used to descend (or to finish). Let me maintain `chosen` list parallel to stack.
+
+Algorithm:
+
+```python
+def dfs(u0):
+    stack = [u0]
+    ei = [start[u0]]      # next edge index to try at this level
+    ch = [-1]             # chosen edge index at this level (to descend or finish)
+    while stack:
+        u = stack[-1]
+        i = ei[-1]
+        end = start[u+1]  # hmm, need u+1 boundary
+        du1 = dist[u] + 1
+        found = False
+        while i < end:
+            v = adj[i]
+            i += 1
+            w = pair_r[v]
+            if dist[w] == du1:
+                found = True
+                break
+        ei[-1] = i  # save progress
+        if not found:
+            # dead end: kill u
+            dist[u] = INF
+            stack.pop(); ei.pop(); ch.pop()
+            continue
+        # edge index i-1 points to v; w = pair_r[v]
+        ch[-1] = i-1
+        if w == NIL:
+            # v is free: augment along stack
+            for k in range(len(stack)):
+                uu = stack[k]
+                e = ch[k]
+                vv = adj[e]
+                pair_l[uu] = vv
+                pair_r[vv] = uu
+            return True
+        else:
+            stack.append(w); ei.append(start[w]); ch.append(-1)
+    return False
+```
+
+Wait, there's a bug: when we descend to w and later w fails (popped with dist[w]=INF), we return to u and continue scanning from ei[-1] — correct. But note: when we chose edge (i-1) and descended, and the child fails, we should continue trying other edges from u — ei[-1] = i (already saved past the chosen edge). ✓.
+
+But another subtlety: after child w fails, dist[w] = INF, so re-choosing the same edge would fail the dist check — but we've already advanced i past it, so we won't re-examine it. ✓.
+
+Also: `end = start[u+1]` — CSR boundary. To avoid computing start[u+1] repeatedly... it's a list index, fine.
+
+Hmm, also `dist[w] == du1` where w = pair_r[v], and pair_r[v] == q (NIL) for free v — dist[NIL] is finite (= d) during the phase, so free v passes the check iff dist[u]+1 == dist[NIL]. ✓ matches classic.
+
+One more check: the classic DFS also requires... hmm, in the classic, DFS(u) is called on free u only, and the first edge scan from u: dist[pair_r[v]] == dist[u]+1 = 1. So only right nodes whose partners are at dist 1 (or free with dist[NIL] == 1). ✓.
+
+Augmentation: sets pair for all stack levels. Note the top level's chosen edge leads to the free v. ✓. And pair_l/pair_r updated. Also, importantly, after augmentation, dist values on the path remain — fine (they can't be re-entered, as proven).
+
+Now the per-DFS overhead: creating lists stack/ei/ch per DFS call. Number of DFS calls per phase = number of free left nodes (up to q). Creating 3 small lists per call — allocation overhead. Could reuse preallocated lists with a depth counter. Let me use preallocated arrays of size (max path length) — but path length can be up to... dist[NIL] = d ≤ q. Path has d left nodes. Preallocate size q+1? Three lists of size q — fine memory-wise (100K ints each). Use them as stacks with an explicit depth pointer:
+
+```python
+# preallocated: st_u = [0]*(q+2), st_ei = [0]*(q+2), st_ch = [0]*(q+2)
+```
+
+But careful: recursion depth in DFS ≤ d (number of left layers) ≤ q. Preallocate q+1. ✓.
+
+Actually, hmm, wait: can the DFS stack depth exceed d? Each stack level is a left node at strictly increasing dist (0, 1, 2, ..., ≤ d-1). So depth ≤ d ≤ q. ✓.
+
+Let me now also optimize the BFS. BFS per phase:
+
+```python
+# dist = [INF]*(q+1)  (fresh each phase)
+# queue: preallocated list, use head pointer
+qu = [0]*(q+1)  # hmm, queue can hold up to q entries (left nodes) — but NIL not enqueued. Actually all q left nodes could be enqueued. Preallocate q.
+```
+
+BFS:
+
+```python
+dist = [INF] * (q+1)
+qn = 0
+for u in range(q):
+    if pair_l[u] == q:
+        dist[u] = 0
+        qu[qn] = u; qn += 1
+```
+
+Hmm, this scans all q left nodes per phase — O(q) per phase, fine (dominated by O(E)).
+
+Wait, but actually — I realize we can avoid the full scan: maintain the free list as discussed. Let me keep it simple first, optimize if needed. Actually, let me maintain `free_left` list and filter it at the start of each phase:
+
+```python
+free_left = [u for u in range(q) if pair_l[u] == q]  # after greedy
+...
+while True:
+    # BFS
+    dist = [INF]*(q+1)
+    qn = 0
+    new_free = []
+    for u in free_left:
+        if pair_l[u] == q:
+            dist[u] = 0
+            qu[qn] = u; qn += 1
+            new_free.append(u)
+    free_left = new_free
+    if qn == 0: break  # no free left nodes → matching is perfect? 
+```
+
+Wait — if no free left nodes, matching is perfect (all q left matched → all q right matched). Done. But also BFS might find no augmenting path (dist[NIL] == INF) → done (maximum matching found; if free left nodes remain → answer NO).
+
+Hmm wait, careful: if qn == 0, there are no free left nodes → perfect matching → done, output YES. If BFS runs and dist[NIL] stays INF → no augmenting path → maximum matching → if matched < q → NO.
+
+BFS main loop:
+
+```python
+head = 0
+found_aug = False
+while head < qn:
+    u = qu[head]; head += 1
+    du = dist[u]
+    if du < dist_NIL_current...  # need dist[NIL] value; it's dist[q]... wait NIL = q, dist has size q+1, dist[NIL] = dist[q].
+```
+
+Let me set NIL = q. dist = [INF]*(q+1); dist[NIL] = dist[q] = INF initially.
+
+```python
+while head < qn:
+    u = qu[head]; head += 1
+    du1 = dist[u] + 1
+    if dist[u] < dist[NIL]:   # dist[NIL] = dist[q]
+        for i in range(start[u], start[u+1]):
+            v = adj[i]
+            w = pair_r[v]
+            if dist[w] == INF:
+                dist[w] = du1
+                if w < q:  # w != NIL
+                    qu[qn] = w; qn += 1
+```
+
+Hmm wait, if w == NIL (free right v), dist[NIL] = du1 — set it, don't enqueue. But careful: `if dist[w] == INF` — for w == NIL, dist[NIL] == INF initially → set to du1. Later free-right discoveries: dist[NIL] != INF → skip. ✓. But there's an issue: `if dist[u] < dist[NIL]` — once dist[NIL] is set, nodes at dist ≥ dist[NIL] are not expanded. ✓ classic.
+
+But hmm, one concern: `qn` can grow beyond the initial free count as we enqueue matched left nodes. Total enqueued ≤ q. Preallocate qu = [0]*q. But wait — could we enqueue more than q entries? Each left node enqueued at most once (dist set once). Plus initial free nodes. Total ≤ q. ✓. But careful: qu[qn] with qn up to q-1 — fine, size q. Hmm, but initial free nodes are also left nodes, counted in the ≤ q. ✓.
+
+Edge iteration: `for i in range(start[u], start[u+1]): v = adj[i]` — this has loop overhead. Faster: iterate directly over a slice? `for v in adj[start[u]:start[u+1]]` — slicing creates a new list (allocation) but iteration is fast. For BFS over all edges, slicing might be faster overall. Hmm, allocation of 400K small lists per phase... Each slice alloc is small (avg degree 4). Slice + iterate: probably faster than range+index. Let me use slices in BFS: `for v in adj[su:su1]`.
+
+Actually, an even better approach for the inner loops: store adjacency as list of lists `adj_list[u] = [v1, v2, ...]`. Then BFS: `for v in adj_list[u]` — no slicing needed, direct iteration. Building list-of-lists: q lists, total t elements. Memory: q list objects (each ~56+ bytes overhead) = 100K × ~120 bytes ≈ 12MB + elements. OK within 256MB. And iteration `for v in adj_list[u]` is the fastest form. But DFS needs edge *indices* for the chosen-edge bookkeeping... Actually, does it? Let me re-examine: in my DFS design, I used edge index i to recover v = adj[i] for augmentation, and ei (edge pointer) for resumption. With list-of-lists, I'd store (list, index) — the frame needs the adjacency list of u and current index. `ei` values are indices into adj_list[u]. Resumption: `lst = adj_list[u]; i = ei[-1]; while i < len(lst): v = lst[i]; i += 1; ...`. And chosen: store v directly instead of edge index! `ch[-1] = v` — then augmentation uses stored v directly. 
+
+So frames: st_u (left node), st_i (next index into its adjacency list), st_v (chosen right node). Preallocate three lists of size q+1.
+
+DFS:
+
+```python
+def dfs(u0):  # inline in main loop for speed
+    top = 0
+    st_u[0] = u0
+    st_i[0] = 0
+    st_v[0] = -1
+    # ...
+    while top >= 0:
+        u = st_u[top]
+        lst = adj_list[u]
+        i = st_i[top]
+        n = len(lst)
+        du1 = dist[u] + 1
+        v = -1
+        while i < n:
+            vv = lst[i]
+            i += 1
+            if dist[pair_r[vv]] == du1:
+                v = vv
+                break
+        st_i[top] = i
+        if v < 0:
+            dist[u] = INF
+            top -= 1
+            continue
+        st_v[top] = v
+        w = pair_r[v]
+        if w == q:  # NIL: v free
+            # augment
+            for k in range(top+1):
+                uu = st_u[k]; vv = st_v[k]
+                pair_l[uu] = vv
+                pair_r[vv] = uu
+            return True
+        else:
+            top += 1
+            st_u[top] = w
+            st_i[top] = 0
+            st_v[top] = -1
+    return False
+```
+
+Hmm, wait: there's an inefficiency: `dist[pair_r[vv]]` — two list lookups per edge. Could combine: maintain pair_r as the main array and dist... it's fine.
+
+Also `len(lst)` per frame — fine.
+
+Alternatively, since average degree is 4 (t ≤ 4q), the DFS edge scanning is cheap. The dominant costs: per-phase BFS O(E) and per-DFS overhead.
+
+Hmm, one more consideration for the DFS: the classic DFS marks dist[u] = INF on failure — killing u for the rest of the phase. ✓ included.
+
+Also, the main phase loop:
+
+```python
+while True:
+    # BFS phase
+    ... if no augmenting path: break
+    # DFS phase
+    for u in free_left_current:
+        if pair_l[u] == q:
+            if dfs(u): matched += 1
+    if matched == q: break  # early exit
+```
+
+Wait, but free_left_current needs updating. Let me maintain free_left as a list, rebuilt each phase:
+
+Actually, simpler: each phase, iterate `for u in range(q)` checking pair_l[u] == q? That's O(q) per phase with a cheap check — 100K iterations of `if pair_l[u] == q` — maybe 5-8ms per phase. With ≤ 450 phases: ~3s worst case. Hmm. With the free-list approach: total cost = sum over phases of |free_left_at_that_phase|. Since each phase augments ≥ 1 path... no wait, each phase augments ≥ 1 (if BFS found a path, at least one DFS succeeds). Free count decreases by ≥ 1 per phase. Sum ≤ sum_{k=1}^{450} (initial_free - k) ≈ 450 × initial_free / 2... if initial free is 100K, that's 450 × 50K avg = 22.5M — comparable. Meh. Either way ~O(phases × q). It's fine relative to phases × E.
+
+Hmm, actually here's the thing: realistically, if the graph has a perfect matching and is "normal", HK finishes in O(log) phases or so, and greedy init handles most. The adversarial worst case is unlikely in test data. And with scipy as primary, pure Python is just a fallback. Let me not over-engineer.
+
+Let me now also double check the greedy init: it's important for performance (reduces free nodes before HK). Standard.
+
+Additional optimization for the greedy: process left nodes in order; for each, take first free right. O(E).
+
+Now, the scipy path. Let me write it:
+
+```python
+def try_scipy(q, t, ea, eb):
+    import numpy as np
+    from scipy.sparse import csr_matrix
+    from scipy.sparse.csgraph import maximum_bipartite_matching
+    # build csr directly: rows = ea, cols = eb, data = ones
+    row = np.array(ea, dtype=np.int32)
+    col = np.array(eb, dtype=np.int32)
+    data = np.ones(t, dtype=np.int8)
+    graph = csr_matrix((data, (row, col)), shape=(q, q))
+    # learn convention with test matrix
+    test = csr_matrix((np.ones(1, dtype=np.int8), (np.array([0]), np.array([0]))), shape=(2, 3))
+    perm_test = maximum_bipartite_matching(test, perm_type='column')
+    # if len == 3: perm indexed by columns (perm[j] = row matched to col j)
+    # if len == 2: perm indexed by rows (perm[i] = col matched to row i)
+    perm = maximum_bipartite_matching(graph, perm_type='column')
+    ...
+```
+
+Hmm wait, but building numpy arrays from Python lists ea, eb (each 400K) — np.array(list) is fast-ish (~50ms). Or parse directly into numpy from the raw buffer: `np.fromstring`... deprecated; use np.frombuffer on the raw bytes? Parsing ints from bytes with numpy: `np.array(data[2::2])`... data is a list of bytes tokens; np.array of bytes objects → dtype 'S' — then astype(int)? That works: np.array(list_of_bytes).astype(np.int32)? Hmm, numpy can convert byte strings to ints? `np.array([b'12', b'3']).astype(int)` — I think that works (S dtype → int conversion supported). Actually yes, numpy supports string→int conversion via astype. But it might be slow-ish. Simpler: `np.fromiter(map(int, tokens), dtype=np.int32)` — 800K conversions ~0.2s. Or just parse with int() into Python lists and build CSR via scipy from COO — scipy's coo→csr conversion is C-speed.
+
+Actually, simplest robust: build csr_matrix directly from (data, (row, col)) — scipy handles duplicates by summing (when converted to csr). data values 1 (duplicates → 2, still nonzero — the matching function only cares about the sparsity structure... I believe it uses the indices/indptr directly). Hmm, wait — does maximum_bipartite_matching care about stored values? It shouldn't (it's structural). But to be safe, dedupe? Duplicates in COO get summed during tocsr — structure-wise it's fine.
+
+Hmm, actually, I realize there might be an issue with scipy's maximum_bipartite_matching: I recall it requires the matrix to be in CSR format AND it might have issues with matrices where a row is empty? No, empty rows are fine (matched = -1).
+
+Let me also recall: does it need `shape` specified? Yes, pass shape=(q, q).
+
+Then interpret perm:
+
+Convention detection: test matrix shape (2,3) with a single edge (0,0):
+- If perm_type='column' returns array of length 3: it's per-column: perm[j] = row matched to column j (or -1). For our test: perm = [0, -1, -1].
+- If length 2: per-row: perm[i] = column matched to row i: [0, -1].
+
+Then for the real graph:
+- If per-column convention: match_left[perm[j]] = j for perm[j] >= 0. Perfect iff all perm[j] >= 0.
+- If per-row: match_left[i] = perm[i]. Perfect iff all >= 0.
+
+Then validate: for each matched pair, edge must exist. Build edge set for validation: set of a*q+b or a*(q)+b... 400K entries in a Python set of ints — fine (~50MB? each int ~28 bytes + set overhead ~ 32MB... acceptable). Or validate via sorted array + binary search — cheaper memory. Or: validate via degree check... Simplest: build a set of encoded edges: `edges = set()` with `a * (2q) + b`? Use `a * 200001 + b`? Encoding: left u in [0,q), right v in [0,q): code = u * q + v — up to 1e10, big ints but fine (Python ints, ~28-32 bytes each). Set of 400K → ~40-60MB. Hmm, 256MB limit — risky but probably OK. Alternative: use numpy for validation: sort codes as int64 array, use np.isin or searchsorted — fast and low-memory. Since we're already in numpy/scipy context: 
+
+```python
+codes = row.astype(np.int64) * q + col
+codes.sort()
+# for candidate matching pairs (i, perm[i]): codes2 = i*q + perm[i]; check np.isin? use searchsorted:
+pos = np.searchsorted(codes, codes2)
+valid = (pos < t) & (codes[pos] == codes2)  # careful with pos == t
+```
+
+Also check distinctness: perm values distinct — np.unique(perm).size == q (when perfect, all ≥ 0 and distinct... if all ≥ 0 and distinct and count q → it's a permutation). And perfect: (perm >= 0).all().
+
+If validation passes → output YES + pairs. If perm has -1s (under the correct convention) → answer NO (scipy's matching is maximum). But wait — should I trust that? If scipy is correct, yes: maximum matching < q → no perfect matching → NO. I'll trust scipy after convention detection + structural validation of what we output. For the NO case, we output NO without validating anything — trusting scipy's maximality. Risk: if my convention detection is wrong, I might read a perfect matching as imperfect → wrong NO. Convention detection via the non-square test is solid though. Hmm, but what if scipy's behavior differs for square vs non-square? No, the convention is uniform.
+
+Extra safety: if under the detected convention the matching is NOT perfect, but under the OTHER convention the perm array validates as a perfect matching (all ≥ 0, distinct, all edges exist) → then answer YES with that (it's a genuine perfect matching). This covers convention-detection failure. So:
+
+1. Detect convention (test).
+2. Interpret perm under detected convention → matching M1. If M1 is perfect and valid → YES.
+3. Interpret under the other convention → M2. If M2 perfect and valid → YES.
+4. Else → NO... but wait, if convention detection says per-column and matching is imperfect → NO. Could the true answer be YES? Only if scipy failed to find the maximum matching (bug) — assume not. But hmm, what if convention detection is wrong AND the matching is perfect under the true convention but I detect the wrong one? Then step 2 gives garbage (likely fails validation), step 3 (other convention = true one) validates → YES. ✓. If true answer is NO: both interpretations fail validation (no perfect matching exists at all) → NO. ✓. If true answer YES: true convention validates in step 2 or 3 → YES. ✓. 
+
+So the logic is sound regardless of convention detection! Actually, I don't even need the test matrix — just try both interpretations. But the test helps decide NO vs fallback... no wait: if neither interpretation validates as perfect, the answer is NO — regardless of convention! Because: if answer were YES, scipy's maximum matching is perfect, and the correct interpretation would validate. So neither validating → NO. 
+
+So I don't need convention detection at all. Just:
+- Interpret A: match_left[i] = perm[i] (if perm has length q — both interpretations have length q since square).
+- Interpret B: match_left[perm[j]] = j.
+- If A is perfect & valid → YES (output pairs (i+1, perm[i]+q+1)).
+- elif B perfect & valid → YES.
+- else NO.
+
+Wait, but one more subtlety: what if perm's length isn't q? For a square matrix both conventions give length q. If scipy returns something else (shouldn't), fall back to pure Python. I'll wrap the whole scipy path in try/except and fall back to pure Python on any exception or validation failure... but validation failure means NO (as argued). Hmm, but if scipy has some quirk (e.g., returns a maximum matching but with a different node ordering convention?? no). Let me structure:
+
+```python
+result = None
+try:
+    ... scipy path ...
+    # returns either ('YES', pairs) or 'NO' or None (if something's off → fall back)
+except Exception:
+    result = None
+if result is None:
+    result = pure_python_HK(...)
+print result
+```
+
+When would scipy path return None (fall back)? If perm length != q, or if interpretations don't validate as perfect but... hmm, as argued, that means NO. But what if scipy is buggy on this input (e.g., crashes on empty rows)? Exception → fall back to pure Python. OK.
+
+Hmm, wait, actually there's one more scipy quirk I should consider: I have a vague memory that `maximum_bipartite_matching` in some versions had a bug with **duplicate entries** or required `perm_type` handling... Also I recall it may return int32 with -1. Fine.
+
+Also: t = 0 edge case: graph with no entries. csr_matrix with empty data arrays: `csr_matrix((np.array([], dtype=np.int8), (np.array([], dtype=np.int32), np.array([], dtype=np.int32))), shape=(q,q))` — should work. perm all -1 → NO (q ≥ 1). ✓. But also pure Python path handles t=0.
+
+Also q=1, t=1: single edge (1,2) → YES, output "1 2". ✓.
+
+Now, let me also double check the scipy function exists under that name: `scipy.sparse.csgraph.maximum_bipartite_matching`. Yes. (There's also `scipy.sparse.csgraph.maximum_flow` — not needed.)
+
+Hmm, one concern: older scipy versions (pre-1.4?) — if the judge has ancient scipy, ImportError → caught → pure Python. Fine.
+
+Now let me write the pure Python HK fallback with all the optimizations discussed. Let me write the complete code:
+
+```python
+import sys
+
+def main():
+    data = sys.stdin.buffer.read().split()
+    q = int(data[0]); t = int(data[1])
+    # parse edges
+    # ea[i] in [0,q), eb[i] in [0,q)
+    m = 2 + 2*t
+    # Convert all at once:
+    # vals = list(map(int, data[2:2+2t]))  — data has exactly 2+2t tokens presumably
+    ea = [0]*t
+    eb = [0]*t
+    # do it with map for speed:
+    it = iter(data[2:])
+    # Actually: 
+    # ints = list(map(int, data[2:2+2*t]))
+    ints = list(map(int, data[2:2+2*t]))
+    for i in range(t):
+        ea[i] = ints[2*i] - 1
+        eb[i] = ints[2*i+1] - 1 - q
+```
+
+Hmm, the per-edge Python loop for 400K edges: ~0.3s. Could vectorize with slicing: `ea = [x-1 for x in ints[0::2]]; eb = [x-1-q for x in ints[1::2]]` — list comprehensions with slicing: faster (~0.15s). OK.
+
+Then:
+
+```python
+    # Try scipy fast path
+    ans = None
+    try:
+        ans = scipy_solve(q, t, ea, eb)
+    except Exception:
+        ans = None
+    if ans is None:
+        ans = hk_solve(q, t, ea, eb)
+    # output
+```
+
+Wait, but scipy_solve needs the raw edge endpoints; I have ea, eb as Python lists. For scipy, build numpy arrays: `np.fromiter(ea, ...)` or np.array(ea). Fine.
+
+Hmm, actually — maybe better: parse into numpy directly for the scipy path, avoiding Python lists entirely? But the fallback needs Python lists anyway. Parsing cost ~0.2s is acceptable.
+
+Let me write hk_solve:
+
+```python
+def hk_solve(q, t, ea, eb):
+    # CSR as list of lists
+    adj = [[] for _ in range(q)]
+    for i in range(t):
+        adj[ea[i]].append(eb[i])
+```
+
+A Python loop of 400K appends: ~0.2s. Alternative CSR flat + starts: also a loop. List-of-lists via append loop is straightforward. Or: sort edges by ea using... hmm, we could do `adj = [[] for _ in range(q)]` then loop. Fine.
+
+Actually, a faster build: use arrays: 
+```python
+deg = [0]*(q+1)
+for a in ea: deg[a+1] += 1  # loop 400K
+```
+Meh, similar cost. Let me just do list-of-lists with append — simple and iteration is fastest.
+
+Hmm, one more idea to speed up adjacency building: group edges by left endpoint without explicit loop... `for a, b in zip(ea, eb): adj[a].append(b)` — zip iteration is fast. ~0.25s for 400K. OK.
+
+```python
+    NIL = q
+    INF = q + 5  # sentinel; dist values ≤ q
+    pair_l = [NIL]*q   # left -> right or NIL
+    pair_r = [NIL]*q   # right -> left or NIL
+    matched = 0
+    # greedy
+    for u in range(q):
+        for v in adj[u]:
+            if pair_r[v] == NIL:
+                pair_r[v] = u
+                pair_l[u] = v
+                matched += 1
+                break
+    if matched == q:
+        return ('YES', pair_l)  # pair_l[u] = right index
+    # HK
+    dist = [INF]*(q+1)
+    # preallocated stacks
+    st_u = [0]*(q+2)
+    st_i = [0]*(q+2)
+    st_v = [0]*(q+2)
+    qu = [0]*(q+2)
+    free_left = [u for u in range(q) if pair_l[u] == NIL]
+    while matched < q:
+        # BFS
+        dist = [INF]*(q+1)   # fresh list each phase (C-speed alloc)
+        qn = 0
+        head = 0
+        for u in free_left:
+            dist[u] = 0
+            qu[qn] = u; qn += 1
+        # note: free_left entries are all still free? No! pair_l changes during DFS phase only; between phases, free_left from last phase's filter... let me filter here:
+```
+
+Hmm wait — free_left must be filtered each phase because DFS phase matches some of them. Let me do:
+
+```python
+        new_free = []
+        for u in free_left:
+            if pair_l[u] == NIL:
+                dist[u] = 0
+                qu[qn] = u; qn += 1
+                new_free.append(u)
+        free_left = new_free
+        if qn == 0:
+            break  # perfect
+        # BFS expand
+        dNIL = INF  # local copy of dist[NIL]
+        while head < qn:
+            u = qu[head]; head += 1
+            du1 = dist[u] + 1
+            if du1 <= dNIL:  # dist[u] < dist[NIL]  ⇔ du1 <= dNIL
+                for v in adj[u]:
+                    w = pair_r[v]
+                    if dist[w] == INF:
+                        dist[w] = du1
+                        if w != NIL:
+                            if qn < ...: qu[qn] = w; qn += 1
+                        else:
+                            dNIL = du1
+```
+
+Hmm wait, careful with the pruning condition: classic: `if dist[u] < dist[NIL]: expand u`. Using local dNIL: `if dist[u] < dNIL`. But dist[NIL] is also read in DFS as dist[NIL] — I should keep dist[NIL] updated in the array too (dist[q] = dNIL) since DFS checks dist[pair_r[v]] where pair_r[v] can be NIL → dist[NIL]. Let me just use dist[NIL] directly (dist[q]) and also maintain local dNIL for the BFS pruning speed. Actually simpler: use dist[q] everywhere; local variable dNIL mirrors it; at the end of BFS, dist[q] = dNIL (set it when updated). Let me write:
+
+```python
+        dNIL = INF
+        while head < qn:
+            u = qu[head]; head += 1
+            du1 = dist[u] + 1
+            if dist[u] < dNIL:
+                for v in adj[u]:
+                    w = pair_r[v]
+                    if dist[w] == INF:
+                        dist[w] = du1
+                        if w < q:
+                            qu[qn] = w; qn += 1
+                        else:
+                            dNIL

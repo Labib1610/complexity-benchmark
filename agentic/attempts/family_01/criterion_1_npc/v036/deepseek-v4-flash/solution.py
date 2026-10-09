@@ -11,12 +11,13 @@ def solve():
         adj[u].append(v)
         adj[v].append(u)
     
-    color = [0] * n
+    color = [0] * n  # 0 = unassigned, 1,2,3 = rotations
     
     def backtrack(idx):
         if idx == n:
             return True
-        for c in range(1, 4):
+        # Try colors 1,2,3
+        for c in (1, 2, 3):
             ok = True
             for nb in adj[idx]:
                 if color[nb] == c:
@@ -31,7 +32,7 @@ def solve():
     
     if backtrack(0):
         print("YES")
-        print(" ".join(map(str, color)))
+        print(" ".join(str(c) for c in color))
     else:
         print("NO")
 

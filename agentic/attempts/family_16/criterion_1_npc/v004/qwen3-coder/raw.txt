@@ -1,0 +1,338 @@
+```python
+from collections import deque
+import sys
+
+def solve():
+    input = sys.stdin.read
+    data = input().split()
+    
+    idx = 0
+    j = int(data[idx])
+    idx += 1
+    m = int(data[idx])
+    idx += 1
+    
+    jobs = []
+    for _ in range(j):
+        o = int(data[idx])
+        idx += 1
+        ops = []
+        for _ in range(o):
+            machine = int(data[idx]) - 1  # Convert to 0-based indexing
+            idx += 1
+            duration = int(data[idx])
+            idx += 1
+            ops.append((machine, duration))
+        jobs.append(ops)
+    
+    # We'll use a backtracking approach with pruning
+    # State: for each job, we track which operation index it's at
+    # For each machine, we track when it becomes free
+    
+    # Let's try a different approach: recursive backtracking with memoization
+    
+    # Precompute job lengths
+    job_ops = []
+    for job in jobs:
+        job_ops.append(job)
+    
+    # We'll search over all possible schedules
+    # But since j <= 10 and total ops <= 50, we can do a search
+    
+    # Better approach: simulate the scheduling process
+    # At each step, we can start any operation whose predecessor has finished
+    # and whose machine is free
+    
+    # Let's model this as a state space search
+    # State: (time, job_positions, machine_free_times)
+    
+    # job_positions[i] = index of next operation for job i (0 means first op)
+    # machine_free_times[k] = time when machine k becomes free
+    
+    # Initial state
+    job_positions = [0] * j
+    machine_free_times = [0] * m
+    
+    # We'll use a priority queue / BFS approach but with pruning
+    # Actually, let's think of this differently
+    
+    # For each job, precompute operation details
+    # job_ops[job_id] = list of (machine, duration, start_time_lower_bound)
+    
+    # Compute earliest start times for each operation (without considering machine conflicts)
+    earliest_start = []
+    for i in range(j):
+        starts = [0]
+        current_time = 0
+        for machine, duration in job_ops[i]:
+            starts.append(current_time)
+            current_time += duration
+        earliest_start.append(starts[:-1])  # Remove last dummy element
+    
+    # Use recursive backtracking with memoization
+    from functools import lru_cache
+    
+    # This might be too slow, let's try iterative approach
+    
+    # Let's simulate the process:
+    # Keep track of when each job can start its next operation
+    # Keep track of when each machine is free
+    
+    # job_next_ready[i] = time when job i can start its next operation
+    job_next_ready = [0] * j
+    machine_free = [0] * m
+    job_pos = [0] * j  # Current operation index for each job
+    
+    # To make it efficient, we'll process events in time order
+    # Events: (time, type, job_id, machine, duration)
+    # But this is getting complex
+    
+    # Let's go back to recursive with proper memoization
+    # State: (tuple of job positions, tuple of machine free times)
+    
+    @lru_cache(maxsize=None)
+    def dp(job_positions_tuple, machine_free_tuple):
+        job_positions = list(job_positions_tuple)
+        machine_free = list(machine_free_tuple)
+        
+        # Check if all jobs are done
+        all_done = True
+        for i in range(j):
+            if job_positions[i] < len(job_ops[i]):
+                all_done = False
+                break
+        if all_done:
+            return 0
+            
+        # For each job that has remaining operations,
+        # and whose current operation can start (previous op done)
+        # check if its machine is free
+        
+        result = float('inf')
+        current_time = max(machine_free)  # Not precise but gives upper bound
+        
+        for job_id in range(j):
+            if job_positions[job_id] >= len(job_ops[job_id]):
+                continue
+                
+            machine, duration = job_ops[job_id][job_positions[job_id]]
+            
+            # When can this operation start?
+            # 1. After the previous operation of the same job
+            # 2. After the machine is free
+            start_time = max(job_next_ready[job_id], machine_free[machine])
+            
+            # Update state for this choice
+            new_job_pos = job_positions[:]
+            new_job_pos[job_id] += 1
+            
+            new_machine_free = machine_free[:]
+            new_machine_free[machine] = start_time + duration
+            
+            # Update job_next_ready for this job
+            new_job_next_ready = job_next_ready[:]
+            new_job_next_ready[job_id] = start_time + duration
+            
+            # Save global state
+            old_job_next_ready = job_next_ready[:]
+            old_job_pos = job_pos[:]
+            
+            # Update global state
+            job_next_ready[job_id] = start_time + duration
+            job_pos[job_id] += 1
+            
+            # Recurse
+            res = (start_time + duration) + dp(tuple(new_job_pos), tuple(new_machine_free))
+            result = min(result, res)
+            
+            # Restore global state
+            job_next_ready[:] = old_job_next_ready
+            job_pos[:] = old_job_pos
+            
+        return result
+    
+    # This approach is still not right because job_next_ready is global
+    
+    # Let's try a cleaner DP approach
+    # State: (job_positions_tuple) -> minimum makespan from this state
+    # But we also need to track machine availability
+    
+    # State: (job_positions, machine_free_times) -> min makespan
+    
+    memo = {}
+    
+    def dp_clean(pos_tuple, machine_times_tuple):
+        if (pos_tuple, machine_times_tuple) in memo:
+            return memo[(pos_tuple, machine_times_tuple)]
+            
+        pos = list(pos_tuple)
+        machine_times = list(machine_times_tuple)
+        
+        # Check if all jobs done
+        done = True
+        for i in range(j):
+            if pos[i] < len(job_ops[i]):
+                done = False
+                break
+        if done:
+            return 0
+            
+        res = float('inf')
+        # Try starting each possible next operation
+        for job_id in range(j):
+            if pos[job_id] >= len(job_ops[job_id]):
+                continue
+            machine, duration = job_ops[job_id][pos[job_id]]
+            # Earliest this operation can start
+            start_time = max(machine_times[machine])  # This is wrong logic
+            
+        # Need to compute when job can start this op based on previous op
+        # and when machine is free
+        
+        for job_id in range(j):
+            if pos[job_id] >= len(job_ops[job_id]):
+                continue
+            # When did previous operation of this job finish?
+            prev_finish = 0
+            if pos[job_id] > 0:
+                # Need to track this somehow
+                pass
+                
+        memo[(pos_tuple, machine_times_tuple)] = res
+        return res
+    
+    # This is getting messy. Let's look up a standard algorithm.
+    # This is a classic Job Shop Scheduling problem.
+    # For small instances, we can use branch and bound or constraint programming.
+    
+    # Let's try a simulation-based approach:
+    
+    # At any time, we know:
+    # - Which operations have been scheduled
+    # - When each machine will be free
+    # - When each job can start its next operation
+    
+    # We can build a search tree where at each node we decide which operation to schedule next
+    
+    import heapq
+    
+    # Priority queue for events: (time, event_type, job_id, op_index)
+    # event_type: 'machine_free' or 'job_ready'
+    
+    # Actually, simpler: at each step, determine what can be scheduled now
+    # and try all possibilities
+    
+    def backtrack():
+        # Global state tracking
+        machine_end_times = [0] * m  # When each machine will be free
+        job_op_indices = [0] * j     # Next operation for each job
+        job_earliest_start = [0] * j # When each job can start next op (after prev op)
+        
+        def rec():
+            # If all jobs are done
+            if all(job_op_indices[i] == len(job_ops[i]) for i in range(j)):
+                return 0
+                
+            # What operations can be started now?
+            candidates = []
+            for job_id in range(j):
+                if job_op_indices[job_id] >= len(job_ops[job_id]):
+                    continue
+                machine, duration = job_ops[job_id][job_op_indices[job_id]]
+                start_time = max(job_earliest_start[job_id], machine_end_times[machine])
+                candidates.append((start_time, job_id, machine, duration))
+                
+            if not candidates:
+                return float('inf')
+                
+            # Try each candidate
+            min_time = float('inf')
+            for start_time, job_id, machine, duration in candidates:
+                # Make move
+                old_machine_end = machine_end_times[machine]
+                old_job_start = job_earliest_start[job_id]
+                old_op_index = job_op_indices[job_id]
+                
+                machine_end_times[machine] = start_time + duration
+                job_earliest_start[job_id] = start_time + duration
+                job_op_indices[job_id] += 1
+                
+                # Recurse
+                res = max(start_time + duration, rec())
+                min_time = min(min_time, res)
+                
+                # Undo move
+                machine_end_times[machine] = old_machine_end
+                job_earliest_start[job_id] = old_job_start
+                job_op_indices[job_id] = old_op_index
+                
+            return min_time
+            
+        return rec()
+    
+    # This can be very slow without pruning
+    # Let's add some basic pruning and memoization
+    
+    memo_dict = {}
+    
+    def rec_memo(machine_end_tuple, job_op_indices_tuple, job_earliest_tuple):
+        state = (machine_end_tuple, job_op_indices_tuple, job_earliest_tuple)
+        if state in memo_dict:
+            return memo_dict[state]
+            
+        machine_end_times = list(machine_end_tuple)
+        job_op_indices = list(job_op_indices_tuple)
+        job_earliest_start = list(job_earliest_tuple)
+        
+        # If all jobs are done
+        if all(job_op_indices[i] == len(job_ops[i]) for i in range(j)):
+            return 0
+            
+        # Pruning: if current time is already worse than best known, return inf
+        # But we don't have best_known here, so skip for now
+            
+        # What operations can be started now?
+        candidates = []
+        for job_id in range(j):
+            if job_op_indices[job_id] >= len(job_ops[job_id]):
+                continue
+            machine, duration = job_ops[job_id][job_op_indices[job_id]]
+            start_time = max(job_earliest_start[job_id], machine_end_times[machine])
+            candidates.append((start_time, job_id, machine, duration))
+            
+        if not candidates:
+            return float('inf')
+            
+        # Try each candidate
+        min_time = float('inf')
+        for start_time, job_id, machine, duration in candidates:
+            # Make move
+            old_machine_end = machine_end_times[machine]
+            old_job_start = job_earliest_start[job_id]
+            old_op_index = job_op_indices[job_id]
+            
+            machine_end_times[machine] = start_time + duration
+            job_earliest_start[job_id] = start_time + duration
+            job_op_indices[job_id] += 1
+            
+            # Recurse
+            res = max(start_time + duration, rec_memo(
+                tuple(machine_end_times),
+                tuple(job_op_indices),
+                tuple(job_earliest_start)
+            ))
+            min_time = min(min_time, res)
+            
+            # Undo move
+            machine_end_times[machine] = old_machine_end
+            job_earliest_start[job_id] = old_job_start
+            job_op_indices[job_id] = old_op_index
+            
+        memo_dict[state] = min_time
+        return min_time
+    
+    result = rec_memo(tuple([0]*m), tuple([0]*j), tuple([0]*j))
+    print(result)
+
+solve()
+```

@@ -1,0 +1,91 @@
+import sys
+
+def solve():
+    input = sys.stdin.readline
+    n, m, k = map(int, input().split())
+    adj = [0] * n
+    for _ in range(m):
+        u, v = map(int, input().split())
+        u -= 1
+        v -= 1
+        adj[u] |= (1 << v)
+        adj[v] |= (1 << u)
+    
+    # If k is large, we can search for independent set of size n-k in complement
+    # But here we'll do direct search with pruning.
+    
+    # We'll use a recursive backtracking with bitsets.
+    # We'll try to find an independent set of size k.
+    
+    # Precompute for each vertex the set of vertices that are not neighbors (including itself)
+    # This helps in pruning.
+    
+    # We'll use a simple branch and bound:
+    # At each step, pick a vertex, either include it (and remove its neighbors) or exclude it.
+    
+    # To speed up, we can use memoization on (remaining candidates mask, needed size)
+    # But n=46 is too large for full memoization. We'll use branch and bound with good ordering.
+    
+    # We'll use the standard algorithm: pick vertex with max degree among candidates.
+    
+    all_mask = (1 << n) - 1
+    
+    # For each vertex, mask of vertices that are not neighbors (including itself)
+    non_neighbors = [0] * n
+    for i in range(n):
+        non_neighbors[i] = all_mask ^ adj[i]
+    
+    # We'll do recursive search
+    # candidates: bitmask of vertices we can still pick
+    # chosen: list of chosen vertices
+    # need: how many more we need
+    
+    # To speed up, we can use a greedy upper bound: max independent set size in candidates
+    # But for simplicity, we'll just do DFS with pruning.
+    
+    # We'll order vertices by degree (smaller degree first) to reduce branching.
+    order = sorted(range(n), key=lambda x: bin(adj[x]).count('1'))
+    
+    # We'll use a recursive function
+    def dfs(candidates, need, chosen):
+        if need == 0:
+            return chosen
+        if candidates == 0:
+            return None
+        # If even picking all candidates is not enough
+        if bin(candidates).count('1') < need:
+            return None
+        
+        # Pick a vertex with smallest degree among candidates for better pruning
+        # Find candidate with max degree (to reduce candidates quickly)
+        best = -1
+        best_deg = -1
+        temp = candidates
+        while temp:
+            lsb = temp & -temp
+            v = (lsb.bit_length() - 1)
+            deg = bin(adj[v] & candidates).count('1')
+            if deg > best_deg:
+                best_deg = deg
+                best = v
+            temp -= lsb
+        
+        # Try including best
+        new_candidates = candidates & non_neighbors[best]
+        res = dfs(new_candidates, need - 1, chosen + [best])
+        if res is not None:
+            return res
+        
+        # Try excluding best
+        new_candidates = candidates & ~(1 << best)
+        return dfs(new_candidates, need, chosen)
+    
+    result = dfs(all_mask, k, [])
+    if result is None:
+        print("NO")
+    else:
+        print("YES")
+        print(" ".join(str(x + 1) for x in result))
+
+if __name__ == "__main__":
+    solve()

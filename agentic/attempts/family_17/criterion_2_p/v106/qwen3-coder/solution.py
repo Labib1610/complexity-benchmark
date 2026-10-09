@@ -1,0 +1,132 @@
+from collections import defaultdict, deque
+
+def solve():
+    q, t = map(int, input().split())
+    
+    # Create adjacency list for bipartite graph
+    # Controllers: 1 to q
+    # Platforms: q+1 to 2*q
+    graph = defaultdict(list)
+    edges = []
+    
+    for _ in range(t):
+        a, b = map(int, input().split())
+        graph[a].append(b)
+        graph[b].append(a)
+        edges.append((a, b))
+    
+    # Try to find a perfect matching using BFS-based approach (Hopcroft-Karp like)
+    # But we'll use a simpler approach: try to find a maximum matching
+    
+    # For bipartite matching
+    match_controller = {}  # controller -> platform
+    match_platform = {}    # platform -> controller
+    
+    def bfs():
+        queue = deque()
+        dist = {}
+        
+        for c in range(1, q + 1):
+            if c not in match_controller:
+                dist[c] = 0
+                queue.append(c)
+            else:
+                dist[c] = float('inf')
+        
+        dist[None] = float('inf')
+        
+        while queue:
+            c = queue.popleft()
+            
+            if dist[c] < dist[None]:
+                for p in graph[c]:
+                    if p not in match_platform:  # Free platform
+                        if dist[None] == float('inf'):
+                            dist[None] = dist[c] + 1
+                            # Found an augmenting path, but continue to find shortest
+                    else:
+                        opposite_c = match_platform[p]
+                        if opposite_c not in dist or dist[opposite_c] > dist[c] + 1:
+                            dist[opposite_c] = dist[c] + 1
+                            queue.append(opposite_c)
+        
+        return dist[None] != float('inf')
+    
+    def dfs(c):
+        if c is None:
+            return True
+            
+        for p in graph[c]:
+            opposite_c = match_platform.get(p, None)
+            if opposite_c not in dist or dist[opposite_c] == dist[c] + 1:
+                if dfs(opposite_c):
+                    match_controller[c] = p
+                    match_platform[p] = c
+                    return True
+        
+        dist[c] = float('inf')
+        return False
+    
+    # Simplified version - use greedy approach with backtracking simulation
+    # Let's implement a standard augmenting path algorithm
+    
+    def augmenting_path():
+        # Build layers for BFS
+        queue = deque()
+        layer = {}
+        
+        for i in range(1, q + 1):
+            if i not in match_controller:
+                layer[i] = 0
+                queue.append(i)
+            else:
+                layer[i] = -1
+        layer[None] = -1
+        
+        # BFS to build layers
+        while queue:
+            u = queue.popleft()
+            if u is not None:
+                for v in graph[u]:
+                    paired_u = match_platform.get(v, None)
+                    if paired_u is None:
+                        layer[None] = layer[u] + 1
+                    elif layer[paired_u] == -1:
+                        layer[paired_u] = layer[u] + 1
+                        queue.append(paired_u)
+        
+        # DFS to find augmenting paths
+        if layer[None] != -1:
+            def dfs(u):
+                if u is None:
+                    return True
+                for v in graph[u]:
+                    paired_u = match_platform.get(v, None)
+                    if (paired_u is None and layer[None] == layer[u] + 1) or \
+                       (paired_u is not None and layer[paired_u] == layer[u] + 1 and dfs(paired_u)):
+                        match_controller[u] = v
+                        match_platform[v] = u
+                        return True
+                layer[u] = -1  # Mark as visited
+                return False
+            
+            for i in range(1, q + 1):
+                if i not in match_controller:
+                    dfs(i)
+            return True
+        return False
+    
+    # Keep finding augmenting paths until no more can be found
+    while augmenting_path():
+        pass
+    
+    # Check if we have a perfect matching
+    if len(match_controller) == q:
+        print("YES")
+        for c in range(1, q + 1):
+            p = match_controller[c]
+            print(c, p)
+    else:
+        print("NO")
+
+solve()

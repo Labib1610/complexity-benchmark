@@ -1,20 +1,20 @@
-# Problem A — Protocol Synchronization
+# Problem A — Torsional Stress
 
 Time limit: 2 s   Memory limit: 256 MB
 
-A research facility is stabilizing $n$ organic samples. Each sample requires an environmental setting to prevent decay. Specifically, for each sample $i$, you must assign an integer configuration code $c_i$ satisfying $1 \le c_i \le 3$.
+You are designing a support framework consisting of $n$ structural modules. Each module must be aligned with exactly one of the three primary spatial axes (X, Y, or Z). For the control software, these axes are designated by the integer codes 1, 2, and 3, respectively. By definition, any two distinct axes from this set are perpendicular to each other, whereas an axis is parallel (not perpendicular) to itself.
 
-Certain samples have conflicting chemical signatures. If two conflicting samples are assigned the identical configuration code, their combined resonance will cause a containment breach. You are provided with the complete registry of these conflicts.
+The framework is reinforced by $m$ rigid struts, where each strut connects a specific pair of modules. To prevent torsional failure under load, the design mandates that any two modules joined by a strut must be aligned to perpendicular axes.
 
-Your task is to determine if every sample can be configured without causing a breach. If it is possible, you must output the exact configuration. In cases where more than one safe configuration exists, the facility's automated logging system enforces a tie-breaking rule: it strictly favors lower configuration codes, prioritized by sample ID. That is, it selects the valid configuration that minimizes the code for sample 1; if multiple valid configurations achieve this minimum, it considers only those and selects the one that minimizes the code for sample 2, and so forth, down to sample $n$.
+Determine a valid axis alignment for all $n$ modules that satisfies this structural requirement. If no such alignment is possible, you must report that it is impossible.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$) — the number of organic samples and the number of conflict records. The samples are indexed from 1 to $n$.
-The subsequent $m$ lines each contain two integers $u$ and $v$ ($1 \le u, v \le n$, $u \ne v$), indicating that sample $u$ and sample $v$ have conflicting chemical signatures and must not share the same configuration code.
+The first line provides two integers $n$ and $m$ — the total number of modules and the number of struts ($1 \le n \le 40$, $0 \le m \le n \cdot (n-1)/2$).
+Each of the subsequent $m$ lines contains two integers $u$ and $v$, indicating that a strut connects module $u$ and module $v$.
 
 ## Output
-If there is no configuration that avoids a breach, output `NO` on a single line.
-Otherwise, output `YES` on the first line. On the second line, output $n$ space-separated integers $c_1, c_2, \dots, c_n$, where $c_i$ is the configuration code for sample $i$. This sequence must be the one selected by the automated logging system's tie-breaking rule.
+If there is no valid way to align all modules safely, print a single line containing the word NO.
+If a valid configuration exists, print YES on the first line. On the second line, print $n$ integers $s_1, s_2, \ldots, s_n$ separated by spaces, where $s_i \in \{1, 2, 3\}$ is the axis code assigned to the $i$-th module. Any valid configuration is accepted.
 
 ## Example 1
 Input:

@@ -1,0 +1,124 @@
+import sys
+from collections import deque
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    s = int(input_data[2])
+    t = int(input_data[3])
+    B = int(input_data[4])
+    
+    # 1-indexed to 0-indexed internally
+    s -= 1
+    t -= 1
+    
+    class Edge:
+        __slots__ = ('u', 'v', 'cap', 'flow', 'rev', 'id')
+        def __init__(self, u, v, cap, flow, rev, id):
+            self.u = u
+            self.v = v
+            self.cap = cap
+            self.flow = flow
+            self.rev = rev
+            self.id = id
+
+    adj = [[] for _ in range(n)]
+    original_edges = []
+    
+    idx = 5
+    for edge_id in range(m):
+        u = int(input_data[idx]) - 1
+        v = int(input_data[idx+1]) - 1
+        w = int(input_data[idx+2])
+        idx += 3
+        
+        original_edges.append((u, v, w))
+        
+        e1 = Edge(u, v, w, 0, None, edge_id)
+        e2 = Edge(v, u, w, 0, e1, edge_id)
+        e1.rev = e2
+        adj[u].append(e1)
+        adj[v].append(e2)
+
+    level = [-1] * n
+    ptr = [0] * n
+
+    def bfs():
+        for i in range(n):
+            level[i] = -1
+        level[s] = 0
+        q = deque([s])
+        while q:
+            u = q.popleft()
+            for e in adj[u]:
+                if e.cap - e.flow > 0 and level[e.v] == -1:
+                    level[e.v] = level[u] + 1
+                    q.append(e.v)
+        return level[t] != -1
+
+    def dfs(u, pushed):
+        if pushed == 0:
+            return 0
+        if u == t:
+            return pushed
+        for cid in range(ptr[u], len(adj[u])):
+            ptr[u] = cid
+            e = adj[u][cid]
+            tr = e.v
+            if level[u] + 1 != level[tr] or e.cap - e.flow == 0:
+                continue
+            tr_pushed = dfs(tr, min(pushed, e.cap - e.flow))
+            if tr_pushed == 0:
+                continue
+            e.flow += tr_pushed
+            e.rev.flow -= tr_pushed
+            return tr_pushed
+        return 0
+
+    max_flow = 0
+    INF = float('inf')
+    while bfs():
+        for i in range(n):
+            ptr[i] = 0
+        while True:
+            pushed = dfs(s, INF)
+            if pushed == 0:
+                break
+            max_flow += pushed
+            if max_flow > B:
+                break
+        if max_flow > B:
+            break
+
+    if max_flow > B:
+        print("NO")
+        return
+
+    # Find reachable nodes from s in residual graph
+    visited = [False] * n
+    visited[s] = True
+    q = deque([s])
+    while q:
+        u = q.popleft()
+        for e in adj[u]:
+            if e.cap - e.flow > 0 and not visited[e.v]:
+                visited[e.v] = True
+                q.append(e.v)
+
+    # Collect cut edges
+    cut_edges = []
+    for u, v, w in original_edges:
+        if (visited[u] and not visited[v]) or (visited[v] and not visited[u]):
+            cut_edges.append((u + 1, v + 1))
+
+    print("YES")
+    print(len(cut_edges))
+    for u, v in cut_edges:
+        print(f"{u} {v}")
+
+if __name__ == '__main__':
+    solve()

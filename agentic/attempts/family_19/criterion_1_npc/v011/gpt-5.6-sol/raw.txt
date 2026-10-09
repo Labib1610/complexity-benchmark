@@ -1,0 +1,302 @@
+```python
+import os
+import sys
+
+os.environ.setdefault("OMP_NUM_THREADS", "1")
+os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
+os.environ.setdefault("MKL_NUM_THREADS", "1")
+
+def output_solution(flow):
+    out = ["YES"]
+    out.extend(" ".join(map(str, row)) for row in flow)
+    sys.stdout.write("\n".join(out))
+
+def fallback_solve(n, m, k, commodities, edges):
+    sys.setrecursionlimit(1_000_000)
+
+    capacities = [c for _, _, c in edges]
+    residual = capacities[:]
+    remaining = [0 if s == t else d for s, t, d in commodities]
+    flow = [[0] * m for _ in range(k)]
+
+    adjacency = [[] for _ in range(n)]
+    for e, (u, v, _) in enumerate(edges):
+        adjacency[u].append((v, e))
+
+    def maxflow(source, sink):
+        if source == sink:
+            return 10**30
+
+        graph = [[] for _ in range(n)]
+
+        def add_edge(u, v, c):
+            graph[u].append([v, c, len(graph[v])])
+            graph[v].append([u, 0, len(graph[u]) - 1])
+
+        for e, (u, v, _) in enumerate(edges):
+            if residual[e] > 0:
+                add_edge(u, v, residual[e])
+
+        total = 0
+        while True:
+            level = [-1] * n
+            level[source] = 0
+            queue = [source]
+            for u in queue:
+                for v, c, _ in graph[u]:
+                    if c > 0 and level[v] < 0:
+                        level[v] = level[u] + 1
+                        queue.append(v)
+            if level[sink] < 0:
+                return total
+
+            it = [0] * n
+
+            def dfs(u, pushed):
+                if u == sink:
+                    return pushed
+                while it[u] < len(graph[u]):
+                    idx = it[u]
+                    v, c, rev = graph[u][idx]
+                    if c > 0 and level[v] == level[u] + 1:
+                        sent = dfs(v, min(pushed, c))
+                        if sent:
+                            graph[u][idx][1] -= sent
+                            graph[v][rev][1] += sent
+                            return sent
+                    it[u] += 1
+                return 0
+
+            while True:
+                sent = dfs(source, 10**30)
+                if not sent:
+                    break
+                total += sent
+
+    def paths(source, sink):
+        visited = [False] * n
+        visited[source] = True
+        path = []
+
+        def dfs(u, bottleneck):
+            if u == sink:
+                yield path[:], bottleneck
+                return
+            for v, e in adjacency[u]:
+                if residual[e] <= 0 or visited[v]:
+                    continue
+                visited[v] = True
+                path.append(e)
+                yield from dfs(v, min(bottleneck, residual[e]))
+                path.pop()
+                visited[v] = False
+
+        yield from dfs(source, 10**30)
+
+    failed = set()
+
+    def search():
+        if not any(remaining):
+            return True
+
+        state = (tuple(remaining), tuple(residual))
+        if state in failed:
+            return False
+
+        chosen = -1
+        chosen_slack = None
+
+        for i, rem in enumerate(remaining):
+            if rem == 0:
+                continue
+            s, t, _ = commodities[i]
+            possible = maxflow(s, t)
+            if possible < rem:
+                failed.add(state)
+                return False
+            slack = possible - rem
+            if chosen < 0 or slack < chosen_slack:
+                chosen = i
+                chosen_slack = slack
+
+        s, t, _ = commodities[chosen]
+        need = remaining[chosen]
+
+        for path, bottleneck in paths(s, t):
+            maximum = min(need, bottleneck)
+            for amount in range(maximum, 0, -1):
+                for e in path:
+                    residual[e] -= amount
+                    flow[chosen][e] += amount
+                remaining[chosen] -= amount
+
+                if search():
+                    return True
+
+                remaining[chosen] += amount
+                for e in path:
+                    residual[e] += amount
+                    flow[chosen][e] -= amount
+
+        failed.add(state)
+        return False
+
+    return flow if search() else None
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+
+    p = 0
+    n, m, k = data[p], data[p + 1], data[p + 2]
+    p += 3
+
+    commodities = []
+    for _ in range(k):
+        s, t, d = data[p] - 1, data[p + 1] - 1, data[p + 2]
+        p += 3
+        commodities.append((s, t, d))
+
+    edges = []
+    for _ in range(m):
+        u, v, cap = data[p] - 1, data[p + 1] - 1, data[p + 2]
+        p += 3
+        edges.append((u, v, cap))
+
+    if k == 0:
+        print("YES")
+        return
+
+    if all(d == 0 or s == t for s, t, d in commodities):
+        output_solution([[0] * m for _ in range(k)])
+        return
+
+    if m == 0:
+        print("NO")
+        return
+
+    scipy_infeasible = False
+
+    try:
+        import numpy as np
+        import scipy.sparse as sp
+        from scipy.optimize import milp, LinearConstraint, Bounds
+
+        u = np.fromiter((e[0] for e in edges), dtype=np.int32, count=m)
+        v = np.fromiter((e[1] for e in edges), dtype=np.int32, count=m)
+        caps = np.fromiter((e[2] for e in edges), dtype=np.float64, count=m)
+        edge_ids = np.arange(m, dtype=np.int32)
+
+        incidence = sp.coo_matrix(
+            (
+                np.concatenate((
+                    np.ones(m, dtype=np.float64),
+                    -np.ones(m, dtype=np.float64)
+                )),
+                (
+                    np.concatenate((u, v)),
+                    np.concatenate((edge_ids, edge_ids))
+                )
+            ),
+            shape=(n, m)
+        ).tocsc()
+
+        equalities = sp.kron(
+            sp.eye(k, format="csc"),
+            incidence,
+            format="csc"
+        )
+
+        capacity_rows = sp.kron(
+            sp.csr_matrix(np.ones((1, k), dtype=np.float64)),
+            sp.eye(m, format="csc"),
+            format="csc"
+        )
+
+        matrix = sp.vstack((equalities, capacity_rows), format="csc")
+
+        balance = np.zeros(k * n, dtype=np.float64)
+        for i, (s, t, d) in enumerate(commodities):
+            if s != t:
+                balance[i * n + s] += d
+                balance[i * n + t] -= d
+
+        lower = np.concatenate((balance, np.full(m, -np.inf)))
+        upper = np.concatenate((balance, caps))
+
+        variable_count = k * m
+        result = milp(
+            c=np.zeros(variable_count, dtype=np.float64),
+            integrality=np.ones(variable_count, dtype=np.uint8),
+            bounds=Bounds(0, np.inf),
+            constraints=LinearConstraint(matrix, lower, upper),
+            options={"time_limit": 4.0, "presolve": True}
+        )
+
+        if result.x is not None:
+            candidate = np.rint(result.x).astype(object).reshape((k, m))
+            valid = True
+
+            for i in range(k):
+                for e in range(m):
+                    value = int(candidate[i, e])
+                    if value < 0:
+                        valid = False
+                        break
+                if not valid:
+                    break
+
+            if valid:
+                for e in range(m):
+                    if sum(int(candidate[i, e]) for i in range(k)) > edges[e][2]:
+                        valid = False
+                        break
+
+            if valid:
+                for i, (s, t, d) in enumerate(commodities):
+                    balance_check = [0] * n
+                    for e, (a, b, _) in enumerate(edges):
+                        value = int(candidate[i, e])
+                        balance_check[a] += value
+                        balance_check[b] -= value
+
+                    for vertex in range(n):
+                        expected = 0
+                        if s != t:
+                            if vertex == s:
+                                expected += d
+                            if vertex == t:
+                                expected -= d
+                        if balance_check[vertex] != expected:
+                            valid = False
+                            break
+                    if not valid:
+                        break
+
+            if valid:
+                solution = [
+                    [int(candidate[i, e]) for e in range(m)]
+                    for i in range(k)
+                ]
+                output_solution(solution)
+                return
+
+        scipy_infeasible = (result.status == 2)
+
+    except Exception:
+        pass
+
+    if scipy_infeasible:
+        print("NO")
+        return
+
+    solution = fallback_solve(n, m, k, commodities, edges)
+    if solution is None:
+        print("NO")
+    else:
+        output_solution(solution)
+
+if __name__ == "__main__":
+    main()
+```

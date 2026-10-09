@@ -1,0 +1,197 @@
+import sys
+from collections import defaultdict
+
+def main():
+    import sys
+    sys.setrecursionlimit(1 << 25)
+    
+    n, m = map(int, sys.stdin.readline().split())
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(["0"] * n))
+        return
+    
+    # For each distributor, we have two variables:
+    # x_i = 1 means s_i = 1 (ON, Manifold A)
+    # x_i = 0 means s_i = 0 (OFF, Manifold B)
+    
+    # Each constraint is of the form:
+    # NOT (manifold1 AND manifold2)
+    # That is, at most one of the two manifolds can be active.
+    
+    # We'll build a 2-SAT instance.
+    # Variables: x_1, ..., x_n
+    # x_i represents s_i = 1
+    # NOT x_i represents s_i = 0
+    
+    # For each constraint (l1, l2), we add the clause:
+    # NOT (manifold1 AND manifold2)
+    # Which is equivalent to:
+    # NOT manifold1 OR NOT manifold2
+    
+    # Let's define:
+    # For distributor i:
+    #   Manifold A active <=> x_i = 1 (s_i = 1)
+    #   Manifold B active <=> x_i = 0 (s_i = 0)
+    
+    # So for a constraint (l1, l2):
+    # If l1 > 0: Manifold B of |l1| => NOT x_{|l1|}
+    # If l1 < 0: Manifold A of |l1| => x_{|l1|}
+    # If l2 > 0: Manifold B of |l2| => NOT x_{|l2|}
+    # If l2 < 0: Manifold A of |l2| => x_{|l2|}
+    
+    # The constraint is: NOT (manifold1_active AND manifold2_active)
+    # Which is equivalent to: NOT manifold1_active OR NOT manifold2_active
+    
+    # So we add the clause:
+    # (NOT manifold1_active OR NOT manifold2_active)
+    
+    # In terms of x variables:
+    # If manifold1 is A of i: x_i
+    # If manifold1 is B of i: NOT x_i
+    # If manifold2 is A of j: x_j
+    # If manifold2 is B of j: NOT x_j
+    
+    # So clause is:
+    # (NOT (x_i) OR NOT (x_j)) if both are A
+    # (NOT (x_i) OR x_j) if first is A, second is B
+    # (x_i OR NOT (x_j)) if first is B, second is A
+    # (x_i OR x_j) if both are B
+    
+    # But actually, the constraint is that NOT both manifolds are active.
+    # So:
+    # If manifold1 is A of i: active if x_i = 1
+    # If manifold1 is B of i: active if x_i = 0
+    # If manifold2 is A of j: active if x_j = 1
+    # If manifold2 is B of j: active if x_j = 0
+    
+    # So NOT ( (manifold1_active) AND (manifold2_active) )
+    # Which is (NOT manifold1_active) OR (NOT manifold2_active)
+    
+    # NOT manifold1_active:
+    #   if manifold1 is A of i (l1 < 0): NOT (x_i = 1) => x_i = 0 => NOT x_i
+    #   if manifold1 is B of i (l1 > 0): NOT (x_i = 0) => x_i = 1 => x_i
+    
+    # NOT manifold2_active:
+    #   if manifold2 is A of j (l2 < 0): NOT (x_j = 1) => x_j = 0 => NOT x_j
+    #   if manifold2 is B of j (l2 > 0): NOT (x_j = 0) => x_j = 1 => x_j
+    
+    # So the clause is:
+    # (NOT x_i OR NOT x_j) if l1 < 0 and l2 < 0
+    # (NOT x_i OR x_j) if l1 < 0 and l2 > 0
+    # (x_i OR NOT x_j) if l1 > 0 and l2 < 0
+    # (x_i OR x_j) if l1 > 0 and l2 > 0
+    
+    # These are the standard 2-SAT clauses.
+    
+    # We'll use the implication graph approach.
+    # For each variable x_i, we have nodes 2*i (for x_i) and 2*i+1 (for NOT x_i)
+    # But in our indexing, let's say:
+    # Node 2*i represents x_i (s_i = 1)
+    # Node 2*i+1 represents NOT x_i (s_i = 0)
+    
+    # For a clause (a OR b), we add edges:
+    # NOT a -> b
+    # NOT b -> a
+    
+    # In our node numbering:
+    # x_i is node 2*i
+    # NOT x_i is node 2*i+1
+    
+    # So NOT (2*i) = 2*i+1
+    #    NOT (2*i+1) = 2*i
+    
+    adj = defaultdict(list)
+    rev_adj = defaultdict(list)
+    
+    for _ in range(m):
+        l1, l2 = map(int, sys.stdin.readline().split())
+        # i, j are 1-indexed distributor indices
+        i = abs(l1)
+        j = abs(l2)
+        i -= 1  # Convert to 0-indexed
+        j -= 1
+        
+        # Determine which nodes represent the literals
+        # l1 < 0 => Manifold A of i+1 => x_i should be True for active
+        # l1 > 0 => Manifold B of i+1 => x_i should be False for active
+        # So NOT active for l1:
+        #   l1 < 0 => NOT x_i => node 2*i+1
+        #   l1 > 0 => x_i => node 2*i
+        
+        # Similarly for l2
+        
+        node1 = 2*i+1 if l1 < 0 else 2*i
+        node2 = 2*j+1 if l2 < 0 else 2*j
+        
+        # Add clause: NOT active1 OR NOT active2
+        # Which means: active1 -> NOT active2
+        #              active2 -> NOT active1
+        
+        # In terms of nodes:
+        # NOT node1 -> node2  is equivalent to (node1 ^ 1) -> node2
+        # NOT node2 -> node1  is equivalent to (node2 ^ 1) -> node1
+        
+        adj[node1 ^ 1].append(node2)
+        adj[node2 ^ 1].append(node1)
+        rev_adj[node2].append(node1 ^ 1)
+        rev_adj[node1].append(node2 ^ 1)
+    
+    # Now we do Kosaraju's algorithm to check 2-SAT satisfiability
+    
+    # Step 1: Get finishing order from DFS on original graph
+    visited = [False] * (2 * n)
+    order = []
+    
+    def dfs1(u):
+        visited[u] = True
+        for v in adj[u]:
+            if not visited[v]:
+                dfs1(v)
+        order.append(u)
+    
+    for i in range(2 * n):
+        if not visited[i]:
+            dfs1(i)
+    
+    # Step 2: Transpose the graph and do DFS in reverse order
+    visited = [False] * (2 * n)
+    components = [-1] * (2 * n)
+    component_id = 0
+    
+    def dfs2(u):
+        visited[u] = True
+        components[u] = component_id
+        for v in rev_adj[u]:
+            if not visited[v]:
+                dfs2(v)
+    
+    while order:
+        u = order.pop()
+        if not visited[u]:
+            dfs2(u)
+            component_id += 1
+    
+    # Check if for every variable x_i, x_i and NOT x_i are in different SCCs
+    for i in range(n):
+        if components[2*i] == components[2*i+1]:
+            print("NO")
+            return
+    
+    # If satisfiable, reconstruct a solution
+    # Assign values based on reverse topological order of SCCs
+    # Variables in later SCCs (higher component_id) are assigned True
+    
+    assignment = [False] * n
+    for i in range(n):
+        if components[2*i] > components[2*i+1]:
+            assignment[i] = True  # x_i = True => s_i = 1
+        else:
+            assignment[i] = False # x_i = False => s_i = 0
+    
+    print("YES")
+    print(" ".join("1" if x else "0" for x in assignment))
+
+if __name__ == "__main__":
+    main()

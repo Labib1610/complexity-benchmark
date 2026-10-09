@@ -1,0 +1,52 @@
+import sys
+
+sys.setrecursionlimit(10000)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+
+    colors = [0] * n
+    found = False
+
+    def dfs(v: int):
+        nonlocal found
+        if found:
+            return
+        if v == n:
+            found = True
+            return
+        for c in (1, 2, 3):          # try colors in increasing order for lexicographic minimality
+            ok = True
+            for nb in adj[v]:
+                if nb < v and colors[nb] == c:   # only need to check already colored neighbors
+                    ok = False
+                    break
+            if ok:
+                colors[v] = c
+                dfs(v + 1)
+                if found:
+                    return
+                colors[v] = 0
+
+    dfs(0)
+
+    out = sys.stdout
+    if not found:
+        out.write("NO\n")
+    else:
+        out.write("YES\n")
+        out.write(" ".join(map(str, colors)) + "\n")
+
+if __name__ == "__main__":
+    solve()

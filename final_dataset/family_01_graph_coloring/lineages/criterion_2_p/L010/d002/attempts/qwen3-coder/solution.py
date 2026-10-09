@@ -1,0 +1,74 @@
+import sys
+from collections import defaultdict, deque
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
+    
+    edges = []
+    adj = [[] for _ in range(n + 1)]
+    index = 2
+    for _ in range(m):
+        u = int(data[index])
+        v = int(data[index + 1])
+        edges.append((u, v))
+        adj[u].append(v)
+        adj[v].append(u)
+        index += 2
+    
+    # Check interference index
+    def interference(a, b):
+        return (a ** b) + (b ** a)
+    
+    # Since s_i is either 1 or 2, let's compute all possible interference values
+    # 1,1 -> 1^1 + 1^1 = 2
+    # 1,2 -> 1^2 + 2^1 = 1 + 2 = 3
+    # 2,1 -> 2^1 + 1^2 = 2 + 1 = 3
+    # 2,2 -> 2^2 + 2^2 = 4 + 4 = 8
+    
+    # So we want adjacent nodes to have values (1,2) or (2,1)
+    # This is a bipartite graph check: nodes can be divided into two sets where edges go between sets
+    
+    # Color the graph with two colors (1 and 2)
+    color = [0] * (n + 1)  # 0: unvisited, 1: color 1, 2: color 2
+    
+    # Check if the graph is bipartite
+    def is_bipartite():
+        for start in range(1, n + 1):
+            if color[start] == 0:
+                queue = deque()
+                color[start] = 1
+                queue.append(start)
+                while queue:
+                    u = queue.popleft()
+                    for v in adj[u]:
+                        if color[v] == 0:
+                            color[v] = 3 - color[u]
+                            queue.append(v)
+                        elif color[v] == color[u]:
+                            return False
+        return True
+    
+    if is_bipartite():
+        print("YES")
+        result = []
+        for i in range(1, n + 1):
+            if color[i] == 1:
+                result.append("1")
+            else:
+                result.append("2")
+        print(" ".join(result))
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,27 @@
+import sys
+
+def solve() -> None:
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    jobs = [(int(next(it)), int(next(it))) for _ in range(n)]
+    # Sort by (p1 - p2) descending
+    jobs.sort(key=lambda x: x[0] - x[1], reverse=True)
+
+    total_p2 = sum(p2 for _, p2 in jobs)
+    pref1 = 0
+    pref2 = 0  # sum of p2 of processed before current position
+    ans = 0
+    for p1, p2 in jobs:
+        pref1 += p1
+        # penalty for k = current position
+        penalty = pref1 + (total_p2 - pref2)
+        if penalty > ans:
+            ans = penalty
+        pref2 += p2
+    print(ans)
+
+if __name__ == "__main__":
+    solve()

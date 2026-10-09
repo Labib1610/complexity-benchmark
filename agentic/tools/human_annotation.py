@@ -184,7 +184,7 @@ def main():
     sub = ap.add_subparsers(dest="mode", required=True)
     e = sub.add_parser("export")
     e.add_argument("--family", required=True)
-    e.add_argument("--criterion", type=int, choices=[1, 2, 3])
+    e.add_argument("--criterion", type=int, choices=[1, 2])
     e.add_argument("--sample", type=int, default=100)
     i = sub.add_parser("ingest")
     i.add_argument("--sheets", nargs=2, required=True)

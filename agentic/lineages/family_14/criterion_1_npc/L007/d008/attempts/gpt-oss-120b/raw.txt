@@ -1,0 +1,301 @@
+**Solution Explanation**
+
+For a set `S` of variable indices let  
+
+```
+G(S) = graph whose vertices are 1 … n and whose edges are the swaps we enable
+```
+
+A swap `(u,v)` exchanges the two variables, i.e. it is the transposition `τuv`.
+All enabled swaps generate a permutation group `⟨τuv | (u,v) ∈ G(S)⟩`.
+For a function `f` to be invariant under this group it must be constant on every
+orbit of the group action on the indices `{1,…,n}`.
+
+For two target indices `a , b`
+
+*if they lie in the same orbit* then any function constant on each orbit is
+automatically invariant under the transposition `(a b)`, because `(a b)` only
+permutes elements inside that orbit.
+
+*If they lie in different orbits* we can build a function that is constant on
+each orbit but takes different values on the two orbits – this function is not
+invariant under `(a b)`.
+
+Hence the required condition
+
+```
+“every function invariant under the enabled swaps is also invariant under
+ every transposition of two target indices”
+```
+
+is **exactly** the condition that **all target indices belong to one orbit**, i.e.
+they are connected in the graph `G(S)`.
+
+So we have to choose a set of edges that connects all target vertices.
+Other vertices may be used as intermediate (Steiner) vertices.
+The problem is the classic **Steiner Tree** problem with
+
+* `n ≤ 100` vertices,
+* `m ≤ n·(n‑1)/2` edges,
+* `t ≤ 10` terminals (the target indices).
+
+The optimal cost is the minimum total weight of a connected subgraph that
+contains all terminals – a Steiner tree.
+
+
+
+--------------------------------------------------------------------
+
+#### 1.  Dreyfus‑Wagner DP (Steiner tree for few terminals)
+
+Number the terminals `0 … t‑1`.  
+For every subset `mask (0 … 2^t‑1)` and every vertex `v` we keep
+
+```
+dp[mask][v] = minimum cost of a tree that
+              • connects exactly the terminals whose bits are 1 in mask
+              • its vertices are a subset of the whole graph
+              • contains vertex v
+```
+
+*Initialization*  
+
+For a single terminal `i` (`mask = 1<<i`)
+
+```
+dp[mask][v] = 0   if v == terminal_i
+dp[mask][v] = INF otherwise
+```
+
+*Combining two already built sub‑trees*  
+
+For a non‑empty proper submask `sub` of `mask`
+
+```
+dp[mask][v] = min( dp[sub][v] + dp[mask ^ sub][v] )
+```
+
+Both sub‑trees end in the same vertex `v`; their union is a tree for `mask`.
+
+*Spreading the tree through edges*  
+
+After the combination step the values `dp[mask][*]` are distances from the
+vertices where the tree already ends.  
+Running Dijkstra (or a simple Bellman‑Ford because the graph is small) with
+edge weights `w` relaxes them:
+
+```
+if dp[mask][u] + w < dp[mask][v]   →   dp[mask][v] = dp[mask][u] + w
+(and the symmetric direction)
+```
+
+After the relaxation `dp[mask][v]` is the cheapest tree for `mask` whose
+rightmost vertex is `v`.
+
+The algorithm processes masks in increasing order of their size, therefore
+when we handle a mask all smaller masks are already finalised.
+
+*Result*  
+
+`answer = min_v dp[fullMask][v]` where `fullMask = (1<<t)‑1`.
+
+Complexities  
+
+```
+states : 2^t · n   ≤ 1024 · 100 = 1.0·10^5
+combination step : for each mask iterate its submasks → O(3^t · n)
+edge relaxation : for each mask run Dijkstra → O(2^t · (m log n))
+t ≤ 10 ⇒ both are far below the limits.
+```
+
+--------------------------------------------------------------------
+
+#### 2.  Correctness Proof  
+
+We prove that the algorithm outputs the minimum possible total cost.
+
+---
+
+##### Lemma 1  
+For any set of enabled swaps, the target indices are forced to be pairwise
+invariant **iff** they lie in the same connected component of the graph formed
+by those swaps.
+
+**Proof.**  
+If the graph connects two targets `a,b` there exists a path
+`a = v0 – v1 – … – vk = b`. The composition of the transpositions of the edges
+of the path is exactly the transposition `(a b)`. Hence the generated group
+contains `(a b)`, so any function invariant under the group is invariant under
+that transposition.
+
+Conversely, if `a` and `b` are in different components, the group never moves
+`a` to `b`. Define a function that depends only on the component of the input
+index (e.g. `f(x) = 0` if the variable at position `a` is in component A,
+`f(x)=1` otherwise). This function is invariant under all enabled swaps but not
+under swapping `a` and `b`. ∎
+
+
+
+##### Lemma 2  
+For every mask and vertex `v`, after the algorithm finishes processing this
+mask, `dp[mask][v]` equals the minimum cost of a Steiner tree that connects the
+terminals of `mask` and contains `v`.
+
+**Proof.** By induction over the number of bits in `mask`.
+
+*Base* (`|mask| = 1`). The only tree connecting a single terminal and containing
+`v` has cost `0` if `v` is that terminal, otherwise impossible (`∞`). The
+initialisation matches this.
+
+*Induction step.* Assume the statement true for all proper non‑empty submasks.
+Consider an optimal tree `T` for `mask` that contains `v`. Remove `v` from `T`;
+the remaining forest splits into two (or more) components, each containing a
+non‑empty subset of the terminals. Choose any component `C` that contains at
+least one terminal; let `sub` be the set of terminals inside `C`. The rest of
+the terminals form `mask ^ sub`. Both components contain `v` (the removal
+kept `v` as a leaf or internal node). By induction their optimal costs are
+`dp[sub][v]` and `dp[mask^sub][v]`. Therefore
+
+```
+cost(T) ≥ dp[sub][v] + dp[mask^sub][v]
+```
+
+Taking the minimum over all possible `sub` gives the combination formula,
+so after that step `dp[mask][v]` is at most the optimum.
+
+Now we must also allow the tree to use edges incident to `v`. The Dijkstra
+relaxation exactly computes the cheapest way to extend a tree ending at some
+vertex `u` by a shortest path to `v`. Hence after relaxation `dp[mask][v]` is
+the minimum over all trees that end at any vertex and then possibly travel
+along a shortest path to `v`. This is precisely the optimum for `mask` and `v`.
+
+Thus the invariant holds. ∎
+
+
+
+##### Lemma 3  
+`min_v dp[fullMask][v]` equals the minimum total cost of a set of swaps that
+connects all target indices.
+
+**Proof.** By Lemma&nbsp;2, for each vertex `v` the value `dp[fullMask][v]` is the
+cheapest Steiner tree for all terminals that contains `v`. The cheapest among
+all possible `v` is therefore the cheapest Steiner tree overall. ∎
+
+
+
+##### Lemma 4  
+Any set of swaps that connects all target indices has total cost at least the
+value returned by the algorithm.
+
+**Proof.** Such a set of swaps forms a connected subgraph containing all
+terminals, i.e. a Steiner tree. By Lemma&nbsp;3 the algorithm’s answer is the
+minimum cost of any Steiner tree, therefore no other connecting set can be
+cheaper. ∎
+
+
+
+##### Lemma 5  
+The algorithm can construct a set of swaps whose total cost equals the value
+it outputs.
+
+**Proof.** The DP records, for each state, the cost of an explicit tree
+(realised by the sequence of edge relaxations). By back‑tracking the decisions
+(combination of submasks and the shortest‑path edges used in Dijkstra) we can
+recover a concrete edge set whose total weight is exactly the DP value.
+Hence a set with that cost exists. ∎
+
+
+
+##### Theorem  
+The algorithm outputs the minimum possible total cost required to enable a
+subset of operations that guarantees invariance of any function on all pairs of
+target indices.
+
+**Proof.** By Lemma&nbsp;1 the requirement is equivalent to connecting all target
+indices. Lemma&nbsp;4 shows no solution can be cheaper than the algorithm’s
+output, while Lemma&nbsp;5 shows a solution with exactly that cost exists.
+Therefore the output is optimal. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### 3.  Reference Implementation  (Python 3)
+
+```python
+import sys
+import heapq
+
+INF = 10**18
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    t = int(next(it))
+    targets = [int(next(it)) - 1 for _ in range(t)]
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        w = int(next(it))
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+
+    if t <= 1:
+        print(0)
+        return
+
+    T = t
+    full = (1 << T) - 1
+    dp = [[INF] * n for _ in range(1 << T)]
+
+    # base masks
+    for i, node in enumerate(targets):
+        mask = 1 << i
+        dp[mask][node] = 0
+
+    # iterate masks increasing by number of bits
+    for mask in range(1, full + 1):
+        # combine submasks
+        sub = (mask - 1) & mask
+        while sub:
+            other = mask ^ sub
+            # only need each unordered pair once
+            if sub < other:
+                for v in range(n):
+                    val = dp[sub][v] + dp[other][v]
+                    if val < dp[mask][v]:
+                        dp[mask][v] = val
+            sub = (sub - 1) & mask
+
+        # Dijkstra to propagate through edges
+        heap = [(dp[mask][v], v) for v in range(n) if dp[mask][v] < INF]
+        heapq.heapify(heap)
+        visited = [False] * n
+        while heap:
+            d, u = heapq.heappop(heap)
+            if visited[u]:
+                continue
+            visited[u] = True
+            if d != dp[mask][u]:
+                continue
+            for v, w in adj[u]:
+                nd = d + w
+                if nd < dp[mask][v]:
+                    dp[mask][v] = nd
+                    heapq.heappush(heap, (nd, v))
+
+    ans = min(dp[full])
+    print(ans)
+
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above and conforms
+to the required input‑output format.

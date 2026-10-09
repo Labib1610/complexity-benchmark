@@ -1,0 +1,71 @@
+import sys
+from collections import deque
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    M = int(next(it))
+    T = int(next(it))
+    m = int(next(it))
+    
+    adj = [[] for _ in range(n + 1)]
+    in_degree = [0] * (n + 1)
+    
+    for _ in range(m):
+        a = int(next(it))
+        b = int(next(it))
+        adj[a].append(b)
+        in_degree[b] += 1
+    
+    # Kahn's algorithm with priority on earlier completion time
+    # We want to schedule operations as early as possible
+    # Use a queue (BFS-like) for topological order
+    # For each node, its cycle is max(predecessor_cycles) + 1
+    
+    q = deque()
+    cycle = [0] * (n + 1)
+    
+    for i in range(1, n + 1):
+        if in_degree[i] == 0:
+            q.append(i)
+            cycle[i] = 1
+    
+    processed = 0
+    while q:
+        u = q.popleft()
+        processed += 1
+        for v in adj[u]:
+            if cycle[v] < cycle[u] + 1:
+                cycle[v] = cycle[u] + 1
+            in_degree[v] -= 1
+            if in_degree[v] == 0:
+                q.append(v)
+    
+    if processed != n:
+        print("NO")
+        return
+    
+    # Check if any operation exceeds deadline
+    max_cycle = max(cycle[1:])
+    if max_cycle > T:
+        print("NO")
+        return
+    
+    # Check capacity constraint: at most M operations per cycle
+    cnt = [0] * (T + 2)
+    for i in range(1, n + 1):
+        cnt[cycle[i]] += 1
+    
+    for c in range(1, T + 1):
+        if cnt[c] > M:
+            print("NO")
+            return
+    
+    print("YES")
+    print(' '.join(map(str, cycle[1:])))
+
+if __name__ == "__main__":
+    solve()

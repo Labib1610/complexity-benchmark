@@ -13,25 +13,28 @@ for _ in range(m):
     adj[v].append(u)
 
 color = [-1] * n
-
-def bfs(start):
-    q = deque([start])
-    color[start] = 1
-    while q:
-        u = q.popleft()
-        for v in adj[u]:
-            if color[v] == -1:
-                color[v] = 3 - color[u]  # 1 <-> 2
-                q.append(v)
-            elif color[v] == color[u]:
-                return False
-    return True
+possible = True
 
 for i in range(n):
     if color[i] == -1:
-        if not bfs(i):
-            print("NO")
-            sys.exit()
+        color[i] = 1
+        q = deque([i])
+        while q:
+            u = q.popleft()
+            for v in adj[u]:
+                if color[v] == -1:
+                    color[v] = 3 - color[u]
+                    q.append(v)
+                elif color[v] == color[u]:
+                    possible = False
+                    break
+            if not possible:
+                break
+    if not possible:
+        break
 
-print("YES")
-print(" ".join(str(color[i]) for i in range(n)))
+if not possible:
+    print("NO")
+else:
+    print("YES")
+    print(" ".join(str(color[i]) for i in range(n)))

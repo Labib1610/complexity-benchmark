@@ -1,0 +1,144 @@
+import sys
+sys.setrecursionlimit(1_000_000)
+
+def solve():
+    input = sys.stdin.readline
+    n, m = map(int, input().split())
+    graph = [[] for _ in range(n)]
+    for _ in range(m):
+        u, v = map(int, input().split())
+        u -= 1
+        v -= 1
+        graph[u].append(v)
+        graph[v].append(u)
+
+    color = [-1] * n
+    is_bipartite = True
+
+    for start in range(n):
+        if color[start] != -1:
+            continue
+        color[start] = 0
+        stack = [start]
+        while stack:
+            u = stack.pop()
+            for v in graph[u]:
+                if color[v] == -1:
+                    color[v] = color[u] ^ 1
+                    stack.append(v)
+                elif color[v] == color[u]:
+                    is_bipartite = False
+                    break
+            if not is_bipartite:
+                break
+        if not is_bipartite:
+            break
+
+    if not is_bipartite:
+        print("NO")
+        return
+
+    # Now we have a valid 2-coloring, but we need lexicographically smallest
+    # We'll try to assign 1 to as many early vertices as possible.
+    # Since the graph is bipartite, each connected component has two possible colorings.
+    # We'll process components and choose the coloring that gives lexicographically smaller result.
+
+    adj = graph
+    visited = [False] * n
+    comps = []  # list of (list_of_vertices, color_in_component)
+
+    for i in range(n):
+        if not visited[i]:
+            # BFS to get component
+            stack = [i]
+            visited[i] = True
+            comp_vertices = []
+            while stack:
+                u = stack.pop()
+                comp_vertices.append(u)
+                for v in adj[u]:
+                    if not visited[v]:
+                        visited[v] = True
+                        stack.append(v)
+            comps.append(comp_vertices)
+
+    # For each component, we have two possible colorings (swap 0/1)
+    # We'll try both and pick the one that gives lexicographically smaller result
+    # But we can't try all combinations. Instead, we process components in order of their smallest vertex.
+    # For each component, we decide its orientation based on the smallest vertex's color.
+
+    # First, assign colors based on BFS from each component
+    # We'll store the two possible assignments for each component
+    comp_assignments = []
+    visited2 = [False] * n
+    for i in range(n):
+        if not visited2[i]:
+            # BFS to get component and its coloring
+            stack = [i]
+            visited2[i] = True
+            comp_vertices = []
+            while stack:
+                u = stack.pop()
+                comp_vertices.append(u)
+                for v in adj[u]:
+                    if not visited2[v]:
+                        visited2[v] = True
+                        stack.append(v)
+            # Now color this component using BFS
+            c = [-1] * n
+            c[i] = 0
+            q = [i]
+            for u in q:
+                for v in adj[u]:
+                    if c[v] == -1:
+                        c[v] = c[u] ^ 1
+                        q.append(v)
+            # c now has colors for this component (0/1)
+            # We'll store the two possible assignments for this component
+            assign1 = [0] * n
+            assign2 = [0] * n
+            for v in comp_vertices:
+                assign1[v] = c[v] + 1  # 1 or 2
+                assign2[v] = 2 - c[v]  # swap
+            comp_assignments.append((comp_vertices, assign1, assign2))
+
+    # Now we need to choose orientation for each component to minimize lexicographic order
+    # We'll process vertices from 0 to n-1, and when we hit a vertex not yet assigned,
+    # we decide the orientation of its component.
+    result = [0] * n
+    assigned = [False] * n
+    # Map from vertex to component index
+    comp_id = [-1] * n
+    for idx, (verts, _, _) in enumerate(comp_assignments):
+        for v in verts:
+            comp_id[v] = idx
+
+    # For each component, we'll decide orientation when we first encounter its smallest vertex
+    decided = [False] * len(comp_assignments)
+
+    for i in range(n):
+        if not assigned[i]:
+            idx = comp_id[i]
+            verts, a1, a2 = comp_assignments[idx]
+            # Try both orientations and see which gives lexicographically smaller result
+            # But we need to consider already assigned vertices in other components
+            # Since components are independent, we can just choose the orientation that makes result[i] smaller
+            # If a1[i] < a2[i], choose a1, else choose a2
+            # But we also need to ensure consistency: all vertices in this component get the same orientation
+            # So we just pick the orientation that gives smaller value at the first differing position
+            # Since we process in order, we can just pick the orientation that gives smaller result[i]
+            # If equal, we need to look further, but since a1 and a2 are complements, they differ at every vertex
+            # So we can just compare a1[i] and a2[i]
+            if a1[i] < a2[i]:
+                chosen = a1
+            else:
+                chosen = a2
+            for v in verts:
+                result[v] = chosen[v]
+                assigned[v] = True
+
+    print("YES")
+    print(' '.join(map(str, result)))
+
+if __name__ == "__main__":
+    solve()

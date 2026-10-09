@@ -7,63 +7,78 @@ def solve():
         return
     n = int(input_data[0])
     m = int(input_data[1])
+    
     adj = [[] for _ in range(n + 1)]
     idx = 2
     for _ in range(m):
         u = int(input_data[idx])
-        v = int(input_data[idx+1])
+        v = int(input_data[idx + 1])
         adj[u].append(v)
         adj[v].append(u)
         idx += 2
-
-    # I(u, v) = p_u^2 + p_u*p_v + p_v^2
-    # Modulo 3:
-    # p in {1, 2, 3} -> p mod 3 in {1, 2, 0}
-    # If p_u or p_v is 3 (mod 3 is 0):
-    # I(u, v) = p_u^2 + p_u*p_v + p_v^2
-    # If p_u=3, p_v=1: I = 0 + 0 + 1 = 1 (OK)
-    # If p_u=3, p_v=2: I = 0 + 0 + 4 = 1 (OK)
-    # If p_u=3, p_v=3: I = 0 + 0 + 0 = 0 (BAD)
-    # If p_u=1, p_v=1: I = 1 + 1 + 1 = 3 = 0 (BAD)
-    # If p_u=1, p_v=2: I = 1 + 2 + 4 = 7 = 1 (OK)
-    # If p_u=2, p_v=2: I = 4 + 4 + 4 = 12 = 0 (BAD)
+        
+    # The condition |{c_u, c_v}| = 2 means c_u != c_v.
+    # This is equivalent to finding a 3-coloring of the graph.
+    # Since n <= 40, we can use backtracking with pruning.
     
-    # Valid pairs (p_u, p_v) mod 3:
-    # (0, 1), (0, 2), (1, 0), (1, 2), (2, 0), (2, 1)
-    # Mapping 3 -> 0, 1 -> 1, 2 -> 2
-    # Valid: (0, 1), (0, 2), (1, 0), (1, 2), (2, 0), (2, 1)
-    # Invalid: (0, 0), (1, 1), (2, 2)
+    colors = [0] * (n + 1)
     
-    # We want to minimize V_n = p_1 * 4^(n-1) + p_2 * 4^(n-2) + ... + p_n
-    # This is equivalent to lexicographical minimization of (p_1, p_2, ..., p_n)
-    # since 4^k > sum_{i=0}^{k-1} 3 * 4^i = 4^k - 1.
-    
-    assignment = [0] * (n + 1)
-    
-    def is_valid(u, val):
-        for v in adj[u]:
-            if assignment[v] != 0:
-                p_u = val % 3
-                p_v = assignment[v] % 3
-                if p_u == p_v:
-                    return False
+    def is_valid(node, color):
+        for neighbor in adj[node]:
+            if colors[neighbor] == color:
+                return False
         return True
-
-    def backtrack(u):
-        if u > n:
+    
+    def backtrack(node):
+        if node > n:
             return True
-        # Try 1, 2, 3 to minimize lexicographically
-        for val in [1, 2, 3]:
-            if is_valid(u, val):
-                assignment[u] = val
-                if backtrack(u + 1):
+        
+        # Heuristic: try colors in order
+        for c in [1, 2, 3]:
+            if is_valid(node, c):
+                colors[node] = c
+                if backtrack(node + 1):
                     return True
-                assignment[u] = 0
+                colors[node] = 0
         return False
 
-    if backtrack(1):
+    # To speed up, sort nodes by degree (most constrained first)
+    nodes = sorted(range(1, n + 1), key=lambda x: len(adj[x]), reverse=True)
+    
+    # Re-map nodes to process in order of degree
+    mapping = {node: i for i, node in enumerate(nodes)}
+    new_adj = [[] for _ in range(n)]
+    for u in range(1, n + 1):
+        for v in adj[u]:
+            new_adj[mapping[u]].append(mapping[v])
+            
+    res_colors = [0] * n
+    
+    def backtrack_optimized(idx):
+        if idx == n:
+            return True
+        
+        u = idx
+        # Try colors
+        for c in [1, 2, 3]:
+            possible = True
+            for v in new_adj[u]:
+                if res_colors[v] == c:
+                    possible = False
+                    break
+            if possible:
+                res_colors[u] = c
+                if backtrack_optimized(idx + 1):
+                    return True
+                res_colors[u] = 0
+        return False
+
+    if backtrack_optimized(0):
         print("YES")
-        print(*(assignment[1:]))
+        final_colors = [0] * (n + 1)
+        for i in range(n):
+            final_colors[nodes[i]] = res_colors[i]
+        print(*(final_colors[1:]))
     else:
         print("NO")
 

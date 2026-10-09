@@ -1,0 +1,90 @@
+# Problem A — Partnership Configuration
+
+Time limit: 5 s   Memory limit: 256 MB
+
+## Description
+
+You are analyzing a network of **n** items.
+You are provided a list of **m** distinct partnerships. Each partnership consists of two distinct items **u** and **v**.
+
+Your task is to select exactly **k** items from the **n** available items (leaving **n** $-$ **k** items unselected) such that a specific arithmetic condition is met.
+
+First, for any selected item, define its *partnership count* as the total number of partnerships it belongs to (this includes partnerships with both selected and unselected items).
+Let **T** be the sum of the partnership counts of all **k** selected items.
+
+Second, for each of the **m** partnerships, determine how many of its two items are selected. Let this count be $c$ (which will be 0, 1, or 2).
+The *configuration score* of the partnership is defined as $5^c$.
+
+You must find a selection of exactly **k** items such that the sum of the configuration scores of all **m** partnerships is exactly equal to **m** + 4**T**.
+
+If such a selection exists, report it by listing the 1-based indices of the selected items.
+
+## Input
+
+The first line contains three integers **n**, **m**, and **k** (1 ≤ **n** ≤ 46, 0 ≤ **m** ≤ **n**·(**n**−1)/2, 1 ≤ **k** ≤ **n**).
+Each of the next **m** lines contains two integers **u** and **v** (1 ≤ **u**, **v** ≤ **n**, **u** ≠ **v**), representing a partnership between item **u** and item **v**. The input will never list the same pair of items more than once.
+
+## Output
+
+If a valid selection exists, print `YES` on the first line, then on the second line print the **k** distinct indices of the selected items, separated by spaces. If multiple valid selections exist, any valid selection is accepted. Print only the **k** selected indices.
+
+If no such selection exists, print `NO`.
+
+## Examples
+
+### Example 1
+
+**Input**
+```
+4 4 3
+1 2
+1 3
+2 3
+3 4
+```
+
+**Output**
+```
+NO
+```
+
+### Example 2
+
+**Input**
+```
+5 2 3
+1 2
+3 4
+```
+
+**Output**
+```
+YES
+1 3 5
+```
+
+### Example 3
+
+**Input**
+```
+3 3 1
+1 2
+2 3
+1 3
+```
+
+**Output**
+```
+YES
+1
+```
+
+## Note
+
+In Example 2, if we select items 1, 3, and 5, their partnership counts are 1, 1, and 0 respectively. The sum **T** = 2.
+The target value is **m** + 4**T** = 2 + 4(2) = 10.
+For the partnership (1, 2), only item 1 is selected ($c=1$), giving a score of $5^1 = 5$.
+For the partnership (3, 4), only item 3 is selected ($c=1$), giving a score of $5^1 = 5$.
+The sum of the configuration scores is 5 + 5 = 10, which equals the target value. Thus, this selection is valid.
+
+In Example 1, any selection of exactly 3 items will result in at least one partnership where both items are selected ($c=2$). This partnership alone will contribute 25 to the sum of configuration scores, which will strictly exceed the target value **m** + 4**T**. Thus, no valid selection exists.

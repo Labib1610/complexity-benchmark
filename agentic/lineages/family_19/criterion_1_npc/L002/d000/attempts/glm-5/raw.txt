@@ -1,0 +1,204 @@
+```python
+import sys
+from collections import deque
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    k = int(next(it))
+    
+    requests = []
+    for _ in range(k):
+        s = int(next(it)) - 1
+        t = int(next(it)) - 1
+        d = int(next(it))
+        requests.append((s, t, d))
+    
+    edges = []
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        c = int(next(it))
+        edges.append((u, v, c))
+    
+    # Build a super-source and super-sink flow network
+    # Nodes: 0..n-1 are original facilities
+    # Node n is super-source, node n+1 is super-sink
+    N = n + 2
+    S = n
+    T = n + 1
+    
+    graph = [[] for _ in range(N)]
+    edge_list = []
+    
+    def add_edge(u, v, cap):
+        graph[u].append(len(edge_list))
+        edge_list.append([v, cap, 0])
+        graph[v].append(len(edge_list))
+        edge_list.append([u, 0, 0])
+    
+    # Add edges from super-source to each request's start
+    for i, (s, t, d) in enumerate(requests):
+        add_edge(S, s, d)
+    
+    # Add edges from each request's end to super-sink
+    for i, (s, t, d) in enumerate(requests):
+        add_edge(t, T, d)
+    
+    # Add original transport connections
+    for u, v, c in edges:
+        add_edge(u, v, c)
+    
+    # Dinic's max flow
+    level = [0] * N
+    ptr = [0] * N
+    
+    def bfs():
+        for i in range(N):
+            level[i] = -1
+        level[S] = 0
+        q = deque([S])
+        while q:
+            u = q.popleft()
+            for eid in graph[u]:
+                v, cap, flow = edge_list[eid]
+                if cap > flow and level[v] < 0:
+                    level[v] = level[u] + 1
+                    q.append(v)
+        return level[T] >= 0
+    
+    def dfs(u, f):
+        if u == T:
+            return f
+        while ptr[u] < len(graph[u]):
+            eid = graph[u][ptr[u]]
+            v, cap, flow = edge_list[eid]
+            if cap > flow and level[v] == level[u] + 1:
+                pushed = dfs(v, min(f, cap - flow))
+                if pushed > 0:
+                    edge_list[eid][2] += pushed
+                    edge_list[eid ^ 1][2] -= pushed
+                    return pushed
+            ptr[u] += 1
+        return 0
+    
+    def max_flow():
+        flow = 0
+        while bfs():
+            for i in range(N):
+                ptr[i] = 0
+            while True:
+                pushed = dfs(S, float('inf'))
+                if pushed == 0:
+                    break
+                flow += pushed
+        return flow
+    
+    total_demand = sum(d for _, _, d in requests)
+    flow = max_flow()
+    
+    if flow < total_demand:
+        print("NO")
+        return
+    
+    # Extract per-request flow on each edge
+    # The edges added for requests are at indices 0..2k-1
+    # The original transport connections are at indices 2k..2k+2m-1
+    # For request i, its source edge is at index 2*i
+    # We need to find how much flow of request i goes through each original edge
+    
+    # We'll track flow per request by decomposing the flow
+    # Build adjacency list with edge indices for original edges
+    orig_edge_start = 2 * k
+    
+    # For each request, we trace flow from its source to its sink
+    # We use the residual graph to find paths
+    
+    # Build a flow graph for extraction
+    flow_graph = [[] for _ in range(n)]
+    edge_info = []  # (to, edge_idx, is_forward)
+    
+    for i in range(m):
+        eid = orig_edge_start + 2 * i
+        u, v, c = edges[i]
+        f = edge_list[eid][2]  # flow on forward edge
+        if f > 0:
+            flow_graph[u].append((v, i, f, eid))
+    
+    # For each request, find paths from s to t and extract flow
+    result = [[0] * m for _ in range(k)]
+    
+    # We need to handle multiple requests sharing edges
+    # Use a greedy approach: for each request, find any path and push as much as possible
+    
+    # Rebuild flow_graph with current flows
+    # We'll process requests one by one, but need to be careful about shared capacity
+    
+    # Actually, let's use a different approach: 
+    # For each request i, we know the flow enters at s_i and exits at t_i
+    # We can trace the flow by following edges with positive flow
+    
+    # Let's create a mutable copy of flows
+    current_flow = [0] * m
+    for i in range(m):
+        eid = orig_edge_start + 2 * i
+        current_flow[i] = edge_list[eid][2]
+    
+    for req_idx in range(k):
+        s, t, d = requests[req_idx]
+        remaining = d
+        
+        while remaining > 0:
+            # BFS to find a path from s to t with available flow
+            parent = [-1] * n
+            parent_edge = [-1] * n
+            visited = [False] * n
+            visited[s] = True
+            q = deque([s])
+            found = False
+            
+            while q and not found:
+                u = q.popleft()
+                for v, edge_idx, f, eid in flow_graph[u]:
+                    if current_flow[edge_idx] > 0 and not visited[v]:
+                        visited[v] = True
+                        parent[v] = u
+                        parent_edge[v] = edge_idx
+                        if v == t:
+                            found = True
+                            break
+                        q.append(v)
+            
+            if not found:
+                # Shouldn't happen if flow is valid
+                print("NO")
+                return
+            
+            # Find bottleneck along the path
+            path_edges = []
+            v = t
+            bottleneck = remaining
+            while v != s:
+                u = parent[v]
+                edge_idx = parent_edge[v]
+                path_edges.append(edge_idx)
+                bottleneck = min(bottleneck, current_flow[edge_idx])
+                v = u
+            
+            # Assign flow
+            for edge_idx in path_edges:
+                current_flow[edge_idx] -= bottleneck
+                result[req_idx][edge_idx] += bottleneck
+            
+            remaining -= bottleneck
+    
+    print("YES")
+    for i in range(k):
+        print(' '.join(map(str, result[i])))
+
+solve()
+```

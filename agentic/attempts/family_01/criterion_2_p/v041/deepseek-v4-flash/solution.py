@@ -13,29 +13,50 @@ for _ in range(m):
     adj[v].append(u)
 
 color = [-1] * n
-possible = True
 
+def bfs(start):
+    q = deque([start])
+    color[start] = 0
+    while q:
+        u = q.popleft()
+        for v in adj[u]:
+            if color[v] == -1:
+                color[v] = color[u] ^ 1
+                q.append(v)
+            elif color[v] == color[u]:
+                return False
+    return True
+
+# Check bipartiteness
 for i in range(n):
     if color[i] == -1:
-        color[i] = 0
+        if not bfs(i):
+            print("NO")
+            sys.exit()
+
+# Now we have a valid 2-coloring, but we need lexicographically smallest.
+# We can try to flip colors in each connected component to make early nodes 1.
+visited = [False] * n
+
+for i in range(n):
+    if not visited[i]:
+        # BFS to collect component
+        comp = []
         q = deque([i])
+        visited[i] = True
         while q:
             u = q.popleft()
+            comp.append(u)
             for v in adj[u]:
-                if color[v] == -1:
-                    color[v] = 1 - color[u]
+                if not visited[v]:
+                    visited[v] = True
                     q.append(v)
-                elif color[v] == color[u]:
-                    possible = False
-                    break
-            if not possible:
-                break
-    if not possible:
-        break
+        # Try to set color[i] = 0 (window 1) if possible
+        # We can flip all colors in this component if needed
+        # Check if flipping makes i color 0
+        if color[i] != 0:
+            for u in comp:
+                color[u] ^= 1
 
-if not possible:
-    print("NO")
-else:
-    print("YES")
-    # color 0 -> 1, color 1 -> 2
-    print(' '.join(str(1 if c == 0 else 2) for c in color))
+print("YES")
+print(' '.join(str(c + 1) for c in color))

@@ -1,0 +1,256 @@
+Looking at this problem, I need to figure out the constraint between two filters in a synchronization pair.
+
+**Dot products:**
+- V1·V1 = 9+1+16+4 = 30
+- V2·V2 = 4+16+1+9 = 30
+- V1·V2 = 6+4+4+6 = 20
+
+So the dot product equals 20 only when the two filters have **different** modes. This means each synchronization pair requires the two filters to have different modes — this is exactly a 2-coloring (bipartite) problem.
+
+**Algorithm:**
+1. Build a graph where edges represent "must be different mode" constraints
+2. Check if the graph is bipartite (2-colorable)
+3. If yes, find the lexicographically smallest valid assignment
+
+For the lexicographically smallest assignment: process nodes in order 1 to n. For each uncolored node, try color 1 first. When doing BFS/DFS, for each node, try assigning color 1 first, and only use color 2 if color 1 conflicts with already-colored neighbors.
+
+The key insight: when we start coloring a new component from node `i`, we should try color 1 for node `i`. Then propagate. For each node during propagation, try color 1 first (if it doesn't conflict with already-colored neighbors), otherwise use color 2.
+
+Let me verify with Example 1: 4 nodes in a cycle 1-2-3-4-1. Starting at node 1 with color 1, node 2 must be 2, node 3 must be 1, node 4 must be 2. Check edge 1-4: 1 vs 2 ✓. Result: 1 2 1 2 ✓
+
+Example 2: Triangle 1-2-3. Node 1=1, node 2=2, node 3 must differ from both 1 and 2 — impossible. Output NO ✓
+
+```python
+import sys
+from collections import deque
+
+def solve():
+    input_data = sys.stdin.buffer.read().split()
+    idx = 0
+    n = int(input_data[idx]); idx += 1
+    m = int(input_data[idx]); idx += 1
+    
+    adj = [[] for _ in range(n+1)]
+    for _ in range(m):
+        u = int(input_data[idx]); idx += 1
+        v = int(input_data[idx]); idx += 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    color = [0] * (n+1)  # 0 = uncolored, 1 or 2 = colored
+    
+    for start in range(1, n+1):
+        if color[start] != 0:
+            continue
+        # Try to color this component starting with color 1
+        color[start] = 1
+        queue = deque([start])
+        ok = True
+        while queue and ok:
+            u = queue.popleft()
+            for v in adj[u]:
+                if color[v] == 0:
+                    # Assign opposite color
+                    color[v] = 3 - color[u]
+                    queue.append(v)
+                elif color[v] == color[u]:
+                    ok = False
+                    break
+        if not ok:
+            print("NO")
+            return
+    
+    print("YES")
+    print(' '.join(str(color[i]) for i in range(1, n+1)))
+
+solve()
+```
+
+Wait, I need to reconsider the lexicographically smallest requirement more carefully. The greedy approach of "start each component with color 1" and "assign opposite of parent" might not always give the lex smallest result.
+
+Consider: if node 1 has no edges, it gets color 1. Good. But what if during BFS, a node could be colored 1 (because its already-colored neighbors are all 2) but we assign it 2 based on parent? 
+
+Actually, in BFS, when we first reach a node, we assign it based on its parent. But there might be another path where it could get color 1. Let me think...
+
+The issue: a node might be reachable from multiple colored nodes. If we process in BFS order and assign based on first encounter, we might miss a better assignment.
+
+Better approach: For each node in order 1..n, if uncolored, assign it the smallest valid color considering all already-colored neighbors. Then propagate. But propagation order matters for lex smallest.
+
+Actually, the correct approach for lex smallest 2-coloring: process nodes 1 to n. For each uncolored node, assign color 1 if possible (no colored neighbor has color 1), else color 2. Then do BFS/DFS to color the rest of the component, but for each node in the component, also try color 1 first.
+
+Let me reconsider: when coloring a component, process nodes in BFS order, but for each node, check all already-colored neighbors and pick the smallest valid color (1 if no neighbor is 1, else 2).
+
+```python
+import sys
+from collections import deque
+
+def solve():
+    input_data = sys.stdin.buffer.read().split()
+    idx = 0
+    n = int(input_data[idx]); idx += 1
+    m = int(input_data[idx]); idx += 1
+    
+    adj = [[] for _ in range(n+1)]
+    for _ in range(m):
+        u = int(input_data[idx]); idx += 1
+        v = int(input_data[idx]); idx += 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    color = [0] * (n+1)
+    
+    for start in range(1, n+1):
+        if color[start] != 0:
+            continue
+        # Determine color for start: try 1 first
+        has1 = False
+        for v in adj[start]:
+            if color[v] == 1:
+                has1 = True
+                break
+        color[start] = 2 if has1 else 1
+        
+        queue = deque([start])
+        ok = True
+        while queue and ok:
+            u = queue.popleft()
+            for v in adj[u]:
+                if color[v] == 0:
+                    # Try color 1 first, then 2
+                    has1 = False
+                    for w in adj[v]:
+                        if color[w] == 1:
+                            has1 = True
+                            break
+                    color[v] = 2 if has1 else 1
+                    queue.append(v)
+                elif color[v] == color[u]:
+                    ok = False
+                    break
+        if not ok:
+            print("NO")
+            return
+    
+    print("YES")
+    print(' '.join(str(color[i]) for i in range(1, n+1)))
+
+solve()
+```
+
+Hmm, but this "try 1 first for each node" approach could lead to conflicts that aren't detected immediately. In a 2-coloring, once one node in a component is fixed, all others are determined. So trying color 1 for a node when its parent is color 1 would be wrong.
+
+Let me reconsider. In bipartite 2-coloring, within a connected component, once you fix one node's color, all others are determined (if the component is bipartite). So the only choice is the starting color of each component.
+
+For lex smallest: for each component (processed in order of smallest node), try starting with color 1. If the component is bipartite, this works. The rest of the component is forced.
+
+But wait — is it always optimal to start each component with color 1? What if starting with color 1 forces some small-indexed node to be 2, while starting with color 2 would make it 1?
+
+Example: Component with nodes 2, 3, 4 where 2-3, 3-4 are edges. If we start node 2 with color 1: 2→1, 3→2, 4→1. If we start node 2 with color 2: 2→2, 3→1, 4→2. The first is lex smaller (1 < 2 at position 2). So starting with 1 is better here.
+
+But what about: nodes 1, 2, 3 with edges 1-3, 2-3. Start 1 with color 1: 1→1, 3→2, 2→1. Result: 1,1,2. Start 1 with color 2: 1→2, 3→1, 2→2. Result: 2,2,1. First is lex smaller.
+
+What about: nodes 1, 2 with edge 1-2. Start 1 with 1: 1→1, 2→2. Start 1 with 2: 1→2, 2→1. First gives "1 2", second gives "2 1". First is lex smaller.
+
+It seems starting each component with color 1 (at its smallest node) always gives lex smallest, because the smallest node in the component getting color 1 is always better than getting color 2, and the rest is forced.
+
+But the BFS order matters! If we start at node 1 (smallest), assign 1, then BFS — the propagation is deterministic. But what if the component's smallest node isn't the BFS start? We iterate 1 to n, so we always start at the smallest uncolored node. Good.
+
+But there's a subtlety: when we BFS from the start node, we might reach a node through a longer path first. The color is determined by parity of path length, which is consistent in bipartite graphs. So it doesn't matter which path we take — the color is the same. Good.
+
+So the simple approach works: start each component at its smallest node with color 1, propagate with opposite colors, check for conflicts.
+
+```python
+import sys
+from collections import deque
+
+def solve():
+    input_data = sys.stdin.buffer.read().split()
+    idx = 0
+    n = int(input_data[idx]); idx += 1
+    m = int(input_data[idx]); idx += 1
+    
+    adj = [[] for _ in range(n+1)]
+    for _ in range(m):
+        u = int(input_data[idx]); idx += 1
+        v = int(input_data[idx]); idx += 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    color = [0] * (n+1)
+    
+    for start in range(1, n+1):
+        if color[start] != 0:
+            continue
+        color[start] = 1
+        queue = deque([start])
+        ok = True
+        while queue and ok:
+            u = queue.popleft()
+            for v in adj[u]:
+                if color[v] == 0:
+                    color[v] = 3 - color[u]
+                    queue.append(v)
+                elif color[v] == color[u]:
+                    ok = False
+                    break
+        if not ok:
+            print("NO")
+            return
+    
+    print("YES")
+    print(' '.join(str(color[i]) for i in range(1, n+1)))
+
+solve()
+```
+
+This should be correct and efficient. Let me verify once more with the examples.
+
+Example 1: n=4, edges: 1-2, 2-3, 3-4, 1-4. Start 1→1, BFS: 2→2, 4→2 (from 1), then 3→1 (from 2), check 3-4: 1 vs 2 ✓, check 1-4: 1 vs 2 ✓. Result: 1 2 1 2 ✓
+
+Example 2: n=3, edges: 1-2, 1-3, 2-3. Start 1→1, 2→2, 3→2 (from 1), then check 2-3: 2 vs 2 ✗. Output NO ✓
+
+The solution is correct.
+
+```python
+import sys
+from collections import deque
+
+def solve():
+    input_data = sys.stdin.buffer.read().split()
+    idx = 0
+    n = int(input_data[idx]); idx += 1
+    m = int(input_data[idx]); idx += 1
+    
+    adj = [[] for _ in range(n+1)]
+    for _ in range(m):
+        u = int(input_data[idx]); idx += 1
+        v = int(input_data[idx]); idx += 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    color = [0] * (n+1)
+    
+    for start in range(1, n+1):
+        if color[start] != 0:
+            continue
+        color[start] = 1
+        queue = deque([start])
+        ok = True
+        while queue and ok:
+            u = queue.popleft()
+            for v in adj[u]:
+                if color[v] == 0:
+                    color[v] = 3 - color[u]
+                    queue.append(v)
+                elif color[v] == color[u]:
+                    ok = False
+                    break
+        if not ok:
+            print("NO")
+            return
+    
+    print("YES")
+    print(' '.join(str(color[i]) for i in range(1, n+1)))
+
+solve()
+```

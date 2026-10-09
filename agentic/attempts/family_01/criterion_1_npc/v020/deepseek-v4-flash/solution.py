@@ -4,41 +4,37 @@ def solve():
     input_data = sys.stdin.read().strip().split()
     if not input_data:
         return
-    it = iter(input_data)
-    n = int(next(it))
-    m = int(next(it))
-    
-    adj = [[False] * n for _ in range(n)]
+    n, m = int(input_data[0]), int(input_data[1])
+    edges = []
+    idx = 2
     for _ in range(m):
-        u = int(next(it)) - 1
-        v = int(next(it)) - 1
-        adj[u][v] = True
-        adj[v][u] = True
+        u = int(input_data[idx]) - 1
+        v = int(input_data[idx + 1]) - 1
+        idx += 2
+        edges.append((u, v))
     
-    color = [0] * n  # 0 = unassigned, 1,2,3 = bus numbers
+    adj = [[] for _ in range(n)]
+    for u, v in edges:
+        adj[u].append(v)
+        adj[v].append(u)
     
-    # Precompute forbidden colors for each node
-    forbidden = [0] * n  # bitmask of colors already used by neighbors
+    color = [-1] * n
     
-    def backtrack(idx):
-        if idx == n:
+    def backtrack(node):
+        if node == n:
             return True
-        # Try colors 1,2,3 in order for lexicographic smallest
-        for c in range(1, 4):
-            if not (forbidden[idx] & (1 << c)):
-                color[idx] = c
-                # update forbidden for neighbors
-                added = []
-                for j in range(n):
-                    if adj[idx][j] and not (forbidden[j] & (1 << c)):
-                        forbidden[j] |= (1 << c)
-                        added.append(j)
-                if backtrack(idx + 1):
+        # Try colors 1, 2, 3
+        for c in (1, 2, 3):
+            ok = True
+            for nb in adj[node]:
+                if color[nb] == c:
+                    ok = False
+                    break
+            if ok:
+                color[node] = c
+                if backtrack(node + 1):
                     return True
-                # revert
-                for j in added:
-                    forbidden[j] &= ~(1 << c)
-                color[idx] = 0
+                color[node] = -1
         return False
     
     if backtrack(0):

@@ -9,49 +9,52 @@ def solve() -> None:
     it = iter(data)
     n = int(next(it))
     m = int(next(it))
-    adj = [[] for _ in range(n)]
+    adj = [set() for _ in range(n)]
     for _ in range(m):
         u = int(next(it)) - 1
         v = int(next(it)) - 1
-        adj[u].append(v)
-        adj[v].append(u)
+        adj[u].add(v)
+        adj[v].add(u)
 
-    # colour[i] = 0 (uncoloured) or 1..3
-    colour = [0] * n
-    ALL = 0b111  # bits for colours 1,2,3
-    allowed0 = [ALL] * n
+    # order vertices by descending degree
+    order = sorted(range(n), key=lambda x: -len(adj[x]))
+    color = [-1] * n  # 0,1,2
 
-    # depth‑first search with fixed order 0..n-1
-    def dfs(i: int, allowed):
-        if i == n:
+    # for quick conflict check, maintain neighbor colors set per vertex
+    neighbor_colors = [set() for _ in range(n)]
+
+    def dfs(pos: int) -> bool:
+        if pos == n:
             return True
-        mask = allowed[i]
-        if mask == 0:
-            return False
-        for c in (1, 2, 3):          # try colours increasingly
-            bit = 1 << (c - 1)
-            if not (mask & bit):
+        v = order[pos]
+        # try colors 0..2
+        for c in range(3):
+            if c in neighbor_colors[v]:
                 continue
-            # copy allowed, assign colour
-            new_allowed = allowed[:]      # length <= 40, cheap
-            colour[i] = c
-            ok = True
-            for nb in adj[i]:
-                if colour[nb] == 0:       # neighbour still uncoloured
-                    new_allowed[nb] &= ~bit
-                    if new_allowed[nb] == 0:
-                        ok = False
-                        break
-            if ok and dfs(i + 1, new_allowed):
+            # assign
+            color[v] = c
+            # update neighbor info
+            changed = []
+            for nb in adj[v]:
+                if c not in neighbor_colors[nb]:
+                    neighbor_colors[nb].add(c)
+                    changed.append(nb)
+            if dfs(pos + 1):
                 return True
-            colour[i] = 0                 # backtrack
+            # backtrack
+            for nb in changed:
+                neighbor_colors[nb].remove(c)
+            color[v] = -1
         return False
 
-    if dfs(0, allowed0):
-        out = ['YES', ' '.join(str(c) for c in colour)]
-        sys.stdout.write('\n'.join(out))
+    possible = dfs(0)
+    out = []
+    if not possible:
+        out.append("NO")
     else:
-        sys.stdout.write('NO')
+        out.append("YES")
+        out.append(' '.join(str(c + 1) for c in color))
+    sys.stdout.write('\n'.join(out))
 
 if __name__ == "__main__":
     solve()

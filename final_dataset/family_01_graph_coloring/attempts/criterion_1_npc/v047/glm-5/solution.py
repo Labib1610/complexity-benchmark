@@ -1,0 +1,90 @@
+import sys
+sys.setrecursionlimit(10000)
+
+def solve():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # Try to 2-color each connected component
+    # If a component is bipartite, we have flexibility (can swap colors)
+    # If not bipartite, it must use 3 colors
+    
+    color = [-1] * n
+    assignment = [0] * n
+    possible = True
+    
+    # Process each component
+    for start in range(n):
+        if color[start] != -1:
+            continue
+        
+        # BFS to 2-color this component
+        queue = [start]
+        color[start] = 0
+        comp = [start]
+        is_bipartite = True
+        
+        head = 0
+        while head < len(queue):
+            u = queue[head]
+            head += 1
+            for v in adj[u]:
+                if color[v] == -1:
+                    color[v] = 1 - color[u]
+                    queue.append(v)
+                    comp.append(v)
+                elif color[v] == color[u]:
+                    is_bipartite = False
+        
+        if is_bipartite:
+            # Assign all to rotation 1
+            for u in comp:
+                assignment[u] = 1
+        else:
+            # Need 3 colors - use greedy approach
+            for u in comp:
+                if assignment[u] != 0:
+                    continue
+                # Find which colors are used by neighbors
+                used = set()
+                for v in adj[u]:
+                    if assignment[v] != 0:
+                        used.add(assignment[v])
+                # Assign smallest available color
+                for c in [1, 2, 3]:
+                    if c not in used:
+                        assignment[u] = c
+                        break
+                if assignment[u] == 0:
+                    possible = False
+                    break
+        
+        if not possible:
+            break
+    
+    if not possible:
+        print("NO")
+        return
+    
+    # Verify the assignment
+    for u in range(n):
+        for v in adj[u]:
+            if assignment[u] == assignment[v]:
+                print("NO")
+                return
+    
+    print("YES")
+    print(" ".join(map(str, assignment)))
+
+solve()

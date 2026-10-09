@@ -1,0 +1,78 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [[] for _ in range(n)]
+    edges = []
+    for i in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        edges.append((u, v))
+        adj[u].append((v, i))
+        adj[v].append((u, i))
+        
+    color = [0] * m
+    visited = [False] * n
+    parent = [-1] * n
+    parent_edge = [-1] * n
+    depth = [0] * n
+    
+    for i in range(n):
+        if not visited[i]:
+            stack = [i]
+            visited[i] = True
+            while stack:
+                u = stack.pop()
+                for v, edge_idx in adj[u]:
+                    if not visited[v]:
+                        visited[v] = True
+                        parent[v] = u
+                        parent_edge[v] = edge_idx
+                        depth[v] = depth[u] + 1
+                        stack.append(v)
+                        
+    for u in range(n):
+        for v, edge_idx in adj[u]:
+            if v != parent[u] and u != parent[v]:
+                if depth[u] > depth[v]:
+                    cycle = []
+                    curr = u
+                    while curr != v:
+                        cycle.append(parent_edge[curr])
+                        curr = parent[curr]
+                    cycle.append(edge_idx)
+                    
+                    c0 = cycle[0]
+                    c1 = cycle[1]
+                    color[c0] = 1
+                    color[c1] = 2
+                    
+                    for k in range(2, len(cycle)):
+                        color[cycle[k]] = 6 - color[cycle[k-1]] - color[cycle[k-2]]
+                        
+                    if color[cycle[-1]] == color[c0]:
+                        if len(cycle) > 3:
+                            color[cycle[-2]] = 6 - color[cycle[-3]] - color[cycle[-1]]
+                        else:
+                            print("NO")
+                            return
+                    break
+            break
+            
+    for u in range(n):
+        for v, edge_idx in adj[u]:
+            if color[edge_idx] == 0:
+                if depth[u] > depth[v]:
+                    color[edge_idx] = 6 - color[parent_edge[u]] - color[parent_edge[v]]
+                    
+    print("YES")
+    print(" ".join(map(str, color)))
+
+if __name__ == '__main__':
+    solve()

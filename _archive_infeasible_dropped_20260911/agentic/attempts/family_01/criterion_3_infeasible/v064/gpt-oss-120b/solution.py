@@ -1,0 +1,38 @@
+import sys
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    adj_mask = [0] * n
+    neigh = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj_mask[u] |= 1 << v
+        adj_mask[v] |= 1 << u
+        if v > u:
+            neigh[u].append(v)
+        else:
+            neigh[v].append(u)
+
+    for a in range(n):
+        # neighbors of a that are greater than a are already in neigh[a] (unsorted)
+        for b in sorted(neigh[a]):   # ensure increasing b for lexicographic order
+            # common neighbors of a and b
+            common = adj_mask[a] & adj_mask[b]
+            # we need c > b
+            shift = b + 1
+            common_shift = common >> shift
+            if common_shift:
+                # lowest set bit
+                low_bit = common_shift & -common_shift
+                c = shift + low_bit.bit_length() - 1
+                print(a + 1, b + 1, c + 1)
+                return
+
+if __name__ == "__main__":
+    solve()

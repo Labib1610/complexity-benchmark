@@ -1,0 +1,260 @@
+```python
+import sys
+
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    k = int(next(it))
+
+    commodities = []
+    for _ in range(k):
+        s = int(next(it)) - 1
+        t = int(next(it)) - 1
+        d = int(next(it))
+        commodities.append((s, t, d))
+
+    edges = []
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        cap = int(next(it))
+        edges.append((u, v, cap))
+
+    # Number of variables = k * m
+    num_vars = k * m
+
+    # Equality constraints: for each commodity c and vertex v:
+    # sum_{e out of v} x_{c, e} - sum_{e into v} x_{c, e} = supply(c, v)
+    # where supply(c, v) = d_c if v == s_c, -d_c if v == t_c, 0 otherwise (if s_c != t_c).
+    # Inequality constraints: for each edge e:
+    # sum_c x_{c, e} <= cap_e
+
+    A_eq = []
+    b_eq = []
+
+    for c in range(k):
+        s_c, t_c, d_c = commodities[c]
+        for v in range(n):
+            row = [0.0] * num_vars
+            for e_idx, (u, v_dest, cap) in enumerate(edges):
+                if u == v:
+                    row[c * m + e_idx] += 1.0
+                if v_dest == v:
+                    row[c * m + e_idx] -= 1.0
+
+            target = 0.0
+            if s_c == t_c:
+                target = 0.0
+            else:
+                if v == s_c:
+                    target = float(d_c)
+                elif v == t_c:
+                    target = -float(d_c)
+
+            A_eq.append(row)
+            b_eq.append(target)
+
+    # Inequality constraints: A_ub * x <= b_ub
+    A_ub = []
+    b_ub = []
+    for e_idx, (u, v_dest, cap) in enumerate(edges):
+        row = [0.0] * num_vars
+        for c in range(k):
+            row[c * m + e_idx] = 1.0
+        A_ub.append(row)
+        b_ub.append(float(cap))
+
+    # Simplex solver for LP feasibility / optimization
+    # Bounds on variables: lower bound and upper bound
+    # We can use standard Two-Phase Simplex or Branch and Bound
+
+    class LPSolver:
+
+        def __init__(self, A_eq, b_eq, A_ub, b_ub, num_vars):
+            self.num_vars = num_vars
+            self.orig_A_eq = A_eq
+            self.orig_b_eq = b_eq
+            self.orig_A_ub = A_ub
+            self.orig_b_ub = b_ub
+
+        def solve_lp(self, extra_bounds):
+            # extra_bounds: list of (var_idx, '>=', val) or (var_idx, '<=', val)
+            # Standard form: Ax = b, x >= 0
+            # Convert equality and inequality constraints + bounds
+            eq_rows = []
+            rhs = []
+
+            for r, b in zip(self.orig_A_eq, self.orig_b_eq):
+                eq_rows.append(list(r))
+                rhs.append(b)
+
+            # Ub constraints: r * x + s = b, s >= 0
+            # Extra bounds:
+            # x_i <= val  =>  x_i + s = val
+            # x_i >= val  =>  x_i - s = val
+            ineqs = []
+            ineq_rhs = []
+            ineq_signs = []  # +1 for <=, -1 for >=
+
+            for r, b in zip(self.orig_A_ub, self.orig_b_ub):
+                ineqs.append(list(r))
+                ineq_rhs.append(b)
+                ineq_signs.append(1.0)
+
+            for var_idx, op, val in extra_bounds:
+                r = [0.0] * self.num_vars
+                r[var_idx] = 1.0
+                ineqs.append(r)
+                ineq_rhs.append(float(val))
+                if op == "<=":
+                    ineq_signs.append(1.0)
+                else:
+                    ineq_signs.append(-1.0)
+
+            num_slacks = len(ineqs)
+            total_cols = self.num_vars + num_slacks
+
+            all_rows = []
+            for r, b in zip(eq_rows, rhs):
+                all_rows.append(r + [0.0] * num_slacks)
+            for i, (r, b, sign) in enumerate(zip(ineqs, ineq_rhs, ineq_signs)):
+                slack_part = [0.0] * num_slacks
+                slack_part[i] = sign
+                all_rows.append(r + slack_part)
+
+            all_rhs = list(rhs) + list(ineq_rhs)
+            num_rows = len(all_rows)
+
+            # Ensure RHS >= 0
+            for i in range(num_rows):
+                if all_rhs[i] < -1e-9:
+                    for j in range(total_cols):
+                        all_rows[i][j] = -all_rows[i][j]
+                    all_rhs[i] = -all_rhs[i]
+                elif all_rhs[i] < 0:
+                    all_rhs[i] = 0.0
+
+            # Phase I tableau
+            # Add artificial variables for each row
+            tableau = []
+            for i in range(num_rows):
+                art = [0.0] * num_rows
+                art[i] = 1.0
+                tableau.append(all_rows[i] + art + [all_rhs[i]])
+
+            # Objective: minimize sum of artificial variables = maximize -sum(art)
+            # Cost row
+            cost = [0.0] * (total_cols + num_rows + 1)
+            for j in range(total_cols, total_cols + num_rows):
+                cost[j] = 1.0  # Phase 1: min sum(art) => sum(art) = 0
+            tableau.append(cost)
+
+            basis = [total_cols + i for i in range(num_rows)]
+
+            # Eliminate artificial variables from cost row
+            for i in range(num_rows):
+                for j in range(len(tableau[0])):
+                    tableau[-1][j] -= tableau[i][j]
+
+            def pivot(r, c):
+                pivot_val = tableau[r][c]
+                for j in range(len(tableau[0])):
+                    tableau[r][j] /= pivot_val
+                for i in range(len(tableau)):
+                    if i != r:
+                        factor = tableau[i][c]
+                        if abs(factor) > 1e-12:
+                            for j in range(len(tableau[0])):
+                                tableau[i][j] -= factor * tableau[r][j]
+                basis[r] = c
+
+            # Phase I simplex iterations
+            while True:
+                # Find entering variable
+                min_val = -1e-9
+                enter_col = -1
+                for j in range(len(tableau[0]) - 1):
+                    if tableau[-1][j] < min_val:
+                        min_val = tableau[-1][j]
+                        enter_col = j
+                if enter_col == -1:
+                    break  # Optimal for Phase I
+
+                # Ratio test
+                min_ratio = float("inf")
+                leave_row = -1
+                for i in range(num_rows):
+                    if tableau[i][enter_col] > 1e-9:
+                        ratio = tableau[i][-1] / tableau[i][enter_col]
+                        if ratio < min_ratio:
+                            min_ratio = ratio
+                            leave_row = i
+                if leave_row == -1:
+                    break  # Unbounded (shouldn't happen in Phase I)
+
+                pivot(leave_row, enter_col)
+
+            # Check if feasible
+            if abs(tableau[-1][-1]) > 1e-6:
+                return None  # Infeasible
+
+            # Extract solution for original variables
+            sol = [0.0] * self.num_vars
+            for i in range(num_rows):
+                if basis[i] < self.num_vars:
+                    sol[basis[i]] = tableau[i][-1]
+
+            return sol
+
+    solver = LPSolver(A_eq, b_eq, A_ub, b_ub, num_vars)
+
+    # Branch and Bound
+    def is_integral(val):
+        return abs(val - round(val)) < 1e-5
+
+    best_sol = None
+    stack = [[]]
+
+    while stack:
+        bounds = stack.pop()
+        lp_res = solver.solve_lp(bounds)
+        if lp_res is None:
+            continue
+
+        # Check if all variables are integral
+        first_frac = -1
+        for i in range(num_vars):
+            if not is_integral(lp_res[i]):
+                first_frac = i
+                break
+
+        if first_frac == -1:
+            best_sol = [int(round(x)) for x in lp_res]
+            break
+
+        val = lp_res[first_frac]
+        floor_val = int(val)
+        ceil_val = floor_val + 1
+
+        # Branch on first_frac
+        stack.append(bounds + [(first_frac, ">=", ceil_val)])
+        stack.append(bounds + [(first_frac, "<=", floor_val)])
+
+    if best_sol is None:
+        print("NO")
+    else:
+        print("YES")
+        for c in range(k):
+            row = best_sol[c * m : (c + 1) * m]
+            print(*(max(0, x) for x in row))
+
+
+if __name__ == "__main__":
+    solve()
+```

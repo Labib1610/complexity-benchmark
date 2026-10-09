@@ -1,0 +1,77 @@
+import sys
+from collections import deque
+
+def solve():
+    input_data = sys.stdin.buffer.read().split()
+    idx = 0
+    n = int(input_data[idx]); idx += 1
+    m = int(input_data[idx]); idx += 1
+    k = int(input_data[idx]); idx += 1
+
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(input_data[idx]); idx += 1
+        v = int(input_data[idx]); idx += 1
+        adj[u].append(v)
+        adj[v].append(u)
+
+    color = [0] * (n + 1)
+    comp = []
+    visited = [False] * (n + 1)
+
+    for i in range(1, n + 1):
+        if not visited[i]:
+            queue = deque([i])
+            color[i] = 1
+            visited[i] = True
+            comp_a = [i]
+            comp_b = []
+            while queue:
+                u = queue.popleft()
+                for v in adj[u]:
+                    if not visited[v]:
+                        visited[v] = True
+                        color[v] = 3 - color[u]
+                        if color[v] == 1:
+                            comp_a.append(v)
+                        else:
+                            comp_b.append(v)
+                        queue.append(v)
+            comp.append((comp_a, comp_b))
+
+    total = len(comp)
+    dp = [[False] * (k + 1) for _ in range(total + 1)]
+    parent = [[-1] * (k + 1) for _ in range(total + 1)]
+    dp[0][0] = True
+
+    for i in range(total):
+        a_size = len(comp[i][0])
+        b_size = len(comp[i][1])
+        for j in range(k + 1):
+            if dp[i][j]:
+                if j + a_size <= k and not dp[i + 1][j + a_size]:
+                    dp[i + 1][j + a_size] = True
+                    parent[i + 1][j + a_size] = 0
+                if j + b_size <= k and not dp[i + 1][j + b_size]:
+                    dp[i + 1][j + b_size] = True
+                    parent[i + 1][j + b_size] = 1
+
+    if not dp[total][k]:
+        sys.stdout.write("NO\n")
+        return
+
+    result = []
+    j = k
+    for i in range(total, 0, -1):
+        choice = parent[i][j]
+        if choice == 0:
+            result.extend(comp[i - 1][0])
+            j -= len(comp[i - 1][0])
+        else:
+            result.extend(comp[i - 1][1])
+            j -= len(comp[i - 1][1])
+
+    sys.stdout.write("YES\n")
+    sys.stdout.write(" ".join(map(str, result)) + "\n")
+
+solve()

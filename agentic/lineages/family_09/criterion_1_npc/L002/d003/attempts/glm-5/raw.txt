@@ -1,0 +1,1127 @@
+Let me analyze this problem.
+
+We have n nodes, m edges. We need to choose exactly k nodes to be positive (+1), rest negative (-1). Each edge (u,v) has net polarity = polarity(u) + polarity(v). This must be ≤ 0.
+
+Possible sums for an edge:
+- both positive: +2 → not allowed
+- one positive, one negative: 0 → allowed
+- both negative: -2 → allowed
+
+So the constraint is: no edge has both endpoints positive. In other words, the set of positive nodes must be an independent set in the graph.
+
+So we need to find an independent set of exactly size k in a graph with n ≤ 46 vertices, m up to n(n-1)/2.
+
+Finding an independent set of exactly size k: this is NP-hard in general, but n ≤ 46 allows meet-in-the-middle approach.
+
+Standard approach: split vertices into two halves of size n1 ≈ 23 and n2 ≈ 23. For each half, enumerate all subsets (2^23 ≈ 8.4 million each). For each subset, check if it's independent within the half. For half A, record independent subsets and their sizes. For half B similarly. Then we need to pick independent set S_A in half A and S_B in half B such that there are no edges between S_A and S_B, and |S_A| + |S_B| = k.
+
+Meet in the middle: For each independent subset S_A of half A, compute the set of vertices in half B that are "forbidden" (adjacent to some vertex in S_A). Then we need an independent subset S_B of half B that avoids the forbidden set, with size k - |S_A|.
+
+Hmm, but the number of independent subsets could be up to 2^23 in the worst case (empty graph). 2^23 = 8388608. That's a lot but manageable in C++; in Python it might be too slow.
+
+Wait, n ≤ 46, so each half is 23 vertices, 2^23 = 8.4M subsets per half. Enumerating all subsets and checking independence in Python would be 8.4M * 2 operations... that's likely too slow in pure Python (each operation maybe 100ns-1μs, so 8-16 seconds just for enumeration, plus more for meet-in-the-middle matching).
+
+Let me think about a smarter approach.
+
+Alternative: For each independent subset of half A, we need to know, for each subset of half B... hmm.
+
+Standard meet-in-the-middle for independent set of size k:
+
+Let A = first half (n1 vertices), B = second half (n2 vertices).
+
+For each subset S of A that is independent, compute mask_B(S) = union of neighbors (in B) of vertices in S. Then S_B must be a subset of B \ mask_B(S), and S_B must be independent within B, and |S_B| = k - |S_A|.
+
+So we need: for a given "allowed set" T ⊆ B (allowed = B minus forbidden neighbors), what is the maximum size of an independent subset of T? Actually we need exactly k - |S_A|, but if max independent set in T has size ≥ k - |S_A|, can we always find one of exactly that size? Yes! Because independent sets are downward closed: if there's an independent set of size s ≥ t inside T, then any subset of it of size t is also independent and inside T. So we just need max independent set size within T ≥ needed.
+
+So the problem reduces to: for each independent S_A with |S_A| = s, we need f(T) ≥ k - s where T = allowed set in B, and f(T) = max independent set size in the induced subgraph on T (within B, using edges of B).
+
+But computing f(T) for arbitrary T requires... hmm. The number of distinct T values could be huge.
+
+Alternative approach: enumerate independent sets in B grouped by... Let me think differently.
+
+Approach: For each independent subset S_B of B, we can compute the set of vertices in A that are forbidden (neighbors of S_B in A). Then S_A must be independent in A and avoid forbidden vertices, with |S_A| = k - |S_B|.
+
+Symmetric problem.
+
+Meet-in-the-middle with hashing: For each independent S_A, compute key = forbidden mask in B (or allowed mask). Store in a dictionary: for each allowed-mask T, the maximum |S_A|... wait no, we need pairs.
+
+Hmm, let's think: we want to find S_A independent in A, S_B independent in B, no cross edges, |S_A| + |S_B| = k.
+
+For each independent S_A, define F_B(S_A) = set of B-vertices adjacent to S_A. S_B must avoid F_B(S_A).
+
+For each independent S_B, define F_A(S_B) = set of A-vertices adjacent to S_B. S_A must avoid F_A(S_B).
+
+Condition "no cross edges between S_A and S_B" ⟺ S_B ∩ F_B(S_A) = ∅ ⟺ S_A ∩ F_A(S_B) = ∅.
+
+Meet in the middle: enumerate all independent subsets of A with their F_B masks. For each, we need to know if there's an independent subset of B avoiding F_B with size exactly k - |S_A| (which is possible iff max independent set in B \ F_B has size ≥ k - |S_A|).
+
+The issue: computing max independent set in B \ F_B for many different F_B masks.
+
+Idea: Precompute for B: g(T) = max independent set size within T ⊆ B. But there are 2^23 possible T. Too many to precompute all... but actually, we could compute g via DP over subsets? g(T) = max over v ∈ T of 1 + g(T \ ({v} ∪ N(v))). That's a DP over 2^23 subsets, each with up to 23 transitions → 2^23 * 23 ≈ 193M operations. Too slow in Python.
+
+Hmm. But wait — maybe we don't need all subsets T, only those that arise as B \ F_B(S_A) for independent S_A. The number of independent subsets of A can be up to 2^23 (empty graph on A: all subsets independent). So up to 8.4M distinct masks T. Computing g for each via memoized recursion... each g computation could take exponential time. Bad.
+
+Let me think about the structure more. n ≤ 46. Hmm, this is a classic problem: "Independent Set" with n ≤ 40 or so is solved via meet-in-the-middle. n ≤ 46 with 5 second limit... In C++ you'd do: enumerate subsets of half A (2^23), for each check independence incrementally, compute forbidden mask in B, and store best (max size) independent set... hmm.
+
+Actually, let me reconsider. A common technique for "find independent set of size exactly k" with n ≤ 40ish:
+
+Split into halves A (size a) and B (size b), a+b = n. Enumerate all independent subsets of A: list IA with (size, forbiddenMaskInB). Enumerate all independent subsets of B: list IB with (size, forbiddenMaskInA).
+
+For the cross condition: S_A ∩ F_A(S_B) = ∅. 
+
+Sort/group: For each independent S_B, we need an independent S_A ⊆ A \ F_A(S_B) with |S_A| = k - |S_B|.
+
+Alternative formulation: define for each subset X ⊆ A, h(X) = max size of independent subset of X (within A). Then condition: h(A \ F_A(S_B)) ≥ k - |S_B|.
+
+Precomputing h for all 2^23 subsets of A: DP as above, 2^23 * 23 transitions ≈ 200M basic ops. In Python, way too slow. Even in C++ it's ~1-2 seconds maybe. Hmm.
+
+But wait — maybe there's a better way. Note k ≤ n ≤ 46. Hmm.
+
+Alternative: think about complement. We need independent set of size k. Equivalently, vertex cover of size n - k in... no wait, independent set of size k ⟺ vertex cover of size n - k. Hmm, vertex cover of size n-k where n-k could be small or large.
+
+Hmm, another thought: maybe the answer relates to maximum independent set. If max independent set size ≥ k, then answer exists (take any k vertices of a maximum independent set). So the problem reduces to: compute α(G) (max independent set size) and find a maximum independent set; if α ≥ k, output any k vertices of it; else NO.
+
+So we need maximum independent set for n ≤ 46. Meet-in-the-middle for max independent set:
+
+Standard algorithm: split into halves. For half B, compute g(T) = max independent set in induced subgraph on T ⊆ B, for all T... that's the expensive part.
+
+Better standard approach for max independent set with n ≤ ~40: 
+
+Actually there's a well-known technique: enumerate subsets of the smaller half... Let me recall the "meet in the middle for maximum independent set" approach:
+
+Split V into L and R. For each subset S_L ⊆ L that is independent, the candidates in R are R \ N(S_L). We want max over independent S_L of (|S_L| + MIS(R \ N(S_L))).
+
+To compute MIS(T) for T ⊆ R quickly, we can precompute via DP over subsets of R: g(T) = 0 if T empty; else g(T) = max(g(T \ {v}), 1 + g(T \ ({v} ∪ N(v))) for any v ∈ T, say the lowest bit. This DP is over 2^|R| subsets with O(1) per subset (using lowest set bit trick): g(T) = max(g(T without lowest bit), 1 + g(T & ~(N(v) | {v}))). That's 2 transitions per subset. So 2 * 2^23 = 16.7M operations for the DP. In Python, still too slow (each dict/list access...). Hmm, 16.7M operations in Python ≈ 20-30 seconds. Too slow.
+
+But wait — we can be smarter about the split. The DP over subsets of R is 2^|R|. If we make R smaller, say |R| = 20, then 2^20 = 1M, DP is 2M ops — feasible in Python (~2-5 seconds maybe, hmm borderline). Then L has 26 vertices, and enumerating independent subsets of L... 2^26 = 67M — too many to enumerate all.
+
+Hmm, but we don't need to enumerate all subsets of L, only independent ones. The number of independent subsets could still be large (empty graph: 2^26).
+
+Hmm wait, but in the empty graph case, MIS is trivial. Let's think about worst cases.
+
+Actually, let's think again: the number of independent sets in a graph on 26 vertices is at most... the maximum is achieved by empty graph: 2^26 = 67M. Too many to enumerate in Python.
+
+Alternative: use a different algorithm. n ≤ 46... 
+
+Branch and bound for maximum independent set? With good pruning (e.g., based on coloring / greedy bounds), branch-and-bound can handle n=46 quickly for most graphs, but worst cases (random graphs around density 0.5) might be slow. Hmm, but actually for n=46, a decent branch-and-bound with clique-cover bounds should be fine? Random graphs with n=46: MIS size is around 2 log2 n ≈ 11-12. Branch and bound for MIS on random graphs is quite fast. The hard instances for MIS branch-and-bound are structured ones. For a competitive programming problem with n ≤ 46, the intended solution is probably meet-in-the-middle.
+
+Hmm wait, let me reconsider. Let me re-read the problem: n ≤ 46, m ≤ n(n-1)/2, time 5s. This looks like it's designed for meet-in-the-middle with 2^23 per half. In C++ that's fine. In Python... we need to be clever.
+
+Let me think about how to do this efficiently in Python.
+
+Key insight: we need max independent set (or independent set of size exactly k, but as noted, size exactly k is possible iff α ≥ k, since independent sets are downward closed — wait, is that right? We need exactly k positive nodes. If α ≥ k, take a maximum independent set and remove vertices until size k — still independent. Yes. And if α < k, impossible. So the problem is exactly: compute α(G) and a witness).
+
+So: compute maximum independent set on n ≤ 46 vertices in Python within 5s.
+
+Approaches:
+1. Meet-in-the-middle with subset DP: 2^(n/2) * small factor. 2^23 = 8.4M. In Python with bit tricks... We could try to vectorize with numpy? Hmm.
+
+2. Branch and bound with bitmasks: recursive, choose a vertex, branch include/exclude. With memoization on masks? The state space is subsets — too many. But B&B with good pruning might work for n=46. Risky for adversarial cases, but this problem's tests may not be adversarial. Hmm, but I should aim for a correct-and-fast solution.
+
+3. Meet-in-the-middle where the DP over half B subsets is done cleverly.
+
+Let me think about approach 3 more carefully, and how to make it Python-fast.
+
+Split: A = first a vertices, B = remaining b vertices, a + b = n. 
+
+Plan: 
+- Compute list of independent subsets of B with their sizes — but that's up to 2^b entries.
+- For each independent subset S_A of A, we need MIS(B \ N_B(S_A)).
+
+Alternative plan (the classic one for "independent set of size k" from e.g. Codeforces problems): 
+
+For each subset T of B, precompute f(T) = max independent set size in T. DP over all 2^b subsets. Then enumerate independent subsets of A (up to 2^a of them), and for each, combine.
+
+Total cost: 2^b * O(1) for DP + (number of independent subsets of A) * O(1) for combination.
+
+With a = b = 23: 2^23 DP entries + up to 2^23 independent subsets of A. In Python, both are ~8.4M iterations. Pure Python: ~10-30 seconds. Too slow. With numpy vectorization? Let's think.
+
+Can we vectorize the subset DP with numpy? g(T) = max(g(T \ lowbit(T)), 1 + g(T & ~closed_nbhd(lowbit(T)))). This is a recurrence where g(T) depends on g at smaller subsets. Vectorizing over subsets in order of... hmm, the dependencies are irregular (T & ~mask can be any smaller subset). We could process subsets in increasing order of popcount? Within same popcount, dependencies go to lower popcount (removing lowbit decreases popcount by 1; removing closed neighborhood decreases by ≥ 1). So we can process by popcount level: for all T with popcount p, g(T) depends only on g at popcount < p. So we can vectorize per level!
+
+For each level p (0..b), we have C(b, p) subsets. For each, compute lowbit v, then g(T) = max(g(T ^ lowbit), 1 + g(T & ~cnb[v])). With numpy: 
+- Represent subsets of level p as an array of ints.
+- lowbit = T & (-T); v_index = bit position of lowbit (precompute via table or using e.g. v = (T & -T); index = log2 — can use a precomputed dict or numpy: since lowbit is a power of 2, index = int(log2(lowbit))... or use a lookup table of size 2^b? A table mapping lowbit value to index: array of size b+1... we can precompute an array lb_index of size 2^b? That's 8.4M entries — fine as numpy int8? Actually we can compute index via np.log2 of the lowbit (exact for powers of 2). Or use a dict-based vectorized approach: np.searchsorted on powers of two.
+
+Then g(T ^ lowbit): need to look up g values at arbitrary subset indices. g is an array of size 2^b indexed by subset. So g[T ^ lowbit] — fancy indexing with the array of indices. That works!
+
+And g[T & ~cnb_arr[v_index]] where cnb_arr is array of closed neighborhoods indexed by vertex. T & ~cnb[v] = T & (full ^ cnb[v]) = T & comp_cnb[v]. So we need, for each T in level, comp_cnb[v_index(T)] — we can gather via fancy indexing: comp = comp_cnb_matrix[v_idx] (2D gather), then AND elementwise with T, then index g.
+
+Total work: sum over levels of C(b,p) * constant ≈ 2^23 * ~6 numpy ops. Each level's arrays: up to C(23,11) ≈ 1.35M elements. numpy ops on 1.35M elements are fast (~ms each). Total: 2^23 elements processed across levels, each with a handful of vectorized ops → maybe 24 levels * ~10 ops * few ms = well under a second. 
+
+But memory: g array of size 2^23 = 8.4M int8 (values ≤ 23, fits int8) = 8.4MB. Fine. Also we need to enumerate subsets by popcount: we can generate all subsets 0..2^b-1 and their popcounts via numpy (popcount via bit manipulation on uint32: standard SWAR popcount, vectorized). Then group by popcount or just process in order of popcount using argsort... Actually simpler: process levels in order; for level p, select indices where popcount == p. We can precompute popcount array (uint8, 8.4MB) and then for each p, np.nonzero(popcount == p). That's 24 passes over 8.4M array — fine.
+
+Wait, but actually there's a subtlety: the recurrence g(T) = max(g(T \ {v}), 1 + g(T \ N[v])) where v = lowbit. Is this correct? Standard: MIS(T) = max over v ∈ T of max(MIS(T \ {v}), 1 + MIS(T \ N[v])). Actually the standard recurrence: MIS(T) = max(MIS(T \ {v}), 1 + MIS(T \ N[v])) for any single v ∈ T. Proof: consider a maximum independent set I of T. If v ∉ I, then I ⊆ T \ {v}, so MIS(T) = |I| ≤ MIS(T\{v}) ≤ MIS(T). If v ∈ I, then I \ {v} is independent in T \ N[v], so |I| ≤ 1 + MIS(T \ N[v]) ≤ 1 + ... and conversely both options are achievable. Yes, correct for any fixed v ∈ T. 
+
+Then, for the A side: enumerate independent subsets of A. Up to 2^a = 8.4M. For each independent S_A, candidate = |S_A| + g[B_mask & ~N_B(S_A)] where B_mask = full B set. We want max over all.
+
+Enumerating 8.4M subsets and checking independence in Python: too slow in pure Python. Vectorize with numpy?
+
+Hmm. Let's think: we want to enumerate independent subsets of A. One way: DP similar to above but tracking "is independent" — actually we can compute an array ind[T] ∈ {0,1} for all T ⊆ A: ind[T] = 1 iff T independent. Recurrence: ind[T] = ind[T ^ lowbit] AND (lowbit & adj_mask_of_remaining? ...). Hmm: T is independent iff T \ {v} is independent and v has no neighbors in T \ {v}: i.e., adj[v] & (T ^ lowbit) == 0. So ind[T] = ind[T ^ lowbit] & ((adj[v] & (T ^ lowbit)) == 0). This can also be vectorized by popcount levels! Since T ^ lowbit has popcount p-1.
+
+But wait — do we even need to enumerate only independent subsets? We could just compute for ALL subsets S ⊆ A the value: best combination. But for non-independent S_A, |S_A| is not a valid independent set size. Hmm, but we could compute a different DP: for each subset X ⊆ A, h(X) = MIS size within X (same DP as for B). Then answer = max over subsets... no wait, that's not how the combination works. The combination requires: choose independent S_A ⊆ A and independent S_B ⊆ B with no cross edges. 
+
+Alternative formulation avoiding enumerating independent sets of A: 
+
+answer = max over T ⊆ B of [ g(T) + h(A \ N_A(T)) ]? No — that's not right either, because T ranges over all subsets of B, and h(A \ N_A(T)) = MIS in A after removing neighbors of T. Hmm, actually: 
+
+max over independent S_B ⊆ B of (|S_B| + h(A \ N_A(S_B))). And max over independent S_A of (|S_A| + g(B \ N_B(S_A))). These are correct formulations. But the max over independent S_B — we can't just take max over all T ⊆ B of (g(T) + h(A \ N_A(T))) because for non-independent T, g(T) is the MIS within T which is fine actually! Let me check: 
+
+Claim: answer = max over all T ⊆ B of (g(T) + h(A \ N_A(T))).
+
+Hmm, is that right? For any T ⊆ B, g(T) is the max independent set within T. Take a max independent set I_B ⊆ T. Then I_B is independent in B, and A \ N_A(T) ⊆ A \ N_A(I_B). So h(A \ N_A(T)) ≤ h(A \ N_A(I_B)), and the pair (I_B, max independent set in A \ N_A(I_B)) is a valid combined independent set. So g(T) + h(A \ N_A(T)) ≤ answer? Let's verify: I_B independent in B, I_A = MIS of A \ N_A(I_B) — then no cross edges between I_A and I_B (since I_A avoids all A-neighbors of I_B). And |I_B| + |I_A| = g(T) + h(A \ N_A(T))... wait, h(A \ N_A(T)) ≤ h(A \ N_A(I_B)) since A \ N_A(T) ⊆ A \ N_A(I_B) (because I_B ⊆ T implies N_A(I_B) ⊆ N_A(T)). So g(T) + h(A\N_A(T)) ≤ |I_B| + h(A \ N_A(I_B)) ≤ answer. And conversely, taking T = I_B* (part of optimal solution), we get equality. So yes:
+
+answer = max over T ⊆ B of (g(T) + h(A \ N_A(T))).
+
+But this requires computing h for all subsets of A (another 2^a DP) and then iterating over all 2^b subsets T of B, computing N_A(T) — which is the OR of neighbor masks of vertices in T. Computing N_A(T) for all T ⊆ B: another DP by popcount: nb[T] = nb[T ^ lowbit] | nb_A[lowbit_vertex]. That's an array of 2^b entries each of a bits (≤ 23 bits, fits in int32). Memory: 8.4M * 4 bytes = 33MB. OK.
+
+Then answer = max over T of g(T) + h[full_A & ~nb(T)]. Vectorized: h[(fullA) ^ nb[T]]... wait, A \ N_A(T) = fullA & ~nb(T) = fullA ^ (nb(T) & fullA). Since nb(T) only contains A-vertices, fullA ^ nb(T) works. So compute array vals = g[T] + h[fullA ^ nb[T]] for all T, then max. All vectorized with numpy: 8.4M-element fancy indexing — fine.
+
+But hold on — this gives only the SIZE of the maximum independent set, not the actual set. We need to output an actual set of size k (if α ≥ k). So we need reconstruction.
+
+Reconstruction plan: Once we know the answer α (and α ≥ k), we need to find an actual independent set of size k. Options:
+
+Option 1: Find T* achieving the max, then reconstruct MIS within T* (in B) and MIS within A \ N_A(T*) (in A) via the DP tables g and h (walking back). Then we get a maximum independent set of size α, and take any k vertices.
+
+To reconstruct, we need the DP tables g (size 2^b) and h (size 2^a) stored — 8.4M int8 each = 16.8MB total. Fine. And nb table (2^b int32 = 33MB) — or we can recompute nb for specific T on the fly (just OR the neighbor masks of set bits — O(popcount)). Actually for finding T*, we need nb[T] for all T to compute the max — that's the 33MB array, or we could compute vals differently.
+
+Hmm wait, actually, let me reconsider: maybe simpler to find T* by iterating: we need argmax over T of g(T) + h[fullA ^ nb[T]]. We need nb[T] for all T. 2^23 int32 = 33.5MB. Plus popcount-based DP to fill it: nb[T] = nb[T ^ lowbit] | nbA[v]. Vectorized by popcount levels again. Memory OK (256MB limit).
+
+Alternatively, swap roles: make B the smaller half? Let's balance: a and b with a + b = 46. If we do the "max over T ⊆ B" approach, we need:
+- g table for all subsets of B: 2^b int8.
+- h table for all subsets of A: 2^a int8.
+- nb table for all subsets of B: 2^b int32 (or we can avoid storing full table?).
+
+Hmm, alternatively: max over S ⊆ A of (h(S) + g[fullB & ~nbB(S)]) — symmetric, needs nbB table of size 2^a.
+
+Either way we need one "cross-neighbor" table of size 2^(half) with a-bits values. With a = b = 23: 2^23 * 4B = 33.5MB. Fine.
+
+Actually wait, we can reduce: we don't need nb for ALL subsets if we... hmm, we do the max over all T ⊆ B. We need nb[T] for each T. The DP by popcount needs nb at T ^ lowbit which is arbitrary lower popcount — so we need the whole table. OK, 33MB is fine.
+
+Hmm, wait. Actually, let me reconsider whether we can simplify: 
+
+Alternative simpler approach: compute h(S) for all S ⊆ A (MIS in A), and g(T) for all T ⊆ B (MIS in B). Then:
+
+answer = max over independent S ⊆ A... no. Let me just go with:
+
+answer = max over T ⊆ B of (g(T) + h(fullA & ~nbA(T))).
+
+Let me double check with a simple example. Graph: single edge between vertex 1 (in A) and vertex b1 (in B). n=2, k=1. A = {1}, B = {b1}. g: g(∅)=0, g({b1})=1. h: h(∅)=0, h({1})=1. nbA: nbA(∅)=∅, nbA({b1})={1}. Max over T ⊆ B: T=∅: 0 + h({1}) = 1. T={b1}: 1 + h(∅) = 1. answer = 1. Correct (α=1).
+
+Another check: no edges, n=2: T=∅: 0 + h({1}) = 1; T={b1}: 1 + h({1}) = 2. answer 2. Correct.
+
+Edge within A only: vertices 1,2 in A with edge, b1 in B, no cross edges. α = 2 (e.g., {1, b1} or {2, b1}). T={b1}: g=1, nbA(T)=∅, h({1,2}) = 1 → 2. Correct.
+
+Great, formulation works.
+
+Now, reconstruction of the actual independent set:
+
+1. Find T* = argmax (any) with value α.
+2. Reconstruct I_B = MIS within T* using g table: start with X = T*; while X ≠ 0: v = lowbit(X); if g[X] == g[X ^ lowbit]: X ^= lowbit (v not in MIS); else: v in MIS, X = X & ~cnb[v] (closed neighborhood in B), add v to I_B. At the end |I_B| should = g(T*).
+3. Reconstruct I_A = MIS within A \ N_A(T*) similarly using h table and closed neighborhoods in A.
+4. I = I_A ∪ I_B is a maximum independent set, size α. If α ≥ k, output any k vertices of I. Else NO.
+
+Wait, but I should double-check step 2's reconstruction logic: g[X] = max(g[X ^ lowbit], 1 + g[X & ~cnb[v]]). If g[X] == 1 + g[X & ~cnb[v]] then take v and move to X & ~cnb[v]; else g[X] == g[X ^ lowbit] (must be, since it's the max of the two), don't take v, move to X ^ lowbit. Correct.
+
+Edge case: what if g[X] equals both? Then either branch fine — but careful: if g[X] == g[X^lowbit] == 1 + g[X & ~cnb[v]], taking the "don't take v" branch is fine. If we take branch "g[X] == g[X ^ lowbit]" first, fine.
+
+Hmm wait, one more consideration: is it always true that g[X] equals one of the two? Yes, by the recurrence.
+
+Now, the sizes: a + b = n ≤ 46. Let me choose a = n // 2, b = n - a. So a ≤ 23, b ≤ 23. 2^23 = 8,388,608.
+
+Memory:
+- popcount arrays: for A: 2^a uint8 (8.4MB), for B: 2^b uint8 (8.4MB).
+- h table: 2^a int8 (8.4MB).
+- g table: 2^b int8 (8.4MB).
+- nbA table: 2^b int32 (33.5MB) — or int64? a ≤ 23 so int32 suffices. Actually numpy bitwise ops on int32 fine. Hmm, but careful with numpy: using uint32 might be safer for bitwise. Let me use uint32 or int32 consistently. Actually for masks up to 2^23, int32 is fine; ~x in numpy int32 gives negative numbers but & with fullA works: fullA ^ nb — since nb ⊆ fullA bits, XOR fine. Let me use uint32 to be safe... but then T & (-T) for lowbit: with uint32, -T wraps around, which is exactly what we want for two's complement: T & (-T) = T & (2^32 - T)... hmm, in numpy, -T for uint32 gives 2^32 - T (mod 2^32), and T & (2^32 - T) — is that lowbit? For T > 0: -T in two's complement = ~T + 1. T & (~T+1) = lowest set bit. Yes, works with wraparound. But careful: numpy may complain about unary minus on unsigned? It works (with wraparound, maybe a warning in older versions? Actually numpy allows it, gives result mod 2^32; in numpy 2.0 it's fine, no warning I believe... Actually there might be a deprecation warning for negative on unsigned in some versions? I recall `np.negative` on unsigned wraps silently. Let me avoid the issue: compute lowbit differently.
+
+Alternative lowbit computation without negation: lowbit = T & (T - 1) ... no that clears lowbit. Hmm: lowbit = T ^ (T & (T-1)). T & (T-1) clears the lowest set bit, so T ^ that = lowest set bit. And T - 1 for T ≥ 1 is fine (no underflow since T ≥ 1). So lowbit = T ^ (T & (T - 1)). 
+
+Then vertex index of lowbit: index = log2(lowbit). Since lowbit is a power of two (or... T ≥ 1 ensures lowbit ≥ 1, a power of 2). We can compute via np.log2 — floating point log2 of exact powers of two up to 2^22 is exact. Or use a multiplication-based de Bruijn... simpler: precompute an array `bit_index` of size 2^b? That's 8.4M int8 = 8.4MB — we could fill it: bit_index[1<<i] = i. Filling sparse entries: bit_index = np.zeros(2^b, int8); bit_index[1 << np.arange(b)] = np.arange(b). That's fine, 8.4MB. Or use np.log2 with float64: log2 of powers of two up to 2^23 is exactly representable → exact. Then cast to int. That's simpler and no extra memory. Let me use np.log2(lowbit.astype(np.float64)) → but careful: log2(2^23) = 23 exactly. Yes float64 represents 2^23 exactly and log2 returns exactly 23.0. Safe. Actually, even simpler: use `np.frexp`? Or use the searchsorted approach: np.searchsorted(powers, lowbit) where powers = 1<<arange(b) — searchsorted on 8.4M elements with 24 keys is O(8.4M log 24)? No wait, searchsorted searches each element of the first array into the second... np.searchsorted(a, v) — I always mix up. np.searchsorted(sorted_arr, values) finds insertion points of values in sorted_arr. We want, for each lowbit (8.4M values), its index among 24 powers. np.searchsorted(powers, lowbits) — that's 8.4M binary searches over 24 elements — fast enough? Each binary search ~5 steps, 8.4M * 5 = 42M ops in C — fine, maybe 0.5s. Hmm, log2 approach is probably faster and simpler. Let me use log2.
+
+Actually, alternative approach for the DP that avoids computing lowbit index per element: process the DP differently. For the g table over subsets of B:
+
+For each vertex v in B (b vertices), consider all subsets T where lowbit(T) = v, i.e., T contains v and T & (mask of vertices < v) == 0. Hmm, that's a way to group: for each v, the set of T with lowbit v = {T : v ∈ T, T ∩ [0, v) = ∅} = v-bit set, and arbitrary bits above v. These are subsets of the form (1<<v) + (S << (v+1)) for S ⊆ {v+1..b-1}. Enumerating: for v in range(b): the T's are (1<<v) | (S << (v+1)) for all S ⊆ 2^(b-1-v). We can generate these with numpy: S = arange(2^(b-1-v)), T = S << (v+1) | (1<<v). Then g[T] = max(g[T ^ (1<<v)], 1 + g[T & ~cnb[v]]). All vectorized, no lowbit computation needed! And these groups partition all non-empty subsets. 
+
+But wait — the DP dependency: g[T] depends on g[T ^ (1<<v)] (popcount-1) and g[T & ~cnb[v]] (popcount decreased by ≥ 1). If we process groups v = 0, 1, 2, ..., b-1 in increasing v order, is that valid? g[T] with lowbit v depends on subsets with popcount < popcount(T), but those subsets could have lowbit > v. E.g., T = {v, w} with w > v: T ^ (1<<v) = {w}, lowbit w > v. So processing by lowbit order doesn't respect dependencies. We need to process by popcount order. Within a popcount level, all dependencies are to strictly lower levels. So: process levels p = 1..b; for each level, for each v, handle subsets of popcount p with lowbit v. Hmm, that's more complex. 
+
+Alternatively: process by popcount level, and within a level, group by lowbit. For level p and lowbit v: T = (1<<v) | (S << (v+1)) where S has popcount p-1 and S ⊆ [v+1, b-1] shifted... The number of such T: C(b-1-v, p-1). Generating all subsets of [v+1, b) with popcount p-1 — we'd need to enumerate combinations. Hmm, this is getting complicated. 
+
+Simpler: precompute popcount for all 2^b subsets (vectorized SWAR popcount), then for each level p, extract indices via np.nonzero. Then for those indices compute lowbit and its index via log2, then gather. Let me estimate cost: total elements across levels = 2^23 ≈ 8.4M. Per element ops: lowbit computation (2-3 ops), log2 (1 op), gather comp_cnb (fancy index 2^23 elements from a 24-element array — fast), AND, XOR, two gathers from g (8.4M-element table — random access, cache misses but OK), add, maximum, store. Maybe ~10 numpy passes over ~8.4M total elements → each pass maybe 50-100ms → total ~1s. Acceptable.
+
+Hmm wait, actually there's an even simpler way to organize the DP without popcount levels! Note: g(T ^ lowbit) has popcount p-1, and g(T & ~cnb[v]) has popcount ≤ p-1. What if we process subsets in increasing numeric order? T ^ lowbit < T numerically (removing a set bit decreases value). T & ~cnb[v] < T numerically too (it's a subset of T missing at least v). So ALL dependencies are on numerically smaller subsets! So we can process T = 1, 2, 3, ..., 2^b - 1 in increasing numeric order. But vectorization requires batch processing... In increasing numeric order, we can't easily batch since each element depends on arbitrary earlier elements. Unless we process in chunks where dependencies are guaranteed outside the chunk? Not straightforward.
+
+Hmm, but actually — here's a classic trick: process bit by bit! For the DP g over subsets, we can do it "SOS-style"? Let me think... 
+
+Actually, here's another thought: the recurrence with lowbit: for T with lowbit v: g[T] = max(g[T without v], 1 + g[T \ N[v]]). Consider processing vertices v = 0..b-1 in order, and for each v, processing all T that contain v... no, dependencies as noted can go to higher-lowbit subsets.
+
+Alternative: use a different recurrence that allows ordered processing. Hmm, what about: g[T] = max(g[T ^ lowbit], 1 + g[T & ~cnb[lowbit_v]]). 
+
+What if instead we define the DP over "masked" processing: Let me think of the standard technique for computing MIS for all subsets — I recall it's typically done with the lowbit recurrence processing in increasing order of the subset integer value, in C++ with a simple loop:
+
+for (int T = 1; T < (1<<b); T++) { int v = __builtin_ctz(T); g[T] = max(g[T ^ (1<<v)], 1 + g[T & ~cnb[v]]); }
+
+This works in C++ because dependencies are numerically smaller. In Python, a pure loop of 8.4M iterations is too slow (~10+ s). 
+
+Vectorization by numeric order in blocks: Here's an idea — process in blocks of size 2^j? Hmm.
+
+Alternative: Let me think about whether we can restructure to process by popcount but generate subsets of given popcount efficiently with numpy. 
+
+Generating all subsets of [0, b) with popcount p: there are C(b, p) of them. We can generate combinations... For vectorized generation, one approach: start from the array of all subsets grouped by popcount via argsort of popcount array. I.e.:
+
+all_subs = np.arange(2^b, dtype=uint32)
+pc = popcount(all_subs)  # vectorized SWAR
+order = np.argsort(pc, kind='stable')  # sorts 8.4M uint8 — argsort of 8.4M elements: ~1-2s? Hmm, np.argsort on 8.4M elements takes maybe 0.5-1s. Acceptable-ish.
+
+Then boundaries per level via np.searchsorted or np.bincount cumsum. Then for each level, take the slice of ordered subsets. Then compute lowbit etc.
+
+Alternatively, avoid argsort: for each level p, mask = (pc == p); idx = np.nonzero(mask)[0] — that's b+1 passes over 8.4M array, each pass ~10ms → 0.25s. Fine. Actually np.nonzero on 8.4M boolean: fast. Total fine.
+
+Hmm, but wait: actually we don't even need to group by popcount for correctness of the vectorized DP if we're careful... Let me think again. Within a level p, all T's depend only on levels < p, which are already computed. So processing level by level works. 
+
+But here's a subtlety: when computing level p, we need g at T ^ lowbit (level p-1) and at T & ~cnb (level < p) — both already fully computed. 
+
+So the plan for g over B (and similarly h over A):
+
+1. allT = np.arange(2^b, dtype=np.uint32) — 8.4M * 4B = 33.5MB. Hmm, that's a big array but fine. Actually we don't need to materialize all subsets at once per level if we generate them per level... but generating per level is the hard part; using nonzero on popcount gives indices directly.
+
+2. pc = popcount(allT) — SWAR: 
+   x = allT
+   x = x - ((x >> 1) & 0x55555555)
+   x = (x & 0x33333333) + ((x >> 2) & 0x33333333)
+   x = (x + (x >> 4)) & 0x0F0F0F0F
+   x = x + (x >> 8); x = x + (x >> 16)  — or since b ≤ 23 < 32... final & 0x3F. With uint32, careful with constants: numpy uint32 ops with Python ints — need to make sure constants fit uint32; 0x55555555 fits. Should be fine; numpy will broadcast. Actually mixing uint32 array with Python int constants: numpy converts to uint32 if it fits. 0x55555555 = 1431655765 < 2^32, fits. OK.
+
+   Memory: several temporaries of 33.5MB each — could be up to ~200MB if not careful! Need to delete temporaries or use in-place ops. Hmm, 256MB limit. Let me be careful: use in-place operations (x -= ..., x &= ..., etc.) to minimize temporaries. Or use smaller dtype: subsets fit in uint32; but we could use... b ≤ 23 so uint32 needed (23 bits > 16). OK, 33.5MB per array. With careful in-place ops, peak maybe 3-4 arrays = ~130MB. Hmm, plus g table 8.4MB (int8), plus per-level index arrays. Should be OK but let me think about reducing.
+
+   Alternative: compute popcount per level? No... Alternative: compute pc as uint8: pc = popcount → store as uint8 (8.4MB). The SWAR computation needs uint32 intermediates but we can do it in chunks to limit memory! E.g., process allT in chunks of 1M elements: for each chunk, compute popcount, store into pc array (uint8). That limits temporaries to 1M*4B = 4MB. 
+
+   Actually, even better: we can avoid materializing allT entirely: for chunk [s, s+CH): T = np.arange(s, s+CH, dtype=uint32); compute pc chunk; pc[s:s+CH] = pc_chunk. Fine.
+
+3. For each level p in 1..b: idx = np.nonzero(pc == p)[0] — wait, pc is indexed by subset value, so idx are the subset values themselves (T values). Good: Ts = np.nonzero(pc == p)[0] — these are the subsets with popcount p, as an array of values (uint32 or int64 from nonzero — nonzero returns int64 indices; 1.35M * 8B = 10.8MB for the largest level — fine, can cast to uint32).
+
+   Hmm, but doing np.nonzero(pc == p) for each p: (pc == p) creates a boolean temp 8.4MB, nonzero scans it. 24 levels * (scan 8.4M) — fine, ~0.1-0.3s total.
+
+4. For Ts (uint32 array): 
+   low = Ts ^ (Ts & (Ts - 1))  — careful: Ts - 1 with uint32, Ts ≥ 1 so no underflow. 
+   v = np.log2(low) → float64 array; convert: v = v.astype(np.uint8) or int64 for indexing. Hmm, log2 of 8.4M elements: fast (~50ms).
+   Actually alternative: v = np.uint32(np.log2(low))... let me just do v = np.log2(low).astype(np.intp).
+   
+   Or avoid log2: precompute lookup via de Bruijn multiplication: idx = table[(low * DEBRUIJN) >> 27] — needs a 32-entry table and uint32 multiply — also fine. But log2 is simpler; exactness: low is a power of 2 up to 2^22 (b ≤ 23, lowbit ≤ 2^22). float64 represents exactly, log2 exact. Fine.
+
+   gT_excl = g[Ts ^ low]  — fancy indexing into g (int8 array of size 2^b). 
+   comp = comp_cnb[v] — comp_cnb is array of shape (b,) uint32: comp_cnb[v] = fullB & ~cnb[v]. Fancy index with v (intp array) → uint32 array.
+   inner_idx = Ts & comp
+   gT_incl = 1 + g[inner_idx]
+   g[Ts] = np.maximum(gT_excl, gT_incl)  — scatter into g at positions Ts. Since all Ts distinct, fine.
+
+   Note: g[inner_idx] — inner_idx values are subsets with popcount < p, already computed. g[Ts ^ low] — popcount p-1, computed. 
+
+   Wait, one concern: g[Ts] = ... assignment with Ts as index array — numpy scatter, fine.
+
+   Also note: for p=1: Ts are single bits; Ts ^ low = 0, g[0] = 0; inner_idx = Ts & comp_cnb[v] = 0 (since cnb[v] includes v) → g = 0, so g[Ts] = max(0, 1) = 1. Correct.
+
+5. After all levels, g table complete.
+
+Similarly compute h over A (size 2^a).
+
+Then the cross part: nbA table over subsets of B: nbA[T] = OR of nbA_mask[v] for v ∈ T. DP: nbA[T] = nbA[T ^ low] | nbA_mask[v]. Dependencies: T ^ low < T numerically. Can we vectorize by popcount level? nbA[T] depends on nbA[T ^ low] which has popcount p-1. Yes! Same level structure. So:
+
+for p in 1..b: Ts = subsets with popcount p; low, v as before; nbA[Ts] = nbA[Ts ^ low] | nbA_mask[v] — where nbA_mask is uint32 array indexed by v. Vectorized. Memory: nbA table 2^b uint32 = 33.5MB. Hmm. Plus we need it simultaneously with g table (8.4MB int8) and h table (8.4MB int8) and pc arrays (16.8MB uint8 for both halves)... Total: 33.5 + 8.4 + 8.4 + 16.8 ≈ 67MB plus temporaries. OK.
+
+Actually, wait: can we avoid the nbA table? We need max over T ⊆ B of g(T) + h[fullA & ~nbA(T)]. We need nbA(T) for all T. Alternatively, reformulate: max over S ⊆ A of h(S) + g[fullB & ~nbB(S)] — needs nbB table over subsets of A: 2^a uint32 = 33.5MB. Same size. Either way ~33.5MB. Fine, keep it.
+
+Hmm, actually here's a thought — could we avoid the nbA table by combining differently? The max over T of g(T) + h(fullA & ~nbA(T)): we could iterate over T in popcount order and compute nbA(T) on the fly... but computing nbA(T) on the fly requires the table anyway (DP). Unless we compute nbA(T) = OR over bits — too slow per element. So keep the table. 33.5MB is fine.
+
+Actually, alternatively: note that we could merge the nbA DP into the g DP loop (same level structure, same Ts, low, v) — compute both in the same per-level loop to reuse Ts/low/v arrays. 
+
+Then final: vals = g.astype(int8→ maybe int16 to avoid overflow when adding h up to 23+23=46 > 127? No, 46 < 127, int8 fine) — vals = g[T_all] + h[fullA ^ nbA] where T_all = arange(2^b). But g is indexed by T directly: g is an array of size 2^b indexed by subset value. So vals = g + h[fullA ^ nbA] elementwise: 
+  hidx = fullA ^ nbA  (uint32 array 8.4M) — nbA ⊆ fullA so XOR = AND NOT. 
+  hvals = h[hidx] — fancy index 8.4M lookups into 8.4M table — fine (~0.2s).
+  vals = g + hvals (int8 + int8 → int8, max 46, fine).
+  best = vals.argmax() → T* = argmax index. α = vals[T*].
+
+Memory for this step: hidx (33.5MB), hvals (8.4MB), vals (8.4MB). Plus existing tables. Total peak maybe ~120MB. OK.
+
+Then reconstruction:
+- I_B: reconstruct from T* using g table and cnb_B (closed neighborhoods within B): 
+  X = T*; while X: low = X & -X (Python ints, fine); v = low.bit_length() - 1; if g[X] == 1 + g[X & ~cnbB[v]]: take v; X &= ~cnbB[v]; else: X ^= low. 
+  
+  Wait, need care: check which branch matches. Standard: if g[X] == g[X ^ low]: X ^= low else: take v, X &= ~cnbB[v]. Hmm, but if both match, first branch taken — fine. But is it possible that g[X] == g[X ^ low] but the "correct" reconstruction requires taking v? No — if g[X] == g[X ^ low], then there's a MIS of X not containing v (since MIS(X\{v}) = MIS(X)), so excluding v is valid. Good.
+
+- I_A: reconstruct from S* = fullA & ~nbA(T*) using h table and cnb_A. 
+
+- Total set I = I_A ∪ I_B, |I| = α. Verify no edges inside (sanity, optional). If α ≥ k: output sorted list of any k vertices from I. Else "NO".
+
+Wait, but hold on. Let me double check the claim "answer = max over T ⊆ B of (g(T) + h(A \ N_A(T)))" once more, especially the direction ≤. For any T: let I_B = MIS(T) (independent in B, |I_B| = g(T)). Let X = A \ N_A(T). h(X) = MIS within X. Now I_B ∪ (MIS of X): is it independent? Cross edges: a cross edge between u ∈ I_B ⊆ T and w ∈ MIS(X) ⊆ X = A \ N_A(T). u ∈ T, so any A-neighbor of u is in N_A(T), so w (not in N_A(T)) is not adjacent to u. Yes! No cross edges. And within halves independent. So g(T) + h(A \ N_A(T)) is achievable → ≤ α. And ≥: take optimal I* = I_A* ∪ I_B*, T = I_B*: g(T) ≥ |I_B*|, N_A(T) ⊇ N_A(I_B*)... wait we need h(A \ N_A(I_B*)) ≥ |I_A*|: I_A* has no edges to I_B* (independent overall), so I_A* ⊆ A \ N_A(I_B*), so h(A \ N_A(I_B*)) ≥ |I_A*|. So the expression at T = I_B* is ≥ |I_B*| + |I_A*| = α. 
+
+So the formulation is correct.
+
+Now, sizes: n ≤ 46 → a, b ≤ 23. But wait — what if n is small? Then 2^a, 2^b small, everything trivial. Also m can be 0.
+
+Edge cases:
+- k ≤ α: output any k vertices from the maximum independent set.
+- k > α: NO.
+- k ≥ 1 always (k ≥ 1 per constraints). n ≥ 1.
+
+Hmm wait, actually also need to double check: the problem says "assign positive polarity to exactly k nodes" and constraints "no edge with both endpoints positive". Also, is there any other constraint? "every resonant link requires its net polarity to be zero or negative" — net = sum of two ±1 values: +2 (both positive) → fail; 0 (mixed) → OK; -2 (both negative) → OK. So indeed, positive set must be independent, and any independent set of size k works. And since independent sets are downward closed, exactly-k is possible iff α ≥ k. 
+
+Now let me also double check the examples:
+
+Example 1: n=4, edges 1-2, 1-3, 2-3, 3-4. k=3. Graph: triangle 1,2,3 plus edge 3-4. α: {1,4}? 1-4 not an edge → independent size 2. {2,4}: size 2. Can we get 3? Vertices 4 is only adjacent to 3. {1,2,4}: 1-2 edge → no. {1,4} + ? 2 adjacent to 1; 3 adjacent to 1 and 4. So α = 2 < 3 → NO. ✓.
+
+Example 2: n=5, edges 1-2, 3-4, k=3. α = 3 (e.g., {1,3,5}). Output YES with 3 nodes. ✓.
+
+Example 3: triangle, k=1: α=1 ≥ 1 → YES, output single node. ✓.
+
+Now, implementation details in Python with numpy. Let me plan carefully.
+
+Parsing: read n, m, k; then m edges. Build adjacency masks over vertices 0..n-1 (0-indexed internally).
+
+Split: A = vertices [0, a), B = vertices [a, n) where a = n // 2, b = n - a. So a ≤ b? n=46: a=23, b=23. n=45: a=22, b=23. Fine. Actually, which half should be which for memory? The nbA table is over subsets of B (size 2^b) with values in A-bits. To minimize, we'd want b smaller... but also g table over B is 2^b and h over A is 2^a. Total memory ~ 2^a + 2^b + 2^b (nbA) — minimized when b is the smaller? 2^a + 2*2^b with a + b = n: to minimize, make b smaller (since it has coefficient 2). So set b = n // 2, a = n - b (a ≥ b). E.g., n=46: a=23, b=23 either way. n=45: b=22, a=23. Marginal difference. Alternatively, put the cross table on the A side: max over S ⊆ A of h(S) + g(fullB & ~nbB(S)) — then table over subsets of A. Let me just choose: b = n // 2 (smaller or equal), a = n - b. Then tables: g over B: 2^b ≤ 2^23; h over A: 2^a ≤ 2^23; nbA over B: 2^b * 4B ≤ 33.5MB. Fine.
+
+Hmm wait, actually, let me reconsider: is it better to compute the max over T ⊆ B (needing nbA over subsets of B) or over S ⊆ A (needing nbB over subsets of A)? With b = n//2 (smaller half), nbA table is over the smaller half → less memory. And g over B (smaller half) and h over A (bigger half): both ≤ 2^23. OK.
+
+So: A = bigger half (vertices 0..a-1), B = smaller half (vertices a..n-1). Wait, n=46 → a=23, b=23. n=1 → a=1, b=0. Hmm, b=0: then B is empty, g table size 1 (g[0]=0), nbA table size 1 (nbA[0]=0), max over T ⊆ {∅}: T=∅: 0 + h(fullA). Fine, works.
+
+Let me now define:
+- For each vertex i in A (0 ≤ i < a): adjA[i] = mask over A-bits of neighbors within A: adjA[i] = (adj[i] & A_MASK) (bits 0..a-1). cnbA[i] = adjA[i] | (1 << i).
+- For each vertex j in B (a ≤ j < n): local index v = j - a. adjB[v] = (adj[j] >> a) & B_MASK... wait, adj[j] has bits at absolute positions; B local bit v corresponds to absolute vertex a + v. adjB_local[v] = adj[a+v] >> a (bits 0..b-1). cnbB[v] = adjB_local[v] | (1 << v).
+- nbA_mask[v] = adj[a+v] & A_MASK (bits of A-neighbors of B-vertex v, in A-local bit positions).
+
+DP for g (over B subsets): g = np.zeros(2^b, dtype=np.int8). For p in 1..b: Ts = nonzero(pcB == p). For each T in Ts: v = index of lowbit; g[T] = max(g[T ^ low], 1 + g[T & comp_cnbB[v]]) where comp_cnbB[v] = B_MASK & ~cnbB[v] = B_MASK ^ cnbB[v].
+
+DP for h (over A subsets): same with A data.
+
+DP for nbA (over B subsets): nbA = np.zeros(2^b, dtype=np.uint32). For p in 1..b: nbA[T] = nbA[T ^ low] | nbA_mask[v].
+
+We can merge g-DP and nbA-DP into one loop over levels (both over subsets of B). And h-DP separate loop over subsets of A.
+
+Then: hidx = (A_MASK ^ nbA) — wait: A \ N_A(T) = A_MASK & ~nbA[T]. Since nbA[T] ⊆ A_MASK, A_MASK ^ nbA[T] = A_MASK & ~nbA[T]. So hidx = nbA ^ A_MASK (as uint32). hvals = h[hidx]. vals = g + hvals. best_idx = argmax(vals) → T*. α = int(vals[T*]).
+
+Hmm, wait: h is indexed by A-local subsets; hidx values are A-local masks. h has size 2^a. Fancy indexing h[hidx] with hidx uint32 array — numpy will convert indices; uint32 indices OK (non-negative). Fine.
+
+Reconstruction:
+- S* = A_MASK & ~nbA[T*] (A-local mask of allowed A vertices).
+- Reconstruct MIS in S* via h: 
+  X = S*; IA = []
+  while X: low = X & (-X); v = low.bit_length() - 1; if h[X] == h[X ^ low]: X ^= low; else: IA.append(v); X &= ~cnbA[v].
+  (using Python ints and the h numpy array — h[X] returns np.int8; compare fine.)
+- Reconstruct MIS in T* via g similarly → IB (local indices in B).
+- Full set: vertices = [i for i in IA] + [a + v for v in IB]. Size should be α.
+- If α ≥ k: print "YES" and k of these vertices (1-indexed: +1). Which k? Any k — e.g., the first k in some order. Since the whole set is independent, any subset works.
+- Else "NO".
+
+Sanity check: also verify the found set is truly independent (optional but good for safety): check for each pair? O(k^2) ≤ 46^2 fine. And check size == α. If something's wrong... shouldn't be. Maybe add an assertion-free fallback? I'll trust the algorithm but let me be careful with implementation.
+
+Wait, one more check on reconstruction correctness: h[X] == h[X ^ low] branch: if equal, exclude v. Else, h[X] must equal 1 + h[X & ~cnbA[v]], include v. But what if h[X] != h[X^low] AND h[X] != 1 + h[X & ~cnbA[v]]? Impossible by recurrence. But due to int8 arithmetic: 1 + h[...] — h values ≤ 23, no overflow. OK.
+
+Hmm, but wait: there's a subtle issue with the recurrence when X & ~cnbA[v] — in the DP I used comp_cnb = FULL ^ cnb, and inner_idx = Ts & comp_cnb. In reconstruction: X & ~cnbA[v] with Python ints — same thing. OK.
+
+Now, performance analysis of the numpy DP:
+
+For b = 23: total subsets 8.4M. Levels: for each p, Ts array of size C(23, p) (max ~1.35M at p=11,12). Operations per level:
+- mask = (pcB == p) → 8.4MB bool temp; Ts = np.nonzero(mask)[0] → int64 array (10.8MB for max level). Convert to uint32? nonzero returns int64 (intp). Using int64 arrays for Ts: memory 2x but fine. Actually for indexing g (size 2^23), int64 indices fine.
+- low = Ts ^ (Ts & (Ts - 1)): Ts as int64 — careful: Ts - 1 fine. XOR/AND on int64 fine (values < 2^23, no sign issues).
+- v = np.log2(low) — low is int64; np.log2 on int64 → float64. Exact for powers of 2. v = v.astype(np.int64). Hmm, np.log2 of int array: it converts to float64 first — fine.
+- excl_idx = Ts ^ low; g_excl = g[excl_idx] — fancy indexing 1.35M elements.
+- comp = comp_cnbB[v] — v is int64 array; comp_cnbB is uint32 array of size b; result uint32... then Ts & comp: int64 & uint32 → numpy will upcast; result int64. Hmm, dtype mixing: int64 & uint32 → int64. OK fine.
+- incl_idx = Ts & comp; g_incl = 1 + g[incl_idx] — int8 + 1 → hmm, numpy: 1 + int8 array → int8 (value ≤ 24, fine). Actually g[incl_idx] is int8 array; 1 + that → int8. OK.
+- g[Ts] = np.maximum(g_excl, g_incl).
+
+Per level ~8 vectorized ops on ≤1.35M elements. 23 levels → ~184 vectorized ops, each on avg ~370K elements (8.4M/23). Total element-ops ~ 8.4M * 8 = 67M element operations in numpy → maybe 0.5-1.5s. Plus the nonzero scans: 23 * 8.4M = 193M comparisons — hmm, that's the potentially slow part: (pcB == p) creates an 8.4MB bool array each time (23 times) and scans. Each pass maybe 5-10ms → 0.2s. Fine.
+
+Similarly for h over A (a=23): same cost. And nbA DP: ~5 ops per level over B subsets: cheap.
+
+Then final combination: hidx = nbA ^ A_MASK (8.4M uint32 op), hvals = h[hidx] (8.4M fancy-index lookups — random access into 8.4MB table — cache misses, maybe 0.3s), vals = g + hvals, argmax. Fine.
+
+Popcount computation: for pcB (size 2^b) and pcA (size 2^a): chunked SWAR. Let me write:
+
+def popcount_all(size, dtype=np.uint32, chunk=1<<20):
+    pc = np.empty(size, dtype=np.uint8)
+    for s in range(0, size, chunk):
+        e = min(size, s+chunk)
+        x = np.arange(s, e, dtype=np.uint32)
+        x = x - ((x >> 1) & 0x55555555)
+        x = (x & 0x33333333) + ((x >> 2) & 0x33333333)
+        x = (x + (x >> 4)) & 0x0F0F0F0F
+        # now each byte holds its popcount; since ≤ 23 bits set, sum bytes:
+        x = (x + (x >> 8)) & 0x00FF00FF  — hmm, standard: 
+        Actually simpler: x = x + (x >> 8); x = x + (x >> 16); pc[s:e] = (x & 0x3F).astype(np.uint8)
+    return pc
+
+Wait, but with uint32 arithmetic in numpy: 0x55555555 as Python int → numpy will treat as... when mixing uint32 array with Python int constant, numpy 2.0 uses "weak promotion" — result stays uint32 if constant fits. In numpy 1.x, uint32 array & Python int: the int is converted to uint32 if it fits (value-based casting). 0x55555555 fits in uint32. Should be fine. But to be extra safe, I can use explicit np.uint32(0x55555555) constants. Let me do that to avoid any promotion surprises. Actually, hmm, in NumPy 1.x, `uint32_array - np.uint32(...)` fine; `uint32_array >> 1` — 1 is Python int, result uint32. OK. And `x - ((x >> 1) & np.uint32(0x55555555))` — the SWAR subtraction works with unsigned wraparound; here no wraparound actually occurs in the first step? The standard SWAR popcount first step x - ((x>>1) & 0x55...) is safe with unsigned arithmetic (it's designed for it). Fine.
+
+Alternatively, since values < 2^23, I could compute popcount via bit tricks on int64... whatever, SWAR is fine.
+
+Hmm, wait — actually there's an even simpler approach for grouping by popcount: I realize we could avoid popcount entirely by generating subsets level by level using the "combinations" structure... but no, popcount approach is simple enough.
+
+Alternatively — do we even need popcount grouping? Let me reconsider: we need to process subsets in an order where dependencies (numerically smaller) come first. Popcount levels work. Another option: process in increasing numeric order in a vectorized manner... 
+
+Actually here's a cute alternative: process by "lowbit vertex" groups in a specific order? Dependencies: T (lowbit v) depends on T ^ low (lowbit ≥ v... could be anything ≥ v? T ^ low has lowbit = next set bit > v) and T & ~cnb[v] (lowbit ≥ v? T & ~cnb[v] removes v and its neighbors; the next set bit of T after v might be a neighbor of v and removed, so lowbit could be > v; but could it be < v? No — T's lowbit is v, so no bits < v in T; T & ~cnb[v] ⊆ T so no bits < v. So lowbit of T & ~cnb[v] is > v or empty.) So all dependencies of a subset with lowbit v have lowbit > v (or are empty)! Wait: T ^ low: lowbit of T ^ low is the second-lowest bit of T, which is > v. And T & ~cnb[v]: lowbit > v. So if we process groups in DECREASING order of lowbit v (from v = b-1 down to 0), then when processing group v, all dependencies (lowbit > v) are already computed!
+
+Group v = all T with lowbit v: T = (1 << v) | (S << (v+1)) for S ⊆ {0..b-2-v} (bits above v). Number: 2^(b-1-v). Generate: S = np.arange(2^(b-1-v), dtype=...); T = (S << (v+1)) | (1 << v). 
+
+This avoids popcount computation entirely! And the group sizes: v=0: 2^22 = 4.2M; v=1: 2^21; ... total 2^23. The largest single group is 4.2M elements — bigger than per-popcount levels (1.35M) but total work same. Memory for temporaries: 4.2M * 8B = 33.5MB for int64 Ts... manageable, or use uint32 (16.8MB).
+
+Wait, let me double-check the dependency claim. T with lowbit v. Dependencies: D1 = T ^ (1<<v) — this is T without its lowest bit; its lowbit is the next set bit of T, which is > v. ✓. D2 = T & ~cnb[v] — subset of T without bit v (and without neighbors of v); all remaining bits are > v (since v was T's lowest). So lowbit(D2) > v or D2 = 0. ✓. So processing v from b-1 down to 0: when we process group v, groups v+1..b-1 done, and dependencies have lowbit > v → computed. And D1, D2 ≠ T. 
+
+This is cleaner — no popcount arrays needed. Let me redo the DP with this grouping:
+
+for v in range(b-1, -1, -1):
+    S = np.arange(0, 1 << (b-1-v), dtype=np.uint32)  # bits for positions v+1..b-1
+    T = (S << (v+1)) | np.uint32(1 << v)  — hmm, careful with dtype: S << (v+1): uint32 shifted; 1<<v as constant.
+    low = np.uint32(1 << v) (constant across group!)
+    excl_idx = T ^ low = S << (v+1)  — just S shifted! 
+    comp = comp_cnbB[v]  — constant!
+    incl_idx = T & comp
+    g[T] = np.maximum(g[excl_idx], 1 + g[incl_idx])
+    nbA[T] = nbA[excl_idx] | nbA_mask[v]  — excl_idx = S << (v+1), which has lowbit > v → computed. ✓
+
+Even simpler: excl_idx = S << (v+1) directly (no need to compute T ^ low). And T = excl_idx | (1<<v).
+
+Wait, but for the scatter g[T] = ..., T values are excl_idx | (1<<v). Fine.
+
+Hmm, but note: incl_idx = T & comp where comp = B_MASK ^ cnbB[v]. Since T = (S << (v+1)) | (1<<v), and comp excludes bit v: incl_idx = (S << (v+1)) & comp. Fine, just compute T & comp.
+
+This is elegant. Cost: same total element ops, ~6-7 ops per element over 8.4M elements per table. Three tables (g over B, h over A, nbA over B) → ~25M element-ops * ~7 = fine, plus fancy indexing gathers.
+
+Memory: per group v=0: arrays of size 2^22 = 4.2M: S/T/indices as uint32: 16.8MB each; several temporaries → maybe 100MB peak? Hmm. Let me count temporaries for the largest group (v=0, size 4.2M):
+- S: uint32 16.8MB (or we can avoid materializing S separately: excl = np.arange(0, 1<<(b-1), dtype=uint32) — 16.8MB)
+- T = excl | (1<<0) = excl | 1: another 16.8MB
+- incl_idx = T & comp: 16.8MB
+- g[excl]: int8 4.2MB
+- g[incl_idx]: int8 4.2MB
+- 1 + that: 4.2MB
+- maximum: 4.2MB
+- scatter g[T].
+- nbA[excl]: uint32 16.8MB; nbA[T] = that | const: 16.8MB.
+
+Peak maybe ~90MB for the largest group plus persistent tables (g 8.4MB, nbA 33.5MB, h 8.4MB). Under 256MB. OK. But to be safer, I could chunk the groups: process each group in chunks of, say, 2^20 elements. That reduces temporaries to a few MB. Let me add chunking: for each v, loop over chunks of the arange. Actually simpler: choose a chunk size like 1<<20 and iterate v and chunk offsets. The dependency structure within a group: elements of group v depend only on groups > v (already fully computed before we start group v) — so chunking within a group is totally fine (no intra-group dependencies! since dependencies have lowbit > v). 
+
+So: for v in range(b-1, -1, -1): n_above = b - 1 - v; total = 1 << n_above; for chunk starts: S = np.arange(start, end, dtype=uint32); ... This keeps temporaries small (~4MB each). 
+
+Let me now also double check the h DP over A with the same grouping: for u in range(a-1, -1, -1): similar with A data.
+
+And the final combination step: need max over T ⊆ B of g[T] + h[A_MASK ^ nbA[T]]. This is over all 2^b values of T — vectorize in chunks too: for chunks of arange(2^b): hidx = nbA[chunk] ^ A_MASK; vals = g[chunk] + h[hidx]; track max & argmax. Memory fine with chunking.
+
+Hmm, wait: h[hidx] — hidx is uint32; h is int8 array size 2^a. Fancy indexing fine.
+
+Actually, alternatively, since we need argmax over all T, and g[T] + h[...]: we can compute in chunks and track the best. Fine.
+
+Now, is there an issue when b = 0 (n = 1)? Then B empty: 2^b = 1, only T = 0. g[0] = 0, nbA[0] = 0. Loop over v in range(-1, -1, -1) → empty. Combination: T=0: 0 + h[A_MASK] = α. Reconstruction: IB empty; S* = A_MASK; reconstruct from h. Fine.
+
+When a = 0? a = n - b with b = n//2 → a = ceil(n/2) ≥ 1 for n ≥ 1. So a ≥ 1 always (n ≥ 1). Good. But wait, what if n = 1: b = 0, a = 1. OK. What about a = 23, b = 23 for n = 46.
+
+Hmm hold on, wait. Let me reconsider which half gets the "max over subsets" treatment. We compute max over T ⊆ B of g(T) + h(A \ N_A(T)). The nbA table is over subsets of B: size 2^b. With b = n // 2 = smaller half. For n = 46: 2^23 * 4B = 33.5MB for nbA, g: 2^23 int8 = 8.4MB, h: 2^23 int8 = 8.4MB. Total ~50MB + temporaries. Good.
+
+Now let me also think: is numpy definitely available? The problem says "Python 3". Typically competitive programming judges have numpy for Python. Hmm, but not always! This is a risk. If numpy is not available, we need a pure-Python fallback... 
+
+Hmm. Let me think about whether a pure-Python solution could pass within 5s for n=46.
+
+Pure Python meet-in-the-middle: 2^23 per half with simple loops — each iteration ~ a few operations. 8.4M iterations of the g-DP in pure Python: roughly 8.4M * ~0.3-0.5 μs per simple op... realistically a loop body with list indexing, max, bit ops: ~0.5-1 μs per iteration → 4-8 seconds just for one table. Three tables + combination → 15-25s. Too slow.
+
+Alternative pure-Python approaches:
+- Branch and bound for MIS with n=46. Could be fast in practice but worst-case risky.
+- Smarter: note k ≤ n. Hmm, is there something special about the problem? "exactly k positives, no edge with both positive" — it's independent set of size k. NP-hard in general. n ≤ 46 → meet-in-the-middle intended (2^23 * 2 halves). For Python, we need numpy or very clever bit tricks.
+
+Hmm, wait — maybe there's a pure-Python trick using big integers as bitsets to vectorize? Python big-int operations on huge integers can act as "SIMD" over bits. Could we do the subset DP with big integers? The DP g[T] = max(g[T^low], 1+g[T & ~cnb[v]]) — inherently sequential per subset with data-dependent indexing. Hard to vectorize with bigint tricks.
+
+Alternatively, restructure the algorithm to use bigint parallelism... Let me think about a different formulation.
+
+Alternative approach via "for each subset of B, compute MIS of B-subset" — that's the g table. Hmm.
+
+What about the classic "split into halves, enumerate independent sets of one half with their neighbor-masks into the other half, then for the other half precompute for each subset the MIS" — same thing.
+
+OK here's another thought: maybe use the structure: we need max over T ⊆ B of g(T) + h(A_MASK ^ nbA(T)). What if instead we enumerate only *independent* subsets of B (with their nbA masks) — the number of independent subsets might be much smaller than 2^b for dense graphs, but for sparse graphs it's close to 2^b. Worst case (empty graph) 2^23 independent subsets — but then MIS is trivial (n). Hmm, adversarial cases: graphs designed to have many independent sets AND hard structure... e.g., disjoint union of many small components? For a graph that's a disjoint union of edges (perfect matching), independent sets = 3^(n/2) = 3^23 ≈ 9.4 * 10^10 — way too many. But MIS for matching is trivial (n/2). Hmm, but enumerating independent sets is not the algorithm; the algorithm enumerates ALL subsets for the DP tables. The DP over all 2^23 subsets is the cost.
+
+I think numpy is the way. Most judges (Codeforces, ICPC-style with Python) have numpy. The problem statement here is from some contest ("Problem A — Ionization Configuration"); time limit 5s suggests they expect heavier solutions. I'll go with numpy, but let me ALSO consider adding a pure-Python fallback in case numpy import fails. A reasonable fallback: branch-and-bound MIS with bitmasks, which handles most cases, plus... hmm, but if numpy is missing and the test is adversarial, B&B might TLE. Still, a fallback is better than crashing. Actually, let me think about how good B&B can be.
+
+Branch and bound for maximum independent set (maximize): 
+- Pick vertex v (e.g., one with max degree in the remaining graph, or just any). Branch: include v (size+1, remove v and neighbors) or exclude v (remove v).
+- Bound: upper bound on MIS of remaining graph: e.g., greedy coloring-based bound (number of color classes found by greedy coloring) — this is the standard effective bound.
+- With n=46, and coloring bounds, typical instances solve fast. Worst-case pathological graphs (e.g., random graphs at critical density) might blow up... For n=46, random G(n, 1/2): MIS ≈ 11-12; B&B with coloring bound handles these in maybe thousands to millions of nodes. Hmm, millions of nodes in Python = too slow (each node maybe 10-50 μs → 10-50s for 1M nodes). Risky.
+
+Alternatively, the fallback could be a pure-Python meet-in-the-middle with heavy optimization... 2^23 loops in Python ~ 8-20s. Too slow.
+
+Hmm, alternatively: reduce the exponent. There's a technique: MIS(G) = max over subsets S of a vertex cover... hmm. Or: since we need only whether α ≥ k, and k could be small... but k can be up to n.
+
+Another idea: use the "kernel" structure: if k ≤ some threshold, branch and bound for size-k independent set (bounded search: pick vertex, branch include/exclude with pruning "remaining vertices ≥ needed"). For small k this is fast. For large k (close to α), the complement problem: we need to remove at most n-k vertices to hit all edges — minimum vertex cover of size ≤ n-k... For k close to n, vertex cover is small → branch and bound for vertex cover of small size: standard branching on an edge (u,v): must include u or v → 2^t branches where t = cover size. If n - k is small (say ≤ 15), 2^15 = 32K branches — fast. So B&B works when k small (independent set search) or n-k small (vertex cover search). The middle range (k ≈ 12..30 with n=46) is the hard zone... but α for hard graphs is around 10-14, so if k > α we output NO — but we need to PROVE α < k, which requires computing α exactly. Hmm.
+
+OK let me just go with numpy as primary. I'll include a pure-Python B&B fallback (with coloring bound) in case numpy is unavailable — best effort. Actually, you know, let me reconsider — maybe I can write the whole thing in pure Python but with a smarter algorithm that's provably fast enough...
+
+Hmm, wait. Let me reconsider the problem size: n ≤ 46. Meet in the middle: 2^23 per half. What if we use a *weighted* split to reduce work: the g-table DP is over 2^b subsets; the combination is over 2^b subsets; the h-table DP over 2^a. Total ~3 * 2^23 basic steps. In pure Python, using arrays (lists) and a tight loop, maybe we can get ~0.15-0.3 μs per step? No — pure Python is more like 50-100 ns per BYTECODE, and the loop body has ~10+ bytecodes → ~0.5-1 μs per iteration → 8.4M iterations ≈ 4-8s per table. Too slow, definitely.
+
+What about using `array` module and... no, same interpreter overhead.
+
+Could we use recursion-free DP where inner loops are replaced by slice operations on lists? The DP has irregular data access (g[T & comp]) — not slice-able.
+
+Hmm, what about a completely different algorithm: 
+
+**Maximum independent set via "split and list" with polynomial multiplication?** No.
+
+**MIS via complement: minimum vertex cover via inclusion-exclusion over 2^(n/2)?** Same complexity.
+
+I think numpy it is. Let me also double check: is there possibly a simpler polynomial solution given constraints? No — independent set is NP-hard; n=46 forces exponential-ish. The intended solution is definitely meet-in-the-middle (n ≤ 46 < 2 * 24, so halves ≤ 23).
+
+Actually hold on, let me reconsider the problem statement once more... "n distinct magnetic nodes", "assign positive polarity to exactly k", edges require net ≤ 0. Yes, independent set of size exactly k. Confirmed.
+
+Also note m ≤ n(n-1)/2 — simple graph. Good.
+
+Now, let me also consider: maybe there's a neat trick because we need ANY independent set of size k, not maximum. If α ≥ k we can take a maximum independent set and downsize. So computing α suffices. Alternatively, we could compute "is there an independent set of size ≥ k" which might allow early termination... but no simpler.
+
+Alright, let me also think about whether the meet-in-the-middle can be done with less memory/time using the following observation: we need max over T ⊆ B of g(T) + h(A \ N_A(T)). 
+
+Alternative: iterate over subsets S of A in the h-DP order... no, current plan is fine.
+
+Let me now also handle potential numpy version issues:
+- Fancy indexing with uint32 index arrays: works.
+- np.log2: not needed anymore (using the lowbit-group approach). 
+- Bitwise ops on uint32 with Python int constants: to be safe, wrap constants in np.uint32(...) or ensure they fit. In NumPy 2.x, Python int constants are "weak" — operations keep uint32 dtype if the constant fits in uint32. In NumPy 1.x, value-based casting does the same for fitting non-negative constants. I think plain constants are fine, but I'll use np.uint32 wrappers for the masks to be safe. Hmm, actually `np.uint32(1) << v`... shifting: np.uint32(1) << 22 → uint32. OK. But careful: `1 << v` as Python int then combined with uint32 array: `arr | (1 << v)` — in NumPy 1.x, if 1<<v fits uint32 → OK. In NumPy 2.x, weak promotion → OK. I'll wrap anyway.
+
+- One concern: `S << (v+1)` where S is uint32 array and v+1 up to 22: shifting left by up to 22 — values up to 2^23-ish fit. For v+1 = 23? v ≤ b-1 = 22, so v+1 ≤ 23... wait if v = b-1 = 22, then n_above = b-1-v = 0, total = 1, S = [0], shift by 23: 0 << 23 = 0. Fine. For v = 21: shift by 22, S up to 2^0=1... n_above = 1, S ∈ {0,1}, S << 22 ≤ 2^22. Fine. Max T value: bits up to b-1 = 22 → T < 2^23. Fits uint32. ✓.
+
+Let me now write the algorithm in detail.
+
+```python
+import sys
+import numpy as np
+
+def main():
+    data = sys.stdin.buffer.read().split()
+    n = int(data[0]); m = int(data[1]); k = int(data[2])
+    adj = [0] * n
+    idx = 3
+    for _ in range(m):
+        u = int(data[idx]) - 1; v = int(data[idx+1]) - 1; idx += 2
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+    
+    b = n // 2
+    a = n - b
+    A_MASK = (1 << a) - 1
+    B_MASK = (1 << b) - 1  # local bits for B
+    
+    # local adjacency
+    # A vertices: 0..a-1 (absolute same as local)
+    # B vertices: absolute a+v, local bit v
+    cnbA = [0]*a   # closed neighborhood within A (local bits)
+    comp_cnbA = np.empty(a, dtype=np.uint32)
+    for i in range(a):
+        cnb = (adj[i] & A_MASK) | (1 << i)
+        cnbA[i] = cnb
+        comp_cnbA[i] = B_MASK... 
+```
+
+wait, comp_cnbA should be A_MASK ^ cnbA[i] (complement within A). Let me define comp_cnbA[i] = A_MASK ^ cnbA[i]. Similarly comp_cnbB[v] = B_MASK ^ cnbB[v].
+
+```python
+    cnbB = [0]*b
+    comp_cnbB = np.empty(b, dtype=np.uint32)
+    nbA_mask = np.empty(b, dtype=np.uint32)  # A-local neighbors of B vertex v
+    for v in range(b):
+        av = adj[a + v]
+        loc = av >> a  # B-local neighbors (bits 0..b-1) — since B vertices are a..n-1, av >> a gives bits 0..b-1
+        cnb = loc | (1 << v)
+        cnbB[v] = cnb
+        comp_cnbB[v] = B_MASK ^ cnb  # careful B_MASK as uint32
+        nbA_mask[v] = av & A_MASK
+```
+
+Wait: av >> a: absolute bits a..n-1 → local 0..b-1. Since n = a + b, bits above n-1 don't exist. ✓. And av & A_MASK: absolute bits 0..a-1 = A-local. ✓.
+
+DP for h (over A subsets), h = np.zeros(1<<a, int8):
+
+```python
+    h = np.zeros(1 << a, dtype=np.int8)
+    for u in range(a-1, -1, -1):
+        shift = u + 1
+        cnt = 1 << (a - 1 - u)
+        bit = np.uint32(1 << u)
+        comp = comp_cnbA[u]  # scalar uint32
+        # process in chunks
+        CH = 1 << 20
+        for s0 in range(0, cnt, CH):
+            s1 = min(cnt, s0 + CH)
+            excl = np.arange(s0, s1, dtype=np.uint32)
+            excl <<= shift   # excl = S << (u+1)
+            Tarr = excl | bit
+            incl = Tarr & comp
+            h[Tarr] = np.maximum(h[excl], h[incl] + np.int8(1))
+```
+
+Hmm wait: h[incl] + 1: h[incl] is int8 array; +1 → int8 (max 23+1=24 fine). np.maximum of int8 arrays fine. Scatter h[Tarr] = ... fine.
+
+Wait, but there's a subtle issue: `excl <<= shift` — in-place left shift on uint32: values S < 2^(a-1-u) shifted by u+1 → < 2^a ≤ 2^23. Fine.
+
+But hold on — dependency check again for this grouping: group u = subsets with lowbit u. Dependencies: excl = T without bit u → lowbit > u → in groups processed earlier (we iterate u from a-1 down to 0, so groups with larger lowbit processed first). ✓. incl = T & comp_cnbA[u] → subset of excl → lowbit > u. ✓. 
+
+DP for g and nbA (over B subsets):
+
+```python
+    g = np.zeros(1 << b, dtype=np.int8)
+    nbA = np.zeros(1 << b, dtype=np.uint32)
+    for v in range(b-1, -1, -1):
+        shift = v + 1
+        cnt = 1 << (b - 1 - v)
+        bit = np.uint32(1 << v)
+        comp = comp_cnbB[v]
+        nbm = nbA_mask[v]  # scalar uint32
+        CH = 1 << 20
+        for s0 in range(0, cnt, CH):
+            s1 = min(cnt, s0 + CH)
+            excl = np.arange(s0, s1, dtype=np.uint32)
+            excl <<= shift
+            Tarr = excl | bit
+            incl = Tarr & comp
+            g[Tarr] = np.maximum(g[excl], g[incl] + np.int8(1))
+            nbA[Tarr] = nbA[excl] | nbm
+```
+
+Wait — nbA[excl]: excl has lowbit > v → already computed. ✓. nbA[Tarr] = nbA[excl] | nbA_mask[v]. ✓.
+
+Hmm, but there's a problem: `nbA[excl]` — fancy indexing creates a copy (uint32, chunk ≤ 4MB), then `| nbm` creates another, then scatter. Fine.
+
+Combination: max over T in 0..2^b-1 of g[T] + h[A_MASK ^ nbA[T]]:
+
+```python
+    best_val = -1
+    best_T = 0
+    AM = np.uint32(A_MASK)
+    CH = 1 << 20
+    for s0 in range(0, 1 << b, CH):
+        s1 = min(1 << b, s0 + CH)
+        Tarr = np.arange(s0, s1, dtype=np.uint32)
+        hidx = nbA[s0:s1] ^ AM
+        vals = g[s0:s1] + h[hidx]
+        j = int(np.argmax(vals))
+        if int(vals[j]) > best_val:
+            best_val = int(vals[j])
+            best_T = s0 + j
+```
+
+Wait: nbA[s0:s1] — slicing a numpy array gives a view; XOR with scalar → new array. g[s0:s1] view; h[hidx] fancy → int8 array; vals int8. argmax fine.
+
+Hmm, careful: h has size 2^a; hidx values ⊆ A_MASK < 2^a. ✓.
+
+α = best_val. T* = best_T.
+
+Reconstruction:
+
+```python
+    # Reconstruct IB from T* using g (pure Python, small loops)
+    IB = []
+    X = best_T
+    while X:
+        low = X & (-X)
+        v = low.bit_length() - 1
+        if g[X ^ low] >= g[X]:   # exclude v
+            X ^= low
+        else:
+            IB.append(v)
+            X &= ~cnbB[v]
+```
+
+Hmm wait, the logic: g[X] = max(g[X^low], 1 + g[X & ~cnbB[v]]). If g[X^low] == g[X], we can exclude. Else g[X] = 1 + g[X & ~cnbB[v]] > g[X^low], include v. Using `if g[X ^ low] >= g[X]` — hmm, g[X^low] ≤ g[X] always, so >= means ==. Fine. But careful: g[X] is np.int8; comparisons with Python ints fine.
+
+Wait, but there's a subtle bug: if g[X^low] == g[X], excluding v is valid. If g[X^low] < g[X], then must include. ✓.
+
+```python
+    # Reconstruct IA from S* = A_MASK & ~nbA[T*] using h
+    Sstar = A_MASK & ~int(nbA[best_T])
+    IA = []
+    X = Sstar
+    while X:
+        low = X & (-X)
+        u = low.bit_length() - 1
+        if h[X ^ low] >= h[X]:
+            X ^= low
+        else:
+            IA.append(u)
+            X &= ~cnbA[u]
+```
+
+Then total = IA (absolute vertices = same) + [a + v for v in IB]. len(total) should == α.
+
+If α >= k: output "YES" and k vertices (1-indexed). Which k? Any subset of the independent set of size k — e.g., total[:k]. Print sorted? Not necessary but nice: "If multiple valid configurations exist, any one is acceptable." I'll print them in any order; maybe sorted for determinism.
+
+Else: "NO".
+
+Let me double check the reconstruction of IB: we want MIS within T*. The walk: X starts at T*. At each step, v = lowbit of X. If g[X^low] == g[X]: X = X^low (v excluded; MIS of X doesn't need v). Else: v included, X = X & ~cnbB[v]. Terminates when X = 0. The collected IB has size g[T*]? Let's verify invariant: at each step, remaining "potential" = g[X] decreases appropriately: if exclude: g stays same (g[X^low] = g[X]); if include: we add 1 and g[X & ~cnbB[v]] = g[X] - 1. At X=0, g=0. So total collected = g[T*]. ✓. And independence: each included v has its neighbors removed from X before subsequent inclusions → no two included vertices adjacent. ✓.
+
+Similarly IA has size h[S*]. And α = g[T*] + h[S*] where S* = A \ N_A(T*). ✓ (by construction of best_T achieving the max).
+
+Cross-edge check between IA and IB: IA ⊆ S* = A \ N_A(T*) and IB ⊆ T*, so no A-B edges between them. ✓. So total is independent with size α. 
+
+Now let me double-check the DP recurrences once more with a tiny example. B = {0,1} with edge between local 0 and 1 (cnbB[0] = {0,1} = 0b11, cnbB[1] = {0,1} = 0b11). comp_cnbB[0] = B_MASK ^ 0b11 = 0. comp_cnbB[1] = 0.
+
+g DP: b=2. v=1: cnt = 1<<(2-1-1)=1: S=[0], excl = 0<<2 = 0, Tarr = 0 | 0b10 = 0b10. incl = 0b10 & comp_cnbB[1]=0 → 0. g[0b10] = max(g[0], g[0]+1) = max(0,1) = 1. ✓.
+v=0: cnt = 1<<(2-1-0) = 2: S = [0,1], excl = S<<1 = [0, 2], Tarr = [1, 3]. incl = Tarr & comp_cnbB[0] = [0, 0]. g[1] = max(g[0], g[0]+1) = 1 ✓. g[3] = max(g[2], g[0]+1) = max(1, 1) = 1 ✓ (edge between them, MIS of {0,1} = 1).
+
+nbA DP with nbA_mask = say [x0, x1]: v=1: nbA[0b10] = nbA[0] | x1 = x1 ✓. v=0: nbA[1] = nbA[0] | x0 = x0 ✓; nbA[3] = nbA[2] | x0 = x1 | x0 ✓.
+
+Great.
+
+Now, complexity/memory summary for n=46 (a=b=23):
+- h: 2^23 int8 = 8.4MB
+- g: 2^23 int8 = 8.4MB
+- nbA: 2^23 uint32 = 33.5MB
+- temporaries per chunk (2^20): several 4MB arrays — fine.
+- combination step: chunked.
+
+Total well under 256MB. 
+
+Time estimate: 
+- h DP: total elements 2^23, per element: arange gen, shift, or, and, 2 gathers, add, maximum, scatter ≈ 9 ops → ~75M element-ops. numpy: each op on 2^20-element chunk ~ 1-3 ms → 8 chunks * 9 ops * 2ms ≈ 150ms? Plus gather/scatter with random access patterns — g[excl] where excl values are spread over the 8.4MB table — cache misses; maybe 5-10x slower per element for gathers: 8.4M gathers * ~50ns = 0.4s. Hmm. Total h DP maybe 0.5-1s.
+- g+nbA DP: similar, ~1-1.5s (nbA adds 2 gathers + op + scatter on uint32).
+- combination: 8.4M iterations: slice XOR (fast), h[hidx] gather (8.4M random gathers ~0.5s), add, argmax per chunk. ~1s.
+- Total maybe 2.5-4s. Hmm, cutting close to 5s but probably OK. Let me optimize where possible.
+
+Optimizations:
+1. In the DP loops, note `excl` for group v is just `np.arange(s0, s1) << shift` — we can compute directly. Also `Tarr = excl | bit`. The gathers: g[excl] — excl = S << shift where S = arange chunk — these are strided accesses (stride 2^shift elements)! For shift ≥ 1, g[excl] accesses every 2^shift-th element — actually cache-friendlier? For shift large, few elements. Hmm, for v=0 (shift=1): excl = 2*S — accesses g at even indices — sequential-ish with stride 2 — fine cache-wise. g[incl]: incl = Tarr & comp — comp removes bit v and neighbors of v — incl = (S << shift) & comp — for v=0, comp excludes bit 0 and neighbors of vertex 0... incl values are subsets of bits ≥ 1 — scattered but that's inherent.
+
+2. Use int8 for g/h — gathers on int8 arrays: 8.4MB table fits in L2/L3 cache mostly — random gathers OK.
+
+3. nbA DP: nbA[excl] gather on uint32 33.5MB table — excl stride 2^shift — for shift=1, stride-8-bytes sequential — fine. nbA[Tarr] scatter — Tarr = excl | bit — stride-2 pattern — fine.
+
+4. The combination step: hidx = nbA[chunk] ^ AM — sequential; h[hidx] — random gathers into 8.4MB int8 — OK.
+
+Alternatively, restructure combination to avoid materializing: vals = g[chunk] + h[hidx]; track chunk max. Fine.
+
+Actually, here's a potentially significant optimization for the combination: instead of computing over all 2^b subsets T of B, note we only need max. But we need the full scan anyway. It's fine.
+
+Another optimization: merge g-DP and nbA-DP loops (already planned) to share excl/Tarr computation.
+
+Also: we can skip the h DP for vertices... no.
+
+Hmm, one more consideration: for small n (say n ≤ 20 or so), 2^a small — everything trivial. The code handles all sizes uniformly. But for very small tables, numpy overhead per op is negligible anyway. Also if 2^a or 2^b is 1 (b=0), loops handle gracefully: for b=0: range(b-1,-1,-1) = range(-1,-1,-1) empty ✓; combination loop over 1<<0 = 1 element: Tarr=[0], hidx = nbA[0:1]^AM = [0]^AM = [AM], vals = g[0] + h[AM] ✓.
+
+Edge: a could be 0? a = n - n//2 = ceil(n/2) ≥ 1 for n ≥ 1. ✓. But what if n=0? Constraint says n ≥ 1. OK.
+
+Now — what about the case where numpy is unavailable? Let me write a pure-Python fallback. Given the risk, I'll structure: try import numpy; if fails, use pure-Python meet-in-the-middle with... hmm, pure Python 2^23 loops too slow. Alternative pure-Python: branch and bound. Let me think about what's the best pure-Python approach within 5s.
+
+Actually, wait. Let me reconsider pure Python with a different meet-in-the-middle that might be fast enough:
+
+Pure-Python MITM with dictionaries: enumerate independent sets of half A (via recursion, collecting (size, maskInB_forbidden))... still up to 2^23 entries — too slow/big.
+
+Branch and bound for decision "α ≥ k": We can phrase as: find independent set of size k. B&B: 
+- If k ≤ 0: success.
+- Choose vertex v. Branch 1: include v → k-1, remove N[v]. Branch 2: exclude v → remove v.
+- Prune: if number of remaining vertices < k: fail. Better bound: greedy coloring of remaining graph gives upper bound on α(remaining); if < k: fail.
+
+For the "NO" cases we must prove no independent set of size k exists — requires the full B&B to exhaust. Hard instances: hmm.
+
+Alternatively, pure-Python MITM but with smaller effective exponent using the "independent sets only" enumeration with pruning by size? We need sets of size exactly k... Let me think: enumerate all independent subsets of A with size ≤ min(a, k) — but that's still potentially huge.
+
+Hmm, honestly, for a fallback, maybe do this: pure-Python MITM over subsets of the halves but implemented with... hmm.
+
+Actually — wait. Here's a much better idea for pure Python: use the SAME algorithm but exploit that Python's big integers can do parallel bitwise ops... no, the DP is not bitwise-parallel.
+
+Alternatively, pure-Python fallback with recursion over vertices building the g table via memo dict — no.
+
+OK here's another thought: maybe implement the fallback as the classic MITM but with the halves sized asymmetrically to fit pure Python: e.g., b = 20 (2^20 = 1M subsets for the g/nbA tables — pure Python loops over 1M elements ≈ 0.5-1s each table, OK), and a = 26 — but then enumerating over subsets of A... the combination step is max over T ⊆ B (1M — fine), but the h table over A needs 2^26 = 67M — too slow in pure Python.
+
+Flip it: h table over the SMALL half via pure Python (2^20), and enumerate independent sets of the big half? Enumerating independent sets of a 26-vertex half: up to 2^26 — too slow.
+
+Hmm. What about a three-way split? Like (a1, a2, b) with tables over pairs... complexity 2^(n/3)*something... The standard 3-way MITM for independent set: split into three parts X, Y, Z. For each independent subset of X ∪ Y... hmm, this needs care with cross edges. 
+
+Actually, the classic approach: answer = max over independent S_X, S_Y, S_Z with no cross edges. Meet-in-the-middle over three parts: for each pair... The complexity typically becomes 2^(2n/3) = 2^30.7 for n=46 — worse.
+
+OK, pure-Python fallback: I'll implement a decent branch-and-bound with coloring bound, plus the vertex-cover branching when n-k is small. Actually, simpler: implement B&B for maximum independent set with these prunings:
+1. Greedy coloring bound (using the "pick vertex with max saturation"... simpler: order vertices by degree descending, greedy color; number of colors = upper bound on α). 
+2. Include/exclude branching on the vertex that appears... standard: branch on vertex v chosen as the one with highest degree in remaining graph? A common effective strategy: branch on any vertex; but to reduce the tree, use the coloring to guide.
+
+A cleaner well-known approach: "MIS via branching on a vertex, with the complement covered by coloring" — the standard algorithm (like in mcqd): 
+- If current size + bound ≤ best: prune.
+- Get a coloring of the remaining graph; process color classes; branch...
+
+This is getting complex. Given time constraints in this answer, maybe simpler: fallback = pure-Python MITM with halves of ~23 but written with aggressive optimization... 8.4M-iteration loops in Python: using lists and local variable caching, a tight loop like:
+
+for T in range(1, 1<<b):
+    low = T & -T
+    v = low.bit_length()-1
+    x = T ^ low
+    y = T & comp[v]
+    gx = g[x]; gy = g[y]
+    g[T] = gx if gx >= gy+1 else gy+1
+
+That's ~8 ops → in CPython, roughly 8.4M * ~0.4μs ≈ 3.4s. Plus nbA table: another ~2-3s. Plus h table: ~3.4s. Plus combination ~2s. Total ~12s. Too slow. 
+
+Could reduce: note we don't need the nbA table separately — we can compute nbA on the fly in the combination? No, DP needed.
+
+Alternative: combine g and nbA DPs in one loop (share low/v computation): saves ~1-2s. Still ~10s.
+
+Alternatively use smaller halves for the pure-Python path with a smarter combination? Hmm.
+
+Actually, here's a classic trick to reduce the MITM work: instead of computing g(T) for ALL T ⊆ B, note that in the combination we need max over T of g(T) + h(A\N_A(T)). What if we enumerate over independent subsets of B only, in DFS order, computing nbA incrementally, and for each, look up h[A_MASK ^ nbA] — the number of independent subsets of B can be much less than 2^b for dense graphs, but 2^b for sparse... but for sparse graphs, hmm, the independent-set count is large but the graph is easy? Not necessarily — e.g., disjoint union of 23 edges has 3^23 independent sets — way more than 2^23. But for that graph α = 23 = b... trivial. Hmm, but the enumeration would be 3^23 — no.
+
+OK, decision: primary solution with numpy. Fallback: pure-Python B&B with coloring bound — best effort, likely fine for typical tests, might TLE on adversarial ones. Actually, hmm, let me think about how to make a robust pure-Python fallback...
+
+Actually, wait! Let me reconsider. There's a neat pure-Python approach using memoized recursion on the graph structure with the "component split" + MITM per component? If the graph is disconnected, MIS = sum over components. Components could each be small... but a connected graph on 46 vertices is the hard case.
+
+Alternatively — pure Python but with the MITM done via *precomputed transitions using arrays and minimizing per-iteration cost*... Let me think about the actual per-iteration cost more carefully. A loop like:
+
+g = bytearray(1<<b)  # int8 values fit
+comp = [ ... ]  # list of ints
+for T in range(1, 1<<b):
+    low = T & -T
+    ...
+
+bytearray indexing g[x] returns int — fast. The loop body: ~8-10 bytecode-heavy ops. CPython ~ 30-60M simple ops/sec... 8.4M iterations * ~10 ops = 84M ops ≈ 2-4s. Three such loops → 6-12s. Over the limit but... the time limit is 5s. Hmm.
+
+We could reduce total work: choose the split so that the B half (with g + nbA tables) is smaller: b = 16, a = 30? Then g/nbA tables: 2^16 = 65K — fast. But h table over A: 2^30 — impossible.
+
+The fundamental cost: h table over A (2^a) + g,nbA,combination over B (3 * 2^b). With a + b = 46. Minimize 2^a + 3*2^b → a > b: a = 24, b = 22: 2^24 + 3*2^22 = 16.7M + 12.6M = 29M loop iterations ≈ 10-15s pure Python. Still too slow.
+
+So pure Python really can't do the worst case. Numpy is needed for worst case. I'll go numpy-primary with a B&B fallback (which handles most non-adversarial cases, and honestly if numpy is missing, the judge probably doesn't have adversarial tests for Python... risky either way).
+
+Hmm, actually, wait. Let me reconsider the problem source. "Problem A — Ionization Configuration", TL 5s, ML 256MB, n ≤ 46. This smells like a Codeforces problem. Let me think... n ≤ 46, independent set of size k... Hmm, this could be from Codeforces Round... "Exactly k positives such that no edge has both endpoints positive" — I recall a problem: CF 1105? "Sasha and a Bit of Relax"? No. Hmm, "n ≤ 46" strongly suggests 2^23 MITM. There's CF problem 1043F? No. Hmm, there's a known problem: Codeforces 1105 E? No... Let me think: "Choosing positive polarities so that each edge has at most one positive" = independent set. With n ≤ 46: maybe it's from a Codeforces Gym or an ICPC regional. Whatever — the intended solution is MITM in C++. For Python, numpy MITM as planned.
+
+Actually, hold on — maybe I should reconsider: is it possible the intended solution is simpler because of some property? Let me re-read the problem statement once more...
+
+"Your objective is to assign a positive polarity to exactly k of these nodes." "every resonant link requires its net polarity to be zero or negative" — net polarity = sum of the two node polarities (+1/-1). Both positive → +2 > 0 → fail. So yes: independent set of size exactly k. NP-hard. n ≤ 46 → MITM. Confirmed.
+
+One more consideration: the answer when α ≥ k: any k vertices of a maximum independent set. ✓.
+
+Now let me also double check the MITM formulation handles the "exactly k" properly: we compute α exactly; if α ≥ k output k vertices; else NO. ✓.
+
+Let me now also think about correctness of using int8 for g/h: values up to 23 — fine. vals = g + hvals: up to 46 — int8 fine (max 127).
+
+Potential numpy pitfalls:
+1. `np.arange(s0, s1, dtype=np.uint32)` — fine.
+2. `excl <<= shift` — in-place shift; shift is Python int — fine.
+3. `Tarr = excl | bit` where bit = np.uint32(1<<v) — dtype uint32 ✓. Actually `excl | np.uint32(1 << v)`: if 1<<v... v ≤ 22, fine.
+4. `g[Tarr] = np.maximum(g[excl], g[incl] + 1)` — `g[incl] + 1`: int8 + Python int 1 → in NumPy 2.x weak promotion → int8 ✓; in NumPy 1.x: int8 array + Python int 1 → int8 (value-based) ✓. Max 23+1 = 24 < 127 ✓.
+5. Fancy indexing with uint32 arrays: `g[excl]` where excl is uint32 — numpy accepts unsigned index arrays ✓.
+6. `nbA[Tarr] = nbA[excl] | nbm` where nbm = np.uint32 scalar ✓.
+7. Slices `nbA[s0:s1]` — view ✓; `nbA[s0:s1] ^ AM` — new uint32 array ✓.
+8. `h[hidx]` — hidx uint32 ✓.
+9. argmax on int8 slice ✓.
+
+One more: for the scatter `g[Tarr] = ...` — Tarr values unique within chunk ✓ (they're distinct subsets). ✓.
+
+Also, note: in the DP loop for group v, `excl` values = S << shift for S in [s0, s1) — these are subsets with lowbit > v — already finalized. But WAIT: careful — the scatter writes g[Tarr] where Tarr has lowbit v. Later groups (smaller v) will read g[Tarr]? They read g at their own excl/incl which have lowbit > their v — could include Tarr values (lowbit v' < v... no wait). Let me re-examine: group v' < v reads g[excl'] and g[incl'] where excl', incl' have lowbit > v' — these could be subsets with lowbit = v (i.e., Tarr values written in group v) — which is fine since group v completed before group v'. ✓. And group v' > v never reads... groups processed in decreasing v order, so when processing group v, all groups with lowbit > v are done, and group v only reads subsets with lowbit > v. ✓✓.
+
+Now, the combination step reads g[T] for ALL T (including T=0: g[0]=0 ✓) and nbA[T] for all T ✓.
+
+Reconstruction reads g/h at various subsets — all computed ✓.
+
+Let me now also verify with Example 1 manually (small): n=4, m=4, k=3. Edges: (1,2),(1,3),(2,3),(3,4) → 0-indexed: (0,1),(0,2),(1,2),(2,3). adj: 0: {1,2} = 0b0110; 1: {0,2} = 0b0101; 2: {0,1,3} = 0b1011; 3: {2} = 0b0100.
+
+b = 4//2 = 2, a = 2. A = {0,1}, B = {2,3} (local 0,1).
+A_MASK = 3, B_MASK = 3.
+cnbA[0] = adj[0]&3 | 1 = 0b10|0b01 = 0b11 = 3. cnbA[1] = adj[1]&3 | 0b10 = 0b01|0b10 = 3. comp_cnbA = [0, 0].
+B local: vertex 2 → local 0: adj[2] = 0b1011; loc = adj[2] >> 2 = 0b10 = 2 → cnbB[0] = 2|1 = 3; comp_cnbB[0] = 0. nbA_mask[0] = adj[2] & 3 = 0b11 = 3.
+vertex 3 → local 1: adj[3] = 0b0100; loc = 0b0100 >> 2 = 1 → cnbB[1] = 1 | 0b10 = 3; comp_cnbB[1] = 0. nbA_mask[1] = adj[3] & 3 = 0.
+
+h DP (a=2): u=1: cnt = 1<<(2-1-1) = 1: S=[0], excl = 0, Tarr = 0b10, incl = 0b10 & comp_cnbA[1]=0 → 0. h[2] = max(h[0], h[0]+1) = 1.
+u=0: cnt = 1<<(2-1-0) = 2: S = [0,1], excl = [0,2], Tarr = [1,3], incl = [0,0]. h[1] = max(h[0], 1) = 1. h[3] = max(h[2], h[0]+1) = max(1,1) = 1. ✓ (A = {0,1} with edge 0-1: MIS = 1.)
+
+g DP (b=2): v=1: Tarr = [2]: g[2] = 1. v=0: Tarr = [1,3]: g[1] = 1; g[3] = max(g[2], g[0]+1) = 1. ✓ (B = {2,3} with edge 2-3: MIS = 1.)
+
+nbA: v=1: nbA[2] = nbA[0] | 3 = 3. v=0: nbA[1] = nbA[0] | 3 = 3; nbA[3] = nbA[2] | 3 = 3.
+
+Combination: T=0: g=0, hidx = 3^3 = 0, h[0] = 0 → 0. T=1: g=1, hidx = 3^3 = 0 → 1. T=2: g=1, hidx = 0 → 1. T=3: g=1, hidx = 0 → 1. α = 1?? 
+
+Wait, that's wrong! The graph: vertices 0,1,2,3 with edges 0-1, 0-2, 1-2, 2-3. MIS: {0,3}? 0-3 not an edge → independent, size 2. {1,3}: 1-3 not an edge → size 2. So α should be 2!
+
+Let me recheck. nbA_mask[0] = A-neighbors of B-vertex local 0 = absolute vertex 2 = {0,1} = 3 ✓. nbA_mask[1] = A-neighbors of absolute vertex 3 = {2} — but 2 is a B vertex! adj[3] & A_MASK: adj[3] = 0b0100 (vertex 2) — vertex 2 is in B (absolute index 2 ≥ a=2). So A_MASK = 3 = 0b11 — adj[3] & 3 = 0 ✓. Right, vertex 3's only neighbor is vertex 2 which is in B. ✓.
+
+So nbA[T] for T = {local 0} (absolute vertex 2): A-neighbors = {0,1} → nbA[1] = 3 ✓. hidx = A_MASK ^ 3 = 0 → h[0] = 0. g[1] = 1 (MIS of {vertex 2} = 1). Total 1. Hmm, but the pair (I_B = {2}, I_A = MIS of A \ N_A({2}) = MIS of ∅) = 1. Correct for that T.
+
+T = {local 1} (absolute vertex 3): nbA[2] = 3?? WAIT — nbA_mask[1] = 0, so nbA[2] = nbA[0] | 0 = 0. Let me recompute: v=1: excl = 0, Tarr = 2, nbA[2] = nbA[0] | nbA_mask[1] = 0 | 0 = 0. I wrote 3 above by mistake. Let me redo: nbA_mask = [3, 0]. v=1: nbA[2] = 0. v=0: nbA[1] = nbA[0] | 3 = 3; nbA[3] = nbA[2] | 3 = 0 | 3 = 3.
+
+Combination: T=0: 0 + h[3^0=3] = h[3] = 1 → 1. T=1 (abs vertex 2): g=1, hidx = 3^3 = 0, h[0]=0 → 1. T=2 (abs vertex 3): g=1, hidx = 3^0 = 3, h[3] = 1 → 2. ✓! T=3: g=1, hidx = 3^3 = 0 → 1. α = 2 ✓ with T* = 2 → I_B = {local 1} = absolute 3; S* = A \ N_A({3}) = {0,1} → I_A = MIS of {0,1} = {0} or {1}. Total = {3, 0} or {3,1} — independent ✓ size 2.
+
+α = 2 < k = 3 → NO ✓. 
+
+Example 2: n=5, edges (0,1),(2,3), k=3. b=2, a=3. A={0,1,2}, B={3,4} (local 0,1). A edges: 0-1. B edges: local 0-1 (abs 3-4). Cross: none. α = MIS(A) + MIS(B) = 2 + 1 = 3 ≥ 3 → YES with 3 vertices, e.g., {0, 2, 3} → 1-indexed {1, 3, 4}. Expected output "1 3 5" but any valid accepted. ✓.
+
+Example 3: triangle, k=1: α=1 ≥ 1 → YES, one vertex ✓.
+
+The algorithm works. Now let me also double check the combination formula derivation once more re: T ranges over ALL subsets of B (not just independent ones) — verified earlier. ✓.
+
+Now, let me also think: do we need `h` for subsets of A that include... yes all subsets — computed ✓.
+
+Next: implementation of reconstruction when α ≥ k — take the first k vertices of the independent set. But wait — should double-check independence of the final output as a safety net? Let me add a verification step: check that the chosen k vertices form an independent set (using adj masks). If verification fails (shouldn't), fall back to... hmm, there's no easy fallback. I could add an assertion and if it fails, try a different T* (second-best)... I'll trust the algorithm; but adding a cheap verification that raises/adjusts is risky. Let me just verify mentally the reconstruction is right and skip runtime verification. Actually, let me include a lightweight verification and if it fails, fall back to a simple greedy/B&B search for an independent set of size k (only triggered on bug). Hmm, that adds complexity. Let me think about whether to include... I'd rather include a simple safety: verify final set independent; if not (bug), run a B&B to find independent set of size k (we know α ≥ k so it will find one... assuming α computed correctly). Actually if there's a bug, α might be wrong too. I'll skip elaborate fallbacks but include the verification with a brute-force repair only for small n... Hmm. Let me keep it simple: no verification, trust the math. Actually, you know what — a cheap verification is easy: for the selected k vertices, check pairwise non-adjacency via masks: sum over v of popcount(adj[v] & selected_mask) == 0. If it fails... print... hmm. I'll include verification and, on failure, attempt a pure-Python B&B for size-k independent set (correct answer guaranteed to exist iff α ≥ k — but if verification failed, α might be miscomputed...). 
+
+OK let me stop over-engineering. The math is solid; I'll do a straightforward implementation, plus a simple final verification that raises nothing (just trust). Actually — let me include the verification and if it fails, fall back to B&B search for size-k independent set with a time-capped search; if that fails, print NO. This is purely defensive; in practice verification passes.
+
+Hmm, actually, let me simplify: I'll do verification; if it fails, run exhaustive B&B (branch on vertices, include/exclude) to find an independent set of size k — with memo... For safety, cap it. Eh. You know, let me think about whether to even include the numpy-fallback B&B... 
+
+Decision: 
+- Primary: numpy MITM (as designed).
+- If numpy import fails: pure-Python MITM but with a twist to make it feasible? Or B&B? Let me design the pure-Python fallback as B&B with coloring bound — it's the best effort. Actually, hmm, let me think about the pure-Python B&B more concretely, since I want it to be reasonably strong:
+
+```
+def mis_bnd(adj, n):  # returns (alpha, independent set)
+    best_size = 0; best_set = []
+    # iterative DFS with explicit stack or recursion (depth ≤ n=46, fine)
+    def rec(cand_mask, size, chosen):
+        nonlocal best_size, best_set
+        if size + popcount(cand_mask) <= best_size: return
+        if cand_mask == 0:
+            if size > best_size: best_size = size; best_set = chosen[:]
+            return
+        # compute greedy coloring bound
+        bound = color_bound(cand_mask)
+        if size + bound <= best_size: return
+        # choose vertex: e.g., the one with max degree within cand
+        v = pick vertex from cand (e.g., lowest index? or max degree)
+        # branch exclude v:
+        rec(cand_mask without v, size, chosen)
+        # branch include v:
+        chosen.append(v); rec(cand_mask & ~cnb[v], size+1, chosen); chosen.pop()
+```
+
+color_bound: greedy coloring: repeatedly pick vertices (e.g., in order of the mask), assign smallest available color; count colors. Implementation with masks per color... For speed, a simpler bound: partition cand into color classes greedily: while cand: pick a maximal independent subset greedily (by repeatedly taking lowbit and removing its neighbors) — each class = 1 color. Number of classes = upper bound. That's the standard greedy "partition into independent sets" bound: 
+
+```
+bound = 0; cm = cand_mask
+while cm:
+    bound += 1
+    # strip a greedy independent set
+    t = cm
+    while t: low = t & -t; t &= ~cnb[low_bit_vertex]; cm ^= ... 
+```
+Hmm, the standard: while cm non-empty: take greedy independent set I from cm (iterate bits, add bit, remove neighbors); bound += 1; cm ^= I. This gives number of classes ≥ ... wait, we need the number of classes to be an UPPER bound on α(cm)? Partition into c independent sets → any independent set has ≤ 1 vertex per class? NO — that's for cliques... wait: if cand is partitioned into c independent sets, an independent set can take multiple vertices from one class (they're mutually non-adjacent!). So that's NOT an upper bound. The correct coloring bound: proper coloring with c colors → each color class is independent → any independent set picks ≤ ... no wait — in a proper coloring, adjacent vertices have different colors; an independent set can contain many vertices of the same color. Hmm, so how is coloring an upper bound for clique number... I'm confusing myself: for MAX CLIQUE, coloring gives an upper bound (clique picks ≤ 1 per color class). For MAX INDEPENDENT SET, we'd need a clique cover: partition vertices into cliques → independent set picks ≤ 1 per clique → upper bound = number of cliques in cover. Equivalently, coloring the COMPLEMENT graph. So the bound for MIS = clique cover number ≥ ... greedy clique cover: repeatedly extract a greedy clique (using complement adjacency). So I'd need complement adjacency masks: comp_adj[v] = cand-restricted non-neighbors. 
+
+Clique cover bound: while cm: extract greedy clique from cm (using comp_adj): pick vertices one by one that are connected to all previously picked; remove; count++. This is the standard bound used in MIS solvers (e.g., "greedy clique cover" in mcqd). 
+
+This B&B in pure Python for n=46 hard instances — could still blow up. But as a fallback, fine.
+
+Hmm, actually — hold on. Let me reconsider the fallback differently: pure-Python MITM where the per-subset loops are done with... arrays and minimal work. Let me count more carefully what's needed in pure Python:
+
+1. h table over A (2^a entries): loop with ~8 ops/iter.
+2. g table over B (2^b): ~8 ops/iter.
+3. nbA table over B (2^b): ~5 ops/iter.
+4. combination over B (2^b): ~6 ops/iter.
+
+Total iters: 2^a + 2*(2^b) + 2^b... with a=24,b=22: 16.7M + 3*4.2M = 29M iters * ~0.4μs ≈ 12s. With a=23,b=23: 8.4M + 3*8.4M = 33M ≈ 13s. Too slow. 
+
+Unless... we use a hybrid: for the combination step, instead of scanning all T ⊆ B, enumerate only *maximal-ish* candidates? Hmm.
+
+Alternatively, pure-Python fallback could use the "independent-set enumeration with size tracking" MITM variant: 
+- Enumerate all independent subsets of B via DFS, recording for each: (size, nbA_mask). Group by... then for each independent subset S_A of A, need max |S_B| over independent S_B with S_B ∩ N_B(S_A) = ∅... 
+
+The classic trick to avoid the full g table: for each subset X ⊆ B define g(X) = MIS(X) — needed for arbitrary X = B \ N_B(S_A). The set of distinct X values = set of distinct N_B(S_A) over independent S_A — could be up to 2^a distinct. No help.
+
+OK so pure-Python full MITM is ~12s. B&B fallback it is (best effort). OR: maybe I can make the numpy solution degrade gracefully... no. Let me just also consider: maybe write the hot loops in pure Python but with the "process by lowbit groups" structure allowing list-comprehension batch operations? E.g., for group v: Tarr = [S << shift | bit for S in range(cnt)] — list comprehensions are ~2-3x faster than explicit loops but still ~0.1-0.2μs per element per comprehension. The gathers g[excl] can't be done via comprehension cheaply... Actually: gvals = [g[i] for i in excl] — that's a comprehension with indexing ~0.15μs/elem. Multiple such → similar total. No win.
+
+FINAL DECISION: numpy primary; if ImportError, pure-Python B&B fallback (with clique-cover bound). Given the 5s limit and typical judge availability of numpy, this is the pragmatic choice. Actually, hmm, wait — let me reconsider ONE more time whether the pure-python fallback could just be the MITM with smaller constant via bit tricks... 
+
+Actually! Here's an idea for pure Python: process the DP using the lowbit-group structure where within a group, operations are REGULAR: for group v, T = (S << shift) | bit, excl = S << shift, incl = excl & comp_v. Note incl = (S & something) << ... hmm: excl = S << shift; incl = excl & comp_v where comp_v has bits > v only (bits v+1..b-1 minus neighbors of v). incl = ((S << shift) & comp_v). If we let comp_v have bits only in positions ≥ shift = v+1, then incl = ((S & (comp_v >> shift)) << shift). So incl = S' << shift where S' = S & mask_v, mask_v = comp_v >> shift. So the gather g[incl] = g[(S & mask_v) << shift] — still a gather with irregular indices (S & mask_v). No way around per-element gather. In pure Python: `[g[(s & mv) << sh] for s in range(...)]`... ~0.2μs/elem. For all groups total 8.4M elems * (several comprehensions) — each pass 8.4M * 0.2μs = 1.7s, and we need ~4-5 passes per table → 7-8s per table. No.
+
+OK, numpy it is. Let me also plan for the possibility that numpy exists but is old (e.g., 1.x) — my code should be compatible with both. Things to watch: weak promotion (NumPy 2) vs value-based (NumPy 1) — both give uint32/int8 results for our constant fits. `np.arange` with dtype uint32 ✓. Fancy indexing ✓.
+
+One more numpy concern: `g[Tarr] = np.maximum(g[excl], g[incl] + 1)` — `g[incl] + 1`: if g[incl] is int8 and 1 is Python int: NumPy 1.x: result int8 ✓ (value-based casting: 1 fits int8). NumPy 2.x: weak scalar → int8 ✓. Good.
+
+`nbA[Tarr] = nbA[excl] | nbm` — nbm is np.uint32 scalar → uint32 ✓.
+
+Combination: `vals = gview + h[hidx]` — int8 + int8 = int8 ✓ (max 46 ✓).
+
+`hidx = nbA[s0:s1] ^ AM` — AM = np.uint32(A_MASK) ✓.
+
+Reconstruction uses Python ints: `int(nbA[best_T])` ✓.
+
+Now, let me also handle reading input robustly: tokens; m lines of pairs.
+
+Also: multiple edges? "No two resonant links couple the exact same pair" — simple graph ✓. Self-loops? u ≠ v ✓.
+
+Output format: "YES" then k identifiers separated by spaces. Or "NO". Any order acceptable. I'll output sorted ascending for cleanliness.
+
+Let me now also think about the time for the numpy solution more concretely and optimize the chunk sizes. The main costs:
+
+For b = 23 (n=46): 
+- g+nbA DP: total 8.4M elements. Per element: arange (cheap), shift (1 op), or (1), and (1), gather g[excl] (random-ish), gather g[incl] (random), add, maximum, scatter g[Tarr], gather nbA[excl], or, scatter nbA[Tarr]. ~12 array ops. numpy throughput for simple ops: ~1-2 GB/s... for 4-byte elements: ~250-500M elem/s per op. Gathers/scatters with random access into 8-33MB tables: maybe 100-200M elem/s. Total ~12 passes * 8.4M = 100M element-ops → ~0.5-1.5s. 
+- h DP: ~9 passes * 8.4M = 75M → ~0.4-1s.
+- combination: per element: slice-xor (1), gather h (random into 8.4MB), add, argmax-ish (np.max per chunk + compare): ~4 passes * 8.4M = 34M → ~0.3s.
+Total ≈ 1.5-3s. Should fit in 5s. Python overhead per numpy call: number of numpy calls: DP loops: for each v (23) * chunks (up to 4 for v=0 with 2^22 elements / 2^20 chunk = 4; total chunks across groups ≈ 8.4M/2^20 = 8 + overhead per group... total ~ (23 groups * ~1-4 chunks) ≈ 50 chunk-iterations * ~15 numpy calls = 750 calls — negligible overhead. Fine.
+
+Memory: persistent: g 8.4MB + nbA 33.5MB + h 8.4MB = 50MB; temporaries ≤ ~15MB. 
+
+Hmm, one thing: for the h DP, a = 23 as well when n = 46 (a = n - b = 23). ✓.
+
+Wait, actually — I want to double check the choice b = n//2, a = n - b. For n=46: b=23, a=23. For n=45: b=22, a=23. nbA table: 2^22 * 4 = 16.8MB. Fine.
+
+Now, one more important detail: the combination step iterates T over ALL subsets of B — 2^b up to 8.4M — computing g[T] + h[A_MASK ^ nbA[T]] and taking argmax. But note: we could restrict to... no, all needed. Fine.
+
+But actually, hmm, wait: can we prune the combination? The max is over all T; but note that for the argmax we could use the fact that g[T] + h[...] — no pruning. It's a flat scan. Fine.
+
+Let me also double check the DP handles T=0: g[0] = 0 (init), nbA[0] = 0 (init) ✓. h[0] = 0 ✓.
+
+Now, the reconstruction loop for IB: X = best_T (a Python int). g[X] — numpy int8 scalar; comparisons OK. Let me convert g to a Python list for reconstruction? g is 8.4M int8 — `.tolist()` creates 8.4M Python ints ~ 250MB?? No — a list of 8.4M small ints: list itself 67MB + int objects (small ints cached ≤ 256 → shared) → ~67MB. Hmm, that's OK-ish but unnecessary; just index the numpy array directly (few dozen lookups). Fine.
+
+Also for IA reconstruction: h[X] similarly.
+
+Let me now also double check the claim about downward-closure once more (to be 100% sure the "exactly k" reduction is right): if I is independent with |I| = α ≥ k, then any subset of I of size k is independent ✓. So YES iff α ≥ k. ✓✓.
+
+Now, write the code.
+
+```python
+import sys
+
+def main():
+    data = sys.stdin.buffer.read().split()
+    n = int(data[0]); m = int(data[1]); k = int(data[2])
+    adj = [0] * n
+    ptr = 3
+    for _ in range(m):
+        u = int(data[ptr]) - 1
+        v = int(data[ptr + 1]) - 1
+        ptr += 2
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+
+    b = n // 2
+    a = n - b
+    A_MASK = (1 << a) - 1
+    B_MASK = (1 << b) - 1
+
+    # closed neighborhoods (local)
+    cnbA = [0] * a
+    cnbB = [0] * b
+    nbA_mask = [0] * b  # A-local neighbor mask of B vertex v
+    for i in range(a):
+        cnbA[i] = (adj[i] & A_MASK) | (1 << i)
+    for v in range(b):
+        av = adj[a + v]
+        cnbB[v] = ((av >> a) | (1 << v)) & B_MASK
+        nbA_mask[v] = av & A_MASK
+
+    try:
+        import numpy as np
+    except ImportError:
+        np = None
+
+    if np is not None:
+        alpha, IA, IB = solve_numpy(np, n, a, b, A_MASK, B_MASK, cnbA, cnbB, nbA_mask)
+    else:
+        alpha, IA, IB = solve_pure(n, a, b, adj, cnbA, cnbB, nbA_mask)
+    ...
+```
+
+Hmm, let me restructure: I'll write the numpy path inline and a fallback function. Let me write the numpy path:
+
+```python
+def solve_numpy(np, a, b, A_MASK, B_MASK, cnbA, cnbB, nbA_mask):
+    sizeA = 1 << a
+    sizeB = 1 << b
+    h = np.zeros(sizeA, dtype=np.int8)
+    # h DP over A
+    compA = np.array([A_MASK ^ c for c in cnbA], dtype=np.uint32)  # wait: complement within A
+```
+
+Hold on: comp_cnbA[u] should be A_MASK ^ cnbA[u] — the set of A-vertices allowed after removing closed neighborhood of u. ✓ (bits within A). And in the DP: incl = Tarr & comp_cnbA[u] where Tarr ⊆ A_MASK. ✓.
+
+```python
+    compA = np.array([(A_MASK ^ c) for c in cnbA], dtype=np.uint32)
+    compB = np.array([(B_MASK ^ c) for c in cnbB], dtype=np.uint32)
+    nbm = np.array(nbA_mask, dtype=np.uint32)
+
+    CH = 1 << 20
+    # h DP
+    for u in range(a - 1, -1, -1):
+        shift = u + 1
+        cnt = 1 << (a - 1 - u)
+        bit = np.uint32(1 << u)
+        comp = compA

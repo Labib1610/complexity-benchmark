@@ -1,25 +1,26 @@
-# Transformation Network
+# Problem B — Market Equilibrium
 
-Time limit: 1 s
-Memory limit: 256 MB
+Time limit: 1 s   Memory limit: 256 MB
 
-A network consists of $n$ nodes. Each node must be assigned exactly one of two vector transformations:
-- Transformation 1: $f(V) = M_1 \cdot V$
-- Transformation 2: $f(V) = M_2 \cdot V$
+You are analyzing a market with $n$ commodities. Each commodity $i$ must be assigned a pricing tier $p_i$, which must be chosen as either 1 or 2.
 
-where $V = \begin{pmatrix} x \\ y \end{pmatrix}$ is a 2D vector, $M_1 = \begin{pmatrix} 2 & 1 \\ 1 & 1 \end{pmatrix}$, and $M_2 = \begin{pmatrix} 1 & -1 \\ -1 & 2 \end{pmatrix}$.
+There are $m$ observed dependencies between pairs of commodities. The $k$-th dependency involves commodities $u_k$ and $v_k$.
 
-There are $m$ links in the network. Each link connects two specific nodes $u$ and $v$. A link is considered stable if and only if the composition of the transformations assigned to its two endpoints (applied in either order) maps every vector to itself. That is, evaluating $f_u(f_v(V))$ must produce exactly $V$ for all possible vectors $V$. If there exists even one vector $V$ where $f_u(f_v(V)) \neq V$, the link is unstable and the entire configuration is invalid.
+To maintain market equilibrium, the pricing tiers assigned to the two commodities in any dependency must average exactly 1.5.
 
-Your task is to determine whether there is an assignment of transformations (either 1 or 2) to all $n$ nodes such that every link in the network is stable. If multiple valid assignments exist, you must output the one that minimizes the sequence of assigned transformation numbers $s_1, s_2, \dots, s_n$ lexicographically.
+Your objective is to determine if there exists a pricing tier assignment for all $n$ commodities that satisfies this condition for all $m$ dependencies. If such an assignment exists, you must output it. 
+
+If there are multiple valid assignments, you must choose the one that maximizes the market confidence score. The market confidence score of an assignment is defined as:
+$$ \sum_{i \in S} \frac{1}{i!} $$
+where $i!$ denotes the factorial of $i$, and $S$ is the set of commodity indices (from $1$ to $n$) that are assigned to pricing tier 1.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$).
-Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$), indicating that a link connects node $u$ and node $v$.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$), representing the number of commodities and the number of dependencies.
+The following $m$ lines each contain two integers $u$ and $v$ ($1 \le u, v \le n$), specifying the 1-based indices of the two commodities involved in that dependency.
 
 ## Output
-If no stable assignment exists, print a single line containing `NO`.
-Otherwise, print `YES` on the first line. On the second line, print $n$ integers $s_1, \ldots, s_n$ (each being 1 or 2) representing the lexicographically smallest valid assignment.
+If no valid pricing tier assignment can achieve equilibrium, print a single line containing `NO`.
+Otherwise, print `YES` on the first line. On the second line, output $n$ integers $p_1, p_2, \dots, p_n$ (where each $p_i \in \{1, 2\}$) denoting the pricing tiers. If there are multiple valid sequences, output the sequence that maximizes the market confidence score.
 
 ## Example 1
 Input:

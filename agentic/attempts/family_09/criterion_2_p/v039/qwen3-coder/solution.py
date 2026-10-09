@@ -1,0 +1,97 @@
+import sys
+from collections import defaultdict, deque
+
+def main():
+    import sys
+    sys.setrecursionlimit(1 << 25)
+    
+    n, m, k = map(int, sys.stdin.readline().split())
+    
+    if m == 0:
+        # No conflicts, we can pick any k employees
+        print("YES")
+        print(' '.join(map(str, range(1, min(k+1, n+1)))))
+        return
+    
+    adj = defaultdict(list)
+    edges = []
+    
+    for _ in range(m):
+        u, v = map(int, sys.stdin.readline().split())
+        adj[u].append(v)
+        adj[v].append(u)
+        edges.append((u, v))
+    
+    # Check if the graph is bipartite and find the two partitions
+    color = {}
+    partition = {1: [], 2: []}
+    
+    def bfs(start):
+        queue = deque([start])
+        color[start] = 1
+        partition[1].append(start)
+        while queue:
+            node = queue.popleft()
+            for neighbor in adj[node]:
+                if neighbor not in color:
+                    color[neighbor] = 3 - color[node]
+                    partition[3 - color[node]].append(neighbor)
+                    queue.append(neighbor)
+                elif color[neighbor] == color[node]:
+                    return False
+        return True
+    
+    # Process all components
+    for i in range(1, n+1):
+        if i not in color:
+            if not bfs(i):
+                # This shouldn't happen according to problem statement
+                print("NO")
+                return
+    
+    set1 = set(partition[1])
+    set2 = set(partition[2])
+    
+    # Verify that all edges go between set1 and set2
+    # This check is implicit due to problem constraints
+    
+    size1 = len(set1)
+    size2 = len(set2)
+    
+    # We can take at most size1 from set1 and size2 from set2
+    # But since there are no internal conflicts within each set,
+    # we can take any subset from each set.
+    # So maximum committee size is size1 + size2 = n
+    
+    if k > size1 + size2:
+        print("NO")
+        return
+        
+    # We want exactly k employees with no conflicts
+    # Since there are no conflicts within each partition,
+    # we can take any combination from the two sets as long as 
+    # we don't take both endpoints of any edge.
+    # But wait, that's not right. There are NO conflicts within a set.
+    # So we can take any subset of set1 and any subset of set2.
+    # The only restriction is the total size.
+    
+    # So we just need to pick k elements where we can pick from set1 and set2 freely.
+    # Max size is |set1| + |set2|
+    
+    if k <= size1 + size2:
+        result = []
+        count1 = min(k, size1)
+        count2 = k - count1
+        
+        if count2 <= size2:
+            result.extend(list(set1)[:count1])
+            result.extend(list(set2)[:count2])
+            print("YES")
+            print(' '.join(map(str, result)))
+        else:
+            print("NO")
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    main()

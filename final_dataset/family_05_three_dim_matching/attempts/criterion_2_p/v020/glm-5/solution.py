@@ -1,0 +1,74 @@
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    k = int(data[0])
+    t = int(data[1])
+    entries = []
+    idx = 2
+    for _ in range(t):
+        u = int(data[idx]); v = int(data[idx+1]); w = int(data[idx+2])
+        idx += 3
+        entries.append((u, v, w))
+    
+    # container -> list of (v, w)
+    container_entries = [[] for _ in range(k+1)]
+    for (u, v, w) in entries:
+        container_entries[u].append((v, w))
+    
+    # Bipartite matching: left = containers (1..k), right = vessels (1..k)
+    # Edge from container u to vessel w exists if (u, v, w) is a cleared entry.
+    # Since each container has fixed tag, we just need a perfect matching.
+    
+    adj = [[] for _ in range(k+1)]
+    for u in range(1, k+1):
+        seen = set()
+        for (v, w) in container_entries[u]:
+            if w not in seen:
+                seen.add(w)
+                adj[u].append(w)
+    
+    matchR = [0] * (k+1)  # vessel -> container
+    matchL = [0] * (k+1)  # container -> vessel
+    
+    def try_kuhn(u, visited):
+        for w in adj[u]:
+            if visited[w]:
+                continue
+            visited[w] = True
+            if matchR[w] == 0 or try_kuhn(matchR[w], visited):
+                matchR[w] = u
+                matchL[u] = w
+                return True
+        return False
+    
+    result = 0
+    for u in range(1, k+1):
+        visited = [False] * (k+1)
+        if try_kuhn(u, visited):
+            result += 1
+        else:
+            break
+    
+    if result != k:
+        print("NO")
+        return
+    
+    print("YES")
+    # For each container u, we have matched vessel w = matchL[u].
+    # We need to output the entry (u, v, w). Since container u has fixed tag,
+    # any entry (u, v, w) with the correct v works. The tag v is the same for all
+    # entries of container u, so we can pick any.
+    for u in range(1, k+1):
+        w = matchL[u]
+        # find any entry (u, v, w)
+        found = None
+        for (v, ww) in container_entries[u]:
+            if ww == w:
+                found = v
+                break
+        print(f"{u} {found} {w}")
+
+solve()

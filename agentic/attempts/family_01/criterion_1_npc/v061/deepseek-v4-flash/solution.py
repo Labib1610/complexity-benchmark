@@ -10,39 +10,32 @@ def solve():
         v -= 1
         adj[u].append(v)
         adj[v].append(u)
-
-    # Check if graph is 3-colorable and find lexicographically smallest coloring
-    colors = [0] * n  # 0 = uncolored, 1,2,3 = phases
-
-    # Precompute adjacency bitmasks for speed
-    adj_mask = [0] * n
-    for i in range(n):
-        mask = 0
-        for j in adj[i]:
-            mask |= (1 << j)
-        adj_mask[i] = mask
-
-    # Backtracking with pruning
-    def backtrack(idx):
-        if idx == n:
+    
+    color = [0] * n
+    assigned = [False] * n
+    
+    def backtrack(node):
+        if node == n:
             return True
-        # Try colors 1,2,3 in order for lexicographic minimality
-        for c in (1, 2, 3):
+        # Try colors 1, 2, 3
+        for c in range(1, 4):
             ok = True
-            for nb in adj[idx]:
-                if colors[nb] == c:
+            for nb in adj[node]:
+                if assigned[nb] and color[nb] == c:
                     ok = False
                     break
             if ok:
-                colors[idx] = c
-                if backtrack(idx + 1):
+                color[node] = c
+                assigned[node] = True
+                if backtrack(node + 1):
                     return True
-                colors[idx] = 0
+                assigned[node] = False
+                color[node] = 0
         return False
-
+    
     if backtrack(0):
         print("YES")
-        print(" ".join(map(str, colors)))
+        print(" ".join(str(color[i]) for i in range(n)))
     else:
         print("NO")
 

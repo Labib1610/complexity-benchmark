@@ -1,0 +1,126 @@
+```python
+import sys
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    n = int(data[0])
+    m = int(data[1])
+    idx = 2
+    clauses = []
+    for _ in range(m):
+        l1 = int(data[idx]); l2 = int(data[idx+1]); l3 = int(data[idx+2])
+        idx += 3
+        clauses.append((l1, l2, l3))
+    
+    # 2-SAT formulation: for each clause (a or b or c),
+    # add (a or b), (a or c), (b or c).
+    # Variable i: i>0 means valve i is OPEN (true), i<0 means valve |i| is CLOSED (false).
+    # We use 1-based indexing: var v has literal v (true) and -v (false).
+    # Node 2*v for v true, 2*v+1 for v false? Let's use standard:
+    # For literal x: if x>0, node = 2*x (meaning var x = true)
+    #                if x<0, node = 2*(-x)+1 (meaning var -x = false)
+    # Implication: (a or b) => (not a -> b) and (not b -> a)
+    
+    N = n
+    size = 2 * (N + 2)
+    graph = [[] for _ in range(size)]
+    
+    def node(lit):
+        if lit > 0:
+            return 2 * lit
+        else:
+            return 2 * (-lit) + 1
+    
+    def neg(lit):
+        if lit > 0:
+            return 2 * lit + 1
+        else:
+            return 2 * (-lit)
+    
+    def add_impl(u, v):
+        graph[u].append(v)
+    
+    def add_or(a, b):
+        # not a -> b, not b -> a
+        add_impl(neg(a), node(b))
+        add_impl(neg(b), node(a))
+    
+    for (a, b, c) in clauses:
+        add_or(a, b)
+        add_or(a, c)
+        add_or(b, c)
+    
+    # Tarjan's SCC
+    index_counter = [0]
+    stack = []
+    lowlink = [0] * size
+    index = [0] * size
+    on_stack = [False] * size
+    scc_id = [-1] * size
+    scc_count = [0]
+    
+    import sys
+    sys.setrecursionlimit(1000000)
+    
+    # Iterative Tarjan to avoid recursion limit issues
+    for start in range(2, 2*(N+1)):
+        if index[start] == 0:
+            # iterative DFS
+            work_stack = [(start, 0)]
+            while work_stack:
+                v, pi = work_stack[-1]
+                if pi == 0:
+                    index_counter[0] += 1
+                    index[v] = index_counter[0]
+                    lowlink[v] = index_counter[0]
+                    stack.append(v)
+                    on_stack[v] = True
+                recurse = False
+                while pi < len(graph[v]):
+                    w = graph[v][pi]
+                    pi += 1
+                    if index[w] == 0:
+                        work_stack[-1] = (v, pi)
+                        work_stack.append((w, 0))
+                        recurse = True
+                        break
+                    elif on_stack[w]:
+                        if index[w] < lowlink[v]:
+                            lowlink[v] = index[w]
+                if recurse:
+                    continue
+                if lowlink[v] == index[v]:
+                    while True:
+                        w = stack.pop()
+                        on_stack[w] = False
+                        scc_id[w] = scc_count[0]
+                        if w == v:
+                            break
+                    scc_count[0] += 1
+                work_stack.pop()
+                if work_stack:
+                    parent = work_stack[-1][0]
+                    if lowlink[v] < lowlink[parent]:
+                        lowlink[parent] = lowlink[v]
+    
+    # Check satisfiability
+    assignment = [0] * (N + 1)
+    for v in range(1, N + 1):
+        t_node = 2 * v
+        f_node = 2 * v + 1
+        if scc_id[t_node] == scc_id[f_node]:
+            print("NO")
+            return
+        # If scc_id[t] < scc_id[f], then t is in a later SCC (topologically later means lower id in Tarjan's output)
+        # In Tarjan's algorithm, SCCs are output in reverse topological order.
+        # So smaller scc_id means later in topological order.
+        # We assign true if t_node's scc_id < f_node's scc_id
+        assignment[v] = 1 if scc_id[t_node] < scc_id[f_node] else 0
+    
+    print("YES")
+    print(' '.join(str(assignment[i]) for i in range(1, n + 1)))
+
+solve()
+```

@@ -1,0 +1,43 @@
+import sys
+import threading
+
+def main():
+    import sys
+    j = int(sys.stdin.readline())
+    jobs = []
+    for _ in range(j):
+        p1, p2 = map(int, sys.stdin.readline().split())
+        jobs.append((p1, p2))
+    
+    # Sort jobs using Johnson's rule
+    # Split jobs into two groups:
+    # Group1: p1 <= p2
+    # Group2: p1 > p2
+    group1 = []  # jobs with p1 <= p2, sort by p1 ascending
+    group2 = []  # jobs with p1 > p2, sort by p2 descending
+    
+    for i in range(j):
+        p1, p2 = jobs[i]
+        if p1 <= p2:
+            group1.append((p1, p2, i))
+        else:
+            group2.append((p1, p2, i))
+    
+    group1.sort(key=lambda x: x[0])  # sort by p1 ascending
+    group2.sort(key=lambda x: x[1], reverse=True)  # sort by p2 descending
+    
+    # Final order: group1 + group2
+    ordered_jobs = group1 + group2
+    
+    # Simulate the processing
+    time_m1 = 0  # current time on machine 1
+    time_m2 = 0  # current time on machine 2
+    
+    for p1, p2, idx in ordered_jobs:
+        time_m1 += p1
+        time_m2 = max(time_m2, time_m1) + p2
+    
+    print(time_m2)
+
+# Use threading to increase recursion limit if needed
+threading.Thread(target=main).start()

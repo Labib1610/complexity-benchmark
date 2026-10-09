@@ -1,80 +1,79 @@
 import sys
 
 
-def solve():
+def main():
     data = sys.stdin.buffer.read().split()
     idx = 0
-    n, m = int(data[idx]), int(data[idx + 1]); idx += 2
+    n = int(data[idx]); m = int(data[idx + 1]); idx += 2
     clauses = []
-    for _ in range(m):
-        a, b, c = int(data[idx]), int(data[idx + 1]), int(data[idx + 2]); idx += 3
-        clauses.append((a, b, c))
+    var_cl = [[] for _ in range(n + 1)]
+    for ci in range(m):
+        a = int(data[idx]); b = int(data[idx + 1]); c = int(data[idx + 2]); idx += 3
+        cl = (a, b, c)
+        clauses.append(cl)
+        for l in cl:
+            var_cl[abs(l)].append(ci)
 
-    assign = [None] * (n + 1)          # assign[v] in {0, 1} or None
+    assign = [None] * (n + 1)          # None / 0 / 1
     sys.setrecursionlimit(1 << 20)
 
-    def lit_true(l):
+    def lit_val(l):
         v = assign[abs(l)]
         if v is None:
             return None
         return (v == 1) if l > 0 else (v == 0)
 
-    # DPLL: decide variables in index order (value 0 before 1 -> lexicographically
-    # smallest satisfying assignment), with unit propagation to fixpoint between
-    # decisions. Unit propagation only ever forces literals already implied by the
-    # current partial assignment (a clause with a single unassigned literal and no
-    # satisfied literal), so it never overrides the 0-before-1 preference: it yields
-    # exactly the assignment plain index-order backtracking would reach, only faster.
-    # This is required to generate ground truth near the m/n ~ 4.26 phase transition,
-    # where UNSAT instances force exhaustive refutation.
-    def dpll(nextv):
-        forced = []                    # literals this node forced via UP, undone on backtrack
-        changed = True
-        while changed:
-            changed = False
-            for cl in clauses:
+    def bcp(seed_vars):
+        """Boolean constraint propagation from newly assigned vars. Returns (ok, forced_list)."""
+        forced = []
+        queue = list(seed_vars)
+        while queue:
+            var = queue.pop()
+            for ci in var_cl[var]:
                 unassigned = None
-                cnt_unassigned = 0
+                cnt = 0
                 sat = False
-                for l in cl:
-                    tv = lit_true(l)
+                for l in clauses[ci]:
+                    tv = lit_val(l)
                     if tv is True:
-                        sat = True
-                        break
+                        sat = True; break
                     if tv is None:
-                        cnt_unassigned += 1
-                        unassigned = l
+                        cnt += 1; unassigned = l
                 if sat:
                     continue
-                if cnt_unassigned == 0:         # clause falsified -> conflict
+                if cnt == 0:                       # conflict
                     for v in forced:
                         assign[v] = None
-                    return False
-                if cnt_unassigned == 1:         # unit clause -> force its literal
-                    assign[abs(unassigned)] = 1 if unassigned > 0 else 0
-                    forced.append(abs(unassigned))
-                    changed = True
+                    return False, None
+                if cnt == 1:                       # unit -> force
+                    av = abs(unassigned)
+                    assign[av] = 1 if unassigned > 0 else 0
+                    forced.append(av); queue.append(av)
+        return True, forced
 
-        v = nextv
+    def dpll():
+        v = 1
         while v <= n and assign[v] is not None:
             v += 1
         if v > n:
-            return True                        # every variable assigned -> satisfied
-
-        for val in (0, 1):                     # 0 before 1 -> lex-smallest
+            return True
+        for val in (1, 0):                         # any satisfying assignment (branch true first)
             assign[v] = val
-            if dpll(v + 1):
+            ok, forced = bcp([v])
+            if ok and dpll():
                 return True
+            if forced:
+                for u in forced:
+                    assign[u] = None
             assign[v] = None
-        for u in forced:
-            assign[u] = None
         return False
 
-    if dpll(1):
-        print("YES")
-        print(*[assign[i] if assign[i] is not None else 0 for i in range(1, n + 1)])
+    if dpll():
+        sys.stdout.write("YES\n")
+        sys.stdout.write(" ".join(str(assign[i] if assign[i] is not None else 0)
+                                  for i in range(1, n + 1)) + "\n")
     else:
-        print("NO")
+        sys.stdout.write("NO\n")
 
 
-solve()
+main()

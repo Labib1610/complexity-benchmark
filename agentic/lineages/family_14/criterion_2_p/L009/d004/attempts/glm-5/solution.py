@@ -1,0 +1,51 @@
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    idx = 0
+    N = int(data[idx]); idx += 1
+    E = int(data[idx]); idx += 1
+    F = int(data[idx]); idx += 1
+
+    critical = [False] * (N + 1)
+    for _ in range(F):
+        c = int(data[idx]); idx += 1
+        critical[c] = True
+
+    edges = []
+    for _ in range(E):
+        u = int(data[idx]); idx += 1
+        v = int(data[idx]); idx += 1
+        w = int(data[idx]); idx += 1
+        edges.append((w, u, v))
+
+    edges.sort()
+
+    parent = list(range(N + 1))
+    size = [1] * (N + 1)
+    crit_count = [1 if critical[i] else 0 for i in range(N + 1)]
+
+    def find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    total_cost = 0
+
+    for w, u, v in edges:
+        ru = find(u)
+        rv = find(v)
+        if ru == rv:
+            continue
+        if crit_count[ru] > 0 and crit_count[rv] > 0:
+            total_cost += w
+        if size[ru] < size[rv]:
+            ru, rv = rv, ru
+        parent[rv] = ru
+        size[ru] += size[rv]
+        crit_count[ru] += crit_count[rv]
+
+    print(total_cost)
+
+solve()

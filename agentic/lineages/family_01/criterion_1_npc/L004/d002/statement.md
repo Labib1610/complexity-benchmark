@@ -1,24 +1,24 @@
-# Orbital Power Routing
+# Protocol Synchronization
 
-**Time limit:** 2 s  
-**Memory limit:** 256 MB  
+Time limit: 2 s   Memory limit: 256 MB
 
-An orbital satellite operates $n$ electronic modules, labeled with integers from 1 to $n$. To function, every module must draw its power from exactly one of three distinct, isolated power buses (Bus 1, Bus 2, or Bus 3).
+You are configuring the synchronization protocols for a distributed network of $n$ server nodes.
+Each node $i$ must be assigned a protocol version $b_i$, which must be an integer chosen from the set $\{1, 2, 3\}$.
 
-Due to severe electromagnetic interference, certain pairs of modules cannot operate safely if they draw power from the same bus. You are given a comprehensive list of these incompatible pairs. Your objective is to determine whether there exists a valid bus assignment for all $n$ modules such that no two interfering modules share the same power bus.
+You are given a list of $m$ communication links between pairs of nodes. For each link $(u, v)$, the two nodes must be able to exchange data reliably. Due to a known bug in the firmware, if two linked nodes use protocol versions such that the sum of their squares $(b_u^2 + b_v^2)$ is an integer multiple of their product $(b_u \times b_v)$, the link will drop packets and fail. 
 
-The satellite's interconnected design means these interference constraints are distributed across the system, forming a dense network of dependencies.
+Your objective is to determine if there exists a valid protocol assignment for all $n$ nodes such that no communication links fail. If a valid assignment exists, output it.
 
 ## Input
-The first line contains two integers $n$ and $m$, representing the number of modules and the number of incompatible pairs, respectively ($1 \le n \le 40$, $0 \le m \le n \cdot (n-1)/2$).
-Each of the next $m$ lines contains two integers $u$ and $v$, indicating that module $u$ and module $v$ must be connected to different buses.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$) — the number of server nodes and the number of communication links.
+Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \ne v$), representing a communication link between node $u$ and node $v$.
 
 ## Output
-If no safe power routing exists, print `NO` on a single line.
-If a valid routing is possible, print `YES` on the first line. On the second line, output a sequence of $n$ integers $b_1, b_2, \dots, b_n$ (where each $b_i \in \{1, 2, 3\}$) indicating the bus assigned to module $i$. Should multiple valid routings exist, output the one that is lexicographically first (evaluating the bus choice for module 1 first, then module 2, and so on).
+If there is no valid protocol assignment, print a single line containing `NO`.
+Otherwise, print `YES` on the first line. On the second line, print $n$ integers $b_1, b_2, \dots, b_n$ (each in $\{1, 2, 3\}$), where $b_i$ is the protocol version assigned to node $i$. If there are multiple valid assignments, any valid assignment is accepted.
 
 ## Example 1
-**Input:**
+Input:
 ```
 4 5
 1 2
@@ -27,14 +27,14 @@ If a valid routing is possible, print `YES` on the first line. On the second lin
 1 4
 2 4
 ```
-**Output:**
+Output:
 ```
 YES
 1 2 3 3
 ```
 
 ## Example 2
-**Input:**
+Input:
 ```
 4 6
 1 2
@@ -44,7 +44,7 @@ YES
 2 4
 3 4
 ```
-**Output:**
+Output:
 ```
 NO
 ```

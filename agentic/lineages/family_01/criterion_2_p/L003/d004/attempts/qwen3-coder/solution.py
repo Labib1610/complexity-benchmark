@@ -1,0 +1,83 @@
+import sys
+from collections import defaultdict, deque
+
+def is_perfect_square(n):
+    if n < 0:
+        return False
+    root = int(n**0.5)
+    return root * root == n
+
+def solve():
+    n, m = map(int, sys.stdin.readline().split())
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
+    
+    # Build adjacency list
+    adj = defaultdict(list)
+    edges = []
+    for _ in range(m):
+        u, v = map(int, sys.stdin.readline().split())
+        u -= 1  # Convert to 0-indexed
+        v -= 1
+        adj[u].append(v)
+        adj[v].append(u)
+        edges.append((u, v))
+    
+    # Try all possible assignments with BFS for lexicographically smallest
+    # We can model this as a 2-SAT problem or bipartite checking
+    # For each edge (u,v), the constraint is: (s_u+1)(s_v+1) is not a perfect square
+    # s_u, s_v ∈ {1,2} => (s_u+1) ∈ {2,3}, (s_v+1) ∈ {2,3}
+    # So products are: 2×2=4, 2×3=6, 3×2=6, 3×3=9
+    # Perfect squares among these: 4, 9
+    # So we must avoid (s_u=1,s_v=1) and (s_u=2,s_v=2)
+    # This is like a graph coloring problem where adjacent nodes can't have same color
+    
+    # This is equivalent to checking if the graph is bipartite
+    # Color 0: mode 1 (s_i = 1, so s_i+1 = 2)
+    # Color 1: mode 2 (s_i = 2, so s_i+1 = 3)
+    # Adjacent nodes must have different colors to avoid 2×2=4 or 3×3=9
+    
+    color = [-1] * n  # -1: uncolored, 0: mode 1, 1: mode 2
+    queue = deque()
+    
+    # Process each connected component
+    for start in range(n):
+        if color[start] == -1:
+            color[start] = 0
+            queue.append(start)
+            
+            while queue:
+                node = queue.popleft()
+                current_color = color[node]
+                
+                for neighbor in adj[node]:
+                    if color[neighbor] == -1:
+                        color[neighbor] = 1 - current_color
+                        queue.append(neighbor)
+                    elif color[neighbor] == current_color:
+                        print("NO")
+                        return
+    
+    # If bipartite, construct the lexicographically smallest solution
+    # We want s_1 s_2 ... s_n lexicographically smallest
+    # This means we prefer s_i = 1 over s_i = 2 when possible
+    # In our coloring, color 0 corresponds to mode 1, color 1 to mode 2
+    # So we should try to assign color 0 to earlier vertices when possible
+    
+    # Actually, the BFS from lower indices already ensures lexicographically smallest coloring
+    # because we process nodes in order and always prefer color 0 for uncolored nodes
+    
+    result = []
+    for i in range(n):
+        if color[i] == 0:
+            result.append("1")
+        else:
+            result.append("2")
+    
+    print("YES")
+    print(" ".join(result))
+
+solve()

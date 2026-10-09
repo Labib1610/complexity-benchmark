@@ -1,0 +1,162 @@
+```python
+import sys
+from collections import defaultdict, deque
+
+def main():
+    import sys
+    sys.setrecursionlimit(1 << 25)
+    
+    n, m, t = map(int, sys.stdin.readline().split())
+    critical = set(map(int, sys.stdin.readline().split()))
+    
+    # Since m = n - 1 and the graph is connected with unique paths,
+    # it's a tree.
+    
+    adj = [[] for _ in range(n + 1)]
+    edges = []
+    
+    for _ in range(m):
+        u, v, w = map(int, sys.stdin.readline().split())
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+        edges.append((u, v, w))
+    
+    # If there's only one critical module, we don't need any corridors
+    if t <= 1:
+        print(0)
+        return
+    
+    # To find the minimum cost to connect all critical nodes,
+    # we can build a subtree that spans all critical nodes.
+    # This is essentially finding the minimum Steiner tree on a tree,
+    # which can be solved by:
+    # 1. Finding the subtree that contains all critical nodes
+    # 2. The minimal way is to take all edges in that subtree
+    
+    # First, let's find all nodes that are on paths between critical nodes.
+    # We can do this by marking all nodes that are critical,
+    # then doing a BFS/DFS from all critical nodes simultaneously until
+    # we've found the full connected component containing all critical nodes.
+    
+    # But since it's a tree, a simpler approach:
+    # Find the "Steiner tree" which is the union of paths between all pairs
+    # of critical nodes. However, since it's a tree, the minimal subtree
+    # connecting all critical nodes is unique.
+    
+    # Efficient approach:
+    # 1. Root the tree at some node
+    # 2. For each node, compute if its subtree contains any critical node
+    # 3. An edge should be included if it connects two subtrees that both contain critical nodes
+    
+    # Let's root the tree at node 1
+    root = 1
+    
+    # Build parent pointers and depths via DFS
+    parent = [-1] * (n + 1)
+    depth = [0] * (n + 1)
+    children = [[] for _ in range(n + 1)]
+    
+    visited = [False] * (n + 1)
+    stack = [root]
+    visited[root] = True
+    
+    while stack:
+        u = stack.pop()
+        for v, w in adj[u]:
+            if not visited[v]:
+                visited[v] = True
+                parent[v] = u
+                depth[v] = depth[u] + 1
+                children[u].append((v, w))
+                stack.append(v)
+    
+    # Now, for each node, determine if its subtree contains any critical node
+    has_critical = [False] * (n + 1)
+    
+    # Mark leaves and propagate up
+    queue = deque()
+    in_degree = [0] * (n + 1)
+    
+    for i in range(1, n + 1):
+        in_degree[i] = len(children[i])
+        if in_degree[i] == 0:
+            queue.append(i)
+    
+    # Process in topological order from leaves up
+    order = []
+    temp_queue = list(queue)
+    
+    while temp_queue:
+        u = temp_queue.pop()
+        order.append(u)
+        if parent[u] != -1:
+            in_degree[parent[u]] -= 1
+            if in_degree[parent[u]] == 0:
+                temp_queue.append(parent[u])
+    
+    # Mark which nodes are critical
+    for c in critical:
+        has_critical[c] = True
+        
+    # Propagate up the tree
+    for u in reversed(order):
+        for v, w in children[u]:
+            if has_critical[v]:
+                has_critical[u] = True
+                
+    # Now, count the total weight of edges where both endpoints' subtrees have critical nodes
+    total_cost = 0
+    for u in range(1, n + 1):
+        for v, w in children[u]:
+            # If both u's subtree (including u) and v's subtree have critical nodes
+            # then the edge u-v must be included
+            # But we need to be careful: we only want edges that are necessary
+            # Actually, in the Steiner tree of a tree, an edge {u,v} (where v is child of u)
+            # is included if:
+            # 1. v's subtree contains at least one critical node, AND
+            # 2. the rest of the tree (including u and its other subtrees) contains at least one critical node
+            
+            if has_critical[v]:  # v's subtree has a critical node
+                # Check if the rest of the tree has a critical node
+                # That means either u itself is critical or one of u's other children has critical
+                # Or u's parent side has critical
+                rest_has_critical = False
+                # Check parent side (unless u is root)
+                if u != root and has_critical[u] and has_critical[v]:
+                    # Need to ensure that u has critical outside of v's subtree
+                    # has_critical[u] means subtree rooted at u has critical
+                    # has_critical[v] means subtree rooted at v has critical
+                    # So if has_critical[u] and has_critical[v], and v is child of u,
+                    # then u has critical in its other branches iff has_critical[u] is due to more than just v
+                    # But our propagation was OR, so we can't tell
+                    # Let's recompute more carefully
+                    
+                    # Recompute has_critical properly to know for each node
+                    # if its subtree contains critical
+                    
+    # Let's use a cleaner DP approach:
+    # has_critical[u] = number of critical nodes in subtree of u
+    has_critical = [0] * (n + 1)
+    for c in critical:
+        has_critical[c] = 1
+        
+    # Propagate counts up
+    for u in reversed(order):
+        for v, w in children[u]:
+            has_critical[u] += has_critical[v]
+            
+    # Now, for each edge (u,v) where v is child of u,
+    # include it if both sides have at least one critical node
+    total_cost = 0
+    for u in range(1, n + 1):
+        for v, w in children[u]:
+            # v's subtree has has_critical[v] critical nodes
+            # Rest of the tree has has_critical[root] - has_critical[v] critical nodes
+            if has_critical[v] > 0 and (has_critical[root] - has_critical[v]) > 0:
+                total_cost += w
+                
+    print(total_cost)
+
+if __name__ == "__main__":
+    main()
+```

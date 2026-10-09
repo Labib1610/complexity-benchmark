@@ -1,0 +1,363 @@
+**Solution Explanation**
+
+For every router we have to choose a mode  
+
+* `1` – active  
+* `0` – passive  
+
+A safety protocol contains three *literals*  
+
+* `+x` means “router `x` must be `1`”  
+* `-x` means “router `x` must be `0`”
+
+The protocol *fails* only when **all three literals are false**.
+Therefore we have to find an assignment of the `n` Boolean variables such that
+every clause (protocol) contains at least one true literal.
+That is exactly the classic **3‑SAT** problem.
+
+The limits are tiny  
+
+```
+n ≤ 90 ,   m ≤ 400
+```
+
+so a complete SAT solver (DPLL) with simple heuristics is more than fast
+enough.
+
+
+
+--------------------------------------------------------------------
+
+#### 1.   Data representation  
+
+* `assign[i]` – current value of router `i`  
+
+```
+-1  … not decided yet
+ 0  … passive
+ 1  … active
+```
+
+* each clause – list of three integers `l` (`|l|` is router index, sign is the
+  required value)
+
+--------------------------------------------------------------------
+
+#### 2.   DPLL recursive routine  
+
+```
+dpll(assign):
+    1. unit propagation
+    2. pure literal elimination
+    3. if all variables are assigned → success
+    4. choose an unassigned variable (most occurrences)
+       try value 1, then 0 (recursive calls)
+```
+
+*Unit propagation*  
+A clause is a *unit clause* when all its literals are already false
+except one still unknown.
+That remaining literal **must** become true, otherwise the clause would be
+unsatisfied.
+We repeatedly scan all clauses, assign the forced literals and
+detect a conflict (a clause whose three literals are already false).
+
+*Pure literal elimination*  
+If an unassigned variable appears only with the same polarity
+(e.g. only `+x` and never `-x`) in all still‑unsatisfied clauses,
+setting it to the satisfying value can never hurt.
+All such pure literals are assigned at once, then the whole procedure
+starts again (recursive call) – this also re‑triggers unit propagation.
+
+*Variable selection*  
+From the still‑unsatisfied clauses we count how many times each
+unassigned variable occurs and pick the one with the largest count.
+That simple heuristic keeps the search tree shallow.
+
+The recursion depth never exceeds `n` ( ≤ 90 ), therefore Python recursion
+limit is increased a little.
+
+All operations are `O(m·n)` in the worst case, but with the given limits
+the program finishes far below the time limit.
+
+--------------------------------------------------------------------
+
+#### 3.   Correctness Proof  
+
+We prove that the algorithm prints **YES** and a correct assignment
+iff such an assignment exists.
+
+---
+
+##### Lemma 1 (Unit propagation soundness)  
+When the algorithm assigns a variable because a clause became unit,
+the assignment is forced in every satisfying assignment extending the
+current partial assignment.
+
+**Proof.**  
+The clause contains three literals. Two of them are already false,
+the third is still unassigned.
+If the third literal were also false, the clause would have all literals
+false → the whole formula would be unsatisfied.
+Thus any satisfying total assignment must make the third literal true,
+i.e. must set the variable to the value required by that literal. ∎
+
+
+
+##### Lemma 2 (Pure literal elimination soundness)  
+If a variable appears only with one polarity in all still‑unsatisfied
+clauses, assigning it the satisfying polarity never destroys satisfiability.
+
+**Proof.**  
+The variable never occurs with the opposite polarity, therefore no clause
+relies on the opposite value to become true.
+Setting it to the occurring polarity can only turn some clauses from
+*unknown* to *true* and never makes a true clause false.
+Hence any satisfying assignment can be modified to have this value as well. ∎
+
+
+
+##### Lemma 3 (Conflict detection)  
+If during unit propagation a clause is found with all three literals false,
+the current partial assignment cannot be extended to a satisfying total
+assignment.
+
+**Proof.**  
+All literals of that clause are already forced to be false by the current
+partial assignment (Lemma&nbsp;1). No future decision can change them,
+so the clause will stay false forever → the whole formula unsatisfied. ∎
+
+
+
+##### Lemma 4 (Completeness of the search)  
+Assume the current partial assignment is *consistent* (no conflict) and
+not all variables are fixed.
+Let `v` be the variable chosen by the heuristic.
+If the original formula is satisfiable, then at least one of the two
+recursive calls (`v = 1` or `v = 0`) leads to a satisfiable branch.
+
+**Proof.**  
+Take a satisfying total assignment `A` that extends the current partial
+assignment (it exists by assumption).
+`A` gives a concrete value to `v`. The recursive call that tries exactly this
+value reproduces the same decision, and all later deterministic steps
+(unit propagation, pure literals) are also forced by `A` (Lemmas&nbsp;1,2).
+Therefore that branch never hits a conflict and finally reaches a full
+assignment – a success. ∎
+
+
+
+##### Lemma 5 (Termination)  
+Each recursive call either
+
+* returns `None` because a conflict is detected, or
+* fixes at least one previously unassigned variable (unit, pure, or the
+  branching decision).
+
+Thus the number of recursive levels is bounded by `n`, so the algorithm
+terminates.
+
+---
+
+##### Theorem (Algorithm correctness)  
+
+*If the algorithm outputs “YES” and an assignment `S`,
+ then `S` satisfies every protocol.*  
+
+*If a satisfying assignment exists, the algorithm outputs “YES” and
+some satisfying assignment.*  
+
+**Proof.**  
+
+*Soundness.*  
+The algorithm returns an assignment only after the recursive routine
+terminates with all variables assigned.
+During the whole recursion no conflict was ever reported,
+hence by Lemma&nbsp;3 every clause is either already true or still has an
+unassigned literal.
+When the recursion ends, no clause is left with an unassigned literal,
+so each clause contains a true literal – exactly the required condition.
+
+*Completeness.*  
+Assume a satisfying assignment `A` exists.
+Starting with the empty assignment, the algorithm performs only
+sound deterministic steps (Lemmas&nbsp;1,2) – they keep at least one
+satisfying extension (namely `A`).  
+When a branching step is reached, Lemma&nbsp;4 guarantees that the branch
+matching `A`’s value for the chosen variable stays satisfiable.
+Thus the depth‑first search will eventually follow that branch and reach a
+leaf where all variables are fixed, returning a satisfying assignment.
+Consequently the algorithm never answers “NO” while a solution exists. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### 4.   Complexity Analysis  
+
+*`n ≤ 90`, `m ≤ 400`.*
+
+In each recursion level we scan all clauses a constant number of times.
+
+```
+unit propagation   : O(m·3)   per iteration
+pure literal check : O(m·3)
+variable counting  : O(m·3)
+```
+
+The number of iterations inside one level is bounded by `n`
+(because each iteration fixes at least one variable).
+Hence one level costs `O(n·m)` ≤ `O(90·400) ≈ 3.6·10⁴`.
+
+The recursion depth is at most `n`, so the worst‑case time is
+`O(n²·m)` – far below the 2 seconds limit for the given bounds.
+Memory consumption is `O(n + m)`.
+
+--------------------------------------------------------------------
+
+#### 5.   Reference Implementation  (Python 3)
+
+```python
+import sys
+
+sys.setrecursionlimit(10000)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    clauses = []
+    for _ in range(m):
+        a = int(next(it))
+        b = int(next(it))
+        c = int(next(it))
+        clauses.append([a, b, c])
+
+    # ------------------------------------------------------------
+    # DPLL recursive solver
+    # ------------------------------------------------------------
+    def dpll(assign):
+        """assign: list of length n, -1 = unknown, 0 or 1 = fixed.
+           returns a full assignment list or None."""
+        # ----- unit propagation -----
+        while True:
+            changed = False
+            for cl in clauses:
+                # check if clause already satisfied
+                satisfied = False
+                unassigned = []
+                for lit in cl:
+                    v = abs(lit) - 1
+                    a = assign[v]
+                    if a == -1:
+                        unassigned.append(lit)
+                    else:
+                        lit_true = (a == 1 and lit > 0) or (a == 0 and lit < 0)
+                        if lit_true:
+                            satisfied = True
+                            break
+                if satisfied:
+                    continue
+                if not unassigned:          # all false -> conflict
+                    return None
+                if len(unassigned) == 1:    # unit clause
+                    lit = unassigned[0]
+                    v = abs(lit) - 1
+                    val = 1 if lit > 0 else 0
+                    if assign[v] == -1:
+                        assign[v] = val
+                        changed = True
+                    elif assign[v] != val:
+                        return None
+            if not changed:
+                break
+
+        # ----- pure literal elimination -----
+        pos = [False] * n
+        neg = [False] * n
+        for cl in clauses:
+            # skip already satisfied clauses
+            clause_sat = False
+            for lit in cl:
+                v = abs(lit) - 1
+                a = assign[v]
+                if a != -1:
+                    lit_true = (a == 1 and lit > 0) or (a == 0 and lit < 0)
+                    if lit_true:
+                        clause_sat = True
+                        break
+            if clause_sat:
+                continue
+            for lit in cl:
+                v = abs(lit) - 1
+                if assign[v] == -1:
+                    if lit > 0:
+                        pos[v] = True
+                    else:
+                        neg[v] = True
+
+        pure_assigned = False
+        for v in range(n):
+            if assign[v] == -1:
+                if pos[v] and not neg[v]:
+                    assign[v] = 1
+                    pure_assigned = True
+                elif neg[v] and not pos[v]:
+                    assign[v] = 0
+                    pure_assigned = True
+        if pure_assigned:
+            # after pure assignments we may get new units
+            return dpll(assign)
+
+        # ----- all variables assigned ? -----
+        if all(a != -1 for a in assign):
+            return assign
+
+        # ----- choose variable (most occurrences) -----
+        occ = [0] * n
+        for cl in clauses:
+            # ignore satisfied clauses
+            clause_sat = False
+            for lit in cl:
+                v = abs(lit) - 1
+                a = assign[v]
+                if a != -1:
+                    lit_true = (a == 1 and lit > 0) or (a == 0 and lit < 0)
+                    if lit_true:
+                        clause_sat = True
+                        break
+            if clause_sat:
+                continue
+            for lit in cl:
+                v = abs(lit) - 1
+                if assign[v] == -1:
+                    occ[v] += 1
+        var = max(range(n), key=lambda i: occ[i])
+
+        # ----- branch on the chosen variable -----
+        for val in (1, 0):
+            new_assign = assign.copy()
+            new_assign[var] = val
+            res = dpll(new_assign)
+            if res is not None:
+                return res
+        return None
+
+    # start with all unknown
+    answer = dpll([-1] * n)
+
+    if answer is None:
+        print("NO")
+    else:
+        print("YES")
+        print(' '.join(str(x) for x in answer))
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above
+and conforms to the required input‑output format.

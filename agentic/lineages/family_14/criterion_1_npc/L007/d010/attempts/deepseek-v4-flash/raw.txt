@@ -1,0 +1,87 @@
+ We can model this as a graph problem.  
+Each available condition is an edge between two sequences with a cost (penalty).  
+We need to ensure that all priority sequences are in the same connected component, because if two priority sequences are connected by a path of enforced conditions, the triangle inequality guarantees their infinite sum is finite.
+
+Thus, the problem reduces to finding the minimum cost to connect all priority vertices in the graph, which is exactly the **Minimum Steiner Tree** problem, but with a small number of terminals (t ≤ 10).  
+
+We can solve it using **bitmask DP over subsets of terminals**:
+
+1. Compute all-pairs shortest paths between all vertices (Floyd–Warshall or Dijkstra from each node).
+2. Use DP where `dp[mask][v]` = minimum cost to connect the terminals in `mask` and end at vertex `v`.
+3. Initialize `dp[1<<i][terminal_i] = 0`.
+4. Combine subsets: `dp[mask][v] = min(dp[mask][v], dp[sub][v] + dp[mask^sub][v])`.
+5. Relax with shortest paths: `dp[mask][u] = min(dp[mask][u], dp[mask][v] + dist[v][u])`.
+6. Answer is `min(dp[(1<<t)-1][v])`.
+
+Here’s the implementation:
+
+```python
+import sys
+import heapq
+
+def solve():
+    input = sys.stdin.readline
+    n, m, t = map(int, input().split())
+    terminals = list(map(int, input().split()))
+    terminals = [x-1 for x in terminals]
+    
+    INF = 10**18
+    dist = [[INF]*n for _ in range(n)]
+    for i in range(n):
+        dist[i][i] = 0
+    
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u, v, w = map(int, input().split())
+        u -= 1
+        v -= 1
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+    
+    # Dijkstra from each node to get all-pairs shortest paths
+    for s in range(n):
+        d = [INF]*n
+        d[s] = 0
+        pq = [(0, s)]
+        while pq:
+            du, u = heapq.heappop(pq)
+            if du != d[u]:
+                continue
+            for v, w in adj[u]:
+                nd = du + w
+                if nd < d[v]:
+                    d[v] = nd
+                    heapq.heappush(pq, (nd, v))
+        dist[s] = d
+    
+    # DP over subsets of terminals
+    full_mask = (1 << t) - 1
+    dp = [[INF]*n for _ in range(1 << t)]
+    for i in range(t):
+        dp[1 << i][terminals[i]] = 0
+    
+    for mask in range(1 << t):
+        # Combine subsets
+        sub = (mask - 1) & mask
+        while sub:
+            other = mask ^ sub
+            if sub < other:  # avoid double work
+                for v in range(n):
+                    dp[mask][v] = min(dp[mask][v], dp[sub][v] + dp[other][v])
+            sub = (sub - 1) & mask
+        
+        # Relax using shortest paths
+        for u in range(n):
+            if dp[mask][u] < INF:
+                for v in range(n):
+                    if dist[u][v] < INF:
+                        nd = dp[mask][u] + dist[u][v]
+                        if nd < dp[mask][v]:
+                            dp[mask][v] = nd
+    
+    ans = min(dp[full_mask])
+    print(ans)
+
+if __name__ == "__main__":
+    solve()
+```

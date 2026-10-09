@@ -1,0 +1,70 @@
+import sys
+from collections import deque
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    q = int(next(it))
+    t = int(next(it))
+    
+    adj = [[] for _ in range(q + 1)]
+    edges = []
+    for _ in range(t):
+        u = int(next(it))
+        v = int(next(it))
+        adj[u].append(v)
+        edges.append((u, v))
+    
+    # Pair U and V nodes
+    pair_U = [0] * (q + 1)
+    pair_V = [0] * (2 * q + 1)
+    dist = [0] * (q + 1)
+    
+    def bfs():
+        dq = deque()
+        for u in range(1, q + 1):
+            if pair_U[u] == 0:
+                dist[u] = 0
+                dq.append(u)
+            else:
+                dist[u] = -1
+        found = False
+        while dq:
+            u = dq.popleft()
+            for v in adj[u]:
+                pu = pair_V[v]
+                if pu != 0 and dist[pu] == -1:
+                    dist[pu] = dist[u] + 1
+                    dq.append(pu)
+                elif pu == 0:
+                    found = True
+        return found
+
+    def dfs(u):
+        for v in adj[u]:
+            pu = pair_V[v]
+            if pu == 0 or (dist[pu] == dist[u] + 1 and dfs(pu)):
+                pair_U[u] = v
+                pair_V[v] = u
+                return True
+        dist[u] = -1
+        return False
+
+    matching = 0
+    while bfs():
+        for u in range(1, q + 1):
+            if pair_U[u] == 0 and dfs(u):
+                matching += 1
+    
+    if matching != q:
+        sys.stdout.write("NO\n")
+        return
+    
+    sys.stdout.write("YES\n")
+    for u in range(1, q + 1):
+        sys.stdout.write(f"{u} {pair_U[u]}\n")
+
+if __name__ == "__main__":
+    solve()

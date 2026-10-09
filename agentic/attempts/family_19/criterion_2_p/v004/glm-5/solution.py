@@ -1,0 +1,103 @@
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    idx = 0
+    n = int(data[idx]); idx += 1
+    m = int(data[idx]); idx += 1
+    _ = int(data[idx]); idx += 1
+    s = int(data[idx]); idx += 1
+    t = int(data[idx]); idx += 1
+    d = int(data[idx]); idx += 1
+
+    edges = []
+    for _ in range(m):
+        u = int(data[idx]); idx += 1
+        v = int(data[idx]); idx += 1
+        cap = int(data[idx]); idx += 1
+        edges.append((u, v, cap))
+
+    # Build graph for max flow
+    # Nodes 1..n
+    head = [-1] * (n + 1)
+    to = []
+    nxt = []
+    cap_arr = []
+
+    def add_edge(u, v, c):
+        to.append(v)
+        nxt.append(head[u])
+        cap_arr.append(c)
+        head[u] = len(to) - 1
+        to.append(u)
+        nxt.append(head[v])
+        cap_arr.append(0)
+        head[v] = len(to) - 1
+
+    for (u, v, c) in edges:
+        add_edge(u, v, c)
+
+    # Dinic
+    level = [0] * (n + 1)
+    iter_ = [0] * (n + 1)
+
+    from collections import deque
+
+    def bfs():
+        for i in range(n + 1):
+            level[i] = -1
+        level[s] = 0
+        q = deque([s])
+        while q:
+            v = q.popleft()
+            e = head[v]
+            while e != -1:
+                if cap_arr[e] > 0 and level[to[e]] < 0:
+                    level[to[e]] = level[v] + 1
+                    q.append(to[e])
+                e = nxt[e]
+        return level[t] >= 0
+
+    def dfs(v, f):
+        if v == t:
+            return f
+        e = iter_[v]
+        while e != -1:
+            if cap_arr[e] > 0 and level[v] < level[to[e]]:
+                ret = dfs(to[e], min(f, cap_arr[e]))
+                if ret > 0:
+                    cap_arr[e] -= ret
+                    cap_arr[e ^ 1] += ret
+                    iter_[v] = e
+                    return ret
+            e = nxt[e]
+        iter_[v] = e
+        return 0
+
+    flow = 0
+    while bfs():
+        for i in range(n + 1):
+            iter_[i] = head[i]
+        while True:
+            f = dfs(s, d - flow)
+            if f == 0:
+                break
+            flow += f
+            if flow >= d:
+                break
+        if flow >= d:
+            break
+
+    if flow < d:
+        print("NO")
+        return
+
+    # Extract flows: for edge i (0-indexed), the flow is cap_arr[2*i+1] (reverse residual)
+    result = []
+    for i in range(m):
+        result.append(str(cap_arr[2 * i + 1]))
+
+    print("YES")
+    print(" ".join(result))
+
+solve()

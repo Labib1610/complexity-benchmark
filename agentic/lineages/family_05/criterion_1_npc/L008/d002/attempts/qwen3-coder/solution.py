@@ -1,0 +1,163 @@
+from collections import defaultdict
+
+def solve():
+    k, t = map(int, input().split())
+    
+    # If no stable coordinates, impossible unless k=0 (but k>=1)
+    if t == 0:
+        print("NO")
+        return
+    
+    coords = []
+    for _ in range(t):
+        x, y, z = map(int, input().split())
+        coords.append((x, y, z))
+    
+    # Build a graph where each node is a coordinate and edges represent conflicts
+    # Actually, we want to find a matching that covers all k planes in each dimension
+    # This is a tripartite matching problem
+    
+    # We can model this as finding a perfect matching in a tripartite hypergraph
+    # But it's easier to think of it as finding a subset of k coordinates such that
+    # all x, y, z values are distinct and cover 1..k each
+    
+    # Try all combinations? No, that's too slow.
+    # This is essentially the 3D matching problem which is NP-complete.
+    # But since k <= 22, maybe we can use backtracking with pruning.
+    
+    # Let's build mappings from each plane to coordinates
+    x_coords = defaultdict(list)
+    y_coords = defaultdict(list)
+    z_coords = defaultdict(list)
+    
+    for i, (x, y, z) in enumerate(coords):
+        x_coords[x].append(i)
+        y_coords[y].append(i)
+        z_coords[z].append(i)
+    
+    # Check if any plane has no coordinates - then impossible
+    for i in range(1, k+1):
+        if i not in x_coords or i not in y_coords or i not in z_coords:
+            print("NO")
+            return
+    
+    # Use backtracking to find a valid assignment
+    # State: which coordinates are used, which x/y/z planes are covered
+    used = [False] * t
+    selected = []
+    x_used = [False] * (k + 1)
+    y_used = [False] * (k + 1)
+    z_used = [False] * (k + 1)
+    
+    def backtrack(idx):
+        # If we've selected k coordinates, we're done
+        if len(selected) == k:
+            return True
+            
+        # Pruning: if remaining planes can't be filled, return False
+        # Count how many unused planes we still need to cover
+        needed_x = sum(1 for i in range(1, k+1) if not x_used[i])
+        needed_y = sum(1 for i in range(1, k+1) if not y_used[i])
+        needed_z = sum(1 for i in range(1, k+1) if not z_used[i])
+        
+        if len(selected) + min(needed_x, needed_y, needed_z) < k:
+            return False
+            
+        # Try coordinates starting from idx
+        for i in range(idx, t):
+            x, y, z = coords[i]
+            
+            # Skip if this coordinate conflicts with already selected ones
+            if x_used[x] or y_used[y] or z_used[z]:
+                continue
+                
+            # Select this coordinate
+            used[i] = True
+            selected.append(i)
+            x_used[x] = True
+            y_used[y] = True
+            z_used[z] = True
+            
+            # Recurse
+            if backtrack(i + 1):
+                return True
+                
+            # Backtrack
+            used[i] = False
+            selected.pop()
+            x_used[x] = False
+            y_used[y] = False
+            z_used[z] = False
+            
+        return False
+    
+    # Also try a different approach: build a bipartite matching for each pair of dimensions
+    # and see if we can extend it to 3D. But that's complex.
+    
+    # Let's just do the backtracking but make it smarter
+    # Sort coordinates by how constrained they are
+    coord_constraints = []
+    for i, (x, y, z) in enumerate(coords):
+        # Count how many other coordinates conflict in each dimension
+        cx = len(x_coords[x])
+        cy = len(y_coords[y])
+        cz = len(z_coords[z])
+        coord_constraints.append((cx + cy + cz, i))
+    
+    coord_constraints.sort()  # Sort by constraint count
+    ordered_indices = [i for _, i in coord_constraints]
+    
+    # Try a greedy approach first: pick coordinates that are least constraining
+    def greedy_first_backtrack():
+        nonlocal used, selected, x_used, y_used, z_used
+        
+        # Reset
+        used = [False] * t
+        selected = []
+        x_used = [False] * (k + 1)
+        y_used = [False] * (k + 1)
+        z_used = [False] * (k + 1)
+        
+        return backtrack_greedy(0)
+    
+    def backtrack_greedy(idx):
+        if len(selected) == k:
+            return True
+            
+        # Try coordinates in order of constraints
+        for i in ordered_indices[idx:]:
+            if used[i]:
+                continue
+                
+            x, y, z = coords[i]
+            
+            if x_used[x] or y_used[y] or z_used[z]:
+                continue
+                
+            used[i] = True
+            selected.append(i)
+            x_used[x] = True
+            y_used[y] = True
+            z_used[z] = True
+            
+            if backtrack_greedy(idx + 1):
+                return True
+                
+            used[i] = False
+            selected.pop()
+            x_used[x] = False
+            y_used[y] = False
+            z_used[z] = False
+            
+        return False
+    
+    # For small inputs, just try regular backtracking
+    if backtrack(0):
+        print("YES")
+        for i in selected:
+            x, y, z = coords[i]
+            print(x, y, z)
+    else:
+        print("NO")
+
+solve()

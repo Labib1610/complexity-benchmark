@@ -1,63 +1,100 @@
+import sys
+from collections import defaultdict, deque
+
 def solve():
-    import sys
-    from itertools import product
+    n, m = map(int, sys.stdin.readline().split())
     
-    input = sys.stdin.read
-    data = input().split()
+    # Build adjacency list for the graph
+    graph = defaultdict(list)
+    indegree = [0] * (n + 1)
     
-    n, m = int(data[0]), int(data[1])
-    
-    if m == 0:
-        print("YES")
-        print(" ".join(["1"] * n))
-        return
-        
-    edges = []
-    index = 2
     for _ in range(m):
-        u = int(data[index]) - 1
-        v = int(data[index+1]) - 1
-        edges.append((u, v))
-        index += 2
+        u, v = map(int, sys.stdin.readline().split())
+        # u must come before v (u -> v)
+        graph[u].append(v)
+        indegree[v] += 1
     
-    # Try all 3^n assignments
-    # But we want the lexicographically smallest one
-    # So we can do backtracking with early termination
+    # Try all possible assignments of tasks to blocks 1, 2, 3
+    # We'll use a topological approach with 3-coloring
     
-    # More efficient: this is a graph coloring problem with 3 colors
-    # We want to check if the graph is 3-colorable
-    
-    # Build adjacency list
-    adj = [[] for _ in range(n)]
-    for u, v in edges:
-        adj[u].append(v)
-        adj[v].append(u)
-        
-    # color[i] will store the color (1,2,3) of node i, or 0 if unassigned
-    color = [0] * n
-    
-    def is_safe(node, c):
-        for neighbor in adj[node]:
-            if color[neighbor] == c:
-                return False
+    # For each node, we track the minimum block it can be assigned to
+    # based on its predecessors
+    def can_assign(colors):
+        # Check if this assignment is valid
+        for u in range(1, n + 1):
+            for v in graph[u]:
+                if colors[u] >= colors[v]:
+                    return False
         return True
     
-    def backtrack(node):
-        if node == n:
-            return True
+    # Generate all possible colorings and check topological validity
+    def backtrack(index, colors):
+        if index > n:
+            if can_assign(colors):
+                return colors[:]
+            return None
+        
+        # Try assigning task 'index' to blocks 1, 2, 3
+        # But respect topological constraints from already assigned nodes
+        min_block = 1
+        for pred in graph:
+            if pred < index:  # Only consider already assigned predecessors
+                for succ in graph[pred]:
+                    if succ == index:
+                        min_block = max(min_block, colors[pred] + 1)
+        
+        for block in range(min_block, 4):
+            colors[index] = block
+            result = backtrack(index + 1, colors)
+            if result:
+                return result
+            colors[index] = 0
             
-        for c in range(1, 4):
-            if is_safe(node, c):
-                color[node] = c
-                if backtrack(node + 1):
-                    return True
-                color[node] = 0
-        return False
+        return None
     
-    if backtrack(0):
-        print("YES")
-        print(" ".join(map(str, color)))
-    else:
+    # Simpler approach: topological sort with level assignment
+    def topo_sort_with_levels():
+        # Kahn's algorithm with level tracking
+        indeg = indegree[:]
+        queue = deque()
+        levels = [0] * (n + 1)
+        
+        # Find all nodes with indegree 0
+        for i in range(1, n + 1):
+            if indeg[i] == 0:
+                queue.append(i)
+                levels[i] = 1
+        
+        processed = 0
+        while queue:
+            node = queue.popleft()
+            processed += 1
+            
+            # Process neighbors
+            for neighbor in graph[node]:
+                indeg[neighbor] -= 1
+                # Update level: neighbor must be in a later block than node
+                levels[neighbor] = max(levels[neighbor], levels[node] + 1)
+                if indeg[neighbor] == 0:
+                    queue.append(neighbor)
+        
+        # If not all nodes processed, there's a cycle
+        if processed != n:
+            return None
+            
+        # Check if all levels are within 1-3
+        for i in range(1, n + 1):
+            if levels[i] > 3:
+                return None
+                
+        return levels[1:]
+    
+    result = topo_sort_with_levels()
+    
+    if result is None:
         print("NO")
+    else:
+        print("YES")
+        print(*result)
 
 solve()

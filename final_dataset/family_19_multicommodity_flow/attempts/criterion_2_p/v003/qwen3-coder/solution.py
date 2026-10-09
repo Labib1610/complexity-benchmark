@@ -1,0 +1,168 @@
+from collections import defaultdict, deque
+
+def solve():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    idx = 0
+    n = int(data[idx])
+    idx += 1
+    m = int(data[idx])
+    idx += 1
+    _ = int(data[idx])
+    idx += 1
+    
+    s = int(data[idx])
+    idx += 1
+    t = int(data[idx])
+    idx += 1
+    d = int(data[idx])
+    idx += 1
+    
+    edges = []
+    graph = defaultdict(list)
+    edge_index = {}
+    
+    for i in range(m):
+        u = int(data[idx])
+        idx += 1
+        v = int(data[idx])
+        idx += 1
+        cap = int(data[idx])
+        idx += 1
+        
+        edges.append((u, v, cap))
+        graph[u].append((v, cap, len(edges)-1))
+        graph[v].append((u, 0, len(edges)-1))  # backward edge with capacity 0
+        edge_index[(u,v,len(edges)-1)] = len(edges)-1
+    
+    # Ford-Fulkerson with DFS
+    def bfs_flow(graph, source, sink, parent_edge, parent_flow):
+        visited = [False] * (n+1)
+        queue = deque([(source, float('inf'), -1)])
+        visited[source] = True
+        
+        while queue:
+            node, flow, edge_idx = queue.popleft()
+            
+            for neighbor, capacity, e_idx in graph[node]:
+                if not visited[neighbor] and capacity > 0:
+                    visited[neighbor] = True
+                    new_flow = min(flow, capacity)
+                    parent_edge[neighbor] = (node, e_idx)
+                    parent_flow[neighbor] = new_flow
+                    
+                    if neighbor == sink:
+                        return new_flow
+                    
+                    queue.append((neighbor, new_flow, e_idx))
+        
+        return 0
+    
+    # Build residual network
+    res_graph = defaultdict(list)
+    for i, (u, v, cap) in enumerate(edges):
+        res_graph[u].append([v, cap, i, True])   # forward edge
+        res_graph[v].append([u, 0, i, False])   # backward edge
+    
+    max_flow = 0
+    parent_edge = [-1] * (n+1)
+    parent_flow = [0] * (n+1)
+    
+    while True:
+        flow = bfs_flow(res_graph, s, t, parent_edge, parent_flow)
+        if flow == 0:
+            break
+            
+        max_flow += flow
+        current = t
+        while current != s:
+            prev_node, edge_idx = parent_edge[current]
+            # Update residual capacities
+            for edge in res_graph[prev_node]:
+                if edge[0] == current and edge[2] == edge_idx and edge[3]:  # forward edge
+                    edge[1] -= flow
+                    break
+            for edge in res_graph[current]:
+                if edge[0] == prev_node and edge[2] == edge_idx and not edge[3]:  # backward edge
+                    edge[1] += flow
+                    break
+            current = prev_node
+    
+    if max_flow < d:
+        print("NO")
+        return
+    
+    # Extract flow values
+    result = [0] * m
+    # Run one more BFS to find the actual flow paths
+    # We need to send exactly 'd' units from s to t
+    
+    # Reconstruct the flow
+    # Use the residual graph to determine flows
+    flow_values = [0] * m
+    
+    # Create a proper flow network and run max-flow algorithm that tracks flow
+    # Let's use a cleaner implementation
+    
+    # Reset and implement clean max-flow with path tracking
+    class Edge:
+        def __init__(self, to, rev, cap, idx, is_forward):
+            self.to = to
+            self.rev = rev
+            self.cap = cap
+            self.flow = 0
+            self.idx = idx
+            self.is_forward = is_forward
+    
+    # Build adjacency list with Edge objects
+    adj = defaultdict(list)
+    edge_list = []  # To store references to edges
+    
+    for i, (u, v, cap) in enumerate(edges):
+        # Forward edge
+        fwd = {'to': v, 'cap': cap, 'flow': 0, 'idx': i}
+        # Backward edge
+        bwd = {'to': u, 'cap': 0, 'flow': 0, 'idx': i}
+        fwd['rev'] = bwd
+        bwd['rev'] = fwd
+        adj[u].append(fwd)
+        adj[v].append(bwd)
+        edge_list.append(fwd)
+    
+    def dfs(u, sink, flow, visited):
+        if u == sink:
+            return flow
+        visited.add(u)
+        for e in adj[u]:
+            if e['cap'] > e['flow'] and e['to'] not in visited:
+                bottleneck = dfs(e['to'], sink, min(flow, e['cap'] - e['flow']), visited)
+                if bottleneck > 0:
+                    e['flow'] += bottleneck
+                    e['rev']['flow'] -= bottleneck
+                    return bottleneck
+        return 0
+    
+    total_flow = 0
+    while total_flow < d:
+        visited = set()
+        flow = dfs(s, t, d - total_flow, visited)
+        if flow == 0:
+            break
+        total_flow += flow
+    
+    if total_flow < d:
+        print("NO")
+        return
+    
+    # Extract the result
+    result = []
+    for i in range(m):
+        e = edge_list[i]
+        result.append(e['flow'])
+    
+    print("YES")
+    print(' '.join(map(str, result)))
+
+solve()

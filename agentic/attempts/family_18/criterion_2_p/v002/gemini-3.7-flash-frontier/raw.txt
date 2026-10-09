@@ -1,0 +1,168 @@
+```python
+import sys
+
+# Increase recursion depth for deep trees
+sys.setrecursionlimit(300000)
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+
+    n = int(input_data[0])
+    m = int(input_data[1])
+    B = int(input_data[2])
+
+    if n == 1:
+        print("YES")
+        print(1)
+        return
+
+    adj = [[] for _ in range(n + 1)]
+    idx = 3
+    for _ in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx + 1])
+        adj[u].append(v)
+        adj[v].append(u)
+        idx += 2
+
+    # Find centroids as primary candidates
+    sz = [0] * (n + 1)
+    def get_sz(u, p):
+        s = 1
+        for v in adj[u]:
+            if v != p:
+                s += get_sz(v, u)
+        sz[u] = s
+        return s
+
+    get_sz(1, 0)
+
+    def get_centroids(u, p):
+        for v in adj[u]:
+            if v != p and sz[v] > n // 2:
+                return get_centroids(v, u)
+        res = [u]
+        for v in adj[u]:
+            if v != p and sz[v] == n / 2:
+                res.append(v)
+        return res
+
+    centroids = get_centroids(1, 0)
+
+    # Pick candidate roots: centroids, highest degree nodes, some evenly spaced
+    candidates = list(centroids)
+    degrees = sorted(range(1, n + 1), key=lambda x: len(adj[x]), reverse=True)
+    candidates.extend(degrees[:20])
+    
+    seen = set()
+    unique_candidates = []
+    for c in candidates:
+        if c not in seen:
+            seen.add(c)
+            unique_candidates.append(c)
+
+    if n <= 500:
+        unique_candidates = list(range(1, n + 1))
+
+    def evaluate_root(root):
+        # 1. Compute subtree sizes
+        sub_sz = [0] * (n + 1)
+        children = [[] for _ in range(n + 1)]
+        
+        stack = [(root, 0, False)]
+        order = []
+        while stack:
+            u, p, visited = stack.pop()
+            if visited:
+                order.append(u)
+                continue
+            stack.append((u, p, True))
+            for v in adj[u]:
+                if v != p:
+                    children[u].append(v)
+                    stack.append((v, u, False))
+
+        for u in order:
+            s = 1
+            for v in children[u]:
+                s += sub_sz[v]
+            sub_sz[u] = s
+
+        # Sort children by subtree size ascending
+        for u in range(1, n + 1):
+            children[u].sort(key=lambda v: sub_sz[v])
+
+        # Build linear arrangement
+        res = []
+
+        # For right-subtrees: node comes first, then children (L to R)
+        def build_right(u):
+            st = [u]
+            while st:
+                curr = st.pop()
+                res.append(curr)
+                for v in reversed(children[curr]):
+                    st.append(v)
+
+        # For left-subtrees: children (R to L), then node
+        def build_left(u):
+            # Post-order traversal where children are processed in reverse
+            st = [(u, False)]
+            while st:
+                curr, visited = st.pop()
+                if visited:
+                    res.append(curr)
+                else:
+                    st.append((curr, True))
+                    for v in children[curr]:
+                        st.append((v, False))
+
+        root_children = children[root]
+        left_c = []
+        right_c = []
+        for i, c in enumerate(root_children):
+            if i % 2 == 0:
+                left_c.append(c)
+            else:
+                right_c.append(c)
+
+        for c in reversed(left_c):
+            build_left(c)
+        res.append(root)
+        for c in right_c:
+            build_right(c)
+
+        # Calculate cost
+        pos = [0] * (n + 1)
+        for i, u in enumerate(res, 1):
+            pos[u] = i
+
+        total_cost = 0
+        for u in range(1, n + 1):
+            for v in children[u]:
+                total_cost += abs(pos[u] - pos[v])
+
+        return total_cost, pos
+
+    best_cost = float('inf')
+    best_pos = None
+
+    for r in unique_candidates:
+        cost, pos = evaluate_root(r)
+        if cost < best_cost:
+            best_cost = cost
+            best_pos = pos
+            if best_cost <= B:
+                break
+
+    if best_cost <= B:
+        print("YES")
+        print(*(best_pos[i] for i in range(1, n + 1)))
+    else:
+        print("NO")
+
+if __name__ == '__main__':
+    solve()
+```

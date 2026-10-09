@@ -1,0 +1,278 @@
+```python
+import sys
+from array import array
+from collections import deque
+
+
+def arrangement_cost(order, edges, n):
+    pos = [0] * n
+    for i, v in enumerate(order):
+        pos[v] = i
+    total = 0
+    for u, v, w in edges:
+        total += w * abs(pos[u] - pos[v])
+    return total
+
+
+def heuristic_order(component, adj, weighted_adj):
+    if len(component) <= 2:
+        return sorted(component)
+
+    comp_set = set(component)
+    degree = {v: len(adj[v]) for v in component}
+    candidates = [sorted(component)]
+
+    starts = [
+        min(component, key=lambda x: (degree[x], x)),
+        max(component, key=lambda x: (degree[x], -x)),
+    ]
+
+    for start in starts:
+        seen = {start}
+        q = deque([start])
+        order = []
+        while q:
+            u = q.popleft()
+            order.append(u)
+            neighbors = [v for v in adj[u] if v in comp_set and v not in seen]
+            neighbors.sort(key=lambda x: (degree[x], x))
+            for v in neighbors:
+                seen.add(v)
+                q.append(v)
+        candidates.append(order)
+
+        seen = {start}
+        stack = [start]
+        order = []
+        while stack:
+            u = stack.pop()
+            order.append(u)
+            neighbors = [v for v in adj[u] if v in comp_set and v not in seen]
+            neighbors.sort(key=lambda x: (degree[x], x), reverse=True)
+            for v in neighbors:
+                seen.add(v)
+                stack.append(v)
+        candidates.append(order)
+
+    def local_cost(order):
+        pos = {v: i for i, v in enumerate(order)}
+        result = 0
+        for u in component:
+            for v, w in weighted_adj[u]:
+                if u < v:
+                    result += w * abs(pos[u] - pos[v])
+        return result
+
+    return min(candidates, key=local_cost)
+
+
+def solve_component(vertices, weighted_adj, allowed):
+    k = len(vertices)
+    if k <= 1:
+        return vertices[:], 0
+
+    index = {v: i for i, v in enumerate(vertices)}
+    masks = [0] * k
+    degrees = [0] * k
+    extras = [[] for _ in range(k)]
+
+    for i, u in enumerate(vertices):
+        mask = 0
+        degree = 0
+        extra = extras[i]
+        for v, w in weighted_adj[u]:
+            j = index.get(v)
+            if j is None:
+                continue
+            mask |= 1 << j
+            degree += w
+            if w > 1:
+                extra.append((j, w - 1))
+        masks[i] = mask
+        degrees[i] = degree
+
+    size = 1 << k
+    cap = allowed + 1
+
+    cuts = array('i', [0]) * size
+    dp = array('q', [cap]) * size
+    dp[0] = 0
+
+    cuts_local = cuts
+    dp_local = dp
+    masks_local = masks
+    degrees_local = degrees
+    extras_local = extras
+
+    for s in range(1, size):
+        bit = s & -s
+        v = bit.bit_length() - 1
+        t = s ^ bit
+
+        inside_weight = (masks_local[v] & t).bit_count()
+        for j, extra_weight in extras_local[v]:
+            if t & (1 << j):
+                inside_weight += extra_weight
+
+        cut = cuts_local[t] + degrees_local[v] - (inside_weight << 1)
+        cuts_local[s] = cut
+
+        best = cap
+        x = s
+        while x:
+            b = x & -x
+            value = dp_local[s ^ b]
+            if value < best:
+                best = value
+            x ^= b
+
+        value = best + cut
+        if value > cap:
+            value = cap
+        dp_local[s] = value
+
+    full = size - 1
+    optimum = dp_local[full]
+    if optimum > allowed:
+        return None, None
+
+    local_order_reversed = []
+    s = full
+    while s:
+        required = dp_local[s] - cuts_local[s]
+        x = s
+        chosen = -1
+        while x:
+            b = x & -x
+            if dp_local[s ^ b] == required:
+                chosen = b.bit_length() - 1
+                break
+            x ^= b
+        if chosen < 0:
+            return None, None
+        local_order_reversed.append(chosen)
+        s ^= 1 << chosen
+
+    local_order_reversed.reverse()
+    order = [vertices[i] for i in local_order_reversed]
+    return order, optimum
+
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if len(data) < 3:
+        return
+
+    n, m, budget = data[0], data[1], data[2]
+    if budget < 0:
+        print("NO")
+        return
+
+    pair_counts = {}
+    p = 3
+    for _ in range(m):
+        u = data[p] - 1
+        v = data[p + 1] - 1
+        p += 2
+        if u == v:
+            continue
+        if u > v:
+            u, v = v, u
+        key = (u, v)
+        pair_counts[key] = pair_counts.get(key, 0) + 1
+
+    edges = [(u, v, w) for (u, v), w in pair_counts.items()]
+    minimum_possible = sum(w for _, _, w in edges)
+    if minimum_possible > budget:
+        print("NO")
+        return
+
+    adj = [[] for _ in range(n)]
+    weighted_adj = [[] for _ in range(n)]
+    for u, v, w in edges:
+        adj[u].append(v)
+        adj[v].append(u)
+        weighted_adj[u].append((v, w))
+        weighted_adj[v].append((u, w))
+
+    visited = [False] * n
+    components = []
+    isolated = []
+
+    for start in range(n):
+        if visited[start]:
+            continue
+        visited[start] = True
+        if not adj[start]:
+            isolated.append(start)
+            continue
+
+        component = []
+        stack = [start]
+        while stack:
+            u = stack.pop()
+            component.append(u)
+            for v in adj[u]:
+                if not visited[v]:
+                    visited[v] = True
+                    stack.append(v)
+        components.append(component)
+
+    heuristic_parts = []
+    for component in components:
+        heuristic_parts.append(heuristic_order(component, adj, weighted_adj))
+    heuristic_order_all = [v for part in heuristic_parts for v in part] + isolated
+
+    if arrangement_cost(heuristic_order_all, edges, n) <= budget:
+        positions = [0] * n
+        for i, v in enumerate(heuristic_order_all, 1):
+            positions[v] = i
+        print("YES")
+        print(*positions)
+        return
+
+    component_lbs = []
+    for component in components:
+        total_degree = 0
+        for u in component:
+            total_degree += sum(w for _, w in weighted_adj[u])
+        component_lbs.append(total_degree // 2)
+
+    indices = list(range(len(components)))
+    indices.sort(key=lambda i: len(components[i]), reverse=True)
+
+    remaining_budget = budget
+    remaining_lb = sum(component_lbs)
+    solved_orders = {}
+
+    for idx in indices:
+        remaining_lb -= component_lbs[idx]
+        allowed = remaining_budget - remaining_lb
+        if allowed < component_lbs[idx]:
+            print("NO")
+            return
+
+        order, cost = solve_component(components[idx], weighted_adj, allowed)
+        if order is None:
+            print("NO")
+            return
+
+        solved_orders[idx] = order
+        remaining_budget -= cost
+
+    final_order = []
+    for i in range(len(components)):
+        final_order.extend(solved_orders[i])
+    final_order.extend(isolated)
+
+    positions = [0] * n
+    for i, v in enumerate(final_order, 1):
+        positions[v] = i
+
+    print("YES")
+    print(*positions)
+
+
+if __name__ == "__main__":
+    main()
+```

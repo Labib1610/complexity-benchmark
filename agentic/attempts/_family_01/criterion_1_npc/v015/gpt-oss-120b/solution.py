@@ -1,0 +1,54 @@
+import sys
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    adj = [0] * n  # bitmask adjacency
+    neighbors = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        if u == v:
+            continue
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+        neighbors[u].append(v)
+        neighbors[v].append(u)
+
+    # order vertices by degree descending
+    order = sorted(range(n), key=lambda x: -len(neighbors[x]))
+    color = [-1] * n
+
+    sys.setrecursionlimit(10000)
+
+    def dfs(idx: int) -> bool:
+        if idx == n:
+            return True
+        v = order[idx]
+        # try colors 0,1,2 representing blocks 1,2,3
+        for c in range(3):
+            conflict = False
+            for u in neighbors[v]:
+                if color[u] == c:
+                    conflict = True
+                    break
+            if not conflict:
+                color[v] = c
+                if dfs(idx + 1):
+                    return True
+                color[v] = -1
+        return False
+
+    if dfs(0):
+        out = ['YES']
+        out.append(' '.join(str(c + 1) for c in color))
+        sys.stdout.write('\n'.join(out))
+    else:
+        sys.stdout.write('NO')
+
+if __name__ == "__main__":
+    solve()

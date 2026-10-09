@@ -1,0 +1,25 @@
+import sys
+
+def solve() -> None:
+    data = sys.stdin.read().splitlines()
+    if not data:
+        return
+    k = int(data[0].strip())
+    seq = [line.strip() for line in data[1:1 + k]]
+
+    first = seq[0]
+    seen = set()
+    out_lines = ["BLOCK"]
+    for ch in first:
+        if ch in seen:
+            continue
+        seen.add(ch)
+        # find a sequence (2..k) that does not contain ch
+        for idx in range(1, k):
+            if ch not in seq[idx]:
+                out_lines.append(f"{ch} {idx + 1}")
+                break
+    sys.stdout.write("\n".join(out_lines))
+
+if __name__ == "__main__":
+    solve()

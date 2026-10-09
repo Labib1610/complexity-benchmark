@@ -1,0 +1,94 @@
+from collections import defaultdict
+import sys
+
+def find_matching(q, t, schematics):
+    # Create a graph for matching
+    # Each schematic is a node on the left side
+    # Each crystal is a node on the right side
+    # We want to find a matching that covers all 3q crystals exactly once
+    
+    if t == 0:
+        if q == 0:
+            return []
+        else:
+            return None
+    
+    # Build adjacency list for schematics
+    schematic_crystals = [[] for _ in range(t)]
+    crystal_schematics = defaultdict(list)
+    
+    for i, (a, b, c) in enumerate(schematics):
+        schematic_crystals[i] = [a, b, c]
+        crystal_schematics[a].append(i)
+        crystal_schematics[b].append(i)
+        crystal_schematics[c].append(i)
+    
+    # Try to find a matching using backtracking
+    # We'll use a greedy approach first, then backtracking if needed
+    
+    def can_match(selected, used_crystals, used_schematics):
+        if len(selected) == q:
+            return selected[:]
+        
+        # Try each unused schematic
+        for i in range(t):
+            if i in used_schematics:
+                continue
+                
+            a, b, c = schematic_crystals[i]
+            if a in used_crystals or b in used_crystals or c in used_crystals:
+                continue
+            
+            # Try this schematic
+            used_crystals.add(a)
+            used_crystals.add(b)
+            used_crystals.add(c)
+            used_schematics.add(i)
+            selected.append(i)
+            
+            result = can_match(selected, used_crystals, used_schematics)
+            if result is not None:
+                return result
+            
+            # Backtrack
+            used_crystals.remove(a)
+            used_crystals.remove(b)
+            used_crystals.remove(c)
+            used_schematics.remove(i)
+            selected.pop()
+        
+        return None
+    
+    # Optimization: if we don't have enough schematics, return NO
+    if t < q:
+        return None
+        
+    result = can_match([], set(), set())
+    if result is None:
+        return None
+    
+    return [schematic_crystals[i] for i in result]
+
+def main():
+    input_lines = []
+    for line in sys.stdin:
+        input_lines.append(line.strip())
+    
+    q, t = map(int, input_lines[0].split())
+    schematics = []
+    
+    for i in range(1, t + 1):
+        a, b, c = map(int, input_lines[i].split())
+        schematics.append((a, b, c))
+    
+    matching = find_matching(q, t, schematics)
+    
+    if matching is None:
+        print("NO")
+    else:
+        print("YES")
+        for schematic in matching:
+            print(schematic[0], schematic[1], schematic[2])
+
+if __name__ == "__main__":
+    main()

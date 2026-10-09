@@ -1,53 +1,38 @@
 import sys
-import sys
-from itertools import product
 
 def solve():
     input = sys.stdin.readline
     n, m = map(int, input().split())
-    adj = [[False] * n for _ in range(n)]
+    adj = [[] for _ in range(n)]
     for _ in range(m):
         u, v = map(int, input().split())
         u -= 1
         v -= 1
-        adj[u][v] = adj[v][u] = True
-
-    # Precompute for each vertex its adjacency bitmask
-    adj_mask = [0] * n
-    for i in range(n):
-        for j in range(n):
-            if adj[i][j]:
-                adj_mask[i] |= (1 << j)
-
-    # Check if graph is 3-colorable using backtracking with pruning
+        adj[u].append(v)
+        adj[v].append(u)
+    
     color = [-1] * n
-    # For each vertex, store which colors are forbidden by already colored neighbors
-    forbidden = [0] * n  # bitmask of forbidden colors (bits 0,1,2)
-
-    def backtrack(idx):
-        if idx == n:
+    
+    def is_safe(v, c):
+        for u in adj[v]:
+            if color[u] == c:
+                return False
+        return True
+    
+    def backtrack(v):
+        if v == n:
             return True
-        # Try colors 0,1,2 in order
         for c in range(3):
-            if not (forbidden[idx] & (1 << c)):
-                old_forbid = []
-                color[idx] = c
-                # Update forbidden for uncolored neighbors
-                for v in range(n):
-                    if color[v] == -1 and (adj_mask[idx] >> v) & 1:
-                        old_forbid.append((v, forbidden[v]))
-                        forbidden[v] |= (1 << c)
-                if backtrack(idx + 1):
+            if is_safe(v, c):
+                color[v] = c
+                if backtrack(v + 1):
                     return True
-                # Revert
-                for v, old in old_forbid:
-                    forbidden[v] = old
-                color[idx] = -1
+                color[v] = -1
         return False
-
+    
     if backtrack(0):
         print("YES")
-        print(' '.join(str(c + 1) for c in color))
+        print(" ".join(str(c + 1) for c in color))
     else:
         print("NO")
 

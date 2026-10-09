@@ -1,0 +1,55 @@
+import sys
+
+def solve():
+    input = sys.stdin.readline
+    k, t = map(int, input().split())
+    triples = []
+    for _ in range(t):
+        x, y, z = map(int, input().split())
+        triples.append((x-1, y-1, z-1))  # 0-index for easier bitmasking
+
+    # Build adjacency: for each x, list of (y,z)
+    by_x = [[] for _ in range(k)]
+    for x, y, z in triples:
+        by_x[x].append((y, z))
+
+    # We'll try to assign each x a unique (y,z) such that y and z are also unique
+    used_y = 0
+    used_z = 0
+    chosen = [None] * k
+
+    # Precompute possible (y,z) for each x
+    options = []
+    for x in range(k):
+        opts = []
+        for y, z in by_x[x]:
+            opts.append((y, z))
+        options.append(opts)
+
+    # Sort options by size for better pruning
+    order = sorted(range(k), key=lambda i: len(options[i]))
+    # But we need to map back to original x
+    # We'll do backtracking on this order
+
+    def dfs(idx, used_y, used_z):
+        if idx == k:
+            return True
+        x = order[idx]
+        for y, z in options[x]:
+            if not (used_y >> y) & 1 and not (used_z >> z) & 1:
+                chosen[x] = (y, z)
+                if dfs(idx+1, used_y | (1 << y), used_z | (1 << z)):
+                    return True
+                chosen[x] = None
+        return False
+
+    if dfs(0, 0, 0):
+        print("YES")
+        for x in range(k):
+            y, z = chosen[x]
+            print(x+1, y+1, z+1)
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()

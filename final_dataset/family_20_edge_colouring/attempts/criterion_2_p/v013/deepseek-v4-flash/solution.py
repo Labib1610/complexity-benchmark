@@ -1,0 +1,96 @@
+import sys
+from collections import defaultdict
+
+def solve():
+    input = sys.stdin.readline
+    nA, nB, m = map(int, input().split())
+    edges = []
+    adjA = [[] for _ in range(nA + 1)]
+    adjB = [[] for _ in range(nB + 1)]
+    
+    for i in range(m):
+        u, v = map(int, input().split())
+        edges.append((u, v))
+        adjA[u].append((v, i))
+        adjB[v].append((u, i))
+    
+    # Determine T = max degree
+    T = 0
+    for u in range(1, nA + 1):
+        T = max(T, len(adjA[u]))
+    for v in range(1, nB + 1):
+        T = max(T, len(adjB[v]))
+    
+    color = [-1] * m
+    
+    # colorA[u][color] = edge index or -1
+    colorA = [[-1] * (T + 1) for _ in range(nA + 1)]
+    colorB = [[-1] * (T + 1) for _ in range(nB + 1)]
+    
+    for idx, (u, v) in enumerate(edges):
+        # find free color for u
+        freeA = 1
+        while colorA[u][freeA] != -1:
+            freeA += 1
+        freeB = 1
+        while colorB[v][freeB] != -1:
+            freeB += 1
+        
+        if freeA == freeB:
+            c = freeA
+            color[idx] = c
+            colorA[u][c] = idx
+            colorB[v][c] = idx
+        else:
+            # Need to swap colors along a path
+            # Start with color freeA on u, freeB on v
+            c1, c2 = freeA, freeB
+            # We'll do Kempe chain: alternate between u-side and v-side
+            # Start from u with color c1
+            current_vertex = u
+            current_side = 'A'
+            current_color = c1
+            path_edges = []
+            while True:
+                if current_side == 'A':
+                    eidx = colorA[current_vertex][current_color]
+                    if eidx == -1:
+                        break
+                    path_edges.append(eidx)
+                    # move to B side
+                    _, nxt = edges[eidx]
+                    current_vertex = nxt
+                    current_side = 'B'
+                    # switch color
+                    current_color = c2 if current_color == c1 else c1
+                else:
+                    eidx = colorB[current_vertex][current_color]
+                    if eidx == -1:
+                        break
+                    path_edges.append(eidx)
+                    nxt, _ = edges[eidx]
+                    current_vertex = nxt
+                    current_side = 'A'
+                    current_color = c2 if current_color == c1 else c1
+            
+            # Now flip colors along path
+            for eidx in path_edges:
+                old_c = color[eidx]
+                new_c = c2 if old_c == c1 else c1
+                uu, vv = edges[eidx]
+                colorA[uu][old_c] = -1
+                colorB[vv][old_c] = -1
+                color[eidx] = new_c
+                colorA[uu][new_c] = eidx
+                colorB[vv][new_c] = eidx
+            
+            # Now assign the new edge
+            color[idx] = c1
+            colorA[u][c1] = idx
+            colorB[v][c1] = idx
+    
+    print("YES")
+    print(" ".join(str(c) for c in color))
+
+if __name__ == "__main__":
+    solve()

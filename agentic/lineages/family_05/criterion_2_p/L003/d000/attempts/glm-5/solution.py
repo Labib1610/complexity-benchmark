@@ -1,0 +1,77 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    k = int(next(it))
+    t = int(next(it))
+    
+    # Group configurations by director
+    # Each director has exactly one film, so we can use director as primary key
+    configs_by_director = [[] for _ in range(k + 1)]
+    
+    for _ in range(t):
+        d = int(next(it))
+        f = int(next(it))
+        s = int(next(it))
+        configs_by_director[d].append((d, f, s))
+    
+    # Hungarian algorithm for maximum bipartite matching
+    # Match directors to screening rooms
+    # Build adjacency list: for each director, list of available screening rooms
+    adj = [[] for _ in range(k + 1)]
+    for d in range(1, k + 1):
+        for _, _, s in configs_by_director[d]:
+            adj[d].append(s)
+    
+    # Remove duplicates and sort for deterministic behavior
+    for d in range(1, k + 1):
+        adj[d] = sorted(set(adj[d]))
+    
+    match_r = [0] * (k + 1)  # match_r[s] = director matched to room s
+    
+    def bpm(u, seen, match_r):
+        for v in adj[u]:
+            if not seen[v]:
+                seen[v] = True
+                if match_r[v] == 0 or bpm(match_r[v], seen, match_r):
+                    match_r[v] = u
+                    return True
+        return False
+    
+    # Find maximum matching
+    for d in range(1, k + 1):
+        seen = [False] * (k + 1)
+        bpm(d, seen, match_r)
+    
+    # Check if perfect matching exists
+    matched_rooms = [0] * (k + 1)
+    for s in range(1, k + 1):
+        if match_r[s] != 0:
+            matched_rooms[match_r[s]] = s
+    
+    for d in range(1, k + 1):
+        if matched_rooms[d] == 0:
+            print("NO")
+            return
+    
+    # Perfect matching exists, construct the answer
+    # For each director, we need to find a configuration with their matched room
+    # Since each director has exactly one film, we just need to find the right room
+    result = []
+    for d in range(1, k + 1):
+        s = matched_rooms[d]
+        # Find the configuration for director d with room s
+        for config in configs_by_director[d]:
+            if config[2] == s:
+                result.append(config)
+                break
+    
+    print("YES")
+    for config in result:
+        print(f"{config[0]} {config[1]} {config[2]}")
+
+if __name__ == "__main__":
+    solve()

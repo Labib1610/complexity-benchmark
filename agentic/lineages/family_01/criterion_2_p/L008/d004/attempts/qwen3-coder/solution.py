@@ -1,10 +1,7 @@
 import sys
 from collections import defaultdict, deque
 
-def main():
-    import sys
-    sys.setrecursionlimit(1 << 25)
-    
+def solve():
     n, m = map(int, sys.stdin.readline().split())
     
     if m == 0:
@@ -12,53 +9,58 @@ def main():
         print(" ".join(["1"] * n))
         return
     
+    # Build adjacency list
     adj = defaultdict(list)
     edges = []
     
     for _ in range(m):
         u, v = map(int, sys.stdin.readline().split())
-        u -= 1
+        u -= 1  # Convert to 0-indexed
         v -= 1
         adj[u].append(v)
         adj[v].append(u)
         edges.append((u, v))
     
+    # Color the graph with BFS to check if it's bipartite
     color = [-1] * n
-    queue = deque()
     
     for start in range(n):
         if color[start] == -1:
+            queue = deque([start])
             color[start] = 0
-            queue.append(start)
+            
             while queue:
-                u = queue.popleft()
-                for v in adj[u]:
-                    if color[v] == -1:
-                        color[v] = color[u] ^ 1
-                        queue.append(v)
-                    elif color[v] == color[u]:
+                node = queue.popleft()
+                
+                for neighbor in adj[node]:
+                    if color[neighbor] == -1:
+                        color[neighbor] = 1 - color[node]
+                        queue.append(neighbor)
+                    elif color[neighbor] == color[node]:
+                        # Not bipartite - impossible to satisfy constraints
                         print("NO")
                         return
     
-    # Verify the assignment satisfies all edges
+    # Check if the product can be 3^m
+    # For each edge (u,v), we want c[u] + c[v] = 3
+    # This means one should be 1 and the other should be 2
+    # So we need a bipartite graph where colors correspond to values 1 and 2
+    
+    # Verify the solution
     for u, v in edges:
-        # For shift code 1: primary=5, secondary=10
-        # For shift code 2: primary=10, secondary=5
-        # Worker u with color[u] -> shift = color[u] + 1
-        # Worker v with color[v] -> shift = color[v] + 1
-        shift_u = color[u] + 1
-        shift_v = color[v] + 1
-        
-        primary_u = 5 if shift_u == 1 else 10
-        secondary_v = 10 if shift_v == 2 else 5
-        
-        if primary_u != secondary_v:
+        if color[u] == color[v]:
             print("NO")
             return
     
+    # Construct the assignment
+    assignment = []
+    for i in range(n):
+        if color[i] == 0:
+            assignment.append("1")
+        else:
+            assignment.append("2")
+    
     print("YES")
-    result = [str(color[i] + 1) for i in range(n)]
-    print(" ".join(result))
+    print(" ".join(assignment))
 
-if __name__ == "__main__":
-    main()
+solve()

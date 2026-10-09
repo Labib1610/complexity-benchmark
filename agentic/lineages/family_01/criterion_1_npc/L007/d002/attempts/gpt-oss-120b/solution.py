@@ -8,54 +8,53 @@ def solve() -> None:
     it = iter(data)
     n = int(next(it))
     m = int(next(it))
-    adj = [[] for _ in range(n)]
+    adj = [set() for _ in range(n)]
     for _ in range(m):
         u = int(next(it)) - 1
         v = int(next(it)) - 1
-        adj[u].append(v)
-        adj[v].append(u)
+        adj[u].add(v)
+        adj[v].add(u)
 
-    col = [0] * n               # 0 = uncoloured, else 1..3
-    mask = [0b111] * n           # bits 0,1,2 correspond to colours 1,2,3
-    solution = None
+    colors = [0] * n
+    order = sorted(range(n), key=lambda x: -len(adj[x]))  # static ordering by degree
 
-    def dfs(idx: int) -> bool:
-        nonlocal solution
-        if idx == n:
-            solution = col.copy()
+    # For MRV we recompute each step
+    def select_vertex():
+        best = -1
+        best_deg = -1
+        for v in range(n):
+            if colors[v] == 0:
+                # count used colors among neighbors
+                used = {colors[nb] for nb in adj[v] if colors[nb] != 0}
+                deg = len(used)
+                if deg > best_deg:
+                    best_deg = deg
+                    best = v
+        return best
+
+    def dfs(colored_cnt: int) -> bool:
+        if colored_cnt == n:
             return True
-        # try colours 1..3
+        v = select_vertex()
+        # try colors 1..3
         for c in (1, 2, 3):
-            bit = 1 << (c - 1)
-            if mask[idx] & bit == 0:
-                continue
-            # assign
-            col[idx] = c
-            changes = []          # list of (vertex, old_mask)
-            ok = True
-            for nb in adj[idx]:
-                if col[nb] == 0:          # only affect uncoloured neighbours
-                    old = mask[nb]
-                    new = old & ~bit
-                    if new != old:
-                        changes.append((nb, old))
-                        mask[nb] = new
-                        if new == 0:
-                            ok = False
-                            break
-            if ok and dfs(idx + 1):
-                return True
-            # undo
-            for v, old in changes:
-                mask[v] = old
-            col[idx] = 0
+            conflict = False
+            for nb in adj[v]:
+                if colors[nb] == c:
+                    conflict = True
+                    break
+            if not conflict:
+                colors[v] = c
+                if dfs(colored_cnt + 1):
+                    return True
+                colors[v] = 0
         return False
 
     if dfs(0):
-        out = ["YES", " ".join(str(x) for x in solution)]
+        print("YES")
+        print(' '.join(map(str, colors)))
     else:
-        out = ["NO"]
-    sys.stdout.write("\n".join(out))
+        print("NO")
 
 if __name__ == "__main__":
     solve()

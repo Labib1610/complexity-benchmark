@@ -1,4 +1,5 @@
 import sys
+
 sys.setrecursionlimit(10000)
 
 def solve() -> None:
@@ -8,68 +9,44 @@ def solve() -> None:
     it = iter(data)
     n = int(next(it))
     m = int(next(it))
+
     adj = [[] for _ in range(n)]
     for _ in range(m):
         u = int(next(it)) - 1
         v = int(next(it)) - 1
+        if u == v:
+            continue
         adj[u].append(v)
         adj[v].append(u)
 
-    color = [0] * n          # 0 = uncoloured, else 1..3
-    found = False
-    answer = None
+    # order vertices by decreasing degree
+    order = sorted(range(n), key=lambda x: -len(adj[x]))
+    col = [0] * n                     # 0 = uncoloured, else 1..3
 
-    # fast check whether a colour is allowed for vertex v
-    def allowed(v, c):
-        for nb in adj[v]:
-            if color[nb] == c:
-                return False
-        return True
-
-    # forward checking: ensure every uncoloured vertex still has at least one possible colour
-    def forward_ok():
-        for v in range(n):
-            if color[v] == 0:
-                possible = False
-                for c in (1, 2, 3):
-                    ok = True
-                    for nb in adj[v]:
-                        if color[nb] == c:
-                            ok = False
-                            break
-                    if ok:
-                        possible = True
-                        break
-                if not possible:
-                    return False
-        return True
-
-    def dfs(v):
-        nonlocal found, answer
-        if found:
-            return
-        if v == n:
-            found = True
-            answer = color.copy()
-            return
+    def dfs(pos: int) -> bool:
+        if pos == n:
+            return True
+        v = order[pos]
+        # try colours 1,2,3
         for c in (1, 2, 3):
-            if allowed(v, c):
-                color[v] = c
-                if forward_ok():
-                    dfs(v + 1)
-                color[v] = 0
-                if found:
-                    return
+            ok = True
+            for nb in adj[v]:
+                if col[nb] == c:
+                    ok = False
+                    break
+            if not ok:
+                continue
+            col[v] = c
+            if dfs(pos + 1):
+                return True
+            col[v] = 0
+        return False
 
-    dfs(0)
-
-    out = []
-    if not found:
-        out.append("NO")
+    if dfs(0):
+        out = ['YES', ' '.join(str(col[i]) for i in range(n))]
+        sys.stdout.write('\n'.join(out))
     else:
-        out.append("YES")
-        out.append(" ".join(str(x) for x in answer))
-    sys.stdout.write("\n".join(out))
+        sys.stdout.write('NO')
 
 if __name__ == "__main__":
     solve()

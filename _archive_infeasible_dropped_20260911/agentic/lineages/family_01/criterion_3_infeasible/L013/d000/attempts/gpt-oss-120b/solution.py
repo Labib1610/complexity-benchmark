@@ -1,0 +1,43 @@
+import sys
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+
+    # adjacency bitsets (0‑based indices)
+    adj_bits = [0] * n
+    # adjacency existence matrix for O(1) edge check
+    edge = [bytearray(n) for _ in range(n)]
+
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        if u == v:
+            continue
+        # set bits
+        adj_bits[u] |= 1 << v
+        adj_bits[v] |= 1 << u
+        edge[u][v] = edge[v][u] = 1
+
+    for a in range(n):
+        a_bits = adj_bits[a]
+        for b in range(a + 1, n):
+            if not edge[a][b]:
+                continue
+            # common neighbors of a and b
+            common = a_bits & adj_bits[b]
+            # keep only vertices with index > b
+            common >>= (b + 1)
+            if common:
+                # lowest set bit gives smallest c
+                low = (common & -common).bit_length() - 1
+                c = b + 1 + low
+                sys.stdout.write(f"{a+1} {b+1} {c+1}")
+                return
+
+if __name__ == "__main__":
+    solve()

@@ -1,0 +1,162 @@
+from collections import defaultdict
+import sys
+
+def find_matching(q, t, units):
+    if t < q:
+        return None
+    
+    # Create a graph for matching
+    # Each operator is on the left side, each unit is on the right side
+    # We want to find a perfect matching that covers all 3*q operators
+    
+    if q == 0:
+        return []
+    
+    # Try all combinations of q units using backtracking with pruning
+    def backtrack(unit_idx, selected_units, covered_operators):
+        if len(selected_units) == q:
+            if len(covered_operators) == 3 * q:
+                return selected_units[:]
+            else:
+                return None
+        
+        if unit_idx >= t:
+            return None
+            
+        # Pruning: if even selecting all remaining units won't give us enough operators
+        remaining_units = t - unit_idx
+        needed_operators = 3 * q - len(covered_operators)
+        if remaining_units * 3 < needed_operators:
+            return None
+            
+        # Try including current unit
+        current_unit = units[unit_idx]
+        current_set = set(current_unit)
+        
+        # Check if this unit has any operator already covered
+        if not (current_set & covered_operators):
+            # Include this unit
+            selected_units.append(current_unit)
+            new_covered = covered_operators | current_set
+            
+            result = backtrack(unit_idx + 1, selected_units, new_covered)
+            if result is not None:
+                return result
+                
+            selected_units.pop()
+        
+        # Try not including current unit
+        result = backtrack(unit_idx + 1, selected_units, covered_operators)
+        return result
+    
+    # Sort units by first operator to help with pruning
+    units.sort()
+    result = backtrack(0, [], set())
+    return result
+
+def main():
+    input_lines = []
+    for line in sys.stdin:
+        input_lines.append(line.strip())
+    
+    line_idx = 0
+    q, t = map(int, input_lines[line_idx].split())
+    line_idx += 1
+    
+    units = []
+    for i in range(t):
+        a, b, c = map(int, input_lines[line_idx].split())
+        units.append((a, b, c))
+        line_idx += 1
+    
+    if t < q:
+        print("NO")
+        return
+    
+    # Special case when q=0
+    if q == 0:
+        print("YES")
+        return
+    
+    # Use a more efficient approach - try greedy first then backtracking
+    result = find_solution_greedy_first(q, t, units)
+    
+    if result is None:
+        print("NO")
+    else:
+        print("YES")
+        for unit in result:
+            print(unit[0], unit[1], unit[2])
+
+def find_solution_greedy_first(q, t, units):
+    if q == 0:
+        return []
+    
+    # Try greedy approach first
+    result = try_greedy(q, t, units)
+    if result is not None:
+        return result
+    
+    # If greedy fails, use backtracking
+    return find_matching_backtrack(q, t, units)
+
+def try_greedy(q, t, units):
+    # Simple greedy: sort by some criteria and pick non-overlapping
+    # This might work for many cases but not guaranteed
+    used = [False] * (3 * q + 1)
+    selected = []
+    
+    # Sort units by smallest operator number
+    sorted_units = sorted(units)
+    
+    for unit in sorted_units:
+        if len(selected) == q:
+            break
+        a, b, c = unit
+        if not used[a] and not used[b] and not used[c]:
+            used[a] = used[b] = used[c] = True
+            selected.append(unit)
+    
+    if len(selected) == q:
+        return selected
+    return None
+
+def find_matching_backtrack(q, t, units):
+    def backtrack(idx, selected, used_operators):
+        if len(selected) == q:
+            return selected[:]
+        
+        if idx >= t:
+            return None
+            
+        # Pruning
+        remaining_slots = q - len(selected)
+        if remaining_slots > (t - idx):
+            return None
+            
+        # Try current unit
+        unit = units[idx]
+        a, b, c = unit
+        
+        if not used_operators[a] and not used_operators[b] and not used_operators[c]:
+            # Use this unit
+            used_operators[a] = used_operators[b] = used_operators[c] = True
+            selected.append(unit)
+            
+            result = backtrack(idx + 1, selected, used_operators)
+            if result is not None:
+                return result
+                
+            # Backtrack
+            selected.pop()
+            used_operators[a] = used_operators[b] = used_operators[c] = False
+        
+        # Skip current unit
+        return backtrack(idx + 1, selected, used_operators)
+    
+    used = [False] * (3 * q + 1)
+    result = backtrack(0, [], used)
+    return result
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,251 @@
+```python
+import sys
+from collections import defaultdict
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(["0"] * n))
+        return
+    
+    # For each variable x_i, we'll store clauses for 2-SAT
+    # We'll use node ids 1..n for x_i=0 and (i+n) for x_i=1
+    # But actually, let's think differently.
+    
+    # Let's analyze what each constraint means:
+    # Each constraint is on two variables x_a and x_b where a=|l1|, b=|l2|
+    # t1 = (1 + sign(l1))/2 => if l1>0, t1=1; if l1<0, t1=0
+    # t2 = (1 + sign(l2))/2 => if l2>0, t2=1; if l2<0, t2=0
+    
+    # So T = (t1,t2) is in {0,1}^2
+    # P = (x_a, x_b)
+    # Distance^2 = (x_a - t1)^2 + (x_b - t2)^2 < 2
+    
+    # Since x_a, x_b, t1, t2 are in {0,1}, (x-t)^2 is either 0 or 1.
+    # So distance^2 is in {0,1,2}
+    # Constraint is satisfied iff distance^2 < 2, i.e., distance^2 != 2
+    # distance^2 = 2 happens when both (x_a-t1)^2=1 and (x_b-t2)^2=1
+    # That is, when x_a != t1 AND x_b != t2
+    
+    # So the constraint is satisfied unless (x_a != t1 AND x_b != t2)
+    # Which means we must have (x_a == t1 OR x_b == t2)
+    
+    # This gives us a 2-SAT clause: (x_a == t1 OR x_b == t2)
+    # If t1=0, we want NOT x_a; if t1=1, we want x_a
+    # If t2=0, we want NOT x_b; if t2=1, we want x_b
+    
+    # Let's build 2-SAT instance
+    # Variables: x_1,...,x_n represented as 1..n (for x_i=1) and -1..-n (for x_i=0)
+    # For each constraint (l1,l2):
+    #   a = |l1|, b = |l2|
+    #   t1 = (1 + sign(l1))/2 = 1 if l1>0 else 0
+    #   t2 = (1 + sign(l2))/2 = 1 if l2>0 else 0
+    #   Clause: (x_a == t1 OR x_b == t2)
+    #     If t1=1: x_a OR (x_b == t2) => literal a OR (literal b if t2=1 else -b)
+    #     If t1=0: NOT x_a OR (x_b == t2) => literal -a OR (literal b if t2=1 else -b)
+    
+    clauses = []
+    for i in range(2, 2*m+2, 2):
+        l1 = int(data[i])
+        l2 = int(data[i+1])
+        
+        a = abs(l1)
+        b = abs(l2)
+        t1 = 1 if l1 > 0 else 0
+        t2 = 1 if l2 > 0 else 0
+        
+        # We need (x_a == t1 OR x_b == t2)
+        lit_a = a if t1 == 1 else -a
+        lit_b = b if t2 == 1 else -b
+        clauses.append((lit_a, lit_b))
+    
+    # Now solve 2-SAT
+    # Build implication graph
+    # Nodes: -n ... -1, 1 ... n  (0 not used)
+    adj = defaultdict(list)
+    rev_adj = defaultdict(list)
+    
+    for a, b in clauses:
+        # Add implications: NOT a -> b  and  NOT b -> a
+        adj[-a].append(b)
+        adj[-b].append(a)
+        rev_adj[b].append(-a)
+        rev_adj[a].append(-b)
+    
+    # Kosaraju's algorithm for SCC
+    order = []
+    visited = set()
+    
+    def dfs1(u):
+        visited.add(u)
+        for v in adj[u]:
+            if v not in visited:
+                dfs1(v)
+        order.append(u)
+    
+    # Get all vertices
+    verts = set()
+    for u in adj:
+        verts.add(u)
+        for v in adj[u]:
+            verts.add(v)
+    for u in rev_adj:
+        verts.add(u)
+        for v in rev_adj[u]:
+            verts.add(v)
+            
+    for u in verts:
+        if u not in visited:
+            dfs1(u)
+    
+    # Reverse the order
+    order.reverse()
+    
+    # Second DFS to find SCCs
+    visited = set()
+    scc_id = {}
+    cnt = 0
+    
+    def dfs2(u):
+        visited.add(u)
+        scc_id[u] = cnt
+        for v in rev_adj[u]:
+            if v not in visited and v in rev_adj:
+                dfs2(v)
+                
+    # But we need to make sure all nodes are considered
+    # Let's just do standard Kosaraju
+    
+    visited = set()
+    order = []
+    
+    def dfs1(u):
+        visited.add(u)
+        for v in adj.get(u, []):
+            if v not in visited:
+                dfs1(v)
+        order.append(u)
+        
+    # Collect all vertices
+    all_nodes = set()
+    for u in adj:
+        all_nodes.add(u)
+        for v in adj[u]:
+            all_nodes.add(v)
+    for u in rev_adj:
+        all_nodes.add(u)
+        for v in rev_adj[u]:
+            all_nodes.add(v)
+            
+    for u in all_nodes:
+        if u not in visited:
+            dfs1(u)
+            
+    order.reverse()
+    
+    # Reset for second pass
+    visited = set()
+    scc_id = {}
+    cnt = 0
+    scc_nodes = defaultdict(list)
+    
+    def dfs2(u):
+        nonlocal cnt
+        visited.add(u)
+        scc_id[u] = cnt
+        scc_nodes[cnt].append(u)
+        for v in rev_adj.get(u, []):
+            if v not in visited:
+                dfs2(v)
+    
+    for u in order:
+        if u not in visited:
+            dfs2(u)
+            cnt += 1
+            
+    # Check if satisfiable
+    assignment = [None] * (n+1)  # 1-based indexing
+    
+    for c in range(cnt):
+        nodes_in_scc = scc_nodes[c]
+        for u in nodes_in_scc:
+            var = abs(u)
+            if var == 0:
+                continue
+            if u > 0:
+                if assignment[var] == 0:  # conflict with existing assignment to 0
+                    print("NO")
+                    return
+                assignment[var] = 1
+            else:  # u < 0
+                if assignment[var] == 1:  # conflict with existing assignment to 1
+                    print("NO")
+                    return
+                assignment[var] = 0
+                
+    # Check for conflicts in SCCs
+    for i in range(1, n+1):
+        if i in scc_id and -i in scc_id:
+            if scc_id[i] == scc_id[-i]:
+                print("NO")
+                return
+                
+    # Assign values based on topological order of SCCs
+    # Node with higher SCC id comes later in topological order
+    # If both i and -i are in different SCCs, assign true to the one in later SCC
+    
+    scc_order = [-1] * (cnt)
+    for i in range(cnt):
+        scc_order[i] = i
+        
+    # Actually, simpler approach:
+    # Go through SCCs in reverse topological order (which is the order we found them in second DFS)
+    # For each unassigned variable, assign it appropriately
+    
+    assigned_vars = [False] * (n+1)
+    final_assignment = [0] * (n+1)
+    
+    # Process SCCs in reverse order of discovery (which is topological order of condensation)
+    for u in reversed(order):
+        var = abs(u)
+        if var == 0 or assigned_vars[var]:
+            continue
+        if u > 0:
+            final_assignment[var] = 1
+        else:
+            final_assignment[var] = 0
+        assigned_vars[var] = True
+        
+    # But wait, this might not work correctly. Let's re-think.
+    # In Kosaraju, if we process SCCs in reverse finish time order,
+    # and for each unassigned variable, we can assign it arbitrarily.
+    # But we must ensure that if both x and -x are in the same SCC, it's unsat.
+    
+    # Simpler way: for each variable, check if x and -x are in same SCC.
+    # If not, assign value based on which SCC has higher index in topological order.
+    
+    # Actually, let's just do standard SAT check:
+    # For each variable i, if SCC(i) == SCC(-i): UNSAT
+    # Else, if SCC(i) comes after SCC(-i) in topological order: set x_i = True
+    #      else: set x_i = False
+    
+    # We already checked for conflicts above. Now just assign.
+    
+    result = []
+    for i in range(1, n+1):
+        val = final_assignment[i] if assigned_vars[i] else 0
+        result.append(str(val))
+        
+    print("YES")
+    print(" ".join(result))
+
+if __name__ == "__main__":
+    main()
+```

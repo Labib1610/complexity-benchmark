@@ -1,0 +1,260 @@
+import sys
+from collections import deque
+
+# Increase recursion depth just in case
+sys.setrecursionlimit(20000)
+
+def main():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    k = int(next(it))
+    B = int(next(it))
+    
+    terminals = [int(next(it)) - 1 for _ in range(k)]
+    
+    edges = []
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        w = int(next(it))
+        edges.append((u, v, w))
+        
+    term_set = set(terminals)
+    
+    class Dinic:
+        def __init__(self, num_nodes):
+            self.n = num_nodes
+            self.head = [-1] * num_nodes
+            self.to = []
+            self.nxt = []
+            self.cap = []
+            self.flow = []
+            self.level = [-1] * num_nodes
+            self.ptr = [0] * num_nodes
+
+        def add_edge(self, u, v, c):
+            self.to.append(v)
+            self.cap.append(c)
+            self.flow.append(0)
+            self.nxt.append(self.head[u])
+            self.head[u] = len(self.to) - 1
+
+            self.to.append(u)
+            self.cap.append(0)
+            self.flow.append(0)
+            self.nxt.append(self.head[v])
+            self.head[v] = len(self.to) - 1
+
+        def bfs(self, s, t):
+            self.level = [-1] * self.n
+            self.level[s] = 0
+            q = deque([s])
+            while q:
+                v = q.popleft()
+                e = self.head[v]
+                while e != -1:
+                    nxt_v = self.to[e]
+                    if self.cap[e] - self.flow[e] > 0 and self.level[nxt_v] == -1:
+                        self.level[nxt_v] = self.level[v] + 1
+                        q.append(nxt_v)
+                    e = self.nxt[e]
+            return self.level[t] != -1
+
+        def dfs(self, v, t, pushed):
+            if pushed == 0 or v == t:
+                return pushed
+            e = self.ptr[v]
+            while e != -1:
+                nxt_v = self.to[e]
+                tr = self.cap[e] - self.flow[e]
+                if self.level[nxt_v] == self.level[v] + 1 and tr > 0:
+                    tr_pushed = self.dfs(nxt_v, t, min(pushed, tr))
+                    if tr_pushed > 0:
+                        self.flow[e] += tr_pushed
+                        self.flow[e ^ 1] -= tr_pushed
+                        return tr_pushed
+                e = self.nxt[e]
+                self.ptr[v] = e
+            return 0
+
+        def max_flow(self, s, t):
+            flow = 0
+            INF = float('inf')
+            while self.bfs(s, t):
+                self.ptr = list(self.head)
+                while True:
+                    pushed = self.dfs(s, t, INF)
+                    if pushed == 0:
+                        break
+                    flow += pushed
+            return flow
+
+        def get_reachable(self, s):
+            visited = [False] * self.n
+            visited[s] = True
+            q = deque([s])
+            while q:
+                v = q.popleft()
+                e = self.head[v]
+                while e != -1:
+                    nxt_v = self.to[e]
+                    if self.cap[e] - self.flow[e] > 0 and not visited[nxt_v]:
+                        visited[nxt_v] = True
+                        q.append(nxt_v)
+                    e = self.nxt[e]
+            return visited
+
+    # Function to evaluate a given vertex assignment/contraction
+    def evaluate(assignment):
+        # assignment is a list of length n, mapping each vertex to a terminal index 0..k-1 or -1 (unassigned)
+        # We build a graph where vertices assigned to terminal i are collapsed to terminal i
+        
+        # Mapping from vertex to contracted node id
+        node_id = [-1] * n
+        # Terminal nodes: 0 to k-1
+        for i in range(k):
+            node_id[terminals[i]] = i
+            
+        cur_nodes = k
+        for v in range(n):
+            if assignment[v] != -1:
+                node_id[v] = assignment[v]
+            elif node_id[v] == -1:
+                node_id[v] = cur_nodes
+                cur_nodes += 1
+
+        # Super-sink node id is cur_nodes
+        super_sink = cur_nodes
+        total_graph_nodes = cur_nodes + 1
+
+        cuts = []
+        reach_sets = []
+        INF = 10**15
+
+        for i in range(k):
+            dinic = Dinic(total_graph_nodes)
+            # Add contracted edges
+            for u, v, w in edges:
+                nu, nv = node_id[u], node_id[v]
+                if nu != nv:
+                    dinic.add_edge(nu, nv, w)
+                    dinic.add_edge(nv, nu, w)
+            # Connect all other terminals to super_sink
+            for j in range(k):
+                if j != i:
+                    dinic.add_edge(j, super_sink, INF)
+            
+            flow = dinic.max_flow(i, super_sink)
+            reach = dinic.get_reachable(i)
+            cuts.append(flow)
+            
+            # Identify original vertices reachable from terminal i
+            vert_reach = [reach[node_id[v]] for v in range(n)]
+            reach_sets.append(vert_reach)
+
+        # Lower bound
+        lb = (sum(cuts) + 1) // 2
+
+        # Upper bound: select m = argmax cuts[i]
+        max_idx = 0
+        for i in range(1, k):
+            if cuts[i] > cuts[max_idx]:
+                max_idx = i
+
+        part = [max_idx] * n
+        for i in range(k):
+            if i == max_idx:
+                continue
+            for v in range(n):
+                if reach_sets[i][v]:
+                    part[v] = i
+        
+        # Ensure terminals have their correct partition
+        for i in range(k):
+            part[terminals[i]] = i
+
+        # Calculate UB cost
+        ub_cost = 0
+        for u, v, w in edges:
+            if part[u] != part[v]:
+                ub_cost += w
+
+        return lb, ub_cost, part, reach_sets
+
+    best_solution = [None]
+    best_cost = [B + 1]
+
+    # Initial assignment: all -1 except terminals
+    init_assign = [-1] * n
+    for i, t in enumerate(terminals):
+        init_assign[t] = i
+
+    lb, ub_cost, part, reach_sets = evaluate(init_assign)
+    if ub_cost <= B:
+        best_cost[0] = ub_cost
+        best_solution[0] = part
+    elif lb > B:
+        print("NO")
+        return
+
+    def branch_and_bound(assignment):
+        if best_cost[0] <= B:
+            return
+
+        lb, ub_cost, part, reach_sets = evaluate(assignment)
+        if ub_cost < best_cost[0]:
+            best_cost[0] = ub_cost
+            best_solution[0] = part
+            if best_cost[0] <= B:
+                return
+
+        if lb > B or lb >= best_cost[0]:
+            return
+
+        # Find a vertex with conflicts or unassigned
+        # Count how many reach_sets contain each unassigned vertex
+        candidates = []
+        for v in range(n):
+            if assignment[v] == -1:
+                cnt = sum(1 for i in range(k) if reach_sets[i][v])
+                candidates.append((cnt, v))
+
+        if not candidates:
+            return
+
+        # Sort candidates so those in multiple reachable sets are prioritized
+        candidates.sort(reverse=True)
+        _, v = candidates[0]
+
+        # Branch order: terminals whose reach set contains v first
+        order = sorted(range(k), key=lambda i: 0 if reach_sets[i][v] else 1)
+        for t_idx in order:
+            assignment[v] = t_idx
+            branch_and_bound(assignment)
+            assignment[v] = -1
+            if best_cost[0] <= B:
+                return
+
+    if best_cost[0] > B:
+        branch_and_bound(init_assign)
+
+    if best_cost[0] <= B and best_solution[0] is not None:
+        part = best_solution[0]
+        sealed = []
+        for u, v, w in edges:
+            if part[u] != part[v]:
+                sealed.append((u + 1, v + 1))
+        print("YES")
+        print(len(sealed))
+        for u, v in sealed:
+            print(f"{u} {v}")
+    else:
+        print("NO")
+
+if __name__ == '__main__':
+    main()

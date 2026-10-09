@@ -4,18 +4,17 @@ from collections import deque
 input = sys.stdin.readline
 
 n, m = map(int, input().split())
-adj = [[] for _ in range(n)]
+adj = [[] for _ in range(n + 1)]
+
 for _ in range(m):
     u, v = map(int, input().split())
-    u -= 1
-    v -= 1
     adj[u].append(v)
     adj[v].append(u)
 
-color = [-1] * n
+color = [-1] * (n + 1)
 possible = True
 
-for i in range(n):
+for i in range(1, n + 1):
     if color[i] == -1:
         color[i] = 1
         q = deque([i])
@@ -37,4 +36,4 @@ if not possible:
     print("NO")
 else:
     print("YES")
-    print(" ".join(str(color[i]) for i in range(n)))
+    print(" ".join(str(color[i]) for i in range(1, n + 1)))

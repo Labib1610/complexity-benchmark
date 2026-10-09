@@ -1,0 +1,259 @@
+import sys
+from collections import defaultdict
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    edges = []
+    adj = defaultdict(list)
+    
+    idx = 2
+    for i in range(m):
+        u = int(data[idx]) - 1
+        v = int(data[idx+1]) - 1
+        idx += 2
+        edges.append((u, v))
+        adj[u].append(i)
+        adj[v].append(i)
+    
+    # Each node has exactly 3 edges
+    # This is a 3-regular graph with n even, m = 3n/2
+    
+    # We need to color the edges with 3 colors such that
+    # at each vertex, all 3 edges have different colors
+    
+    # This is equivalent to edge-coloring a 3-regular graph with 3 colors
+    # It's known that a 3-regular graph is 3-edge-colorable iff it's class 1
+    # Since n is even, and we have 3n/2 edges, this graph is 3-edge-colorable
+    
+    # We'll try to construct such a coloring
+    
+    # Let's build the line graph and try to 3-color it
+    # But that might be overkill. Let's try a direct approach.
+    
+    # Since each vertex has degree 3, and we have 3 colors,
+    # we can assign the 3 edges at each vertex to the 3 colors
+    
+    # Let's try a greedy approach:
+    # For each edge, assign it the lowest numbered color that
+    # doesn't conflict with its two endpoints
+    
+    # But we need to be more systematic
+    
+    # Let's model this as a constraint satisfaction problem
+    # and try to find a valid assignment
+    
+    # Since the graph is 3-regular, we can try to find a proper edge coloring
+    
+    # A classic result: every 3-regular graph with a perfect matching
+    # can be 3-edge-colored
+    
+    # Since n is even, and the graph is 3-regular, it has a perfect matching
+    # So it should be 3-edge-colorable
+    
+    # Let's try to find such a coloring
+    
+    # We can model this as finding a proper edge coloring
+    # Let's use a backtracking approach or try to construct it
+    
+    # Let's try a greedy method:
+    # For each vertex, assign its 3 edges to colors 1,2,3
+    # But we need to do this consistently
+    
+    # Let's try a different approach:
+    # Build the line graph and 3-color it
+    
+    # But let's try a direct construction method
+    
+    # Since this is a 3-regular graph, we can try to decompose it
+    # into 3 perfect matchings
+    
+    # Let's try to find one perfect matching first
+    # Remove it, and we get a 2-regular graph (union of cycles)
+    # A 2-regular graph can be 2-edge-colored
+    
+    # So the approach:
+    # 1. Find a perfect matching
+    # 2. Color all edges in this matching with color 1
+    # 3. The remaining graph is 2-regular (cycles)
+    # 4. 2-regular graphs are 2-edge-colorable
+    # 5. Color the remaining edges with colors 2 and 3
+    
+    # Let's implement this
+    
+    # First, find a perfect matching in a 3-regular graph
+    # We can use a greedy approach or a more systematic one
+    
+    # Let's build adjacency list with edge indices
+    adj_list = [[] for _ in range(n)]
+    for i, (u, v) in enumerate(edges):
+        adj_list[u].append((v, i))
+        adj_list[v].append((u, i))
+    
+    # Try to find a perfect matching
+    matched = [False] * n
+    matching = [-1] * m
+    
+    def find_matching():
+        # Greedy matching
+        used_edge = [False] * m
+        for u in range(n):
+            if matched[u]:
+                continue
+            for v, e in adj_list[u]:
+                if matched[v]:
+                    continue
+                if not used_edge[e]:
+                    matched[u] = True
+                    matched[v] = True
+                    matching[e] = 1  # Color 1 for matching
+                    used_edge[e] = True
+                    break
+        # Check if it's a perfect matching
+        if sum(matched) == n:
+            return True
+        return False
+    
+    if not find_matching():
+        print("NO")
+        return
+    
+    # Now, color the remaining edges with 2 and 3
+    # The remaining graph is 2-regular, so it's a collection of cycles
+    # We can 2-color each cycle
+    
+    color = matching[:]  # 1 for matching edges, -1 for uncolored
+    used_edge = [c != -1 for c in color]
+    
+    # Build the graph of remaining edges
+    rem_adj = [[] for _ in range(n)]
+    for i, (u, v) in enumerate(edges):
+        if not used_edge[i]:
+            rem_adj[u].append((v, i))
+            rem_adj[v].append((u, i))
+    
+    # Find cycles and 2-color them
+    visited_v = [False] * n
+    visited_e = [False] * m
+    
+    def dfs_cycle(start, u, path_edges, path_vertices):
+        if u == start and len(path_edges) > 0:
+            return True
+        if visited_v[u]:
+            return False
+        visited_v[u] = True
+        path_vertices.append(u)
+        for v, e in rem_adj[u]:
+            if visited_e[e]:
+                continue
+            visited_e[e] = True
+            path_edges.append(e)
+            if dfs_cycle(start, v, path_edges, path_vertices):
+                return True
+            path_edges.pop()
+            visited_e[e] = False
+        path_vertices.pop()
+        visited_v[u] = False
+        return False
+    
+    # Find all cycles
+    for i in range(m):
+        if used_edge[i] or visited_e[i]:
+            continue
+        u, v = edges[i]
+        # Start DFS from u to find cycle containing edge i
+        path_edges = [i]
+        path_vertices = [u]
+        visited_e[i] = True
+        visited_v = [False] * n
+        visited_v[u] = True
+        
+        def find_cycle(u, target, path_e, path_v):
+            if u == target and len(path_e) > 1:
+                return True
+            for v_node, e in rem_adj[u]:
+                if visited_e[e]:
+                    continue
+                visited_e[e] = True
+                path_e.append(e)
+                path_v.append(v_node)
+                if find_cycle(v_node, target, path_e, path_v):
+                    return True
+                path_e.pop()
+                path_v.pop()
+                visited_e[e] = False
+            return False
+        
+        # Reset visited for this search
+        temp_visited_e = visited_e[:]
+        temp_visited_v = [False] * n
+        temp_visited_v[u] = True
+        path_e = [i]
+        path_v = [u]
+        visited_e[i] = True
+        
+        found = False
+        for v_node, e in rem_adj[u]:
+            if e == i:
+                continue
+            if temp_visited_e[e]:
+                continue
+            temp_visited_e[e] = True
+            path_e.append(e)
+            path_v.append(v_node)
+            # Try to get back to u
+            def dfs_back(current, target, path_edge, path_vert):
+                if current == target:
+                    return True
+                if temp_visited_v[current]:
+                    return False
+                temp_visited_v[current] = True
+                for next_node, edge in rem_adj[current]:
+                    if temp_visited_e[edge]:
+                        continue
+                    temp_visited_e[edge] = True
+                    path_edge.append(edge)
+                    path_vert.append(next_node)
+                    if dfs_back(next_node, target, path_edge, path_vert):
+                        return True
+                    path_edge.pop()
+                    path_vert.pop()
+                    temp_visited_e[edge] = False
+                temp_visited_v[current] = False
+                return False
+            
+            temp_visited_v_copy = temp_visited_v[:]
+            if dfs_back(v_node, u, path_e, path_v):
+                # Found a cycle
+                cycle_edges = path_e[:]
+                # 2-color the cycle
+                c = 2
+                for j, e in enumerate(cycle_edges):
+                    color[e] = c
+                    c = 5 - c  # Toggle between 2 and 3
+                found = True
+                break
+            else:
+                path_e.pop()
+                path_v.pop()
+                temp_visited_e[e] = False
+        
+        if not found:
+            print("NO")
+            return
+    
+    # Check if all edges are colored
+    if any(c == -1 for c in color):
+        print("NO")
+        return
+        
+    print("YES")
+    print(' '.join(map(str, color)))
+
+if __name__ == "__main__":
+    main()

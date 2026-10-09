@@ -1,0 +1,211 @@
+**Solution Explanation**
+
+For every worker `v` we store the set of workers that are incompatible with `v`
+as a bitset.
+
+```
+bit i of mask[v]  = 1   ⇔   (v , i) is a constraint
+```
+
+`n ≤ 2000`, therefore a bitset fits into a Python integer
+(`2000` bits ≈ `250` bytes).
+
+--------------------------------------------------------------------
+
+#### 1.   Finding the lexicographically smallest triangle  
+
+A triangle is a triple `a < b < c` with edges  
+
+```
+(a , b) , (a , c) , (b , c)
+```
+
+If we already know the edge `(a , b)` we only have to check whether there is
+a vertex `c` that is adjacent to **both** `a` and `b`.
+
+```
+common = mask[a] & mask[b]          # vertices adjacent to a and b
+```
+
+`common` still contains also vertices `≤ b`.  
+We are interested only in `c > b`, therefore we delete the lower bits:
+
+```
+higher = common & ~((1 << b) - 1)   # keep bits b , b+1 , …
+```
+
+If `higher` is non‑zero, the least set bit gives the smallest possible `c`
+(because bits are ordered by the vertex number).  
+The index of the least set bit is obtained by
+
+```
+low = higher & -higher               # isolate lowest 1‑bit
+c   = low.bit_length() - 1           # 0‑based index
+```
+
+The first triangle discovered while scanning `a` from `1 … n`
+and, for each `a`, scanning `b` from `a+1 … n` is exactly the
+lexicographically smallest one, because we try the pairs `(a,b)` in that
+order and always pick the smallest possible `c`.
+
+--------------------------------------------------------------------
+
+#### 2.   Algorithm
+```
+read n , m
+mask[0 … n-1] = 0
+for each edge (u , v):
+        u-- ; v--                     # to 0‑based
+        mask[u] |= 1 << v
+        mask[v] |= 1 << u
+
+for a = 0 … n-1:
+        for b = a+1 … n-1:
+                if (mask[a] >> b) & 1 == 0:      # edge (a,b) missing
+                        continue
+                common = mask[a] & mask[b]
+                higher = common & ~((1 << b) - 1)
+                if higher != 0:
+                        low = higher & -higher
+                        c = low.bit_length() - 1
+                        output a+1 , b+1 , c+1
+                        return
+```
+
+The algorithm stops at the first triangle, which is the required one.
+
+--------------------------------------------------------------------
+
+#### 3.   Correctness Proof  
+
+We prove that the algorithm outputs the lexicographically smallest triangle.
+
+---
+
+##### Lemma 1  
+For fixed vertices `a < b`, `higher` is non‑empty **iff** there exists a
+vertex `c > b` such that `{a,b,c}` is a triangle.
+
+**Proof.**  
+`common = mask[a] & mask[b]` contains exactly the vertices adjacent to both
+`a` and `b`.  
+`higher` removes all vertices `≤ b`.  
+Thus `higher` contains a vertex `c` **iff** `c > b` and `c` is adjacent to
+both `a` and `b`, i.e. the three edges of a triangle are present. ∎
+
+
+
+##### Lemma 2  
+If `higher` is non‑empty, the vertex `c` obtained by the algorithm
+(`c = index of lowest set bit of higher`) is the smallest vertex
+`c > b` that together with `a,b` forms a triangle.
+
+**Proof.**  
+Bits are ordered by vertex number. The lowest set bit of `higher` corresponds
+to the smallest index among the bits that are set, i.e. the smallest vertex
+`c` contained in `higher`. By Lemma&nbsp;1 every vertex in `higher` forms a
+triangle with `a,b`. Hence this `c` is the smallest such vertex. ∎
+
+
+
+##### Lemma 3  
+When the algorithm terminates and outputs `(a,b,c)`,
+the triple is a triangle and satisfies `a < b < c`.
+
+**Proof.**  
+The outer loops guarantee `a < b`.  
+The inner test `if (mask[a]>>b)&1` ensures edge `(a,b)` exists.
+By Lemma&nbsp;1 `higher` non‑empty implies existence of a vertex `c > b`
+adjacent to both `a` and `b`. Lemma&nbsp;2 gives the concrete `c`.  
+Thus all three edges exist and `a<b<c`. ∎
+
+
+
+##### Lemma 4  
+Let `T* = (a*,b*,c*)` be the lexicographically smallest triangle.
+The algorithm will output `T*`.
+
+**Proof.**  
+Consider the enumeration order of pairs `(a,b)` in the algorithm:
+lexicographic on `(a,b)`.  
+All pairs `(a,b)` with `a < a*` are examined before any pair with `a = a*`.
+If a triangle existed with such a smaller `a`, it would be lexicographically
+smaller than `T*`, contradicting the definition of `T*`.  
+Hence the first pair `(a,b)` that can belong to a triangle must have
+`a = a*`.  
+
+Among pairs with `a = a*`, the algorithm scans `b` increasingly.
+If there were a triangle with the same `a*` and a smaller `b` than `b*`,
+again it would be lexicographically smaller than `T*`.  
+Thus the first pair that yields a triangle is `(a*,b*)`.
+
+For this pair the algorithm chooses the smallest possible `c` (Lemma&nbsp;2),
+which must be `c*`. Therefore the algorithm outputs exactly `T*`. ∎
+
+
+
+##### Theorem  
+The algorithm always terminates and prints the lexicographically smallest
+triangle of the given graph.
+
+**Proof.**  
+The graph is guaranteed to contain at least one triangle, so some pair
+`(a,b)` will satisfy the condition of Lemma&nbsp;1, making the algorithm
+terminate. By Lemma&nbsp;3 the printed triple is a triangle, and by Lemma&nbsp;4
+it is the lexicographically smallest one. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### 4.   Complexity Analysis  
+
+*Building masks* : `O(m)`  
+*Main loops* : each unordered pair `(a,b)` is examined once → `O(n²)`  
+`n ≤ 2000`, so `n² = 4·10⁶`, easily inside the limits.  
+All operations inside the loops are O(1) bitwise integer operations.
+
+Memory: `n` integers, each ≤ `2ⁿ` → `O(n)` ≈ a few hundred kilobytes.
+
+--------------------------------------------------------------------
+
+#### 5.   Reference Implementation  (Python 3)
+
+```python
+import sys
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    masks = [0] * n
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        masks[u] |= 1 << v
+        masks[v] |= 1 << u
+
+    for a in range(n):
+        mask_a = masks[a]
+        for b in range(a + 1, n):
+            if (mask_a >> b) & 1 == 0:          # edge (a,b) missing
+                continue
+            common = mask_a & masks[b]
+            # keep only vertices with index > b
+            higher = common & ~((1 << b) - 1)
+            if higher:
+                low = higher & -higher
+                c = low.bit_length() - 1
+                # output 1‑based and sorted (a<b<c already)
+                sys.stdout.write(f"{a+1} {b+1} {c+1}")
+                return
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above and conforms
+to the required input‑output format.

@@ -1,60 +1,86 @@
 **Solution Explanation**
 
-For every worker we have to choose one of two shifts `1` or `2`.
-Conflicting workers must obtain different shifts.
-The conflict graph is therefore required to be *bipartite*.
+For every pair `(u , v)` the two workers must belong to different shifts.
+The problem is exactly the *bipartite graph* problem:
+
+* vertices – workers `1 … n`
+* edges    – given pairs
+
+A graph is bipartite iff it can be coloured with two colours
+(`0` and `1`) such that adjacent vertices have different colours.
 If it is not bipartite the answer is `NO`.
 
-If the graph is bipartite there are two possible colourings for each
-connected component – they are obtained from each other by swapping the
-two colours.
-Among all valid colourings we have to output the *lexicographically
-smallest* sequence  
-` s1 s2 … sn ` ( `1 < 2` ).
+If it is bipartite we have to output the **lexicographically smallest**
+assignment of shifts `1` and `2`.  
+For a component we may exchange the two colours, therefore we can decide
+for each connected component which colour becomes shift `1` and which becomes
+shift `2`.
 
 --------------------------------------------------------------------
 
-#### 1.   Observations  
+#### 1.   Observations
 
-* In a connected component the two colourings differ only by a global
-  swap of the two colours.
-* The first vertex (smallest index) belonging to a component decides the
-  lexicographic order for this component:
-  giving it colour `1` is always better than giving it colour `2`,
-  and any other choice would make the whole answer larger.
-* While scanning the vertices `1 … n` the first not‑yet‑coloured vertex
-  of a component is exactly its smallest index.
+* Different connected components are independent – the choice of orientation
+  in one component does not influence another component.
+* Lexicographic order is examined from worker `1` to worker `n`.
+  The first worker whose shift is not yet fixed decides the whole component:
+  we can always choose the orientation that gives this worker shift `1`
+  (the smaller value).  
+  After that the whole component is fixed, later workers belonging to the
+  same component are already determined.
 
-Therefore we can colour each component **once**, starting the BFS/DFS
-from its smallest vertex and give this start vertex colour `0`
-(shift `1`).  
-All other vertices of the component receive the only possible colours
-compatible with it, and the whole assignment is the lexicographically
-smallest one.
+Thus the following greedy rule yields the smallest possible whole sequence:
+
+```
+process workers i = 1 … n
+    if worker i is still unassigned
+        orient its component so that i receives shift 1
+```
 
 --------------------------------------------------------------------
 
 #### 2.   Algorithm
 ```
 read n, m
-build adjacency list G[1…n]
+build adjacency list
 
-colour[1…n] = -1          # -1 = not visited yet
-for v = 1 … n:
-    if colour[v] == -1:               # new component, v is its smallest vertex
-        colour[v] = 0                 # shift 1
-        queue = [v]
-        while queue not empty:
-            x = pop queue
-            for each neighbour y of x:
-                if colour[y] == -1:
-                    colour[y] = colour[x] ^ 1
-                    push y into queue
-                else if colour[y] == colour[x]:
-                    print "NO" and exit   # odd cycle → not bipartite
+colour[1…n] = -1          # -1 = not visited, else 0/1
+comp_id[1…n] = -1
+components = []           # list of (vertices list, colour dict)
+
+for each vertex v = 1 … n
+    if colour[v] == -1
+        start BFS/DFS from v
+        assign colour 0 to v
+        collect all vertices of this component in list verts
+        if we ever need to give two adjacent vertices the same colour -> NOT bipartite
+        store (verts, colour_of_vertex) as a new component
+        give it a new id
+
+if any component was not bipartite -> print "NO" and exit
+
+answer[1…n] = 0
+orientation[comp] = None   # not decided yet
+
+for i = 1 … n
+    if answer[i] == 0
+        c = comp_id[i]
+        # decide orientation of component c
+        # we want worker i to obtain shift 1
+        if colour[i] == 0:   # keep colours as they are
+            orientation[c] = 0          # colour 0 -> shift 1, colour 1 -> shift 2
+        else:                # swap
+            orientation[c] = 1          # colour 1 -> shift 1, colour 0 -> shift 2
+
+        # fill answer for the whole component
+        for v in components[c].verts
+            if orientation[c] == 0:
+                answer[v] = 1 if colour[v] == 0 else 2
+            else:
+                answer[v] = 1 if colour[v] == 1 else 2
 
 print "YES"
-output (colour[i] + 1) for i = 1 … n
+print answer[1] … answer[n]
 ```
 
 --------------------------------------------------------------------
@@ -62,100 +88,100 @@ output (colour[i] + 1) for i = 1 … n
 #### 3.   Correctness Proof  
 
 We prove that the algorithm prints `NO` iff no feasible assignment exists,
-otherwise it prints `YES` and the lexicographically smallest feasible
-assignment.
+otherwise prints the lexicographically smallest feasible assignment.
 
 ---
 
 ##### Lemma 1  
-During the BFS of a component the algorithm assigns colours `0/1` that
-satisfy all already processed edges.
+During the BFS/DFS of a component, if an edge connects two vertices with the
+same temporary colour, the whole graph is not bipartite.
 
 **Proof.**  
-The start vertex receives colour `0`.  
-Whenever an edge `(x, y)` is examined:
-* if `y` is uncoloured, we set `colour[y] = colour[x] xor 1`, guaranteeing
-  different colours on the edge,
-* if `y` is already coloured, the algorithm checks that the colours differ.
-  If they are equal we abort (see Lemma 2). ∎
+A bipartite graph admits a 2‑colouring where every edge connects different
+colours. The BFS colours exactly that way. If we encounter an edge whose ends
+already have the same colour, any 2‑colouring would give the same colour to
+both ends (because colours are forced by parity of path length), contradicting
+the requirement. ∎
 
 
 
 ##### Lemma 2  
-If the algorithm aborts with `NO`, the conflict graph is not bipartite,
-hence no feasible assignment exists.
+If the algorithm finishes the BFS/DFS phase without contradiction, the graph
+is bipartite and the stored colours are a valid 2‑colouring of each component.
 
 **Proof.**  
-The abort happens exactly when an edge `(x, y)` with
-`colour[x] == colour[y]` is found.
-All previously coloured vertices respect the bipartite condition
-(Lemma 1). Adding the edge creates an odd cycle, therefore the whole graph
-cannot be 2‑coloured. ∎
+BFS assigns colour `0` to the start vertex and flips colour on every traversed
+edge. By construction, every visited edge connects vertices of opposite
+colours. Because the graph is finite, all vertices are visited, therefore the
+colouring satisfies the condition for all edges. ∎
 
 
 
 ##### Lemma 3  
-If the algorithm finishes without abort, the produced assignment
-(colour + 1) is a feasible shift assignment.
+When the main loop reaches a worker `i` whose answer is still unset,
+choosing the orientation that gives `i` shift `1` does not make the final
+sequence larger lexicographically.
 
 **Proof.**  
-All edges were examined. By Lemma 1 each edge connects vertices of
-different colours, therefore after adding `1` the two shifts are different.
-∎
+All workers with index `< i` already have their final shifts, and they are
+identical for any feasible solution (otherwise the algorithm would have
+already chosen a different orientation earlier).  
+For index `i` the two possible orientations give either shift `1` or shift `2`.
+Since `1 < 2`, picking orientation with shift `1` makes the prefix up to `i`
+as small as possible, and later positions cannot affect the comparison of
+prefixes. ∎
 
 
 
 ##### Lemma 4  
-For every connected component the algorithm gives shift `1` to its
-smallest‑indexed vertex.
+After the orientation of a component is fixed, the algorithm assigns the
+only shifts consistent with that orientation.
 
 **Proof.**  
-The outer loop processes vertices in increasing order.
-When the first vertex `v` of a component is encountered, it is still
-uncoloured, so a new BFS starts with `colour[v] = 0`.  
-All later vertices of the same component are coloured inside this BFS,
-hence `v` keeps colour `0` → shift `1`. ∎
+Orientation `0` means colour `0 → 1`, colour `1 → 2`. Orientation `1` swaps
+them. This is exactly the definition of a feasible assignment for the already
+computed bipartite colouring. ∎
 
 
 
 ##### Lemma 5  
-Among all feasible assignments the one produced by the algorithm is
-lexicographically smallest.
+The sequence produced by the algorithm is lexicographically minimal among all
+feasible assignments.
 
 **Proof.**  
-Consider the vertices from `1` to `n`.  
-Let `i` be the first index where the algorithm’s assignment could differ
-from another feasible assignment `A`.  
-Vertex `i` belongs to some component `C`.  
-By Lemma 4 the algorithm gives shift `1` to `i`.  
-Any feasible assignment must give either `1` or `2` to `i`.  
-If it gives `2`, the algorithm is already lexicographically smaller.
-If it gives `1`, then the whole colour pattern inside `C` must be identical
-to the algorithm’s (the only other possible pattern would swap the two
-shifts and would give `2` to `i`).  
-Thus no feasible assignment can be lexicographically smaller. ∎
+Consider the first index `i` where the algorithm’s answer differs from any
+other feasible assignment `A`. All earlier indices are equal (by construction).
+When processing `i` the algorithm chose orientation giving shift `1`.  
+If `A` gives shift `2` at `i`, then `A` is lexicographically larger.
+If `A` also gives shift `1`, then the orientations of the component are the
+same, and the algorithm’s later values coincide with `A`. Hence no feasible
+assignment can be lexicographically smaller. ∎
+
+
+
+##### Lemma 6  
+If the algorithm prints `NO`, no feasible assignment exists.
+
+**Proof.**  
+`NO` is printed only when Lemma&nbsp;1 detects a same‑colour edge, i.e. the
+graph is not bipartite. A feasible assignment would be a 2‑colouring, which
+contradicts non‑bipartiteness. ∎
 
 
 
 ##### Theorem  
 The algorithm outputs  
 
-* `NO` **iff** the conflict graph is not bipartite (no feasible shift
-  assignment exists);
-* otherwise `YES` followed by the lexicographically smallest feasible
-  assignment.
+* `NO` iff the required assignment does not exist,  
+* otherwise `YES` followed by the lexicographically smallest valid assignment.
 
 **Proof.**  
-*If part*: If the algorithm prints `NO`, by Lemma 2 the graph is not
-bipartite, hence no assignment exists.  
+*If the algorithm prints `NO`*: by Lemma&nbsp;6 no assignment exists.  
 
-*Only‑if part*: If the graph is not bipartite, any 2‑colouring attempt
-must encounter an edge whose ends already have the same colour, causing
-the algorithm to abort and print `NO`.  
-
-If the graph is bipartite, the algorithm never aborts, produces a feasible
-assignment (Lemma 3) and this assignment is lexicographically smallest
-(Lemma 5). ∎
+*If the algorithm prints `YES`*: Lemma&nbsp;2 guarantees a bipartite colouring,
+Lemma&nbsp;4 shows the produced shifts respect all constraints, therefore a
+valid assignment is output. Lemma&nbsp;5 proves it is the lexicographically
+smallest among all valid assignments. ∎
 
 
 
@@ -164,12 +190,11 @@ assignment (Lemma 3) and this assignment is lexicographically smallest
 #### 4.   Complexity Analysis  
 
 *Building adjacency list*: `O(n + m)` memory and time.  
-*BFS over all components*: each vertex and each edge is processed once,
-`O(n + m)` time.  
+*BFS over all components*: each vertex and edge visited once → `O(n + m)`.  
+*Final orientation loop*: each vertex processed once → `O(n)`.  
 
-Total time `O(n + m) ≤ 4·10⁵`, well inside the 1 s limit.  
-Memory consumption `O(n + m)` (adjacency list and colour array), below
-256 MB.
+Total time `O(n + m)` ≤ `4·10⁵`, well inside the limit.  
+Memory consumption `O(n + m)` for adjacency list, colour array, etc.
 
 --------------------------------------------------------------------
 
@@ -177,52 +202,83 @@ Memory consumption `O(n + m)` (adjacency list and colour array), below
 
 ```python
 import sys
-from collections import deque
+sys.setrecursionlimit(1 << 25)
 
 def solve() -> None:
-    data = list(map(int, sys.stdin.buffer.read().split()))
+    data = sys.stdin.buffer.read().split()
     if not data:
         return
     it = iter(data)
-    n = next(it)
-    m = next(it)
+    n = int(next(it))
+    m = int(next(it))
 
-    g = [[] for _ in range(n + 1)]
+    adj = [[] for _ in range(n + 1)]
     for _ in range(m):
-        u = next(it)
-        v = next(it)
-        g[u].append(v)
-        g[v].append(u)
+        u = int(next(it)); v = int(next(it))
+        adj[u].append(v)
+        adj[v].append(u)
 
-    colour = [-1] * (n + 1)          # -1 = unvisited, 0/1 = temporary colours
+    colour = [-1] * (n + 1)          # 0 / 1
+    comp_id = [-1] * (n + 1)
+    comps = []                         # each: (vertices list)
 
+    from collections import deque
+    ok = True
+    cid = 0
     for start in range(1, n + 1):
         if colour[start] != -1:
             continue
-        # start is the smallest vertex of its component
-        colour[start] = 0
         q = deque([start])
+        colour[start] = 0
+        verts = []
+        comp_id[start] = cid
         while q:
-            x = q.popleft()
-            cx = colour[x]
-            for y in g[x]:
-                if colour[y] == -1:
-                    colour[y] = cx ^ 1
-                    q.append(y)
-                elif colour[y] == cx:
-                    # not bipartite
-                    sys.stdout.write("NO")
-                    return
+            v = q.popleft()
+            verts.append(v)
+            for to in adj[v]:
+                if colour[to] == -1:
+                    colour[to] = colour[v] ^ 1
+                    comp_id[to] = cid
+                    q.append(to)
+                elif colour[to] == colour[v]:
+                    ok = False
+                    break
+            if not ok:
+                break
+        if not ok:
+            break
+        comps.append(verts)
+        cid += 1
 
-    # feasible, produce lexicographically smallest assignment
-    out = ['YES\n']
-    shifts = [str(colour[i] + 1) for i in range(1, n + 1)]
-    out.append(' '.join(shifts))
-    sys.stdout.write('\n'.join(out))
+    if not ok:
+        sys.stdout.write("NO")
+        return
+
+    answer = [0] * (n + 1)
+    oriented = [False] * cid
+
+    for i in range(1, n + 1):
+        if answer[i]:
+            continue
+        c = comp_id[i]
+        # decide orientation so that i gets shift 1
+        if colour[i] == 0:
+            orient = 0          # colour 0 -> 1
+        else:
+            orient = 1          # colour 1 -> 1
+        oriented[c] = True
+        for v in comps[c]:
+            if orient == 0:
+                answer[v] = 1 if colour[v] == 0 else 2
+            else:
+                answer[v] = 1 if colour[v] == 1 else 2
+
+    out = ["YES", " ".join(str(answer[i]) for i in range(1, n + 1))]
+    sys.stdout.write("\n".join(out))
 
 if __name__ == "__main__":
     solve()
 ```
 
-The program follows exactly the algorithm proven correct above
-and conforms to the required input‑output format.
+The program follows exactly the algorithm proven correct above and conforms
+to the required input‑output format.

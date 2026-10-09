@@ -1,0 +1,196 @@
+Looking at this problem, we need to find the minimum cost to connect all primary languages (possibly through non-primary languages as intermediaries).
+
+This is essentially finding a minimum spanning tree, but we only need to connect the primary languages. Non-primary languages can serve as Steiner points.
+
+**Key Insight**: Since we need all primary languages mutually reachable, we need a connected subgraph containing all primary languages. The minimum cost is the minimum Steiner tree, but with the constraint that only primary languages are "terminals".
+
+**Approach**: 
+1. For each subset S of primary languages, compute the minimum cost to connect all languages in S (using any languages as intermediaries) - this is the MST cost on the subgraph.
+2. Use DP over subsets: `dp[S]` = minimum cost to connect all primary languages in subset S.
+3. For each subset S, try all ways to split S into S1 and S2, and also try adding a single primary language with its shortest path tree.
+
+Wait, let me reconsider. The standard Steiner tree DP is:
+- `dp[S][v]` = minimum cost of a tree connecting all terminals in S, rooted at vertex v.
+- Transition: `dp[S][v] = min over S1, S2 partition of S: dp[S1][v] + dp[S2][v]`
+- Also: `dp[S][v] = min over u: dp[S][u] + dist[u][v]` (shortest path)
+
+But with n=100 and t=10, we have 2^10 * 100 = 102400 states, and transitions are manageable.
+
+Let me implement this:
+
+```python
+import sys
+from heapq import heappush, heappop
+
+def solve():
+    input_data = sys.stdin.read().split()
+    idx = 0
+    n = int(input_data[idx]); idx += 1
+    m = int(input_data[idx]); idx += 1
+    t = int(input_data[idx]); idx += 1
+    
+    primaries = []
+    for i in range(t):
+        primaries.append(int(input_data[idx]) - 1); idx += 1
+    
+    adj = [[] for _ in range(n)]
+    edges = []
+    for i in range(m):
+        u = int(input_data[idx]) - 1; idx += 1
+        v = int(input_data[idx]) - 1; idx += 1
+        w = int(input_data[idx]); idx += 1
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+        edges.append((u, v, w))
+    
+    if t <= 1:
+        print(0)
+        return
+    
+    # dp[S][v] = min cost to connect terminals in S, tree includes v
+    INF = float('inf')
+    full = (1 << t) - 1
+    dp = [[INF] * n for _ in range(1 << t)]
+    
+    # Initialize single terminals
+    for i in range(t):
+        dp[1 << i][primaries[i]] = 0
+    
+    # For each subset, do Dijkstra to propagate
+    for S in range(1, 1 << t):
+        # First, merge subsets
+        sub = (S - 1) & S
+        while sub > 0:
+            other = S ^ sub
+            if sub < other or True:  # process all
+                for v in range(n):
+                    if dp[sub][v] < INF and dp[other][v] < INF:
+                        dp[S][v] = min(dp[S][v], dp[sub][v] + dp[other][v])
+            sub = (sub - 1) & S
+        
+        # Dijkstra to relax dp[S][v] using shortest paths
+        pq = []
+        for v in range(n):
+            if dp[S][v] < INF:
+                heappush(pq, (dp[S][v], v))
+        
+        while pq:
+            d, u = heappop(pq)
+            if d > dp[S][u]:
+                continue
+            for v, w in adj[u]:
+                nd = d + w
+                if nd < dp[S][v]:
+                    dp[S][v] = nd
+                    heappush(pq, (nd, v))
+    
+    result = min(dp[full])
+    print(result)
+
+solve()
+```
+
+Wait, I need to be more careful about the order of processing subsets. The standard approach processes subsets in order of size (or just numerical order works since sub < S). Let me verify the logic:
+
+1. For subset S, first combine all pairs (sub, S^sub) where sub is a proper non-empty subset.
+2. Then run Dijkstra to propagate through shortest paths.
+
+The issue is that when we process S, we need dp[sub] and dp[S^sub] to already be fully computed (including their Dijkstra relaxation). Since sub < S and S^sub < S (when both are non-empty proper subsets), processing in numerical order works.
+
+Let me trace through Example 1:
+- n=4, primaries=[0,1,2] (1-indexed: 1,2,3)
+- Edges: (0,3,1), (1,3,1), (2,3,1), (0,1,2), (1,2,2), (0,2,2)
+- Full = 0b111 = 7
+
+For S=1 (terminal 0): dp[1][0]=0, after Dijkstra: dp[1][3]=1, dp[1][1]=2, dp[1][2]=2
+For S=2 (terminal 1): dp[2][1]=0, after Dijkstra: dp[2][3]=1, dp[2][0]=2, dp[2][2]=2
+For S=4 (terminal 2): dp[4][2]=0, after Dijkstra: dp[4][3]=1, dp[4][0]=2, dp[4][1]=2
+
+For S=3 (terminals 0,1): merge 1 and 2: dp[3][v] = dp[1][v] + dp[2][v]
+- dp[3][0] = 0+2 = 2, dp[3][1] = 2+0 = 2, dp[3][2] = 2+2=4, dp[3][3] = 1+1 = 2
+After Dijkstra from these values... the minimum is 2.
+
+For S=5 (terminals 0,2): merge 1 and 4: dp[5][v] = dp[1][v] + dp[4][v]
+- dp[5][0] = 0+2=2, dp[5][3] = 1+1=2, etc. Min = 2.
+
+For S=6 (terminals 1,2): merge 2 and 4: dp[6][v] = dp[2][v] + dp[4][v]
+- dp[6][3] = 1+1=2, etc. Min = 2.
+
+For S=7 (all): merge 1 and 6: dp[7][v] = dp[1][v] + dp[6][v]
+- dp[7][3] = 1 + 2 = 3
+merge 2 and 5: dp[7][v] = dp[2][v] + dp[5][v]  
+- dp[7][3] = 1 + 2 = 3
+merge 3 and 4: dp[7][v] = dp[3][v] + dp[4][v]
+- dp[7][3] = 2 + 1 = 3
+merge 4 and 3: same as above
+
+So dp[7][3] = 3, and after Dijkstra it stays 3. Answer = 3. ✓
+
+The solution looks correct. Let me clean it up:
+
+```python
+import sys
+from heapq import heappush, heappop
+
+def solve():
+    data = sys.stdin.read().split()
+    idx = 0
+    n = int(data[idx]); idx += 1
+    m = int(data[idx]); idx += 1
+    t = int(data[idx]); idx += 1
+    
+    primaries = []
+    for i in range(t):
+        primaries.append(int(data[idx]) - 1); idx += 1
+    
+    adj = [[] for _ in range(n)]
+    for i in range(m):
+        u = int(data[idx]) - 1; idx += 1
+        v = int(data[idx]) - 1; idx += 1
+        w = int(data[idx]); idx += 1
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+    
+    if t <= 1:
+        print(0)
+        return
+    
+    INF = float('inf')
+    full = (1 << t) - 1
+    dp = [[INF] * n for _ in range(1 << t)]
+    
+    for i in range(t):
+        dp[1 << i][primaries[i]] = 0
+    
+    for S in range(1, 1 << t):
+        sub = (S - 1) & S
+        while sub > 0:
+            other = S ^ sub
+            for v in range(n):
+                if dp[sub][v] < INF and dp[other][v] < INF:
+                    val = dp[sub][v] + dp[other][v]
+                    if val < dp[S][v]:
+                        dp[S][v] = val
+            sub = (sub - 1) & S
+        
+        pq = []
+        for v in range(n):
+            if dp[S][v] < INF:
+                heappush(pq, (dp[S][v], v))
+        
+        while pq:
+            d, u = heappop(pq)
+            if d > dp[S][u]:
+                continue
+            for v, w in adj[u]:
+                nd = d + w
+                if nd < dp[S][v]:
+                    dp[S][v] = nd
+                    heappush(pq, (nd, v))
+    
+    print(min(dp[full]))
+
+solve()
+```
+
+This should be correct and efficient enough for the given constraints.

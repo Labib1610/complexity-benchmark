@@ -2,10 +2,10 @@ import sys
 from collections import deque
 
 def solve():
-    data = sys.stdin.buffer.read().split()
-    if not data:
+    input_data = sys.stdin.read().split()
+    if not input_data:
         return
-    it = iter(data)
+    it = iter(input_data)
     n = int(next(it))
     m = int(next(it))
     
@@ -16,27 +16,32 @@ def solve():
         adj[u].append(v)
         adj[v].append(u)
     
+    # Sort adjacency lists for deterministic processing order
+    for i in range(1, n + 1):
+        adj[i].sort()
+    
     color = [0] * (n + 1)
     
     for start in range(1, n + 1):
         if color[start] != 0:
             continue
         
-        # BFS from 'start', assigning lexicographically smallest colors
+        # BFS with lexicographically smallest assignment
+        queue = deque([start])
         color[start] = 1
-        q = deque([start])
-        while q:
-            u = q.popleft()
+        
+        while queue:
+            u = queue.popleft()
             for v in adj[u]:
                 if color[v] == 0:
                     color[v] = 3 - color[u]
-                    q.append(v)
+                    queue.append(v)
                 elif color[v] == color[u]:
                     print("NO")
                     return
     
     print("YES")
-    print(' '.join(str(color[i]) for i in range(1, n + 1)))
+    print(' '.join(map(str, color[1:])))
 
 if __name__ == "__main__":
     solve()

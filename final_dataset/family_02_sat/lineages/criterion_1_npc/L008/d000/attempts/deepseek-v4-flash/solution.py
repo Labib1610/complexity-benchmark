@@ -1,0 +1,134 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.read().strip().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    clauses = []
+    for _ in range(m):
+        l1 = int(next(it))
+        l2 = int(next(it))
+        l3 = int(next(it))
+        clauses.append((l1, l2, l3))
+    
+    # Convert to 0-indexed variables: variable i is 0..n-1
+    # Positive literal: (var, True) means warm=1
+    # Negative literal: (var, False) means cool=0
+    
+    def lit_to_pair(lit):
+        var = abs(lit) - 1
+        val = lit > 0
+        return (var, val)
+    
+    clause_list = []
+    for c in clauses:
+        clause_list.append([lit_to_pair(x) for x in c])
+    
+    assignment = [None] * n
+    
+    # Unit propagation and pure literal elimination
+    def propagate(clauses, assignment):
+        changed = True
+        while changed:
+            changed = False
+            # Unit clauses
+            for clause in clauses:
+                unassigned = []
+                satisfied = False
+                for var, val in clause:
+                    if assignment[var] is None:
+                        unassigned.append((var, val))
+                    elif assignment[var] == val:
+                        satisfied = True
+                        break
+                if satisfied:
+                    continue
+                if len(unassigned) == 0:
+                    return False  # conflict
+                if len(unassigned) == 1:
+                    var, val = unassigned[0]
+                    if assignment[var] is None:
+                        assignment[var] = val
+                        changed = True
+                    elif assignment[var] != val:
+                        return False
+            # Pure literal elimination
+            # Count occurrences
+            pos_count = {}
+            neg_count = {}
+            for clause in clauses:
+                for var, val in clause:
+                    if assignment[var] is not None:
+                        continue
+                    if val:
+                        pos_count[var] = pos_count.get(var, 0) + 1
+                    else:
+                        neg_count[var] = neg_count.get(var, 0) + 1
+            for var in range(n):
+                if assignment[var] is None:
+                    p = pos_count.get(var, 0)
+                    q = neg_count.get(var, 0)
+                    if p > 0 and q == 0:
+                        assignment[var] = True
+                        changed = True
+                    elif q > 0 and p == 0:
+                        assignment[var] = False
+                        changed = True
+        return True
+    
+    def simplify(clauses, assignment):
+        new_clauses = []
+        for clause in clauses:
+            keep = []
+            satisfied = False
+            for var, val in clause:
+                if assignment[var] is None:
+                    keep.append((var, val))
+                elif assignment[var] == val:
+                    satisfied = True
+                    break
+            if satisfied:
+                continue
+            if not keep:
+                return None
+            new_clauses.append(keep)
+        return new_clauses
+    
+    def backtrack(clauses, assignment):
+        # Propagate
+        if not propagate(clauses, assignment):
+            return False
+        clauses = simplify(clauses, assignment)
+        if clauses is None:
+            return False
+        if not clauses:
+            return True
+        # Choose variable with most occurrences
+        count = {}
+        for clause in clauses:
+            for var, val in clause:
+                count[var] = count.get(var, 0) + 1
+        if not count:
+            return True
+        var = max(count, key=count.get)
+        # Try True
+        assignment[var] = True
+        if backtrack(clauses, assignment):
+            return True
+        assignment[var] = False
+        if backtrack(clauses, assignment):
+            return True
+        assignment[var] = None
+        return False
+    
+    if backtrack(clause_list, assignment):
+        print("YES")
+        print(" ".join(str(int(x)) for x in assignment))
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()

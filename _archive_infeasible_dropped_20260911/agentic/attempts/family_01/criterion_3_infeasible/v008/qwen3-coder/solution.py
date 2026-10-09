@@ -1,0 +1,48 @@
+import sys
+from collections import defaultdict
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    conflicts = set()
+    adj = defaultdict(set)
+    
+    index = 2
+    for _ in range(m):
+        u = int(data[index])
+        v = int(data[index+1])
+        index += 2
+        if u > v:
+            u, v = v, u
+        conflicts.add((u, v))
+        adj[u].add(v)
+        adj[v].add(u)
+    
+    # Convert adjacency lists to sorted lists for consistent iteration
+    for u in adj:
+        adj[u] = sorted(adj[u])
+    
+    # Iterate through all combinations (a, b, c) with a < b < c
+    # Since we want lexicographically smallest, iterate a from 1 to n,
+    # b from a+1 to n, c from b+1 to n
+    for a in range(1, n+1):
+        if a not in adj:
+            continue
+        for b in adj[a]:
+            if b <= a:
+                continue
+            for c in adj[b]:
+                if c <= b:
+                    continue
+                # Check if (a, c) is also a conflict
+                if (a, c) in conflicts or (c, a) in conflicts:
+                    print(a, b, c)
+                    return
+
+if __name__ == "__main__":
+    main()

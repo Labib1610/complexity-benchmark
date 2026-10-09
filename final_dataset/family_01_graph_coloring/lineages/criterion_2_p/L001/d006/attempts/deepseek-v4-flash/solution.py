@@ -1,0 +1,79 @@
+import sys
+from collections import deque
+
+input = sys.stdin.readline
+
+n, m = map(int, input().split())
+adj = [[] for _ in range(n)]
+for _ in range(m):
+    u, v = map(int, input().split())
+    u -= 1
+    v -= 1
+    adj[u].append(v)
+    adj[v].append(u)
+
+color = [-1] * n
+
+def bfs(start, c):
+    q = deque([start])
+    color[start] = c
+    while q:
+        u = q.popleft()
+        for v in adj[u]:
+            if color[v] == -1:
+                color[v] = color[u] ^ 1
+                q.append(v)
+            elif color[v] == color[u]:
+                return False
+    return True
+
+# First check bipartiteness
+for i in range(n):
+    if color[i] == -1:
+        if not bfs(i, 0):
+            print("NO")
+            sys.exit()
+
+# Now we have a valid bipartition.
+# We want lexicographically smallest mode assignment.
+# Try to make server 1 (index 0) mode 1 if possible.
+# If server 1 is isolated, it can be either, so choose 1.
+
+# We'll try to assign mode 1 to the side containing server 1 if possible.
+# If server 1 is isolated, we can set it to 1 and color others accordingly.
+
+# Recolor with preference: try to set node 0 to 0 (mode 1)
+color2 = [-1] * n
+def bfs_pref(start, c):
+    q = deque([start])
+    color2[start] = c
+    while q:
+        u = q.popleft()
+        for v in adj[u]:
+            if color2[v] == -1:
+                color2[v] = color2[u] ^ 1
+                q.append(v)
+            elif color2[v] == color2[u]:
+                return False
+    return True
+
+# Try to set node 0 to 0
+color2[0] = 0
+ok = True
+for i in range(n):
+    if color2[i] == -1:
+        if not bfs_pref(i, 0):
+            ok = False
+            break
+
+if not ok:
+    # If that fails, set node 0 to 1
+    color2 = [-1] * n
+    color2[0] = 1
+    for i in range(n):
+        if color2[i] == -1:
+            bfs_pref(i, 0)
+
+# Output
+print("YES")
+print(" ".join(str(c + 1) for c in color2))

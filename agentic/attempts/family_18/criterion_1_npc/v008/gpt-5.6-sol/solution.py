@@ -1,0 +1,393 @@
+import sys
+from array import array
+from collections import deque
+
+def arrangement_cost(order, edges):
+    pos = [0] * len(order)
+    for i, v in enumerate(order):
+        pos[v] = i
+    return sum(w * abs(pos[u] - pos[v]) for u, v, w in edges)
+
+def heuristic_order(k, adj, edges):
+    candidates = [
+        list(range(k)),
+        sorted(range(k), key=lambda x: (len(adj[x]), x)),
+        sorted(range(k), key=lambda x: (-len(adj[x]), x)),
+    ]
+
+    starts = sorted(range(k), key=lambda x: (len(adj[x]), x))[:min(k, 8)]
+    for start in starts:
+        seen = [False] * k
+        seen[start] = True
+        q = deque([start])
+        bfs = []
+        while q:
+            u = q.popleft()
+            bfs.append(u)
+            ns = sorted((v for v, _ in adj[u] if not seen[v]),
+                        key=lambda x: (len(adj[x]), x))
+            for v in ns:
+                if not seen[v]:
+                    seen[v] = True
+                    q.append(v)
+        candidates.append(bfs)
+
+        seen = [False] * k
+        stack = [start]
+        dfs = []
+        while stack:
+            u = stack.pop()
+            if seen[u]:
+                continue
+            seen[u] = True
+            dfs.append(u)
+            ns = sorted((v for v, _ in adj[u] if not seen[v]),
+                        key=lambda x: (len(adj[x]), x), reverse=True)
+            stack.extend(ns)
+        candidates.append(dfs)
+
+    placed = [False] * k
+    greedy = []
+    start = min(range(k), key=lambda x: (len(adj[x]), x))
+    for _ in range(k):
+        if not greedy:
+            v = start
+        else:
+            best_key = None
+            v = -1
+            for x in range(k):
+                if placed[x]:
+                    continue
+                connected = 0
+                for y, w in adj[x]:
+                    if placed[y]:
+                        connected += w
+                key = (connected, -len(adj[x]), -x)
+                if best_key is None or key > best_key:
+                    best_key = key
+                    v = x
+        placed[v] = True
+        greedy.append(v)
+    candidates.append(greedy)
+
+    best = candidates[0]
+    best_cost = arrangement_cost(best, edges)
+    for order in candidates[1:]:
+        cost = arrangement_cost(order, edges)
+        if cost < best_cost:
+            best_cost = cost
+            best = order
+    return best, best_cost
+
+def exact_dense(k, adj, edge_weight, cap):
+    size = 1 << k
+    inf = cap + 1
+    dp = array('q', [inf]) * size
+    cuts = array('q', [0]) * size
+    dp[0] = 0
+
+    simple = all(w == 1 for _, _, w in edge_weight)
+    if simple:
+        adj_masks = [0] * k
+        degrees = [0] * k
+        for u, v, _ in edge_weight:
+            adj_masks[u] |= 1 << v
+            adj_masks[v] |= 1 << u
+            degrees[u] += 1
+            degrees[v] += 1
+
+        for mask in range(1, size):
+            bit = mask & -mask
+            v = bit.bit_length() - 1
+            prev = mask ^ bit
+            c = cuts[prev] + degrees[v] - 2 * ((adj_masks[v] & prev).bit_count())
+            cuts[mask] = c
+            if c > cap:
+                continue
+
+            best = inf
+            x = mask
+            while x:
+                b = x & -x
+                val = dp[mask ^ b]
+                if val < best:
+                    best = val
+                x ^= b
+            val = best + c
+            if val <= cap:
+                dp[mask] = val
+    else:
+        degrees = [sum(w for _, w in adj[v]) for v in range(k)]
+        for mask in range(1, size):
+            bit = mask & -mask
+            v = bit.bit_length() - 1
+            prev = mask ^ bit
+            inside = 0
+            for u, w in adj[v]:
+                if prev >> u & 1:
+                    inside += w
+            c = cuts[prev] + degrees[v] - 2 * inside
+            cuts[mask] = c
+            if c > cap:
+                continue
+
+            best = inf
+            x = mask
+            while x:
+                b = x & -x
+                val = dp[mask ^ b]
+                if val < best:
+                    best = val
+                x ^= b
+            val = best + c
+            if val <= cap:
+                dp[mask] = val
+
+    full = size - 1
+    if dp[full] > cap:
+        return None
+
+    cost = dp[full]
+    mask = full
+    reversed_order = []
+    while mask:
+        c = cuts[mask]
+        x = mask
+        chosen = -1
+        while x:
+            b = x & -x
+            if dp[mask ^ b] + c == dp[mask]:
+                chosen = b.bit_length() - 1
+                break
+            x ^= b
+        if chosen < 0:
+            return None
+        reversed_order.append(chosen)
+        mask ^= 1 << chosen
+
+    reversed_order.reverse()
+    return reversed_order, cost
+
+def exact_sparse(k, adj, total_edge_weight, cap):
+    # mask -> (cost so far, current cut, weight of edges fully unplaced, parent vertex)
+    info = {0: (0, 0, total_edge_weight, -1)}
+    layer = [0]
+    full = (1 << k) - 1
+
+    for _ in range(k):
+        next_layer = []
+        for mask in layer:
+            cost, cut, remaining_internal, _ = info[mask]
+            unused = full ^ mask
+            while unused:
+                bit = unused & -unused
+                unused ^= bit
+                v = bit.bit_length() - 1
+
+                to_placed = 0
+                degree = 0
+                for u, w in adj[v]:
+                    degree += w
+                    if mask >> u & 1:
+                        to_placed += w
+
+                new_cut = cut + degree - 2 * to_placed
+                new_remaining = remaining_internal - (degree - to_placed)
+                new_cost = cost + new_cut
+
+                if new_cost + new_remaining > cap:
+                    continue
+
+                new_mask = mask | bit
+                old = info.get(new_mask)
+                if old is None:
+                    info[new_mask] = (new_cost, new_cut, new_remaining, v)
+                    next_layer.append(new_mask)
+                elif new_cost < old[0]:
+                    info[new_mask] = (new_cost, old[1], old[2], v)
+        layer = next_layer
+        if not layer:
+            return None
+
+    if full not in info or info[full][0] > cap:
+        return None
+
+    cost = info[full][0]
+    order_rev = []
+    mask = full
+    while mask:
+        v = info[mask][3]
+        order_rev.append(v)
+        mask ^= 1 << v
+    order_rev.reverse()
+    return order_rev, cost
+
+def solve_component(vertices, local_edges, cap):
+    k = len(vertices)
+    if k <= 1:
+        return list(range(k)), 0
+
+    adj = [[] for _ in range(k)]
+    base = 0
+    for u, v, w in local_edges:
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+        base += w
+
+    heuristic, heuristic_cost = heuristic_order(k, adj, local_edges)
+    if heuristic_cost == base:
+        return heuristic, heuristic_cost
+
+    if heuristic_cost <= cap:
+        search_cap = heuristic_cost - 1
+    else:
+        search_cap = cap
+
+    if search_cap < base:
+        if heuristic_cost <= cap:
+            return heuristic, heuristic_cost
+        return None
+
+    if k <= 22:
+        result = exact_dense(k, adj, local_edges, search_cap)
+    else:
+        result = exact_sparse(k, adj, base, search_cap)
+
+    if result is not None:
+        return result
+    if heuristic_cost <= cap:
+        return heuristic, heuristic_cost
+    return None
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if len(data) < 3:
+        return
+    n, m, budget = data[0], data[1], data[2]
+
+    parent = list(range(n))
+    size = [1] * n
+
+    def find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    def union(a, b):
+        a = find(a)
+        b = find(b)
+        if a == b:
+            return
+        if size[a] < size[b]:
+            a, b = b, a
+        parent[b] = a
+        size[a] += size[b]
+
+    weights = {}
+    p = 3
+    for _ in range(m):
+        u = data[p] - 1
+        v = data[p + 1] - 1
+        p += 2
+        if u == v:
+            continue
+        if u > v:
+            u, v = v, u
+        weights[(u, v)] = weights.get((u, v), 0) + 1
+        union(u, v)
+
+    total_base = sum(weights.values())
+    if total_base > budget:
+        print("NO")
+        return
+
+    component_vertices = {}
+    incident = [False] * n
+    for u, v in weights:
+        incident[u] = True
+        incident[v] = True
+
+    for v in range(n):
+        if incident[v]:
+            r = find(v)
+            component_vertices.setdefault(r, []).append(v)
+
+    component_edges = {r: [] for r in component_vertices}
+    for (u, v), w in weights.items():
+        component_edges[find(u)].append((u, v, w))
+
+    components = []
+    for r, verts in component_vertices.items():
+        index = {v: i for i, v in enumerate(verts)}
+        edges = [(index[u], index[v], w) for u, v, w in component_edges[r]]
+        base = sum(w for _, _, w in edges)
+        adj = [[] for _ in verts]
+        for u, v, w in edges:
+            adj[u].append((v, w))
+            adj[v].append((u, w))
+        horder, hcost = heuristic_order(len(verts), adj, edges)
+        components.append({
+            "vertices": verts,
+            "edges": edges,
+            "base": base,
+            "heuristic_order": horder,
+            "heuristic_cost": hcost,
+        })
+
+    components.sort(key=lambda c: len(c["vertices"]), reverse=True)
+
+    isolated = [v for v in range(n) if not incident[v]]
+
+    heuristic_total = sum(c["heuristic_cost"] for c in components)
+    if heuristic_total <= budget:
+        global_order = []
+        for c in components:
+            global_order.extend(c["vertices"][i] for i in c["heuristic_order"])
+        global_order.extend(isolated)
+
+        positions = [0] * n
+        for pos, v in enumerate(global_order, 1):
+            positions[v] = pos
+        print("YES")
+        print(*positions)
+        return
+
+    remaining_base = total_base
+    exact_total = 0
+    final_orders = []
+
+    for c in components:
+        remaining_base -= c["base"]
+        cap = budget - exact_total - remaining_base
+        if cap < c["base"]:
+            print("NO")
+            return
+
+        result = solve_component(c["vertices"], c["edges"], cap)
+        if result is None:
+            print("NO")
+            return
+
+        local_order, value = result
+        exact_total += value
+        final_orders.append((c["vertices"], local_order))
+
+    if exact_total > budget:
+        print("NO")
+        return
+
+    global_order = []
+    for verts, local_order in final_orders:
+        global_order.extend(verts[i] for i in local_order)
+    global_order.extend(isolated)
+
+    positions = [0] * n
+    for pos, v in enumerate(global_order, 1):
+        positions[v] = pos
+
+    print("YES")
+    print(*positions)
+
+if __name__ == "__main__":
+    main()

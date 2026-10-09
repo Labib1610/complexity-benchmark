@@ -1,0 +1,48 @@
+import sys
+from sys import setrecursionlimit
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    color = [0] * (n + 1)
+    parent = [0] * (n + 1)
+    visited = [False] * (n + 1)
+    stack = []
+    
+    for start in range(1, n + 1):
+        if visited[start]:
+            continue
+        visited[start] = True
+        color[start] = 1
+        parent[start] = 0
+        stack.append(start)
+        
+        while stack:
+            u = stack.pop()
+            for v in adj[u]:
+                if not visited[v]:
+                    visited[v] = True
+                    color[v] = 3 - color[u]
+                    parent[v] = u
+                    stack.append(v)
+                else:
+                    if color[v] == color[u]:
+                        print("NO")
+                        return
+    
+    print("YES")
+    print(' '.join(str(color[i]) for i in range(1, n + 1)))
+
+solve()

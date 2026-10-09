@@ -1,0 +1,49 @@
+# Problem A — Security Clearance Resolution
+
+Time limit: 2 s   Memory limit: 256 MB
+
+A secure distributed architecture requires careful allocation of permissions across its $n$ modules. Every module in the network needs to be granted exactly one security tier, chosen from the options $\{1, 2, 3\}$.
+
+The architecture's safety relies on a collection of $m$ strict isolation policies. Each policy identifies a pair of modules, $u$ and $v$, which are prohibited from operating at the same security tier. Although each policy strictly involves only two modules, their overlapping interactions can produce deeply interconnected global dependencies. The evaluation scenarios are designed so that relying on basic trial-and-error to find a valid configuration will be too slow.
+
+You need to establish whether there is at least one way to assign security tiers to all $n$ modules without violating any isolation policies. If a safe configuration is possible, you must provide the one that is lexicographically smallest.
+
+## Input
+The first line contains two integers $n$ and $m$ (1 ≤ $n$ ≤ 40, 0 ≤ $m$ ≤ $n(n−1)/2$) — representing the total number of modules and the number of isolation policies, respectively.
+Each of the subsequent $m$ lines provides two integers $u$ and $v$ (1 ≤ $u, v$ ≤ $n$, $u \neq v$), indicating that module $u$ and module $v$ must operate at different security tiers.
+
+## Output
+If no valid tier assignment can be found, output a single line with `NO`.
+If a valid assignment exists, output `YES` on the first line. On the second line, provide $n$ integers $c_1, c_2, \dots, c_n$ (where each $c_i \in \{1, 2, 3\}$) representing the assigned security tier for each module. This sequence must be the lexicographically smallest among all valid configurations (comparing the tier of module 1 first, then module 2, and so forth).
+
+## Example 1
+Input:
+```
+4 5
+1 2
+1 3
+2 3
+1 4
+2 4
+```
+Output:
+```
+YES
+1 2 3 3
+```
+
+## Example 2
+Input:
+```
+4 6
+1 2
+1 3
+1 4
+2 3
+2 4
+3 4
+```
+Output:
+```
+NO
+```

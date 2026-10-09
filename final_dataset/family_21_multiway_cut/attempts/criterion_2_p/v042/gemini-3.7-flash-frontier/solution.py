@@ -1,0 +1,118 @@
+import sys
+from collections import deque
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    s = int(input_data[2])
+    t = int(input_data[3])
+    B = int(input_data[4])
+    
+    head = [-1] * (n + 1)
+    to = []
+    cap = []
+    nxt = []
+    
+    def add_edge(u, v, c):
+        nxt.append(head[u])
+        head[u] = len(to)
+        to.append(v)
+        cap.append(c)
+        
+        nxt.append(head[v])
+        head[v] = len(to)
+        to.append(u)
+        cap.append(c)
+
+    original_edges = []
+    idx = 5
+    for _ in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx+1])
+        w = int(input_data[idx+2])
+        idx += 3
+        add_edge(u, v, w)
+        original_edges.append((u, v))
+        
+    level = [-1] * (n + 1)
+    ptr = [0] * (n + 1)
+    
+    def bfs():
+        for i in range(1, n + 1):
+            level[i] = -1
+        level[s] = 0
+        q = deque([s])
+        while q:
+            v = q.popleft()
+            e = head[v]
+            while e != -1:
+                u = to[e]
+                if cap[e] > 0 and level[u] < 0:
+                    level[u] = level[v] + 1
+                    q.append(u)
+                e = nxt[e]
+        return level[t] != -1
+
+    def dfs(v, pushed):
+        if pushed == 0 or v == t:
+            return pushed
+        e = ptr[v]
+        while e != -1:
+            u = to[e]
+            tr = cap[e]
+            if level[v] + 1 == level[u] and tr > 0:
+                push = tr if tr < pushed else pushed
+                tr_pushed = dfs(u, push)
+                if tr_pushed > 0:
+                    cap[e] -= tr_pushed
+                    cap[e ^ 1] += tr_pushed
+                    return tr_pushed
+            e = nxt[e]
+            ptr[v] = e
+        return 0
+
+    flow = 0
+    INF = 10**18
+    while bfs():
+        for i in range(1, n + 1):
+            ptr[i] = head[i]
+        while True:
+            pushed = dfs(s, INF)
+            if pushed == 0:
+                break
+            flow += pushed
+            
+    if flow > B:
+        print("NO")
+        return
+    
+    # Find reachable nodes from s in the residual graph
+    visited = [False] * (n + 1)
+    visited[s] = True
+    q = deque([s])
+    while q:
+        v = q.popleft()
+        e = head[v]
+        while e != -1:
+            u = to[e]
+            if cap[e] > 0 and not visited[u]:
+                visited[u] = True
+                q.append(u)
+            e = nxt[e]
+            
+    cut_edges = []
+    for u, v in original_edges:
+        if visited[u] != visited[v]:
+            cut_edges.append((u, v))
+            
+    print("YES")
+    print(len(cut_edges))
+    for u, v in cut_edges:
+        print(f"{u} {v}")
+
+if __name__ == '__main__':
+    solve()

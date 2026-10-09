@@ -1,0 +1,88 @@
+# Problem A — Subspace Observability
+
+Time limit: 5 s   Memory limit: 256 MB
+
+## Description
+
+A data science team is analyzing a system of $n$ unknown scalar parameters, $\theta_1, \theta_2, \dots, \theta_n$. The team is focused on a specific subset of $t$ critical parameters.
+
+Their objective is to ensure that the linear combinations $\theta_a - \theta_b$ can be uniquely determined for all pairs $a, b$ within the critical subset.
+
+To achieve this, the team can evaluate a selection from $m$ available observation functions. Each available observation function provides the exact value of $\theta_u - \theta_v$ for a specific pair of parameters $u$ and $v$. 
+
+In the context of linear algebra, if we define $e_k$ as the $k$-th standard basis vector in $\mathbb{R}^n$, an observation of $\theta_u - \theta_v$ corresponds to the vector $e_u - e_v$. A target difference $\theta_a - \theta_b$ can be uniquely deduced if and only if its corresponding vector $e_a - e_b$ is in the linear span of the vectors associated with the evaluated observations.
+
+The team is permitted to evaluate observations involving non-critical parameters, provided their corresponding vectors help span the required critical differences.
+
+Each observation function has a fixed evaluation cost, $w$. The total cost is the sum of the evaluation costs of the distinct observation functions the team chooses to evaluate.
+
+Determine the minimum total evaluation cost required to select a set of observation functions such that the vector $e_a - e_b$ is in their linear span for all pairs of critical parameters $a$ and $b$.
+
+## Input
+
+The first line provides three integers $n$, $m$, and $t$ (1 ≤ $t$ ≤ 10, 1 ≤ $n$ ≤ 100, 0 ≤ $m$ ≤ $n$·($n$−1)/2).
+The second line lists $t$ distinct integers representing the indices of the critical parameters.
+Each of the subsequent $m$ lines specifies an available observation function using three integers $u$, $v$, and $w$ (1 ≤ $u$, $v$ ≤ $n$, $u$ ≠ $v$, 1 ≤ $w$ ≤ 1000000). This indicates an observation function yielding $\theta_u - \theta_v$ with an evaluation cost of $w$.
+It is guaranteed that the set of all $m$ available observations is sufficient to span all target differences among the critical parameters.
+
+## Output
+
+Print a single integer: the minimum total evaluation cost required to ensure all required vectors $e_a - e_b$ are in the linear span of the selected observations.
+
+## Examples
+
+### Example 1
+
+**Input**
+```
+4 6 3
+1 2 3
+1 4 1
+2 4 1
+3 4 1
+1 2 2
+2 3 2
+1 3 2
+```
+
+**Output**
+```
+3
+```
+
+### Example 2
+
+**Input**
+```
+4 4 3
+1 2 3
+1 2 1
+2 3 1
+1 4 10
+3 4 10
+```
+
+**Output**
+```
+2
+```
+
+### Example 3
+
+**Input**
+```
+3 2 1
+1
+1 2 5
+2 3 5
+```
+
+**Output**
+```
+0
+```
+
+## Note
+
+In Example 1, evaluating the observation functions that involve the non-critical parameter 4 (which require costs of 1, 1, and 1; total cost = 3) is more efficient than evaluating the functions directly involving only the three critical parameters (which would result in a total cost of 4). The vectors $e_1 - e_4$ and $e_2 - e_4$ linearly span $e_1 - e_2$, as $(e_1 - e_4) - (e_2 - e_4) = e_1 - e_2$. Thus, parameter 4 acts as an effective algebraic pivot. 
+In Example 3, there is only a single critical parameter, so there are no pairs $a, b$ that need to be spanned. No observations need to be evaluated, resulting in a total cost of 0.

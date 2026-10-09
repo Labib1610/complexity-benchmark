@@ -1,0 +1,257 @@
+```python
+import sys
+sys.setrecursionlimit(1000000)
+
+def solve():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    k = int(next(it))
+    t = int(next(it))
+    
+    pockets = []
+    for _ in range(t):
+        x = int(next(it))
+        y = int(next(it))
+        z = int(next(it))
+        pockets.append((x, y, z))
+    
+    # We need to select k pockets such that all x's are distinct, all y's are distinct, all z's are distinct
+    # This is a 3D matching problem. We can reduce it to bipartite matching.
+    # Fix the x-coordinate (1 to k). For each x, we need to select a pocket with that x.
+    # The pocket also has y and z. We need all y's distinct and all z's distinct.
+    # This becomes: match x to (y,z) pairs, where each y and each z is used at most once.
+    # This is equivalent to finding a matching in a tripartite graph.
+    # We can use maximum bipartite matching: match y to z, with edges coming from available (y,z) pairs for each x.
+    # But we need to ensure each x gets exactly one (y,z) pair.
+    
+    # Group pockets by x
+    by_x = [[] for _ in range(k + 1)]
+    for i, (x, y, z) in enumerate(pockets):
+        by_x[x].append((y, z, i))
+    
+    # Check if every x from 1 to k has at least one pocket
+    for x in range(1, k + 1):
+        if not by_x[x]:
+            print("NO")
+            return
+    
+    # We'll use a flow-based approach
+    # Build a flow network:
+    # Source -> x nodes (capacity 1)
+    # x nodes -> (y,z) pair nodes (capacity 1)
+    # (y,z) pair nodes -> y nodes (capacity 1) -- but this doesn't enforce z uniqueness
+    # Actually, we need to model it differently.
+    
+    # Alternative: Since we need all y's distinct and all z's distinct, we can think of it as:
+    # For each x, we pick a (y,z) pair. The y's must be a permutation of 1..k, and z's must be a permutation of 1..k.
+    # This is equivalent to finding a Latin square of size k, but we're constrained by available pockets.
+    
+    # We can use bipartite matching twice:
+    # First, match x to y (ensuring each x gets a unique y)
+    # Then, for each matched (x,y), we need to find a z such that (x,y,z) is a pocket and z's are unique.
+    # But this two-step approach might not work because the choice of y affects available z's.
+    
+    # Better approach: Use maximum flow in a tripartite graph
+    # Source -> X nodes (capacity 1)
+    # X nodes -> pocket nodes (capacity 1) - each pocket belongs to one X
+    # Pocket nodes -> Y nodes (capacity 1) - but this doesn't handle Z
+    # Actually, we need: Source -> X -> Pocket -> (Y and Z simultaneously)
+    
+    # Correct approach: Model as a bipartite graph between Y and Z
+    # For each x, we have a set of available (y,z) pairs.
+    # We need to select one (y,z) pair for each x, such that all y's are distinct and all z's are distinct.
+    # This is equivalent to finding a perfect matching in a bipartite graph where:
+    # Left side: Y values (1..k)
+    # Right side: Z values (1..k)
+    # For each x, we add edges from y to z for all (y,z) pairs available for that x.
+    # But we need to ensure each x contributes exactly one edge to the matching.
+    
+    # This is a "k-partite matching" problem, which can be solved using maximum flow.
+    # Build a flow network:
+    # Source -> X nodes (capacity 1)
+    # X nodes -> pocket nodes (capacity 1) - each pocket belongs to one X
+    # Pocket nodes -> Y nodes (capacity 1)
+    # Y nodes -> Z nodes (capacity 1) - but this is not correct structure
+    
+    # Let me think again...
+    # We have k X's, k Y's, and k Z's.
+    # We need to select k pockets such that each X, Y, Z is used exactly once.
+    # This is a 3D matching problem, which is NP-hard in general.
+    # But with k <= 22, we might be able to use a meet-in-the-middle or other techniques.
+    
+    # However, since we're matching X to (Y,Z) pairs, and Y and Z must both be permutations,
+    # we can use a reduction to bipartite matching with a trick.
+    
+    # Alternative approach: Use Hall's theorem and greedy matching
+    # For each x, we have a set of (y,z) pairs.
+    # We need to select one (y,z) for each x such that y's form a permutation and z's form a permutation.
+    
+    # Let's use a flow network:
+    # Source -> X (capacity 1)
+    # X -> (Y,Z) pairs for that X (capacity 1)
+    # (Y,Z) pairs -> Y (capacity 1)
+    # Y -> Sink (capacity 1)
+    # But this doesn't enforce Z uniqueness.
+    
+    # Correct flow network:
+    # Source -> X (capacity 1)
+    # X -> Pocket (capacity 1)
+    # Pocket -> Y (capacity 1)
+    # Y -> Z (capacity 1) -- No, this doesn't make sense
+    
+    # Let me use a different approach: bipartite matching between Y and Z
+    # For each x, we have edges from y to z.
+    # We need to select one edge for each x, such that all y's are distinct and all z's are distinct.
+    # This is equivalent to finding k edge-disjoint matchings, one for each x.
+    
+    # Actually, we can use the following:
+    # Create a bipartite graph between Y and Z.
+    # For each x, color the edges with color x.
+    # We need to find a perfect matching where each color is used exactly once.
+    # This is a "rainbow matching" problem.
+    
+    # For k <= 22, we can use a meet-in-the-middle approach or bitmask DP.
+    
+    # Let's use bitmask DP with bipartite matching.
+    # For each subset of X's, we check if we can match them to distinct Y's and Z's.
+    
+    # Actually, let's use a simpler approach:
+    # Since k <= 22, we can use a recursive backtracking with pruning.
+    # For each x from 1 to k, try to assign a (y,z) pair.
+    # Keep track of used Y's and used Z's.
+    # Use bipartite matching to check if remaining X's can be matched.
+    
+    # Precompute for each x, the list of (y,z) pairs
+    x_to_pairs = {}
+    for x in range(1, k + 1):
+        pairs = []
+        for y, z, idx in by_x[x]:
+            pairs.append((y, z, idx))
+        x_to_pairs[x] = pairs
+    
+    # We'll use a recursive approach with memoization and bipartite matching for feasibility check
+    used_y = [False] * (k + 1)
+    used_z = [False] * (k + 1)
+    selected = []
+    
+    # Bipartite matching for feasibility check
+    def can_match(remaining_xs, used_y, used_z):
+        # Check if remaining X's can be matched to available Y's and Z's
+        # Build a bipartite graph: Y -> Z
+        # For each remaining x, add edges from available y to available z
+        available_ys = [y for y in range(1, k + 1) if not used_y[y]]
+        available_zs = [z for z in range(1, k + 1) if not used_z[z]]
+        
+        if len(available_ys) < len(remaining_xs) or len(available_zs) < len(remaining_xs):
+            return False
+        
+        # Build adjacency: for each remaining x, what (y,z) pairs are available
+        # We need to check if there's a matching that covers all remaining x's
+        
+        # Use bipartite matching between remaining X's and available (Y,Z) pairs
+        # But (Y,Z) pairs must have both Y and Z available
+        
+        # Actually, let's build a bipartite graph between remaining X's and available Y's
+        # Then check if each X can be matched to a Y, and then check Z's
+        
+        # Better: Build a flow network
+        # Source -> X (capacity 1)
+        # X -> (Y,Z) pairs (capacity 1)
+        # (Y,Z) -> Y (capacity 1)
+        # Y -> Sink (capacity 1)
+        # But this doesn't handle Z uniqueness
+        
+        # Let's use a different approach: bipartite matching between Y and Z
+        # For remaining X's, we need to find a matching in the Y-Z graph
+        # where each X contributes one edge
+        
+        # This is complex. Let's use a simpler approach:
+        # For each remaining X, check if it has at least one (y,z) pair with y and z both available
+        for x in remaining_xs:
+            has_valid = False
+            for y, z, _ in x_to_pairs[x]:
+                if not used_y[y] and not used_z[z]:
+                    has_valid = True
+                    break
+            if not has_valid:
+                return False
+        
+        # Now check if a perfect matching exists using bipartite matching
+        # We'll match remaining X's to available Y's, then check Z's
+        
+        # Build bipartite graph: X -> Y
+        n_x = len(remaining_xs)
+        y_to_idx = {y: i for i, y in enumerate(available_ys)}
+        idx_to_y = {i: y for i, y in enumerate(available_ys)}
+        
+        adj = [[] for _ in range(n_x)]
+        for i, x in enumerate(remaining_xs):
+            for y, z, _ in x_to_pairs[x]:
+                if not used_y[y] and not used_z[z]:
+                    if y in y_to_idx:
+                        adj[i].append(y_to_idx[y])
+        
+        # Bipartite matching
+        match_y = [-1] * len(available_ys)
+        
+        def dfs_match(u, visited):
+            for v in adj[u]:
+                if visited[v]:
+                    continue
+                visited[v] = True
+                if match_y[v] == -1 or dfs_match(match_y[v], visited):
+                    match_y[v] = u
+                    return True
+            return False
+        
+        match_count = 0
+        for u in range(n_x):
+            visited = [False] * len(available_ys)
+            if dfs_match(u, visited):
+                match_count += 1
+        
+        if match_count < n_x:
+            return False
+        
+        # Now check Z's
+        # For each matched X-Y, we need to find a Z
+        # This is another bipartite matching problem
+        
+        # Actually, the above only checks Y uniqueness. We need to check both Y and Z.
+        # Let's use a proper 3D matching approach.
+        
+        # For small k, we can use a recursive backtracking with pruning
+        return True
+    
+    # Recursive backtracking
+    def backtrack(x, used_y, used_z, selected):
+        if x > k:
+            return True
+        
+        for y, z, idx in x_to_pairs[x]:
+            if not used_y[y] and not used_z[z]:
+                used_y[y] = True
+                used_z[z] = True
+                selected.append(idx)
+                
+                if backtrack(x + 1, used_y, used_z, selected):
+                    return True
+                
+                selected.pop()
+                used_y[y] = False
+                used_z[z] = False
+        
+        return False
+    
+    if backtrack(1, used_y, used_z, selected):
+        print("YES")
+        for idx in selected:
+            x, y, z = pockets[idx]
+            print(x, y, z)
+    else:
+        print("NO")
+
+solve()
+```

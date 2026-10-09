@@ -1,0 +1,53 @@
+import sys
+from collections import defaultdict
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    edges = []
+    adj = defaultdict(set)
+    
+    index = 2
+    for _ in range(m):
+        u = int(data[index])
+        v = int(data[index+1])
+        index += 2
+        edges.append((u, v))
+        adj[u].add(v)
+        adj[v].add(u)
+    
+    # We need to find a triangle (3-clique) with smallest lexicographical order
+    # Let's iterate through all edges and check for a common neighbor
+    
+    # First, sort adjacency lists for consistent ordering
+    for node in adj:
+        adj[node] = sorted(adj[node])
+    
+    best = None
+    
+    # For each edge (u,v), look for a node w that connects to both u and v
+    for u in sorted(adj.keys()):
+        for v in adj[u]:
+            if v <= u:
+                continue
+            # Now we look for w that is connected to both u and v
+            # Iterate through the smaller list for efficiency
+            if len(adj[u]) > len(adj[v]):
+                u, v = v, u
+            for w in adj[u]:
+                if w <= v:
+                    continue
+                if w in adj[v]:
+                    candidate = tuple(sorted([u, v, w]))
+                    if best is None or candidate < best:
+                        best = candidate
+    
+    print(best[0], best[1], best[2])
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,57 @@
+import sys
+from collections import defaultdict, deque
+
+def main():
+    import sys
+    sys.setrecursionlimit(1 << 25)
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    graph = defaultdict(list)
+    index = 2
+    for _ in range(m):
+        u = int(data[index]) - 1
+        v = int(data[index+1]) - 1
+        graph[u].append(v)
+        graph[v].append(u)
+        index += 2
+    
+    # 0 means unvisited, 1 and 2 are the two colors
+    color = [0] * n
+    visited = [False] * n
+    
+    def bfs(start):
+        queue = deque()
+        queue.append(start)
+        color[start] = 1
+        visited[start] = True
+        while queue:
+            node = queue.popleft()
+            current_color = color[node]
+            next_color = 3 - current_color  # flips 1->2 and 2->1
+            for neighbor in graph[node]:
+                if not visited[neighbor]:
+                    visited[neighbor] = True
+                    color[neighbor] = next_color
+                    queue.append(neighbor)
+                elif color[neighbor] != next_color:
+                    return False
+        return True
+    
+    for i in range(n):
+        if not visited[i]:
+            if not bfs(i):
+                print("NO")
+                return
+    
+    print("YES")
+    result = []
+    for c in color:
+        result.append(str(c))
+    print(' '.join(result))
+
+if __name__ == "__main__":
+    main()

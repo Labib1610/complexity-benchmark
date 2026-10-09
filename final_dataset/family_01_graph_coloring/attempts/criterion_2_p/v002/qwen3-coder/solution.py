@@ -1,0 +1,62 @@
+import sys
+from collections import defaultdict, deque
+
+def main():
+    import sys
+    sys.setrecursionlimit(1 << 25)
+    
+    n, m = map(int, sys.stdin.readline().split())
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
+    
+    # Build adjacency list
+    adj = defaultdict(list)
+    edges = []
+    for _ in range(m):
+        u, v = map(int, sys.stdin.readline().split())
+        adj[u].append(v)
+        adj[v].append(u)
+        edges.append((u, v))
+    
+    # Check if bipartite using BFS/DFS for each connected component
+    color = [-1] * (n + 1)  # -1: unvisited, 0: color 1, 1: color 2
+    visited = [False] * (n + 1)
+    
+    def bfs(start):
+        queue = deque()
+        queue.append(start)
+        color[start] = 0
+        visited[start] = True
+        
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if not visited[v]:
+                    visited[v] = True
+                    color[v] = 1 - color[u]
+                    queue.append(v)
+                elif color[v] == color[u]:
+                    return False
+        return True
+    
+    # Process each connected component
+    for i in range(1, n + 1):
+        if not visited[i]:
+            if not bfs(i):
+                print("NO")
+                return
+    
+    print("YES")
+    result = []
+    for i in range(1, n + 1):
+        if color[i] == 0:
+            result.append("1")
+        else:
+            result.append("2")
+    print(" ".join(result))
+
+if __name__ == "__main__":
+    main()

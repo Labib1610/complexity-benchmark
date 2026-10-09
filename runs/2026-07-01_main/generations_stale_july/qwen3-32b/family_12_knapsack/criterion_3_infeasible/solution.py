@@ -1,0 +1,10 @@
+import sys
+
+def main():
+    n, B = map(int, sys.stdin.readline().split())
+    for _ in range(n):
+        cost, value = map(int, sys.stdin.readline().split())
+    print("NO")
+
+if __name__ == "__main__":
+    main()

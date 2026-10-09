@@ -1,41 +1,39 @@
 import sys
 
 def solve():
-    input_data = sys.stdin.read().strip().split()
-    if not input_data:
-        return
-    it = iter(input_data)
-    n = int(next(it))
-    m = int(next(it))
-    
-    adj = [set() for _ in range(n)]
+    input = sys.stdin.readline
+    n, m = map(int, input().split())
+    adj = [0] * n
     for _ in range(m):
-        u = int(next(it)) - 1
-        v = int(next(it)) - 1
-        adj[u].add(v)
-        adj[v].add(u)
+        u, v = map(int, input().split())
+        u -= 1
+        v -= 1
+        adj[u] |= (1 << v)
+        adj[v] |= (1 << u)
     
-    assignment = [0] * n
-    
-    def backtrack(idx):
-        if idx == n:
+    color = [0] * n
+    # Try to color with 3 colors using backtracking
+    def dfs(node):
+        if node == n:
             return True
-        for color in (1, 2, 3):
+        # Try colors 1,2,3
+        for c in (1, 2, 3):
             ok = True
-            for neighbor in adj[idx]:
-                if assignment[neighbor] == color:
-                    ok = False
-                    break
+            for nei in range(n):
+                if (adj[node] >> nei) & 1:
+                    if color[nei] == c:
+                        ok = False
+                        break
             if ok:
-                assignment[idx] = color
-                if backtrack(idx + 1):
+                color[node] = c
+                if dfs(node + 1):
                     return True
-                assignment[idx] = 0
+                color[node] = 0
         return False
     
-    if backtrack(0):
+    if dfs(0):
         print("YES")
-        print(" ".join(map(str, assignment)))
+        print(" ".join(str(c) for c in color))
     else:
         print("NO")
 

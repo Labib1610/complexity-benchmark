@@ -1,0 +1,42 @@
+import sys
+sys.setrecursionlimit(300000)
+
+def solve():
+    input = sys.stdin.readline
+    n, m, t = map(int, input().split())
+    required = set(map(int, input().split()))
+    
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u, v, w = map(int, input().split())
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+    
+    # DFS to mark which nodes are needed
+    needed = [False] * (n + 1)
+    
+    def dfs(u, parent):
+        if u in required:
+            needed[u] = True
+        for v, w in adj[u]:
+            if v != parent:
+                if dfs(v, u):
+                    needed[u] = True
+        return needed[u]
+    
+    # Start from any required node, or node 1 if none
+    start = next(iter(required)) if required else 1
+    dfs(start, -1)
+    
+    total_cost = 0
+    # Sum edges where both endpoints are needed
+    for u in range(1, n + 1):
+        if needed[u]:
+            for v, w in adj[u]:
+                if needed[v] and u < v:
+                    total_cost += w
+    
+    print(total_cost)
+
+if __name__ == "__main__":
+    solve()

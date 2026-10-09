@@ -1,0 +1,190 @@
+import sys
+sys.setrecursionlimit(1000000)
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    k = int(next(it))
+    t = int(next(it))
+    
+    # Build adjacency list: for each enzyme e, list of (s, p) pairs
+    adj = [[] for _ in range(k + 1)]
+    for _ in range(t):
+        e = int(next(it))
+        s = int(next(it))
+        p = int(next(it))
+        adj[e].append((s, p))
+    
+    # match_s[e] = s matched to enzyme e
+    # match_p[e] = p matched to enzyme e
+    match_s = [0] * (k + 1)
+    match_p = [0] * (k + 1)
+    # used_s[s] = enzyme using substrate s
+    # used_p[p] = enzyme using thermal profile p
+    used_s = [0] * (k + 1)
+    used_p = [0] * (k + 1)
+    
+    visited = [False] * (k + 1)
+    
+    def dfs(e):
+        visited[e] = True
+        for s, p in adj[e]:
+            # Check if (s, p) is available or can be freed
+            if used_s[s] == 0 and used_p[p] == 0:
+                # Both available, take them
+                match_s[e] = s
+                match_p[e] = p
+                used_s[s] = e
+                used_p[p] = e
+                return True
+            elif used_s[s] != 0 and used_p[p] == 0:
+                # s is used by some enzyme, p is free
+                # Try to reassign the enzyme using s
+                e2 = used_s[s]
+                if not visited[e2]:
+                    # Save current state
+                    old_s = match_s[e2]
+                    old_p = match_p[e2]
+                    # Temporarily free e2's resources
+                    used_s[old_s] = 0
+                    used_p[old_p] = 0
+                    match_s[e2] = 0
+                    match_p[e2] = 0
+                    
+                    if dfs(e2):
+                        # e2 reassigned successfully, now take (s, p) for e
+                        match_s[e] = s
+                        match_p[e] = p
+                        used_s[s] = e
+                        used_p[p] = e
+                        return True
+                    else:
+                        # Restore e2's assignment
+                        match_s[e2] = old_s
+                        match_p[e2] = old_p
+                        used_s[old_s] = e2
+                        used_p[old_p] = e2
+            elif used_s[s] == 0 and used_p[p] != 0:
+                # s is free, p is used by some enzyme
+                e2 = used_p[p]
+                if not visited[e2]:
+                    old_s = match_s[e2]
+                    old_p = match_p[e2]
+                    used_s[old_s] = 0
+                    used_p[old_p] = 0
+                    match_s[e2] = 0
+                    match_p[e2] = 0
+                    
+                    if dfs(e2):
+                        match_s[e] = s
+                        match_p[e] = p
+                        used_s[s] = e
+                        used_p[p] = e
+                        return True
+                    else:
+                        match_s[e2] = old_s
+                        match_p[e2] = old_p
+                        used_s[old_s] = e2
+                        used_p[old_p] = e2
+            else:
+                # Both s and p are used
+                e1 = used_s[s]
+                e2 = used_p[p]
+                if e1 == e2:
+                    # Same enzyme uses both, can't help
+                    continue
+                if not visited[e1]:
+                    old_s1 = match_s[e1]
+                    old_p1 = match_p[e1]
+                    used_s[old_s1] = 0
+                    used_p[old_p1] = 0
+                    match_s[e1] = 0
+                    match_p[e1] = 0
+                    
+                    if dfs(e1):
+                        # Now s is free, but p might still be used
+                        if used_p[p] == 0:
+                            match_s[e] = s
+                            match_p[e] = p
+                            used_s[s] = e
+                            used_p[p] = e
+                            return True
+                        elif not visited[used_p[p]]:
+                            e2_now = used_p[p]
+                            old_s2 = match_s[e2_now]
+                            old_p2 = match_p[e2_now]
+                            used_s[old_s2] = 0
+                            used_p[old_p2] = 0
+                            match_s[e2_now] = 0
+                            match_p[e2_now] = 0
+                            
+                            if dfs(e2_now):
+                                match_s[e] = s
+                                match_p[e] = p
+                                used_s[s] = e
+                                used_p[p] = e
+                                return True
+                            else:
+                                match_s[e2_now] = old_s2
+                                match_p[e2_now] = old_p2
+                                used_s[old_s2] = e2_now
+                                used_p[old_p2] = e2_now
+                        # Restore e1
+                        match_s[e1] = old_s1
+                        match_p[e1] = old_p1
+                        used_s[old_s1] = e1
+                        used_p[old_p1] = e1
+                if not visited[e2] and used_p[p] == e2:
+                    old_s2 = match_s[e2]
+                    old_p2 = match_p[e2]
+                    used_s[old_s2] = 0
+                    used_p[old_p2] = 0
+                    match_s[e2] = 0
+                    match_p[e2] = 0
+                    
+                    if dfs(e2):
+                        if used_s[s] == 0:
+                            match_s[e] = s
+                            match_p[e] = p
+                            used_s[s] = e
+                            used_p[p] = e
+                            return True
+                        elif not visited[used_s[s]]:
+                            e1_now = used_s[s]
+                            old_s1 = match_s[e1_now]
+                            old_p1 = match_p[e1_now]
+                            used_s[old_s1] = 0
+                            used_p[old_p1] = 0
+                            match_s[e1_now] = 0
+                            match_p[e1_now] = 0
+                            
+                            if dfs(e1_now):
+                                match_s[e] = s
+                                match_p[e] = p
+                                used_s[s] = e
+                                used_p[p] = e
+                                return True
+                            else:
+                                match_s[e1_now] = old_s1
+                                match_p[e1_now] = old_p1
+                                used_s[old_s1] = e1_now
+                                used_p[old_p1] = e1_now
+                        match_s[e2] = old_s2
+                        match_p[e2] = old_p2
+                        used_s[old_s2] = e2
+                        used_p[old_p2] = e2
+        return False
+    
+    for e in range(1, k + 1):
+        visited = [False] * (k + 1)
+        if not dfs(e):
+            print("NO")
+            return
+    
+    print("YES")
+    for e in range(1, k + 1):
+        print(f"{e} {match_s[e]} {match_p[e]}")
+
+solve()

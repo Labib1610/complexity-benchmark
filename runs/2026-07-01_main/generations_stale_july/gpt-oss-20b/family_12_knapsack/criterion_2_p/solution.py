@@ -1,0 +1,34 @@
+import sys
+
+def solve() -> None:
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    B = int(next(it))
+    items = []
+    for _ in range(n):
+        cost = int(next(it))
+        value = int(next(it))
+        items.append((value / cost, cost, value))
+    items.sort(reverse=True, key=lambda x: x[0])
+
+    budget = B
+    total_value = 0.0
+    for ratio, cost, value in items:
+        if budget <= 0:
+            break
+        if cost <= budget:
+            budget -= cost
+            total_value += value
+        else:
+            frac = budget / cost
+            total_value += value * frac
+            budget = 0
+            break
+
+    sys.stdout.write(f"{total_value:.6f}")
+
+if __name__ == "__main__":
+    solve()

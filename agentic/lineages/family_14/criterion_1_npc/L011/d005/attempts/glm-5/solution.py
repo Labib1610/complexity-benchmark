@@ -1,0 +1,81 @@
+import sys
+from itertools import combinations
+
+def solve():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    t = int(next(it))
+    
+    critical = [int(next(it)) for _ in range(t)]
+    critical_set = set(critical)
+    
+    edges = []
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        w = int(next(it))
+        edges.append((u, v, w))
+    
+    # Special case: if t <= 1, no bridges needed
+    if t <= 1:
+        print(0)
+        return
+    
+    # Sort edges by weight for Kruskal's algorithm
+    edges.sort(key=lambda x: x[2])
+    
+    min_cost = float('inf')
+    
+    # Try all possible subsets of non-critical nodes to include
+    non_critical = [i for i in range(1, n + 1) if i not in critical_set]
+    
+    for r in range(len(non_critical) + 1):
+        for subset in combinations(non_critical, r):
+            S = set(critical) | set(subset)
+            
+            # Use Kruskal's algorithm to find MST of the induced subgraph
+            parent = {v: v for v in S}
+            rank = {v: 0 for v in S}
+            
+            def find(x):
+                if parent[x] != x:
+                    parent[x] = find(parent[x])
+                return parent[x]
+            
+            def union(x, y):
+                rx, ry = find(x), find(y)
+                if rx == ry:
+                    return False
+                if rank[rx] < rank[ry]:
+                    parent[rx] = ry
+                elif rank[rx] > rank[ry]:
+                    parent[ry] = rx
+                else:
+                    parent[ry] = rx
+                    rank[rx] += 1
+                return True
+            
+            total_cost = 0
+            edges_used = 0
+            needed = len(S) - 1
+            
+            for u, v, w in edges:
+                if u in S and v in S:
+                    if union(u, v):
+                        total_cost += w
+                        edges_used += 1
+                        if edges_used == needed:
+                        break
+            
+            # Check if all nodes in S are connected
+            if edges_used == needed:
+                min_cost = min(min_cost, total_cost)
+    
+    print(min_cost)
+
+if __name__ == "__main__":
+    solve()

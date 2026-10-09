@@ -1,0 +1,100 @@
+import sys
+from collections import defaultdict
+import heapq
+
+def find(parent, x):
+    if parent[x] != x:
+        parent[x] = find(parent, parent[x])
+    return parent[x]
+
+def union(parent, rank, x, y):
+    px, py = find(parent, x), find(parent, y)
+    if px == py:
+        return False
+    if rank[px] < rank[py]:
+        px, py = py, px
+    parent[py] = px
+    if rank[px] == rank[py]:
+        rank[px] += 1
+    return True
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    idx = 0
+    n = int(data[idx])
+    idx += 1
+    m = int(data[idx])
+    idx += 1
+    t = int(data[idx])
+    idx += 1
+    
+    primary = []
+    for _ in range(t):
+        primary.append(int(data[idx]) - 1)  # 0-indexed
+        idx += 1
+    
+    edges = []
+    for _ in range(m):
+        u = int(data[idx]) - 1
+        idx += 1
+        v = int(data[idx]) - 1
+        idx += 1
+        w = int(data[idx])
+        idx += 1
+        edges.append((w, u, v))
+    
+    if t <= 1:
+        print(0)
+        return
+    
+    # Sort edges by weight
+    edges.sort()
+    
+    # We need to connect all primary elements
+    # This is essentially finding the minimum spanning tree that connects all primary elements
+    # We can use a modified Kruskal's algorithm
+    
+    # Initially, each primary element is in its own component
+    # We want to connect all primary elements into one component
+    # We can do this by running Kruskal's algorithm until all primary elements are connected
+    
+    parent = list(range(n))
+    rank = [0] * n
+    
+    # Count how many primary elements are in each component
+    primary_count = [0] * n
+    for p in primary:
+        primary_count[p] = 1
+    
+    total_cost = 0
+    components_with_primary = sum(1 for count in primary_count if count > 0)
+    
+    for w, u, v in edges:
+        pu = find(parent, u)
+        pv = find(parent, v)
+        
+        if pu != pv:
+            # Union the components
+            union(parent, rank, u, v)
+            
+            # Update primary count in the new root
+            new_root = find(parent, u)
+            old_root = pv if new_root == pu else pu
+            
+            primary_count[new_root] += primary_count[old_root]
+            primary_count[old_root] = 0
+            
+            # Check if we just connected two components that both had primary elements
+            total_cost += w
+            
+            # If all primary elements are now in the same component, we're done
+            if primary_count[new_root] == t:
+                break
+    
+    print(total_cost)
+
+if __name__ == "__main__":
+    main()

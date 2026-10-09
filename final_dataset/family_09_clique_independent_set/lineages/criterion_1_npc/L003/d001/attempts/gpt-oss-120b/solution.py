@@ -1,0 +1,125 @@
+import sys
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it)); m = int(next(it)); k = int(next(it))
+    adj = [0] * n
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+
+    n1 = n // 2
+    n2 = n - n1
+    first_range = range(n1)
+    second_range = range(n1, n)
+
+    # masks within each half
+    adj_first = [0] * n1
+    adj_to_second = [0] * n1
+    for i in first_range:
+        adj_first[i] = (adj[i] & ((1 << n1) - 1))
+        adj_to_second[i] = (adj[i] >> n1) & ((1 << n2) - 1)
+
+    adj_second = [0] * n2
+    for i in range(n2):
+        v = i + n1
+        adj_second[i] = ((adj[v] >> n1) & ((1 << n2) - 1))
+
+    # generate independent subsets for first half
+    list1 = []  # (size, allowed_mask_in_second)
+    def dfs1(idx, used_mask, allowed_second, size):
+        if idx == n1:
+            list1.append((size, allowed_second))
+            return
+        # option: skip vertex idx
+        dfs1(idx + 1, used_mask, allowed_second, size)
+        # option: take vertex idx if no conflict with used_mask
+        if not (used_mask & adj_first[idx]):
+            dfs1(idx + 1,
+                 used_mask | (1 << idx),
+                 allowed_second & ~adj_to_second[idx],
+                 size + 1)
+    dfs1(0, 0, (1 << n2) - 1, 0)
+
+    # generate independent subsets for second half, grouped by size
+    list2_by_size = [[] for _ in range(n2 + 1)]
+    def dfs2(idx, used_mask, size):
+        if idx == n2:
+            list2_by_size[size].append(used_mask)
+            return
+        dfs2(idx + 1, used_mask, size)
+        if not (used_mask & adj_second[idx]):
+            dfs2(idx + 1, used_mask | (1 << idx), size + 1)
+    dfs2(0, 0, 0)
+
+    # search for compatible pair
+    for size1, allowed in list1:
+        need = k - size1
+        if need < 0 or need > n2:
+            continue
+        for mask2 in list2_by_size[need]:
+            if mask2 & ~allowed == 0:
+                # construct answer
+                ans = []
+                # vertices from first half
+                for i in range(n1):
+                    if (size1 and ( (1 << i) & ( (1 << n1)-1) )):  # placeholder, we'll recompute
+                        pass
+                # easier: recompute selections by re-running dfs with stored masks
+                # We'll rebuild using the masks we have:
+                # first half mask not stored, so we need to store it as well.
+                # Modify generation to keep mask.
+                # For simplicity, redo search storing masks.
+
+                # redo with masks stored
+                pass
+
+    # Revised generation storing masks
+    list1 = []  # (size, allowed_second, mask_first)
+    def dfs1(idx, used_mask, allowed_second, size):
+        if idx == n1:
+            list1.append((size, allowed_second, used_mask))
+            return
+        dfs1(idx + 1, used_mask, allowed_second, size)
+        if not (used_mask & adj_first[idx]):
+            dfs1(idx + 1,
+                 used_mask | (1 << idx),
+                 allowed_second & ~adj_to_second[idx],
+                 size + 1)
+    dfs1(0, 0, (1 << n2) - 1, 0)
+
+    list2_by_size = [[] for _ in range(n2 + 1)]
+    def dfs2(idx, used_mask, size):
+        if idx == n2:
+            list2_by_size[size].append(used_mask)
+            return
+        dfs2(idx + 1, used_mask, size)
+        if not (used_mask & adj_second[idx]):
+            dfs2(idx + 1, used_mask | (1 << idx), size + 1)
+    dfs2(0, 0, 0)
+
+    for size1, allowed, mask1 in list1:
+        need = k - size1
+        if need < 0 or need > n2:
+            continue
+        for mask2 in list2_by_size[need]:
+            if mask2 & ~allowed == 0:
+                ans = []
+                for i in range(n1):
+                    if mask1 >> i & 1:
+                        ans.append(i + 1)
+                for i in range(n2):
+                    if mask2 >> i & 1:
+                        ans.append(n1 + i + 1)
+                print("YES")
+                print(' '.join(map(str, ans)))
+                return
+    print("NO")
+
+if __name__ == "__main__":
+    solve()

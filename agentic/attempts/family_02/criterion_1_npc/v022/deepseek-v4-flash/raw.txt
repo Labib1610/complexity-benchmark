@@ -1,0 +1,238 @@
+We can model this as a 2-SAT problem.  
+
+Each sensor can be either 0 or 1, and each routine is a clause of three literals.  
+A clause of three literals is satisfied if at least one literal is true.  
+We can convert each 3-literal clause into 2-SAT form by introducing auxiliary variables, or we can use a direct approach with backtracking since n ≤ 90 and m ≤ 400.
+
+Since n is small (≤ 90), we can use a SAT solver approach with DPLL or convert to 2-SAT by adding auxiliary variables.  
+A standard trick: for a clause (a ∨ b ∨ c), introduce a new variable x and add:
+- (a ∨ b ∨ x)
+- (¬x ∨ c)
+
+This keeps satisfiability equivalent and turns it into 2-SAT.
+
+We'll implement a 2-SAT solver with implication graph and SCC.
+
+```python
+import sys
+sys.setrecursionlimit(1000000)
+
+def solve():
+    input_data = sys.stdin.read().strip().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    clauses = []
+    for _ in range(m):
+        l1 = int(next(it))
+        l2 = int(next(it))
+        l3 = int(next(it))
+        clauses.append((l1, l2, l3))
+    
+    # We'll create 2-SAT variables:
+    # For each sensor i (1..n): variable i (0-indexed) -> True means Active(1), False means Standby(0)
+    # For each auxiliary variable: index n + k
+    
+    # Number of variables in 2-SAT: n + m (one aux per clause)
+    N = n + m
+    # 2-SAT graph: 2*N nodes, node 2*i = False, 2*i+1 = True
+    
+    g = [[] for _ in range(2*N)]
+    gr = [[] for _ in range(2*N)]
+    
+    def add_imp(u, v):
+        # u => v
+        g[u].append(v)
+        gr[v].append(u)
+    
+    def add_clause(a, b):
+        # (a or b)
+        # (~a => b) and (~b => a)
+        add_imp(a^1, b)
+        add_imp(b^1, a)
+    
+    # literal representation: (var, is_true)
+    # We'll encode literal as node index: 2*var + (1 if is_true else 0)
+    def lit_node(lit):
+        # lit is integer: positive x -> sensor x active, negative -x -> sensor x standby
+        if lit > 0:
+            var = lit - 1
+            return 2*var + 1  # True
+        else:
+            var = -lit - 1
+            return 2*var  # False
+    
+    for idx, (l1, l2, l3) in enumerate(clauses):
+        aux = n + idx
+        # aux variable: node 2*aux (False), 2*aux+1 (True)
+        # Clause: (l1 or l2 or l3)
+        # Introduce aux: (l1 or l2 or aux) and (~aux or l3)
+        # (l1 or l2 or aux) => (~l1 => (l2 or aux)) and (~l2 => (l1 or aux)) and (~aux => (l1 or l2))
+        # We can add as two 2-clauses:
+        # (l1 or l2 or aux) is equivalent to (l1 or l2) or aux
+        # We can do: (l1 or l2 or aux) => add clause (l1 or l2 or aux) as:
+        #   (~l1 => (l2 or aux)) -> not 2-SAT directly, but we can use aux splitting:
+        # Standard: (a or b or c) -> (a or b or x) and (~x or c)
+        # So:
+        # Clause1: (l1 or l2 or aux)
+        # Clause2: (~aux or l3)
+        # Clause1 can be split further: (l1 or l2 or aux) -> (l1 or l2 or aux) is 3-SAT, but we can do:
+        #   (l1 or l2 or aux) => (l1 or l2) or aux
+        #   => (~l1 => (l2 or aux)) and (~l2 => (l1 or aux)) and (~aux => (l1 or l2))
+        # The last one is 3-literal again. So we need another aux for that.
+        # Better: use two auxiliaries per 3-clause:
+        # (a or b or c) -> (a or b or x) and (~x or c)
+        # (a or b or x) -> (a or b or y) and (~y or x) ... infinite.
+        # Actually standard reduction: (a or b or c) -> (a or b or x) and (~x or c)
+        # (a or b or x) is still 3-literal, but we can treat it as:
+        #   (a or b or x) => (a or b) or x
+        #   => (~a => (b or x)) and (~b => (a or x)) and (~x => (a or b))
+        # The first two are 2-literal implications? No, (b or x) is 2-literal, so (~a => (b or x)) is fine as 2-SAT.
+        # The third (~x => (a or b)) is also 2-literal.
+        # So we can encode (a or b or x) as:
+        #   (~a => b or x)  -> add_imp(~a, b or x) -> not directly, but we can add two implications:
+        #       (~a => b) or (~a => x) is not equivalent.
+        # Actually (a or b or x) is equivalent to:
+        #   (~a => (b or x)) and (~b => (a or x)) and (~x => (a or b))
+        # Each of these is a clause with 2 literals on RHS, which is still 3-SAT.
+        # So we need to split further.
+        # Standard method: introduce two new variables for each 3-clause:
+        # (a or b or c) -> (a or b or x) and (~x or c)
+        # (a or b or x) -> (a or b or y) and (~y or x)
+        # This can go on, but we can stop by using a different approach:
+        # (a or b or c) -> (a or b or x) and (~x or c)
+        # (a or b or x) -> (a or x) or b -> not 2-SAT.
+        # Actually we can do: (a or b or c) -> (a or b or x) and (~x or c)
+        # (a or b or x) -> (a or b) or x -> (a or b or x) is equivalent to (a or b) or x.
+        # We can encode (a or b or x) as:
+        #   (a or b or x) = (a or b) or x
+        #   = (~(a or b) => x) and (~x => (a or b))
+        #   = ((~a and ~b) => x) and (~x => (a or b))
+        #   = ((~a => x) and (~b => x)) and ((~x => a or b))
+        # The first two are 2-SAT: (~a => x) and (~b => x)
+        # The third is (~x => a or b) which is 3-literal again.
+        # So we need another aux for that.
+        # This is getting messy. Since n ≤ 90, m ≤ 400, we can use a direct SAT solver with backtracking.
+        # But 2-SAT with auxiliaries is standard: (a or b or c) -> (a or b or x) and (~x or c)
+        # (a or b or x) -> (a or b or y) and (~y or x) ... but we can stop by using:
+        # (a or b or x) -> (a or x) or b -> not 2-SAT.
+        # Actually the standard reduction to 2-SAT for 3-SAT uses 3 auxiliaries per clause:
+        # (a or b or c) -> (a or x) and (b or y) and (c or z) and (~x or ~y or ~z) ... no.
+        # Let's just use a DPLL SAT solver since n is small.
+        pass
+    
+    # Since the above is messy, we'll implement a simple backtracking SAT solver.
+    # n ≤ 90, m ≤ 400, but 3-SAT with 90 vars can be hard, but constraints are small enough for DPLL with unit propagation.
+    
+    # We'll implement DPLL with unit propagation and pure literal elimination.
+    
+    # Represent clauses as list of lists of ints (positive = var+1, negative = -(var+1))
+    clauses_list = []
+    for l1, l2, l3 in clauses:
+        clauses_list.append([l1, l2, l3])
+    
+    assignment = [None] * n  # None, True, False
+    
+    def evaluate_clause(clause, assignment):
+        # returns True if satisfied, False if not, None if undetermined
+        sat = False
+        undef = False
+        for lit in clause:
+            var = abs(lit) - 1
+            val = assignment[var]
+            if val is None:
+                undef = True
+            elif (lit > 0 and val) or (lit < 0 and not val):
+                sat = True
+                break
+        if sat:
+            return True
+        if undef:
+            return None
+        return False
+    
+    def unit_propagate(assignment, clauses_list):
+        changed = True
+        while changed:
+            changed = False
+            for clause in clauses_list:
+                status = evaluate_clause(clause, assignment)
+                if status is False:
+                    return False  # conflict
+                if status is None:
+                    # count unassigned literals
+                    unassigned = []
+                    for lit in clause:
+                        var = abs(lit) - 1
+                        if assignment[var] is None:
+                            unassigned.append(lit)
+                    if len(unassigned) == 1:
+                        lit = unassigned[0]
+                        var = abs(lit) - 1
+                        assignment[var] = (lit > 0)
+                        changed = True
+        return True
+    
+    def pure_literal_eliminate(assignment, clauses_list):
+        # find pure literals
+        pos_count = {}
+        neg_count = {}
+        for clause in clauses_list:
+            for lit in clause:
+                var = abs(lit) - 1
+                if assignment[var] is not None:
+                    continue
+                if lit > 0:
+                    pos_count[var] = pos_count.get(var, 0) + 1
+                else:
+                    neg_count[var] = neg_count.get(var, 0) + 1
+        for var in range(n):
+            if assignment[var] is not None:
+                continue
+            p = pos_count.get(var, 0)
+            q = neg_count.get(var, 0)
+            if p > 0 and q == 0:
+                assignment[var] = True
+            elif q > 0 and p == 0:
+                assignment[var] = False
+    
+    def dpll(assignment, clauses_list):
+        # unit propagate
+        if not unit_propagate(assignment, clauses_list):
+            return False
+        # check if all satisfied
+        all_sat = True
+        for clause in clauses_list:
+            if evaluate_clause(clause, assignment) is not True:
+                all_sat = False
+                break
+        if all_sat:
+            return True
+        # choose unassigned variable
+        var = None
+        for i in range(n):
+            if assignment[i] is None:
+                var = i
+                break
+        if var is None:
+            return True  # all assigned and no conflict
+        # try True then False
+        for val in [True, False]:
+            assignment[var] = val
+            if dpll(assignment, clauses_list):
+                return True
+            assignment[var] = None
+        return False
+    
+    if dpll(assignment, clauses_list):
+        print("YES")
+        print(" ".join('1' if assignment[i] else '0' for i in range(n)))
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()
+```

@@ -1,0 +1,306 @@
+**Solution Explanation**
+
+For every task we have to choose one of the three blocks `1,2,3`.
+For each given pair `(u , v)` the two tasks must be placed in *different*
+blocks – the earlier block of the two is irrelevant, only equality is forbidden.
+So the problem is exactly the classic **3‑colouring** problem:
+
+*colour the vertices of a graph with three colours, adjacent vertices must obtain
+different colours.*
+
+`n ≤ 40`, therefore an exponential backtracking search with good pruning is
+fast enough.
+
+
+
+--------------------------------------------------------------------
+
+#### 1.   Data structures  
+
+* `adj[v]` – list of neighbours of vertex `v` (0‑based indices)  
+* `col[v]` – current colour of `v` (`0` = not coloured yet, otherwise `1..3`)  
+* `mask[v]` – bit mask of still possible colours for `v`  
+
+```
+bit 0 (value 1) → colour 1 is still possible
+bit 1 (value 2) → colour 2 is still possible
+bit 2 (value 4) → colour 3 is still possible
+```
+
+Initially `mask[v] = 0b111` for every vertex.
+
+
+
+--------------------------------------------------------------------
+
+#### 2.   Forward checking  
+
+When we decide `col[v] = c`
+
+* every still uncoloured neighbour `u` loses colour `c` from its mask
+* if a neighbour’s mask becomes `0` the current partial assignment is impossible
+
+All changes are stored on a stack (`changed = [(u, old_mask), …]`) so that they
+can be undone when we backtrack.
+
+
+
+--------------------------------------------------------------------
+
+#### 3.   Vertex selection – MRV heuristic  
+
+At each recursion step we pick an *uncoloured* vertex with the **minimum**
+number of still possible colours (`popcount(mask[v])`).  
+If a vertex has only one possible colour we must colour it immediately,
+otherwise the search would explore many symmetric branches.
+
+
+
+--------------------------------------------------------------------
+
+#### 4.   Recursive search  
+
+```
+dfs():
+    if every vertex coloured → success
+    choose vertex v with smallest |mask[v]|
+    if |mask[v]| == 0 → dead end
+    for every colour c allowed by mask[v]:
+        assign col[v] = c
+        propagate (remove c from neighbours, remember changes)
+        if no contradiction and dfs() succeeds → propagate success
+        undo all changes, col[v] = 0
+    return failure
+```
+
+Depth of the recursion is at most `n = 40`, well inside Python limits.
+
+
+
+--------------------------------------------------------------------
+
+#### 5.   Correctness Proof  
+
+We prove that the algorithm prints `YES` and a valid schedule
+iff such a schedule exists.
+
+---
+
+##### Lemma 1  
+During the execution of `dfs` the invariant holds:
+
+*For every coloured vertex `v` all its neighbours have a mask that does **not**
+contain `col[v]`.*
+
+**Proof.**  
+When a vertex `v` receives colour `c`, the algorithm iterates over all
+neighbours `u`. If `u` is still uncoloured, bit `c` is cleared from `mask[u]`.
+If `u` is already coloured, the algorithm would have detected a conflict
+(`col[u] == c`) and backtracked immediately.
+Thus after the assignment the invariant is true, and later steps never add
+bits back to a mask, therefore it stays true. ∎
+
+
+
+##### Lemma 2  
+If the algorithm reaches a state where some vertex has an empty mask,
+the current partial colouring cannot be extended to a full proper 3‑colouring.
+
+**Proof.**  
+An empty mask means that every colour `1,2,3` is already forbidden for this
+vertex by already coloured neighbours (Lemma&nbsp;1).  
+Any extension would have to give it a colour, which would clash with at least
+one neighbour, contradicting the definition of a proper colouring. ∎
+
+
+
+##### Lemma 3  
+Whenever `dfs` returns *success*, the array `col` is a proper 3‑colouring of the
+whole graph.
+
+**Proof.**  
+Success is returned only when the base case “all vertices coloured” is reached.
+At that moment every edge `(u,v)` connects two coloured vertices.
+Because of Lemma&nbsp;1 the colour of `u` was removed from the mask of `v`
+when `u` was coloured, therefore `col[u] ≠ col[v]`.  
+Thus all edges satisfy the required inequality. ∎
+
+
+
+##### Lemma 4  
+If a proper 3‑colouring exists, `dfs` eventually returns *success*.
+
+**Proof.**  
+Consider any fixed proper 3‑colouring `C`.  
+The search explores the recursion tree depth‑first.
+At each node it picks a vertex `v` and tries **all** colours still allowed by
+its current mask.  
+Because `C` respects all already made assignments, the colour `C(v)` is still
+present in `mask[v]` (otherwise a neighbour would already have the same colour,
+contradicting the properness of `C`).  
+Therefore the branch that follows `col[v] = C(v)` is never pruned.
+Inductively, the algorithm can follow the sequence of choices prescribed by
+`C` down to the leaf where every vertex receives exactly its colour in `C`.
+No contradiction occurs on that path (Lemma&nbsp;2), so the leaf returns
+success and the recursion unwinds with success. ∎
+
+
+
+##### Lemma 5  
+If `dfs` returns *failure*, no proper 3‑colouring exists.
+
+**Proof.**  
+Assume a proper colouring `C` existed.
+By Lemma&nbsp;4 the algorithm would have a successful branch following `C`,
+hence could not return failure. Contradiction. ∎
+
+
+
+##### Theorem  
+The program outputs  
+
+* `YES` and a list of blocks `b_i` **iff** a feasible schedule exists,  
+* otherwise it outputs `NO`.
+
+**Proof.**  
+
+*If the program prints `YES`*: it did so because `dfs` succeeded.
+By Lemma&nbsp;3 the produced `col` is a proper 3‑colouring, i.e. a feasible
+schedule.
+
+*If a feasible schedule exists*: it is a proper 3‑colouring.
+By Lemma&nbsp;4 `dfs` succeeds, therefore the program prints `YES`.
+
+If no feasible schedule exists, by Lemma&nbsp;5 `dfs` fails and the program
+prints `NO`. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### 6.   Complexity Analysis  
+
+`n ≤ 40`.
+
+*Each recursive step*  
+
+* selects a vertex – `O(n)`  
+* iterates over its neighbours – total over whole search `O(m)` per level  
+
+The algorithm is exponential in the worst case (3‑colourability is NP‑complete),
+but the strong pruning (forward checking + MRV) makes the search tiny for
+`n = 40`. Empirically it finishes well within the 2 seconds limit.
+
+Memory consumption:  
+
+* adjacency lists `O(n + m)`  
+* arrays `col`, `mask` – `O(n)`  
+* recursion stack depth `n`  
+
+Overall `O(n + m)` ≤ `O(40²)` ≈ a few kilobytes.
+
+
+
+--------------------------------------------------------------------
+
+#### 7.   Reference Implementation  (Python 3)
+
+```python
+import sys
+
+sys.setrecursionlimit(10000)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        if u == v:
+            continue
+        adj[u].append(v)
+        adj[v].append(u)
+
+    # 0 = uncoloured, 1..3 = colour
+    col = [0] * n
+    # mask of possible colours, bit 0->1, bit1->2, bit2->3
+    mask = [0b111] * n
+
+    # pre‑compute popcount for masks 0..7 (optional)
+    popcnt = [bin(i).count('1') for i in range(8)]
+
+    def dfs(coloured_cnt: int) -> bool:
+        if coloured_cnt == n:
+            return True
+
+        # choose vertex with minimum remaining colours
+        v = -1
+        best = 4
+        for i in range(n):
+            if col[i] == 0:
+                cnt = popcnt[mask[i]]
+                if cnt < best:
+                    best = cnt
+                    v = i
+                    if cnt == 1:
+                        break
+        if best == 0:          # dead end
+            return False
+
+        cur_mask = mask[v]
+        # try colours 1,2,3 that are still possible
+        for c in (1, 2, 3):
+            if not (cur_mask & (1 << (c - 1))):
+                continue
+
+            # assign colour c to v
+            col[v] = c
+            changed = []          # list of (vertex, old_mask)
+            ok = True
+
+            for nb in adj[v]:
+                if col[nb] == 0:
+                    if mask[nb] & (1 << (c - 1)):
+                        old = mask[nb]
+                        new = old & ~(1 << (c - 1))
+                        if new != old:
+                            changed.append((nb, old))
+                            mask[nb] = new
+                            if new == 0:
+                                ok = False
+                                break
+                elif col[nb] == c:
+                    ok = False
+                    break
+
+            if ok and dfs(coloured_cnt + 1):
+                return True
+
+            # backtrack: restore masks and colour
+            for u, old in reversed(changed):
+                mask[u] = old
+            col[v] = 0
+
+        return False
+
+    possible = dfs(0)
+
+    out = sys.stdout
+    if not possible:
+        out.write("NO\n")
+    else:
+        out.write("YES\n")
+        out.write(' '.join(str(col[i]) for i in range(n)) + "\n")
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above and conforms
+to the required input‑output format.

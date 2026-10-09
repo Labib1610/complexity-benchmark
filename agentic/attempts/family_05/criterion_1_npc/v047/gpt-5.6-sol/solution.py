@@ -1,0 +1,258 @@
+import sys
+
+sys.setrecursionlimit(1000000)
+
+data = list(map(int, sys.stdin.buffer.read().split()))
+if not data:
+    raise SystemExit
+
+k, t = data[0], data[1]
+triples = []
+adj_x = [[] for _ in range(k)]
+
+p = 2
+for rid in range(t):
+    x = data[p] - 1
+    y = data[p + 1] - 1
+    z = data[p + 2] - 1
+    p += 3
+    triples.append((x, y, z))
+    adj_x[x].append(rid)
+
+ncol = 3 * k
+
+# Dancing Links structure. Node 0 is the root, nodes 1..ncol are headers.
+L = [0] * (ncol + 1)
+R = [0] * (ncol + 1)
+U = [0] * (ncol + 1)
+D = [0] * (ncol + 1)
+C = [0] * (ncol + 1)
+ROW = [-1] * (ncol + 1)
+S = [0] * (ncol + 1)
+
+for c in range(ncol + 1):
+    L[c] = c - 1
+    R[c] = c + 1
+    U[c] = D[c] = c
+    C[c] = c
+
+L[0] = ncol
+R[ncol] = 0
+if ncol:
+    R[0] = 1
+else:
+    R[0] = 0
+
+for rid, (x, y, z) in enumerate(triples):
+    cols = (x + 1, k + y + 1, 2 * k + z + 1)
+    first = -1
+    prev = -1
+
+    for col in cols:
+        node = len(L)
+        L.append(node)
+        R.append(node)
+        U.append(U[col])
+        D.append(col)
+        C.append(col)
+        ROW.append(rid)
+
+        D[U[col]] = node
+        U[col] = node
+        S[col] += 1
+
+        if first == -1:
+            first = node
+        else:
+            L[node] = prev
+            R[prev] = node
+        prev = node
+
+    L[first] = prev
+    R[prev] = first
+
+
+def cover(col):
+    R[L[col]] = R[col]
+    L[R[col]] = L[col]
+
+    i = D[col]
+    while i != col:
+        j = R[i]
+        while j != i:
+            D[U[j]] = D[j]
+            U[D[j]] = U[j]
+            S[C[j]] -= 1
+            j = R[j]
+        i = D[i]
+
+
+def uncover(col):
+    i = U[col]
+    while i != col:
+        j = L[i]
+        while j != i:
+            S[C[j]] += 1
+            D[U[j]] = j
+            U[D[j]] = j
+            j = L[j]
+        i = U[i]
+
+    R[L[col]] = col
+    L[R[col]] = col
+
+
+full_mask = (1 << k) - 1
+
+
+def has_matching(options, left_mask, right_mask):
+    if left_mask.bit_count() != right_mask.bit_count():
+        return False
+
+    left_vertices = []
+    bits = left_mask
+    while bits:
+        bit = bits & -bits
+        a = bit.bit_length() - 1
+        opts = options[a] & right_mask
+        if opts == 0:
+            return False
+        left_vertices.append(a)
+        bits ^= bit
+
+    left_vertices.sort(key=lambda a: (options[a] & right_mask).bit_count())
+    matched = [-1] * k
+
+    def augment(a, seen):
+        candidates = options[a] & right_mask & ~seen
+        while candidates:
+            bit = candidates & -candidates
+            b = bit.bit_length() - 1
+            candidates ^= bit
+            old = matched[b]
+            if old == -1 or augment(old, seen | bit):
+                matched[b] = a
+                return True
+        return False
+
+    for a in left_vertices:
+        if not augment(a, 0):
+            return False
+    return True
+
+
+def projection_feasible(mx, my, mz):
+    rx = full_mask ^ mx
+    ry = full_mask ^ my
+    rz = full_mask ^ mz
+
+    xy = [0] * k
+    xz = [0] * k
+    yz = [0] * k
+
+    xb = rx
+    while xb:
+        bit = xb & -xb
+        x = bit.bit_length() - 1
+        xb ^= bit
+
+        for rid in adj_x[x]:
+            _, y, z = triples[rid]
+            if ((my >> y) & 1) == 0 and ((mz >> z) & 1) == 0:
+                xy[x] |= 1 << y
+                xz[x] |= 1 << z
+                yz[y] |= 1 << z
+
+    return (
+        has_matching(xy, rx, ry)
+        and has_matching(xz, rx, rz)
+        and has_matching(yz, ry, rz)
+    )
+
+
+answer = []
+failed = set()
+MEMO_LIMIT = 500000
+
+
+def search(mx, my, mz, depth):
+    if R[0] == 0:
+        return True
+
+    key = mx | (my << k) | (mz << (2 * k))
+    if key in failed:
+        return False
+
+    col = R[0]
+    best_size = S[col]
+    c = R[col]
+    while c != 0:
+        size = S[c]
+        if size < best_size:
+            col = c
+            best_size = size
+            if size == 0:
+                break
+        c = R[c]
+
+    if best_size == 0:
+        if len(failed) < MEMO_LIMIT:
+            failed.add(key)
+        return False
+
+    if best_size > 1 and not projection_feasible(mx, my, mz):
+        if len(failed) < MEMO_LIMIT:
+            failed.add(key)
+        return False
+
+    cover(col)
+
+    candidates = []
+    r = D[col]
+    while r != col:
+        score = 0
+        j = R[r]
+        while j != r:
+            score += S[C[j]]
+            j = R[j]
+        candidates.append((score, r))
+        r = D[r]
+
+    candidates.sort(key=lambda item: item[0])
+
+    for _, r in candidates:
+        rid = ROW[r]
+        x, y, z = triples[rid]
+
+        answer.append(rid)
+
+        j = R[r]
+        while j != r:
+            cover(C[j])
+            j = R[j]
+
+        if search(mx | (1 << x), my | (1 << y), mz | (1 << z), depth + 1):
+            return True
+
+        j = L[r]
+        while j != r:
+            uncover(C[j])
+            j = L[j]
+
+        answer.pop()
+
+    uncover(col)
+
+    if len(failed) < MEMO_LIMIT:
+        failed.add(key)
+    return False
+
+
+if search(0, 0, 0, 0):
+    out = ["YES"]
+    for rid in answer:
+        x, y, z = triples[rid]
+        out.append(f"{x + 1} {y + 1} {z + 1}")
+    sys.stdout.write("\n".join(out))
+else:
+    sys.stdout.write("NO")

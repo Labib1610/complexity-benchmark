@@ -8,44 +8,55 @@ def solve() -> None:
     it = iter(data)
     n = int(next(it))
     m = int(next(it))
-    g = [[] for _ in range(n + 1)]
+    adj = [[] for _ in range(n)]
     for _ in range(m):
-        u = int(next(it)); v = int(next(it))
-        g[u].append(v)
-        g[v].append(u)
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u].append(v)
+        adj[v].append(u)
 
-    color = [ -1 ] * (n + 1)          # 0/1 bipartite color
-    ans = [0] * (n + 1)               # final pressure 1/2
-
+    color = [-1] * n          # 0/1 bipartite color
+    comp = [-1] * n           # component id
+    comp_cnt = 0
     from collections import deque
 
-    for start in range(1, n + 1):
-        if color[start] != -1:
+    for i in range(n):
+        if color[i] != -1:
             continue
         # BFS this component
-        q = deque([start])
-        color[start] = 0
-        comp = [start]
-        ok = True
+        q = deque([i])
+        color[i] = 0
+        comp[i] = comp_cnt
         while q:
             u = q.popleft()
-            for v in g[u]:
+            for v in adj[u]:
                 if color[v] == -1:
                     color[v] = color[u] ^ 1
+                    comp[v] = comp_cnt
                     q.append(v)
-                    comp.append(v)
                 elif color[v] == color[u]:
                     print("NO")
                     return
-        # decide orientation: smallest index gets pressure 1
-        min_node = min(comp)
-        flip = color[min_node]          # if 1, we need to invert
-        for v in comp:
-            final_color = color[v] ^ flip   # now min_node has 0
-            ans[v] = 1 if final_color == 0 else 2
+        comp_cnt += 1
+
+    # orientation for each component: flip = 0 means color 0 -> state 1
+    # flip = 1 means color 0 -> state 2
+    flip = [0] * comp_cnt
+    decided = [False] * comp_cnt
+
+    res = [0] * n
+    for i in range(n):
+        cid = comp[i]
+        if not decided[cid]:
+            # we want state 1 at position i
+            # if current color[i] == 0, set flip=0; else flip=1
+            flip[cid] = color[i]  # because state 1 corresponds to (color xor flip)==0
+            decided[cid] = True
+        state = 1 if (color[i] ^ flip[cid]) == 0 else 2
+        res[i] = state
 
     print("YES")
-    print(' '.join(str(ans[i]) for i in range(1, n + 1)))
+    print(' '.join(map(str, res)))
 
 if __name__ == "__main__":
     solve()

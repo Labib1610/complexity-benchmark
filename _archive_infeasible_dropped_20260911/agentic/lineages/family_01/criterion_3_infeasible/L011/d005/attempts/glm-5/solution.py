@@ -1,0 +1,163 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    iterator = iter(input_data)
+    try:
+        n = int(next(iterator))
+        m = int(next(iterator))
+    except StopIteration:
+        return
+
+    # We need to find a < b < c such that dot products are all > 0.
+    # This is equivalent to finding a triangle in the graph where
+    # vertices are sequences and edges exist if dot product > 0.
+    # Since m <= n(n-1)/2, the graph is dense enough to contain a triangle.
+    
+    # We use a greedy approach to find the lexicographically smallest triangle.
+    # For each candidate 'a' from 1 to n, we maintain a set of valid neighbors.
+    # Initially, neighbors of 'a' are all nodes b > a such that dot(a, b) > 0.
+    # We then iterate 'b' from a+1 to n. If b is a neighbor of a, we check if
+    # any c > b is also a neighbor of a AND dot(b, c) > 0.
+    # To check dot(b, c) > 0 efficiently, we maintain a set of 'active' neighbors.
+    # When we move from b to b+1, if b was a neighbor of a, we add it to 'active'.
+    # Then, for any subsequent b, we just need to check if 'active' intersects with neighbors of b.
+    
+    # Data structures:
+    # neighbors[i] will store the set of neighbors j > i with dot(i, j) > 0.
+    # We only need to store neighbors j > i to avoid duplication and for the iteration logic.
+    
+    neighbors = [set() for _ in range(n + 1)]
+    
+    # Process operations to build neighbor sets.
+    # Each operation (u, v) contributes 1 to dot(u, v).
+    # Since all operations are distinct pairs, dot(u, v) > 0 iff pair (u, v) appears in input.
+    
+    for _ in range(m):
+        try:
+            u = int(next(iterator))
+            v = int(next(iterator))
+        except StopIteration:
+            break
+        
+        if u > v:
+            u, v = v, u
+        # Store u < v
+        neighbors[u].add(v)
+        
+    # Iterate to find the lexicographically smallest triangle
+    for a in range(1, n - 1):
+        # Get neighbors of a that are > a
+        neighs_a = neighbors[a]
+        
+        if not neighs_a:
+            continue
+            
+        # 'active' stores nodes b in neighs_a such that we have passed b.
+        # These are potential candidates for 'c'.
+        active = set()
+        
+        # We iterate b from n-1 down to a+1.
+        # If b is a neighbor of a, we check if any node in 'active' is also a neighbor of b.
+        # If yes, we found a triangle (a, b, c).
+        # Since we iterate b downwards, the first c found in 'active' will be the smallest c > b.
+        # And the first valid (a, b, c) found this way corresponds to the lexicographically smallest
+        # because we prioritize smallest 'a', then smallest 'b', then smallest 'c'.
+        
+        # Wait, iterating b downwards finds the largest b first.
+        # We want smallest b.
+        # Let's re-evaluate the iteration order.
+        
+        # To find smallest b:
+        # Iterate b from a+1 to n.
+        # If b is in neighs_a:
+        #    Check if any c in active is in neighbors[b].
+        #    If yes, we found a triangle. Since we iterate b increasing, the first found is smallest b.
+        #    The c found would be the smallest available c from active?
+        #    active contains nodes < b that were neighbors of a.
+        #    So c < b. But we need a < b < c.
+        #    This logic is flawed for finding c > b.
+        
+        # Correct Logic:
+        # We need c > b.
+        # Let's iterate b from n-1 down to a+1.
+        # 'active' set stores neighbors of a that are > b.
+        # If b is in neighs_a:
+        #    Check intersection of 'active' and neighbors[b].
+        #    If intersection is non-empty, pick smallest c from it.
+        #    Since we are iterating b downwards, we might find a triangle with a large b first.
+        #    We want smallest b.
+        #    However, if we find a triangle (a, b, c), we can update best_b and best_c.
+        #    If we find another triangle with same a but smaller b, it's better.
+        #    If we find a triangle with smaller b, we update.
+        #    Actually, we can just iterate b from a+1 to n.
+        #    We need to check if there exists c > b such that c in neighs_a and c in neighbors[b].
+        #    This means c is in intersection of neighs_a and neighbors[b], restricted to c > b.
+        #    We can maintain 'active' as the set of nodes c > b that are in neighs_a.
+        #    Iterate b from n down to a+1.
+        #    If b is in neighs_a, we check intersection of 'active' and neighbors[b].
+        #    Any c in intersection is > b.
+        #    We want the smallest such c.
+        #    Since we iterate b downwards, the first valid triangle we find for a given 'a'
+        #    will have the largest possible 'b'.
+        #    That's not what we want. We want smallest 'b'.
+        
+        # Refined Logic:
+        # Iterate 'a' from 1 to n.
+        # For a fixed 'a', we want smallest 'b' > a in neighs_a, such that there exists 'c' > b with c in neighs_a AND c in neighbors[b].
+        # We can iterate 'b' from a+1 to n.
+        # We need a quick way to check if there's a valid 'c' > b.
+        # Let 'future_neighs_a' be the set of neighbors of a that are > b.
+        # We iterate b from n-1 down to a+1.
+        # Initially future_neighs_a is empty.
+        # In each step, we add b+1 to future_neighs_a if b+1 is in neighs_a.
+        # Then if b is in neighs_a, we check if future_neighs_a intersects neighbors[b].
+        # If yes, we have a triangle. We want the smallest c in the intersection.
+        # Since we iterate b downwards, we will encounter larger b's first.
+        # We keep track of the best (b, c) found so far (minimizing b, then c).
+        # A triangle found at a later step (smaller b) is better.
+        # So we can just update our answer whenever we find a valid triangle.
+        # The last one found (smallest b) will be the best for this 'a'.
+        # And since we iterate 'a' increasing, the first 'a' with any triangle gives the global optimum.
+        
+        future_neighs_a = set()
+        best_b = -1
+        best_c = -1
+        
+        # Iterate b from n-1 down to a+1
+        for b in range(n - 1, a, -1):
+            # Add b+1 to future set if it's a neighbor of a
+            if (b + 1) in neighs_a:
+                future_neighs_a.add(b + 1)
+            
+            if b in neighs_a:
+                # Check intersection with neighbors[b]
+                # We need smallest c in future_neighs_a that is also in neighbors[b]
+                # Iterate over the smaller set for efficiency
+                set1 = future_neighs_a
+                set2 = neighbors[b]
+                
+                if len(set1) > len(set2):
+                    set1, set2 = set2, set1
+                
+                found_c = -1
+                for c in set1:
+                    if c in set2:
+                        if found_c == -1 or c < found_c:
+                            found_c = c
+                
+                if found_c != -1:
+                    # Found a triangle (a, b, found_c)
+                    # Since we are iterating b downwards, this b is smaller than any previously found b for this a.
+                    # So this is a better candidate.
+                    best_b = b
+                    best_c = found_c
+        
+        if best_b != -1:
+            print(f"{a} {best_b} {best_c}")
+            return
+
+if __name__ == '__main__':
+    solve()

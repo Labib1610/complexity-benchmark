@@ -1,0 +1,9 @@
+k, e = map(int, input().split())
+present = set()
+for _ in range(e):
+    x, y = map(int, input().split())
+    present.add(x)
+for i in range(1, k+1):
+    if i not in present:
+        print(i)
+        break

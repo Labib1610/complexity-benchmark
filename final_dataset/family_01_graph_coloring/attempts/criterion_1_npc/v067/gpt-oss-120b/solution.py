@@ -1,0 +1,68 @@
+import sys
+
+sys.setrecursionlimit(10000)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    adj = [0] * n
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+
+    # order vertices by degree descending
+    order = sorted(range(n), key=lambda x: -adj[x].bit_count())
+    pos_in_order = [0] * n
+    for idx, v in enumerate(order):
+        pos_in_order[v] = idx
+
+    colors = [0] * n  # 0 = uncolored, else 1..3
+
+    # For each vertex, keep a bitmask of forbidden colors from already colored neighbors
+    forbidden = [0] * n  # bits 0,1,2 correspond to colors 1,2,3
+
+    def dfs(idx: int) -> bool:
+        if idx == n:
+            return True
+        v = order[idx]
+        # compute forbidden from already colored neighbors (may have been updated)
+        forbid = forbidden[v]
+        for col in range(1, 4):
+            if forbid & (1 << (col - 1)):
+                continue
+            # assign
+            colors[v] = col
+            # update neighbors' forbidden masks
+            changed = []
+            mask = 1 << (col - 1)
+            nb = adj[v]
+            while nb:
+                u = (nb & -nb).bit_length() - 1
+                nb &= nb - 1
+                if colors[u] == 0:
+                    if not (forbidden[u] & mask):
+                        forbidden[u] |= mask
+                        changed.append(u)
+            if dfs(idx + 1):
+                return True
+            # rollback
+            for u in changed:
+                forbidden[u] &= ~mask
+            colors[v] = 0
+        return False
+
+    possible = dfs(0)
+    if not possible:
+        print("NO")
+    else:
+        print("YES")
+        print(' '.join(str(c) for c in colors))
+
+if __name__ == "__main__":
+    solve()

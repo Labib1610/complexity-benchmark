@@ -10,65 +10,81 @@ def solve() -> None:
     n = int(next(it))
     m = int(next(it))
 
-    adj = [0] * n               # bitmask of neighbours
+    adj = [[] for _ in range(n)]
+    deg = [0] * n
     for _ in range(m):
         u = int(next(it)) - 1
         v = int(next(it)) - 1
-        adj[u] |= 1 << v
-        adj[v] |= 1 << u
+        if u == v:
+            continue
+        adj[u].append(v)
+        adj[v].append(u)
+        deg[u] += 1
+        deg[v] += 1
 
-    # 3 bits: colour 1 -> bit 0, colour 2 -> bit 1, colour 3 -> bit 2
-    allowed = [0b111] * n
-    col = [0] * n               # 0 = not coloured yet
+    color = [0] * n          # 0 = uncoloured, else 1..3
+    forbid = [0] * n         # bitmask of forbidden colours
 
-    # depth‑first search, vertices are processed in order 0 .. n-1
-    def dfs(v: int) -> bool:
-        if v == n:
+    # -----------------------------------------------------------------
+    def dfs(coloured_cnt: int) -> bool:
+        if coloured_cnt == n:
             return True
 
-        mask = allowed[v]
-        for c in (1, 2, 3):
-            bit = 1 << (c - 1)
-            if not (mask & bit):
+        # choose vertex with maximal saturation, tie by degree
+        best_v = -1
+        best_sat = -1
+        best_deg = -1
+        for v in range(n):
+            if color[v] == 0:
+                sat = (forbid[v] & 1) + ((forbid[v] >> 1) & 1) + ((forbid[v] >> 2) & 1)
+                d = deg[v]
+                if sat > best_sat or (sat == best_sat and d > best_deg):
+                    best_sat = sat
+                    best_deg = d
+                    best_v = v
+        v = best_v
+
+        # try every allowed colour
+        for c in range(1, 4):
+            mask = 1 << (c - 1)
+            if forbid[v] & mask:
                 continue
 
-            # assign colour c to vertex v
-            col[v] = c
-            changed = []          # neighbours whose mask lost this bit
-            conflict = False
+            # assign colour
+            color[v] = c
+            changed = []          # neighbours whose forbid mask really changed
+            for u in adj[v]:
+                if color[u] == 0 and not (forbid[u] & mask):
+                    forbid[u] |= mask
+                    changed.append(u)
 
-            neigh = adj[v]
-            while neigh:
-                lsb = neigh & -neigh
-                u = (lsb.bit_length() - 1)
-                neigh ^= lsb
-                if col[u] == 0:    # neighbour not coloured yet
-                    if allowed[u] & bit:
-                        allowed[u] ^= bit   # delete the bit
-                        changed.append(u)
-                        if allowed[u] == 0:
-                            conflict = True
-                            # no need to continue deleting, but we still
-                            # have to finish the loop to keep neighbour mask
-                # already coloured neighbours are already consistent
-                # because their colour was removed from allowed[v] earlier
+            # early failure detection
+            dead = False
+            for u in adj[v]:
+                if color[u] == 0 and forbid[u] == 7:
+                    dead = True
+                    break
 
-            if not conflict:
-                if dfs(v + 1):
-                    return True
+            if not dead and dfs(coloured_cnt + 1):
+                return True
 
-            # undo the deletions
+            # undo
             for u in changed:
-                allowed[u] |= bit
-            col[v] = 0
+                forbid[u] &= ~mask
+            color[v] = 0
 
         return False
+    # -----------------------------------------------------------------
 
-    if dfs(0):
-        out = "YES\n" + " ".join(str(c) for c in col)
-        sys.stdout.write(out)
+    possible = dfs(0)
+
+    out = []
+    if possible:
+        out.append("YES")
+        out.append(" ".join(str(c) for c in color))
     else:
-        sys.stdout.write("NO\n")
+        out.append("NO")
+    sys.stdout.write("\n".join(out))
 
 if __name__ == "__main__":
     solve()

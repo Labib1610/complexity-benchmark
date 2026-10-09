@@ -1,0 +1,76 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [0] * n
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+    
+    # dp maps bitmask of assigned nodes to a valid assignment state
+    # state = (assigned_mask, color_mask_1, color_mask_2)
+    # color_mask_3 is derived as assigned_mask ^ color_mask_1 ^ color_mask_2
+    dp = {0: (0, 0, 0)}
+    
+    for u in range(n):
+        next_dp = {}
+        neighbors_u = adj[u]
+        
+        for mask, (cnt, c1, c2) in dp.items():
+            # Try placing u in module 1
+            if (c1 & neighbors_u) == 0:
+                new_mask = mask | (1 << u)
+                new_c1 = c1 | (1 << u)
+                if new_mask not in next_dp or cnt + 1 < next_dp[new_mask][0]:
+                    next_dp[new_mask] = (cnt + 1, new_c1, c2)
+            
+            # Try placing u in module 2
+            if (c2 & neighbors_u) == 0:
+                new_mask = mask | (1 << u)
+                new_c2 = c2 | (1 << u)
+                if new_mask not in next_dp or cnt + 1 < next_dp[new_mask][0]:
+                    next_dp[new_mask] = (cnt + 1, c1, new_c2)
+            
+            # Try placing u in module 3
+            # c3 consists of nodes in assigned_mask but not in c1 or c2
+            c3 = mask ^ c1 ^ c2
+            if (c3 & neighbors_u) == 0:
+                new_mask = mask | (1 << u)
+                # u is in c3, so c1 and c2 remain unchanged
+                if new_mask not in next_dp or cnt + 1 < next_dp[new_mask][0]:
+                    next_dp[new_mask] = (cnt + 1, c1, c2)
+        
+        dp = next_dp
+        if not dp:
+            print("NO")
+            return
+
+    full_mask = (1 << n) - 1
+    if full_mask not in dp:
+        print("NO")
+        return
+
+    _, c1, c2 = dp[full_mask]
+    res = [0] * n
+    for i in range(n):
+        bit = 1 << i
+        if c1 & bit:
+            res[i] = 1
+        elif c2 & bit:
+            res[i] = 2
+        else:
+            res[i] = 3
+            
+    print("YES")
+    print(*(res))
+
+if __name__ == '__main__':
+    solve()

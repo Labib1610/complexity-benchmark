@@ -1,0 +1,59 @@
+import sys
+sys.setrecursionlimit(400000)
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    R = int(next(it))
+    S = int(next(it))
+    P = int(next(it))
+    
+    mandated = [int(next(it)) for _ in range(P)]
+    
+    adj = [[] for _ in range(R + 1)]
+    for _ in range(S):
+        u = int(next(it))
+        v = int(next(it))
+        w = int(next(it))
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+    
+    is_mandated = [False] * (R + 1)
+    for x in mandated:
+        is_mandated[x] = True
+    
+    parent = [0] * (R + 1)
+    parent_edge_weight = [0] * (R + 1)
+    order = []
+    stack = [(mandated[0], 0, 0)]
+    
+    while stack:
+        u, p, pw = stack.pop()
+        parent[u] = p
+        parent_edge_weight[u] = pw
+        order.append(u)
+        for v, w in adj[u]:
+            if v != p:
+                stack.append((v, u, w))
+    
+    has_mandated_below = [False] * (R + 1)
+    for x in mandated:
+        has_mandated_below[x] = True
+    
+    total_cost = 0
+    
+    for u in reversed(order):
+        if u == mandated[0]:
+            continue
+        if has_mandated_below[u]:
+            total_cost += parent_edge_weight[u]
+            p = parent[u]
+            if p != 0:
+                has_mandated_below[p] = True
+    
+    print(total_cost)
+
+if __name__ == "__main__":
+    solve()

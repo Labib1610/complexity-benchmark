@@ -1,0 +1,56 @@
+import sys
+sys.setrecursionlimit(1_000_000)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it)); m = int(next(it)); t = int(next(it))
+    T = [int(next(it)) for _ in range(t)]
+    target = [0]*(n+1)
+    for x in T:
+        target[x] = 1
+    adj = [[] for _ in range(n+1)]
+    edges = []
+    for _ in range(m):
+        u = int(next(it)); v = int(next(it)); w = int(next(it))
+        adj[u].append((v,w))
+        adj[v].append((u,w))
+        edges.append((u,v,w))
+    if t <= 1:
+        print(0)
+        return
+
+    total = t
+    ans = 0
+    parent = [0]*(n+1)
+    pw = [0]*(n+1)          # weight to parent
+    order = []
+    stack = [1]
+    parent[1] = -1
+    while stack:
+        u = stack.pop()
+        order.append(u)
+        for v,w in adj[u]:
+            if v == parent[u]:
+                continue
+            parent[v] = u
+            pw[v] = w
+            stack.append(v)
+
+    sub = [0]*(n+1)
+    for u in reversed(order):
+        cnt = target[u]
+        for v,w in adj[u]:
+            if parent[v] == u:
+                cnt += sub[v]
+        sub[u] = cnt
+        if parent[u] != -1:
+            # edge (parent[u], u) weight pw[u]
+            if sub[u] > 0 and total - sub[u] > 0:
+                ans += pw[u]
+    print(ans)
+
+if __name__ == "__main__":
+    solve()

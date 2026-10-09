@@ -3,35 +3,38 @@ import sys
 def solve():
     input = sys.stdin.readline
     n, m = map(int, input().split())
+    edges = []
     adj = [[] for _ in range(n)]
     for _ in range(m):
         u, v = map(int, input().split())
         u -= 1
         v -= 1
+        edges.append((u, v))
         adj[u].append(v)
         adj[v].append(u)
-    
-    color = [0] * n
-    
-    def backtrack(idx):
-        if idx == n:
+
+    color = [-1] * n
+
+    def backtrack(node):
+        if node == n:
             return True
-        for c in range(1, 4):
+        # Try colors 0,1,2
+        for c in range(3):
             ok = True
-            for nb in adj[idx]:
+            for nb in adj[node]:
                 if color[nb] == c:
                     ok = False
                     break
             if ok:
-                color[idx] = c
-                if backtrack(idx + 1):
+                color[node] = c
+                if backtrack(node + 1):
                     return True
-                color[idx] = 0
+                color[node] = -1
         return False
-    
+
     if backtrack(0):
         print("YES")
-        print(" ".join(map(str, color)))
+        print(" ".join(str(c + 1) for c in color))
     else:
         print("NO")
 

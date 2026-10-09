@@ -1,0 +1,69 @@
+import sys
+
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+
+    n = int(input_data[0])
+    m = int(input_data[1])
+    B = int(input_data[2])
+
+    adj = [0] * n
+    deg = [0] * n
+    idx = 3
+    for _ in range(m):
+        u = int(input_data[idx]) - 1
+        v = int(input_data[idx + 1]) - 1
+        idx += 2
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+        deg[u] += 1
+        deg[v] += 1
+
+    num_states = 1 << n
+    INF = B + 1
+    dp = [INF] * num_states
+    parent = [0] * num_states
+    cut = [0] * num_states
+
+    dp[0] = 0
+
+    for mask in range(num_states - 1):
+        c_dp = dp[mask]
+        if c_dp > B:
+            continue
+
+        c_cut = cut[mask]
+        next_cost = c_dp + c_cut
+
+        avail = (~mask) & (num_states - 1)
+        while avail:
+            lsb = avail & -avail
+            avail ^= lsb
+            nmask = mask | lsb
+            if next_cost < dp[nmask]:
+                dp[nmask] = next_cost
+                u = (lsb).bit_length() - 1
+                parent[nmask] = u
+                if cut[nmask] == 0 and nmask != 0:
+                    cut[nmask] = c_cut + deg[u] - 2 * (adj[u] & mask).bit_count()
+
+    final_mask = num_states - 1
+    if dp[final_mask] <= B:
+        ans = [0] * n
+        curr = final_mask
+        for pos in range(n, 0, -1):
+            u = parent[curr]
+            ans[u] = pos
+            curr ^= 1 << u
+
+        print("YES")
+        print(*(ans))
+    else:
+        print("NO")
+
+
+if __name__ == "__main__":
+    solve()

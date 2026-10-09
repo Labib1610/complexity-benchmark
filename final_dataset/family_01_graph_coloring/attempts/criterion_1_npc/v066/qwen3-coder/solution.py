@@ -1,0 +1,59 @@
+def solve():
+    import sys
+    from collections import defaultdict, deque
+    
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
+    
+    # Build adjacency list for the graph
+    adj = defaultdict(list)
+    index = 2
+    for _ in range(m):
+        u = int(data[index]) - 1  # Convert to 0-based indexing
+        v = int(data[index+1]) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+        index += 2
+    
+    # Color the graph with 3 colors (1, 2, 3)
+    color = [-1] * n  # -1 means uncolored
+    
+    # Check each connected component
+    for start in range(n):
+        if color[start] == -1:
+            # BFS to color this component
+            queue = deque()
+            queue.append(start)
+            color[start] = 1  # Start with color 1
+            
+            while queue:
+                node = queue.popleft()
+                current_color = color[node]
+                
+                # Try to assign a different color to each neighbor
+                for neighbor in adj[node]:
+                    if color[neighbor] == -1:
+                        # Assign the first available color (1, 2, or 3) different from current
+                        # We can just pick a color different from current_color
+                        # Since we have 3 colors, we can always pick one that's different
+                        next_color = (current_color % 3) + 1
+                        color[neighbor] = next_color
+                        queue.append(neighbor)
+                    elif color[neighbor] == current_color:
+                        # Conflict: adjacent nodes have the same color
+                        print("NO")
+                        return
+    
+    # If we reach here, a valid 3-coloring exists
+    print("YES")
+    print(" ".join(str(c) for c in color))
+
+solve()

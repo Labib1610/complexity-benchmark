@@ -1,91 +1,111 @@
 import sys
+sys.setrecursionlimit(100000)
 
 def solve():
-    input_data = sys.stdin.read().split()
-    if not input_data:
+    data = sys.stdin.read().split()
+    if not data:
         return
-    n = int(input_data[0])
-    m = int(input_data[1])
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
     
-    adj = [0] * n
-    for i in range(m):
-        u = int(input_data[2 + 2*i]) - 1
-        v = int(input_data[3 + 2*i]) - 1
-        adj[u] |= 1 << v
-        adj[v] |= 1 << u
-        
-    # Check if any connected component has more than 3 nodes
-    visited = 0
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    color = [0] * n
+    
+    # Check if graph is bipartite and color components
+    is_bipartite = True
     for i in range(n):
-        if not (visited >> i) & 1:
-            comp_size = 0
-            queue = [i]
-            visited |= 1 << i
-            head = 0
-            while head < len(queue):
-                u = queue[head]
-                head += 1
-                comp_size += 1
-                neigh = adj[u]
-                while neigh:
-                    v = (neigh & -neigh).bit_length() - 1
-                    neigh &= neigh - 1
-                    if not (visited >> v) & 1:
-                        visited |= 1 << v
-                        queue.append(v)
-            if comp_size > 3:
-                print("NO")
-                return
-
-    # DP to find lexicographically smallest valid assignment
-    # dp[mask] = bitmask of valid colorings for the set of nodes in mask
-    dp = [0] * (1 << n)
-    dp[0] = 1
-    
-    for mask in range(1, 1 << n):
-        valid_colorings = 0
-        for color in range(3):
-            is_valid = True
-            temp = mask
-            while temp:
-                u = (temp & -temp).bit_length() - 1
-                temp &= temp - 1
-                if adj[u] & mask:
-                    is_valid = False
+        if color[i] == 0:
+            color[i] = 1
+            stack = [i]
+            while stack:
+                u = stack.pop()
+                for v in adj[u]:
+                    if color[v] == 0:
+                        color[v] = 3 - color[u]
+                        stack.append(v)
+                    elif color[v] == color[u]:
+                        is_bipartite = False
+                        break
+                if not is_bipartite:
                     break
-            if is_valid:
-                valid_colorings |= 1 << color
-        dp[mask] = valid_colorings
-        
-    # Reconstruct the assignment
-    assignment = [0] * n
-    remaining = (1 << n) - 1
+        if not is_bipartite:
+            break
     
+    if not is_bipartite:
+        print("NO")
+        return
+    
+    # Group vertices by their bipartite color within each connected component
+    comp_id = [-1] * n
+    components = []
     for i in range(n):
-        bit_i = 1 << i
-        for color in range(3):
-            if (dp[remaining] >> color) & 1:
-                assignment[i] = color + 1
-                remaining ^= bit_i
-                # Update dp for remaining mask: remove colorings that conflict with node i
-                new_valid = 0
-                for c in range(3):
-                    if (dp[remaining] >> c) & 1:
-                        conflict = False
-                        temp = remaining
-                        while temp:
-                            u = (temp & -temp).bit_length() - 1
-                            temp &= temp - 1
-                            if (adj[u] >> i) & 1 and c == color:
-                                conflict = True
-                                break
-                        if not conflict:
-                            new_valid |= 1 << c
-                dp[remaining] = new_valid
-                break
-                
+        if comp_id[i] == -1:
+            comp_id[i] = len(components)
+            queue = [i]
+            comp_vertices = [i]
+            for u in queue:
+                for v in adj[u]:
+                    if comp_id[v] == -1:
+                        comp_id[v] = comp_id[i]
+                        queue.append(v)
+                        comp_vertices.append(v)
+            components.append(comp_vertices)
+    
+    num_components = len(components)
+    comp_sizes = [[0, 0] for _ in range(num_components)]
+    
+    for idx, comp in enumerate(components):
+        for u in comp:
+            if color[u] == 1:
+                comp_sizes[idx][0] += 1
+            else:
+                comp_sizes[idx][1] += 1
+    
+    # DP to find subset of components with total size n/3
+    target = n // 3
+    dp = [[False] * (target + 1) for _ in range(num_components + 1)]
+    dp[0][0] = True
+    
+    for i in range(num_components):
+        for j in range(target + 1):
+            if dp[i][j]:
+                if j + comp_sizes[i][0] <= target:
+                    dp[i+1][j + comp_sizes[i][0]] = True
+                if j + comp_sizes[i][1] <= target:
+                    dp[i+1][j + comp_sizes[i][1]] = True
+    
+    if not dp[num_components][target]:
+        print("NO")
+        return
+    
+    # Backtrack to find which components are in set A
+    in_set_a = [False] * num_components
+    j = target
+    for i in range(num_components, 0, -1):
+        if j - comp_sizes[i-1][0] >= 0 and dp[i-1][j - comp_sizes[i-1][0]]:
+            in_set_a[i-1] = True
+            j -= comp_sizes[i-1][0]
+        else:
+            in_set_a[i-1] = False
+            j -= comp_sizes[i-1][1]
+    
+    # Assign final colors
+    final_color = [0] * n
+    for idx, comp in enumerate(components):
+        for u in comp:
+            if in_set_a[idx]:
+                final_color[u] = 1 if color[u] == 1 else 2
+            else:
+                final_color[u] = 2 if color[u] == 1 else 3
+    
     print("YES")
-    print(*assignment)
+    print(' '.join(map(str, final_color)))
 
-if __name__ == '__main__':
-    solve()
+solve()

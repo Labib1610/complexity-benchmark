@@ -1,0 +1,32 @@
+n, m = map(int, input().split())
+edges = [tuple(map(int, input().split())) for _ in range(m)]
+
+# Build adjacency list
+adj = [[] for _ in range(n)]
+for u, v in edges:
+    adj[u-1].append(v-1)
+    adj[v-1].append(u-1)
+
+colors = [0] * n
+
+def backtrack(idx):
+    if idx == n:
+        return True
+    for c in (1, 2, 3):
+        ok = True
+        for nb in adj[idx]:
+            if colors[nb] == c:
+                ok = False
+                break
+        if ok:
+            colors[idx] = c
+            if backtrack(idx + 1):
+                return True
+            colors[idx] = 0
+    return False
+
+if backtrack(0):
+    print("YES")
+    print(" ".join(map(str, colors)))
+else:
+    print("NO")

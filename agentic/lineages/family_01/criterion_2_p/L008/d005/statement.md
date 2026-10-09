@@ -1,21 +1,22 @@
-# Problem B — Day and Night
+# Problem B — Anti-Glare Arrays
 
 Time limit: 1 s   Memory limit: 256 MB
 
-A factory employs $n$ workers, with $m$ synchronization links established among them. You must assign a shift code $s_i \in \{1, 2\}$ to each worker $i$. 
+An optical instrument contains $n$ crystal lenses. Each lens must be assigned a polarization axis, which must be an integer value of either 1 or 2.
 
-To maintain proper timing, the machines of connected workers must resonate at compatible frequencies. A synchronization link between two workers $u$ and $v$ is only stable if their shift codes satisfy the following resonance equation:
-$$ 2(s_u^2 + s_v^2) = 5 \cdot s_u \cdot s_v $$
+The instrument is equipped with $m$ calibration tubes, each routing light directly between a pair of lenses. The instrument's diagnostic system validates the configuration by computing a global calibration product. For each tube connecting a pair of lenses with assigned axes $x$ and $y$, the system computes the value $x^2 + y^2 - xy$. It then multiplies these computed values together across all $m$ tubes. (If $m=0$, the product is defined as 1).
 
-Determine if there is a valid assignment of shift codes for all workers such that every synchronization link in the factory is stable.
+To successfully filter out glare, this final calibration product must evaluate to exactly $3^m$.
+
+Determine an assignment of polarization axes for all $n$ lenses that satisfies this requirement, or report that the hardware configuration is flawed.
 
 ## Input
 The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$).
-Each of the next $m$ lines contains two integers $u$ and $v$ — a pair of workers connected by a synchronization link.
+Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$) — the two lenses connected by that calibration tube.
 
 ## Output
-If no valid assignment exists, print a single line `NO`.
-Otherwise, print `YES` on the first line. On the second line, print $n$ integers $s_1, s_2, \ldots, s_n$ (each in $\{1,2\}$) representing the valid assignment. If there are multiple valid assignments, output the one that minimizes the structural weight of the sequence, defined as $\sum_{i=1}^n s_i \cdot 3^{n-i}$. Print this assignment as a full sequence of $n$ integers.
+If no valid assignment exists, print a single line containing `NO`.
+Otherwise, print `YES`, followed by a second line with $n$ integers $c_1 \dots c_n$ (each in $\{1,2\}$). This sequence must represent the valid calibration assignment. If multiple valid assignments exist, output the lexicographically smallest sequence.
 
 ## Example 1
 Input:

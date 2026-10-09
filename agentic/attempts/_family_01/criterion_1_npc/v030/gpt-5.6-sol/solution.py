@@ -1,0 +1,325 @@
+import sys
+from collections import deque
+
+sys.setrecursionlimit(10000)
+
+
+def solve_component(vertices, graph):
+    k = len(vertices)
+    index = {v: i for i, v in enumerate(vertices)}
+    adj = [[] for _ in range(k)]
+
+    for i, v in enumerate(vertices):
+        adj[i] = [index[u] for u in graph[v] if u in index]
+
+    # Bipartite components are immediately 2-colorable.
+    colors = [-1] * k
+    colors[0] = 0
+    q = deque([0])
+    bipartite = True
+
+    while q and bipartite:
+        v = q.popleft()
+        for u in adj[v]:
+            if colors[u] == -1:
+                colors[u] = colors[v] ^ 1
+                q.append(u)
+            elif colors[u] == colors[v]:
+                bipartite = False
+                break
+
+    if bipartite:
+        return [colors[i] for i in range(k)]
+
+    domains = [7] * k
+    failed = set()
+    max_cache = 300000
+
+    def assign_value(start, bit, trail):
+        if not (domains[start] & bit):
+            return False
+
+        if domains[start] != bit:
+            trail.append((start, domains[start]))
+            domains[start] = bit
+
+        queue = [start]
+        head = 0
+
+        while head < len(queue):
+            v = queue[head]
+            head += 1
+            value = domains[v]
+
+            for u in adj[v]:
+                old = domains[u]
+                if old & value:
+                    if old == value:
+                        return False
+                    new = old & ~value
+                    trail.append((u, old))
+                    domains[u] = new
+                    if new & (new - 1) == 0:
+                        queue.append(u)
+
+        return True
+
+    def solve_two_sat():
+        binary_vertices = []
+        var_id = [-1] * k
+        options = []
+
+        for v, mask in enumerate(domains):
+            if mask.bit_count() == 2:
+                var_id[v] = len(binary_vertices)
+                binary_vertices.append(v)
+                bits = []
+                x = mask
+                while x:
+                    b = x & -x
+                    bits.append(b)
+                    x -= b
+                options.append(bits)
+
+        variables = len(binary_vertices)
+        size = 2 * variables
+        implications = [[] for _ in range(size)]
+        reverse = [[] for _ in range(size)]
+
+        def add_implication(a, b):
+            implications[a].append(b)
+            reverse[b].append(a)
+
+        def option_number(v, bit):
+            variable = var_id[v]
+            return 0 if options[variable][0] == bit else 1
+
+        for v in range(k):
+            for u in adj[v]:
+                if u <= v:
+                    continue
+
+                common = domains[v] & domains[u]
+                while common:
+                    bit = common & -common
+                    common -= bit
+
+                    dv = domains[v].bit_count()
+                    du = domains[u].bit_count()
+
+                    if dv == 1 and du == 1:
+                        return None
+                    elif dv == 1:
+                        vu = var_id[u]
+                        ou = option_number(u, bit)
+                        node_u = 2 * vu + ou
+                        add_implication(node_u, 2 * vu + (ou ^ 1))
+                    elif du == 1:
+                        vv = var_id[v]
+                        ov = option_number(v, bit)
+                        node_v = 2 * vv + ov
+                        add_implication(node_v, 2 * vv + (ov ^ 1))
+                    else:
+                        vv = var_id[v]
+                        vu = var_id[u]
+                        ov = option_number(v, bit)
+                        ou = option_number(u, bit)
+                        node_v = 2 * vv + ov
+                        node_u = 2 * vu + ou
+                        add_implication(node_v, 2 * vu + (ou ^ 1))
+                        add_implication(node_u, 2 * vv + (ov ^ 1))
+
+        visited = [False] * size
+        order = []
+
+        def dfs1(v):
+            visited[v] = True
+            for u in implications[v]:
+                if not visited[u]:
+                    dfs1(u)
+            order.append(v)
+
+        for v in range(size):
+            if not visited[v]:
+                dfs1(v)
+
+        component = [-1] * size
+
+        def dfs2(v, cid):
+            component[v] = cid
+            for u in reverse[v]:
+                if component[u] == -1:
+                    dfs2(u, cid)
+
+        cid = 0
+        for v in reversed(order):
+            if component[v] == -1:
+                dfs2(v, cid)
+                cid += 1
+
+        for variable in range(variables):
+            if component[2 * variable] == component[2 * variable + 1]:
+                return None
+
+        result = [-1] * k
+        for v, mask in enumerate(domains):
+            if mask.bit_count() == 1:
+                result[v] = mask.bit_length() - 1
+
+        for variable, v in enumerate(binary_vertices):
+            chosen = 0 if component[2 * variable] > component[2 * variable + 1] else 1
+            result[v] = options[variable][chosen].bit_length() - 1
+
+        return result
+
+    def search():
+        key = bytes(domains)
+        if key in failed:
+            return None
+
+        chosen = -1
+        best_score = -1
+
+        for v in range(k):
+            if domains[v] == 7:
+                score = 0
+                for u in adj[v]:
+                    count = domains[u].bit_count()
+                    if count == 2:
+                        score += 3
+                    elif count == 3:
+                        score += 1
+                if score > best_score:
+                    best_score = score
+                    chosen = v
+
+        if chosen == -1:
+            result = solve_two_sat()
+            if result is None and len(failed) < max_cache:
+                failed.add(key)
+            return result
+
+        values = [1, 2, 4]
+        values.sort(
+            key=lambda bit: sum(
+                1 for u in adj[chosen] if domains[u] & bit
+            )
+        )
+
+        for bit in values:
+            trail = []
+            if assign_value(chosen, bit, trail):
+                result = search()
+                if result is not None:
+                    for v, old in reversed(trail):
+                        domains[v] = old
+                    return result
+
+            for v, old in reversed(trail):
+                domains[v] = old
+
+        if len(failed) < max_cache:
+            failed.add(key)
+        return None
+
+    root = max(range(k), key=lambda v: len(adj[v]))
+    neighbor = adj[root][0]
+    initial_trail = []
+
+    if not assign_value(root, 1, initial_trail):
+        return None
+    if not assign_value(neighbor, 2, initial_trail):
+        return None
+
+    return search()
+
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+
+    n, m = data[0], data[1]
+    graph_sets = [set() for _ in range(n)]
+    p = 2
+
+    for _ in range(m):
+        u = data[p] - 1
+        v = data[p + 1] - 1
+        p += 2
+        if u == v:
+            print("NO")
+            return
+        graph_sets[u].add(v)
+        graph_sets[v].add(u)
+
+    graph = [list(neighbors) for neighbors in graph_sets]
+
+    # Remove vertices of degree at most 2. Any coloring of the remaining
+    # 3-core can always be extended in reverse removal order.
+    degree = [len(graph[v]) for v in range(n)]
+    removed = [False] * n
+    queue = deque(v for v in range(n) if degree[v] <= 2)
+    removal_order = []
+
+    while queue:
+        v = queue.popleft()
+        if removed[v] or degree[v] > 2:
+            continue
+        removed[v] = True
+        removal_order.append(v)
+
+        for u in graph[v]:
+            if not removed[u]:
+                degree[u] -= 1
+                if degree[u] == 2:
+                    queue.append(u)
+
+    answer = [-1] * n
+    seen = [False] * n
+
+    for start in range(n):
+        if removed[start] or seen[start]:
+            continue
+
+        component = []
+        q = [start]
+        seen[start] = True
+
+        while q:
+            v = q.pop()
+            component.append(v)
+            for u in graph[v]:
+                if not removed[u] and not seen[u]:
+                    seen[u] = True
+                    q.append(u)
+
+        component_colors = solve_component(component, graph)
+        if component_colors is None:
+            print("NO")
+            return
+
+        for i, v in enumerate(component):
+            answer[v] = component_colors[i]
+
+    for v in reversed(removal_order):
+        used = 0
+        for u in graph[v]:
+            if answer[u] != -1:
+                used |= 1 << answer[u]
+
+        for color in range(3):
+            if not (used & (1 << color)):
+                answer[v] = color
+                break
+
+        if answer[v] == -1:
+            print("NO")
+            return
+
+    print("YES")
+    print(*[color + 1 for color in answer])
+
+
+if __name__ == "__main__":
+    main()

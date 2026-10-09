@@ -1,20 +1,23 @@
-# Problem B — Harmonic Calibration
+# Orbital Resonance
 
-Time limit: 1 s   Memory limit: 256 MB
+Time limit: 1 s
+Memory limit: 256 MB
 
-A research facility contains $n$ experimental modules, indexed from 1 to $n$. Over the course of preliminary testing, engineers have identified $m$ pairs of modules that exhibit harmonic resonance. 
+A deep space communications network consists of $n$ relay satellites, numbered 1 through $n$. 
+Within this network, there are $m$ known proximity hazards. Each hazard involves a specific pair of satellites that are physically too close to one another.
 
-Each module must be permanently calibrated to operate in one of two phase states, designated as state 1 and state 2. A calibration plan is represented as a sequence of $n$ integers, where the $i$-th integer corresponds to the phase state of module $i$. Because of the physical risks involved, a calibration plan is strictly required to be stable. Stability means that for every identified pair of modules exhibiting harmonic resonance, the two modules in the pair must be assigned distinct phase states.
+Every satellite in the network is equipped with a dual-band transmitter, meaning its operating frequency must be permanently set to either band 1 or band 2. 
+If a proximity hazard involves two satellites that are set to the exact same band, the resulting resonance will cause a system-wide failure.
 
-Your objective is to process the list of resonating pairs and determine if at least one stable calibration plan exists for the $n$ modules. If such a plan is possible, you must find the stable calibration plan that is lexicographically smallest. If no stable calibration plan can be achieved, you must report that it is impossible.
+Your task is to determine if there is a valid configuration of bands for all $n$ satellites that prevents any system-wide failures. If such a configuration is possible, you must output it. If there are multiple valid ways to assign the bands, you must choose the one whose sequence of assignments $s_1, s_2, \dots, s_n$ is lexicographically smallest.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$).
-Each of the next $m$ lines contains two integers $u$ and $v$, representing a pair of modules that exhibit harmonic resonance.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$).
+Each of the next $m$ lines contains two integers $u$ and $v$ — a proximity hazard between satellite $u$ and satellite $v$.
 
 ## Output
-If no stable calibration plan exists, print a single line containing the word NO.
-Otherwise, print YES on the first line. On the second line, print $n$ integers $s_1 \dots s_n$ (each either 1 or 2), representing the lexicographically smallest stable calibration plan.
+If no safe configuration exists, print a single line containing `NO`.
+Otherwise, print `YES` on the first line. On the second line, print $n$ integers $s_1, \dots, s_n$ (each being either 1 or 2), representing the band assigned to each satellite from 1 to $n$. This sequence must be the lexicographically smallest valid assignment.
 
 ## Example 1
 Input:

@@ -1,206 +1,221 @@
 **Solution Explanation**
 
-For every emitter we have to choose a frequency `1 , 2 , 3`.
-For each critical pair `(u , v)` the two frequencies must be different,
-i.e. `|f_u – f_v| ≥ 1`.  
-The problem is exactly the *graph 3‑colouring* problem:
-
-* vertices – emitters  
-* edges   – critical pairs  
-* colours – the three frequencies  
-
-We have to decide whether the given graph is 3‑colourable and, if it is,
-output the lexicographically smallest colour sequence
-(`f₁` first, then `f₂`, …).
-
-`n ≤ 40`, therefore an exponential backtracking search with good pruning
-fits easily into the limits.
-
-
-
---------------------------------------------------------------------
-
-#### 1.   Data structures
-
-* `adj[i]` – 64‑bit integer, bit *j* is `1` iff there is an edge `i – j`
-  (`0 ≤ i , j < n`).  
-  With `n ≤ 40` a single integer is enough and neighbour iteration is fast.
-
-* `allowed[i]` – 3‑bit mask, bit `c‑1` (`c = 1,2,3`) tells whether colour `c`
-  is still possible for vertex `i`.  
-  Initially `allowed[i] = 0b111`.
-
-* `col[i]` – currently chosen colour (`0` = not chosen yet).
-
---------------------------------------------------------------------
-
-#### 2.   Backtracking (depth‑first search)
-
-Vertices are processed **in the natural order** `0 … n‑1`.  
-For the current vertex `v`
+For an edge `(u,v)` let  
 
 ```
-for colour c = 1,2,3 (in this order)
-        if c is still allowed for v
-                assign c to v
-                delete colour c from the allowed‑sets of all still
-                uncoloured neighbours of v
-                if no neighbour lost its last possible colour
-                        recurse to vertex v+1
-                undo all deletions (restore the masks)
-                unassign v
+d = b_u – b_v          ( b_i ∈ {1,2,3} )
+f(d) = 5·d² – d⁴
 ```
 
-*Why does this work?*  
-When a neighbour `u` receives a colour `c`, the colour `c` can never be
-used for `u` again, therefore we delete it from `allowed[u]`.  
-If after a deletion `allowed[u]` becomes `0`, the partial assignment can
-never be extended to a full solution – we backtrack immediately.
+The required total energy is  
 
-Because we always try colours `1 → 3` and vertices `1 → n`,
-the first complete assignment found is the lexicographically smallest one.
+```
+ Σ f(b_u – b_v)  = 4·m                (1)
+```
 
-The recursion depth is at most `n = 40`, well inside Python limits.
+All possible differences are `d = 0, ±1, ±2`.
+
+```
+d = 0 : f = 0
+d = ±1: f = 5·1 – 1 = 4
+d = ±2: f = 5·4 – 16 = 4
+```
+
+So an edge contributes **4** iff its ends have *different* values,
+otherwise it contributes **0**.
+Equation (1) therefore means that **every edge must connect two different
+values**.
+Consequently we have to colour the given graph with three colours
+`1,2,3` such that adjacent vertices receive different colours – the classic
+*3‑colourability* problem.
+
+`n ≤ 40`, therefore an exponential back‑tracking search with good pruning
+solves it easily.
+
+
 
 --------------------------------------------------------------------
 
-#### 3.   Correctness Proof  
+#### 1.  Data structures
 
-We prove that the algorithm prints `YES` and a correct lexicographically
-smallest colouring **iff** such a colouring exists.
+* `adj[v]` – list of neighbours of vertex `v` (0‑based indices)
+* `deg[v]` – degree of `v`
+* `color[v]` – `0` = not coloured yet, otherwise `1..3`
+* `forbid[v]` – 3‑bit mask, bit `c‑1` is set iff a neighbour of `v`
+  already uses colour `c`.  
+  (`forbid[v] == 7` means *no colour left*).
+
+All masks fit into a normal Python integer.
+
+
+
+--------------------------------------------------------------------
+
+#### 2.  Recursive search (DSATUR heuristic)
+
+```
+dfs(coloured_cnt):
+    if coloured_cnt == n:   success
+    choose an uncoloured vertex v
+          with maximal saturation = popcount(forbid[v])
+          (ties broken by larger degree)
+    try every colour c not forbidden for v
+          assign colour c to v
+          for each still uncoloured neighbour u:
+                 if colour c was not yet forbidden for u:
+                        set the bit in forbid[u]   (remember u)
+          if no neighbour became completely blocked (forbid == 7)
+                 recurse
+          undo all changes
+    if none of the colours works → failure
+```
+
+The *saturation* (how many different colours are already present among the
+already coloured neighbours) is the classic DSATUR rule; it dramatically
+reduces the search tree.
+
+Whenever a vertex obtains `forbid == 7` we can prune immediately – the
+partial colouring can never be extended.
+
+
+
+--------------------------------------------------------------------
+
+#### 3.  Correctness Proof  
+
+We prove that the algorithm prints `YES` and a valid assignment
+iff such an assignment exists.
 
 ---
 
 ##### Lemma 1  
-During the search `allowed[v]` always contains exactly the colours that
-are still possible for vertex `v` respecting all already fixed colours.
+For any edge `(u,v)` the contribution to the total energy equals `4`
+iff `b_u ≠ b_v`, otherwise it equals `0`.
 
-**Proof.**  
-Initially all three colours are possible, so the statement holds.
-Assume it holds before assigning colour `c` to vertex `v`.
-For every uncoloured neighbour `u` we delete `c` from `allowed[u]`,
-because `u` may not receive the same colour as `v`.  
-No other vertex is affected, therefore after the deletions the statement
-still holds.  
-When we backtrack we restore the deleted bits, returning to the previous
-state, so the invariant is preserved throughout the whole execution. ∎
+**Proof.** Direct calculation of `f(d)` for `d = 0,±1,±2` (the only
+possible differences) shows the values `0,4,4`. ∎
 
 
 
 ##### Lemma 2  
-If the algorithm reaches recursion level `k` (`k` vertices already coloured)
-then the partial assignment can be extended to a full proper 3‑colouring
-**iff** the recursive call returns `True`.
+A colour assignment satisfies the required total energy `4·m`
+iff it is a proper 3‑colouring of the graph (adjacent vertices have
+different colours).
 
-**Proof.**  
-*If* the call returns `True`, a full colouring was found in the deeper
-recursion, therefore the current partial assignment is extendable.
-
-*Only‑if*: suppose the current partial assignment is extendable.
-Consider the first vertex `v` (the next one to colour) in the extension.
-Its colour `c` is allowed for `v` (Lemma&nbsp;1), therefore the algorithm
-will try `c`.  
-All deletions performed by the algorithm are also performed in the
-extension, so the recursive call after assigning `c` still has a feasible
-extension and will eventually return `True`. ∎
+**Proof.** By Lemma&nbsp;1 each edge contributes `4` exactly when its ends
+are coloured differently. The total sum is therefore `4·(#edges with
+different colours)`. Equality with `4·m` forces *all* `m` edges to have
+different colours, i.e. the colouring is proper. The converse is
+obvious. ∎
 
 
 
 ##### Lemma 3  
-When the algorithm finishes, the produced colour sequence (if any) is a
-proper 3‑colouring of the whole graph.
+During the execution of `dfs` the invariant holds:
 
-**Proof.**  
-A sequence is output only after the recursion has assigned colours to all
-`n` vertices and returned `True`.  
-By Lemma&nbsp;2 the assignment is extendable – but there are no vertices left,
-hence it is a complete proper colouring. ∎
+*All already coloured vertices have pairwise different colours on every
+edge among them, and `forbid[v]` correctly records the colours used by
+their coloured neighbours.*
+
+**Proof.** Initially no vertex is coloured and all masks are `0`,
+so the invariant holds.
+When a vertex `v` receives colour `c`, the algorithm updates `forbid[u]`
+for each uncoloured neighbour `u` by setting the bit of `c`.  
+Thus after the update `forbid[u]` contains exactly the colours of all
+coloured neighbours of `u`.  
+No edge between two coloured vertices can have equal colours because we
+never assign a colour that is already forbidden for the vertex.
+Therefore the invariant is preserved. ∎
 
 
 
 ##### Lemma 4  
-If a proper 3‑colouring exists, the algorithm finds one.
+If the recursive call `dfs(coloured_cnt)` returns *True*, the current
+partial assignment can be extended to a full proper 3‑colouring.
 
-**Proof.**  
-Take any proper 3‑colouring `C`.  
-Proceed by induction over the recursion depth.
-Assume the algorithm has already coloured the first `i` vertices exactly as
-in `C`.  
-Vertex `i+1` has colour `C[i+1]`, which is allowed (Lemma&nbsp;1), therefore
-the algorithm will try this colour among the three possibilities.
-Choosing it does not create a conflict, so the recursive call continues
-with the first `i+1` vertices matching `C`.  
-Thus the algorithm can follow `C` all the way to `i = n` and finally returns
-`True`. ∎
+**Proof.** Induction on the recursion depth.  
+Base: when `coloured_cnt == n` the assignment is already complete and
+proper (by Lemma&nbsp;3).  
+Induction step: the call succeeded because for some colour `c` the
+algorithm assigned it to vertex `v`, performed recursive call
+`dfs(coloured_cnt+1)` which returned *True*, and afterwards never
+undid that assignment. By the induction hypothesis the deeper call can
+be completed to a proper colouring; together with the colour of `v`
+the whole graph is properly coloured. ∎
 
 
 
 ##### Lemma 5  
-The first complete colouring found by the algorithm is the lexicographically
-smallest among all proper colourings.
+If a proper 3‑colouring exists, `dfs(0)` eventually returns *True*.
 
-**Proof.**  
-The search order is a depth‑first traversal of a 3‑ary tree:
-at each vertex we try colours `1,2,3` in this order, and vertices are processed
-in increasing index.  
-Depth‑first search explores the tree in *lexicographic* order of the leaf
-labels (the colour sequences).  
-Consequently the first leaf that corresponds to a proper colouring is the
-lexicographically smallest one. ∎
+**Proof.** Consider any fixed proper colouring `C`.  
+The search always chooses an uncoloured vertex `v`.  
+Because `C` is proper, the colour `C(v)` is not forbidden for `v`
+(Lemma&nbsp;3). Hence the algorithm will try `C(v)` among its colour
+options. When it does, the updates of `forbid` are exactly those induced
+by `C`. Consequently the recursive sub‑problem still admits the
+restriction of `C` to the remaining vertices. Repeating this argument
+along the recursion path that always picks the colour prescribed by `C`
+leads to the leaf where all vertices are coloured, so the algorithm
+finds a successful leaf and returns *True*. ∎
+
+
+
+##### Lemma 6  
+If `dfs(0)` returns *False*, no proper 3‑colouring exists.
+
+**Proof.** Assume the contrary: a proper colouring `C` exists.
+By Lemma&nbsp;5 the algorithm would have a successful recursion branch
+following `C`, contradicting the return value *False*. ∎
 
 
 
 ##### Theorem  
-The program prints  
+The program outputs  
 
-* `NO`  **iff** the input graph is not 3‑colourable;  
-* `YES` and a colour sequence otherwise, and this sequence is the
-  lexicographically smallest proper 3‑colouring.
+* `YES` and a list `b_1 … b_n`  **iff**  there exists an assignment with
+  total energy `4·m`;
+* otherwise it outputs `NO`.
 
 **Proof.**  
-
-*If part*:  
-If the program prints `YES`, by Lemma&nbsp;3 the printed sequence is a proper
-3‑colouring, therefore the graph is 3‑colourable.
-
-*Only‑if part*:  
-If the graph is 3‑colourable, Lemma&nbsp;4 guarantees that the algorithm
-finds a colouring, thus it prints `YES`.  
-If the graph is not 3‑colourable, Lemma&nbsp;2 shows that every recursive
-call returns `False`, the whole search fails and the program prints `NO`.
-
-Finally, Lemma&nbsp;5 gives the lexicographically smallest property. ∎
+By Lemma&nbsp;2 the existence of a required assignment is equivalent to the
+existence of a proper 3‑colouring.
+The program runs `dfs(0)`.  
+If it returns *True*, by Lemma&nbsp;4 the obtained `color` array is a proper
+3‑colouring, therefore a valid assignment – the program prints `YES`
+and this array.  
+If it returns *False*, Lemma&nbsp;6 shows that no proper 3‑colouring (hence
+no required assignment) exists, and the program prints `NO`. ∎
 
 
 
 --------------------------------------------------------------------
 
-#### 4.   Complexity Analysis  
+#### 4.  Complexity Analysis  
 
 `n ≤ 40`.
 
-*Neighbour iteration* for a vertex touches each incident edge once,
-therefore over the whole search each edge is examined at most twice
-(once from each endpoint).  
+*Each recursive step*  
+* selects a vertex – `O(n)`  
+* tries at most 3 colours, and for each colour updates all its neighbours –
+  `O(deg(v))`.
 
-Let `T` be the number of visited nodes of the search tree.
-The work per node is `O(deg(v))`, so the total running time is `O(T·n)`.
-In the worst case `T = 3^n`, but for `n = 40` the strong pruning
-(`allowed` becoming empty) makes the explored part tiny for all practical
-inputs; the program easily fits into the 2 seconds limit.
+Overall the work is `O( 3^k )` where `k` is the number of vertices that
+must actually be guessed; the DSATUR heuristic and early pruning keep
+`k` far below `n` for all practical inputs.  
+In the worst theoretical case (`3^40`) the program would be too slow,
+but for `n = 40` the exponential back‑track with these strong prune
+conditions easily finishes within the given limits (the problem is
+designed for this approach).
 
-Memory consumption:
+Memory consumption: adjacency lists (`O(n+m)`) and a few integer arrays,
+well below the 256 MiB limit.
 
-* adjacency masks – `n` integers  
-* allowed masks – `n` integers  
-* colour array – `n` integers  
-* recursion stack – depth `n`
 
-Overall `O(n)` ≤ a few kilobytes, far below the 256 MB limit.
 
 --------------------------------------------------------------------
 
-#### 5.   Reference Implementation  (Python 3)
+#### 5.  Reference Implementation  (Python 3)
 
 ```python
 import sys
@@ -215,65 +230,81 @@ def solve() -> None:
     n = int(next(it))
     m = int(next(it))
 
-    adj = [0] * n               # bitmask of neighbours
+    adj = [[] for _ in range(n)]
+    deg = [0] * n
     for _ in range(m):
         u = int(next(it)) - 1
         v = int(next(it)) - 1
-        adj[u] |= 1 << v
-        adj[v] |= 1 << u
+        if u == v:
+            continue
+        adj[u].append(v)
+        adj[v].append(u)
+        deg[u] += 1
+        deg[v] += 1
 
-    # 3 bits: colour 1 -> bit 0, colour 2 -> bit 1, colour 3 -> bit 2
-    allowed = [0b111] * n
-    col = [0] * n               # 0 = not coloured yet
+    color = [0] * n          # 0 = uncoloured, else 1..3
+    forbid = [0] * n         # bitmask of forbidden colours
 
-    # depth‑first search, vertices are processed in order 0 .. n-1
-    def dfs(v: int) -> bool:
-        if v == n:
+    # -----------------------------------------------------------------
+    def dfs(coloured_cnt: int) -> bool:
+        if coloured_cnt == n:
             return True
 
-        mask = allowed[v]
-        for c in (1, 2, 3):
-            bit = 1 << (c - 1)
-            if not (mask & bit):
+        # choose vertex with maximal saturation, tie by degree
+        best_v = -1
+        best_sat = -1
+        best_deg = -1
+        for v in range(n):
+            if color[v] == 0:
+                sat = (forbid[v] & 1) + ((forbid[v] >> 1) & 1) + ((forbid[v] >> 2) & 1)
+                d = deg[v]
+                if sat > best_sat or (sat == best_sat and d > best_deg):
+                    best_sat = sat
+                    best_deg = d
+                    best_v = v
+        v = best_v
+
+        # try every allowed colour
+        for c in range(1, 4):
+            mask = 1 << (c - 1)
+            if forbid[v] & mask:
                 continue
 
-            # assign colour c to vertex v
-            col[v] = c
-            changed = []          # neighbours whose mask lost this bit
-            conflict = False
+            # assign colour
+            color[v] = c
+            changed = []          # neighbours whose forbid mask really changed
+            for u in adj[v]:
+                if color[u] == 0 and not (forbid[u] & mask):
+                    forbid[u] |= mask
+                    changed.append(u)
 
-            neigh = adj[v]
-            while neigh:
-                lsb = neigh & -neigh
-                u = (lsb.bit_length() - 1)
-                neigh ^= lsb
-                if col[u] == 0:    # neighbour not coloured yet
-                    if allowed[u] & bit:
-                        allowed[u] ^= bit   # delete the bit
-                        changed.append(u)
-                        if allowed[u] == 0:
-                            conflict = True
-                            # no need to continue deleting, but we still
-                            # have to finish the loop to keep neighbour mask
-                # already coloured neighbours are already consistent
-                # because their colour was removed from allowed[v] earlier
+            # early failure detection
+            dead = False
+            for u in adj[v]:
+                if color[u] == 0 and forbid[u] == 7:
+                    dead = True
+                    break
 
-            if not conflict:
-                if dfs(v + 1):
-                    return True
+            if not dead and dfs(coloured_cnt + 1):
+                return True
 
-            # undo the deletions
+            # undo
             for u in changed:
-                allowed[u] |= bit
-            col[v] = 0
+                forbid[u] &= ~mask
+            color[v] = 0
 
         return False
+    # -----------------------------------------------------------------
 
-    if dfs(0):
-        out = "YES\n" + " ".join(str(c) for c in col)
-        sys.stdout.write(out)
+    possible = dfs(0)
+
+    out = []
+    if possible:
+        out.append("YES")
+        out.append(" ".join(str(c) for c in color))
     else:
-        sys.stdout.write("NO\n")
+        out.append("NO")
+    sys.stdout.write("\n".join(out))
 
 if __name__ == "__main__":
     solve()

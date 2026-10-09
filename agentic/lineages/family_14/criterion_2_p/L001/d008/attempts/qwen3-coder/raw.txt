@@ -1,0 +1,369 @@
+```python
+import sys
+from collections import defaultdict, deque
+
+def main():
+    import sys
+    sys.setrecursionlimit(1 << 25)
+    
+    n, m, t = map(int, sys.stdin.readline().split())
+    mandatory = set(map(int, sys.stdin.readline().split()))
+    
+    # Since m = n - 1 and it's a tree built incrementally, it's a tree.
+    adj = [[] for _ in range(n + 1)]
+    edges = []
+    edge_id = {}
+    
+    for _ in range(m):
+        u, v, w = map(int, sys.stdin.readline().split())
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+        edges.append((u, v, w))
+        edge_id[(u,v)] = w
+        edge_id[(v,u)] = w
+    
+    # Root the tree at node 1 (or any node)
+    parent = [-1] * (n + 1)
+    children = [[] for _ in range(n + 1)]
+    visited = [False] * (n + 1)
+    
+    # BFS to build parent/children relationship
+    queue = deque()
+    queue.append(1)
+    visited[1] = True
+    
+    while queue:
+        u = queue.popleft()
+        for v, w in adj[u]:
+            if not visited[v]:
+                visited[v] = True
+                parent[v] = u
+                children[u].append((v, w))
+                queue.append(v)
+    
+    # dp[v][0]: min cost when subtree of v contributes 0 to balance
+    # dp[v][1]: min cost when subtree of v contributes 1 to balance
+    # We'll compute this using tree DP
+    
+    def dfs(u):
+        # Returns (cost_if_u_inactive_contributes_0, cost_if_u_active_contributes_1)
+        # But we need to think differently.
+        
+        # Let's redefine:
+        # For a subtree rooted at u:
+        # dp[u][0] = min cost when u is inactive
+        # dp[u][1] = min cost when u is active and contributes 0 to global balance
+        # dp[u][2] = min cost when u is active and contributes 1 to global balance
+        
+        # Actually, let's follow the editorial approach:
+        # For each node u, we compute:
+        # f[u][0] = min cost to make subtree of u valid, with u inactive
+        # f[u][1] = min cost to make subtree of u valid, with u active, and u contributes 0 to B (i.e., 2 - k_u = 0 => k_u = 2)
+        # f[u][2] = min cost to make subtree of u valid, with u active, and u contributes 1 to B (i.e., 2 - k_u = 1 => k_u = 1)
+        # f[u][3] = min cost to make subtree of u valid, with u active, and u contributes 2 to B (i.e., 2 - k_u = 2 => k_u = 0)
+        
+        # But since we want total B = 2, we can do DP on tree maintaining how much the subtree contributes.
+        
+        # Simpler DP:
+        # For each node u, define:
+        # dp[u][b] = minimum cost to make subtree of u valid such that the contribution of u and its subtree to global B is b
+        # But this is complex.
+        
+        # Let's use another approach:
+        # For each node u, define:
+        # f[u][0] = min cost if u is not active
+        # f[u][1] = min cost if u is active and contributes 0 to balance (i.e., 2 - k_u = 0 => k_u = 2)
+        # f[u][2] = min cost if u is active and contributes 1 to balance (i.e., 2 - k_u = 1 => k_u = 1)
+        # f[u][3] = min cost if u is active and contributes 2 to balance (i.e., 2 - k_u = 2 => k_u = 0)
+        
+        # Actually, let's think of it as:
+        # Each active node contributes (2 - k_u). We want sum over active nodes = 2.
+        # So we can do DP where for each subtree we track what contribution it makes to the total.
+        
+        # Let's define:
+        # dp[u][c] = minimum cost for subtree of u such that the total contribution from active nodes in subtree is c
+        # c can be negative, but bounded.
+        
+        # Since n <= 200000, we cannot store all values of c.
+        # But we can observe that we only care about final value being 2.
+        
+        # Let's instead do:
+        # For each node u, dp[u] is a dictionary mapping contribution -> min_cost
+        # But again too much memory.
+        
+        # Key insight: Tree DP with states based on how many "excess" contributions we have.
+        # But let's look at examples and think.
+        
+        # Simpler idea:
+        # Do DP on tree where for each node u, we compute:
+        # f[u][0] = min cost if u is inactive
+        # f[u][1] = min cost if u is active and contributes 0 to global B (needs exactly 2 active neighbors)
+        # f[u][2] = min cost if u is active and contributes 1 to global B (needs exactly 1 active neighbor)
+        # f[u][3] = min cost if u is active and contributes 2 to global B (needs exactly 0 active neighbors)
+        
+        # But this doesn't compose well.
+        
+        # Let's try standard DP on trees:
+        # For each node u, maintain dp[u][delta_B] = min cost
+        # where delta_B is the difference from desired total B=2 that subtree contributes.
+        # This still seems unbounded.
+        
+        # Another way:
+        # Let’s root the tree arbitrarily.
+        # For each node u, define:
+        # f[u][s] = minimum cost to activate subtree of u such that the total balance contribution is s
+        # But s can be large.
+        
+        # Final attempt:
+        # Use DP with states:
+        # For each node u, dp[u][0] = u inactive
+        #                  dp[u][1] = u active, contributes 0 to B (has 2 active neighbors)
+        #                  dp[u][2] = u active, contributes 1 to B (has 1 active neighbor)
+        #                  dp[u][3] = u active, contributes 2 to B (has 0 active neighbors)
+        
+        # But how to combine?
+        # When combining child results, we don't know how many children will be active.
+        
+        # Let's switch to a known working approach:
+        # For each node u, define:
+        # f[u][0] = min cost if u is inactive
+        # f[u][1] = min cost if u is active and contributes 0 to total B (i.e., 2 - deg_active = 0)
+        # f[u][2] = min cost if u is active and contributes 1 to total B (i.e., 2 - deg_active = 1)
+        # f[u][3] = min cost if u is active and contributes 2 to total B (i.e., 2 - deg_active = 2)
+        
+        # But again composition issue.
+        
+        # Let's see the correct DP formulation:
+        # Root the tree at node 1.
+        # For each node u, define DP state:
+        # dp[u][extra] = minimum cost for subtree of u, where 'extra' is the excess contribution needed from ancestors
+        # But this is getting convoluted.
+        
+        # Let's just implement a clean DP:
+        # For each node u, return a tuple:
+        # (cost_if_u_inactive, cost_if_u_active_with_k_0, cost_if_u_active_with_k_1, cost_if_u_active_with_k_2)
+        # Where k_i is number of active neighbors in subtree.
+        # Then combine accordingly.
+        
+        # Actually, let's refer to standard solution pattern:
+        # Do DP on tree with state per node being the minimal cost for different numbers of active children.
+        
+        # Define for each node u:
+        # f[u][k] = minimum cost to make subtree of u valid assuming u has exactly k active neighbors outside subtree
+        # But we want total B = 2.
+        
+        # Simpler and final approach:
+        # Do DP where for each node u, we compute:
+        # off[u] = min cost if u is OFF
+        # on[u][d] = min cost if u is ON and contributes d to total B (where d = 2 - k_u)
+        # But k_u includes parent, so tricky.
+        
+        # Let's do this properly:
+        # Rooted at 1. For each node u, DFS returns:
+        # (off_cost, on_0_cost, on_1_cost, on_2_cost)
+        # where on_d means u is on and contributes d to total B.
+        
+        child_results = []
+        child_edges = []  # weights to children
+        
+        for v, w in children[u]:
+            res = dfs(v)
+            child_results.append(res)
+            child_edges.append(w)
+            
+        # Base case: leaf nodes
+        if not children[u]:
+            if u in mandatory:
+                # Must be on, contributes 2 - 0 = 2 to B
+                return (float('inf'), float('inf'), float('inf'), 0)
+            else:
+                # Can be off (contributes 0), or on with k=0 (contributes 2), k=1(contributes 1), k=2(contributes 0)
+                return (0, 0, 0, 0)  # All zero base cost
+        
+        # Combine children
+        # We need to decide for u: off or on (with some degree)
+        # And distribute the "connections" among children appropriately
+        
+        # This requires more careful DP. Let's simplify:
+        # Use DP state: dp[node][is_on][num_active_children] = min_cost
+        # But num_active_children can be up to n.
+        
+        # Instead, let's use the fact that we only care about total B = 2
+        # and do DP that tracks how much "balance" the subtree provides.
+        
+        # New plan:
+        # For each node u, DP[u][b] = min cost to get balance b from subtree of u
+        # But b can be negative or positive and large.
+        
+        # Let's bound it. Since each node contributes at most 2 to B,
+        # and there are n nodes, max B is 2n. Min is -2n.
+        # Still too big.
+        
+        # Insight: we only care about achieving exactly B=2 globally.
+        # So we can do DP that tracks "how far" we are from 2.
+        
+        # Even simpler: let's take the editorial approach.
+        # DP on tree with state: for each subtree, what configurations of connections lead to valid total B=2.
+        
+        # Let's give up on custom DP and model it correctly:
+        # State: for each node u, return four values:
+        # f[u][0] = u off
+        # f[u][1] = u on, contributes 0 to B (needs 2 active neighbors)
+        # f[u][2] = u on, contributes 1 to B (needs 1 active neighbor)
+        # f[u][3] = u on, contributes 2 to B (needs 0 active neighbors)
+        
+        # Initialize
+        if u in mandatory:
+            off = float('inf')
+        else:
+            off = 0
+            
+        # For on states, initialize based on whether mandatory or not
+        on_0 = on_1 = on_2 = 0
+        if u in mandatory:
+            # Must be on
+            on_0 = on_1 = on_2 = 0
+        else:
+            on_0 = on_1 = on_2 = 0  # base cost 0, will add child costs
+            
+        # Now, for each child, we can choose whether to connect or not
+        # If we connect, we pay edge weight and child must be on
+        # Child contributes to our degree count
+        
+        # But this is getting messy without clear transitions.
+        
+        # Let's just implement a working version with proper states:
+        # For each node u, return list of (degree_in_subtree, min_cost)
+        # But we want total B = 2.
+        
+        # Final simplification:
+        # Use DP with explicit states tracking contribution to global B.
+        # Since implementation is error-prone, let's look for cleaner way.
+        
+        # Just implement standard tree DP correctly:
+        # For each node, track min cost for different numbers of active children.
+        # But we also need to ensure total B = 2 across entire tree.
+        
+        # This is hard to get right quickly. Let's refer to intended solution:
+        # Do DP on tree where state tracks how much the subtree contributes to total B.
+        
+        # Since time is short, I'll write a recursive function that computes for subtree
+        # what costs are achievable for different total B values.
+        # But limit B to reasonable range.
+        
+        # Let's cap B in [-50, 50] for DP feasibility.
+        # dp[u][b_offset] = min cost for subtree of u to contribute b to total B
+        # where b_offset = b + 50 to make index non-negative
+        
+        MAX_B = 50
+        dp_u = [float('inf')] * (2 * MAX_B + 1)  # indices 0..100 represent B from -50 to 50
+        
+        # Base case handled during recursion
+        # For now, return placeholder
+        return (0, 0, 0, 0)
+
+    # Start DFS from root (node 1)
+    result = dfs(1)
+    # Need to combine with global constraint B=2
+    
+    # This is taking too long to implement correctly under time pressure.
+    # Let's write a simpler greedy or known-working algorithm.
+    
+    # Since the structure is a tree built incrementally, it's just a tree.
+    # And we want to activate nodes to get total B = 2.
+    # B = sum over active v of (2 - k_v) = 2*#active - sum k_v = 2
+    # So 2*A - K = 2 => K = 2*A - 2
+    # where A = number of active nodes, K = sum of degrees in induced subgraph
+    # In a tree, for a subset of nodes, K >= A - 1 (since they induce a connected graph? No, not necessarily)
+    # Wait, K is sum of degrees in subgraph induced by active nodes.
+    # Each edge between two active nodes contributes 2 to K.
+    # Number of such edges is E_active.
+    # So K = 2 * E_active.
+    # Also, in the subgraph induced by active nodes:
+    # Sum of degrees = 2 * E_active.
+    # We want 2*A - 2*E_active = 2 => A - E_active = 1
+    # So in the subgraph induced by active nodes: V - E = 1
+    # This means the induced subgraph is a tree!
+    # So we want to find a subtree of original tree that includes all mandatory nodes,
+    # and minimizes sum of edge weights in that subtree.
+    # Because activation cost = sum of edge weights where both endpoints active.
+    # If active nodes form a connected subgraph (which they must due to V-E=1),
+    # then activation cost = sum of edges in subtree induced by active nodes.
+    # So problem becomes: find minimum weight connected subtree containing all mandatory nodes.
+    # This is the Steiner tree problem on a tree, which can be solved optimally.
+    
+    # Algorithm:
+    # 1. Start with all mandatory nodes.
+    # 2. Add all paths between pairs => but that's complicated.
+    # 3. Simpler: since it's a tree, the minimal connected subtree containing S is the union of paths between all pairs in S.
+    # But even simpler: take all nodes that are on paths between any two mandatory nodes.
+    # Even simpler: root the tree, for each node, if any descendant is mandatory and any ancestor or other branch has mandatory,
+    # then include it. But easiest is:
+    # The minimal connected subtree is the union of paths from root to each mandatory node,
+    # but that's not quite right either.
+    # Correct approach:
+    # Find the minimal subtree spanning all mandatory nodes.
+    # On a tree, this is found by:
+    # 1. Mark all mandatory nodes as needed.
+    # 2. For each node, if any of its subtrees contain a needed node, then this node is needed.
+    # 3. The set of needed nodes induces a subtree.
+    # 4. The edges in this subtree are those connecting consecutive needed nodes in the tree.
+    
+    # Implementation:
+    # 1. Mark all nodes that are mandatory.
+    # 2. Run DFS from root, propagate up whether subtree contains mandatory node.
+    # 3. Nodes that are mandatory or have at least one mandatory descendant are "needed".
+    # 4. Edges where both endpoints are needed should be included in cost.
+    # But wait, we want the edges where BOTH endpoints are active.
+    # So we want to choose which nodes to activate (superset of mandatory) such that
+    # induced subgraph is connected and satisfies B=2, and minimize edge cost.
+    # From earlier derivation, we want induced subgraph to be a tree: V - E = 1.
+    # So we're looking for a subtree of original tree that includes all mandatory nodes,
+    # and minimizes sum of edge weights.
+    # This is exactly finding the minimal subtree (connected subgraph) containing all mandatory nodes.
+    
+    # Algorithm to find minimal subtree:
+    # 1. Mark all mandatory nodes.
+    # 2. Propagate "needed" status up the tree: a node is needed if it's mandatory or if any child subtree is needed.
+    # 3. The minimal subtree consists of all needed nodes.
+    # 4. Its edges are those connecting parent-child where both are needed.
+    # 5. Cost = sum of such edge weights.
+    
+    # But we also require that the configuration is valid (B=2).
+    # As derived, if the active nodes induce a tree, then B = 2*(#nodes) - 2*(#edges) = 2*(V - E) = 2*1 = 2.
+    # So any subtree satisfies the balance condition.
+    # Therefore, the problem reduces to: find the minimum weight subtree containing all mandatory nodes.
+    
+    # Implementation:
+
+    needed = [False] * (n + 1)
+    for x in mandatory:
+        needed[x] = True
+
+    # First DFS to mark all needed nodes
+    def mark_needed(u, par):
+        for v, w in adj[u]:
+            if v != par:
+                mark_needed(v, u)
+                if needed[v]:
+                    needed[u] = True
+
+    mark_needed(1, -1)
+
+    # Second pass to calculate cost
+    total_cost = 0
+    def calc_cost(u, par):
+        nonlocal total_cost
+        for v, w in adj[u]:
+            if v != par:
+                if needed[u] and needed[v]:
+                    total_cost += w
+                calc_cost(v, u)
+
+    calc_cost(1, -1)
+    print(total_cost)
+
+
+if __name__ == "__main__":
+    main()
+```

@@ -1,0 +1,107 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    B = int(next(it))
+    
+    edges = []
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        edges.append((u, v))
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # For pruning, we can sort by degree maybe
+    # But backtracking will explore all permutations
+    pos = [-1] * n          # stage assigned to variable
+    var_at_pos = [-1] * n   # variable at a stage
+    
+    best_permutation = None
+    
+    # Precompute degree
+    degree = [len(adj[i]) for i in range(n)]
+    
+    # Ordering to assign: maybe by degree descending
+    order = list(range(n))
+    order.sort(key=lambda x: -degree[x])
+    
+    def backtrack(idx):
+        nonlocal best_permutation
+        if best_permutation is not None:
+            return
+        if idx == n:
+            best_permutation = pos[:]
+            return
+        
+        var = order[idx]
+        # Try placing variable 'var' at each free stage
+        for stage in range(n):
+            if var_at_pos[stage] != -1:
+                continue
+            # compute added cost with already placed vars
+            added_cost = 0
+            # cost with already placed neighbors
+            for neighbor in adj[var]:
+                if pos[neighbor] != -1:
+                    added_cost += abs(stage - pos[neighbor])
+            # we need current total cost + added_cost <= B
+            # current total = ? We could track global cost, but compute here
+            # We'll pass current_total via argument or compute it
+            # Let's use an argument current_cost
+            return None
+        # Actually redesign: use current_cost argument
+    
+    # Better: pass current_cost
+    var_at_pos = [-1]*n
+    pos = [-1]*n
+    best_permutation = None
+    current_cost = 0
+    # We'll store partial costs in recursive call
+    
+    def backtrack(idx, current_cost):
+        nonlocal best_permutation
+        if best_permutation is not None:
+            return
+        if current_cost > B:
+            return
+        if idx == n:
+            best_permutation = pos[:]
+            return
+        
+        var = order[idx]
+        for stage in range(n):
+            if var_at_pos[stage] != -1:
+                continue
+            added_cost = 0
+            for neighbor in adj[var]:
+                if pos[neighbor] != -1:
+                    added_cost += abs(stage - pos[neighbor])
+            if current_cost + added_cost > B:
+                continue
+            # assign
+            pos[var] = stage
+            var_at_pos[stage] = var
+            backtrack(idx+1, current_cost + added_cost)
+            if best_permutation is not None:
+                return
+            # unassign
+            pos[var] = -1
+            var_at_pos[stage] = -1
+    
+    backtrack(0, 0)
+    
+    if best_permutation is None:
+        print("NO")
+    else:
+        print("YES")
+        print(" ".join(str(p+1) for p in best_permutation))
+
+if __name__ == "__main__":
+    solve()

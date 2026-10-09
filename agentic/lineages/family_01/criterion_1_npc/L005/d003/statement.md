@@ -1,23 +1,20 @@
-# Problem A — Resonance Tuning Protocol
+# Problem A — Museum Curation
 
-Time limit: 2 s
-Memory limit: 256 MB
+Time limit: 2 s   Memory limit: 256 MB
 
-A quantum communication grid consists of $n$ signal emitters (numbered 1 through $n$). The facility features exactly 40 emitter bays, establishing the maximum capacity for the grid. 
+You are organizing a highly anticipated exhibition featuring $n$ interactive installations. The venue is divided into exactly three acoustic pavilions, designated as Pavilion 1, Pavilion 2, and Pavilion 3.
 
-To initialize the grid, each emitter must be assigned a discrete tuning parameter: 1, 2, or 3. 
+Every installation must be placed in exactly one of these pavilions. However, the interactive audio elements of certain installations operate on overlapping frequencies. You have compiled a list of $m$ pairs of installations that will cause acoustic interference if they are placed in the same pavilion. 
 
-The grid infrastructure includes $m$ physical conduits, each of which bridges a specific pair of emitters. The number of conduits can range from zero up to the physical maximum of $n(n-1)/2$, where every distinct pair of emitters is linked. These conduits introduce a strict operational constraint: for any two emitters bridged by a conduit, the bitwise XOR of their assigned tuning parameters must be strictly greater than zero to prevent a resonance cascade. You must determine a tuning parameter assignment for all $n$ emitters that satisfies this condition for every conduit.
-
-If no safe assignment is possible, you must indicate that the grid cannot be initialized. If multiple safe assignments exist, the protocol requires you to select the one that is lexicographically smallest. (Assignment $A$ is lexicographically smaller than assignment $B$ if, at the lowest emitter index where they differ, $A$ has a lower tuning parameter value than $B$).
+You must determine whether it is possible to distribute all the installations across the three pavilions such that no acoustic interference occurs. 
 
 ## Input
-The first line contains two integers $n$ and $m$ (1 ≤ $n$ ≤ 40, 0 ≤ $m$ ≤ $n(n−1)/2$) — the number of active emitters and the number of conduits.
-The following $m$ lines each contain two integers $u$ and $v$ (1 ≤ $u, v$ ≤ $n$, $u \neq v$), representing the identifiers of two emitters bridged by a conduit.
+The first line contains two integers $n$ and $m$ — the number of installations and the number of interfering pairs ($1 \le n \le 40$, $0 \le m \le n \cdot (n-1)/2$).
+Each of the subsequent $m$ lines contains two integers $u$ and $v$, representing a pair of installations that cannot share the same pavilion. Installations are indexed from 1 to $n$.
 
 ## Output
-If the grid cannot be initialized without a resonance cascade, output a single line containing `NO`.
-If a safe assignment exists, output `YES` on the first line. On the second line, output $n$ integers $p_1, p_2, \dots, p_n$ (where each $p_i \in \{1, 2, 3\}$), representing the tuning parameter for each emitter from 1 to $n$. This sequence must be the lexicographically smallest valid assignment.
+If no such distribution is possible, output NO on a single line.
+Otherwise, output YES on the first line. On the second line, output $n$ integers $c_1 \ c_2 \dots c_n$ (each being 1, 2, or 3), where $c_i$ is the pavilion assigned to installation $i$. If multiple valid distributions exist, you may output any of them.
 
 ## Example 1
 Input:

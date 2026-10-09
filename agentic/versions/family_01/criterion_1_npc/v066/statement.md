@@ -1,27 +1,25 @@
-# Problem A — Orbital Zones
+# Problem A — Operational Rotation Subsystem
 
 Time limit: 2 s   Memory limit: 256 MB
 
-The Global Aerospace Consortium executes its deployment protocol in three strict phases:
+The factory's monthly scheduling pipeline consists of three distinct phases. 
 
-**Phase 1: Payload Integration.** Engineers finalize the structural chassis for $n$ satellites. Based on the operational frequencies of their transponders, they compile a registry of $m$ incompatible satellite pairs that would cause signal collisions if placed near each other.
+In Phase 1, the safety committee conducts a comprehensive risk assessment using past incident reports and machinery proximity sensors. They observe all $n$ machinery operators and compile a log of specific operator pairs whose simultaneous presence on the factory floor creates a hazard. This log is passed directly to your system.
 
-**Phase 2: Altitude Stratification.** This is the computational step you are responsible for. The consortium maintains exactly three designated altitude bands, labeled 1, 2, and 3. Your module must allocate each of the $n$ satellites to exactly one of these three bands. To guarantee data integrity, no two satellites flagged as incompatible during Phase 1 can be placed in the same band. If no such allocation exists, the mission must be flagged for abort.
+In Phase 2, your subsystem must process this log to generate a schedule. You are required to assign every operator to exactly one of three operational rotations (labeled 1, 2, and 3, corresponding to morning, evening, and night). To pass the safety check, you must guarantee that no two operators flagged as a hazardous pair in Phase 1 are placed into the same rotation. If the safety constraints are too restrictive, your subsystem must raise an alert.
 
-**Phase 3: Automated Bootstrapping.** Once deployed, ground control powers on the satellites sequentially from satellite 1 up to $n$. To ensure the initialization sequence is deterministic, the system requires the altitude allocation sequence $z_1, z_2, \ldots, z_n$ to be the lexicographically smallest valid sequence.
-
-You are given the registry from Phase 1. Your task is to perform Phase 2 and output the exact configuration required for Phase 3.
+In Phase 3, the financial module will read your generated assignments, apply union-mandated hourly multipliers based on the rotation number, and calculate final payroll amounts. You do not need to implement Phase 1 or Phase 3; your only task is to execute Phase 2 and output the rotation assignments.
 
 ## Input
-The first line contains two integers $n$ and $m$ — the number of satellites and the number of incompatible pairs ($1 \le n \le 40$, $0 \le m \le n \cdot (n-1)/2$).
-Each of the next $m$ lines contains two integers $u$ and $v$ — a pair of incompatible satellites.
+The first line of the input contains two integers $n$ and $m$ — the total number of operators and the number of hazardous pairs identified in Phase 1 ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
+The following $m$ lines each contain two integers $u$ and $v$ ($1 \le u, v \le n$), representing a pair of operators who cannot be assigned to the same rotation.
 
 ## Output
-If the mission must be aborted because no valid allocation exists, print a single line containing `NO`.
-Otherwise, print `YES` on the first line. On the second line, print $n$ integers $z_1, z_2, \ldots, z_n$ (where each $z_i \in \{1, 2, 3\}$), representing the altitude band assigned to satellite $i$. Among all valid allocations, output the lexicographically smallest sequence (comparing $z_1$ first, then $z_2$, and so on).
+If it is impossible to satisfy all safety constraints across the three rotations, output a single line containing `NO`.
+Otherwise, output `YES` on the first line. On the second line, output $n$ space-separated integers $s_1, s_2, \dots, s_n$ (where each $s_i \in \{1, 2, 3\}$), representing the rotation assigned to operator $i$. If multiple valid schedules exist, you may output any of them.
 
 ## Example 1
-Input:
+**Input:**
 ```
 4 5
 1 2
@@ -30,14 +28,14 @@ Input:
 1 4
 2 4
 ```
-Output:
+**Output:**
 ```
 YES
 1 2 3 3
 ```
 
 ## Example 2
-Input:
+**Input:**
 ```
 4 6
 1 2
@@ -47,7 +45,7 @@ Input:
 2 4
 3 4
 ```
-Output:
+**Output:**
 ```
 NO
 ```

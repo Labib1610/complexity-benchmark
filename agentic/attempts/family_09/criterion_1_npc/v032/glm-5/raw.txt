@@ -1,0 +1,283 @@
+We need to find an independent set of size exactly k in a graph with n ≤ 46 vertices, m up to n(n-1)/2 edges. Time limit 5 seconds.
+
+This is the classic "Maximum Independent Set" problem with n up to 46. The standard approach is meet-in-the-middle: split vertices into two halves of ~23 each, enumerate all independent sets in each half (up to 2^23 ≈ 8.4M subsets, but only independent ones — could be up to 2^23 in the worst case with no edges within a half), then combine.
+
+Actually, a well-known technique for n=46: split into two halves A (first 23) and B (last 23). For each independent set S in A, compute the set of vertices in B that are NOT adjacent to any vertex in S — call it avail(S). Then we need to find an independent set in B of size k - |S| within avail(S). So we need, for each subset mask of B (representing available vertices), the maximum independent set size within that mask... but that's not enough because we need exactly k, and the maximum independent set within avail(S) might not be exactly k - |S|... Actually if max independent set in avail(S) ≥ k - |S|, we can... hmm, no. Independent sets: if the maximum independent set within avail(S) has size t ≥ k - |S|, can we always find an independent set of exactly k - |S| within avail(S)? Yes! Because any independent set can be reduced by removing vertices — any subset of an independent set is independent. So if max ≥ needed, we can take any subset of size needed. So we need f(mask) = maximum independent set size within mask (over B), and also a way to reconstruct.
+
+So the algorithm:
+1. Split vertices into halves. Let A = vertices 0..h-1, B = vertices h..n-1, where h = n//2 or so. Let |A| = a ≤ 23, |B| = b ≤ 23.
+
+2. Enumerate all independent sets of A. For each independent set S ⊆ A, compute:
+   - |S|
+   - forbidden_B(S) = union of neighbors in B of vertices in S.
+   - avail = B_mask \ forbidden_B(S).
+
+3. Precompute for B: g[mask] = max independent set size in B restricted to mask. Computing g for all 2^b masks: g[mask] = max over v in mask of (1 + g[mask \ (N[v] ∩ mask)])... Standard DP: g[0] = 0; g[mask] = max(g[mask without lowest bit], 1 + g[mask & ~closed_neighborhood(lowest bit)]). This takes O(2^b * something) — 2^23 * small constant, feasible in Python? Hmm, 8.4M iterations in pure Python is slow but maybe OK within 5s... Actually pure Python with 8.4M iterations of DP with bit operations might take ~10-30 seconds. That's risky.
+
+Wait, but we also need to enumerate all independent sets of A — up to 2^23 = 8.4M. In pure Python that's also slow.
+
+Hmm, Python performance is a concern. Let me think about how to make this fast.
+
+Alternative: use numpy or clever bit tricks.
+
+Let me think about the sizes more carefully. n ≤ 46. Split into halves of 23 and 23. 
+
+Approach with numpy:
+
+For half A (size a ≤ 23):
+- Enumerate all 2^a subsets? That's 8.4M — with numpy we can do this vectorized.
+
+Actually, a cleaner approach: 
+
+Step 1: Compute list of independent sets of A along with their "conflict mask" in B. But storing 8.4M entries is memory-heavy (each a 64-bit int → 8.4M * 8 bytes = 67MB per array; multiple arrays might exceed 256MB).
+
+Hmm. Let's think differently.
+
+Alternative approach: For each independent set S in A with size s, we need max independent set in B within avail(S) ≥ k - s. Equivalently, we want to maximize s + (max ind. set in avail(S)) and check if ≥ k... but actually we need exactly k, and as argued, if s + g[avail] ≥ k, we can trim down to exactly k (remove vertices from S or from the B independent set). Wait, careful: we need exactly k total. If s + g[avail] ≥ k, we can remove vertices from S (A side) — removing a vertex from S only makes avail larger (or same), so the B-side independent set remains valid. So yes, if s + g[avail(S)] ≥ k, we can construct a solution of size exactly k: take S' ⊆ S and T ⊆ (ind. set in avail) with |S'| + |T| = k. E.g., keep removing from the larger side. Actually simpler: if s ≥ k, just take any k vertices of S. Otherwise take all of S plus (k - s) vertices from the B independent set (which has size g[avail] ≥ k - s). 
+
+So the condition is: exists independent set S ⊆ A with s + g[B_mask \ N_B(S)] ≥ k.
+
+To maximize over S: we want, for the combination, the best. But we can't just take max over S of (s + g[avail(S)]) naively... actually we can! We iterate over all independent sets S of A, compute s + g[avail(S)], and check if ≥ k. If any works, reconstruct.
+
+The problem: enumerating all independent sets of A. Worst case (no edges in A), that's 2^23 ≈ 8.4M sets. For each we need g[avail(S)] lookup. With numpy, we could vectorize.
+
+Vectorized plan:
+- Let a = size of A half, b = size of B half. Choose a ≤ b or balance? Let's think: we need arrays of size 2^a for the A-side enumeration. To minimize, put the smaller half... but both are ~23. Actually we could split unevenly: the A side enumeration is 2^a, and the B side DP is 2^b. Total memory/time ~ 2^a + 2^b, minimized when a = b = 23. With n=46, a=b=23.
+
+Hmm, but actually there's a smarter split: we can choose which vertices go to which half. If the graph is dense, the number of independent sets is small. But worst case (empty graph), all 2^23 subsets of A are independent. But in the empty graph case, g is trivial. Hmm, but the enumeration is still 2^23.
+
+Wait — in the empty graph case, the answer is trivially YES (pick any k). More generally, maybe we can handle it: if m is small... Hmm, but adversarial cases could have edges arranged so that both halves have many independent sets.
+
+Let me think about worst-case complexity: 2^23 for A enumeration, 2^23 for B DP. Both need to be vectorized with numpy for speed.
+
+Numpy approach for B DP (max independent set for every subset mask of B):
+- adjB[v] = bitmask of neighbors of v within B (open neighborhood).
+- closed[v] = adjB[v] | (1 << v).
+- g = np.zeros(2^b, dtype=np.int8) — 8.4MB, fine.
+- For mask from 1 to 2^b - 1: g[mask] = max(g[mask & (mask-1)], 1 + g[mask & ~closed[lowbit_index]]). This is inherently sequential per mask... but we can vectorize differently.
+
+Alternative vectorized DP: process by lowest set bit. Hmm.
+
+Actually there's a classic trick: iterate v from 0 to b-1, and for masks... Let me think.
+
+Alternative: g[mask] can be computed as: g[mask] = max over v in mask of 1 + g[mask & ~closed[v]]. 
+
+Vectorization idea: For each vertex v, the set of masks where v is the lowest set bit is masks of form (higher bits) * 2^(v+1) + 2^v. For those masks, g[mask] = 1 + g[mask & ~closed[v]]... wait no, that's not right either — the recurrence g[mask] = 1 + g[mask \ closed[v]] where v is any vertex in mask gives the correct max? Let's verify: max independent set in mask. If v ∈ optimal solution, then it's 1 + MIS(mask \ closed[v]). If v ∉ optimal, then it's MIS(mask \ {v}) ≤ ... hmm, the standard recurrence: g[mask] = max(g[mask ^ (1<<v)], 1 + g[mask & ~closed[v]]) for any v ∈ mask. This is correct because MIS either excludes v (first term) or includes v (second term). So we can pick v = lowest bit.
+
+So: g[mask] = max(g[mask without lowest bit], 1 + g[mask & ~closed[lowest bit]]).
+
+Vectorized: For each v, consider all masks whose lowest set bit is v: mask = 2^v + t * 2^(v+1) for t ≥ 0, i.e., mask = (x << (v+1)) | (1 << v) for x in [0, 2^(b-v-1)). Then:
+- g[mask] = max(g[mask ^ (1<<v)], 1 + g[mask & ~closed[v]]).
+
+We can compute this with numpy: for each v (23 values), create array of masks... but the indices mask & ~closed[v] are scattered. Hmm, we can compute: masks = (np.arange(2^(b-v-1)) << (v+1)) | (1<<v). Then idx2 = masks & ~closed[v] — vectorized AND. Then g[masks] = np.maximum(g[masks ^ (1<<v)], 1 + g[idx2]). But wait — g[idx2] must already be computed. Is it? idx2 = masks & ~closed[v] — this mask has lowest bit > v? Not necessarily: closed[v] includes v itself, so idx2 doesn't contain bit v. But idx2 could contain bits lower than v? No — masks have lowest bit v (all bits below v are 0), so idx2 also has all bits below v equal to 0. And idx2 ≠ masks (bit v removed). Hmm, but is g[idx2] computed before we process v? idx2 has lowest bit ≥ v+1... wait, idx2's bits below v are 0, bit v is 0 (removed by closed), so lowest bit of idx2 is > v, i.e., idx2's bits are a subset of bits v+1..b-1. Hmm, but we process v in increasing order 0, 1, 2, .... When processing v, masks with lowest bit v — the values g[idx2] where idx2 has bits only above v... those correspond to masks we haven't processed yet in our loop order (we process v=0 first, which handles masks with lowest bit 0; masks with lowest bit 1 are processed at v=1, etc.). So g[idx2] would not yet be computed. 
+
+Fix: process v in DECREASING order: v = b-1 down to 0. When processing v, idx2 has bits only in positions > v, which were processed in earlier iterations (v+1 .. b-1 handled masks with lowest bits v+1..b-1 — but wait, does processing v=b-1 compute g for ALL masks with lowest bit b-1? Yes: masks = (x << b) | (1 << (b-1)) for x in {0} — just mask = 2^(b-1). Hmm wait, 2^(b-v-1) with v=b-1 gives 2^0 = 1, so x in {0}: just the single mask 2^(b-1). Good. Then v=b-2 handles masks with lowest bit b-2: 2 masks. Etc. And idx2 for v has bits only > v, all of which have been fully computed (all masks with any bits > v... hmm, no: idx2 could be e.g. bits {v+1, v+3}, lowest bit v+1 — processed at iteration v+1. Yes, since we go decreasing, all masks with lowest bit > v are done. idx2 has lowest bit > v (since bits ≤ v are cleared: bits < v were never set, bit v removed by closed[v]). Wait, bits < v: masks have lowest bit exactly v so bits < v are 0. Bit v: removed since closed[v] includes v. So idx2's lowest set bit is ≥ v+1. All masks with lowest bit ≥ v+1 were computed in iterations v+1, ..., b-1. 
+
+Also g[mask ^ (1 << v)] = g[mask without bit v] — that mask has lowest bit > v as well (bits < v are 0, bit v removed). Also computed. 
+
+So the vectorized DP works, processing v from b-1 down to 0. Total work: sum over v of 2^(b-v-1) = 2^b - 1 elements. With numpy, each iteration does a few array operations on arrays of size 2^(b-v-1). For b=23: v=0 processes 2^22 = 4.2M elements. Total ~8.4M element-ops across ~23 numpy calls. Each numpy op on 4M elements takes maybe 10-50ms. With ~5 ops per v, total maybe 23 * 5 * (avg time) — should be well under a second or two. 
+
+But wait — there's a subtlety: g[masks] = np.maximum(g[masks ^ lowbit], 1 + g[idx2]). The fancy indexing g[masks] = ... with masks being an array — that's fine. But g[idx2] where idx2 might contain duplicate values? idx2 values: for different x, masks differ, and idx2 = masks & ~closed[v] — could two different masks give the same idx2? masks = (x << (v+1)) | 2^v. idx2 = ((x << (v+1)) | 2^v) & ~closed[v] = (x << (v+1)) & ~closed[v] (since bit v is in closed[v]). Different x give different (x << (v+1)) & ~closed[v]? x1 ≠ x2 → x1<< (v+1) ≠ x2 << (v+1), but after AND with ~closed[v] they could coincide if they differ only in bits within closed[v]... Bits of x << (v+1) are at positions ≥ v+1. closed[v] ∩ positions ≥ v+1 = neighbors of v above v. So yes, two different x could map to the same idx2 if they differ only in neighbor-bit positions. That's fine for reading g[idx2] (fancy indexing handles duplicates). For writing g[masks] = ..., masks are all distinct, so no write conflicts. 
+
+But hold on — is the recurrence still correct when we use "1 + g[mask & ~closed[v]]" where the inner g is the MIS of the remaining graph? Yes, standard.
+
+Hmm wait, actually there's an issue: the recurrence g[mask] = max(g[mask \ {v}], 1 + g[mask \ N[v]]) — the second term requires v ∈ mask. We apply it only for masks containing v as lowest bit. Good.
+
+Memory: g as int8 array of size 2^23 = 8MB. Fine. But we also need reconstruction: given a mask, find the actual independent set. We can reconstruct greedily using g: given mask, if g[mask] == g[mask without lowest bit... hmm, we need adjB info. Reconstruction: standard — pick lowest bit v of mask; if 1 + g[mask & ~closed[v]] == g[mask], include v and recurse on mask & ~closed[v]; else recurse on mask ^ (1<<v). This is O(b) per step, O(b^2) total — trivial.
+
+Actually wait, we need to be careful: g[mask] = max(g[mask ^ (1<<v)], 1 + g[mask & ~closed[v]]) where v = lowest bit. During reconstruction, check which branch achieves the max. Fine.
+
+Now for the A side: enumerate all independent sets S of A, compute s = popcount(S) and avail = B_all \ N_B(S), then check s + g[avail] ≥ k.
+
+Enumerating all independent sets of A and their neighbor masks: worst case 2^23 = 8.4M independent sets. We need this vectorized too.
+
+Vectorized enumeration of independent sets: Hmm. One approach: 
+
+For each subset of A, determine if it's independent, and compute N_B(S). We can compute for all 2^a subsets: N_B(S) = OR of adjB_from_A[v] for v in S. There's a nice DP: NB[S] = NB[S without lowest bit] | NB_one[lowest bit]. And independent check: ind[S] = ind[S without lowest bit] and (S & adjA[lowbit] == 0)... wait, need: S is independent iff (S without v) is independent and v has no neighbors in S without v: (S & adjA[v]) == 0 where adjA[v] is neighborhood within A. Hmm, but that checks v against all of S including... S & adjA[v] — since v ∉ adjA[v] (no self loops), this checks v against other elements of S. But we also need the rest of S to be independent among themselves — captured by ind[S ^ (1<<v)] recursively. But careful: ind[S ^ (1<<v)] being independent means all pairs within S\{v} are fine, and S & adjA[v] == 0 means v is fine with everyone. So ind[S] = ind[S ^ (1<<v)] AND ((S & adjA[v]) == 0). Correct.
+
+But this DP over all 2^a masks is again sequential per mask... Vectorize similarly: process by lowest bit, v from a-1 down to 0? Let's see: NB[S] = NB[S ^ (1<<v)] | NBone[v] where v = lowest bit of S. S ^ (1<<v) has lowest bit > v. So process v decreasing: for v from a-1 down to 0, for all S with lowest bit v: NB[S] = NB[S ^ (1<<v)] | NBone[v]. And ind[S] = ind[S ^ (1<<v)] & ((S & adjA[v]) == 0). All reads from masks with lowest bit > v, already computed. 
+
+But this computes arrays of size 2^a for NB (int32 or int64 — B mask fits in 23 bits, so int32 works; but for fancy indexing into g we need int64 or convert) and ind (bool). Memory: 2^23 * 4 bytes = 33.5MB for NB (int32), 8.4MB for ind (bool). OK.
+
+Then: valid S: ind[S] is True. Among those, we need s + g[avail] ≥ k where avail = B_all ^ NB[S] (B_all = (1<<b) - 1), s = popcount(S).
+
+Vectorized: 
+- popcount of all 2^a masks: can compute via numpy. popcount array: standard trick — pc = np.zeros(2^a, dtype=np.int8); or compute with bit tricks: pc[x] = pc[x >> 1] + (x & 1) — sequential. Vectorized: pc for all masks: use the "SWAR" approach on the whole array: 
+  ```
+  pc = np.arange(2^a, dtype=np.uint64)  # hmm, 2^23 * 8 bytes = 67MB
+  ```
+  Better: build popcount via splitting: pc8 = popcount of 0..255 (small table), then pc[x] = pc8[x & 0xFF] + pc8[(x >> 8) & 0xFF] + ... For a=23: three lookups. Using numpy: x = np.arange(2^a, dtype=np.int32); pc = pc8[x & 255] + pc8[(x >> 8) & 255] + pc8[(x >> 16) & 255]. Memory: several int arrays of 8.4M * 4 bytes = 33MB each. Hmm, could be ~100-200MB total if not careful. Let's be careful with memory.
+
+Actually, alternative: we don't need popcount of all masks — only of independent sets. But computing for all is simpler.
+
+Hmm, wait. Let me reconsider: maybe there's a way to avoid enumerating all 2^a subsets of A. 
+
+Alternative approach: enumerate independent sets of A only (not all subsets). The number of independent sets can still be 2^23 in the worst case (empty graph on A). But in the empty-graph-on-A case... hmm, the adversary controls the graph. Worst case for total work is what matters. With numpy, 2^23 element operations are fast (~50-100ms per op). So even the full 2^a enumeration is fine.
+
+Let me now think about total memory:
+- g: 2^b int8 = 8.4MB.
+- NB: 2^a int32 = 33.5MB (or we could use int64 for direct indexing: 67MB — better to use int32 and convert on the fly, or use take with int32? np.take supports int32 indices? Fancy indexing with int32 arrays works fine in numpy).
+- ind: 2^a bool = 8.4MB.
+- pc: 2^a int8 = 8.4MB.
+- Temporary arrays during computation: a few arrays of 8.4M elements.
+
+Total maybe 100-150MB. Should fit in 256MB if careful. Hmm, but numpy operations create temporaries. Let me think about how to structure to minimize peak memory.
+
+Actually, wait. Let me reconsider the problem size. n ≤ 46. But maybe there's a smarter approach that avoids the full 2^23 enumeration on the A side.
+
+Alternative: Instead of enumerating all independent sets of A, we can do the classic "meet in the middle with sorted lists" — but that still requires enumerating independent sets of both halves.
+
+Hmm, actually, there's another well-known approach for this exact problem (it's from some contest — "n ≤ 46, find independent set of size k"). I recall this is from Codeforces... "Stable Payload Deployment" seems like a renamed problem. n ≤ 46 suggests meet-in-the-middle. Actually I recall a problem: CF 1105E? No. Hmm, "Helping People"? No. There's a known technique for maximum independent set with n ≤ 40ish using split + enumerate independent sets in one half + DP over subsets in the other.
+
+Actually, I recall this might be from a recent contest where the intended solution is: split into two halves, enumerate all independent sets in the first half (with their sizes and forbidden masks in second half), and for the second half precompute f[mask] = max independent set size using mask. Then combine. The number of independent sets in a half is at most... well, 2^23. But with numpy it's manageable.
+
+Alternatively, there's a neat trick: we don't need to enumerate independent sets of A explicitly as a list; we can compute arrays over all 2^a masks (ind, NB, pc) and then vectorize the check.
+
+Let me now also think: can we reduce by choosing the split wisely? E.g., put vertices with high degree in A? The number of independent sets in A is at most product over... hmm. Actually, a common optimization: order vertices so that the halves are balanced in terms of independent set counts. But worst case remains 2^23 each. Let's just handle worst case with numpy.
+
+Actually hold on, let me reconsider. Is there an approach with better worst-case? The maximum independent set problem for n=46... Meet-in-the-middle is the standard. 2^23 = 8,388,608. With numpy vectorization, each pass over 8.4M elements is fast. Let's design carefully.
+
+Let me define:
+- Vertices 0..n-1 (0-indexed internally).
+- Split: A = first h vertices, B = rest, where h = n // 2 (so a = h ≤ 23, b = n - h ≤ 23). For n = 46: a = 23, b = 23. For n = 45: a = 22, b = 23. Etc.
+
+Hmm, actually to balance 2^a and 2^b, we want a and b as equal as possible: a = n // 2, b = n - a. For n=46: 23, 23. Good.
+
+But actually, the A-side work is 2^a and B-side is 2^b; both ~2^23 max. Fine.
+
+Edge case: k could be small; also if k = 1 and n ≥ 1, always YES (any single vertex). If k ≤ some easy threshold... not needed, general algorithm handles it.
+
+Special cases to speed up / simplify:
+- If m == 0: answer YES with first k vertices.
+- If k == 1: YES with vertex 1.
+These are trivial but the general algorithm handles them too (g DP would give g[avail] = popcount stuff...). Actually with m=0, the A-side enumeration: all 2^23 subsets independent — fine, the algorithm works. But let's include early exits for safety? The general algorithm should handle everything; early exits just reduce risk. Let me include: if k == 1: print YES and vertex 1. If m == 0: print YES and 1..k. Also if n... hmm, also there's the independence number lower bound: any graph has an independent set of size ≥ n^2/(2m+n) (Caro-Wei / Turán). If k ≤ that bound, answer is YES but we still need to construct... construction isn't trivial from the bound. Caro-Wei gives a constructive greedy: sum 1/(d(v)+1) ≥ α. Greedy: repeatedly pick vertex of min degree, remove it and its neighbors. That gives an independent set of size ≥ sum 1/(d+1) over... hmm, actually the greedy that picks min-degree vertex achieves at least sum over the greedy order... The Caro-Wei bound: α ≥ Σ 1/(d(v)+1). And a greedy algorithm achieves it? The standard proof of Caro-Wei is via random orderings, but there's a greedy that achieves Σ 1/(d(v)+1)? Hmm, the bound Σ_v 1/(d(v)+1) ≤ α, and greedy min-degree achieves at least... I think greedy achieves at least (1/2)Σ... not exactly. Let me not rely on it for construction; but I could use it as a quick YES check... no, we need construction anyway. Skip.
+
+Hmm, but wait: there's a risk with the meet-in-the-middle: the A-side check "exists independent S ⊆ A with |S| + g[B \ N_B(S)] ≥ k". This is complete: any independent set of the whole graph of size k splits into S (in A) and T (in B), T independent in B and T ∩ N_B(S) = ∅, so |T| ≤ g[B_all \ N_B(S)], and |S| + |T| = k means g[B_all \ N_B(S)] ≥ k - |S|. Conversely, if such S exists with s + g[avail] ≥ k, we can construct exactly k. So the algorithm is correct and complete.
+
+Now, implementation details with numpy:
+
+Step 0: Parse input. n, m, k. Edges list. Build adjacency bitmasks: full_adj[v] (over all n vertices), adjA[v] (within A), NBone[v] = neighbors of v that are in B (as a B-bitmask).
+
+Step 1: B-side DP.
+b = n - h. If b == 0 (n=1? then h=0... let's handle: h = n//2; if n=1, h=0, a=0, b=1). Edge cases with a=0 or b=0 need care.
+
+g = np.zeros(1 << b, dtype=np.int8) if b > 0 else array([0]).
+
+For v in range(b-1, -1, -1):
+    cnt = 1 << (b - v - 1)  # number of masks with lowest bit v
+    masks = (np.arange(cnt, dtype=np.int64) << (v+1)) | (1 << v)  # hmm, wait: masks with lowest bit exactly v are: bit v set, bits < v clear, bits > v arbitrary. So masks = (x << (v+1)) | (1<<v) for x in [0, 2^(b-v-1)). Yes.
+    without_v = masks ^ (1 << v)  # = x << (v+1)
+    rest = masks & ~closedB[v]  # closedB[v] = adjB[v] | (1 << v)
+    g[masks] = np.maximum(g[without_v], g[rest] + 1)
+
+Wait, but g[without_v]: without_v = x << (v+1), which has lowest bit ≥ v+1 — computed in previous iterations. g[rest]: rest has bits only ≥ v+1 — computed. Good.
+
+Hmm, but note: g[without_v] where without_v ranges over all multiples of 2^(v+1) — these are masks with bits < v+1 all clear. All such masks were computed in iterations v+1..b-1? Iteration v' handles masks with lowest bit exactly v'. Masks with all bits < v+1 clear have lowest bit ≥ v+1 (or are 0). Yes, all computed. 
+
+Memory concern: masks, without_v, rest arrays of size up to 2^22 (v=0) int64 = 33.5MB each. Three such arrays = 100MB. Plus g (8.4MB). Hmm, that's a lot but might be OK. We can reduce: use int32 for masks (b ≤ 23 < 31, so int32 suffices for masks). Then arrays are 16.8MB each. Fancy indexing with int32 works. Let's use int32 where possible. Actually for v=0: cnt = 2^22 = 4.19M, int32 = 16.8MB per array. We create masks (16.8MB), without_v (16.8MB), rest (16.8MB), then g[without_v] (4.2MB int8), g[rest] (4.2MB), max result (4.2MB). Peak ~60MB. OK.
+
+Actually, we can avoid creating without_v separately: without_v = masks - (1 << v) = masks ^ (1<<v). We can compute in place-ish. Let's just write straightforward code and delete temporaries.
+
+Alternatively, restructure: note masks = x << (v+1) | (1<<v), without_v = x << (v+1). So:
+    x = np.arange(cnt, dtype=np.int32) << (v+1)   # this is without_v
+    rest = (x | (1<<v)) & notclosed  where notclosed = ~closedB[v] (as int32 with all high bits... careful with int32 and ~: ~closedB[v] in int32 — closedB[v] fits in 23 bits, positive; ~closedB[v] in two's complement int32 = -(closedB[v]+1), which as bit pattern is 111...111 followed by complement of closedB[v]. AND with positive int32 masks: numpy bitwise_and on int32 uses two's complement bit patterns, so (x | bit) & ~closed works correctly on the low 23 bits. Yes, bitwise ops on signed ints operate on two's complement patterns, so it's fine.)
+    g[x | (1<<v)] = np.maximum(g[x], g[rest] + 1)
+
+Hmm wait, g[x] — x here = without_v. And we need g[masks] = max(g[without_v], 1 + g[rest]). So:
+    vals = np.maximum(g[x], g[rest] + 1)  # hmm, g[rest] is int8, +1 → int8? g[rest]+1 could overflow if g=127? No, g ≤ 23. Fine. But numpy int8 + python int → int8? It might upcast... g[rest] + 1 where 1 is Python int: result dtype int8 (value-based casting in older numpy; in numpy 2.0, python int → weak scalar, stays int8). Max value 23+1=24 < 127. Fine.
+    g[x | (1 << v)] = vals
+
+But careful: x | (1<<v) creates another array. Alternatively precompute masks = x | (1<<v) once and use masks for writing, x for reading. Let me just write it clearly.
+
+Actually, simpler: masks = np.arange(cnt, dtype=np.int32); masks <<= (v+1); masks |= (1<<v) — now masks is the array of masks with lowest bit v. Then:
+    without = masks ^ (1 << v)  # or masks - (1<<v)
+    rest = masks & inv_closed  # inv_closed = ~closedB[v] & ((1<<b)-1) to be safe, as int32
+    g[masks] = np.maximum(g[without], g[rest] + 1)
+
+Hmm, but there's a subtle issue: g[masks] = ... — assignment via fancy indexing. masks are unique, fine.
+
+Wait, actually there's an even simpler formulation avoiding the "lowest bit" structure: 
+
+g[m] for all m: g[m] = max(g[m & (m-1)], 1 + g[m & ~closed[lowest_bit_index(m)]]).
+
+The lowest-bit structure is what I described. Fine.
+
+Alternatively, a different DP: f[mask] = MIS of induced subgraph on mask. Another recurrence: f[mask] = f[mask without highest bit] or 1 + f[mask without closed[highest]]... same thing.
+
+OK the B-side is fine. Let me estimate time: total elements processed = Σ_v 2^(b-v-1) = 2^b - 1 ≈ 8.4M. Each element involves: shift/or to build masks (2 ops), xor (1), and-with-scalar (1), two fancy-index reads (g[without], g[rest]) — fancy indexing is slower, maybe 50-100ns per element → 8.4M * 2 reads * ~60ns ≈ 1 second. Plus the write g[masks] = ... another fancy write ~0.5s. Plus arithmetic. Total maybe 2-3 seconds for b=23. Hmm, that's cutting close with 5s limit, but Python overhead is amortized (only 23 iterations of the loop, each a few numpy calls on big arrays). Let me estimate more carefully:
+
+For v=0: cnt = 2^22 = 4.19M. Operations:
+- np.arange(4.19M, int32): ~10ms
+- <<= 1: ~5ms
+- |= 1: ~5ms
+- masks ^ 1: ~5ms (creates 16.8MB array)
+- masks & inv: ~5ms
+- g[without]: fancy index read of 4.19M int8 elements: ~30-60ms
+- g[rest]: ~30-60ms
+- rest+1, maximum: ~10ms
+- g[masks] = vals: fancy write: ~30-60ms
+Total for v=0: ~150-250ms. For all v: sum is 2x the v=0 cost roughly (since sizes halve each time, total = 2 * cost(v=0) plus per-call overhead * 23). So ~300-500ms. 
+
+But wait — fancy indexing with int32 indices: numpy converts index arrays to intp (int64) internally, which involves allocation and conversion... That adds overhead but still fine.
+
+Hmm, actually, I realize there might be an issue with fancy indexing performance: g[without] where without = x << 1 for x in arange — these are strided! without = 2*x, i.e., indices 0, 2, 4, 6, .... Fancy indexing with a strided-but-contiguous index array — numpy can't exploit that; it does a general take. np.take might be faster. Alternatively, note g[without] where without = x << (v+1): we could instead read g at even positions... but general take is fine.
+
+Actually, here's a much better idea for the read g[without]: since without = x << (v+1) is just g reshaped! g viewed as array of shape (cnt, 2^(v+1)) — g[without] for x in 0..cnt-1 picks element x * 2^(v+1) + 0, i.e., the first column of the reshape: g.reshape(cnt, 1 << (v+1))[:, 0] — that's a strided read, very fast. Similarly the write g[masks] = vals where masks = x*2^(v+1) + 2^v: that's column 2^v of the reshape: g.reshape(cnt, 1<<(v+1))[:, 2^v] = vals — strided write, fast. Only g[rest] needs a general take. 
+
+So:
+    block = 1 << (v+1)
+    cnt = 1 << (b - v - 1)
+    gv = g.reshape(cnt, block)  # view, no copy
+    without_vals = gv[:, 0]  # strided view — but reading gv[:,0] as operand in np.maximum creates a copy anyway (fine, it's small: cnt elements)
+    rest = masks & inv_closed  # need masks array... 
+
+Hmm, to compute rest I still need the masks array. masks = x*block + 2^v. Let me just build masks via arange. Or: rest = (x << (v+1)) | ... hmm, rest = masks & ~closed[v] = (x << (v+1) | 2^v) & ~closed[v] = (x << (v+1)) & ~closed[v] (since 2^v & ~closed[v] = 0 as closed[v] ∋ v). So rest = (x << (v+1)) & inv_closed where inv_closed = ~closedB[v]. So I need x << (v+1) anyway. Fine:
+
+    x = np.arange(cnt, dtype=np.int64) << (v+1)  # or int32
+    rest = x & inv_closed_v
+    vals = np.maximum(gv[:, 0], g[rest] + 1)  # hmm, gv[:,0] is a view with stride; np.maximum handles it.
+    gv[:, 2^v] = vals
+
+Wait, but careful: gv[:, 0] — is that g[without]? without = x << (v+1) = x * block. g[x * block] = gv[x, 0]. Yes. And g[masks] = g[x*block + 2^v] = gv[x, 2^v]. 
+
+But hold on: writing gv[:, 2^v] = vals — vals computed from gv[:, 0] and g[rest]. No aliasing issues since column 2^v ≠ column 0 (v ≥ 0 → 2^v ≥ 1). Good.
+
+This avoids two of the three fancy-index operations. Only g[rest] (np.take) remains: 8.4M total take operations across all v. np.take on int8 array with int64 indices: maybe 40-80ms per 4M. Total ~200ms. 
+
+Also note: for the take, indices must be within [0, 2^b). rest ⊆ masks ⊆ [0, 2^b). Good.
+
+Hmm, one more consideration: when v = b-1, block = 2^b, cnt = 1. Trivial. When b = 0: skip DP, g = array of size 1 with g[0] = 0.
+
+Step 2: A-side.
+
+We need, for all subsets S of A (or at least all independent ones): pc[S] + g[B_all ^ NB[S]] ≥ k, where NB[S] = union of NBone[v] for v ∈ S.
+
+Compute arrays over all 2^a masks:
+- NB[mask]: as described, NB[mask] = NB[mask ^ lowbit] | NBone[lowbit]. Vectorized by lowest-bit structure, v from a-1 down to 0:
+    For masks with lowest bit v: NB[mask] = NB[mask ^ (1<<v)] | NBone[v].
+    mask ^ (1<<v) = x << (v+1) → column 0 of reshape. Write to column 2^v.
+    So: NBv = gv[:, 0] | NBone_v; gv[:, 2^v] = NBv. Where gv = NB.reshape(cnt, block).
+    Wait: NB[mask] = NB[mask without v] | NBone[v]. mask without v = x*block. So NB[x*block + 2^v] = NB[x*block] | NBone[v]. Yes: gv[:, 2^v] = gv[:, 0] | NBone[v]. 
+
+- ind[mask] (bool): ind[mask] = ind[mask ^ (1<<v)] AND (mask & adjA[v] == 0). mask & adjA[v]: mask = x*block + 2^v; (x*block + 2^v) & adjA[v] — adjA[v] has bits < v possibly (neighbors of v within A with smaller index) and bits > v. Hmm, mask & adjA[v] = ((x << (v+1)) | (1<<v)) & adjA[v] = ((x << (v+1)) & adjA[v]) | ((1<<v) & adjA[v]) — (1<<v) & adjA[v] = 0 (no self-loop). So mask & adjA[v] = (x << (v+1)) & adjA[v]. So the condition is ((x << (v+1)) & adjA[v]) == 0. So:
+    indv = gv_ind[:, 0] & (((x << (v+1)) & adjA_v) == 0)
+    gv_ind[:, 2^v] = indv
+  where x << (v+1) is the same array as before (without-v masks). Note (x << (v+1)) & adjA[v] — we need the x array again. We can reuse.
+
+  Hmm wait, but actually we could simplify: instead of a separate ind array, note that we could combine: we only care about independent sets. Alternatively, we can compute "valid" differently: an S is independent iff for all v ∈ S: S & adjA[v] == 0... The DP above is correct.
+
+  Actually, here's a cleaner alternative: compute for each mask the count of "conflicts"? No, the DP is fine.
+
+- pc[mask]: popcount. Vectorized: pc = pc8[mask & 0xFF] + pc8[(mask >> 8) & 0xFF] + pc8[(mask >> 16) & 0xFF] for a ≤ 24. Using np.take with int arrays. Or build via the same lowest-bit DP: pc[mask] = pc[mask ^ (1<<v)] + 1 → gv_pc[:, 2^v] = gv_pc[:, 0] + 1. That's elegant — same structure, no extra arrays needed beyond the loop. But it's another 8.4M-element DP pass. Alternatively the table-lookup approach: 3 takes over 8.4M elements. Either fine. Actually the reshape trick makes the DP approach very cheap: per v, operations on cnt elements. Total 2^a elements * few ops. Let's do the DP approach for uniformity... or actually, simpler: compute pc via np.unpackbits? pc = np.unpackbits(mask_bytes).reshape(-1, 4 or 8).sum(axis=1)? Hmm: view masks as uint8 array: mv = np.arange(2^a, dtype=np.uint32).view(np.uint8).reshape(-1, 4) — little-endian: byte 0 = bits 0-7, etc. Then pc = np.unpackbits(mv, axis=1).sum(axis=1)? unpackbits gives (cnt, 4*8) bits; sum along axis 1 gives popcounts. That's 8.4M * 32 bits = 268M bit-ops... unpackbits creates a 268MB array! Too much memory. No.
+
+  Better: pc8 = np.array([bin(i).count('1') for i in range(256)], dtype=np.int8). Then:
+    idx = np.arange(2^a, dtype=np.int32)  # hmm, need this anyway? 
+    pc = pc8[idx & 255].astype(np.int8) + pc8[(idx >> 8) & 255] + pc8[(idx >> 16) & 255]
+  Three takes + arithmetic on 8.4M arrays: ~100-200ms, memory ~50MB temp. OK. Or the DP approach: per v: gv_pc[:, 2^v] = gv_pc[:, 0] + 1 — that's a strided read (copy), add, strided write. Total elements 2^a. ~50ms total. Cheaper. Let's do DP.
+
+  Actually, we can even fold pc into the same loop as NB and ind! For each v: read column 0 of NB, ind, pc arrays; compute; write column 2^v. Nice.
+
+Then the final check: find any mask S with ind[S] and pc[S] + g[B_all ^ NB[S]] ≥ k.
+
+Vectorized: 
+    avail = B_all ^ NB  (elementwise XOR with scalar — NB

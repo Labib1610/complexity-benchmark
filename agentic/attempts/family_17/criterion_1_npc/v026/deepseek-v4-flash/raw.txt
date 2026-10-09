@@ -1,0 +1,154 @@
+<think>
+write the solution.
+</think>
+We need to select exactly q reactions from the given t, such that every cluster from 1 to 3q is used exactly once. This is a perfect matching problem on a 3-uniform hypergraph.
+
+We can model it as an exact cover problem and solve with backtracking + bitmask DP, but q ≤ 200 means 3q ≤ 600, so bitmask over all clusters is impossible. Instead, we can use a recursive backtracking with pruning, or reduce to a flow/matching problem.
+
+A known approach: Since each reaction uses 3 clusters, we can treat it as a 3D matching problem. But general 3D matching is NP-hard. However, here the clusters are just numbers 1..3q, and we need to partition them into triples from the given list. This is exactly the "exact cover" problem, which is NP-complete in general.
+
+But constraints: q ≤ 200, t ≤ 20000. We need an efficient exact cover solver. We can use Algorithm X (Dancing Links) or a backtracking with heuristics. Since 3q ≤ 600, and each reaction is a triple, we can implement a recursive search with:
+
+- Choose the cluster with the fewest available reactions containing it.
+- Try each such reaction, remove all clusters in it, and recurse.
+
+We also need to output the selected reactions.
+
+Let's implement a backtracking with bitmask for clusters (600 bits fits in Python int). We'll maintain a list of reactions, and for each cluster, a list of reaction indices that contain it. We'll also maintain a bitmask of used clusters.
+
+We'll use recursion with memoization? Not needed if we prune well. But worst-case could be large. However, with q=200 and t=20000, the search space might be huge. But we can use heuristics: always pick the cluster with the fewest candidate reactions. Also, we can precompute for each reaction its bitmask.
+
+We'll also need to output the reactions in any order.
+
+Let's write the code.
+
+We'll read input, store reactions as tuples (a,b,c) and also as bitmask. For each cluster, store list of reaction indices.
+
+Then recursive function:
+
+def dfs(used_mask, selected):
+    if used_mask == full_mask: return True
+    # find cluster with fewest available reactions
+    best_cluster = None
+    best_count = large
+    for cluster in range(1, 3q+1):
+        if not (used_mask >> (cluster-1)) & 1:
+            cnt = 0
+            for idx in cluster_to_reactions[cluster]:
+                if not (used_mask & reaction_masks[idx]):
+                    cnt += 1
+            if cnt == 0: return False
+            if cnt < best_count:
+                best_count = cnt
+                best_cluster = cluster
+                if cnt == 1: break
+    # try each reaction for best_cluster
+    for idx in cluster_to_reactions[best_cluster]:
+        if used_mask & reaction_masks[idx]: continue
+        # choose this reaction
+        selected.append(idx)
+        if dfs(used_mask | reaction_masks[idx], selected):
+            return True
+        selected.pop()
+    return False
+
+We need to be careful with recursion depth: q up to 200, so depth 200 is fine.
+
+But the branching factor could be large. However, with the "fewest candidates" heuristic, it often works well. Also, we can sort reactions by some order.
+
+We also need to output the actual clusters, not indices.
+
+Let's implement.
+
+Potential issue: The number of reactions per cluster could be up to t, but t=20000, so scanning all reactions for each cluster each time could be heavy. We can precompute for each cluster a list of reaction indices, and when checking availability, we can test bitmask.
+
+We can also maintain a list of available reactions for each cluster dynamically? But simpler: just check bitmask.
+
+We'll also add a quick check: if any cluster has zero reactions, return NO.
+
+Let's code.
+
+We'll use sys.stdin.read().split() for fast input.
+
+Edge cases: t=0, q>=1 => NO.
+
+Let's```python
+import sys
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    q = int(next(it))
+    t = int(next(it))
+    n = 3 * q
+
+    reactions = []
+    reaction_masks = []
+    cluster_to_reactions = [[] for _ in range(n + 1)]
+
+    for idx in range(t):
+        a = int(next(it))
+        b = int(next(it))
+        c = int(next(it))
+        reactions.append((a, b, c))
+        mask = (1 << (a - 1)) | (1 << (b - 1)) | (1 << (c - 1))
+        reaction_masks.append(mask)
+        cluster_to_reactions[a].append(idx)
+        cluster_to_reactions[b].append(idx)
+        cluster_to_reactions[c].append(idx)
+
+    full_mask = (1 << n) - 1
+
+    # Quick check: every cluster must appear in at least one reaction
+    for cluster in range(1, n + 1):
+        if not cluster_to_reactions[cluster]:
+            print("NO")
+            return
+
+    selected = []
+
+    def dfs(used_mask):
+        if used_mask == full_mask:
+            return True
+
+        # Find the unused cluster with the fewest available reactions
+        best_cluster = -1
+        best_count = 10**9
+        for cluster in range(1, n + 1):
+            if (used_mask >> (cluster - 1)) & 1:
+                continue
+            cnt = 0
+            for idx in cluster_to_reactions[cluster]:
+                if not (used_mask & reaction_masks[idx]):
+                    cnt += 1
+            if cnt == 0:
+                return False
+            if cnt < best_count:
+                best_count = cnt
+                best_cluster = cluster
+                if cnt == 1:
+                    break
+
+        # Try each reaction containing this cluster
+        for idx in cluster_to_reactions[best_cluster]:
+            if used_mask & reaction_masks[idx]:
+                continue
+            selected.append(idx)
+            if dfs(used_mask | reaction_masks[idx]):
+                return True
+            selected.pop()
+        return False
+
+    if dfs(0):
+        print("YES")
+        for idx in selected:
+            a, b, c = reactions[idx]
+            print(a, b, c)
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()
+```

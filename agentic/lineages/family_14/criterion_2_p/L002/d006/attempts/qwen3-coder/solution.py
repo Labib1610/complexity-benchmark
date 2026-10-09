@@ -1,0 +1,78 @@
+import sys
+from collections import defaultdict
+import heapq
+
+def find(parent, x):
+    if parent[x] != x:
+        parent[x] = find(parent, parent[x])
+    return parent[x]
+
+def union(parent, rank, x, y):
+    px, py = find(parent, x), find(parent, y)
+    if px == py:
+        return False
+    if rank[px] < rank[py]:
+        px, py = py, px
+    parent[py] = px
+    if rank[px] == rank[py]:
+        rank[px] += 1
+    return True
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    idx = 0
+    n = int(data[idx])
+    m = int(data[idx+1])
+    t = int(data[idx+2])
+    idx += 3
+    
+    focal = set()
+    for _ in range(t):
+        focal.add(int(data[idx]) - 1)
+        idx += 1
+    
+    edges = []
+    for _ in range(m):
+        u = int(data[idx]) - 1
+        v = int(data[idx+1]) - 1
+        w = int(data[idx+2])
+        idx += 3
+        edges.append((w, u, v))
+    
+    if t <= 1:
+        print(0)
+        return
+    
+    # Make a copy of focal set for modification
+    needed = focal.copy()
+    
+    # Sort edges by weight
+    edges.sort()
+    
+    # Initialize DSU
+    parent = list(range(n))
+    rank = [0] * n
+    
+    total_cost = 0
+    
+    # First, connect all focal vertices
+    for w, u, v in edges:
+        if find(parent, u) != find(parent, v):
+            union(parent, rank, u, v)
+            total_cost += w
+            if u in needed:
+                needed.discard(u)
+                needed.discard(v)
+            elif v in needed:
+                needed.discard(u)
+                needed.discard(v)
+            if len(needed) <= 1:
+                break
+    
+    print(total_cost)
+
+if __name__ == "__main__":
+    main()

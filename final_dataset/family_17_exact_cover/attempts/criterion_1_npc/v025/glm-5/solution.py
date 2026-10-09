@@ -1,0 +1,66 @@
+import sys
+
+def solve():
+    input = sys.stdin.read().split()
+    if not input:
+        return
+    it = iter(input)
+    try:
+        q = int(next(it))
+        t = int(next(it))
+    except StopIteration:
+        return
+
+    n = 3 * q
+    
+    paths = []
+    for _ in range(t):
+        a = int(next(it))
+        b = int(next(it))
+        c = int(next(it))
+        paths.append((a, b, c))
+    
+    # Bitmask representation for sets of size 3
+    bitmask_to_path = {}
+    for path in paths:
+        mask = (1 << (path[0] - 1)) | (1 << (path[1] - 1)) | (1 << (path[2] - 1))
+        bitmask_to_path[mask] = path
+    
+    available_masks = list(bitmask_to_path.keys())
+    
+    full_mask = (1 << n) - 1
+    
+    memo = {}
+    
+    def dp(current_mask):
+        if current_mask == full_mask:
+            return []
+        
+        if current_mask in memo:
+            return None
+        
+        # Pruning: if current_mask has exactly 2 bits set, it's impossible to complete with triplets
+        if bin(current_mask).count('1') % 3 == 2:
+            memo[current_mask] = None
+            return None
+        
+        for mask in available_masks:
+            if (current_mask & mask) == 0:
+                res = dp(current_mask | mask)
+                if res is not None:
+                    return [bitmask_to_path[mask]] + res
+        
+        memo[current_mask] = None
+        return None
+
+    result = dp(0)
+    
+    if result is not None:
+        print("YES")
+        for p in result:
+            print(p[0], p[1], p[2])
+    else:
+        print("NO")
+
+if __name__ == '__main__':
+    solve()

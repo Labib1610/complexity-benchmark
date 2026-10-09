@@ -1,0 +1,46 @@
+import sys
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    j = int(data[0])
+    batches = []
+    index = 1
+    for i in range(j):
+        p1 = int(data[index])
+        p2 = int(data[index+1])
+        batches.append((p1, p2))
+        index += 2
+    
+    # Sort batches by p1 - p2
+    # If p1 - p2 < 0, it's better to process earlier (more negative)
+    # If p1 - p2 > 0, it's better to process later (more positive)
+    # This is Johnson's rule for F2||C_max
+    batches.sort(key=lambda x: x[0] - x[1])
+    
+    # Now compute the minimum T using the given formula
+    # T = max_{1 <= k <= j} (sum_{i=1}^k X_i + sum_{i=k}^j Y_i)
+    
+    # Precompute prefix sums of X (Phase A times)
+    prefix_X = [0] * (j + 1)
+    for i in range(j):
+        prefix_X[i+1] = prefix_X[i] + batches[i][0]
+    
+    # Precompute suffix sums of Y (Phase B times)
+    suffix_Y = [0] * (j + 1)
+    for i in range(j-1, -1, -1):
+        suffix_Y[i] = suffix_Y[i+1] + batches[i][1]
+    
+    # Compute the maximum of prefix_X[k] + suffix_Y[k] for k = 1 to j
+    min_T = 0
+    for k in range(1, j+1):
+        T_k = prefix_X[k] + suffix_Y[k]
+        if T_k > min_T:
+            min_T = T_k
+    
+    print(min_T)
+
+if __name__ == "__main__":
+    main()

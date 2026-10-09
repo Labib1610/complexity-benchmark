@@ -1,0 +1,306 @@
+**Solution Explanation**
+
+The problem is exactly a *3‑SAT* instance:
+
+* variables – the `n` valves (`True` = open, `False` = closed)  
+* clauses – the `m` monitors, each is a disjunction of three literals  
+  (`x`  means valve `x` must be open, `-x` means valve `x` must be closed)
+
+We have to decide whether the formula is satisfiable and, if it is, output one
+satisfying assignment.
+
+`n ≤ 90 , m ≤ 400` – small enough for a classic DPLL back‑tracking algorithm
+with unit propagation.
+
+--------------------------------------------------------------------
+
+#### 1.   Data structures
+
+* `clauses` – list of lists, each inner list contains three integers
+  (`+i` or `-i`).
+* `assign` – dictionary `var → bool` (only assigned variables are stored).
+
+During recursion we keep a *stack* of changes so that we can backtrack
+efficiently:
+
+```text
+trail : list of (var, previous_value_or_None)
+```
+
+When a variable gets a new value we push `(var, old)` onto the trail.
+Undoing a decision simply pops the trail until a saved checkpoint.
+
+--------------------------------------------------------------------
+
+#### 2.   Unit propagation
+
+A clause becomes **unit** when all but one of its literals are already false
+and the remaining literal is unassigned – then that literal must be true.
+If a clause becomes empty (all three literals false) we have a conflict.
+
+Propagation algorithm:
+
+```
+queue ← all unit literals currently present
+while queue not empty:
+        lit = queue.pop()
+        var = abs(lit)
+        val = (lit > 0)
+        if var already assigned:
+                if assign[var] != val: conflict
+                else continue
+        assign var = val   (record on trail)
+        for every clause containing var:
+                recompute its status
+                if it becomes unit → push the new unit literal
+                if it becomes empty → conflict
+```
+
+To avoid scanning all clauses each time we simply iterate over the whole list –
+`m ≤ 400`, so the O(m·n) overhead is negligible.
+
+The propagation routine returns `True` if no conflict was found, otherwise
+`False`.
+
+--------------------------------------------------------------------
+
+#### 3.   DPLL recursion
+
+```
+def dpll():
+        if all variables assigned:   return True
+        if not propagate():          return False
+
+        choose an unassigned variable v
+        for value in [True, False]:
+                checkpoint = len(trail)
+                assign v = value
+                if dpll(): return True
+                undo to checkpoint
+        return False
+```
+
+The first call starts with an empty assignment and an empty trail.
+If `dpll()` finishes with success we have a complete satisfying assignment.
+
+Heuristics: we simply pick the first unassigned variable – more sophisticated
+choices are unnecessary for the given limits.
+
+--------------------------------------------------------------------
+
+#### 4.   Correctness Proof  
+
+We prove that the algorithm prints `YES` and a correct assignment iff such an
+assignment exists.
+
+---
+
+##### Lemma 1 (Soundness of propagation)
+
+During propagation, whenever a unit clause `ℓ₁ ∨ ℓ₂ ∨ ℓ₃` has exactly one
+unassigned literal `ℓ`, the algorithm assigns the variable of `ℓ` so that
+`ℓ` becomes true.  
+If a clause becomes empty, the algorithm reports a conflict.
+
+*Proof.* By definition of a unit clause all other literals are false under the
+current partial assignment. To satisfy the clause the remaining literal must be
+true, therefore the algorithm forces exactly that assignment. If all three
+literals are false, the clause is unsatisfied under the current partial
+assignment, i.e. a conflict. ∎
+
+
+
+##### Lemma 2 (Preservation of satisfiability)
+
+If the current partial assignment `α` can be extended to a full satisfying
+assignment, then after a successful propagation step the new partial
+assignment `α'` (α plus all forced assignments) can also be extended to a
+full satisfying assignment.
+
+*Proof.* Propagation only adds assignments that are forced by Lemma&nbsp;1:
+any full satisfying assignment must make each unit clause true, therefore it
+must assign the forced variable exactly as propagation does. Hence every
+extension of `α` to a satisfying total assignment is also an extension of
+`α'`. ∎
+
+
+
+##### Lemma 3 (Conflict detection)
+
+If propagation reports a conflict, then **no** extension of the current
+partial assignment can satisfy all clauses.
+
+*Proof.* A conflict means some clause is empty, i.e. all its literals are false
+under the current partial assignment. Any extension keeps those literals false,
+so the clause stays unsatisfied. Hence no total assignment extending the current
+partial one can satisfy the formula. ∎
+
+
+
+##### Lemma 4 (Completeness of the search)
+
+If a satisfying total assignment exists, the recursive DPLL procedure will
+eventually reach a leaf where all variables are assigned and will return success.
+
+*Proof.* Consider a satisfying assignment `σ`.  
+At each recursive call the algorithm first performs propagation, which by
+Lemma&nbsp;2 keeps `σ` compatible with the current partial assignment.
+If propagation does not conflict, the algorithm picks an unassigned variable
+`v`. Since `σ` assigns a value to `v`, one of the two branches (trying `v`
+true or false) matches `σ`. The algorithm explores both branches; therefore the
+branch matching `σ` is eventually taken. Repeating the argument for the next
+variable, the recursion follows a path that exactly mirrors `σ` and reaches a
+leaf where all variables equal `σ`. Hence success is found. ∎
+
+
+
+##### Lemma 5 (Soundness of the search)
+
+If the algorithm returns success, the produced assignment satisfies every
+clause.
+
+*Proof.* Success is reported only when all variables are assigned and no
+conflict was ever detected. By Lemma&nbsp;3 a conflict would imply an unsatisfied
+clause, which never happened. Therefore every clause contains at least one
+true literal under the final assignment, i.e. the assignment satisfies the
+formula. ∎
+
+
+
+##### Theorem (Overall correctness)
+
+The program outputs  
+
+* `NO` **iff** the given instance is unsatisfiable,  
+* otherwise `YES` followed by a satisfying assignment.
+
+*Proof.*  
+
+*If part*: If the program prints `YES` it has returned success from DPLL.
+By Lemma&nbsp;5 the printed assignment satisfies all clauses, therefore the
+instance is satisfiable.
+
+*Only‑if part*: If the instance is satisfiable, Lemma&nbsp;4 guarantees that DPLL
+will eventually find a satisfying total assignment and return success, so the
+program prints `YES`. If the instance is unsatisfiable, any branch either
+conflicts during propagation (Lemma&nbsp;3) or reaches a dead end; consequently
+DPLL returns failure and the program prints `NO`. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### 5.   Complexity Analysis  
+
+*Let* `n` be the number of variables ( ≤ 90 ), `m` the number of clauses ( ≤ 400 ).
+
+*Propagation* scans all clauses, each of size 3 → `O(m)` time.
+
+In the worst case DPLL explores the full binary tree of depth `n`:
+`O(2^n)` nodes, each doing `O(m)` work → exponential, which is inevitable for
+3‑SAT.  
+
+For the given limits the search space is tiny; in practice propagation prunes
+the tree heavily and the program runs well within the 2 s limit.
+
+Memory usage: the clause list (`O(m)`) plus the trail (`O(n)`) → `O(n+m)`.
+
+--------------------------------------------------------------------
+
+#### 6.   Reference Implementation  (Python 3)
+
+```python
+import sys
+
+sys.setrecursionlimit(10000)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    clauses = []
+    for _ in range(m):
+        c = [int(next(it)), int(next(it)), int(next(it))]
+        clauses.append(c)
+
+    assign = {}          # var -> bool
+    trail = []           # list of (var, old_value_or_None)
+
+    # ---------- propagation ----------
+    def propagate() -> bool:
+        """return True if no conflict, False otherwise"""
+        changed = True
+        while changed:
+            changed = False
+            for cl in clauses:
+                # evaluate clause under current assignment
+                unk = None
+                satisfied = False
+                for lit in cl:
+                    var = abs(lit)
+                    sign = lit > 0
+                    if var in assign:
+                        if assign[var] == sign:
+                            satisfied = True
+                            break
+                    else:
+                        if unk is None:
+                            unk = lit
+                if satisfied:
+                    continue
+                if unk is None:          # all three false -> conflict
+                    return False
+                # unit clause
+                var = abs(unk)
+                val = unk > 0
+                if var in assign:
+                    if assign[var] != val:
+                        return False
+                    continue
+                # assign it
+                trail.append((var, None))
+                assign[var] = val
+                changed = True
+        return True
+
+    # ---------- DPLL ----------
+    def dpll() -> bool:
+        if len(assign) == n:
+            return True
+        if not propagate():
+            return False
+        # pick unassigned variable
+        for v in range(1, n + 1):
+            if v not in assign:
+                var = v
+                break
+        # try True then False
+        for val in (True, False):
+            checkpoint = len(trail)
+            trail.append((var, None))
+            assign[var] = val
+            if dpll():
+                return True
+            # backtrack
+            while len(trail) > checkpoint:
+                v_back, _ = trail.pop()
+                del assign[v_back]
+        return False
+
+    if dpll():
+        out = ['YES']
+        vals = [ '1' if assign.get(i, False) else '0' for i in range(1, n + 1) ]
+        out.append(' '.join(vals))
+        sys.stdout.write('\n'.join(out))
+    else:
+        sys.stdout.write('NO')
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above and conforms
+to the required input‑output format.

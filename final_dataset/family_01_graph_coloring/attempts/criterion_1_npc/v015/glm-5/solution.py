@@ -1,0 +1,57 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # We use 0, 1, 2 for blocks internally
+    assignment = [-1] * n
+    
+    def is_safe(u, color):
+        for v in adj[u]:
+            if assignment[v] == color:
+                return False
+        return True
+    
+    # Graph coloring with 3 colors using backtracking
+    # Heuristic: sort vertices by degree descending to fail faster
+    order = list(range(n))
+    order.sort(key=lambda x: len(adj[x]), reverse=True)
+    
+    # Map from order index to original vertex
+    # We process vertices in 'order'
+    
+    def backtrack(idx):
+        if idx == n:
+            return True
+        
+        u = order[idx]
+        for color in range(3):
+            if is_safe(u, color):
+                assignment[u] = color
+                if backtrack(idx + 1):
+                    return True
+                assignment[u] = -1
+        return False
+    
+    if backtrack(0):
+        print("YES")
+        # Convert to 1-based and print in original order 1..n
+        res = [str(assignment[i] + 1) for i in range(n)]
+        print(" ".join(res))
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()

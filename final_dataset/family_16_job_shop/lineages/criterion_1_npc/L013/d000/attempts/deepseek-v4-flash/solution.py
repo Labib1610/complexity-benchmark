@@ -1,0 +1,95 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    j = int(next(it))
+    m = int(next(it))
+    
+    jobs = []
+    for _ in range(j):
+        o = int(next(it))
+        gates = []
+        for _ in range(o):
+            core = int(next(it)) - 1
+            dur = int(next(it))
+            gates.append((core, dur))
+        jobs.append(gates)
+    
+    n = [len(job) for job in jobs]
+    total_gates = sum(n)
+    
+    # dp[state] = minimal time to reach this state
+    # state is tuple of how many gates done in each job
+    from functools import lru_cache
+    
+    # Precompute for each job and step: core and duration
+    # We'll use DP with state as tuple of progress indices
+    # Also track when each core becomes free
+    
+    @lru_cache(None)
+    def dp(state):
+        if all(state[i] == n[i] for i in range(j)):
+            return 0
+        # current time is max of core free times? Actually we need to know core availability.
+        # We'll compute minimal finish time from this state.
+        # We need to know when each core is free. That depends on the schedule so far.
+        # So we need to pass core free times as part of state.
+        # Instead, we can do DP over time and state.
+        pass
+    
+    # Better approach: DP over time with state = progress in each job
+    # We'll simulate time steps, but durations can be large.
+    # Use Dijkstra-like: state = (progress tuple, core_free_times tuple)
+    # But core_free_times can be large. Instead, we can use event-based simulation.
+    
+    # Since total gates <= 50, we can do DP over subsets of gates completed.
+    # But jobs are sequential, so state is just progress per job.
+    # We can use DP with state = tuple of progress, and value = minimal time.
+    # To compute transitions, we need to know when each core is free.
+    # We can compute core free times from the schedule that led to this state.
+    # So we need to store core free times in state.
+    
+    # Let's do DP with state = (progress_tuple, core_free_times_tuple)
+    # core_free_times are times when each core becomes free.
+    # We'll use Dijkstra to find minimal time to finish all.
+    
+    import heapq
+    
+    start_progress = tuple([0]*j)
+    start_core_free = tuple([0]*m)
+    start_state = (start_progress, start_core_free)
+    dist = {start_state: 0}
+    pq = [(0, start_progress, start_core_free)]
+    
+    while pq:
+        t, prog, core_free = heapq.heappop(pq)
+        if dist.get((prog, core_free), float('inf')) < t:
+            continue
+        if all(prog[i] == n[i] for i in range(j)):
+            print(t)
+            return
+        # Try to start next gate of any job
+        for job_idx in range(j):
+            if prog[job_idx] < n[job_idx]:
+                core, dur = jobs[job_idx][prog[job_idx]]
+                start_time = max(t, core_free[core])
+                finish_time = start_time + dur
+                new_prog = list(prog)
+                new_prog[job_idx] += 1
+                new_prog = tuple(new_prog)
+                new_core_free = list(core_free)
+                new_core_free[core] = finish_time
+                new_core_free = tuple(new_core_free)
+                new_state = (new_prog, new_core_free)
+                if finish_time < dist.get(new_state, float('inf')):
+                    dist[new_state] = finish_time
+                    heapq.heappush(pq, (finish_time, new_prog, new_core_free))
+    
+    # Should not reach here
+    print(0)
+
+if __name__ == "__main__":
+    solve()

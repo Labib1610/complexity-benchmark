@@ -1,0 +1,129 @@
+import sys
+from itertools import combinations
+
+def solve():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    k = int(next(it))
+    
+    adj = [0] * (n + 1)
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        adj[u] |= 1 << (v - 1)
+        adj[v] |= 1 << (u - 1)
+    
+    # Precompute adjacency masks for 0-indexed vertices
+    adj_mask = [0] * n
+    for i in range(1, n + 1):
+        adj_mask[i - 1] = adj[i]
+    
+    # Special case: k = 1, always possible
+    if k == 1:
+        print("YES")
+        print(1)
+        return
+    
+    # Split vertices into two halves
+    n1 = n // 2
+    n2 = n - n1
+    
+    # Process first half (vertices 0 to n1-1)
+    # List of (size, mask) for independent sets in first half
+    ind1 = []
+    for mask in range(1 << n1):
+        valid = True
+        cnt = 0
+        for i in range(n1):
+            if mask & (1 << i):
+                cnt += 1
+                # Check if vertex i conflicts with any other vertex in mask
+                # adj_mask[i] has bits set for neighbors (1-indexed)
+                # We need to check neighbors in first half only
+                neighbors_in_first = adj_mask[i] & ((1 << n1) - 1)
+                if mask & neighbors_in_first:
+                    valid = False
+                    break
+        if valid:
+            ind1.append((cnt, mask))
+    
+    # Group by size for first half
+    max_size1 = max(size for size, _ in ind1) if ind1 else 0
+    by_size1 = [[] for _ in range(max_size1 + 1)]
+    for size, mask in ind1:
+        by_size1[size].append(mask)
+    
+    # Process second half (vertices n1 to n-1, i.e., indices n1 to n-1)
+    # Map to local indices 0 to n2-1
+    ind2 = []
+    for mask in range(1 << n2):
+        valid = True
+        cnt = 0
+        for i in range(n2):
+            if mask & (1 << i):
+                cnt += 1
+                # Original vertex index is n1 + i
+                orig_idx = n1 + i
+                neighbors_in_second = (adj_mask[orig_idx] >> n1) & ((1 << n2) - 1)
+                if mask & neighbors_in_second:
+                    valid = False
+                    break
+        if valid:
+            ind2.append((cnt, mask))
+    
+    # Group by size for second half
+    max_size2 = max(size for size, _ in ind2) if ind2 else 0
+    by_size2 = [[] for _ in range(max_size2 + 1)]
+    for size, mask in ind2:
+        by_size2[size].append(mask)
+    
+    # For each independent set in second half, precompute forbidden mask in first half
+    # forbidden_mask = union of neighbors (in first half) of all vertices in the set
+    forbidden_for_ind2 = {}
+    for size2, mask2 in ind2:
+        forbidden = 0
+        for i in range(n2):
+            if mask2 & (1 << i):
+                orig_idx = n1 + i
+                # Neighbors in first half
+                forbidden |= adj_mask[orig_idx] & ((1 << n1) - 1)
+        forbidden_for_ind2[(size2, mask2)] = forbidden
+    
+    # Try to find combination
+    for size1 in range(min(k, max_size1), -1, -1):
+        size2 = k - size1
+        if size2 < 0 or size2 > max_size2:
+            continue
+        if not by_size1[size1] or not by_size2[size2]:
+            continue
+        
+        # Build set of masks for size1 for quick lookup
+        masks1_set = set(by_size1[size1])
+        
+        for s2, mask2 in ind2:
+            if s2 != size2:
+                continue
+            forbidden = forbidden_for_ind2[(s2, mask2)]
+            # Need mask1 such that mask1 & forbidden == 0
+            for mask1 in by_size1[size1]:
+                if mask1 & forbidden == 0:
+                    # Found valid combination
+                    result = []
+                    for i in range(n1):
+                        if mask1 & (1 << i):
+                            result.append(i + 1)
+                    for i in range(n2):
+                        if mask2 & (1 << i):
+                            result.append(n1 + i + 1)
+                    print("YES")
+                    print(' '.join(map(str, result)))
+                    return
+    
+    print("NO")
+
+if __name__ == "__main__":
+    solve()

@@ -1,0 +1,268 @@
+**Solution Explanation**
+
+For every catalyst `x` there is exactly one solvent `y`.
+The log respects this rule, therefore all triples that contain the same
+catalyst also contain the same solvent.
+No two catalysts share a solvent, i.e. the mapping  
+
+```
+x  →  y
+```
+
+is a *bijection* (a permutation of `1 … k`).
+
+The required set of `k` reactions has to use
+
+* each catalyst exactly once,
+* each solvent exactly once,
+* each temperature `z` exactly once.
+
+Because the solvent is already fixed by the catalyst, the only freedom is
+which temperature is attached to a catalyst.
+Consequently the task is equivalent to the following bipartite matching
+problem.
+
+--------------------------------------------------------------------
+
+### 1.   Reduced problem  
+
+* left side : catalysts `X = {1,…,k}`
+* right side: temperatures `Z = {1,…,k}`
+* edge `x – z` exists **iff** the log contains a triple `(x , y_of_x[x] , z)`
+
+Find a perfect matching of size `k` in this graph.
+If it exists, the matching together with the already known solvent
+`y_of_x[x]` gives the wanted `k` reactions.
+
+--------------------------------------------------------------------
+
+### 2.   Algorithm  
+
+1. **Read the input**  
+   *store* for every catalyst `x` its unique solvent `y_of_x[x]`  
+   (if a catalyst never occurs → impossible)  
+   *store* for every catalyst the list of temperatures reachable from it.
+
+2. **Validate the permutation**  
+   the set `{ y_of_x[x] | 1 ≤ x ≤ k }` must contain `k` different values.
+   If not – output `NO`.
+
+3. **Maximum bipartite matching** – Hopcroft‑Karp  
+   `O( E √V )` with `V = 2k ≤ 2400`, `E ≤ k² ≤ 1 440 000`,
+   easily fast enough.
+
+4. If the matching size is `k`  
+   output `YES` and for every catalyst `x` print  
+
+   ```
+   x  y_of_x[x]  matched_z_of_x
+   ```
+
+   otherwise output `NO`.
+
+--------------------------------------------------------------------
+
+### 3.   Correctness Proof  
+
+We prove that the algorithm prints `YES` with a correct set of reactions
+iff such a set exists.
+
+---
+
+#### Lemma 1  
+For every catalyst `x` all logged triples containing `x` have the same
+solvent, and different catalysts have different solvents.
+
+*Proof.*  This is exactly the laboratory rule given in the statement, and
+the input is guaranteed to respect it. ∎
+
+
+
+#### Lemma 2  
+Any selection of `k` valid reactions uses each catalyst `x` together with
+its (unique) solvent `y_of_x[x]`.
+
+*Proof.*  By Lemma&nbsp;1 the solvent of a reaction is forced by its catalyst.
+Since the selection must use each catalyst exactly once, the solvent of
+that reaction is forced as well. ∎
+
+
+
+#### Lemma 3  
+A set of `k` valid reactions exists **iff** the bipartite graph
+`(X , Z , E)` defined in the reduction has a perfect matching.
+
+*Proof.*  
+
+*(`⇒`)*  
+Take a valid set of reactions. By Lemma&nbsp;2 each reaction contains a
+different catalyst `x` and a different temperature `z`.  
+Because the reaction is present in the log, the edge `x – z` belongs to `E`.  
+Thus the `k` edges form a perfect matching.
+
+*(`⇐`)*  
+Assume a perfect matching `M` of size `k`.  
+For each matched edge `x – z` the log contains the triple
+`(x , y_of_x[x] , z)`.  
+Collecting those `k` triples gives a set that uses every catalyst once,
+every solvent once (by Lemma&nbsp;1 the solvent of `x` is `y_of_x[x]` and all
+solvents are distinct) and every temperature once (matching property).
+Hence it is a valid selection. ∎
+
+
+
+#### Lemma 4  
+Hopcroft‑Karp returns a matching of maximum cardinality.
+
+*Proof.*  Standard property of the Hopcroft‑Karp algorithm. ∎
+
+
+
+#### Lemma 5  
+If the algorithm outputs `YES`, the printed reactions form a valid
+selection.
+
+*Proof.*  
+`YES` is printed only when the algorithm found a matching of size `k`.
+By Lemma&nbsp;4 this matching is perfect.
+For each catalyst `x` the algorithm outputs the triple
+`(x , y_of_x[x] , matched_z[x])`, which exists in the log
+(because edges were created exactly from existing triples).
+All three indices are used once because the matching pairs each `x`
+with a distinct `z`, and the solvents are a permutation (Lemma&nbsp;1). ∎
+
+
+
+#### Lemma 6  
+If a valid selection exists, the algorithm outputs `YES`.
+
+*Proof.*  
+From a valid selection we obtain a perfect matching in the reduced graph
+(Lemma&nbsp;3). Therefore the maximum matching size is `k`.  
+Hopcroft‑Karp finds a matching of that size (Lemma&nbsp;4), the algorithm
+detects size `k` and prints `YES`. ∎
+
+
+
+#### Theorem  
+The algorithm prints `YES` and a correct list of `k` reactions
+iff such a list exists; otherwise it prints `NO`.
+
+*Proof.*  
+- If the algorithm prints `YES`, by Lemma&nbsp;5 the list is correct.  
+- If a correct list exists, by Lemma&nbsp;6 the algorithm prints `YES`.  
+Therefore the two possibilities are exactly complementary, giving the
+statement. ∎
+
+
+
+--------------------------------------------------------------------
+
+### 4.   Complexity Analysis  
+
+*Reading input* : `O(t)`  
+
+*Building the graph* : `O(t)`  
+
+*Hopcroft‑Karp* : `O( E √V ) = O( k² √k ) ≤ 1.44·10⁶ · √1200 ≈ 5·10⁷` operations,
+well below the limits for `k ≤ 1200`.
+
+*Memory* : adjacency lists store each edge once → `O(E) ≤ k² ≤ 1.44·10⁶`
+integers, plus a few extra `O(k)` arrays → far under 256 MB.
+
+--------------------------------------------------------------------
+
+### 5.   Reference Implementation  (Python 3)
+
+```python
+import sys
+from collections import deque
+
+sys.setrecursionlimit(10000)
+
+def solve() -> None:
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+    k, t = data[0], data[1]
+    idx = 2
+
+    y_of_x = [0] * (k + 1)          # solvent for each catalyst
+    adj = [[] for _ in range(k + 1)]   # edges x -> z
+
+    for _ in range(t):
+        x = data[idx]; y = data[idx + 1]; z = data[idx + 2]
+        idx += 3
+        if y_of_x[x] == 0:
+            y_of_x[x] = y
+        # input guarantees consistency, no need to check
+        adj[x].append(z)
+
+    # every catalyst must appear at least once
+    for x in range(1, k + 1):
+        if y_of_x[x] == 0:
+            print("NO")
+            return
+
+    # solvents must be a permutation
+    if len(set(y_of_x[1:])) != k:
+        print("NO")
+        return
+
+    # ---------- Hopcroft‑Karp ----------
+    INF = 10 ** 9
+    pair_u = [0] * (k + 1)   # match for X side (catalyst) -> Z
+    pair_v = [0] * (k + 1)   # match for Z side (temperature) -> X
+    dist = [0] * (k + 1)
+
+    def bfs() -> bool:
+        q = deque()
+        for u in range(1, k + 1):
+            if pair_u[u] == 0:
+                dist[u] = 0
+                q.append(u)
+            else:
+                dist[u] = INF
+        dist[0] = INF
+        while q:
+            u = q.popleft()
+            if dist[u] < dist[0]:
+                for v in adj[u]:
+                    if dist[pair_v[v]] == INF:
+                        dist[pair_v[v]] = dist[u] + 1
+                        q.append(pair_v[v])
+        return dist[0] != INF
+
+    def dfs(u: int) -> bool:
+        if u == 0:
+            return True
+        for v in adj[u]:
+            if dist[pair_v[v]] == dist[u] + 1 and dfs(pair_v[v]):
+                pair_u[u] = v
+                pair_v[v] = u
+                return True
+        dist[u] = INF
+        return False
+
+    matching = 0
+    while bfs():
+        for u in range(1, k + 1):
+            if pair_u[u] == 0 and dfs(u):
+                matching += 1
+
+    # ---------- output ----------
+    if matching != k:
+        print("NO")
+        return
+
+    out_lines = ["YES"]
+    for x in range(1, k + 1):
+        out_lines.append(f"{x} {y_of_x[x]} {pair_u[x]}")
+    sys.stdout.write("\n".join(out_lines))
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above
+and conforms to the required input‑output format.

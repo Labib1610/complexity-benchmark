@@ -1,21 +1,20 @@
-# Problem B — Facility Access
+# Problem B — Crew Allocation
 
-Time limit: 1 s
-Memory limit: 256 MB
+Time limit: 1 s   Memory limit: 256 MB
 
-The facility administration must issue each of its $n$ workers an access code. Every worker must be assigned a code of either 1 or 2. 
+A factory needs to assign each of its $n$ workers to one of two available crews. The crews are designated by the codes 1 and 2. 
 
-A complete assignment is only valid if it satisfies $m$ safety requirements. Each requirement identifies two workers who operate interlinked machinery. To ensure proper load balancing, the sum of the access codes assigned to these two workers must equal exactly 3. 
+Because of interpersonal conflicts, $m$ specific pairs of workers refuse to work together. For each of these pairs, the two workers involved must be assigned to different crews. 
 
-Your objective is to determine a valid assignment for all $n$ workers. Because multiple valid assignments might exist, you must find the one that is lexicographically smallest when the assigned codes are listed in order from worker 1 to worker $n$. If it is impossible to satisfy all safety requirements simultaneously, you must report that no such assignment exists.
+Your objective is to find out if there is any way to assign every worker to a crew such that none of the conflicts are violated. If there is more than one valid way to distribute the workers, you must provide the assignment sequence that is lexicographically smallest. If no such assignment is possible, you must report that it cannot be done.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$), representing the number of workers and the number of safety requirements. 
-Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), indicating a pair of workers whose assigned access codes must sum to 3.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$), the number of workers and the number of conflicts.
+Each of the following $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$), indicating that worker $u$ and worker $v$ cannot share the same crew code.
 
 ## Output
-If no valid assignment exists, print a single line `NO`.
-Otherwise, print `YES` on the first line. On the second line, print $n$ integers $s_1, s_2, \dots, s_n$ (where each $s_i \in \{1,2\}$), representing the lexicographically smallest valid sequence of access codes.
+If there is no way to assign the crews without violating a conflict, output a single line containing `NO`.
+Otherwise, output `YES` on the first line. On the second line, output $n$ integers $s_1, s_2, \dots, s_n$ (where each $s_i \in \{1, 2\}$), representing the lexicographically smallest valid assignment of crews to workers 1 through $n$.
 
 ## Example 1
 Input:

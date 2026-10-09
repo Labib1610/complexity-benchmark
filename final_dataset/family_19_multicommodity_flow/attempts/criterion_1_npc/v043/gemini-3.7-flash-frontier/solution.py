@@ -1,0 +1,256 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    iterator = iter(input_data)
+    n = int(next(iterator))
+    m = int(next(iterator))
+    k = int(next(iterator))
+    
+    commodities = []
+    for _ in range(k):
+        s = int(next(iterator)) - 1
+        t = int(next(iterator)) - 1
+        d = int(next(iterator))
+        commodities.append((s, t, d))
+        
+    edges = []
+    for _ in range(m):
+        u = int(next(iterator)) - 1
+        v = int(next(iterator)) - 1
+        c = int(next(iterator))
+        edges.append((u, v, c))
+
+    num_vars = k * m
+
+    class ILPSolver:
+        def __init__(self, num_vars):
+            self.num_vars = num_vars
+            self.eq_rows = [] 
+            self.eq_rhs = []
+            self.le_rows = [] 
+            self.le_rhs = []
+
+        def add_equality(self, coeffs, rhs):
+            if rhs < 0:
+                coeffs = [-c for c in coeffs]
+                rhs = -rhs
+            self.eq_rows.append(coeffs)
+            self.eq_rhs.append(rhs)
+
+        def add_le(self, coeffs, rhs):
+            self.le_rows.append(coeffs)
+            self.le_rhs.append(rhs)
+
+        def solve_ilp(self):
+            import math
+
+            def simplex(A, b, c, eq_count):
+                m_con = len(A)
+                n_orig = len(c)
+                
+                tableau = []
+                slack_count = m_con - eq_count
+                artificial_count = eq_count
+                
+                total_vars = n_orig + slack_count + artificial_count
+                
+                slack_idx = 0
+                art_idx = 0
+                basis = []
+                
+                for i in range(m_con):
+                    row = [0.0] * (total_vars + 1)
+                    for j in range(n_orig):
+                        row[j] = float(A[i][j])
+                    
+                    if i >= eq_count:
+                        row[n_orig + slack_idx] = 1.0
+                        basis.append(n_orig + slack_idx)
+                        slack_idx += 1
+                    else:
+                        row[n_orig + slack_count + art_idx] = 1.0
+                        basis.append(n_orig + slack_count + art_idx)
+                        art_idx += 1
+                    
+                    row[-1] = float(b[i])
+                    tableau.append(row)
+                
+                cost_row = [0.0] * (total_vars + 1)
+                if artificial_count > 0:
+                    for i in range(eq_count):
+                        for j in range(total_vars + 1):
+                            cost_row[j] -= tableau[i][j]
+                else:
+                    for j in range(n_orig):
+                        cost_row[j] = -float(c[j])
+                
+                tableau.append(cost_row)
+                
+                def pivot(row_idx, col_idx):
+                    piv = tableau[row_idx][col_idx]
+                    for j in range(total_vars + 1):
+                        tableau[row_idx][j] /= piv
+                    for i in range(m_con + 1):
+                        if i != row_idx:
+                            factor = tableau[i][col_idx]
+                            if abs(factor) > 1e-12:
+                                for j in range(total_vars + 1):
+                                    tableau[i][j] -= factor * tableau[row_idx][j]
+                    basis[row_idx] = col_idx
+
+                def run_simplex():
+                    while True:
+                        col_idx = -1
+                        min_val = -1e-8
+                        for j in range(total_vars):
+                            if tableau[-1][j] < min_val:
+                                min_val = tableau[-1][j]
+                                col_idx = j
+                        if col_idx == -1:
+                            return True
+                        
+                        row_idx = -1
+                        min_ratio = float('inf')
+                        for i in range(m_con):
+                            if tableau[i][col_idx] > 1e-8:
+                                ratio = tableau[i][-1] / tableau[i][col_idx]
+                                if ratio < min_ratio:
+                                    min_ratio = ratio
+                                    row_idx = i
+                        if row_idx == -1:
+                            return False 
+                        pivot(row_idx, col_idx)
+
+                if artificial_count > 0:
+                    if not run_simplex():
+                        return None
+                    if tableau[-1][-1] < -1e-6:
+                        return None
+                    
+                    new_cost = [0.0] * (total_vars + 1)
+                    for j in range(n_orig):
+                        new_cost[j] = -float(c[j])
+                    tableau[-1] = new_cost
+                    for i in range(m_con):
+                        b_var = basis[i]
+                        factor = tableau[-1][b_var]
+                        if abs(factor) > 1e-12:
+                            for j in range(total_vars + 1):
+                                tableau[-1][j] -= factor * tableau[i][j]
+                    for j in range(n_orig + slack_count, total_vars):
+                        for i in range(m_con + 1):
+                            tableau[i][j] = 0.0
+
+                    if not run_simplex():
+                        return None
+
+                sol = [0.0] * n_orig
+                for i in range(m_con):
+                    if basis[i] < n_orig:
+                        sol[basis[i]] = tableau[i][-1]
+                return sol
+
+            bounds = [(0, None) for _ in range(self.num_vars)]
+            
+            def solve_node(current_bounds):
+                A = []
+                b = []
+                for row, rhs in zip(self.eq_rows, self.eq_rhs):
+                    A.append(list(row))
+                    b.append(rhs)
+                eq_cnt = len(A)
+                
+                for row, rhs in zip(self.le_rows, self.le_rhs):
+                    A.append(list(row))
+                    b.append(rhs)
+                    
+                for idx, (low, high) in enumerate(current_bounds):
+                    if low > 0:
+                        row = [0.0] * self.num_vars
+                        row[idx] = -1.0
+                        A.append(row)
+                        b.append(-low)
+                    if high is not None:
+                        row = [0.0] * self.num_vars
+                        row[idx] = 1.0
+                        A.append(row)
+                        b.append(high)
+                
+                c = [0.0] * self.num_vars
+                return simplex(A, b, c, eq_cnt)
+
+            stack = [bounds]
+            while stack:
+                cur_b = stack.pop()
+                sol = solve_node(cur_b)
+                if sol is None:
+                    continue
+                
+                frac_idx = -1
+                max_frac = 0.0
+                for i, val in enumerate(sol):
+                    frac = abs(val - round(val))
+                    if frac > 1e-4:
+                        if frac > max_frac:
+                            max_frac = frac
+                            frac_idx = i
+                
+                if frac_idx == -1:
+                    return [int(round(x)) for x in sol]
+                
+                val = sol[frac_idx]
+                floor_val = math.floor(val)
+                ceil_val = math.ceil(val)
+                
+                b1 = list(cur_b)
+                b1[frac_idx] = (b1[frac_idx][0], floor_val)
+                
+                b2 = list(cur_b)
+                b2[frac_idx] = (ceil_val, b2[frac_idx][1])
+                
+                stack.append(b2)
+                stack.append(b1)
+                
+            return None
+
+    solver = ILPSolver(num_vars)
+
+    for i in range(k):
+        s_i, t_i, d_i = commodities[i]
+        for u in range(n):
+            row = [0] * num_vars
+            for e_idx, (eu, ev, _) in enumerate(edges):
+                if eu == u:
+                    row[i * m + e_idx] += 1
+                if ev == u:
+                    row[i * m + e_idx] -= 1
+            
+            target = 0
+            if u == s_i:
+                target += d_i
+            if u == t_i:
+                target -= d_i
+                
+            solver.add_equality(row, target)
+
+    for e_idx, (_, _, cap) in enumerate(edges):
+        row = [0] * num_vars
+        for i in range(k):
+            row[i * m + e_idx] = 1
+        solver.add_le(row, cap)
+
+    res = solver.solve_ilp()
+    if res is None:
+        print("NO")
+    else:
+        print("YES")
+        for i in range(k):
+            row_vals = res[i * m : (i + 1) * m]
+            print(*(max(0, val) for val in row_vals))
+
+if __name__ == '__main__':
+    solve()

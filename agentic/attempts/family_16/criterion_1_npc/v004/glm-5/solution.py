@@ -1,0 +1,150 @@
+import sys
+from heapq import heappush, heappop
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    idx = 0
+    j = int(data[idx]); idx += 1
+    m = int(data[idx]); idx += 1
+    jobs = []
+    for _ in range(j):
+        o = int(data[idx]); idx += 1
+        ops = []
+        for _ in range(o):
+            machine = int(data[idx]) - 1
+            duration = int(data[idx+1])
+            idx += 2
+            ops.append((machine, duration))
+        jobs.append(ops)
+    
+    # State: (time, job_progress, machine_free_times)
+    # job_progress: tuple of how many ops completed for each job
+    # machine_free_times: tuple of when each machine becomes free
+    # We want to minimize the makespan (max completion time)
+    
+    # Use Dijkstra-like approach
+    # Start state: all jobs at progress 0, all machines free at time 0
+    start_progress = tuple(0 for _ in range(j))
+    start_machines = tuple(0 for _ in range(m))
+    
+    # Priority queue: (max_time, job_progress, machine_free_times)
+    # We track visited states to avoid reprocessing
+    visited = set()
+    visited.add((start_progress, start_machines))
+    
+    pq = [(0, start_progress, start_machines)]
+    
+    while pq:
+        current_time, progress, machines = heappop(pq)
+        
+        # Check if all jobs are complete
+        all_done = True
+        for i in range(j):
+            if progress[i] < len(jobs[i]):
+                all_done = False
+                break
+        if all_done:
+            print(current_time)
+            return
+        
+        # If we've seen this state with a better or equal time, skip
+        if (progress, machines) in visited:
+            # Already processed (but we need to check if we should skip)
+            # Actually we add to visited when we push, so if we pop it, it's the first time
+            pass
+        visited.add((progress, machines))
+        
+        # Find the next operation for each job that can be scheduled
+        # We need to try all possible next operations
+        # For each job, the next operation can start at max(current_time, job_ready_time, machine_free_time)
+        # But we want to explore all possible orderings
+        
+        # Actually, let's think differently: we can schedule any subset of available next operations
+        # But that's exponential. Instead, let's schedule one operation at a time.
+        
+        # For each job that has remaining operations, try scheduling its next operation
+        for i in range(j):
+            if progress[i] < len(jobs[i]):
+                machine, duration = jobs[i][progress[i]]
+                # Job i is ready to start its next operation at time current_time
+                # (since all previous operations of job i are done by current_time)
+                # Wait, that's not right. The job's next operation can only start after
+                # the previous operation finishes, which is current_time if we're tracking
+                # the completion time of the last scheduled operation.
+                
+                # Actually, current_time is the makespan so far, but individual jobs might
+                # have finished their operations earlier.
+                
+                # We need to track when each job finished its last operation.
+                # Let me reconsider the state...
+                pass
+        
+        # Hmm, the state needs to include when each job finished its last operation.
+        # Let me redefine.
+        break
+    
+    # Redefine state: (job_ready_times, machine_free_times)
+    # job_ready_times: tuple of when each job is ready for its next operation
+    # machine_free_times: tuple of when each machine becomes free
+    # progress is implicit: job i has completed job_ready_times[i] being set means
+    # we need to track progress separately
+    
+    # State: (progress, job_ready_times, machine_free_times)
+    # But job_ready_times can be derived from the schedule...
+    
+    # Actually, let's track: (progress, machine_free_times, job_ready_times)
+    # progress[i] = number of operations completed for job i
+    # job_ready_times[i] = time when job i can start its next operation
+    # machine_free_times[k] = time when machine k becomes free
+    
+    # Start: progress = (0,...,0), job_ready = (0,...,0), machines = (0,...,0)
+    
+    visited2 = set()
+    start_state = (tuple(0 for _ in range(j)), tuple(0 for _ in range(j)), tuple(0 for _ in range(m)))
+    visited2.add(start_state)
+    
+    pq2 = [(0, start_state)]
+    
+    while pq2:
+        current_time, state = heappop(pq2)
+        progress, job_ready, machines = state
+        
+        if (progress, job_ready, machines) in visited2:
+            continue
+        visited2.add((progress, job_ready, machines))
+        
+        # Check if all done
+        all_done = True
+        for i in range(j):
+            if progress[i] < len(jobs[i]):
+                all_done = False
+                break
+        if all_done:
+            print(current_time)
+            return
+        
+        # Try scheduling next operation for each job
+        for i in range(j):
+            if progress[i] < len(jobs[i]):
+                machine, duration = jobs[i][progress[i]]
+                start_time = max(job_ready[i], machines[machine])
+                finish_time = start_time + duration
+                new_progress = list(progress)
+                new_progress[i] += 1
+                new_progress = tuple(new_progress)
+                new_job_ready = list(job_ready)
+                new_job_ready[i] = finish_time
+                new_job_ready = tuple(new_job_ready)
+                new_machines = list(machines)
+                new_machines[machine] = finish_time
+                new_machines = tuple(new_machines)
+                new_state = (new_progress, new_job_ready, new_machines)
+                new_time = max(current_time, finish_time)
+                if new_state not in visited2:
+                    heappush(pq2, (new_time, new_state))
+    
+    print(0)
+
+solve()

@@ -1,39 +1,75 @@
 import sys
 
 def solve():
-    input = sys.stdin.readline
-    n, m = map(int, input().split())
-    adj = [[] for _ in range(n)]
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [[False] * n for _ in range(n)]
     for _ in range(m):
-        u, v = map(int, input().split())
-        u -= 1
-        v -= 1
-        adj[u].append(v)
-        adj[v].append(u)
-
-    colors = [0] * n
-
-    def backtrack(idx):
-        if idx == n:
-            return True
-        for c in range(1, 4):
-            ok = True
-            for nb in adj[idx]:
-                if colors[nb] == c:
-                    ok = False
-                    break
-            if ok:
-                colors[idx] = c
-                if backtrack(idx + 1):
-                    return True
-                colors[idx] = 0
-        return False
-
-    if backtrack(0):
-        print("YES")
-        print(" ".join(map(str, colors)))
-    else:
-        print("NO")
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u][v] = adj[v][u] = True
+    
+    color = [-1] * n
+    
+    # Try all 3^3 = 27 colorings for the first 3 nodes (or fewer if n<3)
+    limit = min(n, 3)
+    for c0 in range(1,4):
+        for c1 in range(1,4):
+            for c2 in range(1,4):
+                if n == 1:
+                    comb = [c0]
+                elif n == 2:
+                    comb = [c0, c1]
+                else:
+                    comb = [c0, c1, c2]
+                
+                # Check edges among the first 'limit' nodes
+                ok = True
+                for i in range(limit):
+                    for j in range(i+1, limit):
+                        if adj[i][j] and abs(comb[i] - comb[j]) < 1:
+                            ok = False
+                            break
+                    if not ok:
+                        break
+                if not ok:
+                    continue
+                
+                # Initialize colors for first limit nodes
+                color = [-1] * n
+                for i in range(limit):
+                    color[i] = comb[i]
+                
+                # Backtracking for remaining nodes
+                def backtrack(idx):
+                    if idx == n:
+                        return True
+                    # Try colors 1,2,3
+                    for t in (1,2,3):
+                        good = True
+                        for v in range(n):
+                            if adj[idx][v] and color[v] != -1:
+                                if abs(t - color[v]) < 1:
+                                    good = False
+                                    break
+                        if good:
+                            color[idx] = t
+                            if backtrack(idx+1):
+                                return True
+                            color[idx] = -1
+                    return False
+                
+                if backtrack(limit):
+                    print("YES")
+                    print(' '.join(map(str, color))))
+                    return
+    
+    print("NO")
 
 if __name__ == "__main__":
     solve()

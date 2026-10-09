@@ -1,83 +1,112 @@
 ```python
 import sys
-from collections import defaultdict
+from collections import defaultdict, deque
 
-def main():
-    import sys
-    input = sys.stdin.read
-    data = input().split()
-    
-    n = int(data[0])
-    m = int(data[1])
+def solve():
+    n, m = map(int, sys.stdin.readline().split())
     
     if m == 0:
         print("YES")
         print(" ".join(["1"] * n))
         return
     
+    # Build adjacency list
+    adj = defaultdict(list)
     edges = []
-    adj = [[] for _ in range(n + 1)]
-    index = 2
     for _ in range(m):
-        u = int(data[index])
-        v = int(data[index + 1])
-        edges.append((u, v))
+        u, v = map(int, sys.stdin.readline().split())
+        u -= 1  # Convert to 0-indexed
+        v -= 1
         adj[u].append(v)
         adj[v].append(u)
-        index += 2
-
-    # Precompute the squared magnitude of cross products
-    # v1 = (1,2,3), v2 = (3,1,2)
-    # v1 x v1 = (0,0,0) => squared magnitude = 0
-    # v2 x v2 = (0,0,0) => squared magnitude = 0
-    # v1 x v2 = (2*2 - 3*1, 3*3 - 1*2, 1*1 - 2*3) = (4-3, 9-2, 1-6) = (1, 7, -5) => squared magnitude = 1+49+25 = 75
-    # So:
-    # same grades (1,1) or (2,2): contribution = 0
-    # different grades (1,2) or (2,1): contribution = 75
+        edges.append((u, v))
     
-    # For the total to be 75 * m, all edges must contribute 75 => all edges must connect different grades
-    # This is a 2-coloring (bipartite) problem.
+    # For each edge (u,v), we have a constraint:
+    # f[u] != f[v] (because u's primary must match v's backup, which is the opposite of v's primary)
+    # This means we need a bipartite coloring of the graph
     
-    color = [-1] * (n + 1)
+    color = [-1] * n  # -1: uncolored, 0: protocol 1, 1: protocol 2
     
     # Check if the graph is bipartite
-    def bfs(start):
-        from collections import deque
-        queue = deque()
-        queue.append(start)
-        color[start] = 0
-        while queue:
-            u = queue.popleft()
-            for v in adj[u]:
-                if color[v] == -1:
-                    color[v] = color[u] ^ 1
-                    queue.append(v)
-                elif color[v] == color[u]:
-                    return False
-        return True
-    
-    # Check all components
-    for i in range(1, n + 1):
+    for i in range(n):
         if color[i] == -1:
-            if not bfs(i):
-                print("NO")
-                return
+            queue = deque([i])
+            color[i] = 0
+            while queue:
+                node = queue.popleft()
+                for neighbor in adj[node]:
+                    if color[neighbor] == -1:
+                        color[neighbor] = 1 - color[node]
+                        queue.append(neighbor)
+                    elif color[neighbor] == color[node]:
+                        print("NO")
+                        return
     
-    # If bipartite, assign grades: color 0 -> grade 1, color 1 -> grade 2
-    # For lexicographically smallest, we want node 1 to have grade 1 if possible.
-    # If color[1] == 1, we can flip all colors (0->1, 1->0) to make color[1] = 0
-    if color[1] == 1:
-        for i in range(1, n + 1):
-            color[i] ^= 1
+    # The graph is bipartite. Now we need to find the lexicographically smallest valid assignment.
+    # In a bipartite graph, we have two partitions. We need to decide which partition gets protocol 1.
+    # We want the lexicographically smallest assignment, so we try assigning partition containing node 0 to protocol 1.
     
-    # Now color[i] = 0 means grade 1, color[i] = 1 means grade 2
-    grades = []
-    for i in range(1, n + 1):
-        grades.append(str(color[i] + 1))  # 0->1, 1->2
+    # But we need to be more careful. We need to consider the constraints from the first node that has neighbors.
+    # Actually, let's think differently. For each connected component, we have two possible colorings.
+    # We need to choose the coloring that gives the lexicographically smallest result.
+    
+    result = [0] * n
+    visited = [False] * n
+    
+    for i in range(n):
+        if not visited[i] and adj[i]:  # Only process nodes with edges
+            # Find the connected component
+            component = []
+            queue = deque([i])
+            visited[i] = True
+            component.append(i)
+            
+            while queue:
+                node = queue.popleft()
+                for neighbor in adj[node]:
+                    if not visited[neighbor]:
+                        visited[neighbor] = True
+                        component.append(neighbor)
+                        queue.append(neighbor)
+            
+            # For this component, we have two possible colorings
+            # Try both and pick the lexicographically smaller one
+            comp_min = min(component)
+            
+            # First coloring: color[comp_min] = 0 (protocol 1)
+            coloring1 = color[:]
+            
+            # Second coloring: flip all colors in this component
+            coloring2 = color[:]
+            for node in component:
+                coloring2[node] = 1 - coloring2[node]
+            
+            # Determine which coloring gives protocol 1 to comp_min
+            if coloring1[comp_min] == 1:  # comp_min gets protocol 2 in coloring1
+                coloring1, coloring2 = coloring2, coloring1  # Swap so that coloring1 gives protocol 1 to comp_min
+            
+            # Now coloring1 gives protocol 1 to the minimum node in component
+            # This should be the lexicographically smaller assignment
+            for node in component:
+                color[node] = coloring1[node]
+    
+    # For isolated nodes (no edges), we can assign protocol 1
+    for i in range(n):
+        if color[i] == -1:
+            color[i] = 0
+    
+    # Convert to protocol numbers (1 or 2)
+    for i in range(n):
+        result[i] = color[i] + 1
+    
+    # Verify the solution
+    for u, v in edges:
+        if result[u] == result[v]:
+            print("NO")
+            return
     
     print("YES")
-    print(" ".join(grades))
+    print(" ".join(map(str, result)))
 
-if __name__ == "__main__":
-    main()
+solve()
 ```

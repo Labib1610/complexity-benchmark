@@ -1,0 +1,100 @@
+import sys
+
+def solve():
+    input = sys.stdin.readline
+    n, m = map(int, input().split())
+    toxic = [[False] * n for _ in range(n)]
+    for _ in range(m):
+        u, v = map(int, input().split())
+        u -= 1
+        v -= 1
+        toxic[u][v] = toxic[v][u] = True
+    
+    assignment = [0] * n
+    count = [0, 0, 0, 0]  # 1-indexed greenhouses
+    
+    # Precompute toxic pairs count between greenhouses for pruning
+    # We'll just compute on the fly.
+    
+    def backtrack(idx):
+        if idx == n:
+            return True
+        for g in (1, 2, 3):
+            # Check capacity
+            if count[g] >= 45:
+                continue
+            # Check toxic pairs with already assigned
+            ok = True
+            for prev in range(idx):
+                if assignment[prev] == g and toxic[idx][prev]:
+                    ok = False
+                    break
+            if not ok:
+                continue
+            # Check filtration budget: count cross-greenhouse toxic pairs
+            # We can compute incrementally: when assigning idx to g,
+            # it adds toxic pairs with all previously assigned species in other greenhouses.
+            added = 0
+            for prev in range(idx):
+                if assignment[prev] != g and toxic[idx][prev]:
+                    added += 1
+            # We need to know current total cross pairs; we can maintain it.
+            # But for simplicity, we'll compute total at the end and check.
+            # However, we can prune: if current cross count + added > 800, skip.
+            # We'll maintain cross_count as global.
+            # Let's do that.
+            # We'll use a variable in closure.
+            # For now, we'll just assign and check at end.
+            # But to prune, we can compute current cross count from assignment.
+            # Let's compute current cross count quickly.
+            # We'll maintain cross_count variable.
+            # We'll do it with nonlocal.
+            # Let's restructure.
+            pass
+        return False
+    
+    # Better: maintain cross_count
+    cross_count = 0
+    
+    def backtrack(idx):
+        nonlocal cross_count
+        if idx == n:
+            return True
+        for g in (1, 2, 3):
+            if count[g] >= 45:
+                continue
+            # Check toxic with same greenhouse
+            conflict = False
+            for prev in range(idx):
+                if assignment[prev] == g and toxic[idx][prev]:
+                    conflict = True
+                    break
+            if conflict:
+                continue
+            # Compute added cross pairs
+            added = 0
+            for prev in range(idx):
+                if assignment[prev] != g and toxic[idx][prev]:
+                    added += 1
+            if cross_count + added > 800:
+                continue
+            # Assign
+            assignment[idx] = g
+            count[g] += 1
+            cross_count += added
+            if backtrack(idx + 1):
+                return True
+            # Backtrack
+            cross_count -= added
+            count[g] -= 1
+            assignment[idx] = 0
+        return False
+    
+    if backtrack(0):
+        print("YES")
+        print(" ".join(str(x) for x in assignment))
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()

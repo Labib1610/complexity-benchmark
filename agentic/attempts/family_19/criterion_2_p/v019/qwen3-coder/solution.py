@@ -1,0 +1,343 @@
+from collections import defaultdict, deque
+
+def solve():
+    n, m, _ = map(int, input().split())
+    s, t, d = map(int, input().split())
+    
+    # Convert to 0-indexed
+    s -= 1
+    t -= 1
+    
+    edges = []
+    graph = defaultdict(list)
+    capacity = []
+    
+    for i in range(m):
+        u, v, cap = map(int, input().split())
+        u -= 1
+        v -= 1
+        edges.append((u, v))
+        graph[u].append((v, len(capacity), cap, 1))  # (to, edge_index, capacity, forward)
+        graph[v].append((u, len(capacity), 0, 0))    # (from, edge_index, capacity, forward)
+        capacity.append(cap)
+    
+    # Add super source and super sink
+    super_source = n
+    super_sink = n + 1
+    
+    # Connect super source to s with capacity d
+    graph[super_source].append((s, len(capacity), d, 1))
+    graph[s].append((super_source, len(capacity), 0, 0))
+    capacity.append(d)
+    
+    # Connect t to super sink with capacity d
+    graph[t].append((super_sink, len(capacity), d, 1))
+    graph[super_sink].append((t, len(capacity), 0, 0))
+    capacity.append(d)
+    
+    # Also add constraints for flow conservation
+    # For each node except s, t, super_source, super_sink, we need in-flow = out-flow
+    # This can be modeled by connecting each node to super_sink with capacity 0
+    # and super_source to each node with capacity 0, but more directly:
+    # We just run max flow from super_source to super_sink
+    
+    def bfs():
+        parent = [-1] * (n + 2)
+        edge_index = [-1] * (n + 2)
+        visited = [False] * (n + 2)
+        queue = deque([super_source])
+        visited[super_source] = True
+        
+        while queue:
+            u = queue.popleft()
+            for v, idx, cap, forward in graph[u]:
+                if not visited[v] and capacity[idx] > 0:
+                    visited[v] = True
+                    parent[v] = u
+                    edge_index[v] = idx
+                    if v == super_sink:
+                        return parent, edge_index
+                    queue.append(v)
+        return None, None
+    
+    def edmonds_karp():
+        flow = [0] * len(capacity)
+        while True:
+            parent, edge_index = bfs()
+            if parent is None:
+                break
+            
+            # Find minimum capacity along the path
+            path_flow = float('inf')
+            s_idx = super_sink
+            while s_idx != super_source:
+                idx = edge_index[s_idx]
+                path_flow = min(path_flow, capacity[idx])
+                s_idx = parent[s_idx]
+            
+            # Update capacities and flows
+            s_idx = super_sink
+            while s_idx != super_source:
+                idx = edge_index[s_idx]
+                capacity[idx] -= path_flow
+                # The reverse edge index is the same, but we need to find it
+                # Actually, we're using the same idx for both directions
+                # The reverse edge is at the same position in the reverse adjacency list
+                # But we need to find the reverse edge index
+                # Let's restructure this...
+                u = parent[s_idx]
+                for v_info in graph[s_idx]:
+                    if v_info[0] == u:
+                        rev_idx = v_info[1]
+                        capacity[rev_idx] += path_flow
+                        break
+                s_idx = parent[s_idx]
+        
+        # Check if we achieved the target flow
+        # Flow from super_source to s should be d
+        total_flow = 0
+        for v, idx, cap, forward in graph[super_source]:
+            if v == s:
+                # The flow is the original capacity minus current capacity
+                total_flow += (capacity[idx] if not forward else 0)  # This is tricky
+        
+        # Let's compute actual flow on each edge
+        actual_flow = [0] * m
+        for i in range(m):
+            u, v = edges[i]
+            # Find the forward edge
+            for to, idx, cap, forward in graph[u]:
+                if to == v and idx == i:
+                    # Original capacity was capacity[idx] + flow[idx]
+                    # Current capacity is capacity[idx]
+                    # So flow is original_capacity - current_capacity
+                    original_capacity = capacity[idx]  # This is wrong approach
+                    break
+        
+        # Better approach: track flows separately
+        return flow
+    
+    # Let's restart with a cleaner implementation
+    # Build the graph with edge indices
+    graph = [[] for _ in range(n + 2)]
+    edges_info = []  # (from, to, capacity, index_in_capacity)
+    
+    # Add original edges
+    for i in range(m):
+        u, v, cap = map(int, input().split())
+        u -= 1
+        v -= 1
+        # Forward edge
+        graph[u].append(len(edges_info))
+        edges_info.append((u, v, cap, i))
+        # Backward edge
+        graph[v].append(len(edges_info))
+        edges_info.append((v, u, 0, i))
+    
+    # Add super source to s
+    graph[super_source].append(len(edges_info))
+    edges_info.append((super_source, s, d, m))
+    graph[s].append(len(edges_info))
+    edges_info.append((s, super_source, 0, m))
+    
+    # Add t to super sink
+    graph[t].append(len(edges_info))
+    edges_info.append((t, super_sink, d, m+1))
+    graph[super_sink].append(len(edges_info))
+    edges_info.append((super_sink, t, 0, m+1))
+    
+    # Max flow implementation
+    def max_flow(source, sink):
+        # Residual capacities
+        res_cap = [0] * len(edges_info)
+        for i in range(len(edges_info)):
+            res_cap[i] = edges_info[i][2]
+        
+        def bfs():
+            parent = [-1] * (n + 2)
+            edge_used = [-1] * (n + 2)
+            visited = [False] * (n + 2)
+            queue = deque([source])
+            visited[source] = True
+            
+            while queue:
+                u = queue.popleft()
+                for edge_idx in graph[u]:
+                    from_node, to_node, cap, orig_idx = edges_info[edge_idx]
+                    if not visited[to_node] and res_cap[edge_idx] > 0:
+                        visited[to_node] = True
+                        parent[to_node] = u
+                        edge_used[to_node] = edge_idx
+                        if to_node == sink:
+                            return parent, edge_used
+                        queue.append(to_node)
+            return None, None
+        
+        max_flow_value = 0
+        while True:
+            parent, edge_used = bfs()
+            if parent is None:
+                break
+            
+            # Find minimum residual capacity
+            path_flow = float('inf')
+            v = sink
+            while v != source:
+                edge_idx = edge_used[v]
+                path_flow = min(path_flow, res_cap[edge_idx])
+                v = parent[v]
+            
+            # Update residual capacities
+            v = sink
+            while v != source:
+                edge_idx = edge_used[v]
+                res_cap[edge_idx] -= path_flow
+                # Find reverse edge
+                u = parent[v]
+                for rev_edge_idx in graph[v]:
+                    if edges_info[rev_edge_idx][1] == u and edges_info[rev_edge_idx][3] == edges_info[edge_idx][3]:
+                        res_cap[rev_edge_idx] += path_flow
+                        break
+                v = parent[v]
+            
+            max_flow_value += path_flow
+        
+        return max_flow_value, res_cap
+    
+    flow_value, res_cap = max_flow(super_source, super_sink)
+    
+    if flow_value < d:
+        print("NO")
+        return
+    
+    print("YES")
+    result = [0] * m
+    for i in range(0, len(edges_info)-4, 2):  # Skip the last 4 super source/sink edges
+        from_node, to_node, cap, orig_idx = edges_info[i]
+        if orig_idx < m:  # Original edge
+            # Flow is original capacity - residual capacity
+            flow_on_edge = cap - res_cap[i]
+            result[orig_idx] = flow_on_edge
+    
+    print(' '.join(map(str, result)))
+
+# Wait, let's re-read the input format. We already read n,m,_ and s,t,d
+# But then we read the edges again in the function. Let's fix this.
+
+def main():
+    n, m, _ = map(int, input().split())
+    s, t, d = map(int, input().split())
+    
+    # Convert to 0-indexed
+    s -= 1
+    t -= 1
+    
+    # Store edges
+    edge_list = []
+    for _ in range(m):
+        u, v, cap = map(int, input().split())
+        edge_list.append((u-1, v-1, cap))
+    
+    # Build graph for max flow
+    # Nodes: 0 to n-1 (original), n (super_source), n+1 (super_sink)
+    super_source = n
+    super_sink = n + 1
+    
+    # Adjacency list with edge indices
+    graph = [[] for _ in range(n + 2)]
+    edges_info = []  # (from, to, capacity, original_index)
+    
+    # Add original edges
+    for i in range(m):
+        u, v, cap = edge_list[i]
+        # Forward edge
+        graph[u].append(len(edges_info))
+        edges_info.append((u, v, cap, i))
+        # Backward edge
+        graph[v].append(len(edges_info))
+        edges_info.append((v, u, 0, i))
+    
+    # Add super source to intake desk
+    graph[super_source].append(len(edges_info))
+    edges_info.append((super_source, s, d, -1))
+    graph[s].append(len(edges_info))
+    edges_info.append((s, super_source, 0, -1))
+    
+    # Add archive desk to super sink
+    graph[t].append(len(edges_info))
+    edges_info.append((t, super_sink, d, -2))
+    graph[super_sink].append(len(edges_info))
+    edges_info.append((super_sink, t, 0, -2))
+    
+    # Max flow implementation
+    res_cap = [info[2] for info in edges_info]
+    
+    def bfs():
+        parent = [-1] * (n + 2)
+        edge_used = [-1] * (n + 2)
+        visited = [False] * (n + 2)
+        queue = deque([super_source])
+        visited[super_source] = True
+        
+        while queue:
+            u = queue.popleft()
+            for edge_idx in graph[u]:
+                from_node, to_node, cap, orig_idx = edges_info[edge_idx]
+                if not visited[to_node] and res_cap[edge_idx] > 0:
+                    visited[to_node] = True
+                    parent[to_node] = u
+                    edge_used[to_node] = edge_idx
+                    if to_node == super_sink:
+                        return parent, edge_used
+                    queue.append(to_node)
+        return None, None
+    
+    # Edmonds-Karp
+    while True:
+        parent, edge_used = bfs()
+        if parent is None:
+            break
+        
+        # Find minimum residual capacity
+        path_flow = float('inf')
+        v = super_sink
+        while v != super_source:
+            edge_idx = edge_used[v]
+            path_flow = min(path_flow, res_cap[edge_idx])
+            v = parent[v]
+        
+        # Update residual capacities
+        v = super_sink
+        while v != super_source:
+            edge_idx = edge_used[v]
+            res_cap[edge_idx] -= path_flow
+            # Find reverse edge
+            u = parent[v]
+            for rev_edge_idx in graph[v]:
+                if edges_info[rev_edge_idx][1] == u and edges_info[rev_edge_idx][3] == edges_info[edge_idx][3]:
+                    res_cap[rev_edge_idx] += path_flow
+                    break
+            v = parent[v]
+    
+    # Check if maximum flow equals target
+    # Flow out of super_source
+    flow_value = 0
+    for edge_idx in graph[super_source]:
+        if edges_info[edge_idx][1] == s:
+            flow_value += (edges_info[edge_idx][2] - res_cap[edge_idx])
+    
+    if flow_value < d:
+        print("NO")
+        return
+    
+    print("YES")
+    result = [0] * m
+    for i in range(0, len(edges_info)-4, 2):  # Skip super source/sink edges
+        from_node, to_node, cap, orig_idx = edges_info[i]
+        if orig_idx >= 0:  # Original edge
+            flow_on_edge = cap - res_cap[i]
+            result[orig_idx] = flow_on_edge
+    
+    print(' '.join(map(str, result)))
+
+main()

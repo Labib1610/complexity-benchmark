@@ -1,0 +1,105 @@
+import sys
+from collections import deque
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    iterator = iter(input_data)
+    
+    try:
+        n_str = next(iterator)
+    except StopIteration:
+        return
+    
+    n = int(n_str)
+    m = int(next(iterator))
+    _ = next(iterator)
+    
+    s = int(next(iterator))
+    t = int(next(iterator))
+    d = int(next(iterator))
+    
+    # Super-source to limit flow to d
+    source = 0
+    sink = t
+    
+    # Graph representation
+    # edge: to, rev_idx, cap, flow
+    adj = [[] for _ in range(n + 1)]
+    
+    def add_edge(u, v, cap):
+        idx_u = len(adj[u])
+        idx_v = len(adj[v])
+        adj[u].append([v, idx_v, cap, 0])
+        adj[v].append([u, idx_u, 0, 0])
+        return u, idx_u
+
+    # Connect super-source to s with capacity d
+    add_edge(source, s, d)
+    
+    orig_edges = []
+    for _ in range(m):
+        u = int(next(iterator))
+        v = int(next(iterator))
+        cap = int(next(iterator))
+        edge_ref = add_edge(u, v, cap)
+        orig_edges.append(edge_ref)
+        
+    level = [-1] * (n + 1)
+    ptr = [0] * (n + 1)
+    
+    def bfs():
+        for i in range(n + 1):
+            level[i] = -1
+        level[source] = 0
+        q = deque([source])
+        while q:
+            v = q.popleft()
+            for to, rev_idx, cap, flow in adj[v]:
+                if cap - flow > 0 and level[to] == -1:
+                    level[to] = level[v] + 1
+                    q.append(to)
+        return level[sink] != -1
+
+    def dfs(v, pushed):
+        if pushed == 0:
+            return 0
+        if v == sink:
+            return pushed
+        for cid in range(ptr[v], len(adj[v])):
+            ptr[v] = cid
+            to, rev_idx, cap, flow = adj[v][cid]
+            tr = cap - flow
+            if level[v] + 1 != level[to] or tr == 0:
+                continue
+            push = dfs(to, min(pushed, tr))
+            if push == 0:
+                continue
+            adj[v][cid][3] += push
+            adj[to][rev_idx][3] -= push
+            return push
+        return 0
+
+    max_flow = 0
+    while bfs():
+        for i in range(n + 1):
+            ptr[i] = 0
+        while True:
+            pushed = dfs(source, float('inf'))
+            if pushed == 0:
+                break
+            max_flow += pushed
+
+    if max_flow == d:
+        print("YES")
+        flows = []
+        for u, idx in orig_edges:
+            flows.append(str(adj[u][idx][3]))
+        print(*(flows))
+    else:
+        print("NO")
+
+if __name__ == '__main__':
+    solve()

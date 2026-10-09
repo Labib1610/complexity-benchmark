@@ -1,0 +1,337 @@
+**Solution Explanation**
+
+For the given undirected weighted graph we have  
+
+*`t ( ≤ 10 )`* **required** vertices `R`.  
+All other vertices may be used as intermediate relays.
+
+We have to choose edges of minimum total weight so that every vertex of `R`
+becomes reachable from every other one – i.e. we need a minimum‑weight **Steiner
+tree** for the terminal set `R`.
+
+The classic DP over subsets of terminals solves this problem for
+`|R| ≤ 10` easily.
+
+
+
+--------------------------------------------------------------------
+
+#### 1.   Notation  
+
+* `n` – number of vertices (`1 … n` in the input, we use `0 … n-1`)
+* `m` – number of edges
+* `t` – number of required vertices, `t ≤ 10`
+* `term[i]` – the `i`‑th required vertex (0‑based index)
+* `adj[v]` – list of `(to , w)` edges
+* `FULL = (1<<t) - 1` – bitmask of all required vertices  
+
+For a mask `M ( 0 ≤ M ≤ FULL )` and a vertex `v`
+
+```
+dp[M][v] = minimum cost of a tree
+           that connects exactly the terminals whose bits are 1 in M
+           and whose (arbitrary) root is v   (v belongs to the tree)
+```
+
+The answer is  
+
+```
+min_v dp[FULL][v]
+```
+
+--------------------------------------------------------------------
+
+#### 2.   Initialisation  
+
+For every required vertex `term[i]` we can start a tree consisting of this
+single vertex, cost `0`.
+
+```
+dp[1<<i][ term[i] ] = 0
+```
+
+All other entries are `+∞`.
+
+--------------------------------------------------------------------
+
+#### 3.   DP transition – merging two already built trees  
+
+Assume we already know optimal trees for two *disjoint* subsets `A` and `B`
+(`A | B = M`, `A & B = ∅`).  
+If both trees end at the same vertex `v`, we can simply unite them,
+the cost becomes `dp[A][v] + dp[B][v]`.
+
+Therefore for every mask `M` we try all proper non‑empty sub‑masks `A`
+and improve `dp[M][v]` :
+
+```
+dp[M][v] = min( dp[M][v] , dp[A][v] + dp[M ^ A][v] )
+```
+
+The double loop over masks and sub‑masks costs `O(3^t)` – acceptable
+(`3^10 = 59049`).
+
+--------------------------------------------------------------------
+
+#### 4.   DP transition – extending the tree through ordinary edges  
+
+After the merging step, the current `dp[M][·]` values describe a set of
+trees whose roots are fixed, but the trees are allowed to be *anywhere* in
+the graph.  
+From any root we may walk along normal graph edges, paying their weight,
+to reach a different vertex – that gives a cheaper tree rooted at the new
+vertex.
+
+Consequently we have to compute **all‑pairs shortest paths** for the current
+mask, but only from the vertices that already have a finite `dp[M][·]`.
+That is exactly a **multi‑source Dijkstra**:
+
+```
+initial heap = (dp[M][v] , v)  for all v with dp[M][v] < INF
+while heap not empty:
+        d , u = pop
+        if d != dp[M][u]: continue
+        for (to , w) in adj[u]:
+                nd = d + w
+                if nd < dp[M][to]:
+                        dp[M][to] = nd
+                        push (nd , to)
+```
+
+Running Dijkstra for every mask costs  
+
+```
+O( 2^t * ( n log n + m ) )
+```
+
+which is tiny for the given limits (`2^10 * 5000 ≈ 5·10^6`).
+
+--------------------------------------------------------------------
+
+#### 5.   Whole algorithm  
+
+```
+read input
+build adjacency list
+
+FULL = (1<<t) - 1
+dp = [[INF]*n for _ in range(1<<t)]
+
+for i in 0..t-1:
+        dp[1<<i][ term[i] ] = 0
+
+for mask in 1 .. FULL:
+        # 1) combine two smaller subsets
+        sub = (mask-1) & mask
+        while sub:
+                other = mask ^ sub
+                for v in 0..n-1:
+                        cand = dp[sub][v] + dp[other][v]
+                        if cand < dp[mask][v]:
+                                dp[mask][v] = cand
+                sub = (sub-1) & mask          # next sub‑mask
+
+        # 2) multi‑source Dijkstra to propagate through edges
+        run Dijkstra with current dp[mask][·] as distances
+
+answer = min( dp[FULL][v] for v in 0..n-1 )
+print(answer)
+```
+
+The algorithm works because:
+
+* The DP invariant holds after step 1 (any optimal tree for `mask`
+  whose root is `v` can be split into two optimal sub‑trees for a partition
+  of `mask` rooted at the same `v`).
+* Dijkstra step 2 expands each such tree to all possible roots with the
+  exact extra cost of the shortest path from the old root to the new one.
+* Repeating for increasing masks finally yields optimal trees for the full
+  set of terminals.
+
+--------------------------------------------------------------------
+
+#### 6.   Correctness Proof  
+
+We prove that the algorithm outputs the minimum possible total cost.
+
+---
+
+##### Lemma 1  
+For every mask `M` and vertex `v`, after the *combine* step
+(`dp[M][v] = min_{A⊂M} dp[A][v] + dp[M\A][v]`) holds:
+
+`dp[M][v]` equals the minimum cost of a **Steiner forest** that
+
+* connects exactly the terminals of `M`,
+* is a tree,
+* and whose **root** (some designated vertex of the tree) is `v`.
+
+*Proof.*  
+Induction over the number of bits in `M`.
+
+*Base*: `|M| = 1`. By initialisation `dp[M][term] = 0` and any other vertex
+has `∞`. The statement is true.
+
+*Induction step*: assume statement true for all proper non‑empty subsets of `M`.  
+Take any optimal tree `T` for `M` rooted at `v`. Remove `v` – the tree splits
+into several connected components, each containing at least one terminal.
+Let `A` be the set of terminals belonging to the component that also contains
+the vertex `v` after removal of one arbitrary edge incident to `v`.  
+The rest of terminals form `M\A`. Both components are trees rooted at `v`,
+hence by induction their costs are `dp[A][v]` and `dp[M\A][v]`. Their sum
+is a candidate in the minimisation, therefore `dp[M][v]` is **≤** optimal
+cost. Opposite direction: any pair of trees counted in the minimisation can
+be united at `v` forming a feasible tree for `M`. Thus the minimum of those
+sums cannot be smaller than the optimal cost. ∎
+
+
+
+##### Lemma 2  
+After the *Dijkstra* step for a fixed mask `M`,
+for every vertex `x`
+
+```
+dp[M][x] = minimum cost of a tree connecting exactly the terminals of M
+           and whose root is x.
+```
+
+*Proof.*  
+Before Dijkstra the statement holds for the set of vertices that are roots of
+some optimal tree (Lemma&nbsp;1). Dijkstra explores all shortest paths from
+any such root to any vertex `x`. Extending a tree rooted at `r` by the shortest
+`r → x` path yields a tree rooted at `x` whose cost is exactly  
+`dp[M][r] + dist(r,x)`. Dijkstra stores the minimum of those values, therefore
+the new `dp[M][x]` is the optimum over **all** possible roots `r`. No cheaper
+tree can exist, because removing the last edge of any optimal tree rooted at
+`x` gives a tree rooted at some neighbour `r` with smaller cost, contradicting
+the optimality of `dp[M][r]`. ∎
+
+
+
+##### Lemma 3  
+When the algorithm finishes processing a mask `M`,
+`dp[M][·]` satisfies Lemma&nbsp;2.
+
+*Proof.* By induction over the order in which masks are processed
+(increasing integer value).  
+Assume it holds for all proper subsets of `M`.  
+*Combine* step uses only values of proper subsets, which are already optimal
+by induction hypothesis, therefore Lemma&nbsp;1 holds for `dp[M][·]` after
+the combine step.  
+Running Dijkstra turns Lemma&nbsp;1 into Lemma&nbsp;2 (Lemma&nbsp;2). ∎
+
+
+
+##### Lemma 4  
+After the whole algorithm finishes,
+`answer = min_v dp[FULL][v]` equals the minimum possible total cabling cost.
+
+*Proof.* By Lemma&nbsp;3, for `M = FULL` each `dp[FULL][v]` is the optimal cost
+of a tree connecting **all** required sites and rooted at `v`. The overall
+optimal Steiner tree has some root `v*`; its cost is exactly `dp[FULL][v*]`,
+hence the minimum over all `v` equals the optimum. ∎
+
+
+
+##### Theorem  
+The algorithm prints the minimum total cost required to integrate all
+required sites.
+
+*Proof.* Directly from Lemma&nbsp;4. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### 7.   Complexity Analysis  
+
+```
+Number of masks                : 2^t    ≤ 1024
+Sub‑mask enumeration (3^t)     : O(3^t * n)   ≤ 5.9·10^6  operations
+Dijkstra per mask              : O( (n + m) log n )
+Overall Dijkstra work          : O( 2^t * (n + m) log n )
+                                 ≤ 1024 * 5·10^3 * log 100  < 1·10^7
+Memory                         : dp array  (2^t * n) ≤ 1.0·10^5  integers
+```
+
+Both time (well below 5 seconds) and memory (far under 256 MiB) satisfy the limits.
+
+--------------------------------------------------------------------
+
+#### 8.   Reference Implementation  (Python 3)
+
+```python
+import sys
+import heapq
+
+INF = 10**18
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    t = int(next(it))
+    terminals = [int(next(it)) - 1 for _ in range(t)]
+
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        w = int(next(it))
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+
+    FULL = (1 << t) - 1
+    dp = [[INF] * n for _ in range(1 << t)]
+
+    for i, node in enumerate(terminals):
+        dp[1 << i][node] = 0
+
+    # process masks in increasing order
+    for mask in range(1, FULL + 1):
+        # combine two smaller subsets
+        sub = (mask - 1) & mask
+        while sub:
+            other = mask ^ sub
+            # we only need to consider each partition once,
+            # but it is fine to process all sub masks.
+            row_sub = dp[sub]
+            row_other = dp[other]
+            row_mask = dp[mask]
+            for v in range(n):
+                cand = row_sub[v] + row_other[v]
+                if cand < row_mask[v]:
+                    row_mask[v] = cand
+            sub = (sub - 1) & mask
+
+        # multi‑source Dijkstra for this mask
+        heap = []
+        row = dp[mask]
+        for v in range(n):
+            if row[v] < INF:
+                heap.append((row[v], v))
+        heapq.heapify(heap)
+
+        while heap:
+            d, u = heapq.heappop(heap)
+            if d != row[u]:
+                continue
+            for to, w in adj[u]:
+                nd = d + w
+                if nd < row[to]:
+                    row[to] = nd
+                    heapq.heappush(heap, (nd, to))
+
+    ans = min(dp[FULL])
+    print(ans)
+
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above
+and conforms to the required input / output format.

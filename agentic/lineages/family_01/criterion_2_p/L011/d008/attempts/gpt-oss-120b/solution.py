@@ -2,52 +2,41 @@ import sys
 from collections import deque
 
 def solve() -> None:
-    data = sys.stdin.read().strip().split()
+    data = sys.stdin.buffer.read().split()
     if not data:
         return
     it = iter(data)
     n = int(next(it))
     m = int(next(it))
-
-    adj = [[] for _ in range(n + 1)]
+    g = [[] for _ in range(n + 1)]
     for _ in range(m):
         u = int(next(it)); v = int(next(it))
-        adj[u].append(v)
-        adj[v].append(u)
+        g[u].append(v)
+        g[v].append(u)
 
-    colour = [-1] * (n + 1)          # -1 unvisited, 0/1 bipartite colour
-    ans = [0] * (n + 1)
+    colour = [0] * (n + 1)          # 0 = uncoloured, 1 or 2 otherwise
 
     for start in range(1, n + 1):
-        if colour[start] != -1:
+        if colour[start]:
             continue
-        # BFS this component
+        colour[start] = 1
         q = deque([start])
-        colour[start] = 0
-        comp = []
         while q:
-            v = q.popleft()
-            comp.append(v)
-            cv = colour[v]
-            for to in adj[v]:
-                if colour[to] == -1:
-                    colour[to] = cv ^ 1
-                    q.append(to)
-                elif colour[to] == cv:
-                    print("NO")
+            x = q.popleft()
+            cx = colour[x]
+            nx = 3 - cx               # opposite colour
+            for y in g[x]:
+                if colour[y] == 0:
+                    colour[y] = nx
+                    q.append(y)
+                elif colour[y] == cx:
+                    sys.stdout.write("NO")
                     return
-        # orientation: smallest index gets value 1
-        vmin = min(comp)
-        if colour[vmin] == 0:
-            for v in comp:
-                ans[v] = 1 if colour[v] == 0 else 2
-        else:
-            for v in comp:
-                ans[v] = 2 if colour[v] == 0 else 1
 
-    # all done
-    print("YES")
-    print(' '.join(str(ans[i]) for i in range(1, n + 1)))
+    # all good
+    out = ["YES\n"]
+    out.append(' '.join(str(colour[i]) for i in range(1, n + 1)))
+    sys.stdout.write('\n'.join(out))
 
 if __name__ == "__main__":
     solve()

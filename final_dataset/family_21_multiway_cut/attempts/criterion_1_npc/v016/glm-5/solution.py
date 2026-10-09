@@ -1,0 +1,183 @@
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    k = int(next(it))
+    B = int(next(it))
+    sites = [int(next(it)) for _ in range(k)]
+    edges = []
+    for idx in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        w = int(next(it))
+        edges.append((u, v, w, idx))
+
+    parent = list(range(n + 1))
+    rank = [0] * (n + 1)
+
+    def find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    def union(x, y):
+        rx = find(x)
+        ry = find(y)
+        if rx == ry:
+            return False
+        if rank[rx] < rank[ry]:
+            parent[rx] = ry
+        elif rank[rx] > rank[ry]:
+            parent[ry] = rx
+        else:
+            parent[ry] = rx
+            rank[rx] += 1
+        return True
+
+    sorted_edges = sorted(edges, key=lambda e: e[2])
+    chosen = []
+    total = 0
+    for u, v, w, idx in sorted_edges:
+        if union(u, v):
+            chosen.append((u, v, w, idx))
+            total += w
+            if total > B:
+                print("NO")
+                return
+
+    comp = {}
+    for s in sites:
+        r = find(s)
+        comp[r] = comp.get(r, 0) + 1
+
+    if len(comp) == k:
+        print("YES")
+        print(len(chosen))
+        for u, v, w, idx in chosen:
+            print(u, v)
+        return
+
+    if len(comp) < k:
+        print("NO")
+        return
+
+    # len(comp) > k: need to merge some components using cheapest available edges
+    # Greedy: repeatedly add the cheapest edge that merges two components,
+    # preferring merges that reduce the number of site-components.
+    # Stop when number of site-components == k or budget exhausted.
+
+    # Build adjacency for remaining edges
+    adj = [[] for _ in range(n + 1)]
+    for u, v, w, idx in edges:
+        adj[u].append((v, w, idx))
+        adj[v].append((u, w, idx))
+
+    # For each component, maintain a heap of outgoing edges
+    heaps = {}
+    comp_nodes = {}
+    node_to_comp = {}
+
+    for node in range(1, n + 1):
+        r = find(node)
+        node_to_comp[node] = r
+        if r not in comp_nodes:
+            comp_nodes[r] = []
+            heaps[r] = []
+        comp_nodes[r].append(node)
+
+    import heapq
+
+    for r, nodes in comp_nodes.items():
+        h = []
+        for node in nodes:
+            for nb, w, idx in adj[node]:
+                h.append((w, node, nb, idx))
+        heapq.heapify(h)
+        heaps[r] = h
+
+    site_comp = set(comp.keys())
+    num_site = len(site_comp)
+
+    while num_site > k:
+        # Find the cheapest edge connecting two different current components
+        best = None
+        best_r = None
+        for r, h in heaps.items():
+            while h:
+                w, u, v, idx = h[0]
+                ru = find(u)
+                rv = find(v)
+                if ru != rv:
+                    if r != ru:
+                        # component representative changed, rebuild pointer
+                        heaps[ru] = heaps.pop(r)
+                        r = ru
+                        continue
+                    if best is None or w < best[0]:
+                        best = (w, u, v, idx, ru, rv)
+                        best_r = r
+                    break
+                else:
+                    heapq.heappop(h)
+
+        if best is None:
+            break
+
+        w, u, v, idx, ru, rv = best
+        if total + w > B:
+            break
+
+        # Merge ru into rv (or vice versa). To keep heaps valid, merge smaller heap into larger.
+        if len(comp_nodes[ru]) < len(comp_nodes[rv]):
+            ru, rv = rv, ru
+            best_r = find(u) if find(u) != find(v) else best_r
+            # recompute ru, rv so ru is the larger
+            # Actually we just need to merge rv into ru
+            ru, rv = rv, ru  # swap back: we want ru = larger, rv = smaller, merge rv into ru
+
+        # Ensure ru is the one we keep as representative
+        # We'll union rv into ru
+        union(ru, rv)
+        # Merge node lists and heaps
+        comp_nodes[ru].extend(comp_nodes[rv])
+        # Merge heaps: push all from rv into ru
+        for item in heaps[rv]:
+            heapq.heappush(heaps[ru], item)
+        del comp_nodes[rv]
+        del heaps[rv]
+        chosen.append((u, v, w, idx))
+        total += w
+
+        # Update site components
+        new_r = find(ru)
+        # The representative may have changed due to union by rank
+        # Re-map
+        # Actually after union(ru, rv), find(ru) gives the new root
+        root = find(ru)
+        if root != ru:
+            # Move heaps and comp_nodes to new root
+            heaps[root] = heaps.pop(ru)
+            comp_nodes[root] = comp_nodes.pop(ru)
+
+        # Recompute site components
+        comp = {}
+        for s in sites:
+            r = find(s)
+            comp[r] = comp.get(r, 0) + 1
+        num_site = len(comp)
+
+    if num_site == k:
+        print("YES")
+        print(len(chosen))
+        for u, v, w, idx in chosen:
+            print(u, v)
+    else:
+        print("NO")
+
+solve()

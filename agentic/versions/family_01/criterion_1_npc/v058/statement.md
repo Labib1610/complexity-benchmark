@@ -1,20 +1,21 @@
-# Problem A — The Tri-Position Lock
+# Problem A — Operational Tier Configuration
 
-Time limit: 2 s   Memory limit: 256 MB
+Time limit: 2 s
+Memory limit: 256 MB
 
-Inside a secure vault door lies a network of $m$ rigid crossbars. Each crossbar bridges a specific pair of rotary dials, of which there are $n$ in total (numbered 1 to $n$). Every individual dial features exactly three distinct settings, labeled 1, 2, and 3.
+A distributed computing environment contains $n$ processing nodes, which are identified by integers from 1 to $n$. The environment also includes $m$ direct communication bridges, each linking a specific pair of nodes.
 
-The shape of the crossbars dictates a strict mechanical limitation: if the two dials bridged by any single crossbar are rotated to the exact same setting, that crossbar will seize and trigger a permanent lockdown. A configuration is only valid if every single crossbar bridges a pair of dials that have differing settings.
+To prevent data packet collisions, any two nodes that share a direct communication bridge must maintain a strict differential in their designated operating tiers. This means that if a bridge connects node $u$ and node $v$, their assigned tiers $t_u$ and $t_v$ must satisfy the condition $|t_u - t_v| \ge 1$. Furthermore, hardware limitations restrict the available operating tiers for any node to exactly three integer levels: 1, 2, and 3.
 
-You are attempting to open this complex mechanical vault. To achieve this, you must determine a full sequence of settings for all $n$ dials that avoids triggering a lockdown. If the mechanism is inherently impossible to configure without seizing, you must report it. Otherwise, you must provide the configuration that successfully opens the vault.
+Your objective is to evaluate the provided layout of communication bridges and determine whether it is possible to assign a valid operating tier to every node in the environment. If such a configuration exists, you must output it; otherwise, you must report that the requirements are unsatisfiable.
 
 ## Input
-The first line contains two integers $n$ and $m$ — the number of dials and the number of crossbars (1 ≤ $n$ ≤ 40, 0 ≤ $m$ ≤ $n(n−1)/2$).
-Each of the next $m$ lines contains two integers $u$ and $v$ — the identifiers of two dials bridged by a crossbar. Dials are identified by integers from 1 to $n$.
+The first line provides two integers $n$ and $m$ — representing the number of processing nodes and the number of communication bridges, respectively ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
+The following $m$ lines each contain two integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), specifying that a communication bridge exists between node $u$ and node $v$.
 
 ## Output
-If there is no combination of dial settings that avoids a lockdown, print a single line containing `NO`.
-Otherwise, print `YES` on the first line. On the second line, print $n$ integers $p_1, p_2, \dots, p_n$ (each $p_i \in \{1, 2, 3\}$), where $p_i$ is the setting of dial $i$. Among all valid configurations that open the vault, you must output the one that is lexicographically smallest. (A sequence $A$ is lexicographically smaller than sequence $B$ if, at the first index where their settings differ, sequence $A$ has a smaller setting number than sequence $B$).
+If it is impossible to assign operating tiers that satisfy all differential conditions, print a single line containing `NO`.
+If a valid assignment is possible, print `YES` on the first line. On the second line, output $n$ space-separated integers $t_1, t_2, \dots, t_n$, where $t_i \in \{1, 2, 3\}$ is the operating tier assigned to node $i$. If multiple valid configurations exist, you may output any of them.
 
 ## Example 1
 Input:

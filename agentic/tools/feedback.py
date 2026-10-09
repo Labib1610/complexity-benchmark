@@ -217,7 +217,7 @@ def run_criterion(family, criterion, args, run_cfg, models, strategies, intensit
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--family", required=True)
-    ap.add_argument("--criterion", type=int, choices=[1, 2, 3])
+    ap.add_argument("--criterion", type=int, choices=[1, 2])
     ap.add_argument("--version")
     ap.add_argument("--max-targets", type=int, default=10)
     ap.add_argument("--min-pass", type=int, default=1)
@@ -233,7 +233,7 @@ def main():
     intensities = GV.load_intensities()
     verifier_system = (B.PROMPTS_DIR / "verifier_system.md").read_text()
     verifier_user_tmpl = (B.PROMPTS_DIR / "verifier_user_template.md").read_text()
-    crits = [args.criterion] if args.criterion else run_cfg.get("criteria", [1, 2, 3])
+    crits = [args.criterion] if args.criterion else run_cfg.get("criteria", [1, 2])
     for family in B.list_families(args.family):
         for c in crits:
             run_criterion(family, c, args, run_cfg, models, strategies, intensities,

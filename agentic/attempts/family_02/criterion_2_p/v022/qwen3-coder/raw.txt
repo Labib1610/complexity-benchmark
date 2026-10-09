@@ -1,0 +1,123 @@
+```python
+import sys
+import threading
+
+def main():
+    import sys
+    sys.setrecursionlimit(1 << 25)
+    
+    n, m = map(int, sys.stdin.readline().split())
+    
+    # For each clause (l1 or l2), we create implications
+    # l1 or l2 is equivalent to (not l1) => l2 and (not l2) => l1
+    
+    # We'll use 2*i for variable i (positive) and 2*i+1 for not i
+    # But it's easier to map: for variable x (1-based), 
+    # x*2 represents x=True, x*2+1 represents x=False
+    # Actually, let's use standard 2-SAT notation:
+    # for 1-based variable x: 
+    # node 2*x represents x=True
+    # node 2*x+1 represents x=False (not x)
+    # But in input, positive means x=True, negative means not x
+    
+    adj = [[] for _ in range(2 * (n + 1))]  # 0 unused, 1 to n variables
+    adj_rev = [[] for _ in range(2 * (n + 1))]
+    
+    for _ in range(m):
+        l1, l2 = map(int, sys.stdin.readline().split())
+        # l1 or l2
+        # Convert to implications: not l1 -> l2, not l2 -> l1
+        
+        # We need to convert literals to node indices
+        # l is a literal: positive means variable value=True, negative means not (variable value=True)
+        # node_id for variable x (1-based):
+        # if literal is x (positive): node = 2*x (means x=True)
+        # if literal is -x (negative): node = 2*x + 1 (means x=False, i.e., not x)
+        # For implication graph:
+        # not l1 -> l2
+        # not l2 -> l1
+        
+        def lit_to_node(lit):
+            if lit > 0:
+                return 2 * lit  # x=True
+            else:
+                return 2 * (-lit) + 1  # not x -> x=False
+            
+        def not_lit_node(node):
+            # if node is 2*x (x=True), then not node is 2*x+1 (x=False)
+            # if node is 2*x+1 (x=False), then not node is 2*x (x=True)
+            if node % 2 == 0:
+                return node + 1
+            else:
+                return node - 1
+        
+        n1 = lit_to_node(l1)
+        n2 = lit_to_node(l2)
+        
+        # not l1 -> l2  means  (not n1) -> n2  means  (not_lit_node(n1)) -> n2
+        adj[not_lit_node(n1)].append(n2)
+        adj_rev[n2].append(not_lit_node(n1))
+        
+        # not l2 -> l1  means  (not n2) -> n1  means  (not_lit_node(n2)) -> n1
+        adj[not_lit_node(n2)].append(n1)
+        adj_rev[n1].append(not_lit_node(n2))
+    
+    # Now we do Kosaraju's algorithm for 2-SAT
+    order = []
+    visited = [False] * (2 * (n + 1))
+    
+    def dfs1(u):
+        visited[u] = True
+        for v in adj[u]:
+            if not visited[v]:
+                dfs1(v)
+        order.append(u)
+    
+    for i in range(2, 2 * (n + 1)):
+        if not visited[i]:
+            dfs1(i)
+    
+    # Reverse the order for second DFS
+    order.reverse()
+    
+    # Second DFS on transpose graph to find SCCs
+    visited = [False] * (2 * (n + 1))
+    scc_id = [0] * (2 * (n + 1))
+    scc_count = 0
+    
+    def dfs2(u):
+        visited[u] = True
+        scc_id[u] = scc_count
+        for v in adj_rev[u]:
+            if not visited[v]:
+                dfs2(v)
+    
+    for u in order:
+        if not visited[u]:
+            scc_count += 1
+            dfs2(u)
+    
+    # Check if for each variable x, x and not x are in different SCCs
+    for x in range(1, n + 1):
+        node_x = 2 * x       # x=True
+        node_not_x = 2 * x + 1  # x=False
+        if scc_id[node_x] == scc_id[node_not_x]:
+            print("NO")
+            return
+    
+    # If satisfiable, reconstruct solution
+    # In a 2-SAT implication graph, if scc_id[node_x] > scc_id[node_not_x], then x=True
+    assignment = [0] * (n + 1)
+    for x in range(1, n + 1):
+        node_x = 2 * x
+        node_not_x = 2 * x + 1
+        if scc_id[node_x] > scc_id[node_not_x]:
+            assignment[x] = 1
+        else:
+            assignment[x] = 0
+    
+    print("YES")
+    print(' '.join(map(str, assignment[1:])))
+
+threading.Thread(target=main).start()
+```

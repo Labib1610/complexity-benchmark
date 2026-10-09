@@ -1,0 +1,161 @@
+import sys
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    k = int(next(it))
+    t = int(next(it))
+    triples = []
+    for _ in range(t):
+        x = int(next(it)) - 1
+        y = int(next(it)) - 1
+        z = int(next(it)) - 1
+        triples.append((x, y, z))
+
+    n_cols = 3 * k  # columns: operators 0..k-1, terminals k..2k-1, shifts 2k..3k-1
+
+    # Build DLX structure
+    # Node 0 is header
+    # column headers are 1..n_cols
+    # other nodes start from n_cols+1
+    size = n_cols + 1
+    U = [0] * (1 + t * 3 + n_cols)
+    D = [0] * (1 + t * 3 + n_cols)
+    L = [0] * (1 + t * 3 + n_cols)
+    R = [0] * (1 + t * 3 + n_cols)
+    C = [0] * (1 + t * 3 + n_cols)   # column of node
+    S = [0] * (n_cols + 1)           # column sizes
+
+    # init header links
+    for i in range(n_cols + 1):
+        U[i] = D[i] = i
+        L[i] = i - 1
+        R[i] = i + 1
+    L[0] = n_cols
+    R[n_cols] = 0
+
+    node_id = n_cols + 1
+    row_nodes = []  # store first node id of each row for solution retrieval
+    for idx, (x, y, z) in enumerate(triples):
+        cols = [x + 1, k + y + 1, 2 * k + z + 1]  # column numbers (1‑based)
+        first = None
+        for col in cols:
+            nid = node_id
+            node_id += 1
+            C[nid] = col
+            # insert into column
+            D[nid] = col
+            U[nid] = U[col]
+            D[U[col]] = nid
+            U[col] = nid
+            S[col] += 1
+            # link row horizontally
+            if first is None:
+                first = nid
+                L[nid] = R[nid] = nid
+            else:
+                L[nid] = L[first]
+                R[nid] = first
+                R[L[first]] = nid
+                L[first] = nid
+        row_nodes.append(first)
+
+    solution = []
+
+    sys.setrecursionlimit(10000)
+
+    def cover(col):
+        # remove column header
+        L[R[col]] = L[col]
+        R[L[col]] = R[col]
+        i = D[col]
+        while i != col:
+            j = R[i]
+            while j != i:
+                U[D[j]] = U[j]
+                D[U[j]] = D[j]
+                S[C[j]] -= 1
+                j = R[j]
+            i = D[i]
+
+    def uncover(col):
+        i = U[col]
+        while i != col:
+            j = L[i]
+            while j != i:
+                S[C[j]] += 1
+                U[D[j]] = j
+                D[U[j]] = j
+                j = L[j]
+            i = U[i]
+        L[R[col]] = col
+        R[L[col]] = col
+
+    def search():
+        if R[0] == 0:  # all columns covered
+            return True
+        # choose column with minimal size
+        c = R[0]
+        min_s = S[c]
+        j = R[c]
+        while j != 0:
+            if S[j] < min_s:
+                c = j
+                min_s = S[j]
+                if min_s == 0:
+                    break
+            j = R[j]
+        if min_s == 0:
+            return False
+        cover(c)
+        r = D[c]
+        while r != c:
+            solution.append(r)
+            j = R[r]
+            while j != r:
+                cover(C[j])
+                j = R[j]
+            if search():
+                return True
+            # backtrack
+            solution.pop()
+            j = L[r]
+            while j != r:
+                uncover(C[j])
+                j = L[j]
+            r = D[r]
+        uncover(c)
+        return False
+
+    if search():
+        print("YES")
+        # retrieve triples from solution nodes
+        out = []
+        for node in solution:
+            cols = []
+            j = node
+            while True:
+                cols.append(C[j] - 1)  # zero‑based column index
+                j = R[j]
+                if j == node:
+                    break
+            # decode
+            op = None
+            term = None
+            shift = None
+            for col in cols:
+                if col < k:
+                    op = col
+                elif col < 2 * k:
+                    term = col - k
+                else:
+                    shift = col - 2 * k
+            out.append(f"{op+1} {term+1} {shift+1}")
+        sys.stdout.write("\n".join(out))
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()

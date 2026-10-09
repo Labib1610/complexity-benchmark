@@ -1,23 +1,19 @@
-# Problem B — Isotope Containment
+# Orbital Payload Configuration
 
-Time limit: 1 s
-Memory limit: 256 MB
+Time limit: 1 s   Memory limit: 256 MB
 
-A research station must store $n$ unstable isotopes, numbered 1 through $n$. The station has two distinct magnetic containment fields, labeled Field 1 and Field 2. Every isotope must be placed into exactly one of these two fields.
+An orbital platform is being fitted with $n$ sensory modules, numbered 1 to $n$. Each module must be wired to one of two redundant power buses, labeled 1 and 2.
 
-Certain pairs of isotopes will resonate dangerously if they are exposed to the same magnetic field. You are given a list of $m$ such resonating pairs. For safety, no two isotopes that resonate with each other can be assigned to the same field.
-
-The station has exactly 2000 storage racks, each capable of holding exactly 100 isotopes. The number of isotopes $n$ to be stored is at least one, and cannot exceed the total physical capacity of all these racks combined. The number of known resonance pairs $m$ can be zero, and its maximum possible value is equal to that same total capacity of all racks.
-
-Your task is to determine if it is possible to safely assign all $n$ isotopes to the two containment fields. If multiple safe assignments exist, the automated sorting system requires the lexicographically smallest assignment. (An assignment sequence is lexicographically smaller than another if, at the first isotope where their field assignments differ, it assigns the isotope to Field 1 instead of Field 2).
+Certain pairs of modules generate electromagnetic interference if they draw power from the same bus. You are provided with $m$ such interfering pairs. Your task is to determine if it is possible to assign every module to a bus such that no interfering pair shares a bus.
 
 ## Input
-The first line of input contains two integers $n$ and $m$.
-Each of the following $m$ lines contains two integers $u$ and $v$, representing a pair of isotopes that resonate with each other.
+The first line contains two integers: the number of modules $n$ and the number of interfering pairs $m$. The platform requires at least a single module to operate, and its chassis accommodates a strict upper limit of two hundred thousand modules. The diagnostic system can register anywhere from a minimum of zero up to a maximum of two hundred thousand interference pairs.
+
+Each of the following $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$), indicating that module $u$ and module $v$ interfere with each other.
 
 ## Output
-If it is impossible to safely assign all isotopes to the two fields, print a single line containing `NO`.
-If a safe assignment is possible, print `YES` on the first line. On the second line, print $n$ integers $s_1 \dots s_n$ (each in {1, 2}) representing the field assignment for each isotope. This sequence must be the lexicographically smallest valid assignment.
+If there is no way to safely wire all modules, output `NO` on a single line.
+Otherwise, output `YES` on the first line. On the second line, output $n$ integers (each `1` or `2`) representing the bus assignment for modules 1 through $n$. This sequence must be the lexicographically smallest valid assignment.
 
 ## Example 1
 Input:

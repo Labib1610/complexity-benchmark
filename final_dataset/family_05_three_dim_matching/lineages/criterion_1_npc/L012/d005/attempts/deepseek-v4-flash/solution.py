@@ -1,0 +1,46 @@
+import sys
+
+def solve():
+    input = sys.stdin.readline
+    k, t = map(int, input().split())
+    points = []
+    for _ in range(t):
+        x, y, z = map(int, input().split())
+        points.append((x-1, y-1, z-1))  # 0-index
+
+    # Group points by x coordinate
+    by_x = [[] for _ in range(k)]
+    for idx, (x, y, z) in enumerate(points):
+        by_x[x].append((y, z, idx))
+
+    # dp[mask_y][mask_z] = True if we can cover x's processed so far
+    # We'll iterate over x from 0 to k-1
+    # dp is a dict mapping (mask_y, mask_z) -> list of chosen point indices
+    dp = {(0, 0): []}
+    for x in range(k):
+        new_dp = {}
+        for (mask_y, mask_z), chosen in dp.items():
+            for y, z, idx in by_x[x]:
+                if not (mask_y >> y) & 1 and not (mask_z >> z) & 1:
+                    new_mask_y = mask_y | (1 << y)
+                    new_mask_z = mask_z | (1 << z)
+                    key = (new_mask_y, new_mask_z)
+                    if key not in new_dp:
+                        new_dp[key] = chosen + [idx]
+        dp = new_dp
+        if not dp:
+            print("NO")
+            return
+
+    full_mask = (1 << k) - 1
+    if (full_mask, full_mask) in dp:
+        print("YES")
+        chosen = dp[(full_mask, full_mask)]
+        for idx in chosen:
+            x, y, z = points[idx]
+            print(x+1, y+1, z+1)
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()

@@ -1,0 +1,30 @@
+from itertools import combinations
+import sys
+
+def solve():
+    k, t = map(int, sys.stdin.readline().split())
+    
+    configs = []
+    for _ in range(t):
+        x, y, z = map(int, sys.stdin.readline().split())
+        configs.append((x, y, z))
+    
+    # Calculate the target harmonic value
+    H_k = sum(10**i for i in range(1, k+1))
+    
+    # Try all combinations of k configurations
+    for combo in combinations(configs, k):
+        # Calculate signatures
+        freq_sig = sum(10**x for x, _, _ in combo)
+        mod_sig = sum(10**y for _, y, _ in combo)
+        enc_sig = sum(10**z for _, _, z in combo)
+        
+        if freq_sig == H_k and mod_sig == H_k and enc_sig == H_k:
+            print("YES")
+            for config in combo:
+                print(config[0], config[1], config[2])
+            return
+    
+    print("NO")
+
+solve()

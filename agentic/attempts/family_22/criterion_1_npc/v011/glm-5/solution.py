@@ -1,0 +1,84 @@
+import sys
+from collections import deque
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    M = int(next(it))
+    T = int(next(it))
+    m = int(next(it))
+
+    adj = [[] for _ in range(n + 1)]
+    indeg = [0] * (n + 1)
+    for _ in range(m):
+        a = int(next(it))
+        b = int(next(it))
+        adj[a].append(b)
+        indeg[b] += 1
+
+    # earliest possible term respecting prerequisites
+    earliest = [0] * (n + 1)
+    q = deque()
+    for i in range(1, n + 1):
+        if indeg[i] == 0:
+            earliest[i] = 1
+            q.append(i)
+
+    cnt = 0
+    while q:
+        u = q.popleft()
+        cnt += 1
+        for v in adj[u]:
+            if earliest[v] < earliest[u] + 1:
+                earliest[v] = earliest[u] + 1
+            indeg[v] -= 1
+            if indeg[v] == 0:
+                q.append(v)
+
+    if cnt != n:
+        print("NO")
+        return
+
+    # check feasibility: enough capacity in suffix terms
+    cap = [0] * (T + 2)
+    for i in range(1, n + 1):
+        if earliest[i] > T:
+            print("NO")
+            return
+        cap[earliest[i]] += 1
+
+    suffix_cap = 0
+    for t in range(T, 0, -1):
+        suffix_cap += cap[t]
+        if suffix_cap > M * (T - t + 1):
+            print("NO")
+            return
+
+    # assign greedily from latest term backward
+    term = [0] * (n + 1)
+    by_earliest = [[] for _ in range(T + 2)]
+    for i in range(1, n + 1):
+        by_earliest[earliest[i]].append(i)
+
+    available = deque()
+    remaining = n
+    for t in range(T, 0, -1):
+        for x in by_earliest[t]:
+            available.append(x)
+        take = min(M, len(available))
+        for _ in range(take):
+            x = available.popleft()
+            term[x] = t
+            remaining -= 1
+
+    if remaining != 0:
+        print("NO")
+        return
+
+    print("YES")
+    print(" ".join(str(term[i]) for i in range(1, n + 1)))
+
+solve()

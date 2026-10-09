@@ -1,0 +1,107 @@
+import sys
+from collections import deque
+
+sys.setrecursionlimit(1_000_000)
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+
+    it = iter(data)
+    n = next(it)
+    m = next(it)
+    _ = next(it)
+
+    s = next(it)
+    t = next(it)
+    demand = next(it)
+
+    graph = [[] for _ in range(n + 1)]
+    edge_info = []
+
+    def add_edge(u, v, cap):
+        forward = [v, len(graph[v]), cap]
+        backward = [u, len(graph[u]), 0]
+        graph[u].append(forward)
+        graph[v].append(backward)
+        return forward
+
+    for _ in range(m):
+        u = next(it)
+        v = next(it)
+        cap = next(it)
+        if u == v:
+            edge_info.append((cap, None))
+        else:
+            edge_info.append((cap, add_edge(u, v, cap)))
+
+    if demand == 0:
+        print("YES")
+        print(" ".join("0" for _ in range(m)))
+        return
+
+    if s == t:
+        print("NO")
+        return
+
+    total_flow = 0
+
+    while total_flow < demand:
+        level = [-1] * (n + 1)
+        level[s] = 0
+        queue = deque([s])
+
+        while queue:
+            u = queue.popleft()
+            for v, rev, cap in graph[u]:
+                if cap > 0 and level[v] == -1:
+                    level[v] = level[u] + 1
+                    queue.append(v)
+
+        if level[t] == -1:
+            break
+
+        ptr = [0] * (n + 1)
+
+        def dfs(u, pushed):
+            if u == t:
+                return pushed
+
+            while ptr[u] < len(graph[u]):
+                edge = graph[u][ptr[u]]
+                v, rev, cap = edge
+
+                if cap > 0 and level[v] == level[u] + 1:
+                    sent = dfs(v, min(pushed, cap))
+                    if sent:
+                        edge[2] -= sent
+                        graph[v][rev][2] += sent
+                        return sent
+
+                ptr[u] += 1
+
+            return 0
+
+        while total_flow < demand:
+            sent = dfs(s, demand - total_flow)
+            if sent == 0:
+                break
+            total_flow += sent
+
+    if total_flow < demand:
+        print("NO")
+        return
+
+    answer = []
+    for original_cap, edge in edge_info:
+        if edge is None:
+            answer.append(0)
+        else:
+            answer.append(original_cap - edge[2])
+
+    print("YES")
+    print(*answer)
+
+if __name__ == "__main__":
+    main()

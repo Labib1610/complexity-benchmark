@@ -1,0 +1,69 @@
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    q = int(data[0])
+    t = int(data[1])
+    n = 2 * q
+
+    head = list(range(n + 2))
+    nxt = [0] * (n + 2)
+    prv = [0] * (n + 2)
+    for i in range(n + 2):
+        nxt[i] = i + 1
+        prv[i] = i - 1
+    nxt[n + 1] = 0
+    prv[0] = n + 1
+
+    adj = [[] for _ in range(n + 1)]
+    idx = 2
+    for _ in range(t):
+        a = int(data[idx]); b = int(data[idx + 1]); idx += 2
+        adj[a].append(b)
+        adj[b].append(a)
+
+    match = [0] * (n + 1)
+    stack = []
+    matched_count = 0
+
+    for u in range(1, n + 1):
+        if match[u] != 0:
+            continue
+        stack.append(u)
+        while stack:
+            v = stack[-1]
+            if match[v] != 0:
+                stack.pop()
+                continue
+            found = False
+            while nxt[v] != v + 1:
+                w = nxt[v]
+                if match[w] == 0:
+                    match[v] = w
+                    match[w] = v
+                    matched_count += 2
+                    nxt[prv[v]] = nxt[v]
+                    prv[nxt[v]] = prv[v]
+                    nxt[prv[w]] = nxt[w]
+                    prv[nxt[w]] = prv[w]
+                    stack.pop()
+                    found = True
+                    break
+                else:
+                    nxt[v] = nxt[w]
+                    prv[nxt[w]] = v
+            if not found:
+                stack.pop()
+
+    if matched_count != n:
+        sys.stdout.write("NO\n")
+        return
+
+    out = ["YES"]
+    for u in range(1, q + 1):
+        out.append(f"{u} {match[u]}")
+    sys.stdout.write("\n".join(out) + "\n")
+
+solve()

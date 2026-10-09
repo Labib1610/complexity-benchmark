@@ -1,6 +1,160 @@
+**Solution Explanation**
+
+For every edge `{u,v}` the two incident vertices must receive different
+values, because the only possible pairs are `(1,2)` or `(2,1)`.
+Therefore the whole graph has to be *bipartite*.
+If a component is not bipartite the answer is `NO`.
+
+If the component is bipartite there are exactly two possible colourings:
+`colour 0 → 1 , colour 1 → 2` or the opposite.
+To obtain the lexicographically smallest whole sequence we treat every
+connected component independently.
+
+*Observation*  
+Let `c` be a component and `p = min(c)` the smallest vertex index inside it.
+In any valid assignment the value of `p` can be either `1` or `2`
+(because we may swap the two colour classes).
+Choosing `1` for `p` makes the whole sequence lexicographically smaller,
+and it never harms later components – they start at larger indices.
+Hence the optimal global assignment is obtained by
+**setting the smallest vertex of each component to `1`** and fixing the rest
+accordingly.
+
+So the algorithm is:
+
+```
+for every not visited vertex:
+        run BFS, colour with 0/1
+        if a conflict appears → not bipartite → NO
+        remember all vertices of this component and the colour of the
+        smallest vertex min_v
+        if colour[min_v] == 0:
+                colour 0 → 1 , colour 1 → 2
+        else:
+                colour 0 → 2 , colour 1 → 1
+        write the values into the answer array
+```
+
+Isolated vertices have no edges, they form a component of size 1,
+the rule above gives them value 1, which is optimal.
+
+The whole procedure is linear in `n+m`.
+
+--------------------------------------------------------------------
+
+#### Correctness Proof  
+
+We prove that the algorithm prints `YES` and the lexicographically smallest
+valid assignment iff such an assignment exists.
+
+---
+
+##### Lemma 1  
+If the algorithm reports a conflict while BFS‑colouring a component,
+the graph is not bipartite, therefore no valid assignment exists.
+
+**Proof.**  
+During BFS we assign opposite colours to the ends of every processed edge.
+A conflict means an edge connects two vertices that already have the same
+colour, i.e. an odd cycle exists. A graph containing an odd cycle is not
+bipartite. Since a valid assignment requires different values on every edge,
+it would be a proper 2‑colouring, impossible for a non‑bipartite graph. ∎
+
+
+
+##### Lemma 2  
+If the algorithm finishes without conflict, the produced values satisfy the
+edge condition.
+
+**Proof.**  
+For each component we obtained a proper 2‑colouring (no conflict).  
+We then map the two colour classes to `{1,2}` (maybe swapped).  
+Consequently every edge connects vertices of different colours, hence of
+different values, i.e. one value is `1` and the other `2`. ∎
+
+
+
+##### Lemma 3  
+For a bipartite component `C` let `p = min(C)`.  
+Among all valid assignments restricted to `C` the lexicographically smallest
+one (considering only positions of `C`) is the one that gives `p` the value `1`.
+
+**Proof.**  
+Inside `C` there are exactly two possible assignments: the two colour classes
+are either `(1,2)` or `(2,1)`.  
+If `p` receives `1` in the first assignment and `2` in the second,
+the first is lexicographically smaller because the first differing index
+inside `C` is `p`. No other assignment exists, so the claim holds. ∎
+
+
+
+##### Lemma 4  
+The algorithm’s choice for each component (setting its smallest vertex to `1`)
+produces the lexicographically smallest global sequence among all valid
+assignments.
+
+**Proof.**  
+Consider the components ordered by their smallest vertex index:
+`C1, C2, …`.  
+By Lemma&nbsp;3 the algorithm makes the earliest possible index (`min(C1)`) equal
+to `1`. Any other valid global assignment must also assign either `1` or `2`
+to this index; if it assigns `2` the whole sequence is already larger.
+If it also assigns `1`, the comparison proceeds to the next index,
+which belongs either to `C1` (already fixed) or to `C2`.  
+Repeating the argument component by component shows that the algorithm is
+not larger at any position, therefore it is globally lexicographically minimal. ∎
+
+
+
+##### Lemma 5  
+If a valid assignment exists, the algorithm never declares `NO`.
+
+**Proof.**  
+A valid assignment is a proper 2‑colouring, thus the graph is bipartite.
+BFS on a bipartite graph never encounters a conflict, so the algorithm
+does not stop with `NO`. ∎
+
+
+
+##### Theorem  
+The algorithm outputs  
+
+* `NO` iff no safe calibration exists;  
+* otherwise `YES` and the lexicographically smallest safe calibration.
+
+**Proof.**  
+
+*If the algorithm prints `NO`*: by Lemma&nbsp;1 the graph is not bipartite,
+hence no assignment exists.
+
+*If a safe calibration exists*: by Lemma&nbsp;5 the algorithm finishes
+without conflict, therefore prints `YES`.  
+By Lemma&nbsp;2 the printed values satisfy all edges.  
+By Lemma&nbsp;4 they are the lexicographically smallest among all valid
+assignments. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### Complexity Analysis  
+
+`BFS` visits each vertex once and each edge twice.
+
+```
+Time   :  O(n + m)
+Memory :  O(n + m)   (adjacency list, colour array, queue)
+```
+
+Both limits satisfy the constraints (`n,m ≤ 2·10⁵`).
+
+--------------------------------------------------------------------
+
+#### Reference Implementation  (Python 3)
+
 ```python
 import sys
-sys.setrecursionlimit(1 << 25)
+from collections import deque
 
 def solve() -> None:
     data = sys.stdin.read().strip().split()
@@ -9,49 +163,57 @@ def solve() -> None:
     it = iter(data)
     n = int(next(it))
     m = int(next(it))
-    g = [[] for _ in range(n + 1)]
+    adj = [[] for _ in range(n + 1)]
     for _ in range(m):
         u = int(next(it)); v = int(next(it))
-        g[u].append(v)
-        g[v].append(u)
+        adj[u].append(v)
+        adj[v].append(u)
 
-    color = [-1] * (n + 1)          # 0 or 1 for bipartite coloring
-    ans = [0] * (n + 1)             # final values (1 or 2)
-
-    from collections import deque
+    colour = [-1] * (n + 1)          # 0 / 1
+    answer = [0] * (n + 1)           # final values 1/2
+    q = deque()
 
     for start in range(1, n + 1):
-        if color[start] != -1:
+        if colour[start] != -1:
             continue
-        # BFS this component
-        q = deque([start])
-        color[start] = 0
-        comp_nodes = [start]
-        min_node = start
+        # start new component
+        colour[start] = 0
+        q.append(start)
+        comp = [start]
+        min_vertex = start
+
         while q:
-            u = q.popleft()
-            if u < min_node:
-                min_node = u
-            for v in g[u]:
-                if color[v] == -1:
-                    color[v] = color[u] ^ 1
-                    q.append(v)
-                    comp_nodes.append(v)
-                elif color[v] == color[u]:
+            v = q.popleft()
+            for to in adj[v]:
+                if colour[to] == -1:
+                    colour[to] = colour[v] ^ 1
+                    q.append(to)
+                    comp.append(to)
+                    if to < min_vertex:
+                        min_vertex = to
+                elif colour[to] == colour[v]:
                     print("NO")
                     return
-        # decide orientation: smallest index node must get value 1
-        # if its color is 0 -> map 0->1,1->2 else map 0->2,1->1
-        orient = 0 if color[min_node] == 0 else 1
-        for v in comp_nodes:
-            if orient == 0:
-                ans[v] = 1 if color[v] == 0 else 2
-            else:
-                ans[v] = 2 if color[v] == 0 else 1
+
+        # decide orientation: smallest vertex must become 1
+        if colour[min_vertex] == 0:
+            # 0 -> 1, 1 -> 2
+            for v in comp:
+                answer[v] = 1 if colour[v] == 0 else 2
+        else:
+            # swap
+            for v in comp:
+                answer[v] = 2 if colour[v] == 0 else 1
+
+    # isolated vertices (no edges) are already handled: they form a component,
+    # min_vertex gets colour 0, thus value 1.
 
     print("YES")
-    print(' '.join(str(ans[i]) for i in range(1, n + 1)))
+    print(' '.join(str(answer[i]) for i in range(1, n + 1)))
 
 if __name__ == "__main__":
     solve()
 ```
+
+The program follows exactly the algorithm proven correct above and conforms
+to the required input‑output format.

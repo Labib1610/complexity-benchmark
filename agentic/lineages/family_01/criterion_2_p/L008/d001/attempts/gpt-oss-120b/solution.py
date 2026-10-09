@@ -1,8 +1,8 @@
 import sys
-from collections import deque
+sys.setrecursionlimit(1 << 25)
 
 def solve() -> None:
-    data = sys.stdin.buffer.read().split()
+    data = sys.stdin.read().strip().split()
     if not data:
         return
     it = iter(data)
@@ -14,36 +14,40 @@ def solve() -> None:
         adj[u].append(v)
         adj[v].append(u)
 
-    color = [-1] * (n + 1)          # 0 or 1 for bipartition, -1 = unvisited
-    shift = [0] * (n + 1)           # final values 1 or 2
+    color = [-1] * (n + 1)          # 0 or 1
+    result = [0] * (n + 1)          # final shifts 1/2
+    from collections import deque
 
     for start in range(1, n + 1):
         if color[start] != -1:
             continue
-        # BFS for this component
+        # BFS this component
         q = deque([start])
         color[start] = 0
-        comp_nodes = [start]
-        ok = True
+        comp_vertices = [start]
+        min_vertex = start
         while q:
             u = q.popleft()
-            cu = color[u]
+            if u < min_vertex:
+                min_vertex = u
             for v in adj[u]:
                 if color[v] == -1:
-                    color[v] = cu ^ 1
+                    color[v] = 1 - color[u]
                     q.append(v)
-                    comp_nodes.append(v)
-                elif color[v] == cu:
+                    comp_vertices.append(v)
+                elif color[v] == color[u]:
                     print("NO")
                     return
-        # assign shifts: give color 0 the value 1 (lexicographically minimal)
-        for node in comp_nodes:
-            shift[node] = 1 if color[node] == 0 else 2
+        # ensure minimal vertex gets shift 1 (color 0)
+        if color[min_vertex] == 1:
+            for v in comp_vertices:
+                color[v] ^= 1   # flip
 
-    # output
-    out = ["YES"]
-    out.append(' '.join(str(shift[i]) for i in range(1, n + 1)))
-    sys.stdout.write('\n'.join(out))
+    for i in range(1, n + 1):
+        result[i] = color[i] + 1   # map 0->1, 1->2
+
+    print("YES")
+    print(' '.join(str(result[i]) for i in range(1, n + 1)))
 
 if __name__ == "__main__":
     solve()

@@ -1,0 +1,80 @@
+from collections import deque
+import sys
+
+def solve():
+    input_data = sys.stdin.read().strip().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    M = int(next(it))
+    T = int(next(it))
+    m = int(next(it))
+    
+    adj = [[] for _ in range(n)]
+    indeg = [0] * n
+    for _ in range(m):
+        a = int(next(it)) - 1
+        b = int(next(it)) - 1
+        adj[a].append(b)
+        indeg[b] += 1
+    
+    # Kahn's algorithm for topological order
+    q = deque([i for i in range(n) if indeg[i] == 0])
+    topo = []
+    while q:
+        u = q.popleft()
+        topo.append(u)
+        for v in adj[u]:
+            indeg[v] -= 1
+            if indeg[v] == 0:
+                q.append(v)
+    
+    if len(topo) != n:
+        print("NO")
+        return
+    
+    # Assign times
+    time = [0] * n
+    # Count how many operations at each time
+    count_at_time = [0] * (T + 2)
+    
+    for u in topo:
+        # Earliest possible time = max(time[prereq] + 1) for all prereqs
+        earliest = 1
+        for v in range(n):
+            # We need to know predecessors; easier: compute from edges
+            pass
+        # Instead, we can compute earliest from incoming edges
+        # But we don't have reverse adjacency; we can compute on the fly
+        # Actually we can compute earliest by scanning all edges each time — too slow.
+        # Better: store predecessors.
+    
+    # Let's rebuild with predecessor lists
+    pred = [[] for _ in range(n)]
+    for a in range(n):
+        for b in adj[a]:
+            pred[b].append(a)
+    
+    time = [0] * n
+    count_at_time = [0] * (T + 2)
+    
+    for u in topo:
+        earliest = 1
+        for p in pred[u]:
+            earliest = max(earliest, time[p] + 1)
+        # Find earliest slot >= earliest with capacity < M
+        t = earliest
+        while t <= T and count_at_time[t] >= M:
+            t += 1
+        if t > T:
+            print("NO")
+            return
+        time[u] = t
+        count_at_time[t] += 1
+    
+    print("YES")
+    print(" ".join(str(x) for x in time))
+
+if __name__ == "__main__":
+    solve()

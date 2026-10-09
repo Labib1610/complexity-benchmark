@@ -4,9 +4,7 @@ Time limit: 5 s   Memory limit: 256 MB
 
 ## Description
 
-A building has **n** junctions (numbered 1..n) connected by **m** corridors. Each corridor runs between two junctions. A guard stationed at a junction watches every corridor that touches that junction. A corridor is **watched** if a guard stands at at least one of its two endpoints.
-
-You have a budget of **k** guards. Decide whether **k** guards (placed on junctions) can watch every corridor, and if so report where to place them.
+A security office must watch every corridor of a building with **n** junctions and **m** corridors, each corridor joining two junctions. A guard posted at a junction watches exactly the corridors touching that junction, and a corridor counts as watched if a guard stands at either endpoint. Staffing allows a budget of **k** guards. Decide whether k guard posts can leave no corridor unwatched, and if so report the chosen junctions. Patrol routes and shift lengths are irrelevant; only which junctions a corridor touches matters. Covering each corridor in isolation is easy — the difficulty is a single set of k junctions touching all corridors at once.
 
 ## Input
 

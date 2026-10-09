@@ -1,0 +1,40 @@
+import sys
+import itertools
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    B = int(next(it))
+    edges = []
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        edges.append((u, v))
+
+    # If n is too large, we cannot brute-force; give up.
+    if n > 8:
+        print("NO")
+        return
+
+    nodes = list(range(n))
+    for perm in itertools.permutations(nodes):
+        pos = [0] * n
+        for idx, node in enumerate(perm):
+            pos[node] = idx + 1  # positions are 1-indexed
+        total = 0
+        for u, v in edges:
+            total += abs(pos[u] - pos[v])
+            if total > B:
+                break
+        if total <= B:
+            print("YES")
+            print(' '.join(str(pos[i]) for i in range(n)))
+            return
+    print("NO")
+
+if __name__ == "__main__":
+    solve()

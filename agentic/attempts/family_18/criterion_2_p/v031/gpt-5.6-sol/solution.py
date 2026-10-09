@@ -1,0 +1,292 @@
+import sys
+from array import array
+
+sys.setrecursionlimit(1_000_000)
+
+
+def arrangement_cost(order, edges):
+    pos = [0] * len(order)
+    for i, v in enumerate(order):
+        pos[v] = i
+    return sum(abs(pos[u] - pos[v]) for u, v in edges)
+
+
+def improve_order(order, adj):
+    n = len(order)
+    pos = [0] * n
+    for i, v in enumerate(order):
+        pos[v] = i
+
+    for _ in range(20):
+        changed = False
+        i = 0
+        while i + 1 < n:
+            a, b = order[i], order[i + 1]
+            delta = 0
+
+            for x in adj[a]:
+                if x != b:
+                    delta += abs(i + 1 - pos[x]) - abs(i - pos[x])
+            for x in adj[b]:
+                if x != a:
+                    delta += abs(i - pos[x]) - abs(i + 1 - pos[x])
+
+            if delta < 0:
+                order[i], order[i + 1] = b, a
+                pos[a], pos[b] = i + 1, i
+                changed = True
+                if i:
+                    i -= 1
+                    continue
+            i += 1
+
+        if not changed:
+            break
+
+    return order
+
+
+def centroid_order(adj):
+    n = len(adj)
+
+    def solve(nodes):
+        if len(nodes) <= 1:
+            return nodes[:]
+
+        allowed = set(nodes)
+        start = nodes[0]
+        parent = {start: -1}
+        traversal = [start]
+
+        for v in traversal:
+            for w in adj[v]:
+                if w in allowed and w != parent[v]:
+                    parent[w] = v
+                    traversal.append(w)
+
+        size = {}
+        for v in reversed(traversal):
+            s = 1
+            for w in adj[v]:
+                if parent.get(w) == v:
+                    s += size[w]
+            size[v] = s
+
+        total = len(nodes)
+        centroid = start
+        best = total
+        for v in traversal:
+            largest = total - size[v]
+            for w in adj[v]:
+                if parent.get(w) == v:
+                    largest = max(largest, size[w])
+            if largest < best:
+                best = largest
+                centroid = v
+
+        components = []
+        seen = {centroid}
+        for first in adj[centroid]:
+            if first not in allowed or first in seen:
+                continue
+            comp = []
+            stack = [first]
+            seen.add(first)
+            while stack:
+                v = stack.pop()
+                comp.append(v)
+                for w in adj[v]:
+                    if w in allowed and w not in seen and w != centroid:
+                        seen.add(w)
+                        stack.append(w)
+            components.append((len(comp), first, comp))
+
+        components.sort(reverse=True, key=lambda x: x[0])
+        left = []
+        right = []
+
+        for idx, (_, attachment, comp) in enumerate(components):
+            block = solve(comp)
+            attachment_pos = block.index(attachment)
+
+            if idx % 2 == 0:
+                if attachment_pos < len(block) - 1 - attachment_pos:
+                    block.reverse()
+                left.append(block)
+            else:
+                if attachment_pos > len(block) - 1 - attachment_pos:
+                    block.reverse()
+                right.append(block)
+
+        result = []
+        for block in left:
+            result.extend(block)
+        result.append(centroid)
+        for block in reversed(right):
+            result.extend(block)
+        return result
+
+    return solve(list(range(n)))
+
+
+def exact_subset_dp(n, adj_masks, budget):
+    total_states = 1 << n
+    full = total_states - 1
+
+    cuts = array('i', [0]) * total_states
+    max_cost = n * (n - 1) // 2
+    inf = max_cost + 1
+    dp = array('q', [inf]) * total_states
+    dp[0] = 0
+
+    for mask in range(1, total_states):
+        bit = mask & -mask
+        v = bit.bit_length() - 1
+        prev = mask ^ bit
+        cuts[mask] = cuts[prev] + adj_masks[v].bit_count() - 2 * (
+            adj_masks[v] & prev
+        ).bit_count()
+
+        best = inf
+        rest = mask
+        while rest:
+            b = rest & -rest
+            value = dp[mask ^ b]
+            if value < best:
+                best = value
+            rest ^= b
+
+        if mask == full:
+            dp[mask] = best
+        else:
+            value = best + cuts[mask]
+            dp[mask] = value if value < inf else inf
+
+    if dp[full] > budget:
+        return None
+
+    reverse_order = []
+    mask = full
+    while mask:
+        added_cut = 0 if mask == full else cuts[mask]
+        target = dp[mask] - added_cut
+        rest = mask
+        chosen = 0
+        while rest:
+            b = rest & -rest
+            if dp[mask ^ b] == target:
+                chosen = b
+                break
+            rest ^= b
+        if chosen == 0:
+            return None
+        reverse_order.append(chosen.bit_length() - 1)
+        mask ^= chosen
+
+    reverse_order.reverse()
+    return reverse_order
+
+
+def output_order(order):
+    n = len(order)
+    positions = [0] * n
+    for i, v in enumerate(order, 1):
+        positions[v] = i
+    sys.stdout.write("YES\n")
+    sys.stdout.write(" ".join(map(str, positions)) + "\n")
+
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+
+    n, m, budget = data[0], data[1], data[2]
+    adj = [[] for _ in range(n)]
+    adj_masks = [0] * n
+    edges = []
+
+    p = 3
+    for _ in range(m):
+        u = data[p] - 1
+        v = data[p + 1] - 1
+        p += 2
+        edges.append((u, v))
+        adj[u].append(v)
+        adj[v].append(u)
+        adj_masks[u] |= 1 << v
+        adj_masks[v] |= 1 << u
+
+    if n <= 1:
+        output_order(list(range(n)))
+        return
+
+    degree_bound_sum = 0
+    for v in range(n):
+        d = len(adj[v])
+        if d & 1:
+            k = d // 2
+            degree_bound_sum += (k + 1) * (k + 1)
+        else:
+            k = d // 2
+            degree_bound_sum += k * (k + 1)
+
+    lower_bound = max(n - 1, (degree_bound_sum + 1) // 2)
+    if budget < lower_bound:
+        print("NO")
+        return
+
+    candidates = [list(range(n)), list(reversed(range(n)))]
+
+    if n <= 100_000:
+        candidates.append(centroid_order(adj))
+
+    roots = [0]
+    if n > 1:
+        roots.append(max(range(n), key=lambda x: len(adj[x])))
+
+    for root in roots:
+        parent = [-1] * n
+        order = []
+        stack = [root]
+        parent[root] = root
+        while stack:
+            v = stack.pop()
+            order.append(v)
+            children = [w for w in adj[v] if parent[w] == -1]
+            children.sort(key=lambda x: len(adj[x]))
+            for w in children:
+                parent[w] = v
+                stack.append(w)
+        candidates.append(order)
+
+    best_order = None
+    best_cost = 10**30
+
+    for order in candidates:
+        order = improve_order(order[:], adj)
+        cost = arrangement_cost(order, edges)
+        if cost < best_cost:
+            best_cost = cost
+            best_order = order
+        if cost <= budget:
+            output_order(order)
+            return
+
+    if best_cost == lower_bound:
+        print("NO")
+        return
+
+    if n <= 22:
+        exact_order = exact_subset_dp(n, adj_masks, budget)
+        if exact_order is None:
+            print("NO")
+        else:
+            output_order(exact_order)
+        return
+
+    print("NO")
+
+
+if __name__ == "__main__":
+    main()

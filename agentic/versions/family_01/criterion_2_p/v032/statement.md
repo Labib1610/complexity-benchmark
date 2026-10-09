@@ -1,21 +1,21 @@
-# Problem B — Schedule Search
+# Problem B — Workforce Scheduling
 
 Time limit: 1 s
 Memory limit: 256 MB
 
-A factory manager is evaluating schedule sequences for $n$ employees. A complete schedule is a sequence of codes $s_1, s_2, \dots, s_n$. The manager has compiled a list of $m$ separation requirements. Each requirement identifies two employees who must receive different schedule codes.
+A manufacturing plant is organizing its workforce of $n$ employees into two distinct time slots, denoted as 1 and 2. Every employee must be allocated exactly one of these two slots. The space of all potential allocations is massive, totaling $2^n$ possible combinations.
 
-You must search the space of possible schedule sequences to find one that satisfies all $m$ separation requirements. Because of operational limitations, the pool of allowed codes for any employee is restricted to exactly two values: 1 and 2. This means you are evaluating a space of $2^n$ possible sequences.
+However, the allocations are bounded by $m$ operational constraints. Each constraint specifies that two particular employees cannot be allocated the same time slot. 
 
-If there are multiple valid sequences that satisfy all requirements, you must resolve the tie by selecting the sequence that minimizes the codes. Specifically, a sequence $A$ is preferred over a different valid sequence $B$ if $A$ has a smaller code at the earliest employee index where $A$ and $B$ differ. If the search space contains no valid sequence, you must output NO.
+Your task is to evaluate the $2^n$ potential allocations and determine if there exists at least one configuration that satisfies all $m$ constraints simultaneously. If no such configuration can be found among all possibilities, you must report this. If valid configurations do exist, you must identify the optimal one. An allocation is considered optimal if its sequence of time slots $s_1, s_2, \dots, s_n$ is the smallest possible in dictionary order (i.e., comparing the time slot of employee 1 first, then employee 2, and so on).
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$), representing the number of employees and the number of separation requirements.
-Each of the following $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$), representing a separation requirement between employee $u$ and employee $v$.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$), representing the number of employees and the number of operational constraints.
+Each of the following $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$), representing a constraint between employee $u$ and employee $v$.
 
 ## Output
-If the search space contains no valid sequence, print a single line NO.
-Otherwise, print YES on the first line. On the second line, print the $n$ integers $s_1, s_2, \dots, s_n$ (each either 1 or 2) representing the optimal valid schedule sequence.
+If there is no valid allocation out of the $2^n$ combinations, print a single line containing `NO`.
+Otherwise, print `YES` on the first line. On the second line, print $n$ integers $s_1, s_2, \dots, s_n$ (where each $s_i \in \{1, 2\}$), representing the optimal valid allocation.
 
 ## Example 1
 Input:

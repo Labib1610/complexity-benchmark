@@ -1,0 +1,64 @@
+import sys
+sys.setrecursionlimit(300000)
+
+def solve():
+    input = sys.stdin.readline
+    n, m = map(int, input().split())
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u, v = map(int, input().split())
+        u -= 1
+        v -= 1
+        adj[u].append(v)
+        adj[v].append(u)
+
+    color = [-1] * n
+
+    def bfs(start):
+        from collections import deque
+        q = deque([start])
+        color[start] = 0
+        while q:
+            u = q.popleft()
+            for v in adj[u]:
+                if color[v] == -1:
+                    color[v] = color[u] ^ 1
+                    q.append(v)
+                elif color[v] == color[u]:
+                    return False
+        return True
+
+    for i in range(n):
+        if color[i] == -1:
+            if not bfs(i):
+                print("NO")
+                return
+
+    # Now we have a valid 2-coloring, but we need lexicographically smallest.
+    # We can flip colors in each connected component independently.
+    # To get lexicographically smallest, for each component, if color[0] == 1, flip all.
+    # But we need to process components in order of smallest index.
+    visited = [False] * n
+    for i in range(n):
+        if not visited[i]:
+            # collect component
+            stack = [i]
+            comp = []
+            visited[i] = True
+            while stack:
+                u = stack.pop()
+                comp.append(u)
+                for v in adj[u]:
+                    if not visited[v]:
+                        visited[v] = True
+                        stack.append(v)
+            # If the smallest index in comp has color 1, flip entire component
+            if color[comp[0]] == 1:
+                for u in comp:
+                    color[u] ^= 1
+
+    print("YES")
+    print(' '.join(str(c + 1) for c in color))
+
+if __name__ == "__main__":
+    solve()

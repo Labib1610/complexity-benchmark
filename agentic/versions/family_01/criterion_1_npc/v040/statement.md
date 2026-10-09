@@ -1,20 +1,20 @@
-# Problem A — Orbital Frequency Configuration
+# Problem A — Deployment Pipeline Allocation
 
 Time limit: 2 s   Memory limit: 256 MB
 
-The preliminary phase of a satellite deployment mission has concluded. Orbital mechanics analysts have finalized the launch trajectories for $n$ satellites. During this analysis, they identified specific pairs of trajectories that will bring the respective satellites into close proximity. If two such satellites transmit on the same frequency band, their signals will interfere.
+Before rolling out a new microservice architecture, an automated static analyzer scans the $n$ core services to detect shared resource locks. This preliminary step produces a raw log of $m$ interacting service pairs.
 
-Your module handles the next phase: frequency configuration. The communications hardware supports operation on any of the bands designated 1, 2, and 3. Your task is to assign each of the $n$ satellites to exactly one of these bands such that no two satellites with close-proximity trajectories share a band.
+Your software module sits in the middle of the continuous integration pipeline. It receives the analyzer's log of interacting pairs. The deployment environment provides a trio of isolated execution clusters, designated by the identifiers 1, 2, and 3. You must determine an allocation where each service is placed into exactly one of these clusters. To prevent runtime deadlocks, any two services that appear together in a logged pair must be placed into different clusters.
 
-If an assignment cannot be found, the launch must be delayed. If it can, your output will be passed directly to the automated upload system, which programs the satellites sequentially. To maintain standardized firmware states, the upload system mandates a specific prioritization: among all valid band assignments, you must provide the one where the band number for the first satellite is as small as possible; if there are still multiple valid assignments, minimize the band number for the second satellite, and so on through the $n$-th satellite.
+Once your module outputs a valid allocation, the downstream provisioner will automatically spin up the clusters and initialize the services. If you determine that no valid allocation exists for the given log, the pipeline will halt so engineers can manually refactor the services.
 
 ## Input
-The first line contains two integers $n$ and $m$ — the number of satellites and the number of close-proximity pairs ($1 \le n \le 40$, $0 \le m \le n \cdot (n-1)/2$).
-Each of the following $m$ lines provides two integers $u$ and $v$, indicating that the trajectories of satellite $u$ and satellite $v$ will cause them to approach too closely.
+The first line contains two integers $n$ and $m$ — the number of core services and the number of interacting pairs ($1 \le n \le 40$, $0 \le m \le n \cdot (n-1)/2$).
+Each of the next $m$ lines contains two integers $u$ and $v$ — a pair of services flagged by the analyzer.
 
 ## Output
-If there is no way to assign the bands without interference, print `NO` on a single line.
-Otherwise, print `YES` on the first line. On the second line, print $n$ integers $s_1, s_2, \dots, s_n$ (each being 1, 2, or 3), where $s_i$ is the band assigned to satellite $i$. This sequence must satisfy the upload system's prioritization rule mentioned above.
+If the pipeline must halt because no valid allocation exists, print a single line NO.
+Otherwise, print YES on the first line. On the second line, print $n$ integers $s_1, s_2, \dots, s_n$ (each in $\{1, 2, 3\}$), where $s_i$ is the cluster identifier allocated to service $i$. Any valid allocation is accepted.
 
 ## Example 1
 Input:

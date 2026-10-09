@@ -1,57 +1,52 @@
 import sys
 from collections import defaultdict
 
-def main():
-    import sys
-    input = sys.stdin.read
-    data = input().split()
-    
-    n, m = int(data[0]), int(data[1])
-    edges = []
-    index = 2
-    for _ in range(m):
-        u = int(data[index]) - 1  # Convert to 0-based indexing
-        v = int(data[index+1]) - 1
-        edges.append((u, v))
-        index += 2
-    
-    # We model this as a 3-coloring problem on a graph
-    # Each dial is a node, each crossbar is an edge
-    # Adjacent nodes must have different colors (positions)
+def solve():
+    n, m = map(int, input().split())
     
     # Build adjacency list
-    adj = [[] for _ in range(n)]
-    for u, v in edges:
+    adj = defaultdict(list)
+    for _ in range(m):
+        u, v = map(int, input().split())
         adj[u].append(v)
         adj[v].append(u)
     
-    # Try all possible 3-colorings in lexicographical order
-    # Colors are 1, 2, 3
-    color = [0] * n  # 0 means unassigned
+    # Colors: 0 = uncolored, 1, 2, 3 = colors
+    color = [0] * (n + 1)
     
-    def is_valid(node, c):
+    # Check if graph is 3-colorable using backtracking
+    def is_safe(node, c):
         for neighbor in adj[node]:
             if color[neighbor] == c:
                 return False
         return True
     
-    # Use backtracking to find the lexicographically smallest valid coloring
     def backtrack(node):
-        if node == n:
+        if node > n:
             return True
+            
+        # If node has no edges, we can color it arbitrarily
+        if node not in adj:
+            color[node] = 1
+            if backtrack(node + 1):
+                return True
+            color[node] = 0
+            return False
+            
         for c in [1, 2, 3]:
-            if is_valid(node, c):
+            if is_safe(node, c):
                 color[node] = c
                 if backtrack(node + 1):
                     return True
                 color[node] = 0
+        
         return False
     
-    if backtrack(0):
+    # Start backtracking from node 1
+    if backtrack(1):
         print("YES")
-        print(' '.join(map(str, color)))
+        print(*color[1:])
     else:
         print("NO")
 
-if __name__ == "__main__":
-    main()
+solve()

@@ -1,0 +1,80 @@
+import sys
+
+# Increase recursion depth just in case
+sys.setrecursionlimit(2000)
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    k = int(input_data[0])
+    t = int(input_data[1])
+    
+    if t < k:
+        print("NO")
+        return
+
+    # Triples per x
+    triples_by_x = [[] for _ in range(k)]
+    
+    idx = 2
+    for _ in range(t):
+        x = int(input_data[idx]) - 1
+        y = int(input_data[idx+1]) - 1
+        z = int(input_data[idx+2]) - 1
+        idx += 3
+        triples_by_x[x].append((y, z, 1 << y, 1 << z))
+
+    # If any x has 0 triples initially, impossible
+    for x in range(k):
+        if not triples_by_x[x]:
+            print("NO")
+            return
+
+    # We will pick triples for each x.
+    # To optimize, we find the unassigned x with the minimum number of valid choices.
+    solution = [None] * k
+    
+    def search(mask_x, mask_y, mask_z):
+        if mask_x == (1 << k) - 1:
+            return True
+        
+        # Find unassigned x with minimum valid transitions
+        best_x = -1
+        min_choices = 10**9
+        best_valid_pairs = None
+        
+        for x in range(k):
+            if not (mask_x & (1 << x)):
+                valid_pairs = []
+                for y, z, my, mz in triples_by_x[x]:
+                    if not (mask_y & my) and not (mask_z & mz):
+                        valid_pairs.append((y, z, my, mz))
+                
+                cnt = len(valid_pairs)
+                if cnt == 0:
+                    return False
+                if cnt < min_choices:
+                    min_choices = cnt
+                    best_x = x
+                    best_valid_pairs = valid_pairs
+                    if cnt == 1:
+                        break  # Can't get better than 1 choice without being 0
+        
+        for y, z, my, mz in best_valid_pairs:
+            solution[best_x] = (best_x + 1, y + 1, z + 1)
+            if search(mask_x | (1 << best_x), mask_y | my, mask_z | mz):
+                return True
+        
+        return False
+
+    if search(0, 0, 0):
+        print("YES")
+        for x in range(k):
+            print(f"{solution[x][0]} {solution[x][1]} {solution[x][2]}")
+    else:
+        print("NO")
+
+if __name__ == '__main__':
+    solve()

@@ -1,0 +1,105 @@
+import sys
+
+def main():
+    input = sys.stdin.read
+    data = input().split()
+    if not data:
+        return
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    num_nodes = 2 * n
+    adj = [[] for _ in range(num_nodes)]
+    rev_adj = [[] for _ in range(num_nodes)]
+    
+    idx = 2
+    for _ in range(m):
+        l1 = int(data[idx])
+        l2 = int(data[idx+1])
+        idx += 2
+        
+        # 1-based variable x:
+        # x > 0 -> 2*(x-1)
+        # x < 0 -> 2*(-x-1) + 1
+        if l1 > 0:
+            u = 2 * (l1 - 1)
+        else:
+            u = 2 * (-l1 - 1) + 1
+            
+        if l2 > 0:
+            v = 2 * (l2 - 1)
+        else:
+            v = 2 * (-l2 - 1) + 1
+            
+        # clause is (u or v)
+        # not u => v
+        # not v => u
+        not_u = u ^ 1
+        not_v = v ^ 1
+        
+        adj[not_u].append(v)
+        adj[not_v].append(u)
+        rev_adj[v].append(not_u)
+        rev_adj[u].append(not_v)
+        
+    # Kosaraju's algorithm (iterative)
+    visited = [False] * num_nodes
+    order = []
+    
+    for i in range(num_nodes):
+        if not visited[i]:
+            stack = [i]
+            edge_idx = [0]
+            visited[i] = True
+            while stack:
+                curr = stack[-1]
+                ei = edge_idx[-1]
+                if ei < len(adj[curr]):
+                    nxt = adj[curr][ei]
+                    edge_idx[-1] += 1
+                    if not visited[nxt]:
+                        visited[nxt] = True
+                        stack.append(nxt)
+                        edge_idx.append(0)
+                else:
+                    order.append(curr)
+                    stack.pop()
+                    edge_idx.pop()
+                    
+    scc = [-1] * num_nodes
+    scc_id = 0
+    for node in reversed(order):
+        if scc[node] == -1:
+            stack = [node]
+            scc[node] = scc_id
+            while stack:
+                curr = stack.pop()
+                for prev in rev_adj[curr]:
+                    if scc[prev] == -1:
+                        scc[prev] = scc_id
+                        stack.append(prev)
+            scc_id += 1
+            
+    ans = [0] * n
+    for i in range(n):
+        pos = 2 * i
+        neg = 2 * i + 1
+        if scc[pos] == scc[neg]:
+            print("NO")
+            return
+        # In Kosaraju, scc_id is assigned in topological order of SCCs in DAG (condensed graph)
+        # Higher scc_id means earlier in topological order of original graph, or:
+        # scc[pos] < scc[neg] means pos is reachable from neg or appears later in reverse topological order
+        # Actually: node with smaller scc id in rev_adj traversal is later in the topological sort of the condensation graph.
+        # If scc[pos] < scc[neg], pos is evaluated AFTER neg, so pos = true is consistent.
+        if scc[pos] < scc[neg]:
+            ans[i] = 1
+        else:
+            ans[i] = 0
+            
+    print("YES")
+    print(*(ans))
+
+if __name__ == '__main__':
+    main()

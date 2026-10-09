@@ -1,0 +1,37 @@
+import sys
+from functools import cmp_to_key
+
+def compare(x, y):
+    # x[0] is transcription time, x[1] is binding time
+    # For optimal ordering, we use the Johnson's rule:
+    # if min(a_p1, b_p2) <= min(b_p1, a_p2), then a should come before b
+    if min(x[0], y[1]) < min(y[0], x[1]):
+        return -1
+    elif min(x[0], y[1]) > min(y[0], x[1]):
+        return 1
+    else:
+        return 0
+
+def main():
+    j = int(sys.stdin.readline())
+    manuscripts = []
+    
+    for _ in range(j):
+        p1, p2 = map(int, sys.stdin.readline().split())
+        manuscripts.append((p1, p2))
+    
+    # Sort according to Johnson's rule
+    manuscripts.sort(key=cmp_to_key(compare))
+    
+    # Calculate the total time
+    calligrapher_time = 0
+    finish_time = 0
+    
+    for p1, p2 in manuscripts:
+        calligrapher_time += p1
+        finish_time = max(finish_time, calligrapher_time) + p2
+    
+    print(finish_time)
+
+if __name__ == "__main__":
+    main()

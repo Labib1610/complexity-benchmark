@@ -1,0 +1,153 @@
+import sys
+import threading
+
+def solve():
+    import sys
+    sys.setrecursionlimit(1 << 25)
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it)); m = int(next(it)); k = int(next(it))
+    s = []; t = []; d = []
+    for _ in range(k):
+        s.append(int(next(it))-1)
+        t.append(int(next(it))-1)
+        d.append(int(next(it)))
+    edges = []
+    for _ in range(m):
+        u = int(next(it))-1
+        v = int(next(it))-1
+        c = int(next(it))
+        edges.append((u,v,c))
+    # Build circulation with demands
+    N = n + 2
+    SRC = n
+    SNK = n+1
+    from collections import deque
+    class Dinic:
+        def __init__(self,N):
+            self.N=N
+            self.adj=[[] for _ in range(N)]
+        def add_edge(self,u,v,c):
+            self.adj[u].append([v,c,len(self.adj[v])])
+            self.adj[v].append([u,0,len(self.adj[u])-1])
+        def bfs(self,s,t,level):
+            q=deque([s])
+            level[s]=0
+            while q:
+                u=q.popleft()
+                for v,c,rev in self.adj[u]:
+                    if c>0 and level[v]<0:
+                        level[v]=level[u]+1
+                        q.append(v)
+            return level[t]>=0
+        def dfs(self,u,t,f,level,it):
+            if u==t:
+                return f
+            for i in range(it[u],len(self.adj[u])):
+                it[u]=i
+                v,c,rev=self.adj[u][i]
+                if c>0 and level[u]+1==level[v]:
+                    ret=self.dfs(v,t,min(f,c),level,it)
+                    if ret:
+                        self.adj[u][i][1]-=ret
+                        self.adj[v][rev][1]+=ret
+                        return ret
+            return 0
+        def max_flow(self,s,t):
+            flow=0
+            level=[-1]*self.N
+            INF=10**18
+            while self.bfs(s,t,level):
+                it=[0]*self.N
+                while True:
+                    f=self.dfs(s,t,INF,level,it)
+                    if not f: break
+                    flow+=f
+                level=[-1]*self.N
+            return flow
+    # node demand
+    demand=[0]*n
+    for i in range(k):
+        demand[s[i]]+=d[i]
+        demand[t[i]]-=d[i]
+    din=Dinic(N)
+    for idx,(u,v,c) in enumerate(edges):
+        din.add_edge(u,v,c)
+    total_pos=0
+    for i in range(n):
+        if demand[i]>0:
+            din.add_edge(SRC,i,demand[i])
+            total_pos+=demand[i]
+        elif demand[i]<0:
+            din.add_edge(i,SNK,-demand[i])
+    flow=din.max_flow(SRC,SNK)
+    if flow!=total_pos:
+        print("NO")
+        return
+    # retrieve edge flows
+    edge_flow=[0]*m
+    # edges are first m added in order
+    for idx,(u,v,c) in enumerate(edges):
+        for to,cap,rev in din.adj[u]:
+            if to==v:
+                used = c - cap
+                edge_flow[idx]=used
+                break
+    # Now decompose total flow into per-product paths using simple greedy BFS for each product
+    # Build residual graph with edge_flow as capacities
+    adj=[[] for _ in range(n)]
+    for idx,(u,v,c) in enumerate(edges):
+        f=edge_flow[idx]
+        if f>0:
+            adj[u].append([v, f, idx])
+    res = [[0]*m for _ in range(k)]
+    from collections import deque
+    for pi in range(k):
+        need=d[pi]
+        while need>0:
+            # BFS to find path with available capacity
+            prev=[None]*n
+            q=deque([s[pi]])
+            while q and prev[t[pi]] is None:
+                u=q.popleft()
+                for v,cap,idx in adj[u]:
+                    if cap>0 and prev[v] is None:
+                        prev[v]=(u,idx)
+                        q.append(v)
+            if prev[t[pi]] is None:
+                print("NO")
+                return
+            # find bottleneck
+            v=t[pi]
+            bott=need
+            path=[]
+            while v!=s[pi]:
+                u,idx=prev[v]
+                # find edge in adj[u] with idx
+                for e in adj[u]:
+                    if e[0]==v and e[2]==idx:
+                        bott=min(bott, e[1])
+                        path.append((u,v,idx))
+                        break
+                v=u
+            push=min(bott, need)
+            # apply
+            for u,v,idx in path:
+                for e in adj[u]:
+                    if e[0]==v and e[2]==idx:
+                        e[1]-=push
+                        break
+                res[pi][idx]+=push
+            need-=push
+    print("YES")
+    out = sys.stdout
+    for i in range(k):
+        out.write(" ".join(str(x) for x in res[i]))
+        out.write("\n")
+
+def main():
+    solve()
+
+threading.Thread(target=main).start()

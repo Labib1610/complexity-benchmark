@@ -1,0 +1,166 @@
+import sys
+sys.setrecursionlimit(1 << 25)
+
+class Dinic:
+    __slots__ = ('n', 'g', 'level', 'it')
+    def __init__(self, n):
+        self.n = n
+        self.g = [[] for _ in range(n)]
+
+    def add_edge(self, fr, to, cap):
+        self.g[fr].append([to, cap, len(self.g[to])])
+        self.g[to].append([fr, 0, len(self.g[fr]) - 1])
+
+    def bfs(self, s, t):
+        level = [-1] * self.n
+        q = [s]
+        level[s] = 0
+        for v in q:
+            for to, cap, rev in self.g[v]:
+                if cap and level[to] < 0:
+                    level[to] = level[v] + 1
+                    q.append(to)
+        self.level = level
+        return level[t] >= 0
+
+    def dfs(self, v, t, f):
+        if v == t:
+            return f
+        for i in range(self.it[v], len(self.g[v])):
+            self.it[v] = i
+            to, cap, rev = self.g[v][i]
+            if cap and self.level[v] + 1 == self.level[to]:
+                ret = self.dfs(to, t, min(f, cap))
+                if ret:
+                    self.g[v][i][1] -= ret
+                    self.g[to][rev][1] += ret
+                    return ret
+        return 0
+
+    def max_flow(self, s, t):
+        flow = 0
+        INF = 10 ** 18
+        while self.bfs(s, t):
+            self.it = [0] * self.n
+            while True:
+                f = self.dfs(s, t, INF)
+                if not f:
+                    break
+                flow += f
+        return flow
+
+def solve():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it)); M = int(next(it)); T = int(next(it)); m = int(next(it))
+    adj = [[] for _ in range(n)]
+    radj = [[] for _ in range(n)]
+    indeg = [0]*n
+    for _ in range(m):
+        a = int(next(it))-1; b = int(next(it))-1
+        adj[a].append(b)
+        radj[b].append(a)
+        indeg[b]+=1
+
+    # topological order
+    from collections import deque
+    q = deque([i for i in range(n) if indeg[i]==0])
+    topo=[]
+    while q:
+        v=q.popleft()
+        topo.append(v)
+        for to in adj[v]:
+            indeg[to]-=1
+            if indeg[to]==0:
+                q.append(to)
+    if len(topo)!=n:
+        print("NO")
+        return
+
+    # earliest (longest path from sources) +1
+    earliest=[1]*n
+    for v in topo:
+        for to in adj[v]:
+            if earliest[to] < earliest[v]+1:
+                earliest[to]=earliest[v]+1
+    # latest (latest start respecting sink) = T - longest to sink +1
+    latest=[T]*n
+    for v in reversed(topo):
+        for fr in radj[v]:
+            if latest[fr] > latest[v]-1:
+                latest[fr]=latest[v]-1
+    for i in range(n):
+        if earliest[i]>latest[i] or earliest[i]>T or latest[i]<1:
+            print("NO")
+            return
+
+    # build segment tree for time slots 1..T
+    size=1
+    while size<T: size*=2
+    seg_offset = n+2  # after source and tasks
+    total_nodes = seg_offset + 2*size
+    src = 0
+    sink = total_nodes-1
+    dinic = Dinic(total_nodes)
+
+    # source to each task
+    for i in range(n):
+        dinic.add_edge(src, 1+i, 1)
+
+    # segment tree edges
+    # leaves represent slots
+    leaf_start = seg_offset + size
+    for i in range(T):
+        leaf = leaf_start + i
+        dinic.add_edge(leaf, sink, M)
+
+    # internal nodes to children
+    for node in range(seg_offset, leaf_start):
+        left = node*2
+        right = node*2+1
+        dinic.add_edge(node, left, M)   # capacity M is enough
+        dinic.add_edge(node, right, M)
+
+    # connect tasks to segment tree intervals
+    def add_interval(task, l, r, node, nl, nr):
+        if r<nl or nr<l:
+            return
+        if l<=nl and nr<=r:
+            dinic.add_edge(1+task, node, 1)
+            return
+        mid=(nl+nr)//2
+        add_interval(task, l, r, node*2, nl, mid)
+        add_interval(task, l, r, node*2+1, mid+1, nr)
+
+    for i in range(n):
+        add_interval(i, earliest[i], latest[i], seg_offset, 1, size)
+
+    flow = dinic.max_flow(src, sink)
+    if flow!=n:
+        print("NO")
+        return
+
+    # retrieve assignment
+    ans=[0]*n
+    # for each task, look at outgoing edges to segment nodes, find which leaf got flow
+    for i in range(n):
+        for to, cap, rev in dinic.g[1+i]:
+            if cap==0:  # edge used (original capacity 1)
+                # traverse down to leaf
+                node=to
+                while node < leaf_start:
+                    # find child with flow used
+                    for to2, cap2, rev2 in dinic.g[node]:
+                        if cap2==0 and (to2!=src):  # used edge
+                            node=to2
+                            break
+                slot = node - leaf_start + 1
+                ans[i]=slot
+                break
+    print("YES")
+    print(' '.join(map(str, ans)))
+
+if __name__ == "__main__":
+    solve()

@@ -1,0 +1,61 @@
+import sys
+
+sys.setrecursionlimit(10000)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    k = int(next(it))
+    adj = [0] * n
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+
+    ALL = (1 << n) - 1
+    answer = []
+
+    # simple greedy lower bound for pruning: max possible independent set size from remaining vertices
+    # we use popcount directly as upper bound.
+
+    found = False
+
+    def dfs(cur_mask: int, cand_mask: int, cur_list):
+        nonlocal found, answer
+        if found:
+            return
+        cur_sz = len(cur_list)
+        if cur_sz == k:
+            answer = cur_list[:]
+            found = True
+            return
+        # prune if even taking all candidates we cannot reach k
+        if cur_sz + cand_mask.bit_count() < k:
+            return
+        # choose a vertex with maximum degree in candidates to branch (heuristic)
+        # pick first set bit
+        v = (cand_mask & -cand_mask).bit_length() - 1
+        # branch: include v
+        new_cand = cand_mask & ~adj[v] & ~(1 << v)
+        dfs(cur_mask | (1 << v), new_cand, cur_list + [v + 1])
+        if found:
+            return
+        # branch: exclude v
+        dfs(cur_mask, cand_mask & ~(1 << v), cur_list)
+
+    dfs(0, ALL, [])
+
+    out = sys.stdout
+    if found:
+        out.write("YES\n")
+        out.write(" ".join(map(str, answer)) + "\n")
+    else:
+        out.write("NO\n")
+
+if __name__ == "__main__":
+    solve()

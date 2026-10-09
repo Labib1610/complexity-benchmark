@@ -1,0 +1,359 @@
+import sys
+from collections import deque
+from itertools import permutations
+
+sys.setrecursionlimit(10000)
+
+data = list(map(int, sys.stdin.buffer.read().split()))
+if not data:
+    sys.exit()
+
+it = iter(data)
+n = next(it)
+m = next(it)
+
+edges = []
+adj = [[] for _ in range(n)]
+
+for eid in range(m):
+    u = next(it) - 1
+    v = next(it) - 1
+    edges.append((u, v))
+    adj[u].append(eid)
+    adj[v].append(eid)
+
+if any(len(adj[v]) != 3 for v in range(n)):
+    print("NO")
+    sys.exit()
+
+# A bridge in a cubic graph makes a proper 3-edge-coloring impossible.
+tin = [-1] * n
+low = [0] * n
+timer = 0
+has_bridge = False
+
+def bridge_dfs(v, parent_edge):
+    global timer, has_bridge
+    tin[v] = low[v] = timer
+    timer += 1
+
+    for eid in adj[v]:
+        if eid == parent_edge:
+            continue
+        a, b = edges[eid]
+        to = b if a == v else a
+
+        if tin[to] == -1:
+            bridge_dfs(to, eid)
+            low[v] = min(low[v], low[to])
+            if low[to] > tin[v]:
+                has_bridge = True
+        else:
+            low[v] = min(low[v], tin[to])
+
+for start in range(n):
+    if tin[start] == -1:
+        bridge_dfs(start, -1)
+
+if has_bridge:
+    print("NO")
+    sys.exit()
+
+answer = [-1] * m
+visited = [False] * n
+
+perms = list(permutations(range(3)))
+support = [[[False] * 6 for _ in range(3)] for _ in range(3)]
+support_bits = [[0] * 3 for _ in range(3)]
+
+for pidx, p in enumerate(perms):
+    for slot in range(3):
+        color = p[slot]
+        support[slot][color][pidx] = True
+        support_bits[slot][color] |= 1 << pidx
+
+allow = [[0] * 8 for _ in range(3)]
+possible = [[0] * 3 for _ in range(64)]
+
+for slot in range(3):
+    for cmask in range(8):
+        mask = 0
+        for color in range(3):
+            if cmask & (1 << color):
+                mask |= support_bits[slot][color]
+        allow[slot][cmask] = mask
+
+for dmask in range(64):
+    for slot in range(3):
+        cmask = 0
+        for color in range(3):
+            if dmask & support_bits[slot][color]:
+                cmask |= 1 << color
+        possible[dmask][slot] = cmask
+
+slot_of = [{} for _ in range(n)]
+for v in range(n):
+    for slot, eid in enumerate(adj[v]):
+        slot_of[v][eid] = slot
+
+def color_bipartite_component(vertices, comp_edges, side):
+    left = [v for v in vertices if side[v] == 0]
+    pair_left_edge = [-1] * n
+    pair_right_left = [-1] * n
+    dist = [-1] * n
+
+    def bfs():
+        q = deque()
+        found = False
+        for u in left:
+            if pair_left_edge[u] == -1:
+                dist[u] = 0
+                q.append(u)
+            else:
+                dist[u] = -1
+
+        while q:
+            u = q.popleft()
+            for eid in adj[u]:
+                a, b = edges[eid]
+                r = b if a == u else a
+                matched_left = pair_right_left[r]
+                if matched_left == -1:
+                    found = True
+                elif dist[matched_left] == -1:
+                    dist[matched_left] = dist[u] + 1
+                    q.append(matched_left)
+        return found
+
+    def dfs(u):
+        for eid in adj[u]:
+            a, b = edges[eid]
+            r = b if a == u else a
+            matched_left = pair_right_left[r]
+            if matched_left == -1 or (
+                dist[matched_left] == dist[u] + 1 and dfs(matched_left)
+            ):
+                pair_left_edge[u] = eid
+                pair_right_left[r] = u
+                return True
+        dist[u] = -1
+        return False
+
+    matching_size = 0
+    while bfs():
+        for u in left:
+            if pair_left_edge[u] == -1 and dfs(u):
+                matching_size += 1
+
+    if matching_size != len(left):
+        return False
+
+    in_matching = set()
+    for u in left:
+        eid = pair_left_edge[u]
+        in_matching.add(eid)
+        answer[eid] = 0
+
+    for start_eid in comp_edges:
+        if start_eid in in_matching or answer[start_eid] != -1:
+            continue
+
+        answer[start_eid] = 1
+        q = deque([start_eid])
+
+        while q:
+            eid = q.popleft()
+            c = answer[eid]
+            u, v = edges[eid]
+
+            for x in (u, v):
+                other = -1
+                for ne in adj[x]:
+                    if ne != eid and ne not in in_matching:
+                        other = ne
+                        break
+
+                required = 3 - c
+                if answer[other] == -1:
+                    answer[other] = required
+                    q.append(other)
+                elif answer[other] != required:
+                    return False
+
+    return True
+
+def color_general_component(vertices, comp_edges):
+    domains = [63] * n
+    trail = []
+
+    def set_domain(v, new_domain):
+        if new_domain == domains[v]:
+            return True
+        if new_domain == 0:
+            return False
+        trail.append((v, domains[v]))
+        domains[v] = new_domain
+        return True
+
+    def propagate(initial_edges):
+        q = deque(initial_edges)
+
+        while q:
+            eid = q.popleft()
+            u, v = edges[eid]
+            su = slot_of[u][eid]
+            sv = slot_of[v][eid]
+
+            common = possible[domains[u]][su] & possible[domains[v]][sv]
+            if common == 0:
+                return False
+
+            ndu = domains[u] & allow[su][common]
+            ndv = domains[v] & allow[sv][common]
+
+            if ndu == 0 or ndv == 0:
+                return False
+
+            if ndu != domains[u]:
+                trail.append((u, domains[u]))
+                domains[u] = ndu
+                q.extend(adj[u])
+
+            if ndv != domains[v]:
+                trail.append((v, domains[v]))
+                domains[v] = ndv
+                q.extend(adj[v])
+
+        return True
+
+    # Remove global color permutation symmetry.
+    root = vertices[0]
+    domains[root] = 1
+
+    if not propagate(adj[root]):
+        return False
+
+    def rollback(marker):
+        while len(trail) > marker:
+            v, old = trail.pop()
+            domains[v] = old
+
+    def search():
+        chosen_eid = -1
+        chosen_colors = 0
+        best_count = 4
+        best_score = 10**9
+
+        for eid in comp_edges:
+            u, v = edges[eid]
+            su = slot_of[u][eid]
+            sv = slot_of[v][eid]
+            colors = possible[domains[u]][su] & possible[domains[v]][sv]
+            count = colors.bit_count()
+
+            if count > 1:
+                score = domains[u].bit_count() + domains[v].bit_count()
+                if count < best_count or (count == best_count and score < best_score):
+                    best_count = count
+                    best_score = score
+                    chosen_eid = eid
+                    chosen_colors = colors
+                    if count == 2 and score <= 4:
+                        break
+
+        if chosen_eid == -1:
+            return True
+
+        u, v = edges[chosen_eid]
+        su = slot_of[u][chosen_eid]
+        sv = slot_of[v][chosen_eid]
+
+        candidates = []
+        for color in range(3):
+            if chosen_colors & (1 << color):
+                ndu = domains[u] & support_bits[su][color]
+                ndv = domains[v] & support_bits[sv][color]
+                candidates.append((ndu.bit_count() * ndv.bit_count(), color))
+
+        candidates.sort(reverse=True)
+
+        for _, color in candidates:
+            marker = len(trail)
+            ndu = domains[u] & support_bits[su][color]
+            ndv = domains[v] & support_bits[sv][color]
+
+            ok = set_domain(u, ndu)
+            if ok:
+                ok = set_domain(v, ndv)
+            if ok:
+                ok = propagate(adj[u] + adj[v])
+
+            if ok and search():
+                return True
+
+            rollback(marker)
+
+        return False
+
+    if not search():
+        return False
+
+    for eid in comp_edges:
+        u, v = edges[eid]
+        su = slot_of[u][eid]
+        sv = slot_of[v][eid]
+        colors = possible[domains[u]][su] & possible[domains[v]][sv]
+        if colors == 0 or colors & (colors - 1):
+            return False
+        answer[eid] = colors.bit_length() - 1
+
+    return True
+
+for start in range(n):
+    if visited[start]:
+        continue
+
+    vertices = []
+    comp_edge_set = set()
+    side = {}
+    bipartite = True
+
+    q = deque([start])
+    visited[start] = True
+    side[start] = 0
+
+    while q:
+        v = q.popleft()
+        vertices.append(v)
+
+        for eid in adj[v]:
+            comp_edge_set.add(eid)
+            a, b = edges[eid]
+            to = b if a == v else a
+
+            if not visited[to]:
+                visited[to] = True
+                side[to] = side[v] ^ 1
+                q.append(to)
+            elif side[to] == side[v]:
+                bipartite = False
+
+    comp_edges = list(comp_edge_set)
+
+    if bipartite:
+        ok = color_bipartite_component(vertices, comp_edges, side)
+    else:
+        ok = color_general_component(vertices, comp_edges)
+
+    if not ok:
+        print("NO")
+        sys.exit()
+
+for v in range(n):
+    colors = {answer[eid] for eid in adj[v]}
+    if colors != {0, 1, 2}:
+        print("NO")
+        sys.exit()
+
+print("YES")
+print(*[c + 1 for c in answer])

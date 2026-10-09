@@ -1,0 +1,39 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    j = int(next(it))
+    requests = []
+    sum_a = 0
+    for _ in range(j):
+        a = int(next(it))
+        b = int(next(it))
+        requests.append((a, b))
+        sum_a += a
+    
+    # Sort by Johnson's rule:
+    # If min(a_i, b_j) < min(a_j, b_i), i comes before j.
+    # This simplifies to: a_i <= b_i comes before a_j > b_j.
+    # Within each group, sort by a ascending or b descending.
+    requests.sort(key=lambda x: (x[0] > x[1], x[0] if x[0] <= x[1] else -x[1]))
+    
+    # Simulate the process
+    # time_a: current time for Phase A (completion time of last A)
+    # time_b: current time for Phase B (completion time of last B)
+    time_a = 0
+    time_b = 0
+    for a, b in requests:
+        time_a += a
+        # Phase B starts after A finishes and after previous B finishes
+        if time_a > time_b:
+            time_b = time_a + b
+        else:
+            time_b += b
+            
+    print(time_b)
+
+if __name__ == "__main__":
+    solve()

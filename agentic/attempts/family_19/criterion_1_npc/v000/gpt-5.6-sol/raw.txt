@@ -1,0 +1,543 @@
+```python
+import sys
+import time
+import random
+import math
+from collections import deque
+
+data = list(map(int, sys.stdin.buffer.read().split()))
+if not data:
+    sys.exit()
+
+it = iter(data)
+n = next(it)
+m = next(it)
+k = next(it)
+
+commodities = []
+for _ in range(k):
+    s = next(it) - 1
+    t = next(it) - 1
+    d = next(it)
+    commodities.append((s, t, d))
+
+edges = []
+out_edges = [[] for _ in range(n)]
+rev_edges = [[] for _ in range(n)]
+for j in range(m):
+    u = next(it) - 1
+    v = next(it) - 1
+    c = next(it)
+    edges.append((u, v, c))
+    if c > 0 and u != v:
+        out_edges[u].append((v, j))
+        rev_edges[v].append((u, j))
+
+start_time = time.monotonic()
+deadline = start_time + 4.75
+
+
+def reachable(start, graph):
+    seen = [False] * n
+    seen[start] = True
+    q = [start]
+    for u in q:
+        for v, _ in graph[u]:
+            if not seen[v]:
+                seen[v] = True
+                q.append(v)
+    return seen
+
+
+candidates = []
+immediately_impossible = False
+for s, t, d in commodities:
+    if d == 0 or s == t:
+        candidates.append([])
+        continue
+    rs = reachable(s, out_edges)
+    if not rs[t]:
+        immediately_impossible = True
+        candidates.append([])
+        continue
+    rt = reachable(t, rev_edges)
+    cand = []
+    for j, (u, v, cap) in enumerate(edges):
+        if cap > 0 and u != v and rs[u] and rt[v]:
+            cand.append(j)
+    candidates.append(cand)
+
+if immediately_impossible:
+    print("NO")
+    sys.exit()
+
+
+def validate(flows):
+    if len(flows) != k:
+        return False
+    used = [0] * m
+    for i, (s, t, d) in enumerate(commodities):
+        if len(flows[i]) != m:
+            return False
+        bal = [0] * n
+        for j, x in enumerate(flows[i]):
+            if x < 0:
+                return False
+            u, v, cap = edges[j]
+            used[j] += x
+            if used[j] > cap:
+                return False
+            bal[u] += x
+            bal[v] -= x
+        for v in range(n):
+            want = 0
+            if s != t:
+                if v == s:
+                    want = d
+                elif v == t:
+                    want = -d
+            if bal[v] != want:
+                return False
+    return True
+
+
+def emit(flows):
+    out = ["YES"]
+    for row in flows:
+        out.append(" ".join(map(str, row)))
+    sys.stdout.write("\n".join(out))
+
+
+class Dinic:
+    __slots__ = ("g", "level", "work")
+
+    def __init__(self, size):
+        self.g = [[] for _ in range(size)]
+        self.level = [-1] * size
+        self.work = [0] * size
+
+    def add_edge(self, u, v, cap):
+        a = [v, len(self.g[v]), cap]
+        b = [u, len(self.g[u]), 0]
+        self.g[u].append(a)
+        self.g[v].append(b)
+        return a
+
+    def max_flow(self, s, t, limit):
+        if s == t:
+            return limit
+        total = 0
+        while total < limit:
+            level = self.level
+            for i in range(len(level)):
+                level[i] = -1
+            level[s] = 0
+            q = deque([s])
+            while q:
+                u = q.popleft()
+                nl = level[u] + 1
+                for e in self.g[u]:
+                    if e[2] > 0 and level[e[0]] < 0:
+                        level[e[0]] = nl
+                        q.append(e[0])
+            if level[t] < 0:
+                break
+            work = self.work
+            for i in range(len(work)):
+                work[i] = 0
+
+            def dfs(u, pushed):
+                if u == t:
+                    return pushed
+                gu = self.g[u]
+                while work[u] < len(gu):
+                    e = gu[work[u]]
+                    if e[2] > 0 and level[e[0]] == level[u] + 1:
+                        z = dfs(e[0], min(pushed, e[2]))
+                        if z:
+                            e[2] -= z
+                            self.g[e[0]][e[1]][2] += z
+                            return z
+                    work[u] += 1
+                return 0
+
+            while total < limit:
+                z = dfs(s, limit - total)
+                if not z:
+                    break
+                total += z
+        return total
+
+
+def sequential_attempt(order, shuffled=False):
+    remaining = [c for _, _, c in edges]
+    result = [[0] * m for _ in range(k)]
+
+    for ci in order:
+        s, t, demand = commodities[ci]
+        if demand == 0 or s == t:
+            continue
+
+        js = candidates[ci][:]
+        if shuffled:
+            random.shuffle(js)
+
+        din = Dinic(n)
+        refs = []
+        for j in js:
+            cap = remaining[j]
+            if cap <= 0:
+                continue
+            u, v, _ = edges[j]
+            ref = din.add_edge(u, v, cap)
+            refs.append((j, ref, cap))
+
+        got = din.max_flow(s, t, demand)
+        if got != demand:
+            return None
+
+        for j, ref, initial_cap in refs:
+            f = initial_cap - ref[2]
+            if f:
+                result[ci][j] = f
+                remaining[j] -= f
+
+    return result
+
+
+active = [i for i, (_, _, d) in enumerate(commodities) if d > 0]
+orders = []
+orders.append(sorted(active, key=lambda i: -commodities[i][2]))
+orders.append(sorted(active, key=lambda i: len(candidates[i])))
+orders.append(sorted(active, key=lambda i: (len(candidates[i]), -commodities[i][2])))
+
+for attempt in range(10):
+    if time.monotonic() >= deadline:
+        break
+    if attempt < len(orders):
+        order = orders[attempt]
+        shuffled = attempt != 0
+    else:
+        order = active[:]
+        random.shuffle(order)
+        shuffled = True
+    ans = sequential_attempt(order, shuffled)
+    if ans is not None and validate(ans):
+        emit(ans)
+        sys.exit()
+
+# Build a reduced integer linear model and use SciPy/HiGHS when available.
+var_info = []
+var_index = {}
+for i, (_, _, d) in enumerate(commodities):
+    if d <= 0:
+        continue
+    for j in candidates[i]:
+        cap = min(d, edges[j][2])
+        if cap > 0:
+            var_index[(i, j)] = len(var_info)
+            var_info.append((i, j, cap))
+
+num_vars = len(var_info)
+
+if num_vars == 0:
+    zero = [[0] * m for _ in range(k)]
+    if validate(zero):
+        emit(zero)
+    else:
+        print("NO")
+    sys.exit()
+
+base_sparse_rows = []
+base_rhs = []
+
+for i, (s, t, d) in enumerate(commodities):
+    if d == 0 or s == t:
+        continue
+    node_terms = [[] for _ in range(n)]
+    for j in candidates[i]:
+        idx = var_index.get((i, j))
+        if idx is None:
+            continue
+        u, v, _ = edges[j]
+        node_terms[u].append((idx, 1.0))
+        node_terms[v].append((idx, -1.0))
+    for v in range(n):
+        if v == t:
+            continue
+        rhs = float(d if v == s else 0)
+        if node_terms[v] or rhs != 0:
+            base_sparse_rows.append(node_terms[v])
+            base_rhs.append(rhs)
+
+capacity_terms = [[] for _ in range(m)]
+for idx, (i, j, _) in enumerate(var_info):
+    capacity_terms[j].append((idx, 1.0))
+
+scipy_proved_infeasible = False
+try:
+    if time.monotonic() < deadline - 0.2:
+        import numpy as np
+        from scipy.optimize import milp, LinearConstraint, Bounds
+        from scipy.sparse import coo_matrix
+
+        rr = []
+        cc = []
+        vv = []
+        lb = []
+        ub = []
+        row = 0
+
+        for terms, rhs in zip(base_sparse_rows, base_rhs):
+            for col, val in terms:
+                rr.append(row)
+                cc.append(col)
+                vv.append(val)
+            lb.append(rhs)
+            ub.append(rhs)
+            row += 1
+
+        for j in range(m):
+            if capacity_terms[j]:
+                for col, val in capacity_terms[j]:
+                    rr.append(row)
+                    cc.append(col)
+                    vv.append(val)
+                lb.append(-np.inf)
+                ub.append(float(edges[j][2]))
+                row += 1
+
+        A = coo_matrix((vv, (rr, cc)), shape=(row, num_vars)).tocsr()
+        upper = np.array([cap for _, _, cap in var_info], dtype=float)
+        objective = np.ones(num_vars, dtype=float)
+        remaining_time = max(0.1, deadline - time.monotonic())
+
+        res = milp(
+            c=objective,
+            integrality=np.ones(num_vars, dtype=np.int8),
+            bounds=Bounds(np.zeros(num_vars), upper),
+            constraints=LinearConstraint(A, np.array(lb), np.array(ub)),
+            options={
+                "time_limit": remaining_time,
+                "presolve": True,
+                "mip_rel_gap": 0.0
+            }
+        )
+
+        if getattr(res, "x", None) is not None:
+            flows = [[0] * m for _ in range(k)]
+            for x, (i, j, _) in zip(res.x, var_info):
+                flows[i][j] = int(round(float(x)))
+            if validate(flows):
+                emit(flows)
+                sys.exit()
+
+        if getattr(res, "status", None) == 2:
+            scipy_proved_infeasible = True
+except Exception:
+    pass
+
+if scipy_proved_infeasible:
+    print("NO")
+    sys.exit()
+
+# Small exact fallback: branch-and-bound with a two-phase simplex LP solver.
+EPS = 1e-8
+
+
+class LPSolver:
+    def __init__(self, A, b, c):
+        self.m = len(b)
+        self.n = len(c)
+        m0, n0 = self.m, self.n
+        self.B = [n0 + i for i in range(m0)]
+        self.N = list(range(n0)) + [-1]
+        self.D = [[0.0] * (n0 + 2) for _ in range(m0 + 2)]
+        for i in range(m0):
+            self.D[i][:n0] = A[i][:]
+            self.D[i][n0] = -1.0
+            self.D[i][n0 + 1] = b[i]
+        for j in range(n0):
+            self.D[m0][j] = -c[j]
+        self.D[m0 + 1][n0] = 1.0
+
+    def pivot(self, r, s):
+        D = self.D
+        inv = 1.0 / D[r][s]
+        rows = len(D)
+        cols = len(D[0])
+
+        for i in range(rows):
+            if i == r:
+                continue
+            factor = D[i][s] * inv
+            if abs(factor) <= EPS:
+                continue
+            Di = D[i]
+            Dr = D[r]
+            for j in range(cols):
+                if j != s:
+                    Di[j] -= Dr[j] * factor
+            Di[s] = -factor
+
+        Dr = D[r]
+        for j in range(cols):
+            if j != s:
+                Dr[j] *= inv
+        Dr[s] = inv
+        self.B[r], self.N[s] = self.N[s], self.B[r]
+
+    def simplex(self, phase):
+        xrow = self.m + 1 if phase == 1 else self.m
+        while True:
+            if time.monotonic() >= deadline:
+                raise TimeoutError
+            s = -1
+            for j in range(self.n + 1):
+                if phase == 2 and self.N[j] == -1:
+                    continue
+                if s == -1 or self.D[xrow][j] < self.D[xrow][s] - EPS or (
+                    abs(self.D[xrow][j] - self.D[xrow][s]) <= EPS
+                    and self.N[j] < self.N[s]
+                ):
+                    s = j
+            if self.D[xrow][s] >= -EPS:
+                return True
+
+            r = -1
+            for i in range(self.m):
+                if self.D[i][s] <= EPS:
+                    continue
+                if r == -1:
+                    r = i
+                else:
+                    lhs = self.D[i][self.n + 1] / self.D[i][s]
+                    rhs = self.D[r][self.n + 1] / self.D[r][s]
+                    if lhs < rhs - EPS or (
+                        abs(lhs - rhs) <= EPS and self.B[i] < self.B[r]
+                    ):
+                        r = i
+            if r == -1:
+                return False
+            self.pivot(r, s)
+
+    def solve(self):
+        if self.m:
+            r = min(range(self.m), key=lambda i: self.D[i][self.n + 1])
+            if self.D[r][self.n + 1] < -EPS:
+                self.pivot(r, self.n)
+                if not self.simplex(1) or self.D[self.m + 1][self.n + 1] < -EPS:
+                    return None
+                if abs(self.D[self.m + 1][self.n + 1]) > 1e-7:
+                    return None
+                for i in range(self.m):
+                    if self.B[i] == -1:
+                        s = min(
+                            range(self.n + 1),
+                            key=lambda j: (self.D[i][j], self.N[j])
+                        )
+                        self.pivot(i, s)
+                        break
+        if not self.simplex(2):
+            return None
+        x = [0.0] * self.n
+        for i in range(self.m):
+            if 0 <= self.B[i] < self.n:
+                x[self.B[i]] = self.D[i][self.n + 1]
+        return x
+
+
+# Avoid excessive memory in the pure-Python dense simplex fallback.
+if num_vars > 180 or len(base_sparse_rows) + m > 350 or time.monotonic() >= deadline:
+    print("NO")
+    sys.exit()
+
+base_A = []
+base_b = []
+
+for terms, rhs in zip(base_sparse_rows, base_rhs):
+    row = [0.0] * num_vars
+    for col, val in terms:
+        row[col] = val
+    base_A.append(row)
+    base_b.append(rhs)
+    base_A.append([-x for x in row])
+    base_b.append(-rhs)
+
+for j in range(m):
+    if capacity_terms[j]:
+        row = [0.0] * num_vars
+        for col, val in capacity_terms[j]:
+            row[col] = val
+        base_A.append(row)
+        base_b.append(float(edges[j][2]))
+
+for idx, (_, _, cap) in enumerate(var_info):
+    row = [0.0] * num_vars
+    row[idx] = 1.0
+    base_A.append(row)
+    base_b.append(float(cap))
+
+objective = [-1.0 - ((i * 1103515245 + 12345) & 1023) * 1e-7
+             for i in range(num_vars)]
+
+
+def branch(extra):
+    if time.monotonic() >= deadline:
+        raise TimeoutError
+
+    A = base_A[:]
+    b = base_b[:]
+    for idx, sign, bound in extra:
+        row = [0.0] * num_vars
+        row[idx] = sign
+        A.append(row)
+        b.append(float(bound))
+
+    sol = LPSolver(A, b, objective).solve()
+    if sol is None:
+        return None
+
+    chosen = -1
+    best_fraction = 0.0
+    for idx, x in enumerate(sol):
+        frac = abs(x - round(x))
+        if frac > 1e-6:
+            score = min(frac, 1.0 - frac)
+            if score > best_fraction:
+                best_fraction = score
+                chosen = idx
+
+    if chosen == -1:
+        vals = [int(round(x)) for x in sol]
+        flows = [[0] * m for _ in range(k)]
+        for val, (i, j, _) in zip(vals, var_info):
+            flows[i][j] = val
+        if validate(flows):
+            return flows
+        return None
+
+    x = sol[chosen]
+    lo = math.floor(x)
+    hi = math.ceil(x)
+
+    first = (chosen, 1.0, lo)
+    second = (chosen, -1.0, -hi)
+    if x - lo > hi - x:
+        first, second = second, first
+
+    got = branch(extra + [first])
+    if got is not None:
+        return got
+    return branch(extra + [second])
+
+
+try:
+    answer = branch([])
+    if answer is not None:
+        emit(answer)
+    else:
+        print("NO")
+except TimeoutError:
+    print("NO")
+```

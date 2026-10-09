@@ -1,0 +1,130 @@
+import sys
+from collections import deque
+
+def solve():
+    input = sys.stdin.buffer.readline
+    n, m, k = map(int, input().split())
+
+    graph = [[] for _ in range(n)]
+    for _ in range(m):
+        u, v = map(int, input().split())
+        u -= 1
+        v -= 1
+        graph[u].append(v)
+        graph[v].append(u)
+
+    color = [-1] * n
+    left = []
+    queue = deque()
+
+    for start in range(n):
+        if color[start] != -1:
+            continue
+        color[start] = 0
+        queue.append(start)
+
+        while queue:
+            u = queue.popleft()
+            if color[u] == 0:
+                left.append(u)
+            next_color = color[u] ^ 1
+            for v in graph[u]:
+                if color[v] == -1:
+                    color[v] = next_color
+                    queue.append(v)
+
+    pair_left = [-1] * n
+    pair_right = [-1] * n
+    dist = [0] * n
+    inf = n + 1
+    shortest = inf
+
+    sys.setrecursionlimit(max(1_000_000, n * 2 + 10))
+
+    def bfs():
+        nonlocal shortest
+        q = deque()
+        for u in left:
+            if pair_left[u] == -1:
+                dist[u] = 0
+                q.append(u)
+            else:
+                dist[u] = inf
+
+        shortest = inf
+        while q:
+            u = q.popleft()
+            if dist[u] >= shortest:
+                continue
+            next_dist = dist[u] + 1
+            for v in graph[u]:
+                matched_left = pair_right[v]
+                if matched_left == -1:
+                    shortest = next_dist
+                elif dist[matched_left] == inf:
+                    dist[matched_left] = next_dist
+                    q.append(matched_left)
+
+        return shortest != inf
+
+    def dfs(u):
+        next_dist = dist[u] + 1
+        for v in graph[u]:
+            matched_left = pair_right[v]
+            if matched_left == -1:
+                if next_dist != shortest:
+                    continue
+            elif dist[matched_left] != next_dist or not dfs(matched_left):
+                continue
+
+            pair_left[u] = v
+            pair_right[v] = u
+            return True
+
+        dist[u] = inf
+        return False
+
+    matching = 0
+    while bfs():
+        for u in left:
+            if pair_left[u] == -1 and dfs(u):
+                matching += 1
+
+    if n - matching < k:
+        sys.stdout.write("NO\n")
+        return
+
+    reachable_left = bytearray(n)
+    reachable_right = bytearray(n)
+    q = deque()
+
+    for u in left:
+        if pair_left[u] == -1:
+            reachable_left[u] = 1
+            q.append(u)
+
+    while q:
+        u = q.popleft()
+        matched_v = pair_left[u]
+        for v in graph[u]:
+            if v == matched_v or reachable_right[v]:
+                continue
+            reachable_right[v] = 1
+            matched_u = pair_right[v]
+            if matched_u != -1 and not reachable_left[matched_u]:
+                reachable_left[matched_u] = 1
+                q.append(matched_u)
+
+    answer = []
+    for u in range(n):
+        if ((color[u] == 0 and reachable_left[u]) or
+                (color[u] == 1 and not reachable_right[u])):
+            answer.append(u + 1)
+            if len(answer) == k:
+                break
+
+    sys.stdout.write("YES\n")
+    sys.stdout.write(" ".join(map(str, answer)) + "\n")
+
+if __name__ == "__main__":
+    solve()

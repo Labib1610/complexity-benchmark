@@ -1,41 +1,45 @@
 import sys
 
 def solve():
-    input_data = sys.stdin.read().strip().split()
-    if not input_data:
-        return
-    it = iter(input_data)
-    n = int(next(it))
-    m = int(next(it))
-    
-    adj = [[] for _ in range(n)]
+    input = sys.stdin.readline
+    n, m = map(int, input().split())
+    adj = [0] * n
     for _ in range(m):
-        u = int(next(it)) - 1
-        v = int(next(it)) - 1
-        adj[u].append(v)
-        adj[v].append(u)
-    
-    color = [0] * n  # 0 = unassigned, 1,2,3 = environments
-    
+        u, v = map(int, input().split())
+        u -= 1
+        v -= 1
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+
+    color = [-1] * n
+    # Sort vertices by degree descending for better pruning
+    order = list(range(n))
+    order.sort(key=lambda x: bin(adj[x]).count('1'), reverse=True)
+
     def backtrack(idx):
         if idx == n:
             return True
-        for c in (1, 2, 3):
+        v = order[idx]
+        for c in range(3):
+            # Check if any neighbor already has color c
             ok = True
-            for nb in adj[idx]:
-                if color[nb] == c:
+            for u in range(n):
+                if (adj[v] >> u) & 1 and color[u] == c:
                     ok = False
                     break
             if ok:
-                color[idx] = c
+                color[v] = c
                 if backtrack(idx + 1):
                     return True
-                color[idx] = 0
+                color[v] = -1
         return False
-    
+
     if backtrack(0):
         print("YES")
-        print(" ".join(map(str, color)))
+        res = [0] * n
+        for i in range(n):
+            res[i] = color[i] + 1
+        print(*res)
     else:
         print("NO")
 

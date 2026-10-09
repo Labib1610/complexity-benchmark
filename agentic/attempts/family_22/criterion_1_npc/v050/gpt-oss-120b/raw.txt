@@ -1,0 +1,273 @@
+**Solution Explanation**
+
+For every document we have to choose a hallway section (a number `1 … T`).
+
+* for every requirement `a → b` we need `section[a] < section[b]`
+* each section may contain at most `M` documents
+
+The requirements form a directed graph.
+If the graph contains a directed cycle the condition `section[a] < section[b]`
+cannot be satisfied – answer is `NO`.
+
+Otherwise the graph is a **DAG** and we can process the vertices in a
+topological order.
+When a vertex `v` is processed, all its predecessors already have a fixed
+section number.
+Let  
+
+```
+need[v] = 1 + max( section[p] )   over all predecessors p of v
+```
+
+(`need[v] = 1` if `v` has no predecessor).
+
+The only remaining freedom is to possibly increase the section number –
+we may put `v` into any section `s ≥ need[v]` that still has free capacity.
+If we always choose the *smallest* possible such section,
+the whole assignment will be feasible whenever a feasible assignment exists.
+(If we ever have to skip a section because it is already full,
+all later vertices also have to be placed not earlier than that section,
+so using the earliest free place never harms future choices.)
+
+Thus the problem reduces to repeatedly answering:
+
+```
+given x = need[v]   (1 ≤ x ≤ T)
+find the smallest s ≥ x with count[s] < M
+```
+
+and afterwards increase `count[s]`.  
+When `count[s]` becomes `M` the section is full and must never be returned
+again.
+
+The classic data structure for “next still‑available position” is a
+*disjoint‑set union* (DSU, also called Union‑Find) with path compression:
+
+* `parent[i]` points to the smallest index `j ≥ i` that is still not full.
+* initially `parent[i] = i`.
+* when a section `i` becomes full we set `parent[i] = i+1`
+  (union with the next section).
+
+`find(x)` returns the current `parent` of `x` (with path compression), i.e.
+the smallest still‑available section `≥ x`.  
+All operations are amortised `α(T)` (inverse Ackermann), i.e. practically
+constant.
+
+Algorithm
+---------
+
+```
+read input
+build adjacency list, indegrees
+topological sort (Kahn)
+if not all vertices processed → cycle → NO
+
+counts[1…T] = 0
+parent[i] = i   for i = 1…T+1   (T+1 is a sentinel “out of range”)
+
+need[v] = 0 for all v
+for v in topological order:
+        x = need[v] + 1          # minimal possible section
+        s = find(x)              # earliest section with free slot
+        if s > T:                # no section left
+                print NO and exit
+        assign section[v] = s
+        counts[s] += 1
+        if counts[s] == M:
+                parent[s] = s+1  # union with next
+        for each neighbour w of v:
+                need[w] = max(need[w], s)   # remember maximal predecessor section
+print YES and the sections
+```
+
+Correctness Proof
+-----------------
+
+We prove that the algorithm prints `YES` with a valid assignment
+iff such an assignment exists.
+
+---
+
+### Lemma 1  
+If the algorithm assigns a document `v` to section `s`,
+then for every predecessor `p` of `v` we have `section[p] < s`.
+
+**Proof.**  
+When `v` is processed, `need[v]` equals the maximum section among all
+already processed predecessors (by the update step).  
+The algorithm chooses `s = find(need[v] + 1)`, therefore `s ≥ need[v] + 1`.
+Hence `s` is strictly larger than every predecessor’s section. ∎
+
+
+
+### Lemma 2  
+When the algorithm processes a vertex `v`,
+`find(need[v] + 1)` returns the smallest section `s ≥ need[v] + 1`
+that still has capacity left.
+
+**Proof.**  
+Induction over the number of assignments already performed.
+
+*Base.* Before any assignment every section has capacity, `parent[i]=i`,
+so `find(x)=x`, the smallest possible section.
+
+*Induction step.* Assume the invariant holds after some assignments.
+If a section `i` becomes full, we set `parent[i]=i+1`.  
+All future `find` calls that would have returned `i` now follow the
+pointer to `i+1`, the next candidate.  
+Because we only ever union a full section with its immediate successor,
+the structure always points to the smallest index not yet full.
+Path compression only shortcuts already‑verified chains, never changes the
+represented value. ∎
+
+
+
+### Lemma 3  
+If the algorithm ever fails because `find(need[v]+1) > T`,
+no feasible assignment exists.
+
+**Proof.**  
+At that moment every section `x` with `x ≥ need[v]+1` is already full
+(Lemma&nbsp;2). Any feasible assignment must place `v` in a section
+`≥ need[v]+1` (otherwise some predecessor would not be earlier).
+Since all those sections are full, such an assignment cannot exist. ∎
+
+
+
+### Lemma 4  
+If the algorithm finishes without failure, the produced assignment satisfies
+all constraints.
+
+**Proof.**  
+*Capacity*: a section becomes full only after exactly `M` assignments,
+and thereafter is never used again (union to the next section).  
+*Order*: by Lemma&nbsp;1 every edge respects the strict order. ∎
+
+
+
+### Lemma 5  
+If a feasible assignment exists, the algorithm never fails.
+
+**Proof.**  
+Consider the moment a vertex `v` is processed.
+Let `s*` be the section of `v` in some feasible assignment.
+All predecessors of `v` are already placed by the algorithm, therefore
+their sections are ≤ the sections in the feasible assignment
+(because the algorithm always uses the earliest possible free section).
+Consequently `need[v] + 1 ≤ s*`.  
+Since the feasible assignment puts `v` into a section with free capacity,
+section `s*` is not full at this moment.
+All sections `< s*` that are ≥ `need[v]+1` are either full or already used,
+but `s*` itself is still free.
+Thus the DSU will return some `s ≤ s* ≤ T`.  
+Hence the algorithm does not fail. ∎
+
+
+
+### Theorem  
+The algorithm outputs `YES` and a correct distribution
+iff such a distribution exists; otherwise it outputs `NO`.
+
+**Proof.**  
+
+*If* the algorithm outputs `YES`, by Lemma&nbsp;4 the distribution is valid.
+
+*Only‑if*: suppose a valid distribution exists.
+The graph must be acyclic, otherwise no ordering satisfies the strict
+requirements, so the topological sort succeeds.
+By Lemma&nbsp;5 the algorithm never encounters the failure case,
+therefore it finishes and prints `YES`. ∎
+
+
+
+Complexity Analysis
+-------------------
+
+*Topological sort*: `O(n + m)`
+*Processing vertices*: each vertex causes one `find` (`α(T)`) and at most
+`deg(v)` updates of `need`, total `O(m)`.
+Overall time `O((n+m) α(T))`, well below the limits.
+
+Memory usage:
+adjacency list `O(n+m)`, arrays `O(n+T)`. All within 256 MB.
+
+
+
+Reference Implementation (Python 3)
+------------------------------------
+
+```python
+import sys
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    M = int(next(it))
+    T = int(next(it))
+    m = int(next(it))
+
+    adj = [[] for _ in range(n)]
+    indeg = [0] * n
+    for _ in range(m):
+        a = int(next(it)) - 1
+        b = int(next(it)) - 1
+        adj[a].append(b)
+        indeg[b] += 1
+
+    # Kahn's algorithm
+    from collections import deque
+    q = deque([i for i in range(n) if indeg[i] == 0])
+    topo = []
+    while q:
+        v = q.popleft()
+        topo.append(v)
+        for w in adj[v]:
+            indeg[w] -= 1
+            if indeg[w] == 0:
+                q.append(w)
+
+    if len(topo) != n:          # cycle
+        print("NO")
+        return
+
+    # DSU for next free section
+    parent = list(range(T + 2))   # 1..T, T+1 sentinel
+
+    def find(x: int) -> int:
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    cnt = [0] * (T + 1)          # 1‑based
+    need = [0] * n               # max predecessor section
+    ans = [0] * n
+
+    for v in topo:
+        x = need[v] + 1          # minimal possible section
+        s = find(x)
+        if s > T:
+            print("NO")
+            return
+        ans[v] = s
+        cnt[s] += 1
+        if cnt[s] == M:
+            parent[s] = s + 1    # union with next
+        for w in adj[v]:
+            if need[w] < s:
+                need[w] = s
+
+    # output
+    out = ["YES"]
+    out.append(" ".join(str(ans[i]) for i in range(n)))
+    sys.stdout.write("\n".join(out))
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above
+and conforms to the required input‑output format.

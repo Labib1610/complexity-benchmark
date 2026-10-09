@@ -1,0 +1,108 @@
+```python
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    n = int(data[0]); m = int(data[1])
+    # 2-SAT: variable i (1..n): True = ENERGIZED (1), False = ISOLATED (0)
+    # Node 2*i = literal i (True), 2*i+1 = literal ~i (False)
+    # Relay faults if both target modes are omitted.
+    # Target mode l: if l>0, mode is "x ENERGIZED", omitted when x is ISOLATED (~x).
+    #                if l<0, mode is "x ISOLATED", omitted when x is ENERGIZED (x).
+    # Relay faults if (omit l1) AND (omit l2). To be secure: NOT(omit l1 AND omit l2)
+    #   = (not omit l1) OR (not omit l2) = (satisfy l1) OR (satisfy l2).
+    # satisfy l1: if l1>0 then x ENERGIZED (literal x True); if l1<0 then x ISOLATED (literal x False).
+    # Clause: (satisfy l1) OR (satisfy l2).
+    # For literal a OR b: add edges ~a -> b and ~b -> a.
+    N = 2 * n
+    head = [-1] * N
+    to = []
+    nxt = []
+    def add_edge(u, v):
+        to.append(v); nxt.append(head[u]); head[u] = len(to) - 1
+    idx = 2
+    for _ in range(m):
+        l1 = int(data[idx]); l2 = int(data[idx+1]); idx += 2
+        # satisfy(l1): literal node
+        if l1 > 0:
+            a = 2 * (l1 - 1)        # x True
+        else:
+            a = 2 * (-l1 - 1) + 1   # x False
+        if l2 > 0:
+            b = 2 * (l2 - 1)
+        else:
+            b = 2 * (-l2 - 1) + 1
+        # clause a OR b: ~a -> b, ~b -> a
+        na = a ^ 1
+        nb = b ^ 1
+        add_edge(na, b)
+        add_edge(nb, a)
+    
+    # Tarjan SCC
+    dfn = [0] * N
+    low = [0] * N
+    vis = [False] * N
+    in_stack = [False] * N
+    scc_id = [-1] * N
+    stack = []
+    timer = 1
+    scc_cnt = 0
+    # iterative Tarjan
+    for start in range(N):
+        if vis[start]:
+            continue
+        # call stack: (node, iterator_state)
+        call_stack = [(start, head[start])]
+        vis[start] = True
+        dfn[start] = low[start] = timer; timer += 1
+        stack.append(start); in_stack[start] = True
+        while call_stack:
+            u, e = call_stack[-1]
+            if e != -1:
+                call_stack[-1] = (u, nxt[e])
+                v = to[e]
+                if not vis[v]:
+                    vis[v] = True
+                    dfn[v] = low[v] = timer; timer += 1
+                    stack.append(v); in_stack[v] = True
+                    call_stack.append((v, head[v]))
+                elif in_stack[v]:
+                    if dfn[v] < low[u]:
+                        low[u] = dfn[v]
+            else:
+                call_stack.pop()
+                if call_stack:
+                    p = call_stack[-1][0]
+                    if low[u] < low[p]:
+                        low[p] = low[u]
+                if dfn[u] == low[u]:
+                    while True:
+                        w = stack.pop()
+                        in_stack[w] = False
+                        scc_id[w] = scc_cnt
+                        if w == u:
+                            break
+                    scc_cnt += 1
+    
+    # check satisfiability
+    for i in range(n):
+        if scc_id[2*i] == scc_id[2*i+1]:
+            print("NO")
+            return
+    print("YES")
+    # assign: literal True if its SCC id < SCC id of negation
+    # In Tarjan with this order, SCCs are numbered in reverse topological order,
+    # so smaller scc_id means later in topological order. We want literal True
+    # if scc_id[lit] < scc_id[~lit] (standard convention).
+    out = []
+    for i in range(n):
+        if scc_id[2*i] < scc_id[2*i+1]:
+            out.append('1')
+        else:
+            out.append('0')
+    print(' '.join(out))
+
+solve()
+```

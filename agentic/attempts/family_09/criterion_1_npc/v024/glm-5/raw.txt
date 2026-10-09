@@ -1,0 +1,213 @@
+```python
+import sys
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    k = int(next(it))
+    
+    adj = [0] * (n + 1)
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+    
+    if k == 0:
+        print("YES")
+        print()
+        return
+    
+    if k == 1:
+        print("YES")
+        print(1)
+        return
+    
+    # DP over subsets: dp[mask] = a vertex in mask that can extend to an independent set
+    # We use the standard DP for maximum independent set on small graphs (n <= 46)
+    # Split into two halves
+    half = n // 2
+    left = list(range(1, half + 1))
+    right = list(range(half + 1, n + 1))
+    
+    # Precompute adjacency within each half
+    left_adj = {}
+    for v in left:
+        mask = 0
+        for u in left:
+            if adj[v] & (1 << u):
+                mask |= 1 << (u - 1)
+        left_adj[v] = mask
+    
+    right_adj = {}
+    for v in right:
+        mask = 0
+        for u in right:
+            if adj[v] & (1 << u):
+                mask |= 1 << (u - half - 1)
+        right_adj[v] = mask
+    
+    # For left half: enumerate all independent sets
+    # left_sets[size] = list of (mask, chosen_mask)
+    left_sets = [[] for _ in range(len(left) + 1)]
+    
+    # Enumerate all subsets of left
+    for mask in range(1 << len(left)):
+        # Check if independent
+        ok = True
+        for i in range(len(left)):
+            if mask & (1 << i):
+                if mask & left_adj[left[i]]:
+                    ok = False
+                    break
+        if ok:
+            size = bin(mask).count('1')
+            left_sets[size].append(mask)
+    
+    # For right half: enumerate all independent sets, and for each, compute which left vertices are NOT adjacent to any right vertex in the set
+    # right_info[size] = list of (right_mask, available_left_mask)
+    right_info = [[] for _ in range(len(right) + 1)]
+    
+    for mask in range(1 << len(right)):
+        ok = True
+        for i in range(len(right)):
+            if mask & (1 << i):
+                if mask & right_adj[right[i]]:
+                    ok = False
+                    break
+        if ok:
+            size = bin(mask).count('1')
+            # Compute available left mask: left vertices not adjacent to any chosen right vertex
+            avail = (1 << len(left)) - 1
+            for i in range(len(right)):
+                if mask & (1 << i):
+                    v = right[i]
+                    # Remove left vertices adjacent to v
+                    for j in range(len(left)):
+                        if adj[v] & (1 << left[j]):
+                            avail &= ~(1 << j)
+            right_info[size].append((mask, avail))
+    
+    # Now we need to find if there's an independent set of size k
+    # For each possible split: left_size + right_size = k
+    # For each right independent set with available_left_mask, we need a left independent set of size (k - right_size) that is subset of available_left_mask
+    
+    # Precompute for left: for each mask, the maximum independent set size that is subset of mask
+    # Actually we need exact size, so let's precompute left_sets_by_avail
+    # For efficiency, we group left_sets by size, and for each size, we have a set of masks
+    # Then for a given available_left_mask and needed_size, we check if any left mask of that size is subset of available_left_mask
+    
+    # Convert left_sets to sets for O(1) lookup
+    left_sets_set = [set() for _ in range(len(left) + 1)]
+    for size in range(len(left) + 1):
+        for mask in left_sets[size]:
+            left_sets_set[size].add(mask)
+    
+    # For each needed size, precompute for each mask the list of supersets? That's too much.
+    # Instead, for each available_left_mask, we iterate through all left masks of the needed size and check subset
+    # But that could be slow. Let's think of a better approach.
+    
+    # Alternative: for each left mask, store it. Then for each (right_mask, avail_left), 
+    # we need to find if there exists a left mask of size (k - right_size) that is subset of avail_left.
+    # We can precompute: for each size, a dictionary mapping mask -> list of left masks that are subsets
+    # But that's too much memory.
+    
+    # Better: for each size, store all left masks. Then for query (avail, needed_size),
+    # iterate through all left masks of needed_size and check if (left_mask & ~avail) == 0
+    # The number of left masks is at most 2^23 which is too much.
+    
+    # Let's use a different approach: meet in the middle with hashing
+    # For left half, for each independent set mask, store (mask) grouped by size
+    # For right half, for each independent set (right_mask, avail_left), 
+    # we need left independent set of size (k - right_size) subset of avail_left
+    
+    # To make subset checking efficient, we can use SOS DP (Sum Over Subsets)
+    # For each size s, compute f[mask] = number of left independent sets of size s that are subset of mask
+    # Then for each right set, we just check f[avail_left] > 0 for the needed size
+    
+    # But SOS DP for each size would be 23 * 2^23 which is about 200M operations, might be too slow in Python
+    
+    # Let's try a different split: make left smaller
+    # Actually n <= 46, so we can split 23/23. But 2^23 is 8M, and SOS is 23*8M = 184M, too slow in Python.
+    
+    # Alternative: use the fact that we just need ANY independent set of size k
+    # We can use a greedy + backtracking approach with pruning
+    
+    # Let's try branch and bound
+    # Sort vertices by degree, try to include/exclude
+    
+    # Actually, let's try a simpler approach: since n <= 46, we can use the meet-in-the-middle
+    # but with a smarter subset check
+    
+    # For the right half, for each independent set, we compute avail_left
+    # For the left half, we precompute all independent sets grouped by size
+    # Then for each right set of size rs, we need a left set of size (k - rs) that is subset of avail_left
+    
+    # To check subset efficiently: for each size s, build a set of all left masks of that size
+    # Then for a given avail, we need to check if any mask of size s is a subset of avail
+    # We can iterate through all masks of size s and check, but that's O(number of left masks of size s) per query
+    
+    # The total number of left independent sets could be up to 2^23 in worst case (empty graph)
+    # But with conflicts, it's less. Still could be large.
+    
+    # Let's try a different approach: for each left mask, precompute which right vertices are NOT adjacent
+    # Then for each left mask of size s, and right mask of size (k-s) that is subset of non-adjacent right vertices
+    
+    # This is symmetric. Let's just try the straightforward approach and see if it passes.
+    
+    # For each right_size from 0 to min(k, len(right)):
+    #   needed_left_size = k - right_size
+    #   if needed_left_size < 0 or needed_left_size > len(left): continue
+    #   for (right_mask, avail_left) in right_info[right_size]:
+    #     for left_mask in left_sets[needed_left_size]:
+    #       if (left_mask & ~avail_left) == 0:
+    #         found! reconstruct and output
+    
+    # This could be slow if there are many sets. Let's optimize by using a dictionary for left sets.
+    
+    # For each size, create a dict: for each mask, store it. Then for query, we need to find any mask of given size that is subset of avail.
+    # We can precompute for each size, a list of masks sorted, and use binary search? No, subset doesn't work with sorting.
+    
+    # Let's try: for each size s, build a set of masks. For query (avail, s), iterate through all masks of size s and check subset.
+    # If the graph is dense, there are few independent sets, so this is fast.
+    # If the graph is sparse, there are many independent sets, but then k is likely achievable and we find it quickly.
+    
+    # Let's just try it.
+    
+    found = False
+    result = []
+    
+    for right_size in range(min(k, len(right)) + 1):
+        needed_left_size = k - right_size
+        if needed_left_size < 0 or needed_left_size > len(left):
+            continue
+        
+        for right_mask, avail_left in right_info[right_size]:
+            for left_mask in left_sets[needed_left_size]:
+                if (left_mask & ~avail_left) == 0:
+                    # Found
+                    found = True
+                    for i in range(len(left)):
+                        if left_mask & (1 << i):
+                            result.append(left[i])
+                    for i in range(len(right)):
+                        if right_mask & (1 << i):
+                            result.append(right[i])
+                    break
+            if found:
+                break
+        if found:
+            break
+    
+    if found:
+        print("YES")
+        print(' '.join(map(str, sorted(result))))
+    else:
+        print("NO")
+
+solve()
+```

@@ -1,0 +1,141 @@
+```python
+import sys
+from heapq import heappush, heappop
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    j = int(next(it))
+    m = int(next(it))
+    vessels = []
+    for _ in range(j):
+        p = int(next(it))
+        phases = []
+        for _ in range(p):
+            f = int(next(it))
+            d = int(next(it))
+            phases.append((f - 1, d))
+        vessels.append(phases)
+    
+    # State: (time, vessel_phase_index_tuple, facility_free_time_tuple)
+    # Use a priority queue (Dijkstra-like) to explore states in order of increasing time.
+    # To reduce state space, we can use a greedy lower bound and prune.
+    
+    # Initial state
+    init_phases = tuple(0 for _ in range(j))
+    init_free = tuple(0 for _ in range(m))
+    start = (0, init_phases, init_free)
+    
+    # Visited dictionary: maps (phases, free) -> best time
+    visited = {}
+    visited[(init_phases, init_free)] = 0
+    
+    heap = [start]
+    
+    total_phases = sum(len(v) for v in vessels)
+    
+    while heap:
+        time, phases, free = heappop(heap)
+        
+        # Check if all vessels completed
+        if all(phases[i] == len(vessels[i]) for i in range(j)):
+            print(time)
+            return
+        
+        # If we've already found a better time for this state, skip
+        key = (phases, free)
+        if visited.get(key, float('inf')) < time:
+            continue
+        
+        # Find the vessel that can start its next phase earliest
+        # We need to consider all possible next moves, but to keep it manageable,
+        # we can try to schedule the vessel with the earliest possible start time.
+        # However, for correctness, we should consider all possible choices.
+        # Given the small constraints (j <= 10, m <= 10, total phases <= 50),
+        # a full Dijkstra should work.
+        
+        # Generate next states by picking one vessel and advancing it if possible
+        for i in range(j):
+            pi = phases[i]
+            if pi < len(vessels[i]):
+                f, d = vessels[i][pi]
+                # Facility f must be free, and vessel i must have completed previous phase
+                # Vessel i is ready at 'time' (since we process in time order)
+                # Actually, vessel i is ready at max(time, ...) but since we popped this state,
+                # the vessel is ready at 'time' (previous phase done by 'time')
+                # Wait: the state's time is the current global time. The vessel i's previous
+                # phase finished by some time <= current time. So it's ready.
+                # Facility free time is free[f].
+                start_time = max(time, free[f])
+                end_time = start_time + d
+                new_phases = list(phases)
+                new_phases[i] = pi + 1
+                new_phases = tuple(new_phases)
+                new_free = list(free)
+                new_free[f] = end_time
+                new_free = tuple(new_free)
+                new_time = end_time
+                # The new state's time is the max of all facility free times? No.
+                # The state's time should be the minimum time at which some vessel can start its next phase.
+                # Actually, in Dijkstra, the state's time is the time when the last event happened.
+                # But we need to be careful: the state's time is the time when we can make the next decision.
+                # Let's define state time as the earliest time any vessel can start its next phase.
+                # But that's complicated. Alternative: state time is the max of all facility free times
+                # and all vessel completion times. But that's also not right.
+                
+                # Let's think differently: the state is (phases, free). The time associated is the
+                # earliest time at which we can make a move. That is the minimum over all vessels
+                # of the time they can start their next phase. But since we process in time order,
+                # we can just use the end_time of the move as the new state's time, and the heap
+                # will naturally order by time.
+                # However, multiple vessels might be ready at different times. The state's time
+                # should represent the current "clock". Let's use the max of all facility free times
+                # as the state time? No.
+                
+                # Actually, a cleaner approach: the state is (phases, free). The time is not stored
+                # in the state but is the max of free times? No, because vessels might be idle.
+                # Let's use the approach where the state's time is the time of the last completed
+                # event, and we push (end_time, new_phases, new_free). The heap orders by end_time.
+                # But we might miss states where a vessel starts later but finishes earlier overall.
+                # No, Dijkstra guarantees we find the minimum time to reach the goal state.
+                # The goal state is when all phases are done. The time to reach it is the max of
+                # all facility free times (since the last phase ends when its facility becomes free).
+                # So we can use the max of free times as the state's time? Not exactly, because
+                # a vessel might be waiting. But the max of free times is a lower bound on the
+                # completion time. Actually, the completion time is the max over all vessels of
+                # their completion time, which is the max of free times when all phases are done.
+                # So we can use the max of free times as the state's time. But during intermediate
+                # states, the max of free times might not be the time of the last event.
+                # Let's just use the end_time of the move as the state's time, and the heap will
+                # order by that. The visited dictionary will store the best time for each state.
+                # The time for a state is the max of free times? No, let's use the max of free times
+                # as the state's time, because that's when the system is "idle" and ready for the
+                # next move. Actually, the next move can start at max(time, free[f]), so the
+                # state's time should be the minimum over all possible next moves of their start
+                # time. But that's complex. Let's just use the max of free times as the state's
+                # time. Wait, no: if a vessel finished early and is waiting, the state's time
+                # should be the time when the next event can happen, which is the min of free times
+                # of facilities needed by ready vessels. But that's too complex.
+                
+                # Given the small constraints, let's use a simpler approach: the state's time is
+                # the max of all facility free times. This is an upper bound on when the next
+                # move can start. But it might not be tight. However, since we process in order
+                # of this time, and we only care about the final max free time, it should work.
+                # Actually, no: if we use max of free times as state time, we might process a
+                # state with a larger max free time before a state with a smaller max free time
+                # but a vessel that could start earlier. That's fine because the heap orders by
+                # the state's time, and we want the minimum time to reach the goal.
+                # Let's use the max of free times as the state's time.
+                state_time = max(new_free)
+                new_key = (new_phases, new_free)
+                if new_key not in visited or visited[new_key] > state_time:
+                    visited[new_key] = state_time
+                    heappush(heap, (state_time, new_phases, new_free))
+    
+    # Should not reach here if input is valid
+    print(-1)
+
+solve()
+```

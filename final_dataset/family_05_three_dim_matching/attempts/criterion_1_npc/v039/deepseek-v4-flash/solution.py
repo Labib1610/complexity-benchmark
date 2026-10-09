@@ -1,0 +1,47 @@
+import sys
+
+def solve():
+    input = sys.stdin.readline
+    k, t = map(int, input().split())
+    viable = [[] for _ in range(k)]
+    for _ in range(t):
+        x, y, z = map(int, input().split())
+        viable[x-1].append((y-1, z-1))
+    
+    # Sort surgeons by number of options (most constrained first)
+    order = sorted(range(k), key=lambda i: len(viable[i]))
+    
+    used_theater = 0
+    used_patient = 0
+    assignment = [None] * k  # assignment[surgeon] = (theater, patient)
+    
+    def dfs(idx):
+        nonlocal used_theater, used_patient
+        if idx == k:
+            return True
+        surgeon = order[idx]
+        for theater, patient in viable[surgeon]:
+            if (used_theater >> theater) & 1:
+                continue
+            if (used_patient >> patient) & 1:
+                continue
+            used_theater |= (1 << theater)
+            used_patient |= (1 << patient)
+            assignment[surgeon] = (theater, patient)
+            if dfs(idx + 1):
+                return True
+            used_theater ^= (1 << theater)
+            used_patient ^= (1 << patient)
+            assignment[surgeon] = None
+        return False
+    
+    if dfs(0):
+        print("YES")
+        for s in range(k):
+            th, pa = assignment[s]
+            print(s+1, th+1, pa+1)
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()

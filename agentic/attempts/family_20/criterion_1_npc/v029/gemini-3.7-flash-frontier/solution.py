@@ -1,0 +1,135 @@
+import sys
+
+# Increase recursion depth just in case
+sys.setrecursionlimit(100000)
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    edges = []
+    adj = [[] for _ in range(n)]
+    
+    idx = 2
+    for i in range(m):
+        u = int(input_data[idx]) - 1
+        v = int(input_data[idx+1]) - 1
+        idx += 2
+        edges.append((u, v))
+        adj[u].append(i)
+        adj[v].append(i)
+    
+    # color_mask for each edge: bit 1: color 1, bit 2: color 2, bit 3: color 3
+    # Initial mask = 7 (binary 111)
+    # color: 1, 2, 3 -> masks: 1, 2, 4
+    
+    edge_mask = [7] * m
+    assigned_color = [0] * m
+    
+    def set_color(e, c, trail):
+        """Attempts to restrict edge e to only color c. Returns False on contradiction."""
+        mask = 1 << (c - 1)
+        if (edge_mask[e] & mask) == 0:
+            return False
+        return remove_other_colors(e, mask, trail)
+
+    def remove_color(e, c, trail):
+        """Removes color c from edge e's domain. Returns False on contradiction."""
+        mask = 1 << (c - 1)
+        if (edge_mask[e] & mask) == 0:
+            return True # already not there
+        new_mask = edge_mask[e] & ~mask
+        if new_mask == 0:
+            return False
+        trail.append((e, edge_mask[e]))
+        edge_mask[e] = new_mask
+        return True
+
+    def propagate(trail, queue):
+        while queue:
+            e, c = queue.pop()
+            # Edge e is fixed to color c
+            # For each endpoint of e, the other edges cannot have color c
+            u, v = edges[e]
+            for endpoint in (u, v):
+                for other_e in adj[endpoint]:
+                    if other_e != e:
+                        if edge_mask[other_e] & (1 << (c - 1)):
+                            trail.append((other_e, edge_mask[other_e]))
+                            edge_mask[other_e] &= ~(1 << (c - 1))
+                            if edge_mask[other_e] == 0:
+                                return False
+                            # If single color left, enqueue
+                            m_val = edge_mask[other_e]
+                            if (m_val & (m_val - 1)) == 0:
+                                nc = m_val.bit_length()
+                                queue.append((other_e, nc))
+                
+                # Check for vertex endpoint: exactly one edge must have each color
+                # If for some color, only one edge can have it, fix it
+                for col in (1, 2, 3):
+                    col_mask = 1 << (col - 1)
+                    cand = [oe for oe in adj[endpoint] if (edge_mask[oe] & col_mask)]
+                    if len(cand) == 0:
+                        return False
+                    elif len(cand) == 1:
+                        oe = cand[0]
+                        if edge_mask[oe] != col_mask:
+                            trail.append((oe, edge_mask[oe]))
+                            edge_mask[oe] = col_mask
+                            queue.append((oe, col))
+        return True
+
+    def backtrack():
+        # Find unassigned edge with minimum domain size
+        min_size = 4
+        best_e = -1
+        for e in range(m):
+            m_val = edge_mask[e]
+            cnt = bin(m_val).count('1')
+            if cnt > 1 and cnt < min_size:
+                min_size = cnt
+                best_e = e
+                if min_size == 2:
+                    break
+        
+        if best_e == -1:
+            return True # all assigned
+        
+        # Try possible colors for best_e
+        m_val = edge_mask[best_e]
+        for c in (1, 2, 3):
+            if m_val & (1 << (c - 1)):
+                trail = []
+                trail.append((best_e, edge_mask[best_e]))
+                edge_mask[best_e] = 1 << (c - 1)
+                queue = [(best_e, c)]
+                if propagate(trail, queue):
+                    if backtrack():
+                        return True
+                # Undo trail
+                for e, old_m in reversed(trail):
+                    edge_mask[e] = old_m
+        return False
+
+    # Break symmetries: assign edge 0 color 1
+    # Check if graph is valid initially
+    queue = []
+    trail = []
+    
+    # Try solving
+    if backtrack():
+        res = []
+        for e in range(m):
+            res.append(edge_mask[e].bit_length())
+        print("YES")
+        print(*(res))
+    else:
+        print("NO")
+
+if __name__ == '__main__':
+    solve()

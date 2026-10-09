@@ -1,43 +1,88 @@
 import sys
+from sys import stdin
 
 def solve():
-    input_data = sys.stdin.read().strip().split()
-    if not input_data:
-        return
-    it = iter(input_data)
-    n = int(next(it))
-    m = int(next(it))
-    
-    adj = [[] for _ in range(n)]
+    n, m = map(int, stdin.readline().split())
+    adj = [0] * n
     for _ in range(m):
-        u = int(next(it)) - 1
-        v = int(next(it)) - 1
-        adj[u].append(v)
-        adj[v].append(u)
-    
-    colors = [0] * n
-    
-    def backtrack(idx):
-        if idx == n:
-            return True
-        for c in (1, 2, 3):
+        u, v = map(int, stdin.readline().split())
+        u -= 1
+        v -= 1
+        adj[u] |= (1 << v)
+        adj[v] |= (1 << u)
+
+    # Split vertices into two halves
+    n1 = n // 2
+    n2 = n - n1
+    verts1 = list(range(n1))
+    verts2 = list(range(n1, n))
+
+    # Precompute for first half
+    colors1 = {}
+    for mask in range(1 << (2 * n1)):
+        # decode mask: 2 bits per vertex
+        valid = True
+        color = [0] * n1
+        for i in range(n1):
+            c = (mask >> (2 * i)) & 3
+            color[i] = c
+        # check edges within half
+        for i in range(n1):
+            for j in range(i+1, n1):
+                if (adj[verts1[i]] >> verts1[j]) & 1:
+                    if color[i] == color[j]:
+                        valid = False
+                        break
+            if not valid:
+                break
+        if valid:
+            key = tuple(color)
+            colors1[key] = mask
+
+    # Precompute for second half
+    colors2 = {}
+    for mask in range(1 << (2 * n2)):
+        valid = True
+        color = [0] * n2
+        for i in range(n2):
+            c = (mask >> (2 * i)) & 3
+            color[i] = c
+        for i in range(n2):
+            for j in range(i+1, n2):
+                if (adj[verts2[i]] >> verts2[j]) & 1:
+                    if color[i] == color[j]:
+                        valid = False
+                        break
+            if not valid:
+                break
+        if valid:
+            key = tuple(color)
+            colors2[key] = mask
+
+    # Try to combine
+    for c1, mask1 in colors1.items():
+        for c2, mask2 in colors2.items():
             ok = True
-            for nb in adj[idx]:
-                if colors[nb] == c:
-                    ok = False
+            for i in range(n1):
+                for j in range(n2):
+                    if (adj[verts1[i]] >> verts2[j]) & 1:
+                        if c1[i] == c2[j]:
+                            ok = False
+                            break
+                if not ok:
                     break
             if ok:
-                colors[idx] = c
-                if backtrack(idx + 1):
-                    return True
-                colors[idx] = 0
-        return False
-    
-    if backtrack(0):
-        print("YES")
-        print(" ".join(map(str, colors)))
-    else:
-        print("NO")
+                # Build answer
+                ans = [0] * n
+                for i in range(n1):
+                    ans[verts1[i]] = c1[i] + 1
+                for i in range(n2):
+                    ans[verts2[i]] = c2[i] + 1
+                print("YES")
+                print(" ".join(map(str, ans)))
+                return
+
+    print("NO")
 
 if __name__ == "__main__":
     solve()

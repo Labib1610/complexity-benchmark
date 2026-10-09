@@ -1,22 +1,23 @@
-# Orbital Reflection Synchrony
+# Problem B — Network Configuration
 
 Time limit: 1 s   Memory limit: 256 MB
 
-A satellite network consists of $n$ orbital modules, numbered $1$ through $n$. You must assign each module an operating mode, represented by the integer $1$ or $2$.
+You are configuring a network of $n$ modules. Each module $i$ must be assigned an operational state $s_i \in \{1, 2\}$.
 
-The network's synchronization is governed by $m$ telemetry channels. Each channel connects a specific pair of modules. For a telemetry channel connecting module $u$ and module $v$ to function correctly, their assigned modes $p_u$ and $p_v$ must satisfy the following stability equation:
+The system log contains $m$ active connections. Each connection involves two modules $u$ and $v$. 
+To ensure safe data transfer without collision, the states of the modules on each connection must be completely orthogonal at the bit level. Specifically, the bitwise AND of their operational states ($s_u \ \& \ s_v$) must evaluate to exactly 0.
 
-$2p_u^2 - 5p_u p_v + 2p_v^2 = 0$
+(Note: If a logged connection involves the same module twice, meaning $u = v$, the bitwise AND of its state with itself is $s_u$, which is either 1 or 2. This can never be 0, immediately violating the requirement and destabilizing the network).
 
-Your task is to assign an operating mode ($1$ or $2$) to each of the $n$ modules so that every telemetry channel functions correctly. If multiple valid assignments are possible, you must output the lexicographically smallest valid sequence of modes (comparing sequences from index $1$ to $n$). If no such assignment is possible, you must output a specific failure message.
+If there are multiple valid state assignments that satisfy all logged connections, you must output the sequence $s_1 \dots s_n$ that is lexicographically smallest.
 
 ## Input
-The first line provides two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$).
-The following $m$ lines each contain two integers $u$ and $v$ ($1 \le u, v \le n$), representing the indices of a pair of modules connected by a telemetry channel.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$).
+Each of the following $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$) — the indices of the two modules involved in the $j$-th logged connection. The connections are given in order for $j = 1, 2, \dots, m$.
 
 ## Output
-If it is impossible to configure the modules to satisfy all channels, output a single line containing `NO`.
-If it is possible, output `YES` on the first line. On the second line, output $n$ integers $p_1 \dots p_n$ (where each $p_i \in \{1,2\}$) giving the lexicographically smallest valid sequence of modes.
+If no such assignment exists, print a single line containing `NO`.
+Otherwise, print `YES` on the first line. On the second line, print $n$ integers $s_1 \dots s_n$ (where each $s_i \in \{1,2\}$) representing the elements of the lexicographically smallest valid assignment.
 
 ## Example 1
 Input:

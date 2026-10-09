@@ -1,0 +1,156 @@
+import sys
+from collections import defaultdict, deque
+
+def main():
+    import sys
+    sys.setrecursionlimit(1000000)
+    
+    input = sys.stdin.read
+    data = input().split()
+    
+    idx = 0
+    n = int(data[idx])
+    idx += 1
+    m = int(data[idx])
+    idx += 1
+    t = int(data[idx])
+    idx += 1
+    
+    telemetry = set()
+    for _ in range(t):
+        telemetry.add(int(data[idx]))
+        idx += 1
+    
+    # If only one or zero telemetry servers, cost is 0
+    if t <= 1:
+        print(0)
+        return
+    
+    # Build the tree
+    adj = defaultdict(list)
+    edges = []
+    for _ in range(m):
+        u = int(data[idx])
+        idx += 1
+        v = int(data[idx])
+        idx += 1
+        w = int(data[idx])
+        idx += 1
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+        edges.append((u, v, w))
+    
+    # Find distances from one telemetry node to all nodes using BFS/DFS
+    # We'll do a multi-source BFS from all telemetry nodes
+    # But actually, we need the minimum spanning tree that connects all telemetry nodes
+    # Since the graph is a tree, the solution is the subtree that connects all telemetry nodes
+    
+    # Approach: Find the minimal subtree that connects all telemetry nodes
+    # This is equivalent to finding the Steiner tree on a tree, which can be solved by:
+    # 1. Root the tree at any node
+    # 2. For each node, compute if the subtree contains any telemetry node
+    # 3. The edges in the minimal subtree are those where both endpoints' subtrees contain telemetry nodes
+    
+    # Let's root the tree at node 1
+    root = 1
+    # Build adjacency list for tree traversal
+    tree = defaultdict(list)
+    for u, v, w in edges:
+        tree[u].append((v, w))
+        tree[v].append((u, w))
+    
+    # Convert to parent-child structure via DFS
+    parent = [-1] * (n+1)
+    children = defaultdict(list)
+    edge_weight = {}
+    
+    visited = [False] * (n+1)
+    stack = [root]
+    visited[root] = True
+    
+    while stack:
+        u = stack.pop()
+        for v, w in tree[u]:
+            if not visited[v]:
+                visited[v] = True
+                parent[v] = u
+                children[u].append((v, w))
+                edge_weight[(u,v)] = w
+                edge_weight[(v,u)] = w
+                stack.append(v)
+    
+    # Now, for each node, determine if its subtree contains any telemetry node
+    # We'll do a post-order traversal
+    contains_telemetry = [False] * (n+1)
+    
+    # Get all nodes in post-order
+    post_order = []
+    visited = [False] * (n+1)
+    stack = [root]
+    visited[root] = True
+    
+    while stack:
+        u = stack[-1]
+        # Check if all children are processed
+        all_children_done = True
+        for v, w in children[u]:
+            if not visited[v]:
+                visited[v] = True
+                stack.append(v)
+                all_children_done = False
+                break
+        if all_children_done:
+            stack.pop()
+            post_order.append(u)
+    
+    # Now process in post-order to compute contains_telemetry
+    for u in post_order:
+        if u in telemetry:
+            contains_telemetry[u] = True
+        for v, w in children[u]:
+            if contains_telemetry[v]:
+                contains_telemetry[u] = True
+    
+    # Now, find all edges that must be included
+    # An edge (u,v) where u is parent of v is included if:
+    # v's subtree contains at least one telemetry AND 
+    # the rest of the tree (including u) contains at least one telemetry
+    total_cost = 0
+    
+    # We need to count how many telemetry nodes are in the whole tree
+    # But we actually just need to include edges where both sides have telemetry nodes in their combined subtrees
+    
+    # Simpler approach:
+    # An edge (parent[v], v) is included if:
+    # 1. v's subtree contains at least one telemetry node
+    # 2. The rest of the tree (through parent) contains at least one telemetry node
+    
+    # Let's compute for each node, how many telemetry nodes are in its subtree
+    count_in_subtree = [0] * (n+1)
+    
+    # Post-order again to compute counts
+    for u in post_order:
+        if u in telemetry:
+            count_in_subtree[u] = 1
+        for v, w in children[u]:
+            count_in_subtree[u] += count_in_subtree[v]
+    
+    # Total telemetry nodes
+    total_telemetry = count_in_subtree[root]
+    
+    # Now, for each edge from parent to child, include it if it separates telemetry nodes
+    for u in range(1, n+1):
+        for v, w in children[u]:
+            # Edge from u to v
+            # Count of telemetry in v's subtree
+            count_v = count_in_subtree[v]
+            # Count of telemetry in the rest (including u but not v's subtree)
+            count_rest = total_telemetry - count_v
+            # If both > 0, we need this edge
+            if count_v > 0 and count_rest > 0:
+                total_cost += w
+    
+    print(total_cost)
+
+if __name__ == "__main__":
+    main()

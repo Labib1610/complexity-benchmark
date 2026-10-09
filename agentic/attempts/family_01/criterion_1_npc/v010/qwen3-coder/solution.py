@@ -11,12 +11,10 @@ def solve():
         adj[u].append(v)
         adj[v].append(u)
     
-    # Color the graph with 3 colors (1, 2, 3)
-    # Try to find a valid 3-coloring that is lexicographically smallest
-    color = [0] * (n + 1)  # color[i] is the color of worker i
+    # Try to 3-color the graph
+    color = [0] * (n + 1)  # 0 means uncolored, 1, 2, 3 are the colors
     
-    def is_valid(node, c):
-        # Check if we can assign color c to node
+    def is_safe(node, c):
         for neighbor in adj[node]:
             if color[neighbor] == c:
                 return False
@@ -27,17 +25,17 @@ def solve():
             return True
             
         for c in range(1, 4):
-            if is_valid(node, c):
+            if is_safe(node, c):
                 color[node] = c
                 if backtrack(node + 1):
                     return True
-                # No need to undo since we return immediately when found
+                color[node] = 0
+                
         return False
     
-    # Try to color nodes in order 1, 2, ..., n to get lexicographically smallest
     if backtrack(1):
         print("YES")
-        print(' '.join(map(str, color[1:])))
+        print(*color[1:])
     else:
         print("NO")
 

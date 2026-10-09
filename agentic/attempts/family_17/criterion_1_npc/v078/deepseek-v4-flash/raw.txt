@@ -1,0 +1,289 @@
+We need to determine whether we can partition the set {1, 2, …, 3q} into exactly q triples that appear in the given catalog, and such that the sum of all numbers in **all triples combined** equals exactly 3q(3q+1)/2.
+
+But here is the key: the sum of all integers from 1 to 3q is **always** 3q(3q+1)/2. In other words, requirement 2 is automatically satisfied **if we use every gear exactly once**. So effectively, the problem reduces to: can we partition the numbers 1..3q into q triples, each triple being one of the given schematics?
+
+This is a **3-uniform hypergraph perfect matching** problem, but with structure.
+
+Given constraints:  
+- q ≤ 200 → up to 600 gears.  
+- t ≤ 20000 → number of triples.
+
+We can model this as a **matching problem on a hypergraph** — need an exact cover of 3-sets. This is NP-hard in general, but due to this special "sum constraint" being redundant, the only constraint is the exact cover.
+
+However, exact cover is still hard; but with q ≤ 200 perhaps we can use **flow / matching**?  
+No, 3-uniform exact cover is NP-hard for general triples.
+
+But maybe there’s a way: Because numbers are from 1 to 3q and triples are guaranteed to have sum ≤ 9q − 3 (which is the maximum sum of three highest numbers? Actually 3q + (3q−1) + (3q−2) = 9q−3). So catalog includes only triples whose sum is ≤ 9q−3. But that’s almost all triples—only the very largest triple fails if all gear serial numbers are from top end. But still that condition doesn't help in general.
+
+Given constraints: t up to 20000 and q up to 200. 20000 triples is moderate, but exact cover search space enormous.
+
+Let’s reconsider: Is it a 2-dimensional matching? Maybe we can transform:
+
+Since we must use each number exactly once in a triple, we can think of matching numbers.  
+But a triple is an undirected hyperedge of size 3.
+
+Could be solved by **maximum matching in a bipartite graph** if we impose a bipartition: odd/even or small/large. But not given.
+
+Wait — check the sum condition: The total sum of all numbers is **fixed**. But also each triple from catalog has sum ≤ 9q−3. That's the sum of the largest three possible. So all triples are allowed except maybe the absolute largest one. It means the catalog could contain most triples, so exact cover is likely possible unless catalog is sparse.
+
+Since q ≤ 200, t ≤ 20000, maybe we can do a **depth-first search with pruning** and use bitmask or set to represent used numbers. But state space is large.
+
+But maybe there's a polynomial solution because triples are subsets of {1..3q}. Let's try **maximum flow in a network**:
+
+We can model each number as a node that needs to be used once. Each triple is a hyperedge. We can maybe convert to **bipartite matching of size 2q**? Because each triple uses 3 numbers.
+
+We can create a flow network: sources → triples → numbers. Each triple can be used at most once. Each number can be used once. Flow of q units.  
+This is a **bipartite matching between triples and numbers** where each triple has capacity 3, each number capacity 1, and each triple must send flow 3 if used.  
+That’s a **flow with lower bounds**: each triple should have flow either 0 or 3, but we can enforce via a node splitting.
+
+Because each triple needs all 3 numbers simultaneously, an ordinary flow would allow partial usage. So we need the "all or nothing" property.
+
+That is a **3-uniform hypergraph matching** which is NP-hard in general, but we can try **exact cover via Algorithm X (Dancing Links)**. With q up to 200 and t up to 20000, maybe feasible if catalog is dense? Actually 20000 edges in 600 nodes → quite dense; algorithm X might be fast.
+
+Let’s consider worst-case: if catalog includes many triples, search might still blow. But careful pruning: If a number appears in no triple → NO. If a number appears in too few triples → might prune.
+
+Given time limit 5s and memory 256MB, we can try implement Algorithm X with bitmasks (since n ≤ 600, use Python integers as bitmask of unused numbers).
+
+We have t ≤ 20000, but we can actually reduce: For each number, list of triples containing it. Then Algorithm X:
+
+- If any number is uncovered and has zero candidate triples → backtrack.
+- Choose number with smallest number of remaining candidate triples.
+- For each candidate triple, try it.
+
+We also need to store solution.
+
+This should be okay given constraints.
+
+But wait — we also need to meet the sum condition?  
+The sum of all numbers is fixed, so if we use all numbers exactly once, the total sum condition is automatically satisfied. So we just need exact cover.
+
+Let’s write code.
+
+Potential pitfalls: The output can be in any order.
+
+Let's implement.
+
+But first confirm: Is there any hidden trick? The sum condition is tautological, so it’s just exact cover.
+
+Implementation details:
+
+- q, t read.
+- triples list.
+- For each number 1..3q, build list of triple indices containing it.
+- Use bitmask for covered numbers? 600 bits → Python int works.
+- In recursion, we maintain uncovered mask.
+
+Algorithm X:
+- uncovered_mask = (1 << (3q+1)) - 2 (since numbers start at 1).
+- Each triple can be represented as a bitmask of its three numbers.
+
+Recursive function:
+- If uncovered == 0: found solution.
+- Choose number with minimal candidate triples among uncovered.
+- For each triple in candidates for that number (filtered to those still fully covered by uncovered mask):
+    - new_uncovered = uncovered & ~triple_mask
+    - try recursively.
+
+We also maintain list of chosen triples.
+
+To speed: Precompute triple_masks as integers.
+
+Also important: we have at most 600 bits, shifting is fine.
+
+We must be careful with Python bit operations for mask of numbers 1..N:  
+Let N = 3q. mask_all = (1 << (N+1)) - 2 (since bit 0 unused).
+
+Implementation:
+
+```python
+import sys
+sys.setrecursionlimit(10000)
+
+def solve():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    q = int(next(it))
+    t = int(next(it))
+    N = 3 * q
+    triples = []
+    for _ in range(t):
+        a = int(next(it)); b = int(next(it)); c = int(next(it))
+        triples.append((a, b, c))
+    
+    # Build for each number list of triple indices
+    triples_for_num = [[] for _ in range(N+1)]
+    triple_masks = []
+    for idx, (a,b,c) in enumerate(triples):
+        mask = (1 << a) | (1 << b) | (1 << c)
+        triple_masks.append(mask)
+        triples_for_num[a].append(idx)
+        triples_for_num[b].append(idx)
+        triples_for_num[c].append(idx)
+    
+    # Precompute candidate triples for each number (those where all numbers are in set)
+    # We can filter on the fly.
+    
+    full_mask = (1 << (N+1)) - 2
+    chosen = []
+    
+    def rec(uncovered):
+        if uncovered == 0:
+            return True
+        # pick number with fewest candidates
+        best_num = -1
+        best_list = None
+        # iterate over set bits
+        m = uncovered
+        while m:
+            bit = m & -m
+            num = bit.bit_length() - 1
+            # filter candidates
+            cand = [idx for idx in triples_for_num[num] if (triple_masks[idx] & uncovered) == triple_masks[idx]]
+            if not cand:
+                return False
+            if best_num == -1 or len(cand) < len(best_list):
+                best_num = num
+                best_list = cand
+                if len(best_list) == 1:
+                    # can't get better
+                    break
+            m -= bit
+        
+        for idx in best_list:
+            mask = triple_masks[idx]
+            if (mask & uncovered) == mask:
+                chosen.append(idx)
+                if rec(uncovered & ~mask):
+                    return True
+                chosen.pop()
+        return False
+    
+    if rec(full_mask):
+        print("YES")
+        out_lines = []
+        for idx in chosen:
+            a,b,c = triples[idx]
+            out_lines.append(f"{a} {b} {c}")
+        print("\n".join(out_lines))
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()
+```
+
+This should run within limits because bitmasks for 600 bits are small and DFS prunes heavily.
+
+We must ensure we output exactly q lines after YES.
+
+Let’s test with example.
+
+Example:
+
+q=2, triples: (1,2,3), (4,5,6), (1,4,5).
+
+full_mask bits 1..6.
+
+Recursion picks number with min candidates. Number 1 has candidates: triple 0, triple 2. Try triple 0 → covers 1,2,3. Uncovered now {4,5,6}. Number 4 has candidate triple 1 only → success.
+
+Output:
+
+```
+YES
+1 2 3
+4 5 6
+```
+
+Matches.
+
+Edge cases: t=0 → if q>0 impossible → NO.
+
+Possible issue: recursion might pick number from uncovered that hasn't been initialized? no.
+
+This should be correct.```python
+import sys
+
+sys.setrecursionlimit(10000)
+
+def solve():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+
+    it = iter(data)
+    q = int(next(it))
+    t = int(next(it))
+    N = 3 * q
+
+    triples = []
+    for _ in range(t):
+        a = int(next(it))
+        b = int(next(it))
+        c = int(next(it))
+        triples.append((a, b, c))
+
+    triples_for_num = [[] for _ in range(N + 1)]
+    triple_masks = []
+
+    for idx, (a, b, c) in enumerate(triples):
+        mask = (1 << a) | (1 << b) | (1 << c)
+        triple_masks.append(mask)
+        triples_for_num[a].append(idx)
+        triples_for_num[b].append(idx)
+        triples_for_num[c].append(idx)
+
+    full_mask = (1 << (N + 1)) - 2
+    chosen = []
+
+    def rec(uncovered):
+        if uncovered == 0:
+            return True
+
+        # pick uncovered number with fewest valid triples
+        best_num = -1
+        best_candidates = None
+
+        m = uncovered
+        while m:
+            bit = m & -m
+            num = bit.bit_length() - 1
+
+            cand = [
+                idx for idx in triples_for_num[num]
+                if (triple_masks[idx] & uncovered) == triple_masks[idx]
+            ]
+            if not cand:
+                return False
+
+            if best_num == -1 or len(cand) < len(best_candidates):
+                best_num = num
+                best_candidates = cand
+                if len(best_candidates) == 1:
+                    break
+
+            m -= bit
+
+        for idx in best_candidates:
+            mask = triple_masks[idx]
+            if (mask & uncovered) == mask:
+                chosen.append(idx)
+                if rec(uncovered & ~mask):
+                    return True
+                chosen.pop()
+
+        return False
+
+    if rec(full_mask):
+        print("YES")
+        for idx in chosen:
+            a, b, c = triples[idx]
+            print(a, b, c)
+    else:
+        print("NO")
+
+
+if __name__ == "__main__":
+    solve()
+```

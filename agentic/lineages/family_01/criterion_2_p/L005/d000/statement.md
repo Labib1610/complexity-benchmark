@@ -1,16 +1,16 @@
-# Problem B — Day and Night
+# Problem B — Phase Scheduling
 
 Time limit: 1 s   Memory limit: 256 MB
 
-The factory now runs only two shifts, labeled 1 and 2. There are $n$ workers and $m$ interaction records between pairs of workers. Assign each worker exactly one shift such that if an interaction record exists between two workers, they are placed in different shifts. If no such assignment can be made, report impossibility.
+A manufacturing facility requires exactly two maintenance phases per day, labeled 1 and 2. The facility employs $n$ technicians, and there are $m$ pairs of technicians who share specialized tools. You must schedule each technician into exactly one phase such that no two technicians who share tools are scheduled for the same phase, or report impossibility.
 
 ## Input
 The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$).
-Each of the next $m$ lines contains two integers $u$ and $v$ — a pair of workers with an interaction record.
+Each of the next $m$ lines contains two integers $u$ and $v$ — a pair of technicians who share tools.
 
 ## Output
-If no valid assignment exists, print a single line NO.
-Otherwise print YES, then a second line with $n$ integers $s_1 \dots s_n$ (each in {1,2}), the lexicographically smallest valid assignment.
+If no valid schedule exists, print a single line NO.
+Otherwise print YES, then a second line with $n$ integers $s_1 \dots s_n$ (each in {1,2}), representing the lexicographically smallest valid schedule.
 
 ## Example 1
 Input:

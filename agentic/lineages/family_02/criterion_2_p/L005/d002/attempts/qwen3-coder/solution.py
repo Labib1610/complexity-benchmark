@@ -1,0 +1,100 @@
+import sys
+import threading
+
+def main():
+    import sys
+    sys.setrecursionlimit(1 << 25)
+    
+    n, m = map(int, sys.stdin.readline().split())
+    
+    # Build implication graph for 2-SAT
+    # Variables: 0..n-1 represent x_i = 0, n..2n-1 represent x_i = 1
+    def var(i, val):
+        if val == 0:
+            return i
+        else:
+            return n + i
+    
+    adj = [[] for _ in range(2 * n)]
+    adj_rev = [[] for _ in range(2 * n)]
+    
+    for _ in range(m):
+        l1, l2 = map(int, sys.stdin.readline().split())
+        # l1 and l2 are literals
+        # Convert to our variable representation
+        # l1 is positive: x_{l1} = 0, represented as l1-1
+        # l1 is negative: x_{-l1} = 1, represented as n + (-l1-1) = n - l1 - 1
+        if l1 > 0:
+            v1 = var(l1 - 1, 1)  # x_{l1} should be 1 to avoid fault
+        else:
+            v1 = var(-l1 - 1, 0) # x_{-l1} should be 0 to avoid fault
+            
+        if l2 > 0:
+            v2 = var(l2 - 1, 1)  # x_{l2} should be 1 to avoid fault
+        else:
+            v2 = var(-l2 - 1, 0) # x_{-l2} should be 0 to avoid fault
+        
+        # The constraint is NOT(l1 AND l2), which is equivalent to (NOT l1 OR NOT l2)
+        # In implication form: l1 -> NOT l2 and l2 -> NOT l1
+        adj[v1 ^ n].append(v2)  # NOT l1 -> l2 becomes l1 -> NOT l2
+        adj[v2 ^ n].append(v1)  # NOT l2 -> l1 becomes l2 -> NOT l1
+        adj_rev[v2].append(v1 ^ n)
+        adj_rev[v1].append(v2 ^ n)
+    
+    # Kosaraju's algorithm for SCC
+    visited = [False] * (2 * n)
+    order = []
+    
+    def dfs1(u):
+        visited[u] = True
+        for v in adj[u]:
+            if not visited[v]:
+                dfs1(v)
+        order.append(u)
+    
+    for i in range(2 * n):
+        if not visited[i]:
+            dfs1(i)
+    
+    visited = [False] * (2 * n)
+    scc_id = [-1] * (2 * n)
+    scc_count = 0
+    
+    def dfs2(u):
+        visited[u] = True
+        scc_id[u] = scc_count
+        for v in adj_rev[u]:
+            if not visited[v]:
+                dfs2(v)
+    
+    for i in reversed(order):
+        if not visited[i]:
+            dfs2(i)
+            scc_count += 1
+    
+    # Check if satisfiable
+    for i in range(n):
+        if scc_id[i] == scc_id[n + i]:
+            print("NO")
+            return
+    
+    # Assign values
+    assignment = [-1] * n
+    # Process SCCs in reverse topological order
+    scc_order = [[] for _ in range(scc_count)]
+    for i in range(2 * n):
+        scc_order[scc_id[i]].append(i)
+    
+    for comp in scc_order:
+        for node in comp:
+            if node < n:  # x_i = 0
+                if assignment[node] == -1:
+                    assignment[node] = 0
+            else:  # x_i = 1
+                if assignment[node - n] == -1:
+                    assignment[node - n] = 1
+    
+    print("YES")
+    print(' '.join(map(str, assignment)))
+
+threading.Thread(target=main).start()

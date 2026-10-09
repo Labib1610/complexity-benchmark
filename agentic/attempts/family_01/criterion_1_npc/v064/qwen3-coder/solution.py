@@ -1,57 +1,52 @@
 def solve():
     import sys
-    input = sys.stdin.read
-    data = input().split()
+    from collections import defaultdict
     
-    n = int(data[0])
-    m = int(data[1])
+    n, m = map(int, sys.stdin.readline().split())
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
     
     # Build adjacency list
-    adj = [[] for _ in range(n)]
-    idx = 2
+    adj = defaultdict(list)
+    edges = []
     for _ in range(m):
-        u = int(data[idx]) - 1
-        v = int(data[idx+1]) - 1
+        u, v = map(int, sys.stdin.readline().split())
         adj[u].append(v)
         adj[v].append(u)
-        idx += 2
+        edges.append((u, v))
     
-    # Colors: 1, 2, 3 (0 means uncolored)
-    colors = [0] * n
+    # Try to 3-color the graph
+    color = [0] * (n + 1)  # 0 means uncolored, 1,2,3 are colors
     
-    # Try to color each node with the smallest possible color
-    for i in range(n):
-        # If already colored, skip
-        if colors[i] != 0:
-            continue
+    def is_safe(node, c):
+        for neighbor in adj[node]:
+            if color[neighbor] == c:
+                return False
+        return True
+    
+    def backtrack(node):
+        if node > n:
+            return True
             
-        # Find forbidden colors for neighbors
-        forbidden = [False] * 4  # index 0 unused, 1-3 for colors
-        for neighbor in adj[i]:
-            if colors[neighbor] != 0:
-                forbidden[colors[neighbor]] = True
-        
-        # Assign the smallest available color
-        found_color = False
+        if color[node] != 0:
+            return backtrack(node + 1)
+            
         for c in range(1, 4):
-            if not forbidden[c]:
-                colors[i] = c
-                found_color = True
-                break
-                
-        # If no color is available, it's impossible
-        if not found_color:
-            print("NO")
-            return
+            if is_safe(node, c):
+                color[node] = c
+                if backtrack(node + 1):
+                    return True
+                color[node] = 0
+        return False
     
-    # Verify the solution
-    for i in range(n):
-        for neighbor in adj[i]:
-            if colors[i] == colors[neighbor]:
-                print("NO")
-                return
-                
-    print("YES")
-    print(' '.join(map(str, colors)))
+    # Try coloring starting from node 1
+    if backtrack(1):
+        print("YES")
+        print(" ".join(map(str, color[1:])))
+    else:
+        print("NO")
 
 solve()

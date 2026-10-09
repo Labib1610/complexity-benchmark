@@ -1,0 +1,64 @@
+import sys
+from collections import deque
+
+def solve():
+    input = sys.stdin.readline
+    n, m, t = map(int, input().split())
+    critical = set(map(int, input().split()))
+    
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u, v, w = map(int, input().split())
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+    
+    degree = [0] * (n + 1)
+    for u in range(1, n + 1):
+        degree[u] = len(adj[u])
+    
+    # Remove non-critical leaves
+    q = deque()
+    removed = [False] * (n + 1)
+    for i in range(1, n + 1):
+        if degree[i] == 1 and i not in critical:
+            q.append(i)
+    
+    total_cost = 0
+    while q:
+        u = q.popleft()
+        removed[u] = True
+        for v, w in adj[u]:
+            if not removed[v]:
+                degree[v] -= 1
+                if v not in critical and degree[v] == 1:
+                    q.append(v)
+                elif v in critical:
+                    # If we remove a non-critical leaf attached to a critical node,
+                    # we don't need that edge.
+                    pass
+                else:
+                    # If v is not critical and not removed, we might still need to
+                    # consider it later. But if v is not critical and degree becomes 1,
+                    # it will be added to queue.
+                    pass
+        # If u was connected to a critical node, we don't add cost.
+        # Actually, we only add cost for edges that remain in the pruned tree.
+    
+    # After pruning, we need to sum edges that connect critical nodes.
+    # We can do a DFS from any critical node, only traversing through non-removed nodes.
+    visited = [False] * (n + 1)
+    start = next(iter(critical))
+    
+    def dfs(u):
+        visited[u] = True
+        cost_sum = 0
+        for v, w in adj[u]:
+            if not removed[v] and not visited[v]:
+                cost_sum += w + dfs(v)
+        return cost_sum
+    
+    ans = dfs(start)
+    print(ans)
+
+if __name__ == "__main__":
+    solve()

@@ -1,0 +1,87 @@
+import sys
+
+sys.setrecursionlimit(10000)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        if u == v:
+            continue
+        adj[u].append(v)
+        adj[v].append(u)
+
+    # domain masks: bit 0 -> color 1, bit1 -> color2, bit2 -> color3
+    domains = [0b111] * n
+    popcnt = [bin(i).count('1') for i in range(8)]
+
+    def dfs() -> bool:
+        # choose uncolored vertex with smallest domain (>1)
+        v = -1
+        best = 4
+        for i in range(n):
+            sz = popcnt[domains[i]]
+            if 1 < sz < best:
+                best = sz
+                v = i
+                if best == 2:
+                    break
+        if v == -1:          # all vertices have a single color
+            return True
+
+        cur_mask = domains[v]
+        for color in range(3):
+            if not (cur_mask & (1 << color)):
+                continue
+            saved = []
+            # assign color to v
+            saved.append((v, domains[v]))
+            domains[v] = 1 << color
+            conflict = False
+
+            # forward checking on neighbors of v
+            for nb in adj[v]:
+                if domains[nb] & (1 << color):
+                    old = domains[nb]
+                    new = old & ~(1 << color)
+                    if new == 0:
+                        saved.append((nb, old))
+                        conflict = True
+                        break
+                    if new != old:
+                        saved.append((nb, old))
+                        domains[nb] = new
+
+            if not conflict and dfs():
+                return True
+
+            # revert changes
+            for u, old_mask in reversed(saved):
+                domains[u] = old_mask
+        return False
+
+    if dfs():
+        colors = []
+        for mask in domains:
+            # mask is power of two
+            if mask & 1:
+                colors.append('1')
+            elif mask & 2:
+                colors.append('2')
+            else:
+                colors.append('3')
+        sys.stdout.write("YES\n")
+        sys.stdout.write(' '.join(colors))
+    else:
+        sys.stdout.write("NO\n")
+
+if __name__ == "__main__":
+    solve()

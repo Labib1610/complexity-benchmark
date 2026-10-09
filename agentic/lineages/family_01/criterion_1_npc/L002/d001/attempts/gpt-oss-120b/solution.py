@@ -1,5 +1,4 @@
 import sys
-
 sys.setrecursionlimit(10000)
 
 def solve() -> None:
@@ -9,7 +8,6 @@ def solve() -> None:
     it = iter(data)
     n = int(next(it))
     m = int(next(it))
-
     adj = [[] for _ in range(n)]
     for _ in range(m):
         u = int(next(it)) - 1
@@ -17,58 +15,33 @@ def solve() -> None:
         adj[u].append(v)
         adj[v].append(u)
 
-    # 0 = uncoloured, 1..3 = colour
-    col = [0] * n
-    # domain masks, bit 0 -> colour 1, bit 1 -> colour 2, bit 2 -> colour 3
-    dom = [0b111] * n
+    # order vertices by decreasing degree
+    order = sorted(range(n), key=lambda x: -len(adj[x]))
+    col = [0] * n          # 0 = uncoloured, else 1..3
 
-    # depth‑first search with forward checking
-    def dfs() -> bool:
-        # find first uncoloured vertex (lexicographic order)
-        v = -1
-        for i in range(n):
-            if col[i] == 0:
-                v = i
-                break
-        if v == -1:          # all coloured
+    def dfs(pos: int) -> bool:
+        if pos == n:
             return True
-
-        mask = dom[v]
+        v = order[pos]
+        # collect colours of already coloured neighbours
+        forbidden = set()
+        for nb in adj[v]:
+            c = col[nb]
+            if c:
+                forbidden.add(c)
         for c in (1, 2, 3):
-            bit = 1 << (c - 1)
-            if not (mask & bit):
-                continue
-
-            # assign colour c to v
-            col[v] = c
-            changed = []          # (vertex, previous_mask)
-            conflict = False
-
-            for u in adj[v]:
-                if col[u] == 0 and (dom[u] & bit):
-                    prev = dom[u]
-                    dom[u] &= ~bit
-                    changed.append((u, prev))
-                    if dom[u] == 0:
-                        conflict = True
-                        break
-
-            if not conflict:
-                if dfs():
+            if c not in forbidden:
+                col[v] = c
+                if dfs(pos + 1):
                     return True
-
-            # undo changes
-            for u, prev in reversed(changed):
-                dom[u] = prev
-            col[v] = 0
-
+                col[v] = 0
         return False
 
-    if dfs():
-        out = ['YES', ' '.join(str(c) for c in col)]
+    if dfs(0):
+        out = ['YES', ' '.join(str(col[i]) for i in range(n))]
+        sys.stdout.write('\n'.join(out))
     else:
-        out = ['NO']
-    sys.stdout.write('\n'.join(out))
+        sys.stdout.write('NO')
 
 if __name__ == "__main__":
     solve()

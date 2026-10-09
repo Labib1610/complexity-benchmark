@@ -1,0 +1,74 @@
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    idx = 0
+    n = int(data[idx]); idx += 1
+    m = int(data[idx]); idx += 1
+    k = int(data[idx]); idx += 1
+    B = int(data[idx]); idx += 1
+
+    sovereign = [int(data[idx + i]) for i in range(k)]
+    idx += k
+
+    edges = []
+    for i in range(m):
+        u = int(data[idx]); idx += 1
+        v = int(data[idx]); idx += 1
+        w = int(data[idx]); idx += 1
+        edges.append((u, v, w, i))
+
+    # Kruskal-like: process edges by increasing weight.
+    # Keep an edge if it connects two different components AND
+    # merging them would not put two sovereign nodes together.
+    sorted_edges = sorted(edges, key=lambda e: e[2])
+
+    parent = list(range(n + 1))
+    rank = [0] * (n + 1)
+    sov_flag = [False] * (n + 1)
+    for s in sovereign:
+        sov_flag[s] = True
+
+    def find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    terminated = []
+    total = 0
+
+    for u, v, w, eid in sorted_edges:
+        ru = find(u)
+        rv = find(v)
+        if ru == rv:
+            # Already connected, terminating is optional.
+            # We terminate only if needed to stay within budget.
+            if total + w <= B:
+                terminated.append((u, v))
+                total += w
+            continue
+        if sov_flag[ru] and sov_flag[rv]:
+            # Must terminate to keep sovereigns separated.
+            if total + w > B:
+                print("NO")
+                return
+            terminated.append((u, v))
+            total += w
+        else:
+            # Safe to keep: merge components.
+            if rank[ru] < rank[rv]:
+                ru, rv = rv, ru
+            parent[rv] = ru
+            sov_flag[ru] = sov_flag[ru] or sov_flag[rv]
+            if rank[ru] == rank[rv]:
+                rank[ru] += 1
+
+    print("YES")
+    print(len(terminated))
+    out = []
+    for u, v in terminated:
+        out.append(f"{u} {v}")
+    sys.stdout.write("\n".join(out) + ("\n" if out else ""))
+
+solve()

@@ -1,0 +1,65 @@
+import sys
+from collections import defaultdict
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    edges = []
+    adj = [set() for _ in range(n + 1)]
+    
+    idx = 2
+    for _ in range(m):
+        u = int(data[idx])
+        v = int(data[idx + 1])
+        idx += 2
+        edges.append((u, v))
+        adj[u].add(v)
+        adj[v].add(u)
+    
+    # We'll iterate through all edges (u,v), and for each, we'll look for a third node w
+    # such that (u,w) and (v,w) are also edges.
+    # To optimize, we'll process edges in a way that avoids duplication.
+    
+    # Let's sort the edges to help with getting lexicographically smallest trio
+    edges.sort()
+    
+    # For each node, sort its neighbors
+    for i in range(1, n + 1):
+        adj[i] = sorted(adj[i])
+    
+    best = None
+    
+    # For each edge (u,v), find common neighbors
+    for u, v in edges:
+        if u >= v:
+            continue  # Ensure u < v to avoid duplicates
+        
+        # We want to find w such that w is connected to both u and v
+        # and u < v < w to maintain order
+        # We'll iterate through the smaller adjacency list
+        if len(adj[u]) > len(adj[v]):
+            u, v = v, u
+        
+        neighbors_u = set(adj[u])
+        for w in adj[v]:
+            if w <= v:
+                continue
+            if w in neighbors_u:
+                # Found a triangle: u-v, v-w, u-w
+                candidate = (u, v, w)
+                if best is None or candidate < best:
+                    best = candidate
+                    break  # Since we want the lex smallest and we're iterating in order
+        if best is not None:
+            # Since edges are sorted and we process in order, first found is lex smallest
+            break
+    
+    print(best[0], best[1], best[2])
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,115 @@
+import sys
+
+sys.setrecursionlimit(10000)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    clauses = []
+    for _ in range(m):
+        c = [int(next(it)), int(next(it)), int(next(it))]
+        clauses.append(c)
+
+    # assignment: None=unassigned, True=1, False=0
+    assign = [None] * (n + 1)
+
+    # For fast lookup of clauses containing a variable
+    var_clauses = [[] for _ in range(n + 1)]
+    for idx, cl in enumerate(clauses):
+        for lit in cl:
+            var = abs(lit)
+            var_clauses[var].append(idx)
+
+    # Helper to get literal value under current assignment
+    def lit_val(lit):
+        v = assign[abs(lit)]
+        if v is None:
+            return None
+        return v if lit > 0 else (not v)
+
+    # Propagation stack
+    trail = []
+
+    def propagate() -> bool:
+        """Perform unit propagation. Return False if conflict."""
+        while True:
+            unit_lit = None
+            for cl in clauses:
+                # evaluate clause
+                satisfied = False
+                unassigned = []
+                for lit in cl:
+                    val = lit_val(lit)
+                    if val is True:
+                        satisfied = True
+                        break
+                    if val is None:
+                        unassigned.append(lit)
+                if satisfied:
+                    continue
+                if not unassigned:  # all false
+                    return False
+                if len(unassigned) == 1:
+                    unit_lit = unassigned[0]
+                    break
+            if unit_lit is None:
+                break
+            var = abs(unit_lit)
+            val = unit_lit > 0
+            if assign[var] is not None:
+                if assign[var] != val:
+                    return False
+                continue
+            assign[var] = val
+            trail.append(var)
+        return True
+
+    def decide(var, value) -> bool:
+        """Assign var=value and propagate. Return whether still consistent."""
+        assign[var] = value
+        trail.append(var)
+        return propagate()
+
+    def backtrack(level):
+        """Undo assignments back to given trail length."""
+        while len(trail) > level:
+            v = trail.pop()
+            assign[v] = None
+
+    # Simple heuristic: choose variable with most occurrences
+    order = sorted(range(1, n + 1), key=lambda v: -len(var_clauses[v]))
+
+    def dfs(pos) -> bool:
+        # check if all assigned
+        if all(assign[i] is not None for i in range(1, n + 1)):
+            return True
+        # pick next unassigned variable according to order
+        for v in order:
+            if assign[v] is None:
+                var = v
+                break
+        level = len(trail)
+        # try True then False
+        for val in (True, False):
+            if decide(var, val):
+                if dfs(pos + 1):
+                    return True
+            backtrack(level)
+        return False
+
+    # initial propagation (none)
+    if not propagate():
+        print("NO")
+        return
+    if dfs(0):
+        print("YES")
+        print(' '.join('1' if assign[i] else '0' for i in range(1, n + 1)))
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()

@@ -1,0 +1,128 @@
+import sys
+
+# Set recursion limit to handle large inputs for DFS
+sys.setrecursionlimit(300000)
+
+def solve():
+    # Read all input at once
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    iterator = iter(input_data)
+    try:
+        n = int(next(iterator))
+        m = int(next(iterator))
+    except StopIteration:
+        return
+    
+    # Build the implication graph
+    # Nodes: 0 to 2n-1.
+    # Mapping: variable x_i true -> node 2*i, false -> node 2*i + 1
+    # Edges: (~a -> b) and (~b -> a)
+    adj = [[] for _ in range(2 * n)]
+    
+    for _ in range(m):
+        # Get signed integers
+        val1 = int(next(iterator))
+        val2 = int(next(iterator))
+        
+        # Convert signed integer to node index
+        # x_i = 1 (positive): index 2*(i-1)
+        # x_i = 0 (negative): index 2*(i-1) + 1
+        # l_i is the signed integer
+        # abs(l_i) is the 1-based toggle index
+        
+        # Node u represents the first target condition being met
+        # If l_i > 0, we need x=1 (node 2*i-2)
+        # If l_i < 0, we need x=0 (node 2*i-2 + 1)
+        u = 2 * (abs(val1) - 1) + (1 if val1 < 0 else 0)
+        
+        # Node v represents the second target condition being met
+        v = 2 * (abs(val2) - 1) + (1 if val2 < 0 else 0)
+        
+        # Requirement: (u OR v)
+        # Implications: ~u -> v and ~v -> u
+        not_u = u ^ 1
+        not_v = v ^ 1
+        
+        adj[not_u].append(v)
+        adj[not_v].append(u)
+
+    # Kosaraju's algorithm to find Strongly Connected Components
+    
+    # 1. First pass DFS to determine finish order
+    visited = [False] * (2 * n)
+    order = []
+    
+    def dfs1(u):
+        visited[u] = True
+        for v in adj[u]:
+            if not visited[v]:
+                dfs1(v)
+        order.append(u)
+    
+    for i in range(2 * n):
+        if not visited[i]:
+            dfs1(i)
+            
+    # 2. Second pass DFS on the transposed graph
+    transposed_adj = [[] for _ in range(2 * n)]
+    for u in range(2 * n):
+        for v in adj[u]:
+            transposed_adj[v].append(u)
+            
+    visited = [False] * (2 * n)
+    comp_id = [-1] * (2 * n)
+    current_comp_id = 0
+    
+    # Process nodes in reverse order of finish times
+    for u in reversed(order):
+        if not visited[u]:
+            # DFS stack
+            stack = [u]
+            visited[u] = True
+            comp_id[u] = current_comp_id
+            while stack:
+                curr = stack[-1]
+                # Check neighbors
+                found_next = False
+                for v in transposed_adj[curr]:
+                    if not visited[v]:
+                        visited[v] = True
+                        comp_id[v] = current_comp_id
+                        stack.append(v)
+                        found_next = True
+                        break
+                if not found_next:
+                    stack.pop()
+            current_comp_id += 1
+            
+    # 3. Check for contradictions
+    # For variable i (0-indexed), nodes are 2*i and 2*i+1
+    # They must be in different SCCs.
+    assignment = [-1] * n # 0 for false, 1 for true
+    
+    for i in range(n):
+        node_true = 2 * i
+        node_false = 2 * i + 1
+        
+        if comp_id[node_true] == comp_id[node_false]:
+            print("NO")
+            return
+        
+        # The topological order of SCCs reflects assignment priority.
+        # A higher comp_id (processed later in reversed graph) means the literal is True.
+        # If comp_id[true] > comp_id[false], set x_i = 1.
+        # Else set x_i = 0.
+        if comp_id[node_true] > comp_id[node_false]:
+            assignment[i] = 1
+        else:
+            assignment[i] = 0
+            
+    # 4. Output result
+    print("YES")
+    print(*(assignment))
+
+if __name__ == "__main__":
+    solve()

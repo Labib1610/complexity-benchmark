@@ -1,7 +1,5 @@
 import sys
 
-sys.setrecursionlimit(10000)
-
 def solve() -> None:
     data = sys.stdin.read().strip().split()
     if not data:
@@ -9,62 +7,61 @@ def solve() -> None:
     it = iter(data)
     n = int(next(it))
     m = int(next(it))
-
-    adj = [[] for _ in range(n)]
+    adj = [0] * n  # bitmask of neighbors (n <= 40 fits in 64-bit)
     for _ in range(m):
         u = int(next(it)) - 1
         v = int(next(it)) - 1
-        adj[u].append(v)
-        adj[v].append(u)
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
 
-    col = [0] * n                     # 0 = uncoloured, else 1..3
+    # order vertices by degree descending
+    order = sorted(range(n), key=lambda x: adj[x].bit_count(), reverse=True)
+    pos_in_order = [0] * n
+    for idx, v in enumerate(order):
+        pos_in_order[v] = idx
 
-    # ------------------------------------------------------------
-    def dfs(i: int) -> bool:
-        """try to colour vertices i .. n-1, return True if possible"""
-        if i == n:
+    colors = [0] * n  # 0 = uncolored, else 1..3
+
+    # For fast conflict checking, maintain for each vertex a mask of forbidden colors from already colored neighbors
+    forbidden = [0] * n  # bitmask of colors (bit 0 for color1, etc.)
+
+    sys.setrecursionlimit(10000)
+
+    def dfs(idx: int) -> bool:
+        if idx == n:
             return True
-
-        for c in (1, 2, 3):
-            # neighbour conflict ?
-            conflict = False
-            for nb in adj[i]:
-                if col[nb] == c:
-                    conflict = True
-                    break
-            if conflict:
-                continue
-
-            col[i] = c                     # assign
-
-            # forward checking: any still uncoloured vertex blocked completely ?
-            ok = True
-            for j in range(i + 1, n):
-                if col[j] != 0:
-                    continue
-                used = set()
-                for nb in adj[j]:
-                    cc = col[nb]
-                    if cc:
-                        used.add(cc)
-                if len(used) == 3:        # all colours forbidden
-                    ok = False
-                    break
-
-            if ok and dfs(i + 1):
-                return True
-
-            col[i] = 0                     # undo
-
+        v = order[idx]
+        # compute available colors from forbidden mask
+        used = forbidden[v]
+        for col in range(1, 4):
+            if not (used & (1 << (col - 1))):
+                # assign
+                colors[v] = col
+                # update forbidden for neighbors not yet colored
+                changed = []
+                nb_mask = adj[v]
+                while nb_mask:
+                    nb = (nb_mask & -nb_mask).bit_length() - 1
+                    nb_mask &= nb_mask - 1
+                    if colors[nb] == 0:
+                        if not (forbidden[nb] & (1 << (col - 1))):
+                            forbidden[nb] |= 1 << (col - 1)
+                            changed.append(nb)
+                if dfs(idx + 1):
+                    return True
+                # rollback
+                for nb in changed:
+                    forbidden[nb] &= ~(1 << (col - 1))
+                colors[v] = 0
         return False
-    # ------------------------------------------------------------
 
-    if dfs(0):
-        print("YES")
-        print(' '.join(str(c) for c in col))
+    possible = dfs(0)
+    out = sys.stdout
+    if not possible:
+        out.write("NO")
     else:
-        print("NO")
-
+        out.write("YES\n")
+        out.write(" ".join(str(colors[i]) for i in range(n)))
 
 if __name__ == "__main__":
     solve()

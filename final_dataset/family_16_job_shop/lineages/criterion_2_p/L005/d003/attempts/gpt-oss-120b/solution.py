@@ -1,0 +1,29 @@
+import sys
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    front = []  # b <= s
+    back = []   # b > s
+    for _ in range(n):
+        b = int(next(it)); s = int(next(it))
+        if b <= s:
+            front.append((b, s))
+        else:
+            back.append((b, s))
+    front.sort(key=lambda x: x[0])          # increasing b
+    back.sort(key=lambda x: x[1], reverse=True)  # decreasing s
+    seq = front + back
+
+    cur_bow = 0
+    cur_stern = 0
+    for b, s in seq:
+        cur_bow += b
+        cur_stern = max(cur_bow, cur_stern) + s
+    print(cur_stern)
+
+if __name__ == "__main__":
+    solve()

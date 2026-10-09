@@ -1,0 +1,32 @@
+import sys
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    n, m = data[0], data[1]
+
+    adjacency = [0] * (n + 1)
+    neighbors = [[] for _ in range(n + 1)]
+
+    pos = 2
+    for _ in range(m):
+        u, v = data[pos], data[pos + 1]
+        pos += 2
+        adjacency[u] |= 1 << v
+        adjacency[v] |= 1 << u
+        neighbors[u].append(v)
+        neighbors[v].append(u)
+
+    for a in range(1, n + 1):
+        neighbors[a].sort()
+        for b in neighbors[a]:
+            if b <= a:
+                continue
+            common = (adjacency[a] & adjacency[b]) >> (b + 1)
+            if common:
+                offset = (common & -common).bit_length() - 1
+                c = b + 1 + offset
+                print(a, b, c)
+                return
+
+if __name__ == "__main__":
+    main()

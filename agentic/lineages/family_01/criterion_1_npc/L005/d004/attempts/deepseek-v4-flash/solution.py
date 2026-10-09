@@ -1,40 +1,40 @@
 import sys
 
 def solve():
-    input_data = sys.stdin.read().strip().split()
-    if not input_data:
-        return
-    n, m = int(input_data[0]), int(input_data[1])
+    input = sys.stdin.readline
+    n, m = map(int, input().split())
     adj = [[] for _ in range(n)]
-    idx = 2
     for _ in range(m):
-        u = int(input_data[idx]) - 1
-        v = int(input_data[idx+1]) - 1
-        idx += 2
+        u, v = map(int, input().split())
+        u -= 1
+        v -= 1
         adj[u].append(v)
         adj[v].append(u)
     
-    color = [0] * n  # 0 = uncolored, 1,2,3 = frequencies
+    color = [-1] * n
     
-    def backtrack(pos):
-        if pos == n:
+    def dfs(node):
+        if node == n:
             return True
-        for c in (1, 2, 3):
+        # Try colors 0,1,2
+        for c in range(3):
             ok = True
-            for nb in adj[pos]:
+            for nb in adj[node]:
                 if color[nb] == c:
                     ok = False
                     break
             if ok:
-                color[pos] = c
-                if backtrack(pos + 1):
+                color[node] = c
+                if dfs(node + 1):
                     return True
-                color[pos] = 0
+                color[node] = -1
         return False
     
-    if backtrack(0):
+    if dfs(0):
         print("YES")
-        print(" ".join(map(str, color)))
+        # Map 0->3, 1->1, 2->2
+        mapping = {0: 3, 1: 1, 2: 2}
+        print(" ".join(str(mapping[color[i]]) for i in range(n)))
     else:
         print("NO")
 

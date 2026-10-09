@@ -1,0 +1,286 @@
+**Solution Explanation**
+
+For every commodity we have a vertex, for every contract an undirected edge with
+its price `w`.
+The regulator has to buy a set of edges so that all `t` *key* vertices become
+connected (directly or through other vertices).  
+The task is exactly the **Steiner Tree** problem with at most `t = 10` terminals.
+For this size the classic DP over subsets of terminals is fast enough.
+
+
+
+--------------------------------------------------------------------
+
+#### 1.   DP definition  
+
+```
+mask … bitmask of terminals already connected (0 … (1<<t)-1)
+v    … vertex where the tree “ends”
+
+dp[mask][v] = minimum total price of a set of edges
+             that connects all terminals of ‘mask’
+             and whose vertices contain v (v is a root of the tree)
+```
+
+The answer will be  
+
+```
+min_v dp[ALL][v]          (ALL = (1<<t)-1)
+```
+
+--------------------------------------------------------------------
+
+#### 2.   Initialisation  
+
+For every terminal `i` (its vertex = `term[i]`)
+
+```
+dp[1<<i][ term[i] ] = 0          # no edge is needed, the tree consists of the single vertex
+dp[1<<i][other vertices] = INF
+```
+
+All other `dp` entries are `INF` (a very large number).
+
+--------------------------------------------------------------------
+
+#### 3.   Combining two already built sub‑trees  
+
+Assume we already know optimal trees for two *disjoint* masks `s` and `mask^s`
+that both end in the same vertex `v`.  
+Joining them gives a tree for `mask` that also ends in `v`.
+
+```
+dp[mask][v] = min( dp[mask][v] ,
+                  dp[s][v] + dp[mask^s][v] )      for every non‑empty proper submask s
+```
+
+All masks are processed in increasing order of their size,
+therefore the values for `s` and `mask^s` are already final.
+
+The total work of this step is `O( 3^t * n )`
+(`3^t` is the number of ordered pairs (mask, submask) ).
+
+--------------------------------------------------------------------
+
+#### 4.   Propagation through ordinary edges  
+
+After the combination step the tree may be *extended* by ordinary graph edges.
+For a fixed `mask` we have a source set consisting of all vertices `v`
+with current distance `dp[mask][v]`.  
+Running Dijkstra (or any shortest‑path algorithm) from this source set
+gives the cheapest way to reach every other vertex while keeping the same
+set of terminals connected.
+
+```
+run Dijkstra with initial distances = dp[mask][*]
+```
+
+After Dijkstra finishes, `dp[mask][*]` contains the true optimum for this mask.
+
+Complexity per mask: `O( (n+m) log n )`.  
+With `n ≤ 100 , m ≤ 4950 , 2^t ≤ 1024` this easily fits into the limits.
+
+--------------------------------------------------------------------
+
+#### 5.   Whole algorithm  
+
+```
+for mask = 1 … (1<<t)-1
+        # 1) combine smaller masks
+        for every non‑empty proper submask s of mask
+                other = mask ^ s
+                for every vertex v
+                        dp[mask][v] = min(dp[mask][v],
+                                          dp[s][v] + dp[other][v])
+
+        # 2) shortest‑path relaxation
+        Dijkstra(mask)
+
+answer = min_v dp[ALL][v]
+```
+
+--------------------------------------------------------------------
+
+#### 6.   Correctness Proof  
+
+We prove that the algorithm outputs the minimum possible total price.
+
+---
+
+##### Lemma 1  
+For every mask and vertex `v`, after the Dijkstra step
+`dp[mask][v]` equals the minimum price of a set of edges that
+
+* connects exactly the terminals of `mask`,
+* contains vertex `v`,
+* and may use any other vertices.
+
+**Proof.**  
+Induction over the order in which masks are processed.
+
+*Base* – masks with a single bit.  
+`dp[1<<i][term[i]] = 0` (empty edge set) and all other vertices are `INF`.  
+Running Dijkstra from this source set computes the shortest paths from the
+terminal `i` to every vertex, i.e. the cheapest single‑edge‑paths that connect
+`i` with `v`. This is exactly the definition for a tree that contains only
+terminal `i` and ends in `v`.
+
+*Induction step.*  
+Assume the statement holds for all proper sub‑masks of `mask`.  
+Before Dijkstra we set
+
+```
+dp[mask][v] = min over partitions (s, mask^s) of
+              (optimal tree for s ending in v) +
+              (optimal tree for mask^s ending in v)
+```
+
+By the induction hypothesis each summand is the optimum for its sub‑mask,
+hence the minimum is the cheapest way to obtain a tree that already connects
+all terminals of `mask` **and** ends in `v`, but possibly uses *more* edges
+than necessary (the two sub‑trees may overlap only in `v`).  
+Running Dijkstra from all vertices with these initial costs can only
+*decrease* the cost by adding extra edges that lead from `v` to some other
+vertex `u`. The resulting value is therefore the cheapest possible price of a
+tree that connects exactly the terminals of `mask` and ends in `u`. ∎
+
+
+
+##### Lemma 2  
+For every mask, after its processing `dp[mask][v]` is the optimum
+*over all* edge sets that connect the terminals of `mask` and contain `v`.
+
+**Proof.**  
+From Lemma&nbsp;1 we already have that the value is *at most* the optimum.
+Assume there exists a cheaper edge set `E` connecting the terminals of `mask`
+and containing `v`.  
+Consider the connected components of `E` after removing `v`.  
+Each component contains a non‑empty subset of the terminals; let `s` be the
+subset of terminals in the component that also contains `v`.  
+The rest of the terminals belong to `mask^s`.  
+Both components together with the vertex `v` form two trees that end in `v`,
+hence their costs are at least `dp[s][v]` and `dp[mask^s][v]` (by Lemma&nbsp;1).
+Consequently the total cost of `E` is at least `dp[s][v] + dp[mask^s][v]`,
+which is one of the candidates used when we built `dp[mask][v]`.  
+Thus `dp[mask][v]` cannot be larger than the cost of `E`. Contradiction. ∎
+
+
+
+##### Lemma 3  
+`min_v dp[ALL][v]` equals the minimum possible total price of a set of edges
+that makes all key commodities mutually reachable.
+
+**Proof.**  
+Any feasible set of edges connects all terminals, therefore it contains a
+vertex `v` (any vertex of the set). By Lemma&nbsp;2 its price is at least
+`dp[ALL][v]`. Taking the minimum over all `v` gives a lower bound for the
+optimal price.
+
+Conversely, let `v*` be a vertex attaining `min_v dp[ALL][v]`.  
+Again by Lemma&nbsp;2 there exists a concrete edge set of exactly that price
+that connects all terminals and contains `v*`. Hence the lower bound is
+achievable. ∎
+
+
+
+##### Theorem  
+The algorithm outputs the minimum total regulatory credits required to fix
+exchange rates among all key commodities.
+
+**Proof.**  
+By Lemma&nbsp;2, after the whole DP finishes `dp[ALL][v]` is optimal for each
+ending vertex `v`. Lemma&nbsp;3 shows that the minimum of these values is
+exactly the optimum over *all* feasible edge sets. The algorithm prints this
+minimum, therefore it is correct. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### 7.   Complexity Analysis  
+
+```
+states          : 2^t * n   ≤ 1024 * 100 = 1.0·10^5
+combine step    : O(3^t * n) ≤ 5.9·10^6
+Dijkstra per mask: O((n+m) log n)  ≤  (100+4950)·7 ≈ 3.5·10^4
+total Dijkstra  : 2^t * that  ≤ 3.6·10^7
+overall time    : well below 5 seconds in Python
+memory          : dp array ≈ 1·10^5 integers  (< 1 MB)
+```
+
+--------------------------------------------------------------------
+
+#### 8.   Reference Implementation  (Python 3)
+
+```python
+import sys
+import heapq
+
+INF = 10 ** 18
+
+def solve() -> None:
+    data = list(map(int, sys.stdin.read().strip().split()))
+    if not data:
+        return
+    it = iter(data)
+    n = next(it)
+    m = next(it)
+    t = next(it)
+
+    terminals = [next(it) - 1 for _ in range(t)]          # zero based
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = next(it) - 1
+        v = next(it) - 1
+        w = next(it)
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+
+    full_mask = (1 << t) - 1
+    dp = [[INF] * n for _ in range(1 << t)]
+
+    # initialise single terminals
+    for i, v in enumerate(terminals):
+        dp[1 << i][v] = 0
+
+    # process masks in increasing order
+    for mask in range(1, full_mask + 1):
+        # combine two smaller masks
+        sub = (mask - 1) & mask
+        while sub:
+            other = mask ^ sub
+            if other:
+                # try to improve dp[mask][v] via dp[sub][v] + dp[other][v]
+                dps = dp[sub]
+                dpo = dp[other]
+                dpm = dp[mask]
+                for v in range(n):
+                    val = dps[v] + dpo[v]
+                    if val < dpm[v]:
+                        dpm[v] = val
+            sub = (sub - 1) & mask
+
+        # Dijkstra to propagate through graph edges
+        dist = dp[mask]
+        pq = [(dist[v], v) for v in range(n) if dist[v] < INF]
+        heapq.heapify(pq)
+        while pq:
+            d, v = heapq.heappop(pq)
+            if d != dist[v]:
+                continue
+            for to, w in adj[v]:
+                nd = d + w
+                if nd < dist[to]:
+                    dist[to] = nd
+                    heapq.heappush(pq, (nd, to))
+
+    answer = min(dp[full_mask])
+    print(answer)
+
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above and conforms
+to the required input‑output format.

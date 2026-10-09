@@ -1,0 +1,103 @@
+import sys
+
+def solve():
+    input = sys.stdin.readline
+    n, m, B = map(int, input().split())
+    edges = []
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u, v = map(int, input().split())
+        u -= 1
+        v -= 1
+        edges.append((u, v))
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    INF = 10**18
+    dp = [INF] * (1 << n)
+    parent = [-1] * (1 << n)
+    dp[0] = 0
+    
+    for mask in range(1 << n):
+        if dp[mask] == INF:
+            continue
+        pos = bin(mask).count("1")  # next position index (0-based)
+        for v in range(n):
+            if not (mask >> v) & 1:
+                # cost to add v at position pos
+                cost = 0
+                for u in adj[v]:
+                    if (mask >> u) & 1:
+                        # u is already placed, find its position
+                        # We can compute position of u from mask? Not directly.
+                        # We need to know positions. We can store positions in DP state? 
+                        # Instead, we can compute cost incrementally if we know positions.
+                        # But we don't store positions. So we need to store arrangement.
+                        pass
+        # This approach needs positions, so we need to store arrangement or compute differently.
+    
+    # Since we need positions, we can store the permutation in DP state? That's too large.
+    # Alternative: use DP over subsets with cost computed by summing over edges when both endpoints are placed.
+    # We can compute cost incrementally: when adding v at position pos, for each neighbor u already placed,
+    # we add |pos - pos_u|. But we don't know pos_u unless we store it.
+    # So we can store the permutation in the DP state? Not feasible for large n.
+    
+    # For small n (<= 20), we can do DP with bitmask and store the order.
+    # Let's assume n <= 20 for this problem.
+    
+    # We'll store dp[mask] = min cost, and also store the last added vertex to reconstruct.
+    # But to compute cost, we need positions of all placed vertices. We can compute them from mask by iterating bits.
+    # That's O(n) per transition, which is fine for n <= 20.
+    
+    dp = [INF] * (1 << n)
+    parent = [-1] * (1 << n)
+    dp[0] = 0
+    
+    for mask in range(1 << n):
+        if dp[mask] == INF:
+            continue
+        pos = bin(mask).count('1')
+        # positions of placed vertices
+        placed = []
+        for i in range(n):
+            if (mask >> i) & 1:
+                placed.append(i)
+        # For each unplaced v
+        for v in range(n):
+            if not (mask >> v) & 1:
+                cost = 0
+                for u in adj[v]:
+                    if (mask >> u) & 1:
+                        # find position of u in placed list
+                        # Since placed is in order of bit positions, we need actual slot index.
+                        # We can compute slot index of u by counting bits before u in mask.
+                        pos_u = bin(mask & ((1 << u) - 1)).count('1')
+                        cost += abs(pos - pos_u)
+                new_mask = mask | (1 << v)
+                if dp[new_mask] > dp[mask] + cost:
+                    dp[new_mask] = dp[mask] + cost
+                    parent[new_mask] = v
+    
+    full = (1 << n) - 1
+    if dp[full] > B:
+        print("NO")
+        return
+    
+    # Reconstruct
+    order = []
+    mask = full
+    while mask:
+        v = parent[mask]
+        order.append(v)
+        mask ^= (1 << v)
+    order.reverse()
+    # order is list of operations in slot order (0-based)
+    # We need output: for each operation i, its slot (1-based)
+    slot = [0] * n
+    for idx, op in enumerate(order):
+        slot[op] = idx + 1
+    print("YES")
+    print(" ".join(map(str, slot)))
+
+if __name__ == "__main__":
+    solve()

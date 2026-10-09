@@ -1,0 +1,301 @@
+import sys
+from array import array
+
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+
+    n, input_m, B = data[0], data[1], data[2]
+    edge_set = set()
+    p = 3
+
+    for _ in range(input_m):
+        u = data[p] - 1
+        v = data[p + 1] - 1
+        p += 2
+        if u == v:
+            continue
+        if u > v:
+            u, v = v, u
+        edge_set.add((u, v))
+
+    edges = list(edge_set)
+    m = len(edges)
+
+    if m > B:
+        print("NO")
+        return
+
+    identity_cost = sum(v - u for u, v in edges)
+    if identity_cost <= B:
+        print("YES")
+        print(*range(1, n + 1))
+        return
+
+    adj = [[] for _ in range(n)]
+    for u, v in edges:
+        adj[u].append(v)
+        adj[v].append(u)
+
+    visited = [False] * n
+    components = []
+    isolated = []
+
+    for start in range(n):
+        if visited[start]:
+            continue
+        if not adj[start]:
+            visited[start] = True
+            isolated.append(start)
+            continue
+
+        stack = [start]
+        visited[start] = True
+        vertices = []
+        while stack:
+            u = stack.pop()
+            vertices.append(u)
+            for v in adj[u]:
+                if not visited[v]:
+                    visited[v] = True
+                    stack.append(v)
+        components.append(vertices)
+
+    # A quick feasible ordering: put every connected component contiguously.
+    heuristic_order = []
+    for comp in components:
+        comp_set = set(comp)
+        seen = set()
+        stack = [comp[0]]
+        while stack:
+            u = stack.pop()
+            if u in seen:
+                continue
+            seen.add(u)
+            heuristic_order.append(u)
+            for v in adj[u]:
+                if v in comp_set and v not in seen:
+                    stack.append(v)
+    heuristic_order.extend(isolated)
+
+    pos = [0] * n
+    for i, v in enumerate(heuristic_order):
+        pos[v] = i
+    heuristic_cost = sum(abs(pos[u] - pos[v]) for u, v in edges)
+
+    if heuristic_cost <= B:
+        answer = [x + 1 for x in pos]
+        print("YES")
+        print(*answer)
+        return
+
+    def path_or_cycle_order(comp):
+        k = len(comp)
+        degrees = [len(adj[v]) for v in comp]
+
+        if all(d <= 2 for d in degrees):
+            endpoints = [comp[i] for i, d in enumerate(degrees) if d == 1]
+            if len(endpoints) == 2:
+                start = endpoints[0]
+                order = []
+                prev = -1
+                cur = start
+                while cur != -1:
+                    order.append(cur)
+                    nxt = -1
+                    for w in adj[cur]:
+                        if w != prev:
+                            nxt = w
+                            break
+                    prev, cur = cur, nxt
+                return order, k - 1
+
+            if all(d == 2 for d in degrees):
+                order = []
+                start = comp[0]
+                prev = -1
+                cur = start
+                for _ in range(k):
+                    order.append(cur)
+                    a, b = adj[cur]
+                    nxt = a if a != prev else b
+                    prev, cur = cur, nxt
+                return order, 2 * k - 2
+
+        return None
+
+    def solve_dense(comp, local_cap):
+        k = len(comp)
+        index = {v: i for i, v in enumerate(comp)}
+        neighbor_masks = [0] * k
+        degrees = [0] * k
+
+        for i, v in enumerate(comp):
+            mask = 0
+            for w in adj[v]:
+                mask |= 1 << index[w]
+            neighbor_masks[i] = mask
+            degrees[i] = len(adj[v])
+
+        size = 1 << k
+        cuts = array('q', [0]) * size
+        cap_value = local_cap + 1
+        dp = array('q', [cap_value]) * size
+        dp[0] = 0
+
+        for mask in range(1, size):
+            bit = mask & -mask
+            i = bit.bit_length() - 1
+            prev = mask ^ bit
+            cut = cuts[prev] + degrees[i] - 2 * (neighbor_masks[i] & prev).bit_count()
+            cuts[mask] = cut
+
+            best = cap_value
+            remaining = mask
+            while remaining:
+                b = remaining & -remaining
+                val = dp[mask ^ b]
+                if val < best:
+                    best = val
+                remaining ^= b
+
+            value = best + cut
+            if value <= local_cap:
+                dp[mask] = value
+
+        full = size - 1
+        minimum = dp[full]
+        if minimum > local_cap:
+            return None
+
+        reverse_order = []
+        mask = full
+        while mask:
+            target = dp[mask] - cuts[mask]
+            remaining = mask
+            chosen = -1
+            while remaining:
+                bit = remaining & -remaining
+                if dp[mask ^ bit] == target:
+                    chosen = bit.bit_length() - 1
+                    break
+                remaining ^= bit
+            if chosen < 0:
+                return None
+            reverse_order.append(comp[chosen])
+            mask ^= 1 << chosen
+
+        reverse_order.reverse()
+        return reverse_order, minimum
+
+    def solve_sparse(comp, local_cap, edge_count):
+        k = len(comp)
+        index = {v: i for i, v in enumerate(comp)}
+        neighbor_masks = [0] * k
+        degrees = [0] * k
+
+        for i, v in enumerate(comp):
+            mask = 0
+            for w in adj[v]:
+                mask |= 1 << index[w]
+            neighbor_masks[i] = mask
+            degrees[i] = len(adj[v])
+
+        full = (1 << k) - 1
+        # mask -> (best accumulated cost, current cut, unselected-unselected edges)
+        current = {0: (0, 0, edge_count)}
+        parents = {}
+
+        for _ in range(k):
+            nxt_layer = {}
+            for mask, (cost, cut, unselected_edges) in current.items():
+                remaining = full ^ mask
+                while remaining:
+                    bit = remaining & -remaining
+                    i = bit.bit_length() - 1
+                    old_unselected = full ^ mask
+                    to_unselected = (neighbor_masks[i] & (old_unselected ^ bit)).bit_count()
+
+                    new_mask = mask | bit
+                    new_cut = cut + degrees[i] - 2 * (neighbor_masks[i] & mask).bit_count()
+                    new_cost = cost + new_cut
+                    new_unselected = unselected_edges - to_unselected
+
+                    if new_cost + new_unselected <= local_cap:
+                        old = nxt_layer.get(new_mask)
+                        if old is None or new_cost < old[0]:
+                            nxt_layer[new_mask] = (new_cost, new_cut, new_unselected)
+                            parents[new_mask] = mask
+                    remaining ^= bit
+
+            current = nxt_layer
+            if not current:
+                return None
+
+        if full not in current:
+            return None
+
+        minimum = current[full][0]
+        reverse_order = []
+        mask = full
+        while mask:
+            prev = parents[mask]
+            bit = mask ^ prev
+            reverse_order.append(comp[bit.bit_length() - 1])
+            mask = prev
+        reverse_order.reverse()
+        return reverse_order, minimum
+
+    total_minimum = 0
+    final_order = []
+
+    for comp in components:
+        k = len(comp)
+        edge_count = sum(len(adj[v]) for v in comp) // 2
+        local_cap = B - (m - edge_count)
+
+        if local_cap < edge_count:
+            print("NO")
+            return
+
+        special = path_or_cycle_order(comp)
+
+        if special is not None:
+            result = special
+        elif edge_count == k * (k - 1) // 2:
+            clique_cost = k * (k * k - 1) // 6
+            result = (comp[:], clique_cost)
+        elif k <= 21:
+            result = solve_dense(comp, local_cap)
+        else:
+            result = solve_sparse(comp, local_cap, edge_count)
+
+        if result is None:
+            print("NO")
+            return
+
+        order, cost = result
+        total_minimum += cost
+        if total_minimum > B:
+            print("NO")
+            return
+        final_order.extend(order)
+
+    final_order.extend(isolated)
+
+    if total_minimum > B:
+        print("NO")
+        return
+
+    positions = [0] * n
+    for phase, vertex in enumerate(final_order, 1):
+        positions[vertex] = phase
+
+    print("YES")
+    print(*positions)
+
+
+if __name__ == "__main__":
+    main()

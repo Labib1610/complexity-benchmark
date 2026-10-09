@@ -1,0 +1,109 @@
+import sys
+from collections import deque
+
+sys.setrecursionlimit(5000)
+
+def main():
+    inp = sys.stdin.buffer
+    first = inp.readline().split()
+    if not first:
+        return
+
+    k, t = map(int, first)
+    if t < k:
+        sys.stdout.write("NO\n")
+        return
+
+    adj = [[] for _ in range(k + 1)]
+    airframe = [0] * (k + 1)
+    match_left = [0] * (k + 1)
+    match_right = [0] * (k + 1)
+    matched = 0
+
+    for _ in range(t):
+        x, y, z = map(int, inp.readline().split())
+        adj[x].append(z)
+        airframe[x] = y
+
+        if match_left[x] == 0 and match_right[z] == 0:
+            match_left[x] = z
+            match_right[z] = x
+            matched += 1
+
+    if any(not adj[x] for x in range(1, k + 1)):
+        sys.stdout.write("NO\n")
+        return
+
+    while matched < k:
+        dist = [-1] * (k + 1)
+        queue = deque()
+
+        for x in range(1, k + 1):
+            if match_left[x] == 0:
+                dist[x] = 0
+                queue.append(x)
+
+        shortest = k + 1
+
+        while queue:
+            x = queue.popleft()
+            if dist[x] + 1 > shortest:
+                continue
+
+            nd = dist[x] + 1
+            for z in adj[x]:
+                other = match_right[z]
+                if other == 0:
+                    if nd < shortest:
+                        shortest = nd
+                elif dist[other] == -1:
+                    dist[other] = nd
+                    queue.append(other)
+
+        if shortest == k + 1:
+            break
+
+        ptr = [0] * (k + 1)
+
+        def augment(x):
+            edges = adj[x]
+            while ptr[x] < len(edges):
+                z = edges[ptr[x]]
+                ptr[x] += 1
+                other = match_right[z]
+
+                if other == 0:
+                    if dist[x] + 1 == shortest:
+                        match_left[x] = z
+                        match_right[z] = x
+                        return True
+                elif dist[other] == dist[x] + 1 and augment(other):
+                    match_left[x] = z
+                    match_right[z] = x
+                    return True
+
+            dist[x] = -1
+            return False
+
+        added = 0
+        for x in range(1, k + 1):
+            if match_left[x] == 0 and augment(x):
+                added += 1
+
+        if added == 0:
+            break
+        matched += added
+
+    if matched != k:
+        sys.stdout.write("NO\n")
+        return
+
+    out = ["YES"]
+    out.extend(
+        f"{x} {airframe[x]} {match_left[x]}"
+        for x in range(1, k + 1)
+    )
+    sys.stdout.write("\n".join(out))
+
+if __name__ == "__main__":
+    main()

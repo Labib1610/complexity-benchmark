@@ -1,0 +1,70 @@
+import sys
+sys.setrecursionlimit(1 << 25)
+
+def solve():
+    data = sys.stdin.read().split()
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    t = int(next(it))
+    
+    essential = [False] * (n + 1)
+    for _ in range(t):
+        essential[int(next(it))] = True
+    
+    adj = [[] for _ in range(n + 1)]
+    edges = []
+    for i in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        w = int(next(it))
+        adj[u].append((v, w, i))
+        adj[v].append((u, w, i))
+        edges.append((u, v, w))
+    
+    parent = [0] * (n + 1)
+    parent_edge_idx = [-1] * (n + 1)
+    depth = [0] * (n + 1)
+    stack = [(1, 0, -1)]
+    
+    while stack:
+        u, p, pe = stack.pop()
+        parent[u] = p
+        parent_edge_idx[u] = pe
+        for v, w, idx in adj[u]:
+            if v != p:
+                depth[v] = depth[u] + 1
+                stack.append((v, u, idx))
+    
+    count = [0] * (n + 1)
+    for i in range(1, n + 1):
+        if essential[i]:
+            count[i] = 1
+    
+    order = []
+    stack = [1]
+    parent_order = [0] * (n + 1)
+    while stack:
+        u = stack.pop()
+        order.append(u)
+        for v, w, idx in adj[u]:
+            if v != parent[u]:
+                stack.append(v)
+                parent_order[v] = u
+    
+    for u in reversed(order):
+        if u != 1:
+            count[parent_order[u]] += count[u]
+    
+    total_cost = 0
+    for i in range(1, n + 1):
+        if i != 1:
+            edge_idx = parent_edge_idx[i]
+            u, v, w = edges[edge_idx]
+            if count[i] >= 1 and count[i] < t:
+                total_cost += w
+    
+    print(total_cost)
+
+if __name__ == "__main__":
+    solve()

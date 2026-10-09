@@ -8,47 +8,50 @@ def solve():
     n = int(next(it))
     m = int(next(it))
     
-    adj = [[False] * (n + 1) for _ in range(n + 1)]
+    adj = [set() for _ in range(n)]
     for _ in range(m):
-        u = int(next(it))
-        v = int(next(it))
-        adj[u][v] = True
-        adj[v][u] = True
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u].add(v)
+        adj[v].add(u)
     
-    # We need to find the lexicographically smallest valid assignment
-    # Use backtracking with pruning
+    # Check if graph is 3-colorable
+    # Using backtracking with pruning
     
-    assignment = [0] * (n + 1)
-    found = False
+    color = [0] * n
+    
+    # Order vertices by degree (descending) for better pruning
+    order = sorted(range(n), key=lambda x: -len(adj[x]))
+    
+    # Precompute adjacency list for ordered vertices
+    adj_list = [[] for _ in range(n)]
+    for i in range(n):
+        for j in adj[i]:
+            adj_list[i].append(j)
+    
+    def is_safe(node, c):
+        for neighbor in adj_list[node]:
+            if color[neighbor] == c:
+                return False
+        return True
     
     def backtrack(idx):
-        nonlocal found
-        if found:
-            return
-        if idx > n:
-            found = True
-            return
+        if idx == n:
+            return True
         
-        for env in [1, 2, 3]:
-            valid = True
-            for prev in range(1, idx):
-                if adj[idx][prev] and assignment[prev] == env:
-                    valid = False
-                    break
-            if valid:
-                assignment[idx] = env
-                backtrack(idx + 1)
-                if found:
-                    return
-                assignment[idx] = 0
+        node = order[idx]
+        for c in range(1, 4):
+            if is_safe(node, c):
+                color[node] = c
+                if backtrack(idx + 1):
+                    return True
+                color[node] = 0
+        return False
     
-    backtrack(1)
-    
-    if found:
+    if backtrack(0):
         print("YES")
-        print(' '.join(map(str, assignment[1:])))
+        print(' '.join(map(str, color)))
     else:
         print("NO")
 
-if __name__ == "__main__":
-    solve()
+solve()

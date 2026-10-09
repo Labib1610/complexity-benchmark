@@ -12,15 +12,12 @@ for _ in range(m):
     adj[u].append(v)
     adj[v].append(u)
 
-color = [-1] * n  # -1 uncolored, 0 -> state 1, 1 -> state 2
+color = [-1] * n  # -1 unassigned, 0 -> 1, 1 -> 2
 
-for start in range(n):
-    if color[start] != -1:
-        continue
-    # BFS to color component, try to assign 0 (state 1) to start
-    color[start] = 0
+def bfs(start):
+    # try assigning 1 first
     q = deque([start])
-    ok = True
+    color[start] = 0
     while q:
         u = q.popleft()
         for v in adj[u]:
@@ -28,38 +25,38 @@ for start in range(n):
                 color[v] = 1 - color[u]
                 q.append(v)
             elif color[v] == color[u]:
-                ok = False
-                break
-        if not ok:
-            break
-    if not ok:
-        print("NO")
-        sys.exit()
+                return False
+    return True
 
-# Now we have a valid bipartite coloring, but we need lexicographically smallest.
-# For each component, we can flip colors if it makes the smallest index in that component have state 1.
-visited = [False] * n
 for i in range(n):
-    if visited[i]:
-        continue
-    # collect component
-    comp = []
-    q = deque([i])
-    visited[i] = True
-    while q:
-        u = q.popleft()
-        comp.append(u)
-        for v in adj[u]:
-            if not visited[v]:
-                visited[v] = True
-                q.append(v)
-    # If the smallest node in comp has color 1, flip all colors in comp
-    min_node = min(comp)
-    if color[min_node] == 1:
-        for u in comp:
-            color[u] = 1 - color[u]
+    if color[i] == -1:
+        if not bfs(i):
+            # try assigning 2 first
+            color = [-1] * n
+            color[i] = 1
+            q = deque([i])
+            ok = True
+            while q:
+                u = q.popleft()
+                for v in adj[u]:
+                    if color[v] == -1:
+                        color[v] = 1 - color[u]
+                        q.append(v)
+                    elif color[v] == color[u]:
+                        ok = False
+                        break
+                if not ok:
+                    break
+            if not ok:
+                print("NO")
+                sys.exit()
+            # continue with remaining unvisited nodes
+            for j in range(n):
+                if color[j] == -1:
+                    if not bfs(j):
+                        print("NO")
+                        sys.exit()
+            break
 
-# Output
-res = [1 if c == 0 else 2 for c in color]
 print("YES")
-print(" ".join(map(str, res)))
+print(' '.join(str(c + 1) for c in color))

@@ -1,0 +1,49 @@
+import sys
+sys.setrecursionlimit(1 << 25)
+
+def solve():
+    input = sys.stdin.readline
+    k, t = map(int, input().split())
+    edges = []
+    for _ in range(t):
+        x, y, z = map(int, input().split())
+        edges.append((x-1, y-1, z-1))
+    
+    # Group edges by x and y
+    by_xy = [[[] for _ in range(k)] for __ in range(k)]
+    for x, y, z in edges:
+        by_xy[x][y].append(z)
+    
+    # Precompute for each x, the list of y and z options
+    # We'll do DFS over x, tracking used y and z masks
+    used_y = 0
+    used_z = 0
+    chosen = []
+    
+    from functools import lru_cache
+    
+    @lru_cache(None)
+    def dfs(x, mask_y, mask_z):
+        if x == k:
+            return True
+        # Try all y not used
+        for y in range(k):
+            if not (mask_y >> y) & 1:
+                # Try all z for this (x,y)
+                for z in by_xy[x][y]:
+                    if not (mask_z >> z) & 1:
+                        chosen.append((x, y, z))
+                        if dfs(x+1, mask_y | (1 << y), mask_z | (1 << z)):
+                            return True
+                        chosen.pop()
+        return False
+    
+    if dfs(0, 0, 0):
+        print("YES")
+        for x, y, z in chosen:
+            print(x+1, y+1, z+1)
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()

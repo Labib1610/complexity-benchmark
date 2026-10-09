@@ -1,0 +1,272 @@
+```python
+import sys
+from collections import deque
+
+sys.setrecursionlimit(1_000_000)
+
+data = list(map(int, sys.stdin.buffer.read().split()))
+it = iter(data)
+
+n = next(it)
+m = next(it)
+k = next(it)
+
+sources = [0] * k
+targets = [0] * k
+remaining = [0] * k
+
+for i in range(k):
+    sources[i] = next(it) - 1
+    targets[i] = next(it) - 1
+    remaining[i] = next(it)
+    if sources[i] == targets[i]:
+        remaining[i] = 0
+
+edge_u = [0] * m
+edge_v = [0] * m
+capacity = [0] * m
+out_edges = [[] for _ in range(n)]
+rev_edges = [[] for _ in range(n)]
+
+for e in range(m):
+    u = next(it) - 1
+    v = next(it) - 1
+    c = next(it)
+    edge_u[e] = u
+    edge_v[e] = v
+    capacity[e] = c
+    out_edges[u].append(e)
+    rev_edges[v].append(e)
+
+residual = capacity[:]
+answer = [[0] * m for _ in range(k)]
+failed = set()
+
+
+class Dinic:
+    __slots__ = ("size", "graph", "level", "work")
+
+    def __init__(self, size):
+        self.size = size
+        self.graph = [[] for _ in range(size)]
+        self.level = [-1] * size
+        self.work = [0] * size
+
+    def add_edge(self, u, v, cap):
+        forward = [v, len(self.graph[v]), cap]
+        backward = [u, len(self.graph[u]), 0]
+        self.graph[u].append(forward)
+        self.graph[v].append(backward)
+        return forward
+
+    def bfs(self, source, sink):
+        level = self.level
+        for i in range(self.size):
+            level[i] = -1
+        level[source] = 0
+        q = deque([source])
+        while q:
+            u = q.popleft()
+            next_level = level[u] + 1
+            for e in self.graph[u]:
+                if e[2] > 0 and level[e[0]] < 0:
+                    level[e[0]] = next_level
+                    if e[0] == sink:
+                        return True
+                    q.append(e[0])
+        return level[sink] >= 0
+
+    def dfs(self, u, sink, pushed):
+        if u == sink:
+            return pushed
+        graph = self.graph
+        level = self.level
+        work = self.work
+        while work[u] < len(graph[u]):
+            e = graph[u][work[u]]
+            if e[2] > 0 and level[e[0]] == level[u] + 1:
+                sent = self.dfs(e[0], sink, min(pushed, e[2]))
+                if sent:
+                    e[2] -= sent
+                    graph[e[0]][e[1]][2] += sent
+                    return sent
+            work[u] += 1
+        return 0
+
+    def max_flow(self, source, sink, limit):
+        total = 0
+        while total < limit and self.bfs(source, sink):
+            for i in range(self.size):
+                self.work[i] = 0
+            while total < limit:
+                sent = self.dfs(source, sink, limit - total)
+                if not sent:
+                    break
+                total += sent
+        return total
+
+
+def commodity_flow(idx, required):
+    dinic = Dinic(n)
+    refs = [None] * m
+    original = [0] * m
+
+    for e in range(m):
+        c = residual[e]
+        if c:
+            refs[e] = dinic.add_edge(edge_u[e], edge_v[e], c)
+            original[e] = c
+
+    value = dinic.max_flow(sources[idx], targets[idx], required)
+    if value < required:
+        return None
+
+    result = [0] * m
+    for e in range(m):
+        if refs[e] is not None:
+            result[e] = original[e] - refs[e][2]
+    return result
+
+
+def reachable_to_target(target):
+    can_reach = [False] * n
+    can_reach[target] = True
+    q = deque([target])
+    while q:
+        v = q.popleft()
+        for e in rev_edges[v]:
+            if residual[e] > 0:
+                u = edge_u[e]
+                if not can_reach[u]:
+                    can_reach[u] = True
+                    q.append(u)
+    return can_reach
+
+
+def solve():
+    if all(x == 0 for x in remaining):
+        return True
+
+    state = (tuple(remaining), tuple(residual))
+    if state in failed:
+        return False
+
+    chosen = -1
+    chosen_flow = None
+    chosen_score = None
+
+    for i in range(k):
+        need = remaining[i]
+        if need == 0:
+            continue
+
+        flow = commodity_flow(i, need)
+        if flow is None:
+            failed.add(state)
+            return False
+
+        s = sources[i]
+        t = targets[i]
+        source_cap = sum(residual[e] for e in out_edges[s])
+        target_cap = sum(residual[e] for e in rev_edges[t])
+        upper = min(source_cap, target_cap)
+        used_edges = sum(1 for x in flow if x)
+        score = (upper - need, used_edges, -need)
+
+        if chosen == -1 or score < chosen_score:
+            chosen = i
+            chosen_flow = flow
+            chosen_score = score
+
+    need = remaining[chosen]
+
+    # First try routing this entire commodity using a max-flow solution.
+    changed = []
+    for e, amount in enumerate(chosen_flow):
+        if amount:
+            residual[e] -= amount
+            answer[chosen][e] += amount
+            changed.append((e, amount))
+    remaining[chosen] = 0
+
+    if solve():
+        return True
+
+    remaining[chosen] = need
+    for e, amount in changed:
+        residual[e] += amount
+        answer[chosen][e] -= amount
+
+    # Complete fallback: choose one simple path and send either its maximum
+    # possible amount or one unit. Repeated one-unit choices cover all
+    # integral decompositions.
+    source = sources[chosen]
+    target = targets[chosen]
+    can_reach = reachable_to_target(target)
+
+    if not can_reach[source]:
+        failed.add(state)
+        return False
+
+    visited = [False] * n
+    visited[source] = True
+    path = []
+
+    def enumerate_paths(u, bottleneck):
+        if u == target:
+            maximum = min(remaining[chosen], bottleneck)
+            quantities = (maximum,) if maximum == 1 else (maximum, 1)
+
+            for quantity in quantities:
+                for e in path:
+                    residual[e] -= quantity
+                    answer[chosen][e] += quantity
+                remaining[chosen] -= quantity
+
+                if solve():
+                    return True
+
+                remaining[chosen] += quantity
+                for e in path:
+                    residual[e] += quantity
+                    answer[chosen][e] -= quantity
+            return False
+
+        candidates = []
+        for e in out_edges[u]:
+            if residual[e] <= 0:
+                continue
+            v = edge_v[e]
+            if visited[v] or not can_reach[v]:
+                continue
+            candidates.append(e)
+
+        candidates.sort(key=lambda e: -residual[e])
+
+        for e in candidates:
+            v = edge_v[e]
+            visited[v] = True
+            path.append(e)
+
+            if enumerate_paths(v, min(bottleneck, residual[e])):
+                return True
+
+            path.pop()
+            visited[v] = False
+
+        return False
+
+    if enumerate_paths(source, need):
+        return True
+
+    failed.add(state)
+    return False
+
+
+if solve():
+    output = ["YES"]
+    output.extend(" ".join(map(str, row)) for row in answer)
+    sys.stdout.write("\n".join(output))
+else:
+    sys.stdout.write("NO")
+```

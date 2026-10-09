@@ -1,91 +1,48 @@
 import sys
 from collections import defaultdict, deque
 
-def main():
-    import sys
-    sys.setrecursionlimit(1 << 25)
-    
+def solve():
     n, m = map(int, sys.stdin.readline().split())
     
-    if m == 0:
-        print("YES")
-        print(" ".join(["1"] * n))
-        return
-    
     # Build adjacency list
-    adj = defaultdict(list)
+    graph = defaultdict(list)
     for _ in range(m):
         u, v = map(int, sys.stdin.readline().split())
-        adj[u].append(v)
-        adj[v].append(u)
+        graph[u].append(v)
+        graph[v].append(u)
     
-    # Color array: 0 = unvisited, 1 and 2 are the two colors
+    # Color array: 0 = unvisited, 1 = color 1, 2 = color 2
     color = [0] * (n + 1)
     
-    # Check if bipartite using BFS for all components
+    # Check if graph is bipartite using BFS
     for start in range(1, n + 1):
-        if color[start] != 0:
-            continue
+        if color[start] == 0:
+            # Start BFS coloring
+            queue = deque([start])
+            color[start] = 1
             
-        queue = deque()
-        queue.append(start)
-        color[start] = 1  # Start with color 1
-        
-        while queue:
-            u = queue.popleft()
-            current_color = color[u]
-            next_color = 3 - current_color  # flips 1->2, 2->1
-            
-            for v in adj[u]:
-                if color[v] == 0:
-                    color[v] = next_color
-                    queue.append(v)
-                elif color[v] == current_color:
-                    print("NO")
-                    return
+            while queue:
+                node = queue.popleft()
+                
+                for neighbor in graph[node]:
+                    if color[neighbor] == 0:
+                        # Color with opposite color
+                        color[neighbor] = 3 - color[node]
+                        queue.append(neighbor)
+                    elif color[neighbor] == color[node]:
+                        # Conflict found - not bipartite
+                        print("NO")
+                        return
     
-    # If we reach here, it's bipartite
-    # The color array already gives a valid 2-coloring
-    # We need the lexicographically smallest one
-    # That means: for each component, if node 1 is in it, it should be color 1
-    # If node 1 is not in this component, the smallest node should be color 1
-    
-    # To ensure lexicographically smallest, we can do BFS starting from the smallest node
-    # and always assign the smallest available color to the starting node of each component
-    
-    # Actually, the above BFS already ensures that because we process nodes in order
-    # and always start a component with color 1.
-    # But to make sure the lexicographically smallest, we should do a new BFS/DFS
-    # that processes nodes in increasing order and for each unvisited node,
-    # we start with color 1.
-    
-    # Let's re-do the coloring to ensure lexicographical minimality
-    final_color = [0] * (n + 1)
-    
-    for start in range(1, n + 1):
-        if final_color[start] != 0:
-            continue
-            
-        queue = deque()
-        queue.append(start)
-        final_color[start] = 1
-        
-        while queue:
-            u = queue.popleft()
-            c = final_color[u]
-            next_c = 3 - c
-            
-            for v in adj[u]:
-                if final_color[v] == 0:
-                    final_color[v] = next_c
-                    queue.append(v)
-                elif final_color[v] == c:
-                    # This should not happen as we already checked bipartiteness
-                    print("NO")
-                    return
-    
+    # If we reach here, the graph is bipartite
     print("YES")
-    print(" ".join(str(final_color[i]) for i in range(1, n + 1)))
+    result = []
+    for i in range(1, n + 1):
+        if color[i] == 0:
+            result.append("1")  # Unconnected node, assign 1
+        else:
+            result.append(str(color[i]))
+    
+    print(" ".join(result))
 
-if __name__ == "__main__":
-    main()
+solve()

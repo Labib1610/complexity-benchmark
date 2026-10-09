@@ -1,0 +1,67 @@
+# Spaceship Power Allocation Certificate
+
+Time limit: 2 s   Memory limit: 256 MB
+
+## Description
+
+You are the chief engineer of a spaceship managing $j$ critical subsystems. Each subsystem requires two distinct energy bursts to reboot: a **Capacitor Charge** burst and a **System Initialization** burst. 
+
+The reboot sequence is strictly governed by the following safety constraints:
+1. **Precedence**: For any given subsystem, its System Initialization burst cannot begin until its Capacitor Charge burst has completely finished.
+2. **Capacitor Grid Capacity**: The ship's capacitor grid can process at most one Capacitor Charge burst at any given moment.
+3. **Initialization Grid Capacity**: The ship's initialization grid can process at most one System Initialization burst at any given moment.
+4. **Time Limit**: All bursts across all subsystems must be fully completed within a strict operating window of $T$ milliseconds.
+
+The ship's computer has determined that no valid sequence of operations can satisfy all four constraints simultaneously. The input data guarantees that exactly one of the following relaxed scenarios still forces an unavoidable violation of Constraint 4. You must isolate the exact bottleneck by outputting the corresponding error code:
+
+- `JOB i` (where $i$ is the 1-based index of a subsystem): It is impossible to satisfy Constraint 4 even if we assume both grids have infinite concurrent capacity (ignoring Constraints 2 and 3), because the strict precedence (Constraint 1) applied to subsystem $i$ alone forces an unavoidable violation.
+- `LOAD 1`: It is impossible to satisfy Constraint 4 even if we assume all System Initialization bursts take exactly 0 milliseconds to execute and the Initialization Grid has infinite capacity (ignoring Constraint 3), because enforcing the Capacitor Grid's serial capacity (Constraint 2) alongside all precedence rules (Constraint 1) still forces an unavoidable violation.
+- `LOAD 2`: It is impossible to satisfy Constraint 4 even if we assume all Capacitor Charge bursts take exactly 0 milliseconds to execute and the Capacitor Grid has infinite capacity (ignoring Constraint 2), because enforcing the Initialization Grid's serial capacity (Constraint 3) alongside all precedence rules (Constraint 1) still forces an unavoidable violation.
+
+## Input
+
+The first line contains two integers $j$ and $T$ ($1 \le j \le 200000$, $1 \le T \le 1000000000$).
+Each of the next $j$ lines contains two integers $p_1$ and $p_2$ ($1 \le p_1, p_2 \le 1000000$): the duration in milliseconds for the subsystem's **Capacitor Charge** burst and its **System Initialization** burst, respectively.
+
+## Output
+
+Print a single line containing either `JOB i` (if the infinite-capacity scenario violates the time limit due to subsystem $i$), `LOAD 1` (if the 0-millisecond System Initialization scenario violates the time limit), or `LOAD 2` (if the 0-millisecond Capacitor Charge scenario violates the time limit).
+
+## Examples
+
+### Example 1
+
+**Input**
+```
+3 100
+70 60
+2 2
+3 4
+```
+
+**Output**
+```
+JOB 1
+```
+
+### Example 2
+
+**Input**
+```
+4 150
+50 1
+50 1
+50 1
+50 1
+```
+
+**Output**
+```
+LOAD 1
+```
+
+## Note
+
+In Example 1, if we assume both grids have infinite concurrent capacity, all subsystems can be processed in parallel. However, subsystem 1 must complete its 70 ms Capacitor Charge and its 60 ms System Initialization in sequence due to Constraint 1. The absolute minimum time to complete both is 130 ms. This unavoidably violates the 100 ms Time Limit (Constraint 4). Thus, `JOB 1` is the valid proof.
+
+In Example 2, no individual subsystem exceeds the 150 ms limit. However, if we assume all System Initialization bursts take 0 ms and ignore Constraint 3, Constraint 2 still dictates the Capacitor Charge bursts cannot overlap. The minimum time to process all four 50 ms Capacitor Charge bursts is 200 ms, which unavoidably violates Constraint 4. Thus, `LOAD 1` is the valid proof.

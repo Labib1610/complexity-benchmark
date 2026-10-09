@@ -1,0 +1,49 @@
+import sys
+from collections import deque, defaultdict
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    M = int(next(it))
+    T = int(next(it))
+    m = int(next(it))
+
+    adj = [[] for _ in range(n)]
+    indeg = [0] * n
+    for _ in range(m):
+        a = int(next(it)) - 1
+        b = int(next(it)) - 1
+        adj[a].append(b)
+        indeg[b] += 1
+
+    # Kahn's algorithm with batching up to M per time slot
+    ready = deque([i for i, d in enumerate(indeg) if d == 0])
+    schedule = [0] * n          # assigned time slot (1‑based)
+    time = 0
+    processed = 0
+
+    while ready:
+        time += 1
+        # take up to M tasks from ready
+        batch = []
+        while ready and len(batch) < M:
+            batch.append(ready.popleft())
+        for u in batch:
+            schedule[u] = time
+            processed += 1
+            for v in adj[u]:
+                indeg[v] -= 1
+                if indeg[v] == 0:
+                    ready.append(v)
+
+    if processed != n or time > T:
+        print("NO")
+    else:
+        print("YES")
+        print(' '.join(map(str, schedule)))
+
+if __name__ == "__main__":
+    solve()

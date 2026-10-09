@@ -1,0 +1,289 @@
+<think>
+.
+</think>
+We need to decide if there’s a permutation (placement) of vertices along positions 1..n such that the sum of distances between endpoints of each edge is ≤ B.  
+
+This is equivalent to:  
+- We have an undirected graph with n vertices and m edges.  
+- We need to find a vertex ordering (bijection to 1..n) minimizing sum over edges |pos(u) - pos(v)|.  
+- If the minimal possible sum ≤ B, print YES and one optimal ordering; else NO.
+
+This is the “Minimum Linear Arrangement” (MinLA) problem. It’s NP-hard in general, but in contest problems we often encounter small n or specific structures. Since no constraints on n are given in the statement explicitly, but time limit is 5s, typical intended solution uses branch-and-bound / DP over subsets for small n (n ≤ maybe 20 or 24), or some greedy/heuristic if n large but m small? We must be careful.
+
+However, without n bound we must assume it’s small enough for subset DP (e.g., n ≤ 20) — otherwise the problem would be infeasible in contest. I’ll implement a DP over subsets for n ≤ 20 (or possibly up to 22 with bitmask optimization). If n is larger, we may fall back to greedy ordering, but likely n is small.
+
+Standard DP:  
+- `dp[mask]` = minimal cost to place vertices in `mask` in the first |mask| positions.  
+- When adding a vertex v to the end of current permutation (mask), the added cost is the sum of distances from v to all already placed neighbors, which is simply:  
+    distance = |mask| (position of v) − position(u) for each already placed neighbor u. But easier: for each edge (u,v), the contribution when the later of the two is placed is (position_of_later − position_of_earlier). So when we add v at position k (k = number of vertices already placed before adding), the cost contributed by edges from v to already placed u is: (# of such edges) * (k) − sum_of_positions_of_u.  
+Thus with precomputed adjacency list and order of positions, we can compute incrementally.
+
+Implementation details:
+- Precompute `edge_count[i][j]` maybe if multiple edges? The problem says “m lines: two integers u v — an edge”, might have multiple edges? Usually no, but we can handle multiple edges by summing cost per edge.  
+- Use DP over subsets with bitmasks:  
+    n small, mask up to 2^n.
+
+Algorithm:
+1. Read n, m, B.  
+2. Build adjacency list.
+3. If n > 22 (say), we can do a heuristic greedy (place most connected first, then try to minimize cost) and check if ≤ B; if YES print. But since no guarantee, we'll assume n small.
+4. DP:
+    - `dp[1<<n]` initialized INF, dp[0] = 0.  
+    - Precompute for each mask, sum of positions of vertices in mask? Actually we can compute incrementally.
+    - For mask, let k = popcount(mask). For each v not in mask:  
+        cost_add = sum_{u in mask, edge(u,v)} (k - pos[u])  
+        Since positions are 0-based internally (first position = 0), distance = k - pos[u].  
+    - pos[u] = index of u in the ordering. Since we build order from left to right by adding to the end, if u is already placed, its position is its rank among those placed (0-based).  
+    - We can precompute `pos_in_mask`? Not needed if we store the order permutation; but for DP we only need the full placement at the end.  
+    - We store `parent[mask]` to reconstruct.
+
+Optimization: Instead of summing over all neighbors each time, we can precompute `neighbor_mask[v]`. When we have `mask` placed, the set of already placed neighbors of v = `neighbor_mask[v] & mask`. The cost add = (popcount(that)) * k − sum_pos_of_those_neighbors. But sum of positions for a subset isn't directly precomputed; but we can compute on the fly: each time we add u to mask, we can store `sum_pos[mask]` = sum of (0-based positions) of vertices in mask. Since position of the newly added vertex is k (the index before adding). So `sum_pos[mask | (1<<v)] = sum_pos[mask] + k`.  
+Then cost_add for adding v to mask = popcount(mask & neighbor_mask[v]) * k − sum_of_pos_of_neighbors_in_mask.  
+Now sum_of_pos_of_neighbors_in_mask = sum of positions of those neighbors. That is not simply derived from sum_pos[mask] unless we track per-vertex. But we can do:  
+    For each u in mask neighbor of v, position is rank of u in mask, which we don't have readily. However, we can compute sum of positions of all vertices in mask using `sum_pos[mask]` and subtract sum of positions of those not neighbors, but that's not easy.
+
+Better approach: Just compute cost_add directly by iterating over neighbors of v and checking if they are in mask. For n small (≤20), this is fine: O(n * 2^n * avg_deg). With n=20, 2^20 = 1M, times 20 => 20M operations, ok.
+
+But we can speed up with bit tricks:
+- Precompute `subset_sum_pos[mask]`? Not needed.
+- Actually, to compute sum of positions of neighbors of v in mask:  
+    pos of u = rank of u among mask. But ranks change depending on mask. So no simple formula except track placement.
+
+We'll simply implement straightforward DP with adjacency matrix or neighbor list.
+
+Pseudo:
+```python
+INF = 10**18
+n, m, B = map(int, input().split())
+adj = [[] for _ in range(n)]
+for _ in range(m):
+    u, v = map(int, input().split())
+    u -= 1; v -= 1
+    adj[u].append(v)
+    adj[v].append(u)
+
+# DP
+dp = [INF] * (1<<n)
+dp[0] = 0
+parent = [-1] * (1<<n)  # store last added vertex and previous mask? maybe store prev_mask and added v
+# We'll store prev_mask and last_added vertex separately.
+
+for mask in range(1<<n):
+    if dp[mask] == INF: continue
+    k = bin(mask).count("1")  # number placed
+    # Try to place each v not in mask
+    for v in range(n):
+        if mask & (1<<v): continue
+        # Compute added cost
+        added_cost = 0
+        for u in adj[v]:
+            if mask & (1<<u):
+                # pos[u] = rank of u in mask (0-based)
+                # rank of u = number of vertices in mask that are <= u? Actually rank among mask in order we placed them.
+                # But we don't know the order from mask alone.  
+```
+
+Hmm. The rank of u depends on the order, not just set mask. So DP must preserve ordering info or we compute cost differently.
+
+Alternative standard MinLA DP:  
+We build permutation from left to right. The cost added when we place v at position k (0-based) is the sum over edges (v,u) where u already placed of (k – pos(u)). This equals:  
+    k * (#neighbors already placed) – sum_pos_of_neighbors_placed.  
+Now, sum_pos_of_neighbors_placed: we can get if we store for each mask the sum of positions of vertices in that mask. But positions are assigned by insertion order. However, if we define `pos_in_order` as the order index (0..k-1), then sum of positions of all vertices in mask = sum over placed vertices of their index. Let’s denote `sum_pos[mask]` as that sum. Then sum_pos of neighbors = sum over neighbors in mask of their index.  
+We can compute sum_pos_of_neighbors = sum_pos[mask] − sum_pos[mask & ~(neighbor_mask[v])].  
+That is, take sum of all placed vertices, subtract sum of those placed that are NOT neighbors.  
+If we precompute `sum_pos[mask]` for all masks, we can get neighbor sum easily with bit operations if we also have sum_pos of complements? But computing sum_pos for every mask is possible in O(2^n) by:  
+```
+sum_pos[0] = 0
+for mask in 1..(1<<n)-1:
+    lsb = mask & -mask
+    v = bit index
+    prev = mask ^ lsb
+    k = popcount(prev)
+    sum_pos[mask] = sum_pos[prev] + k
+```
+Because when we add v last, its position = k (the number already placed before). This is independent of order — actually yes! Since we always add new vertex at the end. So the position of a vertex in the final permutation is its insertion index. Thus sum_pos[mask] = sum of insertion indices of vertices in mask. This is well-defined regardless of the exact order! Because the set of vertices in mask is exactly the first |mask| positions, but their individual order is determined by insertion sequence. However, the sum of positions (indices) of vertices in mask is always 0+1+...+(|mask|-1) = k(k-1)/2 regardless of which vertices are in mask! Wait, that's true: the positions used are exactly 0..k-1, so the sum of positions of vertices in mask is always fixed: k(k-1)/2. So `sum_pos[mask]` is not helpful to distinguish neighbor sums; it's constant for all masks of same size.
+
+Thus that trick fails.
+
+We need a different way: When we add v at position k, we need sum of positions of already placed neighbors. That sum depends on the exact order, not just set.
+
+Thus DP must store more info — like full permutation? That's factorial.
+
+The standard MinLA DP over subsets stores minimal cost to arrange the subset in the first |mask| positions, and the dp value already accounts for all edges internal to mask. When adding v, the cost added is sum over edges from v to mask of (k - pos[u]). But pos[u] depends on the ordering within mask. However, we can compute the minimal added cost by adding v at position k and choosing the order of mask optimally — that's exactly what dp[mask] stores. But to compute added cost, we need to know pos[u] for each neighbor u. The optimal arrangement inside mask may not be the same for different v being added. However, we can compute dp[mask | (1<<v)] from dp[mask] plus minimal additional cost over all possible orderings? That is not direct.
+
+Actually, the standard DP for MinLA does work as follows:  
+We assign vertices to positions 1..n. DP over subsets: `dp[mask]` = minimum cost to place the vertices in mask in the first |mask| positions (in some order). When we add vertex v at the end (position k), the cost added = sum_{u in mask, edge(u,v)} (k - pos[u]). But we don't know pos[u] from mask alone — but we can compute it as (position of u in its subset) = (some index). However, we don't need pos[u] individually: The total cost added can be written as k * degree_to_mask(v) − sum_of_positions_of_neighbors_in_mask. The sum_of_positions_of_neighbors_in_mask is the sum of the indices (0..k-1) assigned to those neighbor vertices in the ordering of mask. This is exactly the "sum of positions" of a subset of mask, which depends on ordering.
+
+But we can compute dp[mask] assuming some optimal ordering of mask, and when adding v, we can compute the added cost using that ordering? Not possible because dp[mask] doesn't store the ordering. However, standard trick: We can compute the added cost as: for each edge (v,u) where u in mask, the distance contribution is (k - pos[u]) = number of vertices placed after u and at or before k? Hmm.
+
+Alternative formulation: Total cost = sum over edges of |pos(a)-pos(b)| = for each edge, the contribution is the number of vertices between them plus 1? Actually |pos(a)-pos(b)| = number of positions between them. But we can think of cost as sum over each position i from 1 to n-1 of (# edges crossing the cut between positions i and i+1). That's the classic cut formulation: MinLA = sum over cuts of number of edges with one endpoint on each side.  
+
+That's much easier for DP via subset:  
+If we choose the set S of vertices placed in the first i positions, then the number of edges crossing that cut is the cut size between S and V\S. The total cost = sum_{i=1}^{n-1} cut(S_i) where S_i is the set of vertices in positions 1..i.
+
+Thus DP over subsets:  
+We build permutation by choosing which vertices go to the first i positions. At step i, we choose S_i (size i) and ensure S_{i-1} subset of S_i.  
+Cost contribution for step i is cut(S_i). Total cost = sum over i=1..n-1 cut(S_i).  
+We want min sum.
+
+This DP:  
+`dp[mask]` = minimum total cut cost for the first |mask| positions being exactly `mask`.  
+Transition: dp[mask] = min over submask of size |mask|-1 of dp[submask] + cut(mask).  
+Because cut(mask) is the cost added when we extend from submask to mask (placing one new vertex). This is valid because cut(mask) depends only on mask, not on order.  
+So we can precompute cut[mask] for all masks.
+
+Then we need to find min over full set mask = (1<<n)-1 of dp[full]. The dp recurrence:  
+dp[mask] = min_{v in mask} dp[mask ^ (1<<v)] + cut(mask).
+
+This is O(n * 2^n), feasible for n ≤ 20. For n ≤ 20 it's ~20 million operations — fine in Python with optimizations.
+
+After computing dp, we reconstruct order by tracing parent.
+
+Implementation steps:
+1. Read n, m, B.
+2. Build adjacency matrix or count edges (if multiple edges, count them).
+3. Precompute `cut[mask]` = number of edges with one endpoint in mask and one outside.
+   - Efficient: For each mask, cut = sum over vertices in mask of deg(v) − 2 * (edges internal to mask).  
+     Internal edges count = number of edges with both endpoints in mask.  
+     Can precompute `internal[mask]` = number of edges fully inside mask.  
+     Then cut[mask] = sum_deg[mask] − 2*internal[mask].  
+     Where sum_deg[mask] = sum of degrees of vertices in mask.
+   - Precompute sum_deg[mask] and internal[mask] for all masks in O(n*2^n) or via DP.
+
+4. DP:
+   dp[0] = 0.  
+   For mask from 1 to (1<<n)-1:
+       dp[mask] = min_{v in mask} dp[mask ^ (1<<v)] + cut[mask].
+
+   But careful: cut[mask] is the cost contributed by the cut after placing the first |mask| vertices. For the first |mask|, we add cut[mask] once. So yes, dp[mask] = min(dp[prev] + cut[mask]).
+
+   Initialize dp[0]=0.
+
+5. After dp[full] computed, if dp[full] ≤ B, reconstruct:
+   - Start from mask=full, repeatedly remove the last added vertex (the one that gave min).  
+   - That gives reverse order, reverse it to get final permutation.
+
+6. Output YES and permutation (1-based).
+
+If n > 22 (2^22 = 4M, maybe okay but memory large), we can try heuristic: sort by degree descending (BFS/DFS) or use greedy insertion by minimizing immediate cost, and check if ≤ B. But problem likely n ≤ 20. We’ll include a fallback heuristic for larger n.
+
+Let's implement.
+
+We'll also handle multiple edges by counting them in adjacency count matrix.
+
+Time limit 5s, n ≤ 20 easily.
+
+Edge cases: m=0 => total cost 0, any permutation works.
+
+Let's code```python
+import sys
+
+def solve():
+    input = sys.stdin.readline
+    n, m, B = map(int, input().split())
+    if n == 0:
+        print("NO")
+        return
+
+    # adjacency count matrix for multiple edges
+    edge_count = [[0]*n for _ in range(n)]
+    deg = [0]*n
+    for _ in range(m):
+        u, v = map(int, input().split())
+        u -= 1
+        v -= 1
+        edge_count[u][v] += 1
+        edge_count[v][u] += 1
+        deg[u] += 1
+        deg[v] += 1
+
+    # If n is too large for exact DP, fallback to heuristic
+    if n > 22:
+        # Greedy: place most connected first
+        order = sorted(range(n), key=lambda x: -deg[x])
+        pos = [0]*n
+        for i, v in enumerate(order):
+            pos[v] = i
+        total = 0
+        for u in range(n):
+            for v in range(u+1, n):
+                if edge_count[u][v]:
+                    total += abs(pos[u]-pos[v]) * edge_count[u][v]
+        if total <= B:
+            print("YES")
+            print(" ".join(str(pos[i]+1) for i in range(n)))
+        else:
+            print("NO")
+        return
+
+    N = 1 << n
+    # sum_deg[mask]
+    sum_deg = [0]*N
+    # internal[mask] = number of edges with both endpoints inside mask
+    internal = [0]*N
+
+    # precompute sum_deg and internal
+    for mask in range(1, N):
+        lsb = mask & -mask
+        v = (lsb.bit_length() - 1)
+        prev = mask ^ lsb
+        sum_deg[mask] = sum_deg[prev] + deg[v]
+        # increase internal by edges from v to vertices already in prev
+        inc = 0
+        # iterate bits in prev
+        pm = prev
+        while pm:
+            l = pm & -pm
+            u = l.bit_length() - 1
+            inc += edge_count[u][v]
+            pm ^= l
+        internal[mask] = internal[prev] + inc
+
+    # cut[mask] = sum_deg[mask] - 2*internal[mask]
+    cut = [0]*N
+    for mask in range(1, N):
+        cut[mask] = sum_deg[mask] - 2*internal[mask]
+
+    INF = 10**18
+    dp = [INF]*N
+    dp[0] = 0
+    parent = [-1]*N  # last added vertex for reconstruction
+
+    for mask in range(1, N):
+        best = INF
+        best_v = -1
+        # try removing each vertex present in mask
+        mm = mask
+        while mm:
+            l = mm & -mm
+            v = l.bit_length() - 1
+            prev = mask ^ l
+            val = dp[prev] + cut[mask]
+            if val < best:
+                best = val
+                best_v = v
+            mm ^= l
+        dp[mask] = best
+        parent[mask] = best_v
+
+    full = N - 1
+    if dp[full] > B:
+        print("NO")
+        return
+
+    # reconstruct permutation (0-based positions)
+    perm = [0]*n
+    mask = full
+    pos = n - 1
+    while mask:
+        v = parent[mask]
+        perm[v] = pos
+        pos -= 1
+        mask ^= (1 << v)
+
+    print("YES")
+    print(" ".join(str(p+1) for p in perm))
+
+if __name__ == "__main__":
+    solve()
+```

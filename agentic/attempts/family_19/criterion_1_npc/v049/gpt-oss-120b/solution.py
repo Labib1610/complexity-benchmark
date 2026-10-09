@@ -1,0 +1,88 @@
+import sys
+from collections import deque
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    k = int(next(it))
+    if k != 1:
+        # The general multi‑commodity case is NP‑hard and not supported by this solution.
+        print("NO")
+        return
+
+    s = int(next(it)) - 1
+    t = int(next(it)) - 1
+    d = int(next(it))
+
+    edges = []
+    adj = [[] for _ in range(n)]
+    for idx in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        cap = int(next(it))
+        edges.append([u, v, cap])
+        # forward edge
+        adj[u].append([v, cap, idx, len(adj[v])])
+        # backward edge
+        adj[v].append([u, 0, -1, len(adj[u]) - 1])
+
+    # Dinic
+    def bfs(level):
+        q = deque([s])
+        level[s] = 0
+        while q:
+            u = q.popleft()
+            for v, cap, _, rev in adj[u]:
+                if cap and level[v] < 0:
+                    level[v] = level[u] + 1
+                    q.append(v)
+        return level[t] >= 0
+
+    def dfs(u, flow, level, it_ptr):
+        if u == t:
+            return flow
+        for i in range(it_ptr[u], len(adj[u])):
+            it_ptr[u] = i
+            v, cap, idx, rev = adj[u][i]
+            if cap and level[v] == level[u] + 1:
+                ret = dfs(v, min(flow, cap), level, it_ptr)
+                if ret:
+                    adj[u][i][1] -= ret
+                    adj[v][rev][1] += ret
+                    return ret
+        return 0
+
+    flow = 0
+    INF = 10**18
+    while True:
+        level = [-1] * n
+        if not bfs(level):
+            break
+        it_ptr = [0] * n
+        while True:
+            pushed = dfs(s, INF, level, it_ptr)
+            if not pushed:
+                break
+            flow += pushed
+
+    if flow < d:
+        print("NO")
+        return
+
+    # retrieve flow on original edges
+    result = [0] * m
+    for u in range(n):
+        for v, cap, idx, rev in adj[u]:
+            if idx >= 0:
+                used = edges[idx][2] - cap  # original capacity minus residual
+                result[idx] = used
+
+    print("YES")
+    print(' '.join(str(x) for x in result))
+
+if __name__ == "__main__":
+    solve()

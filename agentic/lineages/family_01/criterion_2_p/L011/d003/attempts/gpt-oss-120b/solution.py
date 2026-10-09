@@ -14,53 +14,45 @@ def solve() -> None:
         adj[u].append(v)
         adj[v].append(u)
 
-    color = [ -1 ] * (n + 1)          # parity 0/1 inside component
-    answer = [0] * (n + 1)            # final x_i
-    visited = [False] * (n + 1)
+    colour = [-1] * (n + 1)          # -1 = unvisited, else 0/1
+    comp_id = -1
+    comp_vertices = []               # list of lists
+    comp_min = []                    # smallest vertex per component
 
     for start in range(1, n + 1):
-        if visited[start]:
+        if colour[start] != -1:
             continue
-        if not adj[start]:            # isolated vertex
-            visited[start] = True
-            answer[start] = 1
-            continue
-
-        # BFS to get component and check bipartite
+        comp_id += 1
         q = deque([start])
-        visited[start] = True
-        color[start] = 0
-        comp_nodes = [start]
-        ok = True
+        colour[start] = 0
+        cur_vertices = []
+        cur_min = start
+
         while q:
-            u = q.popleft()
-            for v in adj[u]:
-                if not visited[v]:
-                    visited[v] = True
-                    color[v] = color[u] ^ 1
-                    q.append(v)
-                    comp_nodes.append(v)
-                else:
-                    if color[v] == color[u]:
-                        ok = False
-        if not ok:
-            print("NO")
-            return
+            x = q.popleft()
+            cur_vertices.append(x)
+            if x < cur_min:
+                cur_min = x
+            for y in adj[x]:
+                if colour[y] == -1:
+                    colour[y] = colour[x] ^ 1
+                    q.append(y)
+                elif colour[y] == colour[x]:
+                    print("NO")
+                    return
+        comp_vertices.append(cur_vertices)
+        comp_min.append(cur_min)
 
-        # decide orientation: smallest index node gets value 1
-        min_node = min(comp_nodes)
-        if color[min_node] == 0:
-            # parity 0 -> 1, parity 1 -> 2
-            for v in comp_nodes:
-                answer[v] = 1 if color[v] == 0 else 2
-        else:
-            # parity 1 -> 1, parity 0 -> 2
-            for v in comp_nodes:
-                answer[v] = 1 if color[v] == 1 else 2
+    # build answer
+    ans = [0] * (n + 1)
+    for cid, verts in enumerate(comp_vertices):
+        p = comp_min[cid]
+        col_of_p = colour[p]
+        for v in verts:
+            ans[v] = 1 if colour[v] == col_of_p else 2
 
-    # all nodes assigned
-    print("YES")
-    print(' '.join(str(answer[i]) for i in range(1, n + 1)))
+    out = ["YES", " ".join(str(ans[i]) for i in range(1, n + 1))]
+    sys.stdout.write("\n".join(out))
 
 if __name__ == "__main__":
     solve()

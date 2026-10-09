@@ -1,0 +1,224 @@
+import sys
+from collections import defaultdict, deque
+
+def main():
+    import sys
+    sys.setrecursionlimit(1 << 25)
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
+    
+    index = 2
+    conflicts = []
+    adj = defaultdict(list)
+    
+    for _ in range(m):
+        u = int(data[index]) - 1
+        v = int(data[index + 1]) - 1
+        index += 2
+        conflicts.append((u, v))
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # Color array: 0 -> unvisited, 1 -> color1, 2 -> color2
+    color = [0] * n
+    visited = [False] * n
+    
+    # Check bipartiteness using BFS for each component
+    for i in range(n):
+        if not visited[i]:
+            queue = deque()
+            queue.append(i)
+            color[i] = 1
+            visited[i] = True
+            
+            while queue:
+                node = queue.popleft()
+                current_color = color[node]
+                next_color = 2 if current_color == 1 else 1
+                
+                for neighbor in adj[node]:
+                    if not visited[neighbor]:
+                        visited[neighbor] = True
+                        color[neighbor] = next_color
+                        queue.append(neighbor)
+                    elif color[neighbor] != next_color:
+                        print("NO")
+                        return
+    
+    # If bipartite, construct the lexicographically smallest assignment
+    # We want earliest nodes to be 1 if possible
+    # So we perform BFS again, prioritizing assigning 1 to lower-indexed nodes
+    
+    result = [0] * n
+    visited = [False] * n
+    
+    for i in range(n):
+        if result[i] == 0:
+            # Start BFS from node i, assign it color 1 (shift 1) to ensure lex smallest
+            queue = deque()
+            queue.append((i, 1))
+            result[i] = 1
+            visited[i] = True
+            
+            while queue:
+                node, c = queue.popleft()
+                neighbor_shift = 2 if c == 1 else 1
+                
+                for neighbor in adj[node]:
+                    if not visited[neighbor]:
+                        visited[neighbor] = True
+                        # To get lexicographically smallest, we must respect constraints
+                        # But also try to make early positions 1
+                        # Actually, since graph is bipartite, just follow coloring
+                        # But we need lex smallest among valid assignments
+                        
+                        # Let's do proper 2-SAT approach or greedy with lex order
+                        # For lex smallest: process nodes in order 0 to n-1
+                        # For each unassigned node, try to assign 1, if not conflict, do it
+                        
+                        # Better approach: 
+                        # Since it's bipartite, we have two sets
+                        # To get lex smallest, we can try to assign 1 to nodes in order
+                        # But respecting the bipartition
+                        
+                        # Let's re-color properly for lex smallest
+                        
+                        pass # will handle outside
+                        
+            # Actually let's redo the coloring to ensure lex smallest
+            
+    # Simpler way for lex smallest:
+    # Run BFS/DFS but when choosing initial color for component,
+    # always start with color 1 for the lowest indexed node in that component
+    
+    result = [0] * n
+    visited = [False] * n
+    
+    for i in range(n):
+        if not visited[i]:
+            # Assign color 1 to this node (to help with lex order)
+            queue = deque()
+            queue.append(i)
+            result[i] = 1
+            visited[i] = True
+            
+            while queue:
+                node = queue.popleft()
+                current_shift = result[node]
+                neighbor_shift = 2 if current_shift == 1 else 1
+                
+                for neighbor in adj[node]:
+                    if not visited[neighbor]:
+                        visited[neighbor] = True
+                        result[neighbor] = neighbor_shift
+                        queue.append(neighbor)
+                    elif result[neighbor] != neighbor_shift:
+                        print("NO")
+                        return
+    
+    # Final check for any conflicts
+    for u, v in conflicts:
+        if result[u] == result[v]:
+            print("NO")
+            return
+            
+    print("YES")
+    print(" ".join(map(str, result)))
+
+# The above approach might not give lex smallest
+# Let's implement correctly:
+
+def solve():
+    import sys
+    sys.setrecursionlimit(1 << 25)
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    adj = [[] for _ in range(n)]
+    index = 2
+    for _ in range(m):
+        u = int(data[index]) - 1
+        v = int(data[index + 1]) - 1
+        index += 2
+        adj[u].append(v)
+        adj[v].append(u)
+        
+    # Try to 2-color the graph (check if bipartite)
+    color = [-1] * n  # -1 unvisited, 0 and 1 are colors
+    
+    def bfs(start):
+        queue = deque([start])
+        color[start] = 0
+        while queue:
+            u = queue.popleft()
+            current_color = color[u]
+            next_color = 1 - current_color
+            for v in adj[u]:
+                if color[v] == -1:
+                    color[v] = next_color
+                    queue.append(v)
+                elif color[v] != next_color:
+                    return False
+        return True
+    
+    for i in range(n):
+        if color[i] == -1:
+            if not bfs(i):
+                print("NO")
+                return
+                
+    # Now we have a valid 2-coloring
+    # To get lexicographically smallest assignment:
+    # For each component, we can choose which color maps to which shift
+    # To minimize lex order, for the first vertex in the component (in order),
+    # we should assign it shift 1
+    
+    result = [0] * n
+    visited = [False] * n
+    
+    for i in range(n):
+        if not visited[i]:
+            # Component starting at i
+            # Do BFS to determine component and orient colors properly
+            comp_nodes = []
+            queue = deque([i])
+            visited[i] = True
+            comp_nodes.append(i)
+            
+            temp_visited = {i}
+            while queue:
+                u = queue.popleft()
+                for v in adj[u]:
+                    if v not in temp_visited:
+                        temp_visited.add(v)
+                        visited[v] = True
+                        comp_nodes.append(v)
+                        queue.append(v)
+                        
+            # In this component, decide color mapping
+            # Want the first node (smallest index) to be shift 1
+            first_node = min(comp_nodes)
+            first_color = color[first_node]
+            # Map first_color -> 1, other -> 2
+            for node in comp_nodes:
+                if color[node] == first_color:
+                    result[node] = 1
+                else:
+                    result[node] = 2
+                    
+    print("YES")
+    print(" ".join(map(str, result)))
+                    
+if __name__ == "__main__":
+    solve()

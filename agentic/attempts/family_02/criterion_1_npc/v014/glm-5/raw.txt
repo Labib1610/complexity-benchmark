@@ -1,0 +1,129 @@
+Looking at this problem, we have m criteria, each with 3 requirements. Each criterion is satisfied if at least one requirement matches. We need to find a valve configuration satisfying all criteria.
+
+This is a 2-SAT problem. Each criterion "at least one of three requirements holds" can be converted to three implications (clauses): if requirement A fails, then B or C must hold. This gives us clauses like (¬A → B), (¬A → C), (¬B → A), (¬B → C), (¬C → A), (¬C → B), which are equivalent to (A ∨ B), (A ∨ C), (B ∨ C).
+
+For each requirement, we create a literal: valve i OPEN = variable i true, valve i CLOSED = variable i false.
+
+With n ≤ 90 and m ≤ 400, we have at most 90 variables and 1200 clauses. 2-SAT with Kosaraju's algorithm works efficiently here.
+
+```python
+import sys
+from sys import setrecursionlimit
+
+def solve():
+    input_data = sys.stdin.read().split()
+    idx = 0
+    n = int(input_data[idx]); idx += 1
+    m = int(input_data[idx]); idx += 1
+    
+    # variable i (1-based): true = OPEN, false = CLOSED
+    # literal encoding: positive literal v -> 2*v, negative literal ~v -> 2*v+1
+    # node 0 unused, nodes 1..2n used
+    
+    adj = [[] for _ in range(2 * n + 2)]
+    radj = [[] for _ in range(2 * n + 2)]
+    
+    def lit_node(valve, want_open):
+        # returns node index for literal "valve is open" (want_open=True) or "valve is closed" (want_open=False)
+        if want_open:
+            return 2 * valve
+        else:
+            return 2 * valve + 1
+    
+    def neg(node):
+        return node ^ 1
+    
+    def add_impl(a, b):
+        adj[a].append(b)
+        radj[b].append(a)
+    
+    def add_or(lit_a, lit_b):
+        # (lit_a or lit_b) <=> (neg(lit_a) -> lit_b) and (neg(lit_b) -> lit_a)
+        add_impl(neg(lit_a), lit_b)
+        add_impl(neg(lit_b), lit_a)
+    
+    for _ in range(m):
+        l1 = int(input_data[idx]); idx += 1
+        l2 = int(input_data[idx]); idx += 1
+        l3 = int(input_data[idx]); idx += 1
+        
+        reqs = []
+        for l in (l1, l2, l3):
+            valve = abs(l)
+            want_open = (l > 0)
+            reqs.append(lit_node(valve, want_open))
+        
+        a, b, c = reqs
+        # criterion: a or b or c
+        # equivalent to (a or b), (a or c), (b or c)
+        add_or(a, b)
+        add_or(a, c)
+        add_or(b, c)
+    
+    # Kosaraju's SCC
+    visited = [False] * (2 * n + 2)
+    order = []
+    
+    setrecursionlimit(100000)
+    
+    import threading
+    sys.setrecursionlimit(200000)
+    
+    def dfs1(start):
+        stack = [(start, False)]
+        while stack:
+            node, processed = stack.pop()
+            if processed:
+                order.append(node)
+                continue
+            if visited[node]:
+                continue
+            visited[node] = True
+            stack.append((node, True))
+            for nb in adj[node]:
+                if not visited[nb]:
+                    stack.append((nb, False))
+    
+    for i in range(1, 2 * n + 2):
+        if not visited[i]:
+            dfs1(i)
+    
+    comp = [-1] * (2 * n + 2)
+    comp_id = 0
+    
+    def dfs2(start, cid):
+        stack = [start]
+        comp[start] = cid
+        while stack:
+            node = stack.pop()
+            for nb in radj[node]:
+                if comp[nb] == -1:
+                    comp[nb] = cid
+                    stack.append(nb)
+    
+    for node in reversed(order):
+        if comp[node] == -1:
+            dfs2(node, comp_id)
+            comp_id += 1
+    
+    # Check satisfiability: for each variable, comp[lit] != comp[neg(lit)]
+    assignment = [0] * (n + 1)
+    for v in range(1, n + 1):
+        pos = 2 * v
+        neg_node = 2 * v + 1
+        if comp[pos] == comp[neg_node]:
+            print("NO")
+            return
+        # In 2-SAT, variable is true if comp[pos] > comp[neg_node] (in reverse topological order)
+        # Since we assigned comp_id in reverse topological order of original graph,
+        # a literal is true if its comp_id is greater
+        if comp[pos] > comp[neg_node]:
+            assignment[v] = 1
+        else:
+            assignment[v] = 0
+    
+    print("YES")
+    print(" ".join(str(assignment[v]) for v in range(1, n + 1)))
+
+solve()
+```

@@ -1,0 +1,60 @@
+import sys
+from collections import defaultdict
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    index = 2
+    edges = []
+    adj = [set() for _ in range(n + 1)]
+    
+    for _ in range(m):
+        u = int(data[index])
+        v = int(data[index + 1])
+        index += 2
+        edges.append((u, v))
+        adj[u].add(v)
+        adj[v].add(u)
+    
+    # For efficiency, we'll iterate through all edges and for each edge (u,v),
+    # we look for a common neighbor w, which would form a triangle {u,v,w}.
+    # To ensure we get the lexicographically smallest triple,
+    # we process the nodes in order and build the triple accordingly.
+    
+    # We want to find a triangle {a,b,c} with a<b<c and lex smallest.
+    # So we can iterate over all edges (u,v) where u<v,
+    # and for each such edge, look for a node w such that:
+    # - w is connected to both u and v
+    # - u < v < w
+    
+    # To make it faster, for each node, we store its neighbors in a set.
+    # Then for each edge (u,v), we intersect their neighbor sets to find common neighbors.
+    
+    best = None
+    
+    # Sort edges to help with ordering
+    edges.sort()
+    
+    for u, v in edges:
+        if u > v:
+            u, v = v, u
+        # Now u < v
+        # Find common neighbors of u and v that are greater than v
+        common = adj[u] & adj[v]
+        candidates = [w for w in common if w > v]
+        if candidates:
+            w = min(candidates)
+            triple = tuple(sorted([u, v, w]))
+            if best is None or triple < best:
+                best = triple
+    
+    if best:
+        print(best[0], best[1], best[2])
+
+if __name__ == "__main__":
+    main()

@@ -1,5 +1,5 @@
 import sys
-sys.setrecursionlimit(1 << 25)
+from collections import deque
 
 def solve() -> None:
     data = sys.stdin.read().strip().split()
@@ -14,41 +14,36 @@ def solve() -> None:
         adj[u].append(v)
         adj[v].append(u)
 
-    color = [ -1 ] * (n + 1)          # 0 or 1
-    result = [1] * (n + 1)            # default 1
-    from collections import deque
+    col = [-1] * (n + 1)          # temporary 0/1 colours
+    ans = [0] * (n + 1)           # final 1/2 values
+    q = deque()
 
     for start in range(1, n + 1):
-        if color[start] != -1:
+        if col[start] != -1:
             continue
-        # BFS this component
-        q = deque([start])
-        color[start] = 0
-        comp_nodes = [start]
-        ok = True
+        # new component
+        comp = []
+        col[start] = 0
+        q.append(start)
         while q:
-            u = q.popleft()
-            for v in adj[u]:
-                if color[v] == -1:
-                    color[v] = color[u] ^ 1
-                    q.append(v)
-                    comp_nodes.append(v)
-                elif color[v] == color[u]:
+            v = q.popleft()
+            comp.append(v)
+            for to in adj[v]:
+                if col[to] == -1:
+                    col[to] = col[v] ^ 1
+                    q.append(to)
+                elif col[to] == col[v]:
                     print("NO")
                     return
-        # decide orientation for lexicographically smallest
-        min_node = min(comp_nodes)
-        if color[min_node] == 0:
-            # keep as is: 0 -> 1, 1 -> 2
-            for v in comp_nodes:
-                result[v] = 1 if color[v] == 0 else 2
-        else:
-            # swap
-            for v in comp_nodes:
-                result[v] = 1 if color[v] == 1 else 2
+        # decide orientation: smallest index gets value 1
+        first = min(comp)
+        wanted = col[first]          # colour that must become 1
+        for v in comp:
+            ans[v] = 1 if col[v] == wanted else 2
 
+    # all done
     print("YES")
-    print(' '.join(str(result[i]) for i in range(1, n + 1)))
+    print(' '.join(str(ans[i]) for i in range(1, n + 1)))
 
 if __name__ == "__main__":
     solve()

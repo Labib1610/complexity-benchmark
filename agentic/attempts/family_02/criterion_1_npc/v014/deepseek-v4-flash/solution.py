@@ -1,0 +1,100 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.read().strip().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    clauses = []
+    for _ in range(m):
+        a = int(next(it))
+        b = int(next(it))
+        c = int(next(it))
+        clauses.append((a, b, c))
+    
+    # variable assignment: 0 = unassigned, 1 = True (OPEN), -1 = False (CLOSED)
+    assignment = [0] * (n + 1)
+    
+    def clause_satisfied(clause):
+        for lit in clause:
+            var = abs(lit)
+            val = assignment[var]
+            if val == 0:
+                continue
+            if (lit > 0 and val == 1) or (lit < 0 and val == -1):
+                return True
+        return False
+    
+    def clause_unsat(clause):
+        # returns True if all literals are assigned and none match
+        all_assigned = True
+        for lit in clause:
+            var = abs(lit)
+            if assignment[var] == 0:
+                all_assigned = False
+                break
+        if not all_assigned:
+            return False
+        return not clause_satisfied(clause)
+    
+    def propagate():
+        changed = True
+        while changed:
+            changed = False
+            for clause in clauses:
+                unassigned = []
+                satisfied = False
+                for lit in clause:
+                    var = abs(lit)
+                    val = assignment[var]
+                    if val == 0:
+                        unassigned.append(lit)
+                    elif (lit > 0 and val == 1) or (lit < 0 and val == -1):
+                        satisfied = True
+                        break
+                if satisfied:
+                    continue
+                if len(unassigned) == 0:
+                    return False  # conflict
+                if len(unassigned) == 1:
+                    lit = unassigned[0]
+                    var = abs(lit)
+                    if lit > 0:
+                        assignment[var] = 1
+                    else:
+                        assignment[var] = -1
+                    changed = True
+        return True
+    
+    def backtrack():
+        if not propagate():
+            return False
+        # find an unassigned variable
+        for i in range(1, n + 1):
+            if assignment[i] == 0:
+                # try True
+                assignment[i] = 1
+                if backtrack():
+                    return True
+                # try False
+                assignment[i] = -1
+                if backtrack():
+                    return True
+                assignment[i] = 0
+                return False
+        # all assigned, check all clauses
+        for clause in clauses:
+            if not clause_satisfied(clause):
+                return False
+        return True
+    
+    if backtrack():
+        print("YES")
+        print(" ".join("1" if assignment[i] == 1 else "0" for i in range(1, n + 1)))
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()

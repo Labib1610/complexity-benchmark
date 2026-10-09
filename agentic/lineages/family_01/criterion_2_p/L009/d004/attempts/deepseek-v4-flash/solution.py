@@ -13,32 +13,20 @@ for _ in range(m):
     adj[v].append(u)
 
 color = [-1] * n
-res = [0] * n
 
-for start in range(n):
-    if color[start] != -1:
-        continue
-    color[start] = 0
-    q = deque([start])
-    comp = [start]
-    while q:
-        u = q.popleft()
-        for v in adj[u]:
-            if color[v] == -1:
-                color[v] = color[u] ^ 1
-                q.append(v)
-                comp.append(v)
-            elif color[v] == color[u]:
-                print("NO")
-                sys.exit()
-    # Assign lexicographically smallest: try to put 1 on smallest index in this component
-    # color 0 -> value 1, color 1 -> value 2
-    # But we can flip colors if it makes the smallest index get 1
-    if color[min(comp)] == 1:
-        for node in comp:
-            color[node] ^= 1
-    for node in comp:
-        res[node] = 1 if color[node] == 0 else 2
+for i in range(n):
+    if color[i] == -1:
+        color[i] = 1
+        q = deque([i])
+        while q:
+            u = q.popleft()
+            for v in adj[u]:
+                if color[v] == -1:
+                    color[v] = 3 - color[u]  # 1 -> 2, 2 -> 1
+                    q.append(v)
+                elif color[v] == color[u]:
+                    print("NO")
+                    sys.exit()
 
 print("YES")
-print(" ".join(map(str, res)))
+print(" ".join(map(str, color)))

@@ -9,48 +9,47 @@ def solve() -> None:
     it = iter(data)
     n = int(next(it))
     m = int(next(it))
-
-    adj = [set() for _ in range(n)]
+    adj = [[] for _ in range(n)]
+    edges = []
     for _ in range(m):
         u = int(next(it)) - 1
         v = int(next(it)) - 1
-        adj[u].add(v)
-        adj[v].add(u)
+        adj[u].append(v)
+        adj[v].append(u)
+        edges.append((u, v))
 
-    colour = [0] * n          # 0 = uncoloured, otherwise 1,2,3
+    # order vertices by decreasing degree
+    order = sorted(range(n), key=lambda x: -len(adj[x]))
+    pos_in_order = [0] * n
+    for i, v in enumerate(order):
+        pos_in_order[v] = i
 
-    # ------------------------------------------------------------
-    def dfs(v: int) -> bool:
-        """try to colour vertices v .. n-1, return True on success"""
-        if v == n:
+    col = [-1] * n
+    found = False
+
+    def dfs(idx: int) -> bool:
+        nonlocal found
+        if idx == n:
             return True
-
-        # colours forbidden by already coloured neighbours
-        forbidden = {colour[w] for w in adj[v] if colour[w] != 0}
-
-        for c in (1, 2, 3):
-            if c in forbidden:
-                continue
-            colour[v] = c
-
-            # forward check: any uncoloured neighbour already blocked?
+        v = order[idx]
+        for c in range(3):
             ok = True
-            for u in adj[v]:
-                if colour[u] != 0:
-                    continue
-                forb_u = {colour[w] for w in adj[u] if colour[w] != 0}
-                if len(forb_u) == 3:          # no colour left for u
+            for nb in adj[v]:
+                if col[nb] == c:
                     ok = False
                     break
-            if ok and dfs(v + 1):
+            if not ok:
+                continue
+            col[v] = c
+            if dfs(idx + 1):
                 return True
-            colour[v] = 0                     # backtrack
+            col[v] = -1
         return False
-    # ------------------------------------------------------------
 
     if dfs(0):
         print("YES")
-        print(' '.join(map(str, colour)))
+        # convert 0/1/2 to 1/2/3
+        print(' '.join(str(col[i] + 1) for i in range(n)))
     else:
         print("NO")
 

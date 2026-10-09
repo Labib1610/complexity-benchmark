@@ -1,22 +1,19 @@
-# Problem A — Vault Segregation
+# Problem A — Tri-Band Telemetry
 
 Time limit: 2 s   Memory limit: 256 MB
 
-A research facility is organizing its inventory of chemical compounds. Every compound must be securely placed into exactly one of three climate-controlled vaults, designated as Vault 1, Vault 2, and Vault 3. 
+A deep-sea exploration crew is deploying an array of sensor buoys. Each buoy must be configured to transmit telemetry data on exactly one of three distinct acoustic bands, labeled 1, 2, and 3.
 
-Because of their volatile nature, certain pairs of compounds are strictly incompatible and will cause a dangerous reaction if placed in the same vault. Your task is to determine if it is possible to assign every compound to one of the three vaults such that no two incompatible compounds are placed together.
-
-If a safe arrangement is possible, you must find a valid assignment for all compounds. To maintain standardized cataloging across the facility, if there are multiple safe arrangements, you must provide the one that is lexicographically smallest. That is, when the assigned vault numbers (1, 2, or 3) are listed as a sequence ordered by compound ID from 1 to $n$, the sequence should be as small as possible.
+Due to acoustic reflections in the underwater trenches, certain pairs of buoys are prone to cross-talk. If two buoys in such a pair transmit on the same acoustic band, their signals will become garbled. You must configure the array by assigning an acoustic band to every buoy so that no two buoys prone to cross-talk share the same band. If the environment is too dense and no such configuration exists, you must report the failure.
 
 ## Input
-The first line of the manifest contains two integers, $n$ and $m$.
-The number of compounds, $n$, is at least 1 and at most the total number of cells in an 8-by-5 grid.
-The number of incompatible pairs, $m$, is non-negative and will not exceed the total number of unique two-compound combinations possible from $n$ items.
-Each of the next $m$ lines contains two integers $u$ and $v$ — the IDs of two compounds that are incompatible. Compounds are identified by integers from 1 to $n$.
+The first line of input provides two integers $n$ and $m$ — the total number of buoys and the number of cross-talk conditions. The number of buoys $n$ is at least one. Its maximum possible value is determined by the submarine's total carrying capacity: exactly four storage racks that each hold exactly ten buoys. The number of cross-talk conditions $m$ is at least zero, and will never exceed the absolute maximum where every single buoy experiences cross-talk with every other buoy in the array.
+
+Each of the subsequent $m$ lines contains two integers $u$ and $v$, indicating that buoy $u$ and buoy $v$ are prone to cross-talk.
 
 ## Output
-If there is no way to safely distribute the compounds across the three vaults, print a single line containing `NO`.
-Otherwise, print `YES` on the first line. On the second line, print $n$ integers $v_1, v_2, \dots, v_n$ (each being 1, 2, or 3), where $v_i$ represents the vault assigned to compound $i$. Among all valid assignments, output the one that produces the lexicographically smallest sequence of vault numbers.
+If it is impossible to configure the buoys without cross-talk, output a single line containing `NO`.
+Otherwise, output `YES` on the first line. On the second line, output $n$ integers $b_1, b_2, \dots, b_n$ (where each $b_i \in \{1, 2, 3\}$), representing the acoustic band assigned to the $i$-th buoy. Any valid configuration is accepted.
 
 ## Example 1
 Input:

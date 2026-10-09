@@ -1,0 +1,139 @@
+```python
+import sys
+from collections import defaultdict, deque
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(["0"] * n))
+        return
+    
+    # Build implication graph
+    # Each variable x_i has two nodes: 2*i (x_i = False/0) and 2*i+1 (x_i = True/1)
+    # For clause (a OR b), we add edges: NOT a -> b and NOT b -> a
+    
+    adj = defaultdict(list)
+    rev_adj = defaultdict(list)
+    
+    idx = 2
+    clauses = []
+    for i in range(m):
+        a = int(data[idx])
+        b = int(data[idx+1])
+        idx += 2
+        clauses.append((a, b))
+        
+    for a, b in clauses:
+        # Convert to 0-based indexing and boolean logic
+        # a is switch |a| in state (a>0)
+        # b is switch |b| in state (b>0)
+        # We want (var_a == val_a) OR (var_b == val_b)
+        # This is equivalent to (NOT(var_a == val_a) -> (var_b == val_b)) AND (NOT(var_b == val_b) -> (var_a == val_a))
+        
+        var_a = abs(a) - 1  # 0-based
+        val_a = 1 if a > 0 else 0
+        var_b = abs(b) - 1
+        val_b = 1 if b > 0 else 0
+        
+        # Add implications
+        # If var_a is NOT val_a, then var_b must be val_b
+        adj[2*var_a + (1 - val_a)].append(2*var_b + val_b)
+        rev_adj[2*var_b + val_b].append(2*var_a + (1 - val_a))
+        
+        # If var_b is NOT val_b, then var_a must be val_a
+        adj[2*var_b + (1 - val_b)].append(2*var_a + val_a)
+        rev_adj[2*var_a + val_a].append(2*var_b + (1 - val_b))
+    
+    # Kosaraju's algorithm for SCC
+    visited = [False] * (2 * n)
+    order = []
+    
+    def dfs1(u):
+        visited[u] = True
+        for v in adj[u]:
+            if not visited[v]:
+                dfs1(v)
+        order.append(u)
+    
+    for i in range(2 * n):
+        if not visited[i]:
+            dfs1(i)
+    
+    # Transpose graph DFS
+    visited = [False] * (2 * n)
+    scc_id = [-1] * (2 * n)
+    scc_count = 0
+    
+    def dfs2(u):
+        visited[u] = True
+        scc_id[u] = scc_count
+        for v in rev_adj[u]:
+            if not visited[v]:
+                dfs2(v)
+    
+    while order:
+        u = order.pop()
+        if not visited[u]:
+            dfs2(u)
+            scc_count += 1
+    
+    # Check for contradictions
+    for i in range(n):
+        if scc_id[2*i] == scc_id[2*i + 1]:
+            print("NO")
+            return
+    
+    # Assign values based on SCC topological order
+    # Variables in later SCCs are assigned first
+    assignment = [-1] * n
+    scc_to_nodes = defaultdict(list)
+    for i in range(2 * n):
+        scc_to_nodes[scc_id[i]].append(i)
+    
+    # Create SCC DAG
+    scc_graph = defaultdict(set)
+    in_degree = [0] * scc_count
+    
+    for u in range(2 * n):
+        for v in adj[u]:
+            if scc_id[u] != scc_id[v]:
+                if scc_id[v] not in scc_graph[scc_id[u]]:
+                    scc_graph[scc_id[u]].add(scc_id[v])
+                    in_degree[scc_id[v]] += 1
+    
+    # Topological sort of SCCs
+    queue = deque()
+    for i in range(scc_count):
+        if in_degree[i] == 0:
+            queue.append(i)
+    
+    scc_order = []
+    while queue:
+        u = queue.popleft()
+        scc_order.append(u)
+        for v in scc_graph[u]:
+            in_degree[v] -= 1
+            if in_degree[v] == 0:
+                queue.append(v)
+    
+    # Assign truth values
+    for scc in reversed(scc_order):
+        for node in scc_to_nodes[scc]:
+            var = node // 2
+            val = node % 2
+            if assignment[var] == -1:
+                assignment[var] = val
+    
+    print("YES")
+    print(" ".join(map(str, assignment)))
+
+if __name__ == "__main__":
+    main()
+```

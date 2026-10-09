@@ -1,0 +1,74 @@
+from collections import defaultdict, deque
+
+def solve():
+    n, M, T, m = map(int, input().split())
+    
+    # Build graph and in-degree count
+    graph = defaultdict(list)
+    in_degree = [0] * (n + 1)
+    
+    for _ in range(m):
+        a, b = map(int, input().split())
+        graph[a].append(b)
+        in_degree[b] += 1
+    
+    # Topological sort with level tracking
+    queue = deque()
+    for i in range(1, n + 1):
+        if in_degree[i] == 0:
+            queue.append(i)
+    
+    # Level assignment: level[i] is the earliest time slot for task i
+    level = [0] * (n + 1)
+    topo_order = []
+    
+    while queue:
+        node = queue.popleft()
+        topo_order.append(node)
+        for neighbor in graph[node]:
+            in_degree[neighbor] -= 1
+            level[neighbor] = max(level[neighbor], level[node] + 1)
+            if in_degree[neighbor] == 0:
+                queue.append(neighbor)
+    
+    # Check if all tasks can fit within T time slots
+    # Group tasks by their levels
+    level_groups = defaultdict(list)
+    for i in range(1, n + 1):
+        level_groups[level[i]].append(i)
+    
+    # Check if any level has more tasks than stations
+    for l in range(T + 1):
+        if len(level_groups[l]) > M * T:
+            print("NO")
+            return
+    
+    # Assign slots respecting the level constraints and station limits
+    slot_assignment = [0] * (n + 1)
+    slot_count = [0] * (T + 1)  # Number of tasks in each slot
+    
+    # Process tasks in topological order
+    for task in topo_order:
+        # Find the earliest slot >= level[task] that has space
+        assigned = False
+        for slot in range(level[task] + 1, T + 1):
+            if slot_count[slot] < M:
+                slot_assignment[task] = slot
+                slot_count[slot] += 1
+                assigned = True
+                break
+        
+        if not assigned:
+            print("NO")
+            return
+    
+    # Verify all tasks are assigned
+    for i in range(1, n + 1):
+        if slot_assignment[i] == 0:
+            print("NO")
+            return
+    
+    print("YES")
+    print(*slot_assignment[1:])
+
+solve()

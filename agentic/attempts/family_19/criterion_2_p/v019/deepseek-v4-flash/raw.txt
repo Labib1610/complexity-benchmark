@@ -1,0 +1,210 @@
+We can model this as a **max flow** problem:
+
+- Desks are nodes.
+- Each forwarding rule is a directed edge with capacity `cap`.
+- We need to send exactly `d` units of flow from `s` to `t`.
+- Intermediary desks must conserve flow (in = out).
+- Intake desk must have net outflow `d`.
+- Archive desk must have net inflow `d`.
+
+This is exactly a standard max flow from `s` to `t` with target `d`.  
+If the max flow is at least `d`, we can output the flow on each edge.
+
+We’ll use **Dinic’s algorithm** for efficiency.
+
+```python
+import sys
+from collections import deque
+
+input = sys.stdin.readline
+
+class Dinic:
+    def __init__(self, n):
+        self.n = n
+        self.graph = [[] for _ in range(n)]
+        self.edges = []
+
+    def add_edge(self, u, v, cap):
+        self.graph[u].append([v, cap, len(self.edges)])
+        self.edges.append([u, v, cap])
+        self.graph[v].append([u, 0, len(self.edges)])
+        self.edges.append([v, u, 0])
+
+    def bfs(self, s, t):
+        self.level = [-1] * self.n
+        q = deque([s])
+        self.level[s] = 0
+        while q:
+            u = q.popleft()
+            for v, cap, idx in self.graph[u]:
+                if cap > 0 and self.level[v] < 0:
+                    self.level[v] = self.level[u] + 1
+                    q.append(v)
+        return self.level[t] >= 0
+
+    def dfs(self, u, t, f):
+        if u == t:
+            return f
+        for i in range(self.it[u], len(self.graph[u])):
+            self.it[u] = i
+            v, cap, idx = self.graph[u][i]
+            if cap > 0 and self.level[u] + 1 == self.level[v]:
+                ret = self.dfs(v, t, min(f, cap))
+                if ret > 0:
+                    self.graph[u][i][1] -= ret
+                    self.graph[v][idx ^ 1][1] += ret
+                    return ret
+        return 0
+
+    def max_flow(self, s, t):
+        flow = 0
+        INF = 10**18
+        while self.bfs(s, t):
+            self.it = [0] * self.n
+            while True:
+                f = self.dfs(s, t, INF)
+                if f == 0:
+                    break
+                flow += f
+        return flow
+
+def main():
+    n, m, _ = map(int, input().split())
+    s, t, d = map(int, input().split())
+    s -= 1
+    t -= 1
+
+    dinic = Dinic(n)
+    edges = []
+    for _ in range(m):
+        u, v, cap = map(int, input().split())
+        u -= 1
+        v -= 1
+        dinic.add_edge(u, v, cap)
+        edges.append((u, v, cap))
+
+    maxflow = dinic.max_flow(s, t)
+    if maxflow < d:
+        print("NO")
+        return
+
+    # Output flow on each original edge
+    result = []
+    for i in range(m):
+        u, v, cap = edges[i]
+        # The forward edge is at index 2*i in dinic.edges
+        # Its residual capacity is dinic.graph[u][?][1]
+        # Easier: store flow from the reverse edge's capacity
+        # Reverse edge index is 2*i+1
+        rev_cap = dinic.edges[2*i + 1][2]  # this is the capacity of reverse edge
+        # Actually we stored edges as [u, v, cap] but not the residual.
+        # Let's instead track flow by looking at the graph structure.
+
+    # Better: store the index of the forward edge when adding
+    # We'll redo with storing indices.
+
+if __name__ == "__main__":
+    main()
+```
+
+We need to store the forward edge index to retrieve flow. Let’s fix that:
+
+```python
+import sys
+from collections import deque
+
+input = sys.stdin.readline
+
+class Dinic:
+    def __init__(self, n):
+        self.n = n
+        self.graph = [[] for _ in range(n)]
+
+    def add_edge(self, u, v, cap):
+        forward = [v, cap, None]
+        backward = [u, 0, None]
+        forward[2] = len(self.graph[v])
+        backward[2] = len(self.graph[u])
+        self.graph[u].append(forward)
+        self.graph[v].append(backward)
+
+    def bfs(self, s, t):
+        self.level = [-1] * self.n
+        q = deque([s])
+        self.level[s] = 0
+        while q:
+            u = q.popleft()
+            for v, cap, rev in self.graph[u]:
+                if cap > 0 and self.level[v] < 0:
+                    self.level[v] = self.level[u] + 1
+                    q.append(v)
+        return self.level[t] >= 0
+
+    def dfs(self, u, t, f):
+        if u == t:
+            return f
+        for i in range(self.it[u], len(self.graph[u])):
+            self.it[u] = i
+            v, cap, rev = self.graph[u][i]
+            if cap > 0 and self.level[u] + 1 == self.level[v]:
+                ret = self.dfs(v, t, min(f, cap))
+                if ret > 0:
+                    self.graph[u][i][1] -= ret
+                    self.graph[v][rev][1] += ret
+                    return ret
+        return 0
+
+    def max_flow(self, s, t):
+        flow = 0
+        INF = 10**18
+        while self.bfs(s, t):
+            self.it = [0] * self.n
+            while True:
+                f = self.dfs(s, t, INF)
+                if f == 0:
+                    break
+                flow += f
+        return flow
+
+def main():
+    n, m, _ = map(int, input().split())
+    s, t, d = map(int, input().split())
+    s -= 1
+    t -= 1
+
+    dinic = Dinic(n)
+    edge_indices = []
+    for _ in range(m):
+        u, v, cap = map(int, input().split())
+        u -= 1
+        v -= 1
+        # store index of forward edge in graph[u]
+        idx = len(dinic.graph[u])
+        dinic.add_edge(u, v, cap)
+        edge_indices.append((u, idx))
+
+    maxflow = dinic.max_flow(s, t)
+    if maxflow < d:
+        print("NO")
+        return
+
+    result = []
+    for u, idx in edge_indices:
+        # forward edge is graph[u][idx]
+        # flow = original cap - residual cap
+        # original cap is stored in the backward edge's reverse
+        # Actually we can compute: flow = cap_original - current_cap
+        # We didn't store original cap directly, but we can get it from the backward edge's reverse index.
+        # The backward edge is graph[v][rev] where rev = graph[u][idx][2]
+        v, cap, rev = dinic.graph[u][idx]
+        # The backward edge is graph[v][rev]
+        # Its capacity is the flow sent
+        flow = dinic.graph[v][rev][1]
+        result.append(flow)
+
+    print("YES")
+    print(" ".join(map(str, result)))
+
+if __name__ == "__main__":
+    main()
+```

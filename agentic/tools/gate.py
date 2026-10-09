@@ -645,7 +645,7 @@ def iter_version_dirs(family, criterion, version):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--family", required=True)   # id or 'all'
-    ap.add_argument("--criterion", type=int, choices=[1, 2, 3])
+    ap.add_argument("--criterion", type=int, choices=[1, 2])
     ap.add_argument("--version")
     args = ap.parse_args()
 

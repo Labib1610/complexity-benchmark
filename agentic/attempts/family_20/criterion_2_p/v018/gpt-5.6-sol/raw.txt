@@ -1,0 +1,302 @@
+```python
+import sys
+from array import array
+from collections import deque
+from itertools import repeat
+
+sys.setrecursionlimit(1_000_000)
+
+data = list(map(int, sys.stdin.buffer.read().split()))
+n_left, n_right, m = data[0], data[1], data[2]
+
+if m == 0:
+    sys.stdout.write("YES\n\n")
+    raise SystemExit
+
+left = array('i')
+right = array('i')
+deg_left = array('i', [0]) * n_left
+deg_right = array('i', [0]) * n_right
+
+p = 3
+for _ in range(m):
+    u = data[p] - 1
+    v = data[p + 1] - 1
+    p += 2
+    left.append(u)
+    right.append(v)
+    deg_left[u] += 1
+    deg_right[v] += 1
+
+del data
+
+delta = max(max(deg_left), max(deg_right))
+
+
+def pack_vertices(degrees, capacity):
+    mapping = array('i', [-1]) * len(degrees)
+    loads = []
+    current_bin = -1
+    current_load = 0
+
+    for vertex, degree in enumerate(degrees):
+        if degree == 0:
+            continue
+        if current_bin == -1 or current_load + degree > capacity:
+            loads.append(0)
+            current_bin += 1
+            current_load = 0
+        mapping[vertex] = current_bin
+        current_load += degree
+        loads[current_bin] = current_load
+
+    return mapping, loads
+
+
+left_map, left_loads = pack_vertices(deg_left, delta)
+right_map, right_loads = pack_vertices(deg_right, delta)
+
+for i in range(m):
+    left[i] = left_map[left[i]]
+    right[i] = right_map[right[i]]
+
+del left_map, right_map, deg_left, deg_right
+
+k = max(len(left_loads), len(right_loads))
+left_loads.extend([0] * (k - len(left_loads)))
+right_loads.extend([0] * (k - len(right_loads)))
+
+i = j = 0
+left_need = delta - left_loads[0] if k else 0
+right_need = delta - right_loads[0] if k else 0
+
+while i < k and j < k:
+    while i < k and left_need == 0:
+        i += 1
+        if i < k:
+            left_need = delta - left_loads[i]
+    while j < k and right_need == 0:
+        j += 1
+        if j < k:
+            right_need = delta - right_loads[j]
+    if i == k or j == k:
+        break
+
+    take = min(left_need, right_need)
+    left.extend(repeat(i, take))
+    right.extend(repeat(j, take))
+    left_need -= take
+    right_need -= take
+
+del left_loads, right_loads
+
+total_edges = len(left)
+answer = array('i', [0]) * m
+selected = bytearray(total_edges)
+edge_marks = array('i', [0]) * total_edges
+mark_token = 0
+next_color = 1
+
+
+def perfect_matching(edges, degree):
+    adjacency = array('i', [0]) * len(edges)
+    counts = array('i', [0]) * k
+
+    for edge in edges:
+        u = left[edge]
+        pos = u * degree + counts[u]
+        adjacency[pos] = edge
+        counts[u] += 1
+
+    pair_u = array('i', [-1]) * k
+    pair_v = array('i', [-1]) * k
+    matched_edge = array('i', [-1]) * k
+
+    unmatched = 0
+    for u in range(k):
+        base = u * degree
+        found = False
+        for q in range(base, base + degree):
+            edge = adjacency[q]
+            v = right[edge]
+            if pair_v[v] == -1:
+                pair_u[u] = v
+                pair_v[v] = u
+                matched_edge[u] = edge
+                found = True
+                break
+        if not found:
+            unmatched += 1
+
+    dist = array('i', [-1]) * k
+
+    while unmatched:
+        queue = deque()
+        for u in range(k):
+            if pair_u[u] == -1:
+                dist[u] = 0
+                queue.append(u)
+            else:
+                dist[u] = -1
+
+        reachable_free = False
+        while queue:
+            u = queue.popleft()
+            nd = dist[u] + 1
+            base = u * degree
+            for q in range(base, base + degree):
+                v = right[adjacency[q]]
+                other = pair_v[v]
+                if other == -1:
+                    reachable_free = True
+                elif dist[other] == -1:
+                    dist[other] = nd
+                    queue.append(other)
+
+        if not reachable_free:
+            break
+
+        iterator = array('i', [0]) * k
+
+        def dfs(u):
+            base = u * degree
+            q = iterator[u]
+            while q < degree:
+                iterator[u] = q + 1
+                edge = adjacency[base + q]
+                v = right[edge]
+                other = pair_v[v]
+                if other == -1 or (
+                    dist[other] == dist[u] + 1 and dfs(other)
+                ):
+                    pair_u[u] = v
+                    pair_v[v] = u
+                    matched_edge[u] = edge
+                    return True
+                q = iterator[u]
+            dist[u] = -1
+            return False
+
+        gained = 0
+        for u in range(k):
+            if pair_u[u] == -1 and dfs(u):
+                gained += 1
+        unmatched -= gained
+
+    return matched_edge
+
+
+def euler_split(edges, degree):
+    global mark_token
+    mark_token += 1
+    token = mark_token
+
+    adjacency = array('i', [0]) * (2 * len(edges))
+    counts = array('i', [0]) * (2 * k)
+
+    for edge in edges:
+        u = left[edge]
+        v = k + right[edge]
+
+        pos = u * degree + counts[u]
+        adjacency[pos] = edge
+        counts[u] += 1
+
+        pos = v * degree + counts[v]
+        adjacency[pos] = edge
+        counts[v] += 1
+
+    pointers = array('i', [0]) * (2 * k)
+    first = []
+    second = []
+
+    for start in range(k):
+        p0 = pointers[start]
+        base0 = start * degree
+        while p0 < degree and edge_marks[adjacency[base0 + p0]] == token:
+            p0 += 1
+        pointers[start] = p0
+        if p0 == degree:
+            continue
+
+        vertex_stack = [start]
+        edge_stack = []
+        parity = 0
+
+        while vertex_stack:
+            vertex = vertex_stack[-1]
+            q = pointers[vertex]
+            base = vertex * degree
+
+            while q < degree and edge_marks[adjacency[base + q]] == token:
+                q += 1
+            pointers[vertex] = q
+
+            if q < degree:
+                edge = adjacency[base + q]
+                pointers[vertex] = q + 1
+                if edge_marks[edge] == token:
+                    continue
+
+                edge_marks[edge] = token
+                if vertex < k:
+                    other = k + right[edge]
+                else:
+                    other = left[edge]
+
+                vertex_stack.append(other)
+                edge_stack.append(edge)
+            else:
+                vertex_stack.pop()
+                if edge_stack:
+                    edge = edge_stack.pop()
+                    if parity == 0:
+                        first.append(edge)
+                    else:
+                        second.append(edge)
+                    parity ^= 1
+
+    return first, second
+
+
+def assign_color(edges):
+    global next_color
+    color = next_color
+    next_color += 1
+    for edge in edges:
+        if edge < m:
+            answer[edge] = color
+
+
+def solve(edges, degree):
+    if degree == 1:
+        assign_color(edges)
+        return
+
+    if degree & 1:
+        matching = perfect_matching(edges, degree)
+        assign_color(matching)
+
+        for edge in matching:
+            selected[edge] = 1
+
+        remaining = [edge for edge in edges if not selected[edge]]
+        del matching, edges
+        solve(remaining, degree - 1)
+        return
+
+    first, second = euler_split(edges, degree)
+    del edges
+
+    half = degree // 2
+    solve(first, half)
+    del first
+    solve(second, half)
+
+
+solve(list(range(total_edges)), delta)
+
+sys.stdout.write("YES\n")
+sys.stdout.write(" ".join(map(str, answer)))
+sys.stdout.write("\n")
+```

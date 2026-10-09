@@ -1,23 +1,21 @@
-# Problem B — Paired-Skill Hiring
+# Problem B — Consultant Hiring (Paired Skills)
 
 Time limit: 2 s   Memory limit: 256 MB
 
 ## Description
 
-A project requires two kinds of skills: **uA** frontend skills (numbered 1..uA) and **uB** backend skills (numbered 1..uB). Every available consultant brings **exactly one** frontend skill and **exactly one** backend skill.
-
-A skill is **covered** if at least one hired consultant has it. Every skill (frontend and backend) is brought by at least one consultant.
-
-Hire the **fewest** consultants so that every frontend skill and every backend skill is covered.
+A programme must secure **u** competencies by engaging specialists from **s** candidates; a competency is secured once an engaged candidate carries it. In this roster **every candidate carries exactly two competencies**, and the competencies fall into two kinds so that each candidate pairs one of the first kind with one of the second (the two kinds can be recovered from the roster); each competency is carried by at least one candidate. The "exactly two per candidate" structure reduces the hiring question to a pairing that can be settled without exhaustive search. Under a cap of **k**, decide whether all competencies can be secured, and if so report the engaged candidates.
 
 ## Input
 
-The first line contains three integers **uA**, **uB**, and **s** (1 ≤ uA, uB ≤ 100000, 1 ≤ s ≤ 800000).
-Each of the next **s** lines contains two integers **a** and **b** (1 ≤ a ≤ uA, 1 ≤ b ≤ uB): a consultant bringing frontend skill **a** and backend skill **b**. It is guaranteed every frontend skill and every backend skill appears in at least one consultant.
+The first line contains three integers **u**, **s**, and **k** (1 ≤ u ≤ 200000, 1 ≤ s ≤ 400000, 0 ≤ k ≤ s).
+Each of the next **s** lines describes one consultant: the integer **2** followed by that consultant's two distinct skill ids (each between 1 and u). Every skill appears in at least one consultant, and the skills follow the two-kind pairing described above.
 
 ## Output
 
-Print a single integer: the minimum number of consultants to hire so that every skill is covered.
+If **k** hires can cover every skill, print `YES` on the first line, then on the second line print the indices (from 1 to s) of the hired consultants (at most k of them), separated by spaces. Any selection of at most k consultants covering every skill is accepted.
+
+If it cannot be done with k hires, print `NO`.
 
 ## Examples
 
@@ -25,46 +23,49 @@ Print a single integer: the minimum number of consultants to hire so that every 
 
 **Input**
 ```
-2 2 2
-1 1
-2 2
+4 4 2
+2 1 3
+2 1 4
+2 2 3
+2 2 4
 ```
 
 **Output**
 ```
-2
+YES
+1 4
 ```
 
 ### Example 2
 
 **Input**
 ```
-1 3 3
-1 1
-1 2
-1 3
+4 4 1
+2 1 3
+2 1 4
+2 2 3
+2 2 4
 ```
 
 **Output**
 ```
-3
+NO
 ```
 
 ### Example 3
 
 **Input**
 ```
-2 2 3
-1 1
-2 1
-2 2
+2 1 1
+2 1 2
 ```
 
 **Output**
 ```
-2
+YES
+1
 ```
 
 ## Note
 
-In Example 2, one frontend skill pairs with three different backend skills; covering all three backend skills needs three hires.
+This is the same consultant-hiring (set cover) problem as Problem A. The only difference is that every consultant brings exactly two paired skills, which makes an efficient exact solution possible. In Example 1, consultant 1 brings {1,3} and consultant 4 brings {2,4}, together covering all four skills. In Example 2 no two of the consultants cover all four skills, so one hire short of two cannot work.

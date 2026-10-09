@@ -1,0 +1,182 @@
+```python
+import sys
+from collections import deque
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    M = int(input_data[1])
+    T = int(input_data[2])
+    m = int(input_data[3])
+    
+    adj = [[] for _ in range(n + 1)]
+    rev_adj = [[] for _ in range(n + 1)]
+    in_degree = [0] * (n + 1)
+    out_degree = [0] * (n + 1)
+    
+    idx = 4
+    for _ in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx + 1])
+        idx += 2
+        adj[u].append(v)
+        rev_adj[v].append(u)
+        in_degree[v] += 1
+        out_degree[u] += 1
+        
+    # Check for cycles and compute topological order
+    q = deque([i for i in range(1, n + 1) if in_degree[i] == 0])
+    topo_order = []
+    in_deg_temp = list(in_degree)
+    
+    while q:
+        u = q.popleft()
+        topo_order.append(u)
+        for v in adj[u]:
+            in_deg_temp[v] -= 1
+            if in_deg_temp[v] == 0:
+                q.append(v)
+                
+    if len(topo_order) < n:
+        print("NO")
+        return
+        
+    # Compute L[u] (earliest possible week)
+    L = [1] * (n + 1)
+    for u in topo_order:
+        for v in adj[u]:
+            if L[u] + 1 > L[v]:
+                L[v] = L[u] + 1
+                
+    # Compute R[u] (latest possible week)
+    R = [T] * (n + 1)
+    for u in reversed(topo_order):
+        for v in rev_adj[u]:
+            if R[u] - 1 < R[v]:
+                R[v] = R[u] - 1
+                
+    for u in range(1, n + 1):
+        if L[u] > R[u] or L[u] < 1 or R[u] > T:
+            print("NO")
+            return
+
+    # Check interval capacity bounds: for any [t1, t2], count of jobs with [L[u], R[u]] subset of [t1, t2] <= (t2 - t1 + 1) * M
+    for t1 in range(1, T + 1):
+        for t2 in range(t1, T + 1):
+            cnt = sum(1 for u in range(1, n + 1) if L[u] >= t1 and R[u] <= t2)
+            if cnt > (t2 - t1 + 1) * M:
+                print("NO")
+                return
+
+    # Backtracking search / List Scheduling with backtracking
+    # We schedule week by week from 1 to T
+    # State: week t, remaining dependencies
+    assigned = [0] * (n + 1)
+    current_in_degree = [0] * (n + 1)
+    for u in range(1, n + 1):
+        current_in_degree[u] = len(rev_adj[u])
+        
+    # Priority for available jobs: smaller R[u] first, then larger out_degree
+    def get_priority(u):
+        return (R[u], -len(adj[u]))
+
+    import itertools
+
+    limit_nodes = 200000
+    nodes_visited = 0
+
+    def search(week, ready):
+        nonlocal nodes_visited
+        nodes_visited += 1
+        if nodes_visited > limit_nodes:
+            return False
+
+        # If all assigned
+        if all(assigned[i] > 0 for i in range(1, n + 1)):
+            return True
+        if week > T:
+            return False
+
+        # Any unassigned job with R[u] < week cannot be completed
+        for u in range(1, n + 1):
+            if assigned[u] == 0 and R[u] < week:
+                return False
+
+        # If total unassigned jobs > (T - week + 1) * M, impossible
+        unassigned_count = sum(1 for u in range(1, n + 1) if assigned[u] == 0)
+        if unassigned_count > (T - week + 1) * M:
+            return False
+
+        ready_list = sorted(list(ready), key=get_priority)
+        
+        # Jobs that MUST be done this week (R[u] == week)
+        must_do = [u for u in ready_list if R[u] == week]
+        if len(must_do) > M:
+            return False
+            
+        other_ready = [u for u in ready_list if R[u] > week]
+        k_needed = min(M - len(must_do), len(other_ready))
+        
+        # Branching: choose combinations of other_ready
+        # To be fast and effective, try greedy choice first (the most urgent ones)
+        # We can limit the number of subsets we explore
+        subsets_to_try = []
+        if k_needed == 0 or len(other_ready) <= k_needed:
+            subsets_to_try.append(tuple(other_ready[:k_needed]))
+        else:
+            # Try the top k_needed items, and a few variations if needed
+            # Usually top priority works
+            subsets_to_try.append(tuple(other_ready[:k_needed]))
+            # Also try combinations from the top min(len(other_ready), k_needed + 2)
+            cand_pool = other_ready[:min(len(other_ready), k_needed + 2)]
+            for comb in itertools.combinations(cand_pool, k_needed):
+                if comb != tuple(other_ready[:k_needed]):
+                    subsets_to_try.append(comb)
+                    if len(subsets_to_try) >= 10:
+                        break
+
+        for subset in subsets_to_try:
+            chosen = must_do + list(subset)
+            for u in chosen:
+                assigned[u] = week
+            
+            # Next ready set
+            next_ready = set(ready)
+            for u in chosen:
+                next_ready.remove(u)
+                
+            # Update dependencies for successors
+            newly_ready = []
+            for u in chosen:
+                for v in adj[u]:
+                    current_in_degree[v] -= 1
+                    if current_in_degree[v] == 0:
+                        newly_ready.append(v)
+                        next_ready.add(v)
+
+            if search(week + 1, next_ready):
+                return True
+
+            # Backtrack
+            for v in newly_ready:
+                next_ready.remove(v)
+            for u in chosen:
+                for v in adj[u]:
+                    current_in_degree[v] += 1
+                assigned[u] = 0
+
+        return False
+
+    initial_ready = set(i for i in range(1, n + 1) if current_in_degree[i] == 0)
+    if search(1, initial_ready):
+        print("YES")
+        print(*(assigned[i] for i in range(1, n + 1)))
+    else:
+        print("NO")
+
+if __name__ == '__main__':
+    solve()
+```

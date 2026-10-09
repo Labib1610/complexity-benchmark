@@ -1,0 +1,49 @@
+import sys
+from collections import defaultdict
+
+def solve():
+    n, m = map(int, sys.stdin.readline().split())
+    
+    # Build adjacency list for the graph
+    graph = defaultdict(list)
+    edges = []
+    
+    for _ in range(m):
+        u, v = map(int, sys.stdin.readline().split())
+        u -= 1  # Convert to 0-indexed
+        v -= 1
+        graph[u].append(v)
+        graph[v].append(u)
+        edges.append((u, v))
+    
+    # Try to 3-color the graph using backtracking
+    color = [-1] * n  # -1 means uncolored
+    
+    def is_safe(node, c):
+        # Check if color c is safe for node
+        for neighbor in graph[node]:
+            if color[neighbor] == c:
+                return False
+        return True
+    
+    def backtrack(node):
+        if node == n:
+            return True
+            
+        for c in [1, 2, 3]:
+            if is_safe(node, c):
+                color[node] = c
+                if backtrack(node + 1):
+                    return True
+                color[node] = -1  # Backtrack
+                
+        return False
+    
+    # Start backtracking from node 0
+    if backtrack(0):
+        print("YES")
+        print(*color)
+    else:
+        print("NO")
+
+solve()

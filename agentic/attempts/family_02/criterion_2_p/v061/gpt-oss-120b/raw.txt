@@ -1,0 +1,302 @@
+**Solution Explanation**
+
+For every reactor `i` we have a Boolean variable  
+
+```
+xi = 1   – reactor i works in exothermic mode
+xi = 0   – reactor i works in endothermic mode
+```
+
+A dependency is a clause  
+
+```
+(l1  or  l2)
+```
+
+where a literal `+i` means `xi = 1` and `-i` means `xi = 0`.  
+The whole set of dependencies is satisfiable **iff** the 2‑SAT formula built from the
+clauses is satisfiable.
+
+The classic linear‑time algorithm for 2‑SAT:
+
+* build the implication graph (2 · n vertices, one for each literal)
+* add edges `¬a → b` and `¬b → a` for every clause `(a ∨ b)`
+* compute strongly connected components (SCC) of the graph
+* the formula is unsatisfiable iff a variable and its negation belong to the same SCC
+* otherwise a satisfying assignment is obtained from the topological order of the SCC‑DAG:
+  a literal is true iff its SCC appears **after** the SCC of its negation.
+
+We implement Kosaraju’s algorithm (two DFS passes) iteratively to avoid recursion limits.
+
+
+
+--------------------------------------------------------------------
+
+#### Algorithm
+```
+read n, m
+V = 2*n                                 # vertices 0 … 2n-1
+adj  = [[] for _ in range(V)]           # forward edges
+radj = [[] for _ in range(V)]           # reversed edges
+
+def lit_id(x):                          # x is signed integer, |x| ≥ 1
+    v = abs(x) - 1                       # 0‑based variable index
+    if x > 0: return 2*v                # literal xi = 1
+    else:    return 2*v + 1             # literal xi = 0 (i.e. ¬xi)
+
+for each of the m clauses (a, b):
+    A = lit_id(a)
+    B = lit_id(b)
+    NA = A ^ 1                           # negation (toggle last bit)
+    NB = B ^ 1
+    add edge NA → B   to adj and radj
+    add edge NB → A   to adj and radj
+
+# ---------- first pass: order by finish time ----------
+visited = [False]*V
+order = []                               # vertices in finishing order
+
+for v in 0 … V-1:
+    if not visited[v]:
+        stack = [(v, 0)]                 # (vertex, next neighbour index)
+        visited[v] = True
+        while stack:
+            cur, idx = stack[-1]
+            if idx < len(adj[cur]):
+                nxt = adj[cur][idx]
+                stack[-1] = (cur, idx+1)
+                if not visited[nxt]:
+                    visited[nxt] = True
+                    stack.append((nxt, 0))
+            else:
+                order.append(cur)
+                stack.pop()
+
+# ---------- second pass: assign components ----------
+comp = [-1]*V
+cur_comp = 0
+for v in reversed(order):
+    if comp[v] == -1:
+        stack = [v]
+        comp[v] = cur_comp
+        while stack:
+            cur = stack.pop()
+            for nxt in radj[cur]:
+                if comp[nxt] == -1:
+                    comp[nxt] = cur_comp
+                    stack.append(nxt)
+        cur_comp += 1
+
+# ---------- check satisfiability ----------
+for i in 0 … n-1:
+    if comp[2*i] == comp[2*i+1]:
+        print("NO")
+        exit()
+
+# ---------- build one assignment ----------
+ans = [0]*n
+for i in 0 … n-1:
+    # component with larger number appears earlier in topological order
+    ans[i] = 1 if comp[2*i] > comp[2*i+1] else 0
+
+print("YES")
+print the list ans
+```
+
+--------------------------------------------------------------------
+
+#### Correctness Proof  
+
+We prove that the algorithm prints `YES` and a correct configuration
+iff such a configuration exists.
+
+---
+
+##### Lemma 1  
+For every clause `(a ∨ b)` the added edges `¬a → b` and `¬b → a`
+are logically equivalent to the clause: any assignment satisfying the
+edges also satisfies the clause, and vice‑versa.
+
+**Proof.**  
+If `a` is true, the clause holds, and `¬a` is false, so the edge `¬a → b`
+imposes no restriction. If `a` is false, then `¬a` is true, therefore the
+edge forces `b` to be true, which makes the clause true. Symmetric for `b`. ∎
+
+
+
+##### Lemma 2  
+In the implication graph, if a literal `ℓ` can reach its negation `¬ℓ`,
+then any satisfying assignment must set `ℓ` to false.
+
+**Proof.**  
+Assume `ℓ` is true. Because there is a directed path `ℓ → … → ¬ℓ`,
+by repeatedly applying the implication rule (true premise forces true
+consequent) we would obtain `¬ℓ` true, i.e. `ℓ` false – a contradiction.
+Hence `ℓ` cannot be true, so it must be false. ∎
+
+
+
+##### Lemma 3  
+If a variable `x` and its negation belong to the same SCC, the formula is
+unsatisfiable.
+
+**Proof.**  
+Inside an SCC every vertex reaches every other, thus `x` reaches `¬x`
+and `¬x` reaches `x`. By Lemma&nbsp;2 each forces the other to be false,
+impossible simultaneously. ∎
+
+
+
+##### Lemma 4  
+If for every variable `x` the two literals lie in different SCCs,
+assigning `x = 1` exactly when `comp(x) > comp(¬x)` yields a satisfying
+assignment.
+
+**Proof.**  
+Consider the condensation DAG of SCCs. Its topological order is the
+reverse of the order in which Kosaraju numbers components (larger number
+means earlier in topological order).  
+Take any edge `p → q`. Then `comp(p) ≥ comp(q)`.  
+If `p` is assigned true, then `comp(p) > comp(¬p)`. Because `comp(p) ≥ comp(q)`,
+we have `comp(q) ≥ comp(¬p)`. If `q` were false, we would have
+`comp(q) < comp(¬q)`. But `¬q` is reachable from `p` via the edge
+`p → q → … → ¬q` (since `¬q` is the negation of `q` and lies in a different
+SCC). This would give `comp(p) < comp(¬q)`, contradicting `comp(p) ≥ comp(q)`.
+Thus `q` must be true. Therefore every implication is respected, and by
+Lemma&nbsp;1 all original clauses are satisfied. ∎
+
+
+
+##### Lemma 5  
+If the algorithm outputs `YES` and the assignment described in Lemma 4,
+the assignment satisfies all dependencies.
+
+**Proof.** Directly from Lemma 4. ∎
+
+
+
+##### Lemma 6  
+If the algorithm outputs `NO`, the formula is unsatisfiable.
+
+**Proof.** `NO` is printed only when some variable and its negation share
+the same SCC. By Lemma 3 this makes the formula unsatisfiable. ∎
+
+
+
+##### Theorem  
+The algorithm prints `YES` and a valid configuration exactly when such a
+configuration exists; otherwise it prints `NO`.
+
+**Proof.**  
+*If the algorithm prints `YES`*: by Lemma 5 the printed assignment satisfies
+all clauses, so a configuration exists.  
+*If a configuration exists*: the 2‑SAT formula is satisfiable, therefore
+no variable and its negation can be in the same SCC (otherwise Lemma 3
+would contradict satisfiability). The algorithm will not output `NO`,
+hence proceeds to construct the assignment, which by Lemma 5 is valid,
+so it prints `YES`. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### Complexity Analysis  
+
+*Vertices*: `2n`  
+*Edges*: `2m` (two per clause)
+
+Both DFS passes visit each vertex and edge once.
+
+```
+Time   : O(n + m)
+Memory : O(n + m)   (adjacency lists, reverse lists, arrays)
+```
+
+Both satisfy the limits (`n ≤ 10⁵`, `m ≤ 2·10⁵`).
+
+--------------------------------------------------------------------
+
+#### Reference Implementation  (Python 3)
+
+```python
+import sys
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    V = 2 * n
+    adj = [[] for _ in range(V)]
+    radj = [[] for _ in range(V)]
+
+    def lit_id(x: int) -> int:
+        v = abs(x) - 1
+        return 2 * v if x > 0 else 2 * v + 1
+
+    for _ in range(m):
+        a = int(next(it)); b = int(next(it))
+        A = lit_id(a)
+        B = lit_id(b)
+        NA = A ^ 1
+        NB = B ^ 1
+        adj[NA].append(B)
+        radj[B].append(NA)
+        adj[NB].append(A)
+        radj[A].append(NB)
+
+    visited = [False] * V
+    order = []
+
+    for start in range(V):
+        if visited[start]:
+            continue
+        stack = [(start, 0)]
+        visited[start] = True
+        while stack:
+            v, idx = stack[-1]
+            if idx < len(adj[v]):
+                nxt = adj[v][idx]
+                stack[-1] = (v, idx + 1)
+                if not visited[nxt]:
+                    visited[nxt] = True
+                    stack.append((nxt, 0))
+            else:
+                order.append(v)
+                stack.pop()
+
+    comp = [-1] * V
+    cur = 0
+    for v in reversed(order):
+        if comp[v] != -1:
+            continue
+        stack = [v]
+        comp[v] = cur
+        while stack:
+            curv = stack.pop()
+            for nxt in radj[curv]:
+                if comp[nxt] == -1:
+                    comp[nxt] = cur
+                    stack.append(nxt)
+        cur += 1
+
+    for i in range(n):
+        if comp[2 * i] == comp[2 * i + 1]:
+            print("NO")
+            return
+
+    ans = [0] * n
+    for i in range(n):
+        ans[i] = 1 if comp[2 * i] > comp[2 * i + 1] else 0
+
+    print("YES")
+    print(' '.join(map(str, ans)))
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above and
+conforms to the required input‑output format.

@@ -1,0 +1,46 @@
+import sys
+from sys import setrecursionlimit
+
+def main():
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    it = iter(data)
+    q = int(next(it))
+    t = int(next(it))
+    
+    adj = [[] for _ in range(q + 1)]
+    for _ in range(t):
+        a = int(next(it))
+        b = int(next(it))
+        adj[a].append(b - q)
+    
+    match_to_primary = [0] * (q + 1)
+    visited = [False] * (q + 1)
+    
+    def try_kuhn(v):
+        for to in adj[v]:
+            if not visited[to]:
+                visited[to] = True
+                if match_to_primary[to] == 0 or try_kuhn(match_to_primary[to]):
+                    match_to_primary[to] = v
+                    return True
+        return False
+    
+    for v in range(1, q + 1):
+        visited = [False] * (q + 1)
+        try_kuhn(v)
+    
+    matched_count = sum(1 for i in range(1, q + 1) if match_to_primary[i] != 0)
+    
+    if matched_count == q:
+        out = ["YES"]
+        for i in range(1, q + 1):
+            out.append(f"{match_to_primary[i]} {i + q}")
+        sys.stdout.write("\n".join(out))
+    else:
+        sys.stdout.write("NO")
+
+if __name__ == "__main__":
+    setrecursionlimit(1 << 25)
+    main()

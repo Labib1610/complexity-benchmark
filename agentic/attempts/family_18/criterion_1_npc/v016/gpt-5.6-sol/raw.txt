@@ -1,0 +1,275 @@
+```python
+import sys
+from array import array
+from collections import deque
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if len(data) < 3:
+        return
+
+    n, m, B = data[0], data[1], data[2]
+    adj = [dict() for _ in range(n)]
+    edges = []
+    dsu_parent = list(range(n))
+    dsu_size = [1] * n
+
+    def find(x):
+        while dsu_parent[x] != x:
+            dsu_parent[x] = dsu_parent[dsu_parent[x]]
+            x = dsu_parent[x]
+        return x
+
+    def union(a, b):
+        a, b = find(a), find(b)
+        if a == b:
+            return
+        if dsu_size[a] < dsu_size[b]:
+            a, b = b, a
+        dsu_parent[b] = a
+        dsu_size[a] += dsu_size[b]
+
+    identity_cost = 0
+    lower_bound = 0
+    idx = 3
+
+    for _ in range(m):
+        u = data[idx] - 1
+        v = data[idx + 1] - 1
+        idx += 2
+        if u == v:
+            continue
+        if u > v:
+            u, v = v, u
+        edges.append((u, v))
+        identity_cost += v - u
+        lower_bound += 1
+        adj[u][v] = adj[u].get(v, 0) + 1
+        adj[v][u] = adj[v].get(u, 0) + 1
+        union(u, v)
+
+    def output_order(order):
+        position = [0] * n
+        for i, v in enumerate(order, 1):
+            position[v] = i
+        out = ["YES", " ".join(map(str, position))]
+        sys.stdout.write("\n".join(out))
+
+    if identity_cost <= B:
+        output_order(list(range(n)))
+        return
+
+    if B < 0 or lower_bound > B:
+        print("NO")
+        return
+
+    component_map = {}
+    for v in range(n):
+        r = find(v)
+        component_map.setdefault(r, []).append(v)
+    components = list(component_map.values())
+
+    EXACT_LIMIT = 21
+
+    def exact_component(vertices):
+        k = len(vertices)
+        if k <= 1:
+            return vertices[:], 0
+
+        local = {v: i for i, v in enumerate(vertices)}
+        ladj = [dict() for _ in range(k)]
+        simple = True
+
+        for i, v in enumerate(vertices):
+            for to, w in adj[v].items():
+                j = local[to]
+                ladj[i][j] = w
+                if w != 1:
+                    simple = False
+
+        size = 1 << k
+        inf = B + 1
+        cuts = array('q', [0]) * size
+        dp = array('q', [inf]) * size
+        dp[0] = 0
+
+        degree = [sum(row.values()) for row in ladj]
+        masks = [0] * k
+        if simple:
+            for i in range(k):
+                mask = 0
+                for j in ladj[i]:
+                    mask |= 1 << j
+                masks[i] = mask
+
+        for s in range(1, size):
+            bit = s & -s
+            i = bit.bit_length() - 1
+            t = s ^ bit
+
+            if simple:
+                crossing = cuts[t] + degree[i] - 2 * ((masks[i] & t).bit_count())
+            else:
+                inside_weight = 0
+                for j, w in ladj[i].items():
+                    if t & (1 << j):
+                        inside_weight += w
+                crossing = cuts[t] + degree[i] - 2 * inside_weight
+            cuts[s] = crossing
+
+            best = inf
+            x = s
+            while x:
+                b = x & -x
+                val = dp[s ^ b]
+                if val < best:
+                    best = val
+                x ^= b
+
+            val = best + crossing
+            if val > inf:
+                val = inf
+            dp[s] = val
+
+        full = size - 1
+        cost = dp[full]
+        if cost > B:
+            return None, cost
+
+        reversed_order = []
+        s = full
+        while s:
+            target = dp[s] - cuts[s]
+            x = s
+            chosen = -1
+            while x:
+                b = x & -x
+                if dp[s ^ b] == target:
+                    chosen = b.bit_length() - 1
+                    break
+                x ^= b
+            if chosen < 0:
+                return None, cost
+            reversed_order.append(vertices[chosen])
+            s ^= 1 << chosen
+
+        reversed_order.reverse()
+        return reversed_order, cost
+
+    def component_cost(order):
+        pos = {v: i for i, v in enumerate(order)}
+        total = 0
+        for v in order:
+            pv = pos[v]
+            for to, w in adj[v].items():
+                if v < to and to in pos:
+                    total += w * abs(pv - pos[to])
+        return total
+
+    def adjacent_improve(order, max_passes=30):
+        order = order[:]
+        k = len(order)
+        pos = {v: i for i, v in enumerate(order)}
+
+        for _ in range(max_passes):
+            changed = False
+            i = 0
+            while i + 1 < k:
+                a, b = order[i], order[i + 1]
+                delta = 0
+
+                for x, w in adj[a].items():
+                    if x == b or x not in pos:
+                        continue
+                    if pos[x] < i:
+                        delta += w
+                    else:
+                        delta -= w
+
+                for x, w in adj[b].items():
+                    if x == a or x not in pos:
+                        continue
+                    if pos[x] < i:
+                        delta -= w
+                    else:
+                        delta += w
+
+                if delta < 0:
+                    order[i], order[i + 1] = b, a
+                    pos[a], pos[b] = i + 1, i
+                    changed = True
+                i += 1
+
+            if not changed:
+                break
+
+        return order, component_cost(order)
+
+    def rcm_order(vertices):
+        vertex_set = set(vertices)
+        degree = {v: sum(adj[v].values()) for v in vertices}
+        seen = set()
+        result = []
+
+        starts = sorted(vertices, key=lambda v: (degree[v], v))
+        for start in starts:
+            if start in seen:
+                continue
+            q = deque([start])
+            seen.add(start)
+            while q:
+                v = q.popleft()
+                result.append(v)
+                nxt = [x for x in adj[v] if x in vertex_set and x not in seen]
+                nxt.sort(key=lambda x: (degree[x], x))
+                for x in nxt:
+                    seen.add(x)
+                    q.append(x)
+
+        result.reverse()
+        return result
+
+    def heuristic_component(vertices):
+        candidates = []
+        candidates.append(sorted(vertices))
+        candidates.append(sorted(vertices, key=lambda v: (sum(adj[v].values()), v)))
+        candidates.append(sorted(vertices, key=lambda v: (-sum(adj[v].values()), v)))
+        candidates.append(rcm_order(vertices))
+
+        best_order = None
+        best_cost = None
+        for candidate in candidates:
+            improved, cost = adjacent_improve(candidate)
+            if best_cost is None or cost < best_cost:
+                best_order, best_cost = improved, cost
+
+        return best_order, best_cost
+
+    final_order = []
+    total_cost = 0
+
+    components.sort(key=lambda comp: min(comp))
+
+    for comp in components:
+        if len(comp) <= EXACT_LIMIT:
+            order, cost = exact_component(comp)
+            if order is None:
+                print("NO")
+                return
+        else:
+            order, cost = heuristic_component(comp)
+
+        final_order.extend(order)
+        total_cost += cost
+        if total_cost > B:
+            print("NO")
+            return
+
+    if total_cost <= B:
+        output_order(final_order)
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    main()
+```

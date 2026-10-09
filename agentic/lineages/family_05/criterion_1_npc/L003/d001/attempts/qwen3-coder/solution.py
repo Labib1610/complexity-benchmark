@@ -1,0 +1,100 @@
+from itertools import permutations
+
+def solve():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    k = int(data[0])
+    t = int(data[1])
+    
+    configs = []
+    index = 2
+    for _ in range(t):
+        x = int(data[index])
+        y = int(data[index+1])
+        z = int(data[index+2])
+        configs.append((x, y, z))
+        index += 3
+    
+    # We need to find a permutation of k configs such that:
+    # - All actuators 1..k are used exactly once
+    # - All scanners 1..k are used exactly once
+    # - All processors 1..k are used exactly once
+    
+    # Since k <= 22 and t <= k^3, we can't brute force all subsets of size k
+    # But since we're looking for a perfect matching where each item appears once,
+    # this is essentially finding a Latin square-like structure.
+    
+    # Let's model this as a bipartite matching problem or use backtracking
+    
+    # Try all possible combinations of k configurations that form a valid assignment
+    # Since k is small (<=22), but t can be up to k^3, we should be smart about it
+    
+    # Create mappings for faster lookup
+    actuator_configs = [[] for _ in range(k + 1)]
+    scanner_configs = [[] for _ in range(k + 1)]
+    processor_configs = [[] for _ in range(k + 1)]
+    
+    for i, (x, y, z) in enumerate(configs):
+        actuator_configs[x].append(i)
+        scanner_configs[y].append(i)
+        processor_configs[z].append(i)
+    
+    # Use backtracking to find a valid set of k configurations
+    used_configs = [False] * len(configs)
+    selected_configs = []
+    used_actuators = [False] * (k + 1)
+    used_scanners = [False] * (k + 1)
+    used_processors = [False] * (k + 1)
+    
+    def backtrack():
+        if len(selected_configs) == k:
+            return True
+            
+        # Find the next unused actuator
+        next_actuator = -1
+        for i in range(1, k + 1):
+            if not used_actuators[i]:
+                next_actuator = i
+                break
+                
+        if next_actuator == -1:
+            return False
+            
+        # Try each configuration with this actuator
+        for config_idx in actuator_configs[next_actuator]:
+            if used_configs[config_idx]:
+                continue
+            x, y, z = configs[config_idx]
+            if used_scanners[y] or used_processors[z]:
+                continue
+                
+            # Use this configuration
+            used_configs[config_idx] = True
+            selected_configs.append(config_idx)
+            used_actuators[x] = True
+            used_scanners[y] = True
+            used_processors[z] = True
+            
+            if backtrack():
+                return True
+                
+            # Backtrack
+            used_configs[config_idx] = False
+            selected_configs.pop()
+            used_actuators[x] = False
+            used_scanners[y] = False
+            used_processors[z] = False
+            
+        return False
+    
+    if backtrack():
+        print("YES")
+        for idx in selected_configs:
+            x, y, z = configs[idx]
+            print(x, y, z)
+    else:
+        print("NO")
+
+solve()

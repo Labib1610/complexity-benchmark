@@ -1,0 +1,126 @@
+import sys
+
+# Increase recursion depth just in case
+sys.setrecursionlimit(10000)
+
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    n = int(input_data[0])
+    m = int(input_data[1])
+
+    adj = [0] * n
+    idx = 2
+    for _ in range(m):
+        u = int(input_data[idx]) - 1
+        v = int(input_data[idx + 1]) - 1
+        idx += 2
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+
+    # Degree < 3 reduction
+    deg = [bin(adj[i]).count("1") for i in range(n)]
+    alive = [True] * n
+    stack = []
+    adj_curr = list(adj)
+
+    queue = [i for i in range(n) if deg[i] < 3]
+    in_queue = [False] * n
+    for i in queue:
+        in_queue[i] = True
+
+    head = 0
+    while head < len(queue):
+        u = queue[head]
+        head += 1
+        alive[u] = False
+        stack.append(u)
+        for v in range(n):
+            if (adj_curr[u] & (1 << v)) and alive[v]:
+                adj_curr[u] ^= 1 << v
+                adj_curr[v] ^= 1 << v
+                deg[v] -= 1
+                if deg[v] < 3 and not in_queue[v]:
+                    queue.append(v)
+                    in_queue[v] = True
+
+    # Remaining vertices to color
+    core = [i for i in range(n) if alive[i]]
+
+    color = [0] * n
+    domains = [7] * n  # bits 0, 1, 2 correspond to colors 1, 2, 3
+
+    def backtrack():
+        # Find unassigned vertex in core with minimum domain size
+        min_size = 4
+        best_v = -1
+        all_assigned = True
+
+        for v in core:
+            if color[v] == 0:
+                all_assigned = False
+                d = domains[v]
+                sz = bin(d).count("1")
+                if sz == 0:
+                    return False
+                if sz < min_size:
+                    min_size = sz
+                    best_v = v
+                    if sz == 1:
+                        break
+
+        if all_assigned:
+            return True
+
+        v = best_v
+        d = domains[v]
+
+        for c_idx in range(3):
+            c_mask = 1 << c_idx
+            if d & c_mask:
+                color[v] = c_idx + 1
+                # Forward check: remove c_mask from neighbors
+                changed = []
+                possible = True
+                for u in core:
+                    if color[u] == 0 and (adj[v] & (1 << u)):
+                        if domains[u] & c_mask:
+                            domains[u] ^= c_mask
+                            changed.append(u)
+                            if domains[u] == 0:
+                                possible = False
+
+                if possible and backtrack():
+                    return True
+
+                # Undo domain changes
+                for u in changed:
+                    domains[u] |= c_mask
+                color[v] = 0
+
+        return False
+
+    if not backtrack():
+        print("NO")
+        return
+
+    # Color the vertices in the stack in reverse order
+    while stack:
+        u = stack.pop()
+        used_colors = set()
+        for v in range(n):
+            if (adj[u] & (1 << v)) and color[v] != 0:
+                used_colors.add(color[v])
+        for c in (1, 2, 3):
+            if c not in used_colors:
+                color[u] = c
+                break
+
+    print("YES")
+    print(*(color[i] for i in range(n)))
+
+
+if __name__ == "__main__":
+    solve()

@@ -1,0 +1,298 @@
+**Solution Explanation**
+
+For every sensor `i` we have a Boolean variable  
+
+* `xi = 1` – sensor *i* is **OPERATED**  
+* `xi = 0` – sensor *i* is **BYPASSED**
+
+A link contains two *modes* `l1 , l2`.  
+A mode is a literal:
+
+* `+k`  means `xk = 1`
+* `-k`  means `xk = 0`
+
+The link is satisfied iff at least one of its two literals is true, i.e.
+
+```
+(l1)  OR  (l2)
+```
+
+Thus the whole instance is a classic **2‑SAT** problem.
+
+--------------------------------------------------------------------
+
+#### 1.   Implication graph
+
+For each variable we create two vertices  
+
+```
+true(i)  = 2*(i-1)          # xi = 1
+false(i) = 2*(i-1) + 1      # xi = 0
+```
+
+`neg(v) = v ^ 1` gives the opposite literal.
+
+Clause `(a OR b)` is equivalent to the two implications  
+
+```
+¬a → b
+¬b → a
+```
+
+We add both directed edges to the graph.  
+Number of vertices ≤ `2·10^5`, edges ≤ `2·m ≤ 4·10^5`.
+
+--------------------------------------------------------------------
+
+#### 2.   Strongly connected components
+
+If a variable and its negation belong to the same SCC, the formula is
+unsatisfiable – they would have to be both true and false.
+
+Otherwise a satisfying assignment can be obtained from the topological order
+of the SCC‑condensation graph.
+Using Kosaraju’s algorithm:
+
+* first DFS on the original graph → list `order` (vertices by finishing time)
+* second DFS on the reversed graph, processing vertices in reverse `order`,
+  gives component numbers `comp[v]`.  
+  Components are numbered `0,1,2,…` in the order they are discovered,
+  which is the **reverse topological order** of the condensation graph.
+
+For a variable `i`
+
+```
+if comp[ true(i) ] > comp[ false(i) ] : xi = 1
+else                                   : xi = 0
+```
+
+(The component discovered later is “higher” in the topological order,
+hence its literals are set to true.)
+
+Both DFS are written iteratively to avoid recursion limits.
+
+--------------------------------------------------------------------
+
+#### 3.   Correctness Proof  
+
+We prove that the algorithm prints “YES” and a correct assignment
+iff such an assignment exists.
+
+---
+
+##### Lemma 1  
+For every clause `(a OR b)` the added edges `¬a → b` and `¬b → a`
+are satisfied by exactly the same assignments as the clause itself.
+
+**Proof.**  
+If `a` is true, the clause is true regardless of `b`.  
+`¬a` is false, therefore the implication `¬a → b` is vacuously true.
+Similarly for `b`.  
+If both `a` and `b` are false, then `¬a` and `¬b` are true, forcing both
+implications to require `b` and `a` to be true – impossible.
+Thus the implication pair is true exactly when the clause is true. ∎
+
+
+
+##### Lemma 2  
+If a variable `xi` and its negation belong to the same SCC,
+the formula is unsatisfiable.
+
+**Proof.**  
+Inside one SCC there is a directed path from `xi` to `¬xi` and also from
+`¬xi` to `xi`.  
+A path `p → q` in the implication graph means “if `p` is true then `q` is true”.
+Consequently the two paths give `xi ⇒ ¬xi` and `¬xi ⇒ xi`,
+hence `xi` must be both true and false – contradiction. ∎
+
+
+
+##### Lemma 3  
+Assume no variable shares an SCC with its negation.
+Let the components be numbered as in Kosaraju’s second pass.
+The assignment defined by  
+
+```
+xi = 1  iff  comp[ true(i) ] > comp[ false(i) ]
+```
+
+satisfies every implication edge of the graph.
+
+**Proof.**  
+Consider any edge `u → v`.  
+If `comp[u] = comp[v]` the statement is trivial.
+Otherwise `comp[u] < comp[v]` because the second pass processes vertices in
+reverse finishing order, i.e. in reverse topological order.
+Thus `comp[u]` is *lower* (appears earlier) than `comp[v]`.
+
+If `u` is assigned true, then `comp[u] > comp[¬u]`.  
+Since `comp[u] < comp[v]`, we have `comp[v] > comp[¬u]`.  
+If `v` were false, we would have `comp[v] < comp[¬v]`.  
+But `¬v` is reachable from `¬u` (reverse edge of the implication),
+so `comp[¬v] ≤ comp[¬u]`. Contradiction.
+Hence `v` must be true. Therefore every edge respects the assignment. ∎
+
+
+
+##### Lemma 4  
+The assignment of Lemma&nbsp;3 satisfies all original clauses.
+
+**Proof.**  
+By Lemma&nbsp;1 each clause is equivalent to its two implication edges.
+Lemma&nbsp;3 shows every implication edge is satisfied, therefore every clause
+is satisfied. ∎
+
+
+
+##### Lemma 5  
+If the formula is satisfiable, the algorithm never reports “NO”.
+
+**Proof.**  
+A satisfying assignment cannot make a variable and its negation true
+simultaneously, therefore they cannot lie in the same SCC (otherwise by
+Lemma&nbsp;2 the assignment would be impossible).  
+Hence the algorithm will not trigger the unsatisfiable test. ∎
+
+
+
+##### Theorem  
+The algorithm outputs  
+
+* “NO” **iff** the given set of links is contradictory,  
+* otherwise “YES” and a binary vector that satisfies all links.
+
+**Proof.**  
+
+*If the algorithm prints “NO”.*  
+That happens only when some variable and its negation share an SCC.
+By Lemma&nbsp;2 the formula is unsatisfiable, i.e. the links are contradictory.
+
+*If the algorithm prints “YES”.*  
+Then no variable shares an SCC with its negation.
+The produced assignment follows Lemma&nbsp;3, therefore satisfies all
+implications, and by Lemma&nbsp;4 all original clauses. Hence it is a valid
+configuration.
+
+*Conversely*, if the links are contradictory, no satisfying assignment
+exists, so by Lemma&nbsp;5 the algorithm must encounter a variable/negation
+pair in the same SCC and output “NO”.  
+If they are not contradictory, a satisfying assignment exists; the algorithm
+does not detect a conflict and outputs a satisfying assignment as proved
+above. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### 4.   Complexity Analysis  
+
+*Vertices*: `2·n`  
+*Edges*: `2·m`
+
+Both DFS traversals are linear.
+
+```
+Time   :  O(n + m)
+Memory :  O(n + m)   (graph, reverse graph, stacks, arrays)
+```
+
+Both limits satisfy the problem constraints (`n ≤ 10^5`, `m ≤ 2·10^5`).
+
+--------------------------------------------------------------------
+
+#### 5.   Reference Implementation  (Python 3)
+
+```python
+import sys
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+
+    N = 2 * n                     # total vertices
+    g = [[] for _ in range(N)]
+    rg = [[] for _ in range(N)]
+
+    def lit_to_node(l: int) -> int:
+        if l > 0:
+            return 2 * (l - 1)          # true
+        else:
+            return 2 * (-l - 1) + 1     # false
+
+    for _ in range(m):
+        a = int(next(it)); b = int(next(it))
+        u = lit_to_node(a)
+        v = lit_to_node(b)
+        nu = u ^ 1
+        nv = v ^ 1
+        # ¬a -> b
+        g[nu].append(v)
+        rg[v].append(nu)
+        # ¬b -> a
+        g[nv].append(u)
+        rg[u].append(nv)
+
+    sys.setrecursionlimit(1 << 25)
+
+    # first pass: order by finish time
+    visited = [False] * N
+    order = []
+
+    for start in range(N):
+        if visited[start]:
+            continue
+        stack = [(start, 0)]          # (vertex, next_child_index)
+        while stack:
+            v, idx = stack[-1]
+            if not visited[v]:
+                visited[v] = True
+            # explore neighbours
+            if idx < len(g[v]):
+                nxt = g[v][idx]
+                stack[-1] = (v, idx + 1)
+                if not visited[nxt]:
+                    stack.append((nxt, 0))
+            else:
+                order.append(v)
+                stack.pop()
+
+    # second pass: assign components on reversed graph
+    comp = [-1] * N
+    cur_comp = 0
+    for v in reversed(order):
+        if comp[v] != -1:
+            continue
+        stack = [v]
+        comp[v] = cur_comp
+        while stack:
+            x = stack.pop()
+            for y in rg[x]:
+                if comp[y] == -1:
+                    comp[y] = cur_comp
+                    stack.append(y)
+        cur_comp += 1
+
+    # check for contradictions
+    assignment = [0] * n
+    for i in range(n):
+        t = 2 * i
+        f = t ^ 1
+        if comp[t] == comp[f]:
+            print("NO")
+            return
+        assignment[i] = 1 if comp[t] > comp[f] else 0
+
+    # output
+    print("YES")
+    print(' '.join(map(str, assignment)))
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above and conforms
+to the required input‑output format.

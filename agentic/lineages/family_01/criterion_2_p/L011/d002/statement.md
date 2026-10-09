@@ -1,20 +1,21 @@
-# Server Synchronization States
+# Acoustic Resonance Tuning
 
-Time limit: 1 s   Memory limit: 256 MB
+Time limit: 1 s
+Memory limit: 256 MB
 
-You are configuring a network of $n$ server nodes. Each node $i$ must be assigned an operational state $x_i$. The hardware only supports two operational modes, meaning each $x_i$ must be exactly 1 or 2.
+A research facility operates a network of $n$ sonic emitters. To maintain stability, every emitter must be calibrated with a phase duration of either 1 or 2 microseconds.
 
-The nodes are connected by a set of $m$ bidirectional sync channels. To prevent data corruption during synchronization, every channel imposes a strict energy balance requirement on its endpoints: if a channel connects node $u$ and node $v$, their operational states must satisfy the equation $x_u^2 + x_v^2 = 5$.
+The facility's architecture creates $m$ resonance dependencies. Each dependency links a specific pair of emitters. A calibration is only considered safe if it satisfies a strict relative timing condition: for every pair of emitters linked by a dependency, one emitter's phase duration must be exactly twice the phase duration of the other emitter in that pair.
 
-Your task is to determine a valid state assignment for all $n$ nodes. If there are multiple valid ways to assign the states, you must output the assignment that is lexicographically smallest when written as the sequence $x_1, x_2, \dots, x_n$. If it is impossible to satisfy all channel requirements simultaneously, you must report that no such assignment exists.
+Your task is to determine whether a safe calibration can be applied to the entire network. If multiple safe configurations are possible, the control system defaults to the one whose sequence of $n$ phase durations is lexicographically smallest. This means that when comparing two valid configurations, the preferred one has the smaller duration (1 instead of 2) at the earliest emitter index where they differ.
 
 ## Input
-The first line contains two integers $n$ and $m$. The number of nodes $n$ is at least 1 and bounded by a network maximum of $2\cdot 10^5$. The number of channels $m$ is at least 0 and at most $2\cdot 10^5$.
-Each of the following $m$ lines contains two integers $u$ and $v$ (valid node IDs ranging from 1 to $n$), indicating that a channel exists between node $u$ and node $v$.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$), denoting the total number of emitters and the number of resonance dependencies.
+Each of the subsequent $m$ lines provides two integers $u$ and $v$ ($1 \le u, v \le n$), indicating that a dependency exists between emitter $u$ and emitter $v$.
 
 ## Output
-If there is no valid state assignment, print a single line containing `NO`.
-Otherwise, print `YES` on the first line, followed by a second line containing $n$ integers $x_1, x_2, \dots, x_n$ (each being 1 or 2), representing the lexicographically smallest valid assignment.
+If it is impossible to calibrate the network safely, print `NO` on a single line.
+If a safe calibration exists, print `YES` on the first line. On the second line, print $n$ space-separated integers (each either 1 or 2) representing the phase duration for each emitter from 1 to $n$. This sequence must be the lexicographically smallest valid calibration.
 
 ## Example 1
 Input:

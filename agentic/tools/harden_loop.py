@@ -691,7 +691,9 @@ def run_lineage(ldir, base_vdir, base_strategy, family, crit_dir, sc, tiers, see
     retest = fb_cfg.get("retest_retired", True)
     min_pass = fb_cfg.get("min_passers_to_continue", 1)
     scoring_tier = fb_cfg.get("scoring_tier", "all")
-    ceiling = fb_cfg.get("tle_ceiling_s", 300)               # change 1: runaway guard only
+    # Audit B1/B8: score at the DECLARED task deadline, not a 300s runaway guard. The checker
+    # also enforces min(declared, ceiling), so this is belt-and-suspenders and keeps runs fast.
+    ceiling = sc.meta.get("time_limit_s", 2)
     target = fb_cfg.get("hardening_target", "wrong_answer_only")
     mem_cap = fb_cfg.get("memory_block_max_tokens", 1500)     # change 2
     discovered_dir = B.STRATEGIES_DIR / "discovered" / crit_dir   # change 4
@@ -707,7 +709,10 @@ def run_lineage(ldir, base_vdir, base_strategy, family, crit_dir, sc, tiers, see
     while True:
         ddir = ldir / f"d{depth:03d}"
         GV._atomic_write(ddir / "statement.md", statement)
-        run_set = active + (retired if retest else [])
+        # Audit B8: run the WHOLE panel every depth. Defeat is judged from the current raw
+        # panel (not cumulative retirement), so a model that regains PASS is automatically
+        # active again next depth -- no permanent retirement.
+        run_set = list(students)
         results = {}
         for s in run_set:
             results[s["id"]] = run_student(s, statement, sc, tiers, scoring_tier,
@@ -758,18 +763,14 @@ def run_lineage(ldir, base_vdir, base_strategy, family, crit_dir, sc, tiers, see
         print(f"  {ldir.name} d{depth}: defeated={sorted(raw_defeated)} "
               f"survivors={[s['id'] for s in survivors]} regained={regained}")
 
-        # change 3: every student defeated AT THIS SAME depth (not cumulatively)
+        # Audit B8: a lineage is defeated ONLY when the current raw panel has zero passers
+        # within the declared limit (simultaneous defeat). Cumulative-retirement stopping is
+        # removed -- the loop keeps going while any model still solves it raw.
         simultaneous = bool(all_ids) and all(sid in raw_defeated for sid in all_ids)
         prev_raw_defeated = raw_defeated
 
-        if retire:
-            retired = retired + active_defeated
-            active = survivors
-
         if simultaneous:
             outcome = "all_defeated_simultaneously"; break
-        if len(active) < max(1, min_pass):
-            outcome = "all_defeated"; break
         if depth >= max_depth:
             outcome = "max_depth"; break
 
@@ -902,13 +903,23 @@ def select_seeds(family, crit_dir, fb_cfg):
     top = ranked[: fb_cfg.get("top_k", 10)]
     rest = [v for v in pass_ids if v not in top]
     random.Random(1234).shuffle(rest)
-    return top + rest[: fb_cfg.get("include_random", 4)]
+    chosen = top + rest[: fb_cfg.get("include_random", 4)]
+    # Normalize to a fixed lineage count across families (comparability). If ranking had too
+    # little student-delta data to fill top_k, top up with more accepted variants at random.
+    target = fb_cfg.get("target_lineages")
+    if target:
+        if len(chosen) < target:
+            extra = [v for v in pass_ids if v not in chosen]
+            random.Random(4321).shuffle(extra)
+            chosen += extra[: target - len(chosen)]
+        chosen = chosen[:target]
+    return chosen
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--family", required=True)
-    ap.add_argument("--criterion", type=int, choices=[1, 2, 3])
+    ap.add_argument("--criterion", type=int, choices=[1, 2])
     ap.add_argument("--resume", action="store_true",
                     help="explicit synonym for the default: continue from the per-lineage "
                          "checkpoint (progress.json). Any non --reset run already resumes.")
@@ -951,7 +962,7 @@ def main():
 
     for family in B.list_families(args.family):
         slug = B.family_slug(family)
-        crits = [args.criterion] if args.criterion else run_cfg.get("criteria", [1, 2, 3])
+        crits = [args.criterion] if args.criterion else run_cfg.get("criteria", [1, 2])
         for c in crits:
             crit_dir = B.criterion_dirname(c)
             sc, tiers = build_scoring(family, slug, crit_dir)

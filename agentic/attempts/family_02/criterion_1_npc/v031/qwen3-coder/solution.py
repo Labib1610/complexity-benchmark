@@ -1,0 +1,43 @@
+def solve():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    clauses = []
+    idx = 2
+    for _ in range(m):
+        clause = []
+        for _ in range(3):
+            lit = int(data[idx])
+            idx += 1
+            clause.append(lit)
+        clauses.append(clause)
+    
+    # Try all 2^n possible assignments
+    for mask in range(1 << n):
+        assignment = [((mask >> i) & 1) for i in range(n)]
+        valid = True
+        
+        for clause in clauses:
+            satisfied = False
+            for lit in clause:
+                var_index = abs(lit) - 1  # Convert to 0-based index
+                required_value = 1 if lit > 0 else 0
+                if assignment[var_index] == required_value:
+                    satisfied = True
+                    break
+            if not satisfied:
+                valid = False
+                break
+                
+        if valid:
+            print("YES")
+            print(' '.join(map(str, assignment)))
+            return
+            
+    print("NO")
+
+solve()

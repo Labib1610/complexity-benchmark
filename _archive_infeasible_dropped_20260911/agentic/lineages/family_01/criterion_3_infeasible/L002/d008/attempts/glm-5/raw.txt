@@ -1,0 +1,596 @@
+<think>
+.
+</think>
+Let me analyze this problem.
+
+A trio {a, b, c} is deadlocked if we cannot partition it into two sets where neither contains a vetoed pair. 
+
+For 3 candidates, the possible partitions into two sets are:
+- {} and {a,b,c}: need no veto among a,b,c (all three pairs must be non-vetoed)
+- {a} and {b,c}: need b,c not vetoed
+- {b} and {a,c}: need a,c not vetoed
+- {c} and {a,b}: need a,b not vetoed
+
+The trio is deadlocked if ALL partitions fail:
+- {} and {a,b,c} fails: at least one veto among the three pairs
+- {a} and {b,c} fails: b,c are vetoed
+- {b} and {a,c} fails: a,c are vetoed
+- {c} and {a,b} fails: a,b are vetoed
+
+So the trio is deadlocked iff: all three pairs (a,b), (a,c), (b,c) are vetoed. This means the trio forms a triangle in the veto graph.
+
+Wait, let me verify with example 1: edges 1-2, 1-3, 2-3, 2-4, 3-4. Triangle {1,2,3} exists. Output is 1 2 3. ✓
+
+Example 2: edges 1-2, 1-4, 2-4, 3-4, 3-5, 4-5. Triangle {1,2,4} exists (1-2, 1-4, 2-4). Also {3,4,5} exists (3-4, 3-5, 4-5). Lexicographically smallest is 1 2 4. ✓
+
+So we need to find the lexicographically smallest triangle in the graph.
+
+With n ≤ 2000 and m ≤ 200000, we can iterate over edges and for each edge (u,v) with u < v, find the smallest w > v such that both (u,w) and (v,w) are edges. We want the smallest (u,v,w) lexicographically.
+
+Strategy: iterate u from 1 to n, for each u iterate v from u+1 to n where (u,v) is an edge, then find smallest w > v where both (u,w) and (v,w) are edges. Track the best.
+
+To make this efficient, for each vertex u, store its adjacency as a set. Then for each edge (u,v), iterate over neighbors of u that are > v, and check if they're also neighbors of v.
+
+The total work could be O(m * degree) in worst case, but with m ≤ 200000 and using sets for O(1) lookup, this should be manageable.
+
+Actually, a better approach: for each u, sort its neighbors. For each pair of neighbors v < w of u (both > u for lex order... no wait, we need u < v < w), check if (v,w) is an edge.
+
+Let me think about complexity. For each u, if it has degree d_u, we check C(d_u, 2) pairs. Sum of d_u = 2m. Worst case one vertex has degree ~2000, giving ~2M pairs, each O(1) set lookup. Total across all vertices could be large but bounded.
+
+Actually sum of C(d_u, 2) could be up to n * C(2m/n, 2) which for m=200000, n=2000 gives ~2000 * C(200,2) = 2000*19900 = ~40M. That's fine.
+
+But we need lex smallest. Let me iterate u from 1 to n, then for each u, iterate v from u+1 to n (only if edge u-v), then iterate w from v+1 to n checking if both u-w and v-w are edges. The first valid (u,v,w) found this way is the answer.
+
+For efficiency, for each u, get sorted list of neighbors > u. For each v in that list, get neighbors of v that are > v, and find intersection with u's neighbors > v. Take the smallest.
+
+Using sorted lists and merge-style intersection, or just iterate w over u's neighbors > v and check v-w edge via set.
+
+Let me code this:
+
+```python
+import sys
+
+def solve():
+    input_data = sys.stdin.buffer.read().split()
+    idx = 0
+    n = int(input_data[idx]); idx += 1
+    m = int(input_data[idx]); idx += 1
+    
+    adj_set = [set() for _ in range(n+1)]
+    adj_list = [[] for _ in range(n+1)]
+    
+    for _ in range(m):
+        u = int(input_data[idx]); idx += 1
+        v = int(input_data[idx]); idx += 1
+        adj_set[u].add(v)
+        adj_set[v].add(u)
+    
+    for u in range(1, n+1):
+        adj_list[u] = sorted(x for x in adj_set[u] if x > u)
+    
+    best = None
+    # For each u, for each v in adj_list[u], find smallest w in adj_list[u] with w > v and w in adj_set[v]
+    for u in range(1, n+1):
+        nu = adj_list[u]
+        for i in range(len(nu)):
+            v = nu[i]
+            for j in range(i+1, len(nu)):
+                w = nu[j]
+                if w in adj_set[v]:
+                    if best is None or (u, v, w) < best:
+                        best = (u, v, w)
+                        # Since we iterate in order, first found for this u,v is smallest w
+                        # and we iterate u ascending, v ascending
+                        # So first found overall is lex smallest
+                        print(u, v, w)
+                        return
+    
+    # Should not reach here per problem guarantee
+    if best:
+        print(best[0], best[1], best[2])
+
+solve()
+```
+
+Wait, the iteration order: u ascending, then v ascending (since adj_list sorted), then w ascending (j increasing). The first triangle found is lex smallest. So we can return immediately.
+
+But the inner loop over j could be slow if degrees are large. Let me optimize: for each (u, v), we want the smallest w > v in adj_list[u] that's also in adj_set[v]. We can break after finding the first one.
+
+Actually, since adj_list[u] is sorted, the first w found (smallest j > i with w in adj_set[v]) gives the smallest w for this (u,v). And since we iterate u then v in ascending order, the first (u,v,w) found is lex smallest overall.
+
+The complexity: for each u, for each v in adj_list[u], we scan adj_list[u] from position after v until we find a w in adj_set[v]. Worst case O(d_u^2) per u. But we break early on first find, and return immediately.
+
+Let me reconsider worst case. If there's no triangle until very late... but problem guarantees at least one exists. Still, finding it could require scanning a lot.
+
+Alternative: for each u, for each v in adj_list[u], iterate over adj_list[v] (neighbors of v > v) and check if in adj_set[u]. Take smallest such that's also > v... actually we need w > v and w in both adj_set[u] and adj_set[v].
+
+Let me just go with the straightforward approach and optimize using the smaller degree vertex for iteration:
+
+For edge (u, v) with u < v, to find smallest w > v adjacent to both: iterate over the adjacency of whichever of u, v has smaller degree (considering only w > v), checking membership in the other's set.
+
+But for lex order we need to process u ascending, v ascending. Let me keep it simple:
+
+```python
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    idx = 0
+    n = int(data[idx]); idx += 1
+    m = int(data[idx]); idx += 1
+    
+    adj = [set() for _ in range(n+1)]
+    
+    for _ in range(m):
+        u = int(data[idx]); idx += 1
+        v = int(data[idx]); idx += 1
+        adj[u].add(v)
+        adj[v].add(u)
+    
+    for u in range(1, n+1):
+        neighbors = sorted(x for x in adj[u] if x > u)
+        for i in range(len(neighbors)):
+            v = neighbors[i]
+            for j in range(i+1, len(neighbors)):
+                w = neighbors[j]
+                if w in adj[v]:
+                    print(u, v, w)
+                    return
+
+solve()
+```
+
+This should work. The first triangle found in this iteration order is lex smallest. Let me verify the complexity concern: worst case, for a vertex u with high degree, we do O(d^2) work. With n=2000, max degree ~2000, that's 4M per vertex, 8B total worst case. That's too slow.
+
+But m ≤ 200000, so sum of degrees = 400000. The sum of d_u^2 is maximized when degrees are concentrated. If one vertex has degree 2000 (but m=200000 allows up to ~2000 edges per vertex since n=2000), d^2 = 4M. But we have 2000 vertices... if all have degree 200, sum of d^2 = 2000 * 40000 = 80M. That's borderline but OK in Python? Maybe not.
+
+Let me optimize: for each (u, v), instead of scanning all of u's neighbors, iterate over the smaller of adj[u] and adj[v] (filtered to w > v).
+
+Actually, a cleaner optimization: for each u, for each v in neighbors of u (v > u), we want smallest w > v in adj[u] ∩ adj[v]. Iterate over adj[v] (or adj[u], whichever smaller) for elements > v, check membership in the other, track minimum.
+
+But we need to process in lex order (u, then v). For a fixed (u, v), finding the minimum w is independent. Let me restructure:
+
+For u from 1 to n:
+  For v from u+1 to n (if edge u-v):
+    Find min w > v such that w in adj[u] and w in adj[v]
+    If found, that's the answer (since we go in lex order)
+
+For finding min w: iterate over the smaller set among adj[u], adj[v], filter to w > v, check membership in other, take min. But we want the minimum, and we can break early if we find one... but we need the minimum.
+
+Actually since we process (u,v) in order and return on first find, and for each (u,v) we want the minimum w, let me just find it efficiently:
+
+```python
+# For (u, v), find min w > v in adj[u] ∩ adj[v]
+if len(adj[u]) <= len(adj[v]):
+    small, large = adj[u], adj[v]
+else:
+    small, large = adj[v], adj[u]
+min_w = None
+for w in small:
+    if w > v and w in large:
+        if min_w is None or w < min_w:
+            min_w = w
+```
+
+This is O(min(deg(u), deg(v))) per edge. Total: O(sum over edges of min(deg(u), deg(v))).
+
+This is bounded by O(m * sqrt(m)) in the worst case (by the standard bound), which for m=200000 is about 200000 * 447 ≈ 89M. Hmm, still a lot for Python.
+
+But actually, we return as soon as we find the first triangle, and we process in lex order. In practice, we might find it quickly. But worst case could be slow.
+
+Let me think of a better approach. Actually, let me just try the straightforward approach with the optimization and hope it's fast enough. The problem has a 2-second time limit.
+
+Actually, let me reconsider. The key insight: we process u from 1 to n. For each u, we process v from u+1 upward. For each (u,v) edge, we look for w. The first triangle found is the answer.
+
+For the inner search, using sorted neighbor lists and binary search could help, but set membership is O(1) average.
+
+Let me just go with iterating over the smaller adjacency set:
+
+```python
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    idx = 0
+    n = int(data[idx]); idx += 1
+    m = int(data[idx]); idx += 1
+    
+    adj = [set() for _ in range(n+1)]
+    
+    for _ in range(m):
+        u = int(data[idx]); idx += 1
+        v = int(data[idx]); idx += 1
+        adj[u].add(v)
+        adj[v].add(u)
+    
+    for u in range(1, n+1):
+        # neighbors of u that are > u, sorted
+        nu = sorted(x for x in adj[u] if x > u)
+        for v in nu:
+            # find smallest w > v with w in adj[u] and w in adj[v]
+            # iterate over smaller set
+            if len(adj[u]) <= len(adj[v]):
+                candidates = adj[u]
+                other = adj[v]
+            else:
+                candidates = adj[v]
+                other = adj[u]
+            best_w = None
+            for w in candidates:
+                if w > v and w in other:
+                    if best_w is None or w < best_w:
+                        best_w = w
+            if best_w is not None:
+                print(u, v, best_w)
+                return
+
+solve()
+```
+
+Hmm, but this doesn't guarantee we find the lex smallest overall. We process u ascending, v ascending, and for each (u,v) find the smallest w. The first (u,v) that has any valid w gives the answer, and we use the smallest w for that (u,v). This is correct for lex order.
+
+But the issue is: for a given u, we process v in ascending order. The first v (smallest) that has a valid w gives us (u, v, w) with smallest v for this u. And since u is ascending, the first u with any valid triangle gives the answer. This is correct.
+
+The concern is efficiency. Let me think about whether we can do better.
+
+Actually, I realize the worst case might not be that bad because we return early. The problem guarantees a triangle exists. In the worst case, the lex smallest triangle is (n-2, n-1, n), and we'd have to check all edges before finding it. But even then, the total work is bounded.
+
+Let me estimate: for each edge (u,v), we do O(min(deg(u), deg(v))) work. The sum of min(deg(u), deg(v)) over all edges is at most O(m * sqrt(2m)) by a standard result. For m=200000, that's about 200000 * 632 ≈ 126M operations. In Python, that might be too slow (Python does ~10-50M simple operations per second).
+
+Let me think of a faster approach. 
+
+Alternative: For each u, build a sorted list of neighbors. For each pair of neighbors v < w (both > u), check if (v,w) is an edge. This is O(sum of C(deg(u), 2)) which could be large.
+
+Hmm, let me think differently. We can use the approach: for each vertex u (in order 1 to n), mark all its neighbors. Then for each neighbor v > u, check if any neighbor of v (that's > v) is marked. But we need the smallest such w.
+
+Actually, here's a cleaner approach using the marking idea:
+
+For u from 1 to n:
+  Mark all neighbors of u.
+  For v from u+1 to n (in order):
+    If v is marked (i.e., (u,v) is an edge):
+      For w from v+1 to n (in order):
+        If w is marked (i.e., (u,w) is an edge) and (v,w) is an edge:
+          Output (u, v, w) and return.
+  Unmark all neighbors of u.
+
+The inner loop "for w from v+1 to n" is O(n) per v, and O(n) v's per u, giving O(n^2) per u and O(n^3) total. Too slow for n=2000.
+
+But we can optimize: for each v, instead of scanning all w from v+1 to n, iterate over v's neighbors that are > v and check if marked (i.e., neighbor of u).
+
+For u from 1 to n:
+  Mark all neighbors of u (using a boolean array).
+  For v in sorted(neighbors of u with v > u):
+    For w in sorted(neighbors of v with w > v):
+      If w is marked (neighbor of u):
+        Output (u, v, w) and return.
+  Unmark.
+
+The work per u is: O(deg(u)) for marking + sum over v in neighbors(u) of deg(v). 
+
+The sum over all u of (sum over v in adj(u) of deg(v)) = sum over all edges (u,v) of deg(v) + deg(u)... no, it's sum over u of sum over v in adj(u) of deg(v) = sum over v of deg(v) * deg(v) = sum of deg(v)^2.
+
+Sum of deg(v)^2 where sum of deg = 2m = 400000. By Cauchy-Schwarz, this is at most (2m)^2 / n * n = (2m)^2 = 1.6 * 10^11. No wait, sum of deg^2 ≤ (max deg) * (sum of deg) = 2000 * 400000 = 8 * 10^8. That's too much.
+
+Hmm. But we return early. The question is how early.
+
+Actually, let me reconsider. The problem says at least one deadlocked trio exists. We need the lex smallest. In the worst case, we might need to check many vertices before finding the triangle.
+
+Let me think about a different bound. For each u, the work is O(deg(u) + sum_{v in adj(u), v > u} deg(v)). But we only process v > u, so it's roughly half. And we return as soon as we find a triangle.
+
+I think the practical approach is to just implement it efficiently and hope the test cases aren't adversarial. Let me use the marking approach with adjacency lists:
+
+```python
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    idx = 0
+    n = int(data[idx]); idx += 1
+    m = int(data[idx]); idx += 1
+    
+    adj = [[] for _ in range(n+1)]
+    
+    for _ in range(m):
+        u = int(data[idx]); idx += 1
+        v = int(data[idx]); idx += 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # Sort adjacency lists
+    for i in range(1, n+1):
+        adj[i].sort()
+    
+    marked = [False] * (n + 1)
+    
+    for u in range(1, n+1):
+        # Mark neighbors of u
+        for w in adj[u]:
+            marked[w] = True
+        
+        # For each v > u that's a neighbor of u
+        found = False
+        for v in adj[u]:
+            if v <= u:
+                continue
+            # Look for w > v that's a neighbor of both u and v
+            for w in adj[v]:
+                if w <= v:
+                    continue
+                if marked[w]:
+                    print(u, v, w)
+                    return
+        
+        # Unmark
+        for w in adj[u]:
+            marked[w] = False
+
+solve()
+```
+
+This processes u in order, v in sorted order (since adj[u] is sorted), and w in sorted order (since adj[v] is sorted). The first (u, v, w) found is lex smallest. 
+
+The complexity per u is O(deg(u) + sum_{v in adj(u), v > u} deg(v)). The total is O(sum of deg(u) + sum over edges (u,v) with u < v of deg(v)).
+
+The second term: sum over edges (u,v), u < v, of deg(v). This is at most sum over v of deg(v) * deg(v) = sum of deg^2. With m=200000, if degrees are balanced (~200 each), sum of deg^2 = 2000 * 200^2 = 8 * 10^7. If unbalanced, could be worse.
+
+But we return early! The first u that has a triangle, we return. So the total work is bounded by the work done for vertices 1 through u* (where u* is the smallest vertex in the lex smallest triangle) plus the work to find the triangle at u*.
+
+In the worst case, u* could be large, but the work for small u's is proportional to their degrees. If vertex 1 has high degree, we do a lot of work for u=1 even if it has no triangle.
+
+I think this solution should work for the given constraints. Let me also consider using bitsets for faster intersection, but Python's integers can serve as bitsets.
+
+Bitset approach: represent each adjacency as a Python integer (bitmask). For each u, for each v in adj[u] with v > u, compute adj_bits[u] & adj_bits[v] and find the lowest set bit > v.
+
+Finding the lowest set bit > v in a bitmask: we can mask out bits ≤ v and use bit_length.
+
+```python
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    idx = 0
+    n = int(data[idx]); idx += 1
+    m = int(data[idx]); idx += 1
+    
+    adj_bits = [0] * (n + 1)
+    adj_list = [[] for _ in range(n + 1)]
+    
+    for _ in range(m):
+        u = int(data[idx]); idx += 1
+        v = int(data[idx]); idx += 1
+        adj_bits[u] |= (1 << v)
+        adj_bits[v] |= (1 << u)
+        adj_list[u].append(v)
+        adj_list[v].append(u)
+    
+    for i in range(1, n+1):
+        adj_list[i].sort()
+    
+    for u in range(1, n+1):
+        au = adj_bits[u]
+        for v in adj_list[u]:
+            if v <= u:
+                continue
+            # Find smallest w > v in adj[u] ∩ adj[v]
+            common = au & adj_bits[v]
+            # Mask out bits ≤ v
+            mask = common & ~((1 << (v + 1)) - 1)
+            if mask:
+                w = mask.bit_length() - 1
+                # Wait, bit_length gives position of highest bit + 1
+                # We want lowest set bit
+                # lowest set bit: (mask & -mask).bit_length() - 1
+                lowest = (mask & (-mask))
+                w = lowest.bit_length() - 1
+                print(u, v, w)
+                return
+
+solve()
+```
+
+Wait, I need to be careful. `mask & -mask` gives the lowest set bit as a power of 2. Then `.bit_length() - 1` gives the position.
+
+But Python integers can be arbitrarily large, so 1 << 2000 is fine. The bitwise operations on 2000-bit integers are fast (a few machine words).
+
+This approach is O(m) bitwise operations (each on ~2000-bit numbers, which is ~32 machine words). Total: O(m * n/64) ≈ 200000 * 32 = 6.4M word operations. Very fast!
+
+But wait, we iterate over all edges (u,v) with u < v until we find a triangle. In the worst case, we check all m edges. Each check is O(n/64) for the bitwise AND and bit extraction. Total: O(m * n/64) ≈ 6.4M. 
+
+Let me verify the bit manipulation:
+- `common = au & adj_bits[v]`: bits set where both u and v have an edge
+- `mask = common & ~((1 << (v+1)) - 1)`: clears bits 0 through v, keeping only bits > v
+  - `(1 << (v+1)) - 1` is a mask with bits 0..v set
+  - `~` in Python gives the complement (infinite bits set above), so `& ~(...)` clears bits 0..v
+- `mask & -mask`: isolates the lowest set bit
+- `.bit_length() - 1`: gives the index of that bit
+
+This looks correct. Let me verify with example 1:
+- n=4, edges: 1-2, 1-3, 2-3, 2-4, 3-4
+- adj_bits[1] = (1<<2)|(1<<3) = 0b1100 = 12
+- adj_bits[2] = (1<<1)|(1<<3)|(1<<4) = 0b11010 = 26
+- adj_bits[3] = (1<<1)|(1<<2)|(1<<4) = 0b10110 = 22
+- adj_bits[4] = (1<<2)|(1<<3) = 0b1100 = 12
+
+u=1: au=12 (bits 2,3)
+  v=2 (in adj_list[1], v>u): common = 12 & 26 = 0b1100 & 0b11010 = 0b01000 = 8 (bit 3)
+    mask = 8 & ~((1<<3)-1) = 8 & ~7 = 8 & ...11111000 = 8 (bit 3, which is > 2) ✓
+    lowest = 8, w = 3
+    Output: 1 2 3 ✓
+
+Let me verify example 2:
+- n=5, edges: 1-2, 1-4, 2-4, 3-4, 3-5, 4-5
+- adj_bits[1] = (1<<2)|(1<<4) = 0b10100 = 20
+- adj_bits[2] = (1<<1)|(1<<4) = 0b10010 = 18
+- adj_bits[3] = (1<<4)|(1<<5) = 0b110000 = 48
+- adj_bits[4] = (1<<1)|(1<<2)|(1<<3)|(1<<5) = 0b101110 = 46
+- adj_bits[5] = (1<<3)|(1<<4) = 0b110000 = 48
+
+u=1: au=20 (bits 2,4)
+  adj_list[1] sorted = [2, 4]
+  v=2: common = 20 & 18 = 0b10100 & 0b10010 = 0b10000 = 16 (bit 4)
+    mask = 16 & ~((1<<3)-1) = 16 & ~7 = 16 (bit 4 > 2) ✓
+    w = 4
+    Output: 1 2 4 ✓
+
+The solution works. Let me finalize:
+
+```python
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    idx = 0
+    n = int(data[idx]); idx += 1
+    m = int(data[idx]); idx += 1
+    
+    adj_bits = [0] * (n + 1)
+    adj_list = [[] for _ in range(n + 1)]
+    
+    for _ in range(m):
+        u = int(data[idx]); idx += 1
+        v = int(data[idx]); idx += 1
+        adj_bits[u] |= (1 << v)
+        adj_bits[v] |= (1 << u)
+        adj_list[u].append(v)
+        adj_list[v].append(u)
+    
+    for i in range(1, n + 1):
+        adj_list[i].sort()
+    
+    for u in range(1, n + 1):
+        au = adj_bits[u]
+        for v in adj_list[u]:
+            if v <= u:
+                continue
+            common = au & adj_bits[v]
+            mask = common & ~((1 << (v + 1)) - 1)
+            if mask:
+                w = (mask & (-mask)).bit_length() - 1
+                print(u, v, w)
+                return
+
+solve()
+```
+
+This should be efficient and correct. The bitset approach makes each edge check O(n/64) which is very fast.
+
+One concern: `~((1 << (v + 1)) - 1)` in Python. Since Python integers are arbitrary precision, `~` of a positive number gives a negative number (two's complement). So `~x = -(x+1)`. Then `common & ~x` = `common & (-(x+1))`. 
+
+Let me verify: if x = 7 (0b111), then ~x = -8. In binary (two's complement, infinite precision), -8 = ...11111000. So `common & -8` clears the bottom 3 bits. This is correct.
+
+Actually, `common & ~((1 << (v+1)) - 1)` is equivalent to `common >> (v+1) << (v+1)` but the bitwise approach is fine.
+
+Alternatively, I could write it as: `mask = common >> (v + 1)` and then find the lowest set bit in mask, then add v+1 to get w. This avoids the large negative number:
+
+```python
+shifted = common >> (v + 1)
+if shifted:
+    w = (shifted & (-shifted)).bit_length() - 1 + v + 1
+```
+
+This is cleaner. Let me use this:
+
+```python
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    idx = 0
+    n = int(data[idx]); idx += 1
+    m = int(data[idx]); idx += 1
+    
+    adj_bits = [0] * (n + 1)
+    adj_list = [[] for _ in range(n + 1)]
+    
+    for _ in range(m):
+        u = int(data[idx]); idx += 1
+        v = int(data[idx]); idx += 1
+        adj_bits[u] |= (1 << v)
+        adj_bits[v] |= (1 << u)
+        adj_list[u].append(v)
+        adj_list[v].append(u)
+    
+    for i in range(1, n + 1):
+        adj_list[i].sort()
+    
+    for u in range(1, n + 1):
+        au = adj_bits[u]
+        for v in adj_list[u]:
+            if v <= u:
+                continue
+            common = au & adj_bits[v]
+            shifted = common >> (v + 1)
+            if shifted:
+                w = (shifted & (-shifted)).bit_length() - 1 + v + 1
+                print(u, v, w)
+                return
+
+solve()
+```
+
+Let me verify once more with example 1, u=1, v=2:
+- common = 12 & 26 = 8 (bit 3)
+- shifted = 8 >> 3 = 1
+- shifted & -shifted = 1 & -1 = 1
+- bit_length - 1 = 0
+- w = 0 + 3 = 3 ✓
+
+Example 2, u=1, v=2:
+- common = 20 & 18 = 16 (bit 4)
+- shifted = 16 >> 3 = 2
+- shifted & -shifted = 2 & -2 = 2
+- bit_length - 1 = 1
+- w = 1 + 3 = 4 ✓
+
+The solution is correct and efficient. Let me finalize itLooking at this problem, I need to find when a trio {a, b, c} is "deadlocked" - meaning no partition into two veto-free sets exists.
+
+For 3 candidates, the valid partitions are: {}|{a,b,c}, {a}|{b,c}, {b}|{a,c}, {c}|{a,b}. The trio is deadlocked only if ALL partitions fail, which requires all three pairs to be vetoed (forming a triangle in the veto graph).
+
+So I need to find the lexicographically smallest triangle in the graph.
+
+**Approach:** Use bitsets for efficient triangle detection. For each vertex u (in ascending order), for each neighbor v > u (in ascending order), compute the intersection of adjacency bitmasks of u and v, then find the smallest vertex w > v in that intersection. The first triangle found in this iteration order is lexicographically smallest.
+
+**Verification with examples:**
+- Example 1: Triangle {1,2,3} exists (edges 1-2, 1-3, 2-3) → output "1 2 3" ✓
+- Example 2: Triangles {1,2,4} and {3,4,5} exist; lex smallest is {1,2,4} ✓
+
+The bitset approach makes each edge check O(n/64) word operations, giving total complexity O(m·n/64) ≈ 6M operations for worst case.
+
+```python
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    idx = 0
+    n = int(data[idx]); idx += 1
+    m = int(data[idx]); idx += 1
+    
+    adj_bits = [0] * (n + 1)
+    adj_list = [[] for _ in range(n + 1)]
+    
+    for _ in range(m):
+        u = int(data[idx]); idx += 1
+        v = int(data[idx]); idx += 1
+        adj_bits[u] |= (1 << v)
+        adj_bits[v] |= (1 << u)
+        adj_list[u].append(v)
+        adj_list[v].append(u)
+    
+    for i in range(1, n + 1):
+        adj_list[i].sort()
+    
+    for u in range(1, n + 1):
+        au = adj_bits[u]
+        for v in adj_list[u]:
+            if v <= u:
+                continue
+            common = au & adj_bits[v]
+            shifted = common >> (v + 1)
+            if shifted:
+                w = (shifted & (-shifted)).bit_length() - 1 + v + 1
+                print(u, v, w)
+                return
+
+solve()
+```

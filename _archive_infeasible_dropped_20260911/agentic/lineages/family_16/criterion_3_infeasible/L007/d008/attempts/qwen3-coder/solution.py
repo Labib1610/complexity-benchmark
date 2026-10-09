@@ -1,0 +1,46 @@
+import sys
+import threading
+
+def main():
+    import sys
+    sys.setrecursionlimit(1 << 25)
+    
+    j, T = map(int, sys.stdin.readline().split())
+    tasks = []
+    for i in range(j):
+        p1, p2 = map(int, sys.stdin.readline().split())
+        tasks.append((p1, p2))
+    
+    # Check each job for JOB i condition
+    for i in range(j):
+        p1, p2 = tasks[i]
+        # To satisfy Strict Supremum Precedence:
+        # max(S_{i,1}) < min(S_{i,2})
+        # So we need at least p1 slots before some boundary,
+        # and at least p2 slots after that boundary.
+        # The minimum total slots needed is p1 + p2.
+        # But we also need strict inequality, so we need p1 + p2 <= T - 1 + 1 = T
+        # Wait, let's think more carefully.
+        # We need to pick p1 numbers from [1..x] and p2 numbers from [x+1..T]
+        # For this to be possible:
+        # - x >= p1 (so we can pick p1 numbers from [1..x])
+        # - T - x >= p2 (so we can pick p2 numbers from [x+1..T])
+        # So: x >= p1 and x <= T - p2
+        # For such an x to exist: p1 <= T - p2, i.e., p1 + p2 <= T
+        if p1 + p2 > T:
+            print(f"JOB {i+1}")
+            return
+    
+    # If all jobs can theoretically be scheduled individually,
+    # check for LOAD condition on each core
+    core1_load = sum(p1 for p1, p2 in tasks)
+    core2_load = sum(p2 for p1, p2 in tasks)
+    
+    if core1_load > T:
+        print("LOAD 1")
+        return
+    if core2_load > T:
+        print("LOAD 2")
+        return
+
+threading.Thread(target=main).start()

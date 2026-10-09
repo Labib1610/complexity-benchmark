@@ -1,0 +1,99 @@
+import sys
+sys.setrecursionlimit(1 << 20)
+input = sys.stdin.readline
+
+n, m = map(int, input().split())
+
+# 2-SAT: variable i (0-indexed) -> node 2*i (False), 2*i+1 (True)
+# For zone i, state 0 means False, state 1 means True.
+# strain(v): if v>0 -> x[v] = 0 (False), if v<0 -> x[|v|] = 1 (True)
+
+g = [[] for _ in range(2 * n)]
+gr = [[] for _ in range(2 * n)]
+
+def add_imp(u, v):
+    g[u].append(v)
+    gr[v].append(u)
+
+def node(var, val):
+    # var: 0-indexed zone, val: True/False
+    return 2 * var + (1 if val else 0)
+
+def add_clause(l1, l2):
+    # not strain(l1) OR not strain(l2)
+    # strain(l1) = (l1>0 and x[l1]=False) or (l1<0 and x[|l1|]=True)
+    # not strain(l1) = (l1>0 and x[l1]=True) or (l1<0 and x[|l1|]=False)
+    # So we add implications:
+    # strain(l1) -> not strain(l2)
+    # strain(l2) -> not strain(l1)
+
+    def strain_node(v):
+        idx = abs(v) - 1
+        if v > 0:
+            return node(idx, False)  # x[idx] = False
+        else:
+            return node(idx, True)   # x[idx] = True
+
+    def not_strain_node(v):
+        idx = abs(v) - 1
+        if v > 0:
+            return node(idx, True)   # x[idx] = True
+        else:
+            return node(idx, False)  # x[idx] = False
+
+    a = strain_node(l1)
+    b = strain_node(l2)
+    na = not_strain_node(l1)
+    nb = not_strain_node(l2)
+
+    add_imp(a, nb)
+    add_imp(b, na)
+
+for _ in range(m):
+    l1, l2 = map(int, input().split())
+    add_clause(l1, l2)
+
+# Kosaraju SCC
+visited = [False] * (2 * n)
+order = []
+
+def dfs1(u):
+    visited[u] = True
+    for v in g[u]:
+        if not visited[v]:
+            dfs1(v)
+    order.append(u)
+
+for i in range(2 * n):
+    if not visited[i]:
+        dfs1(i)
+
+comp = [-1] * (2 * n)
+def dfs2(u, cid):
+    comp[u] = cid
+    for v in gr[u]:
+        if comp[v] == -1:
+            dfs2(v, cid)
+
+cid = 0
+for u in reversed(order):
+    if comp[u] == -1:
+        dfs2(u, cid)
+        cid += 1
+
+# Check satisfiability
+for i in range(n):
+    if comp[2 * i] == comp[2 * i + 1]:
+        print("NO")
+        sys.exit()
+
+print("YES")
+res = []
+for i in range(n):
+    # If False node has higher comp id than True node, assign False (0)
+    # else assign True (1)
+    if comp[2 * i] > comp[2 * i + 1]:
+        res.append(0)
+    else:
+        res.append(1)
+print(" ".join(map(str, res)))

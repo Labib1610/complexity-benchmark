@@ -1,5 +1,4 @@
 import sys
-sys.setrecursionlimit(10000)
 
 def solve() -> None:
     data = sys.stdin.read().strip().split()
@@ -8,41 +7,67 @@ def solve() -> None:
     it = iter(data)
     n = int(next(it))
     m = int(next(it))
-    adj = [[] for _ in range(n)]
+    adj = [set() for _ in range(n)]
     for _ in range(m):
         u = int(next(it)) - 1
         v = int(next(it)) - 1
-        adj[u].append(v)
-        adj[v].append(u)
+        adj[u].add(v)
+        adj[v].add(u)
 
-    col = [0] * n          # 0 = uncoloured, else 1/2/3
-    answer = None
-    found = False
+    colors = [-1] * n
+    order = sorted(range(n), key=lambda x: -len(adj[x]))  # static order by degree
 
-    def dfs(v: int) -> bool:
-        nonlocal answer, found
-        if v == n:
-            answer = col.copy()
-            return True
-        for c in (1, 2, 3):
-            ok = True
-            for nb in adj[v]:
-                if col[nb] == c:
-                    ok = False
-                    break
-            if not ok:
+    # Precompute neighbor list for speed
+    neigh = adj
+
+    sys.setrecursionlimit(10000)
+
+    def select_vertex():
+        # choose uncolored vertex with most colored neighbors (DSATUR heuristic)
+        best = -1
+        best_sat = -1
+        best_deg = -1
+        for v in range(n):
+            if colors[v] != -1:
                 continue
-            col[v] = c
-            if dfs(v + 1):
-                return True
-            col[v] = 0
+            used = 0
+            for nb in neigh[v]:
+                c = colors[nb]
+                if c != -1:
+                    used |= 1 << c
+            sat = bin(used).count("1")
+            deg = len(neigh[v])
+            if sat > best_sat or (sat == best_sat and deg > best_deg):
+                best_sat = sat
+                best_deg = deg
+                best = v
+        return best
+
+    def dfs(colored_cnt: int) -> bool:
+        if colored_cnt == n:
+            return True
+        v = select_vertex()
+        # compute forbidden colors
+        forbid = 0
+        for nb in neigh[v]:
+            c = colors[nb]
+            if c != -1:
+                forbid |= 1 << c
+        for col in range(3):
+            if not (forbid & (1 << col)):
+                colors[v] = col
+                if dfs(colored_cnt + 1):
+                    return True
+                colors[v] = -1
         return False
 
-    if dfs(0):
-        out = ['YES', ' '.join(map(str, answer))]
+    possible = dfs(0)
+    if not possible:
+        print("NO")
     else:
-        out = ['NO']
-    sys.stdout.write('\n'.join(out))
+        print("YES")
+        # convert 0..2 to 1..3
+        print(' '.join(str(c+1) for c in colors))
 
 if __name__ == "__main__":
     solve()

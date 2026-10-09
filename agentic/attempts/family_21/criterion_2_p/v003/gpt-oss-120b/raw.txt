@@ -1,0 +1,242 @@
+**Solution Explanation**
+
+For the two special rooms `s` and `t` we have to close some corridors
+so that after the closures there is no path between `s` and `t`.
+The total closing cost must not exceed the given budget `B`.
+
+For an undirected graph this is exactly the **minimum s‑t cut** problem:
+the cheapest set of edges whose removal separates `s` from `t`.
+If the weight of a minimum cut is `C` then
+
+* any feasible solution needs at least `C` cost,
+* a solution of cost `C` exists (the minimum cut itself).
+
+Therefore
+
+* if `C > B` – impossible → answer `NO`,
+* otherwise the edges of a minimum cut give a valid answer.
+
+The minimum cut can be obtained from a maximum flow computation
+(Max‑Flow‑Min‑Cut theorem).  
+We build a directed flow network by replacing every undirected corridor
+`(u,v,w)` with two opposite directed edges of capacity `w`.
+Running any max‑flow algorithm (Dinic) gives the value `C`.
+After the flow finishes we run a DFS/BFS in the **residual graph**
+starting from `s`.  
+All vertices reachable are the `S` side of the cut, the remaining vertices
+form the `T` side.  
+Every original undirected edge with exactly one endpoint in `S` belongs to
+the cut and must be sealed.
+
+The algorithm is:
+
+```
+build directed network (two arcs per corridor)
+maxflow = Dinic(s, t)
+if maxflow > B:  print NO
+else:
+    reachable = bfs_residual(s)
+    cut_edges = [ (u,v) for each original edge (u,v,w)
+                  if reachable[u] xor reachable[v] ]
+    print YES, len(cut_edges), each edge
+```
+
+The total weight of `cut_edges` equals `maxflow` (the minimum cut value).
+
+Complexities  
+`n` – rooms, `m` – corridors  
+
+* Dinic: `O( m * sqrt(n) )` in practice, well below the limits for
+  `n,m ≤ 10^5`.
+* Residual BFS: `O(m)`.
+* Memory: `O(n + m)`.
+
+--------------------------------------------------------------------
+
+#### Correctness Proof  
+
+We prove that the algorithm outputs a correct answer.
+
+---
+
+**Lemma 1**  
+The value returned by Dinic equals the weight of a minimum `s‑t` cut
+in the undirected graph.
+
+*Proof.*  
+We transformed each undirected edge of weight `w` into two opposite
+directed edges of capacity `w`. Any `s‑t` cut in the directed network
+contains exactly one of the two directed edges for each original edge
+that crosses the partition, contributing `w` to the cut capacity.
+Thus the capacity of a directed cut equals the total weight of the
+corresponding undirected cut, and vice‑versa.
+Dinic computes a maximum flow; by the Max‑Flow‑Min‑Cut theorem its value
+equals the minimum directed cut capacity, which equals the minimum
+undirected cut weight. ∎
+
+
+
+**Lemma 2**  
+After the max‑flow finishes, a vertex is reachable from `s` in the
+residual graph **iff** it belongs to the `S` side of some minimum cut.
+
+*Proof.*  
+Standard property of residual graphs: the set of vertices reachable from
+`s` via edges with positive residual capacity forms the `S` side of the
+minimum cut produced by the algorithm. No edge from `S` to `T` has
+remaining capacity, otherwise `t` would also be reachable. ∎
+
+
+
+**Lemma 3**  
+The set `cut_edges` collected by the algorithm is exactly the set of
+edges crossing the partition `(S,T)` defined in Lemma&nbsp;2.
+
+*Proof.*  
+For each original undirected edge `(u,v)` we test
+`reachable[u] xor reachable[v]`. By Lemma&nbsp;2 this condition holds
+precisely when one endpoint lies in `S` and the other in `T`. Hence the
+edge is added iff it crosses the cut. ∎
+
+
+
+**Lemma 4**  
+The total weight of `cut_edges` equals the maximum flow value `maxflow`.
+
+*Proof.*  
+By Lemma&nbsp;3 `cut_edges` are exactly the edges of the cut `(S,T)`.
+The capacity of this cut (sum of its edge weights) is, by Lemma&nbsp;1,
+the minimum cut weight, which equals `maxflow`. ∎
+
+
+
+**Theorem**  
+The algorithm outputs `YES` with a set of corridors whose total sealing
+cost does not exceed `B` and separates `s` from `t` **iff** such a set
+exists.
+
+*Proof.*  
+
+*If part.*  
+Assume the algorithm prints `YES`. Then `maxflow ≤ B`. By Lemma&nbsp;4
+the printed edges have total weight `maxflow`, thus ≤ `B`. By construction
+they are exactly the edges crossing `(S,T)`, so removing them disconnects
+`s` and `t`. Hence a feasible solution is produced.
+
+*Only‑if part.*  
+Assume there exists any set of corridors with total cost ≤ `B` that
+separates `s` and `t`. Its total cost is at least the minimum cut weight
+`C` (definition of minimum cut). Therefore `C ≤ B`. By Lemma&nbsp;1
+`maxflow = C ≤ B`, so the algorithm will not output `NO` and will output
+`YES` with a cut of weight `C` (which is ≤ `B`). ∎
+
+
+
+--------------------------------------------------------------------
+
+#### Reference Implementation (Python 3)
+
+```python
+import sys
+sys.setrecursionlimit(1 << 25)
+
+class Dinic:
+    __slots__ = ('n', 'g', 'level', 'it')
+    def __init__(self, n):
+        self.n = n
+        self.g = [[] for _ in range(n)]
+
+    def add_edge(self, fr, to, cap):
+        fwd = [to, cap, None]          # to, capacity, rev
+        rev = [fr, 0, fwd]
+        fwd[2] = rev
+        self.g[fr].append(fwd)
+        self.g[to].append(rev)
+
+    def bfs(self, s, t):
+        level = [-1] * self.n
+        q = [s]
+        level[s] = 0
+        for v in q:
+            for to, cap, rev in self.g[v]:
+                if cap and level[to] < 0:
+                    level[to] = level[v] + 1
+                    q.append(to)
+        self.level = level
+        return level[t] >= 0
+
+    def dfs(self, v, t, f):
+        if v == t:
+            return f
+        for i in range(self.it[v], len(self.g[v])):
+            self.it[v] = i
+            to, cap, rev = self.g[v][i]
+            if cap and self.level[v] + 1 == self.level[to]:
+                ret = self.dfs(to, t, min(f, cap))
+                if ret:
+                    self.g[v][i][1] -= ret
+                    rev[1] += ret
+                    return ret
+        return 0
+
+    def max_flow(self, s, t):
+        flow = 0
+        INF = 10 ** 18
+        while self.bfs(s, t):
+            self.it = [0] * self.n
+            while True:
+                f = self.dfs(s, t, INF)
+                if not f:
+                    break
+                flow += f
+        return flow
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it)); m = int(next(it)); s = int(next(it))-1
+    t = int(next(it))-1; B = int(next(it))
+    edges = []
+    dinic = Dinic(n)
+    for _ in range(m):
+        u = int(next(it))-1; v = int(next(it))-1; w = int(next(it))
+        edges.append((u, v, w))
+        dinic.add_edge(u, v, w)
+        dinic.add_edge(v, u, w)
+
+    min_cut = dinic.max_flow(s, t)
+    if min_cut > B:
+        print("NO")
+        return
+
+    # residual reachable from s
+    from collections import deque
+    q = deque([s])
+    reachable = [False]*n
+    reachable[s] = True
+    while q:
+        v = q.popleft()
+        for to, cap, rev in dinic.g[v]:
+            if cap and not reachable[to]:
+                reachable[to] = True
+                q.append(to)
+
+    cut_edges = []
+    for u, v, w in edges:
+        if reachable[u] ^ reachable[v]:
+            cut_edges.append((u+1, v+1))
+
+    print("YES")
+    print(len(cut_edges))
+    out = sys.stdout
+    for a, b in cut_edges:
+        out.write(f"{a} {b}\n")
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above
+and conforms to the required input‑output format.

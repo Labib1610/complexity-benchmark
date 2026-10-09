@@ -1,0 +1,64 @@
+import sys
+import threading
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    j = int(data[0])
+    checkpoints = []
+    idx = 1
+    for _ in range(j):
+        p1 = int(data[idx])
+        p2 = int(data[idx+1])
+        checkpoints.append((p1, p2))
+        idx += 2
+    
+    # We want to minimize max_{k=1..j} (sum_{i=1}^k p1[i] + sum_{i=k}^j p2[i])
+    # Let S1[k] = sum_{i=1}^k p1[i] (prefix sum of p1)
+    # Let S2[k] = sum_{i=k}^j p2[i] (suffix sum of p2)
+    # We want to minimize max_{k=1..j} (S1[k] + S2[k])
+    
+    # To minimize this, we should sort the checkpoints.
+    # The optimal sorting criterion can be derived by comparing adjacent elements.
+    # Consider two checkpoints A=(a1,a2) and B=(b1,b2).
+    # If we place A before B, the contribution to the max at the boundary is a1 + (a2+b2)
+    # If we place B before A, the contribution is b1 + (b2+a2)
+    # But we also need to consider the internal max values.
+    # A better approach: we want to minimize max(S1[k] + S2[k]) over all k.
+    # This is minimized when we sort by (p1 - p2).
+    # Wait, let's re-derive properly.
+    
+    # Let’s denote the sequence as c1, c2, ..., cj.
+    # For position k, the time is:
+    # T(k) = (p1[1] + ... + p1[k]) + (p2[k] + ... + p2[j])
+    # We want to minimize max_{k=1..j} T(k)
+    
+    # This is a classic problem that can be solved by sorting.
+    # The optimal sorting criterion is to sort by (p1 - p2).
+    # If p1[i] - p2[i] < p1[j] - p2[j], then i should come before j.
+    
+    checkpoints.sort(key=lambda x: x[0] - x[1])
+    
+    # Now compute the minimum completion time
+    # We compute prefix sums of p1 and suffix sums of p2
+    prefix_p1 = [0] * (j + 1)
+    suffix_p2 = [0] * (j + 1)
+    
+    for i in range(j):
+        prefix_p1[i+1] = prefix_p1[i] + checkpoints[i][0]
+    
+    for i in range(j-1, -1, -1):
+        suffix_p2[i] = suffix_p2[i+1] + checkpoints[i][1]
+    
+    max_time = 0
+    for k in range(1, j+1):
+        time = prefix_p1[k] + suffix_p2[k-1]
+        if time > max_time:
+            max_time = time
+    
+    print(max_time)
+
+# Increase recursion limit and use threading to avoid stack overflow for large inputs
+threading.Thread(target=main).start()

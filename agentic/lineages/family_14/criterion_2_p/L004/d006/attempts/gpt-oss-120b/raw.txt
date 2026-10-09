@@ -1,0 +1,205 @@
+**Solution Explanation**
+
+For every mechanism we are given an undirected edge `u – v` with cost `w`.
+Activating the edge forces `x_u = x_v`, i.e. it merges the two vertices
+into one component.
+All `m = n‑1` edges together form a **tree** (the statement says that
+activating all of them leaves only the all‑ones direction, which is true
+iff the edges are a spanning tree).
+
+For a set `S` of *critical* vertices we have to activate a set of edges
+such that after the activation all vertices of `S` belong to the same
+connected component.
+Because we may only **add** edges (never delete), the cheapest way is to
+activate exactly the edges of the *minimal subtree* of the original tree
+that contains all vertices of `S`.  
+Every edge of that subtree is necessary: removing it would split the
+subtree into two parts, each containing at least one critical vertex,
+so the critical vertices would become disconnected.
+
+Hence the answer is the sum of the costs of all tree edges whose removal
+would separate the critical vertices.
+
+--------------------------------------------------------------------
+
+#### Reducing to a counting problem
+
+Root the tree arbitrarily (e.g. at vertex 1).
+For each vertex `v` let  
+
+```
+cnt[v] = number of critical vertices in the subtree of v (including v)
+```
+
+Consider an edge `v – p` where `p` is the parent of `v`.
+If `0 < cnt[v] < t` then the edge lies on a path between two critical
+vertices, therefore it belongs to the minimal connecting subtree and its
+cost must be added to the answer.
+Otherwise (`cnt[v] = 0` or `cnt[v] = t`) the whole set of critical vertices
+is on one side of the edge, so the edge is unnecessary.
+
+Thus a single DFS that computes `cnt` and checks the condition for every
+edge yields the required sum.
+
+--------------------------------------------------------------------
+
+#### Algorithm
+```
+read n, m, t
+read list crit[ ]                     # t distinct vertices
+mark[vertex] = 1 if vertex is critical else 0
+
+build adjacency list of the tree, storing (neighbor, weight)
+
+answer = 0
+DFS(root = 1, parent = 0):
+    cnt = mark[root]
+    for (to, w) in adjacency[root]:
+        if to == parent: continue
+        sub = DFS(to, root)           # cnt of child subtree
+        if 0 < sub < t:               # edge root–to is needed
+            answer += w
+        cnt += sub
+    return cnt
+
+print answer
+```
+
+--------------------------------------------------------------------
+
+#### Correctness Proof  
+
+We prove that the algorithm outputs the minimum possible total cost.
+
+---
+
+**Lemma 1**  
+For any edge `e` of the tree, after removing `e` the tree is split into
+two components `A` and `B`.  
+`e` belongs to the minimal subtree connecting all critical vertices **iff**
+both `A` and `B` contain at least one critical vertex.
+
+*Proof.*  
+If both sides contain a critical vertex, any connected subgraph that
+contains all critical vertices must contain a path between those two
+vertices, and every such path uses `e`. Hence `e` is necessary.  
+Conversely, if one side contains no critical vertex, the critical vertices
+are all inside the other side, so a connected subgraph containing them can
+avoid `e`. ∎
+
+
+
+**Lemma 2**  
+During DFS, for the edge from a node `v` to its parent `p`,
+`cnt[v]` equals the number of critical vertices in the component that
+contains `v` after removing that edge.
+
+*Proof.*  
+The DFS subtree of `v` is exactly the component that stays with `v`
+when the edge `v‑p` is cut, because the tree has no other connections.
+`cnt[v]` counts critical vertices inside that subtree, therefore the
+statement holds. ∎
+
+
+
+**Lemma 3**  
+The algorithm adds the weight of an edge `e` to `answer` **iff**
+`e` satisfies the condition of Lemma&nbsp;1.
+
+*Proof.*  
+For edge `e = (v,p)` with `v` being the child, the algorithm checks
+`0 < cnt[v] < t`.  
+By Lemma&nbsp;2, `cnt[v]` is the number of critical vertices on `v`'s side.
+Thus `0 < cnt[v] < t` exactly means that both sides contain at least one
+critical vertex, i.e. the condition of Lemma&nbsp;1. ∎
+
+
+
+**Lemma 4**  
+`answer` equals the total weight of the minimal subtree that connects all
+critical vertices.
+
+*Proof.*  
+By Lemma&nbsp;3 the algorithm sums precisely the weights of all edges that
+must belong to any connecting subgraph (Lemma&nbsp;1).  
+All those edges together form a connected subgraph containing all critical
+vertices (they are exactly the edges of the minimal subtree).  
+Therefore the sum is exactly the weight of that subtree. ∎
+
+
+
+**Theorem**  
+The algorithm outputs the minimum possible total activation cost that
+guarantees all critical indices are coupled.
+
+*Proof.*  
+Any feasible set of activated edges must contain the minimal connecting
+subtree (otherwise some critical vertices would stay disconnected).  
+Hence its total cost is at least the weight of that subtree.
+By Lemma&nbsp;4 the algorithm outputs exactly this weight, which is thus
+both a lower bound and achievable (activate precisely those edges).
+Consequently the output is the optimal minimum cost. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### Complexity Analysis  
+
+* `n` vertices, `n‑1` edges.
+* One DFS traverses each edge once: **O(n)** time.
+* Adjacency list stores `2·(n‑1)` entries: **O(n)** memory.
+
+Both limits satisfy the problem constraints (`n ≤ 200 000`).
+
+--------------------------------------------------------------------
+
+#### Reference Implementation  (Python 3)
+
+```python
+import sys
+sys.setrecursionlimit(1 << 25)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))          # equals n-1, not used separately
+    t = int(next(it))
+    crit = [int(next(it)) for _ in range(t)]
+    is_crit = [0] * (n + 1)
+    for v in crit:
+        is_crit[v] = 1
+
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(next(it)); v = int(next(it)); w = int(next(it))
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+
+    total = 0
+    sys.setrecursionlimit(1 << 25)
+
+    def dfs(v: int, p: int) -> int:
+        nonlocal total
+        cnt = is_crit[v]
+        for to, w in adj[v]:
+            if to == p:
+                continue
+            sub = dfs(to, v)
+            if 0 < sub < t:
+                total += w
+            cnt += sub
+        return cnt
+
+    dfs(1, 0)
+    print(total)
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above and
+conforms to the required input‑output format.

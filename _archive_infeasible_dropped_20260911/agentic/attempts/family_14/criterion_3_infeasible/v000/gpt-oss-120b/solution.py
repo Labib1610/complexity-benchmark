@@ -1,0 +1,21 @@
+import sys
+
+def solve() -> None:
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    t = int(next(it))
+    required = [int(next(it)) for _ in range(t)]
+    has_edge = [False] * (n + 1)
+    for _ in range(m):
+        u = int(next(it)); v = int(next(it)); _ = next(it)  # weight ignored
+        has_edge[u] = True
+        has_edge[v] = True
+    ans = min(r for r in required if not has_edge[r])
+    sys.stdout.write(str(ans))
+
+if __name__ == "__main__":
+    solve()

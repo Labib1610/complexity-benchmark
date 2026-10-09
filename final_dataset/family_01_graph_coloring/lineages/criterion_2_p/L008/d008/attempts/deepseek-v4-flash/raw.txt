@@ -1,0 +1,195 @@
+We can model each lens’s required resonance as depending on its polarization mode.  
+For each lens, the total resonance must be:
+
+- If \( c_i = 1 \): \( d_i \cdot (5 \cdot 1 - 2) = 3 d_i \)  
+- If \( c_i = 2 \): \( d_i \cdot (5 \cdot 2 - 2) = 8 d_i \)
+
+Now, each tube contributes either:
+
+- 3 to one endpoint and 8 to the other (if endpoints are different lenses), or  
+- 11 to a single lens (if it’s a self-loop).
+
+So for each lens, the sum of contributions from incident edges must match either \( 3 d_i \) or \( 8 d_i \).
+
+Let’s define for each lens \( i \):
+
+- Let \( x_i \) = number of incident edges where lens \( i \) is the anode (gets 3).  
+- Let \( y_i \) = number of incident edges where lens \( i \) is the cathode (gets 8).  
+- Then \( x_i + y_i = d_i \).
+
+The total resonance is \( 3x_i + 8y_i \).
+
+We need:
+
+- If \( c_i = 1 \): \( 3x_i + 8y_i = 3d_i \) → \( 3x_i + 8y_i = 3(x_i + y_i) \) → \( 5y_i = 0 \) → \( y_i = 0 \).  
+  So all incident edges must have lens \( i \) as anode.
+
+- If \( c_i = 2 \): \( 3x_i + 8y_i = 8d_i \) → \( 3x_i + 8y_i = 8(x_i + y_i) \) → \( 5x_i = 0 \) → \( x_i = 0 \).  
+  So all incident edges must have lens \( i \) as cathode.
+
+Thus:
+
+- If a lens is mode 1, every incident edge must have it as anode.  
+- If a lens is mode 2, every incident edge must have it as cathode.
+
+For an edge between \( u \) and \( v \):
+
+- If both endpoints are mode 1 → impossible (both need to be anode).  
+- If both endpoints are mode 2 → impossible (both need to be cathode).  
+- If one is mode 1 and the other mode 2 → possible: mode 1 is anode, mode 2 is cathode.
+
+So the graph must be bipartite with the two parts being mode 1 and mode 2.  
+Self-loops are impossible because a single lens would need to be both anode and cathode.
+
+Thus the problem reduces to:  
+Check if the graph is bipartite. If yes, output the lexicographically smallest bipartition labeling (1 for one side, 2 for the other).  
+Lexicographically smallest means we try to assign 1 to as many early vertices as possible.
+
+We can do BFS/DFS coloring, but to get lexicographically smallest, we should try assigning 1 to vertex 1 if possible, then propagate.  
+If the graph is disconnected, each component can be colored independently; we choose the orientation that gives smaller labels.
+
+Implementation:
+
+```python
+import sys
+from collections import deque
+
+input = sys.stdin.readline
+
+n, m = map(int, input().split())
+adj = [[] for _ in range(n)]
+has_self_loop = False
+
+for _ in range(m):
+    u, v = map(int, input().split())
+    u -= 1
+    v -= 1
+    if u == v:
+        has_self_loop = True
+    adj[u].append(v)
+    adj[v].append(u)
+
+if has_self_loop:
+    print("NO")
+    sys.exit()
+
+color = [-1] * n
+
+for start in range(n):
+    if color[start] != -1:
+        continue
+    # Try to color start as 1
+    color[start] = 1
+    q = deque([start])
+    ok = True
+    while q:
+        u = q.popleft()
+        for v in adj[u]:
+            if color[v] == -1:
+                color[v] = 1 - color[u]
+                q.append(v)
+            elif color[v] == color[u]:
+                ok = False
+                break
+        if not ok:
+            break
+    if not ok:
+        print("NO")
+        sys.exit()
+
+# Now we have a valid 2-coloring, but we need lexicographically smallest.
+# For each component, we can flip colors if it makes the sequence smaller.
+# We'll do BFS again to find components and decide orientation.
+
+visited = [False] * n
+res = [0] * n
+
+for start in range(n):
+    if visited[start]:
+        continue
+    # BFS to collect component
+    comp = []
+    q = deque([start])
+    visited[start] = True
+    while q:
+        u = q.popleft()
+        comp.append(u)
+        for v in adj[u]:
+            if not visited[v]:
+                visited[v] = True
+                q.append(v)
+    # comp is a list of vertices in this component
+    # We have two possible assignments: keep color as is, or flip
+    # Build both options
+    opt1 = [0] * n
+    opt2 = [0] * n
+    for u in comp:
+        if color[u] == 1:
+            opt1[u] = 1
+            opt2[u] = 2
+        else:
+            opt1[u] = 2
+            opt2[u] = 1
+    # Compare lexicographically for this component
+    # We'll fill res with the smaller option
+    for u in comp:
+        if opt1[u] < opt2[u]:
+            res[u] = opt1[u]
+        elif opt2[u] < opt1[u]:
+            res[u] = opt2[u]
+        else:
+            res[u] = opt1[u]  # equal, doesn't matter
+
+# But we need to ensure the whole sequence is lexicographically smallest.
+# The above per-component choice is not enough globally.
+# We need to process components in order of their smallest vertex index,
+# and choose orientation that makes the overall sequence smallest.
+
+# Let's redo properly:
+visited = [False] * n
+res = [0] * n
+
+for start in range(n):
+    if visited[start]:
+        continue
+    # BFS to collect component
+    comp = []
+    q = deque([start])
+    visited[start] = True
+    while q:
+        u = q.popleft()
+        comp.append(u)
+        for v in adj[u]:
+            if not visited[v]:
+                visited[v] = True
+                q.append(v)
+    # comp is sorted by BFS order, but we need sorted by index for lexicographic
+    comp.sort()
+    # Try both orientations
+    # Orientation A: keep color as is
+    # Orientation B: flip
+    # We'll assign to res and compare
+    tempA = [0] * n
+    tempB = [0] * n
+    for u in comp:
+        if color[u] == 1:
+            tempA[u] = 1
+            tempB[u] = 2
+        else:
+            tempA[u] = 2
+            tempB[u] = 1
+    # Compare lexicographically on comp indices
+    chooseA = True
+    for u in comp:
+        if tempA[u] < tempB[u]:
+            chooseA = True
+            break
+        elif tempB[u] < tempA[u]:
+            chooseA = False
+            break
+    for u in comp:
+        res[u] = tempA[u] if chooseA else tempB[u]
+
+print("YES")
+print(" ".join(map(str, res)))
+```

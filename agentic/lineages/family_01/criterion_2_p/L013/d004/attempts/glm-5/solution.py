@@ -8,39 +8,48 @@ def solve():
     it = iter(input_data)
     n = int(next(it))
     m = int(next(it))
+    
     adj = [[] for _ in range(n + 1)]
+    edges = []
     for _ in range(m):
         u = int(next(it))
         v = int(next(it))
+        edges.append((u, v))
         adj[u].append(v)
         adj[v].append(u)
     
     color = [0] * (n + 1)
-    possible = True
+    visited = [False] * (n + 1)
+    parent = [0] * (n + 1)
+    stack = []
+    setrecursionlimit(1 << 25)
     
     for start in range(1, n + 1):
-        if color[start] == 0:
+        if not visited[start]:
+            stack.append((start, 0, iter(adj[start])))
+            visited[start] = True
             color[start] = 1
-            stack = [start]
             while stack:
-                u = stack.pop()
-                for v in adj[u]:
-                    if color[v] == 0:
-                        color[v] = 3 - color[u]
-                        stack.append(v)
-                    elif color[v] == color[u]:
-                        possible = False
+                node, p, children = stack[-1]
+                advanced = False
+                for child in children:
+                    if child == p:
+                        continue
+                    if not visited[child]:
+                        visited[child] = True
+                        color[child] = 3 - color[node]
+                        parent[child] = node
+                        stack.append((child, node, iter(adj[child])))
+                        advanced = True
                         break
-                if not possible:
-                    break
-        if not possible:
-            break
+                    else:
+                        if color[child] == color[node]:
+                            print("NO")
+                            return
+                if not advanced:
+                    stack.pop()
     
-    if not possible:
-        print("NO")
-    else:
-        print("YES")
-        print(' '.join(str(color[i]) for i in range(1, n + 1)))
+    print("YES")
+    print(' '.join(str(color[i]) for i in range(1, n + 1)))
 
-if __name__ == "__main__":
-    solve()
+solve()

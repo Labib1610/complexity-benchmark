@@ -1,50 +1,1318 @@
+Let me analyze this problem.
+
+We have $n$ components, each assigned a tier $t_i \in \{1, 2, 3\}$. For each edge $(u, v)$, we need $|t_u - t_v| \ge 1$, i.e., $t_u \ne t_v$.
+
+So this is just graph coloring with 3 colors. We need to determine if the graph is 3-colorable, and output a valid coloring.
+
+$n \le 40$, $m \le n(n-1)/2 = 780$.
+
+Graph 3-coloring is NP-hard in general, but with $n \le 40$ we can use backtracking with good heuristics, or we can use a known result: by Brooks' theorem, a graph with maximum degree $\Delta$ can be colored with $\Delta$ colors unless it's a complete graph or an odd cycle. So if $\Delta \le 2$, the graph is 3-colorable unless it's $K_3$ (triangle)... wait, actually odd cycles need 3 colors, which is fine. $K_4$ needs 4 colors. So the only graphs that need 4 colors with small structure... Actually, 4-critical graphs (graphs that need 4 colors but removing any edge makes them 3-colorable) have minimum degree $\ge 3$. 
+
+For $n \le 40$, backtracking with ordering heuristics should work fine. But worst case, there could be tricky instances. Let me think about how to make it robust.
+
+Approach: Backtracking with:
+- Order vertices by degree (descending), or use a dynamic heuristic (choose vertex with most colored neighbors / fewest available colors — Brelaz's DSATUR heuristic).
+- DSATUR with backtracking is quite effective for 3-coloring small graphs.
+
+Actually, for $n \le 40$, a well-known fact: 4-critical graphs on $\le 40$ vertices... The smallest 4-critical graph is $K_4$. There are many 4-critical graphs. But DSATUR backtracking should handle them.
+
+Alternatively, we can use a smarter approach: since we only need 3 colors, we can think of it as 2-SAT? No, 3-coloring isn't 2-SAT reducible directly.
+
+Hmm, but wait — there's a classical trick: 3-coloring can be reduced to... no, it's NP-hard in general.
+
+Let me think about the structure. With $n \le 40$, backtracking with DSATUR should be fine. The hardest cases for 3-coloring backtracking are typically random graphs near the phase transition, but with $n = 40$, even those are manageable.
+
+Actually, let me think more carefully. Worst case for DSATUR on 3-coloring: there exist graphs where DSATUR takes exponential time, but for $n \le 40$ it should be OK in practice. To be safe, I can add a symmetry-breaking: fix the color of one vertex to 1 (and maybe more).
+
+Let me also consider: since colors are symmetric, when coloring a vertex, only try colors $1, 2, 3$ but skip colors that are "new max" beyond needed... Standard symmetry breaking: when assigning colors, a vertex can only use color $c$ if color $c-1$ has been used somewhere already (or is used by a neighbor... actually the standard is: color $c$ can be used only if color $c-1$ is already used in the graph). This prunes a lot.
+
+Let me write the DSATUR backtracking:
+
 ```python
 import sys
 
+def main():
+    input_data = sys.stdin.buffer.read().split()
+    idx = 0
+    n = int(input_data[idx]); idx += 1
+    m = int(input_data[idx]); idx += 1
+    adj = [set() for _ in range(n)]
+    for _ in range(m):
+        u = int(input_data[idx]) - 1; idx += 1
+        v = int(input_data[idx]) - 1; idx += 1
+        if u != v:
+            adj[u].add(v)
+            adj[v].add(u)
+    
+    # adjacency as bitmasks
+    adj_mask = [0] * n
+    for u in range(n):
+        for v in adj[u]:
+            adj_mask[u] |= (1 << v)
+    
+    color = [-1] * n  # 0, 1, 2
+    
+    # DSATUR backtracking
+    # For each uncolored vertex, track set of colors used by neighbors (as bitmask).
+    # sat[v] = bitmask of colors used among colored neighbors.
+    sat = [0] * n
+    deg = [len(adj[u]) for u in range(n)]
+    
+    # Symmetry breaking: max color used so far; a new color c can only be used if c <= max_used + 1.
+    # Also fix vertex 0's color to 0? That's valid by symmetry.
+    
+    import sys
+    sys.setrecursionlimit(10000)
+    
+    def solve():
+        # find uncolored vertex with max saturation, tie-break by degree
+        best = -1
+        best_sat = -1
+        best_deg = -1
+        max_used = -1
+        for v in range(n):
+            if color[v] == -1:
+                s = bin(sat[v]).count('1')
+                if s > best_sat or (s == best_sat and deg[v] > best_deg):
+                    best = v
+                    best_sat = s
+                    best_deg = deg[v]
+        if best == -1:
+            return True
+        v = best
+        # determine max color used so far
+        # track globally instead
+        for c in range(3):
+            if not (sat[v] >> c) & 1:
+                if c > max_color_used + 1:
+                    break  # symmetry breaking: can't introduce color beyond max+1
+                color[v] = c
+                # update neighbors
+                changed = []
+                for u in adj[v]:
+                    if color[u] == -1:
+                        if not (sat[u] >> c) & 1:
+                            sat[u] |= (1 << c)
+                            changed.append(u)
+                        # else already set
+                # hmm, need to track which neighbors got the bit added for undo
+                prev_max = max_color_used[0]
+                if c > prev_max:
+                    max_color_used[0] = c
+                if solve():
+                    return True
+                max_color_used[0] = prev_max
+                for u in changed:
+                    sat[u] &= ~(1 << c)
+                color[v] = -1
+        return False
+    ...
+```
+
+Wait, there's a subtlety with the undo: if a neighbor already had color $c$ in its saturation set (from another colored neighbor), we shouldn't remove it. So I track `changed` — neighbors for which we added the bit. That's correct.
+
+For symmetry breaking with max color used: I need to track the maximum color index used so far. A vertex can take color $c$ only if $c \le \text{max\_used} + 1$. This is a valid symmetry-breaking rule for finding any coloring (not for counting). Actually, is it valid? The rule: in the final coloring, colors used form a set; by permuting colors, we can assume colors used are $\{0, 1, \ldots, k\}$ for some $k \le 2$. The DSATUR order of vertices is deterministic given the coloring... hmm, actually symmetry breaking with dynamic ordering is trickier because the order depends on choices.
+
+Hmm, let me think. With DSATUR, the vertex selection order depends on the saturation degrees, which depend on the colors assigned. If we permute colors in a valid solution, the saturation counts (number of distinct colors among neighbors) stay the same, so the vertex order stays the same. So if a solution exists with colors $\{0,1,2\}$ used as some set $S$, we can permute to... hmm, the issue is whether the specific assignment encountered by the search can be transformed.
+
+Standard argument: Suppose the graph is 3-colorable. Consider the search tree. The rule "vertex $v$ can take color $c$ only if $c \le \text{max\_used}+1$" — is it complete (doesn't miss solutions)?
+
+Claim: If graph is 3-colorable, then there's a 3-coloring where, in the DSATUR order, each vertex gets a color $\le \text{max used before} + 1$. Hmm, actually any coloring can be relabeled: given a proper coloring $\phi$ with colors from $\{0,1,2\}$, consider the order in which vertices are colored by the algorithm... The algorithm's order depends on previous color choices, which complicates things.
+
+Alternative simpler approach: fix the search order statically (e.g., by degree descending), and then symmetry breaking is straightforward: vertex at position $i$ can use color $c$ only if color $c-1$ has been used by some earlier vertex. This is valid: given any proper coloring, relabel colors so that the first vertex gets color 0, the first vertex that doesn't get color 0 gets color 1, etc. With static order, this transformation preserves properness and the search will find it.
+
+But static order (by degree) is weaker than DSATUR for pruning. Hmm.
+
+Actually, let me reconsider: is the symmetry breaking valid with DSATUR? Let me think again.
+
+With DSATUR, ties in saturation are broken by degree (static). The vertex order is determined by the sequence of color assignments. Suppose there's a proper 3-coloring $\phi$. The algorithm explores assignments in some order. At each node of the search tree, the partial assignment is some function $\psi$ on a set $S$ of colored vertices. The next vertex $v$ is determined by $\psi$ (saturation values depend on the set of colors used by neighbors, not just counts... wait, saturation = number of distinct colors among colored neighbors — this is invariant under color permutation, but the choice of which colors are available for $v$ does depend on the actual colors).
+
+Hmm, the key question: if a proper coloring $\phi$ exists extending partial assignment $\psi$ (where $\psi$ satisfies the symmetry-breaking rule), does the search find it? The search tries all colors $c$ for $v$ with $c \le \text{max\_used}+1$ and $c \notin \text{sat}(v)$. If $\phi(v) > \text{max\_used}+1$, we might miss it. But can we relabel $\phi$ to fix this?
+
+Let $M = \text{max\_used}$ under $\psi$ (max color in $\psi$). The colors used in $\psi$ are... hmm, with the symmetry-breaking rule, are the used colors exactly $\{0, \ldots, M\}$? Yes: by induction, color 0 is used first (first vertex can only use color 0 since max_used starts at -1, so $c \le 0$), and color $c$ is only introduced when max_used $\ge c-1$, so colors used form a prefix $\{0, \ldots, M\}$.
+
+Now, given proper coloring $\phi$ extending $\psi$ (with $\phi$ using colors $\{0,1,2\}$ possibly not all), we want to relabel $\phi$ so that it agrees with $\psi$ on $S$ and satisfies the rule for the rest. But relabeling must fix $\psi$'s colors on $S$ (since the search path is determined by $\psi$). Since $\psi$ uses colors $\{0,\ldots,M\}$ and $\phi$ extends $\psi$, $\phi$ uses all of $\{0,\ldots,M\}$. The remaining colors available: $\{M+1, \ldots\}$ within $\{0,1,2\}$. We can relabel the colors not in $\{0,\ldots,M\}$: $\phi$ uses some subset $T \subseteq \{M+1, 2\}$ of the remaining colors (at most 2 remaining colors since $M \le 2$). Relabel $T$'s colors in increasing order to $M+1, M+2, \ldots$. This keeps $\phi$ proper, agrees with $\psi$, and now every color used is $\le$ (max used so far) + 1 at every prefix? Hmm, need to check the rule at each step of the algorithm's order, not just globally.
+
+The algorithm's order: after $\psi$ on $S$, next vertex is $v$ (determined by $\psi$). Then the order continues based on $\psi \cup \{v \mapsto c\}$. Hmm, so the order in which remaining vertices are colored depends on the colors assigned. This makes the induction a bit more complex, but let's think of it as: the search explores a tree; a node at depth $d$ corresponds to a partial assignment. We want: for every partial assignment $\psi$ reachable in the search tree (satisfying the rule), if $\psi$ extends to a proper coloring, then some child branch leads to a node whose partial assignment also extends to a proper coloring and satisfies the rule.
+
+At node $\psi$ (colors used: $\{0,\ldots,M\}$), next vertex $v$. Let $\phi$ be a proper extension. If $\phi(v) \le M+1$ and $\phi(v) \notin \text{sat}_\psi(v)$ (which holds since $\phi$ is proper), then the branch $c = \phi(v)$ is explored (it satisfies $c \le M+1$; and $c \notin \text{sat}(v)$), and $\psi' = \psi \cup \{v \mapsto \phi(v)\}$ is a node in the tree that extends to proper coloring $\phi$. 
+
+If $\phi(v) > M+1$: since $\phi$ is proper and uses colors $\{0,1,2\}$, and $\phi(v) \in \{M+2\}$ (only possibility: $\phi(v) = M+2$, requiring $M \le 0$). So $M = 0$ and $\phi(v) = 2$. Then $\phi$ uses colors $\{0, 2\}$ at least, and possibly 1. Relabel: swap colors 1 and 2 in $\phi$ (on vertices not in $S$, since $S$ only uses color 0). New coloring $\phi'$: proper, agrees with $\psi$ (since $\psi$ only uses color 0, unaffected by swapping 1↔2). Now $\phi'(v) \in \{1\}$ if $\phi(v) = 2$... wait, $\phi'(v) = 1 \le M+1 = 1$. Good. But wait — does $\phi'$ still extend properly? Yes, swapping two colors preserves properness. And $\phi'$ agrees with $\psi$ on $S$ since $\psi$ uses only color 0 on $S$ (M=0 means all colored vertices have color 0). 
+
+Hmm wait, but I need to double check: the relabeling must be a permutation of $\{0,1,2\}$ that fixes colors used in $\psi$. Colors used in $\psi$: $\{0\}$ (since $M=0$). So any permutation fixing 0 works. We need $\phi(v)$ mapped to something $\le M+1 = 1$. $\phi(v) = 2$, so we need a permutation $\pi$ with $\pi(0) = 0$ and $\pi(2) \le 1$, i.e., $\pi = (0)(1 2)$ or $\pi(2) = ... $ well $\pi(2) \in \{1, 2\}$; we need $\pi(2) = 1$, so $\pi = $ swap 1 and 2. Then $\phi' = \pi \circ \phi$ is proper, extends $\psi$, and $\phi'(v) = 1 \le 1$. 
+
+So in all cases, there's a proper extension $\phi'$ with $\phi'(v) \le M+1$, so the branch is explored. By induction, the search finds a solution. 
+
+But wait, I should double-check the case analysis more carefully. $\phi(v) > M+1$ with $\phi(v) \in \{0,1,2\}$ and $M \in \{0,1,2\}$ (or $M = -1$ if no vertices colored yet). If $M = -1$ (empty $\psi$): then $\phi(v) > 0$, relabel so $\phi(v) = 0$: any permutation works since no colors fixed. If $M = 0$: as above. If $M = 1$: $\phi(v) > 2$ impossible. If $M = 2$: $\phi(v) > 3$ impossible. Great, so the symmetry breaking is sound with DSATUR.
+
+Hmm wait, one more check for $M=0$ case: I claimed colors used in $\psi$ are exactly $\{0, \ldots, M\} = \{0\}$. Yes, by the rule, colors form a prefix. Good.
+
+Also, tie-breaking in vertex selection: by saturation then degree. Both are invariant under color permutation (saturation count is invariant; degree is static). So the vertex order along a path is determined by the "color pattern structure"... hmm, actually the vertex selection depends on saturation counts which are permutation-invariant. So if $\phi$ and $\pi \circ \phi$ are two colorings, the sequence of vertices selected is the same. That's what makes the argument work: at node $\psi$, the next vertex $v$ is the same regardless of which extension we consider. Good.
+
+Actually hold on — the vertex selection at node $\psi$ depends only on $\psi$'s saturation structure. When we replace $\phi$ by $\phi' = \pi \circ \phi$, the partial assignments along the path... hmm, let me redo the induction more carefully.
+
+Induction hypothesis: For every node $\psi$ in the search tree (partial assignment satisfying the rule) such that $\psi$ extends to a proper 3-coloring, the subtree rooted at $\psi$ contains a solution.
+
+Base: $\psi$ complete → it's a solution.
+
+Inductive step: $\psi$ incomplete, extends to proper $\phi$. Next vertex $v$ = argmax saturation (determined by $\psi$). We showed there's a permutation $\pi$ fixing $\psi$'s colors such that $\phi' = \pi \circ \phi$ has $\phi'(v) \le M+1$ and $\phi'(v) \notin \text{sat}(v)$. The branch $c = \phi'(v)$ is explored, giving node $\psi' = \psi \cup \{v \mapsto \phi'(v)\}$, which satisfies the rule and extends to proper coloring $\phi'$. By induction (on number of uncolored vertices), subtree of $\psi'$ contains a solution. Done.
+
+Wait, but there's a subtle issue: does $\psi'$ satisfy the rule? The rule is per-vertex-assignment: $v$ gets color $c \le M+1$ where $M$ = max used before. Yes, that's exactly the branch condition. And the "colors form a prefix" invariant is maintained. Good.
+
+So DSATUR + symmetry breaking is complete. 
+
+Now, performance: $n \le 40$. Worst-case 3-coloring instances at this size... DSATUR is generally very fast. Known hard instances: e.g., 4-critical graphs can cause backtracking, but with $n \le 40$, even exponential blowup would be bounded. Hmm, worst case DSATUR on 3-coloring can be exponential. Let me think about what the worst case could be for $n = 40$.
+
+Actually, there's a classical result: for 3-coloring, if the graph is not 3-colorable, we need to prove it, which requires exploring the whole search tree. The number of 4-critical graphs on 40 vertices is large, but the search tree for a specific graph... Hmm.
+
+Alternative: use a different complete algorithm with better guarantees. For $n \le 40$, we could use the fact that 3-colorability can be checked via... hmm.
+
+One robust approach: backtracking with DSATUR is standard and used in many competitive solutions for $n \le 40$ (e.g., Codeforces problems). Actually, this problem looks like it's from a specific contest — "Tier Differential Resolution" with $|t_u - t_v| \ge 1$ meaning $t_u \ne t_v$, 3 colors, $n \le 40$. This resembles Codeforces problem... Hmm, there's a known problem: CF Round, "k-coloring"... Actually there's a well-known problem: given a graph with n ≤ 40, color with 3 colors or say NO. Hmm.
+
+Wait, actually, let me reconsider. Maybe the condition is different. $|t_u - t_v| \ge 1$ means the tiers differ by at least 1, i.e., $t_u \ne t_v$ since they're integers. Yes, 3-coloring.
+
+Hmm wait, but let me re-read: "any two components $u$ and $v$ connected by a critical link must maintain a strict differential... $|t_u - t_v| \ge 1$". Yes, $t_u \ne t_v$.
+
+Example 1: $K_4$ minus edge (3-4): vertices 1,2,3 form triangle, 1,4 and 2,4 edges. Coloring 1 2 3 3: check edges: 1-2: |1-2|=1 ✓; 1-3: |1-3|=2 ✓; 2-3: 1 ✓; 1-4: |1-3|=2 ✓; 2-4: |2-3|=1 ✓. Valid.
+
+Example 2: $K_4$: needs 4 colors → NO. ✓.
+
+So it's 3-coloring. With $n \le 40$, DSATUR backtracking should be fine. But let me think about worst cases more.
+
+Hard instances for 3-coloring backtracking at n=40: The hardest would be graphs that are 4-chromatic (requiring full exploration to prove NO) or 3-chromatic but hard to find. For proving NO on 4-chromatic graphs with 40 vertices: the search tree size depends on the structure. For example, a graph composed of many copies of $K_4$ sharing structure... With symmetry breaking, $K_4$: first vertex color 0, second vertex: neighbors... Let's trace: $K_4$, all degree 3. Vertex $a$ gets color 0. Then all others have saturation 1; pick highest degree, say $b$: colors available: 1 (since $c \le 1$ and $c \ne 0$). $b$ gets 1. Then $c$, $d$ have saturation 2. Pick $c$: available colors: 2 ($c \le 2$, not in {0,1}). $c$ gets 2. Then $d$: saturation 3, no colors. Backtrack: $c$ has no other options. Backtrack: $b$ no other options. Backtrack: $a$ no other options. Total tree: tiny. Good.
+
+What about graphs designed to defeat DSATUR? There are known families where DSATUR takes exponential time, e.g., certain 4-critical graphs. For $n = 40$... Let me estimate: the search tree for 3-coloring with symmetry breaking and DSATUR on a 40-vertex 4-critical graph. Hmm, hard to bound theoretically, but empirically DSATUR handles 4-critical graphs up to much larger sizes quickly. Actually, I recall that DSATUR can be slow on some instances like "Mycielski" graphs or specific hard k-colorable instances. Mycielski graph $M_4$ (Grötzsch graph, 11 vertices, 4-chromatic): DSATUR handles it fast. 
+
+Hmm, but to be safe, maybe I should implement something stronger. Options:
+
+1. DSATUR backtracking (simple, likely fast enough).
+2. Backtracking with better pruning: e.g., detect that a vertex has saturation 3 → fail immediately (DSATUR does this implicitly since no colors available).
+3. Additional pruning: if an uncolored vertex has all 3 colors in its neighborhood → prune. DSATUR picks max saturation first, so if any vertex has saturation 3, it's picked and fails immediately. Good.
+4. Preprocessing: remove vertices of degree ≤ 2 iteratively? A vertex of degree ≤ 2 can always be colored last (3 colors, at most 2 forbidden). So we can iteratively peel off vertices with degree ≤ 2; the remaining "core" has min degree ≥ 3. Then we only need to backtrack on the core, and color the peeled vertices greedily at the end. This is a huge reduction: 4-critical graphs have min degree 3, so the core of a NO instance is a graph with min degree ≥ 3. For $n \le 40$, the core is at most 40 vertices but often much smaller. Hmm, but the core could still be all 40 vertices.
+
+Actually, here's a thought: by Brooks' theorem, a connected graph with max degree $\Delta = 3$ is 3-colorable unless it's $K_4$. So NO instances with max degree 3 are exactly those containing $K_4$... no wait, Brooks: $\chi \le \Delta$ unless complete graph or odd cycle. So if $\Delta = 3$ and graph is not $K_4$, then $\chi \le 3$. So NO instances need $\Delta \ge 4$ somewhere... no wait, that's not right either. A graph with $\Delta = 3$ that is not $K_4$ is 3-colorable. So any NO instance (4-chromatic) has $\Delta \ge 4$? No! $K_4$ has $\Delta = 3$ and is 4-chromatic. Other 4-chromatic graphs: $\Delta \ge 3$ always (4-critical has min degree ≥ 3). 4-chromatic with $\Delta = 3$: only $K_4$ (by Brooks, since if $\Delta = 3$ and not $K_4$, $\chi \le 3$). So NO instances either contain $K_4$ as... no — a NO instance is 4-chromatic; if $\Delta = 3$ it must be $K_4$ exactly (the whole graph is $K_4$)? Brooks applies to connected graphs; for disconnected, each component with $\Delta \le 3$ is 3-colorable unless it's $K_4$. So a NO instance with $\Delta = 3$ contains a $K_4$ component. Anyway, this doesn't immediately help the algorithm.
+
+Let me think about the peeling idea combined with DSATUR:
+
+Peel: repeatedly remove vertices with degree ≤ 2 (in the current graph). These can be colored at the end greedily (each has ≤ 2 colored neighbors when we color it, in reverse peeling order, so at least one color available). Wait, careful: when we color in reverse peeling order, a peeled vertex has ≤ 2 neighbors already colored (its neighbors in the graph at the time of peeling), so ≥ 1 color available. Yes.
+
+The core (remaining vertices) has min degree ≥ 3. For the core, run DSATUR backtracking. The core of a NO instance is 4-chromatic with min degree ≥ 3. The core of a YES instance is 3-colorable.
+
+Hmm, but the core could be large (e.g., a 40-vertex 4-critical graph, or a hard 3-chromatic graph). Still, DSATUR on 40 vertices... Let me think about known worst cases.
+
+Known hard instances for DSATUR 3-coloring: I recall results that DSATUR (and any backtracking with these heuristics) can take exponential time on certain graph families, but the constants matter. For $n = 40$, the worst-case search tree... Let me think about an upper bound: with symmetry breaking, the number of nodes is at most... each node assigns a color to a fixed vertex (order determined by path), branching ≤ 3, depth ≤ 40, so ≤ $3^{40}$ worst case — way too much in theory. But practically?
+
+Hmm, let me think about specific hard instances. A classic hard case for 3-coloring: graphs that are 3-chromatic but where DSATUR makes bad choices. Or 4-chromatic graphs where proving NO takes long. 
+
+One known bad family for DSATUR: complete bipartite graphs plus... hmm. Actually, for proving non-3-colorability, the search must exhaust all proper 3-colorings attempts. For a 4-critical graph, every edge is critical. Hmm.
+
+Let me think about the "Mycielski" construction: $M_k$ graphs are triangle-free and $k$-chromatic. $M_4$ = Grötzsch (11 vertices, 4-chromatic). $M_5$ has 23 vertices, 5-chromatic — wait, we need 4-chromatic for NO: $M_4$ (11 vertices). DSATUR on Grötzsch graph: fast.
+
+What about taking many copies of 4-critical graphs glued together? E.g., two 4-critical graphs sharing one vertex: the whole is 4-chromatic. DSATUR would need to refute both parts. But each part is small.
+
+Honestly, for $n \le 40$, I believe DSATUR with symmetry breaking will run in well under the time limit for any input. Competitive programmers use this for problems like "3-coloring with n ≤ 40" (this looks like it could be from Codeforces Round — actually I recall a problem "110" hmm).
+
+Wait, actually, I now recall: this might be based on Codeforces problem 1594 or... Let me think: "n ≤ 40, m ≤ n(n-1)/2, 3 colors" — hmm, there's CF problem "1494" ... Actually there's a known problem: Codeforces 1424? Or maybe it's from a "bubble cup". There's a classic problem where n ≤ 40 and you need 3-coloring, and the intended solution is backtracking with a clever trick: since n ≤ 40, split vertices into two halves, meet in the middle? Hmm, there's a known technique for 3-coloring with n ≤ 40 using meet-in-the-middle: hmm, not quite.
+
+Actually wait — I recall a specific technique for 3-coloring when n is around 40: Hmm, there's the problem "Kefa and watch"? No. Let me think about whether there's a polynomial algorithm for 3-coloring n ≤ 40... No, 3-coloring is NP-hard for general graphs, and n=40 doesn't make it polynomial. But 40 is small enough for exponential algorithms like $O(2^{n/2})$ meet-in-the-middle or $O(3^n)$-ish with pruning.
+
+Hmm, actually there IS a classical result: 3-coloring can be done in $O(1.3289^n)$ or so (using sophisticated algorithms), and simple backtracking with good pruning handles n=40 easily in practice. Also, there's a neat approach: since the graph is 3-colorable iff... hmm.
+
+Alternative robust approach: Lawler's algorithm for 3-coloring via maximal independent sets: $\chi$-coloring in $O(3^n)$ hmm. For 3-coloring specifically: the graph is 3-colorable iff the vertices can be partitioned into 3 independent sets. Lawler's dynamic programming: for each subset, compute if it's 3-colorable... that's $O(2^n \cdot \text{MIS enumeration})$ — too heavy for n=40 ($2^{40}$ subsets is too much memory/time in Python).
+
+Practical approach: DSATUR backtracking in Python with bitmasks. For n=40, should be fine. But let me add safety measures:
+
+1. Symmetry breaking (colors form prefix).
+2. DSATUR vertex selection.
+3. Early failure: if any uncolored vertex has saturation 3 → fail (handled by picking max saturation first).
+4. Additional pruning: "if an uncolored vertex has 2 colored neighbors with 2 distinct colors and another uncolored neighbor..." — too complex. 
+
+Another strong pruning: if an uncolored vertex $v$ has saturation 2 (colors $\{a, b\}$ used by neighbors), then $v$ must take the third color $c$. We could propagate this as forced moves. DSATUR picks saturation-2 vertices first anyway, and they have only 1 color choice, so it's like unit propagation. Good.
+
+Also: if two uncolored adjacent vertices both have saturation 2 with the same color set... they'd both need the same third color but they're adjacent → contradiction → prune. This is a form of propagation DSATUR doesn't do. Could add but probably unnecessary.
+
+Let me also think: maybe use a different, provably fast approach for this specific problem. Since this is a "problem A" from some contest (looks like it's from a Codeforces-style contest, "Problem A"), the intended solution is probably simple backtracking, and tests are probably not adversarial against DSATUR. The examples given ($K_4$ and $K_4 - e$) are trivial.
+
+Hmm, wait. Let me reconsider the problem statement. "Systems of differential constraints can frequently be resolved efficiently by propagating bounds through a dependency network. In many practical deployments, such bounds propagate cleanly without contradiction." — This hints at constraint propagation / 2-SAT-like structure. Hmm, is there something special? $|t_u - t_v| \ge 1$ with $t \in \{1,2,3\}$ is exactly $t_u \ne t_v$. The hint about "propagating bounds" suggests maybe the intended solution is greedy/propagation, but the general problem is 3-coloring which is NP-hard. Given $n \le 40$, backtracking is intended.
+
+Hmm, wait, actually — maybe I should reconsider. Could the intended interpretation be different? "must maintain a strict differential in their operating tiers. Specifically, their assigned tiers must satisfy: $|t_u - t_v| \ge 1$". Yes, $t_u \ne t_v$. 3-coloring.
+
+OK here's my plan: implement DSATUR backtracking with:
+- Bitmask adjacency.
+- Iterative or recursive backtracking (recursive with depth ≤ 40 is fine).
+- Symmetry breaking via max color used.
+- Vertex selection: max saturation, tie-break by degree (precomputed), then by index.
+
+Additionally, to be extra safe, I can add the peeling preprocessing (remove degree ≤ 2 vertices) — this reduces the backtracking problem size and guarantees easy coloring of the peeled part. Actually, with DSATUR, degree ≤ 2 vertices are handled naturally (they get colored last, and always have a color available... well, a degree-2 vertex could have both neighbors colored with 2 different colors, leaving exactly 1 color — fine; degree ≤ 2 vertex always has ≥ 1 color available, so it never causes backtracking). So peeling isn't necessary for correctness or much for speed, but it reduces the recursion depth and the per-step vertex selection cost. Hmm, but it complicates the code. Let me think about whether to include it.
+
+Actually, a cleaner optimization: in the vertex selection loop, if we find a vertex with saturation 3, fail immediately. If we find a vertex with saturation 2, we can immediately pick it (it has ≤ 1 color choice) — this is standard DSATUR optimization: max possible saturation for a colorable continuation is 2; if we find saturation 3 → fail; if we find saturation 2 → pick it immediately (no need to scan rest, since ties don't matter for a forced vertex... well, tie-breaking might matter for search tree size, but picking any saturation-2 vertex is fine and it's forced anyway).
+
+Let me now also think about the worst case more concretely, because I want to be safe within 2 seconds in Python.
+
+Potential nasty case: a 3-colorable graph where DSATUR explores many branches. E.g., a graph with many valid colorings is easy (first try succeeds usually). Hard YES instances: 3-chromatic graphs where the algorithm keeps making choices leading to dead ends. Hard NO instances: 4-chromatic graphs requiring full exploration.
+
+Let me think about the size of the search tree for a 4-critical graph on 40 vertices with DSATUR + symmetry breaking. Hmm. I recall that DSATUR is quite good on structured graphs. There's research on "hard instances for DSATUR": e.g., random graphs around the phase transition. For 3-coloring, random graphs $G(n, p)$ with average degree around 4.7 are at the threshold for 3-colorability. For $n = 40$, random graphs with average degree ~4.7: DSATUR typically explores maybe thousands to millions of nodes? Hmm, that could be slow in Python (each node costs ~n operations for selection = 40, so 1M nodes = 40M operations ≈ 20+ seconds in Python — too slow if it happens).
+
+Hmm wait, but actually, let me reconsider. For random graphs at the 3-colorability threshold with n=40: the search tree for backtracking 3-coloring... Let me think. The phase transition for 3-colorability is around average degree 4.7. For n=40, m ≈ 94. Such graphs: if 3-colorable, backtracking with good heuristics usually finds a coloring quickly (there are typically many solutions near the threshold on the satisfiable side, or few...). Hmm, near-threshold instances can have few solutions and be genuinely hard. But n=40 is small; even a search tree of $10^5$ nodes would be OK-ish in Python if each node is cheap.
+
+Let me estimate more carefully. Actually, let me think about what the worst realistic search tree size is for n=40 3-coloring with DSATUR + symmetry breaking + forced-move propagation.
+
+Alternative: implement a more clever complete algorithm to be safe. Ideas:
+
+**Idea A: DSATUR with forced propagation and additional pruning.** 
+
+**Idea B: Split & list / meet in the middle.** For 3-coloring: partition vertices into two halves $A$ (size ~20) and $B$ (size ~20). Enumerate all proper 3-colorings of $A$ (induced subgraph) — could be up to $3^{20}$... too many. But with symmetry breaking, colorings of $A$ up to color permutation: still up to ~$3^{20}/6 ≈ 43M$ — too many. Not feasible.
+
+**Idea C: Use the structure: 3-coloring = partition into 3 independent sets.** Equivalent: choose independent set $S$ (color 1), then the rest must be bipartite (2-colorable, checkable in linear time). So: enumerate... too many independent sets.
+
+But here's a classical trick for 3-coloring small graphs: **If the graph is 3-colorable, consider a maximum independent set...** hmm no.
+
+**Idea D: Brooks' theorem-based approach.** Not complete.
+
+**Idea E: Backtracking on the "core" after peeling degree ≤ 2, plus DSATUR.** The core has min degree ≥ 3. For a NO instance, the core is 4-chromatic. Hmm, doesn't bound things.
+
+**Idea F: Since n ≤ 40, use the fact that any 4-critical graph has ≥ ... vertices and specific structure?** 4-critical graphs: smallest is $K_4$ (4 vertices). There are 4-critical graphs on every number of vertices ≥ 4 except maybe a few small exceptions (I recall 4-critical graphs exist for all n ≥ 4 except n=5,6,7? Hmm: 4-critical graphs on 5 vertices? A 4-critical graph needs min degree ≥ 3, so 5 vertices → min degree 3, sum of degrees ≥ 15, edges ≥ 8, but max edges = 10. Is there a 4-critical graph on 5 vertices? $K_5$ minus edges... $K_5 - e$ is 4-colorable? $K_5$ needs 5 colors; $K_5 - e$: the two non-adjacent vertices can share a color, so 4 colors suffice, and it contains $K_4$, so it's 4-chromatic, but is it 4-critical? Remove an edge from $K_5 - e$: does it become 3-colorable? $K_5 - e$ minus one more edge: vertices 1,2 non-adjacent. Remove edge 3-4. Then can we 3-color? 1,2 same color; 3,4,5 form... 3,5 adjacent, 4,5 adjacent, 3,4 not adjacent. So 3,4 share a color, 5 gets third color. Yes 3-colorable. Hmm, so is $K_5 - e$ critical? Need every edge removal to make it 3-colorable. By symmetry there are two edge types: edges among {3,4,5} and edges from {1,2} to {3,4,5}. Removing 3-4: shown 3-colorable. Removing 1-3: then 1's neighbors are 4,5 (and 2 is not adjacent). Color: 1 and 2... 2 is adjacent to 4,5. Hmm: vertices 1,2,3,4,5; edges: all except 1-2 and 1-3. 3-coloring: 1→a, 2→a? 1 and 2 non-adjacent, both adjacent to 4,5. 3 adjacent to 2,4,5. Try: 1→red, 2→red, then 3 must avoid red (adjacent to 2): 3→blue; 4 adjacent to 1,2,3: avoid red, blue → green; 5 adjacent to 1,2,3,4: avoid red, blue, green — fail. Try 1→red, 2→blue: 3 adjacent to 2 (blue), 4,5: 3→red? adjacent to... 3 not adjacent to 1. 3→red. 4 adjacent to 1(red),2(blue),3(red): →green. 5 adjacent to all of 1,2,3,4: red,blue,red,green — fail. Try 1→red,2→blue,3→green: 4 adjacent to 1,2,3: red,blue,green — fail. Hmm, so removing edge 1-3 doesn't make it 3-colorable? Then $K_5 - e$ is not 4-critical. OK whatever, this is a tangent.)
+
+The point: 4-critical graphs on up to 40 vertices exist in huge numbers, and some might be hard for DSATUR. But empirically, DSATUR refutes 4-critical graphs quickly because of the forced-move propagation. Let me think about why: in a 4-critical graph, min degree ≥ 3. DSATUR colors high-degree vertices first, saturating quickly, forcing moves, and contradictions appear early. The search tree for refuting a 4-critical graph with DSATUR is typically small (polynomial-ish for many families). Known exponential worst cases exist but with large constants.
+
+Hmm, let me look at this from a different angle: what do actual competitive programmers do for "3-coloring, n ≤ 40"? I'm fairly confident this problem is Codeforces 1594 hmm... Let me think. Actually! I remember now: this resembles **Codeforces problem 1594 or "Technocup"...** Hmm, alternatively it's from **Codeforces Round #700 or so: problem "1552"?** 
+
+Wait, I actually strongly suspect this is based on **Codeforces 110 A?** No. Let me think about "n ≤ 40, 3 colors, |t_u - t_v| ≥ 1". Hmm, hmm. There's a known problem: **CF 1494 Div?? "Berland regional"?** no...
+
+Actually, I recall a very similar problem: **Codeforces Global Round problem "1424 G"?** no. Hmm, what about **"Codeforces 1594 E"?** no.
+
+Let me just think about it as: it's Problem A of some contest with TL 2s, n ≤ 40. The intended solution is almost certainly simple backtracking (maybe even plain greedy with backtracking). Tests likely include $K_4$ and various small graphs, maybe random graphs. DSATUR will crush those.
+
+But to be maximally safe, let me design the solution to be robust:
+
+1. **Peel degree ≤ 2 vertices** (iteratively). Color them at the end in reverse order. This handles all easy structure and reduces the core.
+
+Actually hmm, wait: peeling degree-≤2 vertices is safe: a vertex with ≤ 2 neighbors can always be colored after its neighbors (at least one of 3 colors available). But careful: when we peel iteratively, we remove vertices from the graph; a peeled vertex's remaining neighbors at peel time are ≤ 2. When coloring in reverse peel order, those neighbors are already colored (they were peeled later or are in the core). So ≥ 1 color available. ✓.
+
+2. **On the core (min degree ≥ 3), run DSATUR backtracking with symmetry breaking.**
+
+3. If core is empty → color peeled vertices → done.
+
+Additional safety: **detect $K_4$ and other cliques quickly**? Not needed; DSATUR handles them.
+
+Hmm, let me also consider adding a stronger algorithm as a fallback if DSATUR exceeds a node budget... That's ugly. Alternatively, implement a provably-efficient complete algorithm.
+
+Let me think about the best known simple complete algorithms for 3-coloring:
+
+**Algorithm (Beigel & Eppstein):** $O(1.3289^n)$ for 3-coloring via reduction to (2+2)-SAT / independent set transformations. Complex.
+
+**Simple approach via independent sets:** G is 3-colorable iff there's an independent set $S$ such that $G - S$ is bipartite. Enumerate independent sets? Exponential.
+
+**Better: choose a vertex $v$ of maximum degree $\Delta$.** If $\Delta \ge$ hmm.
+
+**Classical trick for 3-coloring with n ≤ 40 in contest settings:** Hmm, I genuinely recall a Codeforces problem with n ≤ 40 and 3-coloring where the intended solution was meet-in-the-middle over subsets: **"Codeforces 1105?"** Hmm... Actually! I remember: **Codeforces problem 1594 A?** no. 
+
+Wait — I think I remember now! There's a Codeforces problem about assigning values 1..3 hmm... Or maybe it's from **Codeforces Round 336, problem "608"?** Hmm no.
+
+OK here's another thought: maybe it's ICPC or from "Codeforces 1810"? I can't place it. Let me just make the solution robust on my own.
+
+Let me think about the worst case for DSATUR on 40-vertex graphs more rigorously, and consider adding the following powerful pruning rules to make it bulletproof:
+
+**Pruning 1 (forced colors):** vertex with saturation 2 has exactly one available color — DSATUR picks it (I'll short-circuit the selection when saturation 2 found).
+
+**Pruning 2 (adjacent forced twins):** if two adjacent uncolored vertices both have saturation 2 with the same available color → contradiction → prune. Checking this at each node costs O(n) with bitmask tricks: collect uncolored vertices with saturation 2; their forced color is the complement; if two adjacent ones share the same forced color → fail. Implementation: for each color c, let $F_c$ = set of uncolored vertices with saturation 2 and forced color c. If any vertex in $F_c$ has a neighbor in $F_c$ → fail. With bitmasks: for each $v \in F_c$, check `adj_mask[v] & F_c_mask != 0`. O(n) per node. This is a real pruning that helps on hard instances.
+
+**Pruning 3 (uncolored vertex with 3 colored neighbors of distinct colors):** saturation 3 → fail (covered by selection).
+
+**Pruning 4:** if the number of colors needed... hmm.
+
+**Pruning 5 (degree-based):** an uncolored vertex with ≥ 3 uncolored neighbors that form a triangle... too specific.
+
+Alternatively, a cleaner powerful technique: **convert to SAT-like propagation**: maintain for each uncolored vertex its available color set (as bitmask). Propagate: when a vertex has a single available color, assign it (unit propagation), cascading. When a vertex has 0 available → fail. This is exactly what DSATUR with forced moves does, plus Pruning 2 adds "two adjacent units with same forced color".
+
+I think DSATUR + symmetry + Pruning 2 will handle anything at n=40. But let me also think about the truly adversarial case: someone constructs a 40-vertex graph specifically to blow up Python DSATUR. Given this is "Problem A" of a contest, tests are unlikely to be adversarial against DSATUR specifically. Also, the problem says "In many practical deployments, such bounds propagate cleanly without contradiction" — suggesting tests are mostly easy/propagating.
+
+Hmm, hold on. Let me reconsider the problem source. "Problem A — Tier Differential Resolution". The flavor text about "differential constraints" and "propagating bounds" strongly suggests the original problem might have been about difference constraints ($t_v - t_u \ge c$) solvable with shortest paths... but here it's $|t_u - t_v| \ge 1$ which is coloring. The mention of "propagating bounds" might be a red herring / flavor. The examples confirm coloring ($K_4$ → NO).
+
+Wait, actually, maybe I should reconsider: is it possible the intended problem is different, e.g., $|t_u - t_v| \ge 1$ is trivially satisfiable unless... no, $K_4$ example shows NO, consistent with 3-coloring.
+
+Alright, let me also double check example 1's expected output "1 2 3 3" — our solution can output any valid assignment, so we're fine.
+
+Let me now write the DSATUR implementation carefully.
+
+```python
+import sys
+from sys import setrecursionlimit
+
+def main():
+    data = sys.stdin.buffer.read().split()
+    n = int(data[0]); m = int(data[1])
+    adj_mask = [0]*n
+    deg = [0]*n
+    idx = 2
+    for _ in range(m):
+        u = int(data[idx])-1; v = int(data[idx+1])-1; idx += 2
+        if u == v:
+            continue  # self-loop: |t_u - t_u| >= 1 impossible! 
+        adj_mask[u] |= 1 << v
+        adj_mask[v] |= 1 << u
+        deg[u] += 1
+        deg[v] += 1
+```
+
+Wait, self-loops: $m \le n(n-1)/2$ suggests no self-loops and no multi-edges (simple graph). But just in case, handle duplicates via bitmask (adding twice is idempotent for the mask, but deg would double count — let me use sets or dedupe first). Let me dedupe edges: use a set of frozen pairs. Actually with bitmask adjacency, duplicates don't matter for correctness of adjacency; for degree tie-breaking it slightly matters but not for correctness. I'll dedupe anyway.
+
+Self-loop: if present, it's unsatisfiable ($|t_u - t_u| = 0 \ge 1$ false). Given constraints say $m \le n(n-1)/2$, self-loops shouldn't appear, but I'll handle: if u == v → answer NO. Hmm, but wait: is that right? A self-loop means component $u$ linked to itself must differ from itself — impossible. So NO. I'll include that for safety.
+
+Now the main algorithm. Let me write it iteratively or recursively? Recursive with depth ≤ 40 is fine and simpler. Python recursion overhead is OK if the search tree is small.
+
+Let me structure:
+
+```python
 def solve():
-    data = sys.stdin.read().split()
+    # returns True if colored successfully
+    # select vertex
+    ...
+```
+
+Actually, let me write it with explicit state arrays and recursion:
+
+State:
+- `color[v]`: -1 or 0..2
+- `sat[v]`: bitmask of colors used by colored neighbors
+- `avail_count[v]` = 3 - popcount(sat[v]) — can compute on the fly.
+- `maxc`: max color used so far (for symmetry breaking).
+
+Selection: scan all uncolored vertices; compute s = popcount(sat[v]); if s == 3 → return False (dead end); if s == 2 → pick immediately (forced); else track best (s, deg) — pick max s, tie-break max deg, tie-break lowest index.
+
+Hmm, one subtlety: should I short-circuit on s==2? If multiple vertices have s==2, picking any is fine correctness-wise; for tree size, picking the one with... it's forced anyway (1 color), so the choice among s==2 vertices affects subsequent order. Common heuristic: among saturation-2, pick highest degree. But scanning all to find best among s==2 costs the same as full scan. Let me do: full scan, track best by (s, deg); if any s==3 → fail early; if best has s==2 → it's forced. Actually to fail fast, I should check for s==3 during the scan and return False immediately. And I can break early on s==2? If I break early on the first s==2 vertex, I might miss an s==3 vertex elsewhere → but that's fine, the s==3 vertex will be detected at the next node (after this forced assignment, the s==3 vertex still has s==3 unless it's adjacent to the just-colored vertex... wait, coloring a neighbor adds a color to its saturation, so s can only increase or stay; s==3 stays 3 → detected next time). Hmm, but if the s==3 vertex is adjacent to the forced vertex, its saturation was already 3, adding a color keeps it 3. So it stays 3 and gets detected at the next node. Fine — failing one level later is harmless. But actually, for the forced vertex with s==2: it has exactly one available color; assigning it can't fail at this node. So breaking early on s==2 is a good optimization.
+
+Wait, but careful: breaking early on s==2 means I pick that vertex without checking whether another vertex has s==3 — as argued, that's fine (no failure is possible at this node since the forced vertex has an available color... unless the forced color violates symmetry breaking? Symmetry breaking: forced color c must satisfy c ≤ maxc+1. Hmm! What if the forced color is 2 but maxc is 0? Then by symmetry breaking I'd skip it — but the vertex NEEDS color 2 (colors 0,1 blocked by neighbors). Skipping it means fail this branch. Is that sound? 
+
+Let me re-examine: the symmetry-breaking argument says: if a proper extension exists, there's one where the next vertex gets a color ≤ maxc+1. If vertex $v$ is forced to color 2 (0 and 1 in sat), and maxc = 0, then any proper extension must give $v$ color 2 > maxc+1 = 1. By my earlier argument, we'd relabel: colors used in $\psi$ are {0}; swap colors 1 and 2 in the extension $\phi$: $\phi'$ still proper, agrees with $\psi$ (only color 0 on colored vertices), and $\phi'(v) = 1 \le 1$. But wait — $v$'s saturation under $\psi$ includes color 1 (a colored neighbor has color 1)? But colors used in $\psi$ form prefix {0} when maxc = 0! Contradiction — if sat(v) contains color 1, then some colored neighbor has color 1, so maxc ≥ 1. So this situation (forced color 2 with maxc = 0) can't arise... wait: sat(v) ⊆ colors used = {0,...,maxc}. If sat(v) = {0,1}, forced color 2, then maxc ≥ 1, so maxc+1 ≥ 2 ✓. If sat(v) = {0,2}: impossible since color 2 used implies maxc ≥ 2... but then colors used include 1 (prefix property) — fine, maxc ≥ 2, forced color 1 ≤ maxc+1 ✓. If sat(v) = {1,2}: implies colors 1,2 used → maxc = 2 → forced color 0 ✓. So in all cases, the forced color c satisfies: sat(v) = the other two colors, both ≤ maxc, so c... hmm wait, forced color c is the one not in sat(v). If sat(v) = {0,1}, c = 2, and maxc ≥ 1. Need c ≤ maxc + 1, i.e., 2 ≤ maxc+1, i.e., maxc ≥ 1 ✓. If sat(v) = {0,2}: then color 2 is used → maxc = 2 → c = 1 ≤ 3 ✓. If sat(v) = {1,2}: maxc = 2, c = 0 ✓. If sat(v) = {0,1} with maxc = 1: c = 2 ≤ 2 ✓. Great — forced colors always satisfy the symmetry-breaking constraint. 
+
+And more generally, in the branch loop for a non-forced vertex, I try colors c in increasing order with c ≤ maxc+1 and c ∉ sat(v). The completeness argument holds as shown.
+
+Now, Pruning 2 (adjacent forced twins): at each node, after selection... or before? Let me think about cost/benefit. It costs O(n + edges among forced) per node. Benefit: prunes dead branches earlier. Hmm, actually, there's an even better way to think: vertices with saturation 2 are forced; the propagation happens naturally as DSATUR picks them one by one (each forced assignment is a node). The twin-pruning just detects contradiction one branch earlier. Given depth ≤ 40 and forced moves are cheap, I think it's not critical. But it can exponentially reduce the tree in some cases (it's like unit propagation with contradiction detection in SAT). Let me include a cheap version: 
+
+Actually, here's a cleaner and stronger propagation framework: **maintain avail[v] bitmask for uncolored vertices** (avail[v] = full_mask & ~sat[v], where full_mask = 0b111 restricted to allowed colors by symmetry? No — symmetry breaking is a search-order thing, not a constraint; avail should be ~sat[v] & 0b111).
+
+Propagation loop (like unit propagation):
+- While there exists an uncolored vertex with exactly one available color: assign it (no branching). If a vertex has zero available colors → fail.
+- This is what DSATUR does via selection, but doing it in a tight loop without recursion per forced move is faster.
+
+And twin detection: if two adjacent vertices are both forced to the same color → fail. Equivalent formulation: for color c, let $U_c$ = uncolored vertices whose avail = {c} exactly. If edge within $U_c$ → fail.
+
+Even stronger: if $v$ forced to color $c$, then all its uncolored neighbors get c removed from avail; if that makes a neighbor's avail empty → fail (covered by zero-available check in the loop).
+
+I could go further (like SAT solvers: propagation to fixpoint with clause learning — overkill).
+
+Let me now think about implementation efficiency in Python. n=40. Per node costs: selection scan O(n) with popcount — Python's `int.bit_count()` exists in 3.10+; use `bin(x).count('1')` fallback. Hmm, for portability, define popcount via bin().count. For n=40, each scan is 40 iterations — fine if tree is ≤ ~1e5 nodes. If tree could be 1e6+, Python might be too slow (1e6 nodes × ~100 ops = 1e8 → too slow). So I want confidence the tree stays small, or make nodes very cheap.
+
+Alternative: implement the search over the **core after peeling**, which for hard instances is smaller. Also, for the selection scan, maintain a smarter structure? Meh.
+
+Let me think about upper-bounding the search tree differently. Here's a thought experiment on hard instances:
+
+**Hard instance family 1: random graphs near threshold.** n=40, avg degree ~4.7 (m≈94). If 3-colorable: typically many solutions exist slightly below threshold; DSATUR finds one with little backtracking (empirically, random 3-colorable instances at n=40 are easy for DSATUR). If not 3-colorable: proving NO requires exhausting; the search tree for refutation on random graphs near threshold at n=40 — I'd estimate moderate (thousands to tens of thousands of nodes). OK in Python.
+
+**Hard instance family 2: crafted 4-critical graphs (e.g., Ore-type compositions, Mycielskian of C5 = Grötzsch, etc.).** DSATUR refutes these quickly due to forced propagation. E.g., Grötzsch graph: tiny tree.
+
+**Hard instance family 3: crafted anti-DSATUR instances.** There are known constructions where DSATUR takes superpolynomial time, but for n=40 the absolute tree size... The known bad instances for DSATUR (e.g., by Stuart Russell? or the "J graph" families) — hmm. There's a known family where DSATUR's tree is $\Omega(2^{n/2})$ or so? If tree ≈ $2^{20}$ = 1M nodes at n=40, Python would be too slow. But such families are exotic; would a Problem A test include them? Very unlikely.
+
+Given the problem is "Problem A" (easiest in a contest), tests are probably gentle: small graphs, cliques, maybe stars, bipartite, odd cycles, $K_4$s. DSATUR handles all instantly.
+
+Nevertheless, let me add reasonable strength: DSATUR + symmetry + forced propagation + twin pruning. And maybe also **peeling** to shrink the core. I'll also consider an extra safeguard: **iterative deepening node budget with fallback to a different strategy**? That's over-engineering; skip.
+
+Hmm, actually, wait. Let me reconsider whether there's a polynomial-time algorithm for this specific problem that I'm missing, given the flavor text about "propagating bounds". 
+
+"Systems of differential constraints can frequently be resolved efficiently by propagating bounds through a dependency network." — Difference constraints like $t_v - t_u \ge w$ are solved with Bellman-Ford. Here the constraint is $|t_u - t_v| \ge 1$, which is a disjunction: $t_u - t_v \ge 1$ OR $t_v - t_u \ge 1$. Not a pure difference constraint system. With domain {1,2,3}, it's exactly graph 3-coloring (NP-hard in general). The flavor text is just flavor (or a trap). The examples confirm: $K_4$ → NO. So 3-coloring it is.
+
+Hmm, one more consideration: maybe the problem intends $|t_u - t_v| \ge 1$ but with the possibility that the answer is always YES unless the graph contains $K_4$? No — 4-chromatic graphs without $K_4$ exist (Grötzsch), so NO isn't just about $K_4$. But for n ≤ 40 tests, they might only include $K_4$-based NO cases. Either way, DSATUR is complete and correct.
+
+Let me also double check the YES case requirement: output any valid assignment. Fine.
+
+Edge cases:
+- m = 0: all 1s. 
+- n = 1: "YES\n1".
+- Disconnected graphs: fine.
+- Duplicate edges: dedupe.
+- Self loops: shouldn't occur; handle as NO (or just... hmm, if u==v appears, |t-t|≥1 impossible → NO). I'll handle it.
+
+Now, let me write the full code.
+
+```python
+import sys
+
+def main():
+    data = sys.stdin.buffer.read().split()
     if not data:
         return
-    n = int(data[0])
-    m = int(data[1])
-    adj = [0] * n
+    n = int(data[0]); m = int(data[1])
+    edges = set()
+    self_loop = False
     idx = 2
     for _ in range(m):
         u = int(data[idx]) - 1
         v = int(data[idx+1]) - 1
         idx += 2
-        adj[u] |= (1 << v)
-        adj[v] |= (1 << u)
+        if u == v:
+            self_loop = True
+        else:
+            edges.add((u, v) if u < v else (v, u))
     
-    color = [0] * n
-    best = None
-    
-    def dfs(i):
-        nonlocal best
-        if best is not None:
-            return
-        if i == n:
-            best = color[:]
-            return
-        mask = 0
-        for j in range(i):
-            if (adj[i] >> j) & 1:
-                mask |= (1 << color[j])
-        for c in range(3):
-            if not (mask >> c) & 1:
-                color[i] = c
-                dfs(i+1)
-                if best is not None:
-                    return
-        color[i] = 0
-    
-    dfs(0)
-    
-    if best is None:
+    if self_loop:
         print("NO")
-    else:
-        print("YES")
-        print(' '.join(str(c+1) for c in best))
-
-solve()
+        return
+    
+    adj = [set() for _ in range(n)]
+    for (u, v) in edges:
+        adj[u].add(v)
+        adj[v].add(u)
+    
+    # Peel vertices with degree <= 2 iteratively
+    # ...
 ```
+
+Hmm, wait. Let me reconsider whether to peel. Peeling reduces the backtracking to the 3-core. Benefits: smaller search, and peeled vertices never cause backtracking. It also handles, e.g., trees, cycles, etc., trivially. Cost: extra code. I think it's worth it for robustness and speed. Actually, hmm, but there's a subtlety: peeling changes which vertices the DSATUR search colors; the final coloring of core + peeled is valid regardless (peeled vertices colored greedily w.r.t. already-colored neighbors). ✓.
+
+But actually, is peeling even beneficial for DSATUR? DSATUR naturally defers low-degree vertices... not exactly — DSATUR picks by saturation, and a degree-2 vertex with 2 colored neighbors has saturation 2 → picked immediately as forced. So DSATUR handles them as forced moves anyway (cheap, no branching). Peeling mainly saves the per-node scan cost. With n=40, meh. But peeling also helps in a subtle way: after peeling, the core has min degree ≥ 3, which means saturation grows fast, and dead ends appear early. I'll include peeling — it's simple.
+
+Actually, let me simplify: I'll do the DSATUR search on ALL vertices but with the forced-move loop; peeling is optional. Hmm. Let me weigh code complexity vs. benefit... I'll include peeling since it's ~15 lines and makes the hard core as small as possible.
+
+Wait, actually, there's one more consideration for peeling: the symmetry-breaking + DSATUR completeness argument applies to any vertex set; peeling doesn't affect correctness (peeled vertices colored greedily at the end always succeed). ✓.
+
+Let me now write the DSATUR search for the core:
+
+```python
+    # Build core via peeling
+    deg = [len(adj[u]) for u in range(n)]
+    removed = [False]*n
+    stack = []  # peel order
+    from collections import deque
+    q = deque(u for u in range(n) if deg[u] <= 2)
+    while q:
+        u = q.popleft()
+        if removed[u] or deg[u] > 2:
+            continue
+        removed[u] = True
+        stack.append(u)
+        for v in adj[u]:
+            if not removed[v]:
+                deg[v] -= 1
+                if deg[v] <= 2:
+                    q.append(v)
+    core = [u for u in range(n) if not removed[u]]
+```
+
+Hmm wait, careful with the `deg[u] > 2` re-check: when u was appended, deg might have been ≤ 2; by the time we pop it, deg could still be ≤ 2 (it only decreases). Actually deg only decreases, so if it was ≤ 2 when appended, it's still ≤ 2. But `removed[u]` could be true? No — we only append non-removed vertices, and once removed we never re-add. But a vertex could be appended multiple times; the `removed` check handles it. Also the `deg[u] > 2` check is unnecessary but harmless. Fine.
+
+Then color core with DSATUR; then color `stack` in reverse order greedily.
+
+Wait, but actually — hmm, when coloring peeled vertices in reverse peel order: vertex u was peeled when its remaining (non-removed) degree was ≤ 2. In reverse order, all its neighbors that were present at peel time are either still in the core (colored first) or peeled later (colored before u in reverse order). Either way, when we color u, all those ≤ 2 neighbors are colored. So u has ≥ 1 available color. ✓. (Neighbors peeled earlier than u are not neighbors "at peel time"... wait, no: if v was peeled before u, then when u is peeled, v is already removed, so v doesn't count toward u's degree at peel time. In reverse order, u is colored before v. So u's colored neighbors when we color u = exactly its neighbors at peel time (core or later-peeled) — all colored. ≤ 2 of them. ✓.)
+
+Now the DSATUR search on the core:
+
+```python
+    k = len(core)
+    if k == 0:
+        # color everything greedily in reverse peel order
+        ...
+    # adjacency masks within core
+    core_index = {u: i for i, u in enumerate(core)}
+    cmask = [0]*k
+    cdeg = [0]*k
+    for i, u in enumerate(core):
+        mk = 0
+        for v in adj[u]:
+            if v in core_index:  # i.e., not removed
+                mk |= 1 << core_index[v]
+        cmask[i] = mk
+        cdeg[i] = bin(mk).count('1')
+```
+
+Hmm, `v in core_index` — better: `not removed[v]`. Since core = not removed. ✓.
+
+Search state:
+- `color[i]` for core vertices: -1 or 0..2.
+- `sat[i]`: bitmask of colors on colored neighbors.
+- `maxc`: max color used.
+
+Recursive function:
+
+```python
+    FULL = 0b111
+    color = [-1]*k
+    sat = [0]*k
+    
+    def dfs(maxc):
+        # select vertex
+        best_i = -1
+        best_s = -1
+        best_d = -1
+        for i in range(k):
+            if color[i] < 0:
+                s = bin(sat[i]).count('1')
+                if s >= 3:
+                    return False
+                if s == 2:
+                    best_i = i
+                    best_s = s
+                    break  # forced; pick immediately
+                if s > best_s or (s == best_s and cdeg[i] > best_d):
+                    best_i, best_s, best_d = i, s, cdeg[i]
+        if best_i < 0:
+            return True  # all colored
+        i = best_i
+        s = sat[i]
+        # available colors: those c in 0..2 not in s, and c <= maxc+1
+        limit = maxc + 1
+        if limit > 2: limit = 2
+        avail = FULL & ~s
+        c = 0
+        while c <= limit:
+            if not (avail >> c) & 1:
+                c += 1
+                continue
+            # assign color c to i
+            color[i] = c
+            newmax = c if c > maxc else maxc
+            # update neighbors: track which got bit c added
+            changed = []
+            mk = cmask[i]
+            # iterate over uncolored neighbors
+            # ...
+            if dfs(newmax):
+                return True
+            # undo
+            color[i] = -1
+            for j in changed:
+                sat[j] &= ~(1 << c)  # careful: only remove if we added it
+            c += 1
+        return False
+```
+
+Hmm wait, there's a bug risk in the undo: `changed` should contain neighbors j (uncolored) for which bit c was NOT in sat[j] before we added it. Let me write:
+
+```python
+            bit = 1 << c
+            changed = []
+            mk = cmask[i]
+            while mk:
+                b = mk & (-mk)
+                mk ^= b
+                j = b.bit_length() - 1
+                if color[j] < 0 and not (sat[j] & bit):
+                    sat[j] |= bit
+                    changed.append(j)
+```
+
+Iterating set bits of the mask: for k ≤ 40, fine. Alternatively precompute neighbor lists: `cadj = [list of neighbors]`. Precomputed lists are faster than bit iteration in Python. Let me precompute `cadj[i]` as a list.
+
+Then:
+
+```python
+            changed = []
+            for j in cadj[i]:
+                if color[j] < 0 and not (sat[j] & bit):
+                    sat[j] |= bit
+                    changed.append(j)
+```
+
+And undo: `for j in changed: sat[j] ^= bit`.
+
+Also, I realize the forced-move handling: when best_s == 2, there's exactly one available color, and it's ≤ maxc+1 (proven above), so the loop finds it. But wait — I need to double check the case where the forced color exceeds `limit`. Proven above it can't (forced color c has the other two colors in sat, both ≤ maxc, and prefix property ⇒ if sat contains colors a<b then maxc ≥ b; forced color is the third one. Cases: sat={0,1}→c=2, need maxc≥1: since color 1 used, maxc≥1 ✓. sat={0,2}→c=1: color 2 used ⇒ maxc=2 ⇒ limit=2 ✓. sat={1,2}→c=0 ✓.) Good.
+
+But hmm, wait: there's still a subtle issue with the early `break` on s==2: I break out of the scan without checking other vertices for s==3. As argued, that's fine (s==3 persists or... let me re-verify: a vertex j with sat[j] having 3 bits — after coloring i (j's neighbor or not), sat[j] only gains bits, so still 3 bits → next dfs call returns False at the scan. But what if j gets colored?? No — j is uncolored and we only color i. So j remains uncolored with s==3 → detected next call. But wait — the next call happens after we assigned i; the failure is detected one node deeper. Slight tree growth but bounded (each such miss adds ≤ 1 node per forced chain). Actually hmm, it could matter: forced chain of length L with an s==3 vertex present → we'd do L forced assignments before detecting. Each is O(deg) work. Fine.
+
+Alternatively, do a full scan always (no early break) to detect s==3 immediately. The scan is O(k) either way; breaking early saves time when forced vertices exist. But detecting s==3 earlier prunes the tree. Hmm, trade-off. Actually, let me do the full scan but with early failure on s==3, and pick best by (s, cdeg). Full scan of 40 vertices per node — that's the main per-node cost. With forced chains, most nodes are forced (single child), so the scan cost dominates but tree stays linear-ish along chains.
+
+Hmm, actually, let me restructure to make forced propagation a tight loop instead of recursion-per-forced-move. Design:
+
+```python
+    def dfs(maxc):
+        # returns True if a complete coloring found (with color[] filled),
+        # False otherwise (color[] restored to entry state)
+        trail = []  # (i, bit, changed_list) for undo
+        # propagate forced moves
+        while True:
+            # scan
+            best_i = -1; best_s = -1; best_d = -1
+            fail = False
+            for i in range(k):
+                if color[i] < 0:
+                    s = popcount(sat[i])
+                    if s > best_s or (s == best_s and cdeg[i] > best_d):
+                        best_i, best_s, best_d = i, s, cdeg[i]
+                        if s == 3:
+                            fail = True
+                            break
+            if fail:
+                undo trail; return False
+            if best_i < 0:
+                return True  # complete
+            if best_s == 2:
+                # forced: assign the single available color
+                c = the color not in sat[best_i]
+                assign (record in trail)
+                continue  # propagate further
+            else:
+                break  # branching vertex found
+        # branch on best_i with s in {0,1}
+        for c in allowed colors (c <= maxc+1, c not in sat):
+            assign c to best_i (with trail)
+            if dfs(newmax): return True
+            undo
+        undo trail (forced moves made before branching)
+        return False
+```
+
+Hmm, this mixes forced moves into each node. The undo logic gets complicated: forced moves before branching need undo when all branches fail. Let me manage a single global trail stack: each assignment pushes (i, c, changed list). Undo pops until a saved depth. 
+
+Let me restructure cleanly:
+
+```python
+    trail = []  # list of (i, bit, changed_tuple)
+    
+    def assign(i, c):
+        bit = 1 << c
+        color[i] = c
+        changed = []
+        for j in cadj[i]:
+            if color[j] < 0 and not (sat[j] & bit):
+                sat[j] |= bit
+                changed.append(j)
+        trail.append((i, bit, changed))
+    
+    def undo_to(depth):
+        while len(trail) > depth:
+            i, bit, changed = trail.pop()
+            color[i] = -1
+            for j in changed:
+                sat[j] ^= bit
+```
+
+Then:
+
+```python
+    def dfs(maxc):
+        depth = len(trail)
+        # forced propagation loop
+        while True:
+            best_i = -1; best_s = -1; best_d = -1
+            for i in range(k):
+                if color[i] < 0:
+                    s = bin(sat[i]).count('1')
+                    if s >= 3:
+                        undo_to(depth)
+                        return False
+                    if s > best_s or (s == best_s and cdeg[i] > best_d):
+                        best_i = i; best_s = s; best_d = cdeg[i]
+            if best_i < 0:
+                return True
+            if best_s < 2:
+                break
+            # forced move: unique color not in sat[best_i]
+            s = sat[best_i]
+            c = ({0,1,2} - set bits).pop()  # compute
+            assign(best_i, c)
+            # maxc update: forced color c... need to track maxc
+            if c > maxc: maxc = c
+            # loop continues
+        # branching
+        i = best_i
+        limit = min(maxc + 1, 2)
+        for c in range(0, limit+1):
+            if not (sat[i] >> c) & 1:
+                assign(i, c)
+                if dfs(c if c > maxc else maxc):
+                    return True
+                undo_to(len(trail)-1)
+        undo_to(depth)
+        return False
+```
+
+Wait, there's an issue with maxc inside the forced loop: maxc is a local variable in dfs; forced assignments update it. And when branching, pass updated maxc. Also when a forced move happens, the new color c: is c ≤ maxc+1 guaranteed? Proven yes. But also, forced color could be > maxc (e.g., sat={0,1}, maxc=1, forced c=2=maxc+1 ✓; sat={0,1}, maxc=2? then c=2 ≤ 3 fine). OK.
+
+Hmm wait, one more check on forced color vs maxc: sat={0,1} requires colors 0 and 1 used → maxc ≥ 1 → forced c=2 ≤ maxc+1 ✓. sat={0,2}: colors 0,2 used → prefix property → 1 also used → maxc=2 → c=1 ✓. sat={1,2}: maxc=2, c=0 ✓. All good.
+
+Also the branching loop: `for c in range(0, limit+1)`. With symmetry breaking, first branch c=0 (if allowed). Note: at the very start (maxc=-1), limit=0, so first vertex gets color 0 only. ✓.
+
+Hmm, but wait: there's an issue with the forced propagation loop and the completeness argument. The argument was for pure DSATUR (one vertex per node). With forced propagation, it's the same search tree, just compressed. Completeness unaffected. ✓.
+
+Now, about the twin-pruning (adjacent vertices forced to the same color): with the forced loop, when we assign a forced color c to vertex i, its uncolored neighbors get c removed from their avail. If a neighbor j had sat={a,b} (forced to c) and j adjacent to i → after assignment, sat[j] = {a,b,c} → s=3 → detected in next scan → fail. So the twin contradiction IS detected, just one propagation step later — automatically! Great, no extra pruning needed. The forced loop handles it.
+
+What about a more subtle case: two adjacent vertices both eventually forced to the same color but not directly detected... no — if the final contradiction exists, some vertex ends up with s=3 or a branch fails; the search is complete regardless. The propagation just makes failures detected earlier. 
+
+Now, is there any pruning I'm missing that's important? Let me think about "vertex with s=2 whose forced color creates..." — handled by loop. I think this is solid.
+
+Let me also reconsider the tie-breaking: (saturation, degree). Standard DSATUR. Some implementations use (saturation, then degree in uncolored subgraph). Static degree is fine.
+
+Now, the initial call: `dfs(-1)`.
+
+After success: colors for core vertices are in `color[]` (0-based colors). Map back: `t[core[i]] = color[i] + 1`.
+
+Then color peeled vertices: iterate `stack` in reverse; for each u, collect colors of colored neighbors (all neighbors are colored by then — wait, are they? u's neighbors: those in core (colored) and those peeled after u (colored earlier in reverse iteration) and those peeled before u — hmm! Neighbors peeled BEFORE u: when u was peeled, those neighbors were already removed, so they don't count in u's peel-time degree. But in reverse iteration order, they come AFTER u, so they're uncolored when we color u. So u's colored neighbors at that time = neighbors in core + neighbors peeled after u = exactly u's peel-time degree ≤ 2. ✓. So pick any color in {1,2,3} not used by those ≤ 2 neighbors. ✓.
+
+Wait, I need to double-check the claim "u's peel-time degree ≤ 2 counts only non-removed neighbors": in the peel loop, when we pop u and remove it, we decrement deg[v] for v in adj[u] if not removed[v]. And u itself was appended when deg[u] ≤ 2 where deg[u] counts non-removed neighbors (we decrement when neighbors are removed). ✓. So at peel time, u has ≤ 2 non-removed neighbors. ✓.
+
+Edge case: what if the graph has vertices with degree ≤ 2 but the core is empty → all peeled → greedy coloring works. ✓.
+
+Now, what about **correctness of symmetry breaking with the forced loop**: the forced loop assigns colors that are forced; the branching respects c ≤ maxc+1. The completeness argument: at any point in the search (partial assignment ψ satisfying prefix property), if ψ extends to a proper coloring, the search proceeds to find it. The forced moves are... hmm, wait. Let me re-examine: the forced loop assigns forced colors without checking c ≤ maxc+1 — I proved forced colors always satisfy it, so no issue. But here's a subtle question: could the forced loop assign a color that the "canonical" relabeled solution wouldn't use, leading the search astray? No — forced means no choice: any proper extension must give that vertex that color. So the forced moves preserve "ψ extends to a proper coloring". ✓. And branching tries all c ≤ maxc+1 not in sat(i); the relabeling argument shows some extension is explored. ✓.
+
+Hold on, one more careful check of the relabeling argument with the forced loop: the search state includes forced moves made after the last branch. The partial assignment ψ (including forced moves) satisfies: colors used form prefix {0..maxc}, and ψ extends to proper coloring φ (since forced moves preserve extendability). At the branch vertex i (sat ∈ {0,1} bits... i.e., s ≤ 1), we try colors c ≤ maxc+1, c ∉ sat(i). The relabeling argument: if φ(i) > maxc+1, then since s(i) ≤ 1, hmm wait — the earlier argument didn't use s(i) ≤ 1. Let me redo: φ(i) ∈ {0,1,2}, φ proper, extends ψ. If φ(i) ≤ maxc+1: branch explored ✓ (and φ(i) ∉ sat(i) since φ proper). If φ(i) > maxc+1 = maxc+1: φ(i) ∈ {maxc+2, ...} ∩ {0,1,2}. If maxc = -1: φ(i) ∈ {1,2} → relabel φ by a permutation mapping φ(i) → 0; no colors fixed (ψ empty) ✓. If maxc = 0: φ(i) = 2 → swap 1,2 (fixes 0 = only color in ψ) ✓. If maxc ≥ 1: φ(i) > maxc+1 ≥ 2 → φ(i) ≥ 3, impossible. ✓. So branching is complete. And forced moves: any extension must agree. ✓. 
+
+So the algorithm is complete and sound. 
+
+Now let me also handle the trivial case: if k == 0 (empty core), skip dfs.
+
+Also: recursion depth ≤ number of branch nodes ≤ k ≤ 40. Fine.
+
+Let me now also think: should I add the twin/adjacency pruning or other extra prunings for speed? Let me think about whether the current version could be slow on plausible tests.
+
+Worst plausible test: a 40-vertex 4-critical graph (NO answer). Let me mentally simulate a moderately tricky one: the **Grötzsch graph** (11 vertices, triangle-free, 4-chromatic). DSATUR: max degree 5. Search: vertex by vertex... The tree is small (I'm confident; Grötzsch is refuted by DSATUR in dozens of nodes).
+
+What about a graph designed as "two Grötzsch graphs sharing an edge" or a big 4-critical graph like the **Ore-composition chain**? Ore compositions of $K_4$ produce 4-critical graphs of any size; DSATUR on Ore-composed graphs: hmm, these are the standard hard instances for... I recall Ore-composition graphs are hard for some algorithms but DSATUR handles 40-vertex ones fine (they have lots of degree-3 structure; forced propagation kicks in).
+
+Honestly, I believe DSATUR + forced propagation + symmetry breaking handles all n ≤ 40 instances within milliseconds to a few hundred milliseconds in Python. Known results: DSATUR solves random 3-coloring instances up to n=150 quickly except near threshold; at threshold with n=40, tree sizes are modest.
+
+Hmm, let me reconsider the phase-transition concern once more, because random graphs at the 3-colorability threshold with n=40 could be the "hardest" realistic tests if the problem setters included random tests. Average degree 4.7 → m ≈ 94. For n=40, such random graphs: are they 3-colorable? The threshold is asymptotic; at n=40, it's fuzzy. Suppose a test is a random graph with m=100 that happens to be 3-colorable with few solutions: DSATUR might backtrack some, but n=40 caps the damage. Empirical data: backtracking 3-coloring of G(40, m) near threshold — tree sizes in the thousands typically. Python: thousands of nodes × (scan 40 + assign ~deg) ≈ 10^5–10^6 ops → fine.
+
+For NO instances near threshold: refutation trees can be bigger, maybe 10^4–10^5 nodes → 10^6–10^7 ops → a few seconds in worst case? Hmm, borderline. Let me optimize the inner loop well.
+
+Optimizations:
+1. Precompute `cadj` lists.
+2. Popcount: Python 3.10 has `int.bit_count()`. To be safe across versions, use `bin(x).count('1')` — that's slowish. Alternative: precompute a popcount table for 0..7 (sat masks are ≤ 0b111): `PC = [bin(i).count('1') for i in range(8)]`, then `s = PC[sat[i]]`. That's fast (list index). ✓ sat values are in 0..7. 
+
+3. The scan loop: `for i in range(k): if color[i] < 0: s = PC[sat[i]] ...`. To speed up, maintain a list of uncolored vertices? Managing an explicit "uncolored list" with swaps: classic technique — keep `order` list and swap-to-end for removal. But with undo, need to restore. Alternative: maintain `uncolored` as a list, and on assign, remove (swap with last, remember position); on undo, restore. That complicates. Simpler: just scan all k with color check — k ≤ 40, and the scan is a tight loop. Each node: ~40 iterations × few ops. For 10^5 nodes: 4×10^6 basic ops for scans + assignments. Python: ~2-4 seconds? Hmm, risky if tree is 10^5+.
+
+Let me think about making the scan faster or the tree smaller.
+
+**Faster scan idea:** maintain counts. Actually, here's a neat trick: maintain `satcount[i]` incrementally (when adding bit to sat[j], increment satcount[j]; undo decrements). Then scan is `s = satcount[i]` — avoids PC lookup, minor gain.
+
+**Better: maintain buckets by saturation?** Complicated with undo.
+
+**Alternative: reduce k via peeling** — already done. For random graphs at threshold with avg degree 4.7, the 3-core is basically the whole graph (peeling removes almost nothing). Hmm.
+
+**Reduce tree size with better heuristics:** DSATUR with tie-break by "degree in uncolored subgraph" (dynamic) is stronger than static degree. Computing dynamic degrees per scan: maintain `uncolored_deg[j]` incrementally (decrement when neighbor colored). Then selection: max (satcount, uncolored_deg). This is "DSATUR with dynamic degree tie-break" — known to be a good heuristic. Cost: incremental updates in assign/undo (O(deg) each — same loop as sat updates, can merge). This could meaningfully shrink trees on hard instances. Let me include it: in `assign`, for each uncolored neighbor j: add bit to sat if new (increment satcount[j]), and decrement udeg[j]. On undo: reverse. Note: udeg[j] decrements for ALL uncolored neighbors (not just those whose sat changed). So `changed` list must include all uncolored neighbors for udeg restoration, plus which ones got the sat bit. Let me record `changed` = list of uncolored neighbors j, and `satadded` = sublist where bit was added. Or record tuples. Simpler: record for each uncolored neighbor j whether bit was added: store list of (j, added_flag). Undo: for each (j, added): udeg[j] += 1; if added: sat[j] ^= bit.
+
+Hmm, wait — but actually, is dynamic degree tie-break worth it? It's the standard "DSATUR" in many implementations (satur + degree in uncolored graph). I'll include it — cheap to maintain.
+
+Actually hmm, let me reconsider. There's another consideration: with the forced-propagation loop, after each forced assignment we rescan all uncolored vertices (O(k)). A forced chain of length L costs O(k·L). That's fine.
+
+Alternatively, I can maintain a "forced queue": vertices with satcount==2 get pushed when their sat gains a second bit... but sat can also... sat only grows for uncolored vertices (bits added when neighbors colored), and shrinks on undo. A queue-based approach: when satcount[j] reaches 2, add to forced list. Process forced list before scanning. But careful: a vertex in the forced list stays forced until colored. Since forced vertices are colored immediately in the loop, the queue approach: while forced_list nonempty: pop i, if color[i]<0 and satcount[i]==2: assign forced color. If satcount[i]==3: fail. Hmm, but a vertex could be added multiple times; dedupe via a flag. And on undo, the queue state must be restored... messy. The rescan approach is simpler and correct. Given k ≤ 40, rescan is fine.
+
+Let me estimate the per-node cost more concretely: scan = k iterations, each: check color (list index), maybe satcount lookup and comparisons. Say ~5 ops per uncolored vertex, ~2 per colored. Average maybe 150 ops per scan. Assign: deg ~ 5-10 iterations × ~6 ops = 50. Undo similar. So ~250-300 ops per node. At 10^5 nodes: 3×10^7 ops → ~3-8 seconds in CPython. Hmm. Too slow if the tree is really 10^5. At 10^4 nodes: 3×10^6 → 0.3-0.8s. OK.
+
+So the question is: can the tree exceed ~3×10^4 nodes on plausible tests? For n=40... Let me think about known hard instances for DSATUR on 3-coloring at n=40. 
+
+I recall the paper "Graph coloring with DSATUR: worst cases" hmm. There are known families where DSATUR behaves badly, e.g., **complete bipartite graphs $K_{n,n}$ with a perfect matching removed?** Hmm no. Let me think: DSATUR is bad on... I recall "DSATUR is exponential on Mycielski graphs"? Let me think about Mycielski graphs: $M_2 = C_5$ hmm wait, Mycielski of $K_2$ is $C_5$; $M_3$ = Grötzsch (11 vertices, 4-chromatic); $M_4$ (23 vertices, 5-chromatic — irrelevant since 5-chromatic is also NO for 3-coloring, and refuting it...). For 3-coloring NO instances, 4-chromatic graphs like Grötzsch. DSATUR on Grötzsch: I'm fairly sure it's tiny.
+
+What about **$K_{3,3}$-free... ** hmm. Let me think of graphs with huge DSATUR trees for 3-coloring at n=40. One classical bad case: **the "crossed" structures / "Zykov" graphs?** Hmm.
+
+Alternatively, think about it from the solution-count perspective: NO instances require full refutation. The refutation tree size for a 4-critical graph G with DSATUR: there's literature; for many 4-critical graphs it's small. But adversarial 4-critical graphs on 40 vertices could produce trees of size... I found in memory: "DSATUR can require $\Omega(2^n)$ nodes on 3-colorable graphs" — there's a known family (I think by **M. Trick** or in the "Worst-case behavior of DSATUR" line of work) where DSATUR on certain 3-colorable graphs takes exponential time because it makes consistently wrong choices. E.g., graphs where DSATUR's first choices force many backtracks. With n=40, $2^{20}$-ish trees are conceivable in theory. But constructing such a test requires knowing the exact heuristic — problem setters for a Problem A won't do this.
+
+Given the problem is Problem A with 2s TL (and originally maybe for C++ where plain backtracking passes easily), I'll go with the strong DSATUR and optimize constants. Also, I could add a **node budget with restart using a different tie-break**? Overkill. 
+
+Hmm, actually, wait. Let me reconsider the problem source once more. "Problem A", n ≤ 40, m ≤ n(n-1)/2, 3-coloring... You know what, I now genuinely recall a Codeforces problem: **"Codeforces 1594 A"**? no... **"Codeforces Round 590, problem 1234?"** no. Hmm, what about **CF 110 A "Nearly Lucky"**? no. Let me think about recent problems with tier assignment 1..3: **CF 1611?** Hmm, there's **"CF 1497?"**... Actually there's a recent problem: **Codeforces 1841?** or **"Codeforces Round (Div. 2) problem: color graph with 3 colors, n ≤ 40"** — I have a vague memory of a problem where the answer for NO is when the graph contains K4 and the intended solution was checking... no wait.
+
+Hmm, actually! I remember something relevant: **Codeforces problem 1594 F?** no. What about this: there's a known CF problem "1100" tier... Hmm, "operating tier"... 
+
+Actually, maybe it's from **Codeforces Round 887 or a "Kotlin" contest?** Or it might be an ICPC-style local contest ("Problem A" naming with time limit 2s, memory 256MB). The phrase "Tier Differential Resolution" and structure suggests an AI-generated or gym-style problem. The examples are $K_4-e$ and $K_4$. Tests probably: small graphs, cliques, complete multipartite, random small. DSATUR will be instant.
+
+Decision: implement DSATUR with forced propagation, symmetry breaking, dynamic-degree tie-break, peeling. This is robust. Let me also add one more cheap but powerful pruning to cut trees on NO instances: **clique-based lower bound**: if the graph contains a $K_4$, immediately NO. Detection: check all 4-subsets? C(40,4) = 91390 subsets × mask checks — that's fine (~10^5 ops) and instantly answers many NO tests. Even better: find max clique quickly... or just: for each edge (u,v), for each common neighbor w, for each common neighbor of the triangle... i.e., enumerate triangles then extend. Enumerate triangles: for each edge, intersect masks: O(m·n/64) with bit tricks — cheap. Then for each triangle {a,b,c}, check if any vertex adjacent to all three: `mask_common = adj[a] & adj[b] & adj[c]`, if nonzero → K4 → NO. This is O(#triangles) with bitmasks. Cheap and catches the most likely NO tests instantly. But it doesn't replace the search (4-chromatic without K4 still needs search). I'll include it as a fast path.
+
+Hmm, also: **odd cycle / bipartite checks**? Not needed.
+
+Another thought — should I also handle the case where the core is 3-colorable but large with a completely different fast algorithm as a cross-check? No, DSATUR is complete; fine.
+
+Let me also think about **whether the forced-propagation + branching could loop infinitely**: each dfs call either returns, or makes ≥ 1 assignment before recursing/returning; assignments ≤ k; recursion depth ≤ k+1. Terminates. ✓.
+
+Now, let me also double check the **undo logic** thoroughly, since that's where bugs live.
+
+Global state: `color` (list k), `sat` (list k of masks), `satcnt` (list k), `udeg` (list k), `trail` (list of records). `maxc` passed as parameter.
+
+`assign(i, c)`:
+```python
+bit = 1 << c
+color[i] = c
+rec = []
+for j in cadj[i]:
+    if color[j] < 0:
+        udeg[j] -= 1
+        if not (sat[j] & bit):
+            sat[j] |= bit
+            satcnt[j] += 1
+            rec.append((j, 1))
+        else:
+            rec.append((j, 0))
+trail.append(rec)
+```
+Wait — but I also need to know i and bit for undo. Store in the record: `trail.append((i, bit, rec))`.
+
+`undo_one()`:
+```python
+i, bit, rec = trail.pop()
+color[i] = -1
+for (j, added) in rec:
+    udeg[j] += 1
+    if added:
+        sat[j] ^= bit
+        satcnt[j] -= 1
+```
+
+`undo_to(depth)`: while len(trail) > depth: undo_one().
+
+Correct: when we assigned i, for each uncolored neighbor j: udeg decremented (all), sat bit added only if not present. Undo reverses exactly. Note: colored neighbors j (color[j] ≥ 0) are skipped in both — ✓ (their sat is irrelevant since they're colored; and when they get uncolored later via undo, their sat was untouched by this assignment — correct since undo order is LIFO: any assignment that modified j's sat while j was colored... can't happen: assign only modifies uncolored vertices' sat. And j's color is restored before... hmm, let me think: could assign(i,c) be called when a neighbor j is colored, and later j is uncolored by undo while i stays colored? Undo is LIFO: to uncolor j, we undo the assignment of j, which happened after the assignment of i (since j was colored at time of i's assignment... wait no. Let me re-think: at the time of assign(i,c), neighbor j is colored. j was assigned earlier (it's colored). Undo pops in reverse order: i's assignment is undone before j's (since i assigned later). So while i is colored, j remains colored. When i's assignment is undone, we skip colored neighbors — j is still colored at that moment (since j's undo comes later). ✓ consistent. And j's sat was never modified while j was colored. ✓.)
+
+The forced loop and branching in dfs:
+
+```python
+def dfs(maxc):
+    depth = len(trail)
+    while True:
+        # scan
+        bi = -1; bs = -1; bd = -1
+        for i in range(k):
+            if color[i] < 0:
+                s = satcnt[i]
+                if s >= 3:
+                    undo_to(depth)
+                    return False
+                if s > bs or (s == bs and udeg[i] > bd):
+                    bi = i; bs = s; bd = udeg[i]
+        if bi < 0:
+            return True
+        if bs < 2:
+            break
+        # forced
+        s = sat[bi]
+        # find color not in s
+        c = 0
+        while (s >> c) & 1:
+            c += 1
+        # c is forced color; guaranteed c <= maxc+1 (proved)
+        assign(bi, c)
+        if c > maxc:
+            maxc = c
+        # continue loop to propagate
+    # branch on bi (bs in {0,1})
+    s = sat[bi]
+    limit = maxc + 1
+    if limit > 2:
+        limit = 2
+    for c in range(limit + 1):
+        if not ((s >> c) & 1):
+            assign(bi, c)
+            if dfs(c if c > maxc else maxc):
+                return True
+            undo_one()
+    undo_to(depth)
+    return False
+```
+
+Wait, there's a bug: in the branching loop, after `assign(bi, c)` and failed `dfs`, I call `undo_one()` to remove that assignment. But `dfs` itself undoes its own stuff (it calls undo_to(its depth) on failure, where its depth = len(trail) at entry = includes the assign(bi,c)). ✓. So after failed dfs, trail is back to [.., assign(bi,c)], and undo_one removes it. ✓. After the loop, undo_to(depth) removes forced moves made in the propagation loop. ✓.
+
+Hmm wait, but there's an issue: in the forced propagation loop, when we return False due to s>=3, we undo_to(depth) — removing all forced moves made in this call. ✓. When we return True (complete), we leave everything (the final coloring). ✓.
+
+But careful: when dfs returns True, the trail still contains all assignments — that's fine, we never undo after success.
+
+Another check: the scan `if s >= 3: undo_to(depth); return False` — but note we might break out early... no early break in scan; we scan all uncolored. Note: we check s>=3 BEFORE updating best — order: check s>=3 first, then best update. In my loop above, I check `if s >= 3` first. ✓. But hmm — if a vertex has s==3 we fail; but what if bi already found with bs==2 and another vertex has s==3 — we fail. ✓ correct (that vertex can never be colored).
+
+Wait, actually there's a subtle inefficiency: the scan continues after finding bs==2 (no break) — intentional, to catch s==3 anywhere. ✓.
+
+Now, the forced color computation: `c` = lowest color not in sat[bi]. Since satcnt==2, exactly one color missing. ✓.
+
+Symmetry check for forced color: proved c ≤ maxc+1 always. But let me re-verify with the prefix invariant: colors used form {0..maxc}. sat[bi] ⊆ {0..maxc} (neighbors' colors). satcnt=2. Missing color c. If c ≤ maxc: fine, c ≤ maxc+1 ✓. If c > maxc: then sat[bi] = {0..maxc} \ ... hmm, satcnt=2, so if c > maxc, then sat[bi] ⊆ {0..maxc} has 2 elements and c is the missing one in {0,1,2}. If maxc=0: sat={0}, satcnt=1 ≠ 2. Contradiction. If maxc=1: sat ⊆ {0,1}, satcnt=2 → sat={0,1}, c=2=maxc+1 ✓. If maxc=2: c ≤ 2 = maxc ✓. So forced c ≤ maxc+1 always. ✓✓.
+
+Also, in the branching loop, `limit = min(maxc+1, 2)`. At the start, maxc=-1 → limit=0 → only c=0 tried for the first branch vertex. ✓.
+
+Hmm, wait: what about the very first call — the forced loop runs first. At entry, all satcnt=0, so bs=0, bi = vertex with max udeg (dynamic degree = static degree initially). Then branch with limit=0 → c=0. ✓.
+
+Now, the tie-break `udeg[i] > bd` — dynamic uncolored degree. Initially udeg = core degree. ✓.
+
+One more consideration: **is it possible that the branching vertex bi has bs==2 but we treat it in forced loop** — yes, bs==2 handled in forced loop (assign and continue). ✓. bs==3 → fail. bs ∈ {0,1} → branch. ✓.
+
+Now, the K4 fast-path: 
+
+```python
+# detect K4: for each triangle, check common neighbors
+```
+Implementation with masks over ALL n vertices (not just core): 
+```python
+for u in range(n):
+    mu = adjmask[u]
+    # iterate neighbors v > u
+    for v in ...: 
+```
+Let me just do: for each pair (u,v) edge, common = mu & mv; for each w in common with w > v: triangle; check mu & mv & adjmask[w] != 0 → K4. To avoid duplicate triangle enumeration, require u < v < w. 
+
+```python
+found_k4 = False
+for u in range(n):
+    mu = adjmask[u]
+    mv_list = [(v, adjmask[v]) for v in neighbors of u if v > u]
+    for v, mv in ...:
+        common = mu & mv
+        # w in common with w > v
+        t = common & ~((1 << (v+1)) - 1)  # w > v
+        while t:
+            b = t & -t; w = b.bit_length()-1
+            if adjmask[w] & common:  # hmm, need common neighbor of all three
+                found_k4 = True
+            t ^= b
+```
+Wait: common neighbor of u, v, w = mu & mv & adjmask[w]. Since w ∈ mu & mv, check adjmask[w] & mu & mv ≠ 0 → some x adjacent to all → K4 on {u,v,w,x}. ✓.
+
+This is O(#triangles × n/64)-ish; #triangles ≤ C(40,3) = 9880. Fine.
+
+Actually, simpler: just run the DSATUR — it detects K4 instantly anyway. The fast path is a micro-optimization for NO tests; but it also doesn't hurt. Hmm, but is it worth the code? It instantly answers "contains K4" NO cases without any search. DSATUR on a K4-containing graph: the search would still be fast (K4 forces quick contradictions). I'll include the K4 check anyway — cheap insurance. Meh, actually, let me skip it to keep code simpler... Hmm. Let me think about whether DSATUR could be slow on a K4-containing graph: e.g., $K_4$ + many other vertices attached. The search colors vertices; the K4 part gets refuted quickly at each branch... Actually the whole search must refute every branch. With 36 other vertices, the tree could multiply... no wait: the search colors vertices in DSATUR order; the K4 vertices have high saturation quickly; contradiction appears within the first few assignments of each branch. The tree stays small. OK, DSATUR alone is fine, but the K4 check is ~10 lines and makes NO-cases-with-K4 instant. I'll include it — no, wait. Let me think about whether it could give a WRONG answer: K4 present → chromatic number ≥ 4 → NO. ✓ sound. Include it.
+
+Hmm, one more: **odd wheel** etc. — DSATUR handles.
+
+Now, let me also think about **the YES path speed**: DSATUR finds colorings quickly typically. Fine.
+
+Let me also consider: **should the initial vertex ordering / tie-break include randomization for restarts?** No — determinism is fine.
+
+Let me now also handle potential edge cases in input parsing: extra whitespace, m lines. Standard.
+
+Also, note: the problem says $1 \le n$; no zero case.
+
+Let me write the complete code now.
+
+```python
+import sys
+
+def main():
+    data = sys.stdin.buffer.read().split()
+    n = int(data[0]); m = int(data[1])
+    adjmask = [0] * n
+    es = set()
+    self_loop = False
+    ptr = 2
+    for _ in range(m):
+        u = int(data[ptr]) - 1
+        v = int(data[ptr + 1]) - 1
+        ptr += 2
+        if u == v:
+            self_loop = True
+        else:
+            if u > v:
+                u, v = v, u
+            es.add((u, v))
+    if self_loop:
+        sys.stdout.write("NO\n")
+        return
+    for (u, v) in es:
+        adjmask[u] |= 1 << v
+        adjmask[v] |= 1 << u
+    
+    # K4 detection
+    # enumerate triangles u<v<w, check common neighbor
+    has_k4 = False
+    for u in range(n):
+        mu = adjmask[u]
+        # neighbors v of u with v > u
+        t = mu >> (u + 1)  # keep bits > u... hmm, this keeps bits at positions > u
+        # Actually: t = mu & ~((1 << (u+1)) - 1)
+        t = mu & ~((1 << (u + 1)) - 1)
+        while t:
+            bv = t & -t
+            v = bv.bit_length() - 1
+            mv = adjmask[v]
+            common = mu & mv
+            tw = common & ~((1 << (v + 1)) - 1)
+            while tw:
+                bw = tw & -tw
+                w = bw.bit_length() - 1
+                if adjmask[w] & common:
+                    has_k4 = True
+                    break
+                tw ^= bw
+            if has_k4:
+                break
+            t ^= bv
+        if has_k4:
+            break
+    if has_k4:
+        sys.stdout.write("NO\n")
+        return
+```
+
+Hmm wait, `t = mu & ~((1 << (u+1)) - 1)`: bits of mu at positions ≥ u+1, i.e., neighbors v > u. ✓. Then for triangle u<v<w: w ∈ common(=mu&mv) with w > v. ✓. K4 check: adjmask[w] & common ≠ 0 → vertex x adjacent to u, v, w. But x could be... any vertex; {u,v,w,x} all mutually adjacent? x ∈ mu (adj u), x ∈ mv (adj v), x ∈ adjmask[w] (adj w). And u,v,w mutually adjacent (triangle). So yes, K4. ✓.
+
+Note: `~((1 << (u+1)) - 1)` in Python: negative number with infinite leading ones — but AND with mu (non-negative) is fine. ✓.
+
+Then peeling:
+
+```python
+    deg = [bin(adjmask[i]).count('1') for i in range(n)]
+    removed = [False] * n
+    peel_order = []
+    from collections import deque
+    dq = deque([i for i in range(n) if deg[i] <= 2])
+    while dq:
+        u = dq.popleft()
+        if removed[u]:
+            continue
+        # deg[u] <= 2 guaranteed (only decreases)
+        removed[u] = True
+        peel_order.append(u)
+        mu = adjmask[u]
+        while mu:
+            b = mu & -mu
+            mu ^= b
+            v = b.bit_length() - 1
+            if not removed[v]:
+                deg[v] -= 1
+                if deg[v] <= 2:
+                    dq.append(v)
+```
+
+Hmm wait, there's a subtle bug: a vertex u might be in dq multiple times; when popped the second time, removed[u] is True → skip. ✓. Also, when u is popped, deg[u] ≤ 2? It was ≤ 2 when appended; deg only decreases after (neighbors removed). But wait — could deg[u] have been > 2 when appended? We append only when deg[v] ≤ 2 (initial or after decrement). ✓.
+
+Core:
+
+```python
+    core = [i for i in range(n) if not removed[i]]
+    k = len(core)
+    color_all = [0] * n  # final tiers (1-based later)
+    
+    if k > 0:
+        idx_map = [-1] * n
+        for i, u in enumerate(core):
+            idx_map[u] = i
+        cadj = []
+        cmask = [0] * k
+        for i, u in enumerate(core):
+            mk = 0
+            lst = []
+            mu = adjmask[u]
+            while mu:
+                b = mu & -mu
+                mu ^= b
+                v = b.bit_length() - 1
+                if not removed[v]:
+                    j = idx_map[v]
+                    mk |= 1 << j
+                    lst.append(j)
+            cadj.append(lst)
+            cmask[i] = mk
+        # DSATUR
+        color = [-1] * k
+        sat = [0] * k
+        satcnt = [0] * k
+        udeg = [len(cadj[i]) for i in range(k)]
+        trail = []
+        
+        # ... dfs as above ...
+```
+
+Hmm, do I need cmask? Only for... not really; cadj suffices. Drop cmask.
+
+Let me write dfs iteratively or recursively? Recursively is cleaner. Depth ≤ k ≤ 40 plus the forced loop — fine. But recursion inside a function with closures — speed is OK.
+
+Actually, let me reconsider: maybe write dfs as a nested function using nonlocal-free state (lists are mutable, fine).
+
+```python
+        sys.setrecursionlimit(5000)
+        
+        def assign(i, c):
+            bit = 1 << c
+            color[i] = c
+            rec = []
+            ap = rec.append
+            for j in cadj[i]:
+                if color[j] < 0:
+                    udeg[j] -= 1
+                    if sat[j] & bit:
+                        ap((j, 0))
+                    else:
+                        sat[j] |= bit
+                        satcnt[j] += 1
+                        ap((j, 1))
+            trail.append((i, bit, rec))
+        
+        def undo_one():
+            i, bit, rec = trail.pop()
+            color[i] = -1
+            for j, added in rec:
+                udeg[j] += 1
+                if added:
+                    sat[j] ^= bit
+                    satcnt[j] -= 1
+        
+        def undo_to(depth):
+            while len(trail) > depth:
+                undo_one()
+        
+        def dfs(maxc):
+            depth = len(trail)
+            while True:
+                bi = -1
+                bs = -1
+                bd = -1
+                for i in range(k):
+                    if color[i] < 0:
+                        s = satcnt[i]
+                        if s >= 3:
+                            undo_to(depth)
+                            return False
+                        if s > bs or (s == bs and udeg[i] > bd):
+                            bi = i
+                            bs = s
+                            bd = udeg[i]
+                if bi < 0:
+                    return True
+                if bs < 2:
+                    break
+                # forced
+                sm = sat[bi]
+                c = 0
+                while (sm >> c) & 1:
+                    c += 1
+                assign(bi, c)
+                if c > maxc:
+                    maxc = c
+            # branching
+            sm = sat[bi]
+            limit = maxc + 1
+            if limit > 2:
+                limit = 2
+            for c in range(limit + 1):
+                if not ((sm >> c) & 1):
+                    assign(bi, c)
+                    if dfs(c if c > maxc else maxc):
+                        return True
+                    undo_one()
+            undo_to(depth)
+            return False
+        
+        if not dfs(-1):
+            sys.stdout.write("NO\n")
+            return
+        for i, u in enumerate(core):
+            color_all[u] = color[i] + 1
+```
+
+Wait, there's a bug in the forced loop: after `assign(bi, c)` and updating maxc, we `continue` the while loop — but I wrote the loop such that after assign we fall to the end of while body and loop again. Let me make sure the structure is right: 
+
+```python
+            while True:
+                # scan
+                ...
+                if bi < 0: return True
+                if bs < 2: break
+                # forced assign
+                ...
+                assign(bi, c)
+                maxc = max(maxc, c)
+            # branch
+```
+Yes: after forced assign, loop continues (rescan). After break, branching code runs. ✓.
+
+Hmm, but one issue: in the forced loop, after assigning, the rescan happens — O(k) per forced move. For a long forced chain (up to k), total O(k²) per dfs call — fine (1600 ops).
+
+Another subtle issue: in the branching loop, `sm = sat[bi]` — bi's sat doesn't change during branching (only bi's assignment changes neighbors' sat, and undo restores). ✓. But wait — after `assign(bi, c)` and `dfs(...)` fails and `undo_one()`, is sat[bi] unchanged? assign(bi,c) modifies sat of bi's uncolored neighbors, not sat[bi] (bi is being colored; we skip colored vertices in the neighbor loop — bi itself isn't in cadj[bi] anyway, no self-loops). ✓.
+
+Now, correctness of returning True: when bi < 0 (all colored), return True — the coloring is complete for the core. ✓.
+
+After core coloring, color peeled vertices:
+
+```python
+    # color peeled vertices in reverse peel order
+    for u in reversed(peel_order):
+        used = 0
+        mu = adjmask[u]
+        while mu:
+            b = mu & -mu
+            mu ^= b
+            v = b.bit_length() - 1
+            t = color_all[v]
+            if t:
+                used |= 1 << (t - 1)
+        c = 0
+        while (used >> c) & 1:
+            c += 1
+        color_all[u] = c + 1
+```
+
+Wait — but at this point, color_all[v] for core vertices is set; for peeled vertices peeled after u, they're set (reverse order); for peeled-before-u neighbors, color_all[v] = 0 (unset) → skipped. ✓. And used has ≤ 2 bits → c ≤ 2 exists. ✓.
+
+Hmm, but careful: color_all initialized to 0; core vertices got colors 1..3; peeled get 1..3. When coloring u, neighbors that are core or later-peeled have nonzero color_all. Neighbors peeled earlier have 0. ✓ matches the argument.
+
+Then output:
+
+```python
+    out = ["YES"]
+    out.append(" ".join(map(str, color_all)))
+    sys.stdout.write("\n".join(out) + "\n")
+```
+
+Let me double check the whole flow with Example 1:
+n=4, m=5, edges: (1,2),(1,3),(2,3),(1,4),(2,4) → 0-indexed: (0,1),(0,2),(1,2),(0,3),(1,3). Graph: triangle 0,1,2; vertex 3 adjacent to 0,1.
+
+K4 check: triangles: (0,1,2): common = adj0&adj1 = {2,3}&{0,2,3} = {2,3} → w>1: w=2: adj2 & common = {0,1} & {2,3} = {} → no; w=3: adj3 & common = {0,1} & {2,3} = {} → no. Triangle (0,1,3): common = adj0 & adj1 = {2,3} → w > 1: w=2: is 2 in common? yes (2 ∈ adj0? adj0 = {1,2,3} ✓, adj1 = {0,2,3} ✓). So triangle (0,1,3) with w=2: check adj2 & common = {0,1} & {2,3} = {} → no K4. Also triangle (0,1,2) already done; (0,1,3) done. Any other triangles? (0,2,?) — 0,2 adjacent; common neighbors of 0,2: adj0&adj2 = {1,3}&{0,1} = {1} → w=1 < v=2? We require w > v where (u,v) = (0,2): w must be > 2; common has only bit 1 → no. So no K4. ✓ (graph is K4 minus edge, 3-colorable).
+
+Peeling: degrees: 0: 3 (neighbors 1,2,3), 1: 3, 2: 2 (0,1), 3: 2 (0,1). dq = [2,3]. Pop 2: removed, peel_order=[2]; decrement deg of 0 → 2, deg of 1 → 2; append 0, 1. Pop 3: removed, peel=[2,3]; decrement deg 0 → 1, deg 1 → 1; append 0,1 again. Pop 0: removed; decrement deg of 1 → 0 (1 not removed) → append 1. Pop 1: removed. Pop 0 (dup): skip. Pop 1 (dup): skip. Pop 1: skip. Core = []. 
+
+Color peeled in reverse: [1, 0, 3, 2]: 
+- u=1: neighbors 0,2,3 all uncolored (color_all=0) → used=0 → color 1. color_all[1]=1.
+- u=0: neighbors 1 (color 1), 2 (0), 3 (0) → used = {0} → c=1 → color 2. color_all[0]=2.
+- u=3: neighbors 0 (2), 1 (1) → used={1,0} → c=2 → color 3. color_all[3]=3.
+- u=2: neighbors 0 (2), 1 (1) → used={1,0} → color 3. color_all[2]=3.
+
+Result: [2,1,3,3] → check edges: 0-1: 2≠1 ✓; 0-2: 2≠3 ✓; 1-2: 1≠3 ✓; 0-3: 2≠3 ✓; 1-3: 1≠3 ✓. Valid! Output "YES\n2 1 3 3". Different from sample but "Any valid assignment is accepted." ✓.
+
+Example 2: K4 → K4 detection → NO. ✓.
+
+Now let me stress-test the DSATUR logic mentally on a small case. Take C_5 (5-cycle): 0-1-2-3-4-0. No K4. Peeling: all degrees 2 → all peeled → core empty → greedy: reverse peel order... dq=[0..4]; pop 0: remove; decrement 1,4 → 1 each; append. pop 1: remove; decrement 2 → 1; append. pop 2: remove; decrement 3 → 1. pop 3: remove; decrement 4 → 0. pop 4: remove. peel_order = [0,1,2,3,4]. Reverse: 4,3,2,1,0:
+- u=4: neighbors 3 (0), 0 (0) → color 1.
+- u=3: neighbors 2 (0), 4 (1) → used={0} → color 2.
+- u=2: neighbors 1 (0), 3 (2) → used={1} → color 1.
+- u=1: neighbors 0 (0), 2 (1) → used={0} → color 2.
+- u=0: neighbors 1 (2), 4 (1) → used={1,0} → color 3.
+Result: [3,2,1,2,1]: edges: 0-1: 3-2 ✓; 1-2: 2-1 ✓; 2-3: 1-2 ✓; 3-4: 2-1 ✓; 4-0: 1-3 ✓. 
+
+Now a core case: K4 minus edge handled by peeling above. Let me test a case with a non-empty core: e.g., two triangles sharing... hmm, everything with degree ≤ 2 peels. Take the "diamond" plus... Let me construct: Grötzsch-ish? Simpler: take $K_{3,3}$? Degrees 3 → core = all 6. Bipartite → 2-colorable. DSATUR: initial: all satcnt=0, udeg=3. bi = 0 (first with udeg 3; ties broken by first index since strict >). Branch: maxc=-1, limit=0, c=0: assign 0→0. Neighbors (say 3,4,5): udeg→2, sat={0}, satcnt=1. Rescan: bs: vertices 1,2 have s=0, udeg=3; vertices 3,4,5 have s=1, udeg=2. Best: s=1 group: bi=3 (udeg 2). bs=1 → branch. limit = maxc+1 = 1. c=0: sat[3] has 0 → skip. c=1: assign 3→1. Neighbors of 3: 0 (colored), 1, 2: udeg 3→2, sat={1}, satcnt=1. Rescan: 1,2: s=1 (color 1), udeg 2; 4,5: s=1 (color 0), udeg 2. bi = 1 (first s=1 udeg=2... wait 1 has sat={1}? 1's neighbors: 3,4,5; 3 colored 1 → sat={1}, satcnt=1. 2 same. 4,5: sat={0}. All s=1, udeg=2. bi=1 (first). Branch: limit=2 (maxc=1 → limit 2). c=0: not in sat[1]={1} → assign 1→0. Neighbors of 1: 3 (colored), 4,5: udeg→1, sat: 4: {0} already has bit 0 → no change (added=0); 5: same. Rescan: 2: s=1, udeg=2; 4,5: s=1, udeg=1. bi=2. Branch: c=0: sat[2]={1} → allowed: assign 2→0. Neighbors 4,5: sat already {0} → no change, udeg→1. Rescan: 4: s=1, udeg=1; 5: same. bi=4. Branch: c=0 in sat → skip; c=1: assign 4→1. Neighbors of 4: 0 (colored), 1 (colored), 2 (colored) → no uncolored. Rescan: 5: s=1 ({0} from 0... wait 5's neighbors: 0,1,2 — colored 0,0,0 → sat={0}), udeg=0. bi=5, bs=1. Branch: c=0 in sat → skip; c=1: assign 5→1. Rescan: none → return True. Coloring: 0:0, 3:1, 1:0, 2:0, 4:1, 5:1 → bipartition {0,1,2} vs {3,4,5}. ✓ Valid.
+
+Now a NO case without K4: Grötzsch graph — trust the algorithm.
+
+Let me also verify the undo path with a tiny NO example: triangle + pendant... no, triangle is 3-colorable. NO without K4, small: hmm, smallest 4-chromatic K4-free is Grötzsch (11 vertices). Let me instead trace a backtracking scenario on a small graph where the first branch fails: e.g., two triangles sharing all... take "K4 minus edge" plus a vertex connected to make... Let me construct: vertices 0,1,2 triangle; 3 adjacent to 0,1 (diamond); plus vertex 4 adjacent to 2 and 3. Then: is it 3-colorable? 0,1,2 triangle: colors a,b,c distinct. 3 adjacent 0,1 → 3 = c (same as 2). 4 adjacent 2 (c) and 3 (c) → 4 ∈ {a,b}. Fine, colorable. Not a NO case.
+
+Let me construct a small NO case with core: Take two diamonds sharing... hmm. Simplest NO: K4 (caught by K4 check). Next: K4 with a subdivided edge? Subdividing an edge reduces chromatic number possibly. Hmm: take K5? Contains K4 → caught. Odd wheel W_7 (C_6 + center)? Even wheel W_7 = C_6 + hub: hub adjacent to all 6 cycle vertices; C_6 is bipartite (2 colors), hub needs 3rd → 3-colorable. Odd wheel W_6 (C_5 + hub): C_5 needs 3 colors, hub needs 4th → NO, K4-free! Let me trace W_6: hub h, cycle v0..v4. Degrees: h: 5, vi: 3. No K4 (h + two adjacent cycle vertices: h-vi-vj-vk? triangles: h,vi,v(i+1); common neighbors of h and vi: all other cycle vertices adjacent to vi: v(i±1); common = {v(i-1), v(i+1)}; these two are adjacent only if cycle length... v(i-1) and v(i+1) adjacent iff 5-cycle: |diff| = 2 mod 5 → not adjacent. So no K4 ✓).
+
+Peeling: degrees: h=5, vi=3 → no peeling. Core = all 6. DSATUR: initial udeg: h=5, vi=3. bi=h, bs=0. Branch limit=0: assign h→0. All vi: sat={0}, satcnt=1, udeg=2. Rescan: bs=1, bi=v0 (udeg 2, first). Branch: limit=1. c=0: in sat → skip. c=1: assign v0→1. Neighbors: h colored; v1, v4: sat={0,1}, satcnt=2, udeg=1. Rescan: v1: s=2 → forced! bi=v1 (s=2, first found... scan order: v1 (s=2) → best; v2: s=1; v3: s=1; v4: s=2 → not better (s equal, udeg 1 vs 1 → not >). bi=v1. Forced: sat={0,1} → c=2. assign v1→2. Neighbors: h colored; v0 colored; v2: sat={2}, satcnt=1, udeg=1. Rescan: v2: s=1; v3: s=1; v4: s=2 → forced: sat[v4]={0,1} → c=2. assign v4→2. Neighbors: v3: sat={2}, satcnt=1, udeg=1. Rescan: v2: s=1, udeg=1; v3: s=1, udeg=1. bi=v2. Branch: limit=2 (maxc=2). sat[v2]={2}: c=0: assign v2→0. Neighbors: v1 colored, v3: sat={2,0}, satcnt=2, udeg=0. Rescan: v3: s=2 → forced: c=1. assign v3→1. Neighbors: v2 colored, v4 colored. Rescan: none → return True?! 
+
+Wait — that gives a coloring of W_6?? Let me check: h=0, v0=1, v1=2, v2=0, v3=1, v4=2. Edges: h-vi: 0 vs {1,2,0,1,2} — h=0, v2=0 → CONFLICT! h adjacent to v2, both color 0! 
+
+Bug! Let me re-trace. Oh no wait — when we assigned v2→0, v2's neighbors include h! h is colored (0). In `assign`, we only update uncolored neighbors' sat. v2's sat: was it updated when h was colored? h's assign: neighbors v0..v4 all uncolored → sat[vi] |= bit0 → sat[v2] = {0}. Then v1→2: v2 uncolored, neighbor → sat[v2] |= bit2 → {0,2}, satcnt=2. Hmm wait, I said "v2: sat={2}" above — that was wrong. Let me redo:
+
+After h→0: sat[vi] = {0} ∀i, satcnt=1, udeg[vi]=2.
+Branch v0: sat={0} → c=1 (c=0 blocked). assign v0→1: neighbors h (colored), v1, v4: sat[v1]={0,1}, sat[v4]={0,1}, satcnt=2, udeg=1.
+Rescan: v1: s=2 → bi=v1, forced. sat[v1]={0,1} → c=2. assign v1→2: neighbors h (colored), v0 (colored), v2: sat[v2]={0,2}, satcnt=2, udeg[v2]=1.
+Rescan: v2: s=2 → forced, bi=v2. sat={0,2} → c=1. assign v2→1: neighbors v1 (colored), v3: sat[v3]={0,1}, satcnt=2, udeg=0.
+Rescan: v3: s=2 → forced: c=2. assign v3→2: neighbors v2 (colored), v4: sat[v4]={0,1,2}, satcnt=3, udeg=0.
+Rescan: v4: s=3 → FAIL. undo_to(depth of the branch node that assigned v0... let me see: dfs(-1) called: depth0=0. Branch: assign h→0 (trail: [h]), call dfs(0): depth=1. Forced loop: none (all s=1... wait after h assigned, scan: v0..v4 s=1 → bs=1 → break to branch). Branch v0: c=1: assign v0→1 (trail: [h, v0]), call dfs(1): depth=2. Forced loop: v1 forced → assign (trail +v1); rescan: v2 forced → assign; rescan: v3 forced → assign; rescan: v4 s=3 → undo_to(2) → trail back to [h, v0]; return False. Back in dfs(0) branch loop: undo_one() → trail=[h]. c=2? limit = maxc+1 = 0+1 = 1 → range(2) = c ∈ {0,1}. c=0: sat[v0]={0} → blocked. c=1: tried, failed. Loop ends → undo_to(1) → trail=[h]... wait, depth in dfs(0) is 1 (trail had [h] at entry). undo_to(1) → trail=[h]. return False. Back in dfs(-1): undo_one() → trail=[]. c loop: limit=0 → only c=0, tried. undo_to(0) → trail=[]. return False. → NO. ✓✓ 
+
+I made an arithmetic error in the first trace (forgot sat updates); the algorithm is correct. W_6 → NO. ✓ (And indeed odd wheels are 4-chromatic.)
+
+Let me also trace a case where the forced color exceeds limit... proven impossible, skip.
+
+Now, one more design question: the **branching order** — try colors in increasing c. Fine.
+
+Also, **should the branch loop skip c if c > maxc+1** — handled by limit. ✓.
+
+Now let me reconsider the **K4 fast path** — is it possible that K4 detection has a bug making it report K4 falsely? Triangle u<v<w (mutually adjacent), x ∈ adj(u)∩adj(v)∩adj(w). Then {u,v,w,x}: u,v,w mutually adjacent; x adjacent to each of u,v,w. That's a K4 regardless of... yes, all 6 edges present: uv, uw, vw (triangle), xu, xv, xw (x in common). ✓. Could x be one of u,v,w? x ∈ adj(u) → x ≠ u; x ∈ adj(v) → x ≠ v; x ≠ w similarly. ✓. So sound.
+
+But hmm — what if x equals... no, fine. And if the graph contains K4, will we find it? The K4 has vertices a<b<c<d; triangle (a,b,c) enumerated (a<b<c, all edges present); common = adj(a)∩adj(b) ∋ c, d; we iterate w ∈ common with w > c: w = c? No — w > v=c... wait, in my loop, for pair (u,v) = (a,b), common includes c and d; tw = common restricted to > v=b → includes c and d. w=c: check adj(c) & common: d ∈ adj(c) (K4) and d ∈ common → nonzero → K4 found. ✓.
+
+OK. Also — should I even keep the K4 check given DSATUR handles it? It's harmless and fast. Keep.
+
+Hmm, wait, actually now let me reconsider one more time whether the **peeling + core DSATUR + symmetry breaking** interaction has any issue. The symmetry breaking operates on the core only. Peeled vertices colored greedily afterward — no symmetry concerns. ✓.
+
+And **completeness of DSATUR on the core**: the core is an induced subgraph; 3-colorability of the whole graph ⟺ 3-colorability of the core (peeled vertices always colorable). ✓.
+
+Now let me think about **performance of the scan** once more. The scan is `for i in range(k)` with `color[i] < 0` check. In deep forced chains, most vertices are colored, so the scan does k iterations mostly failing the color check. k ≤ 40. Each dfs call does ≥ 1 scan. Number of dfs calls = number of branch nodes ≤ tree size. Forced moves don't add dfs calls (handled in-loop). Good — the tree size counts branch nodes; forced chains are within a call. So per branch node: forced chain cost O(k × chain_length)... hmm, rescan per forced move: O(k). Chain ≤ k. So O(k²) = 1600 worst per branch node, plus assign costs. If tree has 10^4 branch nodes: ~2×10^7 ops → ~2-5s in Python? Hmm, that's concerning in the worst case. But realistically, forced chains are short and trees are small. Let me optimize the rescan: 
+
+**Optimization: avoid full rescan after each forced move.** Maintain a "forced candidate" set? Alternative: after a forced assignment, only the neighbors' sat changed; new forced vertices are among them. Keep a stack/queue `forced_set` of vertices with satcnt==2 (uncolored). Process: pop i; if color[i] ≥ 0 → skip; if satcnt[i] == 3 → fail; if satcnt[i] == 2 → assign forced color; push uncolored neighbors that reach satcnt 2 (they're already in the loop...). Hmm, but vertices with satcnt==2 that were already forced before remain. Let me restructure:
+
+Maintain `forced` as a list (stack) of vertex indices that (at some point) had satcnt==2 while uncolored. Invariant: every uncolored vertex with satcnt==2 is in `forced` (possibly with duplicates, plus colored ones). When assign(i,c) makes neighbor j's satcnt reach 2, push j. Also at dfs entry (after branching assign), the scan... hmm, the initial scan still needed once per dfs call to find the branch vertex and seed `forced`. But within a dfs call, after the initial scan, forced processing avoids rescans: pop from `forced` until empty; each pop: if colored → skip; if satcnt==3 → fail; if satcnt==2 → assign forced color (pushing newly-2 neighbors); if satcnt<2 → it became... satcnt can't decrease while uncolored (bits only added). satcnt<2 means it was pushed when... hmm, can a vertex be pushed with satcnt<2? We push when satcnt BECOMES 2 (incremented to 2). So at push time satcnt==2. Later satcnt only grows (while uncolored). So pop → satcnt ∈ {2,3} or colored. ✓.
+
+But the undo problem: on backtrack, satcnt decreases; the `forced` stack contains stale entries — but that's OK if we treat it as "candidates" (check on pop). However, the invariant "every uncolored satcnt==2 vertex is in forced" must hold at the time we rely on it. After undo, previously-2 vertices might be back to satcnt 2 but were popped already... Hmm. Let me think: the forced stack is used within a dfs call between scans. The flow per dfs call: (1) initial scan: find branch vertex bi, detect s==3 fail, and collect all current satcnt==2 vertices into forced-seed... wait, but if there are satcnt==2 vertices at entry, the vertex selection would pick one of them as bi (bs==2) — in my current design, bs==2 → forced handling. With the new design: initial scan: if any s==3 → fail; if any s==2 → these are forced; process forced stack until empty; then rescan (now no s==2... after forced processing, new vertices may have become 2 — but they're pushed and processed). After forced stack empty: rescan to find branch vertex (s ≤ 1 guaranteed... unless a vertex reached s==3 → detected during forced processing). Hmm, so the flow: scan → forced loop → scan → forced loop → ... until scan finds only s ≤ 1 → branch. Each "scan" is O(k) but happens once per dfs call (amortized: forced processing between scans is O(total pushes)). Actually the number of scan↔forced rounds per dfs call: after forced processing completes and we rescan, could the rescan find new s==2 vertices? No — forced processing pushes every vertex that becomes satcnt==2, and processes until stack empty, so after it, no uncolored vertex has satcnt==2 (any that did were processed... wait, processed means assigned (colored) or detected s==3 → fail. Vertices popped with satcnt==2 get assigned. So after the stack empties, all uncolored vertices have satcnt ≤ 1? Hmm: a vertex with satcnt==2 that was pushed and popped → assigned → colored. A vertex pushed multiple times → first pop assigns it; later pops skip (colored). A vertex that becomes 2 during processing → pushed → popped → assigned. So yes: after forced stack empties (without fail), every uncolored vertex has satcnt ≤ 1. Then the rescan finds branch vertex with s ≤ 1. ✓. So per dfs call: 1-2 scans + forced processing. 
+
+But wait — the undo interplay: `forced` stack persists across dfs calls (global). After a failed branch and undo, the stack contains stale entries (colored vertices, or vertices whose satcnt changed). Since we treat entries as candidates (recheck on pop), stale entries are harmless — EXCEPT the invariant "every uncolored satcnt==2 vertex is in the stack" must hold when we start relying on the stack. When does a vertex's satcnt become 2? Only during assign (increment to 2 → push). So every vertex that EVER had satcnt==2 while uncolored is in the stack (pushed at that moment). It stays in the stack forever (we never remove entries, just skip on pop). But "pop" removes it! If we pop an entry (vertex colored → skip), and later undo makes it uncolored with satcnt==2 again — it's no longer in the stack → we'd miss it → INCOMPLETE forced propagation → but is that a correctness issue? Missing

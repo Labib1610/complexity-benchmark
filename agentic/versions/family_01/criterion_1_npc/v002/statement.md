@@ -2,15 +2,15 @@
 
 Time limit: 2 s   Memory limit: 256 MB
 
-A laboratory uses three storage units labeled 1, 2, 3. There are n chemical samples. Some pairs of samples are reactive and must not be placed in the same storage unit. Assign every sample to exactly one of the three units so that no reactive pair shares a unit, or report that it is impossible.
+A facility has three storage silos labeled 1, 2, 3. There are n chemicals. Some pairs of chemicals are reactive and must not be placed in the same silo. Assign every chemical to exactly one of the three silos so that no reactive pair shares a silo, or report that it is impossible.
 
 ## Input
-The first line contains two integers n and m — the number of samples and the number of reactive pairs (1 ≤ n ≤ 40, 0 ≤ m ≤ n·(n−1)/2).
+The first line contains two integers n and m — the number of chemicals and the number of reactive pairs (1 ≤ n ≤ 40, 0 ≤ m ≤ n·(n−1)/2).
 Each of the next m lines contains two integers u v — a reactive pair.
 
 ## Output
 If no valid assignment exists, print a single line NO.
-Otherwise print YES on the first line. On the second line print n integers s₁ s₂ … sₙ (each in {1,2,3}), where sᵢ is the storage unit of sample i. Among all valid assignments output the lexicographically smallest sequence (compare s₁ first, then s₂, and so on).
+Otherwise print YES on the first line. On the second line print n integers s₁ s₂ … sₙ (each in {1,2,3}), where sᵢ is the silo of chemical i. Any valid assignment is accepted.
 
 ## Example 1
 Input:

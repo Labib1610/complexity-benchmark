@@ -1,27 +1,22 @@
-# Problem A — Harmonic Grid Calibration
+# Problem A — Distributed Shard Routing
 
-Time limit: 2 s
-Memory limit: 256 MB
+Time limit: 2 s   Memory limit: 256 MB
 
-A quantum communication grid is composed of $n$ active signal emitters, identified by integers from 1 up to $n$. The installation is physically constrained to a maximum of 40 emitter bays. 
+You are configuring a distributed database with $n$ storage nodes. To ensure stable load distribution, each node must be assigned to exactly one of 3 available data shards. The shards are identified by the integer IDs 1, 2, and 3.
 
-During the initialization phase, every emitter must be calibrated with a specific tuning frequency. The available frequency parameters are exactly 1, 2, and 3.
+You are given a list of $m$ high-frequency query patterns. Each pattern involves a specific pair of nodes $(u, v)$ that are frequently accessed together.
 
-The grid utilizes $m$ direct transmission conduits, which can range in quantity from 0 up to $n(n-1)/2$ (the theoretical maximum where all distinct pairs are connected). Each conduit links exactly two emitters. To maintain stability, there is a critical safety threshold: whenever two emitters $u$ and $v$ are linked by a conduit, their interference factor $I(u, v)$ must not be a multiple of 3. The interference factor is defined as:
-$$ I(u, v) = p_u^2 + p_u \cdot p_v + p_v^2 $$
-where $p_u$ and $p_v$ are the selected tuning frequencies of emitters $u$ and $v$ respectively. If $I(u, v)$ evaluates to a multiple of 3 on any conduit, a resonance cascade will occur. Your task is to find a frequency calibration for all $n$ emitters that avoids a cascade.
+To prevent routing bottlenecks, the hash-based router evaluates these pairs using a subset-cardinality check. For any given high-frequency pair of nodes $(u, v)$, let $S_{u,v}$ be the set containing their assigned shard IDs, meaning $S_{u,v} = \{c_u, c_v\}$. A routing collision occurs if the cardinality of $S_{u,v}$ is exactly 1. 
 
-Should the grid be impossible to safely initialize, your program must report this failure. Given that multiple stable calibrations might exist, the system demands the specific calibration that minimizes the final grid potential $V_n$. The potential of a calibration sequence is evaluated sequentially as follows:
-- $V_1 = p_1$
-- $V_k = 4 \cdot V_{k-1} + p_k$ for $k = 2, 3, \dots, n$
+To maintain system stability, you must assign a shard ID (1, 2, or 3) to each of the $n$ nodes such that strictly zero collisions occur among all $m$ given query patterns. This means every pair $(u, v)$ in the input must yield $|S_{u,v}| = 2$.
 
 ## Input
-The first line provides two integers $n$ and $m$ (1 ≤ $n$ ≤ 40, 0 ≤ $m$ ≤ $n(n−1)/2$) — the number of active emitters and the number of active conduits.
-The following $m$ lines each provide two integers $u$ and $v$ (1 ≤ $u, v$ ≤ $n$, $u \neq v$), indicating the identifiers of two emitters connected by a conduit.
+The first line contains two integers $n$ and $m$ — the number of storage nodes and the number of high-frequency query patterns ($1 \le n \le 40$, $0 \le m \le n \cdot (n-1)/2$).
+Each of the subsequent $m$ lines contains two integers $u$ and $v$, representing a pair of nodes involved in a high-frequency query pattern. Nodes are indexed from 1 to $n$.
 
 ## Output
-If it is impossible to initialize the grid without causing a resonance cascade, output a single line containing `NO`.
-If a valid calibration sequence exists, output `YES` on the first line. On the second line, output $n$ integers $p_1, p_2, \dots, p_n$ (where each $p_i \in \{1, 2, 3\}$), representing the assigned frequency for each emitter from 1 to $n$. This sequence must be the one that minimizes the final grid potential $V_n$.
+If no such assignment is possible, output NO on a single line.
+Otherwise, output YES on the first line. On the second line, output $n$ integers $c_1 \ c_2 \dots c_n$ (each being 1, 2, or 3), where $c_i$ is the shard ID assigned to node $i$. If multiple valid assignments exist, you may output any of them.
 
 ## Example 1
 Input:

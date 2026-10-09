@@ -1,53 +1,36 @@
 import sys
-from collections import deque
 
 def solve():
-    input_data = sys.stdin.read().split()
+    input_data = sys.stdin.buffer.read().split()
     if not input_data:
         return
-    iterator = iter(input_data)
-    try:
-        n = int(next(iterator))
-        m = int(next(iterator))
-    except StopIteration:
-        return
-
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
     adj = [[] for _ in range(n + 1)]
     for _ in range(m):
-        u = int(next(iterator))
-        v = int(next(iterator))
+        u = int(next(it))
+        v = int(next(it))
         adj[u].append(v)
         adj[v].append(u)
 
-    # Values: 0 = unassigned, 1 = assigned 1, 2 = assigned 2
-    val = [0] * (n + 1)
-    
+    color = [0] * (n + 1)
     for i in range(1, n + 1):
-        if val[i] == 0:
-            # Start BFS for the connected component containing i
-            # We want to assign the lexicographically smallest valid configuration.
-            # Since we iterate i from 1 to n, setting i to 1 is optimal for lex order.
-            # If this leads to a contradiction, the component is not bipartite, so impossible.
-            
-            q = deque()
-            val[i] = 1
-            q.append(i)
-            
-            while q:
-                u = q.popleft()
+        if color[i] == 0:
+            color[i] = 1
+            stack = [i]
+            while stack:
+                u = stack.pop()
                 for v in adj[u]:
-                    if val[v] == 0:
-                        val[v] = 3 - val[u]
-                        q.append(v)
-                    elif val[v] == val[u]:
-                        # Contradiction found
-                        print("NO")
+                    if color[v] == 0:
+                        color[v] = 3 - color[u]
+                        stack.append(v)
+                    elif color[v] == color[u]:
+                        sys.stdout.write("NO\n")
                         return
 
-    print("YES")
-    # Print values from 1 to n
-    output = ' '.join(map(str, val[1:]))
-    print(output)
+    out = ["YES"]
+    out.append(" ".join(map(str, color[1:])))
+    sys.stdout.write("\n".join(out) + "\n")
 
-if __name__ == '__main__':
-    solve()
+solve()

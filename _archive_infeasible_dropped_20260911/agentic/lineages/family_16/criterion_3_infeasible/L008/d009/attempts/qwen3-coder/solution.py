@@ -1,0 +1,55 @@
+import sys
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    j = int(data[0])
+    T = int(data[1])
+    
+    p1_list = []
+    p2_list = []
+    
+    index = 2
+    for _ in range(j):
+        p1 = int(data[index])
+        p2 = int(data[index+1])
+        p1_list.append(p1)
+        p2_list.append(p2)
+        index += 2
+    
+    # Check for JOB i
+    for i in range(j):
+        p1 = p1_list[i]
+        p2 = p2_list[i]
+        if p1 + p2 > T:
+            print(f"JOB {i+1}")
+            return
+    
+    # Check for LOAD 1
+    p1_sorted = sorted(p1_list)
+    total_p1 = 0
+    pos = 0
+    for p1 in p1_sorted:
+        if pos + p1 > T:
+            print("LOAD 1")
+            return
+        pos += p1
+        total_p1 += p1
+    
+    # Check for LOAD 2
+    p2_sorted = sorted(p2_list)
+    pos = 0
+    for p2 in p2_sorted:
+        if pos + p2 > T:
+            print("LOAD 2")
+            return
+        pos += p2
+    
+    # This should not happen according to problem statement
+    # But just in case, we default to LOAD 1
+    print("LOAD 1")
+
+if __name__ == "__main__":
+    main()

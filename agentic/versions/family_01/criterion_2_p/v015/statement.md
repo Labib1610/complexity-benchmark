@@ -1,18 +1,18 @@
-# Problem B — Safety Scheduling
+# Phase Configuration
 
 Time limit: 1 s   Memory limit: 256 MB
 
-A manufacturing plant operates exactly two daily production periods, designated as period 1 and period 2. The plant employs $n$ technicians, numbered from 1 to $n$. To maintain safety standards, certain pairs of technicians who have previously disagreed on safety protocols must not be scheduled during the same production period.
+A manufacturing plant operates continuously through two distinct production phases, labeled 1 and 2. The facility houses $n$ industrial machines. Due to the electrical wiring, $m$ specific pairs of machines are connected to the same local power sub-panel. If two machines sharing a sub-panel are active during the same production phase, they will overload the circuit. Consequently, such pairs must be scheduled in different phases.
 
-You are provided with a list of $m$ such incompatible pairs. Your task is to determine if it is possible to assign every technician to either period 1 or period 2 such that no two incompatible technicians work during the same period. If this is possible, you must provide the assignment. To standardize the scheduling system across the plant, if there are multiple valid ways to assign the technicians, you must output the sequence of assignments that is lexicographically smallest.
+You must determine whether it is possible to assign each machine to exactly one of the two phases without causing any power overloads. If a safe configuration is possible, the plant's automated control system requires a standardized output. Specifically, the resulting sequence of $n$ phase assignments must be lexicographically smallest, meaning that the system prefers placing machines in phase 1 over phase 2, prioritizing the machine with the lowest ID, then the second lowest, and so forth.
 
 ## Input
-The first line contains two integers $n$ and $m$ (1 ≤ $n$ ≤ 2·10⁵, 0 ≤ $m$ ≤ 2·10⁵), representing the number of technicians and the number of incompatible pairs.
-Each of the following $m$ lines contains two integers $u$ and $v$ (1 ≤ $u, v$ ≤ $n$), indicating that technician $u$ and technician $v$ cannot be assigned to the same period.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$), representing the number of machines and the number of shared sub-panel connections.
+The following $m$ lines each contain two integers $u$ and $v$ ($1 \le u, v \le n$), indicating that machine $u$ and machine $v$ share a power sub-panel.
 
 ## Output
-If there is no way to assign the periods without violating the safety standards, output a single line containing `NO`.
-If a valid assignment exists, output `YES` on the first line. On the second line, output $n$ integers $s_1, \dots, s_n$ (where each $s_i$ is either 1 or 2), representing the period assigned to each technician from 1 to $n$. This sequence must be the lexicographically smallest valid assignment.
+If there is no way to assign the phases without an overload, output a single line containing `NO`.
+If a safe assignment exists, output `YES` on the first line. On the second line, output $n$ space-separated integers, where the $i$-th integer (either 1 or 2) represents the phase assigned to machine $i$. This sequence must be the lexicographically smallest valid assignment.
 
 ## Example 1
 Input:

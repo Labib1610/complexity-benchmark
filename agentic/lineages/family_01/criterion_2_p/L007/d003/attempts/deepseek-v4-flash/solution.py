@@ -23,7 +23,7 @@ for i in range(n):
             u = q.popleft()
             for v in adj[u]:
                 if color[v] == -1:
-                    color[v] = 1 - color[u]
+                    color[v] = color[u] ^ 1
                     q.append(v)
                 elif color[v] == color[u]:
                     possible = False
@@ -37,4 +37,5 @@ if not possible:
     print("NO")
 else:
     print("YES")
-    print(" ".join(str(c + 1) for c in color))
+    # color 0 -> config 1, color 1 -> config 2
+    print(' '.join(str(c + 1) for c in color))

@@ -1,0 +1,263 @@
+from collections import defaultdict, deque
+import sys
+
+def solve():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    idx = 0
+    n = int(data[idx])
+    idx += 1
+    m = int(data[idx])
+    idx += 1
+    k = int(data[idx])
+    idx += 1
+    
+    batches = []
+    for _ in range(k):
+        s = int(data[idx]) - 1
+        idx += 1
+        t = int(data[idx]) - 1
+        idx += 1
+        d = int(data[idx])
+        idx += 1
+        batches.append((s, t, d))
+    
+    edges = []
+    capacity = []
+    graph = [[] for _ in range(n)]
+    
+    for i in range(m):
+        u = int(data[idx]) - 1
+        idx += 1
+        v = int(data[idx]) - 1
+        idx += 1
+        cap = int(data[idx])
+        idx += 1
+        edges.append((u, v))
+        capacity.append(cap)
+        graph[u].append(i)
+        graph[v].append(i)
+    
+    # For each batch, we need to find a feasible flow
+    result = []
+    
+    # We'll use a max flow approach for each batch individually
+    # For each batch, we create a flow network and find the flow
+    
+    from collections import deque
+    
+    def bfs_flow(s, t, adj, cap_matrix, flow_matrix):
+        # BFS to find augmenting path
+        parent = [-1] * n
+        visited = [False] * n
+        queue = deque()
+        queue.append(s)
+        visited[s] = True
+        
+        while queue:
+            u = queue.popleft()
+            for edge_idx in adj[u]:
+                u_edge, v_edge = edges[edge_idx]
+                if u_edge == u:  # forward edge
+                    residual_capacity = cap_matrix[edge_idx] - flow_matrix[edge_idx]
+                    if not visited[v_edge] and residual_capacity > 0:
+                        visited[v_edge] = True
+                        parent[v_edge] = (u, edge_idx, 1)  # 1 for forward
+                        if v_edge == t:
+                            return parent
+                        queue.append(v_edge)
+                else:  # backward edge, but this shouldn't happen since graph is directed
+                    continue
+            # Also check backward edges in flow
+            for edge_idx in adj[u]:
+                u_edge, v_edge = edges[edge_idx]
+                if v_edge == u:  # backward edge
+                    if not visited[u_edge] and flow_matrix[edge_idx] > 0:
+                        visited[u_edge] = True
+                        parent[u_edge] = (u, edge_idx, -1)  # -1 for backward
+                        if u_edge == t:
+                            return parent
+                        queue.append(u_edge)
+        return None
+    
+    def max_flow(s, t, demand, adj):
+        # Initialize flow
+        flow_matrix = [0] * m
+        cap_matrix = [0] * m  # We'll set this to 1 initially to find a path, then scale
+        
+        # First, check if there's a path
+        # We can do this by setting capacity to 1 and finding if we can send any flow
+        for i in range(m):
+            cap_matrix[i] = capacity[i]
+            
+        # Use Ford-Fulkerson with scaling or just use a standard approach
+        # But since we need EXACTLY 'demand' flow, we need to ensure that
+        # We send exactly 'demand' units
+        
+        # Let's use a different approach: min-cost flow is overkill
+        # Just use max flow but ensure we send exactly 'demand'
+        
+        sent = 0
+        while sent < demand:
+            parent = bfs_flow(s, t, adj, cap_matrix, flow_matrix)
+            if parent is None:
+                break
+            
+            # Find minimum residual capacity along the path
+            path_flow = demand - sent
+            v = t
+            while v != s:
+                u, edge_idx, direction = parent[v]
+                if direction == 1:  # forward
+                    path_flow = min(path_flow, cap_matrix[edge_idx] - flow_matrix[edge_idx])
+                else:  # backward
+                    path_flow = min(path_flow, flow_matrix[edge_idx])
+                v = u
+            
+            if path_flow <= 0:
+                break
+                
+            # Update flow
+            v = t
+            while v != s:
+                u, edge_idx, direction = parent[v]
+                if direction == 1:
+                    flow_matrix[edge_idx] += path_flow
+                else:
+                    flow_matrix[edge_idx] -= path_flow
+                v = u
+            
+            sent += path_flow
+        
+        if sent < demand:
+            return None  # Cannot satisfy demand
+        return flow_matrix
+    
+    # But actually, let's think differently
+    # We can model this as a multi-commodity flow problem
+    # But that's NP-hard in general
+    # However, since we can route each batch independently (no coupling between batches except total capacity)
+    # We can route each batch one by one, and subtract the used capacity
+    
+    # So approach:
+    # 1. For each batch, find a flow that satisfies its demand
+    # 2. Check if the total flow on any edge exceeds capacity
+    # But this is not quite right, because we need to consider all batches simultaneously
+    
+    # Better approach: 
+    # Model as a linear program and solve
+    # But since this is a coding contest, let's try a heuristic or exact method
+    
+    # Let's try to solve it as a series of max-flow problems with capacity updates
+    
+    # Start with full capacity
+    remaining_capacity = capacity[:]
+    batch_flows = []
+    
+    for s, t, demand in batches:
+        # Create a flow network and find flow for this batch
+        # But we need to respect current remaining_capacity
+        
+        # We'll use a simple approach: try to find a path and push flow
+        # But to get exact flow, we need a proper max-flow
+        
+        # Let's build a residual graph for this batch
+        # But considering current remaining capacities
+        
+        from collections import defaultdict
+        
+        # For this batch, we want to send 'demand' flow from s to t
+        # Residual graph: for each edge, we have forward and backward edges
+        # But since original graph is directed, we only add reverse edges when we use forward
+        
+        # Let's use a different representation
+        # For each edge, we track flow and remaining capacity
+        
+        # Initialize flow for this batch
+        flow = [0] * m
+        
+        # We need to send exactly 'demand' flow
+        # Use Ford-Fulkerson
+        
+        def bfs():
+            parent = [-1] * n  # (node, edge_index, direction: 1 for forward, -1 for backward)
+            visited = [False] * n
+            q = deque([s])
+            visited[s] = True
+            
+            while q:
+                u = q.popleft()
+                # Check forward edges
+                for edge_idx in graph[u]:
+                    u_edge, v_edge = edges[edge_idx]
+                    if u_edge == u:  # forward edge
+                        if not visited[v_edge] and remaining_capacity[edge_idx] - flow[edge_idx] > 0:
+                            visited[v_edge] = True
+                            parent[v_edge] = (u, edge_idx, 1)
+                            if v_edge == t:
+                                return parent
+                            q.append(v_edge)
+                # Check backward edges (edges that end at u)
+                for edge_idx in graph[u]:
+                    u_edge, v_edge = edges[edge_idx]
+                    if v_edge == u:  # backward edge
+                        if not visited[u_edge] and flow[edge_idx] > 0:
+                            visited[u_edge] = True
+                            parent[u_edge] = (u, edge_idx, -1)
+                            if u_edge == t:
+                                return parent
+                            q.append(u_edge)
+            return None
+        
+        sent = 0
+        while sent < demand:
+            parent = bfs()
+            if parent is None:
+                print("NO")
+                return
+            
+            # Find path flow
+            path_flow = demand - sent
+            cur = t
+            while cur != s:
+                prev, edge_idx, direction = parent[cur]
+                if direction == 1:
+                    path_flow = min(path_flow, remaining_capacity[edge_idx] - flow[edge_idx])
+                else:
+                    path_flow = min(path_flow, flow[edge_idx])
+                cur = prev
+            
+            if path_flow <= 0:
+                print("NO")
+                return
+                
+            # Update flow
+            cur = t
+            while cur != s:
+                prev, edge_idx, direction = parent[cur]
+                if direction == 1:
+                    flow[edge_idx] += path_flow
+                else:
+                    flow[edge_idx] -= path_flow
+                cur = prev
+            
+            sent += path_flow
+        
+        # Check if we sent exactly the demand
+        if sent != demand:
+            print("NO")
+            return
+            
+        batch_flows.append(flow[:])
+        # Update remaining capacity
+        for i in range(m):
+            remaining_capacity[i] -= flow[i]
+    
+    # If we reach here, all batches have been routed
+    print("YES")
+    for flow in batch_flows:
+        print(' '.join(map(str, flow)))
+
+solve()

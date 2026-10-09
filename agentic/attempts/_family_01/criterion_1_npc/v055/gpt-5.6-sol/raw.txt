@@ -1,0 +1,325 @@
+```python
+import sys
+
+sys.setrecursionlimit(10000)
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+
+    n, m = data[0], data[1]
+    adj_bits = [0] * n
+    adj = [[] for _ in range(n)]
+
+    p = 2
+    for _ in range(m):
+        u = data[p] - 1
+        v = data[p + 1] - 1
+        p += 2
+        if u == v:
+            print("NO")
+            return
+        if not ((adj_bits[u] >> v) & 1):
+            adj_bits[u] |= 1 << v
+            adj_bits[v] |= 1 << u
+            adj[u].append(v)
+            adj[v].append(u)
+
+    # Connected components
+    components = []
+    seen = [False] * n
+    for start in range(n):
+        if seen[start]:
+            continue
+        stack = [start]
+        seen[start] = True
+        comp = []
+        while stack:
+            v = stack.pop()
+            comp.append(v)
+            for u in adj[v]:
+                if not seen[u]:
+                    seen[u] = True
+                    stack.append(u)
+        components.append(comp)
+
+    domains = [7] * n  # Bits 1, 2, 4 represent colors 1, 2, 3.
+
+    for comp in components:
+        comp_set = set(comp)
+
+        # Bipartite components are immediately colorable with two colors.
+        side = {}
+        bipartite = True
+        for start in comp:
+            if start in side:
+                continue
+            side[start] = 0
+            queue = [start]
+            qh = 0
+            while qh < len(queue) and bipartite:
+                v = queue[qh]
+                qh += 1
+                for u in adj[v]:
+                    if u not in comp_set:
+                        continue
+                    if u not in side:
+                        side[u] = side[v] ^ 1
+                        queue.append(u)
+                    elif side[u] == side[v]:
+                        bipartite = False
+                        break
+            if not bipartite:
+                break
+
+        if bipartite:
+            for v in comp:
+                domains[v] = 1 if side[v] == 0 else 2
+            continue
+
+        trail = []
+        failed_states = set()
+
+        def rollback(mark):
+            while len(trail) > mark:
+                v, old = trail.pop()
+                domains[v] = old
+
+        def assign_and_propagate(v, color):
+            if not (domains[v] & color):
+                return False
+
+            queue = []
+            if domains[v] != color:
+                trail.append((v, domains[v]))
+                domains[v] = color
+            queue.append(v)
+            qh = 0
+
+            while qh < len(queue):
+                x = queue[qh]
+                qh += 1
+                c = domains[x]
+
+                for y in adj[x]:
+                    dy = domains[y]
+                    if dy == c:
+                        return False
+                    if dy & c:
+                        nd = dy & ~c
+                        trail.append((y, dy))
+                        domains[y] = nd
+                        if nd == 0:
+                            return False
+                        if nd & (nd - 1) == 0:
+                            queue.append(y)
+            return True
+
+        def solve_two_sat():
+            variables = [v for v in comp if domains[v].bit_count() == 2]
+            k = len(variables)
+            if k == 0:
+                return True
+
+            index = {v: i for i, v in enumerate(variables)}
+            options = []
+            color_pos = []
+
+            for v in variables:
+                bits = [1 << b for b in range(3) if domains[v] & (1 << b)]
+                options.append(bits)
+                color_pos.append({bits[0]: 0, bits[1]: 1})
+
+            size = 2 * k
+            graph = [[] for _ in range(size)]
+            reverse = [[] for _ in range(size)]
+
+            def add_implication(a, b):
+                graph[a].append(b)
+                reverse[b].append(a)
+
+            def literal_not_equal(var, forbidden_option):
+                # Node 2*var means variable is false; 2*var+1 means true.
+                # The literal "variable != forbidden_option" is:
+                # true if forbidden option is 0, false if it is 1.
+                return 2 * var + (1 if forbidden_option == 0 else 0)
+
+            for u in variables:
+                iu = index[u]
+                for v in adj[u]:
+                    if v <= u or v not in index:
+                        continue
+                    iv = index[v]
+                    common = domains[u] & domains[v]
+                    while common:
+                        c = common & -common
+                        common -= c
+                        lu = literal_not_equal(iu, color_pos[iu][c])
+                        lv = literal_not_equal(iv, color_pos[iv][c])
+                        add_implication(lu ^ 1, lv)
+                        add_implication(lv ^ 1, lu)
+
+            visited = [False] * size
+            order = []
+
+            def dfs1(s):
+                stack = [(s, 0)]
+                visited[s] = True
+                while stack:
+                    v, i = stack[-1]
+                    if i < len(graph[v]):
+                        u = graph[v][i]
+                        stack[-1] = (v, i + 1)
+                        if not visited[u]:
+                            visited[u] = True
+                            stack.append((u, 0))
+                    else:
+                        order.append(v)
+                        stack.pop()
+
+            for i in range(size):
+                if not visited[i]:
+                    dfs1(i)
+
+            component_id = [-1] * size
+            cid = 0
+            for s in reversed(order):
+                if component_id[s] != -1:
+                    continue
+                stack = [s]
+                component_id[s] = cid
+                while stack:
+                    v = stack.pop()
+                    for u in reverse[v]:
+                        if component_id[u] == -1:
+                            component_id[u] = cid
+                            stack.append(u)
+                cid += 1
+
+            for i in range(k):
+                if component_id[2 * i] == component_id[2 * i + 1]:
+                    return False
+
+            for i, v in enumerate(variables):
+                value = component_id[2 * i + 1] > component_id[2 * i]
+                domains[v] = options[i][1 if value else 0]
+            return True
+
+        def search():
+            state = tuple(domains[v] for v in comp)
+            if state in failed_states:
+                return False
+
+            chosen = -1
+            best_key = None
+            all_at_most_two = True
+
+            for v in comp:
+                d = domains[v]
+                count = d.bit_count()
+                if count <= 1:
+                    continue
+                if count == 3:
+                    all_at_most_two = False
+
+                dynamic_degree = 0
+                for u in adj[v]:
+                    if domains[u].bit_count() > 1:
+                        dynamic_degree += 1
+
+                key = (-count, dynamic_degree, len(adj[v]))
+                if best_key is None or key > best_key:
+                    best_key = key
+                    chosen = v
+
+            if chosen == -1:
+                return True
+
+            if all_at_most_two:
+                if solve_two_sat():
+                    return True
+                if len(failed_states) < 150000:
+                    failed_states.add(state)
+                return False
+
+            used = 0
+            for v in comp:
+                d = domains[v]
+                if d & (d - 1) == 0:
+                    used |= d
+
+            allowed = used
+            for color in (1, 2, 4):
+                if not (used & color):
+                    allowed |= color
+                    break
+
+            colors = []
+            possible = domains[chosen] & allowed
+            while possible:
+                color = possible & -possible
+                possible -= color
+                impact = sum(1 for u in adj[chosen] if domains[u] & color)
+                colors.append((impact, color))
+            colors.sort(reverse=True)
+
+            for _, color in colors:
+                mark = len(trail)
+                if assign_and_propagate(chosen, color) and search():
+                    return True
+                rollback(mark)
+
+            if len(failed_states) < 150000:
+                failed_states.add(state)
+            return False
+
+        # Break color symmetry using a triangle if one exists.
+        triangle = None
+        comp_mask = 0
+        for v in comp:
+            comp_mask |= 1 << v
+
+        for a in comp:
+            neighbors = adj_bits[a] & comp_mask
+            bmask = neighbors
+            while bmask and triangle is None:
+                bit_b = bmask & -bmask
+                bmask -= bit_b
+                b = bit_b.bit_length() - 1
+                common = adj_bits[a] & adj_bits[b] & comp_mask
+                if common:
+                    c = (common & -common).bit_length() - 1
+                    triangle = (a, b, c)
+            if triangle is not None:
+                break
+
+        initial_ok = True
+        if triangle is not None:
+            for v, color in zip(triangle, (1, 2, 4)):
+                if not assign_and_propagate(v, color):
+                    initial_ok = False
+                    break
+        else:
+            root = max(comp, key=lambda v: len(adj[v]))
+            initial_ok = assign_and_propagate(root, 1)
+
+        if not initial_ok or not search():
+            print("NO")
+            return
+
+    answer = [d.bit_length() for d in domains]
+
+    # Safety validation.
+    for u in range(n):
+        for v in adj[u]:
+            if u < v and answer[u] == answer[v]:
+                print("NO")
+                return
+
+    print("YES")
+    print(*answer)
+
+if __name__ == "__main__":
+    main()
+```

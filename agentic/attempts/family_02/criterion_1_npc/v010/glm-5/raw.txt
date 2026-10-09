@@ -1,0 +1,267 @@
+Looking at this problem, I need to find a configuration of n regulators (each 0 or 1) such that for every hazard scenario, at least one of the three listed states matches.
+
+This is a 2-SAT problem. For each scenario with three conditions, I need at least one to be satisfied. This is a 3-clause in SAT, but since each variable is boolean, I can convert this to 2-SAT by introducing auxiliary variables.
+
+For a clause (a ∨ b ∨ c), I introduce auxiliary variable t and create:
+- (a ∨ t)
+- (b ∨ ¬t)  
+- (t ∨ c)
+
+This means: if t is true, then a or c must be true; if t is false, then b must be true. Either way, at least one of a, b, c is true.
+
+Let me implement this with the standard 2-SAT approach using implication graphs and strongly connected components.
+
+For a clause (x ∨ y), I add implications: ¬x → y and ¬y → x.
+
+Each regulator i has two literals: i (true) and ¬i (false). I'll use 2*i for positive and 2*i+1 for negative.
+
+For auxiliary variables, I'll use indices starting from n.
+
+Let me trace through Example 1:
+- Scenario 1: (1 ∨ 2 ∨ 3) - need at least one of regulators 1,2,3 to be active
+- Scenario 2: (¬1 ∨ 2 ∨ ¬3) - need at least one of: reg1 standby, reg2 active, reg3 standby
+
+Configuration 0 0 1: reg1=0, reg2=0, reg3=1
+- Scenario 1: reg3 is active ✓
+- Scenario 2: reg1 is standby ✓
+
+This works.
+
+Example 2:
+- Scenario 1: (1 ∨ 1 ∨ 1) - reg1 must be active
+- Scenario 2: (¬1 ∨ ¬1 ∨ ¬1) - reg1 must be standby
+
+Contradiction, so NO.
+
+```python
+import sys
+from sys import setrecursionlimit
+
+def solve():
+    input_data = sys.stdin.read().split()
+    idx = 0
+    n = int(input_data[idx]); idx += 1
+    m = int(input_data[idx]); idx += 1
+    
+    # Variables: 0..n-1 are regulators, n..n+m-1 are auxiliary
+    # Literal encoding: 2*var for positive, 2*var+1 for negative
+    # Total variables: n + m
+    
+    total_vars = n + m
+    adj = [[] for _ in range(2 * total_vars)]
+    
+    def neg(lit):
+        return lit ^ 1
+    
+    def add_impl(u, v):
+        adj[u].append(v)
+    
+    def add_clause_2(a, b):
+        # (a or b)
+        add_impl(neg(a), b)
+        add_impl(neg(b), a)
+    
+    def add_clause_3(a, b, c):
+        # (a or b or c) using auxiliary variable t
+        t = 2 * (n + scenario_idx)
+        add_clause_2(a, t)
+        add_clause_2(b, neg(t))
+        add_clause_2(t, c)
+    
+    scenario_idx = 0
+    for _ in range(m):
+        l1 = int(input_data[idx]); idx += 1
+        l2 = int(input_data[idx]); idx += 1
+        l3 = int(input_data[idx]); idx += 1
+        
+        def to_lit(x):
+            var = abs(x) - 1
+            if x > 0:
+                return 2 * var  # positive
+            else:
+                return 2 * var + 1  # negative
+        
+        a = to_lit(l1)
+        b = to_lit(l2)
+        c = to_lit(l3)
+        
+        add_clause_3(a, b, c)
+        scenario_idx += 1
+    
+    # Find SCCs using Tarjan's algorithm
+    index_counter = [0]
+    stack = []
+    on_stack = [False] * (2 * total_vars)
+    indices = [-1] * (2 * total_vars)
+    lowlink = [0] * (2 * total_vars)
+    scc_id = [-1] * (2 * total_vars)
+    scc_count = [0]
+    
+    sys.setrecursionlimit(1000000)
+    
+    def strongconnect(v):
+        indices[v] = index_counter[0]
+        lowlink[v] = index_counter[0]
+        index_counter[0] += 1
+        stack.append(v)
+        on_stack[v] = True
+        
+        for w in adj[v]:
+            if indices[w] == -1:
+                strongconnect(w)
+                lowlink[v] = min(lowlink[v], lowlink[w])
+            elif on_stack[w]:
+                lowlink[v] = min(lowlink[v], indices[w])
+        
+        if lowlink[v] == indices[v]:
+            while True:
+                w = stack.pop()
+                on_stack[w] = False
+                scc_id[w] = scc_count[0]
+                if w == v:
+                    break
+            scc_count[0] += 1
+    
+    for v in range(2 * total_vars):
+        if indices[v] == -1:
+            strongconnect(v)
+    
+    # Check satisfiability
+    for i in range(total_vars):
+        if scc_id[2*i] == scc_id[2*i+1]:
+            print("NO")
+            return
+    
+    # Assign values
+    result = [0] * n
+    for i in range(n):
+        # If positive literal has higher SCC (comes later in topological order), set to true
+        if scc_id[2*i] > scc_id[2*i+1]:
+            result[i] = 1
+        else:
+            result[i] = 0
+    
+    print("YES")
+    print(' '.join(map(str, result)))
+
+solve()
+```
+
+Wait, I need to be careful about the auxiliary variable indexing. Let me fix that - the auxiliary variable for scenario i should be variable n+i, and its literals are 2*(n+i) and 2*(n+i)+1.
+
+Let me also verify the 2-SAT clause encoding is correct and the SCC-based assignment works properly.
+
+The code looks correct. Let me verify once more with the examples:
+
+Example 1: n=3, m=2
+- Scenario 0: (1 ∨ 2 ∨ 3), aux var = 3, literals 6, 7
+  - (1 ∨ t): ¬1→t, ¬t→1 → (2→6), (7→0)
+  - (2 ∨ ¬t): ¬2→¬t, t→2 → (3→7), (6→2)  
+  - (t ∨ 3): ¬t→3, ¬3→t → (7→4), (5→6)
+
+- Scenario 1: (¬1 ∨ 2 ∨ ¬3), aux var = 4, literals 8, 9
+  - (¬1 ∨ t): 1→t, ¬t→¬1 → (0→8), (9→1)
+  - (2 ∨ ¬t): ¬2→¬t, t→2 → (3→9), (8→2)
+  - (t ∨ ¬3): ¬t→¬3, 3→t → (9→5), (4→8)
+
+The SCC computation and assignment should give us a valid configuration. The answer 0 0 1 should be one valid output.
+
+The solution looks correct. Let me clean it up:
+
+```python
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    idx = 0
+    n = int(input_data[idx]); idx += 1
+    m = int(input_data[idx]); idx += 1
+    
+    total_vars = n + m
+    adj = [[] for _ in range(2 * total_vars)]
+    
+    def neg(lit):
+        return lit ^ 1
+    
+    def add_impl(u, v):
+        adj[u].append(v)
+    
+    def add_clause_2(a, b):
+        add_impl(neg(a), b)
+        add_impl(neg(b), a)
+    
+    def add_clause_3(a, b, c, aux_var):
+        t = 2 * aux_var
+        add_clause_2(a, t)
+        add_clause_2(b, neg(t))
+        add_clause_2(t, c)
+    
+    for i in range(m):
+        l1 = int(input_data[idx]); idx += 1
+        l2 = int(input_data[idx]); idx += 1
+        l3 = int(input_data[idx]); idx += 1
+        
+        def to_lit(x):
+            var = abs(x) - 1
+            return 2 * var if x > 0 else 2 * var + 1
+        
+        a = to_lit(l1)
+        b = to_lit(l2)
+        c = to_lit(l3)
+        add_clause_3(a, b, c, n + i)
+    
+    # Tarjan's SCC
+    index_counter = [0]
+    stack = []
+    on_stack = [False] * (2 * total_vars)
+    indices = [-1] * (2 * total_vars)
+    lowlink = [0] * (2 * total_vars)
+    scc_id = [-1] * (2 * total_vars)
+    scc_count = [0]
+    
+    sys.setrecursionlimit(1000000)
+    
+    def strongconnect(v):
+        indices[v] = index_counter[0]
+        lowlink[v] = index_counter[0]
+        index_counter[0] += 1
+        stack.append(v)
+        on_stack[v] = True
+        
+        for w in adj[v]:
+            if indices[w] == -1:
+                strongconnect(w)
+                lowlink[v] = min(lowlink[v], lowlink[w])
+            elif on_stack[w]:
+                lowlink[v] = min(lowlink[v], indices[w])
+        
+        if lowlink[v] == indices[v]:
+            while True:
+                w = stack.pop()
+                on_stack[w] = False
+                scc_id[w] = scc_count[0]
+                if w == v:
+                    break
+            scc_count[0] += 1
+    
+    for v in range(2 * total_vars):
+        if indices[v] == -1:
+            strongconnect(v)
+    
+    for i in range(total_vars):
+        if scc_id[2*i] == scc_id[2*i+1]:
+            print("NO")
+            return
+    
+    result = [0] * n
+    for i in range(n):
+        if scc_id[2*i] > scc_id[2*i+1]:
+            result[i] = 1
+    
+    print("YES")
+    print(' '.join(map(str, result)))
+
+solve()
+```
+
+This should be the correct solution. The 2-SAT reduction with auxiliary variables is valid, and the SCC-based approach correctly determines satisfiability and finds a valid assignment.

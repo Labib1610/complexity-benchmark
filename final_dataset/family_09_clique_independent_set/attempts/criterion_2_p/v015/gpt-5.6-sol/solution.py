@@ -1,0 +1,167 @@
+import sys
+
+def main():
+    input = sys.stdin.buffer.readline
+    n, m, k = map(int, input().split())
+
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u, v = map(int, input().split())
+        u -= 1
+        v -= 1
+        adj[u].append(v)
+        adj[v].append(u)
+
+    color = [-1] * n
+    easy = []
+
+    for start in range(n):
+        if color[start] != -1:
+            continue
+
+        color[start] = 0
+        queue = [start]
+        head = 0
+        part0 = []
+        part1 = []
+
+        while head < len(queue):
+            u = queue[head]
+            head += 1
+
+            if color[u] == 0:
+                part0.append(u)
+            else:
+                part1.append(u)
+
+            next_color = color[u] ^ 1
+            for v in adj[u]:
+                if color[v] == -1:
+                    color[v] = next_color
+                    queue.append(v)
+
+        if len(part0) >= len(part1):
+            easy.extend(part0)
+        else:
+            easy.extend(part1)
+
+    if len(easy) >= k:
+        answer = easy[:k]
+        sys.stdout.write("YES\n")
+        sys.stdout.write(" ".join(str(x + 1) for x in answer))
+        sys.stdout.write("\n")
+        return
+
+    del easy
+    left = [u for u in range(n) if color[u] == 0]
+    match = [-1] * n
+    dist = [0] * n
+    inf = n + 1
+    matching_size = 0
+    no_threshold = n - k
+
+    sys.setrecursionlimit(300000)
+
+    def dfs(u, shortest):
+        du = dist[u]
+        for v in adj[u]:
+            paired_left = match[v]
+            if paired_left == -1:
+                if du + 1 == shortest:
+                    match[u] = v
+                    match[v] = u
+                    return True
+            elif dist[paired_left] == du + 1 and dfs(paired_left, shortest):
+                match[u] = v
+                match[v] = u
+                return True
+
+        dist[u] = inf
+        return False
+
+    while True:
+        queue = []
+        for u in left:
+            if match[u] == -1:
+                dist[u] = 0
+                queue.append(u)
+            else:
+                dist[u] = inf
+
+        head = 0
+        shortest = inf
+
+        while head < len(queue):
+            u = queue[head]
+            head += 1
+
+            if dist[u] >= shortest:
+                continue
+
+            next_dist = dist[u] + 1
+            for v in adj[u]:
+                paired_left = match[v]
+                if paired_left == -1:
+                    if next_dist < shortest:
+                        shortest = next_dist
+                elif dist[paired_left] == inf:
+                    dist[paired_left] = next_dist
+                    queue.append(paired_left)
+
+        if shortest == inf:
+            break
+
+        augmented = 0
+        for u in left:
+            if match[u] == -1 and dfs(u, shortest):
+                augmented += 1
+                matching_size += 1
+                if matching_size > no_threshold:
+                    sys.stdout.write("NO\n")
+                    return
+
+        if augmented == 0:
+            break
+
+    if n - matching_size < k:
+        sys.stdout.write("NO\n")
+        return
+
+    reachable = bytearray(n)
+    queue = []
+
+    for u in left:
+        if match[u] == -1:
+            reachable[u] = 1
+            queue.append(u)
+
+    head = 0
+    while head < len(queue):
+        u = queue[head]
+        head += 1
+        matched_v = match[u]
+
+        for v in adj[u]:
+            if v == matched_v or reachable[v]:
+                continue
+
+            reachable[v] = 1
+            paired_left = match[v]
+            if paired_left != -1 and not reachable[paired_left]:
+                reachable[paired_left] = 1
+                queue.append(paired_left)
+
+    answer = []
+    for u in range(n):
+        if (color[u] == 0 and reachable[u]) or (color[u] == 1 and not reachable[u]):
+            answer.append(u + 1)
+            if len(answer) == k:
+                break
+
+    sys.stdout.write("YES\n")
+    sys.stdout.write(" ".join(map(str, answer)))
+    sys.stdout.write("\n")
+
+
+if __name__ == "__main__":
+    main()

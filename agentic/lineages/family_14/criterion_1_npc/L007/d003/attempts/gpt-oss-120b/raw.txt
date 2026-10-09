@@ -1,0 +1,302 @@
+**Solution Explanation**
+
+For the given undirected weighted graph we have to buy a set of edges
+such that all *t* special vertices become connected.
+The bought edges may also contain other vertices – we are looking for the
+minimum‑cost **Steiner tree** whose terminal set is the given special vertices.
+
+`n ≤ 100 ,   t ≤ 10` – the number of terminals is tiny, therefore the classic
+dynamic programming of Dreyfus‑Wagner ( DP over subsets of terminals ) is
+fast enough.
+
+
+
+--------------------------------------------------------------------
+
+#### 1.   Notation
+
+* `V = {0 … n-1}` – vertices, 0‑based.
+* `T = {t0 , … , t_{k-1}}` – the `k (= t)` terminal vertices.
+* `mask` – an integer `0 … (1<<k)-1`.  
+  Bit `i` of `mask` is `1`  **iff** terminal `ti` belongs to the subset.
+* `dp[mask][v]` – minimal total price of a subgraph which
+
+  * connects exactly the terminals whose bits are set in `mask`,
+  * and **contains** vertex `v` (the subgraph may have other vertices too).
+
+  The subgraph is a tree – any optimal solution can be transformed into a
+  tree without increasing the cost.
+
+--------------------------------------------------------------------
+
+#### 2.   DP recurrence  
+
+*Initialization*  
+
+For a mask that contains **only one** terminal `ti`
+
+```
+dp[ 1<<i ][ ti ] = 0          # no edge is needed, the tree consists of the single vertex
+dp[ 1<<i ][ v≠ti ] = INF
+```
+
+*Merge two already built subsets*  
+
+Take a non‑empty proper sub‑mask `sub ⊂ mask`  
+
+```
+other = mask ^ sub          # the remaining terminals
+for every vertex v:
+        dp[mask][v] = min( dp[mask][v],
+                           dp[sub][v] + dp[other][v] )
+```
+
+Both sub‑trees already contain `v`, therefore joining them at `v`
+costs the sum of their costs.
+
+*Propagation through ordinary edges*  
+
+After the merge step `dp[mask][v]` is known **only for the vertices that are
+already endpoints of the constructed tree**.
+From any such vertex we may walk along ordinary graph edges, paying their
+weights, and reach another vertex `u`.  
+Thus we have to compute the shortest distances **inside the original graph**
+with the current `dp[mask][·]` as sources.
+
+That is exactly a multi‑source Dijkstra:
+
+```
+dist = dp[mask][·]           # copy
+push all vertices with finite dist into a heap
+run ordinary Dijkstra, relax edges
+dp[mask][·] = dist
+```
+
+After this step `dp[mask][v]` equals the cheapest possible tree for the
+terminal set `mask` that ends in `v`.
+
+The whole DP proceeds masks in increasing order (any order works because,
+when we process `mask`, all its proper sub‑masks are already finished).
+
+--------------------------------------------------------------------
+
+#### 3.   Result  
+
+The whole set of terminals corresponds to `full = (1<<k) - 1`.  
+The answer is the cheapest tree that connects all of them, independent of the
+final vertex:
+
+```
+answer = min_v dp[full][v]
+```
+
+If `k = 1` the initialisation already gives `0`.
+
+--------------------------------------------------------------------
+
+#### 4.   Correctness Proof  
+
+We prove that the algorithm outputs the minimum possible total price.
+
+---
+
+##### Lemma 1 (Initialization)
+For every terminal `ti` and mask `M = {ti}` the DP value satisfies  
+
+```
+dp[M][v] = 0   if v = ti
+dp[M][v] = ∞   otherwise
+```
+
+**Proof.**  
+A tree that connects only `ti` and contains a vertex `v` must contain `v`.
+If `v = ti` the empty tree (no edge) works with cost `0`.  
+If `v ≠ ti` any such tree would need to contain a path from `ti` to `v`,
+which already uses at least one edge, contradicting the definition of the
+singleton mask (no other terminals are required). The DP stores `∞`
+for those vertices. ∎
+
+
+
+##### Lemma 2 (Merge step)
+After processing the “combine sub‑masks” loop,
+for every mask `M` and vertex `v`
+
+```
+dp[M][v]  =  minimum cost of a tree T
+            • whose terminal set is exactly M,
+            • that contains vertex v,
+            • and such that v is the **only** vertex common to the two
+              sub‑trees that built T.
+```
+
+**Proof.**  
+Induction over the number of bits of `M`.
+
+*Base*: `|M| = 1`. Holds by Lemma&nbsp;1 (the tree consists of the single vertex).
+
+*Induction step*: assume the statement true for all proper non‑empty subsets
+of `M`. Take any optimal tree `T` for `M` containing `v`.  
+Remove vertex `v` from `T`. Because a tree has exactly one path between any
+two vertices, the remaining edges split into two (or more) connected
+components, each still a tree and each containing a non‑empty subset of the
+terminals. Choose two of those components whose terminal sets are `sub`
+and `other = M \ sub`. Both components contain `v`. By induction hypothesis
+their costs are at least `dp[sub][v]` and `dp[other][v]`. Adding the two costs
+gives a lower bound for `dp[M][v]`. The DP takes the minimum over **all**
+such splits, therefore the value after the loop is *exactly* the optimum
+among trees that meet the condition. ∎
+
+
+
+##### Lemma 3 (Dijkstra propagation)
+After running the multi‑source Dijkstra for a fixed mask `M`,
+`dp[M][v]` equals the minimum cost of *any* tree that
+
+* connects all terminals of `M`,
+* contains vertex `v`.
+
+**Proof.**  
+Before Dijkstra, by Lemma&nbsp;2 we already have the optimum among trees whose
+*last* merging point is a vertex `v`. Any other tree can be seen as such a
+tree plus a (possibly empty) ordinary shortest path from its merging vertex
+`x` to `v`. Dijkstra computes exactly the cheapest possible such path for
+every `v`, therefore the new `dp[M][v]` is the optimum over **all** trees. ∎
+
+
+
+##### Lemma 4 (DP invariant)
+When the algorithm finishes processing mask `M`,
+`dp[M][v]` is the minimum possible cost of a tree connecting exactly the
+terminals of `M` and containing `v`.
+
+**Proof.**  
+Induction over masks ordered by increasing number of bits.
+
+*Base*: masks of size 1 – Lemma&nbsp;1 (and Dijkstra does not change them
+because distance `0` from the terminal spreads correctly, still optimal).
+
+*Induction step*: assume the invariant true for all proper sub‑masks.
+The algorithm first merges them – Lemma&nbsp;2 gives the optimum among trees
+whose merging vertex is already known. Afterwards Dijkstra expands the
+solution to arbitrary trees – Lemma&nbsp;3. Hence the invariant holds for `M`. ∎
+
+
+
+##### Lemma 5 (Answer correctness)
+`ans = min_v dp[Full][v]` equals the minimum possible total price of a set of
+edges that makes all terminals mutually reachable.
+
+**Proof.**  
+By Lemma&nbsp;4, for the full mask `Full` each `dp[Full][v]` is the cheapest
+cost of a tree that connects all terminals and contains `v`.  
+Any feasible set of edges contains a spanning tree of the same terminals,
+therefore its cost is at least `min_v dp[Full][v]`.  
+Conversely, the tree realising the minimum `dp[Full][v]` is a feasible set
+of edges, so the minimum is achievable. ∎
+
+
+
+##### Theorem
+The algorithm outputs the minimum total price required to make all priority
+access points share the same broadcast channel.
+
+**Proof.**  
+The algorithm prints `ans`. By Lemma&nbsp;5 `ans` equals the optimum cost,
+hence the output is optimal. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### 5.   Complexity Analysis  
+
+* `S = 2^k   (k ≤ 10)  ≤ 1024`
+* Merging step: for each mask all its proper sub‑masks  
+  total number of examined pairs is `O(3^k)` (≈ 59 000).  
+  For each pair we scan `n ≤ 100` vertices → `O(3^k · n)`.
+* For every mask we run one Dijkstra:
+  `O(m log n)` with `m ≤ n·(n-1)/2 ≤ 4950`.  
+  Total `O(S · m log n)` ≈ `5·10^6` operations.
+* Memory: `dp` stores `S·n` integers ≤ `1024·100 = 102 400`.
+
+Both time (well below 5 s) and memory (far under 256 MiB) satisfy the limits.
+
+--------------------------------------------------------------------
+
+#### 6.   Reference Implementation  (Python 3)
+
+```python
+import sys
+import heapq
+
+INF = 10 ** 15
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    k = int(next(it))                     # number of terminals (t)
+    terminals = [int(next(it)) - 1 for _ in range(k)]
+
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        w = int(next(it))
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+
+    full_mask = (1 << k) - 1
+    dp = [[INF] * n for _ in range(1 << k)]
+
+    # initialization for single terminals
+    for i, node in enumerate(terminals):
+        dp[1 << i][node] = 0
+
+    # iterate over all masks
+    for mask in range(1, full_mask + 1):
+        # combine two proper non‑empty sub‑masks
+        sub = (mask - 1) & mask
+        while sub:
+            other = mask ^ sub
+            if other:
+                dp_sub = dp[sub]
+                dp_other = dp[other]
+                dp_mask = dp[mask]
+                for v in range(n):
+                    cand = dp_sub[v] + dp_other[v]
+                    if cand < dp_mask[v]:
+                        dp_mask[v] = cand
+            sub = (sub - 1) & mask
+
+        # Dijkstra to propagate through ordinary edges
+        dist = dp[mask][:]
+        heap = [(dist[v], v) for v in range(n) if dist[v] < INF]
+        heapq.heapify(heap)
+
+        while heap:
+            d, u = heapq.heappop(heap)
+            if d != dist[u]:
+                continue
+            for v, w in adj[u]:
+                nd = d + w
+                if nd < dist[v]:
+                    dist[v] = nd
+                    heapq.heappush(heap, (nd, v))
+
+        dp[mask] = dist
+
+    answer = min(dp[full_mask])
+    print(answer)
+
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above and conforms
+to the required input‑output format.

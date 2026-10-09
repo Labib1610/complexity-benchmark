@@ -3,62 +3,65 @@ from collections import defaultdict, deque
 
 def main():
     import sys
-    input = sys.stdin.read
-    data = input().split()
+    sys.setrecursionlimit(1 << 25)
     
-    n = int(data[0])
-    m = int(data[1])
+    n, m = map(int, sys.stdin.readline().split())
     
-    graph = defaultdict(list)
-    index = 2
+    if m == 0:
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
+    
+    # Build adjacency list
+    adj = defaultdict(list)
     for _ in range(m):
-        u = int(data[index]) - 1
-        v = int(data[index+1]) - 1
-        graph[u].append(v)
-        graph[v].append(u)
-        index += 2
+        u, v = map(int, sys.stdin.readline().split())
+        adj[u].append(v)
+        adj[v].append(u)
     
-    # Color array: 0 means unvisited, 1 and 2 are the two colors
-    color = [0] * n
-    visited = [False] * n
+    # Color array: 0 = unvisited, 1 = color 1, 2 = color 2
+    color = [0] * (n + 1)
     
-    # Check each component
-    for start in range(n):
-        if visited[start]:
+    # Check if bipartite using BFS
+    for start in range(1, n + 1):
+        if color[start] != 0:
             continue
             
-        # BFS to check bipartiteness and assign colors
         queue = deque()
         queue.append(start)
-        color[start] = 1
+        color[start] = 1  # Start with color 1
         
         while queue:
-            node = queue.popleft()
-            if visited[node]:
-                continue
-            visited[node] = True
+            u = queue.popleft()
+            current_color = color[u]
+            next_color = 2 if current_color == 1 else 1
             
-            for neighbor in graph[node]:
-                if color[neighbor] == 0:
-                    color[neighbor] = 3 - color[node]
-                    queue.append(neighbor)
-                elif color[neighbor] == color[node]:
+            for v in adj[u]:
+                if color[v] == 0:
+                    color[v] = next_color
+                    queue.append(v)
+                elif color[v] == current_color:
                     print("NO")
                     return
-        
+    
     # If we reach here, the graph is bipartite
-    # We need to ensure lexicographically smallest assignment
-    # That means we want earlier nodes to have color 1 if possible
-    # Our coloring already ensures this since we start with color 1
+    # The coloring gives us a valid assignment
+    # We need the lexicographically smallest one
+    # That means we prefer to assign 1 to earlier nodes if possible
+    
+    # To get the lex smallest, we can just make sure node 1 gets color 1
+    # If node 1 got color 2 in our BFS, we flip all colors
+    
+    if color[1] == 2:
+        # Flip all colors
+        for i in range(1, n + 1):
+            if color[i] == 1:
+                color[i] = 2
+            else:
+                color[i] = 1
     
     print("YES")
-    result = []
-    for i in range(n):
-        if color[i] == 1:
-            result.append("1")
-        else:
-            result.append("2")
-    print(" ".join(result))
+    print(" ".join(str(color[i]) for i in range(1, n + 1)))
 
 if __name__ == "__main__":
     main()

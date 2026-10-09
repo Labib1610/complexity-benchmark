@@ -1,0 +1,414 @@
+**Solution Explanation**
+
+For the given undirected weighted graph we have to delete some edges
+( pay their weight ) so that the `k` special vertices become pairwise
+disconnected.
+The total paid weight must not exceed the budget `B`.
+The problem is the classic **minimum multi‑way cut** for `k` terminals.
+`k` is small ( ≤ 5 in the test data ), therefore an exact exponential
+dynamic programming over subsets of terminals is fast enough.
+
+
+
+--------------------------------------------------------------------
+
+#### 1.   Minimum cut between two groups of terminals  
+
+For two *disjoint* sets `T1 , T2` of terminals we need the cheapest set of
+edges whose removal separates every vertex of `T1` from every vertex of
+`T2`.  
+In an undirected graph this is exactly a **minimum `s‑t` cut**:
+
+* create a new source `S` and connect it with edges of capacity `INF`
+  to all vertices of `T1`;
+* create a new sink   `T` and connect it with edges of capacity `INF`
+  to all vertices of `T2`;
+* all original edges keep their given capacities (the dissolution costs);
+* the value of a minimum `S‑T` cut is the cheapest total weight that
+  separates the two groups.
+
+`INF` is any number larger than the sum of all edge weights
+(`10^18` is safe).
+
+The cut is found with a standard max‑flow algorithm
+(Dinic, `O(E·√V)` for the given limits).
+
+--------------------------------------------------------------------
+
+#### 2.   DP over subsets of terminals  
+
+Let the terminals be numbered `0 … k‑1`.
+For every non‑empty subset `mask (1 … 2^k‑1)` we store  
+
+```
+dp[mask] = minimal total cost to separate all terminals whose bits are 1
+          into different connected components.
+```
+
+*Base*: `dp[mask] = 0` if `mask` contains exactly one bit (already isolated).
+
+*Transition*: split `mask` into two non‑empty disjoint sub‑masks
+`sub` and `mask ^ sub`.  
+First we separate the two groups from each other (cost `cut[sub][mask^sub]`);
+after that each group can be processed independently
+(`dp[sub]` and `dp[mask^sub]`).
+
+```
+dp[mask] = min over sub ⊂ mask, sub≠0 :
+           dp[sub] + dp[mask ^ sub] + cut[sub][mask ^ sub]
+```
+
+The number of subsets is `2^k` ( ≤ 32 ), the number of splits for one mask
+is at most `2^{|mask|-1}` – negligible.
+
+All `cut[a][b]` values are pre‑computed once with the max‑flow described
+above (only for disjoint `a , b`).
+
+The DP yields the optimal total cost `dp[full]` where `full = (1<<k)-1`.
+
+--------------------------------------------------------------------
+
+#### 3.   Reconstructing the set of removed edges  
+
+During DP we remember for every `mask` which split gave the optimum
+(`best_sub[mask]`).  
+To obtain the concrete edges we recursively
+
+```
+reconstruct(mask):
+    if mask has one bit: return
+    sub = best_sub[mask]
+    other = mask ^ sub
+    add all edges of the minimum cut that separates sub from other
+    reconstruct(sub)
+    reconstruct(other)
+```
+
+The minimum cut between two groups is already known from the max‑flow
+run that computed `cut[sub][other]`.  
+While running Dinic we keep the residual graph; after the flow finishes,
+all vertices reachable from the source in the residual graph belong to
+the source side of the minimum cut.  
+Every original edge with one endpoint reachable and the other not
+belongs to the cut – those are exactly the edges we have to dissolve.
+
+All edges are stored with their original `(u,v)` pair, therefore the
+output list is ready.
+
+--------------------------------------------------------------------
+
+#### 4.   Correctness Proof  
+
+We prove that the algorithm prints “YES” with a set of edges of total
+weight ≤ `B` **iff** such a set exists, and that the printed edges indeed
+separate all special vertices.
+
+---
+
+##### Lemma 1  
+For any two disjoint terminal sets `A , B` the algorithm `minCut(A,B)`
+returns the minimum possible total weight of edges whose removal
+disconnects every vertex of `A` from every vertex of `B`.
+
+**Proof.**  
+Adding a super source connected to all vertices of `A` with infinite
+capacity forces any `S‑T` cut to keep all of `A` on the source side,
+otherwise the cut would contain an infinite edge.
+Analogously the super sink forces all of `B` to stay on the sink side.
+All finite‑capacity edges crossing the cut are exactly the original
+edges whose removal separates `A` from `B`.  
+The minimum `S‑T` cut value equals the minimum possible total weight of
+such edges. ∎
+
+
+
+##### Lemma 2  
+For every non‑empty mask `M` the DP value `dp[M]` equals the minimum total
+weight of edges whose removal separates all terminals in `M` from each
+other.
+
+**Proof.** By induction over the number of bits in `M`.
+
+*Base* – |M| = 1. No edge is needed, `dp[M]=0`, which is optimal.
+
+*Induction step.* Assume the statement true for all masks with fewer
+bits than `M`.  
+Consider an optimal solution `C` for `M`. In the resulting graph the
+terminals of `M` belong to several connected components.
+Pick any two components, let their terminal sets be `X` and `Y`
+(`X∪Y ⊆ M`, both non‑empty, disjoint).  
+All edges of `C` can be divided into three groups:
+
+1. edges that separate `X` from `Y` – they form a cut between `X` and `Y`,
+   therefore by Lemma&nbsp;1 their total weight is at least
+   `cut[X][Y]`;
+2. edges that further separate terminals inside `X` – at least `dp[X]`
+   by the induction hypothesis;
+3. edges that further separate terminals inside `Y` – at least `dp[Y]`.
+
+Thus `|C| ≥ dp[X] + dp[Y] + cut[X][Y]`.  
+The DP takes the minimum over all such partitions, therefore
+`dp[M] ≤ |C|`.  
+Conversely, for the partition `(sub, M\sub)` that achieves the DP minimum,
+the algorithm can realise the cost
+`dp[sub] + dp[M\sub] + cut[sub][M\sub]` by
+* first removing a minimum cut separating the two groups,
+* then recursively applying optimal solutions for the two groups.
+Hence a solution of total weight `dp[M]` exists, so `dp[M] ≥` optimum.
+Both inequalities give equality. ∎
+
+
+
+##### Lemma 3  
+The set of edges collected by the recursive reconstruction procedure has
+total weight exactly `dp[full]` and separates every pair of special
+vertices.
+
+**Proof.** The recursion follows exactly the partition choices that
+realised the DP minima (stored in `best_sub`).  
+For each recursive call on a mask `M` it adds the edges of a minimum cut
+between the two sub‑masks `sub` and `M\sub`. By Lemma&nbsp;1 these edges
+separate the two groups.
+Afterwards the recursion continues inside each group, guaranteeing that
+inside the group the terminals become pairwise separated as well
+(induction on recursion depth).  
+All added edges are disjoint because each edge belongs to the cut of the
+first (highest) partition where its two endpoints lie in different
+sub‑masks. Therefore the total weight is the sum of the three terms
+used in the DP transition, i.e. `dp[M]`. For the outermost call
+`M = full` we obtain total weight `dp[full]`. ∎
+
+
+
+##### Lemma 4  
+If the algorithm outputs “YES”, the printed edges have total weight
+`≤ B` and satisfy the required isolation property.
+
+**Proof.** “YES” is printed only when `dp[full] ≤ B`.  
+By Lemma&nbsp;3 the reconstructed edge set has total weight `dp[full]`,
+hence ≤ `B`, and separates all special vertices. ∎
+
+
+
+##### Lemma 5  
+If there exists a set of edges of total weight `≤ B` that separates all
+special vertices, the algorithm outputs “YES”.
+
+**Proof.** Let `C` be such a set. Its weight is an upper bound on the
+optimal value, therefore `dp[full] ≤ |C| ≤ B` by Lemma&nbsp;2.
+Consequently the algorithm prints “YES”. ∎
+
+
+
+##### Theorem  
+The algorithm prints
+
+* “YES” and a correct list of edges **iff** a feasible set of edges with
+  total cost ≤ `B` exists,
+* otherwise prints “NO”.
+
+**Proof.**  
+*If* part – Lemma&nbsp;4.  
+*Only‑if* part – Lemma&nbsp;5. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### 5.   Complexity Analysis  
+
+`k ≤ 5`  →  at most `2^k = 32` masks.
+
+*Number of max‑flow runs*  
+We need `cut[a][b]` for every unordered pair of disjoint non‑empty masks.
+That is at most `3^k / 2 ≈ 121` for `k=5`.  
+Each run works on a graph with `n+2 ≤ 10^4` vertices and `m ≤ 5·10^4`
+edges (typical limits). Dinic runs in `O(E·√V)` → well below the
+5 seconds limit.
+
+*DP* – `O(3^k)` ≈ 243 operations.
+
+*Reconstruction* – linear in the number of edges of all cuts, at most `m`.
+
+Overall time   `O( (number of flows)·E·√V )`  ≤ a few · 10⁶ operations.  
+Memory consumption – the original graph plus a few auxiliary arrays:
+`O(n + m)` ≤ 256 MB.
+
+--------------------------------------------------------------------
+
+#### 6.   Reference Implementation  (Python 3)
+
+```python
+import sys
+sys.setrecursionlimit(1 << 25)
+
+INF = 10 ** 18
+
+class Dinic:
+    def __init__(self, n):
+        self.n = n
+        self.adj = [[] for _ in range(n)]
+
+    def add_edge(self, u, v, cap, idx=-1):
+        # idx stores original edge id for later identification (if needed)
+        self.adj[u].append([v, cap, len(self.adj[v]), idx])
+        self.adj[v].append([u, 0,   len(self.adj[u]) - 1, -1])
+
+    def bfs_level(self, s, t):
+        self.level = [-1] * self.n
+        q = [s]
+        self.level[s] = 0
+        for u in q:
+            for v, cap, rev, _ in self.adj[u]:
+                if cap and self.level[v] == -1:
+                    self.level[v] = self.level[u] + 1
+                    q.append(v)
+        return self.level[t] != -1
+
+    def dfs(self, u, t, f):
+        if u == t:
+            return f
+        for i in range(self.it[u], len(self.adj[u])):
+            self.it[u] = i
+            v, cap, rev, _ = self.adj[u][i]
+            if cap and self.level[v] == self.level[u] + 1:
+                ret = self.dfs(v, t, min(f, cap))
+                if ret:
+                    self.adj[u][i][1] -= ret
+                    self.adj[v][rev][1] += ret
+                    return ret
+        return 0
+
+    def max_flow(self, s, t):
+        flow = 0
+        while self.bfs_level(s, t):
+            self.it = [0] * self.n
+            while True:
+                pushed = self.dfs(s, t, INF)
+                if not pushed:
+                    break
+                flow += pushed
+        return flow
+
+    def min_cut_edges(self, s):
+        """return list of original edge ids that cross the cut (source side reachable)"""
+        visited = [False] * self.n
+        stack = [s]
+        visited[s] = True
+        while stack:
+            u = stack.pop()
+            for v, cap, rev, _ in self.adj[u]:
+                if cap and not visited[v]:
+                    visited[v] = True
+                    stack.append(v)
+        cut_edges = []
+        for u in range(self.n):
+            for v, cap, rev, idx in self.adj[u]:
+                if idx >= 0:          # original edge
+                    if visited[u] != visited[v]:
+                        cut_edges.append(idx)
+        return cut_edges
+
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it)); m = int(next(it)); k = int(next(it)); B = int(next(it))
+    specials = [int(next(it)) - 1 for _ in range(k)]
+    edges = []
+    for i in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        w = int(next(it))
+        edges.append((u, v, w))
+
+    # map terminal index -> vertex id
+    term_to_vertex = specials
+
+    # pre‑compute cut cost and cut edge list for every pair of disjoint masks
+    maxmask = 1 << k
+    cut_cost = [[INF] * maxmask for _ in range(maxmask)]
+    cut_edges = [[None] * maxmask for _ in range(maxmask)]
+
+    # helper to build flow graph for a given pair of masks
+    def compute(mask_a, mask_b):
+        dinic = Dinic(n + 2)
+        S = n
+        T = n + 1
+        # original edges
+        for idx, (u, v, w) in enumerate(edges):
+            dinic.add_edge(u, v, w, idx)
+            dinic.add_edge(v, u, w, idx)   # because graph is undirected, add both directions
+        # connect terminals
+        for i in range(k):
+            if (mask_a >> i) & 1:
+                dinic.add_edge(S, term_to_vertex[i], INF)
+            if (mask_b >> i) & 1:
+                dinic.add_edge(term_to_vertex[i], T, INF)
+        flow = dinic.max_flow(S, T)
+        cut = dinic.min_cut_edges(S)
+        return flow, cut
+
+    # compute for all disjoint non‑empty masks
+    for mask_a in range(1, maxmask):
+        for mask_b in range(1, maxmask):
+            if mask_a & mask_b:
+                continue
+            if mask_a > mask_b:   # compute each unordered pair once
+                continue
+            cost, edgelist = compute(mask_a, mask_b)
+            cut_cost[mask_a][mask_b] = cut_cost[mask_b][mask_a] = cost
+            cut_edges[mask_a][mask_b] = cut_edges[mask_b][mask_a] = edgelist
+
+    # DP
+    dp = [INF] * maxmask
+    best_sub = [0] * maxmask
+    for mask in range(1, maxmask):
+        if mask & (mask - 1) == 0:   # single bit
+            dp[mask] = 0
+            continue
+        sub = (mask - 1) & mask
+        while sub:
+            other = mask ^ sub
+            if other:
+                cur = dp[sub] + dp[other] + cut_cost[sub][other]
+                if cur < dp[mask]:
+                    dp[mask] = cur
+                    best_sub[mask] = sub
+            sub = (sub - 1) & mask
+
+    full = maxmask - 1
+    if dp[full] > B:
+        print("NO")
+        return
+
+    # reconstruction
+    answer_edges = set()
+
+    def recon(mask):
+        if mask & (mask - 1) == 0:
+            return
+        sub = best_sub[mask]
+        other = mask ^ sub
+        for eid in cut_edges[sub][other]:
+            answer_edges.add(eid)
+        recon(sub)
+        recon(other)
+
+    recon(full)
+
+    print("YES")
+    print(len(answer_edges))
+    for eid in answer_edges:
+        u, v, _ = edges[eid]
+        print(u + 1, v + 1)
+
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above
+and conforms to the required input‑output format.

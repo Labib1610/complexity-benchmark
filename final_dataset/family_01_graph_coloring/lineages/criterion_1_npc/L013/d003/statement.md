@@ -1,0 +1,54 @@
+# Module Isolation Protocols
+
+Time limit: 2 s   Memory limit: 256 MB
+
+A software system consists of $n$ modules. The system provides three distinct execution environments, which are designated by the integer identifiers 1, 2, and 3.
+
+Each module $i$ (where $1 \le i \le n$) must be assigned an environment identifier $e_i$ such that $e_i \in \{1, 2, 3\}$.
+
+Extensive testing has generated $m$ operational constraints to prevent critical interference. Each constraint specifies two modules $u$ and $v$ whose assigned environment identifiers must satisfy the numerical condition:
+$|e_u - e_v| \ge 1$
+
+The constraints can form complex, interlocking dependencies. Your solution must correctly process any configuration of constraints within the specified limits, verifying whether a valid allocation is possible or not.
+
+You must determine whether it is feasible to assign an environment identifier to every module such that all $m$ constraints are simultaneously satisfied. If a valid assignment is possible, you must provide one. You only need to supply one valid assignment, even if multiple are possible.
+
+## Input
+The first line contains two integers $n$ and $m$ — the total number of modules and the number of constraints ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
+Each of the subsequent $m$ lines contains two integers $u$ and $v$, indicating a constraint that the environment identifiers for module $u$ and module $v$ must satisfy $|e_u - e_v| \ge 1$.
+
+## Output
+If it is impossible to assign environment identifiers to all modules such that every constraint is satisfied, print a single line containing `NO`.
+If it is possible, print `YES` on the first line. On the second line, print $n$ integers $e_1, e_2, \dots, e_n$ separated by spaces, where each $e_i \in \{1, 2, 3\}$ indicates the environment assigned to module $i$. You only need to supply one valid assignment, even if multiple are possible.
+
+## Example 1
+Input:
+```
+4 5
+1 2
+1 3
+2 3
+1 4
+2 4
+```
+Output:
+```
+YES
+1 2 3 3
+```
+
+## Example 2
+Input:
+```
+4 6
+1 2
+1 3
+1 4
+2 3
+2 4
+3 4
+```
+Output:
+```
+NO
+```

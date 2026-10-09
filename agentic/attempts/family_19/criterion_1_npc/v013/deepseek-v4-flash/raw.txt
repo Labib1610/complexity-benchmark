@@ -1,0 +1,79 @@
+We can model this as a **multi-commodity flow** problem with integer flows.  
+Since capacities and demands are integers, we can solve it using **integer linear programming** or a **max-flow** approach with decomposition.
+
+A practical approach:  
+- Build a flow network for each product separately, but with shared capacities.  
+- Use an **integer linear programming** solver (like `scipy.optimize.milp` or `pulp`) to find a feasible integer flow.
+
+Here’s the Python solution:
+
+```python
+import sys
+import pulp
+
+def solve():
+    input_data = sys.stdin.read().strip().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    k = int(next(it))
+    
+    products = []
+    for _ in range(k):
+        s = int(next(it)) - 1
+        t = int(next(it)) - 1
+        d = int(next(it))
+        products.append((s, t, d))
+    
+    edges = []
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        c = int(next(it))
+        edges.append((u, v, c))
+    
+    # Create MILP problem
+    prob = pulp.LpProblem("FreightDispatch", pulp.LpMinimize)
+    
+    # Variables: x[i][j] = flow of product i on edge j
+    x = [[pulp.LpVariable(f"x_{i}_{j}", lowBound=0, cat='Integer') for j in range(m)] for i in range(k)]
+    
+    # Objective: dummy (feasibility only)
+    prob += 0
+    
+    # Capacity constraints on each edge
+    for j in range(m):
+        prob += pulp.lpSum(x[i][j] for i in range(k)) <= edges[j][2]
+    
+    # Flow conservation for each product and each node
+    for i, (s, t, d) in enumerate(products):
+        for v in range(n):
+            inflow = pulp.lpSum(x[i][j] for j in range(m) if edges[j][1] == v)
+            outflow = pulp.lpSum(x[i][j] for j in range(m) if edges[j][0] == v)
+            if v == s:
+                prob += outflow - inflow == d
+            elif v == t:
+                prob += inflow - outflow == d
+            else:
+                prob += inflow - outflow == 0
+    
+    # Solve
+    solver = pulp.PULP_CBC_CMD(msg=False)
+    result = prob.solve(solver)
+    
+    if pulp.LpStatus[result] != 'Optimal':
+        print("NO")
+        return
+    
+    print("YES")
+    for i in range(k):
+        row = []
+        for j in range(m):
+            row.append(str(int(x[i][j].value())))
+        print(" ".join(row))
+
+if __name__ == "__main__":
+    solve()
+```

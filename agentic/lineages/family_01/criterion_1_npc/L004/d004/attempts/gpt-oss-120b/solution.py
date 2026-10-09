@@ -1,4 +1,5 @@
 import sys
+
 sys.setrecursionlimit(10000)
 
 def solve() -> None:
@@ -8,44 +9,55 @@ def solve() -> None:
     it = iter(data)
     n = int(next(it))
     m = int(next(it))
-    adj = [set() for _ in range(n)]
+    adj = [0] * n
     for _ in range(m):
         u = int(next(it)) - 1
         v = int(next(it)) - 1
-        adj[u].add(v)
-        adj[v].add(u)
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
 
-    colors = [0] * n
+    # order vertices by degree descending for better pruning
+    order = sorted(range(n), key=lambda x: -adj[x].bit_count())
+    pos_in_order = [0] * n
+    for i, v in enumerate(order):
+        pos_in_order[v] = i
+
+    colors = [-1] * n
     found = False
 
-    def dfs(v: int):
+    def dfs(idx: int):
         nonlocal found
         if found:
             return
-        if v == n:
+        if idx == n:
             found = True
             return
-        for c in (1, 2, 3):          # try in increasing order for lexicographic minimality
-            ok = True
-            for nb in adj[v]:
-                if nb < v and colors[nb] == c:   # only already colored neighbours
-                    ok = False
+        v = order[idx]
+        # try each color
+        for c in range(3):
+            conflict = False
+            neigh_mask = adj[v]
+            while neigh_mask:
+                u = (neigh_mask & -neigh_mask).bit_length() - 1
+                neigh_mask &= neigh_mask - 1
+                if colors[u] == c:
+                    conflict = True
                     break
-            if ok:
+            if not conflict:
                 colors[v] = c
-                dfs(v + 1)
+                dfs(idx + 1)
                 if found:
                     return
-                colors[v] = 0
+                colors[v] = -1
 
     dfs(0)
 
-    out = sys.stdout
     if not found:
-        out.write("NO")
+        print("NO")
     else:
-        out.write("YES\n")
-        out.write(" ".join(map(str, colors)))
+        print("YES")
+        # output in original order, convert 0/1/2 to 1/2/3
+        print(' '.join(str(colors[i] + 1) for i in range(n)))
 
 if __name__ == "__main__":
     solve()

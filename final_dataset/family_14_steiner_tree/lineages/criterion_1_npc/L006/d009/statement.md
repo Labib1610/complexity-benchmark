@@ -1,0 +1,86 @@
+# Site Link Configuration
+
+Time limit: 5 s   Memory limit: 256 MB
+
+## Description
+
+A data engineering team is configuring a network of $n$ sites, indexed 1 through $n$. The team is focused on a specific subset of $t$ critical sites.
+
+The team can activate a selection from $m$ available bidirectional links. Each available link connects a specific pair of sites $u$ and $v$, and has a one-time activation cost $w$. Each available link is either selected for activation or not selected. If selected, its activation cost is paid exactly once.
+
+Two sites $x$ and $y$ are considered mutually accessible if $x = y$, or if there exists a sequence of sites $x = v_0, v_1, \dots, v_k = y$ such that for every $0 \le i < k$, the available link between $v_i$ and $v_{i+1}$ is activated.
+
+The team's objective is to select a subset of links such that every pair of critical sites is mutually accessible.
+
+The team is permitted to activate links involving non-critical sites, provided their inclusion helps establish the required accessibility among the critical sites. The total cost is the sum of the activation costs of the distinct links the team chooses to activate.
+
+Determine the minimum total activation cost required to select a set of links such that every pair of critical sites is mutually accessible.
+
+## Input
+
+The first line provides three integers $n$, $m$, and $t$ (1 ≤ $t$ ≤ 10, 1 ≤ $n$ ≤ 100, 0 ≤ $m$ ≤ $n$·($n$−1)/2).
+The second line lists $t$ distinct integers representing the indices of the critical sites.
+Each of the subsequent $m$ lines specifies an available link using three integers $u$, $v$, and $w$ (1 ≤ $u$, $v$ ≤ $n$, $u$ ≠ $v$, 1 ≤ $w$ ≤ 1000000). This indicates a link between sites $u$ and $v$ with a one-time activation cost of $w$.
+It is guaranteed that the set of all $m$ available links is sufficient to make every pair of critical sites mutually accessible.
+
+## Output
+
+Print a single integer: the minimum total activation cost required to ensure every pair of critical sites is mutually accessible under the selected links.
+
+## Examples
+
+### Example 1
+
+**Input**
+```
+4 6 3
+1 2 3
+1 4 1
+2 4 1
+3 4 1
+1 2 2
+2 3 2
+1 3 2
+```
+
+**Output**
+```
+3
+```
+
+### Example 2
+
+**Input**
+```
+4 4 3
+1 2 3
+1 2 1
+2 3 1
+1 4 10
+3 4 10
+```
+
+**Output**
+```
+2
+```
+
+### Example 3
+
+**Input**
+```
+3 2 1
+1
+1 2 5
+2 3 5
+```
+
+**Output**
+```
+0
+```
+
+## Note
+
+In Example 1, activating the links that involve the non-critical site 4 (which require costs of 1, 1, and 1; total cost = 3) is more efficient than activating the links directly involving only the three critical sites (which would result in a total cost of 4). Activating links (1, 4) and (2, 4) makes sites 1 and 2 mutually accessible. Including (3, 4) ensures sites 1, 2, and 3 are all mutually accessible. Thus, site 4 acts as an effective intermediary. 
+In Example 3, there is only a single critical site. The requirement is that every pair of critical sites is mutually accessible. Since there is only one critical site, and any site is mutually accessible to itself, the requirement is inherently satisfied. Therefore, no links need to be activated, resulting in a total cost of 0.

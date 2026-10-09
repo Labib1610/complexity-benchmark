@@ -1,21 +1,22 @@
-# Problem A — Phase Resonance Protocol
+# Problem A — Atmospheric Preservation
 
-Time limit: 2 s
-Memory limit: 256 MB
+Time limit: 2 s   Memory limit: 256 MB
 
-A quantum communication grid consists of $n$ signal emitters (numbered 1 through $n$). To initialize the grid, each emitter must be assigned a discrete phase state: 1, 2, or 3. 
+You are responsible for archiving $n$ historical artifacts in a secure facility. Through chemical analysis, you have identified $m$ pairs of artifacts that react poorly with each other; if placed in the same climate zone, they will degrade.
 
-The grid infrastructure includes $m$ physical conduits, each of which bridges a specific pair of emitters. These conduits introduce a strict operational constraint: for any two emitters bridged by a conduit, the absolute difference between their assigned phase states must be strictly greater than zero to prevent a resonance cascade. You must determine a phase state assignment for all $n$ emitters that satisfies this condition for every conduit.
+The facility has exactly three climate-controlled zones, designated as Zone 1, Zone 2, and Zone 3. To ensure complete preservation:
+- Every artifact must be allocated to exactly one of these three zones.
+- Artifacts that react poorly together must never share the same zone.
 
-If no safe assignment is possible, you must indicate that the grid cannot be initialized. If multiple safe assignments exist, the protocol requires you to select the one that is lexicographically smallest. (Assignment $A$ is lexicographically smaller than assignment $B$ if, at the lowest emitter index where they differ, $A$ has a lower phase state value than $B$).
+Please note that the test data deliberately includes adversarial reaction networks designed to trap simplistic trial-and-error allocation methods in an astronomical number of dead ends. You must determine if a safe allocation exists under these conditions. If it does, output a valid configuration.
 
 ## Input
-The first line contains two integers $n$ and $m$ — the number of emitters and the number of conduits (1 ≤ $n$ ≤ 40, 0 ≤ $m$ ≤ $n(n−1)/2$).
-The following $m$ lines each contain two integers $u$ and $v$ (1 ≤ $u, v$ ≤ $n$, $u \neq v$), representing the identifiers of two emitters bridged by a conduit.
+The first line contains two integers $n$ and $m$ — the number of artifacts and the number of reactive pairs ($1 \le n \le 40$, $0 \le m \le n \cdot (n-1)/2$).
+Each of the subsequent $m$ lines contains two integers $u$ and $v$, identifying a pair of artifacts that cannot be stored together.
 
 ## Output
-If the grid cannot be initialized without a resonance cascade, output a single line containing `NO`.
-If a safe assignment exists, output `YES` on the first line. On the second line, output $n$ integers $p_1, p_2, \dots, p_n$ (where each $p_i \in \{1, 2, 3\}$), representing the phase state for each emitter from 1 to $n$. This sequence must be the lexicographically smallest valid assignment.
+If no safe allocation is possible, output NO on a single line.
+Otherwise, output YES on the first line. On the second line, output $n$ integers $c_1 \ c_2 \dots c_n$ (each being 1, 2, or 3), where $c_i$ is the zone allocated to artifact $i$. If multiple safe allocations exist, providing any one of them is acceptable.
 
 ## Example 1
 Input:

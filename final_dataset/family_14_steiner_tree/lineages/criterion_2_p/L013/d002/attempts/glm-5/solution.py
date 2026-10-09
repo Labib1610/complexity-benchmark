@@ -1,0 +1,63 @@
+import sys
+sys.setrecursionlimit(1 << 25)
+
+def solve():
+    data = sys.stdin.read().split()
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    t = int(next(it))
+    
+    priority = [int(next(it)) for _ in range(t)]
+    is_priority = [False] * (n + 1)
+    for p in priority:
+        is_priority[p] = True
+    
+    adj = [[] for _ in range(n + 1)]
+    edges = []
+    for i in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        w = int(next(it))
+        adj[u].append((v, w, i))
+        adj[v].append((u, w, i))
+        edges.append((u, v, w))
+    
+    if t <= 1:
+        print(0)
+        return
+    
+    parent = [0] * (n + 1)
+    parent_edge_idx = [-1] * (n + 1)
+    depth = [0] * (n + 1)
+    
+    stack = [(1, 0)]
+    parent[1] = 0
+    order = []
+    
+    while stack:
+        u, p = stack.pop()
+        order.append(u)
+        for v, w, idx in adj[u]:
+            if v != p:
+                parent[v] = u
+                parent_edge_idx[v] = idx
+                depth[v] = depth[u] + 1
+                stack.append((v, u))
+    
+    cnt = [0] * (n + 1)
+    for p in priority:
+        cnt[p] = 1
+    
+    for u in order[1:][::-1]:
+        cnt[parent[u]] += cnt[u]
+    
+    total = 0
+    for u in order[1:]:
+        if cnt[u] >= 1 and cnt[u] < t:
+            idx = parent_edge_idx[u]
+            total += edges[idx][2]
+    
+    print(total)
+
+solve()

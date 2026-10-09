@@ -1,51 +1,38 @@
 import sys
 
 def solve():
-    input_data = sys.stdin.read().strip().split()
-    if not input_data:
-        return
-    it = iter(input_data)
-    n = int(next(it))
-    m = int(next(it))
-
-    adj = [0] * n
+    input = sys.stdin.readline
+    n, m = map(int, input().split())
+    adj = [[] for _ in range(n)]
     for _ in range(m):
-        u = int(next(it)) - 1
-        v = int(next(it)) - 1
-        adj[u] |= (1 << v)
-        adj[v] |= (1 << u)
+        u, v = map(int, input().split())
+        u -= 1
+        v -= 1
+        adj[u].append(v)
+        adj[v].append(u)
 
-    # colors: 0 = unassigned, 1,2,3 for sealants
-    color = [0] * n
-    # We'll store for each node a bitmask of colors already forbidden by colored neighbors.
-    # But easier: we can just check neighbors on each assignment.
-    
-    def backtrack(i):
-        if i == n:
+    color = [-1] * n
+
+    def backtrack(idx):
+        if idx == n:
             return True
-        # Try colors 1,2,3 in order for lexicographic minimality
-        for c in (1, 2, 3):
+        # Try colors 1,2,3
+        for c in range(1, 4):
             ok = True
-            # Check neighbors
-            mask = adj[i]
-            j = 0
-            while mask:
-                if mask & 1:
-                    if color[j] == c:
-                        ok = False
-                        break
-                mask >>= 1
-                j += 1
+            for nb in adj[idx]:
+                if color[nb] == c:
+                    ok = False
+                    break
             if ok:
-                color[i] = c
-                if backtrack(i + 1):
+                color[idx] = c
+                if backtrack(idx + 1):
                     return True
-                color[i] = 0
+                color[idx] = -1
         return False
 
     if backtrack(0):
         print("YES")
-        print(" ".join(map(str, color)))
+        print(" ".join(str(color[i]) for i in range(n)))
     else:
         print("NO")
 

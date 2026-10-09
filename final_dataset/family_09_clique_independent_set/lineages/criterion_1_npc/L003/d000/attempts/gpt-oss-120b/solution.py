@@ -1,0 +1,78 @@
+import sys
+
+sys.setrecursionlimit(10000)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    k = int(next(it))
+    adj = [0] * n
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+
+    ALL = (1 << n) - 1
+
+    # candidates are vertices that can still be chosen
+    # cur_set is current independent set (bitmask)
+    from functools import lru_cache
+
+    @lru_cache(maxsize=None)
+    def popcnt(x: int) -> int:
+        return x.bit_count()
+
+    # simple heuristic: choose vertex with maximum degree among candidates
+    def choose_vertex(cand: int) -> int:
+        # pick vertex with highest degree within cand
+        best = -1
+        best_deg = -1
+        v = cand
+        while v:
+            lsb = v & -v
+            idx = (lsb.bit_length() - 1)
+            deg = popcnt(adj[idx] & cand)
+            if deg > best_deg:
+                best_deg = deg
+                best = idx
+            v ^= lsb
+        return best
+
+    def dfs(cand: int, cur: int) -> int:
+        # returns bitmask of a solution or -1 if none
+        cur_size = popcnt(cur)
+        if cur_size == k:
+            return cur
+        if cur_size + popcnt(cand) < k:
+            return -1
+        # if no candidates left
+        if cand == 0:
+            return -1
+
+        v = choose_vertex(cand)
+
+        # branch 1: include v
+        new_cand = cand & ~((1 << v) | adj[v])
+        res = dfs(new_cand, cur | (1 << v))
+        if res != -1:
+            return res
+
+        # branch 2: exclude v
+        cand_without_v = cand & ~(1 << v)
+        return dfs(cand_without_v, cur)
+
+    solution = dfs(ALL, 0)
+    if solution == -1:
+        print("NO")
+    else:
+        ans = [str(i + 1) for i in range(n) if (solution >> i) & 1]
+        print("YES")
+        print(" ".join(ans))
+
+if __name__ == "__main__":
+    solve()

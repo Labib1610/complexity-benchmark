@@ -1,0 +1,211 @@
+<think>
+.
+</think>
+We need to assign each edge (dialogue) to one of three slots such that at every vertex, its three incident edges get all different slots. This is equivalent to a 3‑edge‑coloring of a **cubic graph** where every vertex has degree exactly 3 (since each politician has exactly three dialogues).  
+
+We can solve this using a backtracking / constraint‑propagation approach, but with n up to 2000 we need something fast. A classic theorem: A connected cubic graph is 3‑edge‑colorable if and only if it is bridgeless (no bridges), by the **Vizing theorem for edge‑coloring**, actually 3‑edge‑colorable iff no bridge (for cubic graphs, this is also equivalent to being 3‑edge‑colorable via the assignment: every vertex with degree 3 can be colored so edges around it are all different).  
+
+But note: we have to assign colors 1,2,3. If any vertex has degree not equal to 3, it’s impossible (because each has exactly three dialogues). So we check degrees: if degree != 3 for any vertex → NO.  
+
+Then: If the graph is disconnected, each connected component is cubic. We need each component to be bridgeless for 3‑edge‑colorability. If any component has a bridge → NO.  
+
+If the graph is bridgeless, a 3‑edge‑coloring exists. But to actually produce a coloring, we can use the fact that every bridgeless cubic graph is 3‑edge‑colorable (by the 4‑color theorem equivalent, which for cubic graphs is König’s line coloring theorem — actually Vizing: Δ=3 → 3‑edge‑colorable if no bridges).  
+
+We can produce a coloring via a constructive method:  
+One approach is to find a 3‑edge‑coloring using the algorithm from the proof:  
+- The line graph of a bridgeless cubic graph is a 4‑regular graph? No. Alternatively, we can use a polynomial‑time algorithm based on matching:  
+  Since Δ=3, we can find a perfect matching (if the graph is connected and even n), color those edges color 1. Remove them → the remaining graph is 2‑regular (a disjoint union of cycles), and we can 2‑color the edges along each cycle alternating 2 and 3.  
+
+This is exactly the standard algorithm:  
+1. Find a perfect matching in the cubic graph (exists if n even and graph has a perfect matching — every bridgeless cubic graph has a perfect matching by Petersen's theorem).  
+2. Remove the matching edges → remaining graph is a disjoint union of even cycles? Actually each vertex degree becomes 2, so we get cycles. Each cycle must have even length for a proper 2‑coloring of its edges; but **any 2‑regular graph is a union of cycles**, and if any cycle is odd, then the 2‑coloring might be impossible for that cycle? Wait, in a cycle, to color edges with two colors so adjacent edges differ, it’s possible iff cycle length even. However, the remaining graph after removing a perfect matching from a cubic graph can have odd cycles. We cannot guarantee even cycles.  
+
+So the simple matching method needs more care. For a cubic bridgeless graph, we can find a 3‑edge‑coloring via a more complex algorithm (e.g., using the fact that the line graph is 4‑regular, and then a vertex coloring of the line graph with 3 colors corresponds to edge‑coloring—but 4‑regular graph may require 4 colors).  
+
+But there is a simpler constructive method: For cubic graphs, 3‑edge‑coloring is equivalent to partitioning edges into three perfect matchings. If we can find one perfect matching, remove it, then the remaining 2‑regular graph must have all cycles **even** for us to split into two more perfect matchings. But odd cycles are possible.  
+
+The key is that for bridgeless cubic graphs, we can **always** find a perfect matching whose removal leaves only even cycles. This is a known theorem: every bridgeless cubic graph has a "proper 3‑edge‑coloring" equivalent to having a **2‑factor of even cycles** (also known as a "cycle double cover" — but actually).  
+
+In practice, to implement competitive programming solution for this size (n ≤ 2000), we can use **backtracking with heuristics** and hope it passes (since 3‑edge‑coloring is NP‑complete in general, but for cubic bridgeless it's polynomial — but the algorithm is somewhat complex). However many contest solutions use a specialized algorithm: find a 1‑factor (perfect matching), then 2‑color the remaining cycles; if odd cycles appear, we can flip colors along an alternating path to fix.  
+
+A known easy‑to‑implement approach:  
+- Use a DFS to find a **bridgeless** cubic graph → it has a 3‑edge‑coloring.  
+- Use **König's line coloring** for cubic bipartite graphs only? No, our graph might not be bipartite.  
+
+But perhaps the problem from ICPC has known solution: Since n even and each vertex degree 3, it's a cubic graph. The existence condition is exactly that the graph has no bridge. We can test bridges by removing each edge and doing DFS. This is O(m^2) which is too slow for m=3000? Actually m=3n/2 ≤ 3000, n ≤ 2000 → m ≤ 3000. O(m^2) = 9e6, fine.  
+
+After verifying no bridges (and degrees=3), we need to output a coloring. We can perform a backtracking with constraint propagation, but with m=3000 backtracking extreme worst case might be large, but with good ordering (most constrained vertex), it may pass because every assignment is forced quickly.
+
+Given the time limit 5s, a backtracking with simple heuristics will likely pass for n=2000 (max 3000 edges).  
+
+Let's design:  
+- Store edges with ids.  
+- For each vertex, list of edge ids incident.  
+- At each step pick the vertex with the smallest remaining available colors (degree constraints).  
+- Try colors for each incident edge ensuring a color is not repeated at that vertex.  
+- For each edge, if both endpoints get a color, that's consistent.  
+- Use recursion.
+
+But given each vertex has exactly degree 3 and we must assign all three colors to its edges, we can think of it as: at each vertex, we need a bijection between its 3 incident edges and colors {1,2,3}.  
+
+We can use a DFS that assigns colors to edges one by one, but with m=3000 worst case backtracking could be exponential. Yet constraints: each vertex has only 3 edges, so local constraints strong. Might still be okay.
+
+I'll implement a backtracking with MRV (most constrained vertex) and forward checking. Also early detect if any vertex has two incident edges with same color → fail.
+
+Let's code.  
+Also if degree != 3 for any vertex → NO.
+
+Complexity: worst-case maybe O(3^m) but with pruning probably fine for cubic bridgeless.
+
+Let's implement. We'll also include a fast bridge check.
+
+Implementation steps:
+1. Read input, build adjacency with edge ids.
+2. Check each degree =3 else NO.
+3. Check graph connected? Not necessary — each component separately.
+4. For each component, check if any bridge: use Tarjan to find bridges in O(n+m). If any bridge → NO.
+5. If no bridges, start backtracking to assign colors.
+
+If backtracking finds solution, output YES and colors in order.
+
+Let's write code```python
+import sys
+sys.setrecursionlimit(10000)
+
+def find_bridges(n, edges, adj):
+    # Tarjan bridge finding
+    visited = [False] * (n + 1)
+    tin = [-1] * (n + 1)
+    low = [-1] * (n + 1)
+    timer = [0]
+    bridges = set()
+
+    def dfs(v, p_edge):
+        visited[v] = True
+        tin[v] = low[v] = timer[0]
+        timer[0] += 1
+        for to, eid in adj[v]:
+            if eid == p_edge:
+                continue
+            if visited[to]:
+                low[v] = min(low[v], tin[to])
+            else:
+                dfs(to, eid)
+                low[v] = min(low[v], low[to])
+                if low[to] > tin[v]:
+                    bridges.add(eid)
+    
+    for i in range(1, n + 1):
+        if not visited[i]:
+            dfs(i, -1)
+    return bridges
+
+def solve():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+
+    edges = []
+    adj = [[] for _ in range(n + 1)]
+    for eid in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        edges.append((u, v))
+        adj[u].append((v, eid))
+        adj[v].append((u, eid))
+
+    # Check degree = 3
+    for v in range(1, n + 1):
+        if len(adj[v]) != 3:
+            print("NO")
+            return
+
+    # Check bridges
+    bridges = find_bridges(n, edges, adj)
+    if bridges:
+        print("NO")
+        return
+
+    # Backtracking search
+    color = [-1] * m
+    used_at_vertex = [0] * (n + 1)  # bitmask of colors used
+
+    # degree left = 3 - assigned count
+    deg_left = [3] * (n + 1)
+
+    def get_choices(edge_idx):
+        u, v = edges[edge_idx]
+        used_mask = used_at_vertex[u] | used_at_vertex[v]
+        choices = []
+        for c in (1, 2, 3):
+            if not (used_mask & (1 << c)):
+                choices.append(c)
+        return choices
+
+    # Heuristic: choose edge with fewest choices
+    import heapq
+    # We'll maintain a list of unassigned edges and pick next each time
+    unassigned = list(range(m))
+    
+    def backtrack():
+        if not unassigned:
+            return True
+        # Find edge with minimum choices
+        best_e = -1
+        best_cnt = 10
+        best_choices = None
+        for eid in unassigned:
+            ch = get_choices(eid)
+            if len(ch) == 0:
+                return False
+            if len(ch) < best_cnt:
+                best_cnt = len(ch)
+                best_e = eid
+                best_choices = ch
+                if best_cnt == 1:
+                    break
+        eid = best_e
+        u, v = edges[eid]
+        for c in best_choices:
+            # place
+            color[eid] = c
+            used_at_vertex[u] |= (1 << c)
+            used_at_vertex[v] |= (1 << c)
+            deg_left[u] -= 1
+            deg_left[v] -= 1
+            unassigned.remove(eid)
+            # check if any vertex's remaining degree <= used colors left
+            ok = True
+            for x in (u, v):
+                if deg_left[x] < 0:
+                    ok = False
+                    break
+                # count available colors for this vertex
+                avail = 3 - bin(used_at_vertex[x]).count("1")
+                if deg_left[x] > avail:
+                    ok = False
+                    break
+            if ok:
+                if backtrack():
+                    return True
+            # undo
+            unassigned.append(eid)
+            deg_left[u] += 1
+            deg_left[v] += 1
+            used_at_vertex[u] &= ~(1 << c)
+            used_at_vertex[v] &= ~(1 << c)
+            color[eid] = -1
+        return False
+
+    if backtrack():
+        print("YES")
+        print(' '.join(map(str, color)))
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()
+```

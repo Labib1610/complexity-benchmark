@@ -1,0 +1,197 @@
+**Solution Explanation**
+
+For a tree the cheapest way to connect a given set of vertices is the
+*Steiner tree* of these vertices.
+In a tree the Steiner tree is simply the union of all pairwise
+paths between the required vertices.
+Therefore an edge belongs to the optimal solution **iff**
+after removing the edge both sides contain at least one required vertex.
+
+So we only have to know, for every edge, how many required vertices are
+in the subtree below it.
+
+--------------------------------------------------------------------
+
+#### Algorithm
+```
+read n , m (= n‑1) , t
+read list S of t special vertices
+mark special[v] = True
+
+build adjacency list:
+    for each edge (u,v,w)
+        add (v,w) to adj[u]
+        add (u,w) to adj[v]
+
+root the tree at vertex 1
+parent[v]          – parent of v in the rooted tree
+parent_edge_w[v]    – weight of edge (parent[v] , v)
+order[]             – vertices in the order they are first visited
+stack = [1]; parent[1] = 0
+while stack not empty:
+        v = stack.pop()
+        order.append(v)
+        for (to, w) in adj[v]:
+                if to == parent[v]: continue
+                parent[to] = v
+                parent_edge_w[to] = w
+                stack.append(to)
+
+cnt[v] = number of special vertices in the subtree of v
+process vertices in reverse order of `order` (post‑order):
+        cnt[v] = special[v] ? 1 : 0
+        for each child c of v (i.e. parent[c] == v):
+                cnt[v] += cnt[c]
+
+answer = 0
+for every vertex v ≠ root:
+        # edge (parent[v] , v) separates the tree into
+        #   subtree of v   (size cnt[v])
+        #   the rest       (size t - cnt[v])
+        if cnt[v] > 0 and t - cnt[v] > 0:
+                answer += parent_edge_w[v]
+
+print answer
+```
+
+--------------------------------------------------------------------
+
+#### Correctness Proof  
+
+We prove that the algorithm outputs the minimum possible total cost.
+
+---
+
+##### Lemma 1  
+For any edge `e = (p, v)` (where `p` is the parent of `v` in the rooted tree)
+let `A` be the set of special vertices in the subtree of `v`
+(`|A| = cnt[v]`) and `B` the set of the remaining special vertices
+(`|B| = t - cnt[v]`).  
+Edge `e` belongs to the minimal Steiner tree of the special vertices
+iff `A` and `B` are both non‑empty.
+
+**Proof.**  
+*If* `A` and `B` are non‑empty, any path connecting a vertex of `A` with a
+vertex of `B` must use `e` (the tree has a unique path). Hence every
+subgraph that connects all specials must contain `e`.  
+
+*If* one of the sets is empty, all specials lie on the same side of `e`,
+so we can connect them without using `e`. Thus `e` is not required. ∎
+
+
+
+##### Lemma 2  
+The algorithm computes `cnt[v]` correctly for every vertex `v`.
+
+**Proof.**  
+The vertices are processed in reverse DFS order, i.e. children before their
+parent. For a leaf the formula `cnt[leaf] = special[leaf]` is correct.
+Assume it holds for all children of `v`. Then the algorithm adds the
+already correct `cnt[child]` values to `cnt[v]` and finally adds
+`1` if `v` itself is special. This equals the number of specials in the
+subtree of `v`. By induction the statement holds for all vertices. ∎
+
+
+
+##### Lemma 3  
+The value `answer` computed by the algorithm equals the total weight of
+the Steiner tree of the special vertices.
+
+**Proof.**  
+By Lemma&nbsp;2 each edge `(p,v)` knows `cnt[v]`.  
+The algorithm adds its weight exactly when `cnt[v] > 0` and
+`t - cnt[v] > 0`. By Lemma&nbsp;1 this condition is equivalent to the edge
+belonging to the Steiner tree. Therefore the sum accumulated in `answer`
+is precisely the sum of weights of all edges of the Steiner tree. ∎
+
+
+
+##### Theorem  
+The algorithm outputs the minimum possible total installation cost that
+makes all research centers mutually reachable.
+
+**Proof.**  
+The Steiner tree of the special vertices is a subgraph that connects
+all of them, so its total weight is an achievable cost.
+By Lemma&nbsp;3 the algorithm outputs exactly this weight.
+Any feasible solution must contain every edge of the Steiner tree
+(Lemma&nbsp;1), therefore its total cost cannot be smaller.
+Consequently the algorithm’s output is the optimal (minimum) cost. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### Complexity Analysis  
+
+*Building the adjacency list*: `O(n)` time, `O(n)` memory.  
+*DFS traversal* and *post‑order processing*: each vertex and edge is
+visited a constant number of times → `O(n)` time, `O(n)` memory.  
+
+Overall: **Time `O(n)`**, **Memory `O(n)`**, well within the limits
+(`n ≤ 200 000`).
+
+--------------------------------------------------------------------
+
+#### Reference Implementation  (Python 3)
+
+```python
+import sys
+
+def solve() -> None:
+    data = sys.stdin.buffer.read().split()
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))          # = n-1, not used separately
+    t = int(next(it))
+
+    specials = [0] * (n + 1)
+    for _ in range(t):
+        v = int(next(it))
+        specials[v] = 1
+
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        w = int(next(it))
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+
+    parent = [0] * (n + 1)
+    pw = [0] * (n + 1)          # weight of edge to parent
+    order = []
+
+    stack = [1]
+    parent[1] = -1              # mark root
+    while stack:
+        v = stack.pop()
+        order.append(v)
+        for to, w in adj[v]:
+            if to == parent[v]:
+                continue
+            parent[to] = v
+            pw[to] = w
+            stack.append(to)
+
+    cnt = [0] * (n + 1)
+    for v in reversed(order):
+        c = specials[v]
+        for to, _ in adj[v]:
+            if parent[to] == v:          # child
+                c += cnt[to]
+        cnt[v] = c
+
+    total = 0
+    for v in range(2, n + 1):            # skip root (1)
+        if cnt[v] > 0 and t - cnt[v] > 0:
+            total += pw[v]
+
+    sys.stdout.write(str(total))
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above
+and conforms to the required input‑output format.

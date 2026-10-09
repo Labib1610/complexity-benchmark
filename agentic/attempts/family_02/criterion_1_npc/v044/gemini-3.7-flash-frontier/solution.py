@@ -1,0 +1,161 @@
+import sys
+
+
+def solve():
+    sys.setrecursionlimit(5000)
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+
+    n = int(input_data[0])
+    m = int(input_data[1])
+
+    clauses = []
+    idx = 2
+    for _ in range(m):
+        c1 = int(input_data[idx])
+        c2 = int(input_data[idx + 1])
+        c3 = int(input_data[idx + 2])
+        idx += 3
+
+        lits = list(set([c1, c2, c3]))
+        s = set(lits)
+        has_opp = False
+        for x in lits:
+            if -x in s:
+                has_opp = True
+                break
+        if not has_opp:
+            clauses.append(lits)
+
+    assignment = [None] * (n + 1)
+
+    def unit_propagate():
+        assigned_here = []
+        while True:
+            unit_found = False
+            for c in clauses:
+                sat = False
+                unassigned_lit = None
+                unassigned_count = 0
+                for lit in c:
+                    var = abs(lit)
+                    val = assignment[var]
+                    if val is not None:
+                        if (lit > 0 and val == 1) or (lit < 0 and val == 0):
+                            sat = True
+                            break
+                    else:
+                        unassigned_count += 1
+                        unassigned_lit = lit
+                if sat:
+                    continue
+                if unassigned_count == 0:
+                    return False, assigned_here
+                if unassigned_count == 1:
+                    var = abs(unassigned_lit)
+                    val = 1 if unassigned_lit > 0 else 0
+                    if assignment[var] is not None:
+                        if assignment[var] != val:
+                            return False, assigned_here
+                    else:
+                        assignment[var] = val
+                        assigned_here.append(var)
+                        unit_found = True
+            if not unit_found:
+                break
+        return True, assigned_here
+
+    def pick_var():
+        min_size = 999
+        for c in clauses:
+            sat = False
+            unassigned_cnt = 0
+            for lit in c:
+                var = abs(lit)
+                val = assignment[var]
+                if val is not None:
+                    if (lit > 0 and val == 1) or (lit < 0 and val == 0):
+                        sat = True
+                        break
+                else:
+                    unassigned_cnt += 1
+            if sat:
+                continue
+            if unassigned_cnt < min_size:
+                min_size = unassigned_cnt
+
+        pos_count = [0] * (n + 1)
+        neg_count = [0] * (n + 1)
+        for c in clauses:
+            sat = False
+            unassigned = []
+            for lit in c:
+                var = abs(lit)
+                val = assignment[var]
+                if val is not None:
+                    if (lit > 0 and val == 1) or (lit < 0 and val == 0):
+                        sat = True
+                        break
+                else:
+                    unassigned.append(lit)
+            if sat:
+                continue
+            if len(unassigned) == min_size:
+                for lit in unassigned:
+                    if lit > 0:
+                        pos_count[lit] += 1
+                    else:
+                        neg_count[-lit] += 1
+
+        best_var = -1
+        best_score = -1
+        best_val = 1
+        for i in range(1, n + 1):
+            if assignment[i] is None:
+                score = (
+                    (pos_count[i] + neg_count[i]) * 1024
+                    + pos_count[i] * neg_count[i]
+                    + 1
+                )
+                if score > best_score:
+                    best_score = score
+                    best_var = i
+                    best_val = 1 if pos_count[i] >= neg_count[i] else 0
+
+        return best_var, best_val
+
+    def dpll():
+        ok, assigned_vars = unit_propagate()
+        if not ok:
+            for v in assigned_vars:
+                assignment[v] = None
+            return False
+
+        var, val = pick_var()
+        if var == -1:
+            return True
+
+        assignment[var] = val
+        if dpll():
+            return True
+
+        assignment[var] = 1 - val
+        if dpll():
+            return True
+
+        assignment[var] = None
+        for v in assigned_vars:
+            assignment[v] = None
+        return False
+
+    if dpll():
+        print("YES")
+        res = [str(assignment[i] if assignment[i] is not None else 0) for i in range(1, n + 1)]
+        print(*(res))
+    else:
+        print("NO")
+
+
+if __name__ == "__main__":
+    solve()

@@ -1,0 +1,96 @@
+import sys
+sys.setrecursionlimit(1 << 25)
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    # 2-SAT: variable i (1-indexed) maps to nodes 2*i-2 (false) and 2*i-1 (true)
+    # Implication: (a -> b) means if a is true then b must be true
+    # Clause (l1 or l2): add edges (not l1 -> l2) and (not l2 -> l1)
+    
+    N = 2 * n
+    adj = [[] for _ in range(N)]
+    radj = [[] for _ in range(N)]
+    
+    def get_node(lit):
+        var = abs(lit) - 1
+        is_true = lit > 0
+        return var * 2 + (1 if is_true else 0)
+    
+    def get_neg(node):
+        return node ^ 1
+    
+    for _ in range(m):
+        l1 = int(next(it))
+        l2 = int(next(it))
+        u = get_node(l1)
+        v = get_node(l2)
+        nu = get_neg(u)
+        nv = get_neg(v)
+        adj[nu].append(v)
+        adj[nv].append(u)
+        radj[v].append(nu)
+        radj[u].append(nv)
+    
+    # Kosaraju's algorithm for SCC
+    visited = [False] * N
+    order = []
+    
+    def dfs1(u):
+        stack = [(u, 0)]
+        while stack:
+            node, idx = stack[-1]
+            if not visited[node]:
+                visited[node] = True
+            if idx < len(adj[node]):
+                nei = adj[node][idx]
+                stack[-1] = (node, idx + 1)
+                if not visited[nei]:
+                    stack.append((nei, 0))
+            else:
+                stack.pop()
+                order.append(node)
+    
+    for i in range(N):
+        if not visited[i]:
+            dfs1(i)
+    
+    comp = [-1] * N
+    cid = 0
+    
+    def dfs2(u, c):
+        stack = [u]
+        comp[u] = c
+        while stack:
+            node = stack.pop()
+            for nei in radj[node]:
+                if comp[nei] == -1:
+                    comp[nei] = c
+                    stack.append(nei)
+    
+    for u in reversed(order):
+        if comp[u] == -1:
+            dfs2(u, cid)
+            cid += 1
+    
+    # Check for contradiction
+    for i in range(n):
+        if comp[2*i] == comp[2*i+1]:
+            print("NO")
+            return
+    
+    # Build assignment
+    assignment = [0] * n
+    for i in range(n):
+        if comp[2*i+1] > comp[2*i]:
+            assignment[i] = 1
+    
+    print("YES")
+    print(' '.join(map(str, assignment)))
+
+solve()

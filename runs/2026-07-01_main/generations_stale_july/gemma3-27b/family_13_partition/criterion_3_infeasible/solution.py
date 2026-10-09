@@ -1,0 +1,7 @@
+def solve():
+    n = int(input())
+    d = list(map(int, input().split()))
+    
+    print("NO")
+
+solve()

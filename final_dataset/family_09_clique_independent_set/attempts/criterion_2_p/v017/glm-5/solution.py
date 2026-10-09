@@ -1,0 +1,76 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    iterator = iter(input_data)
+    try:
+        n = int(next(iterator))
+        m = int(next(iterator))
+        k = int(next(iterator))
+    except StopIteration:
+        return
+
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(next(iterator))
+        v = int(next(iterator))
+        adj[u].append(v)
+        adj[v].append(u)
+
+    # The graph is bipartite. We need to find an independent set of size k.
+    # An independent set in a bipartite graph can be found by taking the larger
+    # side of the bipartition.
+    
+    color = [-1] * (n + 1)
+    
+    # Since the graph might be disconnected, we iterate through all nodes.
+    # We perform BFS to color the components.
+    # We only need to find one valid bipartition.
+    
+    for start_node in range(1, n + 1):
+        if color[start_node] == -1:
+            color[start_node] = 0
+            queue = [start_node]
+            head = 0
+            while head < len(queue):
+                u = queue[head]
+                head += 1
+                for v in adj[u]:
+                    if color[v] == -1:
+                        color[v] = 1 - color[u]
+                        queue.append(v)
+    
+    # Count nodes in color 0 and color 1
+    count0 = 0
+    count1 = 0
+    for i in range(1, n + 1):
+        if color[i] == 0:
+            count0 += 1
+        else:
+            count1 += 1
+            
+    if k <= count0:
+        print("YES")
+        result = []
+        for i in range(1, n + 1):
+            if color[i] == 0:
+                result.append(str(i))
+                if len(result) == k:
+                    break
+        print(" ".join(result))
+    elif k <= count1:
+        print("YES")
+        result = []
+        for i in range(1, n + 1):
+            if color[i] == 1:
+                result.append(str(i))
+                if len(result) == k:
+                    break
+        print(" ".join(result))
+    else:
+        print("NO")
+
+if __name__ == '__main__':
+    solve()

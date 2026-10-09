@@ -1,0 +1,186 @@
+```python
+import sys
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    n = int(data[0])
+    m = int(data[1])
+    idx = 2
+    clauses = []
+    for _ in range(m):
+        a = int(data[idx]); b = int(data[idx+1]); c = int(data[idx+2])
+        idx += 3
+        clauses.append((a, b, c))
+    
+    # 2-SAT formulation:
+    # For each clause (l1, l2, l3), at least one literal must be true.
+    # Equivalent to: NOT(l1) -> l2 OR l3, NOT(l2) -> l1 OR l3, NOT(l3) -> l1 OR l2.
+    # We introduce auxiliary variables to represent l2 OR l3, l1 OR l3, l1 OR l2.
+    # Total variables: n (original) + 3*m (auxiliary).
+    # Variable i (1-indexed): literal +i means flag i = 1, literal -i means flag i = 0.
+    # Auxiliary variable n + 3*(clause_index) + k represents the OR of two literals.
+    
+    total_vars = n + 3 * m
+    # Build implication graph. Nodes: 1..total_vars for positive, -1..-total_vars for negative.
+    # We'll use 0-indexed internally: node for literal L (positive var v) = 2*(v-1), for -L = 2*(v-1)+1.
+    # But let's use a dictionary/list of edges.
+    
+    # adj[u] = list of v meaning u -> v (if literal u is true then literal v must be true)
+    # We represent literal L as: if L > 0: node 2*(L-1); if L < 0: node 2*(-L-1)+1
+    # Actually standard: for variable v (1-indexed), node 2v = v is true, node 2v+1 = v is false.
+    # Let's use 0-indexed variables 0..total_vars-1.
+    # Literal for variable v (0-indexed): positive -> 2*v, negative -> 2*v+1.
+    # Negation of literal x: x^1.
+    
+    adj = [[] for _ in range(2 * total_vars)]
+    
+    def add_impl(u, v):
+        # u -> v
+        adj[u].append(v)
+    
+    def add_or(a, b):
+        # (a OR b): not a -> b, not b -> a
+        na = a ^ 1
+        nb = b ^ 1
+        add_impl(na, b)
+        add_impl(nb, a)
+    
+    def lit_to_node(L):
+        # L is signed integer: +v means variable v-1 is true, -v means variable v-1 is false
+        v = abs(L) - 1
+        if L > 0:
+            return 2 * v
+        else:
+            return 2 * v + 1
+    
+    for ci, (l1, l2, l3) in enumerate(clauses):
+        # Original literals
+        a = lit_to_node(l1)
+        b = lit_to_node(l2)
+        c = lit_to_node(l3)
+        # Auxiliary variables for pairs
+        # aux_bc = variable (n + 3*ci), represents b OR c
+        # aux_ac = variable (n + 3*ci + 1), represents a OR c
+        # aux_ab = variable (n + 3*ci + 2), represents a OR b
+        v_bc = n + 3 * ci
+        v_ac = n + 3 * ci + 1
+        v_ab = n + 3 * ci + 2
+        
+        node_bc = 2 * v_bc       # aux_bc is true
+        node_ac = 2 * v_ac       # aux_ac is true
+        node_ab = 2 * v_ab       # aux_ab is true
+        
+        # Define aux_bc = b OR c
+        # b -> aux_bc, c -> aux_bc, not aux_bc -> not b, not aux_bc -> not c
+        add_impl(b, node_bc)
+        add_impl(c, node_bc)
+        add_impl(node_bc ^ 1, b ^ 1)
+        add_impl(node_bc ^ 1, c ^ 1)
+        
+        # Define aux_ac = a OR c
+        add_impl(a, node_ac)
+        add_impl(c, node_ac)
+        add_impl(node_ac ^ 1, a ^ 1)
+        add_impl(node_ac ^ 1, c ^ 1)
+        
+        # Define aux_ab = a OR b
+        add_impl(a, node_ab)
+        add_impl(b, node_ab)
+        add_impl(node_ab ^ 1, a ^ 1)
+        add_impl(node_ab ^ 1, b ^ 1)
+        
+        # Clause: a OR b OR c
+        # not a -> (b OR c) = aux_bc
+        add_impl(a ^ 1, node_bc)
+        # not b -> (a OR c) = aux_ac
+        add_impl(b ^ 1, node_ac)
+        # not c -> (a OR b) = aux_ab
+        add_impl(c ^ 1, node_ab)
+    
+    # Tarjan's SCC
+    num_nodes = 2 * total_vars
+    dfn = [0] * num_nodes
+    low = [0] * num_nodes
+    visited = [False] * num_nodes
+    on_stack = [False] * num_nodes
+    stack = []
+    timer = [1]
+    comp = [-1] * num_nodes
+    comp_id = [0]
+    
+    sys.setrecursionlimit(1000000)
+    
+    # Iterative Tarjan to avoid recursion limit issues
+    # We'll implement iterative DFS
+    def tarjan():
+        for start in range(num_nodes):
+            if dfn[start] == 0:
+                # iterative DFS
+                # stack of (node, iterator_index)
+                call_stack = [(start, 0)]
+                while call_stack:
+                    u, pi = call_stack[-1]
+                    if pi == 0:
+                        dfn[u] = low[u] = timer[0]
+                        timer[0] += 1
+                        stack.append(u)
+                        on_stack[u] = True
+                    recurse = False
+                    neighbors = adj[u]
+                    while pi < len(neighbors):
+                        v = neighbors[pi]
+                        pi += 1
+                        if dfn[v] == 0:
+                            call_stack[-1] = (u, pi)
+                            call_stack.append((v, 0))
+                            recurse = True
+                            break
+                        elif on_stack[v]:
+                            low[u] = min(low[u], dfn[v])
+                    if recurse:
+                        continue
+                    # done with u
+                    if low[u] == dfn[u]:
+                        while True:
+                            w = stack.pop()
+                            on_stack[w] = False
+                            comp[w] = comp_id[0]
+                            if w == u:
+                                break
+                        comp_id[0] += 1
+                    call_stack.pop()
+                    if call_stack:
+                        parent = call_stack[-1][0]
+                        low[parent] = min(low[parent], low[u])
+    
+    tarjan()
+    
+    # Check satisfiability
+    for v in range(total_vars):
+        if comp[2*v] == comp[2*v + 1]:
+            print("NO")
+            return
+    
+    # Assign values
+    assignment = [0] * total_vars
+    for v in range(total_vars):
+        # If comp[2v] < comp[2v+1], set v to true (in topological order, lower comp id = later in order)
+        # Standard: if comp[2v] > comp[2v+1] (means 2v is in later SCC, i.e., higher comp id in reverse topo)
+        # Actually: in Tarjan, comp ids are assigned in reverse topological order.
+        # So if comp[2v] < comp[2v+1], then 2v comes later in topo order, meaning we should set it true.
+        # Wait: Tarjan assigns comp ids in reverse topological order (first SCC found is last in topo).
+        # So lower comp id = later in topological order.
+        # We want to set variable true if the positive literal's SCC is later in topo order (lower comp id).
+        if comp[2*v] < comp[2*v + 1]:
+            assignment[v] = 1
+        else:
+            assignment[v] = 0
+    
+    print("YES")
+    result = [str(assignment[i]) for i in range(n)]
+    print(" ".join(result))
+
+solve()
+```

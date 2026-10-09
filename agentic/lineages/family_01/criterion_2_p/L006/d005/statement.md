@@ -1,24 +1,24 @@
-# Orbital Reflection Synchrony
+# Problem B — System Equilibrium
 
 Time limit: 1 s   Memory limit: 256 MB
 
-A satellite network consists of $n$ orbital modules, numbered $1$ through $n$. You must assign each module an operating mode, represented by the integer $1$ or $2$.
+You are tasked with finding a state vector $S = \begin{pmatrix} s_1 \\ s_2 \\ \vdots \\ s_n \end{pmatrix}$ such that $s_i \in \{1, 2\}$ for all $1 \le i \le n$, which puts a simulated system into equilibrium.
 
-The modes determine how a module transforms incoming telemetry coordinates $(x, y)$:
-- Mode 1 applies a horizontal reflection: $(x, y)$ becomes $(-x, y)$.
-- Mode 2 applies a vertical reflection: $(x, y)$ becomes $(x, -y)$.
+The system consists of $n$ particles and a log of $m$ interactions. Each interaction involves two particles $u$ and $v$. Let $d_i$ be the total number of times particle $i$ appears across all $m$ interactions (if an interaction involves the same particle twice, i.e., $u = v$, it contributes 2 to the count $d_u$).
 
-The network's synchronization is governed by $m$ telemetry channels. Each channel connects a specific pair of modules. For a channel to function correctly, the combined effect of the two modules' transformations must be exactly a point reflection through the origin. That is, if you take any coordinate $(x, y)$, apply the transformation for the mode assigned to one module, and then apply the transformation for the mode assigned to the other module, the final coordinate must always be $(-x, -y)$. If the combined transformations yield any other result, the channel fails.
+The system is in equilibrium if and only if its total interaction energy is exactly equal to its theoretical base energy. 
+The interaction energy is defined as $2 \sum_{j=1}^m s_{u_j} s_{v_j}$, where the sum is over all $m$ logged interactions. 
+The base energy is defined as $3 \sum_{i=1}^n d_i s_i - 5m$.
 
-Your task is to assign an operating mode ($1$ or $2$) to each of the $n$ modules so that every telemetry channel functions correctly. If multiple valid assignments are possible, you must output the lexicographically smallest valid sequence of modes. If no such assignment is possible, you must report that it cannot be done.
+If there are multiple valid vectors $S$ that satisfy the equilibrium condition, you must output the sequence $s_1 \dots s_n$ that is lexicographically smallest.
 
 ## Input
-The first line provides two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$).
-The following $m$ lines each contain two integers $u$ and $v$ ($1 \le u, v \le n$), representing the indices of a pair of modules connected by a telemetry channel.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$).
+Each of the following $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$) — the indices of the two particles involved in the $j$-th interaction. The interactions are given in order for $j = 1, 2, \dots, m$.
 
 ## Output
-If it is impossible to configure the modules to satisfy all channels, output a single line with NO.
-If it is possible, output YES on the first line. On the second line, output $n$ integers $p_1 \dots p_n$ (where each $p_i \in \{1,2\}$) giving the lexicographically smallest valid sequence of modes.
+If no such vector $S$ exists, print a single line containing `NO`.
+Otherwise, print `YES` on the first line. On the second line, print $n$ integers $s_1 \dots s_n$ (where each $s_i \in \{1,2\}$) representing the elements of the lexicographically smallest valid vector $S$.
 
 ## Example 1
 Input:

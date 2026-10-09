@@ -1,0 +1,104 @@
+import sys
+
+# Increase recursion depth just in case
+sys.setrecursionlimit(200000)
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    # input_data[2] is 1
+    
+    s = int(input_data[3])
+    t = int(input_data[4])
+    d = int(input_data[5])
+    
+    head = [-1] * (n + 1)
+    to = []
+    cap = []
+    nxt = []
+    
+    def add_edge(u, v, c):
+        to.append(v)
+        cap.append(c)
+        nxt.append(head[u])
+        head[u] = len(to) - 1
+        
+        to.append(u)
+        cap.append(0)
+        nxt.append(head[v])
+        head[v] = len(to) - 1
+
+    idx = 6
+    edge_indices = []
+    for i in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx+1])
+        c = int(input_data[idx+2])
+        idx += 3
+        edge_indices.append(len(to))
+        add_edge(u, v, c)
+        
+    level = [-1] * (n + 1)
+    
+    def bfs():
+        for i in range(n + 1):
+            level[i] = -1
+        level[s] = 0
+        q = [s]
+        qi = 0
+        while qi < len(q):
+            u = q[qi]
+            qi += 1
+            e = head[u]
+            while e != -1:
+                v = to[e]
+                if cap[e] > 0 and level[v] < 0:
+                    level[v] = level[u] + 1
+                    q.append(v)
+                e = nxt[e]
+        return level[t] >= 0
+
+    ptr = [0] * (n + 1)
+    
+    def dfs(u, pushed):
+        if pushed == 0:
+            return 0
+        if u == t:
+            return pushed
+        e = ptr[u]
+        while e != -1:
+            v = to[e]
+            tr = cap[e]
+            if level[u] + 1 == level[v] and tr > 0:
+                push = dfs(v, min(pushed, tr))
+                if push > 0:
+                    cap[e] -= push
+                    cap[e ^ 1] += push
+                    return push
+            e = nxt[e]
+            ptr[u] = e
+        return 0
+
+    total_flow = 0
+    while total_flow < d and bfs():
+        for i in range(n + 1):
+            ptr[i] = head[i]
+        while total_flow < d:
+            pushed = dfs(s, d - total_flow)
+            if pushed == 0:
+                break
+            total_flow += pushed
+
+    if total_flow == d:
+        print("YES")
+        flows = [str(cap[e ^ 1]) for e in edge_indices]
+        print(*(flows))
+    else:
+        print("NO")
+
+if __name__ == '__main__':
+    solve()

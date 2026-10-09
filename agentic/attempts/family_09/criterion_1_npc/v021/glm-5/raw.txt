@@ -1,0 +1,167 @@
+```python
+import sys
+
+def solve():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    k = int(next(it))
+    
+    # forbidden_pairs[u] contains all v such that (u, v) is a NAND gate
+    forbidden_pairs = [set() for _ in range(n + 1)]
+    
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        forbidden_pairs[u].add(v)
+        forbidden_pairs[v].add(u)
+    
+    # We need to select k vertices such that no edge is fully contained.
+    # This is equivalent to finding an independent set of size k in the graph.
+    # n <= 46, so we use the meet-in-the-middle algorithm.
+    
+    half = n // 2
+    left_size = half
+    right_size = n - half
+    
+    # Map vertices 1..n to 0..n-1
+    # Left part: vertices 0..left_size-1 (corresponds to 1..half)
+    # Right part: vertices left_size..n-1 (corresponds to half+1..n)
+    
+    # Precompute adjacency bitmasks
+    adj_mask = [0] * n
+    for u in range(1, n + 1):
+        u_idx = u - 1
+        mask = 0
+        for v in forbidden_pairs[u]:
+            v_idx = v - 1
+            mask |= (1 << v_idx)
+        adj_mask[u_idx] = mask
+    
+    # Split masks for left and right parts
+    left_adj = [0] * left_size
+    for i in range(left_size):
+        # We only care about conflicts within the left part for the left DP
+        m_val = 0
+        full_mask = adj_mask[i]
+        for j in range(left_size):
+            if (full_mask >> j) & 1:
+                m_val |= (1 << j)
+        left_adj[i] = m_val
+        
+    right_adj = [0] * right_size
+    for i in range(right_size):
+        # Conflicts within the right part
+        # Vertex index in original 0..n-1 is left_size + i
+        orig_idx = left_size + i
+        m_val = 0
+        full_mask = adj_mask[orig_idx]
+        for j in range(right_size):
+            if (full_mask >> (left_size + j)) & 1:
+                m_val |= (1 << j)
+        right_adj[i] = m_val
+    
+    # DP for left part: dp[mask] = True if mask is an independent set
+    # We iterate through all masks for the left part
+    # To check efficiently, we use the standard DP: dp[mask] is valid if LSB is valid and rest is valid
+    # But simpler: just iterate and check
+    
+    # Actually, we can iterate all masks and check validity.
+    # Or use the iterative DP:
+    # valid[mask] = valid[mask without LSB] and (LSB vertex has no edges to mask without LSB)
+    
+    # Let's use the iterative DP approach for speed
+    left_valid = [False] * (1 << left_size)
+    left_valid[0] = True
+    for mask in range(1, 1 << left_size):
+        lsb = mask & -mask
+        i = (lsb.bit_length() - 1)
+        prev_mask = mask ^ lsb
+        if left_valid[prev_mask] and ((left_adj[i] & prev_mask) == 0):
+            left_valid[mask] = True
+            
+    # Group left masks by popcount
+    left_by_popcnt = [[] for _ in range(left_size + 1)]
+    for mask in range(1 << left_size):
+        if left_valid[mask]:
+            pc = mask.bit_count()
+            left_by_popcnt[pc].append(mask)
+    
+    # DP for right part
+    right_valid = [False] * (1 << right_size)
+    right_valid[0] = True
+    for mask in range(1, 1 << right_size):
+        lsb = mask & -mask
+        i = (lsb.bit_length() - 1)
+        prev_mask = mask ^ lsb
+        if right_valid[prev_mask] and ((right_adj[i] & prev_mask) == 0):
+            right_valid[mask] = True
+            
+    # For each right mask, we need to know which left vertices are forbidden.
+    # Forbidden left vertices for a right mask R are those connected to any vertex in R.
+    # We can precompute this "forbidden left mask" for each right mask.
+    # Let's compute it iteratively.
+    # forbid_left[mask] = forbid_left[mask without LSB] | (left neighbors of LSB vertex)
+    
+    # Precompute left neighbors for each right vertex
+    # left_neighbors[i] is a bitmask of left vertices connected to right vertex i
+    left_neighbors = [0] * right_size
+    for i in range(right_size):
+        orig_idx = left_size + i
+        full_mask = adj_mask[orig_idx]
+        m_val = 0
+        for j in range(left_size):
+            if (full_mask >> j) & 1:
+                m_val |= (1 << j)
+        left_neighbors[i] = m_val
+        
+    forbid_left = [0] * (1 << right_size)
+    # forbid_left[0] = 0
+    for mask in range(1, 1 << right_size):
+        lsb = mask & -mask
+        i = (lsb.bit_length() - 1)
+        prev_mask = mask ^ lsb
+        forbid_left[mask] = forbid_left[prev_mask] | left_neighbors[i]
+    
+    # Now iterate over all valid right masks
+    # For each right mask with popcount r, we need a left mask with popcount k-r
+    # such that left mask is valid and (left mask & forbid_left[right mask]) == 0
+    
+    for r_mask in range(1 << right_size):
+        if not right_valid[r_mask]:
+            continue
+        r_cnt = r_mask.bit_count()
+        need_l_cnt = k - r_cnt
+        
+        if need_l_cnt < 0 or need_l_cnt > left_size:
+            continue
+            
+        # Check if any left mask works
+        forbidden = forbid_left[r_mask]
+        
+        # Iterate through all valid left masks with correct popcount
+        for l_mask in left_by_popcnt[need_l_cnt]:
+            if (l_mask & forbidden) == 0:
+                # Found a solution!
+                # Reconstruct the set of vertices
+                res = []
+                for i in range(left_size):
+                    if (l_mask >> i) & 1:
+                        res.append(i + 1)
+                for i in range(right_size):
+                    if (r_mask >> i) & 1:
+                        res.append(left_size + i + 1)
+                
+                res.sort()
+                print("YES")
+                print(*(res))
+                return
+    
+    print("NO")
+
+if __name__ == '__main__':
+    solve()
+```

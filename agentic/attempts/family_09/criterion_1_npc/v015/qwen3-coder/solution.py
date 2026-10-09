@@ -1,0 +1,78 @@
+from itertools import combinations
+
+def solve():
+    n, m, k = map(int, input().split())
+    
+    # Create adjacency list representation of conflicts
+    conflicts = set()
+    adj = [[] for _ in range(n + 1)]
+    
+    for _ in range(m):
+        u, v = map(int, input().split())
+        conflicts.add((u, v))
+        conflicts.add((v, u))
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # For small n, we can check all combinations
+    if n <= 20:
+        # Generate all possible k-combinations
+        for combo in combinations(range(1, n + 1), k):
+            valid = True
+            # Check if any pair in combo has a conflict
+            for i in range(k):
+                for j in range(i + 1, k):
+                    if (combo[i], combo[j]) in conflicts:
+                        valid = False
+                        break
+                if not valid:
+                    break
+            if valid:
+                print("YES")
+                print(*combo)
+                return
+        print("NO")
+        return
+    
+    # For larger n, use a more efficient approach
+    # Try greedy approach with backtracking optimization
+    def is_valid_selection(selected):
+        for i in range(len(selected)):
+            for j in range(i + 1, len(selected)):
+                if (selected[i], selected[j]) in conflicts:
+                    return False
+        return True
+    
+    # Try all combinations but with pruning
+    def backtrack(start, current_selection):
+        if len(current_selection) == k:
+            return current_selection[:]
+        
+        if len(current_selection) + (n - start + 1) < k:
+            return None
+            
+        for i in range(start, n + 1):
+            # Check if adding experiment i is valid
+            can_add = True
+            for selected_exp in current_selection:
+                if (selected_exp, i) in conflicts:
+                    can_add = False
+                    break
+            
+            if can_add:
+                current_selection.append(i)
+                result = backtrack(i + 1, current_selection)
+                if result is not None:
+                    return result
+                current_selection.pop()
+        
+        return None
+    
+    result = backtrack(1, [])
+    if result:
+        print("YES")
+        print(*result)
+    else:
+        print("NO")
+
+solve()

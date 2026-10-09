@@ -1,24 +1,20 @@
-# Problem A — Automated Fabrication Routing
+# Problem A — Signal Routing
 
 Time limit: 2 s   Memory limit: 256 MB
 
-A manufacturing plant utilizes $n$ automated fabrication modules. To maintain operational safety, you must configure the activation schedule for these modules based on the plant's physical constraints.
+An industrial control system coordinates $n$ robotic actuators. To prevent signal overlap, each actuator $i$ (from $1$ to $n$) must be assigned a discrete frequency multiplier $f_i$ chosen from the set $\{1, 2, 3\}$.
 
-The plant's power grid provides exactly three distinct activation phases, labeled 1, 2, and 3. Your task is to assign each fabrication module to exactly one of these three phases.
+The system's diagnostic tool has output a list of $m$ interference constraints. Each constraint specifies a pair of actuators $(u, v)$ that share a local communication bus. For the system to operate safely, every constraint $(u, v)$ must satisfy the condition $|f_u - f_v| > 0$. Furthermore, every actuator must be assigned exactly one frequency multiplier.
 
-During early testing, an interference log was generated containing $m$ records. Each record identifies a pair of modules that share a spatial trajectory. If any two modules in a recorded pair are assigned to the same activation phase, their operations will intersect and trigger a safety shutdown. Therefore, you must ensure that for every pair in the interference log, the two modules are assigned to different phases.
-
-The master controller requires a deterministic configuration. The phase assignments for modules 1 through $n$ form a sequence of $n$ integers. Among all sequences that satisfy the safety constraints, you must output the one that is lexicographically smallest. This means you must select the valid assignment that minimizes the phase for module 1; if there are ties, minimize the phase for module 2, and so on.
-
-If there is no way to assign the phases without violating the interference log, the system must abort the sequence.
+Your task is to determine if there exists a complete assignment of frequency multipliers to all $n$ actuators such that all $m$ constraints are satisfied simultaneously. If such an assignment exists, you must output one valid configuration.
 
 ## Input
-The first line contains two integers $n$ and $m$ (1 ≤ $n$ ≤ 40, 0 ≤ $m$ ≤ $n \cdot (n-1)/2$) — the number of fabrication modules and the number of interference records. 
-Each of the next $m$ lines contains two integers $u$ and $v$ (1 ≤ $u, v$ ≤ $n$, $u \neq v$), representing a pair of modules that share a spatial trajectory.
+The first line contains two integers $n$ and $m$ — the number of actuators and the number of constraints ($1 \le n \le 40$, $0 \le m \le n \cdot (n-1)/2$).
+Each of the next $m$ lines contains two integers $u$ and $v$ — a pair of actuators that form a constraint.
 
 ## Output
-If no safe phase assignment is possible, output a single line containing `NO`. 
-Otherwise, output `YES` on the first line. On the second line, output $n$ integers $p_1, p_2, \dots, p_n$ (each being 1, 2, or 3), where $p_i$ is the activation phase assigned to module $i$. The sequence $p_1, \dots, p_n$ must be the lexicographically smallest valid assignment.
+If no valid assignment exists, print a single line NO.
+Otherwise print YES on the first line. On the second line print $n$ integers $f_1 \ f_2 \dots f_n$ (each in $\{1, 2, 3\}$), where $f_i$ is the frequency multiplier assigned to actuator $i$. Any valid assignment is accepted.
 
 ## Example 1
 Input:

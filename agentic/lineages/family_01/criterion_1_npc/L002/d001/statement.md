@@ -1,22 +1,20 @@
-# Problem A — System Stabilization
+# Harmonic Containment
 
 Time limit: 2 s   Memory limit: 256 MB
 
-A diagnostic system consists of $n$ processing modules. Each module must be assigned a configuration code chosen from $\{1, 2, 3\}$.
+An engineering team is finalizing the setup of $n$ experimental energy cores. To function correctly, every core has to be tuned to exactly one of three available frequency bands, which are identified by the integers 1, 2, and 3.
 
-The system contains $m$ bidirectional monitoring links, each connecting a specific pair of modules. For a link connecting module $u$ and module $v$ to operate correctly, the ordered pair of their assigned codes $(c_u, c_v)$ must exactly match one of the following six authorized signatures: $(1, 2)$, $(1, 3)$, $(2, 1)$, $(2, 3)$, $(3, 1)$, or $(3, 2)$. Because this set of signatures is symmetric, the order in which $u$ and $v$ are evaluated does not matter. If the pair of codes is not among these six signatures, the link will transmit an error flag.
+The team has a log of $m$ hazardous resonance events from earlier trials. Each event specifies a pair of distinct cores, $u$ and $v$, that interfere with each other. If any two cores listed in an event are tuned to the identical frequency band, their resonance will cause a system failure. Therefore, to achieve a stable setup, any two cores that share a logged interference event must be assigned strictly different frequency bands.
 
-To achieve system stability, every module must be assigned a configuration code such that absolutely no error flags are transmitted across any link.
-
-Determine whether a stable configuration exists. If it does, find the valid assignment of configuration codes that is lexicographically smallest when listed from module 1 to module $n$.
+Your task is to figure out whether all $n$ cores can be safely tuned. If a stable configuration is achievable, you must also output one valid assignment of bands to the cores.
 
 ## Input
-The first line provides two integers $n$ and $m$ — the number of modules and the number of monitoring links ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
-Each of the subsequent $m$ lines contains two integers $u$ and $v$, specifying a monitoring link between module $u$ and module $v$.
+The first line provides two integers $n$ and $m$, representing the total number of energy cores and the number of interference events, respectively ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$). 
+The following $m$ lines each contain two integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), indicating that the distinct cores $u$ and $v$ interfere with each other. 
 
 ## Output
-If no stable configuration is possible, print a single line containing `NO`.
-If a stable configuration exists, print `YES` on the first line. On the second line, print $n$ integers $s_1, s_2, \dots, s_n$ (each $s_i \in \{1, 2, 3\}$), representing the configuration code of each module $i$. If there are multiple stable configurations, output the one that is lexicographically smallest.
+If it is impossible to safely tune all the cores, output a single line containing NO.
+If a stable configuration exists, output YES on the first line. On the second line, output $n$ integers $p_1, p_2, \dots, p_n$, where $p_i \in \{1, 2, 3\}$ is the frequency band assigned to the $i$-th core. If there are multiple safe configurations, any of them will be accepted.
 
 ## Example 1
 Input:

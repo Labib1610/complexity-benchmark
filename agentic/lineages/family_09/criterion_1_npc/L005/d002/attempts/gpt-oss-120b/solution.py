@@ -1,0 +1,59 @@
+import sys
+
+sys.setrecursionlimit(10000)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    k = int(next(it))
+    adj = [0] * n
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+
+    all_vertices_mask = (1 << n) - 1
+    result = []
+    found = False
+
+    # popcount using built‑in
+    popcnt = int.bit_count
+
+    def dfs(cand_mask: int, chosen: list):
+        nonlocal found, result
+        if found:
+            return
+        cur_size = len(chosen)
+        if cur_size == k:
+            result = chosen[:]
+            found = True
+            return
+        # prune if not enough vertices left
+        if cur_size + popcnt(cand_mask) < k:
+            return
+        # select a vertex (heuristic: vertex with max degree in cand could improve, but simple lowest bit)
+        v = (cand_mask & -cand_mask).bit_length() - 1  # index of lowest set bit
+        # branch: include v
+        new_cand = cand_mask & ~adj[v] & ~(1 << v)
+        dfs(new_cand, chosen + [v])
+        if found:
+            return
+        # branch: exclude v
+        dfs(cand_mask & ~(1 << v), chosen)
+
+    dfs(all_vertices_mask, [])
+    out = []
+    if found:
+        out.append("YES")
+        out.append(" ".join(str(x + 1) for x in result))
+    else:
+        out.append("NO")
+    sys.stdout.write("\n".join(out))
+
+if __name__ == "__main__":
+    solve()

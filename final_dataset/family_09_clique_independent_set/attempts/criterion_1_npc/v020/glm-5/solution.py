@@ -1,0 +1,146 @@
+import sys
+from itertools import combinations
+
+def solve():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    k = int(next(it))
+    
+    forbidden = set()
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        forbidden.add((min(u, v), max(u, v)))
+    
+    # If k is small, use brute force
+    if k <= 6:
+        for combo in combinations(range(1, n + 1), k):
+            safe = True
+            for i in range(k):
+                for j in range(i + 1, k):
+                    if (combo[i], combo[j]) in forbidden:
+                        safe = False
+                        break
+                if not safe:
+                    break
+            if safe:
+                print("YES")
+                print(' '.join(map(str, combo)))
+                return
+        print("NO")
+        return
+    
+    # Otherwise, use meet-in-the-middle
+    half = n // 2
+    left = list(range(1, half + 1))
+    right = list(range(half + 1, n + 1))
+    
+    # Precompute forbidden pairs within each half
+    left_forbidden = {}
+    for i in range(len(left)):
+        left_forbidden[i] = set()
+        for j in range(i + 1, len(left)):
+            if (left[i], left[j]) in forbidden:
+                left_forbidden[i].add(j)
+    
+    right_forbidden = {}
+    for i in range(len(right)):
+        right_forbidden[i] = set()
+        for j in range(i + 1, len(right)):
+            if (right[i], right[j]) in forbidden:
+                right_forbidden[i].add(j)
+    
+    # Precompute forbidden pairs between halves
+    cross_forbidden = {}
+    for i in range(len(left)):
+        cross_forbidden[i] = set()
+        for j in range(len(right)):
+            if (left[i], right[j]) in forbidden:
+                cross_forbidden[i].add(j)
+    
+    # Generate all valid subsets of left half
+    left_subsets = []
+    for mask in range(1 << len(left)):
+        valid = True
+        bits = []
+        for i in range(len(left)):
+            if mask & (1 << i):
+                for j in bits:
+                    if j in left_forbidden[i]:
+                        valid = False
+                        break
+                if not valid:
+                    break
+                bits.append(i)
+        if valid:
+            left_subsets.append(mask)
+    
+    # Generate all valid subsets of right half
+    right_subsets = []
+    for mask in range(1 << len(right)):
+        valid = True
+        bits = []
+        for i in range(len(right)):
+            if mask & (1 << i):
+                for j in bits:
+                    if j in right_forbidden[i]:
+                        valid = False
+                        break
+                if not valid:
+                    break
+                bits.append(i)
+        if valid:
+            right_subsets.append(mask)
+    
+    # Group right subsets by size
+    right_by_size = {}
+    for mask in right_subsets:
+        size = bin(mask).count('1')
+        if size not in right_by_size:
+            right_by_size[size] = []
+        right_by_size[size].append(mask)
+    
+    # Try to find a valid combination
+    for left_mask in left_subsets:
+        left_size = bin(left_mask).count('1')
+        if left_size > k:
+            continue
+        need = k - left_size
+        if need not in right_by_size:
+            continue
+        
+        # Get left indices
+        left_indices = [i for i in range(len(left)) if left_mask & (1 << i)]
+        
+        # Find forbidden right indices
+        forbidden_right = set()
+        for i in left_indices:
+            forbidden_right.update(cross_forbidden[i])
+        
+        # Find a valid right subset
+        for right_mask in right_by_size[need]:
+            valid = True
+            for j in forbidden_right:
+                if right_mask & (1 << j):
+                    valid = False
+                    break
+            if valid:
+                # Found a solution
+                result = []
+                for i in left_indices:
+                    result.append(left[i])
+                for j in range(len(right)):
+                    if right_mask & (1 << j):
+                        result.append(right[j])
+                print("YES")
+                print(' '.join(map(str, result)))
+                return
+    
+    print("NO")
+
+if __name__ == "__main__":
+    solve()

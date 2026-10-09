@@ -1,24 +1,20 @@
-# Problem B — Pipeline Segregation Phase
+# Storage Pipeline: Phase B
 
 Time limit: 1 s   Memory limit: 256 MB
 
-In the automated deployment pipeline for the Aegis distributed architecture, the deployment process is divided into three distinct phases: telemetry gathering, module segregation, and binary distribution. You are responsible for implementing the module segregation phase.
+The automated pharmaceutical pipeline consists of three stages. Phase A synthesizes a batch of $n$ volatile compounds, numbered 1 to $n$, and runs interaction simulations to identify $m$ pairs of compounds that are highly reactive.
 
-During the initial telemetry phase, the system monitors $n$ independent service modules (numbered 1 through $n$) and generates a list of $m$ interference warnings. Each warning specifies a pair of modules that compete for identical hardware resources and therefore must be segregated. 
+Your software module is responsible for Phase B: Storage Allocation. The facility has exactly two climate-controlled vaults, designated as Vault 1 and Vault 2. You must allocate each of the $n$ compounds to one of these two vaults. To ensure stability, no two compounds that form a reactive pair (as identified by Phase A) may be allocated to the same vault. 
 
-In your segregation phase, you must allocate each of the $n$ modules to exactly one of two physical host environments, designated as Environment 1 and Environment 2. To guarantee stability, you must ensure that no two modules flagged in the same interference warning are allocated to the same environment. 
-
-The final binary distribution phase requires a strictly deterministic configuration to route requests. Because there may be multiple valid ways to allocate the modules, the distribution phase expects the allocation plan that is lexicographically smallest. (An allocation plan is represented as a sequence of $n$ integers, where the $i$-th integer is the environment chosen for module $i$. Sequence $A$ is lexicographically smaller than sequence $B$ if $A$ has a smaller value at the first position where they differ).
-
-If the telemetry constraints are inherently contradictory and no valid allocation exists, your phase must halt the pipeline by rejecting the configuration.
+If there is no way to safely allocate all compounds into just two vaults, your module must trigger an abort sequence. If a safe allocation is possible, you must generate the final manifest for Phase C (Automated Retrieval). Because Phase C's routing logic is deterministic, it requires a standardized manifest: among all safe allocations, the sequence of assignments $s_1, s_2, \dots, s_n$ (where each $s_i \in \{1, 2\}$ is the vault assigned to compound $i$) must be the lexicographically smallest possible.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$), representing the number of modules and the number of interference warnings, respectively.
-Each of the following $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$), representing a pair of modules that must not be assigned to the same environment.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$), representing the number of compounds synthesized in Phase A and the number of reactive pairs.
+Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$) — a pair of compounds that are highly reactive when stored together.
 
 ## Output
-If no valid allocation plan exists, print a single line containing `NO`.
-Otherwise, print `YES` on the first line. On the second line, print $n$ integers (each either 1 or 2)—the lexicographically smallest valid allocation plan for the modules.
+If no safe allocation exists, print a single line containing `NO`.
+Otherwise, print `YES` on the first line. On the second line, print $n$ space-separated integers $s_1, s_2, \dots, s_n$ (each either `1` or `2`), representing the lexicographically smallest valid storage allocation.
 
 ## Example 1
 Input:

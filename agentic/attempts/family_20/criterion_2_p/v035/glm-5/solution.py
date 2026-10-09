@@ -1,0 +1,85 @@
+import sys
+from collections import deque
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    nL = int(next(it))
+    nR = int(next(it))
+    m = int(next(it))
+    
+    edges = []
+    degL = [0] * (nL + 1)
+    degR = [0] * (nR + 1)
+    
+    for i in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        edges.append((u, v))
+        degL[u] += 1
+        degR[v] += 1
+    
+    k = max(max(degL[1:]) if nL > 0 else 0, max(degR[1:]) if nR > 0 else 0)
+    
+    if k == 0:
+        print("YES")
+        if m > 0:
+            print(" ".join(['1'] * m))
+        return
+    
+    adjL = [[] for _ in range(nL + 1)]
+    adjR = [[] for _ in range(nR + 1)]
+    for i, (u, v) in enumerate(edges):
+        adjL[u].append((v, i))
+        adjR[v].append((u, i))
+    
+    color = [0] * m
+    
+    for u in range(1, nL + 1):
+        if not adjL[u]:
+            continue
+        used = [False] * (k + 1)
+        for v, idx in adjL[u]:
+            if color[idx] != 0:
+                used[color[idx]] = True
+        
+        available = []
+        for c in range(1, k + 1):
+            if not used[c]:
+                available.append(c)
+        
+        avail_idx = 0
+        for v, idx in adjL[u]:
+            if color[idx] == 0:
+                c = available[avail_idx]
+                color[idx] = c
+                avail_idx += 1
+    
+    for v in range(1, nR + 1):
+        if not adjR[v]:
+            continue
+        used = [False] * (k + 1)
+        for u, idx in adjR[v]:
+            if color[idx] != 0:
+                used[color[idx]] = True
+        
+        available = []
+        for c in range(1, k + 1):
+            if not used[c]:
+                available.append(c)
+        
+        conflicts = []
+        for u, idx in adjR[v]:
+            if color[idx] == 0:
+                conflicts.append(idx)
+        
+        for i, idx in enumerate(conflicts):
+            color[idx] = available[i]
+    
+    print("YES")
+    print(" ".join(map(str, color)))
+
+if __name__ == "__main__":
+    solve()

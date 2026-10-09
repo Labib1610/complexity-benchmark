@@ -1,0 +1,50 @@
+def solve():
+    n, m = map(int, input().split())
+    
+    # Create adjacency list representation of the graph
+    # Each edge represents a friction between two technicians
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u, v = map(int, input().split())
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # Try to 3-color the graph
+    # color[i] will be 0 if uncolored, 1/2/3 for the three periods
+    color = [0] * (n + 1)
+    
+    # Check if we can 3-color the graph using backtracking
+    def can_color(node):
+        if node > n:
+            return True
+            
+        # Try each of the 3 colors
+        for c in range(1, 4):
+            # Check if this color is valid for current node
+            valid = True
+            for neighbor in adj[node]:
+                if color[neighbor] == c:
+                    valid = False
+                    break
+            
+            if valid:
+                color[node] = c
+                if can_color(node + 1):
+                    return True
+                color[node] = 0  # backtrack
+        
+        return False
+    
+    # Special case: no technicians
+    if n == 0:
+        print("YES")
+        return
+    
+    # Try to color the graph
+    if can_color(1):
+        print("YES")
+        print(*color[1:])
+    else:
+        print("NO")
+
+solve()

@@ -1,0 +1,76 @@
+import sys
+sys.setrecursionlimit(10**6)
+
+def solve():
+    input = sys.stdin.readline
+    n, m = map(int, input().split())
+    N = 2 * n  # nodes: 0..n-1 for x_i false, n..2n-1 for x_i true
+
+    g = [[] for _ in range(N)]
+    gr = [[] for _ in range(N)]
+
+    def add_imp(u, v):
+        g[u].append(v)
+        gr[v].append(u)
+
+    # literal to node index
+    # positive x -> node x-1 + n (true)
+    # negative x -> node |x|-1 (false)
+    def node(lit):
+        if lit > 0:
+            return (lit - 1) + n
+        else:
+            return (-lit - 1)
+
+    for _ in range(m):
+        a, b = map(int, input().split())
+        # clause (a or b) => (!a -> b) and (!b -> a)
+        add_imp(node(-a), node(b))
+        add_imp(node(-b), node(a))
+
+    # Kosaraju
+    visited = [False] * N
+    order = []
+
+    def dfs1(u):
+        visited[u] = True
+        for v in g[u]:
+            if not visited[v]:
+                dfs1(v)
+        order.append(u)
+
+    for i in range(N):
+        if not visited[i]:
+            dfs1(i)
+
+    comp = [-1] * N
+    def dfs2(u, cid):
+        comp[u] = cid
+        for v in gr[u]:
+            if comp[v] == -1:
+                dfs2(v, cid)
+
+    cid = 0
+    for u in reversed(order):
+        if comp[u] == -1:
+            dfs2(u, cid)
+            cid += 1
+
+    # Check contradiction
+    for i in range(n):
+        if comp[i] == comp[i + n]:
+            print("NO")
+            return
+
+    # Assign values: comp id order gives topological order
+    # If comp[false] > comp[true] => true
+    ans = [0] * n
+    for i in range(n):
+        # false node: i, true node: i+n
+        ans[i] = 1 if comp[i] > comp[i + n] else 0
+
+    print("YES")
+    print(" ".join(map(str, ans)))
+
+if __name__ == "__main__":
+    solve()

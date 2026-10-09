@@ -1,0 +1,139 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    
+    try:
+        n = int(next(it))
+        m = int(next(it))
+        t = int(next(it))
+    except StopIteration:
+        return
+
+    target_set = set()
+    for _ in range(t):
+        try:
+            target_set.add(int(next(it)))
+        except StopIteration:
+            return
+            
+    adj = [[float('inf')] * (n + 1) for _ in range(n + 1)]
+    for i in range(n + 1):
+        adj[i][i] = 0
+        
+    for _ in range(m):
+        try:
+            u = int(next(it))
+            v = int(next(it))
+            w = int(next(it))
+        except StopIteration:
+            break
+        if w < adj[u][v]:
+            adj[u][v] = w
+            adj[v][u] = w
+            
+    # Floyd-Warshall
+    for k in range(1, n + 1):
+        for i in range(1, n + 1):
+            if adj[i][k] == float('inf'):
+                continue
+            for j in range(1, n + 1):
+                if adj[k][j] == float('inf'):
+                    continue
+                if adj[i][k] + adj[k][j] < adj[i][j]:
+                    adj[i][j] = adj[i][k] + adj[k][j]
+
+    # Identify Steiner nodes
+    steiner_nodes = []
+    for k in range(1, n + 1):
+        if k not in target_set:
+            is_steiner = True
+            for i in target_set:
+                if adj[i][k] == float('inf'):
+                    is_steiner = False
+                    break
+            if is_steiner:
+                steiner_nodes.append(k)
+    
+    # DP for Steiner Tree
+    # State: dp[mask][k] = min cost tree connecting target_set indicated by mask, rooted at k
+    # mask is a bitmask over target_set elements (size t)
+    # k is a node (target or steiner)
+    
+    targets = list(target_set)
+    t_count = len(targets)
+    num_steiner = len(steiner_nodes)
+    total_nodes = targets + steiner_nodes
+    node_to_idx = {node: i for i, node in enumerate(total_nodes)}
+    
+    # Precompute pairwise costs between relevant nodes
+    pair_cost = [[float('inf')] * len(total_nodes) for _ in range(len(total_nodes))]
+    for i in range(len(total_nodes)):
+        for j in range(len(total_nodes)):
+            pair_cost[i][j] = adj[total_nodes[i]][total_nodes[j]]
+            
+    # Initialize DP
+    # Size: 2^t_count rows, len(total_nodes) cols
+    dp = [[float('inf')] * len(total_nodes) for _ in range(1 << t_count)]
+    
+    for i in range(t_count):
+        dp[1 << i][i] = 0
+        
+    # Iterate over all masks
+    for mask in range(1, 1 << t_count):
+        # Skip single-bit masks as they are initialized
+        if (mask & (mask - 1)) == 0:
+            continue
+            
+        # Merge sub-solutions
+        submask = mask
+        while submask > 0:
+            submask = (submask - 1) & mask
+            if submask == 0 or submask == mask:
+                continue
+            rest = mask ^ submask
+            # We want to split mask into submask and rest
+            # Iterate over all possible roots
+            for k_idx in range(len(total_nodes)):
+                if dp[submask][k_idx] != float('inf') and dp[rest][k_idx] != float('inf'):
+                    if dp[submask][k_idx] + dp[rest][k_idx] < dp[mask][k_idx]:
+                        dp[mask][k_idx] = dp[submask][k_idx] + dp[rest][k_idx]
+        
+        # Steiner step: extend to other roots
+        # For a fixed mask, find best cost to reach each node k
+        # This is like running Dijkstra or just relaxing edges since weights satisfy triangle inequality
+        # We can just iterate relaxation
+        # Actually, since we have all-pairs shortest paths, we can just propagate
+        # dp[mask][j] = min over k (dp[mask][k] + dist[k][j])
+        # But we need to do this carefully to ensure convergence.
+        # Since edge weights are positive, we can iterate multiple times or use a priority queue.
+        # Given N is small, simple relaxation loops work.
+        
+        # Let's do a simple relaxation pass
+        # We want to compute the shortest path tree rooted at the component defined by mask
+        # Actually, we just want min cost to connect mask-set to each node k.
+        # This is equivalent to computing min_k (dp[mask][k] + dist[k][j])
+        
+        # We can compute this by iterating all pairs
+        for k_idx in range(len(total_nodes)):
+            if dp[mask][k_idx] == float('inf'):
+                continue
+            for j_idx in range(len(total_nodes)):
+                if pair_cost[k_idx][j_idx] == float('inf'):
+                    continue
+                if dp[mask][k_idx] + pair_cost[k_idx][j_idx] < dp[mask][j_idx]:
+                    dp[mask][j_idx] = dp[mask][k_idx] + pair_cost[k_idx][j_idx]
+
+    full_mask = (1 << t_count) - 1
+    min_cost = float('inf')
+    for k_idx in range(len(total_nodes)):
+        if dp[full_mask][k_idx] < min_cost:
+            min_cost = dp[full_mask][k_idx]
+            
+    print(int(min_cost))
+
+if __name__ == '__main__':
+    solve()

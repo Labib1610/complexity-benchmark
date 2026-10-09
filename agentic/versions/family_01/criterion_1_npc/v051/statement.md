@@ -1,20 +1,20 @@
-# Diplomatic Protocol
+# Orbital Instrument Configuration
 
 Time limit: 2 s   Memory limit: 256 MB
 
-You are organizing an international summit attended by $n$ delegates, numbered 1 through $n$. The event relies on three concurrent discussion chambers, designated as Chamber 1, Chamber 2, and Chamber 3. Every delegate must be assigned to exactly one of these chambers.
+A new research satellite is being prepared for launch. It will carry $n$ scientific instruments. To accommodate these devices, the satellite is equipped with three distinct structural booms, labeled 1, 2, and 3. Every instrument must be securely mounted to exactly one of these booms.
 
-Due to complex geopolitical tensions, there are $m$ documented historical grievances between specific pairs of delegates. Protocol dictates that two delegates who share a grievance cannot be placed in the same discussion chamber, as their presence together would derail the talks. A schedule is considered viable if absolutely no chamber contains a pair of delegates with a mutual grievance.
+During testing, engineers discovered that certain pairs of instruments generate mutual electromagnetic interference. To prevent corrupted readings, any two instruments that interfere with each other must be mounted on different booms. Because there are three booms available, separating an interfering pair still leaves multiple valid mounting options for both instruments.
 
-Your task is to determine whether a viable schedule exists. Because the organizers prefer to fill the chambers in order of their prestige (with Chamber 1 being the most prestigious), if there are multiple viable schedules, you must provide the one whose sequence of assignments is lexicographically smallest.
+Your task is to determine whether it is possible to assign each of the $n$ instruments to one of the three booms such that no two interfering instruments end up on the same boom.
 
 ## Input
-The first line contains two integers $n$ and $m$ — the number of delegates and the number of historical grievances ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
-Each of the following $m$ lines contains two integers $u$ and $v$, indicating a mutual grievance between delegate $u$ and delegate $v$.
+The first line contains two integers $n$ and $m$ — the number of instruments and the number of interfering pairs ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
+The following $m$ lines each contain two integers $u$ and $v$ ($1 \le u, v \le n$), indicating that instrument $u$ and instrument $v$ interfere with each other and cannot be mounted on the same boom.
 
 ## Output
-If there is no viable schedule that satisfies all protocol constraints, output `NO` on a single line.
-If a viable schedule exists, output `YES` on the first line. On the second line, output $n$ integers $c_1, c_2, \dots, c_n$ (where each $c_i \in \{1, 2, 3\}$), representing the chamber assignment for each delegate from 1 to $n$. If there are multiple viable schedules, output the lexicographically smallest sequence.
+If no interference-free configuration is possible, output a single line containing `NO`.
+Otherwise, output `YES` on the first line. On the second line, output $n$ integers $b_1, b_2, \dots, b_n$ separated by spaces, where $b_i \in \{1, 2, 3\}$ represents the boom to which instrument $i$ is assigned. If there are multiple valid configurations, any valid configuration is accepted.
 
 ## Example 1
 Input:

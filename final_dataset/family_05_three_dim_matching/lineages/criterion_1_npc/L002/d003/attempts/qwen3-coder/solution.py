@@ -1,0 +1,37 @@
+from itertools import combinations
+
+def solve():
+    k, t = map(int, input().split())
+    
+    if t < k:
+        print("NO")
+        return
+    
+    pathways = []
+    for _ in range(t):
+        u, v, w = map(int, input().split())
+        pathways.append((u, v, w))
+    
+    # Try all combinations of k pathways
+    for combo in combinations(range(t), k):
+        selected = [pathways[i] for i in combo]
+        
+        # Check if we have k distinct inputs, outputs, and frequencies
+        inputs = set()
+        outputs = set()
+        frequencies = set()
+        
+        for u, v, w in selected:
+            inputs.add(u)
+            outputs.add(v)
+            frequencies.add(w)
+        
+        if len(inputs) == k and len(outputs) == k and len(frequencies) == k:
+            print("YES")
+            for u, v, w in selected:
+                print(u, v, w)
+            return
+    
+    print("NO")
+
+solve()

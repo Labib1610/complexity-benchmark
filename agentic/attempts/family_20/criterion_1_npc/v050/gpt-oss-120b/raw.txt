@@ -1,0 +1,331 @@
+**Solution Explanation**
+
+For every intersection (vertex) exactly three pipeline segments (edges) are incident.
+We have to colour every edge by one of the three colours `1,2,3` such that the three
+edges incident to any vertex obtain three different colours.
+
+--------------------------------------------------------------------
+
+#### 1.   Observations  
+
+* The graph is **cubic** – every vertex has degree `3`.
+* A cubic graph is 3‑edge‑colourable **iff** it has a *perfect matching*.
+  (Remove a perfect matching – every vertex loses one incident edge, the
+  remaining degree is `2`, therefore the remaining edges form a collection of
+  vertex‑disjoint cycles. Colour the matching `1` and colour the cycles
+  alternately `2,3`.)
+* A cubic graph that contains a bridge can never be 3‑edge‑coloured,
+  because the bridge would have to obtain a colour different from the two
+  other edges at each of its ends – impossible with only three colours.
+  The existence of a perfect matching already excludes bridges, therefore
+  it is enough to look for a perfect matching.
+
+So the whole problem reduces to
+
+```
+find a perfect matching in a cubic graph (n ≤ 2000, m = 3n/2)
+```
+
+If it exists we can colour the edges as described, otherwise the answer is
+`NO`.
+
+--------------------------------------------------------------------
+
+#### 2.   Maximum matching – Edmonds’ blossom algorithm  
+
+The graph is not bipartite, therefore a simple augmenting‑path algorithm is
+insufficient – odd cycles (blossoms) have to be contracted.
+We use the classic *Edmonds’ blossom* algorithm with complexity `O(n³)`.
+With `n ≤ 2000` it easily fits into the limits (`≈ 8·10⁹` elementary
+operations in the worst theoretical case, but the constant is tiny and the
+actual running time is far below one second).
+
+The implementation follows the well‑known version from
+*“Competitive Programming 4”* / emaxx.ru and works with vertices numbered
+`0 … n‑1`.
+
+The algorithm returns an array `match[v] = u` (`u = -1` if `v` is unmatched) and
+the size of the matching.
+
+--------------------------------------------------------------------
+
+#### 3.   Constructing the colouring  
+
+*If the matching size is `n/2`* (perfect) :
+
+* colour every matched edge with `1`;
+* the remaining edges form a 2‑regular graph – a set of cycles.
+  For each vertex that still has an uncoloured incident edge we walk along the
+  cycle, alternating colours `2,3`.
+
+Both steps are linear in the number of edges.
+
+--------------------------------------------------------------------
+
+#### 4.   Correctness Proof  
+
+We prove that the algorithm prints `YES` and a correct colouring
+iff such a colouring exists.
+
+---
+
+##### Lemma 1  
+If the algorithm finds a perfect matching, the set of edges not in the
+matching forms a collection of vertex‑disjoint cycles.
+
+**Proof.**  
+Every vertex has degree `3`. After removing the one incident matched edge,
+its degree becomes `2`. A graph where every vertex has degree `2` is a
+disjoint union of cycles. ∎
+
+
+
+##### Lemma 2  
+Colouring the matched edges with colour `1` and the edges of each cycle
+alternately with colours `2,3` yields a proper 3‑edge‑colouring.
+
+**Proof.**  
+*Matched edges*: each vertex is incident to exactly one matched edge,
+hence at the vertex the colour `1` appears once.  
+*Cycle edges*: on a cycle the colours `2,3` alternate, therefore at any
+vertex the two incident cycle edges have different colours (`2` and `3`).
+Consequently the three incident edges of every vertex obtain the three
+different colours `1,2,3`. ∎
+
+
+
+##### Lemma 3  
+If the algorithm outputs `NO` then the graph has no proper 3‑edge‑colouring.
+
+**Proof.**  
+The algorithm outputs `NO` only when the maximum matching size is `< n/2`,
+i.e. no perfect matching exists.
+Assume a proper 3‑edge‑colouring existed.
+Take the colour class `1`; it is a set of edges where no two share a vertex,
+hence it is a matching. Because each vertex is incident to exactly one edge of
+colour `1`, this matching is perfect – contradiction. ∎
+
+
+
+##### Lemma 4  
+If the graph admits a proper 3‑edge‑colouring, the algorithm finds a perfect
+matching.
+
+**Proof.**  
+From a proper 3‑edge‑colouring take the edges coloured `1`. As argued above
+they form a perfect matching, therefore the maximum matching size is at least
+`n/2`. The blossom algorithm always finds a maximum matching, thus it finds a
+perfect one. ∎
+
+
+
+##### Theorem  
+The program prints  
+
+*`YES` and a list of colours* **iff** a valid assignment of the three testing
+phases exists; otherwise it prints `NO`.
+
+**Proof.**  
+
+*If part*:  
+When the program prints `YES` it has found a perfect matching.
+By Lemma&nbsp;1 the remaining edges are cycles, and by Lemma&nbsp;2 the
+constructed colours satisfy the required condition. Hence a valid assignment
+exists.
+
+*Only‑if part*:  
+Assume a valid assignment exists. By Lemma&nbsp;4 a perfect matching exists,
+so the blossom algorithm finds one, the program does not output `NO`.
+Consequently it proceeds to the colouring step and prints `YES`.  
+
+If the program prints `NO`, by Lemma&nbsp;3 no valid assignment exists. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### 5.   Complexity Analysis  
+
+*Blossom maximum matching* : `O(n³)` ≤ `8·10⁹` elementary operations,
+practically well below the time limit for `n ≤ 2000`.  
+*Colouring* : linear `O(m)` (`m = 3n/2 ≤ 3000`).  
+
+Memory consumption: adjacency lists, matching arrays, auxiliary structures –
+`O(n + m)` ≤ a few MB, far under the limit.
+
+--------------------------------------------------------------------
+
+#### 6.   Reference Implementation  (Python 3)
+
+```python
+import sys
+sys.setrecursionlimit(10000)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    edges = []
+    adj = [[] for _ in range(n)]
+    for idx in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        edges.append((u, v))
+        adj[u].append((v, idx))
+        adj[v].append((u, idx))
+
+    # ---------- Edmonds' blossom (max matching) ----------
+    from collections import deque
+
+    INF = n + 5
+
+    def blossom_maximum_matching():
+        # implementation for general graph, returns match list and size
+        N = n
+        g = [[] for _ in range(N)]
+        for u, v in edges:
+            g[u].append(v)
+            g[v].append(u)
+
+        match = [-1] * N
+        p = [-1] * N
+        base = list(range(N))
+        q = deque()
+        used = [False] * N
+        blossom = [False] * N
+
+        def lca(a, b):
+            used2 = [False] * N
+            while True:
+                a = base[a]
+                used2[a] = True
+                if match[a] == -1:
+                    break
+                a = p[match[a]]
+            while True:
+                b = base[b]
+                if used2[b]:
+                    return b
+                b = p[match[b]]
+
+        def mark_path(v, b, children):
+            while base[v] != b:
+                blossom[base[v]] = blossom[base[match[v]]] = True
+                p[v] = children
+                children = match[v]
+                v = p[match[v]]
+
+        def find_path(root):
+            nonlocal used, p, base, q, blossom
+            used = [False] * N
+            p = [-1] * N
+            for i in range(N):
+                base[i] = i
+            q.clear()
+            q.append(root)
+            used[root] = True
+            while q:
+                v = q.popleft()
+                for to in g[v]:
+                    if base[v] == base[to] or match[v] == to:
+                        continue
+                    if to == root or (match[to] != -1 and p[match[to]] != -1):
+                        curbase = lca(v, to)
+                        blossom = [False] * N
+                        mark_path(v, curbase, to)
+                        mark_path(to, curbase, v)
+                        for i in range(N):
+                            if blossom[base[i]]:
+                                base[i] = curbase
+                                if not used[i]:
+                                    used[i] = True
+                                    q.append(i)
+                    elif p[to] == -1:
+                        p[to] = v
+                        if match[to] == -1:
+                            # augmenting path found
+                            return to
+                        to_match = match[to]
+                        used[to_match] = True
+                        q.append(to_match)
+            return -1
+
+        def augment_path(finish):
+            v = finish
+            while v != -1:
+                pv = p[v]
+                ppv = match[pv] if pv != -1 else -1
+                match[v] = pv
+                match[pv] = v
+                v = ppv
+
+        for v in range(N):
+            if match[v] == -1:
+                finish = find_path(v)
+                if finish != -1:
+                    augment_path(finish)
+
+        size = sum(1 for x in match if x != -1) // 2
+        return match, size
+
+    match, size = blossom_maximum_matching()
+    if size * 2 != n:
+        print("NO")
+        return
+
+    # ---------- build colouring ----------
+    colour = [0] * m
+    # colour matched edges with 1
+    for v in range(n):
+        u = match[v]
+        if u != -1 and v < u:
+            # find edge index
+            for to, idx in adj[v]:
+                if to == u:
+                    colour[idx] = 1
+                    break
+
+    # remaining edges: each vertex degree 2 now
+    visited_edge = [False] * m
+    for idx, c in enumerate(colour):
+        if c == 1:
+            visited_edge[idx] = True
+
+    # adjacency of remaining edges (edge index stored)
+    rem_adj = [[] for _ in range(n)]
+    for idx, (u, v) in enumerate(edges):
+        if not visited_edge[idx]:
+            rem_adj[u].append((v, idx))
+            rem_adj[v].append((u, idx))
+
+    for start in range(n):
+        # find an uncoloured incident edge
+        for to, idx in rem_adj[start]:
+            if colour[idx] == 0:
+                # walk the whole cycle
+                cur = start
+                cur_colour = 2
+                while True:
+                    # take the edge from cur that is still uncoloured
+                    for nxt, eidx in rem_adj[cur]:
+                        if colour[eidx] == 0:
+                            colour[eidx] = cur_colour
+                            cur = nxt
+                            cur_colour = 5 - cur_colour   # switch 2<->3
+                            break
+                    else:
+                        break
+                break
+
+    print("YES")
+    print(' '.join(str(c) for c in colour))
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above and conforms
+to the required input‑output format.

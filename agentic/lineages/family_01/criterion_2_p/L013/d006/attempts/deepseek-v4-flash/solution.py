@@ -14,20 +14,28 @@ for _ in range(m):
 
 color = [-1] * n
 
-for start in range(n):
-    if color[start] != -1:
-        continue
-    color[start] = 1
+def bfs(start):
     q = deque([start])
+    color[start] = 0  # 0 means tier 1
     while q:
         u = q.popleft()
         for v in adj[u]:
             if color[v] == -1:
-                color[v] = 3 - color[u]
+                color[v] = color[u] ^ 1
                 q.append(v)
             elif color[v] == color[u]:
-                print("NO")
-                sys.exit()
+                return False
+    return True
 
+for i in range(n):
+    if color[i] == -1:
+        # To make lexicographically smallest, try assigning 0 (tier 1) first
+        # But we must ensure we don't conflict; do BFS from i with 0.
+        color[i] = 0
+        if not bfs(i):
+            print("NO")
+            sys.exit()
+
+# Convert 0 -> 1, 1 -> 2
 print("YES")
-print(" ".join(str(c) for c in color))
+print(' '.join(str(c + 1) for c in color))

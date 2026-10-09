@@ -1,22 +1,18 @@
-# Problem A — Uplink Frequency Allocation
+# Problem A — Artifact Exhibition
 
 Time limit: 2 s   Memory limit: 256 MB
 
-A telecommunications operator manages $n$ satellite uplinks, indexed from $1$ to $n$. To ensure reliable data transmission, the operator must assign each uplink to exactly one of three available frequency bands, designated as Band 1, Band 2, and Band 3.
+A museum director is planning a new exhibition featuring $n$ historical relics. The facility features exactly three separate gallery wings, labeled 1, 2, and 3.
 
-During field testing, engineers identified $m$ pairs of uplinks that have overlapping geographical footprints. If any two such uplinks broadcast on the same frequency band, critical signal cross-talk will occur. Consequently, these overlapping pairs must never be assigned the same band.
-
-The network controller requires a complete configuration sequence to initialize the system. A valid configuration is an ordered list of $n$ integers, where the $i$-th integer represents the band (1, 2, or 3) assigned to uplink $i$. To ensure automated deployments are entirely deterministic, if multiple collision-free configurations are possible, the system mandates the configuration that is lexicographically smallest (comparing the band assignment for uplink 1 first, then uplink 2, and so forth). If no collision-free configuration exists, the controller must trigger a deployment abort.
-
-Your task is to determine the required configuration sequence or identify if the deployment must be aborted.
+Because of clashing historical narratives, specific pairs of relics cannot be displayed in the same gallery wing. The director needs to assign each of the $n$ relics to one of the three wings such that no two clashing relics end up in the same location. It is acceptable if one or more wings remain completely empty, provided all relics are placed without any clashes. If there is no way to assign the relics without a clash, you must determine that it cannot be done.
 
 ## Input
-The first line contains two integers $n$ and $m$ — the number of satellite uplinks and the number of overlapping pairs ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
-Each of the next $m$ lines contains two integers $u$ and $v$ — representing a pair of uplinks that share a footprint and cannot use the same frequency band.
+The first line provides two integers $n$ and $m$ — the total number of relics and the number of clashing pairs ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
+Each of the following $m$ lines contains two integers $u$ and $v$ representing a clashing pair of relics.
 
 ## Output
-If the deployment must be aborted because no collision-free configuration is possible, print a single line containing `NO`.
-Otherwise, print `YES` on the first line. On the second line, print $n$ integers $b_1, b_2, \dots, b_n$ (where each $b_i \in \{1, 2, 3\}$), representing the band assigned to uplink $i$. Among all valid configurations, output the lexicographically smallest sequence.
+If a clash-free assignment is impossible, output a single line with NO.
+Otherwise, output YES on the first line. On the second line, output $n$ integers $z_1, z_2, \dots, z_n$ (each being 1, 2, or 3), where $z_i$ indicates the gallery wing for relic $i$.
 
 ## Example 1
 Input:

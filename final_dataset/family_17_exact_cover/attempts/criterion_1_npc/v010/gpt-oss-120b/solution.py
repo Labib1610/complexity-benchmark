@@ -1,0 +1,64 @@
+import sys
+sys.setrecursionlimit(1000000)
+
+def solve():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    q = int(next(it))
+    t = int(next(it))
+    triples = []
+    for _ in range(t):
+        a = int(next(it)); b = int(next(it)); c = int(next(it))
+        triples.append((a, b, c))
+    n = 3 * q
+    # Build adjacency: for each person, list of triple indices containing it
+    person_to_triples = [[] for _ in range(n + 1)]
+    for idx, (a, b, c) in enumerate(triples):
+        person_to_triples[a].append(idx)
+        person_to_triples[b].append(idx)
+        person_to_triples[c].append(idx)
+
+    used_triple = [False] * t
+    used_person = [False] * (n + 1)
+    solution = []
+
+    # Order persons by fewest options heuristic
+    persons = list(range(1, n + 1))
+    persons.sort(key=lambda x: len(person_to_triples[x]))
+
+    def dfs(pos):
+        if pos == len(persons):
+            return True
+        p = persons[pos]
+        if used_person[p]:
+            return dfs(pos + 1)
+        for ti in person_to_triples[p]:
+            if used_triple[ti]:
+                continue
+            a, b, c = triples[ti]
+            if used_person[a] or used_person[b] or used_person[c]:
+                continue
+            # select this triple
+            used_triple[ti] = True
+            used_person[a] = used_person[b] = used_person[c] = True
+            solution.append(ti)
+            if dfs(pos + 1):
+                return True
+            # backtrack
+            solution.pop()
+            used_triple[ti] = False
+            used_person[a] = used_person[b] = used_person[c] = False
+        return False
+
+    if dfs(0):
+        out = ["YES"]
+        for ti in solution:
+            out.append(f"{triples[ti][0]} {triples[ti][1]} {triples[ti][2]}")
+        sys.stdout.write("\n".join(out))
+    else:
+        sys.stdout.write("NO")
+
+if __name__ == "__main__":
+    solve()

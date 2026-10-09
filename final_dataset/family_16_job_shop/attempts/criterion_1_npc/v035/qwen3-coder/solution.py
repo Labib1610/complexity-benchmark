@@ -1,0 +1,185 @@
+import sys
+from collections import defaultdict
+
+def solve():
+    j, m = map(int, input().split())
+    
+    workflows = []
+    for _ in range(j):
+        line = list(map(int, input().split()))
+        o = line[0]
+        ops = []
+        for i in range(o):
+            machine = line[1 + 2*i]
+            duration = line[1 + 2*i + 1]
+            ops.append((machine, duration))
+        workflows.append(ops)
+    
+    # We'll use a backtracking approach with pruning
+    # For each workflow, we need to track when each operation can start
+    # State: for each workflow, how many operations have been scheduled
+    
+    def backtrack(workflow_progress, machine_end_times, current_max_time):
+        # workflow_progress[i] = how many operations of workflow i have been scheduled
+        # machine_end_times[m] = earliest time machine m can start a new job
+        # current_max_time = current makespan
+        
+        # Check if we're done
+        done = True
+        for i in range(j):
+            if workflow_progress[i] < len(workflows[i]):
+                done = False
+                break
+        if done:
+            return current_max_time
+            
+        best = float('inf')
+        
+        # Try scheduling the next operation of each workflow
+        for i in range(j):
+            if workflow_progress[i] < len(workflows[i]):
+                # This workflow has more operations to schedule
+                op_idx = workflow_progress[i]
+                machine, duration = workflows[i][op_idx]
+                
+                # Earliest start time for this operation:
+                # 1. After the previous operation in the same workflow
+                # 2. After the machine is free
+                start_time = machine_end_times[machine]
+                
+                if op_idx > 0:
+                    # We need to know when the previous operation in this workflow finished
+                    # This is tricky in our recursive approach - let's think differently
+                    
+                    # Let's precompute operation finish times
+                    pass
+                    
+        # Let's try a different approach - build a search tree
+        # At each step, determine for each workflow what the earliest it can start its next operation
+        
+        # Actually, let's model this properly with a recursive state search
+        return explore_state(tuple(workflow_progress), tuple(machine_end_times), current_max_time)
+    
+    # Memoization for states
+    memo = {}
+    
+    def explore_state(progress, machine_times, current_max):
+        # Create a canonical representation of our state
+        state_key = (progress, machine_times)
+        if state_key in memo:
+            return memo[state_key]
+            
+        # Check if all workflows are complete
+        all_done = True
+        for i in range(j):
+            if progress[i] < len(workflows[i]):
+                all_done = False
+                break
+                
+        if all_done:
+            memo[state_key] = current_max
+            return current_max
+            
+        result = float('inf')
+        
+        # Try advancing each workflow by one operation
+        for i in range(j):
+            if progress[i] < len(workflows[i]):
+                op_idx = progress[i]
+                machine, duration = workflows[i][op_idx]
+                
+                # When can this operation start?
+                # It needs to start after:
+                # 1. The previous operation in the same workflow finishes
+                # 2. The required machine is available
+                
+                start_time = machine_times[machine]
+                
+                # If this isn't the first operation in the workflow,
+                # we need to check when the previous operation finished
+                if op_idx > 0:
+                    # We need to track when operations finish - this requires more state
+                    # Let's track finish times of operations in workflows
+                    pass
+                    
+        # Better approach: keep track of operation finish times explicitly
+        memo[state_key] = result
+        return result
+    
+    # Let's restart with a cleaner approach
+    # We'll do a depth-first search where state includes:
+    # - For each workflow, which operations have finished and their finish times
+    # - For each machine, when it becomes free
+    
+    # Actually, let's look up Johnson's algorithm or use a simpler DFS with good pruning
+    
+    # Since constraints are small, we can try all reasonable orderings
+    
+    # Even simpler - let's just do a proper backtracking with full state tracking
+    
+    def dfs(workflow_ops_completed, workflow_op_finish_times, machine_free_time):
+        # workflow_ops_completed[i] = number of operations completed for workflow i
+        # workflow_op_finish_times[i][j] = finish time of operation j in workflow i (or None)
+        # machine_free_time[m] = time when machine m becomes free
+        
+        # Check if done
+        done = True
+        for i in range(j):
+            if workflow_ops_completed[i] < len(workflows[i]):
+                done = False
+                break
+        if done:
+            return max(machine_free_time.values()) if machine_free_time else 0
+            
+        # Find minimum completion time
+        min_time = float('inf')
+        
+        # Try to schedule the next operation of each workflow
+        for i in range(j):
+            if workflow_ops_completed[i] < len(workflows[i]):
+                op_index = workflow_ops_completed[i]
+                machine, duration = workflows[i][op_index]
+                
+                # Earliest this operation can start:
+                # 1. After previous operation in same workflow finishes
+                # 2. After the machine is free
+                
+                start_time = machine_free_time[machine]
+                
+                # If not first operation in workflow, wait for previous to finish
+                if op_index > 0:
+                    prev_finish = workflow_op_finish_times[i][op_index - 1]
+                    if prev_finish is not None:
+                        start_time = max(start_time, prev_finish)
+                        
+                finish_time = start_time + duration
+                
+                # Pruning
+                if finish_time >= min_time:
+                    continue
+                    
+                # Make the move
+                new_workflow_ops_completed = workflow_ops_completed[:]
+                new_workflow_ops_completed[i] += 1
+                
+                new_workflow_op_finish_times = [row[:] for row in workflow_op_finish_times]
+                new_workflow_op_finish_times[i][op_index] = finish_time
+                
+                new_machine_free_time = machine_free_time.copy()
+                new_machine_free_time[machine] = finish_time
+                
+                # Recurse
+                res = dfs(new_workflow_ops_completed, new_workflow_op_finish_times, new_machine_free_time)
+                min_time = min(min_time, res)
+                
+        return min_time if min_time != float('inf') else 0
+    
+    # Initialize
+    initial_completed = [0] * j
+    initial_finish_times = [[None] * len(w) for w in workflows]
+    initial_machine_times = {i: 0 for i in range(1, m+1)}
+    
+    result = dfs(initial_completed, initial_finish_times, initial_machine_times)
+    print(result)
+
+solve()

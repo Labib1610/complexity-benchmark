@@ -1,0 +1,203 @@
+**Solution Explanation**
+
+For every worker we know the workers he/she conflicts with.
+We have to output the lexicographically smallest triple  
+`a < b < c` such that all three pairs are conflicts – i.e. a triangle in the
+conflict graph.
+
+`n ≤ 2000`, therefore a whole adjacency matrix fits into memory
+(≈ 4 MiB).  
+With a *bitset* representation each row of the matrix is stored as one
+Python integer: bit `i` (0‑based) is `1` iff the worker of the row conflicts
+with worker `i+1`.
+
+For a fixed edge `(a,b)` (`a < b`) all possible third vertices of a triangle
+with this edge are exactly the vertices that are neighbours of **both**
+`a` and `b` :
+
+```
+common = adjacency[a] & adjacency[b]          # bitwise AND
+```
+
+From `common` we need the smallest vertex `c` that is larger than `b`.
+If we shift the bits right by `b+1`, the lowest set bit (if any) corresponds
+to the wanted `c`.
+
+```
+t = common >> (b+1)          # discard vertices ≤ b
+if t != 0:
+        # position of the lowest set bit (0‑based)
+        low = (t & -t).bit_length() - 1
+        c = b + 1 + low
+        answer = (a+1, b+1, c+1)          # back to 1‑based numbering
+```
+
+Scanning edges in increasing order of `a` and, for each `a`, in increasing
+order of `b` guarantees that the first triangle we find is the
+lexicographically smallest one.
+
+The algorithm:
+
+```
+read n, m
+adj_mask[0…n-1] = 0
+adj_list[0…n-1] = []          # neighbours, kept sorted
+
+for each edge (u,v):
+        u--, v--               # to 0‑based
+        set bits in both masks
+        add each to the other's list
+
+for a = 0 … n-1:
+        for b in adj_list[a] with b > a (list already sorted):
+                common = adj_mask[a] & adj_mask[b]
+                t = common >> (b+1)
+                if t:
+                        low = (t & -t).bit_length() - 1
+                        c = b + 1 + low
+                        print a+1, b+1, c+1
+                        exit
+```
+
+`adj_mask` operations are O(1) on Python integers.
+The total work is `O(m)` bit‑operations plus the linear scans of the
+adjacency lists, well within the limits (`m ≤ 2·10⁵`).
+
+---
+
+#### Correctness Proof  
+
+We prove that the algorithm outputs the lexicographically smallest triangle.
+
+*Lemma 1*  
+For any vertices `a < b`, `common = adj_mask[a] & adj_mask[b]` has a set bit
+at position `c` (0‑based) **iff** edges `a–c` and `b–c` both exist.
+
+*Proof.*  
+`adj_mask[x]` has bit `c` set exactly when edge `x–c` exists.
+Bitwise AND keeps a bit set only when it is set in both masks,
+i.e. when both edges exist. ∎
+
+
+
+*Lemma 2*  
+If `t = common >> (b+1)` is non‑zero, let `low` be the index of its lowest
+set bit. Then `c = b+1+low` is the smallest vertex `c > b` that together
+with `a,b` forms a triangle.
+
+*Proof.*  
+Shifting right by `b+1` discards bits `0 … b`.  
+Thus any set bit of `t` corresponds to a vertex `c > b` that is adjacent to
+both `a` and `b` (Lemma&nbsp;1).  
+The lowest set bit of `t` gives the smallest such `c`. Adding back the
+shift amount yields the original vertex number. ∎
+
+
+
+*Lemma 3*  
+When the algorithm prints a triple `(a,b,c)`, it is a triangle.
+
+*Proof.*  
+The algorithm prints only after finding `t ≠ 0`.  
+By Lemma&nbsp;2 the derived `c` satisfies that edges `a–c` and `b–c` exist,
+and the loop condition guarantees edge `a–b` exists.
+Hence all three edges are present – a triangle. ∎
+
+
+
+*Lemma 4*  
+Among all triangles, the algorithm prints the one with the smallest `a`;
+if several share that `a`, the smallest `b`; and then the smallest `c`.
+
+*Proof.*  
+The outer loop enumerates `a` in increasing order.
+For a fixed `a`, the inner loop enumerates neighbours `b` in increasing order
+(because adjacency lists are sorted and we skip `b ≤ a`).
+The first time a triangle is found for this `(a,b)` we output it
+(Lemma&nbsp;3) and terminate.
+Therefore no triangle with a smaller `a` can exist (otherwise the outer loop
+would have encountered it earlier).  
+For the same `a`, no triangle with a smaller `b` can exist, and for the same
+`a,b` no triangle with a smaller `c` can exist because Lemma&nbsp;2 yields the
+minimal possible `c`. ∎
+
+
+
+*Theorem*  
+The algorithm outputs the lexicographically smallest triple of workers that
+are pairwise conflicting.
+
+*Proof.*  
+By Lemma&nbsp;3 the output is a triangle.
+By Lemma&nbsp;4 its lexicographic order is minimal among all triangles.
+Thus it satisfies the required specification. ∎
+
+
+
+---
+
+#### Complexity Analysis  
+
+*Memory*  
+`adj_mask` – `n` integers, each ≤ 2ⁿ, ≈ n·(n/8) bytes ≤ 4 MiB.  
+`adj_list` – stores each edge twice, `2m` integers ≤ 2·10⁵·4 bytes ≈ 0.8 MiB.  
+Total well below 256 MiB.
+
+*Time*  
+Building structures: `O(m)`.  
+Main loops: each edge `(a,b)` is examined once, performing constant‑time
+bit operations and at most one shift. Hence `O(m)`.  
+Overall `O(n + m)` ≤ O(2·10⁵), easily inside 2 seconds.
+
+---
+
+#### Reference Implementation (Python 3)
+
+```python
+import sys
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+
+    adj_mask = [0] * n               # bitset per vertex
+    adj_list = [[] for _ in range(n)]
+
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        # set bits
+        adj_mask[u] |= 1 << v
+        adj_mask[v] |= 1 << u
+        adj_list[u].append(v)
+        adj_list[v].append(u)
+
+    # sort adjacency lists for deterministic order
+    for lst in adj_list:
+        lst.sort()
+
+    for a in range(n):
+        mask_a = adj_mask[a]
+        for b in adj_list[a]:
+            if b <= a:
+                continue
+            common = mask_a & adj_mask[b]
+            # discard vertices <= b
+            t = common >> (b + 1)
+            if t:
+                low = (t & -t).bit_length() - 1
+                c = b + 1 + low
+                # output 1‑based
+                sys.stdout.write(f"{a+1} {b+1} {c+1}")
+                return
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above and conforms
+to the required input‑output format.

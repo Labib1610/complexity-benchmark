@@ -1,0 +1,327 @@
+```python
+import sys
+import time
+import heapq
+import random
+import itertools
+
+sys.setrecursionlimit(1_000_000)
+START_TIME = time.monotonic()
+
+data = list(map(int, sys.stdin.buffer.read().split()))
+if len(data) < 4:
+    sys.exit()
+
+n, M, T, m = data[:4]
+succ = [[] for _ in range(n)]
+pred = [[] for _ in range(n)]
+pos = 4
+
+for _ in range(m):
+    a = data[pos] - 1
+    b = data[pos + 1] - 1
+    pos += 2
+    succ[a].append(b)
+    pred[b].append(a)
+
+if n == 0:
+    print("YES")
+    print()
+    sys.exit()
+
+if M <= 0 or T <= 0 or n > M * T:
+    print("NO")
+    sys.exit()
+
+# Topological ordering and cycle detection.
+indeg = [len(pred[v]) for v in range(n)]
+heap = [v for v in range(n) if indeg[v] == 0]
+heapq.heapify(heap)
+topo = []
+
+while heap:
+    v = heapq.heappop(heap)
+    topo.append(v)
+    for w in succ[v]:
+        indeg[w] -= 1
+        if indeg[w] == 0:
+            heapq.heappush(heap, w)
+
+if len(topo) != n:
+    print("NO")
+    sys.exit()
+
+def compute_bottom(graph_succ, order):
+    bottom = [1] * n
+    for v in reversed(order):
+        best = 0
+        for w in graph_succ[v]:
+            if bottom[w] > best:
+                best = bottom[w]
+        bottom[v] = best + 1
+    return bottom
+
+bottom_forward = compute_bottom(succ, topo)
+
+if max(bottom_forward) > T:
+    print("NO")
+    sys.exit()
+
+def greedy_schedule(graph_succ, graph_pred, order, reverse_result, mode, seed=0):
+    bottom = compute_bottom(graph_succ, order)
+    outdeg = [len(graph_succ[v]) for v in range(n)]
+    indeg_local = [len(graph_pred[v]) for v in range(n)]
+
+    rng = random.Random(seed)
+    rnd = [rng.randrange(1 << 30) for _ in range(n)]
+
+    def key(v):
+        if mode == 0:
+            return (-bottom[v], -outdeg[v], v)
+        if mode == 1:
+            return (-bottom[v], outdeg[v], v)
+        if mode == 2:
+            return (-outdeg[v], -bottom[v], v)
+        if mode == 3:
+            return (-bottom[v], rnd[v], v)
+        return (rnd[v], -bottom[v], v)
+
+    ready = []
+    for v in range(n):
+        if indeg_local[v] == 0:
+            heapq.heappush(ready, (key(v), v))
+
+    phase = [0] * n
+    current = 0
+    completed = 0
+
+    while ready:
+        current += 1
+        batch = []
+        for _ in range(min(M, len(ready))):
+            _, v = heapq.heappop(ready)
+            batch.append(v)
+
+        newly_ready = []
+        for v in batch:
+            phase[v] = current
+            completed += 1
+            for w in graph_succ[v]:
+                indeg_local[w] -= 1
+                if indeg_local[w] == 0:
+                    newly_ready.append(w)
+
+        for w in newly_ready:
+            heapq.heappush(ready, (key(w), w))
+
+        if current > T:
+            return None
+
+    if completed != n or current > T:
+        return None
+
+    if reverse_result:
+        phase = [current + 1 - x for x in phase]
+    return phase
+
+# Try several fast list-scheduling priorities in both directions.
+rev_succ = pred
+rev_pred = succ
+rev_topo = list(reversed(topo))
+
+attempts = [(0, 0), (1, 0), (2, 0)]
+for seed in range(8):
+    attempts.append((3, seed + 1))
+for seed in range(3):
+    attempts.append((4, seed + 101))
+
+for graph_succ, graph_pred, order, reverse_result in (
+    (succ, pred, topo, False),
+    (rev_succ, rev_pred, rev_topo, True),
+):
+    for mode, seed in attempts:
+        if time.monotonic() - START_TIME > 1.2:
+            break
+        result = greedy_schedule(
+            graph_succ, graph_pred, order, reverse_result, mode, seed
+        )
+        if result is not None:
+            print("YES")
+            print(*result)
+            sys.exit()
+
+class SearchTimeout(Exception):
+    pass
+
+def exact_search(graph_succ, graph_pred, order, reverse_result, deadline):
+    bottom = compute_bottom(graph_succ, order)
+    outdeg = [len(graph_succ[v]) for v in range(n)]
+
+    pred_masks = [0] * n
+    for v in range(n):
+        mask = 0
+        for u in graph_pred[v]:
+            mask |= 1 << u
+        pred_masks[v] = mask
+
+    all_mask = (1 << n) - 1
+    memo = set()
+    path = []
+    nodes = 0
+
+    def get_available(done):
+        rem = all_mask ^ done
+        avail = 0
+        x = rem
+        while x:
+            bit = x & -x
+            v = bit.bit_length() - 1
+            if pred_masks[v] & rem == 0:
+                avail |= bit
+            x -= bit
+        return avail
+
+    def dfs(done, depth):
+        nonlocal nodes
+        nodes += 1
+        if (nodes & 1023) == 0 and time.monotonic() >= deadline:
+            raise SearchTimeout
+
+        if done == all_mask:
+            return True
+
+        left = T - depth
+        if left <= 0:
+            return False
+
+        remaining_count = n - done.bit_count()
+        if remaining_count > left * M:
+            return False
+
+        state = (done, depth)
+        if state in memo:
+            return False
+
+        avail = get_available(done)
+        if avail == 0:
+            memo.add(state)
+            return False
+
+        max_bottom = 0
+        forced = 0
+        values = []
+        x = avail
+        while x:
+            bit = x & -x
+            v = bit.bit_length() - 1
+            b = bottom[v]
+            if b > max_bottom:
+                max_bottom = b
+            if b == left:
+                forced |= bit
+            values.append(v)
+            x -= bit
+
+        if max_bottom > left or forced.bit_count() > M:
+            memo.add(state)
+            return False
+
+        avail_count = len(values)
+        take = min(M, avail_count)
+
+        if avail_count <= M:
+            path.append(avail)
+            if dfs(done | avail, depth + 1):
+                return True
+            path.pop()
+            memo.add(state)
+            return False
+
+        forced_count = forced.bit_count()
+        slots = take - forced_count
+        optional = [v for v in values if not ((forced >> v) & 1)]
+        optional.sort(key=lambda v: (-bottom[v], -outdeg[v], v))
+
+        if slots < 0 or slots > len(optional):
+            memo.add(state)
+            return False
+
+        # Enumerate the smaller side when possible.
+        if slots <= len(optional) - slots:
+            iterator = itertools.combinations(optional, slots)
+            for chosen in iterator:
+                batch = forced
+                for v in chosen:
+                    batch |= 1 << v
+                path.append(batch)
+                if dfs(done | batch, depth + 1):
+                    return True
+                path.pop()
+        else:
+            exclude_count = len(optional) - slots
+            optional_mask = 0
+            for v in optional:
+                optional_mask |= 1 << v
+            iterator = itertools.combinations(reversed(optional), exclude_count)
+            for excluded in iterator:
+                excluded_mask = 0
+                for v in excluded:
+                    excluded_mask |= 1 << v
+                batch = forced | (optional_mask ^ excluded_mask)
+                path.append(batch)
+                if dfs(done | batch, depth + 1):
+                    return True
+                path.pop()
+
+        if len(memo) < 600_000:
+            memo.add(state)
+        return False
+
+    try:
+        found = dfs(0, 0)
+    except SearchTimeout:
+        return None, False
+
+    if not found:
+        return None, True
+
+    phases = [0] * n
+    used = len(path)
+    for p, batch in enumerate(path, 1):
+        x = batch
+        while x:
+            bit = x & -x
+            v = bit.bit_length() - 1
+            phases[v] = p
+            x -= bit
+
+    if reverse_result:
+        phases = [used + 1 - p for p in phases]
+
+    return phases, True
+
+now = time.monotonic()
+forward_deadline = max(now, START_TIME + 2.7)
+result, completed = exact_search(
+    succ, pred, topo, False, forward_deadline
+)
+
+if result is not None:
+    print("YES")
+    print(*result)
+    sys.exit()
+
+if completed:
+    print("NO")
+    sys.exit()
+
+result, completed = exact_search(
+    rev_succ, rev_pred, rev_topo, True, START_TIME + 4.85
+)
+
+if result is not None:
+    print("YES")
+    print(*result)
+else:
+    print("NO")
+```

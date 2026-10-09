@@ -1,39 +1,18 @@
 #!/usr/bin/env python3
-"""Realistic baseline for family 15 / criterion 3 (disjoint alphabets, no shared motif).
+"""Regression baseline for family 15 / criterion 3 (REBUILT as an infeasibility-certificate task,
+audit B5).
 
-A solution that does NOT intersect alphabets and instead tries to actually find a shared
-motif -- the same memo-less recursive LCS over the k sequences. With mutually disjoint
-alphabets no letter is ever shared, so it never takes a letter and explores the whole
-interleaving tree (exponential) before concluding length 0 -> TLE. Only then does it
-print NONE. The reference's O(total) alphabet intersection is instant.
+Under the old design criterion 3 used mutually disjoint alphabets and required a constant "NONE", so
+this program passed every test. After the redesign the arm requires an instance-specific BLOCK
+certificate, so a bare "NONE" is now WRONG on every case. Kept to document that the old gaming route
+no longer passes -- it should yield WRONG_ANSWER, confirming release_check gate G7.
 """
 import sys
 
 
 def main():
-    sys.setrecursionlimit(1000000)
-    data = sys.stdin.buffer.read().split()
-    k = int(data[0])
-    seqs = [data[1 + i].decode() for i in range(k)]
-    lens = [len(s) for s in seqs]
-
-    def lcs(pos):
-        for j in range(k):
-            if pos[j] == lens[j]:
-                return 0
-        chars = {seqs[j][pos[j]] for j in range(k)}
-        best = 0
-        if len(chars) == 1:
-            best = 1 + lcs(tuple(p + 1 for p in pos))
-        for j in range(k):
-            nxt = list(pos); nxt[j] += 1
-            v = lcs(tuple(nxt))
-            if v > best:
-                best = v
-        return best
-
-    L = lcs(tuple([0] * k))
-    print("NONE" if L == 0 else "SOME")
+    sys.stdin.read()
+    print("NONE")        # deliberately the old constant; now fails validator.py by design
 
 
 main()

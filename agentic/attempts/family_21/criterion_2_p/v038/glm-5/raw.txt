@@ -1,0 +1,170 @@
+```python
+import sys
+from collections import deque
+
+def solve():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    s = int(next(it))
+    t = int(next(it))
+    B = int(next(it))
+    
+    edges = []
+    adj = [[] for _ in range(n + 1)]
+    for i in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        w = int(next(it))
+        edges.append((u, v, w, i))
+        adj[u].append((v, i))
+        adj[v].append((u, i))
+    
+    # Dijkstra from s
+    INF = 10**18
+    dist_s = [INF] * (n + 1)
+    dist_s[s] = 0
+    pq = [(0, s)]
+    while pq:
+        d, u = heapq.heappop(pq)
+        if d > dist_s[u]:
+            continue
+        for v, idx in adj[u]:
+            nd = d + edges[idx][2]
+            if nd < dist_s[v]:
+                dist_s[v] = nd
+                heapq.heappush(pq, (nd, v))
+    
+    # Dijkstra from t
+    dist_t = [INF] * (n + 1)
+    dist_t[t] = 0
+    pq = [(0, t)]
+    while pq:
+        d, u = heapq.heappop(pq)
+        if d > dist_t[u]:
+            continue
+        for v, idx in adj[u]:
+            nd = d + edges[idx][2]
+            if nd < dist_t[v]:
+                dist_t[v] = nd
+                heapq.heappush(pq, (nd, v))
+    
+    # Check if s and t are disconnected
+    if dist_s[t] == INF:
+        print("YES")
+        print(0)
+        return
+    
+    # Find minimum cut using max flow (Dinic's algorithm)
+    # Build flow network
+    # Node indices: 1 to n for original nodes
+    # Edge indices: 0 to m-1 for original edges
+    
+    # Create adjacency list for flow network
+    # Each edge has: to, rev (index of reverse edge), cap
+    flow_adj = [[] for _ in range(n + 1)]
+    edge_to_flow_idx = {}
+    
+    for i, (u, v, w, _) in enumerate(edges):
+        # Forward edge: capacity w
+        # Backward edge: capacity 0
+        flow_adj[u].append([v, len(flow_adj[v]), w])
+        flow_adj[v].append([u, len(flow_adj[u]) - 1, 0])
+        flow_adj[v].append([u, len(flow_adj[u]), w])
+        flow_adj[u].append([v, len(flow_adj[v]) - 1, 0])
+        edge_to_flow_idx[i] = (len(flow_adj[u]) - 4, len(flow_adj[v]) - 2)
+    
+    # Dinic's algorithm
+    def bfs_level():
+        level = [-1] * (n + 1)
+        q = deque([s])
+        level[s] = 0
+        while q:
+            u = q.popleft()
+            for v, rev, cap in flow_adj[u]:
+                if cap > 0 and level[v] == -1:
+                    level[v] = level[u] + 1
+                    q.append(v)
+        return level
+    
+    def dfs_flow(u, pushed, level, ptr):
+        if u == t:
+            return pushed
+        for i in range(ptr[u], len(flow_adj[u])):
+            v, rev, cap = flow_adj[u][i]
+            if cap > 0 and level[v] == level[u] + 1:
+                ret = dfs_flow(v, min(pushed, cap), level, ptr)
+                if ret > 0:
+                    flow_adj[u][i][2] -= ret
+                    flow_adj[v][rev][2] += ret
+                    return ret
+            ptr[u] += 1
+        return 0
+    
+    total_flow = 0
+    while True:
+        level = bfs_level()
+        if level[t] == -1:
+            break
+        ptr = [0] * (n + 1)
+        while True:
+            pushed = dfs_flow(s, INF, level, ptr)
+            if pushed == 0:
+                break
+            total_flow += pushed
+    
+    if total_flow > B:
+        print("NO")
+        return
+    
+    # Find min-cut edges
+    # BFS from s in residual graph
+    visited = [False] * (n + 1)
+    q = deque([s])
+    visited[s] = True
+    while q:
+        u = q.popleft()
+        for v, rev, cap in flow_adj[u]:
+            if cap > 0 and not visited[v]:
+                visited[v] = True
+                q.append(v)
+    
+    # Find edges crossing the cut
+    cut_edges = []
+    for i, (u, v, w, _) in enumerate(edges):
+        if visited[u] and not visited[v]:
+            cut_edges.append((u, v, w, i))
+        elif visited[v] and not visited[u]:
+            cut_edges.append((u, v, w, i))
+    
+    # Sort by weight to get lexicographically smallest or any valid set
+    cut_edges.sort(key=lambda x: (x[2], x[0], x[1]))
+    
+    # Take edges until budget is exhausted
+    result = []
+    total_cost = 0
+    for u, v, w, _ in cut_edges:
+        if total_cost + w <= B:
+            result.append((u, v))
+            total_cost += w
+        else:
+            break
+    
+    if len(result) == 0 and dist_s[t] != INF:
+        # Need at least one edge to disconnect
+        # Try to find any edge that disconnects s and t within budget
+        # This shouldn't happen if min-cut > B, but let's handle it
+        print("NO")
+        return
+    
+    print("YES")
+    print(len(result))
+    for u, v in result:
+        print(u, v)
+
+import heapq
+solve()
+```

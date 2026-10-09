@@ -1,0 +1,43 @@
+import sys
+sys.setrecursionlimit(300000)
+
+def solve():
+    input = sys.stdin.readline
+    n, m, t = map(int, input().split())
+    priority = set(map(int, input().split()))
+    
+    adj = [[] for _ in range(n + 1)]
+    edges = []
+    for _ in range(m):
+        u, v, w = map(int, input().split())
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+        edges.append((u, v, w))
+    
+    # DFS to mark which nodes are in the minimal subtree connecting all priority sites
+    visited = [False] * (n + 1)
+    needed = [False] * (n + 1)
+    
+    def dfs(u, parent):
+        is_needed = u in priority
+        for v, w in adj[u]:
+            if v == parent:
+                continue
+            if dfs(v, u):
+                is_needed = True
+        needed[u] = is_needed
+        return is_needed
+    
+    # Start DFS from any priority node, or node 1 if no priority (but t>=1)
+    start = next(iter(priority))
+    dfs(start, -1)
+    
+    total_cost = 0
+    for u, v, w in edges:
+        if needed[u] and needed[v]:
+            total_cost += w
+    
+    print(total_cost)
+
+if __name__ == "__main__":
+    solve()

@@ -1,0 +1,202 @@
+import sys
+from collections import defaultdict
+
+def solve():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(["0"] * n))
+        return
+    
+    # For each constraint l1 and l2, we have:
+    # R = l1 * x_|l1| + l2 * x_|l2|
+    # We want R > -( |l1| + |l2| )
+    # That means: l1 * x_|l1| + l2 * x_|l2| > -(|l1| + |l2|)
+    # Which is equivalent to: l1 * x_|l1| + l2 * x_|l2| >= -(|l1| + |l2|) + 1
+    
+    # Let's think of this differently.
+    # A critical fault happens when R = -(|l1| + |l2|), which is the minimum possible.
+    # This happens when:
+    #     if l1 > 0: x_|l1| = -1
+    #     if l1 < 0: x_|l1| = 1
+    #     if l2 > 0: x_|l2| = -1
+    #     if l2 < 0: x_|l2| = 1
+    #
+    # So for each constraint (l1, l2), we must avoid the case where:
+    # x_|l1| = -sign(l1) and x_|l2| = -sign(l2)
+    # where sign(x) = 1 if x>0, -1 if x<0
+    
+    # Let's convert this to a 2-SAT problem.
+    # Variable i corresponds to x_i = 1 (true) or x_i = -1 (false)
+    # For each constraint (l1,l2), we cannot have:
+    # x_|l1| = -sign(l1) AND x_|l2| = -sign(l2)
+    # This is equivalent to saying:
+    # NOT( x_|l1| = -sign(l1) AND x_|l2| = -sign(l2) )
+    # Which is equivalent to:
+    # x_|l1| != -sign(l1) OR x_|l2| != -sign(l2)
+    # 
+    # In terms of boolean variables:
+    # If -sign(l1) corresponds to False for var |l1|, then we want True for that var or ...
+    # Let's define:
+    # For variable i (x_i):
+    #   literal i represents x_i = 1
+    #   literal -i represents x_i = -1
+    #
+    # Then for constraint (l1, l2):
+    # We cannot have x_|l1| = -sign(l1) AND x_|l2| = -sign(l2)
+    # 
+    # So we add clause: NOT(-sign(l1) for |l1|) OR NOT(-sign(l2) for |l2|)
+    # That is: (x_|l1| = sign(l1)) OR (x_|l2| = sign(l2))
+    # In literals: (if l1>0 use |l1|, else -|l1|) OR (if l2>0 use |l2|, else -|l2|)
+    
+    # Build implication graph for 2-SAT
+    # Nodes: 1..n (positive) and -1..-n (negative)
+    # Clauses are of form (a OR b) which become (-a => b) and (-b => a)
+    
+    edges = defaultdict(list)
+    
+    index = 2
+    while index < len(data):
+        l1 = int(data[index])
+        l2 = int(data[index+1])
+        index += 2
+        
+        # Clause: (sign(l1)*x_|l1| = 1) OR (sign(l2)*x_|l2| = 1)
+        # This means at least one of them should be TRUE according to their sign
+        # In terms of boolean variables:
+        # Let's say x_i = 1 is True, x_i = -1 is False
+        # Then x_i = sign(lix_li) should be True
+        # So we want (x_|l1| == sign(l1)) OR (x_|l2| == sign(l2))
+        
+        # This translates to clause: (x_|l1| == sign(l1)) OR (x_|l2| == sign(l2))
+        # Which is equivalent to: (NOT(x_|l1| != sign(l1))) OR (NOT(x_|l2| != sign(l2)))
+        # Or: NOT((x_|l1| != sign(l1)) AND (x_|l2| != sign(l2)))
+        
+        # The forbidden assignment is:
+        # x_|l1| = -sign(l1) AND x_|l2| = -sign(l2)
+        
+        # So we add clause: x_|l1| != -sign(l1) OR x_|l2| != -sign(l2)
+        # This is equivalent to: x_|l1| = sign(l1) OR x_|l2| = sign(l2)
+        
+        # In 2-SAT, this clause (a OR b) becomes implications:
+        # NOT a -> b  and  NOT b -> a
+        
+        v1 = abs(l1)
+        s1 = 1 if l1 > 0 else -1
+        # x_v1 = s1 means variable v1 has value s1
+        # x_v1 != s1 means we take NOT of that literal
+        # Literal for x_v1 = 1 is v1
+        # Literal for x_v1 = -1 is -v1
+        lit1_false = v1 if s1 == -1 else -v1  # NOT(x_v1 = s1)
+        
+        v2 = abs(l2)
+        s2 = 1 if l2 > 0 else -1
+        lit2_false = v2 if s2 == -1 else -v2  # NOT(x_v2 = s2)
+        
+        # Add clauses: lit1_true OR lit2_true
+        # Which gives us: NOT(lit1_true) => lit2_true and NOT(lit2_true) => lit1_true
+        # lit1_false => lit2_true
+        # lit2_false => lit1_true
+        
+        edges[lit1_false].append(v2 if s2 == 1 else -v2)
+        edges[lit2_false].append(v1 if s1 == 1 else -v1)
+    
+    # Now run strongly connected components to check satisfiability
+    # Kosaraju's algorithm
+    
+    def dfs1(u, visited, stack):
+        visited.add(u)
+        for v in edges[u]:
+            if v not in visited:
+                dfs1(v, visited, stack)
+        stack.append(u)
+                
+    def transpose():
+        transposed = defaultdict(list)
+        for u in edges:
+            for v in edges[u]:
+                transposed[v].append(u)
+                # Ensure all nodes are in the graph
+                if u not in transposed:
+                    transposed[u] = []
+        return transposed
+    
+    def dfs2(u, visited, component, transposed):
+        visited.add(u)
+        component.append(u)
+        for v in transposed[u]:
+            if v not in visited:
+                dfs2(v, visited, component, transposed)
+    
+    # Find order
+    visited = set()
+    stack = []
+    for i in range(1, n+1):
+        if i not in visited:
+            dfs1(i, visited, stack)
+        if -i not in visited:
+            dfs1(-i, visited, stack)
+    
+    # Transpose graph
+    transposed = transpose()
+    
+    # Process in reverse order
+    visited = set()
+    components = []
+    while stack:
+        node = stack.pop()
+        if node not in visited:
+            component = []
+            dfs2(node, visited, component, transposed)
+            components.append(component)
+            
+    # Check if satisfiable
+    assignment = {}
+    for component in reversed(components):
+        for node in component:
+            var = abs(node)
+            if var in assignment:
+                continue
+            assignment[var] = 1 if node > 0 else 0
+    
+    # Verify no contradiction
+    for var in range(1, n+1):
+        if var in assignment and -var in assignment:
+            if assignment[var] == assignment[-var]:
+                # Both true or both false, but they represent opposite values
+                # Actually, let's recheck our mapping
+                
+                # Wait, we're confusing ourselves. Let's simplify.
+                # Our assignment stores for each variable what literal was assigned last.
+                # But in 2-SAT, if both v and -v are in the same SCC, it's unsatisfiable.
+                pass
+    
+    # Better approach: check if v and -v are in same SCC
+    node_to_scc = {}
+    for idx, component in enumerate(components):
+        for node in component:
+            node_to_scc[node] = idx
+            
+    for i in range(1, n+1):
+        if node_to_scc[i] == node_to_scc[-i]:
+            print("NO")
+            return
+    
+    # Extract solution
+    result = [0] * (n+1)  # 1-indexed
+    for i in range(1, n+1):
+        if node_to_scc[i] < node_to_scc[-i]:
+            result[i] = 0  # x_i = -1
+        else:
+            result[i] = 1  # x_i = 1
+    
+    print("YES")
+    print(" ".join(str(result[i]) for i in range(1, n+1)))
+
+solve()

@@ -1,0 +1,73 @@
+import sys
+from collections import defaultdict
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    index = 2
+    edges = []
+    adj = [set() for _ in range(n + 1)]
+    
+    for _ in range(m):
+        u = int(data[index])
+        v = int(data[index + 1])
+        index += 2
+        edges.append((u, v))
+        adj[u].add(v)
+        adj[v].add(u)
+    
+    # For each node, build its incompatibility domain (node + its neighbors)
+    domain = [set() for _ in range(n + 1)]
+    for i in range(1, n + 1):
+        domain[i] = adj[i] | {i}
+    
+    # We need to find a triangle (a,b,c) such that each of a,b,c has incompatibility domain containing all of {a,b,c}
+    # That means {a,b,c} ⊆ domain[a], {a,b,c} ⊆ domain[b], and {a,b,c} ⊆ domain[c]
+    
+    # Let's iterate through all triangles in the graph
+    # To do this efficiently, we'll look at all edges and for each edge (u,v), 
+    # we'll check for common neighbors w of u and v. Then (u,v,w) forms a triangle.
+    
+    # Store triangles
+    triangles = []
+    
+    # For efficiency, let's make sure for each edge (u,v), u < v
+    edge_set = set()
+    for u, v in edges:
+        if u > v:
+            u, v = v, u
+        edge_set.add((u, v))
+    
+    # Now for each edge (u,v), find common neighbors
+    edges_sorted = sorted(edge_set)
+    for u, v in edges_sorted:
+        # Get neighbors of u and v
+        neighbors_u = adj[u]
+        neighbors_v = adj[v]
+        # Find common neighbors
+        common = neighbors_u & neighbors_v
+        for w in common:
+            # Make sure we have a proper triangle with u<v<w for canonical representation
+            a, b, c = sorted([u, v, w])
+            triangles.append((a, b, c))
+    
+    # Remove duplicates by converting to set then back to list
+    triangles = list(set(triangles))
+    # Sort triangles lexicographically
+    triangles.sort()
+    
+    # Now for each triangle, check if it's deadlocked
+    for a, b, c in triangles:
+        triangle_set = {a, b, c}
+        # Check if triangle_set is subset of domain of each member
+        if triangle_set <= domain[a] and triangle_set <= domain[b] and triangle_set <= domain[c]:
+            print(a, b, c)
+            return
+
+if __name__ == "__main__":
+    main()

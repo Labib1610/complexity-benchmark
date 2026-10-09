@@ -1,0 +1,80 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    adj = [0] * n
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u] |= (1 << v)
+        adj[v] |= (1 << u)
+
+    full = (1 << n) - 1
+    # Find all maximal independent sets using Bron-Kerbosch with pivoting
+    mis_list = []
+
+    def bron_kerbosch(R, P, X):
+        if P == 0 and X == 0:
+            mis_list.append(R)
+            return
+        # Choose pivot u in P | X with maximum degree into P
+        PuX = P | X
+        pivot = -1
+        best = -1
+        p = PuX
+        while p:
+            i = (p & -p).bit_length() - 1
+            p &= p - 1
+            cnt = bin(adj[i] & P).count('1')
+            if cnt > best:
+                best = cnt
+                pivot = i
+        # Candidates = P \ N(pivot)
+        candidates = P & ~adj[pivot]
+        c = candidates
+        while c:
+            i = (c & -c).bit_length() - 1
+            c &= c - 1
+            bit = 1 << i
+            bron_kerbosch(R | bit, P & ~adj[i] & ~bit, X & ~adj[i] & ~bit)
+            P &= ~bit
+            X |= bit
+
+    bron_kerbosch(0, full, 0)
+
+    # Greedy set cover: pick maximal independent sets to cover all vertices
+    cover = []
+    remaining = full
+    # Sort by size descending for better greedy performance
+    mis_sorted = sorted(mis_list, key=lambda x: bin(x).count('1'), reverse=True)
+    for s in mis_sorted:
+        if remaining == 0:
+            break
+        if s & remaining:
+            cover.append(s)
+            remaining &= ~s
+    if remaining != 0:
+        print("NO")
+        return
+
+    if len(cover) > 3:
+        print("NO")
+        return
+
+    freq = [0] * n
+    for idx, s in enumerate(cover):
+        i = s
+        while i:
+            b = i & -i
+            pos = b.bit_length() - 1
+            freq[pos] = idx + 1
+            i ^= b
+    print("YES")
+    print(' '.join(map(str, freq)))
+
+solve()

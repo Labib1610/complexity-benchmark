@@ -1,0 +1,125 @@
+import sys
+import threading
+
+def main():
+    import sys
+    sys.setrecursionlimit(1 << 25)
+    
+    n, m, t = map(int, sys.stdin.readline().split())
+    T = set(map(int, sys.stdin.readline().split()))
+    
+    edges = []
+    for _ in range(m):
+        u, v, w = map(int, sys.stdin.readline().split())
+        edges.append((w, u, v))
+    
+    if t <= 1:
+        print(0)
+        return
+    
+    # We need to find the minimum cost to connect all vertices in T
+    # This is essentially the Steiner Tree problem on a graph
+    # But since the graph is a tree (m = n-1), we can do better
+    
+    # First, build the graph
+    from collections import defaultdict
+    import heapq
+    
+    adj = [[] for _ in range(n+1)]
+    for w, u, v in edges:
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+    
+    # Since m = n-1 and it spans the whole space, it's a tree
+    # We want to find the minimum subtree that connects all nodes in T
+    # This is the Steiner tree problem on a tree, which can be solved efficiently
+    
+    # Approach:
+    # 1. Root the tree at some node
+    # 2. For each node, compute the minimum cost to connect all terminals in its subtree
+    # 3. Use DP: dp[u][0] = min cost in subtree of u without connecting to parent
+    #            dp[u][1] = min cost in subtree of u with connecting to parent (if u is terminal)
+    
+    # Actually simpler approach for tree:
+    # Find the minimal connected subtree containing all terminals
+    # This is equivalent to finding the union of paths between all pairs of terminals
+    # But there's a more efficient way:
+    # Build a virtual tree (auxiliary tree) induced by terminals
+    
+    # Let's use the fact that in a tree, the minimal connected subgraph containing terminals
+    # is obtained by taking the union of paths between terminals
+    # The cost is the sum of edge weights in this subgraph
+    
+    # Efficient algorithm:
+    # 1. Root the tree at some node
+    # 2. Compute for each node whether it is an ancestor of any terminal
+    # 3. The minimal subtree consists of edges where both endpoints have terminal descendants
+    #    or one endpoint is a terminal
+    
+    # Even simpler idea:
+    # In a tree, the minimal subtree connecting a set of terminals is unique
+    # We can find it by:
+    # 1. Pick any terminal as root
+    # 2. Do BFS/DFS to find all terminals and the edges in the subtree connecting them
+    
+    # Best approach:
+    # Use the fact that we want the minimum cost to connect all terminals
+    # In a tree, this is the same as finding the minimal subtree that contains all terminals
+    # Which is the union of paths between all terminals
+    # But there's a polynomial way:
+    # 1. Root the tree
+    # 2. For each node, compute if its subtree contains any terminal
+    # 3. An edge {u,v} is in the minimal subtree iff both u's side and v's side contain terminals
+    #    Or one of u,v is a terminal
+    
+    # Let's implement this correctly
+    
+    # Root the tree at node 1
+    parent = [-1] * (n+1)
+    depth = [0] * (n+1)
+    children = [[] for _ in range(n+1)]
+    
+    visited = [False] * (n+1)
+    stack = [1]
+    visited[1] = True
+    while stack:
+        u = stack.pop()
+        for v, w in adj[u]:
+            if not visited[v]:
+                visited[v] = True
+                parent[v] = u
+                depth[v] = depth[u] + 1
+                children[u].append((v, w))
+                stack.append(v)
+    
+    # Now compute for each node if its subtree contains a terminal
+    contains_terminal = [False] * (n+1)
+    # Initialize leaves
+    for u in range(1, n+1):
+        if u in T:
+            contains_terminal[u] = True
+    
+    # Propagate up
+    # Process nodes in reverse topological order (by decreasing depth)
+    # Since it's a tree, we can just process from deepest to shallowest
+    nodes_by_depth = [(depth[u], u) for u in range(1, n+1)]
+    nodes_by_depth.sort(reverse=True)
+    
+    for _, u in nodes_by_depth:
+        for v, w in children[u]:
+            if contains_terminal[v]:
+                contains_terminal[u] = True
+    
+    # Now collect edges in the minimal subtree
+    total_cost = 0
+    # For each edge in the rooted tree, check if it should be included
+    for u in range(1, n+1):
+        for v, w in children[u]:
+            # Edge from u to v
+            # Include this edge if v's subtree contains a terminal
+            if contains_terminal[v]:
+                total_cost += w
+    
+    print(total_cost)
+
+threading.Thread(target=main).start()

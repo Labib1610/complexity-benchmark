@@ -4,19 +4,16 @@ Time limit: 1 s   Memory limit: 256 MB
 
 ## Description
 
-You are given exactly **two** fragments, each a string of lowercase letters. Reconstruct the shortest possible single string **S** such that both fragments appear in **S** as contiguous substrings.
-
-Among all strings of the shortest possible length that contain both fragments, output the one that is lexicographically smallest.
+A reassembly stage receives **k** fragments of lowercase letters and must produce the shortest single text containing every fragment as a contiguous block. Here the instance is small in the number of fragments, so the best way to overlap them can be resolved directly rather than by weighing exponentially many orderings. Output any shortest text that contains all fragments as substrings.
 
 ## Input
 
-The first line contains the first fragment.
-The second line contains the second fragment.
-Each fragment is a non-empty string of lowercase English letters of length at most 500000.
+The first line contains a single integer **k** (k = 2).
+Each of the next **k** lines contains one fragment: a non-empty string of lowercase English letters of length at most 500000.
 
 ## Output
 
-Print the shortest string that contains both fragments as contiguous substrings. If both possible lengths are equal, print the lexicographically smallest such string.
+Print a shortest string that contains every fragment as a contiguous substring. Any string of the minimum possible length that contains all fragments is accepted.
 
 ## Examples
 
@@ -24,6 +21,7 @@ Print the shortest string that contains both fragments as contiguous substrings.
 
 **Input**
 ```
+2
 abcde
 cdefg
 ```
@@ -37,6 +35,7 @@ abcdefg
 
 **Input**
 ```
+2
 abc
 xyz
 ```
@@ -50,15 +49,16 @@ abcxyz
 
 **Input**
 ```
-hello
-hello
+2
+abcdef
+cde
 ```
 
 **Output**
 ```
-hello
+abcdef
 ```
 
 ## Note
 
-In Example 1, the end of `abcde` and the start of `cdefg` share `cde`, so they can be merged into `abcdefg`.
+This is the same shortest-superstring problem as Problem A. The only difference is that there are exactly **two** fragments, which makes an efficient exact solution possible. In Example 1 the end of `abcde` overlaps the start of `cdefg` on `cde`, giving `abcdefg`. In Example 3 the second fragment already occurs inside the first, so the first fragment alone is the answer.

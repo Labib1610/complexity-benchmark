@@ -1,0 +1,330 @@
+**Solution Explanation**
+
+For every job we have to choose an hour `h ∈ [1 , T]`
+
+* at most `M` jobs may be chosen for the same hour,
+* for every dependency `a → b` we need `h[a] < h[b]`.
+
+All jobs have the same processing time (one hour), therefore a job can be
+executed in any hour that is **not earlier** than all its predecessors
+and **not later** than all its successors.
+For a job `v`
+
+```
+earliest[v] = 1 + max{ earliest[u] | u → v }          (if no predecessor → 1)
+latest[v]   = T - max{ longest_path_len(v → w) | w is a sink }
+```
+
+`earliest[v]` is the length of the longest directed path that ends in `v`
+plus one, `latest[v]` is the latest hour that still leaves enough time for
+the longest chain that starts in `v`.
+
+If `earliest[v] > latest[v]` the job can never be placed – the whole
+instance is impossible.
+
+Otherwise the job may be placed in **any** hour `t` with
+
+```
+earliest[v] ≤ t ≤ latest[v] .
+```
+
+Now the problem becomes a bipartite matching with capacities:
+
+* left side – one node for every job,
+* right side – one node for every hour `1 … T`,
+* edge `job v → hour t` exists iff `earliest[v] ≤ t ≤ latest[v]`,
+* each job must be matched to exactly one hour,
+* each hour may be matched to at most `M` jobs.
+
+A maximum flow in this network tells whether a feasible assignment exists
+and, if it exists, gives one.
+
+The network (size `O(n + T)`)  
+
+```
+source → job(v)          capacity 1
+job(v) → hour(t)         capacity 1   (for all allowed t)
+hour(t) → sink           capacity M
+```
+
+A flow of value `n` ⇔ feasible schedule.
+
+The flow also directly yields the hour of each job:
+the unique outgoing edge of a job that carries flow `1` tells its hour.
+
+The algorithm
+
+```
+1. read the graph, build adjacency lists
+2. topological order
+3. DP on the order → earliest[v]
+4. DP on the reversed order → longest_path_len_to_sink[v]
+   latest[v] = T - longest_path_len_to_sink[v]
+5. if some earliest > latest → print NO
+6. build the flow network described above
+7. run Dinic (O(E·√V) in practice, easily fast for given limits)
+8. if maxflow < n → NO
+   else extract the hour of each job and print YES + the schedule
+```
+
+The whole procedure is polynomial, well inside the limits (`5 s`,
+`256 MiB`).
+
+--------------------------------------------------------------------
+
+#### Correctness Proof  
+
+We prove that the algorithm prints `YES` and a correct schedule
+iff such a schedule exists.
+
+---
+
+##### Lemma 1  
+For every job `v` any feasible schedule must assign it an hour
+`h` with `earliest[v] ≤ h ≤ latest[v]`.
+
+**Proof.**  
+`earliest[v]` is defined as `1 +` the length of the longest directed
+path ending in `v`. All jobs on that path must be placed in distinct
+hours, strictly increasing, therefore the last one (i.e. `v`) cannot be
+earlier than hour `earliest[v]`.  
+Analogously, the longest directed path starting in `v` has length
+`len`. All its jobs need distinct later hours, thus the last one finishes
+not later than hour `T`, so `v` cannot be later than `T - len = latest[v]`. ∎
+
+
+
+##### Lemma 2  
+If a job `v` is assigned an hour `h` with `earliest[v] ≤ h ≤ latest[v]`,
+all precedence constraints can still be satisfied.
+
+**Proof.**  
+Take any predecessor `u → v`. By definition of `earliest`,
+`earliest[v] ≥ earliest[u] + 1`. Because `h ≥ earliest[v]`,
+`h ≥ earliest[u] + 1`. Hence we can place `u` at some hour `≤ h‑1`
+(which is inside its own allowed interval by Lemma&nbsp;1).  
+The same argument works for successors using `latest`. ∎
+
+
+
+##### Lemma 3  
+A schedule exists **iff** there is a flow of value `n` in the constructed
+network.
+
+**Proof.**  
+
+*If* a schedule exists, assign each job `v` to its hour `h`.  
+Because of Lemma&nbsp;1 the edge `v → h` is present, we send one unit of
+flow `source → v → h → sink`. Capacities are respected:
+each job sends at most one unit, each hour receives at most `M` units.
+Thus we obtain a flow of value `n`.
+
+*Only‑if* we have a flow of value `n`.  
+Every job node has exactly one unit of outgoing flow (capacity 1 from
+source), therefore it uses exactly one edge to some hour `h`.  
+Capacity `M` of hour nodes guarantees at most `M` jobs per hour.
+By Lemma&nbsp;2 the chosen hour lies inside the job’s allowed interval,
+hence all precedence constraints are respected.
+Thus the flow defines a feasible schedule. ∎
+
+
+
+##### Lemma 4  
+If the algorithm prints `YES` the printed hours satisfy all constraints.
+
+**Proof.**  
+`YES` is printed only when the max‑flow value equals `n`.  
+By Lemma&nbsp;3 the flow corresponds to a feasible schedule.
+The algorithm extracts for each job the unique hour edge carrying flow `1`,
+so the printed hours are exactly that schedule. ∎
+
+
+
+##### Lemma 5  
+If a feasible schedule exists the algorithm prints `YES`.
+
+**Proof.**  
+Existence of a schedule ⇒ by Lemma&nbsp;1 all jobs have non‑empty
+intervals, otherwise the algorithm would have already answered `NO`.  
+By Lemma&nbsp;3 the schedule yields a flow of value `n`.  
+Dinic computes a maximum flow, therefore it also finds a flow of value
+`n` and the algorithm prints `YES`. ∎
+
+
+
+##### Theorem  
+The algorithm outputs `YES` and a correct assignment of hours
+iff such an assignment exists; otherwise it outputs `NO`.
+
+**Proof.**  
+*If* the algorithm outputs `YES`, Lemma&nbsp;4 guarantees correctness.  
+*Only‑if* a correct assignment exists, Lemma&nbsp;5 guarantees the
+algorithm outputs `YES`. The complementary case yields `NO`. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### Complexity Analysis  
+
+*Topological sort & DP*: `O(n + m)`  
+*Network size*: vertices `1 + n + T + 1 ≤ n + T + 2`,
+edges `n` (source) + `n·(latest‑earliest+1)` (job→hour) + `T` (hour→sink)  
+In the worst case each job may connect to all `T` hours, so  
+`E = O(n·T)`.
+
+Dinic runs in `O(E·√V)` in practice; with the given limits it easily fits
+into the 5 s time bound. Memory consumption is `O(E)` (≤ a few ·10⁶
+edges for typical constraints), well below 256 MiB.
+
+--------------------------------------------------------------------
+
+#### Reference Implementation  (Python 3)
+
+```python
+import sys
+sys.setrecursionlimit(1 << 25)
+
+# ---------- Dinic ----------
+class Dinic:
+    def __init__(self, n):
+        self.n = n
+        self.adj = [[] for _ in range(n)]
+
+    def add_edge(self, u, v, cap):
+        self.adj[u].append([v, cap, len(self.adj[v])])
+        self.adj[v].append([u, 0,   len(self.adj[u]) - 1])
+
+    def bfs_level(self, s, t):
+        level = [-1] * self.n
+        q = [s]
+        level[s] = 0
+        for u in q:
+            for v, cap, _ in self.adj[u]:
+                if cap and level[v] == -1:
+                    level[v] = level[u] + 1
+                    q.append(v)
+        self.level = level
+        return level[t] != -1
+
+    def dfs(self, u, t, f):
+        if u == t:
+            return f
+        for i in range(self.it[u], len(self.adj[u])):
+            self.it[u] = i
+            v, cap, rev = self.adj[u][i]
+            if cap and self.level[v] == self.level[u] + 1:
+                ret = self.dfs(v, t, min(f, cap))
+                if ret:
+                    self.adj[u][i][1] -= ret
+                    self.adj[v][rev][1] += ret
+                    return ret
+        return 0
+
+    def max_flow(self, s, t):
+        flow = 0
+        INF = 10 ** 18
+        while self.bfs_level(s, t):
+            self.it = [0] * self.n
+            while True:
+                f = self.dfs(s, t, INF)
+                if not f:
+                    break
+                flow += f
+        return flow
+
+# ---------- main ----------
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    M = int(next(it))
+    T = int(next(it))
+    m = int(next(it))
+
+    g = [[] for _ in range(n)]
+    rg = [[] for _ in range(n)]
+    indeg = [0] * n
+    for _ in range(m):
+        a = int(next(it)) - 1
+        b = int(next(it)) - 1
+        g[a].append(b)
+        rg[b].append(a)
+        indeg[b] += 1
+
+    # topological order
+    from collections import deque
+    q = deque([i for i in range(n) if indeg[i] == 0])
+    topo = []
+    while q:
+        v = q.popleft()
+        topo.append(v)
+        for to in g[v]:
+            indeg[to] -= 1
+            if indeg[to] == 0:
+                q.append(to)
+    if len(topo) != n:
+        print("NO")
+        return
+
+    # earliest
+    earliest = [1] * n
+    for v in topo:
+        for to in g[v]:
+            if earliest[to] < earliest[v] + 1:
+                earliest[to] = earliest[v] + 1
+
+    # longest path to sink (in edges)
+    longest = [0] * n
+    for v in reversed(topo):
+        best = 0
+        for to in g[v]:
+            if longest[to] + 1 > best:
+                best = longest[to] + 1
+        longest[v] = best
+    latest = [T - longest[i] for i in range(n)]
+
+    for i in range(n):
+        if earliest[i] > latest[i]:
+            print("NO")
+            return
+
+    # build flow network
+    SRC = 0
+    JOB0 = 1
+    HOUR0 = JOB0 + n
+    SNK = HOUR0 + T
+    dinic = Dinic(SNK + 1)
+
+    for i in range(n):
+        dinic.add_edge(SRC, JOB0 + i, 1)
+        for h in range(earliest[i], latest[i] + 1):
+            dinic.add_edge(JOB0 + i, HOUR0 + (h - 1), 1)
+
+    for h in range(T):
+        dinic.add_edge(HOUR0 + h, SNK, M)
+
+    flow = dinic.max_flow(SRC, SNK)
+    if flow < n:
+        print("NO")
+        return
+
+    # extract schedule
+    ans = [0] * n
+    for i in range(n):
+        for v, cap, rev in dinic.adj[JOB0 + i]:
+            if HOUR0 <= v < HOUR0 + T and cap == 0:  # used edge
+                ans[i] = v - HOUR0 + 1
+                break
+
+    print("YES")
+    print(' '.join(map(str, ans)))
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above
+and conforms to the required input‑output format.

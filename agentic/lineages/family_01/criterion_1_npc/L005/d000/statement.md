@@ -1,20 +1,22 @@
-# Problem A — The Tri-Position Lock
+# Problem A — Atmospheric Preservation
 
 Time limit: 2 s   Memory limit: 256 MB
 
-You are attempting to open a complex mechanical vault. The locking mechanism consists of $n$ sequential dials, numbered 1 to $n$. Each dial must be rotated to lock into exactly one of three distinct positions, indicated by the numbers 1, 2, and 3.
+A collection of $n$ historical documents is being processed for long-term storage. Analysis has identified $m$ specific pairs of documents that possess incompatible material compositions; these pairs will degrade if kept in the same environment.
 
-Inside the vault door, there are $m$ rigid crossbars. Each crossbar links a specific pair of dials. Due to the shape of the crossbars, if the two dials linked by a crossbar are rotated into the exact same position, the crossbar will seize and the lock will jam. The vault will only open if every dial is assigned a position such that no crossbar seizes.
+The facility is equipped with three distinct preservation vaults, which are identified by the codes 1, 2, and 3. The storage protocol mandates two rules:
+- Any two documents identified as incompatible must be placed in different vaults.
+- Every document must be assigned to exactly one of the three vaults.
 
-You must determine a combination of positions for all $n$ dials that successfully opens the vault, or report that the mechanism is permanently jammed. 
+Your task is to analyze the incompatibility data and decide whether it is possible to satisfy all storage protocols. If a valid arrangement exists, you must provide one.
 
 ## Input
-The first line contains two integers $n$ and $m$ — the number of dials and the number of crossbars (1 ≤ $n$ ≤ 40, 0 ≤ $m$ ≤ $n(n−1)/2$).
-Each of the next $m$ lines contains two integers $u$ and $v$ — the identifiers of two dials linked by a crossbar. Dials are identified by integers from 1 to $n$.
+The first line contains two integers $n$ and $m$ — the number of documents and the number of incompatible pairs ($1 \le n \le 40$, $0 \le m \le n \cdot (n-1)/2$).
+Each of the next $m$ lines contains two integers $u$ and $v$ — a pair of documents that are incompatible.
 
 ## Output
-If there is no combination of dial positions that avoids jamming, print a single line containing `NO`.
-Otherwise, print `YES` on the first line. On the second line, print $n$ integers $p_1, p_2, \dots, p_n$ (each $p_i \in \{1, 2, 3\}$), where $p_i$ is the position of dial $i$. Among all combinations that open the vault, you must output the one that is lexicographically smallest. (A sequence $A$ is lexicographically smaller than sequence $B$ if, at the first index where their positions differ, sequence $A$ has a smaller position number than sequence $B$).
+If no valid arrangement exists, print a single line NO.
+Otherwise print YES on the first line. On the second line print $n$ integers $v_1 \ v_2 \dots v_n$ (each in $\{1, 2, 3\}$), where $v_i$ is the vault assigned to document $i$. Any valid arrangement is accepted.
 
 ## Example 1
 Input:

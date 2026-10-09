@@ -1,0 +1,64 @@
+import sys
+from collections import defaultdict, deque
+
+def solve():
+    n, m, k = map(int, input().split())
+    
+    # Build adjacency list
+    adj = defaultdict(list)
+    for _ in range(m):
+        u, v = map(int, input().split())
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # Bipartite graph coloring
+    color = [-1] * (n + 1)  # -1: unvisited, 0: color A, 1: color B
+    partition = [[], []]  # partition[0] for color A, partition[1] for color B
+    
+    for start in range(1, n + 1):
+        if color[start] == -1:  # unvisited component
+            queue = deque([start])
+            color[start] = 0
+            partition[0].append(start)
+            
+            while queue:
+                node = queue.popleft()
+                current_color = color[node]
+                
+                for neighbor in adj[node]:
+                    if color[neighbor] == -1:
+                        color[neighbor] = 1 - current_color
+                        partition[1 - current_color].append(neighbor)
+                        queue.append(neighbor)
+                    elif color[neighbor] == current_color:
+                        # This shouldn't happen according to problem statement
+                        # but let's handle it gracefully
+                        print("NO")
+                        return
+    
+    # Check if we can select exactly k nodes
+    size_a = len(partition[0])
+    size_b = len(partition[1])
+    
+    # We want to select exactly k nodes with no adjacent pairs
+    # So we can select at most max(size_a, size_b) nodes
+    # But we need exactly k
+    
+    if k > size_a + size_b:
+        print("NO")
+        return
+        
+    # Choose the larger partition if k <= its size
+    if k <= size_a:
+        print("YES")
+        print(' '.join(map(str, partition[0][:k])))
+    elif k <= size_b:
+        print("YES")
+        print(' '.join(map(str, partition[1][:k])))
+    else:
+        # k is between max(size_a, size_b) and size_a + size_b
+        # We need to take some from both partitions
+        # But since we want NO adjacent nodes, we can only take from one partition
+        print("NO")
+
+solve()

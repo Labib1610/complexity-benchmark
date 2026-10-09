@@ -1,0 +1,55 @@
+import sys
+
+def solve() -> None:
+    data = sys.stdin.buffer.read().split()
+    it = iter(data)
+    N = int(next(it))
+    E = int(next(it))      # = N-1, guaranteed
+    F = int(next(it))
+
+    special = [0] * (N + 1)
+    for _ in range(F):
+        special[int(next(it))] = 1
+
+    adj = [[] for _ in range(N + 1)]
+    for _ in range(E):
+        u = int(next(it))
+        v = int(next(it))
+        w = int(next(it))
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+
+    parent = [0] * (N + 1)
+    pw = [0] * (N + 1)          # weight of edge to parent
+    order = []
+    stack = [1]
+    parent[1] = -1              # mark root
+
+    while stack:
+        node = stack.pop()
+        order.append(node)
+        for nb, w in adj[node]:
+            if nb == parent[node]:
+                continue
+            parent[nb] = node
+            pw[nb] = w
+            stack.append(nb)
+
+    sub = [0] * (N + 1)
+    total_special = F
+    ans = 0
+
+    for node in reversed(order):
+        cnt = special[node]
+        for nb, _ in adj[node]:
+            if parent[nb] == node:        # nb is child
+                cnt += sub[nb]
+        sub[node] = cnt
+        if node != 1:                     # edge to parent
+            if sub[node] > 0 and total_special - sub[node] > 0:
+                ans += pw[node]
+
+    sys.stdout.write(str(ans))
+
+if __name__ == "__main__":
+    solve()

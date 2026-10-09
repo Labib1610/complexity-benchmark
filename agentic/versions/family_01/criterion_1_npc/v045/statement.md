@@ -1,20 +1,21 @@
-# Production Block Assignment
+# Production Schedule
 
 Time limit: 2 s   Memory limit: 256 MB
 
-A manufacturing plant organizes its daily operations into three distinct production blocks, designated as 1, 2, and 3. Every employee on the payroll must be assigned to exactly one of these blocks. Due to safety regulations and interpersonal grievances, certain pairs of employees are deemed incompatible and are strictly prohibited from working during the same production block.
+A manufacturing plant runs continuously, dividing its daily operations into three distinct production shifts, designated as 1, 2, and 3. Every machine operator on the payroll must be assigned to exactly one of these three shifts.
 
-You must determine if there is a valid schedule that assigns every employee to one of the three blocks without placing any incompatible pair together, or determine that no such schedule exists.
+The human resources department maintains a list of past safety incidents. Each record documents a conflict between a specific pair of operators. To ensure a safe working environment, any two operators who are listed together in an incident record are strictly forbidden from working during the same shift. 
+
+You must determine if there is a way to assign every operator to a shift such that no safety rules are violated. If a valid schedule is possible, you must provide one.
 
 ## Input
-The first line provides two integers $n$ and $m$ — the total staff count and the number of incompatible pairs. The staff count $n$ is strictly positive and will not exceed the total number of available lockers in the changing room. The locker room features exactly 8 rows of lockers, with each row containing exactly 5 lockers, which strictly caps the maximum possible staff size. The value $m$ can be zero and is at most the theoretical maximum where every distinct pair of employees is incompatible.
+The first line of the log contains two integers $n$ and $m$. The integer $n$ represents the headcount of machine operators. The facility employs at least one operator, while the strict upper limit on $n$ is dictated by the exactly 40 individual employee lockers available on site. The integer $m$ represents the number of safety incident records. This value ranges from zero up to the theoretical maximum where every distinct pair of operators has exactly one incident on file.
 
-Following this, $m$ lines are provided. Each of these lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \ne v$), indicating that employee $u$ and employee $v$ cannot be assigned to the same production block.
+Each of the following $m$ lines provides two integers $u$ and $v$, identifying a pair of operators (who are numbered 1 through $n$) that share an incident record and therefore cannot be assigned to the same shift.
 
 ## Output
-If there is no way to assign the employees to the blocks without violating the incompatibility constraints, output a single line containing `NO`.
-
-If a valid assignment is possible, output `YES` on the first line. On the second line, output $n$ integers $s_1, s_2, \dots, s_n$ (each being 1, 2, or 3), where $s_i$ corresponds to the production block assigned to employee $i$. If there are multiple valid ways to assign the employees, you must output the sequence of block numbers that is lexicographically smallest (i.e., compare the assignment for employee 1 first; in case of a tie, compare employee 2, and so forth).
+If it is impossible to distribute the operators across the three shifts without violating the safety rules, output a single line containing NO.
+If it is possible, output YES on the first line. On the second line, output $n$ integers separated by spaces. The $i$-th integer must be 1, 2, or 3, indicating the shift assigned to operator $i$. If multiple valid schedules exist, any of them will be accepted.
 
 ## Example 1
 Input:

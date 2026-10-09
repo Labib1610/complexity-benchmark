@@ -1,22 +1,23 @@
-# Problem B — Day and Night
+# Problem B — Dual-Mode Operation
 
 Time limit: 1 s   Memory limit: 256 MB
 
-The factory operates exactly two production schedules, designated as Schedule 1 and Schedule 2. There are $n$ technicians and $m$ incompatibility records. Each record contains two technician IDs, indicating that these two individuals cannot be assigned to the same schedule. 
+A system consists of $n$ modules, numbered 1 to $n$. The system operates using two distinct operational modes, labeled 1 and 2.
+There are $m$ interference links, each connecting a pair of modules. If two modules connected by an interference link are set to the same operational mode, a critical failure occurs.
 
-To assist with load balancing, the planning department guarantees the following structural properties for every set of records:
-- If you calculate the frequency of each technician's ID across all $m$ records, the sum of these frequencies over all $n$ technicians is exactly $2m$.
-- The maximum frequency of any single technician's ID across all records is at most $2m$.
+You must assign exactly one mode to each module such that no critical failure can occur. Due to power constraints, your assignment must also satisfy a load-balancing condition: the absolute difference between the number of modules assigned to mode 1 and the number of modules assigned to mode 2 must not exceed $n$. 
 
-Your task is to assign each technician to either Schedule 1 or Schedule 2 such that no two technicians in any incompatibility record share the same schedule. If it is impossible to satisfy all records, you must report this.
+Furthermore, the system architecture guarantees that no single module appears as an endpoint in more than $m$ interference links.
+
+If there is no way to assign the modes while avoiding critical failures, report impossibility. Otherwise, output the valid assignment. If multiple valid assignments exist, you must output the one that is lexicographically smallest.
 
 ## Input
 The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$).
-Each of the following $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$), representing an incompatibility record between technician $u$ and technician $v$.
+Each of the next $m$ lines contains two integers $u$ and $v$ — a pair of modules connected by an interference link.
 
 ## Output
-If there is no valid schedule assignment, output a single line containing `NO`.
-Otherwise, output `YES` on the first line. On the second line, output $n$ integers $s_1, s_2, \ldots, s_n$ (where each $s_i \in \{1, 2\}$) representing the schedule assigned to each technician. If there are multiple valid assignments, you must output the one that is lexicographically smallest.
+If no valid assignment exists, print a single line containing `NO`.
+Otherwise, print `YES` on the first line. On the second line, print $n$ integers $s_1, s_2, \dots, s_n$ (where each $s_i \in \{1, 2\}$) representing the lexicographically smallest valid assignment.
 
 ## Example 1
 Input:

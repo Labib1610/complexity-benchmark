@@ -1,58 +1,41 @@
 import sys
-sys.setrecursionlimit(10000)
 
 def solve():
-    data = sys.stdin.read().strip().split()
-    if not data:
+    input_data = sys.stdin.read().split()
+    if not input_data:
         return
-    it = iter(data)
-    n = int(next(it))
-    m = int(next(it))
+    n = int(input_data[0])
+    m = int(input_data[1])
     
-    adj = [[] for _ in range(n)]
+    adj = [[False] * (n + 1) for _ in range(n + 1)]
+    idx = 2
     for _ in range(m):
-        u = int(next(it)) - 1
-        v = int(next(it)) - 1
-        adj[u].append(v)
-        adj[v].append(u)
-    
-    # Sort neighbors to ensure deterministic processing order
-    for i in range(n):
-        adj[i].sort()
-    
-    # Best solution found (lexicographically smallest)
-    best = None
-    
-    def dfs(u, colors):
-        nonlocal best
-        if best is not None:
-            return
+        u = int(input_data[idx])
+        v = int(input_data[idx + 1])
+        idx += 2
+        adj[u][v] = True
+        adj[v][u] = True
         
-        if u == n:
-            best = colors[:]
-            return
+    colors = [0] * (n + 1)
+    
+    for i in range(1, n + 1):
+        forbidden = set()
+        for j in range(1, i):
+            if adj[i][j]:
+                forbidden.add(colors[j])
         
-        # Try colors 1, 2, 3 in order
-        for c in [1, 2, 3]:
-            valid = True
-            for v in adj[u]:
-                if v < u and colors[v] == c:
-                    valid = False
-                    break
-            if valid:
-                colors[u] = c
-                dfs(u + 1, colors)
-                colors[u] = 0
-                if best is not None:
-                    return
-    
-    colors = [0] * n
-    dfs(0, colors)
-    
-    if best is None:
-        print("NO")
-    else:
-        print("YES")
-        print(" ".join(map(str, best)))
+        c = 1
+        while c in forbidden:
+            c += 1
+            
+        if c > 3:
+            print("NO")
+            return
+            
+        colors[i] = c
+        
+    print("YES")
+    print(" ".join(map(str, colors[1:])))
 
-solve()
+if __name__ == '__main__':
+    solve()

@@ -1,0 +1,267 @@
+```python
+import sys
+
+sys.setrecursionlimit(10000)
+
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if len(data) < 2:
+        return
+
+    n, m = data[0], data[1]
+    edges = []
+    adj = [[] for _ in range(n)]
+    pos = 2
+
+    for eid in range(m):
+        u = data[pos] - 1
+        v = data[pos + 1] - 1
+        pos += 2
+        edges.append((u, v))
+        adj[u].append((v, eid))
+        adj[v].append((u, eid))
+
+    if m * 2 != 3 * n or any(len(adj[v]) != 3 for v in range(n)):
+        print("NO")
+        return
+
+    # Any 3-edge-colorable cubic graph is bridgeless.
+    tin = [-1] * n
+    low = [0] * n
+    timer = 0
+    has_bridge = False
+
+    def bridge_dfs(u, parent_eid):
+        nonlocal timer, has_bridge
+        tin[u] = low[u] = timer
+        timer += 1
+
+        for v, eid in adj[u]:
+            if eid == parent_eid:
+                continue
+            if tin[v] == -1:
+                bridge_dfs(v, eid)
+                low[u] = min(low[u], low[v])
+                if low[v] > tin[u]:
+                    has_bridge = True
+            else:
+                low[u] = min(low[u], tin[v])
+
+    for start in range(n):
+        if tin[start] == -1:
+            bridge_dfs(start, -1)
+
+    if has_bridge:
+        print("NO")
+        return
+
+    # Connected components.
+    components = []
+    seen = [False] * n
+    for start in range(n):
+        if seen[start]:
+            continue
+        stack = [start]
+        seen[start] = True
+        vertices = []
+        while stack:
+            u = stack.pop()
+            vertices.append(u)
+            for v, _ in adj[u]:
+                if not seen[v]:
+                    seen[v] = True
+                    stack.append(v)
+        components.append(vertices)
+
+    # status: 0 undecided, 1 in the first perfect matching, -1 outside it.
+    status = [0] * m
+    matched = [False] * n
+    change_log = []
+
+    # Rollback parity DSU for testing bipartiteness of nonmatching edges.
+    parent = list(range(n))
+    size = [1] * n
+    parity = [0] * n
+    dsu_log = []
+
+    def find(x):
+        p = 0
+        while parent[x] != x:
+            p ^= parity[x]
+            x = parent[x]
+        return x, p
+
+    def unite(a, b):
+        ra, pa = find(a)
+        rb, pb = find(b)
+
+        if ra == rb:
+            return (pa ^ pb) == 1
+
+        if size[ra] < size[rb]:
+            ra, rb = rb, ra
+            pa, pb = pb, pa
+
+        dsu_log.append((rb, ra, size[ra]))
+        parent[rb] = ra
+        parity[rb] = pa ^ pb ^ 1
+        size[ra] += size[rb]
+        return True
+
+    def rollback(change_snapshot, dsu_snapshot):
+        while len(change_log) > change_snapshot:
+            kind, idx = change_log.pop()
+            if kind == 0:
+                status[idx] = 0
+            else:
+                matched[idx] = False
+
+        while len(dsu_log) > dsu_snapshot:
+            rb, ra, old_size = dsu_log.pop()
+            parent[rb] = rb
+            parity[rb] = 0
+            size[ra] = old_size
+
+    def select_matching_edge(eid, queue):
+        if status[eid] != 0:
+            return False
+
+        u, v = edges[eid]
+        if matched[u] or matched[v]:
+            return False
+
+        status[eid] = 1
+        change_log.append((0, eid))
+
+        matched[u] = True
+        matched[v] = True
+        change_log.append((1, u))
+        change_log.append((1, v))
+
+        for x in (u, v):
+            for y, other_eid in adj[x]:
+                if other_eid == eid:
+                    continue
+                if status[other_eid] == 1:
+                    return False
+                if status[other_eid] == 0:
+                    status[other_eid] = -1
+                    change_log.append((0, other_eid))
+                    if not unite(x, y):
+                        return False
+                    if not matched[y]:
+                        queue.append(y)
+
+        return True
+
+    def solve_component(vertices):
+        component_set = set(vertices)
+        root_edge = adj[vertices[0]][0][1]
+
+        def search():
+            best_options = None
+
+            for u in vertices:
+                if matched[u]:
+                    continue
+
+                options = []
+                for v, eid in adj[u]:
+                    if status[eid] == 0 and not matched[v]:
+                        options.append(eid)
+
+                if not options:
+                    return False
+
+                if best_options is None or len(options) < len(best_options):
+                    best_options = options
+                    if len(best_options) == 1:
+                        break
+
+            if best_options is None:
+                return True
+
+            for eid in best_options:
+                if attempt(eid):
+                    return True
+            return False
+
+        def attempt(eid):
+            change_snapshot = len(change_log)
+            dsu_snapshot = len(dsu_log)
+            queue = []
+
+            if not select_matching_edge(eid, queue):
+                rollback(change_snapshot, dsu_snapshot)
+                return False
+
+            valid = True
+            while queue and valid:
+                u = queue.pop()
+                if matched[u] or u not in component_set:
+                    continue
+
+                only = -1
+                count = 0
+                for v, candidate in adj[u]:
+                    if status[candidate] == 0 and not matched[v]:
+                        only = candidate
+                        count += 1
+
+                if count == 0:
+                    valid = False
+                elif count == 1:
+                    if not select_matching_edge(only, queue):
+                        valid = False
+
+            if valid and search():
+                return True
+
+            rollback(change_snapshot, dsu_snapshot)
+            return False
+
+        return attempt(root_edge)
+
+    for vertices in components:
+        if not solve_component(vertices):
+            print("NO")
+            return
+
+    # Color each even cycle in the complement of the perfect matching.
+    colors = [0] * m
+    for eid in range(m):
+        if status[eid] == 1:
+            colors[eid] = 1
+
+    queue = []
+    for start_eid in range(m):
+        if status[start_eid] != -1 or colors[start_eid] != 0:
+            continue
+
+        colors[start_eid] = 2
+        queue.append(start_eid)
+
+        while queue:
+            eid = queue.pop()
+            expected = 5 - colors[eid]
+            u, v = edges[eid]
+
+            for x in (u, v):
+                for _, other_eid in adj[x]:
+                    if status[other_eid] != -1 or other_eid == eid:
+                        continue
+                    if colors[other_eid] == 0:
+                        colors[other_eid] = expected
+                        queue.append(other_eid)
+                    elif colors[other_eid] != expected:
+                        print("NO")
+                        return
+
+    print("YES")
+    print(*colors)
+
+
+if __name__ == "__main__":
+    main()
+```

@@ -1,0 +1,132 @@
+from collections import defaultdict, deque
+
+def solve():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    idx = 0
+    n = int(data[idx])
+    idx += 1
+    m = int(data[idx])
+    idx += 1
+    _ = int(data[idx])
+    idx += 1
+    
+    s = int(data[idx])
+    idx += 1
+    t = int(data[idx])
+    idx += 1
+    d = int(data[idx])
+    idx += 1
+    
+    edges = []
+    graph = defaultdict(list)
+    edge_index = {}
+    
+    for i in range(m):
+        u = int(data[idx])
+        idx += 1
+        v = int(data[idx])
+        idx += 1
+        cap = int(data[idx])
+        idx += 1
+        edges.append((u, v, cap))
+        edge_index[(u, v, i)] = i
+        graph[u].append((v, cap, i))
+        graph[v].append((u, 0, i))  # residual edge
+    
+    # Create super source and super sink
+    SUPER_SOURCE = 0
+    SUPER_SINK = n + 1
+    
+    # Add edge from super source to s with capacity d
+    graph[SUPER_SOURCE].append((s, d, m))
+    graph[s].append((SUPER_SOURCE, 0, m))
+    
+    # Add edge from t to super sink with capacity d
+    graph[t].append((SUPER_SINK, d, m+1))
+    graph[SUPER_SINK].append((t, 0, m+1))
+    
+    # Add all original edges with their capacities
+    for i in range(m):
+        u, v, cap = edges[i]
+        graph[u].append((v, cap, i))
+        graph[v].append((u, 0, i + m + 2))  # residual edge
+    
+    def bfs():
+        parent = [-1] * (n + 2)
+        visited = [False] * (n + 2)
+        queue = deque([SUPER_SOURCE])
+        visited[SUPER_SOURCE] = True
+        
+        while queue:
+            u = queue.popleft()
+            for v, cap, edge_id in graph[u]:
+                if not visited[v] and cap > 0:
+                    visited[v] = True
+                    parent[v] = (u, edge_id)
+                    queue.append(v)
+                    if v == SUPER_SINK:
+                        return parent
+        return None
+    
+    def ford_fulkerson():
+        max_flow = 0
+        flows = [0] * (m + 2)  # including super source->s and t->super sink
+        
+        while True:
+            parent = bfs()
+            if parent is None:
+                break
+                
+            path_flow = float('inf')
+            s_idx = SUPER_SINK
+            path = []
+            
+            while s_idx != SUPER_SOURCE:
+                prev_node, edge_id = parent[s_idx]
+                for v, cap, e_id in graph[prev_node]:
+                    if v == s_idx and e_id == edge_id:
+                        path_flow = min(path_flow, cap)
+                        path.append((prev_node, s_idx, edge_id))
+                        break
+                s_idx = prev_node
+            
+            for u, v, edge_id in path:
+                for i in range(len(graph[u])):
+                    if graph[u][i][0] == v and graph[u][i][2] == edge_id:
+                        graph[u][i] = (graph[u][i][0], graph[u][i][1] - path_flow, graph[u][i][2])
+                        break
+                for i in range(len(graph[v])):
+                    if graph[v][i][0] == u and graph[v][i][2] == edge_id:
+                        graph[v][i] = (graph[v][i][0], graph[v][i][1] + path_flow, graph[v][i][2])
+                        break
+            
+            max_flow += path_flow
+        
+        # Check if we achieved the required flow
+        if max_flow < d:
+            return False, None
+            
+        # Extract flows on original edges
+        result_flows = [0] * m
+        for i in range(m):
+            u, v, _ = edges[i]
+            # Find forward edge
+            for next_node, cap, edge_id in graph[u]:
+                if next_node == v and edge_id == i:
+                    # Original capacity - current capacity = flow
+                    result_flows[i] = edges[i][2] - cap
+                    break
+                    
+        return True, result_flows
+    
+    success, flows = ford_fulkerson()
+    if success:
+        print("YES")
+        print(' '.join(map(str, flows)))
+    else:
+        print("NO")
+
+solve()

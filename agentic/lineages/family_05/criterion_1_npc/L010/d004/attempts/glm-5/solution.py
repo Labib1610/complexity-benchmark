@@ -1,0 +1,207 @@
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    k = int(data[0])
+    t = int(data[1])
+    relays = []
+    idx = 2
+    for _ in range(t):
+        x = int(data[idx]); y = int(data[idx+1]); z = int(data[idx+2])
+        idx += 3
+        relays.append((x, y, z))
+    
+    if k == 0:
+        print("YES")
+        return
+    
+    # Build adjacency: for each relay, list of incompatible relays
+    # Since k <= 22, t <= k^3 = 10648, we can use bitmasks
+    n = len(relays)
+    adj = [0] * n
+    for i in range(n):
+        xi, yi, zi = relays[i]
+        mask = 0
+        for j in range(n):
+            if j == i:
+                continue
+            xj, yj, zj = relays[j]
+            if xi == xj or yi == yj or zi == zj:
+                mask |= (1 << j)
+        adj[i] = mask
+    
+    # We need to find a clique of size k in the complement graph
+    # i.e., a set of k relays where no two are incompatible
+    # This is equivalent to finding an independent set of size k in the original graph
+    
+    # Use backtracking with pruning
+    # Sort relays by degree (fewer conflicts first) might help
+    
+    # Order by degree ascending
+    order = sorted(range(n), key=lambda i: bin(adj[i]).count("1"))
+    
+    best = []
+    
+    # Precompute for each position in order, the list of candidates
+    # We'll do recursive search
+    
+    # To speed up, we'll use bitmasks for available set
+    # available mask: bits set for relays still available
+    full_mask = (1 << n) - 1
+    
+    # We'll search using the order
+    # At each step, we either include the next relay in order (if compatible) or skip it
+    
+    # But better: standard maximum independent set with bitmask
+    
+    # Let's try: pick relay with minimum degree, branch on include/exclude
+    
+    # Since we need exactly k, we can stop early
+    
+    # We'll use recursion with memoization on available mask? n can be up to 10648, too large for memo
+    
+    # Let's try greedy + backtracking
+    
+    # Actually, let's think: we need independent set of size k.
+    # The complement graph has an edge between i,j if they are compatible.
+    # We need a clique of size k in complement graph.
+    
+    # For k up to 22, and n up to ~10000, we need efficient search.
+    
+    # Let's try: pick a relay, then only consider its neighbors in complement graph (compatible relays)
+    # Recurse
+    
+    # Build compatible masks
+    comp = [0] * n
+    for i in range(n):
+        comp[i] = full_mask & ~adj[i] & ~(1 << i)
+    
+    # Sort by degree in original graph (ascending = fewer conflicts = more compatible)
+    
+    # Recursive search
+    found = [None]
+    
+    def search(current_set, available, depth):
+        if depth == k:
+            found[0] = current_set[:]
+            return True
+        if available == 0:
+            return False
+        # Pruning: if number of available bits < remaining needed
+        if bin(available).count("1") < k - depth:
+            return False
+        # Pick the relay with smallest index in available (or some heuristic)
+        # Let's pick the one with minimum compatible count among available
+        # Actually, let's just pick the lowest set bit for simplicity, but try ordering
+        
+        # Try to pick a relay from available
+        # To reduce branching, pick the relay with minimum available compatible neighbors
+        # But that's expensive; let's just iterate
+        
+        # Let's pick the first available relay
+        temp = available
+        while temp:
+            # Get lowest set bit
+            low = temp & (-temp)
+            i = low.bit_length() - 1
+            temp ^= low
+            
+            # Include relay i
+            current_set.append(i)
+            new_available = available & comp[i]
+            if search(current_set, new_available, depth + 1):
+                return True
+            current_set.pop()
+            
+            # Exclude relay i: but we need to make sure we don't loop forever
+            # Actually, by removing i from available and continuing, we're excluding it
+            available ^= low
+        
+        return False
+    
+    # Reorder: try relays with fewer conflicts first
+    # But the search above picks lowest bit; let's reorder relays so that low-degree ones come first
+    
+    # Create mapping
+    # Actually, let's just run the search with the order given
+    
+    # To improve, let's sort relays by degree and remap
+    # But comp and adj are indexed by original; let's just use order
+    
+    # Alternative: iterate over relays in order, try including each as first element
+    # This is what the search does if we start with full available
+    
+    # Let's try with a better heuristic: pick the relay with minimum compatible neighbors
+    # among available at each step
+    
+    def search2(current_set, available, depth):
+        if depth == k:
+            found[0] = current_set[:]
+            return True
+        if available == 0:
+            return False
+        cnt = bin(available).count("1")
+        if cnt < k - depth:
+            return False
+        
+        # Find relay in available with minimum compatible neighbors in available
+        best_i = -1
+        best_cnt = 999999
+        temp = available
+        candidates = []
+        while temp:
+            low = temp & (-temp)
+            i = low.bit_length() - 1
+            temp ^= low
+            c = bin(comp[i] & available).count("1")
+            if c < best_cnt:
+                best_cnt = c
+                best_i = i
+            candidates.append((i, c))
+        
+        # If best has fewer than k-depth-1 compatible, prune
+        if best_cnt < k - depth - 1:
+            return False
+        
+        # Try including best_i first
+        current_set.append(best_i)
+        if search2(current_set, available & comp[best_i], depth + 1):
+            return True
+        current_set.pop()
+        
+        # Try others? Actually, we need to be careful.
+        # If we exclude best_i, we still need to search.
+        # But the loop above already tried all candidates by including them.
+        # Wait, no - we only tried best_i. Let's try all.
+        
+        # Actually, let's try all candidates sorted by compatible count
+        candidates.sort(key=lambda x: x[1])
+        for i, c in candidates:
+            if i == best_i:
+                continue
+            current_set.append(i)
+            if search2(current_set, available & comp[i], depth + 1):
+                return True
+            current_set.pop()
+        
+        return False
+    
+    # Start search
+    # Try each relay as starting point, in order of increasing degree
+    for start in order:
+        current = [start]
+        avail = comp[start]
+        if search2(current, avail, 1):
+            break
+    
+    if found[0] is not None:
+        print("YES")
+        for i in found[0]:
+            x, y, z = relays[i]
+            print(f"{x} {y} {z}")
+    else:
+        print("NO")
+
+solve()

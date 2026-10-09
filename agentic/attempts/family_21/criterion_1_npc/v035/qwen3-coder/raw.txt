@@ -1,0 +1,383 @@
+```python
+import sys
+from collections import defaultdict, deque
+
+def find_articulation_points_and_bridges(n, edges):
+    # Build adjacency list
+    adj = defaultdict(list)
+    for u, v, w in edges:
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+    
+    # Tarjan's algorithm for finding bridges
+    disc = [-1] * (n + 1)
+    low = [-1] * (n + 1)
+    parent = [-1] * (n + 1)
+    time = [0]
+    bridges = []
+    
+    def dfs(u):
+        disc[u] = low[u] = time[0]
+        time[0] += 1
+        
+        for v, w in adj[u]:
+            if disc[v] == -1:  # If v is not visited yet
+                parent[v] = u
+                dfs(v)
+                low[u] = min(low[u], low[v])
+                
+                # If the lowest vertex reachable from subtree under v is below u in DFS tree, 
+                # then u-v is a bridge
+                if low[v] > disc[u]:
+                    bridges.append((u, v, w))
+            elif v != parent[u]:  # Update low value of u for parent function calls
+                low[u] = min(low[u], disc[v])
+    
+    for i in range(1, n + 1):
+        if disc[i] == -1:
+            dfs(i)
+    
+    return bridges
+
+def find_min_cut_for_pair(n, edges, s, t):
+    # Use Edmonds-Karp algorithm to find minimum cut
+    # Build residual graph
+    capacity = defaultdict(lambda: defaultdict(int))
+    adj = defaultdict(list)
+    
+    for u, v, w in edges:
+        if capacity[u][v] == 0:  # First edge
+            adj[u].append(v)
+            adj[v].append(u)
+        capacity[u][v] += w
+        capacity[v][u] += w
+    
+    def bfs(source, sink, parent):
+        visited = [False] * (n + 1)
+        queue = deque([source])
+        visited[source] = True
+        
+        while queue:
+            u = queue.popleft()
+            
+            for v in adj[u]:
+                if not visited[v] and capacity[u][v] > 0:
+                    queue.append(v)
+                    visited[v] = True
+                    parent[v] = u
+                    if v == sink:
+                        return True
+        return False
+    
+    def ford_fulkerson(source, sink):
+        parent = [-1] * (n + 1)
+        max_flow = 0
+        
+        while bfs(source, sink, parent):
+            path_flow = float('inf')
+            s_node = sink
+            
+            while s_node != source:
+                path_flow = min(path_flow, capacity[parent[s_node]][s_node])
+                s_node = parent[s_node]
+            
+            v = sink
+            while v != source:
+                u = parent[v]
+                capacity[u][v] -= path_flow
+                capacity[v][u] += path_flow
+                v = parent[v]
+            
+            max_flow += path_flow
+        
+        return max_flow
+    
+    # Create a copy of capacity for this run
+    original_capacity = defaultdict(lambda: defaultdict(int))
+    for u in capacity:
+        for v in capacity[u]:
+            original_capacity[u][v] = capacity[u][v]
+    
+    flow = ford_fulkerson(s, t)
+    
+    # Restore capacity
+    for u in capacity:
+        for v in capacity[u]:
+            capacity[u][v] = original_capacity[u][v]
+    
+    return flow
+
+def find_min_cut_edges(n, edges, s, t):
+    # Build residual graph
+    capacity = defaultdict(lambda: defaultdict(int))
+    adj = defaultdict(list)
+    
+    for u, v, w in edges:
+        if capacity[u][v] == 0:
+            adj[u].append(v)
+            adj[v].append(u)
+        capacity[u][v] += w
+        capacity[v][u] += w
+    
+    def bfs(source, sink, parent):
+        visited = [False] * (n + 1)
+        queue = deque([source])
+        visited[source] = True
+        
+        while queue:
+            u = queue.popleft()
+            
+            for v in adj[u]:
+                if not visited[v] and capacity[u][v] > 0:
+                    queue.append(v)
+                    visited[v] = True
+                    parent[v] = u
+                    if v == sink:
+                        return True
+        return False
+    
+    def ford_fulkerson(source, sink):
+        parent = [-1] * (n + 1)
+        max_flow = 0
+        
+        while bfs(source, sink, parent):
+            path_flow = float('inf')
+            s_node = sink
+            
+            while s_node != source:
+                path_flow = min(path_flow, capacity[parent[s_node]][s_node])
+                s_node = parent[s_node]
+            
+            v = sink
+            while v != source:
+                u = parent[v]
+                capacity[u][v] -= path_flow
+                capacity[v][u] += path_flow
+                v = parent[v]
+            
+            max_flow += path_flow
+        
+        return max_flow
+    
+    ford_fulkerson(s, t)
+    
+    # Find min-cut edges by checking which edges go from reachable to non-reachable
+    visited = [False] * (n + 1)
+    queue = deque([s])
+    visited[s] = True
+    
+    while queue:
+        u = queue.popleft()
+        for v in adj[u]:
+            if not visited[v] and capacity[u][v] > 0:
+                visited[v] = True
+                queue.append(v)
+    
+    cut_edges = []
+    for u, v, w in edges:
+        # If u is reachable from source but v is not, or vice versa
+        if (visited[u] and not visited[v]) or (visited[v] and not visited[u]):
+            if (u, v, w) not in cut_edges and (v, u, w) not in cut_edges:
+                cut_edges.append((u, v, w))
+    
+    return cut_edges
+
+def main():
+    input_lines = []
+    for line in sys.stdin:
+        input_lines.append(line.strip())
+    
+    # Parse input
+    n, m, k, B = map(int, input_lines[0].split())
+    containment_sites = list(map(int, input_lines[1].split()))
+    
+    edges = []
+    for i in range(2, 2 + m):
+        u, v, w = map(int, input_lines[i].split())
+        edges.append((u, v, w))
+    
+    if k <= 1:
+        print("YES")
+        print(0)
+        return
+    
+    # For small k, we can try all pairs
+    # But we need a better approach - find minimum cuts between all pairs
+    # and take the union of all necessary edges
+    
+    # A better approach: for each pair of containment sites, find the minimum cut
+    # Then take the union of all edges in these cuts, but be careful not to double count
+    
+    all_cut_edges = set()
+    total_cost = 0
+    edge_dict = {}  # To store edges by their endpoints
+    
+    for edge in edges:
+        u, v, w = edge
+        key = tuple(sorted([u, v]))
+        edge_dict[key] = edge
+    
+    # We'll use a greedy approach: for each pair, find min cut and add those edges
+    selected_edges = set()
+    added_edges = set()
+    
+    for i in range(k):
+        for j in range(i + 1, k):
+            s = containment_sites[i]
+            t = containment_sites[j]
+            
+            # Find min cut edges for this pair
+            cut_edges = find_min_cut_edges(n, edges, s, t)
+            
+            for edge in cut_edges:
+                u, v, w = edge
+                key = tuple(sorted([u, v]))
+                if key not in added_edges:
+                    selected_edges.add(key)
+                    added_edges.add(key)
+    
+    # Calculate total cost
+    total_cost = 0
+    result_edges = []
+    for key in selected_edges:
+        u, v = key
+        edge_key = tuple(sorted([u, v]))
+        if edge_key in edge_dict:
+            _, _, w = edge_dict[edge_key]
+            total_cost += w
+            result_edges.append((u, v))
+    
+    if total_cost <= B:
+        print("YES")
+        print(len(result_edges))
+        for u, v in result_edges:
+            print(u, v)
+    else:
+        # Try a different approach - find the minimum cost to separate all pairs
+        # This is actually a complex problem. Let's try a simpler heuristic.
+        
+        # Find minimum spanning tree approach won't work directly
+        # Let's try to find if there's a solution by checking if we can disconnect
+        # all pairs within budget
+        
+        # For this problem, we can model it as finding a set of edges whose removal
+        # disconnects all pairs of containment sites
+        
+        # Use a greedy approach: keep adding minimum cuts until all pairs are disconnected
+        used_edges = set()
+        total_cost = 0
+        final_edges = []
+        
+        # Check if all pairs are already disconnected
+        def are_all_pairs_disconnected(current_edges):
+            # Build graph
+            adj = defaultdict(list)
+            for u, v, w in current_edges:
+                adj[u].append(v)
+                adj[v].append(u)
+            
+            # Check connectivity for each pair
+            for i in range(k):
+                for j in range(i + 1, k):
+                    s = containment_sites[i]
+                    t = containment_sites[j]
+                    
+                    # BFS to check if s and t are connected
+                    visited = set()
+                    queue = deque([s])
+                    visited.add(s)
+                    found = False
+                    
+                    while queue:
+                        node = queue.popleft()
+                        if node == t:
+                            found = True
+                            break
+                        for neighbor in adj[node]:
+                            if neighbor not in visited:
+                                visited.add(neighbor)
+                                queue.append(neighbor)
+                    
+                    if found:
+                        return False
+            return True
+        
+        # Start with all edges
+        current_edges = edges[:]
+        
+        if are_all_pairs_disconnected(current_edges):
+            print("YES")
+            print(0)
+            return
+        
+        # Try removing edges one by one to minimize cost
+        # This is getting complex. Let's go back to the min-cut approach but be more careful
+        
+        # Actually, let's think differently. 
+        # The problem asks to separate ALL containment sites from EACH OTHER.
+        # This means the set of edges we remove must be such that in the resulting graph,
+        # no two containment sites are in the same connected component.
+        
+        # One approach: for each pair, compute min-cut. Take union of all cut edges.
+        # But this might not be minimal.
+        
+        # Let's re-implement with a cleaner approach
+        
+        # Try a different method: use integer linear programming concept but simulate it
+        
+        # For small inputs, we can try this:
+        # 1. For each pair of containment sites, find the minimum cut
+        # 2. Take the union of all these cuts
+        # 3. Check if total cost <= B
+        
+        edge_index = {}
+        for i, edge in enumerate(edges):
+            u, v, w = edge
+            key = tuple(sorted([u, v]))
+            edge_index[key] = i
+        
+        # Collect all edges that need to be in the solution
+        required_edges = set()
+        
+        for i in range(k):
+            for j in range(i + 1, k):
+                s = containment_sites[i]
+                t = containment_sites[j]
+                
+                # Find min cut value first
+                min_cut_value = find_min_cut_for_pair(n, edges, s, t)
+                
+                # If min cut is infinity (no path), skip
+                if min_cut_value == 0:
+                    continue
+                    
+                # Find actual edges in min cut
+                cut_edges = find_min_cut_edges(n, edges, s, t)
+                
+                for edge in cut_edges:
+                    u, v, w = edge
+                    key = tuple(sorted([u, v]))
+                    required_edges.add(key)
+        
+        # Calculate total cost
+        total_cost = 0
+        result_edges = []
+        for key in required_edges:
+            u, v = key
+            edge_key = tuple(sorted([u, v]))
+            if edge_key in edge_dict:
+                _, _, w = edge_dict[edge_key]
+                total_cost += w
+                result_edges.append((u, v))
+        
+        if total_cost <= B:
+            print("YES")
+            print(len(result_edges))
+            for u, v in result_edges:
+                print(u, v)
+        else:
+            print("NO")
+
+if __name__ == "__main__":
+    main()
+```

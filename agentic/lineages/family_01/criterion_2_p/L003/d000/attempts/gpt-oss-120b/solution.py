@@ -1,5 +1,5 @@
 import sys
-from collections import deque
+sys.setrecursionlimit(1 << 25)
 
 def solve() -> None:
     data = sys.stdin.read().strip().split()
@@ -14,36 +14,35 @@ def solve() -> None:
         adj[u].append(v)
         adj[v].append(u)
 
-    temp = [-1] * (n + 1)          # 0/1 temporary colors
-    ans = [0] * (n + 1)            # final 1/2 values
+    color = [-1] * (n + 1)          # 0/1 bipartite colors
+    ans = [0] * (n + 1)             # final windows (1 or 2)
+
+    from collections import deque
 
     for start in range(1, n + 1):
-        if temp[start] != -1:
+        if color[start] != -1:
             continue
         # BFS this component
         q = deque([start])
-        temp[start] = 0
+        color[start] = 0
         comp = [start]
         ok = True
         while q:
             u = q.popleft()
             for v in adj[u]:
-                if temp[v] == -1:
-                    temp[v] = temp[u] ^ 1
+                if color[v] == -1:
+                    color[v] = color[u] ^ 1
                     q.append(v)
                     comp.append(v)
-                elif temp[v] == temp[u]:
+                elif color[v] == color[u]:
                     print("NO")
                     return
-        # lexicographically smallest: make start (the smallest index in component) = 1
-        if temp[start] == 0:
-            # map 0->1, 1->2
-            for v in comp:
-                ans[v] = 1 if temp[v] == 0 else 2
-        else:
-            # map 1->1, 0->2
-            for v in comp:
-                ans[v] = 1 if temp[v] == 1 else 2
+        # decide orientation: smallest vertex gets window 1
+        minv = min(comp)
+        flip = color[minv]          # if 1, flip to make it 0
+        for v in comp:
+            final_col = color[v] ^ flip   # 0 -> window 1, 1 -> window 2
+            ans[v] = final_col + 1
 
     print("YES")
     print(' '.join(str(ans[i]) for i in range(1, n + 1)))

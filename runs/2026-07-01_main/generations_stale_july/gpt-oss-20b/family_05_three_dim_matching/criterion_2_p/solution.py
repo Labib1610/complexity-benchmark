@@ -1,0 +1,81 @@
+import sys
+from collections import deque
+
+def hopcroft_karp(adj, n_left, n_right):
+    pairU = [0] * (n_left + 1)
+    pairV = [0] * (n_right + 1)
+    dist = [0] * (n_left + 1)
+
+    INF = 10 ** 9
+
+    def bfs():
+        q = deque()
+        for u in range(1, n_left + 1):
+            if pairU[u] == 0:
+                dist[u] = 0
+                q.append(u)
+            else:
+                dist[u] = INF
+        dist[0] = INF
+        while q:
+            u = q.popleft()
+            if dist[u] < dist[0]:
+                for v in adj[u]:
+                    if pairV[v] == 0:
+                        if dist[0] == INF:
+                            dist[0] = dist[u] + 1
+                    else:
+                        if dist[pairV[v]] == INF:
+                            dist[pairV[v]] = dist[u] + 1
+                            q.append(pairV[v])
+        return dist[0] != INF
+
+    def dfs(u):
+        if u != 0:
+            for v in adj[u]:
+                if pairV[v] == 0:
+                    if dist[0] == dist[u] + 1:
+                        if dfs(0):
+                            pairU[u] = v
+                            pairV[v] = u
+                            return True
+                elif dist[pairV[v]] == dist[u] + 1:
+                    if dfs(pairV[v]):
+                        pairU[u] = v
+                        pairV[v] = u
+                        return True
+            dist[u] = INF
+            return False
+        return True
+
+    matching = 0
+    while bfs():
+        for u in range(1, n_left + 1):
+            if pairU[u] == 0:
+                if dfs(u):
+                    matching += 1
+    return matching, pairU
+
+def solve():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    k = int(next(it))
+    e = int(next(it))
+    adj = [[] for _ in range(k + 1)]
+    for _ in range(e):
+        x = int(next(it))
+        y = int(next(it))
+        if 1 <= x <= k and 1 <= y <= k:
+            adj[x].append(y)
+    matching, pairU = hopcroft_karp(adj, k, k)
+    if matching == k:
+        out = ["YES"]
+        out.append(" ".join(str(pairU[i]) for i in range(1, k + 1)))
+        sys.stdout.write("\n".join(out))
+    else:
+        sys.stdout.write("NO")
+
+if __name__ == "__main__":
+    solve()

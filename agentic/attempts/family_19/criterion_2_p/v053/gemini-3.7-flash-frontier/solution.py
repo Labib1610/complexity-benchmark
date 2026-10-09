@@ -1,0 +1,109 @@
+import sys
+from collections import deque
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    iterator = iter(input_data)
+    n = int(next(iterator))
+    m = int(next(iterator))
+    _ = int(next(iterator))
+    
+    s = int(next(iterator))
+    t = int(next(iterator))
+    d = int(next(iterator))
+    
+    if s == t:
+        if d == 0:
+            print("YES")
+            print(" ".join(["0"] * m))
+        else:
+            print("NO")
+        return
+
+    head = [-1] * (n + 1)
+    to = []
+    nxt = []
+    cap = []
+    flow = []
+    edge_idx = []
+    
+    def add_edge(u, v, c, idx):
+        to.append(v)
+        cap.append(c)
+        flow.append(0)
+        edge_idx.append(idx)
+        nxt.append(head[u])
+        head[u] = len(to) - 1
+        
+        to.append(u)
+        cap.append(0)
+        flow.append(0)
+        edge_idx.append(-1)
+        nxt.append(head[v])
+        head[v] = len(to) - 1
+
+    for i in range(m):
+        u = int(next(iterator))
+        v = int(next(iterator))
+        c = int(next(iterator))
+        add_edge(u, v, c, i)
+        
+    level = [-1] * (n + 1)
+    ptr = [0] * (n + 1)
+    
+    def bfs():
+        for i in range(n + 1):
+            level[i] = -1
+        level[s] = 0
+        q = deque([s])
+        while q:
+            v = q.popleft()
+            e = head[v]
+            while e != -1:
+                if cap[e] - flow[e] > 0 and level[to[e]] == -1:
+                    level[to[e]] = level[v] + 1
+                    q.append(to[e])
+                e = nxt[e]
+        return level[t] != -1
+
+    def dfs(v, pushed):
+        if pushed == 0 or v == t:
+            return pushed
+        e = ptr[v]
+        while e != -1:
+            tr = to[e]
+            if level[tr] == level[v] + 1 and cap[e] - flow[e] > 0:
+                tr_pushed = dfs(tr, min(pushed, cap[e] - flow[e]))
+                if tr_pushed > 0:
+                    flow[e] += tr_pushed
+                    flow[e ^ 1] -= tr_pushed
+                    return tr_pushed
+            ptr[v] = nxt[e]
+            e = nxt[e]
+        return 0
+
+    total_flow = 0
+    while total_flow < d and bfs():
+        for i in range(n + 1):
+            ptr[i] = head[i]
+        while total_flow < d:
+            pushed = dfs(s, d - total_flow)
+            if pushed == 0:
+                break
+            total_flow += pushed
+
+    if total_flow == d:
+        ans = [0] * m
+        for e in range(0, len(to), 2):
+            idx = edge_idx[e]
+            ans[idx] = flow[e]
+        print("YES")
+        print(*(ans))
+    else:
+        print("NO")
+
+if __name__ == '__main__':
+    solve()

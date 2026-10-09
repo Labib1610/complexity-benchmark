@@ -1,0 +1,174 @@
+```python
+import sys
+from collections import deque
+import itertools
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    M = int(input_data[1])
+    T = int(input_data[2])
+    m = int(input_data[3])
+    
+    adj = [[] for _ in range(n + 1)]
+    rev_adj = [[] for _ in range(n + 1)]
+    in_degree = [0] * (n + 1)
+    out_degree = [0] * (n + 1)
+    
+    idx = 4
+    for _ in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx+1])
+        idx += 2
+        adj[u].append(v)
+        rev_adj[v].append(u)
+        in_degree[v] += 1
+        out_degree[u] += 1
+
+    # Check for cycles and compute topological order
+    q = deque([i for i in range(1, n + 1) if in_degree[i] == 0])
+    topo = []
+    temp_in = list(in_degree)
+    while q:
+        u = q.popleft()
+        topo.append(u)
+        for v in adj[u]:
+            temp_in[v] -= 1
+            if temp_in[v] == 0:
+                q.append(v)
+                
+    if len(topo) < n:
+        print("NO")
+        return
+
+    # Earliest start cycle (ES)
+    ES = [1] * (n + 1)
+    for u in topo:
+        for v in adj[u]:
+            if ES[u] + 1 > ES[v]:
+                ES[v] = ES[u] + 1
+                
+    # Latest finish cycle (LF) and height
+    LF = [T] * (n + 1)
+    height = [0] * (n + 1)
+    for u in reversed(topo):
+        for v in adj[u]:
+            if LF[v] - 1 < LF[u]:
+                LF[u] = LF[v] - 1
+            if height[v] + 1 > height[u]:
+                height[u] = height[v] + 1
+                
+    for i in range(1, n + 1):
+        if ES[i] > LF[i] or LF[i] < 1 or ES[i] > T:
+            print("NO")
+            return
+
+    # Descendant count for tie-breaking
+    desc_count = [0] * (n + 1)
+    for u in reversed(topo):
+        desc = {u}
+        for v in adj[u]:
+            desc.add(v)
+        desc_count[u] = len(desc)
+
+    assignment = [0] * (n + 1)
+    cur_in_degree = list(in_degree)
+    unassigned = set(range(1, n + 1))
+
+    # Priority function: lower LF, higher height, higher desc_count
+    # Lower tuple is higher priority
+    def priority(u):
+        return (LF[u], -height[u], -desc_count[u], u)
+
+    def search(t):
+        if not unassigned:
+            return True
+        if t > T:
+            return False
+        
+        # Necessary checks
+        # 1. Any unassigned task with LF < t makes this branch invalid
+        # 2. Count condition: for each k in [t, T], count(LF <= k) <= (k - t + 1) * M
+        counts = [0] * (T + 2)
+        for u in unassigned:
+            if LF[u] < t:
+                return False
+            counts[LF[u]] += 1
+            
+        cum = 0
+        tight_k = None
+        for k in range(t, T + 1):
+            cum += counts[k]
+            avail = (k - t + 1) * M
+            if cum > avail:
+                return False
+            if cum == avail and tight_k is None:
+                tight_k = k
+
+        # Ready tasks at cycle t
+        ready = [u for u in unassigned if cur_in_degree[u] == 0]
+        if not ready:
+            return False
+
+        # Tasks that MUST be done at time t
+        must_do = [u for u in unassigned if LF[u] == t]
+        for u in must_do:
+            if cur_in_degree[u] > 0:
+                return False # Must do but not ready!
+        
+        if len(must_do) > M:
+            return False
+
+        must_do_set = set(must_do)
+        other_ready = [u for u in ready if u not in must_do_set]
+        
+        if tight_k is not None:
+            # We must prioritize tasks with LF <= tight_k
+            other_ready = [u for u in other_ready if LF[u] <= tight_k]
+
+        slots_left = M - len(must_do)
+        
+        if len(other_ready) <= slots_left:
+            candidates = [must_do + other_ready]
+        else:
+            other_ready.sort(key=priority)
+            # Pick combinations of size slots_left, biased towards top of other_ready
+            # Often the greedy choice is optimal
+            # Limit the number of branch combinations if other_ready is large
+            top_k = min(len(other_ready), slots_left + 4)
+            best_pool = other_ready[:top_k]
+            combos = list(itertools.combinations(best_pool, slots_left))
+            candidates = [must_do + list(c) for c in combos]
+
+        for choice in candidates:
+            # Apply choice
+            for u in choice:
+                assignment[u] = t
+                unassigned.remove(u)
+                for v in adj[u]:
+                    cur_in_degree[v] -= 1
+            
+            if search(t + 1):
+                return True
+            
+            # Backtrack
+            for u in choice:
+                assignment[u] = 0
+                unassigned.add(u)
+                for v in adj[u]:
+                    cur_in_degree[v] += 1
+                    
+        return False
+
+    if search(1):
+        print("YES")
+        print(*(assignment[i] for i in range(1, n + 1)))
+    else:
+        print("NO")
+
+if __name__ == '__main__':
+    solve()
+```

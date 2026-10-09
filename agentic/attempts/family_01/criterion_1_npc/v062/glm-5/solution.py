@@ -1,98 +1,228 @@
 import sys
+sys.setrecursionlimit(10000)
 
 def solve():
-    data = sys.stdin.read().split()
+    data = sys.stdin.read().strip().split()
     if not data:
         return
-    n = int(data[0])
-    m = int(data[1])
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    
     adj = [0] * n
-    idx = 2
+    edges = []
+    
     for _ in range(m):
-        u = int(data[idx]) - 1
-        v = int(data[idx+1]) - 1
-        idx += 2
-        adj[u] |= 1 << v
-        adj[v] |= 1 << u
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        edges.append((u, v))
+        adj[u] |= (1 << v)
+        adj[v] |= (1 << u)
     
-    full_mask = (1 << n) - 1
     color = [0] * n
-    visited = 0
     
-    for start in range(n):
-        if visited & (1 << start):
+    # Check if a connected component is bipartite (2-colorable)
+    def is_bipartite(start, col):
+        stack = [(start, col)]
+        while stack:
+            u, c = stack.pop()
+            if color[u] == 0:
+                nodes_in_component.append(u)
+                color[u] = c
+            elif (color[u] & 0b11) != c:
+                return False
+            if color[u] & 0b100:  # already processed neighbors
+                continue
+            color[u] |= 0b100
+            c_neg = 3 - c
+            neighbors = []
+            bit = adj[u]
+            v = (bit & -bit).bit_length() - 1 if bit else -1
+            while v != -1:
+                neighbors.append(v)
+                bit &= bit - 1
+                v = (bit & -bit).bit_length() - 1 if bit else -1
+            for v in neighbors:
+                if color[v] == 0:
+                    stack.append((v, c_neg))
+                elif (color[v] & 0b11) == c:
+                    return False
+        return True
+    
+    subsets = []
+    for i in range(n):
+        if color[i] == 0:
+            nodes_in_component = []
+            if not is_bipartite(i, 1):
+                print("NO")
+                return
+            # Only add components with more than 1 node, isolated nodes can be in any phase
+            if len(nodes_in_component) > 1:
+                subset_a = 0
+                subset_b = 0
+                for u in nodes_in_component:
+                    if color[u] == 1:
+                        subset_a |= (1 << u)
+                    else:
+                        subset_b |= (1 << u)
+                subsets.append((subset_a, subset_b))
+    
+    if not subsets:
+        print("YES")
+        print(" ".join(['1'] * n))
+        return
+    
+    K = len(subsets)
+    # Determine if we can select one subset from each pair to sum to `target`
+    target = (1 << n) - 1
+    
+    # Determine sizes of subsets for tie-breaking (prefer smaller subsets)
+    sizes = []
+    for subset_a, subset_b in subsets:
+        sizes.append((bin(subset_a).count('1'), bin(subset_b).count('1')))
+    
+    # Sort subsets by the absolute difference in size (smallest first)
+    indices = sorted(range(K), key=lambda k: abs(sizes[k][0] - sizes[k][1]))
+    sorted_subsets = [subsets[i] for i in indices]
+    
+    # Use BFS with pruning to find a valid selection
+    # State: (index, current_selected_mask)
+    initial_mask = 0
+    queue = []
+    queue.append((0, initial_mask, []))
+    visited = {}
+    
+    found_path = None
+    
+    while queue:
+        idx, mask, path = queue.pop(0)
+        if idx == K:
+            # Check if all nodes are selected
+            # If not, remaining isolated nodes can be in the free phase
+            if mask | target == target:
+                found_path = path
+                break
             continue
         
-        # Find connected component containing 'start'
-        comp = 0
-        stack = [start]
-        comp |= 1 << start
-        while stack:
-            u = stack.pop()
-            nb = adj[u] & ~comp
-            while nb:
-                v = (nb & -nb).bit_length() - 1
-                comp |= 1 << v
-                stack.append(v)
-                nb &= nb - 1
+        if (idx, mask) in visited:
+            continue
+        visited[(idx, mask)] = True
         
-        # Enumerate all valid 3-colorings of this component
-        nodes = []
-        temp = comp
-        while temp:
-            v = (temp & -temp).bit_length() - 1
-            nodes.append(v)
-            temp &= temp - 1
+        subset_a, subset_b = sorted_subsets[idx]
         
-        k = len(nodes)
-        best = None
+        # Pruning: if mask already contains some nodes from current subsets, skip
+        # This BFS explores paths, but we need to check validity
         
-        # Try all 3^k colorings
-        for state in range(3**k):
-            valid = True
-            c = [0] * k
-            s = state
-            for i in range(k):
-                c[i] = s % 3
-                s //= 3
-            
-            for i in range(k):
-                u = nodes[i]
-                cu = c[i]
-                for j in range(i+1, k):
-                    v = nodes[j]
-                    if (adj[u] >> v) & 1:
-                        if c[j] == cu:
-                            valid = False
-                            break
-                if not valid:
-                    break
-            
-            if valid:
-                if best is None:
-                    best = c[:]
-                else:
-                    # Compare lexicographically by original node index order
-                    better = False
-                    for i in range(k):
-                        if c[i] < best[i]:
-                            better = True
-                            break
-                        elif c[i] > best[i]:
-                            break
-                    if better:
-                        best = c[:]
+        # Check if we can add subset_a
+        if mask & subset_a == 0:
+            queue.append((idx + 1, mask | subset_a, path + [subset_a]))
         
-        if best is None:
-            print("NO")
-            return
-        
-        for i, v in enumerate(nodes):
-            color[v] = best[i] + 1
-        
-        visited |= comp
+        # Check if we can add subset_b
+        if mask & subset_b == 0:
+            queue.append((idx + 1, mask | subset_b, path + [subset_b]))
+    
+    if found_path is None:
+        print("NO")
+        return
+    
+    # Phase assignment
+    phase = [3] * n
+    for subset in found_path:
+        # Assign phase 2 to this subset
+        # But we need to know which phase is "free" and which is "opposite"
+        # Based on the problem statement logic, we assign the selected subsets to phase 2
+        # But actually, the valid assignment is: 
+        # Phase 1: one part of bipartite components
+        # Phase 2: the other parts
+        # Phase 3: isolated nodes + remaining nodes
+        # But the problem states "at most 2 neighbors" allows accommodation.
+        # The simplest valid assignment from the subset selection:
+        # The subsets in `found_path` are assigned phase 2.
+        # The unselected nodes (isolated) get phase 3.
+        # But we also need to handle the other parts of the bipartite graph.
+        # Actually, the subsets in `found_path` are one side of each bipartite component.
+        # We assign these to phase 2.
+        # The other sides of components are assigned phase 1.
+        # All other nodes (isolated) get phase 3.
+        pass
+    
+    # Let's reconstruct the assignment properly
+    # `found_path` contains one subset from each component
+    # Let phase 2 be the union of selected subsets
+    mask_phase2 = 0
+    for subset in found_path:
+        mask_phase2 |= subset
+    
+    # Assign phases based on masks
+    phase = [0] * n
+    uncolored_nodes = []
+    for i in range(n):
+        if color[i] == 0:
+            uncolored_nodes.append(i)
+        elif color[i] == 1:
+            phase[i] = 1
+        elif color[i] == 2:
+            phase[i] = 2
+    
+    for subset in found_path:
+        # These are assigned phase 2
+        for i in range(n):
+            if (subset >> i) & 1:
+                phase[i] = 2
+    
+    # The unselected subsets from each component are implicitly assigned phase 1 or 3
+    # Actually, the unselected subsets are the "other side" of the bipartite graph.
+    # If the selected subset is assigned phase 2, then the other side must be phase 1 or 3.
+    # But since there are edges between them, the other side must be phase 1.
+    # So we need to identify the unselected subsets and assign them phase 1.
+    
+    # Let's re-examine:
+    # For each component, `found_path` contains one of its two subsets.
+    # We assign this subset to phase 2.
+    # The other subset of the same component must be assigned a phase different from 2.
+    # Let's assign it phase 1.
+    # Then, the isolated nodes can be phase 3.
+    
+    # First, let's assign all bipartite color=1 to phase 1 and color=2 to phase 2 initially.
+    for i in range(n):
+        if color[i] != 0:
+            phase[i] = color[i]
+    
+    # Now, `found_path` tells us which of the colors (subsets) should be phase 2.
+    # If the subset in found_path corresponds to color=1, then phase 2 = 1.
+    # So we need to swap phases 1 and 2 for that component.
+    
+    # We need a mapping from subset to component index.
+    # But `found_path` is ordered by sorted_subsets, which is ordered by component index after sorting.
+    # We need to map back to original indices.
+    
+    # Let's use the `subsets` list (unsorted) and check which one was selected.
+    # Create a set of selected subset masks
+    selected_masks = set(found_path)
+    
+    phase = [1] * n
+    
+    for i in range(n):
+        if color[i] == 0:
+            phase[i] = 3
+    
+    for sa, sb in subsets:
+        if sa in selected_masks:
+            # sa is phase 2, sb is phase 1
+            for u in range(n):
+                if (sa >> u) & 1:
+                    phase[u] = 2
+                elif (sb >> u) & 1:
+                    phase[u] = 1
+        elif sb in selected_masks:
+            # sb is phase 2, sa is phase 1
+            for u in range(n):
+                if (sb >> u) & 1:
+                    phase[u] = 2
+                elif (sa >> u) & 1:
+                    phase[u] = 1
     
     print("YES")
-    print(' '.join(map(str, color)))
+    print(" ".join(map(str, phase)))
 
 solve()

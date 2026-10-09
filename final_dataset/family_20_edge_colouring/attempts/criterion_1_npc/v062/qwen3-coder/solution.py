@@ -1,0 +1,64 @@
+import sys
+from collections import defaultdict
+
+def solve():
+    n, m = map(int, input().split())
+    
+    # Read edges
+    edges = []
+    adj = defaultdict(list)
+    
+    for i in range(m):
+        u, v = map(int, input().split())
+        edges.append((u, v))
+        adj[u].append(i)
+        adj[v].append(i)
+    
+    # Try to 3-color the edges such that at each vertex, all incident edges have different colors
+    # This is equivalent to edge-coloring the graph with 3 colors
+    # Since each vertex has degree 3, this is possible iff the graph is 3-edge-colorable
+    
+    # We'll use a greedy approach with backtracking
+    colors = [0] * m  # 0 means uncolored
+    
+    def is_valid(edge_idx, color):
+        u, v = edges[edge_idx]
+        # Check all edges incident to u
+        for e in adj[u]:
+            if colors[e] == color:
+                return False
+        # Check all edges incident to v
+        for e in adj[v]:
+            if colors[e] == color:
+                return False
+        return True
+    
+    def backtrack(edge_idx):
+        if edge_idx == m:
+            return True
+            
+        u, v = edges[edge_idx]
+        for color in [1, 2, 3]:
+            if is_valid(edge_idx, color):
+                colors[edge_idx] = color
+                if backtrack(edge_idx + 1):
+                    return True
+                colors[edge_idx] = 0
+        
+        return False
+    
+    # Since the graph is 3-regular and has a perfect matching structure,
+    # we can try a more systematic approach
+    
+    # Actually, let's think differently. 
+    # In a 3-regular graph, a 3-edge-coloring exists iff the graph is class 1
+    # For small graphs or specific structures, we can try to find one
+    
+    # Let's try a greedy + backtracking approach
+    if backtrack(0):
+        print("YES")
+        print(*colors)
+    else:
+        print("NO")
+
+solve()

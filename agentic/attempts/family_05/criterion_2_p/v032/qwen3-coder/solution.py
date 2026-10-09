@@ -1,0 +1,85 @@
+import sys
+from collections import defaultdict
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    k = int(data[0])
+    t = int(data[1])
+    
+    index = 2
+    links = []
+    ground_to_key = {}
+    key_to_ground = {}
+    
+    for _ in range(t):
+        x = int(data[index])
+        y = int(data[index+1])
+        z = int(data[index+2])
+        links.append((x, y, z))
+        index += 3
+        if x not in ground_to_key:
+            ground_to_key[x] = y
+        if y not in key_to_ground:
+            key_to_ground[y] = x
+    
+    # Since each ground station uses exactly one key, and each key is used by exactly one ground station,
+    # we can model this as a bipartite matching problem between ground stations and satellites.
+    # The encryption key acts as a bridge: for each ground station x, there's a unique key y.
+    # So we can think of selecting links (x, y, z) such that each x is used once, each y is used once, 
+    # and each z is used once. But since y is uniquely determined by x, it's effectively matching x to z.
+    
+    # Build a mapping from ground station to list of possible satellites
+    graph = defaultdict(list)
+    for x, y, z in links:
+        graph[x].append(z)
+    
+    # We need to match each ground station (1 to k) to a unique satellite (1 to k)
+    # This is a bipartite matching problem
+    match_satellite_to_ground = {}
+    match_ground_to_satellite = {}
+    
+    def dfs(u, visited):
+        for v in graph[u]:
+            if v in visited:
+                continue
+            visited.add(v)
+            if v not in match_satellite_to_ground or dfs(match_satellite_to_ground[v], visited):
+                match_satellite_to_ground[v] = u
+                match_ground_to_satellite[u] = v
+                return True
+        return False
+    
+    matched = 0
+    for x in range(1, k+1):
+        if x in graph:
+            visited = set()
+            if dfs(x, visited):
+                matched += 1
+        else:
+            # Ground station x has no links
+            pass
+    
+    if matched < k:
+        print("NO")
+        return
+    
+    print("YES")
+    result_links = []
+    for x in range(1, k+1):
+        if x in match_ground_to_satellite:
+            z = match_ground_to_satellite[x]
+            y = ground_to_key[x]
+            result_links.append((x, y, z))
+        else:
+            # This case should not happen if matched == k
+            pass
+    # Sort for consistent output (optional)
+    result_links.sort()
+    for x, y, z in result_links:
+        print(x, y, z)
+
+if __name__ == "__main__":
+    main()

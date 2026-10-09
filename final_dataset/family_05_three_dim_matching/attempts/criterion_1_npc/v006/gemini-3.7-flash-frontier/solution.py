@@ -1,0 +1,94 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    k = int(input_data[0])
+    t = int(input_data[1])
+    
+    triples = []
+    idx = 2
+    for _ in range(t):
+        x = int(input_data[idx])
+        y = int(input_data[idx+1])
+        z = int(input_data[idx+2])
+        triples.append((x, y, z))
+        idx += 3
+    
+    solution = []
+    
+    def search(active, depth):
+        if depth == k:
+            return True
+        if not active:
+            return False
+        
+        # Count remaining valid options for each unused item
+        # Items: X (0..k-1), Y (k..2k-1), Z (2k..3k-1)
+        count_x = [0] * (k + 1)
+        count_y = [0] * (k + 1)
+        count_z = [0] * (k + 1)
+        
+        for x, y, z in active:
+            count_x[x] += 1
+            count_y[y] += 1
+            count_z[z] += 1
+            
+        # Find item with minimum count > 0, and check if any required item has count 0
+        min_c = float('inf')
+        best_item = None
+        best_type = None
+        
+        for x in range(1, k + 1):
+            c = count_x[x]
+            if c > 0 and c < min_c:
+                min_c = c
+                best_item = x
+                best_type = 0
+                
+        for y in range(1, k + 1):
+            c = count_y[y]
+            if c > 0 and c < min_c:
+                min_c = c
+                best_item = y
+                best_type = 1
+                
+        for z in range(1, k + 1):
+            c = count_z[z]
+            if c > 0 and c < min_c:
+                min_c = c
+                best_item = z
+                best_type = 2
+
+        if best_item is None:
+            return False
+            
+        # Branch on all triples containing the chosen best item
+        candidates = []
+        if best_type == 0:
+            candidates = [tr for tr in active if tr[0] == best_item]
+        elif best_type == 1:
+            candidates = [tr for tr in active if tr[1] == best_item]
+        else:
+            candidates = [tr for tr in active if tr[2] == best_item]
+            
+        for x0, y0, z0 in candidates:
+            solution.append((x0, y0, z0))
+            new_active = [tr for tr in active if tr[0] != x0 and tr[1] != y0 and tr[2] != z0]
+            if search(new_active, depth + 1):
+                return True
+            solution.pop()
+            
+        return False
+
+    if search(triples, 0):
+        print("YES")
+        for x, y, z in solution:
+            print(f"{x} {y} {z}")
+    else:
+        print("NO")
+
+if __name__ == '__main__':
+    solve()

@@ -1,0 +1,188 @@
+```python
+import sys
+from itertools import combinations
+
+# Increase recursion depth just in case
+sys.setrecursionlimit(20000)
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+
+    n = int(input_data[0])
+    M = int(input_data[1])
+    T = int(input_data[2])
+    m = int(input_data[3])
+
+    if n > M * T:
+        print("NO")
+        return
+
+    adj = [[] for _ in range(n + 1)]
+    rev_adj = [[] for _ in range(n + 1)]
+    in_degree = [0] * (n + 1)
+    out_degree = [0] * (n + 1)
+
+    idx = 4
+    for _ in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx + 1])
+        idx += 2
+        adj[u].append(v)
+        rev_adj[v].append(u)
+        in_degree[v] += 1
+        out_degree[u] += 1
+
+    # Check for cycles and compute topological levels (longest path to sink)
+    # Longest path to end for each node
+    # Using reverse topological sort / memoized DFS
+    visited = [0] * (n + 1)
+    path_to_end = [0] * (n + 1)
+    
+    # Check cycles via standard 3-color DFS
+    color = [0] * (n + 1) # 0: unvisited, 1: visiting, 2: visited
+    has_cycle = False
+    
+    def check_cycle(u):
+        nonlocal has_cycle
+        color[u] = 1
+        for v in adj[u]:
+            if color[v] == 1:
+                has_cycle = True
+                return
+            if color[v] == 0:
+                check_cycle(v)
+                if has_cycle:
+                    return
+        color[u] = 2
+
+    for i in range(1, n + 1):
+        if color[i] == 0:
+            check_cycle(i)
+            if has_cycle:
+                print("NO")
+                return
+
+    # Compute longest path to sink for each node
+    memo_dist = [-1] * (n + 1)
+    def get_longest_path(u):
+        if memo_dist[u] != -1:
+            return memo_dist[u]
+        d = 0
+        for v in adj[u]:
+            d = max(d, 1 + get_longest_path(v))
+        memo_dist[u] = d
+        return d
+
+    L = [0] * (n + 1) # Latest term module u can be taken
+    for i in range(1, n + 1):
+        L[i] = T - get_longest_path(i)
+        if L[i] < 1:
+            print("NO")
+            return
+
+    # Longest path from source to compute earliest term
+    memo_dist_src = [-1] * (n + 1)
+    def get_longest_path_src(u):
+        if memo_dist_src[u] != -1:
+            return memo_dist_src[u]
+        d = 1
+        for p in rev_adj[u]:
+            d = max(d, 1 + get_longest_path_src(p))
+        memo_dist_src[u] = d
+        return d
+
+    for i in range(1, n + 1):
+        if get_longest_path_src(i) > L[i]:
+            print("NO")
+            return
+
+    # Backtracking search
+    # State: term t, current in_degrees, assigned terms
+    cur_in_degree = list(in_degree)
+    assigned_term = [0] * (n + 1)
+    assigned_count = 0
+
+    # Ready queue
+    ready = [i for i in range(1, n + 1) if cur_in_degree[i] == 0]
+
+    def search(t, ready_list, assigned_cnt):
+        if assigned_cnt == n:
+            return True
+        if t > T:
+            return False
+        
+        # Check if remaining modules can fit in remaining terms
+        rem_modules = n - assigned_cnt
+        if rem_modules > (T - t + 1) * M:
+            return False
+
+        # Check latest start times for all unassigned nodes
+        # If any node has L[u] < t, fail.
+        # If any unassigned node with L[u] == t is NOT ready, fail.
+        mandatory = []
+        non_mandatory = []
+        for u in ready_list:
+            if L[u] < t:
+                return False
+            elif L[u] == t:
+                mandatory.append(u)
+            else:
+                non_mandatory.append(u)
+
+        # Also check if any non-ready node has L[u] <= t
+        # If so, impossible because it cannot be scheduled at or before t
+        for i in range(1, n + 1):
+            if assigned_term[i] == 0 and cur_in_degree[i] > 0:
+                if L[i] <= t:
+                    return False
+
+        if len(mandatory) > M:
+            return False
+
+        # If total ready <= M, we must take all of them (no-idle property)
+        if len(ready_list) <= M:
+            chosen_sets = [ready_list]
+        else:
+            needed = M - len(mandatory)
+            # Sort non-mandatory by priority: smaller L[u], then larger memo_dist[u]
+            non_mandatory.sort(key=lambda x: (L[x], -memo_dist[x], -len(adj[x])))
+            chosen_sets = []
+            for combo in combinations(non_mandatory, needed):
+                chosen_sets.append(mandatory + list(combo))
+
+        for chosen in chosen_sets:
+            # Apply chosen
+            chosen_set = set(chosen)
+            for u in chosen:
+                assigned_term[u] = t
+                for v in adj[u]:
+                    cur_in_degree[v] -= 1
+
+            next_ready = [u for u in ready_list if u not in chosen_set]
+            for u in chosen:
+                for v in adj[u]:
+                    if cur_in_degree[v] == 0:
+                        next_ready.append(v)
+
+            if search(t + 1, next_ready, assigned_cnt + len(chosen)):
+                return True
+
+            # Revert
+            for u in chosen:
+                assigned_term[u] = 0
+                for v in adj[u]:
+                    cur_in_degree[v] += 1
+
+        return False
+
+    if search(1, ready, 0):
+        print("YES")
+        print(*(assigned_term[i] for i in range(1, n + 1)))
+    else:
+        print("NO")
+
+if __name__ == '__main__':
+    solve()
+```

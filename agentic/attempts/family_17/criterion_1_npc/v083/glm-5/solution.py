@@ -1,0 +1,85 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    q = int(data[0])
+    t = int(data[1])
+    n = 3 * q
+    edges = []
+    idx = 2
+    for _ in range(t):
+        a = int(data[idx]); b = int(data[idx+1]); c = int(data[idx+2])
+        idx += 3
+        edges.append((a, b, c))
+    
+    # Build adjacency: for each pair, list of third vertices
+    from collections import defaultdict
+    adj = defaultdict(list)
+    edge_set = set()
+    for (a, b, c) in edges:
+        for x, y, z in ((a,b,c), (a,c,b), (b,c,a)):
+            adj[(x,y)].append(z)
+            adj[(y,x)].append(z)
+            edge_set.add((x,y,z))
+    
+    # We need to partition vertices 1..n into q triangles, each triangle must be in edge_set.
+    # This is exact cover by triangles. n <= 600, q <= 200.
+    # Use backtracking with most-constrained vertex heuristic.
+    
+    # Precompute for each vertex the list of triangles containing it
+    vertex_tris = defaultdict(list)
+    for tri in edges:
+        for v in tri:
+            vertex_tris[v].append(tri)
+    
+    used = [False] * (n + 1)
+    result = []
+    
+    # Order vertices by degree (number of triangles) for better pruning
+    vertices = list(range(1, n+1))
+    # We'll pick the unused vertex with fewest available triangles at each step
+    
+    def backtrack(count):
+        if count == q:
+            return True
+        # Find unused vertex with minimum available triangles
+        best_v = -1
+        best_avail = None
+        best_count = 10**9
+        for v in range(1, n+1):
+            if not used[v]:
+                avail = []
+                for tri in vertex_tris[v]:
+                    if not used[tri[0]] and not used[tri[1]] and not used[tri[2]]:
+                        avail.append(tri)
+                if len(avail) < best_count:
+                    best_count = len(avail)
+                    best_v = v
+                    best_avail = avail
+                    if best_count == 0:
+                        return False
+                    if best_count == 1:
+                        break
+        if best_count == 0:
+            return False
+        v = best_v
+        for tri in best_avail:
+            a, b, c = tri
+            used[a] = used[b] = used[c] = True
+            result.append(tri)
+            if backtrack(count + 1):
+                return True
+            result.pop()
+            used[a] = used[b] = used[c] = False
+        return False
+    
+    if backtrack(0):
+        print("YES")
+        for tri in result:
+            print(tri[0], tri[1], tri[2])
+    else:
+        print("NO")
+
+solve()

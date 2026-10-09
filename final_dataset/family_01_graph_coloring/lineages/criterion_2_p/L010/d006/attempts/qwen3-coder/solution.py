@@ -1,0 +1,85 @@
+import sys
+from collections import defaultdict, deque
+
+def read_ints():
+    return list(map(int, sys.stdin.readline().split()))
+
+def main():
+    n, m = read_ints()
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
+    
+    edges = []
+    adj = [[] for _ in range(n + 1)]
+    
+    for _ in range(m):
+        u, v = read_ints()
+        edges.append((u, v))
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # For the system to have non-trivial solutions:
+    # The determinant must be zero.
+    # Determinant of [[s_u, 2], [1, s_v]] is s_u * s_v - 2
+    # So we need s_u * s_v = 2 for every edge (u,v)
+    
+    # Since s_u, s_v ∈ {1, 2}, the only way to get s_u * s_v = 2 is:
+    # (s_u = 1 and s_v = 2) OR (s_u = 2 and s_v = 1)
+    
+    # This means the graph must be bipartite, and we need to 2-color it.
+    # Color 0 -> mode 1, Color 1 -> mode 2 (or vice versa, but we want lex smallest)
+    
+    color = [-1] * (n + 1)
+    
+    # Check if the graph is bipartite
+    for start in range(1, n + 1):
+        if color[start] == -1:
+            queue = deque()
+            queue.append(start)
+            color[start] = 0
+            
+            while queue:
+                node = queue.popleft()
+                
+                for neighbor in adj[node]:
+                    if color[neighbor] == -1:
+                        color[neighbor] = 1 - color[node]
+                        queue.append(neighbor)
+                    elif color[neighbor] == color[node]:
+                        print("NO")
+                        return
+    
+    # The graph is bipartite. Now assign modes to get lexicographically smallest result.
+    # We want s_1 to be as small as possible, then s_2, etc.
+    # If color[i] == color[1], then s_i = 1, else s_i = 2
+    # But we want s_1 = 1 if possible.
+    
+    # Let's decide: if color[1] == 0, then color 0 -> 1, color 1 -> 2
+    #               if color[1] == 1, then color 0 -> 2, color 1 -> 1
+    # But that might not give lex smallest.
+    
+    # Better approach:
+    # Try both mappings and pick the lexicographically smaller one.
+    
+    def get_assignment(c0_val, c1_val):
+        res = [0] * (n + 1)
+        for i in range(1, n + 1):
+            if color[i] == 0:
+                res[i] = c0_val
+            else:
+                res[i] = c1_val
+        return res[1:]
+    
+    assignment1 = get_assignment(1, 2)
+    assignment2 = get_assignment(2, 1)
+    
+    final_assignment = assignment1
+    
+    print("YES")
+    print(" ".join(map(str, final_assignment)))
+
+if __name__ == "__main__":
+    main()

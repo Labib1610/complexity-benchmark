@@ -1,7 +1,7 @@
 import sys
 from collections import defaultdict
 
-def main():
+def solve():
     import sys
     input = sys.stdin.read
     data = input().split()
@@ -9,94 +9,48 @@ def main():
     n = int(data[0])
     m = int(data[1])
     
-    # Build adjacency list for the graph
-    adj = defaultdict(list)
-    idx = 2
+    if m == 0:
+        # No conflicts, assign everyone to block 1
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
+    
+    # Build adjacency list for conflicts (graph representation)
+    adj = defaultdict(set)
+    index = 2
     for _ in range(m):
-        u = int(data[idx]) - 1  # Convert to 0-based indexing
-        v = int(data[idx+1]) - 1
-        adj[u].append(v)
-        adj[v].append(u)
-        idx += 2
+        u = int(data[index]) - 1  # Convert to 0-indexed
+        v = int(data[index+1]) - 1
+        adj[u].add(v)
+        adj[v].add(u)
+        index += 2
     
-    # We need to 3-color the graph such that no adjacent nodes have the same color
-    # Colors: 1, 2, 3 (we'll use 0,1,2 internally and add 1 at the end)
-    color = [-1] * n  # -1 means uncolored
+    # Try to 3-color the graph using backtracking
+    color = [-1] * n  # -1 means unassigned
     
-    # Try to color each component
-    for start in range(n):
-        if color[start] != -1:
-            continue  # Already colored
+    def is_safe(node, c):
+        for neighbor in adj[node]:
+            if color[neighbor] == c:
+                return False
+        return True
+    
+    def backtrack(node):
+        if node == n:
+            return True
         
-        # BFS to color the component
-        queue = [start]
-        color[start] = 0  # Start with color 0
-        
-        while queue:
-            u = queue.pop(0)
-            current_color = color[u]
-            
-            for v in adj[u]:
-                if color[v] == -1:
-                    # Assign the next available color (smallest possible)
-                    next_color = (current_color + 1) % 3
-                    # But we want to try colors 0,1,2 in order for lex smallest
-                    # So we'll do backtracking DFS instead for correct lex order
-                    
-                    # Actually, let's switch to DFS with backtracking to ensure lex smallest
-                    pass # We'll handle this properly below
-                    
-        # Let's restart with proper approach
-    # Restart with a clean approach using DFS backtracking for lex smallest result
-    
-    color = [-1] * n
-    
-    def dfs(node):
-        # For each node, try colors 0, 1, 2 in order to get lex smallest
-        for c in range(3):
-            # Check if color c is valid for node
-            valid = True
-            for neighbor in adj[node]:
-                if color[neighbor] == c:
-                    valid = False
-                    break
-            if valid:
+        for c in [1, 2, 3]:
+            if is_safe(node, c):
                 color[node] = c
-                # Find next uncolored node
-                next_node = -1
-                for i in range(node+1, n):
-                    if color[i] == -1:
-                        next_node = i
-                        break
-                
-                if next_node == -1:
-                    # All nodes colored
+                if backtrack(node + 1):
                     return True
-                else:
-                    if dfs(next_node):
-                        return True
-                # Backtrack
-                color[node] = -1
+                color[node] = -1  # Backtrack
+                
         return False
     
-    # Start DFS from node 0
-    if n > 0:
-        success = dfs(0)
-        if not success:
-            print("NO")
-            return
-    
-    # Handle case where graph has no edges (all nodes isolated)
-    if m == 0:
-        color = [0] * n  # All can be in period 1
-        success = True
-    
-    if success:
+    if backtrack(0):
         print("YES")
-        result = [str(c + 1) for c in color]
-        print(" ".join(result))
+        print(" ".join(map(str, color)))
     else:
         print("NO")
 
-if __name__ == "__main__":
-    main()
+solve()

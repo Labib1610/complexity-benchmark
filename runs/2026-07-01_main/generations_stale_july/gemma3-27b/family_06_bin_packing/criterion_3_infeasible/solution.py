@@ -1,0 +1,10 @@
+def solve():
+    n, c = map(int, input().split())
+    w = list(map(int, input().split()))
+    
+    for i in range(n):
+        if w[i] > c:
+            print(i + 1)
+            return
+
+solve()

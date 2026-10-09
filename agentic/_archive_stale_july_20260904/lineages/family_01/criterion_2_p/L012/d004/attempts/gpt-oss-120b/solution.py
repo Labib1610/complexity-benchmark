@@ -1,0 +1,62 @@
+import sys
+sys.setrecursionlimit(1 << 25)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    g = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        g[u].append(v)
+        g[v].append(u)
+
+    color = [-1] * n          # 0/1 bipartite colors
+    comp_id = [-1] * n
+    comps = []                # list of (vertices list, min_index)
+    from collections import deque
+
+    for start in range(n):
+        if color[start] != -1:
+            continue
+        q = deque([start])
+        color[start] = 0
+        verts = [start]
+        min_idx = start
+        comp_idx = len(comps)
+        comp_id[start] = comp_idx
+        while q:
+            v = q.popleft()
+            for to in g[v]:
+                if color[to] == -1:
+                    color[to] = color[v] ^ 1
+                    comp_id[to] = comp_idx
+                    verts.append(to)
+                    if to < min_idx:
+                        min_idx = to
+                    q.append(to)
+                elif color[to] == color[v]:
+                    print("NO")
+                    return
+        comps.append((verts, min_idx))
+
+    # decide orientation per component
+    ans = [0] * n
+    for verts, min_idx in comps:
+        # if min_idx currently has color 0, map 0->1,1->2 else swap
+        if color[min_idx] == 0:
+            for v in verts:
+                ans[v] = 1 if color[v] == 0 else 2
+        else:
+            for v in verts:
+                ans[v] = 2 if color[v] == 0 else 1
+
+    print("YES")
+    print(' '.join(map(str, ans)))
+
+if __name__ == "__main__":
+    solve()

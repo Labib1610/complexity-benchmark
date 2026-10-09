@@ -1,0 +1,141 @@
+```python
+import sys
+from collections import deque, defaultdict
+import heapq
+
+def read_input():
+    n, m, s, t, B = map(int, sys.stdin.readline().split())
+    edges = []
+    graph = defaultdict(list)
+    for _ in range(m):
+        u, v, w = map(int, sys.stdin.readline().split())
+        edges.append((u, v, w))
+        graph[u].append((v, w))
+        graph[v].append((u, w))
+    return n, m, s, t, B, edges, graph
+
+def dijkstra(graph, start, n):
+    dist = [float('inf')] * (n + 1)
+    dist[start] = 0
+    pq = [(0, start)]
+    while pq:
+        d, u = heapq.heappop(pq)
+        if d > dist[u]:
+            continue
+        for v, w in graph[u]:
+            if dist[u] + w < dist[v]:
+                dist[v] = dist[u] + w
+                heapq.heappush(pq, (dist[v], v))
+    return dist
+
+def find_min_cut_edges(n, m, s, t, B, edges, graph):
+    # Compute shortest distance from s to all nodes
+    dist_s = dijkstra(graph, s, n)
+    
+    # If t is not reachable from s, we're done
+    if dist_s[t] == float('inf'):
+        return []
+    
+    # Compute shortest distance from t to all nodes in reverse graph
+    dist_t = dijkstra(graph, t, n)
+    
+    # Distance from s to t
+    distance = dist_s[t]
+    
+    # Create residual graph for min-cut
+    # An edge (u,v,w) is in the residual graph if dist_s[u] + w + dist_t[v] == distance
+    residual_edges = []
+    edge_indices = []
+    for i, (u, v, w) in enumerate(edges):
+        if dist_s[u] + w + dist_t[v] == distance:
+            residual_edges.append((u, v, w))
+            edge_indices.append(i)
+        if dist_s[v] + w + dist_t[u] == distance:
+            residual_edges.append((v, u, w))
+            edge_indices.append(i)
+    
+    # Now we need to find a minimum cut in this residual graph
+    # Build the residual graph
+    res_graph = defaultdict(list)
+    for u, v, w in residual_edges:
+        res_graph[u].append((v, w))
+    
+    # Use Ford-Fulkerson with DFS to find max flow/min cut
+    def dfs(u, sink, flow, visited, res_graph):
+        if u == sink:
+            return flow
+        visited.add(u)
+        for i, (v, w) in enumerate(res_graph[u]):
+            if v not in visited and w > 0:
+                min_flow = min(flow, w)
+                result = dfs(v, sink, min_flow, visited, res_graph)
+                if result > 0:
+                    res_graph[u][i] = (v, w - result)
+                    # Add reverse edge
+                    found = False
+                    for j, (x, y) in enumerate(res_graph[v]):
+                        if x == u:
+                            res_graph[v][j] = (x, y + result)
+                            found = True
+                            break
+                    if not found:
+                        res_graph[v].append((u, result))
+                    return result
+        return 0
+    
+    # But actually, let's model this as finding edges that form a minimum s-t cut
+    # We'll use the fact that an edge is in a minimum cut if it goes from 
+    # the set of nodes reachable from s in the residual network to the rest
+    
+    # For simplicity, let's just find the minimum cut using the original approach:
+    # Find which nodes are on the s side of a minimum cut
+    
+    # Run a BFS from s in the residual network to find reachable nodes
+    visited_from_s = set()
+    queue = deque([s])
+    visited_from_s.add(s)
+    
+    while queue:
+        u = queue.popleft()
+        for v, w in res_graph[u]:
+            if w > 0 and v not in visited_from_s:
+                visited_from_s.add(v)
+                queue.append(v)
+    
+    # Edges crossing the cut are those from visited_from_s to not visited_from_s
+    cut_edges = []
+    total_cost = 0
+    
+    for i, (u, v, w) in enumerate(edges):
+        # Check if this edge crosses the cut
+        if (u in visited_from_s and v not in visited_from_s) or (v in visited_from_s and u not in visited_from_s):
+            cut_edges.append((u, v))
+            total_cost += w
+    
+    if total_cost <= B:
+        return cut_edges
+    else:
+        return None
+
+def main():
+    n, m, s, t, B, edges, graph = read_input()
+    
+    # Special case: if s and t are the same
+    if s == t:
+        print("NO")
+        return
+    
+    # Find min-cut edges
+    cut_edges = find_min_cut_edges(n, m, s, t, B, edges, graph)
+    
+    if cut_edges is None:
+        print("NO")
+    else:
+        print("YES")
+        print(len(cut_edges))
+        for u, v in cut_edges:
+            print(u, v)
+
+if __name__ == "__main__":
+    main()
+```

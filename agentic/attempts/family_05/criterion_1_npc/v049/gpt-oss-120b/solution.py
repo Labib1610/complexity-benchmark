@@ -1,0 +1,155 @@
+import sys
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    k = int(next(it))
+    t = int(next(it))
+    rows = []
+    for _ in range(t):
+        x = int(next(it)) - 1
+        y = int(next(it)) - 1
+        z = int(next(it)) - 1
+        rows.append((x, y, z))
+
+    # DLX structures
+    n_cols = 3 * k  # operators, terminals, shifts
+    # column headers 0..n_cols-1
+    size = [0] * n_cols
+    col_nodes = [[] for _ in range(n_cols)]
+
+    for idx, (x, y, z) in enumerate(rows):
+        cols = [x, k + y, 2 * k + z]
+        for c in cols:
+            col_nodes[c].append(idx)
+
+    # Build linked lists
+    max_nodes = t * 3 + n_cols + 1
+    U = [0] * max_nodes
+    D = [0] * max_nodes
+    L = [0] * max_nodes
+    R = [0] * max_nodes
+    C = [0] * max_nodes  # column of node
+    row_id = [0] * max_nodes
+
+    header = 0
+    # header linked list of column headers 1..n_cols
+    for i in range(n_cols + 1):
+        L[i] = i - 1
+        R[i] = i + 1
+        U[i] = D[i] = i
+    R[n_cols] = header
+    L[header] = n_cols
+
+    # add column nodes
+    for c in range(n_cols):
+        size[c] = len(col_nodes[c])
+
+    node_cnt = n_cols + 1  # next free index
+
+    # add rows
+    for r_idx, (x, y, z) in enumerate(rows):
+        cols = [x, k + y, 2 * k + z]
+        first = -1
+        for c in cols:
+            nd = node_cnt
+            node_cnt += 1
+            C[nd] = c
+            row_id[nd] = r_idx
+            # vertical links
+            U[nd] = U[c]
+            D[nd] = c
+            D[U[c]] = nd
+            U[c] = nd
+            # horizontal links
+            if first == -1:
+                first = nd
+                L[nd] = R[nd] = nd
+            else:
+                L[nd] = L[first]
+                R[nd] = first
+                R[L[first]] = nd
+                L[first] = nd
+
+    solution_rows = []
+
+    def cover(c):
+        # remove column header
+        R[L[c]] = R[c]
+        L[R[c]] = L[c]
+        # remove rows
+        i = D[c]
+        while i != c:
+            j = R[i]
+            while j != i:
+                U[D[j]] = U[j]
+                D[U[j]] = D[j]
+                size[C[j]] -= 1
+                j = R[j]
+            i = D[i]
+
+    def uncover(c):
+        i = U[c]
+        while i != c:
+            j = L[i]
+            while j != i:
+                size[C[j]] += 1
+                U[D[j]] = j
+                D[U[j]] = j
+                j = L[j]
+            i = U[i]
+        R[L[c]] = c
+        L[R[c]] = c
+
+    sys.setrecursionlimit(10000)
+
+    def search(k_depth):
+        if R[header] == header:  # all columns covered
+            return True
+        # choose column with minimal size
+        c = R[header]
+        min_sz = size[c]
+        cc = c
+        j = R[c]
+        while j != header:
+            if size[j] < min_sz:
+                min_sz = size[j]
+                cc = j
+                if min_sz == 0:
+                    break
+            j = R[j]
+        if min_sz == 0:
+            return False
+        cover(cc)
+        r = D[cc]
+        while r != cc:
+            solution_rows.append(row_id[r])
+            j = R[r]
+            while j != r:
+                cover(C[j])
+                j = R[j]
+            if search(k_depth + 1):
+                return True
+            # backtrack
+            j = L[r]
+            while j != r:
+                uncover(C[j])
+                j = L[j]
+            solution_rows.pop()
+            r = D[r]
+        uncover(cc)
+        return False
+
+    if search(0):
+        out = ["YES"]
+        for rid in solution_rows:
+            x, y, z = rows[rid]
+            out.append(f"{x+1} {y+1} {z+1}")
+        sys.stdout.write("\n".join(out))
+    else:
+        sys.stdout.write("NO")
+
+if __name__ == "__main__":
+    solve()

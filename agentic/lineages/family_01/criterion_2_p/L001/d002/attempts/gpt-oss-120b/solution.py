@@ -14,8 +14,9 @@ def solve() -> None:
         g[u].append(v)
         g[v].append(u)
 
-    color = [ -1 ] * (n + 1)          # partition 0/1
-    ans = [0] * (n + 1)               # final spin 1/2
+    color = [ -1 ] * (n + 1)          # 0 / 1 bipartite color
+    ans = [0] * (n + 1)               # final tier (1 or 2)
+
     from collections import deque
 
     for start in range(1, n + 1):
@@ -24,7 +25,7 @@ def solve() -> None:
         # BFS this component
         q = deque([start])
         color[start] = 0
-        comp_vertices = [start]
+        comp_nodes = [start]
         ok = True
         while q:
             u = q.popleft()
@@ -32,19 +33,18 @@ def solve() -> None:
                 if color[v] == -1:
                     color[v] = color[u] ^ 1
                     q.append(v)
-                    comp_vertices.append(v)
+                    comp_nodes.append(v)
                 elif color[v] == color[u]:
                     print("NO")
                     return
-        # decide orientation: smallest index gets spin 1
-        min_vertex = min(comp_vertices)
-        part_of_min = color[min_vertex]
-        # if part_of_min == 0 -> part0 ->1, else part0 ->2
-        for v in comp_vertices:
-            if color[v] == part_of_min:
-                ans[v] = 1
-            else:
-                ans[v] = 2
+        # decide orientation to get lexicographically smallest
+        min_node = min(comp_nodes)
+        # if min_node currently has color 0, keep mapping 0->1,1->2
+        # else flip
+        flip = (color[min_node] == 1)
+        for v in comp_nodes:
+            c = color[v] ^ (1 if flip else 0)
+            ans[v] = 1 if c == 0 else 2
 
     print("YES")
     print(' '.join(str(ans[i]) for i in range(1, n + 1)))

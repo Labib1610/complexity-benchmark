@@ -1,0 +1,55 @@
+import sys
+from itertools import combinations
+
+def solve():
+    n, m = map(int, sys.stdin.readline().split())
+    
+    # Create adjacency list for incompatibilities
+    adj = [[] for _ in range(n + 1)]
+    edges = []
+    
+    for _ in range(m):
+        u, v = map(int, sys.stdin.readline().split())
+        adj[u].append(v)
+        adj[v].append(u)
+        edges.append((u, v))
+    
+    # Try all possible assignments
+    # For each process, try states 1, 2, 3
+    def is_valid_assignment(assignment):
+        for u, v in edges:
+            if assignment[u] == assignment[v]:
+                return False
+        return True
+    
+    # Generate all possible assignments
+    # We'll use a backtracking approach for efficiency
+    assignment = [0] * (n + 1)
+    
+    def backtrack(process):
+        if process > n:
+            return True
+            
+        for state in [1, 2, 3]:
+            assignment[process] = state
+            valid = True
+            
+            # Check if this assignment conflicts with any neighbor
+            for neighbor in adj[process]:
+                if neighbor < process and assignment[neighbor] == state:
+                    valid = False
+                    break
+                    
+            if valid and backtrack(process + 1):
+                return True
+                
+        assignment[process] = 0
+        return False
+    
+    if backtrack(1):
+        print("YES")
+        print(*assignment[1:])
+    else:
+        print("NO")
+
+solve()

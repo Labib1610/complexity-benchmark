@@ -1,0 +1,400 @@
+**Solution Explanation**
+
+For every component we are given a chain of operations
+
+```
+(machine , processing time) , (machine , processing time) , …
+```
+
+All operations of a component have to be executed in the given order, an
+operation may start only after the previous one of the same component has
+finished.
+Every machine can work on at most one operation at a time, an operation,
+once started, runs without interruption.
+
+The problem is the classical **job‑shop scheduling** problem with the
+objective *minimise the makespan* (the finishing time of the last
+operation).
+
+The total number of operations  
+
+```
+N ≤ 50
+```
+
+and the numbers of components (`J ≤ 10`) and machines (`M ≤ 10`) are
+tiny – this makes a complete search with strong pruning fast enough.
+
+
+
+--------------------------------------------------------------------
+
+#### 1.   Data representation
+
+```
+jobs[j] = list of (machine, duration)          # 0‑based machine numbers
+lenj[j] = number of operations of job j
+```
+
+For every job we keep
+
+```
+pos[j]          – index of the next not yet scheduled operation   (0 … lenj)
+job_end[j]      – finishing time of the last already scheduled operation
+rem_job[j][p]   – Σ duration of operations p … end of the job
+```
+
+For every machine
+
+```
+mach_end[m]     – time when the machine becomes free
+rem_mach[m]     – total duration of *still unscheduled* operations of this machine
+```
+
+`rem_job` and the initial `rem_mach` are pre‑computed once.
+
+
+
+--------------------------------------------------------------------
+
+#### 2.   Lower bound for a partial schedule  
+
+During the search a *partial schedule* is already built, i.e. some
+operations are fixed, the others are still free.
+The best possible final makespan that can be reached from this partial
+schedule is at least
+
+```
+LB = max ( LB_job , LB_mach )
+```
+
+* **Job bound** – for every job the already finished part (`job_end`) plus the
+  still needed work (`rem_job`).  
+  `LB_job = max_j ( job_end[j] + rem_job[j][pos[j]] )`
+
+* **Machine bound** – for every machine the already used part (`mach_end`)
+  plus the still needed work on this machine.  
+  `LB_mach = max_m ( mach_end[m] + rem_mach[m] )`
+
+Both bounds are optimistic (they ignore possible waiting caused by the
+other side), therefore the real optimal makespan can never be smaller than
+`LB`.  
+If `LB` is not better than the best solution already found, the current
+branch can be discarded.
+
+
+
+--------------------------------------------------------------------
+
+#### 3.   Depth First Search with branch‑and‑bound  
+
+```
+search()
+    if every job is finished:
+            best = min( best , current_makespan )
+            return
+
+    ready = all jobs j with pos[j] < lenj[j]               # at most J (≤10)
+
+    for each j in ready (ordered, see below):
+            (m, d) = jobs[j][ pos[j] ]                     # next operation
+            start = max( job_end[j] , mach_end[m] )
+            finish = start + d
+
+            # --- apply the operation ---------------------------------
+            save old values
+            pos[j]      += 1
+            job_end[j]   = finish
+            mach_end[m]  = finish
+            rem_mach[m] -= d
+            # -----------------------------------------------------------------
+
+            if lower_bound() < best:
+                    search()
+
+            # --- undo -------------------------------------------------
+            restore old values
+```
+
+*Choosing the next operation*  
+The list `ready` is sorted by the **earliest possible start time**
+`max(job_end[j], mach_end[m])`.  
+Scheduling the operation that can start earliest first is a well‑known
+heuristic that reduces the search tree dramatically.
+
+The recursion depth is `N ≤ 50`, therefore Python recursion is safe
+(`sys.setrecursionlimit(10000)`).
+
+The global variable `best` stores the smallest makespan found so far
+(initially `+∞`).
+
+--------------------------------------------------------------------
+
+#### 4.   Correctness Proof  
+
+We prove that the algorithm outputs the optimal makespan.
+
+---
+
+##### Lemma 1  
+For a fixed order of operations on every machine, the algorithm
+constructs the *unique* feasible schedule that respects
+*job precedence* and *machine exclusiveness* and that never inserts an
+idle gap on a machine before an operation that could already start.
+
+**Proof.**  
+When an operation `(j,m,d)` becomes the next scheduled operation of job `j`
+its start time is forced to be at least `job_end[j]` (precedence) and at
+least `mach_end[m]` (machine busy). Starting it exactly at the maximum of
+both values yields a feasible schedule and leaves the machine idle
+*only* if the job itself is not ready. Any other feasible start time would
+create an idle period on the machine while the operation could already be
+processed, contradicting the definition of “no idle gap”. ∎
+
+
+
+##### Lemma 2  
+For every partial schedule explored by the DFS, the lower bound  
+`LB = max( max_j job_end[j]+rem_job[j][pos[j]],
+          max_m mach_end[m]+rem_mach[m] )`
+is a valid lower bound on the makespan of any complete schedule that
+extends this partial schedule.
+
+**Proof.**  
+
+*Job part* – each unfinished job still needs at least the sum of the
+remaining processing times (`rem_job`). Even if all its future operations
+could start immediately after the already finished part (`job_end`), the
+job would not finish earlier than `job_end + rem_job`. Therefore the final
+makespan cannot be smaller than the maximum of those values.
+
+*Machine part* – analogously, on every machine `m` the already executed part
+occupies the interval `[0, mach_end[m])`. The still unscheduled operations
+on this machine have total length `rem_mach[m]`; even if they could be run
+continuously after `mach_end[m]` the machine would be busy at least until
+`mach_end[m] + rem_mach[m]`. The makespan cannot be smaller than the maximum
+over all machines.
+
+The maximum of the two families of lower bounds is therefore a valid lower
+bound for any extension of the partial schedule. ∎
+
+
+
+##### Lemma 3  
+If the algorithm prunes a branch because its lower bound `LB` is not
+strictly smaller than the current best makespan `best`,
+no optimal schedule is lost.
+
+**Proof.**  
+All schedules reachable inside the pruned branch have a makespan
+`≥ LB` (Lemma&nbsp;2). The algorithm has already found a schedule with
+makespan `best ≤ LB`. Consequently every schedule in the branch is
+*not better* than the already known optimum, therefore discarding the
+branch cannot discard an optimal solution. ∎
+
+
+
+##### Lemma 4  
+Whenever the recursion reaches a leaf (all jobs finished),
+the makespan computed by the algorithm equals the makespan of the
+corresponding feasible schedule.
+
+**Proof.**  
+At a leaf every operation has been scheduled exactly once.
+`job_end[j]` is the finishing time of the last operation of job `j`,
+hence the overall makespan is `max_j job_end[j]`. This is exactly the
+value used to update `best`. ∎
+
+
+
+##### Lemma 5  
+For every feasible complete schedule `S` there exists a path of recursive
+calls that the algorithm follows and that schedules the operations of `S`
+in the same order on every machine.
+
+**Proof.**  
+Consider the order in which `S` executes operations on each machine.
+When the algorithm is at a node whose already scheduled operations are a
+prefix of those orders, the set `ready` contains exactly the operations
+that are the next ones of the still unfinished jobs.
+Among them the operation that `S` executes next on *some* machine is
+present. The algorithm branches on **all** ready operations, therefore it
+contains a branch that picks precisely that operation. Repeating the
+argument step by step constructs a recursion path that reproduces the
+machine orders of `S`. ∎
+
+
+
+##### Lemma 6  
+The algorithm eventually examines a leaf that corresponds to an *optimal*
+schedule.
+
+**Proof.**  
+Let `S*` be an optimal schedule. By Lemma&nbsp;5 there is a recursion path
+that schedules operations exactly as `S*`. The algorithm never aborts that
+path before reaching the leaf because the lower bound along the path is
+always `≤` the makespan of `S*` (the bound is optimistic). Since `best`
+is initially `+∞`, the pruning condition `LB ≥ best` never holds on this
+path. Consequently the leaf representing `S*` is visited, and by
+Lemma&nbsp;4 its makespan is taken into account for `best`. ∎
+
+
+
+##### Theorem  
+The integer printed by the program equals the minimum possible finishing
+time of all components.
+
+**Proof.**  
+
+*Soundness* – By Lemma&nbsp;4 every leaf that updates `best` corresponds to
+a feasible schedule, therefore the final value of `best` is a makespan of
+some feasible schedule.
+
+*Optimality* – Lemma&nbsp;6 guarantees that a leaf representing an optimal
+schedule is visited and its makespan (the optimum) is compared with `best`.
+Consequently `best` is never larger than the optimum.
+
+Together, `best` is both a feasible makespan and no larger than the
+optimal makespan, hence it is exactly the optimum. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### 5.   Complexity Analysis  
+
+`N` – total number of operations ( ≤ 50 )  
+`J` – number of jobs ( ≤ 10 )  
+
+*Pre‑computations* – `O(N + J·max_len)` time, `O(N)` memory.  
+
+*Search* – The worst‑case number of explored nodes is exponential,
+the exact bound depends on the instance.  
+All operations performed in one node are `O(J)` (building the list of
+ready jobs, computing the lower bound).  
+Memory consumption is `O(J + M)` for the mutable arrays plus the recursion
+stack `O(N)`.
+
+The given limits (`5 s`, `256 MB`) are easily satisfied for the
+intended test data; the strong lower bound and the ordering heuristic make
+the explored tree tiny for all realistic instances with `N ≤ 50`.
+
+
+
+--------------------------------------------------------------------
+
+#### 6.   Reference Implementation  (Python 3)
+
+```python
+import sys
+
+sys.setrecursionlimit(10000)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    J = int(next(it))          # number of components (jobs)
+    M = int(next(it))          # number of machines (facilities)
+
+    jobs = []                  # list of list[(machine, duration)]
+    for _ in range(J):
+        o = int(next(it))
+        ops = []
+        for _ in range(o):
+            fac = int(next(it)) - 1          # to 0‑based
+            dur = int(next(it))
+            ops.append((fac, dur))
+        jobs.append(ops)
+
+    # ----- pre‑compute remaining processing time for each job -----
+    rem_job = []
+    for ops in jobs:
+        L = len(ops)
+        suffix = [0] * (L + 1)
+        for i in range(L - 1, -1, -1):
+            suffix[i] = suffix[i + 1] + ops[i][1]
+        rem_job.append(suffix)                # suffix[pos] = remaining time
+
+    # ----- total remaining time per machine (initial) ----------
+    rem_mach = [0] * M
+    for ops in jobs:
+        for fac, dur in ops:
+            rem_mach[fac] += dur
+
+    # mutable state
+    pos = [0] * J                     # next operation index per job
+    job_end = [0] * J                 # finishing time of last scheduled op per job
+    mach_end = [0] * M                # when each machine becomes free
+
+    total_ops = sum(len(j) for j in jobs)
+    best = [float('inf')]             # list to allow write inside nested function
+
+    # ----- lower bound function -----
+    def lower_bound() -> int:
+        lb_job = 0
+        for j in range(J):
+            cur = job_end[j] + rem_job[j][pos[j]]
+            if cur > lb_job:
+                lb_job = cur
+        lb_mach = 0
+        for m in range(M):
+            cur = mach_end[m] + rem_mach[m]
+            if cur > lb_mach:
+                lb_mach = cur
+        return lb_job if lb_job > lb_mach else lb_mach
+
+    # ----- depth‑first search -----
+    def dfs(scheduled: int):
+        if scheduled == total_ops:
+            cur_makespan = max(job_end) if J else 0
+            if cur_makespan < best[0]:
+                best[0] = cur_makespan
+            return
+
+        # collect ready jobs
+        ready = []
+        for j in range(J):
+            if pos[j] < len(jobs[j]):
+                fac, dur = jobs[j][pos[j]]
+                est = job_end[j] if job_end[j] > mach_end[fac] else mach_end[fac]
+                ready.append((est, j, fac, dur))
+
+        # order by earliest possible start time
+        ready.sort(key=lambda x: x[0])
+
+        for est, j, fac, dur in ready:
+            start = est
+            finish = start + dur
+
+            # apply
+            old_pos = pos[j]
+            old_job_end = job_end[j]
+            old_mach_end = mach_end[fac]
+            old_rem_mach = rem_mach[fac]
+
+            pos[j] += 1
+            job_end[j] = finish
+            mach_end[fac] = finish
+            rem_mach[fac] -= dur
+
+            # pruning
+            if lower_bound() < best[0]:
+                dfs(scheduled + 1)
+
+            # undo
+            pos[j] = old_pos
+            job_end[j] = old_job_end
+            mach_end[fac] = old_mach_end
+            rem_mach[fac] = old_rem_mach
+
+    dfs(0)
+    print(best[0])
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above and
+conforms to the required input‑output format.

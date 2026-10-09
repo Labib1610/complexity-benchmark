@@ -1,0 +1,92 @@
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    k = int(data[0])
+    t = int(data[1])
+    paths = []
+    idx = 2
+    for _ in range(t):
+        x = int(data[idx]); y = int(data[idx+1]); z = int(data[idx+2])
+        idx += 3
+        paths.append((x, y, z))
+    
+    # For each (x, y), collect list of z values
+    xy_to_z = {}
+    for x, y, z in paths:
+        key = (x, y)
+        if key not in xy_to_z:
+            xy_to_z[key] = []
+        xy_to_z[key].append(z)
+    
+    # DP over subsets of machines
+    # State: subset of machines used (bitmask)
+    # Value: (zmask, parent_x, parent_y, parent_zmask)
+    # We process specialists 1..k in order
+    INF = -1
+    dp = [None] * (1 << k)
+    dp[0] = (0, 0, 0, 0)  # zmask=0, no parent
+    
+    for x in range(1, k+1):
+        new_dp = [None] * (1 << k)
+        for ymask in range(1 << k):
+            if dp[ymask] is None:
+                continue
+            zmask = dp[ymask][0]
+            # Try all machines y not yet used
+            for y in range(1, k+1):
+                bit = 1 << (y-1)
+                if ymask & bit:
+                    continue
+                key = (x, y)
+                if key not in xy_to_z:
+                    continue
+                new_ymask = ymask | bit
+                for z in xy_to_z[key]:
+                    zbit = 1 << (z-1)
+                    if zmask & zbit:
+                        continue
+                    new_zmask = zmask | zbit
+                    if new_dp[new_ymask] is None:
+                        new_dp[new_ymask] = (new_zmask, x, y, ymask)
+        dp = new_dp
+    
+    full = (1 << k) - 1
+    if dp[full] is None:
+        print("NO")
+        return
+    
+    # Reconstruct
+    result = []
+    ymask = full
+    for _ in range(k):
+        if dp[ymask] is None:
+            break
+        zmask, x, y, prev_ymask = dp[ymask]
+        result.append((x, y))
+        ymask = prev_ymask
+    
+    # Now we need to recover z values
+    # We have pairs (x, y) in reverse order (from k down to 1)
+    # Reconstruct z by tracking zmask
+    pairs = list(reversed(result))  # now in order x=1..k
+    
+    # Re-run to get z values
+    zmask = 0
+    final_result = []
+    for x, y in pairs:
+        key = (x, y)
+        for z in xy_to_z[key]:
+            zbit = 1 << (z-1)
+            if not (zmask & zbit):
+                final_result.append((x, y, z))
+                zmask |= zbit
+                break
+    
+    print("YES")
+    for x, y, z in final_result:
+        print(f"{x} {y} {z}")
+
+solve()

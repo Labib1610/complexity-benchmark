@@ -1,0 +1,156 @@
+```python
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    edges = []
+    idx = 2
+    for _ in range(m):
+        u = int(input_data[idx]) - 1
+        v = int(input_data[idx+1]) - 1
+        edges.append((u, v))
+        idx += 2
+        
+    # Variables: worker i has color c (c in 0, 1, 2).
+    # Var id: i * 3 + c (0-indexed, 0 to 3n-1)
+    # Literal representation: positive lit = 2 * var, negative lit = 2 * var + 1
+    
+    def var_of(i, c):
+        return i * 3 + c
+
+    def pos_lit(var):
+        return 2 * var
+
+    def neg_lit(var):
+        return 2 * var + 1
+
+    base_clauses = []
+    # At least one color
+    for i in range(n):
+        base_clauses.append([pos_lit(var_of(i, 0)), pos_lit(var_of(i, 1)), pos_lit(var_of(i, 2))])
+    
+    # At most one color
+    for i in range(n):
+        base_clauses.append([neg_lit(var_of(i, 0)), neg_lit(var_of(i, 1))])
+        base_clauses.append([neg_lit(var_of(i, 0)), neg_lit(var_of(i, 2))])
+        base_clauses.append([neg_lit(var_of(i, 1)), neg_lit(var_of(i, 2))])
+        
+    # Edge constraints
+    for u, v in edges:
+        for c in range(3):
+            base_clauses.append([neg_lit(var_of(u, c)), neg_lit(var_of(v, c))])
+
+    num_vars = 3 * n
+
+    # Simple DPLL solver
+    def is_sat(initial_units):
+        assignment = {} # var -> bool
+        
+        def propagate():
+            trail = []
+            while True:
+                # Find unit clauses or conflicts
+                unit_found = False
+                for clause in clauses:
+                    val_true = False
+                    unassigned_lit = None
+                    unassigned_count = 0
+                    for lit in clause:
+                        var = lit >> 1
+                        is_neg = lit & 1
+                        if var in assignment:
+                            if assignment[var] != bool(is_neg):
+                                val_true = True
+                                break
+                        else:
+                            unassigned_count += 1
+                            unassigned_lit = lit
+                    
+                    if val_true:
+                        continue
+                    if unassigned_count == 0:
+                        return False, trail # conflict
+                    if unassigned_count == 1:
+                        var = unassigned_lit >> 1
+                        val = (unassigned_lit & 1) == 0
+                        assignment[var] = val
+                        trail.append(var)
+                        unit_found = True
+                        break # restart checking clauses with new assignment
+                if not unit_found:
+                    break
+            return True, trail
+
+        clauses = [list(c) for c in base_clauses]
+        for lit in initial_units:
+            clauses.append([lit])
+
+        def dpll():
+            ok, trail = propagate()
+            if not ok:
+                for v in trail:
+                    del assignment[v]
+                return False
+            
+            # Check if all variables assigned or choose branching variable
+            # Heuristic: choose worker variable that reduces the search space
+            unassigned = [v for v in range(num_vars) if v not in assignment]
+            if not unassigned:
+                for v in trail:
+                    del assignment[v]
+                return True
+            
+            branch_var = unassigned[0]
+            
+            # Try True
+            assignment[branch_var] = True
+            if dpll():
+                for v in trail:
+                    del assignment[v]
+                return True
+            del assignment[branch_var]
+            
+            # Try False
+            assignment[branch_var] = False
+            if dpll():
+                for v in trail:
+                    del assignment[v]
+                return True
+            del assignment[branch_var]
+            
+            for v in trail:
+                del assignment[v]
+            return False
+
+        return dpll()
+
+    # Determine colors worker by worker
+    chosen_units = []
+    sol = []
+    
+    # First check if any solution exists
+    if not is_sat([]):
+        print("NO")
+        return
+
+    print("YES")
+    for i in range(n):
+        for c in range(3):
+            # Try setting worker i to color c
+            trial_units = chosen_units + [pos_lit(var_of(i, c))]
+            if is_sat(trial_units):
+                chosen_units.append(pos_lit(var_of(i, c)))
+                sol.append(c + 1)
+                break
+
+    print(*(sol))
+
+if __name__ == '__main__':
+    solve()
+```

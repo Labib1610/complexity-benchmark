@@ -1,0 +1,57 @@
+import sys
+from collections import defaultdict, deque
+
+def main():
+    import sys
+    sys.setrecursionlimit(1000000)
+    input = sys.stdin.read
+    data = input().split()
+    
+    nL = int(data[0])
+    nR = int(data[1])
+    m = int(data[2])
+    
+    edges = []
+    deg = [0] * (nL + nR + 1)
+    
+    index = 3
+    for _ in range(m):
+        u = int(data[index])
+        v = int(data[index+1])
+        index += 2
+        edges.append((u, v))
+        deg[u] += 1
+        deg[nL + v] += 1
+    
+    max_deg = max(deg) if deg else 0
+    
+    # Build adjacency list for the bipartite graph
+    adj = defaultdict(list)
+    for i, (u, v) in enumerate(edges):
+        adj[u].append((v + nL, i))
+        adj[v + nL].append((u, i))
+    
+    color = [0] * m
+    used_colors = [0] * (max_deg + 1)
+    
+    for u in range(1, nL + nR + 1):
+        if not adj[u]:
+            continue
+        # Mark colors used by neighbors
+        for v, i in adj[u]:
+            if color[i] != 0:
+                used_colors[color[i]] = u
+        # Assign smallest available color to each edge
+        for v, i in adj[u]:
+            if color[i] == 0:
+                c = 1
+                while used_colors[c] == u:
+                    c += 1
+                color[i] = c
+                used_colors[c] = u
+    
+    print("YES")
+    print(' '.join(map(str, color)))
+
+if __name__ == "__main__":
+    main()

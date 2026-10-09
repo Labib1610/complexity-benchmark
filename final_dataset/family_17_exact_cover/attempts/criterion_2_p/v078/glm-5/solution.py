@@ -1,0 +1,90 @@
+import sys
+from collections import deque
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    iterator = iter(input_data)
+    try:
+        q = int(next(iterator))
+        t = int(next(iterator))
+    except StopIteration:
+        return
+
+    # Adjacency list for controllers 1..q
+    adj = [[] for _ in range(q + 1)]
+    
+    for _ in range(t):
+        u = int(next(iterator))
+        v = int(next(iterator))
+        adj[u].append(v)
+
+    # matchP[p] = controller c matched with platform p, 0 if free
+    matchP = [0] * (2 * q + 1)
+    # matchC[c] = platform p matched with controller c, 0 if free
+    matchC = [0] * (q + 1)
+    
+    def bfs():
+        dist = [-1] * (q + 1)
+        queue = deque()
+        for u in range(1, q + 1):
+            if matchC[u] == 0:
+                dist[u] = 0
+                queue.append(u)
+        
+        found = False
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                # If v is matched, go to its partner
+                # If v is unmatched, we found an augmenting path
+                partner = matchP[v]
+                if partner != 0:
+                    if dist[partner] == -1:
+                        dist[partner] = dist[u] + 1
+                        queue.append(partner)
+                else:
+                    found = True
+        return dist, found
+
+    def dfs(u, dist):
+        for v in adj[u]:
+            partner = matchP[v]
+            if partner == 0:
+                # Augmenting path found
+                matchC[u] = v
+                matchP[v] = u
+                return True
+            else:
+                if dist[partner] == dist[u] + 1:
+                    if dfs(partner, dist):
+                        matchC[u] = v
+                        matchP[v] = u
+                        return True
+        return False
+
+    matching_size = 0
+    while True:
+        dist, found = bfs()
+        if not found:
+            break
+        
+        augmented = False
+        for u in range(1, q + 1):
+            if matchC[u] == 0:
+                if dfs(u, dist):
+                    matching_size += 1
+                    augmented = True
+        if not augmented:
+            break
+
+    if matching_size == q:
+        sys.stdout.write("YES\n")
+        for c in range(1, q + 1):
+            sys.stdout.write(f"{c} {matchC[c]}\n")
+    else:
+        sys.stdout.write("NO\n")
+
+if __name__ == "__main__":
+    solve()

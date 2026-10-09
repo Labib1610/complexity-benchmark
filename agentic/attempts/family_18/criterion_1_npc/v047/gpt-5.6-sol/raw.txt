@@ -1,0 +1,255 @@
+```python
+import sys
+from array import array
+from collections import deque
+
+def arrangement_cost(order, edges):
+    pos = [0] * n
+    for i, v in enumerate(order):
+        pos[v] = i
+    return sum(abs(pos[u] - pos[v]) for u, v in edges)
+
+def positions_from_order(order):
+    ans = [0] * n
+    for i, v in enumerate(order, 1):
+        ans[v] = i
+    return ans
+
+def traversal_order(component, adj, mode):
+    in_component = set(component)
+    unseen = set(component)
+    result = []
+
+    while unseen:
+        start = min(unseen, key=lambda x: (len(adj[x]), x))
+        unseen.remove(start)
+
+        if mode == "bfs":
+            q = deque([start])
+            while q:
+                v = q.popleft()
+                result.append(v)
+                nxt = sorted(
+                    (u for u in adj[v] if u in unseen and u in in_component),
+                    key=lambda x: (len(adj[x]), x)
+                )
+                for u in nxt:
+                    unseen.remove(u)
+                    q.append(u)
+        else:
+            stack = [start]
+            while stack:
+                v = stack.pop()
+                result.append(v)
+                nxt = sorted(
+                    (u for u in adj[v] if u in unseen and u in in_component),
+                    key=lambda x: (len(adj[x]), x),
+                    reverse=True
+                )
+                for u in nxt:
+                    unseen.remove(u)
+                    stack.append(u)
+
+    return result
+
+def solve_component(comp, adj):
+    k = len(comp)
+    if k <= 1:
+        return comp[:], 0
+
+    index = {v: i for i, v in enumerate(comp)}
+    weights = [dict() for _ in range(k)]
+    underlying_edges = 0
+    all_simple = True
+
+    for i, v in enumerate(comp):
+        d = weights[i]
+        for u in adj[v]:
+            j = index[u]
+            d[j] = d.get(j, 0) + 1
+        underlying_edges += len(d)
+        if any(w != 1 for w in d.values()):
+            all_simple = False
+
+    underlying_edges //= 2
+    underlying_degree = [len(d) for d in weights]
+
+    # A path attains the absolute lower bound: every edge has length 1.
+    if underlying_edges == k - 1 and max(underlying_degree) <= 2:
+        start = next(i for i in range(k) if underlying_degree[i] <= 1)
+        local_order = []
+        prev = -1
+        cur = start
+        while True:
+            local_order.append(cur)
+            nxt = [u for u in weights[cur] if u != prev]
+            if not nxt:
+                break
+            prev, cur = cur, nxt[0]
+        cost = sum(sum(d.values()) for d in weights) // 2
+        return [comp[i] for i in local_order], cost
+
+    # For a simple cycle, following the cycle is optimal.
+    if all_simple and underlying_edges == k and all(d == 2 for d in underlying_degree):
+        local_order = []
+        prev = -1
+        cur = 0
+        for _ in range(k):
+            local_order.append(cur)
+            a, b = weights[cur].keys()
+            nxt = a if a != prev else b
+            prev, cur = cur, nxt
+        return [comp[i] for i in local_order], 2 * k - 2
+
+    # Every ordering of a complete graph has the same cost.
+    if all_simple and underlying_edges == k * (k - 1) // 2:
+        cost = k * (k * k - 1) // 6
+        return comp[:], cost
+
+    size = 1 << k
+    cut = array('I', [0]) * size
+    dp = array('I', [0]) * size
+
+    if all_simple:
+        masks = [0] * k
+        deg = [0] * k
+        for i in range(k):
+            mask = 0
+            for j in weights[i]:
+                mask |= 1 << j
+            masks[i] = mask
+            deg[i] = len(weights[i])
+
+        for s in range(1, size):
+            bit = s & -s
+            v = bit.bit_length() - 1
+            rest = s ^ bit
+            cut_s = cut[rest] + deg[v] - 2 * ((masks[v] & rest).bit_count())
+            cut[s] = cut_s
+
+            t = s
+            best = 0xFFFFFFFF
+            while t:
+                b = t & -t
+                val = dp[s ^ b]
+                if val < best:
+                    best = val
+                t ^= b
+            dp[s] = cut_s + best
+    else:
+        weighted_deg = [sum(d.values()) for d in weights]
+        items = [list(d.items()) for d in weights]
+
+        for s in range(1, size):
+            bit = s & -s
+            v = bit.bit_length() - 1
+            rest = s ^ bit
+            inside = 0
+            for j, w in items[v]:
+                if rest & (1 << j):
+                    inside += w
+            cut_s = cut[rest] + weighted_deg[v] - 2 * inside
+            cut[s] = cut_s
+
+            t = s
+            best = 0xFFFFFFFF
+            while t:
+                b = t & -t
+                val = dp[s ^ b]
+                if val < best:
+                    best = val
+                t ^= b
+            dp[s] = cut_s + best
+
+    optimum = dp[size - 1]
+    s = size - 1
+    reversed_order = []
+    while s:
+        target = dp[s] - cut[s]
+        t = s
+        while t:
+            bit = t & -t
+            if dp[s ^ bit] == target:
+                reversed_order.append(bit.bit_length() - 1)
+                s ^= bit
+                break
+            t ^= bit
+
+    reversed_order.reverse()
+    return [comp[i] for i in reversed_order], optimum
+
+
+data = list(map(int, sys.stdin.buffer.read().split()))
+if len(data) < 3:
+    sys.exit()
+
+n, m, B = data[0], data[1], data[2]
+adj = [[] for _ in range(n)]
+edges = []
+p = 3
+nonloop_edges = 0
+
+for _ in range(m):
+    u = data[p] - 1
+    v = data[p + 1] - 1
+    p += 2
+    edges.append((u, v))
+    if u != v:
+        adj[u].append(v)
+        adj[v].append(u)
+        nonloop_edges += 1
+
+if B < 0 or nonloop_edges > B:
+    print("NO")
+    sys.exit()
+
+identity = list(range(n))
+if arrangement_cost(identity, edges) <= B:
+    print("YES")
+    print(*positions_from_order(identity))
+    sys.exit()
+
+visited = [False] * n
+components = []
+
+for start in range(n):
+    if visited[start]:
+        continue
+    visited[start] = True
+    stack = [start]
+    comp = []
+    while stack:
+        v = stack.pop()
+        comp.append(v)
+        for u in adj[v]:
+            if not visited[u]:
+                visited[u] = True
+                stack.append(u)
+    components.append(comp)
+
+for mode in ("bfs", "dfs"):
+    candidate = []
+    for comp in components:
+        candidate.extend(traversal_order(comp, adj, mode))
+    if arrangement_cost(candidate, edges) <= B:
+        print("YES")
+        print(*positions_from_order(candidate))
+        sys.exit()
+
+optimal_order = []
+optimal_cost = 0
+
+for comp in components:
+    order, cost = solve_component(comp, adj)
+    optimal_order.extend(order)
+    optimal_cost += cost
+    if optimal_cost > B:
+        print("NO")
+        sys.exit()
+
+if optimal_cost <= B:
+    print("YES")
+    print(*positions_from_order(optimal_order))
+else:
+    print("NO")
+```

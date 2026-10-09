@@ -1,9 +1,3 @@
-We can model this as a graph coloring problem with 3 colors, where we want the lexicographically smallest valid coloring.
-
-Since \( n \leq 40 \), we can use backtracking with pruning.  
-We assign colors to nodes in order from 1 to n, trying color 1 first, then 2, then 3, and check conflicts with already colored neighbors.
-
-```python
 import sys
 
 def solve():
@@ -17,28 +11,35 @@ def solve():
         adj[u].append(v)
         adj[v].append(u)
     
-    color = [0] * n
+    color = [-1] * n
     
+    # Check if we can color the graph with 3 colors using backtracking
     def backtrack(idx):
         if idx == n:
             return True
-        for c in range(1, 4):
-            ok = True
-            for nb in adj[idx]:
-                if colors[nb] == c:
-                    ok = False
-                    break
-            if ok:
-                colors[idx] = c
+        # Choose the uncolored vertex with the most colored neighbors
+        best = -1
+        best_degree = -1
+        for v in range(n):
+            if color[v] == -1:
+                deg = sum(1 for nb in adj[v] if color[nb] != -1)
+                if deg > best_degree:
+                    best_degree = deg
+                    best = v
+        v = best
+        # Try colors 1,2,3
+        used = {color[nb] for nb in adj[v] if color[nb] != -1}
+        for c in (1, 2, 3):
+            if c not in used:
+                color[v] = c
                 if backtrack(idx + 1):
                     return True
-                colors[idx] = 0
+                color[v] = -1
         return False
     
-    colors = [0] * n
     if backtrack(0):
         print("YES")
-        print(" ".join(map(str, colors)))
+        print(" ".join(str(c) for c in color))
     else:
         print("NO")
 

@@ -1,19 +1,22 @@
-# Problem B — Day and Night
+# Problem B — Alternating Cycles
 
-Time limit: 1 s
-Memory limit: 256 MB
+Time limit: 1 s   Memory limit: 256 MB
 
-The factory planning process requires dividing the workforce into two distinct operational periods, designated as Shift 1 and Shift 2. Human resources has collected employee data and identified specific pairs of personnel who cannot work together. Your task is to process this data: allocate every employee to exactly one of the two shifts so that no incompatible pair shares the same operational period. Once determined, this schedule will be forwarded to the payroll department. 
+A production facility utilizes $n$ automated manipulators. To balance the load, each manipulator must draw its energy from exactly one of two available generator networks, designated as network 1 and network 2. 
 
-If a valid allocation cannot be achieved, you must indicate this. If it is possible, you must provide a valid schedule. To ensure a standardized result, if multiple valid schedules exist, you must output the one that is lexicographically smallest when the sequence of shift numbers ($1$ or $2$) for employees $1$ through $n$ is compared.
+Because certain manipulators are installed in close proximity, their operational envelopes intersect. To ensure these intersecting manipulators do not strike each other, they must draw power from different generator networks, forcing them to move during alternating time windows.
+
+You must determine an assignment of each manipulator to a generator network such that no two manipulators with intersecting envelopes share the same network. If no such configuration can be found, you must state so.
 
 ## Input
-The first line contains two integers $n$ and $m$. The workforce size $n$ requires at least a single employee and is bounded by the factory's maximum capacity of $2 \cdot 10^5$ workers. The volume of incompatibility reports $m$ starts from zero and is capped at the same maximum capacity limit ($2 \cdot 10^5$).
-Each of the next $m$ lines contains two integers $u$ and $v$, indicating that employee $u$ and employee $v$ cannot share an operational period.
+The first line provides the integers $n$ and $m$, representing the number of manipulators and the number of intersecting pairs.
+The facility is built with a total power capacity of $400,000$ watts. Every installed manipulator consumes exactly $2$ watts. The number of manipulators $n$ is at least $1$ and at most the maximum number of manipulators this capacity can support. The number of intersecting pairs $m$ is at least $0$ and at most this exact same maximum limit.
+
+Each of the subsequent $m$ lines contains two integers $u$ and $v$, indicating a pair of manipulators whose operational envelopes intersect.
 
 ## Output
-If there is no way to assign the shifts without violating an incompatibility, print a single line `NO`.
-Otherwise, print `YES` on the first line. On the second line, output $n$ space-separated integers $s_1 \dots s_n$ (where each $s_i \in \{1, 2\}$) representing the shift assigned to each employee. This sequence must be the lexicographically smallest valid assignment.
+If it is impossible to assign the networks without causing a collision risk, print a single line containing `NO`.
+Otherwise, print `YES`, followed by a second line containing $n$ integers $s_1 \dots s_n$ (where each $s_i \in \{1,2\}$), representing the network assigned to each manipulator. If multiple valid configurations exist, output the one that is lexicographically smallest.
 
 ## Example 1
 Input:

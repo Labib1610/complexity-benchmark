@@ -1,0 +1,52 @@
+import sys
+from functools import cmp_to_key
+
+def compare(x, y):
+    # x = (p1_x, p2_x), y = (p1_y, p2_y)
+    # Compare x followed by y vs y followed by x
+    p1_x, p2_x = x
+    p1_y, p2_y = y
+    
+    # If x comes first, total time is max(p1_x + p2_x, p1_x + p1_y + p2_y)
+    time_xy = max(p1_x + p2_x, p1_x + p1_y + p2_y)
+    
+    # If y comes first, total time is max(p1_y + p2_y, p1_y + p1_x + p2_x)
+    time_yx = max(p1_y + p2_y, p1_y + p1_x + p2_x)
+    
+    if time_xy < time_yx:
+        return -1
+    elif time_xy > time_yx:
+        return 1
+    else:
+        return 0
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    j = int(data[0])
+    ships = []
+    index = 1
+    for _ in range(j):
+        p1 = int(data[index])
+        p2 = int(data[index+1])
+        ships.append((p1, p2))
+        index += 2
+    
+    # Sort using custom comparator
+    ships.sort(key=cmp_to_key(compare))
+    
+    # Simulate the process
+    entry_end_time = 0
+    landing_end_time = 0
+    
+    for p1, p2 in ships:
+        entry_end_time += p1
+        landing_start_time = max(entry_end_time, landing_end_time)
+        landing_end_time = landing_start_time + p2
+    
+    print(landing_end_time)
+
+if __name__ == "__main__":
+    main()

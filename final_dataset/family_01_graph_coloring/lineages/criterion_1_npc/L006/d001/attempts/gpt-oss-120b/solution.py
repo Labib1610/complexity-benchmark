@@ -1,0 +1,69 @@
+import sys
+
+sys.setrecursionlimit(10000)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    adj = [0] * n
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+
+    # order vertices by degree descending for better pruning
+    order = sorted(range(n), key=lambda x: -adj[x].bit_count())
+    pos_in_order = [0] * n
+    for idx, v in enumerate(order):
+        pos_in_order[v] = idx
+
+    colors = [0] * n  # 0 = uncolored, else 1..3
+
+    # adjacency in order-indexed form for quick check
+    adj_order = [0] * n
+    for i, v in enumerate(order):
+        mask = 0
+        nb = adj[v]
+        while nb:
+            lsb = nb & -nb
+            u = (lsb.bit_length() - 1)
+            mask |= 1 << pos_in_order[u]
+            nb ^= lsb
+        adj_order[i] = mask
+
+    def dfs(idx: int) -> bool:
+        if idx == n:
+            return True
+        v = idx
+        # try colors 1..3
+        forbidden = 0
+        nb_mask = adj_order[v]
+        # check already colored neighbours
+        while nb_mask:
+            lsb = nb_mask & -nb_mask
+            u = (lsb.bit_length() - 1)
+            c = colors[order[u]]
+            if c:
+                forbidden |= 1 << (c - 1)
+            nb_mask ^= lsb
+        for col in range(1, 4):
+            if not (forbidden & (1 << (col - 1))):
+                colors[order[v]] = col
+                if dfs(idx + 1):
+                    return True
+                colors[order[v]] = 0
+        return False
+
+    if dfs(0):
+        print("YES")
+        print(' '.join(str(c) for c in colors))
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()

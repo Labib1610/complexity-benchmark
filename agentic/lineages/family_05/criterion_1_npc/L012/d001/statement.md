@@ -1,0 +1,75 @@
+# Problem A — Resonance Calibration
+
+Time limit: 5 s   Memory limit: 256 MB
+
+## Description
+
+A geological scanner operates in a subterranean grid of dimensions **k** × **k** × **k**. Every location in the grid is defined by a depth **x**, a latitude **y**, and a longitude **z**, each taking an integer value from 1 to **k**.
+
+The scanner has identified **t** resonance pockets at specific `(x, y, z)` locations. 
+
+To calibrate the scanning array, you must select a subset of exactly **k** resonance pockets from the identified list. The calibration is successful if and only if the selected pockets do not interfere with each other. Interference occurs if any two selected pockets share the same depth, the same latitude, or the same longitude. 
+
+Determine whether a successful calibration is possible, and if so, report one valid selection of resonance pockets.
+
+## Input
+
+The first line contains two integers **k** and **t** (1 ≤ k ≤ 22, 0 ≤ t ≤ k·k·k): the grid dimension and the number of identified resonance pockets.
+Each of the next **t** lines contains three integers **x**, **y**, **z** (1 ≤ x, y, z ≤ k), the coordinates of a resonance pocket. No location is listed more than once.
+
+## Output
+
+If a non-interfering selection of exactly **k** pockets exists, print `YES` on the first line. Then, print **k** lines, each containing the three coordinates `x y z` of one selected pocket. Any valid selection is accepted, and the pockets may be printed in any order.
+
+If no valid selection exists, print `NO`.
+
+## Examples
+
+### Example 1
+
+**Input**
+```
+2 3
+1 1 1
+1 2 2
+2 2 2
+```
+
+**Output**
+```
+YES
+1 1 1
+2 2 2
+```
+
+### Example 2
+
+**Input**
+```
+2 2
+1 1 1
+2 1 2
+```
+
+**Output**
+```
+NO
+```
+
+### Example 3
+
+**Input**
+```
+1 1
+1 1 1
+```
+
+**Output**
+```
+YES
+1 1 1
+```
+
+## Note
+
+In Example 2, both identified resonance pockets are located at latitude 1. Any selection of 2 pockets would cause interference, making a successful calibration impossible.

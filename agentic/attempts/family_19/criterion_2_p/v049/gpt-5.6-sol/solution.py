@@ -1,0 +1,108 @@
+import sys
+from collections import deque
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+
+    it = iter(data)
+    n = next(it)
+    m = next(it)
+    _ = next(it)
+
+    s = next(it) - 1
+    t = next(it) - 1
+    demand = next(it)
+
+    if demand < 0 or (s == t and demand > 0):
+        print("NO")
+        return
+
+    graph = [[] for _ in range(n)]
+    original_edges = []
+
+    def add_edge(u, v, capacity):
+        if u == v:
+            idx = len(graph[u])
+            forward = [v, capacity, idx + 1]
+            backward = [u, 0, idx]
+            graph[u].append(forward)
+            graph[u].append(backward)
+        else:
+            forward = [v, capacity, len(graph[v])]
+            backward = [u, 0, len(graph[u])]
+            graph[u].append(forward)
+            graph[v].append(backward)
+        return forward
+
+    for _ in range(m):
+        u = next(it) - 1
+        v = next(it) - 1
+        cap = next(it)
+        edge = add_edge(u, v, cap)
+        original_edges.append((edge, cap))
+
+    if demand == 0:
+        print("YES")
+        print(" ".join("0" for _ in range(m)))
+        return
+
+    sys.setrecursionlimit(max(1_000_000, 2 * n + 10))
+    level = [-1] * n
+    ptr = [0] * n
+
+    def bfs():
+        level[:] = [-1] * n
+        level[s] = 0
+        queue = deque([s])
+
+        while queue:
+            u = queue.popleft()
+            next_level = level[u] + 1
+            for v, cap, _ in graph[u]:
+                if cap > 0 and level[v] == -1:
+                    level[v] = next_level
+                    queue.append(v)
+
+        return level[t] != -1
+
+    def dfs(u, pushed):
+        if u == t:
+            return pushed
+
+        while ptr[u] < len(graph[u]):
+            edge = graph[u][ptr[u]]
+            v, cap, rev = edge
+
+            if cap > 0 and level[v] == level[u] + 1:
+                sent = dfs(v, min(pushed, cap))
+                if sent:
+                    edge[1] -= sent
+                    graph[v][rev][1] += sent
+                    return sent
+
+            ptr[u] += 1
+
+        return 0
+
+    total_flow = 0
+
+    while total_flow < demand and bfs():
+        ptr[:] = [0] * n
+        while total_flow < demand:
+            sent = dfs(s, demand - total_flow)
+            if sent == 0:
+                break
+            total_flow += sent
+
+    if total_flow != demand:
+        print("NO")
+        return
+
+    flows = [str(capacity - edge[1]) for edge, capacity in original_edges]
+    print("YES")
+    print(" ".join(flows))
+
+if __name__ == "__main__":
+    main()

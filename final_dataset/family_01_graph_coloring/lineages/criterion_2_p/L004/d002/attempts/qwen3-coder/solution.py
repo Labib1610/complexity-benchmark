@@ -1,0 +1,62 @@
+import sys
+from collections import defaultdict, deque
+
+def read_input():
+    n, m = map(int, sys.stdin.readline().split())
+    edges = []
+    for _ in range(m):
+        u, v = map(int, sys.stdin.readline().split())
+        edges.append((u, v))
+    return n, m, edges
+
+def solve():
+    n, m, edges = read_input()
+    
+    # Build adjacency list
+    adj = defaultdict(list)
+    for u, v in edges:
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # Colors: 0 means unvisited, 1 and 2 are the two colors
+    color = [0] * (n + 1)
+    
+    # Check the constraint: |a³ - b³| = 7 where a,b ∈ {1,2}
+    # 1³ = 1, 2³ = 8, |8-1| = 7. So adjacent nodes must have different values.
+    # This is a graph bipartitioning problem.
+    
+    # For each connected component, we need to check if it's bipartite
+    for start in range(1, n + 1):
+        if color[start] == 0:
+            # BFS to color the component
+            queue = deque()
+            queue.append(start)
+            color[start] = 1
+            
+            while queue:
+                node = queue.popleft()
+                current_color = color[node]
+                
+                for neighbor in adj[node]:
+                    if color[neighbor] == 0:
+                        color[neighbor] = 3 - current_color  # Flip color (1->2, 2->1)
+                        queue.append(neighbor)
+                    elif color[neighbor] == current_color:
+                        # Not bipartite
+                        print("NO")
+                        return
+    
+    # If we reach here, the graph is bipartite and a solution exists
+    # The coloring already gives us a valid assignment
+    # To get the lexicographically smallest, we prefer color 1 over 2 for node 1
+    # If color[1] is 2, we flip all colors
+    if n >= 1 and color[1] == 2:
+        for i in range(1, n + 1):
+            color[i] = 3 - color[i]
+    
+    print("YES")
+    result = [str(color[i]) for i in range(1, n + 1)]
+    print(" ".join(result))
+
+if __name__ == "__main__":
+    solve()

@@ -1,0 +1,330 @@
+import sys
+from collections import defaultdict
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    k = int(next(it))
+    B = int(next(it))
+    
+    high_risk = set()
+    for _ in range(k):
+        high_risk.add(int(next(it)))
+    
+    edges = []
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        w = int(next(it))
+        edges.append((u, v, w))
+    
+    # Build adjacency list
+    adj = defaultdict(list)
+    for u, v, w in edges:
+        adj[u].append((v, w, len(edges) - 1 - edges[::-1].index((u, v, w)) if (u, v, w) in edges else len(edges) - 1))
+        adj[v].append((u, w, len(edges) - 1 - edges[::-1].index((u, v, w)) if (u, v, w) in edges else len(edges) - 1))
+    
+    # Rebuild with proper edge indices
+    adj = defaultdict(list)
+    for idx, (u, v, w) in enumerate(edges):
+        adj[u].append((v, w, idx))
+        adj[v].append((u, w, idx))
+    
+    # Check if any two high-risk zones are already connected
+    # If so, we need to cut edges. If not, answer is YES with 0 edges.
+    
+    # BFS/DFS from each high-risk zone to check connectivity
+    visited_global = set()
+    high_risk_list = list(high_risk)
+    
+    # Check if any two high-risk zones are in the same connected component
+    def check_connectivity():
+        component = {}
+        comp_id = 0
+        visited = set()
+        for start in range(1, n + 1):
+            if start not in visited:
+                stack = [start]
+                visited.add(start)
+                current_comp = comp_id
+                while stack:
+                    node = stack.pop()
+                    component[node] = current_comp
+                    for neighbor, w, idx in adj[node]:
+                        if neighbor not in visited:
+                            visited.add(neighbor)
+                            stack.append(neighbor)
+                comp_id += 1
+        
+        # Check if any two high-risk zones share the same component
+        hr_components = {}
+        for hr in high_risk:
+            hr_components[hr] = component[hr]
+        
+        comp_to_hr = defaultdict(list)
+        for hr, comp in hr_components.items():
+            comp_to_hr[comp].append(hr)
+        
+        for comp, hrs in comp_to_hr.items():
+            if len(hrs) > 1:
+                return True  # High-risk zones are connected
+        return False
+    
+    if not check_connectivity():
+        print("YES")
+        print(0)
+        return
+    
+    # High-risk zones are connected, need to find minimum cut
+    # Use Kruskal-like approach: process edges in order of increasing weight
+    # Try to build a spanning forest, but skip edges that would connect two high-risk zones
+    
+    parent = list(range(n + 1))
+    rank = [0] * (n + 1)
+    high_risk_root = {}  # Maps high-risk zone to its component root
+    
+    def find(x):
+        if parent[x] != x:
+            parent[x] = find(parent[x])
+        return parent[x]
+    
+    def union(x, y):
+        px, py = find(x), find(y)
+        if px == py:
+            return False
+        if rank[px] < rank[py]:
+            px, py = py, px
+        parent[py] = px
+        if rank[px] == rank[py]:
+            rank[px] += 1
+        return True
+    
+    # Sort edges by weight
+    sorted_edges = sorted(enumerate(edges), key=lambda x: x[1][2])
+    
+    total_cost = 0
+    edges_to_weld = []
+    
+    for idx, (u, v, w) in sorted_edges:
+        pu, pv = find(u), find(v)
+        
+        # Check if both components contain high-risk zones
+        pu_has_hr = pu in high_risk_root
+        pv_has_hr = pv in high_risk_root
+        
+        if pu_has_hr and pv_has_hr:
+            # Welding this edge is necessary
+            total_cost += w
+            edges_to_weld.append((u, v))
+            if total_cost > B:
+                print("NO")
+                return
+        else:
+            # Can potentially add this edge to the spanning forest
+            if pu != pv:
+                # Merge components
+                if pu_has_hr or pv_has_hr:
+                    # One of them has high-risk, propagate the root
+                    hr_root = pu if pu_has_hr else pv
+                    new_root = pu if rank[pu] > rank[pv] or (rank[pu] == rank[pv] and pu < pv) else pv
+                    if pu_has_hr and pv_has_hr:
+                        pass  # Already handled above
+                    elif pu_has_hr:
+                        # pu has high-risk, after merge, new root should track high-risk
+                        if union(u, v):
+                            new_p = find(u)
+                            high_risk_root[new_p] = high_risk_root[pu]
+                    elif pv_has_hr:
+                        if union(u, v):
+                            new_p = find(u)
+                            high_risk_root[new_p] = high_risk_root[pv]
+                    else:
+                        union(u, v)
+                else:
+                    union(u, v)
+    
+    # Re-check: after processing, are all high-risk zones separated?
+    # Reset and check
+    parent = list(range(n + 1))
+    for u, v, w in edges:
+        if (u, v) not in edges_to_weld and (v, u) not in edges_to_weld:
+            union(u, v)
+    
+    roots = set()
+    for hr in high_risk:
+        roots.add(find(hr))
+    
+    if len(roots) == len(high_risk):
+        print("YES")
+        print(len(edges_to_weld))
+        for u, v in edges_to_weld:
+            print(u, v)
+    else:
+        print("NO")
+
+def solve_correct():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    k = int(next(it))
+    B = int(next(it))
+    
+    high_risk = set()
+    for _ in range(k):
+        high_risk.add(int(next(it)))
+    
+    edges = []
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        w = int(next(it))
+        edges.append((u, v, w))
+    
+    # Build adjacency list
+    adj = defaultdict(list)
+    for idx, (u, v, w) in enumerate(edges):
+        adj[u].append((v, w, idx))
+        adj[v].append((u, w, idx))
+    
+    # Check if high-risk zones are already separated
+    def get_components():
+        visited = set()
+        components = {}
+        comp_id = 0
+        for start in range(1, n + 1):
+            if start not in visited:
+                stack = [start]
+                visited.add(start)
+                nodes_in_comp = []
+                while stack:
+                    node = stack.pop()
+                    nodes_in_comp.append(node)
+                    for neighbor, w, idx in adj[node]:
+                        if neighbor not in visited:
+                            visited.add(neighbor)
+                            stack.append(neighbor)
+                for node in nodes_in_comp:
+                    components[node] = comp_id
+                comp_id += 1
+        return components
+    
+    components = get_components()
+    hr_comps = defaultdict(list)
+    for hr in high_risk:
+        hr_comps[components[hr]].append(hr)
+    
+    # Count how many high-risk zones are in each component
+    components_needing_cut = []
+    for comp_id, hrs in hr_comps.items():
+        if len(hrs) > 1:
+            components_needing_cut.append((comp_id, hrs))
+    
+    if not components_needing_cut:
+        print("YES")
+        print(0)
+        return
+    
+    # For each component with multiple high-risk zones, we need to cut edges
+    # to separate them. Use minimum spanning tree approach.
+    
+    total_cost = 0
+    edges_to_weld = []
+    
+    for comp_id, hrs in components_needing_cut:
+        # Get all nodes in this component
+        nodes_in_comp = [node for node, c in components.items() if c == comp_id]
+        nodes_set = set(nodes_in_comp)
+        
+        # Get edges within this component
+        comp_edges = []
+        for idx, (u, v, w) in enumerate(edges):
+            if u in nodes_set and v in nodes_set:
+                comp_edges.append((w, u, v, idx))
+        
+        # Sort by weight
+        comp_edges.sort()
+        
+        # Kruskal's algorithm, but skip edges connecting two high-risk zones
+        parent = {node: node for node in nodes_in_comp}
+        rank = {node: 0 for node in nodes_in_comp}
+        hr_root = {hr: hr for hr in hrs}
+        
+        def find(x):
+            if parent[x] != x:
+                parent[x] = find(parent[x])
+            return parent[x]
+        
+        def union(x, y):
+            px, py = find(x), find(y)
+            if px == py:
+                return False
+            if rank[px] < rank[py]:
+                px, py = py, px
+            parent[py] = px
+            if rank[px] == rank[py]:
+                rank[px] += 1
+            return True
+        
+        for w, u, v, idx in comp_edges:
+            pu, pv = find(u), find(v)
+            
+            # Check if both roots have high-risk zones
+            pu_has_hr = pu in hr_root
+            pv_has_hr = pv in hr_root
+            
+            if pu_has_hr and pv_has_hr:
+                # Must weld this edge
+                total_cost += w
+                edges_to_weld.append((u, v))
+                if total_cost > B:
+                    print("NO")
+                    return
+            else:
+                if pu != pv:
+                    # Merge
+                    if union(u, v):
+                        new_root = find(u)
+                        if pu_has_hr:
+                            hr_root[new_root] = hr_root[pu]
+                        elif pv_has_hr:
+                            hr_root[new_root] = hr_root[pv]
+    
+    # Verify solution
+    adj_after = defaultdict(list)
+    for u, v, w in edges:
+        if (u, v) not in edges_to_weld and (v, u) not in edges_to_weld:
+            adj_after[u].append(v)
+            adj_after[v].append(u)
+    
+    visited = set()
+    for hr in high_risk:
+        if hr in visited:
+            continue
+        stack = [hr]
+        visited.add(hr)
+        hr_in_comp = [hr]
+        while stack:
+            node = stack.pop()
+            for neighbor in adj_after[node]:
+                if neighbor not in visited:
+                    visited.add(neighbor)
+                    stack.append(neighbor)
+                    if neighbor in high_risk:
+                        hr_in_comp.append(neighbor)
+        if len(hr_in_comp) > 1:
+            print("NO")
+            return
+    
+    print("YES")
+    print(len(edges_to_weld))
+    for u, v in edges_to_weld:
+        print(u, v)
+
+solve_correct()

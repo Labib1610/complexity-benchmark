@@ -1,0 +1,91 @@
+import sys
+from collections import defaultdict, deque
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    q = int(data[0])
+    t = int(data[1])
+    
+    index = 2
+    edges = []
+    adj = [[] for _ in range(q + 1)]  # adj[a] stores list of receivers connected to transmitter a
+    
+    for _ in range(t):
+        a = int(data[index])
+        b = int(data[index + 1])
+        index += 2
+        # Check if the sum constraint is satisfied: q+1 < a+b < 3q+1
+        s = a + b
+        if s > q + 1 and s < 3 * q + 1:
+            edges.append((a, b))
+            adj[a].append(b)
+    
+    # We need to find a perfect matching in a bipartite graph
+    # Left side: transmitters 1 to q
+    # Right side: receivers q+1 to 2q
+    # We need exactly q edges, each transmitter and receiver used exactly once
+    
+    # This is a maximum bipartite matching problem
+    # We'll use Hopcroft-Karp or a simpler augmenting path approach
+    
+    match_receiver = [-1] * (2 * q + 1)  # match_receiver[b] = a if receiver b is matched to transmitter a
+    match_transmitter = [-1] * (q + 1)   # match_transmitter[a] = b if transmitter a is matched to receiver b
+    
+    def bfs():
+        dist = [-1] * (q + 1)
+        queue = deque()
+        for a in range(1, q + 1):
+            if match_transmitter[a] == -1:
+                dist[a] = 0
+                queue.append(a)
+            else:
+                dist[a] = -1
+        dist[0] = -1  # dummy node
+        
+        while queue:
+            a = queue.popleft()
+            if dist[a] < dist[0]:  # dist[0] is infinity initially
+                for b in adj[a]:
+                    aa = match_receiver[b]
+                    if aa != -1 and dist[aa] == -1:
+                        dist[aa] = dist[a] + 1
+                        queue.append(aa)
+        return dist[0] != -1
+    
+    def dfs(a):
+        if a == 0:
+            return True
+        for b in adj[a]:
+            aa = match_receiver[b]
+            if aa != -1 and dist[aa] == dist[a] + 1:
+                if dfs(aa):
+                    match_receiver[b] = a
+                    match_transmitter[a] = b
+                    return True
+            elif aa == -1:
+                match_receiver[b] = a
+                match_transmitter[a] = b
+                return True
+        dist[a] = -1
+        return False
+    
+    matching = 0
+    while bfs():
+        for a in range(1, q + 1):
+            if match_transmitter[a] == -1:
+                if dfs(a):
+                    matching += 1
+    
+    if matching == q:
+        print("YES")
+        for a in range(1, q + 1):
+            b = match_transmitter[a]
+            print(a, b)
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    main()

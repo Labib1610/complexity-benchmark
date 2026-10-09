@@ -1,0 +1,317 @@
+```python
+import sys
+
+sys.setrecursionlimit(1_000_000)
+
+
+def verify_solution(n, m, k, commodities, edges, flows):
+    used = [0] * m
+    for i in range(k):
+        if len(flows[i]) != m:
+            return False
+        balance = [0] * n
+        for j, value in enumerate(flows[i]):
+            if value < 0:
+                return False
+            used[j] += value
+            u, v, _ = edges[j]
+            balance[u] += value
+            balance[v] -= value
+
+        s, t, d = commodities[i]
+        expected = [0] * n
+        expected[s] += d
+        expected[t] -= d
+        if balance != expected:
+            return False
+
+    return all(used[j] <= edges[j][2] for j in range(m))
+
+
+def solve_with_scipy(n, m, k, commodities, edges):
+    if k * m == 0:
+        flows = [[0] * m for _ in range(k)]
+        return flows if verify_solution(n, m, k, commodities, edges, flows) else None
+
+    try:
+        import numpy as np
+        from scipy.optimize import milp, Bounds, LinearConstraint
+        from scipy.sparse import coo_matrix
+    except Exception:
+        return "UNAVAILABLE"
+
+    variables = k * m
+    rows = k * n + m
+    rr = []
+    cc = []
+    data = []
+
+    for i in range(k):
+        base_var = i * m
+        base_row = i * n
+        for j, (u, v, _) in enumerate(edges):
+            col = base_var + j
+            rr.append(base_row + u)
+            cc.append(col)
+            data.append(1.0)
+            rr.append(base_row + v)
+            cc.append(col)
+            data.append(-1.0)
+
+    for j in range(m):
+        row = k * n + j
+        for i in range(k):
+            rr.append(row)
+            cc.append(i * m + j)
+            data.append(1.0)
+
+    A = coo_matrix((data, (rr, cc)), shape=(rows, variables)).tocsc()
+
+    lower = np.empty(rows, dtype=float)
+    upper = np.empty(rows, dtype=float)
+
+    rhs = np.zeros(k * n, dtype=float)
+    for i, (s, t, d) in enumerate(commodities):
+        rhs[i * n + s] += d
+        rhs[i * n + t] -= d
+
+    lower[:k * n] = rhs
+    upper[:k * n] = rhs
+    lower[k * n:] = -np.inf
+    upper[k * n:] = [cap for _, _, cap in edges]
+
+    var_upper = np.tile(np.array([cap for _, _, cap in edges], dtype=float), k)
+
+    try:
+        result = milp(
+            c=np.zeros(variables, dtype=float),
+            integrality=np.ones(variables, dtype=np.uint8),
+            bounds=Bounds(np.zeros(variables), var_upper),
+            constraints=LinearConstraint(A, lower, upper),
+            options={"disp": False, "presolve": True, "mip_rel_gap": 0.0},
+        )
+    except Exception:
+        return "UNAVAILABLE"
+
+    if result.x is not None:
+        values = np.rint(result.x).astype(object)
+        flows = []
+        for i in range(k):
+            row = [int(values[i * m + j]) for j in range(m)]
+            flows.append(row)
+        if verify_solution(n, m, k, commodities, edges, flows):
+            return flows
+
+    if getattr(result, "status", None) == 2:
+        return None
+    return "UNAVAILABLE"
+
+
+class Dinic:
+    def __init__(self, n):
+        self.n = n
+        self.graph = [[] for _ in range(n)]
+
+    def add_edge(self, u, v, cap):
+        forward = [v, cap, None]
+        backward = [u, 0, forward]
+        forward[2] = backward
+        self.graph[u].append(forward)
+        self.graph[v].append(backward)
+
+    def max_flow(self, s, t, limit):
+        if s == t:
+            return limit
+
+        total = 0
+        n = self.n
+        while total < limit:
+            level = [-1] * n
+            level[s] = 0
+            queue = [s]
+            for u in queue:
+                for edge in self.graph[u]:
+                    if edge[1] > 0 and level[edge[0]] < 0:
+                        level[edge[0]] = level[u] + 1
+                        queue.append(edge[0])
+
+            if level[t] < 0:
+                break
+
+            it = [0] * n
+
+            def dfs(u, pushed):
+                if u == t:
+                    return pushed
+                while it[u] < len(self.graph[u]):
+                    edge = self.graph[u][it[u]]
+                    if edge[1] > 0 and level[edge[0]] == level[u] + 1:
+                        sent = dfs(edge[0], min(pushed, edge[1]))
+                        if sent:
+                            edge[1] -= sent
+                            edge[2][1] += sent
+                            return sent
+                    it[u] += 1
+                return 0
+
+            while total < limit:
+                sent = dfs(s, limit - total)
+                if not sent:
+                    break
+                total += sent
+
+        return total
+
+
+def fallback_exact(n, m, k, commodities, edges):
+    adjacency = [[] for _ in range(n)]
+    for j, (u, v, cap) in enumerate(edges):
+        if cap > 0:
+            adjacency[u].append((v, j))
+
+    def residual_maxflow(s, t, need, residual):
+        if need <= 0 or s == t:
+            return need
+        dinic = Dinic(n)
+        for j, (u, v, _) in enumerate(edges):
+            if residual[j] > 0:
+                dinic.add_edge(u, v, residual[j])
+        return dinic.max_flow(s, t, need)
+
+    paths_by_commodity = [[] for _ in range(k)]
+
+    for i, (s, t, d) in enumerate(commodities):
+        if d == 0 or s == t:
+            continue
+
+        visited = [False] * n
+        visited[s] = True
+        current = []
+        paths = []
+
+        def enumerate_paths(u):
+            if u == t:
+                paths.append(tuple(current))
+                return
+            for v, edge_id in adjacency[u]:
+                if not visited[v]:
+                    visited[v] = True
+                    current.append(edge_id)
+                    enumerate_paths(v)
+                    current.pop()
+                    visited[v] = False
+
+        enumerate_paths(s)
+        if not paths:
+            return None
+        paths.sort(key=len)
+        paths_by_commodity[i] = paths
+
+    residual = [cap for _, _, cap in edges]
+    flows = [[0] * m for _ in range(k)]
+
+    active = [
+        i for i, (s, t, d) in enumerate(commodities)
+        if d > 0 and s != t
+    ]
+
+    for i in active:
+        s, t, d = commodities[i]
+        if residual_maxflow(s, t, d, residual) < d:
+            return None
+
+    active.sort(key=lambda i: (len(paths_by_commodity[i]), -commodities[i][2]))
+
+    def solve_commodity(position):
+        if position == len(active):
+            return True
+
+        for q in range(position, len(active)):
+            i = active[q]
+            s, t, d = commodities[i]
+            if residual_maxflow(s, t, d, residual) < d:
+                return False
+
+        commodity = active[position]
+        _, _, demand = commodities[commodity]
+        paths = paths_by_commodity[commodity]
+
+        def assign_paths(path_index, remaining):
+            if remaining == 0:
+                return solve_commodity(position + 1)
+            if path_index == len(paths):
+                return False
+
+            s, t, _ = commodities[commodity]
+            if residual_maxflow(s, t, remaining, residual) < remaining:
+                return False
+
+            path = paths[path_index]
+            bottleneck = remaining
+            for edge_id in path:
+                if residual[edge_id] < bottleneck:
+                    bottleneck = residual[edge_id]
+
+            for amount in range(bottleneck, -1, -1):
+                if amount:
+                    for edge_id in path:
+                        residual[edge_id] -= amount
+                        flows[commodity][edge_id] += amount
+
+                if assign_paths(path_index + 1, remaining - amount):
+                    return True
+
+                if amount:
+                    for edge_id in path:
+                        residual[edge_id] += amount
+                        flows[commodity][edge_id] -= amount
+
+            return False
+
+        return assign_paths(0, demand)
+
+    if solve_commodity(0) and verify_solution(n, m, k, commodities, edges, flows):
+        return flows
+    return None
+
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+
+    it = iter(data)
+    n = next(it)
+    m = next(it)
+    k = next(it)
+
+    commodities = []
+    for _ in range(k):
+        s = next(it) - 1
+        t = next(it) - 1
+        d = next(it)
+        commodities.append((s, t, d))
+
+    edges = []
+    for _ in range(m):
+        u = next(it) - 1
+        v = next(it) - 1
+        cap = next(it)
+        edges.append((u, v, cap))
+
+    result = solve_with_scipy(n, m, k, commodities, edges)
+    if result == "UNAVAILABLE":
+        result = fallback_exact(n, m, k, commodities, edges)
+
+    if result is None:
+        sys.stdout.write("NO\n")
+        return
+
+    output = ["YES"]
+    output.extend(" ".join(map(str, row)) for row in result)
+    sys.stdout.write("\n".join(output) + "\n")
+
+
+if __name__ == "__main__":
+    main()
+```

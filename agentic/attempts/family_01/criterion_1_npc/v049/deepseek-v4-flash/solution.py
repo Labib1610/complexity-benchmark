@@ -1,55 +1,49 @@
 import sys
 
 def solve():
-    input_data = sys.stdin.read().strip().split()
-    if not input_data:
-        return
-    n, m = int(input_data[0]), int(input_data[1])
-    edges = []
-    idx = 2
-    for _ in range(m):
-        u = int(input_data[idx]) - 1
-        v = int(input_data[idx+1]) - 1
-        idx += 2
-        edges.append((u, v))
-    
-    # adjacency list
+    input = sys.stdin.readline
+    n, m = map(int, input().split())
     adj = [[] for _ in range(n)]
-    for u, v in edges:
+    for _ in range(m):
+        u, v = map(int, input().split())
+        u -= 1
+        v -= 1
         adj[u].append(v)
         adj[v].append(u)
-    
-    color = [0] * n  # 0 = unassigned, 1,2,3 = blocks
-    
-    # Precompute conflict sets for each vertex
-    conflict_masks = [0] * n
-    for u in range(n):
-        mask = 0
-        for v in adj[u]:
-            mask |= (1 << v)
-        conflict_masks[u] = mask
-    
-    # Backtracking to find lexicographically smallest coloring
-    def backtrack(pos):
-        if pos == n:
+
+    color = [-1] * n
+
+    # Try to color with backtracking, using MRV heuristic
+    def backtrack(idx):
+        if idx == n:
             return True
-        # Try colors 1,2,3 in order for lexicographic smallest
-        for c in range(1, 4):
+        # Choose uncolored vertex with most colored neighbors (MRV)
+        best = -1
+        best_deg = -1
+        for i in range(n):
+            if color[i] == -1:
+                deg = sum(1 for nb in adj[i] if color[nb] != -1)
+                if deg > best_deg:
+                    best_deg = deg
+                    best = i
+        v = best
+        # Try colors 1,2,3
+        for c in range(3):
             ok = True
-            for v in adj[pos]:
-                if color[v] == c:
+            for nb in adj[v]:
+                if color[nb] == c:
                     ok = False
                     break
             if ok:
-                color[pos] = c
-                if backtrack(pos + 1):
+                color[v] = c
+                if backtrack(idx + 1):
                     return True
-                color[pos] = 0
+                color[v] = -1
         return False
-    
+
     if backtrack(0):
         print("YES")
-        print(" ".join(str(color[i]) for i in range(n)))
+        print(" ".join(str(c + 1) for c in color))
     else:
         print("NO")
 

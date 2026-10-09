@@ -1,0 +1,345 @@
+import sys
+import random
+from collections import deque
+from functools import lru_cache
+
+sys.setrecursionlimit(1_000_000)
+
+
+class Dinic:
+    def __init__(self, n):
+        self.n = n
+        self.g = [[] for _ in range(n)]
+
+    def add_edge(self, u, v, cap, eid=-1):
+        a = [v, len(self.g[v]), cap, cap, eid]
+        b = [u, len(self.g[u]), 0, 0, -1]
+        self.g[u].append(a)
+        self.g[v].append(b)
+        return u, len(self.g[u]) - 1
+
+    def max_flow(self, s, t, limit=10**30):
+        if s == t:
+            return limit
+        total = 0
+        n = self.n
+        g = self.g
+
+        while total < limit:
+            level = [-1] * n
+            level[s] = 0
+            q = deque([s])
+            while q:
+                u = q.popleft()
+                for e in g[u]:
+                    if e[2] > 0 and level[e[0]] < 0:
+                        level[e[0]] = level[u] + 1
+                        q.append(e[0])
+
+            if level[t] < 0:
+                break
+
+            it = [0] * n
+
+            def dfs(u, pushed):
+                if u == t:
+                    return pushed
+                while it[u] < len(g[u]):
+                    e = g[u][it[u]]
+                    if e[2] > 0 and level[e[0]] == level[u] + 1:
+                        got = dfs(e[0], min(pushed, e[2]))
+                        if got:
+                            e[2] -= got
+                            g[e[0]][e[1]][2] += got
+                            return got
+                    it[u] += 1
+                return 0
+
+            while total < limit:
+                pushed = dfs(s, limit - total)
+                if not pushed:
+                    break
+                total += pushed
+
+        return total
+
+
+def compute_flow(n, edges, capacities, s, t, demand, order=None):
+    if demand == 0 or s == t:
+        return [0] * len(edges)
+
+    dinic = Dinic(n)
+    refs = [None] * len(edges)
+    if order is None:
+        order = range(len(edges))
+
+    for eid in order:
+        cap = capacities[eid]
+        if cap > 0:
+            u, v, _ = edges[eid]
+            refs[eid] = dinic.add_edge(u, v, cap, eid)
+
+    value = dinic.max_flow(s, t, demand)
+    if value < demand:
+        return None
+
+    result = [0] * len(edges)
+    for eid, ref in enumerate(refs):
+        if ref is not None:
+            u, idx = ref
+            e = dinic.g[u][idx]
+            result[eid] = e[3] - e[2]
+    return result
+
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+
+    it = iter(data)
+    n = next(it)
+    m = next(it)
+    k = next(it)
+
+    commodities = []
+    total_demand = 0
+    for _ in range(k):
+        s = next(it) - 1
+        t = next(it) - 1
+        d = next(it)
+        commodities.append((s, t, d))
+        if s != t:
+            total_demand += d
+
+    edges = []
+    capacities = []
+    outgoing = [[] for _ in range(n)]
+    for eid in range(m):
+        u = next(it) - 1
+        v = next(it) - 1
+        cap = next(it)
+        cap = min(cap, total_demand) if total_demand else 0
+        edges.append((u, v, cap))
+        capacities.append(cap)
+        if cap > 0:
+            outgoing[u].append(eid)
+
+    answer = [[0] * m for _ in range(k)]
+
+    if total_demand == 0:
+        out = ["YES"]
+        out.extend(" ".join(map(str, row)) for row in answer)
+        sys.stdout.write("\n".join(out))
+        return
+
+    individual_values = []
+    for s, t, d in commodities:
+        if d == 0 or s == t:
+            individual_values.append(10**30)
+            continue
+        f = compute_flow(n, edges, capacities, s, t, d)
+        if f is None:
+            print("NO")
+            return
+        individual_values.append(sum(f))
+
+    active = [i for i, (s, t, d) in enumerate(commodities)
+              if d > 0 and s != t]
+
+    def sequential_attempt(order, edge_order):
+        residual = capacities[:]
+        plan = [[0] * m for _ in range(k)]
+        for ci in order:
+            s, t, d = commodities[ci]
+            f = compute_flow(n, edges, residual, s, t, d, edge_order)
+            if f is None:
+                return None
+            plan[ci] = f
+            for eid, x in enumerate(f):
+                residual[eid] -= x
+        return plan
+
+    rng = random.Random(0xC0FFEE)
+    orders = []
+    orders.append(active[:])
+    orders.append(active[::-1])
+    orders.append(sorted(active, key=lambda c: (-commodities[c][2], c)))
+    orders.append(sorted(active, key=lambda c: (commodities[c][2], c)))
+
+    for _ in range(min(8, max(2, len(active)))):
+        order = active[:]
+        rng.shuffle(order)
+        orders.append(order)
+
+    base_edge_order = list(range(m))
+    for attempt, order in enumerate(orders):
+        edge_order = base_edge_order[:]
+        if attempt >= 2:
+            rng.shuffle(edge_order)
+        plan = sequential_attempt(order, edge_order)
+        if plan is not None:
+            out = ["YES"]
+            out.extend(" ".join(map(str, row)) for row in plan)
+            sys.stdout.write("\n".join(out))
+            return
+
+    # Enumerate all simple paths for a complete exponential fallback.
+    paths_by_commodity = {}
+
+    for ci in active:
+        s, t, _ = commodities[ci]
+        found = []
+        visited = [False] * n
+        visited[s] = True
+        path = []
+
+        def enumerate_paths(u):
+            if u == t:
+                found.append(tuple(path))
+                return
+            for eid in outgoing[u]:
+                v = edges[eid][1]
+                if not visited[v]:
+                    visited[v] = True
+                    path.append(eid)
+                    enumerate_paths(v)
+                    path.pop()
+                    visited[v] = False
+
+        enumerate_paths(s)
+
+        if not found:
+            print("NO")
+            return
+
+        found.sort(key=lambda p: (
+            len(p),
+            sum(total_demand // max(1, capacities[e]) for e in p),
+            p
+        ))
+        paths_by_commodity[ci] = found
+
+    active.sort(key=lambda c: (
+        len(paths_by_commodity[c]),
+        -commodities[c][2],
+        c
+    ))
+
+    residual = capacities[:]
+    exact_plan = [[0] * m for _ in range(k)]
+    failed = set()
+    state_counter = 0
+
+    @lru_cache(maxsize=50000)
+    def maxflow_cached(s, t, caps):
+        dinic = Dinic(n)
+        for eid, cap in enumerate(caps):
+            if cap > 0:
+                u, v, _ = edges[eid]
+                dinic.add_edge(u, v, cap)
+        return dinic.max_flow(s, t, total_demand)
+
+    def necessary(pos, current_remaining):
+        caps = tuple(residual)
+        ci = active[pos]
+        s, t, _ = commodities[ci]
+        if maxflow_cached(s, t, caps) < current_remaining:
+            return False
+        for j in range(pos + 1, len(active)):
+            cj = active[j]
+            sj, tj, dj = commodities[cj]
+            if maxflow_cached(sj, tj, caps) < dj:
+                return False
+        return True
+
+    def search(pos, remaining, min_path):
+        nonlocal state_counter
+
+        if pos == len(active):
+            return True
+
+        ci = active[pos]
+        if remaining == 0:
+            if pos + 1 == len(active):
+                return True
+            return search(pos + 1, commodities[active[pos + 1]][2], 0)
+
+        state_counter += 1
+        key = (pos, remaining, min_path, tuple(residual))
+        if key in failed:
+            return False
+
+        if not necessary(pos, remaining):
+            if len(failed) < 100000:
+                failed.add(key)
+            return False
+
+        paths = paths_by_commodity[ci]
+        candidates = []
+
+        for pi in range(min_path, len(paths)):
+            p = paths[pi]
+            bottleneck = remaining
+            for eid in p:
+                if residual[eid] < bottleneck:
+                    bottleneck = residual[eid]
+                if bottleneck == 0:
+                    break
+            if bottleneck:
+                scarcity = sum((total_demand + residual[e] - 1) // residual[e]
+                               for e in p)
+                candidates.append((scarcity, len(p), pi, bottleneck))
+
+        candidates.sort()
+
+        for _, _, pi, qmax in candidates:
+            p = paths[pi]
+
+            quantities = list(range(qmax, 0, -1))
+            if qmax > 32:
+                special = {
+                    qmax, 1, min(qmax, remaining),
+                    max(1, qmax // 2),
+                    max(1, qmax - 1)
+                }
+                quantities = sorted(special, reverse=True)
+                used = set(quantities)
+                quantities.extend(q for q in range(qmax - 1, 0, -1)
+                                  if q not in used)
+
+            for q in quantities:
+                for eid in p:
+                    residual[eid] -= q
+                    exact_plan[ci][eid] += q
+
+                if q == remaining:
+                    if pos + 1 == len(active):
+                        ok = True
+                    else:
+                        ok = search(pos + 1,
+                                    commodities[active[pos + 1]][2], 0)
+                else:
+                    ok = search(pos, remaining - q, pi + 1)
+
+                if ok:
+                    return True
+
+                for eid in p:
+                    residual[eid] += q
+                    exact_plan[ci][eid] -= q
+
+        if len(failed) < 100000:
+            failed.add(key)
+        return False
+
+    if search(0, commodities[active[0]][2], 0):
+        out = ["YES"]
+        out.extend(" ".join(map(str, row)) for row in exact_plan)
+        sys.stdout.write("\n".join(out))
+    else:
+        print("NO")
+
+
+if __name__ == "__main__":
+    main()

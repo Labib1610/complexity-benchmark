@@ -1,0 +1,84 @@
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    it = iter(data)
+    k = int(next(it))
+    t = int(next(it))
+    
+    # For each sensor, store the set of antennas it can use
+    allowed = [[] for _ in range(k)]
+    for _ in range(t):
+        s = int(next(it)) - 1
+        p = int(next(it)) - 1
+        a = int(next(it)) - 1
+        allowed[s].append(a)
+    
+    # Kuhn's algorithm for bipartite matching
+    match_antenna = [-1] * k
+    match_sensor = [-1] * k
+    
+    def dfs(s, visited):
+        for a in allowed[s]:
+            if not visited[a]:
+                visited[a] = True
+                if match_antenna[a] == -1 or dfs(match_antenna[a], visited):
+                    match_antenna[a] = s
+                    match_sensor[s] = a
+                    return True
+        return False
+    
+    for s in range(k):
+        visited = [False] * k
+        if not dfs(s, visited):
+            print("NO")
+            return
+    
+    # Reconstruct the selected channels
+    # We need sensor, processor, antenna
+    # Processor is fixed per sensor (from Phase I)
+    # We need to know the processor for each sensor
+    # We can get it from the input: for each sensor, all its entries have same processor
+    proc_of_sensor = [-1] * k
+    # We'll parse again or store while reading
+    # Since we already consumed input, we can store during reading
+    # Let's redo reading with storage
+    # Actually we already read; we can store in a list
+    # We'll just re-read from data
+    # But easier: we can store processor when reading
+    # We'll modify: use a list to store processor
+    # Let's just re-parse from data
+    # We'll store in arrays
+    # We'll redo reading
+    # Actually we can just store processor in a dict
+    # Let's redo reading from data
+    # We'll use the same data iterator again
+    # But we already consumed it; we can reset by using index
+    # We'll just parse again from data list
+    idx = 0
+    k = int(data[idx]); idx+=1
+    t = int(data[idx]); idx+=1
+    proc = [-1]*k
+    allowed2 = [[] for _ in range(k)]
+    for _ in range(t):
+        s = int(data[idx])-1; idx+=1
+        p = int(data[idx])-1; idx+=1
+        a = int(data[idx])-1; idx+=1
+        proc[s] = p
+        allowed2[s].append(a)
+    
+    # Now we have match_antenna from earlier
+    # But we need to ensure match_sensor is filled correctly
+    # We already computed match_antenna and match_sensor
+    # We'll output
+    out = ["YES"]
+    for s in range(k):
+        a = match_sensor[s]
+        p = proc[s]
+        out.append(f"{s+1} {p+1} {a+1}")
+    sys.stdout.write("\n".join(out))
+
+if __name__ == "__main__":
+    solve()

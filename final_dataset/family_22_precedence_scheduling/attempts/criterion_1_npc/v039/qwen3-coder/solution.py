@@ -1,0 +1,80 @@
+from collections import defaultdict, deque
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n, M, T, m = map(int, data[:4])
+    edges = []
+    for i in range(m):
+        a = int(data[4 + 2*i])
+        b = int(data[5 + 2*i])
+        edges.append((a, b))
+    
+    # Build graph
+    graph = defaultdict(list)
+    in_degree = [0] * (n + 1)
+    
+    for a, b in edges:
+        graph[a].append(b)
+        in_degree[b] += 1
+    
+    # Topological sort with level assignment
+    queue = deque()
+    level = [0] * (n + 1)
+    
+    for i in range(1, n + 1):
+        if in_degree[i] == 0:
+            queue.append(i)
+            level[i] = 1
+    
+    processed = 0
+    while queue:
+        node = queue.popleft()
+        processed += 1
+        current_level = level[node]
+        next_level = current_level + 1
+        
+        for neighbor in graph[node]:
+            in_degree[neighbor] -= 1
+            if level[neighbor] < next_level:
+                level[neighbor] = next_level
+            if in_degree[neighbor] == 0:
+                queue.append(neighbor)
+    
+    if processed != n:
+        print("NO")
+        return
+    
+    # Check if all levels are within T
+    max_level = max(level[1:])
+    if max_level > T:
+        print("NO")
+        return
+    
+    # Count how many jobs at each level
+    count_per_level = [0] * (T + 1)
+    for i in range(1, n + 1):
+        count_per_level[level[i]] += 1
+    
+    # Check if any level exceeds M
+    valid = True
+    for i in range(1, T + 1):
+        if count_per_level[i] > M:
+            valid = False
+            break
+    
+    if not valid:
+        print("NO")
+        return
+    
+    # Output the result
+    print("YES")
+    result = []
+    for i in range(1, n + 1):
+        result.append(str(level[i]))
+    print(' '.join(result))
+
+if __name__ == "__main__":
+    main()

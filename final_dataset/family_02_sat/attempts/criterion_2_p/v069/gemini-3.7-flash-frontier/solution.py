@@ -1,0 +1,94 @@
+import sys
+
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+
+    n = int(input_data[0])
+    m = int(input_data[1])
+
+    total_nodes = 2 * n
+    adj = [[] for _ in range(total_nodes)]
+
+    idx = 2
+    for _ in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx + 1])
+        idx += 2
+
+        u_node = 2 * (u - 1) if u > 0 else 2 * (-u - 1) + 1
+        v_node = 2 * (v - 1) if v > 0 else 2 * (-v - 1) + 1
+
+        not_u = u_node ^ 1
+        not_v = v_node ^ 1
+
+        adj[not_u].append(v_node)
+        adj[not_v].append(u_node)
+
+    dfn = [-1] * total_nodes
+    low = [-1] * total_nodes
+    in_stack = [False] * total_nodes
+    scc = [-1] * total_nodes
+    scc_cnt = 0
+    timer = 0
+    st = []
+
+    for i in range(total_nodes):
+        if dfn[i] != -1:
+            continue
+        call_stack = [(i, 0)]
+        while call_stack:
+            u, edge_idx = call_stack.pop()
+            if edge_idx == 0:
+                dfn[u] = low[u] = timer
+                timer += 1
+                st.append(u)
+                in_stack[u] = True
+
+            advanced = False
+            for e_i in range(edge_idx, len(adj[u])):
+                v = adj[u][e_i]
+                if dfn[v] == -1:
+                    call_stack.append((u, e_i + 1))
+                    call_stack.append((v, 0))
+                    advanced = True
+                    break
+                elif in_stack[v]:
+                    if dfn[v] < low[u]:
+                        low[u] = dfn[v]
+
+            if not advanced:
+                if call_stack:
+                    p = call_stack[-1][0]
+                    if low[u] < low[p]:
+                        low[p] = low[u]
+
+                if low[u] == dfn[u]:
+                    while True:
+                        v = st.pop()
+                        in_stack[v] = False
+                        scc[v] = scc_cnt
+                        if v == u:
+                            break
+                    scc_cnt += 1
+
+    ans = []
+    for i in range(n):
+        pos_node = 2 * i
+        neg_node = 2 * i + 1
+        if scc[pos_node] == scc[neg_node]:
+            print("NO")
+            return
+        if scc[pos_node] < scc[neg_node]:
+            ans.append("1")
+        else:
+            ans.append("0")
+
+    print("YES")
+    print(" ".join(ans))
+
+
+if __name__ == "__main__":
+    solve()

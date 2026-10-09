@@ -1,295 +1,310 @@
 **Solution Explanation**
 
-For every station we have to choose a frequency `1` or `2`.
-For a recorded link `(u,v)` we need  
+For every filter we have to choose one of the two matrices  
+
+* `I = [[1,0],[0,1]]`   – mode **1**  
+* `S = [[0,1],[1,0]]`   – mode **2**
+
+For a pair `(u , v)` the required condition is  
 
 ```
-r_u * r_v = 2          (1)
+M_u · M_v = S
 ```
 
-Because `r_u , r_v ∈ {1,2}` the only possibilities are  
+The multiplication table of the two matrices is
+
+|   | I | S |
+|---|---|---|
+| I | I | S |
+| S | S | I |
+
+Therefore `M_u·M_v = S` is satisfied **iff** the two matrices are different.
+Consequently every pair forces the two involved filters to have *different*
+modes:
 
 ```
-( r_u , r_v ) = (1,2)  or  (2,1)
+mode_u != mode_v
 ```
 
-So the two endpoints of each link must obtain *different* frequencies.
-If a link connects a station with itself (`u = v`) condition (1) would require
-`r_u² = 2`, impossible – such an input is immediately rejected.
+The whole set of constraints is exactly a graph‑colouring problem with two
+colours – the graph must be *bipartite*.
 
-Consequently the whole problem is exactly the classical **bipartite‑graph
-checking** :
 
-* vertices = stations  
-* edges    = recorded links  
-
-A feasible assignment exists **iff** the graph is bipartite.
-If it is bipartite each connected component has exactly two possible
-assignments – we may decide which colour gets frequency `1` and which gets
-`2`.
 
 --------------------------------------------------------------------
 
-#### Lexicographically smallest assignment  
+#### 1.   Detecting impossibility  
 
-The required order is: first minimise `r₁`, then `r₂`, …  
+Perform a BFS/DFS on every connected component.
 
-Consider one connected component.
-Let `c(v) ∈ {0,1}` be the colour obtained by a usual BFS/DFS
-(start colour `0` for the first visited vertex).
-All feasible assignments for this component are
+* give the start vertex colour `0`
+* each traversed edge forces the neighbour colour `colour[parent] xor 1`
 
-```
-   (c(v) = 0 → r_v = 1 , c(v) = 1 → r_v = 2)    or
-   (c(v) = 0 → r_v = 2 , c(v) = 1 → r_v = 1)
-```
+If we ever meet an already coloured vertex with the *same* colour as the
+current one, the graph is not bipartite → answer `NO`.
 
-The first station of the component in the global order is its **smallest
-index** `p`.  
-To obtain the smallest possible value at position `p`
-we simply give it frequency `1`.  
-Therefore we choose the mapping
+The BFS also stores for every vertex
 
-```
-if c(p) == 0 :   colour 0 → 1 , colour 1 → 2
-else            : colour 1 → 1 , colour 0 → 2
-```
+* `comp[v]` – id of its connected component
+* `base_colour[v]` – colour `0 / 1` obtained from the BFS (with the start vertex coloured `0`)
 
-Because components are independent, fixing the smallest index of every
-component to `1` yields the globally lexicographically minimal sequence.
+and for each component remembers its smallest vertex index `min_node[comp]`.
+
+Complexities: `O(n+m)` time, `O(n+m)` memory.
+
+
 
 --------------------------------------------------------------------
 
-#### Algorithm
+#### 2.   Lexicographically smallest assignment  
+
+For a component we may keep the obtained colouring **or** flip all colours –
+both satisfy all edges.  
+The lexicographically smallest global sequence is built greedily:
+
+*look at the vertices in increasing order `1 … n`.  
+The first vertex belonging to a still undecided component can be forced to
+mode **1** by choosing the appropriate orientation of this component.*
+
+Thus the optimal rule is:
+
 ```
-read graph
-if any self‑loop → NO
-
-colour[1…n] = -1                         # not visited yet
-answer[1…n] = 0
-
-for v = 1 … n (in increasing order)
-    if colour[v] == -1
-        BFS starting from v
-            assign alternating colours 0/1
-            if an edge joins two vertices with same colour → NOT bipartite → NO
-            collect all vertices of this component in list comp
-        p = smallest vertex in comp            # actually p == v
-        col_p = colour[p]
-        for each x in comp
-            answer[x] = 1  if colour[x] == col_p else 2
-
-output YES and answer
+For every component C
+    orient it so that its smallest index vertex gets colour 0
 ```
+
+If `base_colour[min_node[C]]` already is `0` we keep the colouring,
+otherwise we flip it.
+
+Let `flip[C] = base_colour[min_node[C]]` (0 → keep, 1 → flip).
+
+The final mode of a vertex `v` is
+
+```
+effective_colour = base_colour[v] xor flip[ comp[v] ]
+mode = 1   if effective_colour == 0
+        2   otherwise
+```
+
+All isolated vertices are also handled – they form a component of size one,
+their smallest index is themselves, they receive mode `1`.
+
+
 
 --------------------------------------------------------------------
 
-#### Correctness Proof  
+#### 3.   Correctness Proof  
 
-We prove that the algorithm prints `NO` iff no assignment exists,
-otherwise prints `YES` and the lexicographically smallest feasible sequence.
+We prove that the algorithm prints `NO` iff no valid assignment exists,
+otherwise prints `YES` and the lexicographically smallest valid sequence.
 
 ---
 
 ##### Lemma 1  
-If the input contains a self‑loop, no feasible assignment exists.
+For any edge `{u,v}` the condition `M_u·M_v = S` is equivalent to
+`mode_u ≠ mode_v`.
 
-**Proof.**  
-For a self‑loop `(u,u)` condition (1) becomes `r_u·r_u = 2`,
-i.e. `r_u² = 2`. No integer `r_u ∈ {1,2}` satisfies it. ∎
+**Proof.** Directly from the multiplication table shown above:
+`I·I = I`, `S·S = I`, `I·S = S·I = S`. The product is `S` exactly when the
+two factors differ. ∎
 
 
 
 ##### Lemma 2  
-During BFS, if an edge connects two vertices of the same colour,
-the graph is not bipartite and no feasible assignment exists.
+A configuration of modes satisfying all pairs exists **iff** the graph is
+bipartite.
 
-**Proof.**  
-BFS colours vertices so that every traversed edge connects vertices of opposite
-colours. Encountering an edge whose ends already have the same colour creates an
-odd cycle, which contradicts bipartiteness. In a non‑bipartite graph some edge
-must connect equal colours, therefore any 2‑colouring (and thus any assignment
-satisfying (1)) is impossible. ∎
+**Proof.** By Lemma&nbsp;1 the requirement for every edge is that its
+endpoints have different modes, i.e. a proper 2‑colouring of the graph.
+A graph admits such a colouring exactly when it is bipartite. ∎
 
 
 
 ##### Lemma 3  
-If BFS finishes without conflict, the component is bipartite and the colours
-`c(v)` satisfy `c(u) ≠ c(v)` for every edge `(u,v)` of the component.
+During the BFS the algorithm detects a conflict **iff** the graph is not
+bipartite.
 
-**Proof.**  
-Induction over the BFS order: the start vertex receives colour `0`.
-Whenever we visit an uncoloured neighbour, we assign the opposite colour,
-hence the invariant holds for the newly coloured vertex.
-Because we never meet an edge joining equal colours (Lemma&nbsp;2), the invariant
-remains true for all processed edges. ∎
+**Proof.** BFS colours every visited vertex according to the parity of the
+path length from the start vertex.  
+If an edge connects two vertices of equal colour, the edge lies on an odd
+cycle, therefore the component is not bipartite.  
+Conversely, in a bipartite component every edge connects opposite colours,
+so BFS never meets equal colours. ∎
 
 
 
 ##### Lemma 4  
-For a bipartite component `C` let `p` be its smallest index and `c(p)` its
-colour. The assignment  
+For a connected component `C` let `v_min` be its smallest indexed vertex.
+Among the two possible orientations of the component the lexicographically
+smaller overall sequence is obtained by the orientation that gives
+`mode_{v_min}=1`.
 
-```
-r_v = 1   if c(v) = c(p)
-r_v = 2   otherwise
-```
-
-satisfies condition (1) for every edge of `C` and gives the smallest possible
-value to vertex `p`.
-
-**Proof.**  
-By Lemma&nbsp;3 any edge `(u,v)` of `C` has `c(u) ≠ c(v)`. Consequently exactly
-one endpoint receives colour `c(p)`, the other receives the opposite colour,
-hence their frequencies are `(1,2)` in some order and their product is `2`.  
-
-Vertex `p` itself obtains frequency `1` by construction.
-Any other feasible assignment for `C` must give `p` either `1` or `2`.
-If it gave `2`, the sequence would be lexicographically larger at position `p`.
-Thus the described assignment is optimal for this component. ∎
+**Proof.** The values of vertices with index `< v_min` belong to other
+components and are already fixed when we decide the orientation of `C`.
+All later vertices (`> v_min`) are less significant in lexicographic order.
+Thus the first position where the two orientations may differ is exactly
+`v_min`.  
+Choosing the orientation with `mode_{v_min}=1` makes the whole sequence
+lexicographically smaller (or equal, if both give `1`). ∎
 
 
 
 ##### Lemma 5  
-The algorithm outputs a feasible assignment whenever it prints `YES`.
+The algorithm chooses for every component the orientation described in
+Lemma&nbsp;4.
 
-**Proof.**  
-If it prints `YES`, all components were processed without conflict,
-hence each component is bipartite (Lemma&nbsp;3).  
-For every component we use the assignment of Lemma&nbsp;4,
-which satisfies (1) for all its edges.  
-All edges belong to some component, therefore every edge of the whole graph
-satisfies the required product. ∎
+**Proof.** The algorithm sets `flip[C] = base_colour[v_min]`.  
+If `base_colour[v_min]=0` (the vertex already has colour `0`) the orientation
+is kept, giving `mode_{v_min}=1`.  
+If it equals `1` the orientation is flipped, turning colour `1` into `0`,
+again yielding `mode_{v_min}=1`. ∎
 
 
 
 ##### Lemma 6  
-The assignment produced by the algorithm is lexicographically minimal among
-all feasible assignments.
+The sequence output by the algorithm is the lexicographically smallest
+among all feasible assignments.
 
-**Proof.**  
-Consider the vertices in increasing order.
-Let `p₁ < p₂ < …` be the smallest indices of the successive connected
-components (the algorithm processes components exactly in this order).
-For component of `p₁` the algorithm gives `r_{p₁}=1` (Lemma&nbsp;4), which is the
-minimum possible value at the first position of any feasible sequence.
-All assignments sharing this prefix must also have `r_{p₁}=1`.  
-Now we look at the next component. Its smallest vertex `p₂` is the first
-position where the current prefix can differ. Again the algorithm gives it
-value `1`, the smallest attainable value compatible with the already fixed
-prefix. Repeating this argument component by component shows that no other
-feasible sequence can be lexicographically smaller. ∎
+**Proof.** By Lemma&nbsp;2 a feasible assignment exists (otherwise the algorithm
+already printed `NO`).  
+Consider the vertices in increasing order.  
+When the first vertex of a component `C` appears, all earlier vertices belong
+to other components whose orientations are already fixed.
+By Lemma&nbsp;5 the algorithm makes this first vertex have mode `1`, which is
+optimal by Lemma&nbsp;4.  
+Proceeding inductively over the index order, no later decision can improve
+any earlier position, therefore the whole sequence is lexicographically
+minimal. ∎
 
 
 
 ##### Lemma 7  
-If the algorithm prints `NO`, no feasible assignment exists.
+If the algorithm prints `YES` the produced sequence satisfies all constraints.
 
-**Proof.**  
-`NO` is printed only in two situations
-
-1. a self‑loop is present – impossible by Lemma&nbsp;1;
-2. during BFS an edge connects equal colours – then the component is not
-   bipartite, and by Lemma&nbsp;2 no assignment exists.
-
-Thus in both cases the instance is unsatisfiable. ∎
+**Proof.** The BFS succeeded, i.e. the graph is bipartite (Lemma&nbsp;3).
+Thus the base colouring already respects every edge (`base_colour[u] ≠
+base_colour[v]`). Flipping colours of a whole component preserves inequality,
+so after applying `flip[C]` all edges still join vertices of different
+effective colours, i.e. different modes. ∎
 
 
 
 ##### Theorem  
-The algorithm is correct:
-* it prints `NO` **iff** the instance has no feasible frequency assignment;
-* otherwise it prints `YES` followed by the lexicographically smallest feasible
-  assignment.
+The algorithm
+
+* prints `NO` **iff** no valid configuration exists,
+* otherwise prints `YES` and the lexicographically smallest valid
+  configuration of modes.
 
 **Proof.**  
-*If* the algorithm prints `YES`, Lemma&nbsp;5 guarantees feasibility,
-and Lemma&nbsp;6 guarantees optimality.
+*If* the algorithm prints `NO`, a conflict was found during BFS, meaning the
+graph is not bipartite (Lemma&nbsp;3). By Lemma&nbsp;2 no configuration exists.
 
-*Only if* the algorithm prints `NO`, Lemma&nbsp;7 shows infeasibility.
+*If* a configuration exists, the graph is bipartite, BFS finishes without
+conflict, the algorithm prints `YES`.  
+By Lemma&nbsp;7 the printed assignment satisfies all constraints.
+By Lemma&nbsp;6 it is the lexicographically smallest among all feasible
+assignments.
 
-Together the statements prove the theorem. ∎
+Thus both statements hold. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### 4.   Complexity Analysis  
+
+*Building adjacency lists* : `O(n+m)` time, `O(n+m)` memory  
+*BFS over all components*   : `O(n+m)` time, `O(n)` extra memory  
+*Final answer construction* : `O(n)` time, `O(n)` memory  
+
+Overall  
+
+```
+Time   : O(n + m)   ≤ 4·10^5 operations
+Memory : O(n + m)   ≤ 4·10^5 integers   (well below limits)
+```
 
 
 
 --------------------------------------------------------------------
 
-#### Complexity Analysis  
-
-*Building the adjacency list*: `O(n + m)` memory and time.  
-*BFS over all components*: each vertex and each edge is examined once  
- → `O(n + m)` time, `O(n)` additional memory for colour/queue.  
-
-Total  
-
-```
-Time   : O(n + m)   ≤ 4·10⁵ operations
-Memory : O(n + m)   ≤ about 2·10⁵ integers
-```
-
-Both easily satisfy the limits.
-
---------------------------------------------------------------------
-
-#### Reference Implementation  (Python 3)
+#### 5.   Reference Implementation  (Python 3)
 
 ```python
 import sys
 from collections import deque
 
 def solve() -> None:
-    data = list(map(int, sys.stdin.buffer.read().split()))
+    data = sys.stdin.buffer.read().split()
     if not data:
         return
     it = iter(data)
-    n = next(it)
-    m = next(it)
+    n = int(next(it))
+    m = int(next(it))
 
-    adj = [[] for _ in range(n)]
+    adj = [[] for _ in range(n + 1)]
     for _ in range(m):
-        u = next(it) - 1
-        v = next(it) - 1
-        if u == v:          # self‑loop -> impossible
-            print("NO")
-            return
+        u = int(next(it))
+        v = int(next(it))
         adj[u].append(v)
         adj[v].append(u)
 
-    colour = [-1] * n          # -1 = unvisited, else 0/1
-    ans = [0] * n
+    comp = [-1] * (n + 1)          # component id of each vertex
+    colour = [0] * (n + 1)        # base colour 0 / 1
+    min_node_of_comp = []         # smallest index in each component
+    cid = 0
+    ok = True
 
-    for start in range(n):
-        if colour[start] != -1:
+    for start in range(1, n + 1):
+        if comp[start] != -1:
             continue
-        # BFS of this component
+        # BFS of a new component
         q = deque([start])
+        comp[start] = cid
         colour[start] = 0
-        comp = [start]
+        cur_min = start
 
-        while q:
+        while q and ok:
             v = q.popleft()
+            if v < cur_min:
+                cur_min = v
             cv = colour[v]
             for nb in adj[v]:
-                if colour[nb] == -1:
+                if comp[nb] == -1:
+                    comp[nb] = cid
                     colour[nb] = cv ^ 1
                     q.append(nb)
-                    comp.append(nb)
-                elif colour[nb] == cv:
-                    print("NO")
-                    return
+                else:
+                    # edge inside component, must connect different colours
+                    if colour[nb] == cv:
+                        ok = False
+                        break
+        if not ok:
+            break
+        min_node_of_comp.append(cur_min)
+        cid += 1
 
-        # smallest index in component = start (because we iterate increasingly)
-        p = min(comp)          # defensive, actually equals start
-        col_p = colour[p]
-        for v in comp:
-            ans[v] = 1 if colour[v] == col_p else 2
+    if not ok:
+        sys.stdout.write("NO")
+        return
 
-    print("YES")
-    print(' '.join(map(str, ans)))
+    # decide orientation: flip if smallest vertex has colour 1
+    flip = [0] * cid
+    for c in range(cid):
+        flip[c] = colour[min_node_of_comp[c]]   # 0 -> keep, 1 -> flip
+
+    ans = [0] * (n + 1)
+    for v in range(1, n + 1):
+        effective = colour[v] ^ flip[comp[v]]
+        ans[v] = 1 if effective == 0 else 2
+
+    out = ["YES", " ".join(str(ans[i]) for i in range(1, n + 1))]
+    sys.stdout.write("\n".join(out))
 
 if __name__ == "__main__":
     solve()
 ```
 
-The program follows exactly the algorithm proven correct above
-and conforms to the required input / output format.
+The program follows exactly the algorithm proven correct above and conforms
+to the required input‑output format.

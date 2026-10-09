@@ -1,0 +1,169 @@
+Let me analyze this problem.
+
+Each instance $i$ has mode $s_i \in \{1, 2\}$, and state vector $W_i = \begin{pmatrix} s_i \\ 3 - s_i \end{pmatrix}$.
+
+For instances $u$ and $v$, the matrix formed by $W_u$ and $W_v$ as columns is:
+$$\begin{pmatrix} s_u & s_v \\ 3-s_u & 3-s_v \end{pmatrix}$$
+
+The determinant is $s_u(3-s_v) - s_v(3-s_u) = 3s_u - s_us_v - 3s_v + s_us_v = 3(s_u - s_v)$.
+
+For this to be non-zero, we need $s_u \neq s_v$.
+
+So this is a 2-coloring problem (bipartite check). If the graph is bipartite, we need to find the assignment minimizing $E = \sum s_i \cdot 2^{n-i}$.
+
+Since $s_i \in \{1, 2\}$, minimizing $E$ means we want $s_i = 1$ when possible, especially for small $i$ (since $2^{n-i}$ is larger for small $i$).
+
+This is a greedy problem: process vertices in order $1, 2, \ldots, n$. For each vertex, try to assign $s_i = 1$ if it doesn't conflict with already-assigned neighbors; otherwise assign $s_i = 2$.
+
+But wait - we need to verify this greedy approach gives a valid coloring. Since the graph is bipartite, each connected component has exactly 2 valid colorings (swap 1 and 2). The greedy approach processes vertices in order and picks the assignment that minimizes the contribution. 
+
+Actually, let me think more carefully. In a connected component, once we fix one vertex's color, all others are determined. The greedy approach: for vertex $i$ (smallest index first), if not yet colored, try color 1. If a neighbor is already colored with 1, then we must use 2. But if no neighbor is colored yet, we pick 1, which then propagates through BFS/DFS.
+
+Wait, but the greedy needs to be careful. When we process vertex $i$ and it's uncolored, we should try to color it with 1. But coloring it with 1 determines the entire component. We need to check if this is consistent (bipartite). If the component is bipartite, coloring vertex $i$ with 1 gives a unique valid coloring for the component.
+
+But is picking $s_i = 1$ for the smallest-index vertex in each component always optimal? Let's think: for a connected component, we have two colorings. We want to minimize $\sum_{j \in \text{component}} s_j \cdot 2^{n-j}$. The vertex with the smallest index $j$ in the component has the largest weight $2^{n-j}$, so we want $s_j = 1$ for that vertex. This determines the rest of the component.
+
+So the algorithm:
+1. Build the graph.
+2. For each vertex $i$ from $1$ to $n$, if uncolored, start BFS/DFS with color 1.
+3. Check bipartiteness during BFS/DFS. If not bipartite, output NO.
+4. Otherwise output the coloring.
+
+This greedy is correct because for each connected component, the smallest-index vertex should get color 1 (to minimize its large weight), and this uniquely determines the rest.
+
+Let me verify with Example 1: Graph is a 4-cycle 1-2-3-4-1. 
+- Vertex 1: color 1
+- Vertex 2: color 2 (neighbor of 1)
+- Vertex 3: color 1 (neighbor of 2)
+- Vertex 4: color 2 (neighbor of 3, and neighbor of 1 which is 1, so 4 must be 2) ✓
+Output: 1 2 1 2 ✓
+
+Example 2: Triangle 1-2-3. Not bipartite. Output NO ✓
+
+```python
+import sys
+from collections import deque
+
+def solve():
+    input_data = sys.stdin.buffer.read().split()
+    idx = 0
+    n = int(input_data[idx]); idx += 1
+    m = int(input_data[idx]); idx += 1
+    
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(input_data[idx]); idx += 1
+        v = int(input_data[idx]); idx += 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    color = [0] * (n + 1)  # 0 = uncolored, 1 or 2
+    
+    for start in range(1, n + 1):
+        if color[start] != 0:
+            continue
+        color[start] = 1
+        queue = deque([start])
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if color[v] == 0:
+                    color[v] = 3 - color[u]
+                    queue.append(v)
+                elif color[v] == color[u]:
+                    print("NO")
+                    return
+    
+    print("YES")
+    print(' '.join(str(color[i]) for i in range(1, n + 1)))
+
+solve()
+```
+
+Wait, I need to double-check the greedy optimality more carefully. 
+
+For a connected component, there are exactly 2 valid 2-colorings (if bipartite). Let the smallest index in the component be $j$. The two colorings differ by swapping 1↔2 for all vertices. In coloring A, $s_j = 1$; in coloring B, $s_j = 2$.
+
+The difference in energy: $E_A - E_B = \sum_{k \in C} (s_k^A - s_k^B) \cdot 2^{n-k}$.
+
+Since $s_k^A - s_k^B = \pm 1$ (specifically, if $s_k^A = 1$ then $s_k^B = 2$, so difference is $-1$; if $s_k^A = 2$ then $s_k^B = 1$, so difference is $+1$).
+
+So $E_A - E_B = \sum_{k: s_k^A=1} (-1) \cdot 2^{n-k} + \sum_{k: s_k^A=2} (+1) \cdot 2^{n-k}$.
+
+Hmm, this isn't simply determined by the smallest index. Let me reconsider.
+
+Actually, let me think about it differently. We want to minimize $E = \sum s_i \cdot 2^{n-i}$. Since $s_i \in \{1,2\}$, we can write $E = \sum 2^{n-i} + \sum (s_i - 1) \cdot 2^{n-i} = \text{const} + \sum (s_i - 1) \cdot 2^{n-i}$.
+
+So minimizing $E$ is equivalent to minimizing $\sum (s_i - 1) \cdot 2^{n-i}$, where $(s_i - 1) \in \{0, 1\}$.
+
+This is like a binary number where bit $i$ (with weight $2^{n-i}$) is $(s_i - 1)$. To minimize this, we want the most significant bits (smallest $i$) to be 0, i.e., $s_i = 1$.
+
+So the greedy of processing from $i=1$ to $n$ and trying $s_i = 1$ first is correct, because:
+- For each connected component, when we first encounter it (at its smallest-index vertex), we set that vertex to 1.
+- This is a lexicographic minimization: we want $s_1$ as small as possible, then $s_2$, etc.
+- For the smallest-index vertex $j$ in a component, setting $s_j = 1$ is better than $s_j = 2$ (since $2^{n-j}$ is the largest weight in the component).
+- Once $s_j = 1$ is fixed, all other vertices in the component are determined.
+
+But is it always optimal to set the smallest-index vertex to 1? What if setting it to 2 allows more vertices with small indices to be 1?
+
+No! In a connected bipartite graph, once you fix one vertex's color, ALL vertices' colors are determined. So the choice is binary: either the smallest-index vertex is 1 (and all others follow), or it's 2 (and all others are swapped). Since the smallest-index vertex has the highest weight, setting it to 1 is always at least as good.
+
+More formally: Let $j$ be the smallest index in component $C$. 
+- Coloring A: $s_j = 1$, energy contribution from $C$ is $\sum_{k \in C} s_k^A \cdot 2^{n-k}$.
+- Coloring B: $s_j = 2$, energy contribution is $\sum_{k \in C} s_k^B \cdot 2^{n-k} = \sum_{k \in C} (3 - s_k^A) \cdot 2^{n-k}$.
+
+$E_B - E_A = \sum_{k \in C} (3 - 2s_k^A) \cdot 2^{n-k}$.
+
+Since $s_j^A = 1$, the term for $k=j$ is $(3-2) \cdot 2^{n-j} = 2^{n-j}$.
+
+For other terms, $(3 - 2s_k^A) \in \{-1, +1\}$.
+
+So $E_B - E_A = 2^{n-j} + \sum_{k \in C, k \neq j} (3 - 2s_k^A) \cdot 2^{n-k}$.
+
+The sum of absolute values of the other terms is $\sum_{k \in C, k \neq j} 2^{n-k} < 2^{n-j}$ (since $j$ is the smallest index, all other $k > j$, so $2^{n-k} \leq 2^{n-j-1}$, and the sum is at most $2^{n-j-1} + 2^{n-j-2} + \ldots < 2^{n-j}$).
+
+Therefore $E_B - E_A > 0$, so coloring A (with $s_j = 1$) is always better. The greedy is correct.
+
+The solution is correct. Let me also handle potential issues with large input using sys.stdin.buffer.
+
+```python
+import sys
+from collections import deque
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    idx = 0
+    n = int(data[idx]); idx += 1
+    m = int(data[idx]); idx += 1
+    
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(data[idx]); idx += 1
+        v = int(data[idx]); idx += 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    color = [0] * (n + 1)
+    
+    for start in range(1, n + 1):
+        if color[start] != 0:
+            continue
+        color[start] = 1
+        queue = deque([start])
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if color[v] == 0:
+                    color[v] = 3 - color[u]
+                    queue.append(v)
+                elif color[v] == color[u]:
+                    print("NO")
+                    return
+    
+    print("YES")
+    print(' '.join(str(color[i]) for i in range(1, n + 1)))
+
+solve()
+```
+
+This should be correct and efficient. Time complexity is $O(n + m)$, space is $O(n + m)$.

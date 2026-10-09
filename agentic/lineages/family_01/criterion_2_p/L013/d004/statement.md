@@ -1,21 +1,22 @@
-# Orbital Array Equilibrium
+# Problem B — Matrix Transformation
 
-Time limit: 1 s
-Memory limit: 256 MB
+Time limit: 1 s   Memory limit: 256 MB
 
-An orbital array contains $n$ synchronization nodes. Each node must be configured with a resonance tier of either 1 or 2. 
+You are analyzing a sparse matrix $A$ of dimensions $m \times n$. Every element in $A$ is either 0 or 1. You are given that each of the $m$ rows contains exactly two 1s, with all other elements in the row being 0.
 
-The array is stabilized by $m$ harmonic tethers. Each tether connects two specific nodes and continuously monitors their resonance tiers. To maintain equilibrium, a tether requires a precise phase relationship between its endpoints. It remains balanced if and only if the bitwise XOR of the resonance tiers of its two connected nodes is strictly greater than the bitwise AND of their resonance tiers. If any tether detects that its monitored nodes do not satisfy this condition, it triggers a system halt.
+Your objective is to find a column vector $S$ of length $n$ that satisfies two conditions:
+1. Every element $s_i$ of $S$ is chosen from the set $\{1, 2\}$.
+2. The matrix-vector product $A S$ yields a column vector of length $m$ in which every element is exactly 3.
 
-Your task is to determine whether there is an assignment of resonance tiers for all $n$ nodes that keeps every tether balanced. If multiple valid assignments exist, the safety override protocol requires the one that minimizes the sequence of resonance tiers $s_1, s_2, \dots, s_n$ lexicographically (i.e., the sequence must be as small as possible when compared element by element starting from the first node).
+If such a vector $S$ exists, you must output it. In cases where multiple valid vectors exist, you must choose the one whose sequence of elements $s_1, s_2, \dots, s_n$ is lexicographically smallest.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$).
-Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$), indicating that a harmonic tether connects node $u$ and node $v$.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$), representing the number of columns and the number of rows of the matrix $A$.
+The following $m$ lines each contain two integers $u$ and $v$, specifying the 1-based column indices of the two 1s in that row of $A$.
 
 ## Output
-If no balanced assignment exists, print a single line containing `NO`.
-Otherwise, print `YES` on the first line. On the second line, print $n$ integers $s_1, \dots, s_n$ (each being 1 or 2) representing the lexicographically smallest balanced assignment.
+If no vector $S$ can satisfy the equation $A S = \mathbf{3}$ under the given constraints, print a single line containing `NO`.
+Otherwise, print `YES` on the first line. On the second line, output $n$ integers $s_1, s_2, \dots, s_n$ (where each $s_i \in \{1, 2\}$) denoting the elements of the vector $S$. If there are multiple valid vectors, output the sequence that is lexicographically smallest.
 
 ## Example 1
 Input:

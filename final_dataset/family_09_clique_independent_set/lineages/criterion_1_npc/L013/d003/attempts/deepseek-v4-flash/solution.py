@@ -1,0 +1,136 @@
+import sys
+
+def solve():
+    input = sys.stdin.readline
+    n, m, k = map(int, input().split())
+    adj = [0] * n
+    for _ in range(m):
+        u, v = map(int, input().split())
+        u -= 1
+        v -= 1
+        adj[u] |= (1 << v)
+        adj[v] |= (1 << u)
+
+    # Split into two halves
+    n1 = n // 2
+    n2 = n - n1
+    left = list(range(n1))
+    right = list(range(n1, n))
+
+    # Enumerate independent sets for left half
+    left_sets = []  # (mask, size)
+    for mask in range(1 << n1):
+        ok = True
+        for i in range(n1):
+            if mask & (1 << i):
+                # Check conflict with other selected in left
+                if (adj[left[i]] & mask & ((1 << n1) - 1)) & ~(1 << i):
+                    ok = False
+                    break
+        if ok:
+            left_sets.append((mask, bin(mask).count('1')))
+
+    # Enumerate independent sets for right half
+    right_sets = []  # (mask, size)
+    for mask in range(1 << n2):
+        ok = True
+        for i in range(n2):
+            if mask & (1 << i):
+                if (adj[right[i]] & (mask << n1)) & ~(1 << (n1 + i)):
+                    ok = False
+                    break
+        if ok:
+            right_sets.append((mask, bin(mask).count('1')))
+
+    # For each left set, find compatible right sets
+    # Precompute for each right mask the max size for each size? We'll just brute combine.
+    # But n2 <= 23, so right_sets size <= 2^23 ~ 8M worst, too big. Need better.
+
+    # Instead, use meet-in-the-middle with dict: for each right mask, store max size
+    # But we need exact k, so we can store all sizes per mask? That's heavy.
+
+    # Better: For each left mask, compute forbidden right mask, then check if there exists right independent set with needed size.
+    # We'll precompute for right half: for each possible forbidden mask, the max independent set size available.
+    # But forbidden mask can be any subset of right vertices.
+
+    # Simpler: Since n <= 46, we can use branch and bound with pruning, but meet-in-middle is safer.
+
+    # Let's do: For each left independent set, compute forbidden right mask = union of neighbors of selected left vertices that are in right half.
+    # Then we need a right independent set that avoids those vertices and has size k - size_left.
+
+    # Precompute for right half: for each mask (subset of right vertices allowed), the maximum independent set size within that allowed set.
+    # We can do DP over subsets: max_ind[allowed_mask] = max independent set size in induced subgraph on allowed vertices.
+
+    # Right half size <= 23, so 2^23 = 8.3M, feasible memory ~ 8.3M ints ~ 66MB, ok.
+
+    max_ind = [0] * (1 << n2)
+    # Base: empty set
+    # For each mask, compute max independent set size
+    # Use DP: max_ind[mask] = max(max_ind[mask without v], 1 + max_ind[mask without v and its neighbors])
+    for mask in range(1 << n2):
+        if mask == 0:
+            continue
+        # pick lowest set bit
+        v = (mask & -mask).bit_length() - 1
+        # option 1: exclude v
+        val1 = max_ind[mask ^ (1 << v)]
+        # option 2: include v
+        # neighbors of v within right half
+        neigh = 0
+        for u in range(n2):
+            if adj[right[v]] & (1 << right[u]):
+                neigh |= (1 << u)
+        val2 = 1 + max_ind[mask & ~(1 << v) & ~neigh]
+        max_ind[mask] = max(val1, val2)
+
+    # Now iterate left independent sets
+    for lmask, lsize in left_sets:
+        need = k - lsize
+        if need < 0 or need > n2:
+            continue
+        # Compute forbidden right mask
+        forbidden = 0
+        for i in range(n1):
+            if lmask & (1 << i):
+                # neighbors in right half
+                for j in range(n2):
+                    if adj[left[i]] & (1 << right[j]):
+                        forbidden |= (1 << j)
+        allowed = ((1 << n2) - 1) & ~forbidden
+        if max_ind[allowed] >= need:
+            # Need to construct actual right set
+            # Find a right independent set of size exactly need within allowed
+            # We'll backtrack to find one
+            rmask = 0
+            # Greedy reconstruction from DP
+            cur = allowed
+            while cur and need > 0:
+                v = (cur & -cur).bit_length() - 1
+                # check if including v is optimal
+                neigh = 0
+                for u in range(n2):
+                    if adj[right[v]] & (1 << right[u]):
+                        neigh |= (1 << u)
+                if 1 + max_ind[cur & ~(1 << v) & ~neigh] == max_ind[cur]:
+                    # include v
+                    rmask |= (1 << v)
+                    need -= 1
+                    cur = cur & ~(1 << v) & ~neigh
+                else:
+                    cur = cur ^ (1 << v)
+            # Now output
+            selected = []
+            for i in range(n1):
+                if lmask & (1 << i):
+                    selected.append(left[i] + 1)
+            for j in range(n2):
+                if rmask & (1 << j):
+                    selected.append(right[j] + 1)
+            print("YES")
+            print(" ".join(map(str, selected)))
+            return
+
+    print("NO")
+
+if __name__ == "__main__":
+    solve()

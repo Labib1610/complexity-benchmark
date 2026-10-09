@@ -1,0 +1,138 @@
+```python
+import sys
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    k = int(next(it))
+    adj = [0] * n
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+
+    n1 = n // 2
+    n2 = n - n1
+    left_ids = list(range(n1))
+    right_ids = list(range(n1, n))
+
+    # adjacency masks within each half
+    adjL = [0] * n1
+    adjR = [0] * n2
+    crossLtoR = [0] * n1  # neighbors in right for each left vertex
+    for i in range(n1):
+        mask = 0
+        for j in range(n1):
+            if adj[i] >> j & 1:
+                mask |= 1 << j
+        adjL[i] = mask
+        # cross edges
+        cross = 0
+        for j in range(n2):
+            if adj[i] >> (n1 + j) & 1:
+                cross |= 1 << j
+        crossLtoR[i] = cross
+    for i in range(n2):
+        mask = 0
+        for j in range(n2):
+            if adj[n1 + i] >> (n1 + j) & 1:
+                mask |= 1 << j
+        adjR[i] = mask
+
+    # enumerate independent subsets of right half
+    sizeR = 1 << n2
+    indepR = [False] * sizeR
+    indepR[0] = True
+    best = [-1] * sizeR          # max independent set size within mask
+    rep = [0] * sizeR            # representative subset achieving best[mask]
+    best[0] = 0
+    rep[0] = 0
+    for mask in range(1, sizeR):
+        lsb = mask & -mask
+        v = (lsb.bit_length() - 1)          # vertex index in right half
+        prev = mask ^ lsb
+        if indepR[prev] and (adjR[v] & prev) == 0:
+            indepR[mask] = True
+            sz = bin(mask).count("1")
+            best[mask] = sz
+            rep[mask] = mask
+        else:
+            indepR[mask] = False
+            best[mask] = -1
+            rep[mask] = 0
+
+    # SOS DP to propagate best to supersets
+    for i in range(n2):
+        for mask in range(sizeR):
+            if mask & (1 << i):
+                sup = mask ^ (1 << i)
+                if best[sup] > best[mask]:
+                    best[mask] = best[sup]
+                    rep[mask] = rep[sup]
+
+    # enumerate left independent subsets and try to match
+    sizeL = 1 << n1
+    indepL = [False] * sizeL
+    indepL[0] = True
+    for mask in range(1, sizeL):
+        lsb = mask & -mask
+        v = (lsb.bit_length() - 1)
+        prev = mask ^ lsb
+        indepL[mask] = indepL[prev] and ((adjL[v] & prev) == 0)
+
+    for maskL in range(sizeL):
+        if not indepL[maskL]:
+            continue
+        cntL = maskL.bit_count()
+        needR = k - cntL
+        if needR < 0:
+            continue
+        # compute allowed vertices in right half
+        allowed = (1 << n2) - 1
+        tmp = maskL
+        while tmp:
+            lsb = tmp & -tmp
+            v = (lsb.bit_length() - 1)
+            allowed &= ~crossLtoR[v]
+            tmp ^= lsb
+        if needR == 0:
+            # only left part needed
+            ans = []
+            for i in range(n1):
+                if maskL >> i & 1:
+                    ans.append(i + 1)
+            print("YES")
+            print(*ans)
+            return
+        if best[allowed] >= needR:
+            maskR = rep[allowed]
+            # take any needR bits from maskR
+            chosenR = 0
+            cnt = 0
+            while cnt < needR:
+                lsb = maskR & -maskR
+                chosenR |= lsb
+                maskR ^= lsb
+                cnt += 1
+            ans = []
+            for i in range(n1):
+                if maskL >> i & 1:
+                    ans.append(i + 1)
+            for i in range(n2):
+                if chosenR >> i & 1:
+                    ans.append(n1 + i + 1)
+            print("YES")
+            print(*ans)
+            return
+
+    print("NO")
+
+if __name__ == "__main__":
+    solve()
+```
+

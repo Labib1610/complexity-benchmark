@@ -1,0 +1,115 @@
+import sys
+from collections import deque
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    iterator = iter(input_data)
+    n = int(next(iterator))
+    m = int(next(iterator))
+    s = int(next(iterator))
+    t = int(next(iterator))
+    B = int(next(iterator))
+    
+    edges_input = []
+    
+    class Edge:
+        __slots__ = ('to', 'rev', 'cap', 'flow')
+        def __init__(self, to, rev, cap):
+            self.to = to
+            self.rev = rev
+            self.cap = cap
+            self.flow = 0
+
+    adj = [[] for _ in range(n + 1)]
+    
+    def add_edge(u, v, w):
+        e1 = Edge(v, len(adj[v]), w)
+        e2 = Edge(u, len(adj[u]), w)
+        adj[u].append(e1)
+        adj[v].append(e2)
+
+    for _ in range(m):
+        u = int(next(iterator))
+        v = int(next(iterator))
+        w = int(next(iterator))
+        edges_input.append((u, v, w))
+        add_edge(u, v, w)
+
+    # Dinic's algorithm
+    level = [-1] * (n + 1)
+    ptr = [0] * (n + 1)
+
+    def bfs():
+        for i in range(n + 1):
+            level[i] = -1
+        level[s] = 0
+        q = deque([s])
+        while q:
+            v = q.popleft()
+            for edge in adj[v]:
+                if edge.cap - edge.flow > 0 and level[edge.to] == -1:
+                    level[edge.to] = level[v] + 1
+                    q.append(edge.to)
+        return level[t] != -1
+
+    def dfs(v, pushed):
+        if pushed == 0:
+            return 0
+        if v == t:
+            return pushed
+        for cid in range(ptr[v], len(adj[v])):
+            ptr[v] = cid
+            edge = adj[v][cid]
+            tr = edge.to
+            if level[v] + 1 != level[tr] or edge.cap - edge.flow == 0:
+                continue
+            tr_pushed = dfs(tr, min(pushed, edge.cap - edge.flow))
+            if tr_pushed == 0:
+                continue
+            edge.flow += tr_pushed
+            adj[tr][edge.rev].flow -= tr_pushed
+            return tr_pushed
+        return 0
+
+    flow = 0
+    INF = 10**18
+    while bfs():
+        for i in range(n + 1):
+            ptr[i] = 0
+        while True:
+            pushed = dfs(s, INF)
+            if not pushed:
+                break
+            flow += pushed
+
+    if flow > B:
+        print("NO")
+        return
+
+    # Find reachable vertices from s in residual graph
+    visited = [False] * (n + 1)
+    q = deque([s])
+    visited[s] = True
+    while q:
+        v = q.popleft()
+        for edge in adj[v]:
+            if edge.cap - edge.flow > 0 and not visited[edge.to]:
+                visited[edge.to] = True
+                q.append(edge.to)
+
+    cut_edges = []
+    for u, v, w in edges_input:
+        if visited[u] != visited[v]:
+            cut_edges.append((u, v))
+
+    print("YES")
+    print(len(cut_edges))
+    for u, v in cut_edges:
+        print(f"{u} {v}")
+
+if __name__ == '__main__':
+    sys.setrecursionlimit(200000)
+    solve()

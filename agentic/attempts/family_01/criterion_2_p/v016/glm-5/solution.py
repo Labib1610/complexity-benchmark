@@ -3,18 +3,21 @@ from collections import deque
 
 def solve():
     input_data = sys.stdin.buffer.read().split()
-    idx = 0
-    n = int(input_data[idx]); idx += 1
-    m = int(input_data[idx]); idx += 1
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
     
     adj = [[] for _ in range(n + 1)]
     for _ in range(m):
-        u = int(input_data[idx]); idx += 1
-        v = int(input_data[idx]); idx += 1
+        u = int(next(it))
+        v = int(next(it))
         adj[u].append(v)
         adj[v].append(u)
     
     color = [0] * (n + 1)
+    is_bipartite = True
     
     for start in range(1, n + 1):
         if color[start] == 0:
@@ -27,10 +30,106 @@ def solve():
                         color[v] = 3 - color[u]
                         queue.append(v)
                     elif color[v] == color[u]:
-                        print("NO")
-                        return
+                        is_bipartite = False
+                        break
+                if not is_bipartite:
+                    break
+        if not is_bipartite:
+            break
     
-    print("YES")
-    print(' '.join(str(color[i]) for i in range(1, n + 1)))
+    if not is_bipartite:
+        sys.stdout.write("NO\n")
+        return
+    
+    # Build component info
+    comp_id = [0] * (n + 1)
+    comp_cnt = 0
+    comp_size = []
+    comp_diff = []
+    comp_minority = []
+    comp_majority = []
+    
+    for start in range(1, n + 1):
+        if comp_id[start] == 0:
+            comp_cnt += 1
+            cid = comp_cnt
+            comp_id[start] = cid
+            queue = deque([start])
+            cnt1 = 0
+            cnt2 = 0
+            if color[start] == 1:
+                cnt1 += 1
+            else:
+                cnt2 += 1
+            while queue:
+                u = queue.popleft()
+                for v in adj[u]:
+                    if comp_id[v] == 0:
+                        comp_id[v] = cid
+                        if color[v] == 1:
+                            cnt1 += 1
+                        else:
+                            cnt2 += 1
+                        queue.append(v)
+            comp_size.append(cnt1 + cnt2)
+            comp_diff.append(abs(cnt1 - cnt2))
+            if cnt1 <= cnt2:
+                comp_minority.append(1)
+                comp_majority.append(2)
+            else:
+                comp_minority.append(2)
+                comp_majority.append(1)
+    
+    # DP to find subset with sum closest to total_diff / 2
+    total_diff = sum(comp_diff)
+    target = total_diff // 2
+    
+    dp = [False] * (target + 1)
+    dp[0] = True
+    prev = [-1] * (target + 1)
+    used = [-1] * (target + 1)
+    
+    for i in range(comp_cnt):
+        d = comp_diff[i]
+        if d == 0:
+            continue
+        for j in range(target, d - 1, -1):
+            if not dp[j] and dp[j - d]:
+                dp[j] = True
+                prev[j] = j - d
+                used[j] = i
+    
+    best = 0
+    for j in range(target, -1, -1):
+        if dp[j]:
+            best = j
+            break
+    
+    flip = [False] * comp_cnt
+    j = best
+    while j > 0:
+        i = used[j]
+        flip[i] = True
+        j = prev[j]
+    
+    # Assign final colors
+    final_color = [0] * (n + 1)
+    for v in range(1, n + 1):
+        cid = comp_id[v] - 1
+        c = color[v]
+        if flip[cid]:
+            c = 3 - c
+        final_color[v] = c
+    
+    cnt1 = sum(1 for v in range(1, n + 1) if final_color[v] == 1)
+    cnt2 = n - cnt1
+    
+    # If cnt1 > cnt2, flip all to get lexicographically smaller
+    if cnt1 > cnt2:
+        for v in range(1, n + 1):
+            final_color[v] = 3 - final_color[v]
+    
+    sys.stdout.write("YES\n")
+    sys.stdout.write(" ".join(map(str, final_color[1:])) + "\n")
 
 solve()

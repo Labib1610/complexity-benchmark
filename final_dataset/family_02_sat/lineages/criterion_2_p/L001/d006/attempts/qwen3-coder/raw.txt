@@ -1,0 +1,176 @@
+```python
+import sys
+from collections import defaultdict
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(["0"] * n))
+        return
+    
+    edges = []
+    index = 2
+    for _ in range(m):
+        l1 = int(data[index])
+        l2 = int(data[index+1])
+        edges.append((l1, l2))
+        index += 2
+    
+    # For each variable x_i, we have two nodes: 2*i (for x_i=0) and 2*i+1 (for x_i=1)
+    # But we'll use a different approach: model as 2-SAT
+    # Each literal is represented as:
+    # positive literal i -> node 2*i
+    # negative literal -i -> node 2*i + 1
+    # But actually, let's think of variables as having values 0 or 1
+    # Variable i taking value 0 is node 2*i
+    # Variable i taking value 1 is node 2*i + 1
+    
+    # For clause (l1 or l2), we add edges (!l1 -> l2) and (!l2 -> l1)
+    
+    # Let's build implication graph
+    adj = defaultdict(list)
+    rev_adj = defaultdict(list)
+    
+    def var_node(v):
+        # v is a literal like 1, -1, 2, -2, etc.
+        idx = abs(v)
+        if v > 0:
+            return 2 * idx, 2 * idx + 1  # node for x=0, node for x=1
+        else:
+            return 2 * idx + 1, 2 * idx  # node for x=1, node for x=0
+    
+    for l1, l2 in edges:
+        # The constraint is E(l1) + E(l2) <= 1
+        # E(v) = |s_|v| - t_v|
+        # So E(l1) + E(l2) <= 1 means:
+        # Case analysis:
+        # Let's say l1 corresponds to hub |l1| wanting value t1
+        # and l2 corresponds to hub |l2| wanting value t2
+        # E(l1) = |s_|l1| - t1|, E(l2) = |s_|l2| - t2|
+        # So E(l1) + E(l2) = |s_a - t1| + |s_b - t2|
+        # This sum is <= 1 iff:
+        # - Both are 0: s_a = t1 and s_b = t2
+        # - First is 0, second is 1: s_a = t1 and s_b != t2
+        # - First is 1, second is 0: s_a != t1 and s_b = t2
+        # It cannot be that both are 1 because then sum would be 2.
+        
+        # So the forbidden case is: s_a != t1 AND s_b != t2
+        # That is: (s_a = 1-t1) AND (s_b = 1-t2)
+        
+        # Let's define:
+        a = abs(l1)
+        b = abs(l2)
+        t1 = 1 if l1 > 0 else 0
+        t2 = 1 if l2 > 0 else 0
+        
+        # Forbidden assignment: s_a = 1-t1 and s_b = 1-t2
+        # In terms of nodes:
+        # Node for s_a = (1-t1) is 2*a + (1-t1)
+        # Node for s_b = (1-t2) is 2*b + (1-t2)
+        # We need to prevent both from being true
+        # So we add clauses: NOT(s_a = 1-t1) OR NOT(s_b = 1-t2)
+        # Which is the same as: (s_a != 1-t1) OR (s_b != 1-t2)
+        # Or equivalently: (s_a = t1) OR (s_b = t2)
+        
+        # So we want (x_a = t1) OR (x_b = t2)
+        # This translates to implications:
+        # NOT(x_a = t1) => (x_b = t2)
+        # NOT(x_b = t2) => (x_a = t1)
+        
+        # Nodes:
+        # (x_a = t1) is node 2*a + t1
+        # (x_a != t1) is node 2*a + (1-t1)
+        # (x_b = t2) is node 2*b + t2
+        # (x_b != t2) is node 2*b + (1-t2)
+        
+        # So clauses are:
+        # (2*a + (1-t1)) => (2*b + t2)
+        # (2*b + (1-t2)) => (2*a + t1)
+        
+        node_not_a = 2 * a + (1 - t1)
+        node_b = 2 * b + t2
+        node_not_b = 2 * b + (1 - t2)
+        node_a = 2 * a + t1
+        
+        adj[node_not_a].append(node_b)
+        rev_adj[node_b].append(node_not_a)
+        
+        adj[node_not_b].append(node_a)
+        rev_adj[node_a].append(node_not_b)
+    
+    # Now we do Kosaraju's algorithm to check 2-SAT satisfiability
+    visited = [False] * (2 * (n + 1))
+    order = []
+    
+    def dfs1(u):
+        visited[u] = True
+        for v in adj[u]:
+            if not visited[v]:
+                dfs1(v)
+        order.append(u)
+    
+    for i in range(2, 2 * (n + 1)):
+        if not visited[i]:
+            dfs1(i)
+    
+    # Build SCCs
+    visited = [False] * (2 * (n + 1))
+    scc_id = [-1] * (2 * (n + 1))
+    scc_count = 0
+    
+    def dfs2(u):
+        visited[u] = True
+        scc_id[u] = scc_count
+        for v in rev_adj[u]:
+            if not visited[v]:
+                dfs2(v)
+    
+    while order:
+        u = order.pop()
+        if not visited[u]:
+            dfs2(u)
+            scc_count += 1
+    
+    # Check if for each variable, x_i and NOT x_i are in different SCCs
+    for i in range(1, n + 1):
+        node_0 = 2 * i       # x_i = 0
+        node_1 = 2 * i + 1   # x_i = 1
+        if scc_id[node_0] == scc_id[node_1]:
+            print("NO")
+            return
+    
+    # Assign values based on topological order of SCCs
+    # Variables in later SCCs (higher scc_id) are set to true first
+    assignment = [-1] * (n + 1)
+    
+    # Create mapping from scc_id to list of nodes
+    scc_nodes = defaultdict(list)
+    for i in range(2, 2 * (n + 1)):
+        scc_nodes[scc_id[i]].append(i)
+    
+    # Process SCCs in reverse topological order (by sorting scc_ids in descending order)
+    sorted_sccs = sorted(scc_nodes.keys(), key=lambda x: -x)
+    
+    for sid in sorted_sccs:
+        for node in scc_nodes[sid]:
+            var_index = node // 2
+            value = node % 2
+            if assignment[var_index] == -1:
+                assignment[var_index] = value
+    
+    print("YES")
+    result = []
+    for i in range(1, n + 1):
+        result.append(str(assignment[i]))
+    print(" ".join(result))
+
+if __name__ == "__main__":
+    main()
+```

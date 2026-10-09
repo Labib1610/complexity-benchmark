@@ -1,0 +1,275 @@
+**Solution Explanation**
+
+For every feed line `i` we have a Boolean variable  
+
+```
+xi = 1   … line i is ENERGIZED
+xi = 0   … line i is ISOLATED
+```
+
+A relay watches two *target modes* `l1 , l2`.  
+`l` is written as a signed integer
+
+* `+i`  – the target mode is “line i is ENERGIZED”   → literal `xi`
+* `-i`  – the target mode is “line i is ISOLATED”   → literal `¬xi`
+
+The relay’s rule:
+
+*if the configuration is the opposite of the first target, the second target must hold*  
+
+```
+¬l1  ⇒  l2
+```
+
+and symmetrically `¬l2 ⇒ l1`.  
+Both implications together are exactly the 2‑SAT clause
+
+```
+l1 ∨ l2
+```
+
+Thus the whole problem is a classic **2‑SAT** instance with `n` variables and `m`
+clauses `l1 ∨ l2`.
+
+--------------------------------------------------------------------
+
+#### 1.   Implication graph
+
+For each variable `i` we create two vertices
+
+```
+2*i     – literal ¬xi   (value 0)
+2*i+1   – literal  xi   (value 1)
+```
+
+For a clause `(a ∨ b)` we add the two directed edges
+
+```
+¬a → b
+¬b → a
+```
+
+The graph has `2·n` vertices and `2·m` edges ( ≤ 4·10⁵ ).
+
+--------------------------------------------------------------------
+
+#### 2.   Strongly Connected Components
+
+A 2‑SAT formula is satisfiable **iff** no variable and its negation belong to the
+same strongly connected component (SCC).  
+We compute SCCs with Kosaraju’s algorithm (two DFS passes, iterative to avoid
+recursion limits).
+
+After the first pass we obtain a list `order` – vertices sorted by finishing
+time.  
+The second pass on the reversed graph assigns a component id `comp[v]` to each
+vertex, processing vertices in reverse `order`.
+
+--------------------------------------------------------------------
+
+#### 3.   Building a solution
+
+If for some variable `i` we have `comp[2*i] == comp[2*i+1]` the instance is
+unsatisfiable → output `NO`.
+
+Otherwise the assignment is obtained from the topological order of SCCs:
+the component with larger `comp` id appears earlier in the topological order
+(because Kosaraju numbers components in reverse topological order).  
+Hence we set
+
+```
+xi = 1   if comp[2*i+1] > comp[2*i]   else 0
+```
+
+This satisfies all clauses.
+
+--------------------------------------------------------------------
+
+#### 4.   Correctness Proof  
+
+We prove that the algorithm prints `YES` and a correct configuration
+iff such a configuration exists.
+
+---
+
+##### Lemma 1  
+For every relay the clause `l1 ∨ l2` is logically equivalent to the relay’s
+rule.
+
+**Proof.**  
+The rule consists of the two implications `¬l1 ⇒ l2` and `¬l2 ⇒ l1`.  
+The Boolean formula `(¬l1 ⇒ l2) ∧ (¬l2 ⇒ l1)` is equivalent to
+`(l1 ∨ l2)`. ∎
+
+
+
+##### Lemma 2  
+If the algorithm outputs `NO` then the 2‑SAT instance is unsatisfiable.
+
+**Proof.**  
+`NO` is printed only when for some variable `i`
+`comp[2*i] == comp[2*i+1]`.  
+In the implication graph this means there is a directed path from `xi` to
+`¬xi` and also from `¬xi` to `xi`. Any assignment satisfying all implications
+must give the same truth value to both literals, which is impossible.
+Hence no satisfying assignment exists. ∎
+
+
+
+##### Lemma 3  
+If the algorithm outputs `YES` and the assignment described in section&nbsp;3,
+then every clause `a ∨ b` is satisfied.
+
+**Proof.**  
+Consider a clause `a ∨ b`. The graph contains edges `¬a → b` and `¬b → a`.  
+If `a` is false in the produced assignment, then vertex of `a` belongs to a
+component with smaller id than its negation (by construction of the assignment).
+Thus `comp[a] < comp[¬a]`. Because there is an edge `¬a → b`,
+the component of `¬a` can reach the component of `b`. In a DAG of SCCs,
+reachability implies `comp[¬a] ≤ comp[b]`. Combining,
+`comp[a] < comp[¬a] ≤ comp[b]` ⇒ `comp[b] > comp[a]`. Therefore `b` is true.
+Symmetrically, if `b` is false then `a` must be true. Hence at least one of
+`a , b` is true, i.e. the clause is satisfied. ∎
+
+
+
+##### Lemma 4  
+If the 2‑SAT instance is satisfiable, the algorithm never prints `NO`.
+
+**Proof.**  
+Assume a satisfying assignment exists. In any satisfying assignment,
+no variable can imply its own negation, otherwise the assignment would force
+both values. Consequently, in the implication graph no variable and its
+negation can be mutually reachable, i.e. they cannot belong to the same SCC.
+Thus for every `i` we have `comp[2*i] ≠ comp[2*i+1]`, and the algorithm will not
+output `NO`. ∎
+
+
+
+##### Theorem  
+The algorithm prints `YES` and a configuration exactly when a secure
+configuration exists; otherwise it prints `NO`.
+
+**Proof.**  
+
+*If the algorithm prints `YES`*: by Lemma&nbsp;3 the produced assignment satisfies
+all clauses, which by Lemma&nbsp;1 means all relays are safe – a secure
+configuration exists.
+
+*If a secure configuration exists*: the corresponding 2‑SAT instance is
+satisfiable. By Lemma&nbsp;4 the algorithm does not output `NO`. Hence it reaches
+the `YES` branch and outputs an assignment, which by Lemma&nbsp;3 is also a
+secure configuration.
+
+Thus the output is correct in both directions. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### 5.   Complexity Analysis
+
+*Vertices*: `2n`  
+*Edges*: `2m`
+
+Kosaraju runs in `O(V + E)` time and memory.
+
+```
+Time   : O(n + m)   ≤ 3·10⁵
+Memory : O(n + m)   ≤ a few MB
+```
+
+Both satisfy the limits.
+
+--------------------------------------------------------------------
+
+#### 6.   Reference Implementation  (Python 3)
+
+```python
+import sys
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+
+    N = 2 * n
+    g = [[] for _ in range(N)]
+    rg = [[] for _ in range(N)]
+
+    def lit_to_node(l):
+        v = abs(l) - 1
+        if l > 0:
+            return 2 * v + 1   # xi
+        else:
+            return 2 * v       # ¬xi
+
+    for _ in range(m):
+        a = int(next(it))
+        b = int(next(it))
+        na = lit_to_node(a)
+        nb = lit_to_node(b)
+        na_neg = na ^ 1
+        nb_neg = nb ^ 1
+        # ¬a -> b
+        g[na_neg].append(nb)
+        rg[nb].append(na_neg)
+        # ¬b -> a
+        g[nb_neg].append(na)
+        rg[na].append(nb_neg)
+
+    sys.setrecursionlimit(1 << 25)
+
+    visited = [False] * N
+    order = []
+
+    # iterative DFS for first pass
+    for v in range(N):
+        if not visited[v]:
+            stack = [(v, 0)]
+            while stack:
+                node, idx = stack.pop()
+                if idx == 0:
+                    if visited[node]:
+                        continue
+                    visited[node] = True
+                    stack.append((node, 1))  # post‑process marker
+                    for to in g[node]:
+                        if not visited[to]:
+                            stack.append((to, 0))
+                else:
+                    order.append(node)
+
+    comp = [-1] * N
+    cid = 0
+    for v in reversed(order):
+        if comp[v] == -1:
+            stack = [v]
+            comp[v] = cid
+            while stack:
+                node = stack.pop()
+                for to in rg[node]:
+                    if comp[to] == -1:
+                        comp[to] = cid
+                        stack.append(to)
+            cid += 1
+
+    assignment = [0] * n
+    for i in range(n):
+        if comp[2 * i] == comp[2 * i + 1]:
+            print("NO")
+            return
+        assignment[i] = 1 if comp[2 * i + 1] > comp[2 * i] else 0
+
+    print("YES")
+    print(' '.join(map(str, assignment)))
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above and conforms
+to the required input‑output format.

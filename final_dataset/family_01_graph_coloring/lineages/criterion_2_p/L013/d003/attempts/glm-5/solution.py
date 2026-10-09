@@ -1,0 +1,234 @@
+import sys
+from sys import setrecursionlimit
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    adj = [[] for _ in range(n + 1)]
+    idx = 2
+    for _ in range(m):
+        u = int(input_data[idx]); v = int(input_data[idx+1])
+        idx += 2
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    color = [0] * (n + 1)
+    parent = [0] * (n + 1)
+    comp = [0] * (n + 1)
+    comp_id = 0
+    
+    setrecursionlimit(1 << 25)
+    
+    for i in range(1, n + 1):
+        if color[i] == 0:
+            comp_id += 1
+            stack = [(i, 0, 1)]
+            while stack:
+                u, p, c = stack.pop()
+                if c == 0:
+                    if color[u] != 0:
+                        continue
+                    color[u] = 1
+                    parent[u] = p
+                    comp[u] = comp_id
+                    stack.append((u, p, 2))
+                    for v in adj[u]:
+                        if v != p:
+                            if color[v] == 0:
+                                stack.append((v, u, 1))
+                            elif color[v] == 1:
+                                pass
+                else:
+                    color[u] = 2
+    
+    # Check bipartiteness
+    for u in range(1, n + 1):
+        for v in adj[u]:
+            if color[u] == color[v]:
+                print("NO")
+                return
+    
+    # Build component graph
+    comp_adj = [[] for _ in range(comp_id + 1)]
+    comp_edges = [[] for _ in range(comp_id + 1)]
+    
+    for u in range(1, n + 1):
+        for v in adj[u]:
+            if u < v:
+                cu = comp[u]
+                cv = comp[v]
+                if cu != cv:
+                    comp_adj[cu].append(cv)
+                    comp_adj[cv].append(cu)
+                    comp_edges[cu].append((u, v))
+                    comp_edges[cv].append((v, u))
+    
+    # Remove duplicate edges in component graph
+    for c in range(1, comp_id + 1):
+        comp_adj[c] = list(set(comp_adj[c]))
+    
+    # Find connected components of component graph
+    comp_comp = [0] * (comp_id + 1)
+    comp_comp_id = 0
+    comp_order = []
+    
+    for c in range(1, comp_id + 1):
+        if comp_comp[c] == 0:
+            comp_comp_id += 1
+            stack = [c]
+            comp_comp[c] = comp_comp_id
+            order = []
+            while stack:
+                u = stack.pop()
+                order.append(u)
+                for v in comp_adj[u]:
+                    if comp_comp[v] == 0:
+                        comp_comp[v] = comp_comp_id
+                        stack.append(v)
+            comp_order.append(order)
+    
+    # For each connected component of components, determine flip assignment
+    flip = [0] * (comp_id + 1)
+    
+    for order in comp_order:
+        # BFS to determine flip values
+        # flip[c] = 0 means color[c] stays as is, 1 means flipped
+        # We want to minimize lexicographic order of final assignment
+        # Final assignment for node u: color[u] if flip[comp[u]] == 0 else 3 - color[u]
+        # We want to choose flip values to make the sequence lexicographically smallest
+        
+        # Since components are connected by edges, flipping one component affects others
+        # We need to find the assignment that minimizes the lexicographic order
+        
+        # Strategy: process nodes in order 1..n, greedily decide flip for each component
+        # But components are connected, so we need to be careful
+        
+        # Actually, since the graph of components is bipartite (original graph is bipartite),
+        # each connected component of components has exactly 2 valid flip assignments
+        # (flip all or flip none, relative to a base assignment)
+        
+        # So we can just try both and pick the lexicographically smaller one
+        
+        # But we need to be careful: the two assignments are complementary
+        # So we can just compute both and compare
+        
+        # Let's compute the base assignment (flip = 0 for all)
+        # and the flipped assignment (flip = 1 for all in this connected component)
+        # and pick the lexicographically smaller one
+        
+        # But wait, the flip values are determined by the structure: if we flip one component,
+        # we must flip all adjacent components, etc. So there are exactly 2 choices per
+        # connected component of components.
+        
+        # So let's just compute both and compare
+        
+        # Actually, we can be smarter: process nodes in order and greedily decide
+        # But for simplicity, let's just compute both assignments and compare
+        
+        # Get all nodes in this connected component of components
+        nodes = []
+        for c in order:
+            # We need to find all original nodes in component c
+            # But we don't have that list directly... let's think differently
+        
+        # Actually, let's just do a BFS to determine flip values
+        # Start with flip[order[0]] = 0, propagate
+        # Then also try flip[order[0]] = 1, propagate
+        # Compare the two resulting assignments for all nodes in these components
+        
+        # But we need to know which original nodes are in these components
+        # Let's collect them
+        
+        pass
+    
+    # Let me rethink this...
+    # The key insight: the original graph is bipartite. Each connected component of the
+    # original graph has exactly 2 valid colorings (swap 1<->2). 
+    # But wait, the problem says we need lexicographically smallest sequence.
+    # And components connected by edges in the original graph must have consistent flips?
+    # No wait, components of the original graph are independent.
+    
+    # Actually, I think I overcomplicated this. Let me re-read the problem.
+    # The constraint is: for each edge (u, v), exactly one of u, v is in Vehicle 1.
+    # This means color[u] != color[v] for all edges.
+    # This is exactly 2-coloring / bipartite checking.
+    # Each connected component of the original graph has 2 valid colorings.
+    # We want the lexicographically smallest overall sequence.
+    
+    # So for each connected component, we try both colorings and pick the one that
+    # gives the lexicographically smaller sequence for the nodes in that component.
+    # Since components are independent, we can do this greedily.
+    
+    # Wait, but we need the global lexicographically smallest. Since components are
+    # independent (no edges between them), we can optimize each component independently.
+    # For each component, we pick the coloring that makes the sequence of its nodes
+    # (in order of node index) lexicographically smallest.
+    
+    # Actually, that's not quite right either. We need the global sequence to be
+    # lexicographically smallest. Since components are independent, we can optimize
+    # each component independently, and the global sequence is the concatenation.
+    # But the nodes are interleaved, not concatenated by component.
+    
+    # Hmm, but since there are no constraints between components, we can indeed
+    # optimize each component independently. The lexicographically smallest global
+    # sequence is obtained by making each position as small as possible, and since
+    # components are independent, we can optimize each component independently.
+    
+    # For a component, we have 2 choices. We pick the one that gives the lexicographically
+    # smaller sequence for the nodes in that component (sorted by node index).
+    
+    # Let me redo this properly.
+    
+    # Find connected components of original graph
+    visited = [False] * (n + 1)
+    components = []
+    
+    for i in range(1, n + 1):
+        if not visited[i]:
+            comp_nodes = []
+            stack = [i]
+            visited[i] = True
+            while stack:
+                u = stack.pop()
+                comp_nodes.append(u)
+                for v in adj[u]:
+                    if not visited[v]:
+                        visited[v] = True
+                        stack.append(v)
+            components.append(comp_nodes)
+    
+    # For each component, we have a base coloring (from our BFS above).
+    # The two choices are: keep as is, or flip (1<->2).
+    # We pick the one that gives lexicographically smaller sequence for sorted comp_nodes.
+    
+    ans = [0] * (n + 1)
+    
+    for comp_nodes in components:
+        comp_nodes.sort()
+        # Try both: base and flipped
+        # Compare lexicographically
+        base_smaller = True
+        for u in comp_nodes:
+            base_val = color[u]
+            flip_val = 3 - color[u]
+            if base_val < flip_val:
+                base_smaller = True
+                break
+            elif base_val > flip_val:
+                base_smaller = False
+                break
+        
+        for u in comp_nodes:
+            if base_smaller:
+                ans[u] = color[u]
+            else:
+                ans[u] = 3 - color[u]
+    
+    print("YES")
+    print(' '.join(str(ans[i]) for i in range(1, n + 1)))
+
+solve()

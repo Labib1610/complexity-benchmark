@@ -1,0 +1,35 @@
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    j = int(data[0])
+    T = int(data[1])
+    p1 = [0]*j
+    p2 = [0]*j
+    idx = 2
+    for i in range(j):
+        p1[i] = int(data[idx]); p2[i] = int(data[idx+1])
+        idx += 2
+
+    # Experiment Type 1: ignore grid capacities, only precedence per job
+    for i in range(j):
+        if p1[i] + p2[i] > T:
+            sys.stdout.write(f"JOB {i+1}\n")
+            return
+
+    # Experiment Type 2: p2=0, capacitor grid serial, precedence trivial
+    total_p1 = sum(p1)
+    if total_p1 > T:
+        sys.stdout.write("LOAD 1\n")
+        return
+
+    # Experiment Type 3: p1=0, initialization grid serial, precedence trivial
+    total_p2 = sum(p2)
+    if total_p2 > T:
+        sys.stdout.write("LOAD 2\n")
+        return
+
+if __name__ == "__main__":
+    solve()

@@ -1,0 +1,80 @@
+import sys
+from collections import defaultdict, deque
+
+def read_input():
+    n, m, k = map(int, sys.stdin.readline().split())
+    edges = []
+    for _ in range(m):
+        u, v = map(int, sys.stdin.readline().split())
+        edges.append((u, v))
+    return n, m, k, edges
+
+def solve(n, m, k, edges):
+    # Build adjacency list
+    adj = defaultdict(list)
+    for u, v in edges:
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # If no edges, we can take any k nodes
+    if m == 0:
+        return "YES", list(range(1, k+1))
+    
+    # Find one node to start BFS
+    start_node = edges[0][0]
+    
+    # BFS to color the graph into two sets (bipartition)
+    color = {}
+    queue = deque([start_node])
+    color[start_node] = 0
+    
+    set1 = []
+    set2 = []
+    
+    if color[start_node] == 0:
+        set1.append(start_node)
+    else:
+        set2.append(start_node)
+    
+    while queue:
+        node = queue.popleft()
+        current_color = color[node]
+        
+        for neighbor in adj[node]:
+            if neighbor not in color:
+                color[neighbor] = 1 - current_color
+                if color[neighbor] == 0:
+                    set1.append(neighbor)
+                else:
+                    set2.append(neighbor)
+                queue.append(neighbor)
+            elif color[neighbor] == current_color:
+                # This should not happen according to problem statement
+                return "NO", []
+    
+    # Check remaining isolated nodes (not in any edge)
+    all_nodes = set(range(1, n+1))
+    visited_nodes = set(color.keys())
+    isolated_nodes = list(all_nodes - visited_nodes)
+    
+    # Add isolated nodes to both sets since they don't conflict with anyone
+    set1.extend(isolated_nodes)
+    set2.extend(isolated_nodes)
+    
+    # Decide which set to use based on size requirement
+    if k <= len(set1):
+        return "YES", set1[:k]
+    elif k <= len(set2):
+        return "YES", set2[:k]
+    else:
+        return "NO", []
+
+def main():
+    n, m, k, edges = read_input()
+    result, nodes = solve(n, m, k, edges)
+    print(result)
+    if result == "YES":
+        print(' '.join(map(str, nodes)))
+
+if __name__ == "__main__":
+    main()

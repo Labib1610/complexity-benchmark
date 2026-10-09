@@ -1,0 +1,35 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [set() for _ in range(n + 1)]
+    
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        adj[u].add(v)
+        adj[v].add(u)
+    
+    # Sort adjacency lists for lexicographical iteration
+    sorted_adj = [sorted(s) for s in adj]
+    
+    # Iterate through all pairs (u, v) with u < v
+    for u in range(1, n + 1):
+        for v in sorted_adj[u]:
+            if v <= u:
+                continue
+            # Check for common neighbor w in adj[u] and adj[v]
+            # Iterate through neighbors of u that are > v
+            for w in sorted_adj[u]:
+                if w > v and w in adj[v]:
+                    print(u, v, w)
+                    return
+
+if __name__ == "__main__":
+    solve()

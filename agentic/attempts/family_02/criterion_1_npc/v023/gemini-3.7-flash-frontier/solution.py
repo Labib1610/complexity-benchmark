@@ -1,0 +1,117 @@
+import sys
+
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+
+    n = int(input_data[0])
+    m = int(input_data[1])
+
+    clauses = []
+    idx = 2
+    for _ in range(m):
+        c = [int(input_data[idx]), int(input_data[idx + 1]), int(input_data[idx + 2])]
+        idx += 3
+        clauses.append(c)
+
+    assignment = {}
+
+    def simplify(clauses, assignment):
+        new_clauses = []
+        for clause in clauses:
+            new_clause = []
+            clause_satisfied = False
+            for lit in clause:
+                var = abs(lit)
+                val = assignment.get(var)
+                if val is not None:
+                    if (lit > 0 and val == 1) or (lit < 0 and val == 0):
+                        clause_satisfied = True
+                        break
+                else:
+                    new_clause.append(lit)
+            if not clause_satisfied:
+                if not new_clause:
+                    return None
+                new_clauses.append(new_clause)
+        return new_clauses
+
+    def unit_propagate(clauses, assignment):
+        clauses = simplify(clauses, assignment)
+        if clauses is None:
+            return None, False
+
+        changed = True
+        while changed:
+            changed = False
+            for clause in clauses:
+                if len(clause) == 1:
+                    lit = clause[0]
+                    var = abs(lit)
+                    val = 1 if lit > 0 else 0
+                    if var in assignment:
+                        if assignment[var] != val:
+                            return None, False
+                    else:
+                        assignment[var] = val
+                        changed = True
+            if changed:
+                clauses = simplify(clauses, assignment)
+                if clauses is None:
+                    return None, False
+
+        return clauses, True
+
+    def dpll(clauses, assignment):
+        local_assignment = dict(assignment)
+        simplified_clauses, ok = unit_propagate(clauses, local_assignment)
+        if not ok:
+            return None
+
+        if not simplified_clauses:
+            for v in range(1, n + 1):
+                if v not in local_assignment:
+                    local_assignment[v] = 0
+            return local_assignment
+
+        counts = {}
+        for clause in simplified_clauses:
+            for lit in clause:
+                var = abs(lit)
+                counts[var] = counts.get(var, 0) + 1
+
+        chosen_var = max(counts.keys(), key=lambda v: counts[v])
+
+        pos_count = 0
+        neg_count = 0
+        for clause in simplified_clauses:
+            if chosen_var in clause:
+                pos_count += 1
+            if -chosen_var in clause:
+                neg_count += 1
+
+        values_to_try = [1, 0] if pos_count >= neg_count else [0, 1]
+
+        for val in values_to_try:
+            local_assignment[chosen_var] = val
+            res = dpll(simplified_clauses, local_assignment)
+            if res is not None:
+                return res
+            del local_assignment[chosen_var]
+
+        return None
+
+    result = dpll(clauses, assignment)
+
+    if result is None:
+        print("NO")
+    else:
+        print("YES")
+        ans = [str(result[i]) for i in range(1, n + 1)]
+        print(" ".join(ans))
+
+
+if __name__ == "__main__":
+    solve()

@@ -1,0 +1,326 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    k = int(next(it))
+
+    commodities = []
+    for _ in range(k):
+        s = int(next(it)) - 1
+        t = int(next(it)) - 1
+        d = int(next(it))
+        commodities.append((s, t, d))
+
+    edges = []
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        cap = int(next(it))
+        edges.append((u, v, cap))
+
+    num_vars = k * m
+
+    # Build LP constraints
+    # Variables: x[i * m + j] = flow of commodity i on edge j
+    # Constraints:
+    # 1. Flow conservation for each commodity i, node u:
+    #    sum_{out} x - sum_{in} x = rhs
+    # 2. Capacity for each edge j:
+    #    sum_i x[i*m + j] <= cap_j
+    # 3. Variable bounds: 0 <= x <= cap_j
+
+    eq_rows = []
+    eq_rhs = []
+
+    for i in range(k):
+        s_i, t_i, d_i = commodities[i]
+        for u in range(n):
+            if u == t_i:
+                # Target node is redundant if we include all other nodes,
+                # but let's keep all except one to avoid linear dependency,
+                # or keep it and let simplex handle it.
+                continue
+            row = [0.0] * num_vars
+            for j in range(m):
+                eu, ev, _ = edges[j]
+                if eu == u:
+                    row[i * m + j] += 1.0
+                if ev == u:
+                    row[i * m + j] -= 1.0
+            rhs = 0.0
+            if u == s_i:
+                rhs = float(d_i)
+            eq_rows.append(row)
+            eq_rhs.append(rhs)
+
+    ineq_rows = []
+    ineq_rhs = []
+    for j in range(m):
+        row = [0.0] * num_vars
+        for i in range(k):
+            row[i * m + j] = 1.0
+        ineq_rows.append(row)
+        ineq_rhs.append(float(edges[j][2]))
+
+    # Simplex solver (Tableau-based Two-Phase Simplex)
+    # Solve LP with upper and lower bounds on variables
+    class LPSolver:
+        def __init__(self, A_eq, b_eq, A_ub, b_ub, var_bounds):
+            self.n_vars = num_vars
+            self.bounds = var_bounds # (lower, upper)
+            self.A_eq = A_eq
+            self.b_eq = b_eq
+            self.A_ub = A_ub
+            self.b_ub = b_ub
+
+        def solve_lp(self, extra_bounds):
+            # Combine base bounds with extra_bounds (from B&B)
+            # extra_bounds: dict var_idx -> (lb, ub)
+            lbs = [0.0] * self.n_vars
+            ubs = [self.bounds[i][1] for i in range(self.n_vars)]
+            for v, (lb, ub) in extra_bounds.items():
+                if lb > lbs[v]:
+                    lbs[v] = lb
+                if ub < ubs[v]:
+                    ubs[v] = ub
+                if lbs[v] > ubs[v] + 1e-7:
+                    return None, None # Infeasible
+
+            # Transform variables x_i = x'_i + lbs[i], 0 <= x'_i <= ubs[i] - lbs[i]
+            # Formulate standard equality form with slack variables:
+            # A_eq x' = b_eq - A_eq * lb
+            # A_ub x' + s = b_ub - A_ub * lb, s >= 0
+            # x' + s_upper = ub - lb, s_upper >= 0
+            
+            rows = []
+            rhs = []
+
+            # Eq constraints
+            for row, b in zip(self.A_eq, self.b_eq):
+                shift = sum(r * lbs[i] for i, r in enumerate(row) if r != 0)
+                new_b = b - shift
+                rows.append(list(row))
+                rhs.append(new_b)
+
+            # Ub constraints
+            for row, b in zip(self.A_ub, self.b_ub):
+                shift = sum(r * lbs[i] for i, r in enumerate(row) if r != 0)
+                new_b = b - shift
+                rows.append(list(row))
+                rhs.append(new_b)
+
+            # Upper bounds constraints on x'
+            num_base_rows = len(rows)
+            for i in range(self.n_vars):
+                diff = ubs[i] - lbs[i]
+                row = [0.0] * self.n_vars
+                row[i] = 1.0
+                rows.append(row)
+                rhs.append(diff)
+
+            # Make rhs >= 0
+            m_eq = len(self.A_eq)
+            m_rows = len(rows)
+            for r in range(m_rows):
+                if rhs[r] < -1e-9:
+                    if r < m_eq:
+                        for c in range(self.n_vars):
+                            rows[r][c] = -rows[r][c]
+                        rhs[r] = -rhs[r]
+                    else:
+                        pass # inequality with negative rhs will be handled
+
+            # Slacks:
+            # rows [0 .. m_eq-1]: equality (no slack, only artificial if needed)
+            # rows [m_eq .. m_rows-1]: slack +1 (or -1 if negative rhs)
+            num_slacks = m_rows - m_eq
+            total_vars = self.n_vars + num_slacks
+
+            # Build full matrix A
+            A = [[0.0] * total_vars for _ in range(m_rows)]
+            for r in range(m_rows):
+                for c in range(self.n_vars):
+                    A[r][c] = rows[r][c]
+                if r >= m_eq:
+                    slack_idx = self.n_vars + (r - m_eq)
+                    A[r][slack_idx] = 1.0
+
+            # Find initial basic feasible solution using Phase I
+            # Artificial variables for rows that need them:
+            # Eq rows, and any row where rhs was negative or slack isn't positive identity
+            art_vars = []
+            basis = [-1] * m_rows
+
+            for r in range(m_rows):
+                if r >= m_eq:
+                    basis[r] = self.n_vars + (r - m_eq)
+
+            for r in range(m_rows):
+                if basis[r] == -1 or rhs[r] < -1e-9:
+                    art_vars.append(r)
+
+            if not art_vars:
+                # All basis ready, no artificial vars needed
+                tableau_vars = total_vars
+                tableau = [A[r] + [rhs[r]] for r in range(m_rows)]
+                obj = [0.0] * (tableau_vars + 1)
+            else:
+                num_art = len(art_vars)
+                tableau_vars = total_vars + num_art
+                tableau = []
+                for r in range(m_rows):
+                    tab_row = A[r] + [0.0] * num_art + [rhs[r]]
+                    tableau.append(tab_row)
+
+                for idx, r in enumerate(art_vars):
+                    tableau[r][total_vars + idx] = 1.0
+                    basis[r] = total_vars + idx
+
+                # Phase I objective: min sum(artificials) -> max -sum(artificials)
+                obj = [0.0] * (tableau_vars + 1)
+                for idx, r in enumerate(art_vars):
+                    art_c = total_vars + idx
+                    # subtract row r from obj row
+                    for c in range(tableau_vars + 1):
+                        obj[c] -= tableau[r][c]
+
+            # Simplex pivot loop
+            def pivot(tab, basis, obj, pr, pc):
+                piv_val = tab[pr][pc]
+                inv_piv = 1.0 / piv_val
+                for c in range(len(tab[0])):
+                    tab[pr][c] *= inv_piv
+                for r in range(len(tab)):
+                    if r != pr:
+                        factor = tab[r][pc]
+                        if abs(factor) > 1e-12:
+                            for c in range(len(tab[0])):
+                                tab[r][c] -= factor * tab[pr][c]
+                factor = obj[pc]
+                if abs(factor) > 1e-12:
+                    for c in range(len(tab[0])):
+                        obj[c] -= factor * tab[pr][c]
+                basis[pr] = pc
+
+            def run_simplex(tab, basis, obj):
+                ncols = len(tab[0]) - 1
+                nrows = len(tab)
+                iters = 0
+                max_iters = 2000
+                while iters < max_iters:
+                    iters += 1
+                    # Entering variable: most positive in obj (maximization)
+                    # Bland's rule for tie breaking
+                    enter_c = -1
+                    max_val = 1e-8
+                    for c in range(ncols):
+                        if obj[c] > max_val:
+                            max_val = obj[c]
+                            enter_c = c
+                            break # Bland's rule
+
+                    if enter_c == -1:
+                        return True # Optimal
+
+                    # Leaving variable: min ratio test
+                    leave_r = -1
+                    min_ratio = 1e18
+                    for r in range(nrows):
+                        if tab[r][enter_c] > 1e-9:
+                            ratio = tab[r][-1] / tab[r][enter_c]
+                            if ratio < min_ratio - 1e-9:
+                                min_ratio = ratio
+                                leave_r = r
+
+                    if leave_r == -1:
+                        return False # Unbounded
+
+                    pivot(tab, basis, obj, leave_r, enter_c)
+                return True
+
+            if art_vars:
+                run_simplex(tableau, basis, obj)
+                # Check if Phase I objective is ~0
+                if tableau and abs(obj[-1]) > 1e-4:
+                    return None, None # Infeasible
+
+                # If artificial variables still in basis with value 0, drive them out
+                for r in range(m_rows):
+                    if basis[r] >= total_vars:
+                        # Drive out
+                        for c in range(total_vars):
+                            if abs(tableau[r][c]) > 1e-7:
+                                pivot(tableau, basis, obj, r, c)
+                                break
+
+            # Extract solution
+            sol = [0.0] * self.n_vars
+            for r in range(m_rows):
+                if basis[r] < self.n_vars:
+                    sol[basis[r]] = tableau[r][-1]
+
+            # Reconstruct original x
+            final_x = [sol[i] + lbs[i] for i in range(self.n_vars)]
+            return True, final_x
+
+    var_bounds = [(0.0, float(edges[j % m][2])) for j in range(num_vars)]
+    solver = LPSolver(eq_rows, eq_rhs, ineq_rows, ineq_rhs, var_bounds)
+
+    # Branch and Bound
+    best_sol = None
+    stack = [{}]
+
+    while stack:
+        cur_bounds = stack.pop()
+        status, sol = solver.solve_lp(cur_bounds)
+        if status is None:
+            continue
+
+        # Check integrality
+        frac_var = -1
+        max_frac = 0.0
+        for i in range(num_vars):
+            val = sol[i]
+            frac = abs(val - round(val))
+            if frac > 1e-4:
+                if frac > max_frac:
+                    max_frac = frac
+                    frac_var = i
+
+        if frac_var == -1:
+            best_sol = [int(round(x)) for x in sol]
+            break
+
+        val = sol[frac_var]
+        floor_val = int(val)
+        ceil_val = floor_val + 1
+
+        # Branch left: x <= floor_val
+        left_bounds = dict(cur_bounds)
+        lb, ub = left_bounds.get(frac_var, (0.0, float(edges[frac_var % m][2])))
+        left_bounds[frac_var] = (lb, min(ub, float(floor_val)))
+
+        # Branch right: x >= ceil_val
+        right_bounds = dict(cur_bounds)
+        lb, ub = right_bounds.get(frac_var, (0.0, float(edges[frac_var % m][2])))
+        right_bounds[frac_var] = (max(lb, float(ceil_val)), ub)
+
+        stack.append(right_bounds)
+        stack.append(left_bounds)
+
+    if best_sol is None:
+        print("NO")
+    else:
+        print("YES")
+        for i in range(k):
+            row_vals = best_sol[i * m : (i + 1) * m]
+            print(*(max(0, val) for val in row_vals))
+
+if __name__ == '__main__':
+    solve()

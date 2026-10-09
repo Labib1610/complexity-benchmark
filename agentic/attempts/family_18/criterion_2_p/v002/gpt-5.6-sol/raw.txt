@@ -1,0 +1,263 @@
+```python
+import sys
+from array import array
+
+def arrangement_cost(order, edges):
+    pos = [0] * len(order)
+    for i, v in enumerate(order):
+        pos[v] = i
+    return sum(abs(pos[u] - pos[v]) for u, v in edges), pos
+
+def improve_order(order, graph, edges, max_passes=20):
+    n = len(order)
+    pos = [0] * n
+    for i, v in enumerate(order):
+        pos[v] = i
+
+    for _ in range(max_passes):
+        changed = False
+        i = 0
+        while i + 1 < n:
+            a, b = order[i], order[i + 1]
+            delta = 0
+
+            for x in graph[a]:
+                if x != b:
+                    delta += abs(i + 1 - pos[x]) - abs(i - pos[x])
+            for x in graph[b]:
+                if x != a:
+                    delta += abs(i - pos[x]) - abs(i + 1 - pos[x])
+
+            if delta < 0:
+                order[i], order[i + 1] = b, a
+                pos[a], pos[b] = i + 1, i
+                changed = True
+                if i:
+                    i -= 1
+                    continue
+            i += 1
+
+        if not changed:
+            break
+
+    cost = sum(abs(pos[u] - pos[v]) for u, v in edges)
+    return order, cost
+
+def centroid_order(graph):
+    n = len(graph)
+    blocked = [False] * n
+
+    def build(start):
+        parent = {start: -1}
+        nodes = []
+        stack = [start]
+
+        while stack:
+            v = stack.pop()
+            nodes.append(v)
+            for w in graph[v]:
+                if not blocked[w] and w != parent[v]:
+                    parent[w] = v
+                    stack.append(w)
+
+        size = {}
+        total = len(nodes)
+        centroid = start
+        best = total + 1
+
+        for v in reversed(nodes):
+            s = 1
+            largest = 0
+            for w in graph[v]:
+                if blocked[w] or parent.get(w) != v:
+                    continue
+                sw = size[w]
+                s += sw
+                if sw > largest:
+                    largest = sw
+            size[v] = s
+            above = total - s
+            if above > largest:
+                largest = above
+            if largest < best:
+                best = largest
+                centroid = v
+
+        blocked[centroid] = True
+        blocks = []
+
+        for u in graph[centroid]:
+            if blocked[u]:
+                continue
+            seq = build(u)
+            blocks.append((len(seq), u, seq))
+
+        blocks.sort(reverse=True, key=lambda x: x[0])
+        left = []
+        right = []
+        left_size = right_size = 0
+
+        for block in blocks:
+            if left_size <= right_size:
+                left.append(block)
+                left_size += block[0]
+            else:
+                right.append(block)
+                right_size += block[0]
+
+        result = []
+
+        # Left side is emitted from farthest block to nearest block.
+        left.sort(reverse=True, key=lambda x: x[0])
+        for _, attachment, seq in left:
+            idx = seq.index(attachment)
+            if idx < len(seq) - 1 - idx:
+                seq.reverse()
+            result.extend(seq)
+
+        result.append(centroid)
+
+        # Right side is emitted from nearest block to farthest block.
+        right.sort(key=lambda x: x[0])
+        for _, attachment, seq in right:
+            idx = seq.index(attachment)
+            if idx > len(seq) - 1 - idx:
+                seq.reverse()
+            result.extend(seq)
+
+        return result
+
+    return build(0)
+
+def exact_subset_dp(graph, budget):
+    n = len(graph)
+    total_states = 1 << n
+    adjacency_masks = [0] * n
+    degrees = [0] * n
+
+    for v in range(n):
+        mask = 0
+        for w in graph[v]:
+            mask |= 1 << w
+        adjacency_masks[v] = mask
+        degrees[v] = len(graph[v])
+
+    cut_type = 'H' if n <= 65535 else 'I'
+    cuts = array(cut_type, [0]) * total_states
+
+    for s in range(1, total_states):
+        bit = s & -s
+        v = bit.bit_length() - 1
+        p = s ^ bit
+        cuts[s] = cuts[p] + degrees[v] - 2 * ((adjacency_masks[v] & p).bit_count())
+
+    cap = budget + 1
+    if cap <= 0xFFFFFFFF:
+        dp = array('I', [cap]) * total_states
+    else:
+        dp = array('Q', [cap]) * total_states
+    dp[0] = 0
+
+    for s in range(1, total_states):
+        x = s
+        best = cap
+        while x:
+            bit = x & -x
+            p = s ^ bit
+            value = dp[p] + cuts[p]
+            if value < best:
+                best = value
+            x ^= bit
+        if best < cap:
+            dp[s] = best
+
+    full = total_states - 1
+    if dp[full] > budget:
+        return None
+
+    reversed_order = []
+    s = full
+    while s:
+        x = s
+        found = False
+        while x:
+            bit = x & -x
+            v = bit.bit_length() - 1
+            p = s ^ bit
+            if dp[s] == dp[p] + cuts[p]:
+                reversed_order.append(v)
+                s = p
+                found = True
+                break
+            x ^= bit
+        if not found:
+            return None
+
+    reversed_order.reverse()
+    return reversed_order
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if len(data) < 3:
+        return
+
+    n, m, budget = data[0], data[1], data[2]
+    graph = [[] for _ in range(n)]
+    edges = []
+    at = 3
+
+    for _ in range(m):
+        u = data[at] - 1
+        v = data[at + 1] - 1
+        at += 2
+        graph[u].append(v)
+        graph[v].append(u)
+        edges.append((u, v))
+
+    if n == 1:
+        if budget >= 0:
+            print("YES")
+            print(1)
+        else:
+            print("NO")
+        return
+
+    # A valid lower bound obtained by minimizing the incident edge lengths
+    # independently at every vertex, then accounting for double counting.
+    incident_bound_sum = 0
+    for v in range(n):
+        d = len(graph[v])
+        incident_bound_sum += ((d + 1) * (d + 1)) // 4
+    lower_bound = max(n - 1, (incident_bound_sum + 1) // 2)
+
+    if budget < lower_bound:
+        print("NO")
+        return
+
+    order = centroid_order(graph)
+    order, cost = improve_order(order, graph, edges)
+
+    if cost <= budget:
+        positions = [0] * n
+        for i, v in enumerate(order, 1):
+            positions[v] = i
+        print("YES")
+        print(*positions)
+        return
+
+    # Exact minimum linear-arrangement DP for instances of manageable size.
+    if n <= 21:
+        order = exact_subset_dp(graph, budget)
+        if order is not None:
+            positions = [0] * n
+            for i, v in enumerate(order, 1):
+                positions[v] = i
+            print("YES")
+            print(*positions)
+            return
+
+    print("NO")
+
+if __name__ == "__main__":
+    main()
+```

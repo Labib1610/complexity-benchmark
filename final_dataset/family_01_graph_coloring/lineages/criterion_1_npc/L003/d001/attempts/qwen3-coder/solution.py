@@ -1,0 +1,66 @@
+import sys
+from collections import defaultdict
+
+def is_perfect_square(n):
+    if n < 0:
+        return False
+    root = int(n**0.5)
+    return root * root == n
+
+def solve():
+    n, m = map(int, sys.stdin.readline().split())
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
+    
+    # Build adjacency list
+    adj = defaultdict(list)
+    edges = []
+    for _ in range(m):
+        u, v = map(int, sys.stdin.readline().split())
+        u -= 1  # Convert to 0-indexed
+        v -= 1
+        adj[u].append(v)
+        adj[v].append(u)
+        edges.append((u, v))
+    
+    # Check if product of two codes is perfect square
+    # Codes are 1, 2, 3
+    # Products: 1*1=1, 1*2=2, 1*3=3, 2*2=4, 2*3=6, 3*3=9
+    # Perfect squares: 1, 4, 9
+    # So forbidden pairs: (1,1), (2,2), (3,3)
+    
+    forbidden = {(1,1), (2,2), (3,3)}
+    
+    # Try all possible assignments using backtracking
+    assignment = [0] * n  # 0 means unassigned
+    
+    def is_valid(node, color):
+        for neighbor in adj[node]:
+            if assignment[neighbor] != 0:  # If neighbor is assigned
+                if (color, assignment[neighbor]) in forbidden:
+                    return False
+        return True
+    
+    def backtrack(node):
+        if node == n:
+            return True
+            
+        for color in [1, 2, 3]:
+            if is_valid(node, color):
+                assignment[node] = color
+                if backtrack(node + 1):
+                    return True
+                assignment[node] = 0
+        
+        return False
+    
+    if backtrack(0):
+        print("YES")
+        print(" ".join(map(str, assignment)))
+    else:
+        print("NO")
+
+solve()

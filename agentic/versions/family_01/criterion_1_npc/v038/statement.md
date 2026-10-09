@@ -1,20 +1,21 @@
-# Problem A — Frequency Allocation
+# Problem A — Factory Schedule Codes
 
-Time limit: 2 s   Memory limit: 256 MB
+Time limit: 2 s
+Memory limit: 256 MB
 
-A network consists of $n$ broadcasting devices. To ensure proper operation, each device must be tuned to exactly one of three available frequency bands, designated by the integers 1, 2, and 3.
+A manufacturing plant employs $n$ workers. Each worker $i$ (for $1 \le i \le n$) must be assigned a schedule code $s_i$. A valid schedule code is a positive integer $s_i$ such that $s_i^2 \le 9$.
 
-Certain devices are situated too close to one another. If two such devices operate on the identical frequency band, they will cause signal degradation. You are provided with a list of all such interfering links. You must determine a configuration that allocates a frequency band to each device such that no two linked devices share the same band. If no such configuration can be formed, you must indicate that it is impossible.
+There are $m$ incompatibility conditions. Each condition specifies two workers $u$ and $v$ who cannot be assigned the same schedule code. You must assign a valid schedule code to every worker such that all incompatibility conditions are satisfied, or determine if it is impossible.
 
-Due to the deployment area's geometry, the total sum of interfering links across all individual devices (counting each link twice, once for each device involved) is strictly bounded and will never exceed $n(n-1)$. Furthermore, no device can be linked to itself.
+It is guaranteed that for every incompatibility condition between $u$ and $v$, the sum $u + v$ is strictly less than $2n + 1$, and that the total number of conditions $m$ satisfies $2m < n^2$.
 
 ## Input
-The first line provides two integers $n$ and $m$ — the number of devices and the number of interfering links ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
-The following $m$ lines each contain two integers $u$ and $v$ — two devices that will degrade each other's signals if they use the same frequency band.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
+Each of the following $m$ lines contains two integers $u$ and $v$ representing an incompatibility condition between the two workers.
 
 ## Output
-If a valid configuration cannot be found, output a single line containing NO.
-Otherwise, output YES on the first line. On the second line, output $n$ integers $s_1, s_2, \dots, s_n$ separated by spaces, where $s_i \in \{1, 2, 3\}$ represents the frequency band assigned to device $i$. If multiple configurations avoid all signal degradation, you must output the one that minimizes the sequence $s_1, s_2, \dots, s_n$ when compared element by element starting from the first device (i.e., at the first position where two valid sequences differ, the one with the smaller band number must be chosen).
+If no valid assignment of schedule codes exists, print a single line containing `NO`.
+Otherwise, print `YES` on the first line. On the second line, print $n$ integers $s_1, s_2, \ldots, s_n$ (each satisfying $s_i \in \mathbb{Z}^+$ and $s_i^2 \le 9$), where $s_i$ is the schedule code of worker $i$. Any valid assignment is accepted.
 
 ## Example 1
 Input:

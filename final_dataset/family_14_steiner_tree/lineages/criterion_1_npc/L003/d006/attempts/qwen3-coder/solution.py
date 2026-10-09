@@ -1,0 +1,128 @@
+import sys
+from collections import defaultdict
+import heapq
+
+def find(parent, x):
+    if parent[x] != x:
+        parent[x] = find(parent, parent[x])
+    return parent[x]
+
+def union(parent, rank, x, y):
+    px, py = find(parent, x), find(parent, y)
+    if px == py:
+        return False
+    if rank[px] < rank[py]:
+        px, py = py, px
+    parent[py] = px
+    if rank[px] == rank[py]:
+        rank[px] += 1
+    return True
+
+def kruskal(n, edges, must_connect):
+    parent = list(range(n))
+    rank = [0] * n
+    cost = 0
+    edges.sort()
+    
+    # First, add all edges with cost 0 (if any) - but in our case all costs >= 1
+    
+    # Then add minimum cost edges to connect all nodes
+    for w, u, v in edges:
+        if find(parent, u) != find(parent, v):
+            union(parent, rank, u, v)
+            cost += w
+            
+    # Check if all required nodes are connected
+    roots = [find(parent, i) for i in must_connect]
+    if len(set(roots)) == 1:
+        return cost
+    else:
+        return float('inf')
+
+def solve():
+    n, m, t = map(int, sys.stdin.readline().split())
+    targets = list(map(int, sys.stdin.readline().split()))
+    targets = [x - 1 for x in targets]  # Convert to 0-indexed
+    
+    if t <= 1:
+        print(0)
+        return
+        
+    edges = []
+    for _ in range(m):
+        u, v, w = map(int, sys.stdin.readline().split())
+        edges.append((w, u-1, v-1))  # Convert to 0-indexed
+    
+    # We want to find minimum cost to connect all target nodes
+    # This is exactly the Steiner tree problem, but with small t (<= 10)
+    # We can use the Dreyfus-Wagner algorithm approach or brute force for small t
+    
+    # For t <= 10, we can try all possible subsets of edges
+    # But better approach: since we want to connect targets, 
+    # we can compute MST of the graph with only necessary connections
+    
+    # Actually, let's think differently:
+    # We want to make sure ALL assignments satisfy targets being equal
+    # So we need to connect all targets in one component
+    
+    # Use Kruskal's algorithm to find minimum cost to connect all targets
+    # But we're looking for minimum subset of edges such that in the resulting graph,
+    # all targets are in the same connected component
+    
+    # For small t, we can use dynamic programming with bitmasks
+    # State: dp[mask] = minimum cost to connect the subset of targets represented by mask
+    
+    if t == 1:
+        print(0)
+        return
+    
+    # Since t <= 10, we can use subset DP
+    # But even simpler: we just need to find the minimum cost to connect all targets
+    # This is the Steiner tree problem
+    
+    # Let's reduce to finding minimum cost to make all targets connected
+    # Try all possible combinations? No, too many
+    
+    # Better: Use the fact that we want to connect all targets
+    # Build a complete graph where edge weights are shortest paths between targets
+    # Then find MST of this complete graph
+    
+    # Floyd-Warshall to get all-pairs shortest paths
+    INF = float('inf')
+    dist = [[INF]*n for _ in range(n)]
+    for i in range(n):
+        dist[i][i] = 0
+        
+    for w, u, v in edges:
+        dist[u][v] = min(dist[u][v], w)
+        dist[v][u] = min(dist[v][u], w)
+        
+    # Floyd-Warshall
+    for k in range(n):
+        for i in range(n):
+            for j in range(n):
+                if dist[i][k] + dist[k][j] < dist[i][j]:
+                    dist[i][j] = dist[i][k] + dist[k][j]
+                    
+    # Now we have distances between all pairs
+    # Create a complete graph on targets and find its MST
+    target_edges = []
+    for i in range(t):
+        for j in range(i+1, t):
+            u, v = targets[i], targets[j]
+            target_edges.append((dist[u][v], i, j))
+            
+    # Apply Kruskal's algorithm on the target edges
+    parent = list(range(t))
+    rank = [0] * t
+    target_edges.sort()
+    cost = 0
+    
+    for w, u, v in target_edges:
+        if find(parent, u) != find(parent, v):
+            union(parent, rank, u, v)
+            cost += w
+            
+    print(cost)
+
+solve()

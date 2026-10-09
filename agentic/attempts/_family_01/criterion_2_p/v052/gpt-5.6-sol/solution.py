@@ -1,0 +1,46 @@
+import sys
+from collections import deque
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+
+    n, m = data[0], data[1]
+    graph = [[] for _ in range(n)]
+
+    pos = 2
+    for _ in range(m):
+        u = data[pos] - 1
+        v = data[pos + 1] - 1
+        pos += 2
+        graph[u].append(v)
+        graph[v].append(u)
+
+    tier = [0] * n
+    queue = deque()
+
+    for start in range(n):
+        if tier[start] != 0:
+            continue
+
+        tier[start] = 1
+        queue.append(start)
+
+        while queue:
+            u = queue.popleft()
+            required = 3 - tier[u]
+
+            for v in graph[u]:
+                if tier[v] == 0:
+                    tier[v] = required
+                    queue.append(v)
+                elif tier[v] != required:
+                    sys.stdout.write("NO\n")
+                    return
+
+    sys.stdout.write("YES\n")
+    sys.stdout.write(" ".join(map(str, tier)) + "\n")
+
+if __name__ == "__main__":
+    main()

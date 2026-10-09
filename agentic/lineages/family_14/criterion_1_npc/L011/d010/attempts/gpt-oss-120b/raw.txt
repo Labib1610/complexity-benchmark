@@ -1,0 +1,377 @@
+**Solution Explanation**
+
+For a set `C` of chosen relations  
+
+* each connected component of the undirected graph `(V , C)` must receive one
+  Boolean value (True or False);
+* different components may receive independent values.
+
+Therefore the number of different assignments on the whole variable set is
+`2^{#components}`.
+Only the components that contain at least one target variable matter for the
+projection on `T`.  
+If `k` is the number of those components, the projection size equals `2^{k}`.
+
+The required size is `2`, i.e. `k = 1` – all target variables have to belong to
+the **same** component.
+Consequently the task is:
+
+```
+choose a minimum‑cost set of edges that makes all target vertices
+connected (they may be connected through other vertices).
+```
+
+That is exactly the **Steiner Tree** problem with at most `t ≤ 10` terminals.
+The classic Dreyfus‑Wagner DP solves it in `O( 3^t · n + 2^t · (m log n) )`,
+more than fast enough for `n ≤ 100`.
+
+--------------------------------------------------------------------
+
+#### 1.   Notation  
+
+* `n` – number of vertices (`0 … n-1`)
+* `m` – number of candidate edges
+* `t` – number of terminals (`0 … t-1`)
+* `term[i]` – vertex id of the `i`‑th terminal (`0`‑based)
+* `adj[v]` – list of `(to , w)` edges, undirected
+* `INF` – a very large number (`10^{18}`)
+
+For every subset `S ⊆ {0,…,t-1}` (`mask` is its bitmask) we keep
+
+```
+dp[v][mask] = minimum cost of a Steiner tree
+              that connects all terminals of S
+              and whose (arbitrary) root is vertex v
+```
+
+The answer is `min_v dp[v][FULL]` where `FULL = (1<<t)-1`.
+
+--------------------------------------------------------------------
+
+#### 2.   DP initialization  
+
+For each terminal `i`
+
+```
+dp[ term[i] ][ 1<<i ] = 0          # no edge is needed, the tree is the single vertex
+dp[ other vertices ][ 1<<i ] = INF
+```
+
+All other entries are `INF`.
+
+--------------------------------------------------------------------
+
+#### 3.   Subset combination  
+
+For a fixed mask `M (≥1)` we may split it into two non‑empty disjoint parts
+`A` and `B` (`A ∪ B = M`).  
+If a tree for `A` and a tree for `B` already end in the same vertex `v`,
+their union (still rooted at `v`) connects the whole set `M` with cost
+
+```
+dp[v][A] + dp[v][B]
+```
+
+Thus after having processed *all* proper submasks of `M`
+
+```
+dp[v][M] = min over A⊂M ( dp[v][A] + dp[v][M\A] )
+```
+
+The loop over submasks runs in `O(3^t)` overall.
+
+--------------------------------------------------------------------
+
+#### 4.   Propagation through edges – Dijkstra  
+
+The values obtained by the combination step assume that the tree ends in the
+current vertex `v`.  
+Possibly a cheaper tree ends in a different vertex `u` and then uses an edge
+`u – v`.  
+Running a multi‑source Dijkstra with initial distances `dp[*][M]`
+produces the true minima for the whole graph:
+
+```
+dist = dp[ * ][M]                     # copy
+push every vertex with dist < INF into a heap
+while heap not empty:
+        pop (d , x)
+        if d != dist[x]: continue
+        for (y , w) in adj[x]:
+                if dist[y] > d + w:
+                        dist[y] = d + w
+                        push (dist[y] , y)
+dp[ * ][M] = dist
+```
+
+Running Dijkstra for every mask gives the term
+`2^t · (m log n)` in the total complexity.
+
+--------------------------------------------------------------------
+
+#### 5.   Whole algorithm  
+
+```
+read input
+if t == 1:               # single terminal → projection already size 2
+        print(0); exit
+
+build adjacency list (keep the smallest weight if several edges between same pair)
+FULL = (1<<t) - 1
+dp = [[INF]*(1<<t) for _ in range(n)]
+
+initialize dp for singletons (section 2)
+
+for mask from 1 to FULL:
+        # 1) combine smaller subsets
+        sub = (mask-1) & mask
+        while sub:
+                other = mask ^ sub
+                for v in 0..n-1:
+                        nd = dp[v][sub] + dp[v][other]
+                        if nd < dp[v][mask]:
+                                dp[v][mask] = nd
+                sub = (sub-1) & mask          # next proper submask
+
+        # 2) Dijkstra to spread through the graph
+        run_multi_source_dijkstra(mask)
+
+answer = min( dp[v][FULL] for v in 0..n-1 )
+print(answer)
+```
+
+All operations use `int`; maximal possible answer ≤ `m·10^6 ≤ 5·10^8`,
+well inside 64‑bit range.
+
+--------------------------------------------------------------------
+
+#### 6.   Correctness Proof  
+
+We prove that the algorithm returns the minimum possible total cost.
+
+---
+
+##### Lemma 1  
+For any subset `S` of terminals and any vertex `v`,
+after the Dijkstra step for mask `M = S`,
+`dp[v][M]` equals the minimum cost of a Steiner tree that connects all terminals
+in `S` and whose **any** vertex (not necessarily `v`) can be the root,
+*with the additional condition* that the tree **contains** vertex `v`.
+
+**Proof.**  
+The Dijkstra step starts from distances that already represent a tree
+connecting `S` and ending at `v` (the combination step).  
+Running multi‑source Dijkstra exactly computes, for every vertex `x`,
+the cheapest way to reach `x` from any of those starting trees by adding a
+ordinary graph path (which is precisely adding edges to the tree).  
+Thus after Dijkstra the value at `v` is the cheapest cost of a tree that
+connects `S` and contains `v`. ∎
+
+
+
+##### Lemma 2  
+For any subset `S` and any vertex `v`,
+after both the combination step **and** the Dijkstra step,
+`dp[v][S]` equals the minimum cost of a Steiner tree that connects all terminals
+in `S` and contains vertex `v`.
+
+**Proof.**  
+Induction over the size of `S`.
+
+*Base*: `|S| = 1`.  
+The initialization sets `dp[term][{i}] = 0` (the tree consisting of only that
+vertex) and `INF` for all other vertices.  
+Running Dijkstra spreads the distance through the graph, producing exactly the
+shortest path from the terminal to any other vertex, i.e. the cheapest tree
+containing the terminal and the destination vertex – which is the optimum.
+
+*Induction step*: assume the statement holds for all proper non‑empty subsets of
+`S`.  
+Consider any optimal Steiner tree `T` connecting `S` and containing `v`.  
+Pick any vertex `r` of `T` (maybe `v`). Removing `r` splits `T` into several
+components, each containing a non‑empty subset of terminals.
+Take two of those components, their terminal sets are `A` and `B` (`A∪B = S`,
+`A,B ≠ ∅`). Both components contain `r`.  
+By the induction hypothesis their optimal costs are exactly
+`dp[r][A]` and `dp[r][B]`.  
+Consequently the cost of `T` is at least `dp[r][A] + dp[r][B]`,
+and the combination step records this value (or a better one) into
+`dp[r][S]`. Afterwards Dijkstra can move the root from `r` to any vertex,
+in particular to `v`, without increasing the cost, therefore
+`dp[v][S]` is not larger than the optimum.
+
+Conversely, any value produced by the algorithm corresponds to
+  * a split `A,B` of `S`,
+  * optimal trees for `A` and `B` containing the same vertex `r` (induction
+    hypothesis),
+  * their union (still a tree) plus possibly a shortest path from `r` to `v`
+    (Dijkstra).  
+Thus the constructed structure is a feasible Steiner tree for `S` containing
+`v` with exactly that cost. Hence `dp[v][S]` cannot be smaller than the optimum.
+∎
+
+
+
+##### Lemma 3  
+`min_v dp[v][FULL]` equals the minimum possible total cost of a set of edges
+that makes all terminals mutually connected.
+
+**Proof.**  
+By Lemma&nbsp;2, for each vertex `v` the value `dp[v][FULL]` is the cheapest cost
+of a Steiner tree that connects **all** terminals and contains `v`.  
+A Steiner tree is a connected subgraph, therefore its edge set connects the
+terminals.  
+Taking the minimum over all possible containing vertices yields precisely the
+cheapest connected subgraph (i.e. the optimal Steiner tree). ∎
+
+
+
+##### Lemma 4  
+For any selected set of relations `C`,
+the projected assignment space on `T` has size `2` **iff** the terminals are
+connected in the graph `(V , C)`.
+
+**Proof.**  
+In a graph of equality constraints each connected component may be assigned
+independently True/False.  
+The projection size equals `2^{k}` where `k` is the number of components that
+contain at least one terminal.  
+Thus the size is `2` exactly when `k = 1`, i.e. all terminals lie in the same
+component, i.e. they are connected. ∎
+
+
+
+##### Theorem  
+The algorithm outputs the minimum possible total cost of a valid selection
+`C`.
+
+**Proof.**  
+
+*Soundness*  
+The algorithm outputs the cost of an optimal Steiner tree (Lemma&nbsp;3).
+Its edge set connects all terminals, therefore by Lemma&nbsp;4 the corresponding
+selection `C` yields projection size `2`. Hence the output cost is achievable
+by a valid selection.
+
+*Optimality*  
+Assume an optimal valid selection `C*` with total cost `opt`.  
+Because `C*` is valid, the terminals are connected (Lemma&nbsp;4), so the edge
+set of `C*` is a feasible Steiner tree.  
+Consequently `opt` is at least the cost of the minimum Steiner tree,
+which equals the algorithm’s output (Lemma&nbsp;3).  
+Together with soundness we have `output = opt`. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### 7.   Complexity Analysis  
+
+```
+t ≤ 10 ,   n ≤ 100 ,   m ≤ n·(n-1)/2 ≤ 4950
+```
+
+*Number of masks* : `2^t ≤ 1024`  
+*Combination step* : every mask enumerates all its proper submasks →  
+`∑_{M} 2^{|M|} = 3^t = 59049` operations, each touches `n` vertices ⇒
+`O(3^t · n) ≈ 6·10^6`.
+
+*Dijkstra* : performed for each mask  
+`O( 2^t · (m log n) ) ≤ 1024·(5000·7) ≈ 3.6·10^7`.
+
+Both parts easily fit into the 5 seconds limit.
+
+Memory: `dp` array `n·2^t ≤ 100·1024 = 102 400` integers → < 1 MB.
+
+--------------------------------------------------------------------
+
+#### 8.   Reference Implementation  (Python 3)
+
+```python
+import sys
+import heapq
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    t = int(next(it))
+    terminals = [int(next(it)) - 1 for _ in range(t)]
+
+    adj = [[] for _ in range(n)]
+    # keep the smallest edge between two vertices (optional optimisation)
+    min_edge = {}
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        w = int(next(it))
+        if u > v:
+            u, v = v, u
+        key = (u, v)
+        if key in min_edge:
+            if w < min_edge[key]:
+                min_edge[key] = w
+        else:
+            min_edge[key] = w
+    for (u, v), w in min_edge.items():
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+
+    if t == 1:
+        print(0)
+        return
+
+    FULL = (1 << t) - 1
+    INF = 10 ** 18
+    dp = [[INF] * (1 << t) for _ in range(n)]
+
+    # initialise singletons
+    for i, v in enumerate(terminals):
+        dp[v][1 << i] = 0
+
+    # helper: Dijkstra for a given mask
+    def dijkstra(mask: int) -> None:
+        dist = [dp[v][mask] for v in range(n)]
+        heap = [(dist[v], v) for v in range(n) if dist[v] < INF]
+        heapq.heapify(heap)
+        while heap:
+            d, x = heapq.heappop(heap)
+            if d != dist[x]:
+                continue
+            for y, w in adj[x]:
+                nd = d + w
+                if nd < dist[y]:
+                    dist[y] = nd
+                    heapq.heappush(heap, (nd, y))
+        for v in range(n):
+            dp[v][mask] = dist[v]
+
+    # DP over subsets
+    for mask in range(1, FULL + 1):
+        # combine smaller subsets
+        sub = (mask - 1) & mask
+        while sub:
+            other = mask ^ sub
+            # to avoid doing both (sub, other) and (other, sub) we could enforce sub < other,
+            # but the cost is still tiny, so we skip that optimisation.
+            for v in range(n):
+                nd = dp[v][sub] + dp[v][other]
+                if nd < dp[v][mask]:
+                    dp[v][mask] = nd
+            sub = (sub - 1) & mask
+        # propagate through edges
+        dijkstra(mask)
+
+    ans = min(dp[v][FULL] for v in range(n))
+    print(ans)
+
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above and conforms
+to the required input / output format.

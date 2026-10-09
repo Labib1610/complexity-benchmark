@@ -1,23 +1,16 @@
-# Problem A — Hopper Allocation
+# Problem A — Shift Scheduling
 
-Time limit: 2 s
-Memory limit: 256 MB
+Time limit: 2 s   Memory limit: 256 MB
 
-An automated dispensing system processes $n$ distinct pharmaceutical ingredients. The system distributes these ingredients among three isolated holding hoppers, which are mechanically designated as hopper 1, hopper 2, and hopper 3.
-
-Due to cross-contamination risks, specific pairs of ingredients will degrade if they are loaded into the same holding hopper. You must assign every ingredient to exactly one of the three hoppers such that no two ingredients that pose a mutual cross-contamination risk share a hopper.
-
-To standardize loading procedures across multiple facilities, the system enforces a strict priority rule for valid assignments. The configuration must be chosen such that the sequence of hopper numbers assigned to ingredients $1$ through $n$ is lexicographically minimized. This means the system prioritizes placing ingredient 1 into the lowest-numbered hopper possible, then ingredient 2 into the lowest-numbered hopper possible, and so forth, while still ensuring a completely safe arrangement for all ingredients.
-
-If no safe configuration exists for the given ingredients and contamination risks, the system must reject the batch.
+A factory requires each of its $n$ workers to be assigned a shift identifier from the set $\{1, 2, 3\}$. However, certain workers are incompatible with each other and must not be assigned the same shift identifier. Determine an assignment for every worker such that no two incompatible workers share the same shift identifier, or report that it is impossible.
 
 ## Input
-The first line contains two integers $n$ and $m$ — the number of ingredients and the number of cross-contamination risks ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
-Each of the next $m$ lines contains two integers $u$ and $v$ — a pair of ingredients that pose a cross-contamination risk.
+The first line contains two integers $n$ and $m$ — the number of workers and the number of incompatible pairs ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
+Each of the next $m$ lines contains two integers $u$ and $v$ — indicating that worker $u$ and worker $v$ are incompatible.
 
 ## Output
-If no safe hopper assignment exists, print a single line containing `NO`.
-Otherwise, print `YES` on the first line. On the second line, print $n$ integers $h_1, h_2, \dots, h_n$ (each in $\{1, 2, 3\}$), where $h_i$ is the hopper assigned to ingredient $i$. This sequence must be the lexicographically smallest valid configuration.
+If no valid assignment exists, print a single line `NO`.
+Otherwise print `YES` on the first line. On the second line print $n$ integers $s_1, s_2, \dots, s_n$ (each in $\{1, 2, 3\}$), where $s_i$ is the shift identifier of worker $i$. Any valid assignment is accepted.
 
 ## Example 1
 Input:

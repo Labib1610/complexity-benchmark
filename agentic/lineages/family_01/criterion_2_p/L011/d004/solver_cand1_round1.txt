@@ -1,30 +1,21 @@
 ```python
 import sys
 
-# The problem asks for x_i >= 1 such that:
-# 1. If (u, v) is an edge, x_u != x_v.
-# 2. sum(d_i * x_i) = 3m.
+# The condition: gcd(c_u + 1, c_v + 1) == 1
+# c_u, c_v are in {1, 2}
+# c_u + 1, c_v + 1 are in {2, 3}
+# Possible pairs (c_u, c_v):
+# (1, 1) -> gcd(2, 2) = 2 (Invalid)
+# (1, 2) -> gcd(2, 3) = 1 (Valid)
+# (2, 1) -> gcd(3, 2) = 1 (Valid)
+# (2, 2) -> gcd(3, 3) = 3 (Invalid)
 #
-# Since x_i >= 1, let x_i = 1 + y_i, where y_i >= 0.
-# sum(d_i * (1 + y_i)) = 3m
-# sum(d_i) + sum(d_i * y_i) = 3m
-# Since sum(d_i) = 2m, we have:
-# 2m + sum(d_i * y_i) = 3m
-# sum(d_i * y_i) = m
-#
-# We need to assign y_i >= 0 such that if (u, v) is an edge, x_u != x_v.
-# To get the lexicographically smallest x_i, we want y_i to be 0 as much as possible.
-# If we set y_i = 0 for all i, then x_i = 1 for all i. This violates the edge constraint
-# if m > 0.
-# If the graph is bipartite, we can color it with 1 and 2.
-# Let the two sets be A and B. If we set x_i = 1 for i in A and x_i = 2 for i in B:
-# sum(d_i * x_i) = sum_{i in A} d_i * 1 + sum_{i in B} d_i * 2
-# Let S_A = sum_{i in A} d_i and S_B = sum_{i in B} d_i.
-# S_A + S_B = 2m.
-# We need S_A + 2*S_B = 3m.
-# Subtracting: S_B = m.
-# Since S_A + S_B = 2m, this implies S_A = m.
-# So we need a bipartite coloring such that the sum of degrees in each partition is m.
+# This means for every edge (u, v), c_u != c_v.
+# This is exactly the definition of a bipartite graph.
+# We need to color the graph with 1 and 2 such that adjacent nodes have different colors.
+# To minimize F = sum(c_i * 10^(n-i)), we want c_1 to be as small as possible (1),
+# then c_2 as small as possible, etc.
+# This is a greedy approach on connected components.
 
 def solve():
     input_data = sys.stdin.read().split()
@@ -32,56 +23,70 @@ def solve():
         return
     n = int(input_data[0])
     m = int(input_data[1])
+    
     adj = [[] for _ in range(n + 1)]
     idx = 2
     for _ in range(m):
         u = int(input_data[idx])
         v = int(input_data[idx+1])
+        idx += 2
+        if u == v:
+            print("NO")
+            return
         adj[u].append(v)
         adj[v].append(u)
-        idx += 2
-
-    if m == 0:
-        print("YES")
-        print(*( [1] * n ))
-        return
-
-    color = [-1] * (n + 1)
-    degrees = [len(adj[i]) for i in range(n + 1)]
+        
+    color = [0] * (n + 1)
     
     for i in range(1, n + 1):
-        if color[i] == -1:
-            stack = [(i, 0)]
-            color[i] = 0
+        if color[i] == 0:
+            # Start BFS/DFS from i. To minimize F, we want color[i] = 1.
+            stack = [(i, 1)]
+            color[i] = 1
+            component = []
             while stack:
                 u, c = stack.pop()
+                component.append((u, c))
                 for v in adj[u]:
-                    if color[v] == -1:
-                        color[v] = 1 - c
-                        stack.append((v, 1 - c))
+                    if color[v] == 0:
+                        color[v] = 3 - c
+                        stack.append((v, 3 - c))
                     elif color[v] == c:
                         print("NO")
                         return
-    
-    sum_deg0 = sum(degrees[i] for i in range(1, n + 1) if color[i] == 0)
-    sum_deg1 = sum(degrees[i] for i in range(1, n + 1) if color[i] == 1)
-    
-    # We need sum(d_i * x_i) = 3m.
-    # If we use colors 1 and 2, we need sum of degrees of nodes with color 2 to be m.
-    # Currently, sum_deg0 + sum_deg1 = 2m.
-    # If sum_deg1 == m, we are good.
-    # If sum_deg0 == m, we can swap colors.
-    
-    if sum_deg1 == m:
-        res = [1 if color[i] == 0 else 2 for i in range(1, n + 1)]
-    elif sum_deg0 == m:
-        res = [1 if color[i] == 1 else 2 for i in range(1, n + 1)]
-    else:
-        print("NO")
-        return
-
+            
+            # Check if we could have done better by setting color[i] = 2
+            # Actually, for each component, we have two choices:
+            # 1. color[i] = 1, then all others are fixed.
+            # 2. color[i] = 2, then all others are flipped.
+            # We compare the two assignments lexicographically.
+            
+            # Assignment 1:
+            res1 = []
+            for node, c in component:
+                res1.append((node, c))
+            res1.sort()
+            
+            # Assignment 2:
+            res2 = []
+            for node, c in component:
+                res2.append((node, 3 - c))
+            res2.sort()
+            
+            # Pick the one that is lexicographically smaller
+            for j in range(len(res1)):
+                if res1[j][1] < res2[j][1]:
+                    break
+                elif res1[j][1] > res2[j][1]:
+                    for node, c in res2:
+                        color[node] = c
+                    break
+            else:
+                for node, c in res1:
+                    color[node] = c
+                    
     print("YES")
-    print(*(res))
+    print(*(color[1:]))
 
 solve()
 ```

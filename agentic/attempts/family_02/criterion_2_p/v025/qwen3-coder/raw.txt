@@ -1,0 +1,120 @@
+```python
+import sys
+import threading
+
+def main():
+    import sys
+    sys.setrecursionlimit(1 << 25)
+    
+    n, m = map(int, sys.stdin.readline().split())
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(["0"] * n))
+        return
+    
+    # For each variable x_i, we create two nodes:
+    # Node 2*i represents x_i (Active)
+    # Node 2*i + 1 represents ~x_i (Standby)
+    
+    # We'll build implication graph for 2-SAT
+    adj = [[] for _ in range(2 * n)]
+    rev_adj = [[] for _ in range(2 * n)]
+    
+    for _ in range(m):
+        c1, c2 = map(int, sys.stdin.readline().split())
+        # c1 and c2 are literals. Positive means Active (1), negative means Standby (0)
+        # We need (c1 OR c2) to be true
+        
+        # Convert to 0-based indexing and node numbers
+        # For literal x_i (positive): node = 2*(i-1)
+        # For literal ~x_i (negative): node = 2*(i-1) + 1
+        
+        def lit_to_node(lit):
+            var = abs(lit) - 1
+            if lit > 0:
+                return 2 * var  # x_i is Active
+            else:
+                return 2 * var + 1  # x_i is Standby (~Active)
+        
+        node1 = lit_to_node(c1)
+        node2 = lit_to_node(c2)
+        
+        # Add implications: (~c1 => c2) and (~c2 => c1)
+        # Which means: (not node1 => node2) and (not node2 => node1)
+        not_node1 = node1 ^ 1  # Flip last bit to get negation
+        not_node2 = node2 ^ 1
+        
+        adj[not_node1].append(node2)
+        adj[not_node2].append(node1)
+        rev_adj[node2].append(not_node1)
+        rev_adj[node1].append(not_node2)
+    
+    # Kosaraju's algorithm for SCC
+    visited = [False] * (2 * n)
+    order = []
+    
+    def dfs1(u):
+        visited[u] = True
+        for v in adj[u]:
+            if not visited[v]:
+                dfs1(v)
+        order.append(u)
+    
+    for i in range(2 * n):
+        if not visited[i]:
+            dfs1(i)
+    
+    visited = [False] * (2 * n)
+    scc_id = [-1] * (2 * n)
+    scc_count = 0
+    
+    def dfs2(u):
+        visited[u] = True
+        scc_id[u] = scc_count
+        for v in rev_adj[u]:
+            if not visited[v]:
+                dfs2(v)
+    
+    while order:
+        u = order.pop()
+        if not visited[u]:
+            dfs2(u)
+            scc_count += 1
+    
+    # Check if satisfiable
+    for i in range(n):
+        node_active = 2 * i
+        node_standby = 2 * i + 1
+        if scc_id[node_active] == scc_id[node_standby]:
+            print("NO")
+            return
+    
+    # Build assignment
+    assignment = [-1] * n
+    # Process SCCs in reverse topological order
+    scc_order = list(range(scc_count))
+    # Actually, we can just process components by their ID since Kosaraju gives reverse topological order
+    
+    for i in range(2 * n):
+        var_index = i // 2
+        if assignment[var_index] == -1:
+            # If not assigned yet
+            if scc_id[i] > scc_id[i ^ 1]:  # i ^ 1 flips the last bit
+                # This SCC comes after the negation's SCC in topological order
+                # So we set this literal to true
+                if i % 2 == 0:  # Active node
+                    assignment[var_index] = 1
+                else:  # Standby node
+                    assignment[var_index] = 0
+    
+    # Fill in any unassigned variables (shouldn't happen in a valid instance but just in case)
+    for i in range(n):
+        if assignment[i] == -1:
+            assignment[i] = 0  # Default to Standby
+    
+    print("YES")
+    print(" ".join(map(str, assignment)))
+
+threading.Thread(target=main).start()
+```

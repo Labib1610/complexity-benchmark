@@ -29,4 +29,4 @@ for i in range(n):
                     sys.exit()
 
 print("YES")
-print(" ".join(str(color[i]) for i in range(n)))
+print(" ".join(str(c) for c in color))

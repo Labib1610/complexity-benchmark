@@ -1,24 +1,25 @@
-# Problem B — Factory Protocol
+# Problem B — Factory Reorganization
 
-Time limit: 1 s
-Memory limit: 256 MB
+Time limit: 1 s   Memory limit: 256 MB
 
-A factory employs $n$ workers, numbered 1 through $n$. Management is implementing a new operational protocol where every worker must be assigned a schedule code. Each schedule code must be chosen from the set $\{1, 2\}$.
+The factory is restructuring its workforce. There are $n$ employees and two distinct operational branches, designated as Branch 1 and Branch 2. Every employee must be allocated to exactly one of these two branches.
 
-The factory floor has strict safety regulations regarding shared workstations. You are given a log of $m$ pairs of workers who operate the same workstation. To maintain the required operational balance, any two workers in a logged pair must have schedule codes that sum to exactly 3.
+During the reorganization, management has identified $m$ cases where two specific employees perform overlapping duties. If both employees in such a case are allocated to the same branch, their overlapping duties will cause delays. Therefore, for each identified case, the two employees must be placed in different branches.
 
-Determine if it is possible to assign a schedule code to all $n$ workers in accordance with the safety regulations. If it is impossible, report it. If there are multiple valid assignments, you must output the one that is lexicographically smallest.
+Your task is to determine if it is possible to allocate all $n$ employees to the branches without any delays. If it is impossible to satisfy all separation requirements simultaneously, you must report this.
+
+If a valid allocation exists, you must find the one that places employee 1 in the lowest possible branch number. If there are still multiple valid ways to allocate the employees, you must break ties by minimizing the branch number for employee 2, then employee 3, and so on, continuing sequentially through all employees.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$).
-Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$), representing a pair of workers who share a workstation.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$), representing the number of employees and the number of overlapping duty cases, respectively.
+Each of the following $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$), indicating that employee $u$ and employee $v$ must be allocated to different branches.
 
 ## Output
-If no valid assignment exists, print a single line containing `NO`.
-Otherwise, print `YES` on the first line. On the second line, print $n$ integers $s_1, s_2, \ldots, s_n$ (each in $\{1, 2\}$), representing the lexicographically smallest valid assignment.
+If there is no way to place the employees to avoid all delays, output a single line with the word NO.
+If it is possible, output YES on the first line. On the second line, output $n$ integers separated by spaces, where the $i$-th integer (either 1 or 2) represents the branch allocated to employee $i$, following the sequential minimization rule described above.
 
 ## Example 1
-**Input:**
+Input:
 ```
 4 4
 1 2
@@ -26,21 +27,21 @@ Otherwise, print `YES` on the first line. On the second line, print $n$ integers
 3 4
 1 4
 ```
-**Output:**
+Output:
 ```
 YES
 1 2 1 2
 ```
 
 ## Example 2
-**Input:**
+Input:
 ```
 3 3
 1 2
 1 3
 2 3
 ```
-**Output:**
+Output:
 ```
 NO
 ```

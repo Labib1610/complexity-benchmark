@@ -1,46 +1,42 @@
 import sys
-from collections import deque
 
 def solve():
     input_data = sys.stdin.read().split()
     if not input_data:
         return
-    it = iter(input_data)
-    n = int(next(it))
-    m = int(next(it))
+    n = int(input_data[0])
+    m = int(input_data[1])
     
-    adj = [[] for _ in range(n + 1)]
+    adj = [[] for _ in range(n)]
+    idx = 2
     for _ in range(m):
-        u = int(next(it))
-        v = int(next(it))
+        u = int(input_data[idx]) - 1
+        v = int(input_data[idx + 1]) - 1
         adj[u].append(v)
         adj[v].append(u)
+        idx += 2
+        
+    color = [0] * n
+    queue = []
     
-    # Sort adjacency lists to process neighbors in increasing order
-    for i in range(1, n + 1):
-        adj[i].sort()
-    
-    color = [0] * (n + 1)
-    
-    for i in range(1, n + 1):
+    for i in range(n):
         if color[i] == 0:
-            # BFS starting from i
-            # We want lexicographically smallest, so start with color 1
-            queue = deque([i])
             color[i] = 1
-            
-            while queue:
-                u = queue.popleft()
+            queue.append(i)
+            head = 0
+            while head < len(queue):
+                u = queue[head]
+                head += 1
                 for v in adj[u]:
                     if color[v] == 0:
                         color[v] = 3 - color[u]
                         queue.append(v)
                     elif color[v] == color[u]:
-                        print("NO")
+                        sys.stdout.write("NO\n")
                         return
-    
-    print("YES")
-    print(' '.join(map(str, color[1:])))
+                        
+    sys.stdout.write("YES\n")
+    sys.stdout.write(" ".join(map(str, color)) + "\n")
 
 if __name__ == '__main__':
     solve()

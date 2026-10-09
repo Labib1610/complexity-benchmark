@@ -1,0 +1,389 @@
+We need to choose exactly `k` pins to be HIGH such that no NAND gate has both inputs HIGH.  
+That means the set of HIGH pins must be an **independent set** in the graph where edges are the NAND gates.
+
+So the problem reduces to:  
+Find an independent set of size exactly `k` in a graph with up to 46 vertices.
+
+We can solve this using a **meet-in-the-middle** approach:
+
+- Split vertices into two halves (size ~23 each).
+- For each half, enumerate all independent sets and store their bitmask and size.
+- For each independent set in the first half, we need an independent set in the second half that is compatible (no edges between the two halves) and together they sum to size `k`.
+
+We can precompute for each mask in the first half the set of vertices in the second half that are **not** adjacent to any vertex in the mask. Then we need to find an independent set in the second half that is a subset of that allowed set and has the right size.
+
+Implementation details:
+- Use bitmasks (Python ints) for sets.
+- For each half, generate all independent sets via recursion/backtracking.
+- For the second half, store for each mask its size, and also for each possible allowed mask, the best (largest) independent set size within it — but we need exact size, so we can store a dictionary mapping allowed mask → list of (mask, size) or just store all independent sets and check compatibility.
+
+Given n ≤ 46, 2^23 ≈ 8.4 million, which is too large to enumerate all subsets naively. But we only enumerate independent sets, which are far fewer in sparse graphs. In worst case (empty graph), all subsets are independent — that would be 2^23 ≈ 8.4M, which is borderline but might be okay in Python with optimization? Possibly too slow.
+
+Better: Use meet-in-the-middle with bitmask DP for the second half to answer queries: given a set of allowed vertices, what is the maximum independent set size within it? But we need exact size, so we can store for each mask the maximum independent set size inside that mask (using DP over subsets). Then for each first-half mask, we compute allowed second-half mask, and check if there exists a subset of that allowed mask with independent set size = k - size_first. We can precompute for each mask the maximum independent set size, and also store the actual mask achieving it. But we need exact size, not just max. So we can store for each mask a list of (size, mask) for all independent sets inside it? That could be large.
+
+Alternative: Since n ≤ 46, we can use a **branch and bound** search with pruning, or use **maximum independent set** algorithms. But we need exact size k, not maximum.
+
+Given constraints, a simpler approach:  
+Use **backtracking** with pruning, choosing vertices in order, and using bitmasks to track forbidden vertices. Since n=46, worst-case empty graph would still be 2^46 — impossible. But we can use meet-in-the-middle with 2^23 enumeration for each half, which is ~8.4M per half, and we can store independent sets in a list. For empty graph, that's 8.4M entries per half — memory heavy but maybe okay? 8.4M ints ~ 64 MB per half, too much.
+
+We need a smarter way.
+
+We can use the fact that we only need to find *one* independent set of size k. We can use a **randomized** or **heuristic** approach? But we need guaranteed correctness.
+
+Better: Use **maximum independent set** via branch and bound (Bron–Kerbosch) to find all maximal independent sets, then check sizes. But number of maximal independent sets can be exponential too.
+
+Given the time limit 5s, we need an efficient exact algorithm.
+
+We can use **meet-in-the-middle** with bitmask DP for the second half:
+
+- Split vertices into two halves: A (size n1) and B (size n2), n1 ≈ n2 ≈ 23.
+- Precompute for each mask in B the maximum independent set size within that mask (using DP over subsets). This is O(2^n2 * n2) ~ 8.4M * 23 ≈ 193M operations — might be okay in Python if optimized with bit operations? Possibly borderline.
+
+But we also need to reconstruct the actual set. We can store for each mask the best mask achieving the max size.
+
+Then for each independent set in A (enumerated via backtracking), compute allowed mask in B (vertices not adjacent to any in A). Then we need an independent set in B of size k - size_A that is a subset of allowed. We can check if max_independent_size[allowed] >= needed, but we need exactly needed, not at least. So we need to know if there exists an independent set of exactly that size inside allowed. We can precompute for each mask the set of possible independent set sizes? That could be large.
+
+Alternative: For each mask in B, we can store a bitmask of possible sizes? But sizes up to 23, so we can store a 24-bit integer where bit s is 1 if there exists an independent set of size s inside that mask. Then for a query allowed mask, we can check if bit needed is set. This is feasible: for each mask, we can compute possible sizes via DP:  
+possible_sizes[mask] = possible_sizes[mask without lowest bit] OR (possible_sizes[mask without lowest bit and its neighbors] shifted by 1).  
+But that's O(2^n2 * n2) again.
+
+Given n2=23, 2^23=8.4M, storing a 24-bit int per mask is ~8.4M * 4 bytes = 33 MB, okay. But computing it might be heavy.
+
+Maybe we can do a simpler meet-in-the-middle:
+
+- Enumerate all independent sets in first half (size ≤ 23). Store them in a list of (mask, size).
+- Enumerate all independent sets in second half. Store them in a list of (mask, size).
+- For each first-half set, compute allowed mask in second half. Then we need a second-half set that is subset of allowed and size = k - size_first. We can precompute for each possible allowed mask (which is a subset of B) the list of independent sets that are subsets of it? That's too much.
+
+Better: For each second-half independent set, we can store its mask. Then for a query allowed mask, we need to know if there exists a stored mask that is a subset of allowed and has a given size. We can sort the second-half independent sets by size, and for each size, store a list of masks. Then for a query, we can iterate over masks of that size and check subset condition. But number of independent sets can be huge.
+
+Given n=46, worst-case empty graph: all subsets are independent. Then first half has 2^23 ≈ 8.4M sets, second half also 8.4M. That's too many to store.
+
+We need a different approach.
+
+Observation: The graph is arbitrary, but n is only 46. We can use a **branch and bound** search for independent set of exact size k, with pruning using maximum independent set bound. Since k ≤ n, and we only need one solution, we can do a recursive search:
+
+- Maintain a set of candidate vertices (not adjacent to chosen ones).
+- If current size + max_possible_in_candidates < k, prune.
+- Choose a vertex, include or exclude.
+
+We can compute max_possible_in_candidates using a greedy coloring bound (like in maximum clique algorithms). This is often fast for n=46.
+
+Let's implement a recursive backtracking with bitmasks and a greedy coloring bound.
+
+Pseudo:
+
+```
+def solve():
+    read n,m,k
+    adj = [0]*n  # bitmask of neighbors
+    for each edge u,v: adj[u] |= 1<<v; adj[v] |= 1<<u
+
+    # We'll search for independent set of size k
+    # Use bitmask for chosen set, and candidate set (vertices not adjacent to chosen)
+    # We'll order vertices by degree maybe.
+
+    # Recursive function:
+    # dfs(candidates, chosen_size, chosen_mask)
+    # if chosen_size == k: return chosen_mask
+    # if chosen_size + upper_bound(candidates) < k: return None
+    # pick a vertex v from candidates (maybe with smallest degree in candidates)
+    # Option 1: include v -> new_candidates = candidates & ~adj[v] & ~(1<<v)
+    # Option 2: exclude v -> candidates & ~(1<<v)
+
+    # upper_bound: greedy coloring of subgraph induced by candidates
+    # color vertices one by one, assign smallest color not used by neighbors already colored
+    # number of colors is an upper bound on max independent set size
+```
+
+This should work for n=46.
+
+Let's implement it.
+
+We need to be careful with recursion depth (max 46) and performance.
+
+We'll use bit operations.
+
+Implementation:
+
+```python
+import sys
+sys.setrecursionlimit(10000)
+
+def solve():
+    input = sys.stdin.readline
+    n, m, k = map(int, input().split())
+    adj = [0]*n
+    for _ in range(m):
+        u, v = map(int, input().split())
+        u -= 1; v -= 1
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+
+    # Precompute degree for ordering
+    deg = [bin(adj[i]).count('1') for i in range(n)]
+
+    # We'll use a recursive search
+    # candidates: bitmask of vertices that can still be added (not adjacent to chosen)
+    # chosen_mask: bitmask of chosen vertices
+    # chosen_size: number of chosen
+
+    # Upper bound: greedy coloring
+    def upper_bound(cand):
+        # color vertices in cand
+        # We'll iterate over bits
+        color = 0
+        remaining = cand
+        while remaining:
+            # pick a vertex (maybe lowest bit)
+            # assign a color, remove it and all vertices that conflict with it? Actually for coloring bound,
+            # we need to color the graph induced by cand. Greedy: pick vertex, assign smallest color not used by neighbors already colored.
+            # But we can do a simpler bound: size of maximum independent set <= number of vertices in a greedy coloring.
+            # We'll implement greedy coloring:
+            # We'll maintain color assignment as list of ints for vertices in cand? But cand changes.
+            # Simpler: use a known bound: repeatedly pick a vertex, remove it and its neighbors, count picks.
+            # That gives a maximal independent set, not an upper bound. Actually that gives a lower bound.
+            # For upper bound, we can use: max independent set <= number of vertices in a greedy coloring.
+            # Let's implement greedy coloring:
+            # We'll iterate over vertices in cand in some order (e.g., by degree).
+            # For each vertex, assign the smallest color not used by its neighbors already colored.
+            # The number of colors used is an upper bound.
+            # We'll do this with bitmasks: for each color, we have a bitmask of vertices assigned that color.
+            # But we need to know which vertices are already colored.
+            # Let's do:
+            # colored = 0
+            # colors_used = 0
+            # while cand & ~colored:
+            #     pick a vertex v from cand & ~colored (maybe lowest bit)
+            #     # find smallest color not used by neighbors of v that are already colored
+            #     # We'll maintain for each color a bitmask of vertices with that color
+            #     # But we can just try colors 0..colors_used-1
+            #     # For each color c, check if (color_masks[c] & adj[v]) == 0
+            #     # If yes, assign v to that color; else new color.
+            #     # This is O(colors * n) per vertex, but n=46, fine.
+            #     # However, we need to do this for many calls, so we need it fast.
+            #     # We can precompute for each vertex its neighbors, but we already have adj.
+            #     # Let's implement with a list of color masks.
+            #     color_masks = []
+            #     for c in range(colors_used):
+            #         if (color_masks[c] & adj[v]) == 0:
+            #             color_masks[c] |= (1<<v)
+            #             break
+            #     else:
+            #         color_masks.append(1<<v)
+            #         colors_used += 1
+            #     colored |= (1<<v)
+            # return colors_used
+            pass
+        # But this is O(n^2) per call, might be okay if calls are limited.
+        # We'll implement it.
+
+    # Actually, we can use a simpler bound: the size of a maximum independent set in a graph is at most the number of vertices in a greedy coloring. We'll implement that.
+
+    # But we need to be careful: the bound must be an upper bound on the maximum independent set size in the induced subgraph on candidates.
+    # Greedy coloring gives an upper bound because each color class is an independent set, and the number of colors is at least the chromatic number, which is >= the size of the maximum independent set? Actually, the chromatic number is at least the size of the maximum clique, not independent set. Wait, for independent set, the bound is: maximum independent set size <= number of vertices in a greedy coloring? No, that's not correct. The size of a maximum independent set is at most the number of colors in any proper coloring? Actually, in a proper coloring, each color class is an independent set, so the maximum independent set can be larger than the number of colors? No, each color class is an independent set, but the maximum independent set could be larger than the number of colors? Example: a star graph with center connected to 3 leaves. Proper coloring: center color 1, leaves color 2 (all leaves can share color 2 because they are not adjacent). So 2 colors. Maximum independent set: all 3 leaves, size 3 > 2. So number of colors is NOT an upper bound on independent set size. So that bound is wrong.
+
+    # The correct bound: maximum independent set size <= number of vertices - size of maximum matching? Not simple.
+
+    # A common bound for maximum independent set in branch and bound is: use a greedy coloring of the *complement* graph? Actually, maximum independent set in G is maximum clique in complement. For maximum clique, a common bound is the number of colors in a greedy coloring of the graph (since each color class is an independent set, and a clique can have at most one vertex per color). So for maximum independent set, we can apply that to the complement graph: color the complement graph, the number of colors is an upper bound on the size of a maximum independent set in the original graph. Because in the complement, each color class is a clique in the complement? Wait, in complement, a color class is an independent set in complement, which is a clique in original. So a clique in original can have at most one vertex per color in a proper coloring of complement. So the number of colors in a proper coloring of complement is an upper bound on the maximum clique in original, which is the maximum independent set in original. Yes! So we need to color the complement graph.
+
+    # So for candidates, we need to color the complement of the induced subgraph on candidates. That is, two vertices are adjacent in complement if they are NOT adjacent in original. So we need to build complement adjacency.
+
+    # Let's precompute comp_adj[i] = bitmask of vertices not adjacent to i (excluding i).
+
+    # Then upper_bound(cand) = number of colors in greedy coloring of complement graph induced by cand.
+
+    # We'll implement that.
+
+    comp_adj = [0]*n
+    for i in range(n):
+        comp_adj[i] = ((1<<n)-1) ^ (1<<i) ^ adj[i]
+
+    def upper_bound(cand):
+        # Greedy coloring of complement graph on vertices in cand
+        # We'll iterate over vertices in cand, assign smallest color not used by neighbors in complement already colored.
+        # We'll maintain color_masks list.
+        color_masks = []
+        colored = 0
+        remaining = cand
+        while remaining:
+            # pick a vertex (lowest bit)
+            v = (remaining & -remaining).bit_length() - 1
+            remaining &= remaining - 1
+            # find smallest color
+            assigned = False
+            for c, mask in enumerate(color_masks):
+                if (mask & comp_adj[v]) == 0:
+                    color_masks[c] |= (1<<v)
+                    assigned = True
+                    break
+            if not assigned:
+                color_masks.append(1<<v)
+        return len(color_masks)
+
+    # Now recursive search
+    # We'll order vertices by degree (maybe descending) to improve pruning.
+    order = sorted(range(n), key=lambda i: deg[i], reverse=True)
+    # But we'll use bitmask, so we can just pick lowest bit in candidates.
+
+    # We'll also precompute for each vertex its neighbors in the order? Not needed.
+
+    # We'll use a global found solution
+    solution = None
+
+    def dfs(cand, chosen_size, chosen_mask):
+        nonlocal solution
+        if solution is not None:
+            return
+        if chosen_size == k:
+            solution = chosen_mask
+            return
+        if cand == 0:
+            return
+        # Bound
+        if chosen_size + upper_bound(cand) < k:
+            return
+        # Choose a vertex with smallest degree in cand? Or just lowest bit.
+        # We'll pick the vertex with smallest degree in the induced subgraph? That might help.
+        # But computing degrees in cand each time is O(n). n=46, fine.
+        # Let's pick the vertex with smallest degree in cand (in original graph) to branch on.
+        # Actually, for independent set, picking a vertex with high degree is often better for pruning when including it (removes many candidates).
+        # We'll pick the vertex with highest degree in cand.
+        best_v = -1
+        best_deg = -1
+        temp = cand
+        while temp:
+            v = (temp & -temp).bit_length() - 1
+            d = (adj[v] & cand).bit_count()
+            if d > best_deg:
+                best_deg = d
+                best_v = v
+            temp &= temp - 1
+        v = best_v
+        # Option 1: include v
+        new_cand = cand & ~adj[v] & ~(1<<v)
+        dfs(new_cand, chosen_size+1, chosen_mask | (1<<v))
+        # Option 2: exclude v
+        dfs(cand & ~(1<<v), chosen_size, chosen_mask)
+
+    # Start with all vertices as candidates
+    dfs((1<<n)-1, 0, 0)
+
+    if solution is None:
+        print("NO")
+    else:
+        print("YES")
+        pins = [str(i+1) for i in range(n) if (solution>>i)&1]
+        print(" ".join(pins))
+
+if __name__ == "__main__":
+    solve()
+```
+
+But we need to ensure the bound is correct and the search terminates quickly. For n=46, worst-case empty graph, the bound will be exactly the number of vertices in cand, so it won't prune much, and the search will explore many branches. But we only need one solution, and we can find it quickly by including vertices greedily? Actually, in empty graph, any k vertices work. Our search will include vertices one by one until k, and since including a vertex doesn't remove any candidates (no edges), it will just pick the first k vertices. That's fast.
+
+For dense graphs, the bound will prune heavily.
+
+Let's test with examples.
+
+But we need to be careful: the upper_bound function is called many times, and it's O(n^2) each time. With n=46, that's ~2000 operations per call. If we have many calls, it might be okay.
+
+We can also add memoization for upper_bound? Not necessary.
+
+Let's test mentally with example 1:
+n=4,m=4,k=3, edges: (1,2),(1,3),(2,3),(3,4). Graph: triangle 1-2-3, and 3-4. Need independent set of size 3. Max independent set is {1,4} or {2,4} size 2, so NO. Our search should find no solution.
+
+Example 2: n=5,m=2,k=3, edges (1,2),(3,4). Independent set of size 3: {1,3,5} works. Search will find it.
+
+Example 3: n=3,m=3,k=1, triangle. Independent set size 1 works.
+
+Let's implement and test.
+
+Potential issue: recursion depth up to 46, fine.
+
+We also need to handle m=0: no edges, any k vertices work. Our search will pick first k.
+
+Let's write final code.
+
+But we must ensure we output only the code block.```python
+import sys
+
+def solve():
+    input = sys.stdin.readline
+    n, m, k = map(int, input().split())
+    adj = [0] * n
+    for _ in range(m):
+        u, v = map(int, input().split())
+        u -= 1
+        v -= 1
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+
+    # Complement adjacency for coloring bound
+    full = (1 << n) - 1
+    comp_adj = [0] * n
+    for i in range(n):
+        comp_adj[i] = full ^ (1 << i) ^ adj[i]
+
+    # Upper bound on max independent set size in candidate set
+    # using greedy coloring of the complement graph
+    def upper_bound(cand):
+        color_masks = []
+        remaining = cand
+        while remaining:
+            v = (remaining & -remaining).bit_length() - 1
+            remaining &= remaining - 1
+            placed = False
+            for c, mask in enumerate(color_masks):
+                if (mask & comp_adj[v]) == 0:
+                    color_masks[c] |= (1 << v)
+                    placed = True
+                    break
+            if not placed:
+                color_masks.append(1 << v)
+        return len(color_masks)
+
+    solution = None
+
+    def dfs(cand, chosen_size, chosen_mask):
+        nonlocal solution
+        if solution is not None:
+            return
+        if chosen_size == k:
+            solution = chosen_mask
+            return
+        if cand == 0:
+            return
+        if chosen_size + upper_bound(cand) < k:
+            return
+
+        # Pick vertex with highest degree in the candidate set
+        best_v = -1
+        best_deg = -1
+        temp = cand
+        while temp:
+            v = (temp & -temp).bit_length() - 1
+            d = (adj[v] & cand).bit_count()
+            if d > best_deg:
+                best_deg = d
+                best_v = v
+            temp &= temp - 1
+
+        v = best_v
+        # Include v
+        dfs(cand & ~adj[v] & ~(1 << v), chosen_size + 1, chosen_mask | (1 << v))
+        # Exclude v
+        dfs(cand & ~(1 << v), chosen_size, chosen_mask)
+
+    dfs(full, 0, 0)
+
+    if solution is None:
+        print("NO")
+    else:
+        print("YES")
+        pins = [str(i + 1) for i in range(n) if (solution >> i) & 1]
+        print(" ".join(pins))
+
+if __name__ == "__main__":
+    solve()
+```

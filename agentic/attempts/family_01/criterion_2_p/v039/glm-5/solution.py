@@ -2,10 +2,10 @@ import sys
 from collections import deque
 
 def solve():
-    input_data = sys.stdin.read().split()
-    if not input_data:
+    data = sys.stdin.read().split()
+    if not data:
         return
-    it = iter(input_data)
+    it = iter(data)
     n = int(next(it))
     m = int(next(it))
     

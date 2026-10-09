@@ -1,0 +1,188 @@
+Looking at this problem, we need to find a perfect matching in a 3-partite 3-uniform hypergraph where each partition has exactly k vertices, and we need to select exactly k hyperedges covering all vertices.
+
+With k ≤ 22, a brute-force approach over all permutations is too expensive (22! is huge). However, we can use a meet-in-the-middle approach combined with backtracking and bitmask DP.
+
+**Key insight**: We need to assign each technician x a pair (y, z) such that all y's are distinct, all z's are distinct, and (x, y, z) is certified. This is equivalent to finding a system of distinct representatives.
+
+**Approach**: 
+1. Group certified combinations by technician x.
+2. Use backtracking with bitmask pruning: for each technician, try assigning a (y, z) pair where neither y nor z is used yet.
+3. Use bitmask DP with memoization on (technician_index, used_y_mask, used_z_mask).
+
+The state space is at most k × 2^k × 2^k. For k=22, this is 22 × 4^22 which is too large for full memoization, but with pruning (only reachable states), backtracking with good ordering should work efficiently in practice since the branching factor is limited.
+
+To optimize, I'll use a recursive backtracking approach with bitmask representation and process technicians in order of fewest available options first (constraint propagation heuristic).
+
+```python
+import sys
+from functools import lru_cache
+
+def solve():
+    input_data = sys.stdin.read().split()
+    idx = 0
+    k = int(input_data[idx]); idx += 1
+    t = int(input_data[idx]); idx += 1
+    
+    # Group combinations by technician
+    by_tech = [[] for _ in range(k + 1)]
+    for _ in range(t):
+        x = int(input_data[idx]); idx += 1
+        y = int(input_data[idx]); idx += 1
+        z = int(input_data[idx]); idx += 1
+        by_tech[x].append((y - 1, z - 1))  # 0-indexed
+    
+    # Check each technician has at least one option
+    for i in range(1, k + 1):
+        if not by_tech[i]:
+            print("NO")
+            return
+    
+    # Order technicians by number of options (fewest first for better pruning)
+    tech_order = list(range(1, k + 1))
+    tech_order.sort(key=lambda x: len(by_tech[x]))
+    
+    full_mask = (1 << k) - 1
+    result = [None] * k
+    
+    # Backtracking with memoization of dead-end states
+    dead_states = set()
+    
+    def backtrack(pos, used_y, used_z):
+        if pos == k:
+            return True
+        key = (pos, used_y, used_z)
+        if key in dead_states:
+            return False
+        
+        tech = tech_order[pos]
+        for (y, z) in by_tech[tech]:
+            ybit = 1 << y
+            zbit = 1 << z
+            if not (used_y & ybit) and not (used_z & zbit):
+                result[pos] = (tech, y + 1, z + 1)
+                if backtrack(pos + 1, used_y | ybit, used_z | zbit):
+                    return True
+                result[pos] = None
+        
+        dead_states.add(key)
+        return False
+    
+    if backtrack(0, 0, 0):
+        print("YES")
+        for r in result:
+            print(f"{r[0]} {r[1]} {r[2]}")
+    else:
+        print("NO")
+
+solve()
+```
+
+Wait, the dead_states set could grow too large. Let me reconsider. For k=22, the number of reachable states might still be manageable with good pruning, but storing all dead states could blow up memory.
+
+A better approach: since we're assigning pairs (y,z) to technicians, and we need y's to be a permutation and z's to be a permutation, we can think of this as: for each technician, we pick a y (forming a permutation of y's), and then check if the remaining z-assignment is a perfect matching in a bipartite graph.
+
+Actually, let me use a cleaner approach: iterate over all permutations of y-assignments (using backtracking on y), then for each valid y-assignment, check if z's can be matched using bipartite matching. But k! is too large for k=22.
+
+Let me stick with the backtracking approach but be smarter about memoization - only memoize when the remaining problem is small enough.
+
+```python
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    idx = 0
+    k = int(input_data[idx]); idx += 1
+    t = int(input_data[idx]); idx += 1
+    
+    by_tech = [[] for _ in range(k + 1)]
+    for _ in range(t):
+        x = int(input_data[idx]); idx += 1
+        y = int(input_data[idx]); idx += 1
+        z = int(input_data[idx]); idx += 1
+        by_tech[x].append((y - 1, z - 1))
+    
+    for i in range(1, k + 1):
+        if not by_tech[i]:
+            print("NO")
+            return
+    
+    tech_order = list(range(1, k + 1))
+    tech_order.sort(key=lambda x: len(by_tech[x]))
+    
+    result = [None] * k
+    
+    def backtrack(pos, used_y, used_z):
+        if pos == k:
+            return True
+        tech = tech_order[pos]
+        for (y, z) in by_tech[tech]:
+            ybit = 1 << y
+            zbit = 1 << z
+            if not (used_y & ybit) and not (used_z & zbit):
+                result[pos] = (tech, y + 1, z + 1)
+                if backtrack(pos + 1, used_y | ybit, used_z | zbit):
+                    return True
+        result[pos] = None
+        return False
+    
+    if backtrack(0, 0, 0):
+        print("YES")
+        for r in result:
+            print(f"{r[0]} {r[1]} {r[2]}")
+    else:
+        print("NO")
+
+solve()
+```
+
+This should work for the given constraints with the pruning from ordering technicians by fewest options first. The worst case could be exponential, but with k ≤ 22 and the constraint propagation from bitmask pruning, it should handle practical cases.
+
+```python
+import sys
+
+def solve():
+    data = sys.stdin.read().split()
+    idx = 0
+    k = int(data[idx]); idx += 1
+    t = int(data[idx]); idx += 1
+    
+    by_tech = [[] for _ in range(k + 1)]
+    for _ in range(t):
+        x = int(data[idx]); idx += 1
+        y = int(data[idx]); idx += 1
+        z = int(data[idx]); idx += 1
+        by_tech[x].append((y - 1, z - 1))
+    
+    for i in range(1, k + 1):
+        if not by_tech[i]:
+            print("NO")
+            return
+    
+    tech_order = list(range(1, k + 1))
+    tech_order.sort(key=lambda x: len(by_tech[x]))
+    
+    result = [None] * k
+    
+    def backtrack(pos, used_y, used_z):
+        if pos == k:
+            return True
+        tech = tech_order[pos]
+        for (y, z) in by_tech[tech]:
+            ybit = 1 << y
+            zbit = 1 << z
+            if not (used_y & ybit) and not (used_z & zbit):
+                result[pos] = (tech, y + 1, z + 1)
+                if backtrack(pos + 1, used_y | ybit, used_z | zbit):
+                    return True
+        result[pos] = None
+        return False
+    
+    if backtrack(0, 0, 0):
+        print("YES")
+        for r in result:
+            print(f"{r[0]} {r[1]} {r[2]}")
+    else:
+        print("NO")
+
+solve()
+```

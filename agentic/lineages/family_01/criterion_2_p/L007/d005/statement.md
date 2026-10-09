@@ -1,26 +1,26 @@
-# Problem B — Resonant Foundations
+# Problem B — Network Configurations
 
 Time limit: 1 s
 Memory limit: 256 MB
 
-The structural integrity of a new skyscraper depends on $n$ primary load-bearing pillars, numbered 1 to $n$. The engineering firm must select a concrete composite grade for each pillar. The approved composite grades are exactly 1 and 2.
+A communication grid consists of $n$ radio towers. You need to assign each tower $i$ a protocol flag $f_i$, which must be chosen from the set $\{1, 2\}$. 
 
-To mitigate wind-induced vibrations, the design includes $m$ acoustic dampeners. Each dampener spans between a specific pair of pillars. A dampener's ability to properly distribute stress depends on the composite grades of the two pillars it connects. 
+There are $m$ critical links between specific pairs of towers. 
 
-For any dampener connecting pillar $u$ with composite grade $c_u$ and pillar $v$ with composite grade $c_v$, its stress dissipation factor is calculated as:
-$S(c_u, c_v) = c_u^3 + c_v^3 + 7(c_u^2 + c_v^2) + 2(c_u + c_v) - 20 c_u c_v$
+To prevent catastrophic interference and signal dropping, the configuration must adhere to two strict safety regulations for every critical link connecting a tower $u$ and a tower $v$:
+- High-Bandwidth Collision Rule: It is prohibited for both tower $u$ and tower $v$ to simultaneously be assigned flag 1.
+- Low-Bandwidth Timeout Rule: It is prohibited for both tower $u$ and tower $v$ to simultaneously be assigned flag 2.
 
-The skyscraper's vibration control system is considered safe if and only if the sum of the stress dissipation factors across all $m$ dampeners is exactly $10m$.
-
-Your task is to determine if there is a safe composite selection for all $n$ pillars. If multiple safe selections exist, the procurement system requires the one that is lexicographically smallest when represented as a sequence of $n$ composite grades.
+Determine if a valid assignment of protocol flags exists for all towers such that all critical links satisfy both safety regulations. If no such assignment is possible, report impossibility.
 
 ## Input
 The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$).
-Each of the next $m$ lines contains two integers $u$ and $v$ — the indices of the two pillars spanned by a dampener.
+Each of the next $m$ lines contains two integers $u$ and $v$ — a pair of towers connected by a critical link.
 
 ## Output
-If no safe selection exists, print a single line `NO`.
-Otherwise print `YES`, then a second line with $n$ integers $c_1 \dots c_n$ (each being 1 or 2), representing the lexicographically smallest safe selection.
+If no valid assignment exists, print a single line NO.
+Otherwise print YES, then a second line with $n$ integers $f_1 \dots f_n$ (each in $\{1,2\}$). 
+If multiple valid assignments exist, you must resolve ties by choosing the assignment that assigns the smallest possible flag to tower 1. If ties remain, among those, choose the one that assigns the smallest possible flag to tower 2, and continue this sequential preference for smaller flags up to tower $n$ (this is equivalent to the lexicographically smallest valid assignment).
 
 ## Example 1
 Input:

@@ -1,0 +1,126 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    # Each motif requires at least one target to be satisfied
+    # Clause structure: (x_a or x_b or x_c)
+    # x_i = 1 if position i is L, 0 if D
+    # For target l: if l > 0, requires x_{|l|} = 1; if l < 0, requires x_{|l|} = 0
+    
+    # We use a specialized 2-SAT solver for 3-CNF (n <= 90)
+    # Greedy elimination: find a variable that appears in all satisfying assignments
+    
+    clauses = []
+    for _ in range(m):
+        l1 = int(next(it))
+        l2 = int(next(it))
+        l3 = int(next(it))
+        clauses.append((l1, l2, l3))
+    
+    # State: tuple of sets (L_set, D_set) or None
+    # We'll use masks for efficiency since n <= 90 (but that's > 64, so use sets or bit arrays)
+    # Python int can be arbitrary precision bit mask
+    
+    # Encode: bit i (1-indexed from 1) -> position i
+    # mask_L has bit i set if position i is forced to L
+    # mask_D has bit i set if position i is forced to D
+    
+    states = [(0, 0)]
+    
+    for motif in clauses:
+        l1, l2, l3 = motif
+        new_states = []
+        for (mask_L, mask_D) in states:
+            # Check each target
+            # Target 1
+            ok1 = True
+            new_mask_L1, new_mask_D1 = mask_L, mask_D
+            p1 = abs(l1)
+            if l1 > 0:  # requires L
+                if (mask_D >> p1) & 1:
+                    ok1 = False
+                else:
+                    new_mask_L1 |= (1 << p1)
+            else:  # requires D
+                if (mask_L >> p1) & 1:
+                    ok1 = False
+                else:
+                    new_mask_D1 |= (1 << p1)
+            
+            # Target 2
+            ok2 = True
+            new_mask_L2, new_mask_D2 = mask_L, mask_D
+            p2 = abs(l2)
+            if l2 > 0:
+                if (mask_D >> p2) & 1:
+                    ok2 = False
+                else:
+                    new_mask_L2 |= (1 << p2)
+            else:
+                if (mask_L >> p2) & 1:
+                    ok2 = False
+                else:
+                    new_mask_D2 |= (1 << p2)
+            
+            # Target 3
+            ok3 = True
+            new_mask_L3, new_mask_D3 = mask_L, mask_D
+            p3 = abs(l3)
+            if l3 > 0:
+                if (mask_D >> p3) & 1:
+                    ok3 = False
+                else:
+                    new_mask_L3 |= (1 << p3)
+            else:
+                if (mask_L >> p3) & 1:
+                    ok3 = False
+                else:
+                    new_mask_D3 |= (1 << p3)
+            
+            if ok1:
+                new_states.append((new_mask_L1, new_mask_D1))
+            if ok2:
+                new_states.append((new_mask_L2, new_mask_D2))
+            if ok3:
+                new_states.append((new_mask_L3, new_mask_D3))
+        
+        if not new_states:
+            print("NO")
+            return
+        
+        # Merge states: find equivalent states
+        merged = []
+        for mask_L, mask_D in new_states:
+            # Check if this state is already covered or can be merged
+            found = False
+            for i, (mL, mD) in enumerate(merged):
+                if mask_L == mL and mask_D == mD:
+                    found = True
+                    break
+            if not found:
+                merged.append((mask_L, mask_D))
+        states = merged
+    
+    # At this point, any state in states is valid
+    # Extract assignment from first valid state
+    mask_L, mask_D = states[0]
+    result = []
+    for i in range(1, n + 1):
+        if (mask_L >> i) & 1:
+            result.append(1)
+        elif (mask_D >> i) & 1:
+            result.append(0)
+        else:
+            result.append(0)  # Default: could be 0 or 1
+    
+    print("YES")
+    print(" ".join(map(str, result)))
+
+if __name__ == "__main__":
+    solve()

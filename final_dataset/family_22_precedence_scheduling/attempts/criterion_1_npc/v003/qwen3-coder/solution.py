@@ -1,0 +1,233 @@
+from collections import defaultdict, deque
+
+def solve():
+    n, M, T, m = map(int, input().split())
+    
+    # Build graph and in-degree count
+    graph = defaultdict(list)
+    in_degree = [0] * (n + 1)
+    
+    for _ in range(m):
+        a, b = map(int, input().split())
+        graph[a].append(b)
+        in_degree[b] += 1
+    
+    # Topological sort with slot assignment
+    # We use a queue for nodes with in-degree 0
+    queue = deque()
+    for i in range(1, n + 1):
+        if in_degree[i] == 0:
+            queue.append(i)
+    
+    # slots[i] will store the slot number for task i
+    slots = [0] * (n + 1)
+    
+    # For each slot, we track how many tasks are assigned
+    slot_count = [0] * (T + 1)
+    
+    # Process tasks in topological order
+    while queue:
+        # Group tasks by their earliest possible slot
+        # We process all tasks that can be scheduled in the same slot together
+        next_queue = deque()
+        current_slot_tasks = []
+        
+        # Collect all available tasks
+        temp_queue = deque(queue)
+        while temp_queue:
+            task = temp_queue.popleft()
+            current_slot_tasks.append(task)
+        
+        # Try to assign tasks to slots in topological order
+        # We need to be more careful - let's process one by one
+        queue = deque()
+        available_tasks = []
+        
+        # First, collect all tasks ready to be scheduled
+        temp_queue = deque()
+        while queue:
+            temp_queue.append(queue.popleft())
+            
+        queue = temp_queue
+        
+        # Actually, let's restart with a cleaner approach
+        # Reset queue
+        for i in range(1, n + 1):
+            if in_degree[i] == 0:
+                queue.append(i)
+        
+        slot = 1
+        scheduled = 0
+        
+        while scheduled < n and slot <= T:
+            # Collect all tasks that can be scheduled in current slot
+            candidates = []
+            temp_queue = deque()
+            
+            while queue:
+                task = queue.popleft()
+                # The earliest slot this task can be scheduled is max(1, slots[predecessor] + 1)
+                earliest = 1
+                # We need to track predecessors somehow - let's rebuild approach
+                
+                candidates.append(task)
+            
+            # Assign up to M tasks to current slot
+            assigned_count = 0
+            remaining_candidates = []
+            
+            for task in candidates:
+                # Check earliest slot this task can be scheduled
+                earliest_slot = 1
+                # Since we're doing topological sort, all predecessors should already be scheduled
+                # But we need to track the actual constraints
+                
+                # Let's restart with proper tracking
+                
+                if assigned_count < M:
+                    slots[task] = slot
+                    scheduled += 1
+                    assigned_count += 1
+                    
+                    # Decrease in-degree of neighbors
+                    for neighbor in graph[task]:
+                        in_degree[neighbor] -= 1
+                        if in_degree[neighbor] == 0:
+                            queue.append(neighbor)
+                else:
+                    remaining_candidates.append(task)
+            
+            # Put back remaining candidates for next slot
+            for task in remaining_candidates:
+                queue.appendleft(task)
+                
+            slot += 1
+        
+        if scheduled < n:
+            print("NO")
+            return
+            
+        # Verify the solution
+        # Check if all tasks are scheduled within deadline
+        for i in range(1, n + 1):
+            if slots[i] == 0 or slots[i] > T:
+                print("NO")
+                return
+        
+        # Check precedence constraints
+        for i in range(1, n + 1):
+            for j in graph[i]:
+                if slots[i] >= slots[j]:
+                    print("NO")
+                    return
+        
+        # Check slot capacity
+        slot_count = [0] * (T + 1)
+        for i in range(1, n + 1):
+            slot_count[slots[i]] += 1
+            
+        for i in range(1, T + 1):
+            if slot_count[i] > M:
+                print("NO")
+                return
+                
+        print("YES")
+        print(*slots[1:])
+        return
+    
+    # Let's implement a cleaner version
+    # Reset in_degree
+    in_degree = [0] * (n + 1)
+    graph = defaultdict(list)
+    
+    for _ in range(m):
+        a, b = map(int, input().split())
+        graph[a].append(b)
+        in_degree[b] += 1
+    
+    # Kahn's algorithm with slot assignment
+    queue = deque()
+    in_degree_copy = in_degree[:]
+    
+    for i in range(1, n + 1):
+        if in_degree_copy[i] == 0:
+            queue.append(i)
+    
+    slots = [0] * (n + 1)
+    slot_count = [0] * (T + 1)
+    
+    # For each task, we track the earliest slot it can be scheduled
+    earliest_slot = [1] * (n + 1)
+    
+    scheduled = 0
+    
+    for current_slot in range(1, T + 1):
+        if scheduled == n:
+            break
+            
+        # Collect tasks that can be scheduled in current slot
+        available = []
+        temp_queue = deque()
+        
+        while queue:
+            task = queue.popleft()
+            if earliest_slot[task] <= current_slot:
+                available.append(task)
+            else:
+                temp_queue.append(task)
+        
+        queue = temp_queue
+        
+        # Sort available tasks (optional, for deterministic behavior)
+        available.sort()
+        
+        # Assign up to M tasks to current slot
+        assigned = 0
+        for task in available:
+            if assigned >= M:
+                queue.append(task)  # Reschedule for later
+            else:
+                slots[task] = current_slot
+                scheduled += 1
+                assigned += 1
+                
+                # Update neighbors' earliest slot
+                for neighbor in graph[task]:
+                    in_degree_copy[neighbor] -= 1
+                    earliest_slot[neighbor] = max(earliest_slot[neighbor], current_slot + 1)
+                    if in_degree_copy[neighbor] == 0:
+                        queue.append(neighbor)
+        
+        # Put back unassigned tasks
+        for task in available[assigned:]:
+            queue.append(task)
+    
+    if scheduled < n:
+        print("NO")
+        return
+    
+    # Final verification
+    for i in range(1, n + 1):
+        if slots[i] == 0 or slots[i] > T:
+            print("NO")
+            return
+    
+    for i in range(1, n + 1):
+        for j in graph[i]:
+            if slots[i] >= slots[j]:
+                print("NO")
+                return
+    
+    slot_count = [0] * (T + 1)
+    for i in range(1, n + 1):
+        slot_count[slots[i]] += 1
+        
+    for i in range(1, T + 1):
+        if slot_count[i] > M:
+            print("NO")
+            return
+    
+    print("YES")
+    print(*slots[1:])
+
+solve()

@@ -1,0 +1,49 @@
+# Problem A — Security Clearance Resolution
+
+Time limit: 2 s   Memory limit: 256 MB
+
+In a secure distributed architecture, permissions must be carefully allocated across a network of $n$ modules. You must assign exactly one security tier to each module, choosing from the available tiers $\{1, 2, 3\}$.
+
+The system's integrity is maintained by $m$ strict isolation policies. Each policy dictates that a specific pair of modules, $u$ and $v$, cannot share the same security tier. While a single policy only limits two modules, the overlapping nature of these rules creates complex, system-wide dependencies. Be warned: the evaluation scenarios contain explicit adversarial instances. Module indices are intentionally arranged to defeat increasing-index exploration and ascending-tier trial orders, and the tests contain such instances with no exploitable structural promise.
+
+You must determine whether a complete security tier assignment exists that satisfies every isolation policy. If such an assignment is possible, you must find the one that is lexicographically smallest.
+
+## Input
+The first line contains two integers $n$ and $m$ (1 ≤ $n$ ≤ 40, 0 ≤ $m$ ≤ $n(n−1)/2$), denoting the number of modules and the number of isolation policies.
+Each of the next $m$ lines contains two integers $u$ and $v$ (1 ≤ $u, v$ ≤ $n$, $u \neq v$), representing a policy that prevents module $u$ and module $v$ from operating at the same security tier.
+
+## Output
+If it is impossible to assign tiers without breaking a policy, output `NO` on a single line.
+If a valid assignment can be made, output `YES` on the first line. On the second line, output $n$ integers $c_1, c_2, \dots, c_n$ (where $c_i \in \{1, 2, 3\}$) to represent the assigned security tier for each module. This sequence of tiers must be the lexicographically smallest valid configuration (comparing the tier of module 1 first, then module 2, and so on).
+
+## Example 1
+Input:
+```
+4 5
+1 2
+1 3
+2 3
+1 4
+2 4
+```
+Output:
+```
+YES
+1 2 3 3
+```
+
+## Example 2
+Input:
+```
+4 6
+1 2
+1 3
+1 4
+2 3
+2 4
+3 4
+```
+Output:
+```
+NO
+```

@@ -290,7 +290,7 @@ def check_record(rec) -> list[str]:
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--family", required=True)   # id or 'all'
-    ap.add_argument("--criterion", type=int, choices=[1, 2, 3])
+    ap.add_argument("--criterion", type=int, choices=[1, 2])
     ap.add_argument("--check", action="store_true")
     args = ap.parse_args()
 

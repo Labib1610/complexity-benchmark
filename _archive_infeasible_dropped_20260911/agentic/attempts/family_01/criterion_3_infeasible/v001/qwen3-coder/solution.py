@@ -1,0 +1,40 @@
+import sys
+from collections import defaultdict
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    edges = []
+    adj = [set() for _ in range(n + 1)]
+    
+    idx = 2
+    for _ in range(m):
+        u = int(data[idx])
+        v = int(data[idx + 1])
+        idx += 2
+        edges.append((u, v))
+        adj[u].add(v)
+        adj[v].add(u)
+    
+    # For each edge (u,v), check for a common neighbor w
+    # which would form a triangle u-v-w
+    for u in range(1, n + 1):
+        neighbors = sorted(list(adj[u]))
+        for i in range(len(neighbors)):
+            v = neighbors[i]
+            if v <= u:
+                continue
+            for w in neighbors[i+1:]:
+                if w <= v:
+                    continue
+                if w in adj[v]:
+                    print(u, v, w)
+                    return
+
+if __name__ == "__main__":
+    main()

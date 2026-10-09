@@ -1,7 +1,8 @@
 import sys
+sys.setrecursionlimit(10000)
 
 def solve():
-    data = sys.stdin.read().strip().split()
+    data = sys.stdin.read().split()
     if not data:
         return
     it = iter(data)
@@ -15,76 +16,81 @@ def solve():
         adj[u].append(v)
         adj[v].append(u)
     
-    # We use backtracking with pruning.
-    # Since n <= 40, we need efficient pruning.
-    # We assign colors 1, 2, 3 to nodes 0..n-1.
-    # We try to find the lexicographically smallest valid assignment.
+    assignment = [0] * n
     
-    colors = [0] * n
+    def dfs(u):
+        for v in adj[u]:
+            if assignment[v] == 0:
+                assignment[v] = 3 - assignment[u]
+                if not dfs(v):
+                    return False
+            elif assignment[v] == assignment[u]:
+                return False
+        return True
     
-    # Precompute neighbors for faster access
-    # We can order nodes to improve pruning, but for lexicographical order,
-    # we must assign in order 0 to n-1.
+    # Process each connected component
+    for i in range(n):
+        if assignment[i] == 0:
+            assignment[i] = 1
+            if not dfs(i):
+                print("NO")
+                return
     
-    # We can use forward checking: for each node, track available colors.
-    # available[i] is a bitmask of available colors (bits 0, 1, 2 for colors 1, 2, 3).
-    available = [0b111] * n
+    # Build conflict graph for vertices with assignment 1
+    # These vertices must be assigned to enclosures 1 or 2
+    # Original assignment 1 -> try 1 or 2
+    # Original assignment 2 -> must be 3
     
-    def backtrack(idx):
-        if idx == n:
-            return True
-        
-        u = idx
-        # Determine available colors for u based on assigned neighbors
-        # We can compute this dynamically or maintain it.
-        # Maintaining it requires updating and restoring.
-        
-        # Let's maintain `available` array.
-        # Initially all colors available.
-        # When a neighbor v is assigned color c, we remove c from u's available set.
-        
-        # Current available colors for u
-        avail_u = available[u]
-        
-        # Try colors 1, 2, 3 in order
-        for c in range(1, 4):
-            bit = 1 << (c - 1)
-            if not (avail_u & bit):
-                continue
-            
-            colors[u] = c
-            
-            # Save state of neighbors to restore later
-            changed_neighbors = []
-            conflict = False
-            
-            for v in adj[u]:
-                if colors[v] == 0: # unassigned neighbor
-                    bit_v = 1 << (c - 1)
-                    if available[v] & bit_v:
-                        available[v] ^= bit_v
-                        changed_neighbors.append(v)
-                        if available[v] == 0:
-                            conflict = True
-                            break
-            
-            if not conflict:
-                if backtrack(idx + 1):
-                    return True
-            
-            # Restore state
-            for v in changed_neighbors:
-                available[v] |= (1 << (c - 1))
-            
-            colors[u] = 0
-            
-        return False
+    # Vertices that need to be assigned to 1 or 2
+    group = [i for i in range(n) if assignment[i] == 1]
+    idx = {v: i for i, v in enumerate(group)}
+    k = len(group)
     
-    if backtrack(0):
+    if k == 0:
+        # All vertices are in group 2, assign to enclosure 3
+        result = [3] * n
         print("YES")
-        print(' '.join(map(str, colors)))
-    else:
+        print(' '.join(map(str, result)))
+        return
+    
+    # Build conflict graph among group vertices
+    conflict_adj = [[] for _ in range(k)]
+    for u in group:
+        for v in adj[u]:
+            if v in idx:
+                conflict_adj[idx[u]].append(idx[v])
+    
+    # Check if conflict graph is bipartite
+    color = [-1] * k
+    valid = True
+    
+    def dfs_color(u, c):
+        nonlocal valid
+        color[u] = c
+        for v_idx in conflict_adj[u]:
+            if color[v_idx] == -1:
+                dfs_color(v_idx, 1 - c)
+            elif color[v_idx] == c:
+                valid = False
+    
+    for i in range(k):
+        if color[i] == -1:
+            dfs_color(i, 0)
+    
+    if not valid:
         print("NO")
+        return
+    
+    # Construct final assignment
+    result = [0] * n
+    for i in range(n):
+        if assignment[i] == 2:
+            result[i] = 3
+        else:
+            # group vertex: color 0 -> enclosure 1, color 1 -> enclosure 2
+            result[i] = color[idx[i]] + 1
+    
+    print("YES")
+    print(' '.join(map(str, result)))
 
-if __name__ == '__main__':
-    solve()
+solve()

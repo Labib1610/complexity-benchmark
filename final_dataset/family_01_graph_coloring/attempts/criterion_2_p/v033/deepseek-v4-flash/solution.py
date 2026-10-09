@@ -1,0 +1,94 @@
+import sys
+from collections import deque
+
+input = sys.stdin.readline
+
+n, m = map(int, input().split())
+adj = [[] for _ in range(n)]
+for _ in range(m):
+    u, v = map(int, input().split())
+    u -= 1
+    v -= 1
+    adj[u].append(v)
+    adj[v].append(u)
+
+color = [-1] * n
+possible = True
+
+for i in range(n):
+    if color[i] == -1:
+        color[i] = 0
+        q = deque([i])
+        while q:
+            u = q.popleft()
+            for v in adj[u]:
+                if color[v] == -1:
+                    color[v] = color[u] ^ 1
+                    q.append(v)
+                elif color[v] == color[u]:
+                    possible = False
+                    break
+            if not possible:
+                break
+    if not possible:
+        break
+
+if not possible:
+    print("NO")
+else:
+    # Now we have a valid 2-coloring, but we want lexicographically smallest.
+    # We'll try to assign 1 to as many small indices as possible.
+    # We can do a BFS/DFS that tries color 1 first for each unvisited node.
+    color = [-1] * n
+    for i in range(n):
+        if color[i] == -1:
+            color[i] = 0  # 0 means shift 1
+            q = deque([i])
+            while q:
+                u = q.popleft()
+                for v in adj[u]:
+                    if color[v] == -1:
+                        color[v] = color[u] ^ 1
+                        q.append(v)
+    # But this may not be lexicographically smallest globally.
+    # We need to try assigning 1 to each node if possible.
+    # We'll do a more careful approach: try to set each node to 1 if possible.
+    color = [-1] * n
+    for i in range(n):
+        if color[i] == -1:
+            # try color 0 (shift 1)
+            color[i] = 0
+            q = deque([i])
+            ok = True
+            while q:
+                u = q.popleft()
+                for v in adj[u]:
+                    if color[v] == -1:
+                        color[v] = color[u] ^ 1
+                        q.append(v)
+                    elif color[v] == color[u]:
+                        ok = False
+                        break
+                if not ok:
+                    break
+            if not ok:
+                # revert and try color 1
+                # reset this component
+                stack = [i]
+                color[i] = -1
+                while stack:
+                    u = stack.pop()
+                    for v in adj[u]:
+                        if color[v] != -1:
+                            color[v] = -1
+                            stack.append(v)
+                color[i] = 1
+                q = deque([i])
+                while q:
+                    u = q.popleft()
+                    for v in adj[u]:
+                        if color[v] == -1:
+                            color[v] = color[u] ^ 1
+                            q.append(v)
+    print("YES")
+    print(" ".join(str(c + 1) for c in color))

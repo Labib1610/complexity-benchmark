@@ -1,0 +1,63 @@
+import sys
+
+def solve():
+    input = sys.stdin.readline
+    q, t = map(int, input().split())
+    n = 3 * q
+    teams = []
+    for _ in range(t):
+        a, b, c = map(int, input().split())
+        teams.append((a - 1, b - 1, c - 1))
+    
+    # Sort teams by size of first element to help pruning
+    teams.sort(key=lambda x: x[0])
+    
+    # Build adjacency: for each person, list of team indices
+    person_to_teams = [[] for _ in range(n)]
+    for idx, (a, b, c) in enumerate(teams):
+        person_to_teams[a].append(idx)
+        person_to_teams[b].append(idx)
+        person_to_teams[c].append(idx)
+    
+    used = [False] * t
+    chosen = []
+    full_mask = (1 << n) - 1
+    
+    def backtrack(mask):
+        if mask == full_mask:
+            return True
+        # Find first unused person
+        # We can find the lowest zero bit
+        # Use bit trick: ~mask & (mask+1) gives lowest zero bit
+        # But Python ints are arbitrary precision, so we can loop
+        # For speed, find first person not used
+        # We'll use a loop over persons
+        for p in range(n):
+            if not (mask >> p) & 1:
+                break
+        # Try teams containing p
+        for idx in person_to_teams[p]:
+            if used[idx]:
+                continue
+            a, b, c = teams[idx]
+            if (mask >> a) & 1 or (mask >> b) & 1 or (mask >> c) & 1:
+                continue
+            used[idx] = True
+            chosen.append(idx)
+            new_mask = mask | (1 << a) | (1 << b) | (1 << c)
+            if backtrack(new_mask):
+                return True
+            chosen.pop()
+            used[idx] = False
+        return False
+    
+    if backtrack(0):
+        print("YES")
+        for idx in chosen:
+            a, b, c = teams[idx]
+            print(a + 1, b + 1, c + 1)
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()

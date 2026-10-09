@@ -1,0 +1,64 @@
+import sys
+from collections import defaultdict, deque
+
+def main():
+    import sys
+    sys.setrecursionlimit(1 << 25)
+    
+    n, m = map(int, sys.stdin.readline().split())
+    
+    if m == 0:
+        # No constraints, assign all to vault 1 for lex smallest
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
+    
+    adj = defaultdict(list)
+    for _ in range(m):
+        u, v = map(int, sys.stdin.readline().split())
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    color = [0] * (n + 1)  # 0: unvisited, 1: color 1, 2: color 2
+    visited = [False] * (n + 1)
+    
+    # Check if bipartite using BFS/DFS for each component
+    for start in range(1, n + 1):
+        if visited[start]:
+            continue
+        # Start BFS coloring
+        queue = deque()
+        queue.append(start)
+        color[start] = 1
+        visited[start] = True
+        
+        while queue:
+            node = queue.popleft()
+            current_color = color[node]
+            next_color = 3 - current_color  # flips 1->2 and 2->1
+            
+            for neighbor in adj[node]:
+                if not visited[neighbor]:
+                    visited[neighbor] = True
+                    color[neighbor] = next_color
+                    queue.append(neighbor)
+                elif color[neighbor] != next_color:
+                    # Conflict found
+                    print("NO")
+                    return
+    
+    # If we reach here, it's bipartite
+    # Assign colors, preferring 1 for lex smallest
+    result = []
+    for i in range(1, n + 1):
+        if color[i] == 0:
+            # Isolated node, assign 1
+            result.append('1')
+        else:
+            result.append(str(color[i]))
+    
+    print("YES")
+    print(" ".join(result))
+
+if __name__ == "__main__":
+    main()

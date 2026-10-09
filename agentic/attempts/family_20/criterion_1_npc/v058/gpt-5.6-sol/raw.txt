@@ -1,0 +1,284 @@
+```python
+import sys
+
+sys.setrecursionlimit(10000)
+
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if len(data) < 2:
+        return
+
+    n, m = data[0], data[1]
+    if m != 3 * n // 2 or len(data) != 2 + 2 * m:
+        print("NO")
+        return
+
+    edges = []
+    adj = [[] for _ in range(n)]
+
+    pos = 2
+    for eid in range(m):
+        u = data[pos] - 1
+        v = data[pos + 1] - 1
+        pos += 2
+        if not (0 <= u < n and 0 <= v < n) or u == v:
+            print("NO")
+            return
+        edges.append((u, v))
+        adj[u].append(eid)
+        adj[v].append(eid)
+
+    if any(len(adj[v]) != 3 for v in range(n)):
+        print("NO")
+        return
+
+    def other(eid, v):
+        a, b = edges[eid]
+        return b if a == v else a
+
+    # A cubic graph containing a bridge cannot have a proper 3-edge-coloring.
+    tin = [-1] * n
+    low = [0] * n
+    timer = 0
+    has_bridge = False
+
+    def bridge_dfs(v, parent_edge):
+        nonlocal timer, has_bridge
+        tin[v] = low[v] = timer
+        timer += 1
+
+        for eid in adj[v]:
+            if eid == parent_edge:
+                continue
+            to = other(eid, v)
+            if tin[to] == -1:
+                bridge_dfs(to, eid)
+                if low[to] > tin[v]:
+                    has_bridge = True
+                if low[to] < low[v]:
+                    low[v] = low[to]
+            elif tin[to] < low[v]:
+                low[v] = tin[to]
+
+    for start in range(n):
+        if tin[start] == -1:
+            bridge_dfs(start, -1)
+
+    if has_bridge:
+        print("NO")
+        return
+
+    # Edges belonging to a 2-edge cut must receive the same color.
+    parent = list(range(m))
+    size = [1] * m
+
+    def find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    def union(a, b):
+        a = find(a)
+        b = find(b)
+        if a == b:
+            return
+        if size[a] < size[b]:
+            a, b = b, a
+        parent[b] = a
+        size[a] += size[b]
+
+    for banned in range(m):
+        tin = [-1] * n
+        low = [0] * n
+        timer_box = [0]
+
+        def dfs(v, parent_edge):
+            t = timer_box[0]
+            timer_box[0] = t + 1
+            tin[v] = low[v] = t
+
+            for eid in adj[v]:
+                if eid == banned or eid == parent_edge:
+                    continue
+                to = other(eid, v)
+                if tin[to] == -1:
+                    dfs(to, eid)
+                    if low[to] > tin[v]:
+                        union(banned, eid)
+                    if low[to] < low[v]:
+                        low[v] = low[to]
+                elif tin[to] < low[v]:
+                    low[v] = tin[to]
+
+        for start in range(n):
+            if tin[start] == -1:
+                dfs(start, -1)
+
+    root_to_group = {}
+    edge_group = [0] * m
+    group_count = 0
+    for eid in range(m):
+        r = find(eid)
+        g = root_to_group.get(r)
+        if g is None:
+            g = group_count
+            root_to_group[r] = g
+            group_count += 1
+        edge_group[eid] = g
+
+    vertex_groups = []
+    for v in range(n):
+        gs = [edge_group[eid] for eid in adj[v]]
+        if len(set(gs)) != 3:
+            print("NO")
+            return
+        vertex_groups.append(gs)
+
+    group_vertices = [[] for _ in range(group_count)]
+    for v in range(n):
+        for g in vertex_groups[v]:
+            group_vertices[g].append(v)
+
+    # Connected components and the groups they contain.
+    seen = [False] * n
+    components = []
+
+    for start in range(n):
+        if seen[start]:
+            continue
+        stack = [start]
+        seen[start] = True
+        vertices = []
+        groups = set()
+
+        while stack:
+            v = stack.pop()
+            vertices.append(v)
+            for eid in adj[v]:
+                groups.add(edge_group[eid])
+                to = other(eid, v)
+                if not seen[to]:
+                    seen[to] = True
+                    stack.append(to)
+
+        components.append((vertices, list(groups)))
+
+    # Domains use bits 1, 2, and 4 for colors 1, 2, and 3.
+    masks = [7] * group_count
+    permutations = (
+        (1, 2, 4), (1, 4, 2),
+        (2, 1, 4), (2, 4, 1),
+        (4, 1, 2), (4, 2, 1),
+    )
+
+    def solve_component(vertices, groups):
+        trail = []
+
+        def propagate(initial_vertices):
+            queue = list(initial_vertices)
+            head = 0
+
+            while head < len(queue):
+                v = queue[head]
+                head += 1
+                g0, g1, g2 = vertex_groups[v]
+                m0, m1, m2 = masks[g0], masks[g1], masks[g2]
+
+                n0 = n1 = n2 = 0
+                for a, b, c in permutations:
+                    if (m0 & a) and (m1 & b) and (m2 & c):
+                        n0 |= a
+                        n1 |= b
+                        n2 |= c
+
+                if n0 == 0:
+                    return False
+
+                if n0 != m0:
+                    trail.append((g0, m0))
+                    masks[g0] = n0
+                    queue.extend(group_vertices[g0])
+                if n1 != m1:
+                    trail.append((g1, m1))
+                    masks[g1] = n1
+                    queue.extend(group_vertices[g1])
+                if n2 != m2:
+                    trail.append((g2, m2))
+                    masks[g2] = n2
+                    queue.extend(group_vertices[g2])
+
+            return True
+
+        root = vertices[0]
+        root_groups = vertex_groups[root]
+        initial_queue = []
+
+        for g, color_bit in zip(root_groups, (1, 2, 4)):
+            if not (masks[g] & color_bit):
+                return False
+            if masks[g] != color_bit:
+                trail.append((g, masks[g]))
+                masks[g] = color_bit
+                initial_queue.extend(group_vertices[g])
+
+        if not propagate(initial_queue):
+            return False
+
+        def search():
+            chosen = -1
+            best_size = 4
+
+            for g in groups:
+                mask = masks[g]
+                count = mask.bit_count()
+                if count > 1 and count < best_size:
+                    best_size = count
+                    chosen = g
+                    if count == 2:
+                        break
+
+            if chosen == -1:
+                return True
+
+            domain = masks[chosen]
+            bit = 1
+            while bit <= 4:
+                if domain & bit:
+                    checkpoint = len(trail)
+                    trail.append((chosen, masks[chosen]))
+                    masks[chosen] = bit
+
+                    if propagate(group_vertices[chosen]) and search():
+                        return True
+
+                    while len(trail) > checkpoint:
+                        g, old_mask = trail.pop()
+                        masks[g] = old_mask
+                bit <<= 1
+
+            return False
+
+        return search()
+
+    for vertices, groups in components:
+        if not solve_component(vertices, groups):
+            print("NO")
+            return
+
+    answer = []
+    for eid in range(m):
+        mask = masks[edge_group[eid]]
+        if mask not in (1, 2, 4):
+            print("NO")
+            return
+        answer.append(str(mask.bit_length()))
+
+    print("YES")
+    print(" ".join(answer))
+
+
+if __name__ == "__main__":
+    main()
+```

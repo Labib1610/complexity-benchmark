@@ -1,0 +1,284 @@
+```python
+import sys
+from collections import deque
+
+sys.setrecursionlimit(1000000)
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if len(data) < 2:
+        return
+
+    n, m = data[0], data[1]
+    adj = [[] for _ in range(n)]
+    eu = [0] * m
+    ev = [0] * m
+
+    p = 2
+    valid = (m * 2 == 3 * n)
+    for i in range(m):
+        u = data[p] - 1
+        v = data[p + 1] - 1
+        p += 2
+        eu[i] = u
+        ev[i] = v
+        if not (0 <= u < n and 0 <= v < n) or u == v:
+            valid = False
+        else:
+            adj[u].append(i)
+            adj[v].append(i)
+
+    if not valid or any(len(adj[v]) != 3 for v in range(n)):
+        print("NO")
+        return
+
+    # A cubic graph admitting a 3-edge-coloring cannot contain a bridge.
+    tin = [-1] * n
+    low = [0] * n
+    timer = 0
+    has_bridge = False
+
+    def bridge_dfs(v, parent_edge):
+        nonlocal timer, has_bridge
+        tin[v] = low[v] = timer
+        timer += 1
+        for e in adj[v]:
+            if e == parent_edge:
+                continue
+            to = ev[e] if eu[e] == v else eu[e]
+            if tin[to] == -1:
+                bridge_dfs(to, e)
+                low[v] = min(low[v], low[to])
+                if low[to] > tin[v]:
+                    has_bridge = True
+            else:
+                low[v] = min(low[v], tin[to])
+
+    for s in range(n):
+        if tin[s] == -1:
+            bridge_dfs(s, -1)
+
+    if has_bridge:
+        print("NO")
+        return
+
+    # Fast polynomial solution for bipartite cubic graphs.
+    side = [-1] * n
+    bipartite = True
+    for s in range(n):
+        if side[s] != -1:
+            continue
+        side[s] = 0
+        q = deque([s])
+        while q and bipartite:
+            v = q.popleft()
+            for e in adj[v]:
+                to = ev[e] if eu[e] == v else eu[e]
+                if side[to] == -1:
+                    side[to] = side[v] ^ 1
+                    q.append(to)
+                elif side[to] == side[v]:
+                    bipartite = False
+                    break
+        if not bipartite:
+            break
+
+    if bipartite:
+        left = [v for v in range(n) if side[v] == 0]
+        pair_u = [-1] * n
+        pair_v = [-1] * n
+        dist = [-1] * n
+
+        def bfs_matching():
+            q = deque()
+            found = False
+            for u in left:
+                if pair_u[u] == -1:
+                    dist[u] = 0
+                    q.append(u)
+                else:
+                    dist[u] = -1
+            while q:
+                u = q.popleft()
+                for e in adj[u]:
+                    v = ev[e] if eu[e] == u else eu[e]
+                    old_u = pair_v[v]
+                    if old_u == -1:
+                        found = True
+                    elif dist[old_u] == -1:
+                        dist[old_u] = dist[u] + 1
+                        q.append(old_u)
+            return found
+
+        def dfs_matching(u):
+            for e in adj[u]:
+                v = ev[e] if eu[e] == u else eu[e]
+                old_u = pair_v[v]
+                if old_u == -1 or (
+                    dist[old_u] == dist[u] + 1 and dfs_matching(old_u)
+                ):
+                    pair_u[u] = v
+                    pair_v[v] = u
+                    return True
+            dist[u] = -1
+            return False
+
+        matched = 0
+        while bfs_matching():
+            for u in left:
+                if pair_u[u] == -1 and dfs_matching(u):
+                    matched += 1
+
+        if matched != len(left):
+            print("NO")
+            return
+
+        color = [0] * m
+        for u in left:
+            v = pair_u[u]
+            for e in adj[u]:
+                to = ev[e] if eu[e] == u else eu[e]
+                if to == v:
+                    color[e] = 1
+                    break
+
+        ok = True
+        for start in range(m):
+            if color[start] != 0:
+                continue
+            color[start] = 2
+            stack = [start]
+            while stack and ok:
+                e = stack.pop()
+                c = color[e]
+                nc = 5 - c  # 2 <-> 3
+                for v in (eu[e], ev[e]):
+                    other = -1
+                    for f in adj[v]:
+                        if f != e and color[f] != 1:
+                            other = f
+                            break
+                    if other == -1:
+                        ok = False
+                        break
+                    if color[other] == 0:
+                        color[other] = nc
+                        stack.append(other)
+                    elif color[other] != nc:
+                        ok = False
+                        break
+
+        if ok:
+            print("YES")
+            print(*color)
+        else:
+            print("NO")
+        return
+
+    # General exact constraint solver.
+    color = [0] * m
+    used = [0] * n
+    trail = []
+
+    def domain(e):
+        return 7 & ~(used[eu[e]] | used[ev[e]])
+
+    def rollback(checkpoint):
+        while len(trail) > checkpoint:
+            e = trail.pop()
+            bit = 1 << (color[e] - 1)
+            used[eu[e]] ^= bit
+            used[ev[e]] ^= bit
+            color[e] = 0
+
+    def propagate(initial):
+        pending = list(initial)
+        while pending:
+            e, c = pending.pop()
+            if color[e]:
+                if color[e] != c:
+                    return False
+                continue
+
+            bit = 1 << (c - 1)
+            u, v = eu[e], ev[e]
+            if (used[u] & bit) or (used[v] & bit):
+                return False
+
+            color[e] = c
+            used[u] |= bit
+            used[v] |= bit
+            trail.append(e)
+
+            for x in (u, v):
+                for f in adj[x]:
+                    if color[f] == 0:
+                        d = domain(f)
+                        if d == 0:
+                            return False
+                        if d & (d - 1) == 0:
+                            pending.append((f, d.bit_length()))
+        return True
+
+    # Fix color permutations independently in every connected component.
+    seen = [False] * n
+    anchors = []
+    for s in range(n):
+        if seen[s]:
+            continue
+        seen[s] = True
+        q = [s]
+        while q:
+            v = q.pop()
+            for e in adj[v]:
+                to = ev[e] if eu[e] == v else eu[e]
+                if not seen[to]:
+                    seen[to] = True
+                    q.append(to)
+        anchors.extend((e, i + 1) for i, e in enumerate(adj[s]))
+
+    if not propagate(anchors):
+        print("NO")
+        return
+
+    def solve():
+        best_edge = -1
+        best_domain = 0
+        best_size = 4
+
+        for e in range(m):
+            if color[e] == 0:
+                d = domain(e)
+                size = d.bit_count()
+                if size == 0:
+                    return False
+                if size < best_size:
+                    best_size = size
+                    best_edge = e
+                    best_domain = d
+                    if size == 1:
+                        break
+
+        if best_edge == -1:
+            return True
+
+        d = best_domain
+        while d:
+            bit = d & -d
+            d -= bit
+            c = bit.bit_length()
+            checkpoint = len(trail)
+            if propagate([(best_edge, c)]) and solve():
+                return True
+            rollback(checkpoint)
+
+        return False
+
+    if solve():
+        print("YES")
+        print(*color)
+    else:
+        print("NO")
+
+main()
+```

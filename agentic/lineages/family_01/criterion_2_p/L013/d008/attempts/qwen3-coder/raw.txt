@@ -1,6 +1,6 @@
 ```python
 import sys
-from collections import defaultdict, deque
+from collections import defaultdict
 
 def main():
     import sys
@@ -9,144 +9,97 @@ def main():
     n, m = map(int, sys.stdin.readline().split())
     
     if m == 0:
+        # No dependencies, any assignment works. Maximize confidence: set all to 1
         print("YES")
         print(" ".join(["1"] * n))
         return
     
-    adj = [[] for _ in range(n+1)]
     edges = []
+    adj = [[] for _ in range(n)]
     
     for _ in range(m):
         u, v = map(int, sys.stdin.readline().split())
+        u -= 1
+        v -= 1
+        edges.append((u, v))
         adj[u].append(v)
         adj[v].append(u)
-        edges.append((u, v))
     
-    # First, check if the graph is bipartite.
-    # For the operators to compose to a self-adjoint operator,
-    # the constraint is that for each edge (u,v), the operators T_u and T_v 
-    # must be such that T_u ∘ T_v is self-adjoint.
-    #
-    # Let's analyze when T_i ∘ T_j is self-adjoint.
-    # T1(f) = f' + f
-    # T2(f) = f' - f
-    #
-    # T1(T1(f)) = T1(f' + f) = f'' + f' + f' + f = f'' + 2f' + f
-    # T2(T2(f)) = T2(f' - f) = f'' - f' - f' + f = f'' - 2f' + f
-    # T1(T2(f)) = T1(f' - f) = f'' - f' + f' - f = f'' - f
-    # T2(T1(f)) = T2(f' + f) = f'' + f' - f' - f = f'' - f
-    #
-    # The operator T_i ∘ T_j is self-adjoint iff (T_i ∘ T_j)(f) = f'' + a f' + b f
-    # where the coefficient of f' is zero (i.e., a=0). This is because 
-    # formally self-adjoint second-order operators have the form f'' + q(x)f.
-    #
-    # So:
-    # T1∘T1: f'' + 2f' + f → not self-adjoint (a=2)
-    # T2∘T2: f'' - 2f' + f → not self-adjoint (a=-2)
-    # T1∘T2: f'' - f → self-adjoint (a=0)
-    # T2∘T1: f'' - f → self-adjoint (a=0)
-    #
-    # Therefore, for an edge {u,v}, the operators at u and v must be DIFFERENT.
-    # That means the graph must be bipartite, and we can assign operators 1 and 2 
-    # to the two parts respectively.
+    # For each edge (u,v), the stability index is p_u * p_v / (p_u + p_v)^2
+    # We want sum over all edges = 2m/9
+    # So average per edge is 2/9
     
-    color = [-1] * (n+1)
-    visited = [False] * (n+1)
+    # Let's see what values p_u * p_v / (p_u + p_v)^2 can take:
+    # If p_u=1, p_v=1: 1*1/(1+1)^2 = 1/4
+    # If p_u=1, p_v=2: 1*2/(1+2)^2 = 2/9
+    # If p_u=2, p_v=1: 2*1/(2+1)^2 = 2/9
+    # If p_u=2, p_v=2: 2*2/(2+2)^2 = 4/16 = 1/4
+    
+    # So we need the average to be 2/9. That means every edge should contribute 2/9.
+    # That means for every edge, one endpoint should be 1 and the other 2.
+    # I.e., the graph must be bipartite and we assign 1 to one side, 2 to the other.
+    
+    # Check if the graph is bipartite
+    color = [-1] * n  # -1 unvisited, 0 or 1 are colors
     
     def is_bipartite(start):
-        queue = deque()
-        queue.append(start)
+        stack = [start]
         color[start] = 0
-        while queue:
-            u = queue.popleft()
+        while stack:
+            u = stack.pop()
+            c = color[u]
             for v in adj[u]:
                 if color[v] == -1:
-                    color[v] = 1 - color[u]
-                    queue.append(v)
-                elif color[v] == color[u]:
+                    color[v] = 1 - c
+                    stack.append(v)
+                elif color[v] == c:
                     return False
         return True
     
     # Check all components
-    valid = True
-    for i in range(1, n+1):
+    for i in range(n):
         if color[i] == -1:
             if not is_bipartite(i):
-                valid = False
-                break
+                print("NO")
+                return
     
-    if not valid:
-        print("NO")
-        return
+    # Graph is bipartite. Now we need to choose the coloring that maximizes confidence.
+    # Confidence = sum (2 - p_i) / i!
+    # So for node i, if we put p_i = 1, we get (2-1)/i! = 1/i!
+    #              if we put p_i = 2, we get (2-2)/i! = 0
+    # So we want to put p_i = 1 for nodes where we can, especially those with small i.
     
-    # If bipartite, construct the assignment.
-    # We want the lexicographically smallest assignment.
-    # That means we prefer assigning 1 to lower-indexed nodes when possible.
-    # In a bipartite graph with two sets U and V, we need to decide which gets 1 and which gets 2.
-    # To get lex smallest, we try assigning 1 to the set that contains node 1.
-    # But we must be careful about disconnected components.
+    # In a bipartite graph with parts A and B, we can either:
+    # - assign 1 to A and 2 to B, or
+    # - assign 1 to B and 2 to A
+    # We choose the one that gives higher confidence.
     
-    # Re-color to ensure consistent labeling across components for lex smallest result.
-    # Strategy: for each component, we will assign colors such that the smallest node 
-    # in that component gets color 0. Then we'll see if assigning 1 to color 0 gives lex smaller.
+    # Compute confidence for both options
+    fact = [1] * (n + 1)
+    for i in range(1, n + 1):
+        fact[i] = fact[i - 1] * i
     
-    final_color = [-1] * (n+1)
-    visited_comp = [False] * (n+1)
+    conf_A_is_1 = 0  # A gets 1, B gets 2
+    conf_B_is_1 = 0  # B gets 1, A gets 2
     
-    for i in range(1, n+1):
-        if final_color[i] == -1:
-            # BFS to get component and determine min node
-            queue = deque()
-            queue.append(i)
-            visited_comp[i] = True
-            component_nodes = []
-            min_node = i
-            
-            while queue:
-                u = queue.popleft()
-                component_nodes.append(u)
-                if u < min_node:
-                    min_node = u
-                for v in adj[u]:
-                    if not visited_comp[v]:
-                        visited_comp[v] = True
-                        queue.append(v)
-            
-            # Now do BFS again from min_node to get consistent coloring
-            comp_color = [-1] * (n+1)
-            queue = deque()
-            queue.append(min_node)
-            comp_color[min_node] = 0
-            
-            while queue:
-                u = queue.popleft()
-                for v in adj[u]:
-                    if comp_color[v] == -1:
-                        comp_color[v] = 1 - comp_color[u]
-                        queue.append(v)
-            
-            # Determine which color gets 1
-            # We want the color of min_node to be 0 -> assign 1 to it
-            # So if comp_color[min_node] == 0, then color 0 -> operator 1
-            # If comp_color[min_node] == 1, then color 1 -> operator 1
-            target_color_for_one = comp_color[min_node]
-            
-            for u in component_nodes:
-                if comp_color[u] == target_color_for_one:
-                    final_color[u] = 0  # Will become 1
-                else:
-                    final_color[u] = 1  # Will become 2
-    
-    # Convert to 1-based operators
-    result = []
-    for i in range(1, n+1):
-        if final_color[i] == 0:
-            result.append("1")
+    for i in range(n):
+        if color[i] == 0:
+            conf_A_is_1 += 1 / fact[i + 1]  # node i (0-indexed) gets 1
         else:
-            result.append("2")
+            conf_B_is_1 += 1 / fact[i + 1]  # node i gets 1
+    
+    # Decide which assignment to use
+    assign_1_to_color_0 = conf_A_is_1 >= conf_B_is_1
+    
+    result = [0] * n
+    for i in range(n):
+        if (color[i] == 0 and assign_1_to_color_0) or (color[i] == 1 and not assign_1_to_color_0):
+            result[i] = 1
+        else:
+            result[i] = 2
     
     print("YES")
-    print(" ".join(result))
+    print(" ".join(map(str, result)))
 
 if __name__ == "__main__":
     main()

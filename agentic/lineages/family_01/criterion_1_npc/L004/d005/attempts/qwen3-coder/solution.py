@@ -1,58 +1,36 @@
-import sys
-from collections import defaultdict
-
-def read_input():
-    n, m = map(int, sys.stdin.readline().split())
+def solve():
+    import sys
+    from itertools import product
+    
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
     edges = []
+    index = 2
     for _ in range(m):
-        u, v = map(int, sys.stdin.readline().split())
-        edges.append((u-1, v-1))  # Convert to 0-based indexing
-    return n, m, edges
+        u = int(data[index]) - 1
+        v = int(data[index+1]) - 1
+        edges.append((u, v))
+        index += 2
+    
+    # Authorized pairs
+    authorized = {(1,2), (2,1), (1,3), (3,1), (2,3), (3,2)}
+    
+    # Try all 3^n assignments
+    for assignment in product([1,2,3], repeat=n):
+        valid = True
+        for u, v in edges:
+            if (assignment[u], assignment[v]) not in authorized:
+                valid = False
+                break
+        if valid:
+            print("YES")
+            print(' '.join(map(str, assignment)))
+            return
+    
+    print("NO")
 
-def solve(n, m, edges):
-    # Build adjacency list
-    adj = [[] for _ in range(n)]
-    for u, v in edges:
-        adj[u].append(v)
-        adj[v].append(u)
-    
-    # Color array: -1 means uncolored, 0, 1, 2 are the three colors
-    color = [-1] * n
-    
-    # Check if graph is 3-colorable using backtracking with pruning
-    def is_safe(node, c):
-        for neighbor in adj[node]:
-            if color[neighbor] == c:
-                return False
-        return True
-    
-    # Try to find a valid coloring
-    def backtrack(node):
-        if node == n:
-            return True
-            
-        # Try colors in order 0, 1, 2 to get lexicographically smallest result
-        for c in range(3):
-            if is_safe(node, c):
-                color[node] = c
-                if backtrack(node + 1):
-                    return True
-                color[node] = -1
-                
-        return False
-    
-    # Start backtracking from node 0
-    if not backtrack(0):
-        return "NO"
-    
-    # Convert colors from 0,1,2 to 1,2,3
-    result_colors = [str(c + 1) for c in color]
-    return "YES\n" + " ".join(result_colors)
-
-def main():
-    n, m, edges = read_input()
-    result = solve(n, m, edges)
-    print(result)
-
-if __name__ == "__main__":
-    main()
+solve()

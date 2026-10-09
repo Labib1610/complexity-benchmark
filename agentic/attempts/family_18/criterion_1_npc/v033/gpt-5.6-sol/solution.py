@@ -1,0 +1,247 @@
+import sys
+from array import array
+from collections import deque
+
+def print_solution(order, n):
+    pos = [0] * n
+    for i, v in enumerate(order, 1):
+        pos[v] = i
+    sys.stdout.write("YES\n")
+    sys.stdout.write(" ".join(map(str, pos)) + "\n")
+
+def solve_component(vertices, adj, cap):
+    k = len(vertices)
+    if k <= 1:
+        return vertices[:], 0
+
+    # This ordering reduces the average work needed to compute cut values.
+    vertices = sorted(vertices, key=lambda v: len(adj[v]))
+    index = {v: i for i, v in enumerate(vertices)}
+
+    neighbor_counts = []
+    simple = True
+    for v in vertices:
+        counts = {}
+        for u in adj[v]:
+            j = index[u]
+            counts[j] = counts.get(j, 0) + 1
+        if simple and any(w != 1 for w in counts.values()):
+            simple = False
+        neighbor_counts.append(counts)
+
+    degrees = [0] * k
+    if simple:
+        neighbor_masks = [0] * k
+        for i, counts in enumerate(neighbor_counts):
+            mask = 0
+            for j in counts:
+                mask |= 1 << j
+            neighbor_masks[i] = mask
+            degrees[i] = len(counts)
+        weighted_neighbors = None
+    else:
+        neighbor_masks = None
+        weighted_neighbors = [None] * k
+        for i, counts in enumerate(neighbor_counts):
+            items = tuple(counts.items())
+            weighted_neighbors[i] = items
+            degrees[i] = sum(counts.values())
+
+    size = 1 << k
+    cuts = array('I', [0]) * size
+    inf = cap + 1
+    dp = array('Q', [0]) * size
+
+    if simple:
+        nm = neighbor_masks
+        deg = degrees
+        for mask in range(1, size):
+            bit = mask & -mask
+            i = bit.bit_length() - 1
+            rest = mask ^ bit
+            c = cuts[rest] + deg[i] - 2 * ((nm[i] & rest).bit_count())
+            cuts[mask] = c
+
+            x = mask
+            best = inf
+            while x:
+                b = x & -x
+                value = dp[mask ^ b]
+                if value < best:
+                    best = value
+                x ^= b
+
+            value = best + c
+            dp[mask] = value if value <= cap else inf
+    else:
+        wn = weighted_neighbors
+        deg = degrees
+        for mask in range(1, size):
+            bit = mask & -mask
+            i = bit.bit_length() - 1
+            rest = mask ^ bit
+
+            inside_weight = 0
+            for j, w in wn[i]:
+                if rest & (1 << j):
+                    inside_weight += w
+            c = cuts[rest] + deg[i] - 2 * inside_weight
+            cuts[mask] = c
+
+            x = mask
+            best = inf
+            while x:
+                b = x & -x
+                value = dp[mask ^ b]
+                if value < best:
+                    best = value
+                x ^= b
+
+            value = best + c
+            dp[mask] = value if value <= cap else inf
+
+    full = size - 1
+    minimum = dp[full]
+    if minimum > cap:
+        return None, minimum
+
+    local_order = [0] * k
+    mask = full
+    p = k - 1
+    while mask:
+        x = mask
+        chosen = 0
+        best = inf
+        while x:
+            bit = x & -x
+            value = dp[mask ^ bit]
+            if value < best:
+                best = value
+                chosen = bit
+            x ^= bit
+        i = chosen.bit_length() - 1
+        local_order[p] = vertices[i]
+        p -= 1
+        mask ^= chosen
+
+    return local_order, minimum
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if len(data) < 3:
+        return
+
+    n, m, budget = data[0], data[1], data[2]
+    adj = [[] for _ in range(n)]
+    edges = []
+    identity_cost = 0
+    nonloop_edges = 0
+
+    p = 3
+    for _ in range(m):
+        u = data[p] - 1
+        v = data[p + 1] - 1
+        p += 2
+        if u == v:
+            continue
+        edges.append((u, v))
+        adj[u].append(v)
+        adj[v].append(u)
+        identity_cost += abs(u - v)
+        nonloop_edges += 1
+
+    if budget < 0 or nonloop_edges > budget:
+        sys.stdout.write("NO\n")
+        return
+
+    if identity_cost <= budget:
+        print_solution(list(range(n)), n)
+        return
+
+    visited = bytearray(n)
+    components = []
+    isolated = []
+
+    for start in range(n):
+        if visited[start]:
+            continue
+        visited[start] = 1
+        if not adj[start]:
+            isolated.append(start)
+            continue
+
+        comp = []
+        stack = [start]
+        while stack:
+            v = stack.pop()
+            comp.append(v)
+            for u in adj[v]:
+                if not visited[u]:
+                    visited[u] = 1
+                    stack.append(u)
+        components.append(comp)
+
+    lower_bound = sum(len(comp) - 1 for comp in components)
+    if lower_bound > budget:
+        sys.stdout.write("NO\n")
+        return
+
+    # Try a cheap bandwidth-reducing placement before exponential DP.
+    heuristic_order = []
+    for comp in components:
+        root = min(comp, key=lambda v: len(adj[v]))
+        seen = {root}
+        q = deque([root])
+        while q:
+            v = q.popleft()
+            heuristic_order.append(v)
+            candidates = []
+            local_seen = set()
+            for u in adj[v]:
+                if u not in seen and u not in local_seen:
+                    local_seen.add(u)
+                    candidates.append(u)
+            candidates.sort(key=lambda u: len(adj[u]))
+            for u in candidates:
+                seen.add(u)
+                q.append(u)
+    heuristic_order.extend(isolated)
+
+    pos = [0] * n
+    for i, v in enumerate(heuristic_order):
+        pos[v] = i
+    heuristic_cost = 0
+    for u, v in edges:
+        heuristic_cost += abs(pos[u] - pos[v])
+        if heuristic_cost > budget:
+            break
+    if heuristic_cost <= budget:
+        print_solution(heuristic_order, n)
+        return
+
+    components.sort(key=len, reverse=True)
+
+    remaining_budget = budget
+    remaining_lower_bound = lower_bound
+    final_order = []
+
+    for comp in components:
+        remaining_lower_bound -= len(comp) - 1
+        component_cap = remaining_budget - remaining_lower_bound
+        if component_cap < len(comp) - 1:
+            sys.stdout.write("NO\n")
+            return
+
+        order, minimum = solve_component(comp, adj, component_cap)
+        if order is None:
+            sys.stdout.write("NO\n")
+            return
+
+        final_order.extend(order)
+        remaining_budget -= minimum
+
+    final_order.extend(isolated)
+    print_solution(final_order, n)
+
+if __name__ == "__main__":
+    main()

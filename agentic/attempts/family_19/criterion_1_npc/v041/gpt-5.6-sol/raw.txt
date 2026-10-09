@@ -1,0 +1,339 @@
+```python
+import sys
+import random
+from collections import deque
+
+sys.setrecursionlimit(1_000_000)
+
+
+class Dinic:
+    __slots__ = ("n", "g", "level", "it")
+
+    def __init__(self, n):
+        self.n = n
+        self.g = [[] for _ in range(n)]
+        self.level = [-1] * n
+        self.it = [0] * n
+
+    def add_edge(self, u, v, cap):
+        f = [v, cap, None]
+        r = [u, 0, f]
+        f[2] = r
+        self.g[u].append(f)
+        self.g[v].append(r)
+        return f
+
+    def max_flow(self, s, t, limit=10**30):
+        if s == t:
+            return limit
+
+        total = 0
+        n = self.n
+        g = self.g
+
+        while total < limit:
+            level = [-1] * n
+            level[s] = 0
+            q = deque([s])
+
+            while q:
+                u = q.popleft()
+                nl = level[u] + 1
+                for e in g[u]:
+                    if e[1] > 0 and level[e[0]] < 0:
+                        level[e[0]] = nl
+                        q.append(e[0])
+
+            if level[t] < 0:
+                break
+
+            self.level = level
+            self.it = [0] * n
+
+            def dfs(u, pushed):
+                if u == t:
+                    return pushed
+                i = self.it[u]
+                while i < len(g[u]):
+                    self.it[u] = i
+                    e = g[u][i]
+                    if e[1] > 0 and level[e[0]] == level[u] + 1:
+                        got = dfs(e[0], min(pushed, e[1]))
+                        if got:
+                            e[1] -= got
+                            e[2][1] += got
+                            return got
+                    i += 1
+                    self.it[u] = i
+                return 0
+
+            while total < limit:
+                pushed = dfs(s, limit - total)
+                if not pushed:
+                    break
+                total += pushed
+
+        return total
+
+
+def route_flow(n, edge_uv, residual, s, t, required, need_vector=False):
+    if required == 0 or s == t:
+        return required, [0] * len(edge_uv) if need_vector else None
+
+    dinic = Dinic(n)
+    refs = []
+    for (u, v), cap in zip(edge_uv, residual):
+        refs.append(dinic.add_edge(u, v, cap))
+
+    value = dinic.max_flow(s, t, required)
+    if not need_vector:
+        return value, None
+
+    used = [residual[i] - refs[i][1] for i in range(len(edge_uv))]
+    return value, used
+
+
+def aggregate_feasible(n, edge_uv, residual, commodities, remaining):
+    balance = [0] * n
+    total_supply = 0
+
+    for i, (s, t, _) in enumerate(commodities):
+        d = remaining[i]
+        if d and s != t:
+            balance[s] += d
+            balance[t] -= d
+
+    ss = n
+    tt = n + 1
+    dinic = Dinic(n + 2)
+
+    for (u, v), cap in zip(edge_uv, residual):
+        if cap:
+            dinic.add_edge(u, v, cap)
+
+    for v, b in enumerate(balance):
+        if b > 0:
+            dinic.add_edge(ss, v, b)
+            total_supply += b
+        elif b < 0:
+            dinic.add_edge(v, tt, -b)
+
+    return dinic.max_flow(ss, tt, total_supply) == total_supply
+
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+
+    it = iter(data)
+    n = next(it)
+    m = next(it)
+    k = next(it)
+
+    commodities = []
+    for _ in range(k):
+        s = next(it) - 1
+        t = next(it) - 1
+        d = next(it)
+        commodities.append((s, t, d))
+
+    edge_uv = []
+    capacities = []
+    outgoing = [[] for _ in range(n)]
+
+    for eid in range(m):
+        u = next(it) - 1
+        v = next(it) - 1
+        cap = next(it)
+        edge_uv.append((u, v))
+        capacities.append(cap)
+        outgoing[u].append(eid)
+
+    for edges in outgoing:
+        edges.sort()
+
+    base_remaining = [
+        0 if s == t else d
+        for s, t, d in commodities
+    ]
+
+    def greedy_complete(residual, allocation, remaining, order):
+        res = residual[:]
+        ans = [row[:] for row in allocation]
+
+        for ci in order:
+            d = remaining[ci]
+            if d == 0:
+                continue
+            s, t, _ = commodities[ci]
+            value, used = route_flow(n, edge_uv, res, s, t, d, True)
+            if value != d:
+                return None
+            for e, x in enumerate(used):
+                if x:
+                    res[e] -= x
+                    ans[ci][e] += x
+        return ans
+
+    active = [i for i, d in enumerate(base_remaining) if d > 0]
+    zero_allocation = [[0] * m for _ in range(k)]
+
+    orders = []
+    orders.append(active[:])
+    orders.append(sorted(active, key=lambda i: -base_remaining[i]))
+    orders.append(sorted(active, key=lambda i: base_remaining[i]))
+    orders.append(sorted(
+        active,
+        key=lambda i: (
+            len(outgoing[commodities[i][0]]),
+            -base_remaining[i]
+        )
+    ))
+
+    rng = random.Random(712367821)
+    for _ in range(min(24, max(0, 2 * len(active)))):
+        order = active[:]
+        rng.shuffle(order)
+        orders.append(order)
+
+    seen_orders = set()
+    for order in orders:
+        key = tuple(order)
+        if key in seen_orders:
+            continue
+        seen_orders.add(key)
+        answer = greedy_complete(
+            capacities, zero_allocation, base_remaining, order
+        )
+        if answer is not None:
+            out = ["YES"]
+            out.extend(" ".join(map(str, row)) for row in answer)
+            sys.stdout.write("\n".join(out))
+            return
+
+    if not aggregate_feasible(
+        n, edge_uv, capacities, commodities, base_remaining
+    ):
+        print("NO")
+        return
+
+    for i in active:
+        s, t, _ = commodities[i]
+        value, _ = route_flow(
+            n, edge_uv, capacities, s, t, base_remaining[i], False
+        )
+        if value < base_remaining[i]:
+            print("NO")
+            return
+
+    residual = capacities[:]
+    allocation = [[0] * m for _ in range(k)]
+    remaining = base_remaining[:]
+    last_path = [None] * k
+
+    def generate_paths(s, t, lower_bound):
+        visited = [False] * n
+        visited[s] = True
+        path = []
+
+        def walk(u):
+            if u == t:
+                p = tuple(path)
+                if lower_bound is None or p > lower_bound:
+                    yield p
+                return
+
+            for eid in outgoing[u]:
+                if residual[eid] <= 0:
+                    continue
+                v = edge_uv[eid][1]
+                if visited[v]:
+                    continue
+                visited[v] = True
+                path.append(eid)
+                yield from walk(v)
+                path.pop()
+                visited[v] = False
+
+        yield from walk(s)
+
+    def necessary_checks():
+        if not aggregate_feasible(
+            n, edge_uv, residual, commodities, remaining
+        ):
+            return False
+
+        for ci, d in enumerate(remaining):
+            if d:
+                s, t, _ = commodities[ci]
+                value, _ = route_flow(
+                    n, edge_uv, residual, s, t, d, False
+                )
+                if value < d:
+                    return False
+        return True
+
+    def search():
+        active_now = [i for i, d in enumerate(remaining) if d > 0]
+        if not active_now:
+            return [row[:] for row in allocation]
+
+        order = sorted(
+            active_now,
+            key=lambda i: (
+                len(outgoing[commodities[i][0]]),
+                -remaining[i]
+            )
+        )
+        completed = greedy_complete(residual, allocation, remaining, order)
+        if completed is not None:
+            return completed
+
+        ci = order[0]
+        s, t, _ = commodities[ci]
+        old_lower = last_path[ci]
+
+        for path in generate_paths(s, t, old_lower):
+            bottleneck = remaining[ci]
+            for eid in path:
+                if residual[eid] < bottleneck:
+                    bottleneck = residual[eid]
+
+            if bottleneck <= 0:
+                continue
+
+            last_path[ci] = path
+
+            for amount in range(bottleneck, 0, -1):
+                remaining[ci] -= amount
+                for eid in path:
+                    residual[eid] -= amount
+                    allocation[ci][eid] += amount
+
+                if necessary_checks():
+                    result = search()
+                    if result is not None:
+                        return result
+
+                for eid in path:
+                    allocation[ci][eid] -= amount
+                    residual[eid] += amount
+                remaining[ci] += amount
+
+            last_path[ci] = old_lower
+
+        return None
+
+    answer = search()
+    if answer is None:
+        print("NO")
+    else:
+        out = ["YES"]
+        out.extend(" ".join(map(str, row)) for row in answer)
+        sys.stdout.write("\n".join(out))
+
+
+if __name__ == "__main__":
+    main()
+```

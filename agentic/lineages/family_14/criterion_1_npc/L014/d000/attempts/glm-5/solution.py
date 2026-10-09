@@ -1,0 +1,82 @@
+import sys
+import heapq
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    t = int(next(it))
+    
+    critical = set()
+    for _ in range(t):
+        critical.add(int(next(it)))
+    
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        w = int(next(it))
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+    
+    # If 0 or 1 critical nodes, no edges needed
+    if t <= 1:
+        print(0)
+        return
+    
+    # Compute all-pairs shortest paths between critical nodes
+    # Using Dijkstra from each critical node
+    INF = float('inf')
+    dist_matrix = {}
+    
+    for s in critical:
+        dist = [INF] * (n + 1)
+        dist[s] = 0
+        pq = [(0, s)]
+        while pq:
+            d, u = heapq.heappop(pq)
+            if d > dist[u]:
+                continue
+            for v, w in adj[u]:
+                nd = d + w
+                if nd < dist[v]:
+                    dist[v] = nd
+                    heapq.heappush(pq, (nd, v))
+        dist_matrix[s] = dist
+    
+    # Build complete graph between critical nodes with edge weights = shortest path
+    critical_list = list(critical)
+    k = len(critical_list)
+    
+    # Prim's algorithm on the complete graph of critical nodes
+    in_mst = set()
+    min_edge = [INF] * k
+    min_edge[0] = 0
+    total = 0
+    
+    for _ in range(k):
+        # Find minimum edge to add
+        u = -1
+        for i in range(k):
+            if i not in in_mst and (u == -1 or min_edge[i] < min_edge[u]):
+                u = i
+        
+        in_mst.add(u)
+        total += min_edge[u]
+        
+        # Update minimum edges
+        node_u = critical_list[u]
+        for v in range(k):
+            if v not in in_mst:
+                node_v = critical_list[v]
+                w = dist_matrix[node_u][node_v]
+                if w < min_edge[v]:
+                    min_edge[v] = w
+    
+    print(total)
+
+if __name__ == "__main__":
+    solve()

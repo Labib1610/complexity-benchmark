@@ -1,0 +1,285 @@
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    q = int(data[0])
+    t = int(data[1])
+    n = 3 * q
+    triples = []
+    idx = 2
+    for _ in range(t):
+        a = int(data[idx]); b = int(data[idx+1]); c = int(data[idx+2])
+        idx += 3
+        triples.append((a, b, c))
+
+    # Build adjacency: for each pair, list of triple indices containing that pair
+    pair_to_triples = {}
+    for ti, (a, b, c) in enumerate(triples):
+        for x, y in ((a, b), (a, c), (b, c)):
+            key = (x, y) if x < y else (y, x)
+            pair_to_triples.setdefault(key, []).append(ti)
+
+    # Greedy reduction: if a pair appears in exactly one triple, that triple must be used
+    used = [False] * t
+    covered = [False] * (n + 1)
+    remaining = n
+    pair_count = {}
+    for key, lst in pair_to_triples.items():
+        pair_count[key] = len(lst)
+
+    from collections import deque
+    queue = deque()
+    in_queue = [False] * t
+
+    for key, lst in pair_to_triples.items():
+        if len(lst) == 1:
+            ti = lst[0]
+            if not used[ti] and not in_queue[ti]:
+                queue.append(ti)
+                in_queue[ti] = True
+
+    while queue:
+        ti = queue.popleft()
+        if used[ti]:
+            continue
+        a, b, c = triples[ti]
+        # Check if all three vertices are still uncovered
+        if covered[a] or covered[b] or covered[c]:
+            continue
+        # Use this triple
+        used[ti] = True
+        for v in (a, b, c):
+            covered[v] = True
+            remaining -= 1
+        # Update pairs involving a, b, c
+        affected_pairs = set()
+        for x, y in ((a, b), (a, c), (b, c)):
+            key = (x, y) if x < y else (y, x)
+            affected_pairs.add(key)
+        # Also pairs involving a/b/c with other vertices
+        # We need to find all pairs that include any of a, b, c
+        # But pair_to_triples only has pairs from given triples
+        # So iterate over all pairs in pair_to_triples that include a, b, or c
+        # To be efficient, we can maintain vertex_to_pairs
+        # But let's just iterate over affected_pairs and also check neighbors
+        # Actually, when we cover a vertex, all pairs containing it lose one available triple
+        # Let's maintain vertex_to_pairs
+        pass
+
+    # The above approach is incomplete; let's use a proper vertex-based approach
+    # Reset and redo with vertex_to_pairs
+    used = [False] * t
+    covered = [False] * (n + 1)
+    remaining = n
+
+    vertex_to_pairs = {}
+    for key in pair_to_triples:
+        x, y = key
+        vertex_to_pairs.setdefault(x, set()).add(key)
+        vertex_to_pairs.setdefault(y, set()).add(key)
+
+    pair_avail = {}
+    for key, lst in pair_to_triples.items():
+        pair_avail[key] = len(lst)
+
+    # For each vertex, count of available triples containing it
+    vertex_avail = [0] * (n + 1)
+    for ti, (a, b, c) in enumerate(triples):
+        vertex_avail[a] += 1
+        vertex_avail[b] += 1
+        vertex_avail[c] += 1
+
+    queue = deque()
+    in_queue = [False] * t
+
+    # Find triples that are forced: a vertex with only one available triple
+    # But we need to track which triples are still available
+    # Let's use a different approach: maintain for each vertex the list of available triples
+    vertex_triples = {}
+    for ti, (a, b, c) in enumerate(triples):
+        for v in (a, b, c):
+            vertex_triples.setdefault(v, []).append(ti)
+
+    vertex_avail = [0] * (n + 1)
+    for v in range(1, n+1):
+        vertex_avail[v] = len(vertex_triples.get(v, []))
+
+    # Mark triples as available
+    triple_available = [True] * t
+
+    def deactivate_triple(ti):
+        if not triple_available[ti]:
+            return
+        triple_available[ti] = False
+        a, b, c = triples[ti]
+        for v in (a, b, c):
+            vertex_avail[v] -= 1
+
+    def activate_triple(ti):
+        a, b, c = triples[ti]
+        if covered[a] or covered[b] or covered[c]:
+            return False
+        if not triple_available[ti]:
+            return False
+        used[ti] = True
+        triple_available[ti] = False
+        for v in (a, b, c):
+            covered[v] = True
+            remaining_count[0] -= 1
+        # Deactivate all triples that share a vertex with this triple
+        to_deactivate = set()
+        for v in (a, b, c):
+            for other_ti in vertex_triples.get(v, []):
+                if other_ti != ti and triple_available[other_ti]:
+                    to_deactivate.add(other_ti)
+        for other_ti in to_deactivate:
+            deactivate_triple(other_ti)
+            # Check if any vertex now has exactly one available triple
+        return True
+
+    remaining_count = [n]
+    queue = deque()
+
+    # Initialize: find vertices with exactly one available triple
+    for v in range(1, n+1):
+        if vertex_avail[v] == 1:
+            # Find the single available triple
+            for ti in vertex_triples.get(v, []):
+                if triple_available[ti]:
+                    if not in_queue[ti]:
+                        queue.append(ti)
+                        in_queue[ti] = True
+                    break
+
+    while queue:
+        ti = queue.popleft()
+        in_queue[ti] = False
+        if not triple_available[ti]:
+            continue
+        a, b, c = triples[ti]
+        if covered[a] or covered[b] or covered[c]:
+            continue
+        # Activate this triple
+        success = activate_triple(ti)
+        if success:
+            # Check all vertices for new single-available triples
+            for v in range(1, n+1):
+                if not covered[v] and vertex_avail[v] == 1:
+                    for tj in vertex_triples.get(v, []):
+                        if triple_available[tj]:
+                            if not in_queue[tj]:
+                                queue.append(tj)
+                                in_queue[tj] = True
+                            break
+
+    if remaining_count[0] == 0:
+        print("YES")
+        for ti in range(t):
+            if used[ti]:
+                a, b, c = triples[ti]
+                print(f"{a} {b} {c}")
+        return
+
+    # If not solved, try backtracking on remaining uncovered vertices
+    uncovered = [v for v in range(1, n+1) if not covered[v]]
+    if not uncovered:
+        print("YES")
+        for ti in range(t):
+            if used[ti]:
+                a, b, c = triples[ti]
+                print(f"{a} {b} {c}")
+        return
+
+    # Backtracking
+    # Build list of available triples for each uncovered vertex
+    avail_triples_for_vertex = {}
+    for v in uncovered:
+        lst = [ti for ti in vertex_triples.get(v, []) if triple_available[ti]]
+        avail_triples_for_vertex[v] = lst
+
+    # Sort uncovered vertices by number of available triples (most constrained first)
+    uncovered_sorted = sorted(uncovered, key=lambda v: len(avail_triples_for_vertex.get(v, [])))
+
+    # State for backtracking
+    bt_used = list(used)
+    bt_covered = list(covered)
+    bt_remaining = remaining_count[0]
+    bt_triple_available = list(triple_available)
+    bt_vertex_avail = list(vertex_avail)
+
+    def bt_activate(ti, state_used, state_covered, state_remaining, state_triple_avail, state_vertex_avail):
+        a, b, c = triples[ti]
+        if state_covered[a] or state_covered[b] or state_covered[c]:
+            return None
+        if not state_triple_avail[ti]:
+            return None
+        new_used = list(state_used)
+        new_covered = list(state_covered)
+        new_remaining = state_remaining
+        new_triple_avail = list(state_triple_avail)
+        new_vertex_avail = list(state_vertex_avail)
+
+        new_used[ti] = True
+        new_triple_avail[ti] = False
+        for v in (a, b, c):
+            new_covered[v] = True
+            new_remaining -= 1
+        # Deactivate all triples sharing a vertex
+        to_deactivate = set()
+        for v in (a, b, c):
+            for other_ti in vertex_triples.get(v, []):
+                if other_ti != ti and new_triple_avail[other_ti]:
+                    to_deactivate.add(other_ti)
+        for other_ti in to_deactivate:
+            new_triple_avail[other_ti] = False
+            oa, ob, oc = triples[other_ti]
+            for ov in (oa, ob, oc):
+                new_vertex_avail[ov] -= 1
+        return (new_used, new_covered, new_remaining, new_triple_avail, new_vertex_avail)
+
+    def backtrack(state_used, state_covered, state_remaining, state_triple_avail, state_vertex_avail):
+        if state_remaining == 0:
+            return list(state_used)
+        # Find uncovered vertex with fewest available triples
+        best_v = -1
+        best_count = float('inf')
+        for v in range(1, n+1):
+            if not state_covered[v]:
+                cnt = 0
+                for ti in vertex_triples.get(v, []):
+                    if state_triple_avail[ti]:
+                        cnt += 1
+                if cnt == 0:
+                    return None
+                if cnt < best_count:
+                    best_count = cnt
+                    best_v = v
+                    if cnt == 1:
+                        break
+        if best_v == -1:
+            return None
+        # Try each available triple for best_v
+        for ti in vertex_triples.get(best_v, []):
+            if state_triple_avail[ti]:
+                result = bt_activate(ti, state_used, state_covered, state_remaining, state_triple_avail, state_vertex_avail)
+                if result is None:
+                    continue
+                nu, nc, nr, nta, nva = result
+                res = backtrack(nu, nc, nr, nta, nva)
+                if res is not None:
+                    return res
+        return None
+
+    result = backtrack(bt_used, bt_covered, bt_remaining, bt_triple_available, bt_vertex_avail)
+    if result is not None:
+        print("YES")
+        for ti in range(t):
+            if result[ti]:
+                a, b, c = triples[ti]
+                print(f"{a} {b} {c}")
+    else:
+        print("NO")
+
+solve()

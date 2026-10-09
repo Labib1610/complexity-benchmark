@@ -1,0 +1,257 @@
+**Solution Explanation**
+
+The problem is exactly a *maximum flow* problem.
+
+* vertices – locations `1 … n`
+* directed edges – shipping lanes, capacity = maximal tonnage
+* source `s` – production facility
+* sink   `t` – distribution hub
+* required amount `d`
+
+A feasible plan exists **iff** there is a flow of value `d` from `s` to `t`.
+If such a flow exists we have to output, for every input lane, the amount of
+cargo that uses this lane (the flow on that edge).
+
+So we only have to compute a flow, stop as soon as its value reaches `d`,
+and read the flow values of the original edges.
+
+
+
+--------------------------------------------------------------------
+
+#### Algorithm
+We use Dinic’s algorithm (O(E·√V) in practice, easily fast enough for the
+constraints).
+
+```
+read n, m, _
+read s, t, d
+for each lane i = 0 … m-1
+        read u, v, cap
+        add directed edge (u → v) with capacity cap
+        remember the forward edge object in array orig[i]
+
+flow = 0
+while flow < d and bfs builds level graph:
+        while flow < d and (pushed = dfs(s, d-flow)) > 0:
+                flow += pushed
+if flow < d:
+        print "NO"
+else:
+        print "YES"
+        for i = 0 … m-1:
+                used = orig[i].original_cap - orig[i].cap   # flow sent
+                output used
+```
+
+`bfs` builds the level graph, `dfs` sends blocking flow, both are the
+standard parts of Dinic.  
+The forward edge object stores
+
+* `to` – destination vertex
+* `rev` – index of the reverse edge in the adjacency list of `to`
+* `cap` – *remaining* capacity (residual capacity)
+* `original_cap` – the capacity given in the input (needed to recover the flow)
+
+The reverse edge has capacity `0` initially and its `original_cap` is also `0`
+(never used).
+
+--------------------------------------------------------------------
+
+#### Correctness Proof  
+
+We prove that the algorithm prints `YES` and a correct assignment
+iff a feasible plan exists.
+
+---
+
+##### Lemma 1  
+During the execution, the residual network always represents a feasible
+flow respecting all capacities and flow conservation at every vertex
+except possibly `s` and `t`.
+
+**Proof.**  
+Initially all flows are zero, the residual capacities equal the original
+capacities – feasible.  
+Each augmentation sends `x` units along a path where every edge has residual
+capacity at least `x`. Subtracting `x` from forward edges and adding `x` to
+reverse edges keeps all residual capacities non‑negative and preserves the
+net flow balance at every internal vertex (incoming increase equals outgoing
+increase). ∎
+
+
+
+##### Lemma 2  
+When the algorithm stops with total flow `F`, `F` equals the value of a
+maximum `s‑t` flow in the given network, unless it stopped early because
+`F ≥ d`.
+
+**Proof.**  
+Dinic’s algorithm (without the early stop) is known to terminate with a
+maximum flow. Our modification only adds a condition `while flow < d`.
+If the algorithm stops because `flow == d`, we may have stopped before
+reaching the true maximum, but we already have a flow of value `d`.  
+If it stops because no augmenting path exists (`bfs` fails), then the
+standard Dinic proof shows the current flow is maximum. ∎
+
+
+
+##### Lemma 3  
+If the algorithm outputs `YES`, the printed numbers are a feasible plan
+with total shipped amount exactly `d`.
+
+**Proof.**  
+`YES` is printed only when `flow ≥ d`. The algorithm stops as soon as
+`flow == d`. By Lemma&nbsp;1 the flow respects capacities and conservation.
+For each original edge `e` we output  
+`used(e) = original_cap(e) – residual_cap(e)`, i.e. the amount of flow that
+has been sent through `e`. This is exactly the flow value on that edge.
+Summing over all edges leaving `s` minus those entering `s` equals the total
+flow value, which is `d`. The same holds for `t`. Hence the printed
+assignment satisfies all required conditions. ∎
+
+
+
+##### Lemma 4  
+If a feasible plan of total amount `d` exists, the algorithm prints `YES`.
+
+**Proof.**  
+Existence of a feasible plan implies that the maximum flow value `F_max`
+in the network is at least `d`. Dinic’s algorithm (without early stop) would
+reach a flow of value `F_max`. Our algorithm stops as soon as the flow
+reaches `d`; because augmentations are always possible while the current
+flow is `< d` (otherwise the maximum would be `< d`), the loop will
+eventually increase the flow to `d`. Hence it prints `YES`. ∎
+
+
+
+##### Theorem  
+The algorithm prints `YES` and a correct lane‑by‑lane assignment
+iff a feasible plan exists; otherwise it prints `NO`.
+
+**Proof.**  
+*If* part: by Lemma&nbsp;4 a feasible plan ⇒ algorithm prints `YES`.  
+By Lemma&nbsp;3 the printed assignment is feasible and has total `d`.  
+
+*Only‑if* part: if the algorithm prints `YES`, Lemma&nbsp;3 gives a feasible
+plan, so one exists.  
+
+If the algorithm prints `NO`, it stopped because the maximum flow value
+`F_max` (Lemma&nbsp;2) is `< d`. Hence no feasible plan can exist. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### Complexity Analysis  
+
+`n ≤ …` (unspecified, but fits limits).  
+Dinic runs in `O(E·√V)` in practice; worst‑case `O(V²·E)` but with the given
+constraints (`n,m ≤ 10⁵` typical) it easily fits 2 seconds.
+
+Memory: adjacency list stores two edge objects per lane → `O(E)`.
+
+--------------------------------------------------------------------
+
+#### Reference Implementation  (Python 3)
+
+```python
+import sys
+sys.setrecursionlimit(1 << 25)
+
+class Edge:
+    __slots__ = ('to', 'rev', 'cap', 'orig')
+    def __init__(self, to, rev, cap, orig):
+        self.to = to          # destination vertex
+        self.rev = rev        # index of reverse edge in graph[to]
+        self.cap = cap        # residual capacity
+        self.orig = orig      # original capacity (0 for reverse edges)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it)); m = int(next(it)); _ = next(it)  # commodity count ignored
+    s = int(next(it)) - 1
+    t = int(next(it)) - 1
+    d = int(next(it))
+
+    graph = [[] for _ in range(n)]
+    orig_edges = [None] * m
+
+    def add_edge(u, v, cap, idx):
+        fwd = Edge(v, len(graph[v]), cap, cap)
+        rev = Edge(u, len(graph[u]), 0, 0)
+        graph[u].append(fwd)
+        graph[v].append(rev)
+        if idx is not None:
+            orig_edges[idx] = fwd
+
+    for i in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        cap = int(next(it))
+        add_edge(u, v, cap, i)
+
+    level = [0] * n
+    it_ptr = [0] * n
+
+    from collections import deque
+
+    def bfs():
+        for i in range(n):
+            level[i] = -1
+        q = deque()
+        level[s] = 0
+        q.append(s)
+        while q:
+            v = q.popleft()
+            for e in graph[v]:
+                if e.cap and level[e.to] == -1:
+                    level[e.to] = level[v] + 1
+                    q.append(e.to)
+        return level[t] != -1
+
+    def dfs(v, f):
+        if v == t:
+            return f
+        for i in range(it_ptr[v], len(graph[v])):
+            it_ptr[v] = i
+            e = graph[v][i]
+            if e.cap and level[e.to] == level[v] + 1:
+                ret = dfs(e.to, f if f < e.cap else e.cap)
+                if ret:
+                    e.cap -= ret
+                    graph[e.to][e.rev].cap += ret
+                    return ret
+        return 0
+
+    flow = 0
+    INF = 10**18
+    while flow < d and bfs():
+        it_ptr = [0] * n
+        while flow < d:
+            pushed = dfs(s, d - flow)
+            if not pushed:
+                break
+            flow += pushed
+
+    if flow < d:
+        print("NO")
+        return
+
+    # retrieve flows on original edges
+    res = []
+    for e in orig_edges:
+        used = e.orig - e.cap
+        res.append(str(used))
+    print("YES")
+    print(' '.join(res))
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above and conforms
+to the required input‑output format.

@@ -1,7 +1,5 @@
 import sys
 
-sys.setrecursionlimit(10000)
-
 def solve() -> None:
     data = sys.stdin.read().strip().split()
     if not data:
@@ -16,56 +14,43 @@ def solve() -> None:
         adj[u] |= 1 << v
         adj[v] |= 1 << u
 
-    color = [0] * n          # 0 = uncoloured, else 1..3
-    solution = None
+    # order vertices by degree descending
+    order = sorted(range(n), key=lambda x: -adj[x].bit_count())
+    color = [-1] * n
+    # map from position in order to vertex
+    pos2v = order
 
-    # forward checking: return False if some uncoloured vertex has no colour left
-    def forward_ok() -> bool:
-        for v in range(n):
-            if color[v] != 0:
-                continue
-            forbidden = 0
-            nb = adj[v]
-            while nb:
-                u = (nb & -nb).bit_length() - 1
-                nb &= nb - 1
-                c = color[u]
-                if c:
-                    forbidden |= 1 << (c - 1)
-            if forbidden == 0b111:   # all three colours forbidden
-                return False
-        return True
+    sys.setrecursionlimit(10000)
 
-    def dfs(v: int) -> bool:
-        nonlocal solution
-        if v == n:
-            solution = color.copy()
+    def dfs(idx: int) -> bool:
+        if idx == n:
             return True
-        # try colours 1,2,3
-        neigh = adj[v]
-        used = 0
-        nb = neigh
+        v = pos2v[idx]
+        # compute forbidden colors from already colored neighbors
+        forbid = 0
+        nb = adj[v]
         while nb:
             u = (nb & -nb).bit_length() - 1
             nb &= nb - 1
             c = color[u]
-            if c:
-                used |= 1 << (c - 1)
-        for c in (1, 2, 3):
-            if used & (1 << (c - 1)):
-                continue
-            color[v] = c
-            if forward_ok():
-                if dfs(v + 1):
+            if c != -1:
+                forbid |= 1 << c
+        for c in range(3):
+            if not (forbid >> c) & 1:
+                color[v] = c
+                if dfs(idx + 1):
                     return True
-            color[v] = 0
+                color[v] = -1
         return False
 
-    if dfs(0):
-        out = ["YES", " ".join(str(x) for x in solution)]
+    possible = dfs(0)
+    out = []
+    if possible:
+        out.append("YES")
+        out.append(' '.join(str(c + 1) for c in color))
     else:
-        out = ["NO"]
-    sys.stdout.write("\n".join(out))
+        out.append("NO")
+    sys.stdout.write('\n'.join(out))
 
 if __name__ == "__main__":
     solve()

@@ -1,24 +1,22 @@
-# Server Synchronization States
+# Harmonic Interference Resolution
 
-Time limit: 1 s   Memory limit: 256 MB
+Time limit: 1 s
+Memory limit: 256 MB
 
-You are configuring a network of $n$ server nodes. Each node $i$ must be assigned an operational state $x_i$. The hardware restricts each node's state such that $x_i \in \{1, 2\}$.
+A research facility operates a network of acoustic projectors. To maintain operational stability, every projector in the network (indexed from 1 to $n$) must be assigned a fixed pulse cycle of either 1 microsecond or 2 microseconds.
 
-The nodes are connected by a set of $m$ bidirectional sync channels. To prevent data collisions during synchronization, every channel imposes a routing balance requirement on its endpoints. Specifically, for each channel, the synchronization protocol initializes a 2D signal vector to $(1, 1)$. This vector is then transformed sequentially by the operational states of the channel's two endpoints. 
-A node in state 1 applies the transformation $T_1(X, Y) = (X + 3Y, Y)$. 
-A node in state 2 applies the transformation $T_2(X, Y) = (X, 3X + Y)$.
+The facility's layout contains multiple interference thresholds, each connecting a specific pair of projectors. For the network assignment to be viable, any two projectors connected by an interference threshold must be assigned different pulse cycles. A configuration is only valid if this condition is satisfied across every threshold in the entire network.
 
-For a channel connecting node $u$ and node $v$, the signal vector is first transformed by the state of one endpoint and then by the state of the other. (Because of the protocol's symmetric design, the sum of the components of the final vector is independent of which endpoint's transformation is applied first.) The channel is considered balanced if and only if the sum of the $X$ and $Y$ components of the final signal vector is exactly 17.
-
-Your task is to determine a valid state assignment for all $n$ nodes such that every channel is balanced. If there are multiple valid ways, you must output the assignment that produces the lexicographically smallest sequence of operational states $x_1, x_2, \dots, x_n$. If it is impossible to satisfy all channel requirements simultaneously, report that no such assignment exists.
+Your objective is to determine if a viable cycle assignment exists. If multiple valid assignments are possible, you must output the lexicographically smallest sequence of $n$ pulse cycles. This means strictly prioritizing the 1-microsecond cycle for lower-indexed projectors: projector 1 must be assigned 1 if any valid assignment allows it, and subject to that, projector 2 must be assigned 1 if possible, continuing this sequential prioritization up to projector $n$. Because the network may consist of multiple disconnected segments, this prioritization applies globally across all projectors.
 
 ## Input
-The first line contains two integers $n$ and $m$. The number of nodes $n$ is at least 1 and bounded by a network maximum of $2\cdot 10^5$. The number of channels $m$ is at least 0 and at most $2\cdot 10^5$.
-Each of the following $m$ lines contains two integers $u$ and $v$ (valid node IDs ranging from 1 to $n$), indicating that a channel exists between node $u$ and node $v$.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 200,000$, $0 \le m \le 200,000$), representing the number of projectors and the number of thresholds, respectively.
+
+Each of the subsequent $m$ lines provides two integers $u$ and $v$ ($1 \le u, v \le n$), indicating that an interference threshold connects the projector indexed $u$ and the projector indexed $v$.
 
 ## Output
-If there is no valid state assignment, print a single line containing `NO`.
-Otherwise, print `YES` on the first line, followed by a second line containing $n$ integers $x_1, x_2, \dots, x_n$, representing the lexicographically smallest valid sequence of operational states.
+If it is impossible to find a viable cycle assignment, output `NO` on a single line.
+If a viable assignment exists, output `YES` on the first line. On the second line, output $n$ space-separated integers (each being either 1 or 2) representing the pulse cycle assigned to each projector from 1 to $n$. This sequence must be the lexicographically smallest valid assignment.
 
 ## Example 1
 Input:

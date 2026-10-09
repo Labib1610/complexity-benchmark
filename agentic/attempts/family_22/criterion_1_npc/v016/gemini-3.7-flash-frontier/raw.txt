@@ -1,0 +1,197 @@
+```python
+import sys
+
+# Increase recursion depth for deep search trees
+sys.setrecursionlimit(20000)
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    M = int(input_data[1])
+    T = int(input_data[2])
+    m = int(input_data[3])
+    
+    if n > M * T:
+        print("NO")
+        return
+    
+    adj = [[] for _ in range(n + 1)]
+    rev_adj = [[] for _ in range(n + 1)]
+    in_deg_init = [0] * (n + 1)
+    
+    idx = 4
+    for _ in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx + 1])
+        adj[u].append(v)
+        rev_adj[v].append(u)
+        in_deg_init[v] += 1
+        idx += 2
+        
+    # Check for cycles and compute topological sort
+    topo_order = []
+    in_degree = list(in_deg_init)
+    queue = [i for i in range(1, n + 1) if in_degree[i] == 0]
+    head = 0
+    while head < len(queue):
+        u = queue[head]
+        head += 1
+        topo_order.append(u)
+        for v in adj[u]:
+            in_degree[v] -= 1
+            if in_degree[v] == 0:
+                queue.append(v)
+                
+    if len(topo_order) < n:
+        print("NO")
+        return
+        
+    # Compute EST (Earliest Start Time)
+    est = [1] * (n + 1)
+    for u in topo_order:
+        for v in adj[u]:
+            if est[u] + 1 > est[v]:
+                est[v] = est[u] + 1
+                
+    # Compute LST (Latest Start Time)
+    lst = [T] * (n + 1)
+    for u in reversed(topo_order):
+        for p in rev_adj[u]:
+            if lst[u] - 1 < lst[p]:
+                lst[p] = lst[u] - 1
+                
+    for i in range(1, n + 1):
+        if est[i] > lst[i]:
+            print("NO")
+            return
+            
+    # Compute height (longest path to sink) for priority heuristic
+    height = [1] * (n + 1)
+    for u in reversed(topo_order):
+        for v in adj[u]:
+            if height[v] + 1 > height[u]:
+                height[u] = height[v] + 1
+
+    assignment = [0] * (n + 1)
+    current_in_deg = list(in_deg_init)
+    current_lst = list(lst)
+    current_est = list(est)
+    
+    # Priority for sorting jobs: smaller LST first, then larger height
+    def job_priority(job):
+        return (current_lst[job], -height[job], job)
+
+    def check_capacity(cur_t, remaining_jobs):
+        # Time-window capacity check (energetic reasoning)
+        # For relevant intervals [a, b] in [cur_t, T]
+        # Count jobs entirely contained in [a, b]
+        for a in range(cur_t, T + 1):
+            count = 0
+            for u in remaining_jobs:
+                if current_est[u] >= a:
+                    count += 1
+            if count > M * (T - a + 1):
+                return False
+                
+        # Also check specific LST bounds
+        for b in range(cur_t, T + 1):
+            count = 0
+            for u in remaining_jobs:
+                if current_lst[u] <= b:
+                    count += 1
+            if count > M * (b - cur_t + 1):
+                return False
+        return True
+
+    from itertools import combinations
+
+    def search(cur_t, remaining_jobs):
+        if not remaining_jobs:
+            return True
+        if cur_t > T:
+            return False
+        if len(remaining_jobs) > M * (T - cur_t + 1):
+            return False
+        if not check_capacity(cur_t, remaining_jobs):
+            return False
+            
+        ready = [u for u in remaining_jobs if current_in_deg[u] == 0]
+        mandatory = [u for u in ready if current_lst[u] == cur_t]
+        
+        if len(mandatory) > M:
+            return False
+            
+        # Any unscheduled job that must have started strictly before cur_t is invalid
+        for u in remaining_jobs:
+            if current_lst[u] < cur_t:
+                return False
+
+        optional = [u for u in ready if current_lst[u] > cur_t]
+        optional.sort(key=job_priority)
+        
+        slots = M - len(mandatory)
+        
+        # Branch over choices for remaining slots
+        # Try larger sets first (greedy approach is often correct in scheduling)
+        max_k = min(slots, len(optional))
+        
+        # Generate candidate subsets for optional
+        # Heuristic: taking the top k elements according to priority is usually best
+        # If max_k optional jobs, prioritize the prefix first
+        choices = []
+        # Add prefix
+        choices.append(tuple(optional[:max_k]))
+        
+        # Add other combinations if prefix fails, bounded to prevent combinatorial explosion
+        all_combos = list(combinations(optional, max_k))
+        for c in all_combos[:15]:
+            if c != choices[0]:
+                choices.append(c)
+                
+        # Also consider taking fewer jobs if possible and needed
+        for k in range(max_k - 1, -1, -1):
+            if k == 0 and not mandatory:
+                continue
+            choices.append(tuple(optional[:k]))
+
+        for opt_chosen in choices:
+            chosen = mandatory + list(opt_chosen)
+            
+            # Apply chosen
+            for u in chosen:
+                assignment[u] = cur_t
+                for v in adj[u]:
+                    current_in_deg[v] -= 1
+                    current_est[v] = max(current_est[v], cur_t + 1)
+                    
+            next_remaining = [u for u in remaining_jobs if u not in chosen]
+            
+            if search(cur_t + 1, next_remaining):
+                return True
+                
+            # Backtrack
+            for u in chosen:
+                assignment[u] = 0
+                for v in adj[u]:
+                    current_in_deg[v] += 1
+                    # restore EST
+                    current_est[v] = est[v]
+                    for p in rev_adj[v]:
+                        if assignment[p] > 0:
+                            current_est[v] = max(current_est[v], assignment[p] + 1)
+
+        return False
+
+    all_jobs = list(range(1, n + 1))
+    if search(1, all_jobs):
+        print("YES")
+        print(*(assignment[1:]))
+    else:
+        print("NO")
+
+if __name__ == '__main__':
+    solve()
+```

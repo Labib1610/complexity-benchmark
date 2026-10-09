@@ -1,0 +1,134 @@
+```python
+import sys
+
+# Increase recursion depth just in case
+sys.setrecursionlimit(2000)
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    adj = [[] for _ in range(n)]
+    adj_mask = [0] * n
+    
+    idx = 2
+    for _ in range(m):
+        u = int(input_data[idx]) - 1
+        v = int(input_data[idx+1]) - 1
+        idx += 2
+        if u != v:
+            adj[u].append(v)
+            adj[v].append(u)
+            adj_mask[u] |= (1 << v)
+            adj_mask[v] |= (1 << u)
+            
+    # Remove duplicate edges
+    for i in range(n):
+        adj[i] = list(set(adj[i]))
+
+    # Check for self-loops (already handled u != v)
+    # Check simple 3-coloring feasibility per connected component
+    visited = [False] * n
+    components = []
+    for i in range(n):
+        if not visited[i]:
+            comp = []
+            q = [i]
+            visited[i] = True
+            while q:
+                curr = q.pop()
+                comp.append(curr)
+                for neighbor in adj[curr]:
+                    if not visited[neighbor]:
+                        visited[neighbor] = True
+                        q.append(neighbor)
+            components.append(comp)
+            
+    color_assignment = [0] * n
+    
+    # We will solve component by component
+    for comp in components:
+        # We can use backtracking with MRV (DSATUR-like)
+        assigned = {v: 0 for v in comp}
+        # forbidden_mask[v] stores a bitmask of used colors: bit 1 for color 1, bit 2 for color 2, bit 4 for color 3
+        # We can also track count of forbidden colors by popcount
+        forbidden_count = {v: 0 for v in comp}
+        forbidden_colors = {v: [0, 0, 0, 0] for v in comp} # count of neighbors having color c
+        
+        comp_set = set(comp)
+        
+        def backtrack(unassigned_count):
+            if unassigned_count == 0:
+                return True
+            
+            # Choose variable with maximum forbidden_count (MRV), tie-break with degree
+            best_v = -1
+            max_sat = -1
+            max_deg = -1
+            
+            for v in comp:
+                if assigned[v] == 0:
+                    sat = forbidden_count[v]
+                    if sat == 3:
+                        return False  # Dead end
+                    deg = len(adj[v])
+                    if sat > max_sat or (sat == max_sat and deg > max_deg):
+                        max_sat = sat
+                        max_deg = deg
+                        best_v = v
+            
+            v = best_v
+            
+            # Try available colors
+            for c in (1, 2, 3):
+                if forbidden_colors[v][c] == 0:
+                    # Assign color c to v
+                    assigned[v] = c
+                    
+                    # Update neighbors
+                    affected = []
+                    for neighbor in adj[v]:
+                        if neighbor in comp_set and assigned[neighbor] == 0:
+                            if forbidden_colors[neighbor][c] == 0:
+                                forbidden_count[neighbor] += 1
+                                affected.append(neighbor)
+                            forbidden_colors[neighbor][c] += 1
+                    
+                    if backtrack(unassigned_count - 1):
+                        return True
+                    
+                    # Backtrack
+                    assigned[v] = 0
+                    for neighbor in adj[v]:
+                        if neighbor in comp_set and assigned[neighbor] == 0:
+                            forbidden_colors[neighbor][c] -= 1
+                    for neighbor in affected:
+                        forbidden_count[neighbor] -= 1
+                        
+            return False
+
+        # Break symmetry on the first vertex of the component
+        start_v = comp[0]
+        assigned[start_v] = 1
+        for neighbor in adj[start_v]:
+            if neighbor in comp_set:
+                forbidden_colors[neighbor][1] += 1
+                forbidden_count[neighbor] += 1
+                
+        if not backtrack(len(comp) - 1):
+            print("NO")
+            return
+            
+        for v in comp:
+            color_assignment[v] = assigned[v]
+
+    print("YES")
+    print(*(color_assignment[i] for i in range(n)))
+
+if __name__ == '__main__':
+    solve()
+```

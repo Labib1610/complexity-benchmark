@@ -1,16 +1,16 @@
-# Problem A — Channel Allocation
+# Problem A — Production Cycle Allocation
 
 Time limit: 2 s   Memory limit: 256 MB
 
-A network administrator is configuring a wireless network that uses three frequency channels labeled 1, 2, 3. There are $n$ access points to configure. Some pairs of access points have overlapping coverage areas and must not be assigned the same channel to avoid signal interference. Assign every access point to exactly one of the three channels so that no overlapping pair shares a channel, or report that it is impossible.
+A manufacturing plant requires continuous operation across three daily production cycles labeled 1, 2, and 3. The plant employs $n$ technicians. Due to documented interpersonal disputes that disrupt operations, specific pairs of technicians cannot be scheduled during the same production cycle. You must allocate every technician to exactly one of the three cycles such that no two disputing technicians work at the same time, or determine that this scheduling is impossible.
 
 ## Input
-The first line contains two integers $n$ and $m$ — the number of access points and the number of overlapping pairs ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
-Each of the next $m$ lines contains two integers $u$ and $v$ — a pair of access points with overlapping coverage.
+The first line contains two integers $n$ and $m$ — the number of technicians and the number of documented disputes ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
+Each of the next $m$ lines contains two integers $u$ and $v$ — a pair of technicians who have a dispute.
 
 ## Output
-If no valid assignment exists, print a single line NO.
-Otherwise print YES on the first line. On the second line print $n$ integers $c_1, c_2, \ldots, c_n$ (each in $\{1,2,3\}$), where $c_i$ is the channel of access point $i$. Among all valid assignments output the lexicographically smallest sequence (compare $c_1$ first, then $c_2$, and so on).
+If no valid allocation exists, print a single line NO.
+Otherwise print YES on the first line. On the second line print $n$ integers $s_1\ s_2\ \dots\ s_n$ (each in $\{1,2,3\}$), where $s_i$ is the production cycle of technician $i$. Any valid allocation is accepted.
 
 ## Example 1
 Input:

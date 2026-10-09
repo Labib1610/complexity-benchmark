@@ -1,26 +1,29 @@
-# Orbital Reflection Synchrony
+# Problem B — System Equilibrium
 
 Time limit: 1 s   Memory limit: 256 MB
 
-A satellite network consists of $n$ orbital modules, numbered $1$ through $n$. You must assign each module an operating mode, represented by the integer $1$ or $2$.
+You are tasked with finding a state vector $S = \begin{pmatrix} s_1 \\ s_2 \\ \vdots \\ s_n \end{pmatrix}$ such that $s_i \in \{1, 2\}$ for all $1 \le i \le n$, which puts a simulated system into equilibrium.
 
-The modes determine how a module transforms an incoming diagnostic signal. A signal can be in one of four states, denoted by integers $1$ through $4$.
-- Mode 1 transforms the signal state according to the mapping $M_1$: state 1 becomes 2, state 2 becomes 1, state 3 becomes 4, and state 4 becomes 3.
-- Mode 2 transforms the signal state according to the mapping $M_2$: state 1 becomes 3, state 2 becomes 4, state 3 becomes 1, and state 4 becomes 2.
+The system consists of $n$ particles and a log of $m$ interactions. Each interaction involves two particles $u$ and $v$.
+The equilibrium of the system is governed by a strict set of conditional dependency rules triggered by the logged interactions.
 
-The network's synchronization is governed by $m$ telemetry channels. Each channel connects a specific pair of modules. For a channel to function correctly, the combined effect of the two modules' transformations on any signal must exactly match a specific target mapping $M_{target}$, which maps state 1 to 4, state 2 to 3, state 3 to 2, and state 4 to 1. 
+For every logged interaction between particle $u$ and particle $v$, the following dependency rules must all be satisfied to maintain equilibrium:
+- If $s_u = 1$, then it is required that $s_v = 2$.
+- If $s_u = 2$, then it is required that $s_v = 1$.
+- If $s_v = 1$, then it is required that $s_u = 2$.
+- If $s_v = 2$, then it is required that $s_u = 1$.
 
-That is, if you take any initial signal state $x \in \{1, 2, 3, 4\}$, apply the transformation for the mode assigned to one module, and then apply the transformation for the mode assigned to the other module, the final state must always be $M_{target}(x)$. (Since the mappings $M_1$ and $M_2$ commute, the order in which the two modules process the signal does not matter). If the combined transformations yield any other result for any state, the channel fails.
+If any of these implications are violated for any interaction in the log, the system fails to reach equilibrium. Note that if an interaction logs the same particle twice (i.e., $u = v$), the rules apply to it as well, which may immediately destabilize the system.
 
-Your task is to assign an operating mode ($1$ or $2$) to each of the $n$ modules so that every telemetry channel functions correctly. If multiple valid assignments are possible, you must output the lexicographically smallest valid sequence of modes. If no such assignment is possible, you must report that it cannot be done.
+If there are multiple valid state vectors $S$ that satisfy all dependency rules, you must output the sequence $s_1 \dots s_n$ that is lexicographically smallest.
 
 ## Input
-The first line provides two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$).
-The following $m$ lines each contain two integers $u$ and $v$ ($1 \le u, v \le n$), representing the indices of a pair of modules connected by a telemetry channel.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$).
+Each of the following $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$) — the indices of the two particles involved in the $j$-th interaction. The interactions are given in order for $j = 1, 2, \dots, m$.
 
 ## Output
-If it is impossible to configure the modules to satisfy all channels, output a single line with NO.
-If it is possible, output YES on the first line. On the second line, output $n$ integers $p_1 \dots p_n$ (where each $p_i \in \{1,2\}$) giving the lexicographically smallest valid sequence of modes.
+If no such vector $S$ exists, print a single line containing `NO`.
+Otherwise, print `YES` on the first line. On the second line, print $n$ integers $s_1 \dots s_n$ (where each $s_i \in \{1,2\}$) representing the elements of the lexicographically smallest valid vector $S$.
 
 ## Example 1
 Input:

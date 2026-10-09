@@ -1,0 +1,77 @@
+from collections import defaultdict, deque
+
+def solve():
+    j, m = map(int, input().split())
+    
+    proposals = []
+    for _ in range(j):
+        line = list(map(int, input().split()))
+        o = line[0]
+        stages = []
+        for i in range(o):
+            expert = line[1 + 2*i]
+            duration = line[1 + 2*i + 1]
+            stages.append((expert, duration))
+        proposals.append(stages)
+    
+    # For each expert, we keep track of when they become free
+    expert_free_time = [0] * (m + 1)  # 1-indexed
+    
+    # For each proposal, we keep track of when it can start its next stage
+    proposal_stage_start = [0] * j
+    
+    # Keep track of the current stage for each proposal
+    proposal_current_stage = [0] * j
+    
+    # Create a list of all stages with their proposal index
+    # We'll process stages in the order they become eligible
+    pending_stages = []
+    
+    # Initialize: add the first stage of each proposal if it can start at time 0
+    for i in range(j):
+        if len(proposals[i]) > 0:
+            pending_stages.append((0, i))  # (stage_index, proposal_index)
+    
+    max_time = 0
+    
+    # Process stages until all are completed
+    while pending_stages:
+        # Sort by stage index to maintain order within each proposal
+        pending_stages.sort()
+        
+        next_stage_time = float('inf')
+        next_stage = None
+        
+        # Find the earliest stage that can start
+        for idx, (stage_idx, prop_idx) in enumerate(pending_stages):
+            expert, duration = proposals[prop_idx][stage_idx]
+            # This stage can start at max(proposal_stage_start[prop_idx], expert_free_time[expert])
+            start_time = max(proposal_stage_start[prop_idx], expert_free_time[expert])
+            if start_time < next_stage_time:
+                next_stage_time = start_time
+                next_stage = (idx, stage_idx, prop_idx, expert, duration, start_time)
+        
+        if next_stage is None:
+            break
+            
+        idx, stage_idx, prop_idx, expert, duration, start_time = next_stage
+        
+        # Remove this stage from pending
+        pending_stages.pop(idx)
+        
+        # Execute this stage
+        end_time = start_time + duration
+        expert_free_time[expert] = end_time
+        max_time = max(max_time, end_time)
+        
+        # Update the proposal's next stage start time
+        proposal_current_stage[prop_idx] = stage_idx + 1
+        proposal_stage_start[prop_idx] = end_time
+        
+        # If this proposal has more stages, add the next one
+        if proposal_current_stage[prop_idx] < len(proposals[prop_idx]):
+            pending_stages.append((proposal_current_stage[prop_idx], prop_idx))
+    
+    print(max_time)
+
+solve()

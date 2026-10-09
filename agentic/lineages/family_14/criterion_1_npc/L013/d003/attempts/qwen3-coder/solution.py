@@ -1,0 +1,68 @@
+import sys
+import heapq
+from collections import defaultdict
+
+def find_mst_with_terminals(n, edges, terminals):
+    if len(terminals) <= 1:
+        return 0
+    
+    # Build graph
+    graph = defaultdict(list)
+    for u, v, w in edges:
+        graph[u].append((v, w))
+        graph[v].append((u, w))
+    
+    # Use Prim's algorithm to find MST that connects all terminals
+    # We'll use a modified version that only cares about connecting terminals
+    
+    # Initially, we start with one terminal
+    start = next(iter(terminals))
+    visited = set()
+    min_heap = [(0, start)]
+    total_cost = 0
+    connected_terminals = set()
+    
+    while min_heap and len(connected_terminals) < len(terminals):
+        cost, node = heapq.heappop(min_heap)
+        
+        if node in visited:
+            continue
+            
+        visited.add(node)
+        total_cost += cost
+        
+        if node in terminals:
+            connected_terminals.add(node)
+        
+        # Add neighbors to heap
+        for neighbor, edge_cost in graph[node]:
+            if neighbor not in visited:
+                heapq.heappush(min_heap, (edge_cost, neighbor))
+    
+    return total_cost
+
+def solve():
+    n, m, t = map(int, sys.stdin.readline().split())
+    terminals = set(map(int, sys.stdin.readline().split()))
+    
+    edges = []
+    for _ in range(m):
+        u, v, w = map(int, sys.stdin.readline().split())
+        edges.append((u, v, w))
+    
+    # We need to find minimum spanning tree that connects all terminals
+    # This is known as the Steiner tree problem, but since t <= 10,
+    # we can use a different approach: 
+    
+    # For small number of terminals, we can:
+    # 1. Compute pairwise shortest paths between all terminals
+    # 2. Create a complete graph with terminals as nodes
+    # 3. Find MST of this complete graph
+    
+    # But there's an even simpler approach using Prim's algorithm directly
+    # Start Prim's from one terminal and stop when all terminals are included
+    
+    result = find_mst_with_terminals(n, edges, terminals)
+    print(result)
+
+solve()

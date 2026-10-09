@@ -1,0 +1,44 @@
+import sys
+sys.setrecursionlimit(1 << 25)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))  # = n-1
+    t = int(next(it))
+    terminals = [int(next(it)) - 1 for _ in range(t)]
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        w = int(next(it))
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+
+    is_term = [0] * n
+    for v in terminals:
+        is_term[v] = 1
+
+    total = 0
+
+    def dfs(u: int, p: int) -> int:
+        nonlocal total
+        cnt = is_term[u]
+        for v, w in adj[u]:
+            if v == p:
+                continue
+            sub = dfs(v, u)
+            # edge u-v separates sub terminals (sub) from rest (t - sub)
+            if sub > 0 and sub < t:
+                total += w
+            cnt += sub
+        return cnt
+
+    dfs(0, -1)
+    print(total)
+
+if __name__ == "__main__":
+    solve()

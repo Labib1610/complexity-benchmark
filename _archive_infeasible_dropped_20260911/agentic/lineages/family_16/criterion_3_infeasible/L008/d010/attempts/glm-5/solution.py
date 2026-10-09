@@ -1,0 +1,34 @@
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    j = int(data[0])
+    T = int(data[1])
+    p1 = [0] * j
+    p2 = [0] * j
+    idx = 2
+    for i in range(j):
+        p1[i] = int(data[idx])
+        p2[i] = int(data[idx + 1])
+        idx += 2
+
+    # Check JOB condition: p1_k + p2_k > T
+    for i in range(j):
+        if p1[i] + p2[i] > T:
+            print(f"JOB {i + 1}")
+            return
+
+    # Check LOAD 1: sum of p1 > T
+    if sum(p1) > T:
+        print("LOAD 1")
+        return
+
+    # Check LOAD 2: sum of p2 > T
+    if sum(p2) > T:
+        print("LOAD 2")
+        return
+
+if __name__ == "__main__":
+    solve()

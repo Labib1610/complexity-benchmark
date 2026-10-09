@@ -1,0 +1,296 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    iterator = iter(input_data)
+    n = int(next(iterator))
+    m = int(next(iterator))
+    k = int(next(iterator))
+    
+    orders = []
+    for _ in range(k):
+        s = int(next(iterator)) - 1
+        t = int(next(iterator)) - 1
+        d = int(next(iterator))
+        orders.append((s, t, d))
+        
+    tubes = []
+    for _ in range(m):
+        u = int(next(iterator)) - 1
+        v = int(next(iterator)) - 1
+        cap = int(next(iterator))
+        tubes.append((u, v, cap))
+
+    # Variables: x_{i, j} for i in [0..k-1], j in [0..m-1]
+    # Total variables = k * m
+    num_vars = k * m
+    def var_idx(order_i, tube_j):
+        return order_i * m + tube_j
+
+    # Constraints:
+    # 1. Flow conservation for each order i and vat u:
+    #    sum_{j: u->v} x_{i, j} - sum_{j: v->u} x_{i, j} = supply(i, u)
+    # 2. Capacity constraints for each tube j:
+    #    sum_{i} x_{i, j} <= cap_j
+    # 3. Variable bounds: x_{i, j} >= 0
+
+    # We will build standard form LP:
+    # Ax = b, x >= 0
+    # Equalities for flow conservation: k * n
+    # Tube capacities: m inequalities -> add slack variables (m slacks)
+    # Total variables in base LP: num_vars + m
+    
+    # We can use a revised simplex or tableau simplex.
+    # Given that sizes are typically moderate, standard tableau or branch-and-cut with simplex is fine.
+    # Let's use standard Phase I - Phase II Simplex.
+
+    class Simplex:
+        def __init__(self, A, b, c, eq_indices):
+            # min c^T x s.t. A_i x = b_i (for i in eq_indices), A_i x <= b_i (otherwise), x >= 0
+            # Convert to standard form: min c^T x s.t. Ax = b, x >= 0
+            # using slack and artificial variables.
+            pass
+
+    # Alternative: Use standard branch and bound with a simple LP solver.
+    # Let's implement Two-Phase Simplex on standard tableau:
+    # min cx
+    # s.t. Ax = b, x >= 0
+
+    # Let's format all constraints as:
+    # sum a_ij x_j <= b_i or sum a_ij x_j = b_i
+    
+    # Actually, simpler:
+    # Rows:
+    # 1. Flow conservation: k * (n - 1) independent constraints (since sum over all vats is 0).
+    #    (order i, vat u): sum_{out} x - sum_{in} x = supply
+    # 2. Capacity: m constraints: sum_{i} x_{i, j} + s_j = cap_j (s_j >= 0)
+    # 3. Bound constraints added during branch and bound:
+    #    x_v <= floor(val)  ->  x_v + s = floor(val)
+    #    x_v >= ceil(val)   -> -x_v + s = -ceil(val) -> wait, standard simplex with dual simplex is best for adding bounds,
+    # or just rebuild tableau / use standard LP solver.
+
+    EPS = 1e-7
+
+    def solve_lp(extra_bounds):
+        # extra_bounds: list of (var_idx, '<=', val) or (var_idx, '>=', val)
+        # We set up tableau for Phase I Simplex to find a feasible solution.
+        # Constraints:
+        # Flow conservation: k * n equalities
+        # Capacities: m '<=' inequalities
+        # extra_bounds: len(extra_bounds) inequalities
+        
+        # Count total constraints:
+        # Flow: k * n
+        # Cap: m
+        # Bounds: len(extra_bounds)
+        
+        eq_rows = []
+        # Flow conservation
+        for i in range(k):
+            s_i, t_i, d_i = orders[i]
+            for u in range(n):
+                row = [0.0] * num_vars
+                # net flow out of u
+                for j in range(m):
+                    tu, tv, _ = tubes[j]
+                    if tu == u:
+                        row[var_idx(i, j)] += 1.0
+                    if tv == u:
+                        row[var_idx(i, j)] -= 1.0
+                rhs = 0.0
+                if u == s_i:
+                    rhs += d_i
+                if u == t_i:
+                    rhs -= d_i
+                eq_rows.append((row, rhs))
+        
+        le_rows = []
+        # Capacities
+        for j in range(m):
+            row = [0.0] * num_vars
+            for i in range(k):
+                row[var_idx(i, j)] = 1.0
+            le_rows.append((row, float(tubes[j][2])))
+            
+        # Extra bounds
+        for v_idx, op, val in extra_bounds:
+            row = [0.0] * num_vars
+            if op == '<=':
+                row[v_idx] = 1.0
+                le_rows.append((row, float(val)))
+            else: # '>='
+                row[v_idx] = -1.0
+                le_rows.append((row, -float(val)))
+
+        # Convert everything to Ax = b, x >= 0
+        # For le_rows: row * x + slack = rhs
+        # If rhs < 0, multiply row and slack by -1 -> -row * x - slack = -rhs (need artificial var)
+        # For eq_rows: if rhs < 0, multiply by -1.
+        
+        num_slacks = len(le_rows)
+        total_structural = num_vars + num_slacks
+        
+        # Build matrix
+        all_rows = []
+        is_slack_initial_basic = [] # true if slack has +1 and rhs >= 0
+        
+        for idx, (row, rhs) in enumerate(le_rows):
+            full_row = list(row) + [0.0] * num_slacks
+            full_row[num_vars + idx] = 1.0
+            if rhs < -EPS:
+                # multiply by -1
+                full_row = [-x for x in full_row]
+                rhs = -rhs
+                all_rows.append((full_row, rhs, False))
+            else:
+                all_rows.append((full_row, rhs, True))
+                
+        for row, rhs in eq_rows:
+            full_row = list(row) + [0.0] * num_slacks
+            if rhs < -EPS:
+                full_row = [-x for x in full_row]
+                rhs = -rhs
+            all_rows.append((full_row, rhs, False))
+            
+        num_constraints = len(all_rows)
+        # Determine artificial variables needed
+        artificial_vars = []
+        basis = []
+        for r_idx in range(num_constraints):
+            full_row, rhs, is_basic_slack = all_rows[r_idx]
+            if is_basic_slack:
+                basis.append(num_vars + r_idx)
+            else:
+                art_col = len(artificial_vars)
+                artificial_vars.append(r_idx)
+                basis.append(total_structural + art_col)
+                
+        num_art = len(artificial_vars)
+        total_cols = total_structural + num_art
+        
+        # Build full tableau: (num_constraints + 1) x (total_cols + 1)
+        tableau = [[0.0] * (total_cols + 1) for _ in range(num_constraints + 1)]
+        for r_idx in range(num_constraints):
+            full_row, rhs, _ = all_rows[r_idx]
+            for c_idx in range(total_structural):
+                tableau[r_idx][c_idx] = full_row[c_idx]
+            tableau[r_idx][-1] = rhs
+            
+        for art_idx, r_idx in enumerate(artificial_vars):
+            tableau[r_idx][total_structural + art_idx] = 1.0
+            
+        # Phase 1 objective: minimize sum of artificial variables
+        # obj row (index num_constraints): max -sum(art_vars)
+        # In tableau form, obj row starts with cost +1 for artificials, then eliminate basic artificials
+        for art_idx in range(num_art):
+            tableau[num_constraints][total_structural + art_idx] = 1.0
+        for art_idx, r_idx in enumerate(artificial_vars):
+            for c_idx in range(total_cols + 1):
+                tableau[num_constraints][c_idx] -= tableau[r_idx][c_idx]
+                
+        # Simplex pivot loop
+        def pivot(r, c):
+            pivot_val = tableau[r][c]
+            for j in range(total_cols + 1):
+                tableau[r][j] /= pivot_val
+            for i in range(num_constraints + 1):
+                if i != r and abs(tableau[i][c]) > 1e-11:
+                    factor = tableau[i][c]
+                    for j in range(total_cols + 1):
+                        tableau[i][j] -= factor * tableau[r][j]
+            basis[r] = c
+
+        # Solve Phase 1
+        while True:
+            # Find entering variable (most negative in obj row)
+            entering = -1
+            min_val = -EPS
+            for j in range(total_cols):
+                if tableau[num_constraints][j] < min_val:
+                    min_val = tableau[num_constraints][j]
+                    entering = j
+            if entering == -1:
+                break
+                
+            # Find leaving variable (min ratio test)
+            leaving = -1
+            min_ratio = float('inf')
+            for i in range(num_constraints):
+                if tableau[i][entering] > EPS:
+                    ratio = tableau[i][-1] / tableau[i][entering]
+                    if ratio < min_ratio - EPS:
+                        min_ratio = ratio
+                        leaving = i
+                    elif abs(ratio - min_ratio) <= EPS:
+                        # Bland's rule or basic index tie-breaking
+                        if basis[i] < (basis[leaving] if leaving != -1 else float('inf')):
+                            leaving = i
+            if leaving == -1:
+                # Unbounded in phase 1 (should not happen)
+                break
+            pivot(leaving, entering)
+
+        # Check phase 1 objective value
+        if abs(tableau[num_constraints][-1]) > 1e-5:
+            return None # Infeasible
+
+        # Extract solution for structural variables
+        sol = [0.0] * num_vars
+        for i in range(num_constraints):
+            if basis[i] < num_vars:
+                sol[basis[i]] = tableau[i][-1]
+        return sol
+
+    # Branch and Bound
+    def branch_and_bound():
+        stack = [[]]
+        while stack:
+            bounds = stack.pop()
+            sol = solve_lp(bounds)
+            if sol is None:
+                continue
+            
+            # Find non-integer variable
+            frac_var = -1
+            max_frac = 0.0
+            for v_idx in range(num_vars):
+                val = sol[v_idx]
+                frac = abs(val - round(val))
+                if frac > 1e-4 and frac > max_frac:
+                    max_frac = frac
+                    frac_var = v_idx
+                    
+            if frac_var == -1:
+                # All integer!
+                int_sol = [int(round(x)) for x in sol]
+                return int_sol
+                
+            val = sol[frac_var]
+            import math
+            f_val = math.floor(val + 1e-7)
+            c_val = math.ceil(val - 1e-7)
+            
+            # Push branches (try the one closer to rounded value first, so push other first)
+            if val - f_val < c_val - val:
+                stack.append(bounds + [(frac_var, '>=', c_val)])
+                stack.append(bounds + [(frac_var, '<=', f_val)])
+            else:
+                stack.append(bounds + [(frac_var, '<=', f_val)])
+                stack.append(bounds + [(frac_var, '>=', c_val)])
+                
+        return None
+
+    ans = branch_and_bound()
+    if ans is None:
+        print("NO")
+    else:
+        print("YES")
+        for i in range(k):
+            row = [ans[var_idx(i, j)] for j in range(m)]
+            print(*(max(0, x) for x in row))
+
+if __name__ == '__main__':
+    solve()

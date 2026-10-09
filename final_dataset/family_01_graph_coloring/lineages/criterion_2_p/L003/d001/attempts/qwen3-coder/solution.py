@@ -1,0 +1,45 @@
+import sys
+from collections import defaultdict, deque
+
+def solve():
+    n, m = map(int, input().split())
+    
+    # Build adjacency list
+    graph = defaultdict(list)
+    for _ in range(m):
+        u, v = map(int, input().split())
+        graph[u].append(v)
+        graph[v].append(u)
+    
+    # Color assignment: 0 means unvisited, 1 and 2 are the two modes
+    color = [0] * (n + 1)
+    
+    # Check each connected component
+    for start in range(1, n + 1):
+        if color[start] != 0:
+            continue
+            
+        # BFS to check if bipartite
+        queue = deque([start])
+        color[start] = 1
+        
+        while queue:
+            node = queue.popleft()
+            current_color = color[node]
+            neighbor_color = 3 - current_color  # 1 -> 2, 2 -> 1
+            
+            for neighbor in graph[node]:
+                if color[neighbor] == 0:
+                    color[neighbor] = neighbor_color
+                    queue.append(neighbor)
+                elif color[neighbor] != neighbor_color:
+                    print("NO")
+                    return
+    
+    # If we reach here, a valid configuration exists
+    # We want the lexicographically smallest one, so we prefer mode 1 when possible
+    # Our coloring already ensures this since we start with color 1 for each component
+    print("YES")
+    print(*color[1:])
+
+solve()

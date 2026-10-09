@@ -1,0 +1,380 @@
+**Solution Explanation**
+
+For every gene we have a Boolean variable  
+
+```
+xi = 1   … gene i is activated
+xi = 0   … gene i is suppressed
+```
+
+Each pathway gives a clause with three literals, e.g.  
+
+`( x4 ) ∨ ( ¬x7 ) ∨ ( x2 )`
+
+The whole instance is a *3‑SAT* formula.  
+`n ≤ 90 , m ≤ 400` – small enough for a complete back‑tracking search
+with the usual SAT tricks:
+
+* **unit propagation** – a clause that already has two false literals forces the
+  third literal to be true;
+* **pure literal elimination** – a variable that appears only with one polarity
+  can be set to that polarity safely;
+* simple **branching** on an unassigned variable.
+
+The recursion depth never exceeds `n` ( ≤ 90 ), therefore the algorithm easily
+fits into the limits.
+
+
+
+--------------------------------------------------------------------
+
+#### Data structures
+
+* `clauses` – list of clauses, each clause is a tuple of three integers.
+  Positive `k` means literal `xk`, negative `-k` means `¬xk`.
+* `assign` – list of length `n+1` (`assign[0]` unused).  
+  `-1` – unassigned, `0` – false, `1` – true.
+
+Helper functions
+
+```
+value(lit, assign) ->  1  if literal is true
+                        0  if literal is false
+                       -1  if variable is unassigned
+```
+
+--------------------------------------------------------------------
+
+#### Unit propagation
+
+```
+propagate(assign):
+    stack = []                     # literals that have just been forced
+    while True:
+        unit = None
+        for each clause C:
+            cnt_true = 0
+            cnt_unassigned = 0
+            last_unassigned = None
+            for lit in C:
+                v = value(lit, assign)
+                if v == 1: cnt_true += 1
+                elif v == -1:
+                    cnt_unassigned += 1
+                    last_unassigned = lit
+            if cnt_true > 0:               # clause already satisfied
+                continue
+            if cnt_unassigned == 0:        # all three false → conflict
+                return False
+            if cnt_unassigned == 1:        # unit clause
+                unit = last_unassigned
+                break
+        if unit is None:                    # no more unit clauses
+            break
+        # force the unit literal
+        var = abs(unit)
+        val = 1 if unit > 0 else 0
+        if assign[var] != -1:
+            if assign[var] != val:          # contradictory forced assignment
+                return False
+        else:
+            assign[var] = val
+            stack.append(unit)
+    return True
+```
+
+The function returns `False` if a conflict is detected, otherwise `True`
+and `assign` already contains all forced values.
+
+--------------------------------------------------------------------
+
+#### Pure literal elimination
+
+```
+pure_eliminate(assign):
+    while True:
+        pos = [False]*(n+1)
+        neg = [False]*(n+1)
+        for each clause C:
+            for lit in C:
+                v = assign[abs(lit)]
+                if v != -1: continue          # already fixed
+                if lit > 0: pos[abs(lit)] = True
+                else:       neg[abs(lit)] = True
+        changed = False
+        for v in 1..n:
+            if assign[v] == -1:
+                if pos[v] and not neg[v]:
+                    assign[v] = 1; changed = True
+                elif neg[v] and not pos[v]:
+                    assign[v] = 0; changed = True
+        if not changed: break
+        if not propagate(assign): return False
+    return True
+```
+
+Pure literals are set, then propagation is run again because the new
+assignments may create further units.
+
+--------------------------------------------------------------------
+
+#### Recursive DPLL
+
+```
+solve(assign):
+    if not propagate(assign): return None
+    if not pure_eliminate(assign): return None
+    if all variables assigned: return assign
+
+    # choose first unassigned variable
+    v = first i with assign[i] == -1
+    for val in (1,0):
+        new_assign = assign.copy()
+        new_assign[v] = val
+        res = solve(new_assign)
+        if res is not None: return res
+    return None
+```
+
+If a recursive call returns a complete assignment, it is the required
+viable genome.
+
+--------------------------------------------------------------------
+
+#### Correctness Proof  
+
+We prove that the algorithm prints `YES` and a satisfying assignment
+iff such an assignment exists.
+
+---
+
+##### Lemma 1  
+`propagate` returns `False` **iff** the current partial assignment cannot be
+extended to a full satisfying assignment.
+
+**Proof.**  
+*If* `propagate` finds a clause with all three literals false, any extension
+keeps that clause false, therefore the formula is unsatisfiable under the
+current partial assignment.  
+*If* it finishes without conflict, every clause is either already satisfied
+or still has at least one unassigned literal, so no clause is forced to be
+false. Hence the current assignment can still be extended. ∎
+
+
+
+##### Lemma 2  
+`pure_eliminate` never removes a satisfying assignment.
+
+**Proof.**  
+A pure literal appears only with one polarity, say only `x` (never `¬x`).
+In any satisfying assignment `x` must be set to the polarity that makes all
+clauses containing it true; setting it opposite would falsify those clauses.
+Thus fixing the pure literal to its only possible polarity preserves
+satisfiability. After fixing, `propagate` is called, which by Lemma&nbsp;1
+keeps only extensions that are still possible. ∎
+
+
+
+##### Lemma 3  
+When `solve` reaches the line “if all variables assigned”, the assignment
+satisfies every clause.
+
+**Proof.**  
+All previous steps (`propagate` and `pure_eliminate`) guarantee that no clause
+is falsified (Lemma&nbsp;1). With every variable assigned, each clause has at
+least one true literal, i.e. it is satisfied. ∎
+
+
+
+##### Lemma 4  
+If the formula is satisfiable, `solve` returns a satisfying assignment.
+
+**Proof.**  
+Induction on the number of unassigned variables.
+
+*Base*: none unassigned – Lemma&nbsp;3 gives a satisfying assignment.
+
+*Induction step*: assume at least one variable `v` is unassigned.
+Consider a satisfying assignment `A`.  
+`propagate` and `pure_eliminate` keep `A` possible (Lemmas&nbsp;1,2).  
+`solve` branches on `v` trying `v=1` then `v=0`. One of these choices matches
+`A`. For that branch the recursive call receives a partial assignment that
+is still extendable to `A`; by induction hypothesis it eventually returns a
+full satisfying assignment, which `solve` propagates upward. ∎
+
+
+
+##### Lemma 5  
+If `solve` returns an assignment, it satisfies the formula.
+
+**Proof.**  
+The only way `solve` returns a non‑`None` value is either the base case
+(all variables assigned) or a recursive call that returned such a value.
+By Lemma&nbsp;3 the base case yields a satisfying assignment, and the
+recursive case returns exactly the same assignment unchanged. ∎
+
+
+
+##### Theorem  
+The program outputs  
+
+* `YES` and a sequence of 0/1 values **iff** there exists an assignment of
+  the `n` genes that makes all `m` pathways functional;  
+
+* otherwise it outputs `NO`.
+
+**Proof.**  
+If the program prints `YES`, it has obtained an assignment from `solve`,
+which is satisfying by Lemma&nbsp;5.  
+If a satisfying assignment exists, Lemma&nbsp;4 guarantees that `solve`
+finds one, therefore the program prints `YES`.  
+If no satisfying assignment exists, `solve` explores the whole search tree.
+Every leaf either conflicts (Lemma&nbsp;1) or ends with unassigned variables
+but no possible extension, thus returns `None`. Consequently the top call
+returns `None` and the program prints `NO`. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### Complexity Analysis  
+
+`n ≤ 90`, `m ≤ 400`.
+
+*Propagation* scans all clauses each iteration: `O(m·3) = O(m)`.  
+In the worst case each propagation step fixes at least one variable, so
+overall `O(n·m)` per recursive call.
+
+The DPLL search tree size is bounded by `2^n` in the worst theoretical case,
+but with unit propagation and pure literal elimination the practical
+branching factor is far smaller. For the given limits the program runs well
+within the 2 seconds limit.
+
+Memory consumption: the clause list (`O(m)`) and a few arrays of size `n`,
+all far below the 256 MB limit.
+
+--------------------------------------------------------------------
+
+#### Reference Implementation  (Python 3)
+
+```python
+import sys
+sys.setrecursionlimit(10000)
+
+def solve_instance(n, clauses):
+    # value of a literal under current assignment
+    def lit_val(lit, assign):
+        v = assign[abs(lit)]
+        if v == -1:
+            return -1
+        return 1 if (lit > 0 and v == 1) or (lit < 0 and v == 0) else 0
+
+    # unit propagation, returns False on conflict
+    def propagate(assign):
+        while True:
+            unit = None
+            for c in clauses:
+                cnt_true = 0
+                cnt_un = 0
+                last_un = None
+                for lit in c:
+                    v = lit_val(lit, assign)
+                    if v == 1:
+                        cnt_true += 1
+                        break
+                    elif v == -1:
+                        cnt_un += 1
+                        last_un = lit
+                if cnt_true:
+                    continue
+                if cnt_un == 0:          # all false
+                    return False
+                if cnt_un == 1:
+                    unit = last_un
+                    break
+            if unit is None:
+                return True
+            var = abs(unit)
+            val = 1 if unit > 0 else 0
+            if assign[var] != -1:
+                if assign[var] != val:
+                    return False
+            else:
+                assign[var] = val
+
+    # pure literal elimination
+    def pure_eliminate(assign):
+        while True:
+            pos = [False] * (n + 1)
+            neg = [False] * (n + 1)
+            for c in clauses:
+                for lit in c:
+                    v = assign[abs(lit)]
+                    if v != -1:
+                        continue
+                    if lit > 0:
+                        pos[abs(lit)] = True
+                    else:
+                        neg[abs(lit)] = True
+            changed = False
+            for v in range(1, n + 1):
+                if assign[v] == -1:
+                    if pos[v] and not neg[v]:
+                        assign[v] = 1
+                        changed = True
+                    elif neg[v] and not pos[v]:
+                        assign[v] = 0
+                        changed = True
+            if not changed:
+                return True
+            if not propagate(assign):
+                return False
+
+    def dpll(assign):
+        if not propagate(assign):
+            return None
+        if not pure_eliminate(assign):
+            return None
+        if all(assign[i] != -1 for i in range(1, n + 1)):
+            return assign
+        # choose first unassigned variable
+        for v in range(1, n + 1):
+            if assign[v] == -1:
+                var = v
+                break
+        for val in (1, 0):
+            new_assign = assign[:]
+            new_assign[var] = val
+            res = dpll(new_assign)
+            if res is not None:
+                return res
+        return None
+
+    init_assign = [-1] * (n + 1)
+    return dpll(init_assign)
+
+
+def main():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    clauses = []
+    for _ in range(m):
+        a = int(next(it)); b = int(next(it)); c = int(next(it))
+        clauses.append((a, b, c))
+    ans = solve_instance(n, clauses)
+    if ans is None:
+        print("NO")
+    else:
+        print("YES")
+        print(' '.join(str(ans[i]) for i in range(1, n + 1)))
+
+if __name__ == "__main__":
+    main()
+```
+
+The program follows exactly the algorithm proven correct above and conforms
+to the required input‑output format.

@@ -1,0 +1,207 @@
+**Solution Explanation**
+
+For every edge `e = (u , v)` remove it from the tree.
+The tree is split into two components `C_u` (containing `u`) and `C_v`
+(containing `v`).
+
+* A special corporation `s` is closer to `u` than to `v`
+  **iff** `s` lies in `C_u` (the unique path from `s` to `v` must pass `e`).
+
+Therefore the votes on edge `e` are exactly the special vertices that lie in
+each component.
+`e` is *contested* ⇔ both components contain at least one special vertex.
+
+Consequences  
+
+* The set of contested edges is precisely the edges of the minimal
+  subtree that connects all special vertices (the *Steiner tree* of the
+  specials in a tree).  
+  An edge belongs to this subtree **iff** after removing it the specials are
+  split between the two sides.
+
+* Any valid subset of edges must contain all contested edges,
+  and adding any other edge only increases the total fee.
+  Hence the minimum possible total fee is the sum of the fees of all
+  contested edges.
+
+So we only have to compute the sum of weights of edges whose removal separates
+the specials.
+
+--------------------------------------------------------------------
+
+#### Computing the required edges
+
+Root the tree arbitrarily (node 1).  
+During a DFS we compute for every vertex `x`
+
+```
+cnt[x] = number of special vertices in the subtree of x (including x)
+```
+
+Let `total = t` be the total number of specials.
+For a tree edge `parent – child` (child is deeper in the rooted tree)
+
+```
+sub = cnt[child]                     # specials in child's side
+other = total - sub                  # specials in the rest of the tree
+edge is contested  ⇔  sub > 0 and other > 0
+```
+
+If the condition holds we add its weight to the answer.
+
+The DFS is performed iteratively to avoid recursion limits
+(`n ≤ 2·10⁵`).  
+Overall complexity: `O(n)` time, `O(n)` memory.
+
+--------------------------------------------------------------------
+
+#### Correctness Proof  
+
+We prove that the algorithm outputs the minimum possible total fee.
+
+---
+
+**Lemma 1**  
+For any edge `e = (u,v)` let `C_u , C_v` be the two components after removing
+`e`. A special vertex `s` votes for `u` (resp. `v`) exactly when `s ∈ C_u`
+(resp. `s ∈ C_v`).
+
+*Proof.*  
+In a tree the unique path from `s` to `u` does not contain `v` iff `s` lies
+in the same component as `u`. Then the distance `dist(s,u)` is strictly
+smaller than `dist(s,v)` (the latter must go through `e`). ∎
+
+
+
+**Lemma 2**  
+Edge `e` is contested **iff** both components `C_u , C_v` contain at least one
+special vertex.
+
+*Proof.*  
+By Lemma&nbsp;1 the set of votes for `u` is exactly the specials in `C_u`,
+and similarly for `v`. Both sides receive at least one vote ⇔ each component
+has a special vertex. ∎
+
+
+
+**Lemma 3**  
+An edge belongs to the minimal subtree spanning all specials
+iff its removal separates the specials into both components.
+
+*Proof.*  
+If removing the edge separates the specials, any subtree connecting all
+specials must contain a path between a special in `C_u` and a special in
+`C_v`; that path necessarily uses the edge, so the edge is in every such
+subtree, in particular in the minimal one.  
+Conversely, if the edge is in the minimal connecting subtree, deleting it
+disconnects that subtree, therefore there are specials on both sides. ∎
+
+
+
+**Lemma 4**  
+The algorithm marks exactly the contested edges.
+
+*Proof.*  
+During DFS `cnt[child]` equals the number of specials in the component of the
+child after cutting the edge to its parent. The condition
+`cnt[child] > 0` and `total - cnt[child] > 0` is precisely “both components
+contain a special”, which by Lemma&nbsp;2 is equivalent to the edge being
+contested. ∎
+
+
+
+**Theorem**  
+The sum printed by the algorithm equals the minimum possible total fee of a
+valid subset of agreements.
+
+*Proof.*  
+
+*Soundness.*  
+By Lemma&nbsp;4 the algorithm sums the fees of all contested edges.
+Every valid subset must contain all contested edges (definition of validity),
+hence its total fee is at least this sum.
+
+*Optimality.*  
+Take the subset consisting **only** of the contested edges.
+By Lemma&nbsp;2 each of them is contested, so the subset is valid.
+Its total fee equals the sum computed by the algorithm.
+
+Thus no valid subset can be cheaper, and the algorithm’s sum is achievable.
+∎
+
+
+
+--------------------------------------------------------------------
+
+#### Complexity Analysis
+
+*Time* : one DFS over `n` vertices → `O(n)`  
+*Memory*: adjacency list, parent/weight arrays, counters → `O(n)`
+
+Both satisfy the limits (`n ≤ 2·10⁵`).
+
+--------------------------------------------------------------------
+
+#### Reference Implementation  (Python 3)
+
+```python
+import sys
+sys.setrecursionlimit(1 << 25)
+
+def main() -> None:
+    data = sys.stdin.buffer.read().split()
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))          # = n-1, not used separately
+    t = int(next(it))
+    specials = [0] * (n + 1)
+    for _ in range(t):
+        specials[int(next(it))] = 1
+
+    adj = [[] for _ in range(n + 1)]
+    edges = []  # (u,v,w)
+    for _ in range(m):
+        u = int(next(it)); v = int(next(it)); w = int(next(it))
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+        edges.append((u, v, w))
+
+    parent = [0] * (n + 1)
+    pw = [0] * (n + 1)          # weight to parent
+    order = []
+    stack = [1]
+    parent[1] = -1
+    while stack:
+        u = stack.pop()
+        order.append(u)
+        for v, w in adj[u]:
+            if v == parent[u]:
+                continue
+            parent[v] = u
+            pw[v] = w
+            stack.append(v)
+
+    cnt = [0] * (n + 1)
+    for u in range(1, n + 1):
+        cnt[u] = specials[u]
+
+    ans = 0
+    total = t
+    for u in reversed(order):
+        p = parent[u]
+        if p == -1:
+            continue
+        # edge p-u
+        sub = cnt[u]
+        if sub > 0 and total - sub > 0:
+            ans += pw[u]
+        cnt[p] += cnt[u]
+
+    print(ans)
+
+if __name__ == "__main__":
+    main()
+```
+
+The program follows exactly the algorithm proven correct above and conforms
+to the required input‑output format.

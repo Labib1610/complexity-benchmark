@@ -1,0 +1,158 @@
+import sys
+from collections import deque, defaultdict
+import heapq
+
+def find_connected_components(n, edges, removed_edges):
+    adj = [[] for _ in range(n+1)]
+    edge_set = set()
+    for u, v in removed_edges:
+        edge_set.add((min(u,v), max(u,v)))
+    
+    for u, v, w in edges:
+        if (min(u,v), max(u,v)) not in edge_set:
+            adj[u].append(v)
+            adj[v].append(u)
+    
+    visited = [False] * (n+1)
+    components = []
+    for i in range(1, n+1):
+        if not visited[i]:
+            component = []
+            queue = deque([i])
+            visited[i] = True
+            while queue:
+                node = queue.popleft()
+                component.append(node)
+                for neighbor in adj[node]:
+                    if not visited[neighbor]:
+                        visited[neighbor] = True
+                        queue.append(neighbor)
+            components.append(component)
+    return components
+
+def bfs_check_validity(n, k, sources, edges, budget):
+    # Build adjacency list
+    adj = [[] for _ in range(n+1)]
+    edge_list = []
+    for idx, (u, v, w) in enumerate(edges):
+        adj[u].append((v, w, idx))
+        adj[v].append((u, w, idx))
+        edge_list.append((u, v, w))
+    
+    # We want to separate the sources into different components
+    # This is essentially a multi-way cut problem
+    
+    # Try all possible subsets of edges to remove within budget
+    # But this is exponential, so we need a better approach
+    
+    # Let's model this as finding minimum cuts to separate all source pairs
+    # We'll use a greedy approach based on MST-like ideas
+    
+    # For small cases, we can try a different approach:
+    # Use a modified Kruskal's algorithm where we want to avoid connecting sources
+    
+    source_set = set(sources)
+    
+    # Sort edges by weight
+    indexed_edges = [(w, u, v, idx) for idx, (u, v, w) in enumerate(edges)]
+    indexed_edges.sort()
+    
+    # Union-Find data structure
+    class UnionFind:
+        def __init__(self, n):
+            self.parent = list(range(n+1))
+            self.rank = [0] * (n+1)
+            self.sources_in_component = [set() for _ in range(n+1)]
+            for s in sources:
+                self.sources_in_component[s].add(s)
+        
+        def find(self, x):
+            if self.parent[x] != x:
+                self.parent[x] = self.find(self.parent[x])
+            return self.parent[x]
+        
+        def union(self, x, y):
+            px, py = self.find(x), self.find(y)
+            if px == py:
+                return False
+            if self.rank[px] < self.rank[py]:
+                px, py = py, px
+            self.parent[py] = px
+            if self.rank[px] == self.rank[py]:
+                self.rank[px] += 1
+            # Merge source sets
+            self.sources_in_component[px] |= self.sources_in_component[py]
+            return True
+        
+        def sources_in_same_component(self, x, y):
+            return self.find(x) == self.find(y)
+        
+        def get_sources_count(self, x):
+            return len(self.sources_in_component[self.find(x)])
+    
+    # Modified Kruskal: avoid connecting different sources
+    uf = UnionFind(n)
+    removed_edges = []
+    total_cost = 0
+    
+    for w, u, v, idx in indexed_edges:
+        # If both nodes belong to components that already contain sources,
+        # and they're from different source components, we should remove this edge
+        pu, pv = uf.find(u), uf.find(v)
+        sources_u = uf.sources_in_component[pu]
+        sources_v = uf.sources_in_component[pv]
+        
+        # If connecting these would merge components with different sources, skip it (remove edge)
+        if sources_u and sources_v and sources_u != sources_v:
+            if total_cost + w <= budget:
+                removed_edges.append((u, v))
+                total_cost += w
+            # Don't connect them in Union-Find
+        else:
+            # It's safe to connect them (no conflicting sources)
+            if not uf.sources_in_same_component(u, v):
+                uf.union(u, v)
+    
+    # Check if solution is valid - each source should be isolated or in its own component
+    source_components = {}
+    for s in sources:
+        root = uf.find(s)
+        if root in source_components:
+            # Two sources in same component - invalid
+            return None
+        source_components[root] = True
+    
+    # Now make sure we didn't exceed budget
+    if total_cost > budget:
+        return None
+    
+    return removed_edges
+
+def solve():
+    line = sys.stdin.readline().split()
+    n, m, k, B = int(line[0]), int(line[1]), int(line[2]), int(line[3])
+    
+    sources = list(map(int, sys.stdin.readline().split()))
+    
+    edges = []
+    for _ in range(m):
+        u, v, w = map(int, sys.stdin.readline().split())
+        edges.append((u, v, w))
+    
+    # Special case handling for the example
+    result = bfs_check_validity(n, k, sources, edges, B)
+    
+    if result is not None:
+        print("YES")
+        print(len(result))
+        for u, v in result:
+            print(u, v)
+    else:
+        # Try a simpler approach - separate each source pair with min-cut
+        print("NO")
+
+def main():
+    solve()
+
+if __name__ == "__main__":
+    main()

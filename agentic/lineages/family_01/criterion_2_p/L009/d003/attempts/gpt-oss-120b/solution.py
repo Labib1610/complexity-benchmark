@@ -1,5 +1,5 @@
 import sys
-from collections import deque
+sys.setrecursionlimit(1 << 25)
 
 def solve() -> None:
     data = sys.stdin.read().strip().split()
@@ -14,49 +14,40 @@ def solve() -> None:
         adj[u].append(v)
         adj[v].append(u)
 
-    col = [-1] * (n + 1)          # temporary 0/1 colours
-    ans = [0] * (n + 1)           # final powers 1/2
+    colour = [0] * (n + 1)          # final answer, 0 = unassigned, else 1 or 2
+    temp = [ -1 ] * (n + 1)         # temporary 0/1 during BFS
+    from collections import deque
 
     for start in range(1, n + 1):
-        if col[start] != -1:
+        if colour[start]:
             continue
         # BFS this component
         q = deque([start])
-        col[start] = 0
+        temp[start] = 0
         comp = [start]
+        ok = True
         while q:
             v = q.popleft()
-            for w in adj[v]:
-                if col[w] == -1:
-                    col[w] = col[v] ^ 1
-                    q.append(w)
-                    comp.append(w)
-                elif col[w] == col[v]:
+            for to in adj[v]:
+                if temp[to] == -1:
+                    temp[to] = temp[v] ^ 1
+                    q.append(to)
+                    comp.append(to)
+                elif temp[to] == temp[v]:
                     print("NO")
                     return
-        # decide orientation
-        mn = min(comp)
-        side0 = []
-        side1 = []
-        for v in comp:
-            if col[v] == 0:
-                side0.append(v)
-            else:
-                side1.append(v)
-        if mn in side0:
-            for v in side0:
-                ans[v] = 1
-            for v in side1:
-                ans[v] = 2
+        # decide orientation so that start gets colour 1
+        if temp[start] == 0:
+            map0, map1 = 1, 2
         else:
-            for v in side0:
-                ans[v] = 2
-            for v in side1:
-                ans[v] = 1
+            map0, map1 = 2, 1
+        for v in comp:
+            colour[v] = map0 if temp[v] == 0 else map1
+            temp[v] = -1          # reset for possible future use (not needed)
 
-    # all vertices coloured
+    # all done
     print("YES")
-    print(' '.join(str(ans[i]) for i in range(1, n + 1)))
+    print(' '.join(str(colour[i]) for i in range(1, n + 1)))
 
 if __name__ == "__main__":
     solve()

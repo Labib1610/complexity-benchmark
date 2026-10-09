@@ -1,58 +1,72 @@
 import sys
-from sys import stdin
+
+# Increase recursion depth for DFS
+sys.setrecursionlimit(500000)
 
 def solve():
-    input_data = sys.stdin.buffer.read().split()
+    # Read all input at once for efficiency
+    input_data = sys.stdin.read().split()
     if not input_data:
         return
-    it = iter(input_data)
-    n = int(next(it))
-    m = int(next(it))
     
-    adj = [[] for _ in range(n+1)]
+    iterator = iter(input_data)
+    try:
+        n = int(next(iterator))
+        m = int(next(iterator))
+    except StopIteration:
+        return
+
+    # Build adjacency list
+    adj = [[] for _ in range(n + 1)]
     for _ in range(m):
-        u = int(next(it))
-        v = int(next(it))
+        u = int(next(iterator))
+        v = int(next(iterator))
         adj[u].append(v)
         adj[v].append(u)
+
+    # Colors: 0 = uncolored, 1 = flag 1, 2 = flag 2
+    colors = [0] * (n + 1)
     
-    color = [0]*(n+1)
-    comp = [0]*(n+1)
-    comp_id = 0
+    # We iterate through nodes 1 to n.
+    # If a node is uncolored, we start a DFS to color its connected component.
+    # We always try to assign color 1 first to satisfy the lexicographical requirement.
+    possible = True
     
-    for i in range(1, n+1):
-        if color[i] == 0:
-            comp_id += 1
+    for i in range(1, n + 1):
+        if colors[i] == 0:
+            # Start DFS for this component
+            # We use a stack to simulate recursion to avoid RecursionError or stack overflow
+            # though sys.setrecursionlimit usually handles 2*10^5 depth in CP environments if not too deep.
+            # However, a linear chain graph could have depth n. Stack simulation is safer.
+            
             stack = [i]
-            color[i] = 1
-            comp[i] = comp_id
+            colors[i] = 1
+            
             while stack:
                 u = stack.pop()
+                
                 for v in adj[u]:
-                    if color[v] == 0:
-                        color[v] = 3 - color[u]
-                        comp[v] = comp_id
+                    if colors[v] == 0:
+                        # Assign the opposite color
+                        # If u is 1, v must be 2. If u is 2, v must be 1.
+                        colors[v] = 3 - colors[u]
                         stack.append(v)
-                    elif color[v] == color[u]:
-                        print("NO")
-                        return
-    
-    cnt = [0]*(comp_id+1)
-    for i in range(1, n+1):
-        cnt[comp[i]] += 1
-    
-    comp_color = [0]*(comp_id+1)
-    for c in range(1, comp_id+1):
-        comp_color[c] = 1 if cnt[c] <= 0 else 2
-    
-    for i in range(1, n+1):
-        c = comp[i]
-        if comp_color[c] == 1:
-            color[i] = 1
-        else:
-            color[i] = 2
-    
-    print("YES")
-    print(' '.join(str(color[i]) for i in range(1, n+1)))
+                    elif colors[v] == colors[u]:
+                        # Conflict found
+                        possible = False
+                        break
+                if not possible:
+                    break
+        if not possible:
+            break
 
-solve()
+    if not possible:
+        print("NO")
+    else:
+        print("YES")
+        # Print colors 1 to n, space-separated
+        output_str = " ".join(map(str, colors[1:n+1]))
+        print(output_str)
+
+if __name__ == '__main__':
+    solve()

@@ -1,7 +1,7 @@
-import math
+import sys
 from itertools import product
 
-def solve():
+def main():
     import sys
     input = sys.stdin.read
     data = input().split()
@@ -22,34 +22,31 @@ def solve():
         edges.append((u, v))
         index += 2
     
-    # Define the signature vectors
-    w = {
-        1: (-1, math.sqrt(3)),
-        2: (-1, -math.sqrt(3)),
-        3: (2, 0)
+    # Define phase vectors
+    p = {
+        1: (1.0, 0.0),
+        2: (-0.5, 3**0.5 / 2),
+        3: (-0.5, -(3**0.5) / 2)
     }
     
-    # Precompute the stress for each pair of channels
-    stress = {}
-    for c1 in [1, 2, 3]:
-        for c2 in [1, 2, 3]:
-            wx = w[c1][0] + w[c2][0]
-            wy = w[c1][1] + w[c2][1]
-            stress[(c1, c2)] = wx*wx + wy*wy
-            stress[(c2, c1)] = stress[(c1, c2)]
+    # Precompute D values for all pairs of bands
+    D = {}
+    for i in range(1, 4):
+        for j in range(1, 4):
+            dot = p[i][0] * p[j][0] + p[i][1] * p[j][1]
+            D[(i,j)] = (2/3) * (1 - dot)
     
-    target_total = 4 * m
-    
-    # Try all 3^n combinations in lexicographical order
-    for assignment in product([1, 2, 3], repeat=n):
-        total_stress = 0
+    # Try all 3^n assignments
+    for assignment in product([1,2,3], repeat=n):
+        total = 0.0
         for u, v in edges:
-            total_stress += stress[(assignment[u], assignment[v])]
-        if abs(total_stress - target_total) < 1e-9:
+            total += D[(assignment[u], assignment[v])]
+        if abs(total - m) < 1e-9:
             print("YES")
             print(" ".join(map(str, assignment)))
             return
     
     print("NO")
 
-solve()
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,110 @@
+from collections import defaultdict, deque
+
+def solve():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    idx = 0
+    n = int(data[idx])
+    idx += 1
+    m = int(data[idx])
+    idx += 1
+    dummy = int(data[idx])
+    idx += 1
+    
+    s = int(data[idx])
+    idx += 1
+    t = int(data[idx])
+    idx += 1
+    d = int(data[idx])
+    idx += 1
+    
+    edges = []
+    graph = defaultdict(list)
+    capacity = []
+    
+    for i in range(m):
+        u = int(data[idx])
+        idx += 1
+        v = int(data[idx])
+        idx += 1
+        cap = int(data[idx])
+        idx += 1
+        edges.append((u, v))
+        graph[u].append((v, len(capacity)))
+        capacity.append(cap)
+    
+    # We will model this as a max flow problem
+    # Build residual graph
+    adj = [[] for _ in range(n+1)]
+    edge_list = []
+    
+    for i in range(m):
+        u, v = edges[i]
+        cap = capacity[i]
+        # Forward edge
+        adj[u].append(len(edge_list))
+        edge_list.append([v, cap, 0])  # to, capacity, flow
+        # Backward edge
+        adj[v].append(len(edge_list))
+        edge_list.append([u, 0, 0])    # to, capacity, flow
+    
+    def bfs():
+        parent = [-1] * (n + 1)
+        parent_edge = [-1] * (n + 1)
+        queue = deque([s])
+        parent[s] = -2  # Mark as visited
+        
+        while queue:
+            u = queue.popleft()
+            for edge_idx in adj[u]:
+                to, cap, flow = edge_list[edge_idx]
+                if parent[to] == -1 and cap > flow:
+                    parent[to] = u
+                    parent_edge[to] = edge_idx
+                    if to == t:
+                        return parent, parent_edge
+                    queue.append(to)
+        return parent, parent_edge
+    
+    # Ford-Fulkerson
+    max_flow = 0
+    while True:
+        parent, parent_edge = bfs()
+        if parent[t] == -1:
+            break
+            
+        # Find minimum residual capacity along the path
+        path_flow = float('inf')
+        cur = t
+        while cur != s:
+            edge_idx = parent_edge[cur]
+            path_flow = min(path_flow, edge_list[edge_idx][1] - edge_list[edge_idx][2])
+            cur = parent[cur]
+        
+        # Update flows
+        cur = t
+        while cur != s:
+            edge_idx = parent_edge[cur]
+            edge_list[edge_idx][2] += path_flow
+            # Backward edge
+            edge_list[edge_idx ^ 1][2] -= path_flow
+            cur = parent[cur]
+            
+        max_flow += path_flow
+    
+    if max_flow < d:
+        print("NO")
+        return
+    
+    # Extract flow on original edges
+    result = []
+    for i in range(0, len(edge_list), 2):
+        flow = edge_list[i][2]
+        result.append(flow)
+    
+    print("YES")
+    print(' '.join(map(str, result[:m])))
+
+solve()

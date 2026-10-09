@@ -1,0 +1,146 @@
+```python
+import sys
+sys.setrecursionlimit(1 << 25)
+
+def solve() -> None:
+    data = list(map(int, sys.stdin.read().strip().split()))
+    if not data:
+        return
+    it = iter(data)
+    n = next(it); m = next(it); _ = next(it)  # third value is always 1, ignore
+    s = next(it) - 1
+    t = next(it) - 1
+    d = next(it)
+
+    edges_input = []
+    for _ in range(m):
+        u = next(it) - 1
+        v = next(it) - 1
+        cap = next(it)
+        edges_input.append((u, v, cap))
+
+    # Dinic
+    class Edge:
+        __slots__ = ('to', 'rev', 'cap', 'orig_cap')
+        def __init__(self, to, rev, cap):
+            self.to = to
+            self.rev = rev
+            self.cap = cap
+            self.orig_cap = cap
+
+    graph = [[] for _ in range(n)]
+    # store reference to forward edge for each original edge
+    forward_refs = []
+
+    def add_edge(fr, to, cap):
+        fwd = Edge(to, len(graph[to]), cap)
+        rev = Edge(fr, len(graph[fr]), 0)
+        graph[fr].append(fwd)
+        graph[to].append(rev)
+        return fwd
+
+    for u, v, cap in edges_input:
+        fwd = add_edge(u, v, cap)
+        forward_refs.append(fwd)
+
+    level = [0] * n
+    it_ptr = [0] * n
+
+    from collections import deque
+
+    def bfs():
+        for i in range(n):
+            level[i] = -1
+        q = deque([s])
+        level[s] = 0
+        while q:
+            v = q.popleft()
+            for e in graph[v]:
+                if e.cap > 0 and level[e.to] < 0:
+                    level[e.to] = level[v] + 1
+                    q.append(e.to)
+        return level[t] >= 0
+
+    def dfs(v, f):
+        if v == t:
+            return f
+        for i in range(it_ptr[v], len(graph[v])):
+            e = graph[v][i]
+            if e.cap > 0 and level[v] < level[e.to]:
+                ret = dfs(e.to, min(f, e.cap))
+                if ret:
+                    e.cap -= ret
+                    graph[e.to][e.rev].cap += ret
+                    return ret
+            it_ptr[v] += 1
+        return 0
+
+    flow = 0
+    INF = 10**18
+    while bfs():
+        it_ptr = [0] * n
+        while True:
+            pushed = dfs(s, INF)
+            if not pushed:
+                break
+            flow += pushed
+            if flow >= d:  # early stop if reached required quota
+                break
+        if flow >= d:
+            break
+
+    if flow < d:
+        print("NO")
+        return
+
+    # we may have sent more than d (unlikely because we stopped), but ensure exact d by possibly reducing flow on any s->... path.
+    # Since we stopped at >=d, we can trim excess by traversing residual graph from s to t reducing flow.
+    excess = flow - d
+    if excess > 0:
+        # find any path with positive flow to reduce
+        # We'll run a DFS on edges where original flow >0 (i.e., reverse edge has capacity >0)
+        parent = [(-1, -1)] * n  # (node, edge_index)
+        while excess > 0:
+            for i in range(n):
+                parent[i] = (-1, -1)
+            stack = [s]
+            parent[s] = (s, -1)
+            while stack and parent[t][0] == -1:
+                v = stack.pop()
+                for idx, e in enumerate(graph[v]):
+                    rev_e = graph[e.to][e.rev]
+                    # rev_e.cap is flow currently on forward edge
+                    if rev_e.cap > 0 and parent[e.to][0] == -1:
+                        parent[e.to] = (v, idx)
+                        stack.append(e.to)
+            if parent[t][0] == -1:
+                break
+            # find min flow on this path
+            cur = t
+            minf = excess
+            while cur != s:
+                pv, ei = parent[cur]
+                rev_e = graph[cur][graph[pv][ei].rev]
+                minf = min(minf, rev_e.cap)
+                cur = pv
+            # reduce
+            cur = t
+            while cur != s:
+                pv, ei = parent[cur]
+                fwd = graph[pv][ei]
+                rev = graph[fwd.to][fwd.rev]
+                fwd.cap += minf
+                rev.cap -= minf
+                cur = pv
+            excess -= minf
+
+    print("YES")
+    result = []
+    for fwd in forward_refs:
+        used = fwd.orig_cap - fwd.cap
+        result.append(str(used))
+    print(' '.join(result))
+
+if __name__ == "__main__":
+    solve()
+```

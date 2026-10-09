@@ -1,0 +1,127 @@
+import sys
+from collections import deque
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    iterator = iter(input_data)
+    
+    try:
+        nL = int(next(iterator))
+        nR = int(next(iterator))
+        m = int(next(iterator))
+    except StopIteration:
+        return
+
+    edges = []
+    adjL = [[] for _ in range(nL + 1)]
+    adjR = [[] for _ in range(nR + 1)]
+    
+    for i in range(m):
+        u = int(next(iterator))
+        v = int(next(iterator))
+        edges.append((u, v))
+        adjL[u].append(i)
+        adjR[v].append(i)
+
+    # Calculate degree D
+    degL = [0] * (nL + 1)
+    degR = [0] * (nR + 1)
+    
+    max_deg = 0
+    for u, v in edges:
+        degL[u] += 1
+        degR[v] += 1
+    
+    for i in range(1, nL + 1):
+        if degL[i] > max_deg:
+            max_deg = degL[i]
+    for i in range(1, nR + 1):
+        if degR[i] > max_deg:
+            max_deg = degR[i]
+            
+    D = max_deg
+    
+    # Build bipartite graph for matching
+    # Left nodes: edges 0..m-1
+    # Right nodes: pairs (node, color) where node is in L or R
+    # We map (node, color) to a single integer ID.
+    # IDs for L nodes: 0 .. nL*D - 1
+    # IDs for R nodes: nL*D .. nL*D + nR*D - 1
+    
+    offsetR = nL * D
+    total_right_nodes = nL * D + nR * D
+    
+    adj = [[] for _ in range(m)]
+    
+    for i in range(m):
+        u, v = edges[i]
+        for c in range(D):
+            # Connect edge i to (u, c) on L-side
+            idL = (u - 1) * D + c
+            # Connect edge i to (v, c) on R-side
+            idR = offsetR + (v - 1) * D + c
+            adj[i].append(idL)
+            adj[i].append(idR)
+            
+    # Find matching using Hopcroft-Karp
+    pairU = [-1] * m
+    pairV = [-1] * total_right_nodes
+    dist = [0] * m
+    
+    INF = m + total_right_nodes + 5
+    
+    def bfs():
+        queue = deque()
+        for u in range(m):
+            if pairU[u] == -1:
+                dist[u] = 0
+                queue.append(u)
+            else:
+                dist[u] = INF
+        
+        d = INF
+        while queue:
+            u = queue.popleft()
+            if dist[u] < d:
+                for v in adj[u]:
+                    if pairV[v] == -1:
+                        d = dist[u] + 1
+                    elif dist[pairV[v]] == INF:
+                        dist[pairV[v]] = dist[u] + 1
+                        queue.append(pairV[v])
+        return d != INF
+
+    def dfs(u):
+        for v in adj[u]:
+            if pairV[v] == -1 or (dist[pairV[v]] == dist[u] + 1 and dfs(pairV[v])):
+                pairU[u] = v
+                pairV[v] = u
+                return True
+        dist[u] = INF
+        return False
+
+    matching = 0
+    while bfs():
+        for u in range(m):
+            if pairU[u] == -1:
+                if dfs(u):
+                    matching += 1
+                    
+    # Extract colors
+    colors = [0] * m
+    for u in range(m):
+        match_id = pairU[u]
+        # match_id is in range [0, nL*D) or [offsetR, offsetR + nR*D)
+        if match_id < offsetR:
+            color = match_id % D + 1
+        else:
+            color = (match_id - offsetR) % D + 1
+        colors[u] = color
+        
+    sys.stdout.write("YES\n")
+    sys.stdout.write(" ".join(map(str, colors)) + "\n")
+
+if __name__ == '__main__':
+    solve()

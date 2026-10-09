@@ -1,0 +1,57 @@
+import sys
+sys.setrecursionlimit(1000000)
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    q = int(next(it))
+    t = int(next(it))
+    
+    triples = []
+    for _ in range(t):
+        a = int(next(it))
+        b = int(next(it))
+        c = int(next(it))
+        triples.append((a, b, c))
+    
+    n = 3 * q
+    
+    # Build adjacency list for each node
+    adj = [[] for _ in range(n + 1)]
+    for idx, (a, b, c) in enumerate(triples):
+        adj[a].append((b, c, idx))
+        adj[b].append((a, c, idx))
+        adj[c].append((a, b, idx))
+    
+    used_triple = [False] * t
+    used_node = [False] * (n + 1)
+    result = []
+    
+    # Process nodes in order
+    for start in range(1, n + 1):
+        if used_node[start]:
+            continue
+        
+        # Find an unused triple containing start
+        found = False
+        for b, c, idx in adj[start]:
+            if not used_triple[idx] and not used_node[b] and not used_node[c]:
+                used_triple[idx] = True
+                used_node[start] = True
+                used_node[b] = True
+                used_node[c] = True
+                result.append((start, b, c))
+                found = True
+                break
+        
+        if not found:
+            print("NO")
+            return
+    
+    print("YES")
+    for triple in result:
+        print(f"{triple[0]} {triple[1]} {triple[2]}")
+
+solve()

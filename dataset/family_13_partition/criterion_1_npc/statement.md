@@ -4,7 +4,7 @@ Time limit: 5 s   Memory limit: 256 MB
 
 ## Description
 
-There are **n** tasks; task **i** takes **d[i]** units of time. You have two identical machines. Each task must be assigned to exactly one of the two machines. Decide whether the tasks can be split so that the **total time on each machine is equal**, and if so report one valid assignment.
+A workshop must split **n** jobs across two identical benches, job i taking d[i] units of time, with every job assigned to exactly one bench. The goal is a split in which **both benches carry the same total time** — a perfectly even division of the workload. Job priorities and setup are irrelevant; only the durations matter. The durations here range widely, so the set of achievable bench-totals is sparse and there is no parity trick to fall back on. Decide whether the jobs can be divided so the two benches carry equal total time, and if so report one assignment; otherwise report that no even split exists.
 
 ## Input
 

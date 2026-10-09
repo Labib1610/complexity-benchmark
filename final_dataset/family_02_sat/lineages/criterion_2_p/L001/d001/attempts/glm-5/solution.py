@@ -1,0 +1,97 @@
+import sys
+from sys import setrecursionlimit
+
+def solve():
+    input_data = sys.stdin.buffer.read().split()
+    idx = 0
+    n = int(input_data[idx]); idx += 1
+    m = int(input_data[idx]); idx += 1
+    
+    # Node mapping: for hub i (1-indexed), node 2*i = x_i true, 2*i+1 = x_i false
+    # Literal: positive k -> hub k true; negative k -> hub |k| false
+    # neg(node): 2*i -> 2*i+1, 2*i+1 -> 2*i
+    
+    def get_node(val):
+        if val > 0:
+            return 2 * val  # x_val = true
+        else:
+            return 2 * (-val) + 1  # x_|val| = false
+    
+    size = 2 * (n + 1)
+    adj = [[] for _ in range(size)]
+    
+    for _ in range(m):
+        l1 = int(input_data[idx]); idx += 1
+        l2 = int(input_data[idx]); idx += 1
+        a = get_node(l1)
+        b = get_node(l2)
+        # clause: a OR b
+        # implication: neg(a) -> b, neg(b) -> a
+        na = a ^ 1
+        nb = b ^ 1
+        adj[na].append(b)
+        adj[nb].append(a)
+    
+    # Tarjan's SCC
+    sys.setrecursionlimit(1 << 25)
+    
+    index_counter = [0]
+    stack = []
+    on_stack = [False] * size
+    index = [-1] * size
+    lowlink = [0] * size
+    scc_id = [-1] * size
+    scc_count = [0]
+    
+    # Iterative Tarjan to avoid recursion limit issues
+    for start in range(2, size):
+        if index[start] != -1:
+            continue
+        call_stack = [(start, 0)]
+        while call_stack:
+            v, ci = call_stack[-1]
+            if ci == 0:
+                index[v] = index_counter[0]
+                lowlink[v] = index_counter[0]
+                index_counter[0] += 1
+                stack.append(v)
+                on_stack[v] = True
+            if ci < len(adj[v]):
+                w = adj[v][ci]
+                call_stack[-1] = (v, ci + 1)
+                if index[w] == -1:
+                    call_stack.append((w, 0))
+                elif on_stack[w]:
+                    lowlink[v] = min(lowlink[v], index[w])
+            else:
+                call_stack.pop()
+                if call_stack:
+                    parent = call_stack[-1][0]
+                    lowlink[parent] = min(lowlink[parent], lowlink[v])
+                if lowlink[v] == index[v]:
+                    while True:
+                        w = stack.pop()
+                        on_stack[w] = False
+                        scc_id[w] = scc_count[0]
+                        if w == v:
+                            break
+                    scc_count[0] += 1
+    
+    # Check satisfiability
+    for i in range(1, n + 1):
+        if scc_id[2 * i] == scc_id[2 * i + 1]:
+            print("NO")
+            return
+    
+    # Assign: if scc_id[true_node] < scc_id[false_node], set true (1), else false (0)
+    result = []
+    for i in range(1, n + 1):
+        if scc_id[2 * i] < scc_id[2 * i + 1]:
+            result.append(1)
+        else:
+            result.append(0)
+    
+    print("YES")
+    print(' '.join(map(str, result)))
+
+solve()

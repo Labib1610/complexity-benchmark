@@ -1,0 +1,211 @@
+import sys
+from collections import defaultdict, deque
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    idx = 0
+    n = int(data[idx])
+    idx += 1
+    m = int(data[idx])
+    idx += 1
+    t = int(data[idx])
+    idx += 1
+    
+    critical = set()
+    for _ in range(t):
+        critical.add(int(data[idx]) - 1)
+        idx += 1
+    
+    # Since m = n - 1 and the graph is connected and acyclic, it's a tree
+    adj = [[] for _ in range(n)]
+    edges = []
+    weights = []
+    
+    for _ in range(m):
+        u = int(data[idx]) - 1
+        idx += 1
+        v = int(data[idx]) - 1
+        idx += 1
+        w = int(data[idx])
+        idx += 1
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+        edges.append((u, v))
+        weights.append(w)
+    
+    # Root the tree at an arbitrary node, say 0
+    parent = [-1] * n
+    children = [[] for _ in range(n)]
+    visited = [False] * n
+    queue = deque()
+    queue.append(0)
+    visited[0] = True
+    
+    while queue:
+        u = queue.popleft()
+        for v, w in adj[u]:
+            if not visited[v]:
+                visited[v] = True
+                parent[v] = u
+                children[u].append((v, w))
+                queue.append(v)
+    
+    # dp[v][0]: min cost when subtree of v contributes 0 to structural index
+    # dp[v][1]: min cost when subtree of v contributes 1 to structural index
+    # contribution = number of active nodes in subtree - number of active edges in subtree
+    
+    def dfs(u):
+        # Base case: leaf nodes
+        if not children[u]:
+            if u in critical:
+                # Must be active: contributes 1
+                return [float('inf'), 0]
+            else:
+                # Can choose: inactive contributes 0, active contributes 1
+                return [0, 0]
+        
+        # Initialize DP values
+        dp_u = [0, 0] if u not in critical else [float('inf'), 0]
+        
+        for v, w in children[u]:
+            dp_v = dfs(v)
+            new_dp = [float('inf'), float('inf')]
+            
+            # Case 1: u is inactive (x_u = 0)
+            if u not in critical:
+                # u contributes 0
+                # Total contribution is sum of children contributions
+                # No edge cost since u is inactive
+                new_dp[0] = min(new_dp[0], dp_u[0] + dp_v[0])
+                new_dp[1] = min(new_dp[1], dp_u[0] + dp_v[1])
+                
+            # Case 2: u is active (x_u = 1)
+            # Edge (u,v) is active if v is active
+            # So we have cost w if v is active
+            
+            # If v contributes 0 (inactive), then edge not active
+            new_dp[0] = min(new_dp[0], dp_u[1] + dp_v[0])
+            # If v contributes 1 (active), then edge active, add w
+            new_dp[1] = min(new_dp[1], dp_u[1] + dp_v[1] + w)
+            
+            dp_u = new_dp
+        
+        return dp_u
+    
+    # However, let's rethink DP states more carefully.
+    # Let's define:
+    # dp[u][0]: min cost for subtree of u, such that the contribution of subtree to I is 0
+    # dp[u][1]: min cost for subtree of u, such that the contribution of subtree to I is 1
+    # Contribution of subtree = (number of active nodes in subtree) - (number of active edges in subtree)
+    
+    # Actually, let's think differently.
+    # We want total I(x) = 1.
+    # I(x) = sum(x_i) - sum(active edges)
+    # Let S = set of active nodes, E_S = set of edges with both ends active
+    # I(x) = |S| - |E_S| = 1
+    
+    # In a tree, for a subset of nodes S, the induced subgraph is a forest.
+    # Number of connected components in subgraph induced by S is |S| - |E_S|
+    # So I(x) = number of connected components in active subgraph.
+    # We want I(x) = 1, so we want the active nodes to form a single connected component (a subtree).
+    
+    # Critical nodes must be active.
+    # So all critical nodes must be in the same connected component.
+    # That means they must all be in a single subtree.
+    
+    # Strategy:
+    # Since the graph is a tree, and critical nodes must be active,
+    # the minimal way to have I(x)=1 is to activate exactly those nodes that lie
+    # on paths between critical nodes, forming a subtree.
+    # The operational cost is the sum of weights of edges within this subtree.
+    
+    # Find the minimal subtree that connects all critical nodes.
+    # This is the Steiner tree problem on a tree, which can be solved optimally.
+    
+    # In a tree, the minimal subtree connecting a set of nodes
+    # is obtained by taking all nodes on paths between pairs of nodes in the set.
+    # But there's a simpler way:
+    # Root the tree, find the deepest least common ancestor of all critical nodes.
+    # The minimal subtree is the union of paths from root to each critical node.
+    # No, even simpler: just take the union of paths between all pairs? No.
+    
+    # Optimal approach for tree:
+    # Root the tree at some node.
+    # For each node u, compute:
+    # - whether the subtree of u contains any critical node
+    # - if yes, then we must include the edge from parent[u] to u if parent[u] is not in the set
+    # But we want to minimize the total weight of edges in the subtree spanning all critical nodes.
+    
+    # Simpler DP approach:
+    # For each node u, in its subtree, what's the min cost to connect all critical nodes in subtree?
+    # But we also need to ensure global connectivity.
+    
+    # Best approach:
+    # Since it's a tree, the minimal set of nodes that includes all critical nodes
+    # and induces a connected subgraph is unique.
+    # It's the union of paths between all pairs of critical nodes.
+    # But to compute it efficiently:
+    # Root the tree. For each node u, count how many critical nodes are in its subtree.
+    # An edge (parent[u], u) must be included in the solution iff
+    # the subtree of u contains at least one critical node AND 
+    # the rest of the tree (including parent's other subtrees) contain at least one critical node.
+    # Wait, no. Let's think of it as: we want a subtree that includes all critical nodes.
+    # The edges in this subtree are exactly those edges where both endpoints are in the subtree.
+    # To minimize the cost, we should take the minimal subtree containing all critical nodes.
+    
+    # Algorithm:
+    # 1. Mark all critical nodes.
+    # 2. Propagate up the tree: a node is "needed" if it is critical or if more than one of its children is needed.
+    # 3. The edges in our solution are those connecting "needed" nodes that are in the subtree of a "needed" child.
+    
+    # Even simpler:
+    # Root at node 0.
+    # For each node u, compute in its subtree:
+    # - does it contain any critical node?
+    # Then, an edge (u,v) where v is child of u is in the minimal subtree iff
+    # both u's subtree and v's subtree contain critical nodes.
+    # But since it's a tree, it's easier:
+    # The minimal subtree is the union of paths from one critical node to all others.
+    # But to compute efficiently:
+    # Find the "Steiner tree" which is just the union of paths.
+    # In a tree, this equals the set of nodes that are on some path between two critical nodes.
+    
+    # Efficient algorithm:
+    # 1. Root the tree at node 0.
+    # 2. Do a post-order traversal.
+    # 3. For each node u, compute:
+    #    - contains_critical[u]: does subtree of u contain any critical node?
+    #    - cost[u]: min cost to connect all critical nodes in subtree of u
+    #               (this is sum of costs from children where child subtree contains critical node)
+    # 4. The answer is cost[0].
+    
+    # But wait, we also need to ensure that the final configuration has I(x) = 1.
+    # As reasoned earlier, this means the set of active nodes must induce a connected subgraph
+    # with exactly one connected component. Since we must include all critical nodes,
+    # and we want to minimize cost, we should take the minimal subtree containing all critical nodes.
+    
+    contains_critical = [False] * n
+    cost = [0] * n
+    
+    # Post-order DFS
+    def dfs_steiner(u):
+        my_critical = u in critical
+        total_cost = 0
+        
+        for v, w in children[u]:
+            dfs_steiner(v)
+            if contains_critical[v]:
+                my_critical = True
+                total_cost += cost[v] + w  # Include edge to child v
+        
+        contains_critical[u] = my_critical
+        cost[u] = total_cost
+    
+    dfs_steiner(0)
+    print(cost[0])
+
+if __name__ == "__main__":
+    main()

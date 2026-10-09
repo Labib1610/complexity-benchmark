@@ -1,0 +1,99 @@
+import sys
+from collections import deque
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    _ = int(next(it))  # number of orders, always 1
+    s = int(next(it))
+    t = int(next(it))
+    d = int(next(it))
+    
+    edges = []
+    adj = [[] for _ in range(n + 1)]
+    
+    for i in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        cap = int(next(it))
+        edges.append((u, v, cap))
+        adj[u].append((v, i))
+        adj[v].append((u, i + m))  # reverse edge placeholder
+    
+    # Build flow network
+    # Edge indices: 0 to m-1 are forward, m to 2m-1 are reverse
+    N = 2 * m
+    cap_arr = [0] * N
+    to_node = [0] * N
+    rev_idx = [0] * N
+    flow_adj = [[] for _ in range(n + 1)]
+    
+    for i in range(m):
+        u, v, cap = edges[i]
+        cap_arr[i] = cap
+        cap_arr[m + i] = 0
+        to_node[i] = v
+        to_node[m + i] = u
+        rev_idx[i] = m + i
+        rev_idx[m + i] = i
+        flow_adj[u].append(i)
+        flow_adj[v].append(m + i)
+    
+    # Dinic's algorithm
+    level = [0] * (n + 1)
+    ptr = [0] * (n + 1)
+    
+    def bfs():
+        for i in range(n + 1):
+            level[i] = -1
+        queue = deque()
+        level[s] = 0
+        queue.append(s)
+        while queue:
+            u = queue.popleft()
+            for e in flow_adj[u]:
+                if cap_arr[e] > 0 and level[to_node[e]] < 0:
+                    level[to_node[e]] = level[u] + 1
+                    queue.append(to_node[e])
+        return level[t] >= 0
+    
+    def dfs(u, f):
+        if u == t:
+            return f
+        for i in range(ptr[u], len(flow_adj[u])):
+            e = flow_adj[u][i]
+            if cap_arr[e] > 0 and level[to_node[e]] == level[u] + 1:
+                pushed = dfs(to_node[e], min(f, cap_arr[e]))
+                if pushed > 0:
+                    cap_arr[e] -= pushed
+                    cap_arr[rev_idx[e]] += pushed
+                    return pushed
+            ptr[u] += 1
+        return 0
+    
+    flow = 0
+    INF = 10**18
+    while bfs():
+        ptr = [0] * (n + 1)
+        while True:
+            pushed = dfs(s, INF)
+            if pushed == 0:
+                break
+            flow += pushed
+    
+    if flow < d:
+        print("NO")
+        return
+    
+    print("YES")
+    result = []
+    for i in range(m):
+        result.append(str(cap_arr[m + i]))
+    print(' '.join(result))
+
+if __name__ == "__main__":
+    solve()

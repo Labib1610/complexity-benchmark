@@ -1,8 +1,8 @@
 import sys
-sys.setrecursionlimit(1 << 25)
+from collections import deque
 
 def solve() -> None:
-    data = sys.stdin.read().strip().split()
+    data = sys.stdin.buffer.read().split()
     if not data:
         return
     it = iter(data)
@@ -14,47 +14,38 @@ def solve() -> None:
         adj[u].append(v)
         adj[v].append(u)
 
-    if m == 0:
-        # all 1s is optimal
-        print("YES")
-        print(" ".join(["1"] * n))
-        return
-
-    col = [-1] * (n + 1)          # -1 = unvisited, 0/1 = parity colour
-    ans = [0] * (n + 1)           # final states, 1-indexed
-    from collections import deque
+    colour = [-1] * (n + 1)          # -1 unvisited, 0/1 bipartite colour
+    ans = [0] * (n + 1)
 
     for start in range(1, n + 1):
-        if col[start] != -1:
+        if colour[start] != -1:
             continue
-        # BFS this component
+        # new component
         q = deque([start])
-        col[start] = 0
-        verts = []
-        ok = True
+        colour[start] = 0
+        comp = []
         while q:
-            v = q.popleft()
-            verts.append(v)
-            for to in adj[v]:
-                if col[to] == -1:
-                    col[to] = col[v] ^ 1
-                    q.append(to)
-                elif col[to] == col[v]:
-                    print("NO")
+            x = q.popleft()
+            comp.append(x)
+            cx = colour[x]
+            for y in adj[x]:
+                if colour[y] == -1:
+                    colour[y] = cx ^ 1
+                    q.append(y)
+                elif colour[y] == cx:
+                    sys.stdout.write("NO")
                     return
-        # decide which assignment is lexicographically smaller
-        verts.sort()   # ensure increasing index order
-        seqA = [1 if col[v] == 0 else 2 for v in verts]
-        seqB = [2 if col[v] == 0 else 1 for v in verts]
-        if seqA <= seqB:
-            for v, val in zip(verts, seqA):
-                ans[v] = val
+        # decide mapping
+        min_v = min(comp)
+        if colour[min_v] == 0:
+            map0, map1 = 1, 2
         else:
-            for v, val in zip(verts, seqB):
-                ans[v] = val
+            map0, map1 = 2, 1
+        for v in comp:
+            ans[v] = map0 if colour[v] == 0 else map1
 
-    print("YES")
-    print(" ".join(str(ans[i]) for i in range(1, n + 1)))
+    out = ["YES\n", " ".join(str(ans[i]) for i in range(1, n + 1))]
+    sys.stdout.write("\n".join(out))
 
 if __name__ == "__main__":
     solve()

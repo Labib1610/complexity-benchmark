@@ -1,0 +1,166 @@
+We can model each qubit as a boolean variable, and each check as a constraint on two variables.  
+The key is to figure out what condition makes a check stable.
+
+Let’s analyze the swap logic:
+
+- We have particles at positions 1, 2, 3.
+- Step 1: If qubit `|l1|` doesn’t match its target, swap positions 1 and 2.
+- Step 2: If qubit `|l2|` doesn’t match its target, swap positions 2 and 3.
+
+We want at least one particle to remain in its original position after both steps.
+
+We can simulate the possible outcomes for the two booleans (match or mismatch for each qubit).  
+Let’s define:
+
+- For qubit `x`, if actual spin = target spin → “match” (M), else “mismatch” (D).
+
+We have four cases:
+
+1. Both match: no swaps → all particles stay → stable.
+2. First mismatch, second match: swap 1↔2 → positions become [2,1,3] → particle at position 3 stays → stable.
+3. First match, second mismatch: swap 2↔3 → positions become [1,3,2] → particle at position 1 stays → stable.
+4. Both mismatch:  
+   - Step 1: swap 1↔2 → [2,1,3]  
+   - Step 2: swap 2↔3 → [2,3,1]  
+   Now no particle is in original position → unstable.
+
+So the only unstable case is when **both** qubits mismatch their targets.
+
+Thus, a check is stable **unless** both qubits are in the “wrong” state relative to their target.
+
+Now, each check gives a constraint:  
+It is **not allowed** that both qubits mismatch their targets.
+
+Let’s encode:
+
+- For each qubit `i`, let `x_i` be 1 if actual spin = 1, 0 if actual spin = 0.
+- For a target sign `s` (positive means target 1, negative means target 0),  
+  mismatch means:  
+  - If target is 1 (positive), mismatch means `x_i = 0`.  
+  - If target is 0 (negative), mismatch means `x_i = 1`.
+
+So for each check `(l1, l2)`:
+
+- Let `a` = |l1|, `b` = |l2|.
+- Let `m1` = condition that qubit `a` mismatches its target.  
+  If `l1 > 0`, mismatch means `x_a = 0`.  
+  If `l1 < 0`, mismatch means `x_a = 1`.
+- Similarly for `m2`.
+
+The constraint is: NOT (m1 AND m2).  
+That is: `m1` and `m2` cannot both be true.
+
+This is a 2-SAT style constraint:  
+`(¬m1) OR (¬m2)`.
+
+We can solve with implication graph.
+
+Let’s define for each qubit `i` two nodes:  
+- `i` meaning `x_i = 1`  
+- `¬i` meaning `x_i = 0`
+
+For each check:
+
+- If `l1 > 0`, then `m1` is `x_a = 0` → node `¬a`.  
+  If `l1 < 0`, then `m1` is `x_a = 1` → node `a`.
+- Similarly for `l2`.
+
+Constraint: `(¬m1) OR (¬m2)`  
+Implications:  
+- `m1 → ¬m2`  
+- `m2 → ¬m1`
+
+We add edges accordingly.
+
+Then run SCC (Tarjan or Kosaraju) to check satisfiability.  
+If a variable and its negation are in the same SCC → unsatisfiable.
+
+If satisfiable, assign values based on topological order of SCCs.
+
+Let’s implement.
+
+```python
+import sys
+sys.setrecursionlimit(1 << 20)
+
+def solve():
+    input = sys.stdin.readline
+    n, m = map(int, input().split())
+    # 2-SAT: nodes 0..2n-1
+    # node 2*i = x_i = 1
+    # node 2*i+1 = x_i = 0
+    g = [[] for _ in range(2*n)]
+    gr = [[] for _ in range(2*n)]
+    
+    def add_imp(u, v):
+        g[u].append(v)
+        gr[v].append(u)
+    
+    for _ in range(m):
+        l1, l2 = map(int, input().split())
+        a = abs(l1) - 1
+        b = abs(l2) - 1
+        # m1 node
+        if l1 > 0:
+            m1 = 2*a + 1  # x_a = 0
+        else:
+            m1 = 2*a      # x_a = 1
+        # m2 node
+        if l2 > 0:
+            m2 = 2*b + 1
+        else:
+            m2 = 2*b
+        # m1 -> ¬m2
+        add_imp(m1, m2 ^ 1)
+        # m2 -> ¬m1
+        add_imp(m2, m1 ^ 1)
+    
+    # Kosaraju
+    visited = [False]*(2*n)
+    order = []
+    def dfs1(u):
+        visited[u] = True
+        for v in g[u]:
+            if not visited[v]:
+                dfs1(v)
+        order.append(u)
+    
+    for i in range(2*n):
+        if not visited[i]:
+            dfs1(i)
+    
+    comp = [-1]*(2*n)
+    def dfs2(u, cid):
+        comp[u] = cid
+        for v in gr[u]:
+            if comp[v] == -1:
+                dfs2(v, cid)
+    
+    cid = 0
+    for u in reversed(order):
+        if comp[u] == -1:
+            dfs2(u, cid)
+            cid += 1
+    
+    for i in range(n):
+        if comp[2*i] == comp[2*i+1]:
+            print("NO")
+            return
+    
+    # Assign values: choose the one with higher comp id (topological order)
+    val = [0]*n
+    for i in range(n):
+        # comp[2*i] is x_i=1, comp[2*i+1] is x_i=0
+        # In Kosaraju, comp id order is reverse topological
+        # So if comp[2*i] > comp[2*i+1], set x_i=1 else 0
+        if comp[2*i] > comp[2*i+1]:
+            val[i] = 1
+        else:
+            val[i] = 0
+    
+    print("YES")
+    print(" ".join(map(str, val)))
+
+if __name__ == "__main__":
+    solve()
+```

@@ -1,0 +1,125 @@
+import sys
+sys.setrecursionlimit(10000)
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [[] for _ in range(n)]
+    edges = []
+    edge_index = {}
+    
+    for i in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        edges.append((u, v))
+        adj[u].append(v)
+        adj[v].append(u)
+        edge_index[(u, v)] = i
+        edge_index[(v, u)] = i
+    
+    # Check if graph is 3-regular
+    for i in range(n):
+        if len(adj[i]) != 3:
+            print("NO")
+            return
+    
+    # Find cycles using DFS
+    visited = [False] * n
+    cycles = []
+    
+    for start in range(n):
+        if not visited[start]:
+            # BFS to find cycle
+            queue = [start]
+            visited[start] = True
+            component = [start]
+            while queue:
+                u = queue.pop(0)
+                for v in adj[u]:
+                    if not visited[v]:
+                        visited[v] = True
+                        queue.append(v)
+                        component.append(v)
+            
+            # Find cycle in this component
+            comp_set = set(component)
+            comp_adj = {u: [] for u in component}
+            for u in component:
+                for v in adj[u]:
+                    if v in comp_set:
+                        comp_adj[u].append(v)
+            
+            # Find cycle using DFS
+            cycle = []
+            found = [False]
+            parent = {}
+            
+            def dfs(u, p):
+                if found[0]:
+                    return
+                for v in comp_adj[u]:
+                    if v == p:
+                        continue
+                    if v in parent:
+                        # Found cycle
+                        cycle.append(v)
+                        curr = u
+                        while curr != v:
+                            cycle.append(curr)
+                            curr = parent[curr]
+                        found[0] = True
+                        return
+                    parent[v] = u
+                    dfs(v, u)
+                    if found[0]:
+                        return
+            
+            parent[start] = -1
+            dfs(start, -1)
+            
+            if not cycle:
+                print("NO")
+                return
+            
+            cycles.append(cycle)
+    
+    # Assign colors
+    colors = [0] * m
+    
+    for cycle in cycles:
+        k = len(cycle)
+        cycle_edges = []
+        for i in range(k):
+            u = cycle[i]
+            v = cycle[(i + 1) % k]
+            idx = edge_index[(u, v)]
+            cycle_edges.append(idx)
+        
+        # Alternate colors 1 and 2 on cycle edges
+        for i, idx in enumerate(cycle_edges):
+            colors[idx] = 1 if i % 2 == 0 else 2
+    
+    # Assign color 3 to remaining edges (chords)
+    for i in range(m):
+        if colors[i] == 0:
+            colors[i] = 3
+    
+    # Verify the solution
+    for u in range(n):
+        seen = set()
+        for v in adj[u]:
+            idx = edge_index[(u, v)]
+            seen.add(colors[idx])
+        if len(seen) != 3:
+            print("NO")
+            return
+    
+    print("YES")
+    print(" ".join(map(str, colors)))
+
+solve()

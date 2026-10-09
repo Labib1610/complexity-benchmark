@@ -1,0 +1,36 @@
+import sys
+import threading
+
+def main():
+    import sys
+    sys.setrecursionlimit(1 << 25)
+    
+    j = int(sys.stdin.readline())
+    vessels = []
+    for _ in range(j):
+        p1, p2 = map(int, sys.stdin.readline().split())
+        vessels.append((p1, p2))
+    
+    # Sort vessels by p1 - p2
+    vessels.sort(key=lambda x: x[0] - x[1])
+    
+    # Compute prefix sums of p1
+    prefix_p1 = [0] * (j + 1)
+    for i in range(j):
+        prefix_p1[i + 1] = prefix_p1[i] + vessels[i][0]
+    
+    # Compute suffix sums of p2
+    suffix_p2 = [0] * (j + 1)
+    for i in range(j - 1, -1, -1):
+        suffix_p2[i] = suffix_p2[i + 1] + vessels[i][1]
+    
+    # Find the minimum possible maximum penalty
+    min_penalty = float('inf')
+    for k in range(1, j + 1):
+        penalty = prefix_p1[k] + suffix_p2[k - 1]
+        if penalty < min_penalty:
+            min_penalty = penalty
+    
+    print(min_penalty)
+
+threading.Thread(target=main).start()

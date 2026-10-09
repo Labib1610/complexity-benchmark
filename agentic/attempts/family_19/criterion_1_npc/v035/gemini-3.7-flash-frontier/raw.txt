@@ -1,0 +1,343 @@
+```python
+import sys
+
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    k = int(next(it))
+
+    commodities = []
+    for _ in range(k):
+        s = int(next(it)) - 1
+        t = int(next(it)) - 1
+        d = int(next(it))
+        commodities.append((s, t, d))
+
+    edges = []
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        cap = int(next(it))
+        edges.append((u, v, cap))
+
+    # Variables: f[p][e] for p in range(k), e in range(m)
+    # Variable index: p * m + e
+    num_vars = k * m
+
+    # Build constraints
+    # Flow conservation: for each commodity p, each hub u
+    # Capacity: for each edge e, sum_p f[p][e] <= cap[e]
+
+    A_eq = []
+    b_eq = []
+
+    for p in range(k):
+        s_p, t_p, d_p = commodities[p]
+        for u in range(n):
+            row = [0.0] * num_vars
+            for e_idx, (eu, ev, _) in enumerate(edges):
+                if eu == u:
+                    row[p * m + e_idx] += 1.0
+                if ev == u:
+                    row[p * m + e_idx] -= 1.0
+
+            if u == s_p:
+                rhs = float(d_p)
+            elif u == t_p:
+                rhs = float(-d_p)
+            else:
+                rhs = 0.0
+
+            A_eq.append(row)
+            b_eq.append(rhs)
+
+    A_ub = []
+    b_ub = []
+    for e_idx, (_, _, cap) in enumerate(edges):
+        row = [0.0] * num_vars
+        for p in range(k):
+            row[p * m + e_idx] = 1.0
+        A_ub.append(row)
+        b_ub.append(float(cap))
+
+    # We can try to use scipy if available, or fall back to a built-in simplex + branch and bound solver
+    try:
+        from scipy.optimize import milp, LinearConstraint, Bounds
+        import numpy as np
+
+        c = np.zeros(num_vars)
+        integrality = np.ones(num_vars)
+        bounds = Bounds(0, np.inf)
+
+        A_all = np.vstack([A_eq, A_ub])
+        lhs = np.array(b_eq + [-np.inf] * len(b_ub))
+        rhs = np.array(b_eq + b_ub)
+
+        constraints = LinearConstraint(A_all, lhs, rhs)
+        res = milp(c=c, constraints=constraints, integrality=integrality)
+
+        if res.success:
+            print("YES")
+            sol = np.round(res.x).astype(int)
+            for p in range(k):
+                row = sol[p * m : (p + 1) * m]
+                print(*(row.tolist()))
+            return
+        else:
+            print("NO")
+            return
+    except ImportError:
+        pass
+
+    # Pure Python Branch and Bound with Simplex
+    # Standard form: maximize 0 subject to constraints, find feasible integer point.
+    # Convert equality constraints into <= and >= or two inequalities.
+    # Let's write a simple Phase I Simplex solver for LP relaxation.
+
+    EPS = 1e-7
+
+    def solve_lp(bounds_upper, bounds_lower):
+        # Solves feasibility for current bounds
+        # Constraints:
+        # A_eq * x = b_eq
+        # A_ub * x <= b_ub
+        # x_i >= bounds_lower[i]
+        # x_i <= bounds_upper[i]
+
+        # Convert to standard form: A x' = b, x' >= 0
+        # Let x_i = x'_i + lower_i, so 0 <= x'_i <= upper_i - lower_i
+        # For each variable x'_i, x'_i + s_i = upper_i - lower_i (slack)
+        # For each ub constraint, sum a_j x'_j + s = b - sum a_j lower_j
+        # For each eq constraint, sum a_j x'_j = b - sum a_j lower_j
+
+        # Check trivial infeasibility of bounds
+        for i in range(num_vars):
+            if bounds_lower[i] > bounds_upper[i] + EPS:
+                return None
+
+        # Build Tableau
+        rows = []
+        rhs = []
+
+        # Bound constraints: x'_i <= u_i - l_i
+        for i in range(num_vars):
+            diff = bounds_upper[i] - bounds_lower[i]
+            r = [0.0] * num_vars
+            r[i] = 1.0
+            rows.append(r)
+            rhs.append(diff)
+
+        # Ub constraints
+        for row, b_val in zip(A_ub, b_ub):
+            r = list(row)
+            shift = sum(r[i] * bounds_lower[i] for i in range(num_vars))
+            rows.append(r)
+            rhs.append(b_val - shift)
+
+        # Eq constraints (represented directly in tableau)
+        eq_rows = []
+        eq_rhs = []
+        for row, b_val in zip(A_eq, b_eq):
+            r = list(row)
+            shift = sum(r[i] * bounds_lower[i] for i in range(num_vars))
+            eq_rows.append(r)
+            eq_rhs.append(b_val - shift)
+
+        num_ineq = len(rows)
+        num_eq = len(eq_rows)
+        total_slacks = num_ineq
+        total_artificial = 0
+
+        # Check negative RHS for inequalities
+        # If rhs < 0, multiply by -1, becomes >=, needs artificial variable
+        # For simplicity, let's treat all equations and negative inequalities with artificial variables.
+
+        # Phase 1 setup
+        tableau = []
+        # variables: num_vars (original) + total_slacks + artificials
+        # We'll determine artificials on the fly
+        art_count = 0
+        mat_rows = []
+        mat_rhs = []
+        art_pos = []
+
+        for i in range(num_ineq):
+            r = rows[i]
+            val = rhs[i]
+            if val >= -EPS:
+                row_vec = r + [0.0] * num_ineq
+                row_vec[num_vars + i] = 1.0
+                mat_rows.append(row_vec)
+                mat_rhs.append(max(0.0, val))
+                art_pos.append(-1)
+            else:
+                # -r - slack + art = -val
+                row_vec = [-x for x in r] + [0.0] * num_ineq
+                row_vec[num_vars + i] = -1.0
+                art_count += 1
+                mat_rows.append(row_vec)
+                mat_rhs.append(-val)
+                art_pos.append(art_count - 1)
+
+        for i in range(num_eq):
+            r = eq_rows[i]
+            val = eq_rhs[i]
+            if val < -EPS:
+                r = [-x for x in r]
+                val = -val
+            row_vec = r + [0.0] * num_ineq
+            art_count += 1
+            mat_rows.append(row_vec)
+            mat_rhs.append(max(0.0, val))
+            art_pos.append(art_count - 1)
+
+        total_cols = num_vars + num_ineq + art_count
+        # Expand mat_rows to have columns for artificials
+        for r_idx in range(len(mat_rows)):
+            cur_len = len(mat_rows[r_idx])
+            needed = total_cols - cur_len
+            mat_rows[r_idx].extend([0.0] * needed)
+            if art_pos[r_idx] != -1:
+                mat_rows[r_idx][num_vars + num_ineq + art_pos[r_idx]] = 1.0
+
+        # Basis
+        basis = []
+        for r_idx in range(len(mat_rows)):
+            if art_pos[r_idx] != -1:
+                basis.append(num_vars + num_ineq + art_pos[r_idx])
+            else:
+                basis.append(num_vars + r_idx)
+
+        # Objective for Phase 1: minimize sum of artificial variables
+        cost = [0.0] * total_cols
+        cost_rhs = 0.0
+        for r_idx in range(len(mat_rows)):
+            if art_pos[r_idx] != -1:
+                for c_idx in range(total_cols):
+                    cost[c_idx] -= mat_rows[r_idx][c_idx]
+                cost_rhs -= mat_rhs[r_idx]
+
+        # Simplex loop
+        tableau = mat_rows
+        t_rhs = mat_rhs
+        num_r = len(tableau)
+
+        while True:
+            # Find entering variable
+            pivot_col = -1
+            min_c = -EPS
+            for c in range(total_cols):
+                if cost[c] < min_c:
+                    min_c = cost[c]
+                    pivot_col = c
+
+            if pivot_col == -1:
+                break
+
+            # Find leaving variable
+            pivot_row = -1
+            min_ratio = float("inf")
+            for r in range(num_r):
+                if tableau[r][pivot_col] > EPS:
+                    ratio = t_rhs[r] / tableau[r][pivot_col]
+                    if ratio < min_ratio - 1e-11:
+                        min_ratio = ratio
+                        pivot_row = r
+
+            if pivot_row == -1:
+                return None  # Unbounded
+
+            # Pivot
+            pivot_val = tableau[pivot_row][pivot_col]
+            for c in range(total_cols):
+                tableau[pivot_row][c] /= pivot_val
+            t_rhs[pivot_row] /= pivot_val
+
+            for r in range(num_r):
+                if r != pivot_row:
+                    factor = tableau[r][pivot_col]
+                    if abs(factor) > 1e-13:
+                        for c in range(total_cols):
+                            tableau[r][c] -= factor * tableau[pivot_row][c]
+                        t_rhs[r] -= factor * t_rhs[pivot_row]
+
+            factor = cost[pivot_col]
+            if abs(factor) > 1e-13:
+                for c in range(total_cols):
+                    cost[c] -= factor * tableau[pivot_row][c]
+                cost_rhs -= factor * t_rhs[pivot_row]
+
+            basis[pivot_row] = pivot_col
+
+        if abs(cost_rhs) > 1e-4:
+            return None  # Infeasible
+
+        # Reconstruct solution
+        sol = [0.0] * num_vars
+        for r in range(num_r):
+            if basis[r] < num_vars:
+                sol[basis[r]] = t_rhs[r]
+
+        for i in range(num_vars):
+            sol[i] += bounds_lower[i]
+
+        return sol
+
+    # Branch and bound DFS
+    init_upper = [float("inf")] * num_vars
+    for p in range(k):
+        for e in range(m):
+            init_upper[p * m + e] = min(edges[e][2], commodities[p][2])
+
+    init_lower = [0.0] * num_vars
+
+    stack = [(init_lower, init_upper)]
+
+    while stack:
+        b_low, b_up = stack.pop()
+        sol = solve_lp(b_up, b_low)
+        if sol is None:
+            continue
+
+        # Find first non-integer variable
+        fractional = -1
+        for i in range(num_vars):
+            val = sol[i]
+            if abs(val - round(val)) > 1e-4:
+                fractional = i
+                break
+
+        if fractional == -1:
+            print("YES")
+            int_sol = [int(round(x)) for x in sol]
+            for p in range(k):
+                row = int_sol[p * m : (p + 1) * m]
+                print(*(row))
+            return
+
+        val = sol[fractional]
+        floor_v = int(val)
+        ceil_v = floor_v + 1
+
+        # Branch 1: x <= floor_v
+        new_up = list(b_up)
+        new_up[fractional] = float(floor_v)
+        stack.append((b_low, new_up))
+
+        # Branch 2: x >= ceil_v
+        new_low = list(b_low)
+        new_low[fractional] = float(ceil_v)
+        stack.append((new_low, b_up))
+
+    print("NO")
+
+
+if __name__ == "__main__":
+    solve()
+```

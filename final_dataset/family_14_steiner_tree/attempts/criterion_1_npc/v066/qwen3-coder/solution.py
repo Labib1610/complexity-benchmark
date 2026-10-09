@@ -1,0 +1,93 @@
+import sys
+import heapq
+from collections import defaultdict
+
+def dijkstra(graph, start, end_set):
+    distances = defaultdict(lambda: float('inf'))
+    distances[start] = 0
+    pq = [(0, start)]
+    visited = set()
+    
+    while pq:
+        current_dist, u = heapq.heappop(pq)
+        
+        if u in visited:
+            continue
+            
+        visited.add(u)
+        
+        if u in end_set:
+            return current_dist, u
+            
+        for v, weight in graph[u]:
+            distance = current_dist + weight
+            
+            if distance < distances[v]:
+                distances[v] = distance
+                heapq.heappush(pq, (distance, v))
+                
+    return float('inf'), None
+
+def solve():
+    n, m, t = map(int, sys.stdin.readline().split())
+    anchors = list(map(int, sys.stdin.readline().split()))
+    
+    if t <= 1:
+        print(0)
+        return
+        
+    graph = defaultdict(list)
+    
+    for _ in range(m):
+        u, v, w = map(int, sys.stdin.readline().split())
+        graph[u].append((v, w))
+        graph[v].append((u, w))
+        
+    # Create a complete graph between anchors with shortest path weights
+    anchor_graph = []
+    anchor_set = set(anchors)
+    
+    for i in range(t):
+        for j in range(i+1, t):
+            start = anchors[i]
+            end_set = {anchors[j]}
+            
+            dist, _ = dijkstra(graph, start, end_set)
+            
+            if dist != float('inf'):
+                anchor_graph.append((dist, anchors[i], anchors[j]))
+                
+    # Apply Kruskal's algorithm on the anchor graph
+    def find(parent, x):
+        if parent[x] != x:
+            parent[x] = find(parent, parent[x])
+        return parent[x]
+        
+    def union(parent, rank, x, y):
+        px, py = find(parent, x), find(parent, y)
+        if px == py:
+            return False
+        if rank[px] < rank[py]:
+            px, py = py, px
+        parent[py] = px
+        if rank[px] == rank[py]:
+            rank[px] += 1
+        return True
+        
+    anchor_graph.sort()
+    parent = {anchor: anchor for anchor in anchors}
+    rank = {anchor: 0 for anchor in anchors}
+    
+    total_cost = 0
+    edges_used = 0
+    
+    for weight, u, v in anchor_graph:
+        if union(parent, rank, u, v):
+            total_cost += weight
+            edges_used += 1
+            if edges_used == t - 1:
+                break
+                
+    print(total_cost)
+
+solve()

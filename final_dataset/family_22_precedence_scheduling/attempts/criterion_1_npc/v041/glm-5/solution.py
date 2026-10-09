@@ -1,0 +1,102 @@
+import sys
+from collections import deque
+
+def solve():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    M = int(next(it))
+    T = int(next(it))
+    m = int(next(it))
+    
+    adj = [[] for _ in range(n)]
+    indeg = [0] * n
+    for _ in range(m):
+        a = int(next(it)) - 1
+        b = int(next(it)) - 1
+        adj[a].append(b)
+        indeg[b] += 1
+    
+    # Compute longest path to each node (minimum phase required)
+    topo_order = []
+    q = deque([i for i in range(n) if indeg[i] == 0])
+    while q:
+        u = q.popleft()
+        topo_order.append(u)
+        for v in adj[u]:
+            indeg[v] -= 1
+            if indeg[v] == 0:
+                q.append(v)
+    
+    if len(topo_order) != n:
+        print("NO")
+        return
+    
+    min_phase = [1] * n
+    for u in topo_order:
+        for v in adj[u]:
+            if min_phase[v] < min_phase[u] + 1:
+                min_phase[v] = min_phase[u] + 1
+    
+    for i in range(n):
+        if min_phase[i] > T:
+            print("NO")
+            return
+    
+    # Binary search for minimum feasible max_phase
+    lo = max(min_phase)
+    hi = T
+    best_phases = None
+    
+    while lo <= hi:
+        mid = (lo + hi) // 2
+        phases = [0] * n
+        possible = True
+        
+        # Compute max_phase for each node
+        max_phase = [mid] * n
+        for u in reversed(topo_order):
+            for v in adj[u]:
+                if max_phase[u] > max_phase[v] - 1:
+                    max_phase[u] = max_phase[v] - 1
+        
+        for i in range(n):
+            if max_phase[i] < min_phase[i]:
+                possible = False
+                break
+        
+        if not possible:
+            lo = mid + 1
+            continue
+        
+        # Greedy assignment: assign each node to latest possible phase
+        # Process nodes in topological order
+        for u in topo_order:
+            phases[u] = max_phase[u]
+        
+        # Check capacity constraints
+        cnt = [0] * (mid + 1)
+        for i in range(n):
+            cnt[phases[i]] += 1
+        
+        for p in range(1, mid + 1):
+            if cnt[p] > M:
+                possible = False
+                break
+        
+        if possible:
+            best_phases = phases[:]
+            hi = mid - 1
+        else:
+            lo = mid + 1
+    
+    if best_phases is None:
+        print("NO")
+    else:
+        print("YES")
+        print(' '.join(str(x) for x in best_phases))
+
+if __name__ == "__main__":
+    solve()

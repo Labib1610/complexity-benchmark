@@ -1,0 +1,43 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.buffer.read().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    color = [0] * (n + 1)
+    
+    for start in range(1, n + 1):
+        if color[start] != 0:
+            continue
+        # BFS to assign colors
+        queue = [start]
+        color[start] = 1
+        head = 0
+        while head < len(queue):
+            u = queue[head]
+            head += 1
+            cu = color[u]
+            cv = 3 - cu
+            for v in adj[u]:
+                if color[v] == 0:
+                    color[v] = cv
+                    queue.append(v)
+                elif color[v] != cv:
+                    print("NO")
+                    return
+    
+    print("YES")
+    print(' '.join(str(color[i]) for i in range(1, n + 1)))
+
+solve()

@@ -1,0 +1,83 @@
+import sys
+from functools import cmp_to_key
+
+def compare_amp(a, b):
+    # a = (p1_a, p2_a), b = (p1_b, p2_b)
+    # We want to sort such that we minimize S_final
+    # Key insight: we should process amplifiers in a specific order
+    # Let's think about when placing amp A before amp B is better
+    # Suppose at some point we have signal S
+    # If we do A then B:
+    #   After A: max(S - a[0], 0) + a[1]
+    #   After B: max(max(S - a[0], 0) + a[1] - b[0], 0) + b[1]
+    # If we do B then A:
+    #   After B: max(S - b[0], 0) + b[1]
+    #   After A: max(max(S - b[0], 0) + b[1] - a[0], 0) + a[1]
+    
+    # This is complex. Let's use a known result:
+    # To minimize the final signal, we should sort by (p2 - p1) in descending order
+    # But let's verify this logic properly
+    
+    # Actually, let's think differently.
+    # When does putting amplifier with (p1a, p2a) before (p1b, p2b) help?
+    # It's better to put the one that "loses less" or "gains more" earlier.
+    
+    # More precise approach:
+    # Consider two adjacent amplifiers A(p1a,p2a) and B(p1b,p2b)
+    # Suppose before these two we have signal S
+    # Order A,B: 
+    #   S1 = max(S - p1a, 0) + p2a
+    #   S2 = max(S1 - p1b, 0) + p2b
+    # Order B,A:
+    #   S1' = max(S - p1b, 0) + p2b
+    #   S2' = max(S1' - p1a, 0) + p2a
+    #
+    # We prefer A before B if S2 <= S2'
+    # This is equivalent to:
+    # max(max(S - p1a, 0) + p2a - p1b, 0) + p2b <= max(max(S - p1b, 0) + p2b - p1a, 0) + p2a
+    #
+    # This condition is quite complex to solve directly for sorting.
+    # 
+    # There's a known greedy strategy for this type of problem:
+    # Sort by p2 - p1 in descending order.
+    
+    diff_a = a[1] - a[0]  # p2 - p1
+    diff_b = b[1] - b[0]  # p2 - p1
+    
+    # Descending order of (p2 - p1)
+    if diff_a > diff_b:
+        return -1
+    elif diff_a < diff_b:
+        return 1
+    else:
+        return 0
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    j = int(data[0])
+    amplifiers = []
+    D = 0  # Sum of all p1
+    
+    idx = 1
+    for _ in range(j):
+        p1 = int(data[idx])
+        p2 = int(data[idx + 1])
+        amplifiers.append((p1, p2))
+        D += p1
+        idx += 2
+    
+    # Sort amplifiers based on the comparison function
+    amplifiers.sort(key=cmp_to_key(compare_amp))
+    
+    # Simulate the process
+    S = 0
+    for p1, p2 in amplifiers:
+        S = max(S - p1, 0) + p2
+    
+    print(S + D)
+
+if __name__ == "__main__":
+    main()

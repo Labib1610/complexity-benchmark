@@ -1,32 +1,70 @@
+import sys
+from collections import defaultdict
+
 def solve():
-    import sys
-    from itertools import product
+    n, m = map(int, sys.stdin.readline().split())
     
-    input = sys.stdin.read
-    data = input().split()
-    
-    n, m = int(data[0]), int(data[1])
-    conflicts = []
-    index = 2
+    # Build adjacency list
+    adj = defaultdict(list)
     for _ in range(m):
-        u = int(data[index]) - 1  # Convert to 0-based indexing
-        v = int(data[index+1]) - 1
-        conflicts.append((u, v))
-        index += 2
+        u, v = map(int, sys.stdin.readline().split())
+        u -= 1  # Convert to 0-indexed
+        v -= 1
+        adj[u].append(v)
+        adj[v].append(u)
     
-    # We need to check all combinations in lexicographical order (which product gives us)
-    # Since we want the lex smallest valid assignment, we generate in order:
-    for config in product([1, 2, 3], repeat=n):
-        valid = True
-        for u, v in conflicts:
-            if config[u] == config[v]:
-                valid = False
-                break
-        if valid:
-            print("YES")
-            print(' '.join(map(str, config)))
-            return
+    # Color graph with 3 colors
+    # Colors: 1, 2, 3 (or 0, 1, 2 in our implementation, add 1 at the end)
+    color = [-1] * n
+    
+    # For each connected component
+    for start in range(n):
+        if color[start] != -1:
+            continue
             
-    print("NO")
+        # BFS to color this component
+        queue = [start]
+        color[start] = 0
+        
+        while queue:
+            node = queue.pop(0)
+            node_color = color[node]
+            
+            # Try to color all neighbors with a different color
+            for neighbor in adj[node]:
+                if color[neighbor] == -1:
+                    # Assign a color different from current node
+                    # We have 3 colors: 0, 1, 2
+                    # We can pick any color other than node_color
+                    # But we also need to make sure it's different from all already colored neighbors
+                    used_colors = set()
+                    used_colors.add(node_color)
+                    
+                    for n_neighbor in adj[neighbor]:
+                        if color[n_neighbor] != -1:
+                            used_colors.add(color[n_neighbor])
+                    
+                    # Find a color not in used_colors
+                    new_color = -1
+                    for c in range(3):
+                        if c not in used_colors:
+                            new_color = c
+                            break
+                    
+                    if new_color == -1:
+                        print("NO")
+                        return
+                    
+                    color[neighbor] = new_color
+                    queue.append(neighbor)
+                else:
+                    # Check if the coloring is valid
+                    if color[neighbor] == node_color:
+                        print("NO")
+                        return
+    
+    # If we reach here, we have a valid 3-coloring
+    print("YES")
+    print(' '.join(str(c + 1) for c in color))
 
 solve()

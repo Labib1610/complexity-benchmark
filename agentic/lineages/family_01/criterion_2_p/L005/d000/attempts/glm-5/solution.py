@@ -5,19 +5,19 @@ def solve():
     input_data = sys.stdin.read().split()
     if not input_data:
         return
-    iterator = iter(input_data)
-    n = int(next(iterator))
-    m = int(next(iterator))
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
     
     adj = [[] for _ in range(n)]
     for _ in range(m):
-        u = int(next(iterator)) - 1
-        v = int(next(iterator)) - 1
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
         adj[u].append(v)
         adj[v].append(u)
     
     color = [0] * n
-    is_possible = True
+    possible = True
     
     for i in range(n):
         if color[i] == 0:
@@ -30,18 +30,18 @@ def solve():
                         color[v] = 3 - color[u]
                         queue.append(v)
                     elif color[v] == color[u]:
-                        is_possible = False
+                        possible = False
                         break
-                if not is_possible:
+                if not possible:
                     break
-        if not is_possible:
+        if not possible:
             break
     
-    if not is_possible:
+    if not possible:
         print("NO")
     else:
         print("YES")
-        print(*(color[i] for i in range(n)))
+        print(' '.join(map(str, color)))
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     solve()

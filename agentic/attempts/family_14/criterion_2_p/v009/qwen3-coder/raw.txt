@@ -1,0 +1,176 @@
+```python
+import sys
+from collections import defaultdict, deque
+
+def main():
+    import sys
+    sys.setrecursionlimit(1 << 25)
+    
+    input = sys.stdin.read
+    data = input().split()
+    
+    idx = 0
+    n = int(data[idx])
+    idx += 1
+    m = int(data[idx])
+    idx += 1
+    t = int(data[idx])
+    idx += 1
+    
+    required = set()
+    for _ in range(t):
+        required.add(int(data[idx]))
+        idx += 1
+    
+    # If there's only one required site, cost is 0
+    if t <= 1:
+        print(0)
+        return
+    
+    # Build the tree
+    adj = defaultdict(list)
+    edges = []
+    
+    for _ in range(m):
+        u = int(data[idx])
+        idx += 1
+        v = int(data[idx])
+        idx += 1
+        w = int(data[idx])
+        idx += 1
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+        edges.append((u, v, w))
+    
+    # If all nodes are required, sum all edges
+    if t == n:
+        total = sum(w for _, _, w in edges)
+        print(total)
+        return
+    
+    # Find the minimal subtree that connects all required nodes
+    # This is the Steiner tree problem on a tree, which can be solved efficiently
+    
+    # Approach: 
+    # 1. Root the tree at any node
+    # 2. For each node, compute:
+    #    - is_required: whether the node itself is required
+    #    - required_descendants: set of required nodes in the subtree
+    # 3. An edge should be included in the solution if it separates two or more required components
+    
+    # Let's root the tree at node 1
+    root = 1
+    
+    # First, build parent/children relationships via BFS
+    parent = [-1] * (n + 1)
+    children = defaultdict(list)
+    visited = [False] * (n + 1)
+    
+    queue = deque([root])
+    visited[root] = True
+    
+    while queue:
+        u = queue.popleft()
+        for v, w in adj[u]:
+            if not visited[v]:
+                visited[v] = True
+                parent[v] = u
+                children[u].append((v, w))
+                queue.append(v)
+    
+    # Now, perform a post-order traversal to compute required_descendants for each node
+    # We'll use a stack-based approach for post-order
+    
+    # Get all nodes in post-order
+    post_order = []
+    stack = [(root, False)]
+    while stack:
+        node, processed = stack.pop()
+        if processed:
+            post_order.append(node)
+        else:
+            stack.append((node, True))
+            for child, _ in children[node]:
+                stack.append((child, False))
+    
+    # For each node, store its required descendants
+    required_descendants = [set() for _ in range(n + 1)]
+    
+    # Process in post-order
+    for node in post_order:
+        if node in required:
+            required_descendants[node].add(node)
+        
+        for child, _ in children[node]:
+            required_descendants[node].update(required_descendants[child])
+    
+    # Now, calculate the minimum cost
+    total_cost = 0
+    
+    # For each edge in the tree, check if it's needed
+    # An edge (parent -> child) is needed if child's subtree contains at least one required node
+    # and the rest of the tree (including parent's other subtrees) also contains at least one required node
+    
+    # But there's a simpler way:
+    # In a tree, to connect all required nodes, we need the minimum subtree that spans them.
+    # This is equivalent to including an edge if it lies on the path between any two required nodes.
+    
+    # Efficient approach:
+    # Count how many required nodes are on each side of every edge.
+    # An edge (u,v) contributes to the cost if it separates required nodes into two non-empty groups.
+    
+    # So for each edge (u,v,w), let's determine:
+    # - count_u: number of required nodes in u's component when we remove this edge
+    # - count_v: number of required nodes in v's component when we remove this edge
+    # The edge contributes to the cost if both counts > 0
+    
+    # To do this, we can orient the tree based on our previous parent relationship
+    # and for each node, count required descendants
+    
+    # Actually, let's reframe:
+    # Total required nodes = t
+    # For each edge connecting parent -> child:
+    # Let count = number of required nodes in child's subtree
+    # Then this edge is used count * (t - count) times in the total pairwise paths,
+    # but we only want to include it once if it's part of the spanning tree.
+    
+    # No, let's think differently.
+    # The minimum cost to connect all required nodes is the cost of the subtree that spans them.
+    # In a tree, this is the union of all paths between required nodes.
+    # An edge is in this union if removing it increases the number of connected components of required nodes.
+    
+    # Simpler idea:
+    # Do a DFS from root, and for each node, compute how many required nodes are in its subtree.
+    # For each edge from parent to child with weight w:
+    # If there are k required nodes in child's subtree, and (t-k) outside,
+    # then this edge must be taken min(k, t-k) times to connect all required nodes optimally.
+    # But since we're building a tree, we take it once if both sides have >= 1 required nodes.
+    
+    # Wait, in the Steiner tree on a tree, the cost is the sum over edges of weight * usage.
+    # But actually, we just want the minimum cost subtree connecting all required vertices.
+    # This is unique and equals the union of paths between required vertices.
+    # An edge is in this union iff its removal separates the required vertices into two non-empty sets.
+    
+    # So for each edge (u,v):
+    # Remove the edge. Count required vertices in each component.
+    # Edge contributes to cost if both components contain >= 1 required vertex.
+    
+    # With our rooted tree:
+    # Each edge is from parent to child.
+    # Removing it splits into:
+    # - Subtree of child (we know how many required nodes here)
+    # - Rest of the tree (which has t - that many)
+    
+    total_cost = 0
+    for node in range(1, n+1):
+        for child, weight in children[node]:
+            count_in_subtree = len(required_descendants[child])
+            count_outside = t - count_in_subtree
+            if count_in_subtree > 0 and count_outside > 0:
+                total_cost += weight
+                
+    print(total_cost)
+
+if __name__ == "__main__":
+    main()
+```

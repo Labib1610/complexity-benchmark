@@ -1,0 +1,96 @@
+import sys
+input = sys.stdin.readline
+
+nL, nR, m = map(int, input().split())
+edges = []
+adjL = [[] for _ in range(nL)]
+adjR = [[] for _ in range(nR)]
+
+for i in range(m):
+    u, v = map(int, input().split())
+    u -= 1
+    v -= 1
+    edges.append((u, v))
+    adjL[u].append((v, i))
+    adjR[v].append((u, i))
+
+# Determine K = max degree
+degL = [len(adjL[i]) for i in range(nL)]
+degR = [len(adjR[i]) for i in range(nR)]
+K = max(max(degL) if nL > 0 else 0, max(degR) if nR > 0 else 0)
+
+color = [0] * m
+# colorL[u][c] = edge index or -1
+colorL = [[-1] * (K + 1) for _ in range(nL)]
+colorR = [[-1] * (K + 1) for _ in range(nR)]
+
+for idx, (u, v) in enumerate(edges):
+    # find smallest free color for u and v
+    cu = 1
+    while colorL[u][cu] != -1:
+        cu += 1
+    cv = 1
+    while colorR[v][cv] != -1:
+        cv += 1
+
+    if cu == cv:
+        c = cu
+        color[idx] = c
+        colorL[u][c] = idx
+        colorR[v][c] = idx
+    else:
+        # Need to recolor along alternating path
+        # Start from v with color cu
+        c1, c2 = cu, cv
+        # We'll do standard recoloring
+        current_u = u
+        current_v = v
+        c = c1
+        # find path
+        path_edges = []
+        visited_u = [False] * nL
+        visited_v = [False] * nR
+        visited_u[current_u] = True
+        visited_v[current_v] = True
+        # We'll alternate: from current_v, find edge with color c1
+        while True:
+            # find edge from current_v with color c1
+            e = colorR[current_v][c1]
+            if e == -1:
+                break
+            u2, v2 = edges[e]
+            path_edges.append(e)
+            # move to u2
+            current_u = u2
+            visited_u[current_u] = True
+            # now find edge from current_u with color c2
+            e2 = colorL[current_u][c2]
+            if e2 == -1:
+                break
+            u3, v3 = edges[e2]
+            path_edges.append(e2)
+            current_v = v3
+            visited_v[current_v] = True
+            # swap colors
+            c1, c2 = c2, c1
+
+        # Now recolor path
+        for e in path_edges:
+            uu, vv = edges[e]
+            old_c = color[e]
+            new_c = c1 if old_c == c2 else c2
+            # remove old
+            colorL[uu][old_c] = -1
+            colorR[vv][old_c] = -1
+            # assign new
+            color[e] = new_c
+            colorL[uu][new_c] = e
+            colorR[vv][new_c] = e
+
+        # Now assign the new edge
+        color[idx] = cu
+        colorL[u][cu] = idx
+        colorR[v][cu] = idx
+
+print("YES")
+print(" ".join(map(str, color)))

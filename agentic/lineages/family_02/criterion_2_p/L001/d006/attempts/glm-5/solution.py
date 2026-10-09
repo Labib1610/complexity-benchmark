@@ -1,0 +1,3 @@
+def tarjan_scc(n_nodes, adj):  # adj: CSR
+    # returns comp array, number of components
+    ...

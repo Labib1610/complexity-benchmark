@@ -1,0 +1,200 @@
+import sys
+from collections import defaultdict, deque
+
+def main():
+    import sys
+    sys.setrecursionlimit(1000000)
+    
+    input = sys.stdin.read
+    data = input().split()
+    
+    idx = 0
+    n = int(data[idx])
+    idx += 1
+    m = int(data[idx])
+    idx += 1
+    t = int(data[idx])
+    idx += 1
+    
+    life_caves = list(map(int, data[idx:idx+t]))
+    idx += t
+    
+    # Build adjacency list
+    adj = defaultdict(list)
+    edges = []
+    
+    for _ in range(m):
+        u = int(data[idx])
+        idx += 1
+        v = int(data[idx])
+        idx += 1
+        w = int(data[idx])
+        idx += 1
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+        edges.append((u, v, w))
+    
+    # If only one life sign, no excavation needed
+    if t == 1:
+        print(0)
+        return
+    
+    # Since the graph is a tree (n nodes, n-1 edges, connected), we can use Kruskal's algorithm
+    # to find the Minimum Spanning Tree that connects all life caves.
+    
+    # We need to find the minimal subtree that connects all life caves.
+    # This is equivalent to finding the Steiner tree for the life caves.
+    # However, since the graph is a tree, we can do the following:
+    # 1. Find the subtree that contains all life caves.
+    # 2. The minimal way to connect them is just the MST of this subtree.
+    # But since it's already a tree, the MST is itself.
+    # So we need to find the minimal subtree that spans all life caves.
+    
+    # Efficient approach:
+    # 1. Root the tree at any node.
+    # 2. Find the minimal connected subtree containing all life caves.
+    # This can be done by finding the union of paths between all pairs,
+    # but more efficiently, we can find the minimal subtree containing all terminals.
+    
+    # Better approach:
+    # Use the fact that in a tree, the minimal connected subgraph containing a set of vertices
+    # is the union of the paths between them. But there's a simpler way:
+    # Find the "Steiner tree" in a tree, which is just taking all edges on the paths
+    # between the terminal nodes, then removing redundant branches.
+    
+    # Even simpler: 
+    # 1. Mark all life caves.
+    # 2. Do a traversal to find the minimal subtree that includes all marked nodes.
+    # This subtree will have edges that we can sum up.
+    
+    # Let's root the tree at node 1
+    root = 1
+    
+    # Build parent and depth information using BFS
+    parent = [-1] * (n + 1)
+    depth = [0] * (n + 1)
+    visited = [False] * (n + 1)
+    
+    queue = deque([root])
+    visited[root] = True
+    
+    while queue:
+        u = queue.popleft()
+        for v, w in adj[u]:
+            if not visited[v]:
+                visited[v] = True
+                parent[v] = u
+                depth[v] = depth[u] + 1
+                queue.append(v)
+    
+    # Now, to connect all life caves optimally in a tree,
+    # we need to find the minimal subtree that contains all of them.
+    # This is equivalent to finding the union of paths from each node to a root,
+    # but more precisely, it's the subtree formed by all the nodes that are
+    # on any path between any two life caves.
+    
+    # A simpler and correct approach:
+    # In a tree, the minimal cost to connect a set of terminal nodes
+    # is given by the edges in the subtree that spans all terminals.
+    # To find this, we can:
+    # 1. Pick any terminal as root
+    # 2. For each terminal, find the path to this root
+    # 3. Union all these paths - this gives us the minimal subtree
+    # But even simpler: we can use the fact that the answer is the MST of the metric completion
+    # induced by the terminals, but in a tree, it's just the union of paths.
+    
+    # Most straightforward approach:
+    # 1. Root the tree
+    # 2. For each life cave, mark all nodes on the path to the root
+    # 3. Count each edge only once in the final subtree
+    
+    # Actually, let's think differently:
+    # The minimal way to connect all life caves is to take the edges of the minimal subtree
+    # that contains all of them. 
+    # In a tree, this is unique. We can compute it by:
+    # 1. Finding the "closure" of the set of life caves under the ancestor relation.
+    # 2. That is, include all nodes that are on some path between life caves.
+    
+    # Even better:
+    # The cost is the sum of weights of edges in the minimal subtree spanning all life caves.
+    # In a tree, this equals the total weight of the subtree minus the weight of the parts
+    # not needed. But there's a direct way:
+    
+    # Let's build a virtual tree (also called a Steiner tree in trees):
+    # 1. Sort the life caves by their DFS entry time
+    # 2. Connect them in order, keeping track of the total cost
+    
+    # Simpler correct method:
+    # Use the fact that in a tree, to connect k terminals optimally,
+    # you take the union of paths between them, which forms a subtree.
+    # The cost is the sum of edge weights in this subtree.
+    
+    # Here's how to compute it:
+    # 1. Root the tree arbitrarily
+    # 2. For each edge, determine if it's part of the minimal subtree connecting all terminals
+    # An edge is in the minimal subtree iff removing it disconnects the set of terminals
+    # into two sets both non-empty.
+    
+    # So we can:
+    # 1. Root the tree
+    # 2. For each edge, check if it separates the terminals
+    # This is equivalent to counting how many terminals are in each component when the edge is removed
+    
+    # Let's implement this approach:
+    
+    # First, let's reroot and compute subtree sizes for terminals
+    root = 1
+    # Rebuild parent/depth with consistent rooting
+    parent = [-1] * (n + 1)
+    children = defaultdict(list)
+    edge_to_parent = {}  # edge_to_parent[child] = weight to parent
+    
+    queue = deque([root])
+    visited = [False] * (n + 1)
+    visited[root] = True
+    
+    while queue:
+        u = queue.popleft()
+        for v, w in adj[u]:
+            if not visited[v]:
+                visited[v] = True
+                parent[v] = u
+                children[u].append(v)
+                edge_to_parent[v] = w
+                queue.append(v)
+    
+    # Now compute for each node, how many terminals are in its subtree
+    is_terminal = [False] * (n + 1)
+    for cave in life_caves:
+        is_terminal[cave] = True
+        
+    subtree_terminals = [0] * (n + 1)
+    
+    # Post-order traversal to compute subtree sizes
+    def dfs(u):
+        count = 1 if is_terminal[u] else 0
+        for v in children[u]:
+            count += dfs(v)
+        subtree_terminals[u] = count
+        return count
+    
+    dfs(root)
+    
+    # Now, for each non-root node, check if the edge to its parent is needed
+    total_cost = 0
+    for u in range(1, n+1):
+        if parent[u] != -1:  # Not the root
+            # Edge from u to parent[u]
+            w = edge_to_parent[u]
+            # How many terminals in subtree of u?
+            subtreesize = subtree_terminals[u]
+            # How many terminals not in subtree of u?
+            otherside = t - subtreesize
+            # If both > 0, then this edge is needed
+            if subtreesize > 0 and otherside > 0:
+                total_cost += w
+                
+    print(total_cost)
+
+if __name__ == "__main__":
+    main()

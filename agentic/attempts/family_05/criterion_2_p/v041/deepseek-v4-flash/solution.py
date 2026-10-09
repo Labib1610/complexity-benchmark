@@ -1,0 +1,58 @@
+import sys
+from collections import defaultdict, deque
+
+def main():
+    input = sys.stdin.readline
+    k, t = map(int, input().split())
+    
+    # captain -> set of destinations
+    cap_dest = defaultdict(set)
+    # captain -> jet mapping (given by protocol)
+    cap_jet = {}
+    
+    for _ in range(t):
+        c, j, d = map(int, input().split())
+        cap_dest[c].add(d)
+        cap_jet[c] = j
+    
+    # We need to match each captain to a distinct destination
+    # Bipartite matching: captains (1..k) to destinations (1..k)
+    match_dest = [-1] * (k + 1)  # destination -> captain
+    
+    def bfs():
+        queue = deque()
+        for c in range(1, k+1):
+            if c not in cap_dest:
+                continue
+            if match_dest[list(cap_dest[c])[0]] == -1:
+                # not used in simple approach; we'll use standard Kuhn's
+                pass
+        # Use standard DFS-based Kuhn's algorithm
+        return False
+    
+    # Kuhn's algorithm for bipartite matching
+    def try_kuhn(v, visited):
+        for d in cap_dest[v]:
+            if not visited[d]:
+                visited[d] = True
+                if match_dest[d] == -1 or try_kuhn(match_dest[d], visited):
+                    match_dest[d] = v
+                    return True
+        return False
+    
+    for c in range(1, k+1):
+        visited = [False] * (k + 1)
+        try_kuhn(c, visited)
+    
+    # Check if all captains matched
+    matched_captains = set(match_dest[1:])
+    if len(matched_captains) == k and all(m != -1 for m in match_dest[1:]):
+        print("YES")
+        for d in range(1, k+1):
+            c = match_dest[d]
+            print(c, cap_jet[c], d)
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    main()

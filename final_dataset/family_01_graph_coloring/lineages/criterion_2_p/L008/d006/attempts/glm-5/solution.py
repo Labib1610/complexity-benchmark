@@ -1,0 +1,65 @@
+import sys
+from collections import deque
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [[] for _ in range(n)]
+    degree = [0] * n
+    
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+        degree[u] += 1
+        degree[v] += 1
+    
+    # c[i] = 0: unassigned, 1 or 2: assigned
+    c = [0] * n
+    possible = True
+    
+    for i in range(n):
+        if c[i] == 0:
+            # BFS for connected component
+            queue = deque([i])
+            c[i] = 1
+            while queue:
+                u = queue.popleft()
+                # Try to assign neighbors
+                for v in adj[u]:
+                    if c[v] == 0:
+                        # Constraint: c[v] != c[u]
+                        c[v] = 3 - c[u]
+                        queue.append(v)
+                    elif c[v] == c[u]:
+                        possible = False
+                        break
+                if not possible:
+                    break
+        if not possible:
+            break
+    
+    if not possible:
+        print("NO")
+        return
+    
+    # Verify the solution
+    for u in range(n):
+        s_u = 0
+        for v in adj[u]:
+            s_u += c[v]
+        if s_u + degree[u] * c[u] != 3 * degree[u]:
+            print("NO")
+            return
+    
+    print("YES")
+    print(' '.join(map(str, c)))
+
+if __name__ == '__main__':
+    solve()

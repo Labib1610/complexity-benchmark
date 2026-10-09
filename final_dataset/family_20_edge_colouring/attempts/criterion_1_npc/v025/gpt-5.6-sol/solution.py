@@ -1,0 +1,304 @@
+import sys
+from itertools import permutations
+from collections import defaultdict, deque
+
+sys.setrecursionlimit(100000)
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if len(data) < 2:
+        return
+
+    n, m = data[0], data[1]
+    if len(data) != 2 + 2 * m:
+        print("NO")
+        return
+
+    edges = []
+    incident_edges = [[] for _ in range(n)]
+    pos = 2
+
+    for eid in range(m):
+        u = data[pos] - 1
+        v = data[pos + 1] - 1
+        pos += 2
+
+        if not (0 <= u < n and 0 <= v < n) or u == v:
+            print("NO")
+            return
+
+        edges.append((u, v))
+        incident_edges[u].append(eid)
+        incident_edges[v].append(eid)
+
+    if any(len(x) != 3 for x in incident_edges):
+        print("NO")
+        return
+
+    slot_u = [0] * m
+    slot_v = [0] * m
+
+    for vertex in range(n):
+        for slot, eid in enumerate(incident_edges[vertex]):
+            a, b = edges[eid]
+            if vertex == a:
+                slot_u[eid] = slot
+            else:
+                slot_v[eid] = slot
+
+    perms = list(permutations((0, 1, 2)))
+    FULL = (1 << 6) - 1
+
+    grouped = defaultdict(list)
+    for eid, (u, v) in enumerate(edges):
+        if u < v:
+            grouped[(u, v)].append(eid)
+        else:
+            grouped[(v, u)].append(eid)
+
+    # Each item: (u, v, compatibility u->v, compatibility v->u)
+    constraints = []
+    adjacency = [[] for _ in range(n)]
+
+    for (u, v), eids in grouped.items():
+        compat_uv = [0] * 6
+        compat_vu = [0] * 6
+
+        for su in range(6):
+            pu = perms[su]
+            mask = 0
+            for sv in range(6):
+                pv = perms[sv]
+                ok = True
+                for eid in eids:
+                    a, b = edges[eid]
+                    if a == u:
+                        us = slot_u[eid]
+                        vs = slot_v[eid]
+                    else:
+                        us = slot_v[eid]
+                        vs = slot_u[eid]
+                    if pu[us] != pv[vs]:
+                        ok = False
+                        break
+                if ok:
+                    mask |= 1 << sv
+            compat_uv[su] = mask
+
+        for sv in range(6):
+            mask = 0
+            bit = 1 << sv
+            for su in range(6):
+                if compat_uv[su] & bit:
+                    mask |= 1 << su
+            compat_vu[sv] = mask
+
+        cid = len(constraints)
+        constraints.append((u, v, compat_uv, compat_vu))
+        adjacency[u].append(cid)
+        adjacency[v].append(cid)
+
+    domains = [FULL] * n
+    trail = []
+
+    def change_domain(v, new_domain, queue, in_queue):
+        if new_domain == domains[v]:
+            return True
+        if new_domain == 0:
+            return False
+        trail.append((v, domains[v]))
+        domains[v] = new_domain
+        if not in_queue[v]:
+            in_queue[v] = True
+            queue.append(v)
+        return True
+
+    def propagate(initial_vertices):
+        queue = deque()
+        in_queue = [False] * n
+
+        for v in initial_vertices:
+            if not in_queue[v]:
+                in_queue[v] = True
+                queue.append(v)
+
+        while queue:
+            x = queue.popleft()
+            in_queue[x] = False
+            dx = domains[x]
+
+            for cid in adjacency[x]:
+                u, v, compat_uv, compat_vu = constraints[cid]
+
+                if x == u:
+                    y = v
+                    dy = domains[y]
+                    new_dy = 0
+                    bits = dy
+                    while bits:
+                        b = bits & -bits
+                        state = b.bit_length() - 1
+                        if compat_vu[state] & dx:
+                            new_dy |= b
+                        bits -= b
+                else:
+                    y = u
+                    dy = domains[y]
+                    new_dy = 0
+                    bits = dy
+                    while bits:
+                        b = bits & -bits
+                        state = b.bit_length() - 1
+                        if compat_uv[state] & dx:
+                            new_dy |= b
+                        bits -= b
+
+                if new_dy != dy:
+                    if not change_domain(y, new_dy, queue, in_queue):
+                        return False
+
+        return True
+
+    def restore(snapshot):
+        while len(trail) > snapshot:
+            v, old_domain = trail.pop()
+            domains[v] = old_domain
+
+    # Fix one vertex state per connected component, removing global color symmetry.
+    seen = [False] * n
+    roots = []
+
+    for start in range(n):
+        if seen[start]:
+            continue
+        roots.append(start)
+        seen[start] = True
+        q = [start]
+        while q:
+            x = q.pop()
+            for cid in adjacency[x]:
+                u, v, _, _ = constraints[cid]
+                y = v if x == u else u
+                if not seen[y]:
+                    seen[y] = True
+                    q.append(y)
+
+    initial_changed = []
+    for root in roots:
+        if domains[root] != 1:
+            trail.append((root, domains[root]))
+            domains[root] = 1
+            initial_changed.append(root)
+
+    if not propagate(initial_changed):
+        print("NO")
+        return
+
+    def choose_vertex():
+        best = -1
+        best_size = 7
+        best_support = 10**9
+
+        for v in range(n):
+            d = domains[v]
+            size = d.bit_count()
+            if size <= 1 or size > best_size:
+                continue
+
+            support = 0
+            for cid in adjacency[v]:
+                u, w, compat_uw, compat_wu = constraints[cid]
+                if v == u:
+                    other = w
+                    comp = compat_uw
+                else:
+                    other = u
+                    comp = compat_wu
+
+                bits = d
+                while bits:
+                    b = bits & -bits
+                    state = b.bit_length() - 1
+                    support += (comp[state] & domains[other]).bit_count()
+                    bits -= b
+
+            if size < best_size or support < best_support:
+                best = v
+                best_size = size
+                best_support = support
+
+        return best
+
+    def ordered_states(v):
+        values = []
+        bits = domains[v]
+
+        while bits:
+            b = bits & -bits
+            state = b.bit_length() - 1
+            score = 0
+
+            for cid in adjacency[v]:
+                u, w, compat_uw, compat_wu = constraints[cid]
+                if v == u:
+                    score += (compat_uw[state] & domains[w]).bit_count()
+                else:
+                    score += (compat_wu[state] & domains[u]).bit_count()
+
+            values.append((-score, state))
+            bits -= b
+
+        values.sort()
+        return [state for _, state in values]
+
+    def dfs():
+        while True:
+            v = choose_vertex()
+            if v == -1:
+                return True
+
+            states = ordered_states(v)
+            if not states:
+                return False
+
+            state = states[0]
+            bit = 1 << state
+            snapshot = len(trail)
+
+            trail.append((v, domains[v]))
+            domains[v] = bit
+
+            if propagate([v]) and dfs():
+                return True
+
+            restore(snapshot)
+
+            remaining = domains[v] & ~bit
+            if remaining == 0:
+                return False
+
+            trail.append((v, domains[v]))
+            domains[v] = remaining
+            if not propagate([v]):
+                return False
+
+    if not dfs():
+        print("NO")
+        return
+
+    states = [domains[v].bit_length() - 1 for v in range(n)]
+    answer = [0] * m
+
+    for eid, (u, v) in enumerate(edges):
+        cu = perms[states[u]][slot_u[eid]]
+        cv = perms[states[v]][slot_v[eid]]
+        if cu != cv:
+            print("NO")
+            return
+        answer[eid] = cu + 1
+
+    print("YES")
+    print(*answer)
+
+if __name__ == "__main__":
+    main()

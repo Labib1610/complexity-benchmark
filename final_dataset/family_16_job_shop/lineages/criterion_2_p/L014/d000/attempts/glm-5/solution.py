@@ -1,0 +1,44 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    j = int(input_data[0])
+    orders = []
+    idx = 1
+    for _ in range(j):
+        p1 = int(input_data[idx])
+        p2 = int(input_data[idx+1])
+        idx += 2
+        orders.append((p1, p2))
+        
+    # Johnson's rule for two-machine flow shop
+    # Group 1: p1 <= p2, sort by p1 ascending
+    # Group 2: p1 > p2, sort by p2 descending
+    group1 = []
+    group2 = []
+    for p1, p2 in orders:
+        if p1 <= p2:
+            group1.append((p1, p2))
+        else:
+            group2.append((p1, p2))
+            
+    group1.sort(key=lambda x: x[0])
+    group2.sort(key=lambda x: x[1], reverse=True)
+    
+    sequence = group1 + group2
+    
+    t1 = 0
+    t2 = 0
+    for p1, p2 in sequence:
+        t1 += p1
+        if t1 > t2:
+            t2 = t1 + p2
+        else:
+            t2 += p2
+            
+    print(t2)
+
+if __name__ == '__main__':
+    solve()

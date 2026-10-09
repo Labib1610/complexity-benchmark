@@ -1,5 +1,7 @@
 import sys
 
+sys.setrecursionlimit(10000)
+
 def solve() -> None:
     data = sys.stdin.read().strip().split()
     if not data:
@@ -7,61 +9,49 @@ def solve() -> None:
     it = iter(data)
     n = int(next(it))
     m = int(next(it))
-    adj = [[] for _ in range(n)]
+    adj = [0] * n          # bitmask of neighbours
+    neigh = [[] for _ in range(n)]
     for _ in range(m):
         u = int(next(it)) - 1
         v = int(next(it)) - 1
-        adj[u].append(v)
-        adj[v].append(u)
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+        neigh[u].append(v)
+        neigh[v].append(u)
 
-    # domain masks: bit 0 -> color 1, bit1 -> 2, bit2 ->3
-    full_mask = 0b111
-    domain = [full_mask] * n
-    color = [-1] * n
-    sys.setrecursionlimit(10000)
+    # order vertices by descending degree for better pruning
+    order = sorted(range(n), key=lambda x: -len(neigh[x]))
+    pos_in_order = [0] * n
+    for i, v in enumerate(order):
+        pos_in_order[v] = i
 
-    def dfs(v: int) -> bool:
-        if v == n:
+    colors = [0] * n
+    found = False
+
+    def dfs(idx: int) -> bool:
+        nonlocal found
+        if idx == n:
             return True
-        # try colors 1..3
-        for c in range(3):
-            mask = 1 << c
-            if not (domain[v] & mask):
-                continue
-            # assign
-            color[v] = c + 1
-            changed = []
+        v = order[idx]
+        # try each color
+        for c in (1, 2, 3):
             ok = True
-            for nb in adj[v]:
-                if color[nb] != -1:
-                    if color[nb] == c + 1:
-                        ok = False
-                        break
-                else:
-                    if domain[nb] & mask:
-                        old = domain[nb]
-                        new = old & ~mask
-                        if new == 0:
-                            ok = False
-                            break
-                        domain[nb] = new
-                        changed.append((nb, old))
-            if ok and dfs(v + 1):
-                return True
-            # revert
-            for nb, old in changed:
-                domain[nb] = old
-            color[v] = -1
+            for nb in neigh[v]:
+                if colors[nb] == c:
+                    ok = False
+                    break
+            if ok:
+                colors[v] = c
+                if dfs(idx + 1):
+                    return True
+                colors[v] = 0
         return False
 
-    possible = dfs(0)
-    out = []
-    if not possible:
-        out.append("NO")
+    if dfs(0):
+        print("YES")
+        print(' '.join(str(colors[i]) for i in range(n)))
     else:
-        out.append("YES")
-        out.append(" ".join(map(str, color)))
-    sys.stdout.write("\n".join(out))
+        print("NO")
 
 if __name__ == "__main__":
     solve()

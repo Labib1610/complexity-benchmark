@@ -1,0 +1,1724 @@
+This is the classic 2-SAT problem. We have n variables (qubits, each 0 or 1) and m clauses, each being a disjunction of two literals. We need to find a satisfying assignment or report NO.
+
+Standard approach: build implication graph, compute SCCs (Tarjan or Kosaraju), check if x and ¬x are in same SCC, then assign values based on topological order of SCCs.
+
+With n up to 10^5 and m up to 2·10^5, we have 2n = 2·10^5 nodes and 2m = 4·10^5 edges. Python needs an efficient implementation.
+
+Let me think about the encoding. Qubit x (1-indexed) with state 1 is literal +x, state 0 is literal -x. Let's map literal to node index: for qubit x, node for "x is 1" could be 2*(x-1), and node for "x is 0" could be 2*(x-1)+1. Or use index: positive x → 2x, negative x → 2x+1, or something. Let me define:
+
+- literal l: if l > 0, node = 2*(l-1); if l < 0, node = 2*(-l-1)+1.
+- negation of node v: v ^ 1.
+
+Clause (a ∨ b): implications ¬a → b and ¬b → a.
+
+For 2-SAT solving: after computing SCCs, if comp[2i] == comp[2i+1] for any i, output NO. Otherwise, assignment: variable i is true (state 1) if comp[node_true] comes after comp[node_false] in topological order... Actually the standard rule: set variable x to true if SCC(x) appears after SCC(¬x) in the topological order of the condensation graph (i.e., the SCC with the higher topological index). With Tarjan, SCCs are numbered in reverse topological order (the first completed SCC is a "sink"). Let me recall: In Tarjan's algorithm, SCCs are identified in reverse topological order — the first SCC found is a sink of the condensation. So if we number SCCs in the order Tarjan finds them, then for variable x, we set x = true iff comp[x_true_node] < comp[x_false_node] (since lower index = later in topological order = closer to sink). Wait, let me be careful.
+
+Standard rule: In the condensation DAG, assign x = true if SCC(¬x) precedes SCC(x) in topological order... Hmm, let me think again.
+
+The rule for 2-SAT: variable x should be assigned true if the SCC containing x's true literal comes after the SCC containing ¬x in topological order. Equivalently, x is true iff comp[x] > comp[¬x] when components are numbered in topological order (source = 0, increasing toward sinks).
+
+With Tarjan: components are numbered in reverse topological order (first found = sink). So comp values: sink has small number. Topological order numbering would be reversed. So x is true iff comp[x_true] < comp[¬x_true]... wait.
+
+Let me re-derive. The rule: x is true iff SCC(x) is later in topological order than SCC(¬x). Topological order: sources first, sinks last. Tarjan numbers: first SCC found is a sink (gets number 0), so Tarjan numbers are reverse topological: a SCC with Tarjan number c corresponds to topological position (K-1-c) where K is number of SCCs. So "SCC(x) later in topological order than SCC(¬x)" ⟺ "tarjan_comp[x] < tarjan_comp[¬x]".
+
+So with Tarjan numbering: x = true iff comp[node(x)] < comp[node(¬x)].
+
+Hmm wait, let me double check with a simple example. Clause (x ∨ x), i.e., x must be true. Literals: x → node A, ¬x → node B. Clause (A ∨ A): implications ¬A → A, i.e., B → A. Graph: B → A. SCCs: {A} and {B} separate. Tarjan: starting DFS... order depends. Let's say we start at node A (index 0). DFS from A: A has no outgoing edges (only B → A). So SCC {A} found first, comp[A] = 0. Then DFS from B: B → A, A already visited and in a completed SCC, so SCC {B} found, comp[B] = 1. Rule: x true iff comp[A] < comp[B] → 0 < 1 → true. Correct, x must be true. 
+
+But wait — Tarjan's iteration order matters. If we iterate starting from node B: DFS from B: B → A → A has no edges, SCC {A} completes first (comp[A]=0), then back to B, SCC {B} completes (comp[B]=1). Same result. Good, because Tarjan always completes sink SCCs first regardless of start order. Actually that's the property: Tarjan's algorithm finds SCCs in reverse topological order. Yes.
+
+Alternatively, use Kosaraju which finds SCCs in topological order (first found = source). Then x true iff comp[x] > comp[¬x].
+
+For performance in Python with 2·10^5 nodes and 4·10^5 edges, Tarjan recursive would hit recursion limits; iterative Tarjan is doable but fiddly. Kosaraju requires two passes (DFS on graph, then DFS on reverse graph) — also needs iterative DFS.
+
+Alternative: Use a highly optimized approach. Let me think about what's fastest in Python.
+
+Option 1: Iterative Tarjan with adjacency lists as arrays (CSR format). 
+
+Option 2: Kosaraju with iterative DFS using CSR.
+
+Option 3: Since this is 2-SAT, there might be a simpler approach... Actually there's a well-known trick: for 2-SAT, we can use the "implication graph + SCC" and there's no simpler general method.
+
+Hmm, but wait — actually there's another consideration. The problem says "evaluate the 2^n configuration space" but that's just flavor text; it's 2-SAT.
+
+Let me write an efficient iterative Tarjan in Python.
+
+Actually, let me think about sizes: n = 10^5 → 2n = 2·10^5 nodes. m = 2·10^5 → 2m = 4·10^5 edges. Tarjan iterative with explicit stack should handle this in Python within 1 second? Python is slow; 4·10^5 edges with Tarjan might take ~2-5 seconds in pure Python. Hmm, time limit is 1 second. That's tight. But typically these problems on judges give Python more time, or we just need to write the fastest possible code.
+
+Let me think about optimizations:
+- Use sys.stdin.buffer.read() for input parsing.
+- Build CSR adjacency: arrays.
+- Iterative Tarjan with manual stacks.
+
+Alternatively, we could try to use a different algorithm. Hmm.
+
+Actually, there's a neat approach for 2-SAT that avoids full SCC: the "standard" approach is SCC-based. But there's also an approach using just DFS with the implication structure... no, SCC is needed.
+
+Let me think about whether we can reduce work. Actually, one known optimization for 2-SAT: we only need comp[] values to compare comp[x] vs comp[¬x] and to derive assignment. 
+
+Alternative: Use Kosaraju with the observation that we can do the first pass (finish order) with an iterative DFS, then process nodes in reverse finish order on the transposed graph.
+
+Let me estimate: iterative DFS over 2·10^5 nodes and 4·10^5 edges, twice (Kosaraju). Each edge visited twice total. In Python, each edge relaxation in a loop is maybe ~0.5-1 μs with optimized code... realistically more like 0.2-0.5 μs per simple operation, and DFS loop body has several operations. 4·10^5 edges × 2 passes × ~10 operations each ≈ 8·10^6 operations ≈ maybe 3-8 seconds. Too slow for 1s in CPython... but many judges accept it. Hmm.
+
+Wait, but maybe I should consider PyPy-style optimizations won't apply. The problem says "Python 3". Let me just write the most optimized version I can, possibly using arrays and avoiding function call overhead, and hope it's fast enough. Alternatively, use recursion with increased recursion limit — recursion in Python is slower and risks stack overflow for deep graphs (chain of 2·10^5 nodes → recursion depth 2·10^5, which CPython can handle with sys.setrecursionlimit but each frame is expensive; also might segfault due to C stack. Actually CPython with default builds can handle ~10^5-10^6 recursion depth if the recursion limit is raised, but it's risky).
+
+Better: iterative Tarjan. Let me write it carefully.
+
+Actually, there's another idea: use the SCC algorithm from scipy? scipy.sparse.csgraph.connected_components computes weakly connected components, not SCC. But there's a trick: SCC can be computed via... hmm, scipy doesn't have SCC directly. 
+
+Wait — actually there IS a way to compute SCCs using scipy: no, scipy.sparse.csgraph has connected_components (weak) and strongly_connected_components? Let me recall: scipy.sparse.csgraph has `connected_components` which for directed graphs computes weakly connected components. No SCC. Hmm.
+
+But there's a classic trick: 2-SAT can be solved via... hmm.
+
+Alternative: numpy-based SCC? There are algorithms but complicated.
+
+Let me just write a well-optimized iterative Tarjan or Kosaraju in pure Python. Let me think about which is faster.
+
+Actually, let me reconsider: maybe use Kosaraju with a clever implementation:
+
+Pass 1: iterative DFS on graph G to compute finish times. Pass 2: iterative DFS on G^T in reverse finish order.
+
+Tarjan: single pass but with more bookkeeping per node (lowlink updates).
+
+I think Tarjan iterative is generally efficient. Let me write it.
+
+Implementation plan:
+
+Nodes: 0..2n-1. For qubit i (1-indexed x), true node = 2(x-1), false node = 2(x-1)+1. neg(v) = v^1.
+
+Edges: for clause (a, b): add edge neg(a) → b, neg(b) → a.
+
+CSR: 
+- Count out-degrees, compute prefix sums, fill.
+
+Iterative Tarjan:
+
+```
+index_counter = 0
+indices = [-1] * N  # discovery index
+lowlink = [0] * N
+on_stack = bytearray(N)
+comp = [-1] * N
+comp_counter = 0
+stack_scc = []  # SCC stack
+dfs_stack = []  # (node, edge pointer)
+```
+
+Standard iterative Tarjan:
+
+```
+for root in range(N):
+    if indices[root] != -1: continue
+    dfs_stack = [(root, start[root])]  # or use parallel arrays
+    while dfs_stack:
+        v, ptr = dfs_stack[-1]
+        if ptr == start[v]:  # first time
+            indices[v] = index_counter
+            lowlink[v] = index_counter
+            index_counter += 1
+            stack_scc.append(v)
+            on_stack[v] = 1
+        advanced = False
+        while ptr < end[v]:
+            w = adj[ptr]
+            ptr += 1
+            if indices[w] == -1:
+                # push child
+                dfs_stack[-1] = (v, ptr)
+                dfs_stack.append((w, start[w]))
+                advanced = True
+                break
+            elif on_stack[w]:
+                if indices[w] < lowlink[v]:
+                    lowlink[v] = indices[w]
+        if advanced: continue
+        # done with v
+        dfs_stack.pop()
+        if dfs_stack:
+            u = dfs_stack[-1][0]
+            if lowlink[v] < lowlink[u]:
+                lowlink[u] = lowlink[v]
+        if lowlink[v] == indices[v]:
+            # pop SCC
+            while True:
+                w = stack_scc.pop()
+                on_stack[w] = 0
+                comp[w] = comp_counter
+                if w == v: break
+            comp_counter += 1
+```
+
+Hmm, this is a standard pattern but the tuple creation/destructuring is slow. Let me use parallel lists for the DFS stack: stack_v and stack_ptr.
+
+Actually, a cleaner and often faster iterative Tarjan pattern uses the "push node; when first visiting assign index; process edges one at a time" approach:
+
+```
+N = 2*n
+adj built as CSR: head (start array), adj_list
+
+index = [-1]*N
+low = [0]*N
+comp = [-1]*N
+on_st = bytearray(N)
+scc_stack = []
+call_stack = []  # nodes in current DFS path, with their edge iterators stored separately
+it = [0]*N  # edge iterator per node? But a node could be pushed... no, in DFS each node is pushed exactly once (only when unvisited).
+```
+
+Since each node is pushed to the DFS stack exactly once (we only push unvisited nodes), we can store per-node edge pointer in an array `it` indexed by node. 
+
+```
+counter = 0
+comp_cnt = 0
+for s in range(N):
+    if index[s] != -1: continue
+    call_stack.append(s)
+    while call_stack:
+        v = call_stack[-1]
+        if index[v] == -1:
+            index[v] = low[v] = counter; counter += 1
+            scc_stack.append(v); on_st[v] = 1
+            # it[v] = start[v] already (initialized)
+        moved = False
+        i = it[v]
+        end_v = start[v+1]  # or precomputed
+        while i < end_v:
+            w = adj[i]
+            i += 1
+            iw = index[w]
+            if iw == -1:
+                it[v] = i
+                call_stack.append(w)
+                moved = True
+                break
+            elif on_st[w] and iw < low[v]:
+                low[v] = iw
+        if moved:
+            continue
+        it[v] = i
+        call_stack.pop()
+        if call_stack:
+            p = call_stack[-1]
+            if low[v] < low[p]:
+                low[p] = low[v]
+        if low[v] == index[v]:
+            while True:
+                w = scc_stack.pop()
+                on_st[w] = 0
+                comp[w] = comp_cnt
+                if w == v: break
+            comp_cnt += 1
+```
+
+Wait, there's a subtle bug: when we return to parent p after finishing child v, we need to update low[p] with low[v] — done above. But also, when we resume p, the loop continues from it[p]. But note: after the child v completes, we continue processing p's edges. The `if index[v] == -1` check at the top: when we resume p, index[p] != -1, so we skip initialization. Good.
+
+But there's an issue: when child v is pushed and we process it, and then v completes and we pop back to p — the low[p] update happens at v's completion (in the `if call_stack:` block). Good.
+
+However, there's a subtle issue with the initialization check `if index[v] == -1`: a node could be pushed twice onto call_stack before being visited? Let's see: we push w only when index[w] == -1 at that moment. Could w be pushed twice? Suppose p1 and p2 both have edge to w, and both check index[w] == -1 before either processes w. In DFS, we process one node at a time: p1 checks index[w] == -1, pushes w, then immediately processes w (top of stack) — index[w] gets set. So no, w can't be pushed twice because after pushing, the next iteration processes w (top of stack) and sets index[w]. Wait — actually the next iteration processes the top of call_stack which is w. Yes, so index[w] is set before anything else can push w. Good.
+
+Hmm wait, but actually there's a subtlety: after pushing w, we `continue` (moved=True), and the while loop pops v = call_stack[-1] = w. Then index[w] == -1, so initialize. Good.
+
+Edge case: self-loops. Clause like (x ∨ x) gives edge ¬x → x and ¬x → x (both implications are the same: ¬a→b with a=b=x gives ¬x→x; ¬b→a gives ¬x→x). Self-loop edge v→v: when processing v's edges, w=v, index[w] != -1 (just set), on_st[v]=1, so low[v] = min(low[v], index[v]) — no change. Fine.
+
+Now, performance. The inner while loop over edges: for each edge we do a few list indexing operations. Total edges 4·10^5, nodes 2·10^5. The main loop iterations: each node is "processed" (top of stack) multiple times — once when first visited, once per child completion, plus once at the end. Total iterations of outer while ≈ N + (number of pushes) + ... each push corresponds to an edge traversal. So outer loop runs ~N + E times ≈ 6·10^5 times, each with constant work, plus inner edge scanning total E. Overall maybe ~2-4·10^6 "operations" but Python operations are ~50-100ns each in tight loops... realistically this could be 1-3 seconds. Hmm.
+
+Let me think about how to make it faster.
+
+Alternative: Kosaraju might be simpler per-edge work. Pass 1: iterative DFS computing finish order. Pass 2: iterative DFS on transpose.
+
+Pass 1 DFS (compute postorder):
+```
+order = []
+for s in range(N):
+    if visited[s]: continue
+    stack = [s]
+    visited[s] = 1
+    while stack:
+        v = stack[-1]
+        i = it[v]
+        if i < end[v]:
+            it[v] = i+1
+            w = adj[i]
+            if not visited[w]:
+                visited[w] = 1
+                stack.append(w)
+        else:
+            stack.pop()
+            order.append(v)
+```
+
+This is simpler per-edge: one comparison, increments. Then pass 2 on transpose graph in reverse order of `order`, assigning comp numbers in the order SCCs are found (which is topological order: source SCCs first).
+
+Kosaraju total: 2 DFS passes, each ~N+E steps. Similar total work to Tarjan but simpler inner loops. Maybe comparable.
+
+Actually, for 2-SAT specifically, there's an optimization: we don't need full SCC generality... no, we do.
+
+Hmm, alternatively, think about using a different strategy: since the answer just needs any satisfying assignment, and 2-SAT is equivalent to SCC... 
+
+Another thought: could we use the "small-scale" structure? No.
+
+Let me think about whether we can vectorize with numpy somehow. SCC via numpy is hard. But there's an approach: 2-SAT can be solved with the algorithm that repeatedly... no.
+
+OK here's another thought: maybe implement Tarjan/Kosaraju but with adjacency stored as Python lists of lists, and use local variable caching for speed. Or use CSR with arrays.
+
+Actually, let me reconsider the problem constraints: n ≤ 10^5, m ≤ 2·10^5. Time limit 1s. This is from some contest ("Problem B — Quantum Array Calibration"). It's clearly 2-SAT (this looks like it might be from a Codeforces-style mock). For Python, 1s is very tight but the intended solution is C++. We just need to produce a correct Python solution; ideally as fast as possible.
+
+Let me write the most optimized pure-Python Tarjan I can, using:
+- CSR arrays built with counting sort (fast with list operations).
+- All hot variables as locals.
+- Minimize attribute lookups.
+
+Alternatively, use recursion with sys.setrecursionlimit and thread with larger stack? Recursion in CPython: each call ~1μs overhead; 2·10^5 depth recursion for Tarjan — the DFS depth can be up to 2·10^5. With recursion limit set to like 4·10^5 and a thread with big stack size (threading.stack_size(512MB? no, 256MB)), it could work. Recursive Tarjan is actually often faster than iterative in Python because the loop overhead is replaced by function call overhead... actually function calls are more expensive than loop iterations typically. Hmm, but recursive code is simpler. Each edge still needs processing. I'd say iterative is safer (no stack overflow risk).
+
+Let me also consider: maybe use Kosaraju but with the transpose graph built as CSR too. Memory: 2 graphs × (2·10^5 + 4·10^5) ints. Fine.
+
+Actually, here's a trick for building the transpose CSR quickly: if we have edges as arrays (u, v), transpose is (v, u). We can build both CSRs from the same edge list.
+
+Let me now also think: is there a way to exploit 2-SAT structure to avoid SCC entirely? There's the classic "2-SAT via implication graph and DFS-based assignment" — the standard proof shows the SCC approach is necessary. But there's also a randomized approach (Papadimitriou's algorithm): repeat ~m times: start with random assignment, pick an unsatisfied clause, flip one of its literals at random; after O(m log m)... actually Papadimitriou's algorithm for 2-SAT runs in O(m) expected flips per restart with O(m) restarts? No wait: Papadimitriou's 2-SAT randomized algorithm: expected O(m) iterations per restart, and O(m) restarts needed? Let me recall: for 2-SAT, the random walk (flip a random literal of an unsatisfied clause) finds a solution in expected O(n^2 · something)... The classic result: Papadimitriou 1991 showed 2-SAT randomized local search succeeds with probability ≥ 1/2 within 2m^2 flips? Hmm, that's O(m^2) = 4·10^10 — way too slow. Actually for 2-SAT the random walk needs expected O(n) flips per success if starting from a random assignment? Let me recall properly: For 2-SAT, the random walk where you flip one randomly chosen literal of a violated clause: starting from a uniformly random assignment, if a satisfying assignment exists, the expected number of flips to reach it is O(n^2)? No...
+
+The analysis: fix a satisfying assignment A*. From any assignment, Hamming distance to A* is d. Each flip of a literal in a violated clause reduces expected distance... For a violated clause (x∨y), at least one of x,y is 0 in A*... hmm, actually in a violated clause both literals are false; in A* at least one is true, so flipping that literal reduces distance by 1; flipping the other increases by 1. With probability ≥ 1/2 per flip, distance decreases. So it's a random walk on {0..n} with absorbing state 0 and drift toward 0 when... it's a fair-ish walk; expected time to hit 0 from distance d is O(d^2) ≤ O(n^2)? Hmm, but actually the walk never increases beyond... The standard result: expected O(n^2) flips, and restart doesn't help much; but actually the classic bound is: 2n^2 flips succeed with probability ≥ 1/2? Something like that. n^2 = 10^10, too slow. So no, randomized local search is too slow. SCC it is.
+
+Hmm wait, actually there's a subtlety: the random walk analysis gives expected time O(n) per... no. Let me not go down this path. SCC-based is the way.
+
+Let me now write the code carefully with performance in mind.
+
+Step 1: Parse input fast.
+```
+import sys
+data = sys.stdin.buffer.read().split()
+n = int(data[0]); m = int(data[1])
+```
+Then literals: data[2..2+2m). Convert to ints. For each clause (l1, l2):
+- a = node(l1), b = node(l2) where node(x) = 2*(x-1) if x>0 else 2*(-x-1)+1.
+- edges: (a^1) → b, (b^1) → a.
+
+We need to build CSR. Let me collect edges in two arrays: eu[], ev[] of length 2m.
+
+Parsing: 
+```
+lits = data[2:2+2*m]
+```
+Convert each token to int. For m = 2·10^5, 4·10^5 tokens — fine.
+
+Mapping: for token t (bytes), int(t). Then node index. Let me compute:
+```
+def node(l):
+    if l > 0: return 2*(l-1)
+    else: return 2*(-l-1)+1
+```
+That's 4·10^5 calls — fine, or inline it.
+
+Actually, faster: note node(l) = 2*|l| - 2 + (1 if l<0 else 0). Let me just do:
+```
+a = l1 if l1 > 0 else -l1
+idx = 2*a - 2
+if l1 < 0: idx += 1
+```
+
+Build CSR:
+```
+N = 2*n
+E = 2*m
+deg = [0]*N
+eu = [0]*E; ev = [0]*E
+j = 0
+for i in range(m):
+    l1 = int(data[2+2*i]); l2 = int(data[3+2*i])
+    ...
+```
+
+Hmm, better to iterate over pairs directly. Let me use an index pointer.
+
+Actually, let me think about doing this with minimal Python overhead. m up to 2·10^5, so the parsing loop runs 2·10^5 times with ~20 operations each — ~4·10^6 ops, maybe 0.5-1s in CPython. Hmm, that's already significant. Can we vectorize parsing with numpy?
+
+Yes! Use numpy:
+```
+import numpy as np
+arr = np.array(data[2:2+2*m], dtype=np.int64)  # but data elements are bytes; np.array of bytes strings won't parse directly.
+```
+Better: `np.fromstring`? Deprecated. Use:
+```
+buf = sys.stdin.buffer.read()
+```
+then parse all ints with np.frombuffer? There's a trick: `np.array(buf.split(), dtype=np.int64)` — numpy can convert a list of bytes objects to int64? Actually `np.array([b'1', b'-2'], dtype=np.int64)` — I believe numpy can cast bytes to int via `astype`? Let me think: `np.array([b'12'], dtype=np.int64)` raises? Hmm, I recall that `np.array(['12','-3'], dtype=np.int64)` works (string to int conversion). For bytes, `np.array([b'12'], dtype=np.int64)` — I think it also works in recent numpy versions? Not 100% sure. Safer: `np.array(buf.split(), dtype=np.int64)` might fail on bytes.
+
+Alternative: parse with `list(map(int, data))` — map(int, ...) over 4·10^5 byte tokens is fast (~0.1s). That's fine.
+
+```
+vals = list(map(int, data))
+```
+Then n = vals[0], m = vals[1], literals = vals[2:].
+
+Then build edges with numpy vectorized ops:
+```
+import numpy as np
+L = np.array(vals[2:2+2*m], dtype=np.int64)  # hmm, building np array from list is fine
+```
+Actually even better: parse directly into numpy: 
+```
+header = data[:2]
+n = int(data[0]); m = int(data[1])
+L = np.array(data[2:2+2*m], dtype=np.int64)
+```
+Does np.array with dtype int64 from a list of bytes work? I believe `np.array([b'-3'], dtype=np.int64)` works in numpy (it goes through int(b'-3')? Actually int(b'-3') works in Python 3? Yes! int(b'-3') = -3. Python's int() accepts bytes... wait, does it? int('−3') yes; int(b'-3') — yes, int() accepts str, bytes, or bytearray. Yes, `int(b'-3')` returns -3.)
+
+And numpy conversion from object array of bytes to int64: np.array([b'1', b'-2'], dtype=np.int64) — I think numpy will try to convert each element via int()... Actually numpy string-to-int conversion: np.array(['1','-2'], dtype=np.int64) works. For bytes, np.array([b'1'], dtype=np.int64) — I believe it works too (numpy treats bytes similar to str for numeric conversion in many versions). But I'm not 100% certain across versions. To be safe, use `np.fromstring`-like approach or just map(int,...).
+
+Safest fast approach: 
+```
+L = np.array(list(map(int, data[2:2+2*m])), dtype=np.int64)
+```
+map(int) over 4·10^5 tokens: ~50-100ms. Acceptable.
+
+Or even: `np.array(data[2:2+2*m]).astype(np.int64)` — np.array of bytes list gives dtype '|S...' array; astype(np.int64) — does numpy support string→int astype? Yes, numpy supports casting string arrays to numeric via astype (it parses). I recall `np.array(['1','2']).astype(int)` works. For bytes dtype 'S', astype(int) also works I believe. But again, version-dependent edge cases. Let me just use map(int, ...) — reliable.
+
+Then vectorized node computation:
+```
+A = np.where(L > 0, 2*(L-1), 2*(-L-1)+1)
+```
+i.e.:
+```
+al = np.abs(L)
+base = 2*al - 2
+nodes = base + (L < 0)
+```
+Then edges: for clause i, a = nodes[2i], b = nodes[2i+1]. Edge list: u = [a^1, b^1], v = [b, a].
+
+```
+a = nodes[0::2]
+b = nodes[1::2]
+eu = np.concatenate([(a ^ 1), (b ^ 1)])
+ev = np.concatenate([b, a])
+```
+
+Then build CSR with numpy:
+```
+deg = np.bincount(eu, minlength=N)
+start = np.zeros(N+1, dtype=np.int64)
+np.cumsum(deg, out=start[1:])
+```
+Then fill: standard CSR fill requires a scatter with positions. Approach: 
+```
+pos = start[:-1].copy()  # hmm, need per-node insertion pointer
+order = np.argsort(eu, kind='stable')  # sort edges by source
+adj = ev[order]
+```
+That's it! CSR adjacency = ev sorted by eu. argsort of 4·10^5 elements: fast (~50ms). Then start array gives offsets: start[v]..start[v+1] are edges from v.
+
+So:
+```
+idx_sorted = np.argsort(eu, kind='stable')
+adj = ev[idx_sorted].tolist()  # convert to Python list for fast access in DFS
+start_list = start.tolist()  # length N+1
+```
+
+Converting numpy arrays to Python lists: .tolist() is fast.
+
+For Kosaraju, we also need the transpose CSR: sort edges by ev, sources eu:
+```
+idx_t = np.argsort(ev, kind='stable')
+adjT = eu[idx_t].tolist()
+startT = np.zeros(N+1, dtype=np.int64)
+np.cumsum(np.bincount(ev, minlength=N), out=startT[1:])
+startT_list = startT.tolist()
+```
+
+Hmm, but do I want Tarjan (one pass, one graph) or Kosaraju (two passes, two graphs)? Let me think about per-operation costs.
+
+Kosaraju pass 1 (finish order):
+```
+visited = bytearray(N)
+it = start_list[:]  # copy; it[v] = current edge pointer for v... wait, need it[v] initialized to start[v]
+order = []
+push = order.append  # etc.
+for s in range(N):
+    if visited[s]: continue
+    visited[s] = 1
+    stack = [s]
+    while stack:
+        v = stack[-1]
+        i = it[v]
+        if i < start_list[v+1]:
+            it[v] = i + 1
+            w = adj[i]
+            if not visited[w]:
+                visited[w] = 1
+                stack.append(w)
+        else:
+            stack.pop()
+            order.append(v)
+```
+Per iteration of the while loop: either one edge examined (with possible push) or a pop. Total while iterations = E + N (each edge examined once, each node popped once) plus pushes... Each iteration either advances an edge (E total) or pops (N total). So ~E+N = 6·10^5 iterations, each ~6-10 bytecode-heavy ops. Plus the outer loop over roots.
+
+Pass 2 (on transpose, reverse finish order):
+```
+comp = [-1]*N  # or bytearray won't do since comp count can exceed 255? comp count ≤ N = 2·10^5, so need int list.
+order reversed: for w in reversed(order): if comp[w] == -1: BFS/DFS on transpose.
+```
+Pass 2 DFS similar cost: ~E+N iterations.
+
+Total: ~1.2·10^6 loop iterations with ~8 ops each ≈ 10^7 ops ≈ 1-2 seconds in CPython. Hmm. Tight.
+
+Tarjan: one pass but heavier per iteration: ~E+N iterations of the outer loop, each with more work (lowlink updates, index checks). Probably similar or slightly more total.
+
+Alternative idea: implement Kosaraju pass 2 as BFS instead of DFS (BFS is fine for Kosaraju — second pass just needs to find reachable sets in transpose from reverse finish order; any graph traversal works). BFS with a list as queue (append + index pointer) avoids stack pop/push pattern... similar cost.
+
+Hmm, what about using arrays and avoiding per-node `it` array in favor of... it's fine.
+
+Another big optimization idea: do the DFS passes in numpy-vectorized form? Not possible for DFS.
+
+What about using sys.setrecursionlimit + recursive implementation with the graph as list of lists? Recursive function call per node: 2·10^5 calls for pass 1 + 2·10^5 for pass 2 = 4·10^5 calls, each ~1μs overhead plus edge loop. Might be comparable to iterative. But recursion depth risk: DFS depth up to 2·10^5 → CPython C stack overflow risk. Can mitigate with threading.stack_size(64MB) and running in a thread. That's a known trick. But iterative is safer.
+
+Let me think again about total time budget. Honestly, for a "1 second" limit, CPython solutions to 2-SAT with these constraints typically take 2-4 seconds. Many judges (like Codeforces) would give Python solutions TLE at 1s... but we're asked to produce a Python solution; presumably the checker is lenient or the test data isn't worst-case. Let me just write the fastest reasonable solution.
+
+Actually, wait. Let me reconsider — maybe there's a smarter algorithm for this specific problem. Hmm, "every dependency lists exactly two basis conditions" — it's exactly 2-SAT. No special structure given. So 2-SAT it is.
+
+One more optimization thought: we can reduce the graph. Note clauses (a ∨ b). Special cases: if a clause is (x ∨ x), it's a unit clause forcing x. If a clause is (x ∨ ¬x), it's always satisfied — remove. These reductions shrink the graph but worst case unchanged.
+
+Also, we could deduplicate edges. Not necessary.
+
+Let me also consider: maybe implement Tarjan with the "path-based" simpler variant... no.
+
+Alternatively — here's a thought — use Kosaraju but implement pass 1 using an approach that computes finish order via... hmm.
+
+Actually, you know what, let me think about a completely different, possibly much faster approach in Python: **bit-parallel or numpy-based SCC via the classic "pointer jumping"**? There are parallel SCC algorithms but they're complex.
+
+Alternatively: since this is 2-SAT, use the **implication graph + greedy assignment via topological sort of condensation**... still needs SCC.
+
+Hmm, what about the approach of solving 2-SAT via **DPLL-style unit propagation + backtracking**? Worst case exponential. No.
+
+OK let me just write a clean, optimized iterative Tarjan (single pass, single graph — less memory traffic than Kosaraju's two passes) and hope it's fast enough. Actually, let me reconsider Tarjan vs Kosaraju more carefully for Python speed:
+
+Tarjan per node processing (when node is at top of stack):
+- Check if index[v] == -1 (first visit): assign index, low, push to SCC stack, mark on_stack.
+- Loop over edges from it[v]: for each edge w: check index[w]; if -1 → push child, break; elif on_stack[w] → low update.
+- When edges exhausted: pop, update parent's low, check root condition, possibly pop SCC.
+
+The outer while loop runs once per "node visit event": first visit (N), each child return (≤ E... no, each child return is once per pushed child = once per tree edge ≤ N), and... hmm, actually the structure: each iteration of the outer while either (a) processes a node's first visit, (b) continues scanning a node's edges after a child returns, or (c) finalizes a node. Number of iterations ≈ N (first visits) + N (child returns, since each node is a child at most once) + N (finalizations) = 3N, plus edge scanning inside. Wait, no: when a child returns, we re-enter the parent's loop — that's one outer iteration per child return. Each node is pushed as a child exactly once, so child returns = N - (number of roots). First visits = N. Finalizations = N. So outer iterations ≈ 3N = 6·10^5, each with the "top of stack" fetch, index check, etc. Plus inner edge scanning: E = 4·10^5 edge examinations, each with index lookup and branch.
+
+Kosaraju pass 1: outer iterations = E (edge advances) + N (pops) = 6·10^5, each cheaper than Tarjan's. Pass 2: same, 6·10^5. Total 1.2·10^6 cheap iterations vs Tarjan's 6·10^5 medium + 4·10^5 edge scans. Probably similar overall. Tarjan uses half the memory and one graph. I'll go with Tarjan. Hmm, actually, let me reconsider: Tarjan's inner edge scan does more work per edge (index check, on_stack check, low update). Kosaraju pass 1 per edge: fetch, compare visited, maybe push. Kosaraju pass 2 per edge: fetch, check comp. 
+
+Honestly both are fine. Let me go with Tarjan since it needs only one adjacency structure.
+
+Wait, actually, there's one more consideration for Tarjan: the assignment rule. With Tarjan comp numbering (reverse topological), variable x (qubit i) is true (state 1) iff comp[true_node] < comp[false_node]. Let me re-verify this rule.
+
+Standard 2-SAT assignment: Let C(v) denote the SCC of node v in the condensation DAG, topologically ordered. Assign x = true iff C(x_true) comes after C(x_false) in topological order (i.e., C(x_true) is a descendant side / later). The standard statement: x is true iff comp[¬x] ≤ comp[x] in the topological order where... let me look at it from the implication perspective: if there's a path from x_true to x_false, then x must be false (since implication x→¬x means x true forces ¬x true, contradiction). So x is false iff C(x_true) can reach C(x_false), i.e., C(x_true) is an ancestor of C(x_false) in topological order (earlier). So x is true iff C(x_true) does NOT precede C(x_false), i.e., C(x_true) is later or incomparable. Since for x and ¬x, exactly one of "C(x) precedes C(¬x)" or "C(¬x) precedes C(x)" holds when they're in different SCCs (in a condensation DAG, for any two distinct nodes, one may reach the other or neither; but for x and ¬x specifically, it's a known lemma that in the condensation, C(¬x) reaches C(x) iff not(C(x) reaches C(¬x))... hmm, actually the known property: C(x) and C(¬x) are always comparable? No — the property is: the condensation has a symmetry: C reaches C' iff C'' reaches C''' where '' denotes the "negated" component. The standard assignment: x = true iff topological_index(C(x_true)) > topological_index(C(x_false)).
+
+With Tarjan numbering: Tarjan finds SCCs in reverse topological order — the first SCC completed is a sink. So Tarjan comp number c corresponds to topological position (K-1-c). So topological_index(C) = K-1-comp. Then x true iff (K-1-comp[x_true]) > (K-1-comp[x_false]) iff comp[x_true] < comp[x_false].
+
+So: qubit i is state 1 iff comp[2(i-1)] < comp[2(i-1)+1]. 
+
+Let me double check with my earlier mini-example: clause (x ∨ x) forces x true. Nodes: A = x_true = node 0, B = x_false = node 1. Edges: ¬a→b with a=b=A: (A^1)=B → A. Twice. Graph: B→A (double edge). Tarjan from root 0 (A): A first: index[A]=0, low[A]=0. Edges of A: none (A has no outgoing). Finalize A: low[A]==index[A] → SCC {A}, comp[A]=0. Then root 1 (B): index[B]=1, low=1. Edge B→A: A visited, on_stack? A is not on stack (popped). So no low update. Finalize B: SCC {B}, comp[B]=1. Assignment: x true iff comp[A] < comp[B] → 0 < 1 → true. Correct!
+
+Another check: clause (¬x ∨ ¬x) forces x false. Nodes: A = x_true = 0, B = x_false = 1. Clause literals: both are B. Edges: (B^1)=A → B. Graph: A→B. Tarjan from root 0 (A): index[A]=0, edge A→B: B unvisited, push B. index[B]=1, no edges. Finalize B: SCC {B}, comp[B]=0. Return to A: low[A] stays 0. Finalize A: SCC {A}, comp[A]=1. Assignment: x true iff comp[A] < comp[B] → 1 < 0 → false. Correct!
+
+Great, rule confirmed: state 1 iff comp[2i] < comp[2i+1] (with true node = 2i, false node = 2i+1 for 0-indexed qubit i).
+
+And unsat iff comp[2i] == comp[2i+1] for some i.
+
+Now let me also double-check the implication construction: clause (a ∨ b) ⟺ (¬a → b) ∧ (¬b → a). Yes.
+
+Node mapping: literal l (nonzero, |l| ≤ n): qubit index q = |l| - 1 (0-based). If l > 0: literal "qubit q is 1" → node 2q. If l < 0: literal "qubit q is 0" → node 2q + 1. Negation of node v: v ^ 1. So ¬a = a^1. Edge (a^1) → b and (b^1) → a. 
+
+Now, the full algorithm:
+
+1. Parse.
+2. Build edge arrays eu, ev (numpy).
+3. Build CSR: adj list (Python list) + start (Python list of length N+1).
+4. Iterative Tarjan → comp array (Python list).
+5. Check comp[2i] == comp[2i+1] for any i → NO.
+6. Else output YES and states: s_i = 1 if comp[2i] < comp[2i+1] else 0.
+
+Output: n integers. Build with list comprehension and ' '.join. n = 10^5 — fine.
+
+Now, let me write the Tarjan carefully.
+
+```python
+import sys
+import numpy as np
+
+def main():
+    data = sys.stdin.buffer.read().split()
+    n = int(data[0]); m = int(data[1])
+    N = 2 * n
+    if m == 0:
+        # all zeros is valid
+        sys.stdout.write("YES\n" + " ".join(["0"] * n) + "\n")
+        return
+    # parse literals
+    L = np.array(list(map(int, data[2:2 + 2*m])), dtype=np.int64)
+    # nodes
+    neg_mask = L < 0
+    al = np.abs(L)
+    nodes = 2*al - 2 + neg_mask   # dtype bool→int64? 2*al-2 is int64, neg_mask bool broadcasts to int64. Actually int64 + bool → int64. OK.
+    a = nodes[0::2]
+    b = nodes[1::2]
+    eu = np.concatenate([a ^ 1, b ^ 1])
+    ev = np.concatenate([b, a])
+    # CSR
+    counts = np.bincount(eu, minlength=N)
+    start_np = np.zeros(N + 1, dtype=np.int64)
+    np.cumsum(counts, out=start_np[1:])
+    order_idx = np.argsort(eu, kind='stable')
+    adj = ev[order_idx].tolist()
+    start = start_np.tolist()
+    
+    # Tarjan iterative
+    index = [-1] * N
+    low = [0] * N
+    comp = [-1] * N
+    on_st = bytearray(N)
+    it = start[:N]  # copy of first N entries; it[v] = current pointer
+    scc_stack = []
+    scc_append = scc_stack.append
+    scc_pop = scc_stack.pop
+    call_stack = []
+    call_append = call_stack.append
+    call_pop = call_stack.pop
+    counter = 0
+    comp_cnt = 0
+    
+    for s in range(N):
+        if index[s] != -1:
+            continue
+        call_append(s)
+        while call_stack:
+            v = call_stack[-1]
+            if index[v] == -1:
+                index[v] = counter
+                low[v] = counter
+                counter += 1
+                scc_append(v)
+                on_st[v] = 1
+            i = it[v]
+            end_v = start[v + 1]
+            advanced = False
+            while i < end_v:
+                w = adj[i]
+                i += 1
+                iw = index[w]
+                if iw == -1:
+                    it[v] = i
+                    call_append(w)
+                    advanced = True
+                    break
+                elif on_st[w] and iw < low[v]:
+                    low[v] = iw
+            if advanced:
+                continue
+            it[v] = i
+            call_pop()
+            cs = call_stack
+            if cs:
+                p = cs[-1]
+                lv = low[v]
+                if lv < low[p]:
+                    low[p] = lv
+            if low[v] == index[v]:
+                while True:
+                    w = scc_pop()
+                    on_st[w] = 0
+                    comp[w] = comp_cnt
+                    if w == v:
+                        break
+                comp_cnt += 1
+    ...
+```
+
+Wait, there's a bug: `it = start[:N]` — start is a list of length N+1; start[:N] gives [start[0], ..., start[N-1]] = [0, deg-based offsets...]. start[v] is the beginning offset for node v's edges. So it[v] initialized to start[v]. Correct.
+
+But wait, there's a subtle issue with the "first visit" check `if index[v] == -1`. When we resume a node v after a child returns, index[v] != -1, so we skip init. Good. But there's another subtlety: when we push child w and immediately process it, we set index[w]. When w finishes and we return to v, we continue scanning from it[v] (which was saved before pushing w). Good.
+
+Hmm, but one issue: in the inner while loop, when we break to push child w, we've already done `i += 1` and saved `it[v] = i`. Good.
+
+Another subtlety: the `elif on_st[w] and iw < low[v]` — for cross edges to completed SCCs, on_st[w] is 0, skip. For back edges, on_st[w] is 1, update low with index[w]. For forward edges (to a node in the same SCC already on stack), also updates with index[w] — that's fine (Tarjan uses low[v] = min(low[v], index[w]) for on-stack w; using index[w] is correct).
+
+Also, tree edge return: low[v] propagated to parent at pop time. Correct.
+
+One more check: the case where a node has index != -1 but is pushed... can't happen as discussed.
+
+Root loop: `for s in range(N)`. Fine.
+
+Now, correctness of SCC popping: when low[v] == index[v], v is the root of an SCC; pop scc_stack until v inclusive. Correct.
+
+Performance concerns: the inner loop uses local variables — but `index`, `low`, `on_st`, `adj`, `it`, `start` are lists accessed by integer index — each access is a fast list indexing. The code inside `main()` makes all these locals. Good.
+
+One potential performance improvement: instead of `end_v = start[v+1]` each time, we could precompute... it's one list access, fine.
+
+Another micro-optimization: combine `index` and `low` — some implementations skip the separate low array by... no, keep it.
+
+Alternative micro-optimization for the inner loop: iterate directly over adj slice? Like:
+```
+for w in adj[start_v:end_v]: ...
+```
+But we need resumability after child return. We could restructure: when resuming, we'd need to know where we left off. The `it` array approach handles it. Alternatively, since each node's edges are contiguous in adj, we could store the current pointer. Current approach is fine.
+
+Hmm, wait. Actually, let me reconsider: maybe there's a faster overall approach using Kosaraju where pass 1 can be done with a slicker loop. Let me think about the constant factors more.
+
+Tarjan outer loop iterations: Let me count precisely. Events: (1) first visit of v: 1 iteration; (2) each time we resume v after a child returns: (number of children of v) iterations; (3) final scan completion... wait, actually the flow is: iteration processes v: if first visit, init; then scan edges from it[v]; either push child (continue) or exhaust (pop + finalize). When child returns, next iteration processes v again (scan continues). So iterations for node v = 1 (first) + (number of children pushed from v) + ... hmm: each iteration of the outer while for top-node v either pushes a child or finalizes v. So total iterations = N (first visits... no wait).
+
+Let me recount: each outer iteration takes the top v, does init if needed, scans some edges, then either pushes a child or finalizes v. Number of outer iterations = (number of pushes) + (number of finalizations) = N + N = 2N (each node pushed once as root-or-child, each node finalized once). Plus the init work happens within the first iteration for v. So 2N = 4·10^5 outer iterations, each with: call_stack[-1] fetch, index check, it[v] fetch, start[v+1] fetch, inner edge scan (amortized E total edge examinations across all iterations), then either push bookkeeping or finalize bookkeeping (pop, parent low update, root check, possibly SCC pop loop — SCC pops total N across everything).
+
+Edge examinations: E = 4·10^5, each: adj[i] fetch, i+=1, index[w] fetch, compare, branch, maybe on_st[w] fetch + compare + low update.
+
+Total rough op count: 4·10^5 outer × ~8 ops + 4·10^5 edges × ~6 ops + N × (init ~6 ops + finalize ~8 ops + SCC pop ~5 ops) ≈ 3.2M + 2.4M + 2M ≈ 7.6M simple ops. In CPython, each simple op in a tight loop ≈ 30-60ns → ~0.3-0.5s. Plus parsing ~0.2s, CSR building with numpy ~0.1s, output ~0.05s. Total maybe 0.7-1.2s. Borderline but plausible. With luck, OK.
+
+Can I do better? Let me think about micro-optimizations:
+
+1. Avoid `it` array: store edge pointers on the call stack itself. Instead of call_stack holding just nodes, hold (node, ptr) — but tuple creation is expensive. Alternative: two parallel stacks. Fetching v = cv[-1] and ptr = cp[-1]... similar cost to it[v]. Keep it[v].
+
+2. Merge index and low into one array? low[v] updates need separate storage... Some implementations use index array and update low in place via lowlink array. Keep separate.
+
+3. Skip the `on_st` bytearray in favor of comparing comp[w] == -1? In Tarjan, a node is "on stack" iff visited but not yet assigned a comp. So `on_st[w]` ⟺ `comp[w] == -1 and index[w] != -1`. Since we check index[w] != -1 already (iw == -1 means unvisited), the condition becomes: if iw != -1 and comp[w] == -1 → w is on SCC stack. Wait is that right? In Tarjan, nodes are removed from the SCC stack exactly when their SCC is completed (comp assigned). So on_stack[w] ⟺ index[w] != -1 and comp[w] == -1. Yes! So we can drop on_st entirely and use comp[w] == -1. That saves one array (memory) but adds a comp lookup per edge examination... we already do index[w] lookup; adding comp[w] lookup is one more list access. on_st is a bytearray (fast). Hmm, roughly equal. Keep on_st (bytearray access is very fast).
+
+Actually wait, there's a subtlety: is it true that a node stays on the SCC stack until its SCC is popped? Yes, in Tarjan, nodes are pushed when first visited and popped when their SCC root finalizes. And comp is assigned exactly at pop time. So the equivalence holds. But I'll keep on_st for clarity/speed.
+
+4. The `advanced` flag: we can restructure to avoid it. E.g.:
+
+```
+while call_stack:
+    v = call_stack[-1]
+    if index[v] == -1:
+        ...init...
+    i = it[v]
+    end_v = start[v+1]
+    while i < end_v:
+        w = adj[i]
+        i += 1
+        if index[w] == -1:
+            it[v] = i
+            call_stack.append(w)
+            break
+    else:
+        # exhausted
+        it[v] = i
+        call_stack.pop()
+        ...
+        continue-ish
+```
+Using while-else: the else clause executes if the while loop completed without break. That's cleaner and avoids the `advanced` variable. But careful: `while...else` with `break` — break skips else. 
+
+Actually with the for-else or while-else pattern:
+```
+while i < end_v:
+    w = adj[i]; i += 1
+    iw = index[w]
+    if iw == -1:
+        it[v] = i
+        call_append(w)
+        break
+    elif on_st[w] and iw < low[v]:
+        low[v] = iw
+else:
+    # finalize v
+    call_pop()
+    ...
+```
+Wait, but the low update `low[v] = iw` — we need it inside the loop. And after break, the outer while continues with the child on top. This structure is good. But note: `while i < end_v: ... else: ...` — the else runs when the condition fails (i >= end_v) without break. 
+
+Hmm, but there's a subtle issue: when we resume v after child return, we re-fetch i = it[v] and end_v = start[v+1] — fine.
+
+5. Fetching `index`, `low`, `adj`, `it`, `on_st`, `start` as locals — they are locals inside main(). Good. But `call_stack` methods: use local names call_append/call_pop bound to methods. Good.
+
+6. Another optimization: since ~half the outer iterations are child-return resumes where we immediately continue scanning, the overhead is: call_stack[-1], index[v] check (fails), it[v], start[v+1]. That's 4 list accesses + loop overhead. Acceptable.
+
+Alternative structure that avoids re-fetching: keep the current node and pointer in local variables, only re-fetch on child return. Like:
+
+```
+v = root
+i = start[root]
+... process ...
+```
+and maintain explicit "current" state. When pushing child: save (v, i) — but we need a stack of saved states. Since it[v] array already saves it, re-fetching is the cost. Alternatively push (v, i) as two parallel stacks cv, ci:
+
+```
+cv = [root]; ci = [start[root]]
+while cv:
+    v = cv[-1]
+    if index[v] == -1: init
+    i = ci[-1]
+    end_v = start[v+1]
+    scanned = False
+    while i < end_v:
+        ...
+        if child:
+            ci[-1] = i  # update saved pointer
+            cv.append(w); ci.append(start[w])
+            scanned = True
+            break
+    if scanned: continue
+    cv.pop(); ci.pop()
+    ...
+```
+This replaces it[v] fetch with ci[-1] fetch and it[v]=i with ci[-1]=i. Roughly the same. The it[] array version has fewer stack ops. Keep it[].
+
+7. Consider processing with `for w in adj_slice` where adj_slice is a memoryview... no, resumability.
+
+Hmm, actually here's a thought: what if we avoid resumability altogether by using the recursive-style "process all edges of v in one go, but handle child subtrees inline"? That's essentially recursion. No.
+
+8. Big idea: reduce the number of Python-level operations using **numpy for the SCC**... Let me think if there's any vectorizable SCC algorithm. There's the classic algorithm: repeat { compute reachability closure via boolean matrix multiplication } — O(n) iterations of transitive closure — too slow.
+
+There's "SCC via forward-backward reachability" (used in GPU implementations): pick a pivot, compute forward and backward reachability, that's one SCC, recurse. Reachability via BFS — still graph traversal in Python.
+
+No good numpy approach. Stick with optimized Tarjan.
+
+9. Alternative: use **Kosaraju with pass 1 done via iterative DFS but pass 2 done via BFS with numpy frontier expansion**? BFS frontier expansion can be vectorized: frontier = set of nodes; next = unique(adj[start[frontier]..]) — but CSR slicing per frontier node is irregular. There's a technique: given frontier as numpy array F, gather all outgoing edges: use np.repeat to build ranges... Actually yes! This is doable:
+
+Given CSR (start array, adj array) as numpy arrays, and frontier F (numpy array of node ids):
+- counts = outdeg[F] = start[F+1] - start[F]
+- total = counts.sum()
+- if total > 0: 
+  - indices = np.repeat(start[F], counts) + (arange trick for within-node offsets): 
+    offsets = np.arange(total) - np.repeat(np.cumsum(counts) - counts, counts)
+    edge_positions = np.repeat(start[F], counts) + offsets
+    neighbors = adj[edge_positions]
+  - new_frontier = neighbors[~visited_mask[neighbors]] → then mark visited and unique.
+
+This vectorized BFS could be much faster than pure Python BFS for wide frontiers. But worst case (deep chains), frontier size is 1 each round → 2·10^5 rounds of numpy overhead (~10μs each) = 2 seconds. Bad worst case. Hmm. But combined with... no, risky.
+
+10. What about **converting the whole Tarjan to run on numpy in a "level-synchronized" way**? Not possible for DFS order.
+
+OK, let me also consider: maybe just accept ~1-2s and write clean code. The problem statement says 1s, but as an AI producing a solution, correctness matters most, then speed. Let me write the best I can.
+
+Actually, hold on. Let me reconsider the problem size: n ≤ 10^5, m ≤ 2·10^5. Hmm, that's the stated bound. But maybe actual test data is smaller. Whatever — write the optimized solution.
+
+Let me also think about whether recursion with a thread and big stack might actually be faster than iterative Tarjan. Recursive Tarjan:
+
+```
+sys.setrecursionlimit(300000)
+import threading
+threading.stack_size(256 * 1024 * 1024)
+def tarjan(v):
+    index[v] = low[v] = counter; counter += 1
+    scc_stack.append(v); on_st[v] = 1
+    for i in range(start[v], start[v+1]):
+        w = adj[i]
+        if index[w] == -1:
+            tarjan(w)
+            if low[w] < low[v]: low[v] = low[w]
+        elif on_st[w] and index[w] < low[v]:
+            low[v] = index[w]
+    if low[v] == index[v]:
+        pop SCC
+```
+
+Per node: one function call (~1-2μs overhead in CPython 3.11+ calls are cheaper, ~0.5μs?). 2·10^5 calls → 0.1-0.4s just call overhead, plus edge loop. The edge loop `for i in range(start[v], start[v+1])` — could iterate `for w in adj[start[v]:start[v+1]]` (slice creation + iteration — slicing a list is fast). Per edge: ~5 ops. Total: 2·10^5 calls × (call + init ~8 ops + slice + finalize ~10 ops) + 4·10^5 edges × 5 ops ≈ 2M + 2M ops ≈ similar to iterative. Recursion depth up to 2·10^5 — with threading.stack_size set large (e.g., 512MB might fail; 256MB usually OK on Linux for a thread), it works. But it's risky (platform-dependent stack limits) and not clearly faster. I'll go iterative.
+
+Hmm, wait, actually, let me reconsider the iterative approach once more and count more carefully, then decide between Tarjan and Kosaraju.
+
+Actually — new idea for Kosaraju pass 1 speedup: we don't need a full DFS for finish order... no, we do.
+
+Another idea: **Use the 2-SAT-specific algorithm of "assign via topological order without explicit SCC"**? The standard proof requires SCC. No.
+
+Alright, iterative Tarjan it is. Let me now also handle potential edge cases:
+
+- m = 0: output all zeros (any assignment works). Handle early (also avoids numpy empty-array issues).
+- Clauses with l1 = l2 (like example 2: "1 1" and "-1 -1"): clause (x ∨ x) → edges ¬x→x (twice). Handled naturally.
+- Clause (x ∨ ¬x): edges ¬x→¬x and x→x — self loops, always satisfiable, handled naturally.
+- Duplicate edges: fine.
+- n=1: N=2.
+
+Also note: "two non-zero signed integers" — so no zero literals. Good.
+
+Output format: "YES" then n integers space-separated. Example output "1 0" — space separated on one line. I'll do ' '.join.
+
+Let me now also double check the numpy CSR construction:
+
+```
+L = np.array(list(map(int, data[2:2+2*m])), dtype=np.int64)
+```
+Hmm, data has exactly 2 + 2m tokens (assuming well-formed input). Use data[2:] to be safe? If there are trailing tokens... assume well-formed. I'll use data[2:2+2*m].
+
+nodes computation:
+```
+al = np.abs(L)
+nodes = (al << 1) - 2 + (L < 0)
+```
+Wait: (L<0) is bool array; (al<<1)-2 is int64; adding bool to int64 → int64 with True=1. Yes.
+
+Check: L=1 → al=1 → 0 + 0 = 0 → node 0 = qubit 1 true. L=-1 → 0 + 1 = 1 → node 1 = qubit 1 false. L=2 → 4-2=2 → node 2 = qubit 2 true. L=-2 → 2+1=3 → node 3 = qubit 2 false. Correct.
+
+a = nodes[0::2], b = nodes[1::2] — clause i: a = nodes[2i] (l1), b = nodes[2i+1] (l2). Edges: (a^1)→b, (b^1)→a.
+
+eu = np.concatenate([a ^ 1, b ^ 1]); ev = np.concatenate([b, a]).
+
+XOR with 1 on int64 array: a ^ 1 works elementwise. Good.
+
+CSR:
+```
+counts = np.bincount(eu, minlength=N)
+```
+eu values in [0, N-1] — bincount gives length max(N, max+1) = N. Good. dtype int64.
+
+```
+start_np = np.zeros(N+1, dtype=np.int64)
+np.cumsum(counts, out=start_np[1:])
+```
+cumsum of counts (length N) into start_np[1:] (length N). Good.
+
+```
+order_idx = np.argsort(eu, kind='stable')
+adj_np = ev[order_idx]
+```
+Now adj_np[start[v]:start[v+1]] = targets of edges from v, in stable order. Good.
+
+Convert: adj = adj_np.tolist(); start = start_np.tolist().
+
+Memory: fine.
+
+Now Tarjan. Let me write it very carefully with all optimizations:
+
+```python
+    index = [-1] * N
+    low = [0] * N
+    comp = [-1] * N
+    on_st = bytearray(N)
+    it = start[:N]   # wait, start has length N+1; start[:N] = [start[0..N-1]]
+```
+Hmm, start[:N] — but careful: I need it[v] = start[v] initially. start[0] = 0. Yes, start[:N] gives exactly that. But wait — `it = start[:N]` creates a new list (slice copy). Good, we don't want to mutate start.
+
+Actually hmm, one concern: `it` and `start` — after Tarjan, start must be unchanged for... we don't need start afterwards. But slicing is safe anyway.
+
+Main loop:
+
+```python
+    counter = 0
+    comp_cnt = 0
+    scc_stack = []
+    scc_append = scc_stack.append
+    scc_pop = scc_stack.pop
+    call_stack = []
+    call_append = call_stack.append
+    call_pop = call_stack.pop
+    
+    for s in range(N):
+        if index[s] != -1:
+            continue
+        call_append(s)
+        while call_stack:
+            v = call_stack[-1]
+            if index[v] == -1:
+                index[v] = counter
+                low[v] = counter
+                counter += 1
+                scc_append(v)
+                on_st[v] = 1
+            i = it[v]
+            end_v = start[v + 1]
+            while i < end_v:
+                w = adj[i]
+                i += 1
+                iw = index[w]
+                if iw == -1:
+                    it[v] = i
+                    call_append(w)
+                    break
+                if on_st[w] and iw < low[v]:
+                    low[v] = iw
+            else:
+                # all edges of v processed; finalize v
+                call_pop()
+                if call_stack:
+                    p = call_stack[-1]
+                    lv = low[v]
+                    if lv < low[p]:
+                        low[p] = lv
+                if low[v] == index[v]:
+                    while True:
+                        w = scc_pop()
+                        on_st[w] = 0
+                        comp[w] = comp_cnt
+                        if w == v:
+                            break
+                    comp_cnt += 1
+```
+
+Wait — there's a bug with the while-else: the `else` clause of the inner `while` executes when the loop condition `i < end_v` becomes false (normal termination). But if we `break` (child pushed), else is skipped. Correct.
+
+But hold on — there's a subtle issue: after pushing child w and breaking, the outer `while call_stack:` continues, processes w (top). When w finalizes and pops, outer loop continues with v on top: re-fetches i = it[v] (saved), end_v, and continues scanning. Correct.
+
+Another subtle issue: the `if index[v] == -1` init check — when v is resumed, index[v] != -1, skip. But note: `low[v]` might have been updated by children — that's in the low array, fine.
+
+Edge case: what if the same node appears... covered.
+
+Now, is the while-else correct when the inner while never executes (i >= end_v immediately, e.g., no outgoing edges)? Then else executes → finalize. Correct.
+
+Potential issue: `it[v] = i` before break — saves pointer past the child edge. On resume, we continue from the next edge. Correct.
+
+Now, one more consideration: the inner loop condition and the low update. In classic Tarjan, for a back/forward/cross edge to an on-stack node w, we do low[v] = min(low[v], index[w]). We do `if on_st[w] and iw < low[v]: low[v] = iw`. Correct.
+
+For tree edges (child), after child finalizes, we propagate low[child] into low[v] at pop time. Correct.
+
+Now the root check: `if low[v] == index[v]` — v is an SCC root; pop the SCC stack down to and including v. All popped nodes get comp = comp_cnt. Correct — these nodes form the SCC.
+
+Tarjan correctness relies on: when low[v] == index[v], all nodes above v on scc_stack (inclusive) that were pushed after v and are still on the stack form v's SCC. Yes, standard.
+
+comp_cnt increments in order of SCC completion = reverse topological order. Good.
+
+After Tarjan:
+
+```python
+    res = []
+    ok = True
+    for i2 in range(0, N, 2):
+        c1 = comp[i2]
+        c2 = comp[i2 + 1]
+        if c1 == c2:
+            ok = False
+            break
+        res.append('1' if c1 < c2 else '0')
+    if not ok:
+        print("NO")
+    else:
+        sys.stdout.write("YES\n" + ' '.join(res) + "\n")
+```
+
+Wait — assignment rule: qubit state 1 iff comp[true_node] < comp[false_node], where true_node = 2i, false_node = 2i+1. So state = 1 if comp[2i] < comp[2i+1] else 0. Yes as coded.
+
+Hmm wait, let me re-derive this once more very carefully, because getting the direction wrong gives wrong answers (well, actually — interesting question: does the direction matter for correctness? If we flip all bits, is the flipped assignment also valid? NO — 2-SAT is not symmetric under global negation in general... wait, actually it IS: if assignment S satisfies clause set Φ, then the bitwise complement satisfies the clause set where every literal is negated. Since our clauses aren't symmetric, flipping would break. So direction matters.)
+
+Let me re-derive from first principles. Implication graph: node x means "literal x is true". Edge u→v means u implies v. Assignment rule from standard references (e.g., Wikipedia "2-satisfiability"): "the variable x is true if and only if the component containing ¬x precedes the component containing x in the topological order" — hmm, let me recall exactly. Wikipedia says: assign x = true if the SCC of x is later in the topological order than the SCC of ¬x. Let me just re-derive with the mini-examples, which I did above and they confirmed: with Tarjan numbering (reverse topo), x true iff comp[x] < comp[¬x].
+
+Let me do one more nontrivial check with example 1:
+n=2, m=2. Clauses: (1 ∨ 2) i.e., (x1 ∨ x2); (-1 ∨ -2) i.e., (¬x1 ∨ ¬x2).
+Nodes: x1T=0, x1F=1, x2T=2, x2F=3.
+Clause 1 (a=0, b=2): edges (0^1)=1→2, (2^1)=3→0.
+Clause 2 (a=1, b=3): edges (1^1)=0→3, (3^1)=2→1.
+Graph edges: 1→2, 3→0, 0→3, 2→1.
+This graph: 0→3→0 (cycle: SCC {0,3}), 1→2→1 (cycle: SCC {1,2}). Two SCCs. No SCC contains both a node and its negation (0&1 in different SCCs, 2&3 in different SCCs) → satisfiable. Valid assignments: (x1,x2) ∈ {(1,0),(0,1)}.
+
+Tarjan from s=0: 
+- v=0: index=0, low=0, scc_stack=[0]. Edges of 0: start... edges from 0: 0→3. w=3 unvisited → push. 
+- v=3: index=1, low=1, scc_stack=[0,3]. Edges of 3: 3→0. w=0: index=0 ≠ -1, on_st[0]=1, 0 < low[3]=1 → low[3]=0. Exhausted → finalize 3: pop call; parent 0: low[3]=0 < low[0]=0? No (0<0 false). low[3]==index[3]? 0==1? No. So no SCC pop.
+- Resume v=0: no more edges. Finalize: pop call (stack empty). low[0]==index[0] (0==0) → pop SCC: pop 3 (comp[3]=0), pop 0 (comp[0]=0). comp_cnt=1.
+- s=1: index[1]=2, low=2, scc_stack=[1]. Edges of 1: 1→2. w=2 unvisited → push.
+- v=2: index=3, low=3, scc_stack=[1,2]. Edges of 2: 2→1. w=1: on_st, index=2 < low[2]=3 → low[2]=2. Finalize 2: parent 1: low[2]=2 < low[1]=2? No. low[2]==index[2]? 2==3? No.
+- Resume 1: finalize: low[1]==index[1] (2==2) → pop SCC: 2 (comp=1), 1 (comp=1). comp_cnt=2.
+
+comp: [0, 1, 1, 0]. Check pairs: comp[0]=0 vs comp[1]=1 → different. comp[2]=1 vs comp[3]=0 → different. OK.
+Assignment: x1: comp[0]=0 < comp[1]=1 → state 1. x2: comp[2]=1 < comp[3]=0? No → state 0. Result: "1 0". Matches expected output! 
+
+And the other valid assignment (0,1) would come from the opposite rule — but our rule gives a valid one, which is what matters. Let me verify (1,0) satisfies: clause (x1∨x2): 1∨0 ✓. Clause (¬x1∨¬x2): ¬1=0 ∨ ¬0=1 → 1 ✓. 
+
+Example 2: n=1, m=2. Clauses: (1∨1) → (x1), (-1∨-1) → (¬x1). Nodes: x1T=0, x1F=1. Clause 1: a=b=0: edges (0^1)=1→0, (0^1)=1→0. Clause 2: a=b=1: edges (1^1)=0→1, 0→1. Graph: 1→0 (×2), 0→1 (×2). SCC {0,1} — comp[0]==comp[1] → NO. Correct.
+
+Now, let me also double check the direction rule with a case where the implication forces falsity through a chain. Clauses: (x1 ∨ x2), (¬x2 ∨ x3)... let me construct: force x1 false: clauses (¬x1 ∨ ¬x1) → edge (x1T)→(x1F): 0→1. Then comp: Tarjan from 0: v=0: index 0, edge 0→1: push 1. v=1: index 1, no edges (well, clause gives edges 0→1 twice). finalize 1: low[1]=1==index[1] → SCC {1}, comp[1]=0. Resume 0: finalize: low[0]=0==index[0] → SCC {0}, comp[0]=1. Assignment: x1: comp[0]=1 < comp[1]=0? No → state 0. Correct (x1 forced false).
+
+And force x1 true: clause (x1 ∨ x1): edges 1→0 twice. Tarjan from 0: v=0: index 0, no out-edges → SCC {0}, comp[0]=0. v=1: index 1, edges 1→0: w=0 visited, on_st? No (popped). finalize: SCC {1}, comp[1]=1. Assignment: comp[0]=0 < comp[1]=1 → state 1. Correct.
+
+The rule is confirmed: state_i = 1 iff comp[2i] < comp[2i+1].
+
+Now let me also think: is it possible that comp[2i] and comp[2i+1] are incomparable in topological order (neither reaches the other)? For 2-SAT implication graphs, there's a symmetry: the graph is antisymmetric under the "negation map" v ↦ v^1 (edge u→v exists iff edge v^1→u^1 exists). This implies C reaches C' iff C'^neg reaches C^neg... The known result: in the condensation, comp(x) and comp(¬x) are always comparable in topological order? Hmm, actually the standard proof of 2-SAT shows the assignment "x true iff topo(comp(x)) > topo(comp(¬x))" is consistent, and it's known that exactly one of comp(x), comp(¬x) precedes the other... Actually the standard lemma: for any variable x, comp(x) ≠ comp(¬x) (if satisfiable), and in the condensation, comp(x) precedes comp(¬x) iff comp(¬¬x)... hmm. The key lemma used: if there's a path from u to v, there's a path from v^1 to u^1. So if comp(x) reaches comp(¬x) (path x→¬x), then there's a path x→¬x (since ¬(¬x) = x). If also comp(¬x) reached comp(x), then x and ¬x would be in the same SCC. So exactly one direction of reachability holds between comp(x) and comp(¬x) (when they're distinct SCCs): either comp(x) reaches comp(¬x), or comp(¬x) reaches comp(x), but not both. Wait — could neither reach? If comp(x) doesn't reach comp(¬x), does comp(¬x) necessarily reach comp(x)? Hmm, by the symmetry: comp(x) reaches comp(¬x) iff comp(x) [as ¬¬x... let me redo]. Path x → ¬x exists iff path x (as negation of ¬x) → ¬x, i.e., by symmetry, path ¬(¬x) → ¬x... I'm going in circles. Let me think concretely: symmetry lemma: edge u→v exists iff edge v^1→u^1 exists (because clause implications come in pairs: (a∨b) gives (a^1→b) and (b^1→a); conversely edge a^1→b comes from clause (a∨b) which also gives b^1→a). So paths: u ⇒ v iff v^1 ⇒ u^1.
+
+Suppose neither comp(x) ⇒ comp(¬x) nor comp(¬x) ⇒ comp(x). Is that possible? Hmm, I don't think the theory requires comparability. Let me think... Actually, I recall that in 2-SAT condensation, for each variable, comp(x) and comp(¬x) ARE comparable? Hmm, no wait. Let me think of a potential counterexample: variables x, y with clauses: (x ∨ y) and (¬x ∨ ¬y)? That's example 1: comp(x1T)={0,3}... in example 1, comp(0)={0,3} and comp(1)={1,2}: does {0,3} reach {1,2}? Edges from SCC {0,3}: 0→3 (internal), 3→0 (internal). Any edge from 0 or 3 to 1 or 2? Edges: 1→2, 3→0, 0→3, 2→1. No. So neither SCC reaches the other — incomparable! And the assignment rule still works: we set x1 = 1 (since comp[x1T]=0 < comp[x1F]=1 in Tarjan numbering = later in topo order) and x2 = 0. Both choices are "free" but consistent. So incomparability is possible, and the rule "x true iff topo(comp(x)) > topo(comp(¬x))" — with incomparable SCCs, the tie is broken by arbitrary topological numbering. The standard theorem says this assignment is always consistent (the proof doesn't require comparability; it uses the property that if comp(¬x) ≤ comp(x) in topo order for all x... hmm, actually the standard proof: define x true iff topo(comp(x)) > topo(comp(¬x)). Need to show no clause (a ∨ b) violated: i.e., not (a false and b false). a false means topo(comp(a)) < topo(comp(¬a))... wait, a false means topo(comp(a)) < topo(comp(¬a))? a is false iff NOT (topo(comp(a)) > topo(comp(¬a))) iff topo(comp(a)) < topo(comp(¬a)) (numberings are distinct since comps distinct). Suppose a and b both false: topo(comp(a)) < topo(comp(¬a)) and topo(comp(b)) < topo(comp(¬b)). Clause gives edges a^1→b and b^1→a, i.e., ¬a → b and ¬b → a. From topo(comp(a)) < topo(comp(¬a)): hmm, we have edge ¬b → a, so comp(¬b) reaches comp(a): topo(comp(¬b)) ≤ topo(comp(a)). And edge ¬a → b: topo(comp(¬a)) ≤ topo(comp(b)). Chain: topo(comp(¬b)) ≤ topo(comp(a)) < topo(comp(¬a)) ≤ topo(comp(b)) < topo(comp(¬b)) — contradiction (cycle in topo numbers). So the assignment is valid. 
+
+So the rule is correct regardless of comparability. And with Tarjan reverse-topo numbering: topo(C) = (K-1) - tarjan(C), so "topo(comp(a)) > topo(comp(¬a))" ⟺ tarjan(comp(a)) < tarjan(comp(¬a)). Confirmed again.
+
+Now — performance of the checking/output loop: N/2 = 10^5 iterations, trivial.
+
+Let me now also think about whether to use numpy for the final comparison: comp as numpy array... comp is built as a Python list during Tarjan. The final loop is fine as pure Python (10^5 iterations).
+
+Now let me write the complete code:
+
+```python
+import sys
+import numpy as np
+
+def main():
+    data = sys.stdin.buffer.read().split()
+    n = int(data[0]); m = int(data[1])
+    N = 2 * n
+    out = sys.stdout
+    if m == 0:
+        out.write("YES\n" + " ".join(["0"] * n) + "\n")
+        return
+    L = np.array(list(map(int, data[2:2 + 2 * m])), dtype=np.int64)
+    al = np.abs(L)
+    nodes = (al - 1) * 2 + (L < 0)
+    a = nodes[0::2]
+    b = nodes[1::2]
+    eu = np.concatenate((a ^ 1, b ^ 1))
+    ev = np.concatenate((b, a))
+    counts = np.bincount(eu, minlength=N)
+    start_np = np.zeros(N + 1, dtype=np.int64)
+    np.cumsum(counts, out=start_np[1:])
+    sidx = np.argsort(eu, kind='stable')
+    adj = ev[sidx].tolist()
+    start = start_np.tolist()
+
+    index = [-1] * N
+    low = [0] * N
+    comp = [-1] * N
+    on_st = bytearray(N)
+    it = start[:N]
+    scc_stack = []
+    scc_append = scc_stack.append
+    scc_pop = scc_stack.pop
+    call_stack = []
+    call_append = call_stack.append
+    call_pop = call_stack.pop
+    counter = 0
+    comp_cnt = 0
+
+    for s in range(N):
+        if index[s] != -1:
+            continue
+        call_append(s)
+        while call_stack:
+            v = call_stack[-1]
+            if index[v] == -1:
+                index[v] = counter
+                low[v] = counter
+                counter += 1
+                scc_append(v)
+                on_st[v] = 1
+            i = it[v]
+            end_v = start[v + 1]
+            while i < end_v:
+                w = adj[i]
+                i += 1
+                iw = index[w]
+                if iw == -1:
+                    it[v] = i
+                    call_append(w)
+                    break
+                if on_st[w] and iw < low[v]:
+                    low[v] = iw
+            else:
+                call_pop()
+                if call_stack:
+                    p = call_stack[-1]
+                    lv = low[v]
+                    if lv < low[p]:
+                        low[p] = lv
+                if low[v] == index[v]:
+                    while True:
+                        w = scc_pop()
+                        on_st[w] = 0
+                        comp[w] = comp_cnt
+                        if w == v:
+                            break
+                    comp_cnt += 1
+
+    # build answer
+    res = []
+    res_append = res.append
+    for i2 in range(0, N, 2):
+        c1 = comp[i2]
+        c2 = comp[i2 + 1]
+        if c1 == c2:
+            out.write("NO\n")
+            return
+        res_append('1' if c1 < c2 else '0')
+    out.write("YES\n" + ' '.join(res) + "\n")
+
+main()
+```
+
+Wait, there's a bug in the while-else: the `else` is attached to the inner `while i < end_v:` loop. But between the inner while and its else, is there anything? No — the else must come right after the while loop body. Let me check the structure:
+
+```
+            while i < end_v:
+                w = adj[i]
+                i += 1
+                iw = index[w]
+                if iw == -1:
+                    it[v] = i
+                    call_append(w)
+                    break
+                if on_st[w] and iw < low[v]:
+                    low[v] = iw
+            else:
+                ...
+```
+Yes, the else is directly attached to the while. When the while condition fails (i >= end_v) without break, else runs. When break (child pushed), else skipped, and the outer `while call_stack:` continues. Correct.
+
+Hmm, but wait: there's a subtle issue with the while-else and the `break`: after `break`, control goes to the outer while loop condition check (`while call_stack:`) — call_stack is non-empty (we just appended w), so it continues with w on top. Good.
+
+One more check on the inner loop: when we resume v after child return, `i = it[v]` — it[v] was set to i (position after the child edge). Good. But note: `it[v]` is NOT updated during the scanning of non-child edges (we only update on break or... hmm, actually we don't update it[v] in the else branch either — but in the else branch, v is finalized and never resumed, so it[v] is stale but unused. Fine. Actually wait — do we need `it[v] = i` in the else branch? No, v is done forever.
+
+Hmm, but actually there IS a subtle issue: what if node v is finalized, but later another node u has an edge to v? Then index[v] != -1, so u just does the on_st check (v not on stack, since popped from scc_stack when its SCC completed). Fine.
+
+Another subtle thing: `on_st[w] and iw < low[v]` — on_st is a bytearray; `on_st[w]` returns int 0/1. Fine.
+
+Now, is there an issue with the `for s in range(N)` loop and nodes reachable... all nodes get visited. Good.
+
+Let me double check `it = start[:N]`: start is a list of length N+1 (from tolist of start_np). start[:N] = [start[0], ..., start[N-1]]. it[v] should be start[v] initially. ✓.
+
+Hmm wait, actually there's a potential subtle bug: `it = start[:N]` — but then in the loop we do `it[v] = i` — mutating `it`, not `start`. ✓ (slice creates a copy).
+
+Now, about `end_v = start[v + 1]` — start has length N+1, so start[N] valid for v = N-1. ✓.
+
+Edge case: N could be... n ≥ 1 so N ≥ 2. ✓.
+
+Now, the m == 0 early return: also, what if m > 0 but... fine.
+
+Wait, one more important check: the problem says |l1|, |l2| ≤ n and non-zero. So nodes in [0, N-1]. ✓.
+
+Let me reconsider the numpy parsing: `list(map(int, data[2:2+2*m]))` — data elements are bytes; int(bytes) works. ✓. Then np.array(..., dtype=np.int64). For m=2·10^5, that's 4·10^5 ints — fine.
+
+Hmm, actually, can I avoid the Python-level map(int) and let numpy do it? `np.array(data[2:2+2*m], dtype=np.int64)` — numpy converting a list of bytes objects to int64: I believe this works in modern numpy (it applies int() to each element? or uses its own parser). Actually, I recall that np.array with a list of bytes and an int dtype raises "invalid literal"?? Hmm, no — I think it works: numpy will create an object-dtype intermediate? Let me think... `np.array([b'12', b'-3'], dtype=np.int64)` — I'm fairly confident this works in numpy ≥ 1.14 or so, treating bytes like strings for numeric conversion. But I'm not 100% sure; there were versions where casting from 'S' (bytes) to int via np.array directly... Actually the safe documented path: `np.array(['12','-3'], dtype=np.int64)` works? Hmm, even for str I recall `np.array(['12'], dtype=np.int64)` works (numpy parses strings). For bytes... Let me just not risk it: use `np.array(data[2:...], dtype='S')` then `.astype(np.int64)`? Also risky.
+
+Alternative safe approach: `np.fromstring` is deprecated; `np.frombuffer` doesn't parse text. There's a trick: `np.array(buf.split(), dtype=np.int64)`... same question.
+
+The `list(map(int, ...))` approach is guaranteed correct and reasonably fast (~40-80ms for 4·10^5 tokens). Keep it.
+
+Actually, here's a cleaner alternative that's definitely safe and possibly faster: since we need `al` and sign anyway, we could do everything in pure Python for edge building... no, numpy vectorization for the CSR is the win. Keep map(int).
+
+Hmm, wait — actually there's an even better trick for parsing all integers from a buffer with numpy... not reliably. Keep it simple.
+
+Now let me reconsider: is `np.argsort(eu, kind='stable')` needed to be stable? No — any sort by source works for CSR (edge order within a node's list doesn't matter for Tarjan). Use default (quicksort, 'introsort') — faster. Actually for int64, default argsort is fine. But hmm, one consideration: default quicksort is not stable but that's fine. Use `np.argsort(eu)`.
+
+Even better: we can avoid argsort entirely! Alternative CSR construction: since we're already computing counts and cumsum, we can fill positions with a vectorized "scatter by incrementing pointers" — but that requires sequential pointer updates (np.repeat trick doesn't directly give per-target insertion order... actually there IS a vectorized way: compute for each edge its position within its source's block via counting: pos = start[eu] + (rank of this edge among edges with same eu). The rank can be computed via argsort anyway or via a cumulative counting trick:
+
+rank within group: sort is the standard way. Alternatively: 
+```
+# positions: iterate? no.
+```
+There's a known trick using np.argsort of eu only — that's what we have. argsort of 4·10^5 int64 ≈ 20-40ms. Fine.
+
+Alternatively, use `np.bincount`-based counting sort in numpy (since keys are 0..N-1, counting sort is O(E)):
+```
+# counting sort by key eu:
+cnt = np.bincount(eu, minlength=N)
+pos = np.cumsum(cnt) - cnt  # start position of each key block
+# rank of each element within its block:
+# trick: use np.argsort(eu, kind='stable') — simplest.
+```
+Counting-sort rank computation without sort: 
+```
+idx = np.empty(E, dtype=np.int64)
+# sequential: for each edge, idx[k] = pos[eu[k]]++; — not vectorizable directly.
+```
+There's a vectorized trick: `order = np.argsort(eu, kind='stable')` is honestly the simplest. Keep it.
+
+Hmm, alternatively: build adjacency as Python list-of-lists directly during parsing (append per edge), then flatten. For 4·10^5 edges, Python appends: ~4·10^5 × 2 appends... that's ~0.2-0.4s. The numpy approach is better.
+
+Wait, actually, here's yet another approach for CSR fill that's fully vectorized without argsort, using the "permute within groups" trick:
+
+For each edge k with source u=eu[k], its slot = start[u] + (number of earlier edges with same source). Computing "number of earlier edges with same source" vectorized: this is exactly what a stable counting sort does. Vectorized stable counting sort:
+```
+cnt = np.bincount(eu, minlength=N)
+offsets = np.concatenate(([0], np.cumsum(cnt)))  # block starts
+# rank of edge k among edges with the same key, in original order:
+# Use np.argsort with kind='stable' — that IS the counting sort essentially.
+```
+OK just use argsort. Done deliberating.
+
+Actually hold on — maybe simpler: we don't even need the CSR "adj" to be grouped by source in a single flat list with a start array... we could keep adjacency as a list of lists but built via numpy: 
+```
+adj_np sorted; then split into per-node lists? 
+```
+Splitting into 2·10^5 lists creates huge overhead. Flat CSR + start array is best for the iterative Tarjan.
+
+Alternatively — hmm, here's another thought — what about using arrays ('array' module or numpy) for adj/start instead of Python lists? In CPython, list indexing is faster than numpy scalar indexing (numpy scalar access has overhead ~100ns+). So convert numpy → Python lists via tolist(). ✓ (that's what I have).
+
+Memory: adj list of 4·10^5 Python ints — small ints are cached only up to 256; ints up to 2·10^5 → each is a Python object (~28 bytes) → 4·10^5 × 28 ≈ 11MB plus list overhead 8B/slot ≈ 3.2MB. Fine. index/low/comp/it lists: 4 × 2·10^5 × (8B pointer + shared small-int objects... values up to 4·10^5, distinct objects) ≈ 4 × 2·10^5 × ~36B ≈ 29MB. Fine within 256MB.
+
+Now, let me reconsider the Tarjan loop for any remaining performance improvements:
+
+1. `v = call_stack[-1]` — negative indexing. Fine.
+2. The init check `if index[v] == -1` happens every outer iteration (including resumes). Alternative: separate the "first visit" from the loop by initializing before push... but pushes happen in the inner loop too. Could push a marker? E.g., push ~v (negative) for first visit? Then `v = call_stack[-1]; if v < 0: v = -v-1...` hmm, that adds complexity. Actually here's a cleaner trick: initialize index/low/on_st/scc_stack AT PUSH TIME rather than at pop time. I.e., whenever we push a node (root or child), immediately do:
+
+```
+index[w] = counter; low[w] = counter; counter += 1
+scc_append(w); on_st[w] = 1
+```
+
+Then the outer loop doesn't need the init check at all! Let me restructure:
+
+```
+for s in range(N):
+    if index[s] != -1: continue
+    # init s
+    index[s] = counter; low[s] = counter; counter += 1
+    scc_append(s); on_st[s] = 1
+    call_append(s)
+    while call_stack:
+        v = call_stack[-1]
+        i = it[v]
+        end_v = start[v+1]
+        while i < end_v:
+            w = adj[i]
+            i += 1
+            iw = index[w]
+            if iw == -1:
+                it[v] = i
+                index[w] = counter; low[w] = counter; counter += 1
+                scc_append(w); on_st[w] = 1
+                call_append(w)
+                break
+            if on_st[w] and iw < low[v]:
+                low[v] = iw
+        else:
+            ...finalize...
+```
+
+This moves init into push sites (2 sites) and removes one check per outer iteration. Outer iterations: 2N; the check saved: 2N list accesses + compares. Init work total is the same. Net win. ✓.
+
+3. In the finalize branch: 
+```
+call_pop()
+if call_stack:
+    p = call_stack[-1]
+    lv = low[v]
+    if lv < low[p]:
+        low[p] = lv
+```
+`call_pop()` returns v — we could use `v = call_pop()` instead of `call_stack[-1]` fetch earlier... but we need v as top before popping. Actually: `v = call_stack[-1]` at loop top, then in else branch `call_pop()`. Alternatively `v = call_pop()` at... no, we need v during edge scanning before knowing we'll finalize. Keep as is. Hmm, alternatively: since call_pop() returns the popped value, in the else branch we don't need it to return anything. Fine.
+
+4. `if low[v] == index[v]` — two list accesses. Could store index[v] in a local when... v's index was set at push time; at finalize we need it. We could keep a parallel "call_stack" of... hmm, we could exploit: at push time, low[v] == index[v]; at finalize, low[v] ≤ index[v], with equality iff root. We need index[v] at finalize. One extra access — fine.
+
+Actually, here's a bigger idea: we can avoid the `index` array entirely by merging: note index[v] is only used for (a) on-stack low updates (iw < low[v] → low[v] = iw uses index[w]) and (b) root check. Standard. Keep.
+
+5. Another idea: replace `on_st` bytearray + index checks: for edge w: `iw = index[w]; if iw == -1: push; elif comp[w] == -1 and iw < low[v]: low[v] = iw`. This uses comp instead of on_st — saves the on_st array but adds comp[w] access only when iw != -1... wait no: `comp[w] == -1` must be checked whenever iw != -1, which is most edges. on_st[w] is also checked for those. Same cost. But it saves maintaining on_st (2 ops per node: set + clear). Marginal. Keep on_st (bytearray access is very fast, and it keeps comp writes only in the SCC-pop loop).
+
+6. The SCC pop loop: total pops = N across the whole algorithm. Each pop: scc_pop, on_st clear, comp assign, compare. ~5 ops × N = 10^6... wait, N = 2·10^5, so 10^6? No: 5 ops × 2·10^5 = 10^6 ops? No — 5 × 2·10^5 = 10^6. Hmm, that's 1M ops ≈ 50ms. Fine.
+
+7. The final answer loop: 10^5 iterations × ~8 ops. Fine.
+
+Let me also consider: maybe use `while True: w = scc_pop(); ... if w == v: break` — could instead pop until we've seen v, using the fact that SCC members are contiguous... the standard is fine.
+
+8. Micro: `end_v = start[v + 1]` — could precompute an `end` array = start[1:] to avoid v+1 computation? `start[v+1]` does an addition then list access. An `end` list avoids the addition: `end_v = end[v]`. Saves an add per outer iteration (2N adds). Marginal but free: `end = start[1:]` (length N). But careful: `it = start[:N]` and `end = start[1:]` — both slices of start. ✓.
+
+9. In the inner loop, `w = adj[i]; i += 1` — could iterate with enumerate over a slice? When resuming mid-way, slicing adj[i:end_v] creates a new list each resume — total slice creation cost = total edges + number of resumes... slice creation is O(slice length) — total O(E + N) elements copied — actually that's fine and iteration over a list slice with a for loop is faster than manual while with indexing! Let me think:
+
+```
+# scanning v's edges from position i:
+for w in adj[i:end_v]:
+    iw = index[w]
+    if iw == -1:
+        # need to know position after w to save it... 
+```
+Problem: we need to save `it[v] = position after w`. With a for loop over a slice, we don't track position unless we enumerate. `for j, w in enumerate(adj[i:end_v])` — then position after w = i + j + 1. enumerate adds overhead per edge (~1 op), slice copy adds ~1 op per edge, but removes `i += 1` and the `i < end_v` check and `adj[i]` indexing (which is ~2 ops). Net: probably a wash or slight win. But there's the break/resume complexity: after break, it[v] = i + j + 1. Hmm, and the else clause of for-else handles exhaustion. Let me write it:
+
+```
+i = it[v]
+for j, w in enumerate(adj[i:end_v]):   # hmm wait, memoryview? lists only.
+    iw = index[w]
+    if iw == -1:
+        it[v] = i + j + 1
+        ...push w, init w...
+        break
+    if on_st[w] and iw < low[v]:
+        low[v] = iw
+else:
+    ...finalize v...
+```
+
+Per edge: enumerate unpack (fast), index[w], compare, maybe on_st[w]. vs while version: `w = adj[i]` (index + store), `i += 1` (load/inc/store), `iw = index[w]`, compare. The for version: slice creation amortized O(1) per element, enumerate tuple unpack ~2 ops, but no i management. Probably similar. The while version avoids slice memory allocation. Honestly, let me benchmark mentally... CPython for-loop over list with enumerate: each iteration: FOR_ITER, UNPACK_SEQUENCE (for the tuple), STORE j, STORE w — that's ~4 bytecodes just for iteration, vs while: LOAD adj, LOAD i, BINARY_SUBSCR, STORE w, LOAD i, LOAD 1, ADD, STORE i, LOAD i, LOAD end_v, COMPARE, JUMP — ~11 bytecodes but the while-condition check happens per edge too. Hmm, for+enumerate ≈ 4 + body; while ≈ 6 + body (the i+=1 and condition). Roughly similar. 
+
+Alternative without enumerate: iterate over the slice but track position differently — we could avoid needing the position entirely if we store `it[v]` differently... What if instead of saving the position, we save "remaining edges" as a slice on the call stack? I.e., the call stack holds (node, remaining_adj_slice)? Pushing a slice per child return... slice creation per resume: adj[i:end_v] — total slice elements across all resumes = E + (extra for re-slicing after each child). Hmm: each resume re-slices from it[v] to end_v — the elements before the resume point get re-copied on each resume. Worst case: a node with d children causes d re-slices of decreasing length → O(d²) element copies. Bad for high-degree nodes. No.
+
+Alternative: use iter()! Python's list iterator remembers position internally. 
+
+```
+# call stack entries: (node, iterator over its remaining edges)
+```
+But we need the node too. Two parallel stacks: call_v (nodes), call_it (iterators). At push time for node w: call_it.append(iter(adj[start_w:end_w]))... wait, but we create the iterator once per node at push time, and it remembers position across resumes! 
+
+```
+for s in range(N):
+    if index[s] != -1: continue
+    init s
+    call_v.append(s)
+    call_it.append(iter(adj[start[s]:end[s]]))  # hmm, need slice — one slice per node, total O(E). Fine.
+    while call_v:
+        v = call_v[-1]
+        it_v = call_it[-1]
+        for w in it_v:
+            iw = index[w]
+            if iw == -1:
+                init w
+                call_v.append(w)
+                call_it.append(iter(adj[start[w]:end[w]]))
+                break
+            if on_st[w] and iw < low[v]:
+                low[v] = iw
+        else:
+            call_v.pop(); call_it.pop()
+            ...finalize...
+```
+
+Per edge: FOR_ITER + STORE w (2 bytecodes) + body. That's much cheaper than manual indexing! The for loop over an iterator is the fastest iteration in CPython. Per outer iteration: call_v[-1], call_it[-1] fetches. Per node: one slice creation (total O(E) element copies across all nodes — same as building) + one iter() creation. 
+
+This looks good! The `for w in it_v:` loop with else — when the iterator is exhausted, else runs → finalize. When we break (child pushed), the iterator's position is preserved (it's the same iterator object on the stack). 
+
+Wait, but there's a subtlety: `for w in it_v: ... else: ...` — the else runs when the for loop completes without break, i.e., iterator exhausted. ✓. And when we break, the iterator remains at the position after w. On resume, `for w in it_v` continues from there. ✓✓. This is elegant and fast.
+
+Cost per edge examined: FOR_ITER (~fast), STORE_FAST w, index[w] (LOAD index, LOAD w, BINARY_SUBSCR, STORE iw... plus compare). Body: `iw = index[w]` then `if iw == -1:` — for non-tree edges: `if on_st[w] and iw < low[v]: low[v] = iw` — on_st[w] fetch + truth test; short-circuit if 0.
+
+Compare with the while-index version per edge: ~6-7 bytecodes for iteration mechanics vs ~2-3 with iterator. Nice win: maybe 30-40% faster inner loop.
+
+Slice creation per node: adj[start[w]:end[w]] — copies the node's edge list portion into a new list: total O(E) element copies (each edge copied once into exactly one slice) + N slice objects + N iterator objects. ~4·10^5 element copies ≈ fast (list slicing is memcpy-ish of pointers + incref — C speed). ✓.
+
+Hmm, but wait: `end` array — I defined end = start[1:]. For node w: adj[start[w]:end[w]]. ✓.
+
+Also the root push: same pattern.
+
+Let me also double-check: `call_it[-1]` fetch each outer iteration — the iterator object. Then `for w in it_v`. ✓.
+
+Actually, can we avoid the two parallel stacks? We could push tuples (v, it_v) — tuple creation at push (N tuples) + unpacking at top fetch (fast: UNPACK... actually `v, it_v = call_stack[-1]` is LOAD, UNPACK_SEQUENCE(2), STORE, STORE — 4 bytecodes vs 2 fetches for parallel stacks (each LOAD, BINARY_SUBSCR(-1)... wait, call_v[-1] is LOAD call_v, LOAD -1, BINARY_SUBSCR, STORE — 4 bytecodes each, so 8 for two stacks vs 4-5 for tuple). Tuple version: push: BUILD_TUPLE (1 op) — cheaper at push. Fetch: cheaper. Hmm, tuple might win slightly. But tuple unpack of 2: `v, it_v = call_stack[-1]` = LOAD_FAST call_stack, LOAD_CONST -1, BINARY_SUBSCR, UNPACK_SEQUENCE 2, STORE_FAST v, STORE_FAST it_v = 6 bytecodes. Parallel: LOAD call_v, LOAD -1, BINARY_SUBSCR, STORE v (4) + LOAD call_it, LOAD -1, BINARY_SUBSCR, STORE it_v (4) = 8. Tuple wins on fetch, loses on push (BUILD_TUPLE +... push = LOAD v, LOAD it_v, BUILD_TUPLE 2, call_append, POP — vs two appends). Roughly even. I'll use two parallel stacks (avoids tuple allocations, GC pressure). Actually, hmm, let me reconsider — actually with two stacks, at finalize we pop both. Fine.
+
+Hmm, actually wait. There's an even slicker idea: since the iterator remembers position, do we even need `it` per node? No — the iterator IS the position state. ✓ (that's what we have).
+
+Let me now also reconsider the init-at-push restructure with this pattern:
+
+```
+for s in range(N):
+    if index[s] != -1:
+        continue
+    index[s] = counter
+    low[s] = counter
+    counter += 1
+    scc_append(s)
+    on_st[s] = 1
+    call_v.append(s)
+    call_it.append(iter(adj[start[s]:end[s]]))
+    while call_v:
+        v = call_v[-1]
+        it_v = call_it[-1]
+        for w in it_v:
+            iw = index[w]
+            if iw == -1:
+                index[w] = counter
+                low[w] = counter
+                counter += 1
+                scc_append(w)
+                on_st[w] = 1
+                call_v.append(w)
+                call_it.append(iter(adj[start[w]:end[w]]))
+                break
+            if on_st[w] and iw < low[v]:
+                low[v] = iw
+        else:
+            call_v.pop()
+            call_it.pop()
+            if call_v:
+                p = call_v[-1]
+                lv = low[v]
+                if lv < low[p]:
+                    low[p] = lv
+            if low[v] == index[v]:
+                while True:
+                    w = scc_pop()
+                    on_st[w] = 0
+                    comp[w] = comp_cnt
+                    if w == v:
+                        break
+                comp_cnt += 1
+```
+
+Wait, careful: in the for-else, after `call_v.pop()`, `call_v[-1]` refers to the parent — but only if non-empty; guarded by `if call_v:`. ✓.
+
+Hmm, one thing: `low[v] == index[v]` — index[v] fetch. Fine.
+
+Also note: in the for loop, when we break after pushing child w, the outer while continues; top is w. ✓.
+
+Now, subtle correctness point: the for-else — when iterator exhausted normally, else executes. But note: the for loop body might also complete... no wait, if the iterator is exhausted immediately (no edges), the for body never runs and else runs. ✓.
+
+Another subtle point: `for w in it_v` — if the same iterator is resumed after break, correct position. ✓.
+
+Now, one more potential optimization: the `iw = index[w]` + `if iw == -1` — for tree edges we then do init. For non-tree edges, `if on_st[w] and iw < low[v]`. Note that most edges in typical graphs are non-tree. The body is ~6-8 bytecodes per non-tree edge. 
+
+Alternative body ordering: check on_st first? `if on_st[w]:` then index check? No — unvisited nodes have on_st 0, so we must check index first. Current order correct.
+
+Micro-opt: combine into one array? E.g., store index+1 in a bytearray... no, index up to 2·10^5.
+
+Another micro-opt: `low[v] = iw` vs `low[v] = min(...)` — current conditional assignment is fine.
+
+Hmm, what about the `on_st[w] and iw < low[v]` — we could fold on_st into index by using a sentinel: when a node's SCC is popped, set index[w] = -2 (meaning "visited, not on stack")? Then: `iw = index[w]; if iw == -1: push; elif iw >= 0 and iw < low[v]: low[v] = iw`... wait, but then the check becomes `if iw != -2 and iw < low[v]` — hmm, iw == -1 handled first, so remaining: iw >= 0 (on stack) or iw == -2 (done). Condition: `iw > -1 and iw < low[v]`? Hmm: `if iw > -2` — wait: values: -1 = unvisited (pushed first), -2 = done, ≥0 = on stack. After the first check (iw == -1), we need `iw != -2`, i.e., `iw > -1` (since iw is either -2 or ≥0). So: `elif iw > -1 and iw < low[v]: low[v] = iw`. Hmm, but wait — there's a problem: index[w] is also used for the root check `low[v] == index[v]` and... if we set index[w] = -2 after SCC pop, then index[v] at finalize time: v is still on stack at its own finalize (popped from scc_stack AFTER the root check? Let me see: root check `if low[v] == index[v]` happens before popping the SCC — index[v] still valid. ✓. But also `iw < low[v]` comparisons use index values of on-stack nodes — valid. And the parent low propagation uses low values — fine. And... hmm, wait, also `index[s] != -1` in the root loop — after processing, index[s] is either ≥0 or -2, both ≠ -1. ✓. 
+
+So we can eliminate the on_st bytearray: replace `on_st[w] = 0` in the SCC pop with `index[w] = -2`. And the edge body becomes:
+
+```
+iw = index[w]
+if iw == -1:
+    ...push...
+elif iw > -1 and iw < low[v]:
+    low[v] = iw
+```
+
+Hmm, `iw > -1 and iw < low[v]` — two comparisons for on-stack edges. vs `on_st[w] and iw < low[v]` — one bytearray fetch + truth + one comparison. The bytearray fetch is LOAD on_st, LOAD w, BINARY_SUBSCR, POP_JUMP_IF_FALSE ≈ 4 bytecodes; `iw > -1` is LOAD iw, LOAD -1, COMPARE, JUMP ≈ 4 bytecodes. Same-ish. But we save maintaining on_st (set at push: 1 op per node; clear at pop: 1 op per node) — 2N ops saved ≈ 4·10^5... wait, N=2·10^5, so 4·10^5 ops saved? No: set at push = N ops, clear at SCC pop = N ops → 2N = 4·10^5 ops saved. And in the SCC pop loop, `on_st[w] = 0` → `index[w] = -2` — same cost. And at push, we drop `on_st[w] = 1` — saves N ops. Net: saves ~2N ops with equal per-edge cost. Small win, and less memory. But it makes the code subtler. Hmm, wait, actually there's a subtlety: `iw > -1` — for on-stack w, iw ≥ 0 > -1 ✓; for done w, iw = -2, not > -1 ✓. Correct.
+
+Hmm, but actually, hold on: is it definitely true that "on SCC stack" ⟺ index ≥ 0 at the time of edge examination? Node lifecycle: index set at push (≥0), stays until SCC pop → set to -2. So during edge examinations: index[w] ≥ 0 ⟺ w visited and its SCC not yet completed ⟺ w on scc_stack. ✓. And unvisited: -1. ✓.
+
+I'll adopt this (drop on_st). Actually hmm, wait: one more consideration — the root check `low[v] == index[v]`: v is being finalized; v is still on scc_stack (its SCC pops right after). index[v] unchanged. ✓.
+
+But hmm, actually, let me double-check the parent-low propagation and root check ordering in the else branch:
+
+```
+else:
+    call_v.pop()
+    call_it.pop()
+    if call_v:
+        p = call_v[-1]
+        lv = low[v]
+        if lv < low[p]:
+            low[p] = lv
+    if low[v] == index[v]:
+        ...pop SCC...
+```
+
+✓ standard.
+
+Now, another thought on the root loop: `for s in range(N): if index[s] != -1: continue` — after Tarjan processes, index[s] is ≥0 or -2, never -1, so no re-processing. ✓.
+
+Let me now also think about whether the `counter` init at push could be done more compactly: 
+```
+index[w] = low[w] = counter; counter += 1
+```
+Chained assignment: evaluates counter once, assigns to index[w] then low[w] — wait, chained assignment `a = b = c` assigns c to a then b (right to left: index[w] = counter; low[w] = counter). Both get the same pre-increment value. ✓ and it's compact/fast (one LOAD counter, two subscript stores). Then `counter += 1`. 
+
+So push-init: `index[w] = low[w] = counter; counter += 1; scc_append(w); call_v.append(w); call_it.append(iter(adj[start[w]:end[w]]))`.
+
+Hmm, `start[w]` and `end[w]` — two list fetches + slice. Could store end differently... fine.
+
+Wait, actually — since we create the iterator from a slice at push time, and the slice is adj[start[w]:end[w]] — alternatively create iterator lazily... no, at push is right.
+
+Hmm, one more idea to reduce per-push cost: precompute for each node the slice? No — memory. Or use `iter(adj_slice)` — required.
+
+Alternatively, avoid slices: use `itertools.islice`? islice(adj, start, end) — iteration over islice has per-item overhead (it calls next on the underlying... actually islice is C-implemented, per-item cost similar to list iterator? islice does indexing internally — slower than list iterator). List slice + iter is better.
+
+OK. Now let me also think about the worst-case recursion... it's iterative, no depth issue. call_v depth up to N = 2·10^5 — fine (Python list).
+
+Let me now write the final code cleanly:
+
+```python
+import sys
+import numpy as np
+
+def main():
+    data = sys.stdin.buffer.read().split()
+    n = int(data[0]); m = int(data[1])
+    N = 2 * n
+    if m == 0:
+        sys.stdout.write("YES\n" + " ".join(["0"] * n) + "\n")
+        return
+    L = np.array(list(map(int, data[2:2 + 2 * m])), dtype=np.int64)
+    al = np.abs(L)
+    nodes = (al << 1) - 2 + (L < 0)
+    a = nodes[0::2]
+    b = nodes[1::2]
+    eu = np.concatenate((a ^ 1, b ^ 1))
+    ev = np.concatenate((b, a))
+    counts = np.bincount(eu, minlength=N)
+    start_np = np.zeros(N + 1, dtype=np.int64)
+    np.cumsum(counts, out=start_np[1:])
+    sidx = np.argsort(eu)
+    adj = ev[sidx].tolist()
+    start = start_np.tolist()
+    end = start[1:]
+
+    index = [-1] * N
+    low = [0] * N
+    comp = [-1] * N
+    scc_stack = []
+    scc_append = scc_stack.append
+    scc_pop = scc_stack.pop
+    call_v = []
+    call_it = []
+    cv_append = call_v.append
+    cv_pop = call_v.pop
+    ci_append = call_it.append
+    ci_pop = call_it.pop
+    counter = 0
+    comp_cnt = 0
+
+    for s in range(N):
+        if index[s] != -1:
+            continue
+        index[s] = low[s] = counter
+        counter += 1
+        scc_append(s)
+        cv_append(s)
+        ci_append(iter(adj[start[s]:end[s]]))
+        while call_v:
+            v = call_v[-1]
+            it_v = call_it[-1]
+            for w in it_v:
+                iw = index[w]
+                if iw == -1:
+                    index[w] = low[w] = counter
+                    counter += 1
+                    scc_append(w)
+                    cv_append(w)
+                    ci_append(iter(adj[start[w]:end[w]]))
+                    break
+                elif iw > -1 and iw < low[v]:
+                    low[v] = iw
+            else:
+                cv_pop()
+                ci_pop()
+                if call_v:
+                    p = call_v[-1]
+                    lv = low[v]
+                    if lv < low[p]:
+                        low[p] = lv
+                if low[v] == index[v]:
+                    while True:
+                        w = scc_pop()
+                        index[w] = -2
+                        comp[w] = comp_cnt
+                        if w == v:
+                            break
+                    comp_cnt += 1
+
+    out = []
+    out_append = out.append
+    for i2 in range(0, N, 2):
+        c1 = comp[i2]
+        c2 = comp[i2 + 1]
+        if c1 == c2:
+            sys.stdout.write("NO\n")
+            return
+        out_append('1' if c1 < c2 else '0')
+    sys.stdout.write("YES\n" + ' '.join(out) + "\n")
+
+main()
+```
+
+Wait — bug check: in the SCC pop loop, I set `index[w] = -2`. But the root check for OTHER nodes later... the root check uses `low[v] == index[v]` for nodes being finalized — their index is still ≥ 0 (not yet popped). ✓. But hmm — wait, there's an issue: the root check `if low[v] == index[v]` happens BEFORE we pop v's SCC — but v's index could have been... no, v is on scc_stack, index[v] ≥ 0, unchanged since push. ✓.
+
+But wait, another issue: after setting index[w] = -2 for popped nodes, the root loop check `if index[s] != -1` — for a node s whose SCC was popped, index[s] = -2 ≠ -1 → skip. ✓. For unvisited, -1 → process. ✓.
+
+Hmm, but hold on — there's a subtle issue with `low[v] = iw` where iw is index[w] for on-stack w: since we never modify index of on-stack nodes, ✓.
+
+And the parent propagation `low[p] = lv` — ✓.
+
+Now, wait — I need to double check the `elif iw > -1 and iw < low[v]` logic once more. Cases for edge v→w:
+1. w unvisited: iw == -1 → push. ✓
+2. w on scc_stack (its SCC not yet complete): iw ≥ 0. Tarjan: low[v] = min(low[v], index[w]). Our code: if iw < low[v]: low[v] = iw. ✓ (Note: standard Tarjan uses index[w] for on-stack w — including forward edges within the SCC — correct.)
+3. w's SCC completed: iw == -2 → skip. ✓ (cross edge to completed SCC — correctly ignored).
+
+✓.
+
+Hmm, one more: what about edges to nodes in the CURRENT DFS path but... covered by case 2. ✓.
+
+Now — wait, I realize there might be an issue with the for-else and `break` when the iterator `it_v` gets exhausted exactly at the break... no: break happens when we find a tree edge child; the iterator position is after that edge; on resume, `for w in it_v` continues; if already exhausted, else runs immediately. ✓.
+
+Another check: `v = call_v[-1]` and `it_v = call_it[-1]` — fetched fresh each outer iteration. After a child finalizes and pops, the outer loop re-fetches parent v and its iterator. ✓.
+
+Now, the root loop: after the inner while completes (call_v empty), move to next s. ✓.
+
+Let me trace example 1 again with this exact code:
+
+n=2, m=2. N=4. L = [1, 2, -1, -2]. al = [1,2,1,2]. nodes = (al<<1)-2 + (L<0) = [0,2,0,2] + [0,0,1,1] = [0,2,1,3]. a = nodes[0::2] = [0,1] (clause 1: l1=1→node 0, clause 2: l1=-1→node 1). b = nodes[1::2] = [2,3]. 
+
+eu = concat(a^1, b^1) = [1, 0, 3, 2]. ev = concat(b, a) = [2, 3, 0, 1].
+Edges: 1→2, 0→3, 3→0, 2→1. ✓ matches my earlier manual derivation.
+
+counts = bincount([1,0,3,2], minlength=4) = [1,1,1,1]. start_np = [0,1,2,3,4]. argsort(eu) = [1,0,3,2] (eu = [1,0,3,2]: sorted order: index1(0), index0(1), index3(2), index2(3)). adj = ev[[1,0,3,2]] = [3, 2, 1, 0]. start = [0,1,2,3,4], end = [1,2,3,4].
+
+Adjacency: node 0: adj[0:1] = [3] → 0→3 ✓. node 1: adj[1:2] = [2] → 1→2 ✓. node 2: adj[2:3] = [1] → 2→1 ✓. node 3: adj[3:4] = [0] → 3→0 ✓.
+
+Tarjan:
+s=0: index[0]=low[0]=0, counter=1. scc=[0]. call_v=[0], call_it=[iter([3])].
+- v=0, it_v over [3]: w=3, iw=-1 → index[3]=low[3]=1, counter=2. scc=[0,3]. push 3, iter([0]). break.
+- v=3, it_v over [0]: w=0, iw=index[0]=0. iw > -1 and 0 < low[3]=1 → low[3]=0. Iterator exhausted → else: pop call (v=3 done). call_v=[0] non-empty: p=0, lv=low[3]=0 < low[0]=0? No. low[3]==index[3]? 0==1? No. 
+- v=0, it_v exhausted → else: pop call. call_v empty → skip parent update. low[0]==index[0] (0==0) → pop SCC: w=3: index[3]=-2, comp[3]=0; w=0: index[0]=-2, comp[0]=0. comp_cnt=1.
+s=1: index[1]=low[1]=2, counter=3. scc=[1]. push 1, iter(adj[1:2]=[2]).
+- v=1: w=2, iw=-1 → index[2]=low[2]=3, counter=4. scc=[1,2]. push 2, iter(adj[2:3]=[1]). break.
+- v=2: w=1, iw=2 > -1 and 2 < low[2]=3 → low[2]=2. exhausted → else: pop. p=1: lv=2 < low[1]=2? No. low[2]==index[2]? 2==3? No.
+- v=1: exhausted → else: pop. call empty. low[1]==index[1] (2==2) → pop SCC: w=2: comp[2]=1; w=1: comp[1]=1. comp_cnt=2.
+s=2: index[2] = 3 ≠ -1 → skip. s=3: index[3] = -2 ≠ -1 → skip.
+
+comp = [0, 1, 1, 0]. Pairs: (comp[0],comp[1]) = (0,1) → different → x1: 0<1 → '1'. (comp[2],comp[3]) = (1,0) → different → x2: 1<0? No → '0'. Output: YES / 1 0. ✓ Matches expected.
+
+Example 2: n=1, m=2. N=2. L = [1, 1, -1, -1]. al=[1,1,1,1]. nodes = [0,0,1,1]. a = [0,1], b = [0,1]. eu = [0^1, 1^1, 0^1, 1^1] = [1, 0, 1, 0]. ev = [b, a] = [0, 1, 1, 0]. Edges: 1→0, 0→1, 1→0, 0→1. counts = [2,2]. start = [0,2,4]. argsort(eu=[1,0,1,0]) → sorted by value: indices with 0: positions 1,3; with 1: positions 0,2 → sidx = [1,3,0,2]. adj = ev[sidx] = [1, 0, 0, 1]. Node 0: adj[0:2] = [1,1] → 0→1 twice ✓. Node 1: adj[2:4] = [0,0] → 1→0 twice ✓.
+
+Tarjan: s=0: index[0]=low[0]=0. push, iter([1,1]).
+- v=0: w=1: iw=-1 → index[1]=low[1]=1. scc=[0,1]. push 1, iter([0,0]). break.
+- v=1: w=0: iw=0 > -1, 0 < low[1]=1 → low[1]=0. next w=0: iw=0, 0 < low[1]=0? No. exhausted → else: pop. p=0: lv=low[1]=0 < low[0]=0? No. low[1]==index[1]? 0==1? No.
+- v=0: w=1: iw=1 > -1, 1 < low[0]=0? No. exhausted → else: pop. call empty. low[0]==index[0] → pop SCC: 1 (comp=0, index=-2), 0 (comp=0). comp_cnt=1.
+comp = [0, 0]. Pair: comp[0]==comp[1] → NO. ✓.
+
+The algorithm works. Now let me scrutinize the numpy code details:
+
+1. `nodes = (al << 1) - 2 + (L < 0)` — operator precedence: `(al << 1) - 2 + (L < 0)`: ((al<<1) - 2) + bool_array. int64 + bool → int64 (bool promoted). ✓. Values: al in [1, n]. (al<<1)-2 in [0, 2n-2]. +1 if negative. Max: 2n-2+1 = 2n-1 = N-1 ✓.
+
+Hmm wait, `al << 1` — numpy int64 left shift: fine. Actually simpler: `al * 2`. Either.
+
+2. `a = nodes[0::2]` — stride slicing ✓. `a ^ 1` — XOR on int64 ✓ (flips last bit: 0↔1, 2↔3, ...). ✓ negation mapping.
+
+3. `np.bincount(eu, minlength=N)` — eu is int64; bincount requires non-negative ints ✓; returns int64 array length N (since max eu ≤ N-1). ✓.
+
+4. `np.cumsum(counts, out=start_np[1:])` — start_np[1:] is a view of length N; counts length N. cumsum with out — dtype match: counts is int64 (bincount returns int64... actually np.bincount returns int64 on 64-bit platforms? It returns np.intp which is int64 on 64-bit). start_np is int64. Should be fine. Hmm, on Windows, np.intp is int32?? No — on 64-bit Windows, np.intp is int64 (pointer size). bincount returns dtype np.intp? Let me think — np.bincount returns "ndarray of ints", dtype np.intp I believe. On 64-bit systems np.intp = int64. cumsum out= with int64 view: if counts were int32 somewhere it might complain about unsafe cast? np.cumsum(counts, out=start_np[1:]) — if counts.dtype == intp == int64 and out is int64 → fine. To be extra safe, I could do `start_np[1:] = np.cumsum(counts)` — assignment casts automatically. Let me use that safer form: `start_np[1:] = np.cumsum(counts)`. Or even simpler: `start_np = np.concatenate(([0], np.cumsum(counts)))` — hmm, dtype of concat of [0] (int64 default) and cumsum — fine. Let me do:
+
+```
+counts = np.bincount(eu, minlength=N)
+start_np = np.empty(N + 1, dtype=np.int64)
+start_np[0] = 0
+np.cumsum(counts, out=start_np[1:])
+```
+The `out` form: np.cumsum documentation — out must have the right shape; dtype casting rules: same-kind casting allowed? ufunc-like reduction... cumsum with out of different-but-compatible dtype works (it casts). To avoid any doubt: `start_np[1:] = np.cumsum(counts)` — plain setitem with broadcasting/casting — always works. Use that.
+
+5. `sidx = np.argsort(eu)` — default quicksort. ✓. `adj = ev[sidx].tolist()` ✓. `start = start_np.tolist()` ✓.
+
+6. What if some node has 0 out-edges: adj[start[v]:end[v]] = [] → iter([]) → immediately exhausted → finalize. ✓.
+
+Now, potential issue: `L = np.array(list(map(int, data[2:2 + 2 * m])), dtype=np.int64)` — if the input has exactly 2+2m tokens, fine. If m=0 we returned early. ✓.
+
+Hmm, wait — one more consideration on parsing: what if there are more tokens than 2+2m (trailing whitespace/junk)? data[2:2+2m] handles it. ✓.
+
+Now, the output: for NO case, print "NO". For YES: "YES\n" + join. The expected output format shows "YES" then the states. ✓. Trailing newline fine.
+
+Now, let me reconsider performance one more and think about whether there are any remaining big wins:
+
+The main costs:
+(a) Parsing: list(map(int, ...)) over 4·10^5 tokens ≈ 40-60ms. np.array from list ≈ 30ms. OK.
+(b) numpy ops: small.
+(c) adj.tolist(): 4·10^5 elements ≈ 10-20ms. start.tolist(): trivial.
+(d) Tarjan: the biggie. Let me estimate bytecode counts:
+
+Outer while iterations: 2N = 4·10^5. Each: `v = call_v[-1]` (4 bc), `it_v = call_it[-1]` (4 bc), then either enter for loop (which immediately exhausts → else) or the for loop yields an edge.
+
+Hmm wait, let me recount outer iterations: each outer iteration processes the top node: either pushes a child (then next iteration processes the child) or finalizes. #pushes = N (each node pushed once, including roots). #finalizes = N. So outer iterations = 2N = 4·10^5. Per iteration overhead: ~8-10 bytecodes + for-loop setup (GET_ITER already have it_v; FOR_ITER first call). 
+
+Edge examinations: E = 4·10^5 total across all for loops. Per edge: FOR_ITER + STORE_FAST w (2 bc) + `iw = index[w]` (4 bc) + `if iw == -1` (3 bc) + for non-tree: `elif iw > -1` (3-4 bc) + maybe `and iw < low[v]` (4 bc) + maybe `low[v] = iw` (3 bc). So ~12-16 bc per edge ≈ let's say ~14 avg → 5.6M bytecodes for edges.
+
+Push operations: N = 2·10^5 × ~25 bc (init + appends + slice + iter) ≈ 5M... wait: per push: index[w]=low[w]=counter (LOAD counter, DUP?, two subscript stores ≈ 8 bc), counter += 1 (3), scc_append (3), cv_append (3), slice adj[start[w]:end[w]] (LOAD adj, LOAD start, LOAD w, SUBSCR, LOAD end, LOAD w, SUBSCR, SLICE, ≈ 9 bc), iter() (3), ci_append (3) ≈ 32 bc × 2·10^5 = 6.4M bc. Hmm, that's significant. Plus slice memory copies (C speed, fine).
+
+Finalize operations: N × (~20 bc + SCC pop amortized ~ N × 6 bc) ≈ 4M + 1.2M.
+
+Total ≈ 5.6M + 6.4M + 4M + outer 4·10^5 × 10 = 4M ≈ 20M bytecodes. At ~30-70M bytecodes/sec (CPython 3.11+ is faster, ~50-100M simple ops/sec)... ≈ 0.3-0.6s. Plus parsing etc. Total maybe 0.5-0.9s. Borderline for 1s but this is about as good as pure Python gets. On older CPython (3.8), maybe 1.5-2×. Hmm.
+
+Can I reduce the push cost? The slice+iter per push is ~15 bc of the 32. Alternative: create the iterator lazily only when the node's edges are first scanned? But the for loop needs it_v at fetch time... The iterator is needed at the top of the outer loop for the pushed node. Hmm, what if instead of pushing an iterator, we push the node and create the iterator when the node first becomes top? But then we can't distinguish "first time as top" from "resumed" without extra state... 
+
+Alternative: keep the `it` position-array approach with while loops (no iterator objects): per push: index/low init (8), counter (3), scc_append (3), cv_append (3) = 17 bc (no slice/iter at push). But per-edge cost rises from ~2 bc (FOR_ITER+STORE) to ~8-9 bc (manual i management + adj[i] + bounds check). Edges: 4·10^5 × extra 6 bc = +2.4M bc; pushes: -15 bc × 2·10^5 = -3M bc. Net -0.6M bc — roughly a wash, but the iterator version does edge scanning in C-optimized loop mechanics... Honestly they're close. The iterator version's per-edge FOR_ITER is very fast (C level), and edges outnumber pushes 2:1. I'll keep the iterator version.
+
+Hmm, wait, actually — there's a subtle inefficiency in the iterator version I should double check: when we break out of `for w in it_v` after pushing a child, and later resume, we re-enter `for w in it_v` — the for statement calls iter() on it_v? NO WAIT. `for w in it_v:` — the for statement does `GET_ITER` on the iterable it_v. If it_v is already an iterator, GET_ITER returns it itself (iterators return self from __iter__). So each resume does a GET_ITER (cheap, ~1 bc + C call returning self). Fine. ✓.
+
+Alternatively `for w in call_it[-1]:` directly without storing it_v — but we use it_v only once. Actually we could skip the it_v local: `for w in call_it[-1]:` — saves the STORE but does the subscript anyway. Keep the local (used once — actually just inline it: `for w in call_it[-1]:` — hmm, but readability... performance identical-ish. Keep local for clarity).
+
+Another optimization: the root loop `for s in range(N): if index[s] != -1: continue` — N=2·10^5 iterations × ~7 bc = 1.4M bc ≈ 30ms. Could vectorize the "find unvisited" with... we need sequential processing. Fine.
+
+Alternatively, process roots via numpy to find unvisited? The loop is interleaved with Tarjan. Keep.
+
+Now — the final answer loop: 10^5 × ~12 bc ≈ 1.2M bc ≈ 25ms. Fine. Could vectorize with numpy: comp_np = np.array(comp) — 2·10^5 elements ≈ 20ms; then c1 = comp_np[0::2], c2 = comp_np[1::2]; check (c1==c2).any() → NO; else states = (c1 < c2).astype(int). Then output via ' '.join(map(str, states.tolist())). This is cleaner and probably faster. Let me do:
+
+```
+comp_np = np.array(comp, dtype=np.int64)  # hmm, np.fromiter? np.array(list) fine
+c1 = comp_np[0::2]
+c2 = comp_np[1::2]
+if (c1 == c2).any():
+    print NO
+else:
+    states = (c1 < c2)  # bool array
+    sys.stdout.write("YES\n" + ' '.join(states.astype('U1')... 
+```
+Hmm, converting bool array to "0"/"1" strings: `np.where(states, '1', '0')` gives dtype '<U1' array; then ' '.join(map(... )) — hmm, `' '.join(np.where(states, '1', '0'))` — join over numpy str array works (iterates elements as np.str_). Or simpler: bytes: `b' '.join(...)`? Let me do: 
+
+```
+res = np.where(c1 < c2, '1', '0')
+sys.stdout.write("YES\n" + ' '.join(res.tolist()) + "\n")
+```
+Hmm, np.where with str scalars: dtype '<U1'. tolist() gives Python strs. join fine. Or avoid numpy: pure Python loop is only 10^5 — fine either way. Actually, pure Python with list comprehension:
+
+```
+out = []
+ap = out.append
+for i in range(0, N, 2):
+    ...
+```
+vs comprehension: `out = ['1' if comp[i] < comp[i+1] else '0' for

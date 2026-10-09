@@ -1,0 +1,80 @@
+# Resonance Containment
+
+Time limit: 2 s   Memory limit: 256 MB
+
+## Description
+
+You are analyzing a system of $R$ distinct resonant zones. These zones interact through $S$ bidirectional harmonic corridors. The corridors are established such that all zones are interconnected, and there is exactly one simple route of corridors between any pair of zones.
+
+A recent protocol requires that a specific set of $P$ zones must be fully activated. You may additionally activate any other zones you choose. 
+
+To ensure stability, the complete set of activated zones must be *synchronous*. A set of activated zones is synchronous if, for any division of the activated zones into two non-empty groups, there is always at least one corridor directly connecting a zone in the first group to a zone in the second group.
+
+Activating zones incurs a penalty based on the corridors. Each harmonic corridor has a characteristic penalty $w$. If both zones associated with a corridor are activated, the corridor becomes "saturated" and adds its penalty $w$ to the total system cost. If one or neither of the associated zones is activated, the corridor remains dormant and contributes 0 to the total cost.
+
+Your objective is to determine the minimum possible total penalty of the saturated corridors such that all $P$ mandated zones are activated and the entire set of activated zones is synchronous.
+
+## Input
+
+The first line contains three integers $R$, $S$, and $P$. 
+The total number of zones $R$ satisfies $1 \le R \le 200000$. 
+The number of harmonic corridors $S$ is exactly equal to $R - 1$. 
+The number of mandated zones $P$ satisfies $1 \le P \le R$.
+
+The second line contains $P$ distinct integers representing the identifiers of the mandated zones.
+
+Each of the following $S$ lines contains three integers $u$, $v$, and $w$ ($1 \le u, v \le R$, $u \neq v$). This indicates a harmonic corridor between zone $u$ and zone $v$ with a characteristic penalty of $w$ ($1 \le w \le 1000000$). 
+
+## Output
+
+Output a single integer representing the minimum possible total penalty of the saturated corridors under the given conditions.
+
+## Examples
+
+### Example 1
+
+**Input**
+```
+4 3 2
+1 4
+1 2 5
+2 3 1
+3 4 2
+```
+
+**Output**
+```
+8
+```
+
+### Example 2
+
+**Input**
+```
+5 4 1
+3
+1 2 4
+2 3 6
+3 4 2
+4 5 9
+```
+
+**Output**
+```
+0
+```
+
+### Example 3
+
+**Input**
+```
+3 2 3
+1 2 3
+1 2 4
+2 3 5
+```
+
+**Output**
+```
+9
+```

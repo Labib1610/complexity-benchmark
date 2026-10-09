@@ -1,0 +1,216 @@
+```python
+import sys
+from collections import deque
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    iterator = iter(input_data)
+    n = int(next(iterator))
+    m = int(next(iterator))
+    k = int(next(iterator))
+    B = int(next(iterator))
+    
+    habitats = [int(next(iterator)) for _ in range(k)]
+    habitat_set = set(habitats)
+    
+    edges = []
+    for i in range(m):
+        u = int(next(iterator))
+        v = int(next(iterator))
+        w = int(next(iterator))
+        edges.append((u, v, w, i))
+    
+    # Dinic's Algorithm for Min-Cut
+    class Dinic:
+        def __init__(self, num_nodes):
+            self.n = num_nodes
+            self.head = [-1] * num_nodes
+            self.to = []
+            self.cap = []
+            self.flow = []
+            self.nxt = []
+            self.level = [-1] * num_nodes
+            self.ptr = [0] * num_nodes
+
+        def add_edge(self, u, v, c):
+            # forward edge
+            self.to.append(v)
+            self.cap.append(c)
+            self.flow.append(0)
+            self.nxt.append(self.head[u])
+            self.head[u] = len(self.to) - 1
+            # backward edge
+            self.to.append(u)
+            self.cap.append(c)  # undirected in base graph
+            self.flow.append(0)
+            self.nxt.append(self.head[v])
+            self.head[v] = len(self.to) - 1
+
+        def bfs(self, s, t):
+            self.level = [-1] * self.n
+            self.level[s] = 0
+            q = deque([s])
+            while q:
+                v = q.popleft()
+                e = self.head[v]
+                while e != -1:
+                    nxt_node = self.to[e]
+                    if self.cap[e] - self.flow[e] > 0 and self.level[nxt_node] == -1:
+                        self.level[nxt_node] = self.level[v] + 1
+                        q.append(nxt_node)
+                    e = self.nxt[e]
+            return self.level[t] != -1
+
+        def dfs(self, v, t, pushed):
+            if pushed == 0 or v == t:
+                return pushed
+            e = self.ptr[v]
+            while e != -1:
+                nxt_node = self.to[e]
+                tr = self.cap[e] - self.flow[e]
+                if self.level[nxt_node] == self.level[v] + 1 and tr > 0:
+                    push = self.dfs(nxt_node, t, min(pushed, tr))
+                    if push > 0:
+                        self.flow[e] += push
+                        self.flow[e ^ 1] -= push
+                        return push
+                e = self.nxt[e]
+                self.ptr[v] = e
+            return 0
+
+        def max_flow(self, s, t):
+            flow = 0
+            while self.bfs(s, t):
+                self.ptr = list(self.head)
+                while True:
+                    pushed = self.dfs(s, t, float('inf'))
+                    if pushed == 0:
+                        break
+                    flow += pushed
+            return flow
+
+        def get_reachable_from_source(self, s):
+            visited = [False] * self.n
+            visited[s] = True
+            q = deque([s])
+            while q:
+                v = q.popleft()
+                e = self.head[v]
+                while e != -1:
+                    nxt_node = self.to[e]
+                    if self.cap[e] - self.flow[e] > 0 and not visited[nxt_node]:
+                        visited[nxt_node] = True
+                        q.append(nxt_node)
+                    e = self.nxt[e]
+            return visited
+
+    # Find isolating cuts for each habitat
+    # Super sink is node 0
+    super_sink = 0
+    cuts = []
+    
+    for h_idx, h in enumerate(habitats):
+        dinic = Dinic(n + 1)
+        for u, v, w, _ in edges:
+            dinic.add_edge(u, v, w)
+        
+        # Connect other habitats to super_sink
+        for other_h in habitats:
+            if other_h != h:
+                # Directed edge to super_sink with INF capacity
+                # add_edge adds forward and backward, but backward cap can be 0
+                dinic.to.append(super_sink)
+                dinic.cap.append(float('inf'))
+                dinic.flow.append(0)
+                dinic.nxt.append(dinic.head[other_h])
+                dinic.head[other_h] = len(dinic.to) - 1
+
+                dinic.to.append(other_h)
+                dinic.cap.append(0)
+                dinic.flow.append(0)
+                dinic.nxt.append(dinic.head[super_sink])
+                dinic.head[super_sink] = len(dinic.to) - 1
+
+        cost = dinic.max_flow(h, super_sink)
+        reachable = dinic.get_reachable_from_source(h)
+        
+        # Cut edges are those with one end in reachable and one end not
+        cut_edge_indices = set()
+        for u, v, w, edge_idx in edges:
+            if reachable[u] != reachable[v]:
+                cut_edge_indices.add(edge_idx)
+        
+        cuts.append((cost, cut_edge_indices))
+
+    # Sort cuts by cost
+    cuts.sort(key=lambda x: x[0])
+    
+    # Combine the best k-1 cuts
+    chosen_cut_edges = set()
+    for i in range(min(k - 1, len(cuts))):
+        chosen_cut_edges.update(cuts[i][1])
+
+    # Prune unnecessary edges using DSU
+    parent = list(range(n + 1))
+    habitat_owner = [0] * (n + 1)
+    for idx, h in enumerate(habitats, 1):
+        habitat_owner[h] = idx
+
+    def find(i):
+        path = []
+        while parent[i] != i:
+            path.append(i)
+            i = parent[i]
+        for node in path:
+            parent[node] = i
+        return i
+
+    def union(i, j):
+        root_i = find(i)
+        root_j = find(j)
+        if root_i != root_j:
+            parent[root_i] = root_j
+            if habitat_owner[root_i] != 0:
+                habitat_owner[root_j] = habitat_owner[root_i]
+
+    # First, unite all edges not in chosen_cut_edges
+    for u, v, w, edge_idx in edges:
+        if edge_idx not in chosen_cut_edges:
+            union(u, v)
+
+    # Now, greedily try to add back cut edges (from highest cost to lowest)
+    cut_edges_sorted = sorted(list(chosen_cut_edges), key=lambda idx: edges[idx][2], reverse=True)
+    final_cut_edges = []
+
+    for edge_idx in cut_edges_sorted:
+        u, v, w, _ = edges[edge_idx]
+        root_u = find(u)
+        root_v = find(v)
+        if root_u == root_v:
+            # Already connected, this edge is redundant in the cut
+            continue
+        h_u = habitat_owner[root_u]
+        h_v = habitat_owner[root_v]
+        if h_u != 0 and h_v != 0 and h_u != h_v:
+            # Merging them would connect two different habitats
+            final_cut_edges.append(edge_idx)
+        else:
+            # Safe to merge
+            union(root_u, root_v)
+
+    total_cost = sum(edges[idx][2] for idx in final_cut_edges)
+    
+    if total_cost <= B:
+        print("YES")
+        print(len(final_cut_edges))
+        for idx in final_cut_edges:
+            print(f"{edges[idx][0]} {edges[idx][1]}")
+    else:
+        print("NO")
+
+if __name__ == '__main__':
+    solve()
+```

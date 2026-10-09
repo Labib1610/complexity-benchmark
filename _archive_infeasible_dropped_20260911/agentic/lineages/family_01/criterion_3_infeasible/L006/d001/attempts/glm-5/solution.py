@@ -1,0 +1,36 @@
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    idx = 0
+    n = int(data[idx]); idx += 1
+    m = int(data[idx]); idx += 1
+    
+    adj = [set() for _ in range(n + 1)]
+    edges = []
+    for _ in range(m):
+        u = int(data[idx]); idx += 1
+        v = int(data[idx]); idx += 1
+        if u > v:
+            u, v = v, u
+        adj[u].add(v)
+        adj[v].add(u)
+        edges.append((u, v))
+    
+    edges.sort()
+    
+    for u, v in edges:
+        au = adj[u]
+        av = adj[v]
+        if len(au) <= len(av):
+            for w in au:
+                if w > v and w in av:
+                    print(u, v, w)
+                    return
+        else:
+            for w in av:
+                if w > v and w in au:
+                    print(u, v, w)
+                    return
+
+solve()

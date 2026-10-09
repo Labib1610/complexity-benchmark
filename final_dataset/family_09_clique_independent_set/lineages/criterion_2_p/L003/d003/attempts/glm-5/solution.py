@@ -1,0 +1,68 @@
+import sys
+from collections import defaultdict
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    k = int(next(it))
+    
+    adj = defaultdict(set)
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        adj[u].add(v)
+        adj[v].add(u)
+    
+    # Greedy selection: repeatedly pick the node with minimum degree
+    # in the current graph, remove it and its neighbors from candidates
+    result = []
+    candidates = set(range(1, n + 1))
+    degrees = {i: len(adj[i]) for i in range(1, n + 1)}
+    
+    # Use a list as a min-heap for degrees
+    import heapq
+    heap = [(degrees[i], i) for i in range(1, n + 1)]
+    heapq.heapify(heap)
+    
+    in_candidates = [True] * (n + 1)
+    
+    while len(result) < k and candidates:
+        # Find the node with minimum degree among candidates
+        while heap:
+            d, node = heapq.heappop(heap)
+            if in_candidates[node]:
+                break
+        else:
+            break
+        
+        # Add this node to result
+        result.append(node)
+        
+        # Remove this node and all its neighbors from candidates
+        to_remove = [node]
+        for neighbor in adj[node]:
+            if in_candidates[neighbor]:
+                to_remove.append(neighbor)
+        
+        for x in to_remove:
+            if in_candidates[x]:
+                in_candidates[x] = False
+                candidates.discard(x)
+                # Update degrees of neighbors still in candidates
+                for neighbor in adj[x]:
+                    if in_candidates[neighbor]:
+                        degrees[neighbor] -= 1
+                        heapq.heappush(heap, (degrees[neighbor], neighbor))
+    
+    if len(result) >= k:
+        print("YES")
+        print(' '.join(map(str, result[:k])))
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()

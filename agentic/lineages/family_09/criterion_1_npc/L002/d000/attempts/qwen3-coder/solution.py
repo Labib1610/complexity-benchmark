@@ -1,0 +1,47 @@
+from itertools import combinations
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    k = int(data[2])
+    
+    edges = []
+    idx = 3
+    for _ in range(m):
+        u = int(data[idx])
+        v = int(data[idx+1])
+        edges.append((u, v))
+        idx += 2
+    
+    # Build adjacency set for quick lookup
+    adj = [set() for _ in range(n+1)]
+    for u, v in edges:
+        adj[u].add(v)
+        adj[v].add(u)
+    
+    # Generate all combinations of k candidates
+    candidates = list(range(1, n+1))
+    for combo in combinations(candidates, k):
+        valid = True
+        combo_list = list(combo)
+        # Check all pairs in the combination
+        for i in range(len(combo_list)):
+            for j in range(i+1, len(combo_list)):
+                if combo_list[j] in adj[combo_list[i]]:
+                    valid = False
+                    break
+            if not valid:
+                break
+        if valid:
+            print("YES")
+            print(' '.join(map(str, combo_list)))
+            return
+    
+    print("NO")
+
+if __name__ == "__main__":
+    main()

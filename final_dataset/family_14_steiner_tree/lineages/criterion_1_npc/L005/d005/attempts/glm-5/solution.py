@@ -1,0 +1,82 @@
+import sys
+import heapq
+
+def solve():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    t = int(next(it))
+    
+    focal = [int(next(it)) - 1 for _ in range(t)]
+    
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        w = int(next(it))
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+    
+    if t <= 1:
+        print(0)
+        return
+    
+    # Dijkstra from each focal node
+    dist = [[float('inf')] * n for _ in range(t)]
+    for i in range(t):
+        start = focal[i]
+        dist[i][start] = 0
+        pq = [(0, start)]
+        while pq:
+            d, u = heapq.heappop(pq)
+            if d > dist[i][u]:
+                continue
+            for v, w in adj[u]:
+                nd = d + w
+                if nd < dist[i][v]:
+                    dist[i][v] = nd
+                    heapq.heappush(pq, (nd, v))
+    
+    # DP: dp[mask] = min cost for subset of focal vars
+    full = (1 << t) - 1
+    dp = [float('inf')] * (1 << t)
+    dp[0] = 0
+    
+    for mask in range(1 << t):
+        if dp[mask] == float('inf'):
+            continue
+        # Try to add one focal node to the set
+        for i in range(t):
+            if mask & (1 << i):
+                continue
+            # Connect focal[i] to some node v
+            best = float('inf')
+            for v in range(n):
+                best = min(best, dist[i][v])
+            new_mask = mask | (1 << i)
+            dp[new_mask] = min(dp[new_mask], dp[mask] + best)
+    
+    # Try merging two subsets via Steiner node v
+    for v in range(n):
+        for mask in range(1 << t):
+            if dp[mask] == float('inf'):
+                continue
+            # Cost to connect all focal nodes in mask to v
+            cost = 0
+            for i in range(t):
+                if mask & (1 << i):
+                    cost += dist[i][v]
+            # Try merging with other subsets
+            other_mask = full ^ mask
+            sub = other_mask
+            while sub:
+                new_mask = mask | sub
+                dp[new_mask] = min(dp[new_mask], dp[mask] + cost)
+                sub = (sub - 1) & other_mask
+    
+    print(dp[full])
+
+solve()

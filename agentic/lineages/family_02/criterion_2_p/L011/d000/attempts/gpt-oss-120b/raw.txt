@@ -1,0 +1,278 @@
+**Solution Explanation**
+
+The problem is exactly the classic *2‑SAT* problem.
+
+* each switch `i` is a Boolean variable `xi`  
+  `xi = 1`  → switch `i` is UP  
+  `xi = 0`  → switch `i` is DOWN
+* a requirement `l1 l2` means “literal `l1` **or** literal `l2` must be true”.
+  A literal is either `xi` (positive number) or `¬xi` (negative number).
+
+A 2‑SAT instance is satisfiable iff its implication graph has no variable
+and its negation in the same strongly connected component (SCC).
+
+--------------------------------------------------------------------
+
+#### 1.   Implication graph
+
+For every variable `i` we create two vertices  
+
+```
+idx(i, true)  = 2*i
+idx(i, false) = 2*i + 1          # the vertex of ¬xi
+```
+
+For a clause `(a ∨ b)` we add the two implications  
+
+```
+¬a → b
+¬b → a
+```
+
+Both are directed edges in the graph.
+
+--------------------------------------------------------------------
+
+#### 2.   SCC computation (Kosaraju)
+
+`2·n ≤ 2·10⁵` vertices, `2·m ≤ 4·10⁵` edges – easily handled.
+
+Kosaraju steps  
+
+1. DFS on the original graph, store vertices in finishing order.  
+2. DFS on the reversed graph, processing vertices in reverse finishing order,
+   assigning a component id to each visited vertex.
+
+The component ids are given in *reverse topological order*:  
+if there is an edge `u → v` then `comp[u] ≥ comp[v]`.
+
+--------------------------------------------------------------------
+
+#### 3.   Building a solution
+
+If for some variable `i`
+
+```
+comp[ idx(i, true) ] == comp[ idx(i, false) ]
+```
+
+the instance is unsatisfiable → output `NO`.
+
+Otherwise a satisfying assignment is obtained by the rule
+
+```
+xi = 1   if comp[ idx(i, true) ]  > comp[ idx(i, false) ]
+xi = 0   otherwise
+```
+
+Because larger component numbers appear earlier in a topological order,
+setting the literal that belongs to the later component to true never
+creates a conflict.
+
+--------------------------------------------------------------------
+
+#### 4.   Correctness Proof  
+
+We prove that the algorithm prints `YES` and a correct assignment
+iff such an assignment exists.
+
+---
+
+##### Lemma 1  
+For every clause `(a ∨ b)` the added edges `¬a → b` and `¬b → a`
+are logically equivalent to the clause.
+
+**Proof.**  
+If `a` is true, the clause is satisfied regardless of `b`.  
+If `a` is false (`¬a` true) then the edge forces `b` to be true,
+hence the clause is satisfied. Symmetric for `b`. ∎
+
+
+
+##### Lemma 2  
+If a variable `xi` and its negation belong to the same SCC,
+the formula is unsatisfiable.
+
+**Proof.**  
+Inside an SCC each vertex reaches every other.
+Thus `xi → ¬xi` and `¬xi → xi`.  
+If `xi` were true, the first implication forces `¬xi` true → contradiction.
+If `xi` were false, the second implication forces `xi` true → contradiction.
+Hence no assignment can satisfy all implications, and by Lemma&nbsp;1 also
+the original formula. ∎
+
+
+
+##### Lemma 3  
+If for every `i` the two literals are in different SCCs,
+assigning `xi = 1` exactly when `comp(true) > comp(false)` satisfies all
+implications.
+
+**Proof.**  
+Consider any edge `u → v`. By construction of Kosaraju,
+`comp[u] ≥ comp[v]`.  
+Two cases:
+
+* `comp[u] = comp[v]` – impossible by assumption (different literals of same
+  variable are never in the same SCC, and edges never connect a vertex to
+  itself).
+* `comp[u] > comp[v]`. Then our rule sets the literal of `u` to **false**
+  (because its component is later) and the literal of `v` to **true** (earlier
+  component). Hence the implication `u → v` is satisfied (false ⇒ anything,
+  true ⇒ true).
+
+All edges are satisfied, therefore all clauses are satisfied (Lemma&nbsp;1). ∎
+
+
+
+##### Lemma 4  
+If the algorithm outputs `YES` and the assignment described above,
+the assignment satisfies the original formula.
+
+**Proof.** Directly from Lemma&nbsp;3. ∎
+
+
+
+##### Lemma 5  
+If the algorithm outputs `NO`, the formula is unsatisfiable.
+
+**Proof.** `NO` is printed only when some variable and its negation share an
+SCC. By Lemma&nbsp;2 the formula cannot be satisfied. ∎
+
+
+
+##### Theorem  
+The algorithm prints `YES` and a correct configuration
+iff a configuration satisfying all requirements exists; otherwise it prints
+`NO`.
+
+**Proof.**  
+
+*If the algorithm prints `YES`*: by Lemma&nbsp;4 the printed assignment is
+valid, so a configuration exists.
+
+*If a configuration exists*: then no variable can be forced to both values,
+hence no variable and its negation can be in the same SCC (otherwise Lemma&nbsp;2
+would make the instance unsatisfiable). The algorithm therefore will not
+output `NO` and will produce an assignment as in Lemma&nbsp;3, which is
+valid. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### 5.   Complexity Analysis
+
+*Vertices*: `2n`  
+*Edges*: `2m`
+
+* Building the graph: `O(n + m)`  
+* Kosaraju (two DFS passes): `O(n + m)`  
+* Constructing the answer: `O(n)`
+
+Memory: adjacency lists for both directions → `O(n + m)`.
+
+Both limits satisfy the problem constraints.
+
+--------------------------------------------------------------------
+
+#### 6.   Reference Implementation  (Python 3)
+
+```python
+import sys
+sys.setrecursionlimit(1 << 25)
+
+def solve() -> None:
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+
+    N = 2 * n
+    g = [[] for _ in range(N)]
+    rg = [[] for _ in range(N)]
+
+    def lit_index(x: int) -> int:
+        """return vertex index for literal x (positive -> xi, negative -> ¬xi)"""
+        v = abs(x) - 1
+        if x > 0:
+            return 2 * v          # xi
+        else:
+            return 2 * v + 1      # ¬xi
+
+    for _ in range(m):
+        a = int(next(it))
+        b = int(next(it))
+        ia = lit_index(a)
+        ib = lit_index(b)
+        na = ia ^ 1   # negation vertex
+        nb = ib ^ 1
+        # ¬a -> b
+        g[na].append(ib)
+        rg[ib].append(na)
+        # ¬b -> a
+        g[nb].append(ia)
+        rg[ia].append(nb)
+
+    visited = [False] * N
+    order = []
+
+    def dfs(v: int):
+        stack = [(v, 0)]
+        while stack:
+            v, state = stack.pop()
+            if state == 0:
+                if visited[v]:
+                    continue
+                visited[v] = True
+                stack.append((v, 1))
+                for to in g[v]:
+                    if not visited[to]:
+                        stack.append((to, 0))
+            else:
+                order.append(v)
+
+    for v in range(N):
+        if not visited[v]:
+            dfs(v)
+
+    comp = [-1] * N
+    cur = 0
+    def rdfs(v: int, label: int):
+        stack = [v]
+        while stack:
+            u = stack.pop()
+            if comp[u] != -1:
+                continue
+            comp[u] = label
+            for to in rg[u]:
+                if comp[to] == -1:
+                    stack.append(to)
+
+    for v in reversed(order):
+        if comp[v] == -1:
+            rdfs(v, cur)
+            cur += 1
+
+    # check satisfiability
+    for i in range(n):
+        if comp[2*i] == comp[2*i+1]:
+            sys.stdout.write("NO")
+            return
+
+    # build assignment
+    ans = [0] * n
+    for i in range(n):
+        ans[i] = 1 if comp[2*i] > comp[2*i+1] else 0
+
+    out = ["YES", " ".join(map(str, ans))]
+    sys.stdout.write("\n".join(out))
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above
+and conforms to the required input‑output format.

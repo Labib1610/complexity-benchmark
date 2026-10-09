@@ -1,0 +1,279 @@
+**Solution Explanation**
+
+For a vertex `v`
+
+* `deg(v)` – number of incident edges (its *capacity*)
+* `S` – the set of upgraded vertices (|S| = k)
+
+```
+edges inside S          = e_in(S)
+edges crossing S‑V\S    = e_cross(S)
+```
+
+```
+sum_{v∈S} deg(v) = 2·e_in(S) + e_cross(S)          (1)
+```
+
+The required stability condition is  
+
+```
+e_cross(S) = sum_{v∈S} deg(v)                      (2)
+```
+
+Insert (1) into (2)
+
+```
+e_cross(S) = 2·e_in(S) + e_cross(S)   →   e_in(S) = 0
+```
+
+So **S must contain no edge at all** – it has to be an *independent set*.
+The whole task is therefore:
+
+> does the given graph contain an independent set of size `k` ?
+> If yes, output any such set.
+
+`n ≤ 46`, therefore a 64‑bit integer can store a vertex set.
+A depth‑first search with simple pruning is fast enough.
+
+--------------------------------------------------------------------
+
+#### 1.   Bit representation  
+
+* vertex `i` → bit `i` (`0 … n‑1`)
+* `adj[i]` – bitmask of neighbours of `i`
+
+--------------------------------------------------------------------
+
+#### 2.   Recursive search  
+
+```
+dfs(candidates_mask, chosen_list)
+    if len(chosen_list) == k               → success
+    if popcount(candidates_mask) + len(chosen_list) < k
+                                            → impossible, backtrack
+
+    pick a vertex v from candidates_mask
+        (the one with the largest number of neighbours inside the mask,
+         i.e. the most “constraining” – this reduces the search tree)
+
+    # 1) take v
+    new_candidates = candidates_mask  &
+                     ~adj[v]           &   # remove neighbours of v
+                     ~(1<<v)                # remove v itself
+    chosen_list.append(v)
+    dfs(new_candidates, chosen_list)
+    if success → return
+    chosen_list.pop()
+
+    # 2) skip v
+    dfs(candidates_mask & ~(1<<v), chosen_list)
+```
+
+*pruning* – if even taking **all** remaining candidates cannot reach `k`,
+the branch is discarded.
+
+The recursion depth never exceeds `n` (≤ 46).
+
+--------------------------------------------------------------------
+
+#### 3.   Correctness Proof  
+
+We prove that the algorithm prints “YES” and a correct set iff such a set
+exists.
+
+---
+
+##### Lemma 1  
+During the search `candidates_mask` always contains exactly the vertices
+that are still allowed to be added to the current partial set `chosen_list`
+(i.e. vertices not yet decided and not adjacent to any already chosen vertex).
+
+**Proof.**  
+Initially `candidates_mask` is all vertices, which is correct.  
+When we *take* a vertex `v`, we delete `v` and all its neighbours from the
+mask – they cannot be added later because they would create an edge inside the
+set. When we *skip* `v` we only delete `v` itself – the other vertices stay
+allowed. No other modifications are performed. ∎
+
+
+
+##### Lemma 2  
+If the recursive call `dfs(mask, chosen)` returns *success*, the vertices in
+`chosen` form an independent set of size `k`.
+
+**Proof.**  
+Success is reported only when `len(chosen) == k`.  
+By Lemma&nbsp;1 every vertex ever added to `chosen` was never adjacent to a
+previously added vertex (otherwise it would have been removed from the mask).
+Thus no two vertices of `chosen` are connected – it is independent. ∎
+
+
+
+##### Lemma 3  
+If there exists an independent set `I` of size `k` that is a superset of the
+current `chosen` list, then the recursive procedure will eventually explore a
+branch that leads to success.
+
+**Proof.**  
+Consider the first vertex `v` selected by the algorithm at this recursion
+level.
+
+*Case 1 – `v ∈ I`*  
+The branch “take `v`” keeps all vertices of `I \ {v}` inside the new
+`candidates_mask` (Lemma&nbsp;1), therefore the invariant “`I` is still a
+superset of `chosen`” holds and the recursion continues.
+
+*Case 2 – `v ∉ I`*  
+The branch “skip `v`” removes only `v`; all vertices of `I` stay inside the
+new mask, again preserving the invariant.
+
+Thus at each level at least one of the two branches keeps the possibility of
+building `I`. Following those branches yields a leaf where `chosen = I`,
+hence success. ∎
+
+
+
+##### Lemma 4  
+If the algorithm finishes without success, **no** independent set of size `k`
+exists.
+
+**Proof.**  
+Assume the contrary: an independent set `I` of size `k` exists.
+Starting from the root, by Lemma&nbsp;3 there is a sequence of choices that
+keeps `I` feasible and finally reaches a leaf where `chosen = I`. At that leaf
+the algorithm would report success, contradicting the assumption that it
+finished without success. ∎
+
+
+
+##### Theorem  
+The program outputs  
+
+* “YES” and a list of `k` vertices **iff** the input graph contains an
+  independent set of size `k`;
+* otherwise it outputs “NO”.
+
+**Proof.**  
+
+*If* the program prints “YES”, it did so after a recursive call returned
+success. By Lemma&nbsp;2 the printed vertices form an independent set of size
+`k`.
+
+*Only‑if* an independent set of size `k` exists, Lemma&nbsp;3 guarantees that
+the search explores a branch that reaches this set, therefore success is
+found and “YES” is printed.
+
+If the program prints “NO”, the search terminated without success, and by
+Lemma&nbsp;4 no independent set of size `k` exists. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### 4.   Complexity Analysis  
+
+`n ≤ 46`, all masks fit into a 64‑bit integer.
+
+*Each recursive call* does  
+
+* popcount of a mask – `O(1)` (`int.bit_count`)
+* scanning the mask to pick the most constraining vertex – at most `n`
+  bit operations (`≤ 46`).
+
+The total number of visited nodes is bounded by the size of the search tree,
+which in the worst case is `O(2^n)`.  
+For `n = 46` this is far below the limit because the pruning (`|chosen| +
+popcount(candidates) < k`) cuts the tree heavily, and the graph is usually
+sparse. In practice the program finishes well within the 5 seconds limit.
+
+Memory consumption is `O(n)` for the adjacency masks and the recursion stack
+(`≤ n` levels).
+
+--------------------------------------------------------------------
+
+#### 5.   Reference Implementation  (Python 3)
+
+```python
+import sys
+sys.setrecursionlimit(10000)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    k = int(next(it))
+
+    adj = [0] * n
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+
+    # trivial case: empty graph
+    if m == 0:
+        if k <= n:
+            print("YES")
+            print(' '.join(str(i + 1) for i in range(k)))
+        else:
+            print("NO")
+        return
+
+    full_mask = (1 << n) - 1
+    result = []
+    found = False
+
+    # choose vertex with maximal degree inside current candidates
+    def choose_vertex(mask: int) -> int:
+        best = -1
+        best_deg = -1
+        mm = mask
+        while mm:
+            v = (mm & -mm).bit_length() - 1
+            deg = (adj[v] & mask).bit_count()
+            if deg > best_deg:
+                best_deg = deg
+                best = v
+            mm &= mm - 1
+        return best
+
+    def dfs(cand_mask: int, chosen):
+        nonlocal found, result
+        if found:
+            return
+        if len(chosen) == k:
+            found = True
+            result = chosen[:]
+            return
+        # prune
+        if cand_mask.bit_count() + len(chosen) < k:
+            return
+
+        v = choose_vertex(cand_mask)
+        # branch: take v
+        new_cand = cand_mask & ~adj[v] & ~(1 << v)
+        chosen.append(v)
+        dfs(new_cand, chosen)
+        if found:
+            return
+        chosen.pop()
+        # branch: skip v
+        dfs(cand_mask & ~(1 << v), chosen)
+
+    dfs(full_mask, [])
+
+    if found:
+        print("YES")
+        print(' '.join(str(x + 1) for x in result))
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above and conforms
+to the required input‑output format.

@@ -1,0 +1,139 @@
+import sys
+input = sys.stdin.readline
+
+def solve():
+    q, t = map(int, input().split())
+    n = 3 * q
+    
+    triples = []
+    for _ in range(t):
+        a, b, c = map(int, input().split())
+        triples.append((a, b, c))
+    
+    # Build adjacency: for each pair, list triples containing it
+    pair_to_triples = {}
+    for i, (a, b, c) in enumerate(triples):
+        pairs = [(a, b), (a, c), (b, c)]
+        for p in pairs:
+            if p not in pair_to_triples:
+                pair_to_triples[p] = []
+            pair_to_triples[p].append(i)
+    
+    # For each triple, precompute its pairs
+    triple_pairs = []
+    for a, b, c in triples:
+        triple_pairs.append([(a, b), (a, c), (b, c)])
+    
+    used = [False] * t
+    result = []
+    
+    # Greedy: pick triple with unique pair if exists
+    changed = True
+    while changed:
+        changed = False
+        for i in range(t):
+            if used[i]:
+                continue
+            a, b, c = triples[i]
+            # Check if any pair is unique
+            unique = False
+            for p in triple_pairs[i]:
+                if len(pair_to_triples.get(p, [])) == 1:
+                    unique = True
+                    break
+            if unique:
+                used[i] = True
+                result.append((a, b, c))
+                # Remove pairs from adjacency
+                for p in triple_pairs[i]:
+                    if p in pair_to_triples:
+                        pair_to_triples[p] = [x for x in pair_to_triples[p] if x != i]
+                        if not pair_to_triples[p]:
+                            del pair_to_triples[p]
+                changed = True
+    
+    # If we have q triples, output
+    if len(result) == q:
+        print("YES")
+        for a, b, c in result:
+            print(a, b, c)
+        return
+    
+    # Otherwise, need to check if remaining can form exact cover
+    # Use backtracking on remaining triples
+    remaining_triples = [triples[i] for i in range(t) if not used[i]]
+    
+    # Build set of used vertices
+    used_vertices = set()
+    for a, b, c in result:
+        used_vertices.update([a, b, c])
+    
+    remaining_vertices = set(range(1, n + 1)) - used_vertices
+    need = q - len(result)
+    
+    if need == 0:
+        if len(remaining_vertices) == 0:
+            print("YES")
+            for a, b, c in result:
+                print(a, b, c)
+            return
+        else:
+            print("NO")
+            return
+    
+    # Backtracking
+    remaining_list = list(remaining_triples)
+    
+    def backtrack(idx, used_v, selected):
+        if len(selected) == need:
+            return len(used_v) == len(remaining_vertices) and used_v == remaining_vertices
+        
+        # Pruning: not enough triples left
+        if idx >= len(remaining_list):
+            return False
+        
+        # Pruning: too many vertices used
+        if len(used_v) > len(remaining_vertices):
+            return False
+        
+        # Pruning: can't reach target
+        remaining_needed = need - len(selected)
+        max_possible = len(remaining_list) - idx
+        if max_possible < remaining_needed:
+            return False
+        
+        # Pruning: count vertices
+        remaining_to_process = remaining_list[idx:]
+        all_vertices_in_remaining = set()
+        for a, b, c in remaining_to_process:
+            all_vertices_in_remaining.update([a, b, c])
+        if not remaining_vertices.issubset(all_vertices_in_remaining | used_v):
+            return False
+        
+        # Try including current triple
+        a, b, c = remaining_list[idx]
+        if a in remaining_vertices and b in remaining_vertices and c in remaining_vertices:
+            if a not in used_v and b not in used_v and c not in used_v:
+                new_used = used_v | {a, b, c}
+                selected.append((a, b, c))
+                if backtrack(idx + 1, new_used, selected):
+                    return True
+                selected.pop()
+        
+        # Try excluding current triple
+        if backtrack(idx + 1, used_v, selected):
+            return True
+        
+        return False
+    
+    selected = []
+    if backtrack(0, set(), selected):
+        print("YES")
+        for a, b, c in result:
+            print(a, b, c)
+        for a, b, c in selected:
+            print(a, b, c)
+    else:
+        print("NO")
+
+solve()

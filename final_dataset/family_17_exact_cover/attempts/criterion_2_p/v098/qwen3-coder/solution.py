@@ -1,0 +1,53 @@
+import sys
+from collections import defaultdict, deque
+
+def solve():
+    q, t = map(int, sys.stdin.readline().split())
+    
+    # Build graph for bipartite matching
+    # Controllers: 1 to q
+    # Platforms: q+1 to 2*q
+    adj = defaultdict(list)
+    edges = []
+    
+    for _ in range(t):
+        a, b = map(int, sys.stdin.readline().split())
+        adj[a].append(b)
+        edges.append((a, b))
+    
+    # Try to find a perfect matching using Hopcroft-Karp algorithm implementation
+    # or simpler Ford-Fulkerson/Kuhn's algorithm since q <= 100000
+    
+    # match_platform[p] = c means platform p is matched to controller c
+    match_controller = [0] * (q + 1)  # 1-indexed
+    match_platform = [0] * (q + 1)    # 1-indexed, for platforms q+1 to 2*q, we use index 1 to q
+    
+    def dfs(c, visited):
+        for p in adj[c]:
+            p_idx = p - q  # Convert platform id to 1-based index
+            if visited[p_idx]:
+                continue
+            visited[p_idx] = True
+            
+            # If platform is free or we can find augmenting path
+            if match_platform[p_idx] == 0 or dfs(match_platform[p_idx], visited):
+                match_platform[p_idx] = c
+                match_controller[c] = p
+                return True
+        return False
+    
+    matching = 0
+    for c in range(1, q + 1):
+        visited = [False] * (q + 1)
+        if dfs(c, visited):
+            matching += 1
+    
+    if matching != q:
+        print("NO")
+        return
+    
+    print("YES")
+    for c in range(1, q + 1):
+        print(c, match_controller[c])
+
+solve()

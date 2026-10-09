@@ -1,5 +1,4 @@
 import sys
-sys.setrecursionlimit(10000)
 
 def solve() -> None:
     data = sys.stdin.read().strip().split()
@@ -8,77 +7,47 @@ def solve() -> None:
     it = iter(data)
     n = int(next(it))
     m = int(next(it))
-
-    adj = [[] for _ in range(n)]
+    adj = [0] * n  # bitmask of neighbors
     for _ in range(m):
         u = int(next(it)) - 1
         v = int(next(it)) - 1
-        adj[u].append(v)
-        adj[v].append(u)
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
 
-    color = [0] * n               # 0 = uncoloured, 1..3 = work period
+    # order vertices by degree descending
+    order = sorted(range(n), key=lambda x: bin(adj[x]).count("1"), reverse=True)
+    colors = [0] * n  # 0 = uncolored, else 1..3
 
-    # -----------------------------------------------------------------
-    # feasibility test for the current partial colouring
-    def possible() -> bool:
-        # find uncoloured vertex with the smallest number of admissible colours
-        best_v = -1
-        best_opts = None
+    sys.setrecursionlimit(10000)
 
-        for v in range(n):
-            if color[v] != 0:
-                continue
-            forbidden = 0
-            for nb in adj[v]:
-                c = color[nb]
-                if c:
-                    forbidden |= 1 << (c - 1)
-            opts = []
-            for c in (1, 2, 3):
-                if not (forbidden & (1 << (c - 1))):
-                    opts.append(c)
-            if not opts:                     # no colour possible → dead end
-                return False
-            if best_v == -1 or len(opts) < len(best_opts):
-                best_v = v
-                best_opts = opts
-                if len(best_opts) == 1:
-                    break
-
-        if best_v == -1:                     # everything coloured
+    def dfs(pos: int) -> bool:
+        if pos == n:
             return True
-
-        for c in best_opts:
-            color[best_v] = c
-            if possible():
-                color[best_v] = 0
-                return True
-            color[best_v] = 0
-        return False
-    # -----------------------------------------------------------------
-
-    # main loop – enforce lexicographic order
-    for v in range(n):
-        placed = False
+        v = order[pos]
+        # try each color
+        neighbor_mask = adj[v]
         for c in (1, 2, 3):
-            conflict = False
-            for nb in adj[v]:
-                if color[nb] == c:
-                    conflict = True
+            ok = True
+            # check all already colored neighbors
+            nb = neighbor_mask
+            while nb:
+                u = (nb & -nb).bit_length() - 1
+                nb &= nb - 1
+                if colors[u] == c:
+                    ok = False
                     break
-            if conflict:
-                continue
-            color[v] = c
-            if possible():
-                placed = True
-                break
-            color[v] = 0
-        if not placed:
-            print("NO")
-            return
+            if ok:
+                colors[v] = c
+                if dfs(pos + 1):
+                    return True
+                colors[v] = 0
+        return False
 
-    print("YES")
-    print(' '.join(str(c) for c in color))
+    if dfs(0):
+        out = ["YES", " ".join(str(colors[i]) for i in range(n))]
+    else:
+        out = ["NO"]
+    sys.stdout.write("\n".join(out))
 
 if __name__ == "__main__":
     solve()

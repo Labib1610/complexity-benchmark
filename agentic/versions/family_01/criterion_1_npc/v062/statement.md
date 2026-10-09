@@ -1,25 +1,24 @@
-# Orbital Station Life-Support
+# Nutritional Phase Distribution
 
-Time limit: 2 s   Memory limit: 256 MB
+**Time limit:** 2 s  
+**Memory limit:** 256 MB  
 
-An orbital station consists of $n$ habitat modules, numbered 1 through $n$. To ensure redundancy, the station provides exactly three independent life-support grids, designated as grid 1, grid 2, and grid 3. Each module must be connected to exactly one of these three grids.
+You are formulating a daily nutritional plan using $n$ distinct ingredients. The plan is divided into exactly three sequential phases, identified by the integers 1, 2, and 3. Each ingredient must be assigned to exactly one of these phases.
 
-Certain pairs of modules share a direct ventilation corridor. If two modules sharing a corridor are connected to the same life-support grid, a pressure differential error will trigger a station-wide alarm. You are provided with a complete list of $m$ such corridors. The safety constraint is strictly local: for any corridor connecting module $u$ and module $v$, if $u$ is on grid $k$, then $v$ must be on a grid other than $k$. 
+In most culinary scenarios, ingredients blend seamlessly. However, certain specific pairs of ingredients undergo severe enzymatic degradation if they are processed in the same phase. You are provided with a complete list of these $m$ interacting pairs.
 
-In many cases, a module's assignment can be deduced directly from its surroundings. For example, if a module's neighbors operate on grid 1 and grid 2, the local exclusion principle forces the module to be assigned to grid 3. 
-
-Your task is to find a valid grid assignment for all $n$ modules. Because grid 1 is the most energy-efficient, followed by grid 2, and then grid 3, the station's automated system prioritizes lower-numbered grids. Specifically, the system evaluates the modules sequentially from 1 to $n$, always preferring the lowest possible grid number for the current module. Therefore, if multiple valid assignments exist, you must output the one that is lexicographically smallest (i.e., minimize the grid number for module 1; in the event of a tie, minimize the grid number for module 2, and so on).
+If the plan only allowed two phases, assigning the ingredients would be a simple matter of checking if conflicting items can be placed in opposite phases. Because you have exactly three phases at your disposal, you have significantly more flexibility. Furthermore, any ingredient that interacts with at most two others can always be safely accommodated provided the rest of the plan is valid. Your task is to determine whether this flexibility is sufficient to assign every ingredient to one of the three phases such that no two interacting ingredients share the same phase.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$), representing the number of modules and the number of ventilation corridors.
-The next $m$ lines each contain two integers $u$ and $v$, indicating that module $u$ and module $v$ share a corridor.
+The first line contains two integers $n$ and $m$ — the number of ingredients and the number of interacting pairs ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
+Each of the next $m$ lines contains two integers $u$ and $v$ — an interacting pair of ingredients that cannot be placed in the same phase. Ingredients are numbered from 1 to $n$.
 
 ## Output
-If no valid grid assignment exists that satisfies all local exclusion constraints, print a single line containing `NO`.
-Otherwise, print `YES` on the first line. On the second line, print $n$ integers $g_1, g_2, \dots, g_n$ (where each $g_i \in \{1, 2, 3\}$), representing the grid assigned to each module. This sequence must be the lexicographically smallest valid assignment.
+If no valid plan can be formed, print a single line `NO`.
+Otherwise, print `YES` on the first line. On the second line, print $n$ integers $s_1, s_2, \dots, s_n$ (each in $\{1, 2, 3\}$), where $s_i$ is the phase assigned to ingredient $i$. Any valid plan is accepted.
 
 ## Example 1
-Input:
+**Input:**
 ```
 4 5
 1 2
@@ -28,14 +27,14 @@ Input:
 1 4
 2 4
 ```
-Output:
+**Output:**
 ```
 YES
 1 2 3 3
 ```
 
 ## Example 2
-Input:
+**Input:**
 ```
 4 6
 1 2
@@ -45,7 +44,7 @@ Input:
 2 4
 3 4
 ```
-Output:
+**Output:**
 ```
 NO
 ```

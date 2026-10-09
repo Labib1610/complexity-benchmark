@@ -1,0 +1,58 @@
+import sys
+from collections import deque
+
+def solve():
+    input_data = sys.stdin.buffer.read().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        adj[u].append(v)
+        adj[v].append(u)
+
+    color = [0] * (n + 1)
+    possible = True
+
+    for start in range(1, n + 1):
+        if color[start] != 0:
+            continue
+        # BFS to find component and check bipartiteness
+        comp = []
+        q = deque()
+        q.append(start)
+        color[start] = 1
+        comp.append(start)
+        ok = True
+        while q:
+            u = q.popleft()
+            cu = color[u]
+            for w in adj[u]:
+                if color[w] == 0:
+                    color[w] = 3 - cu
+                    q.append(w)
+                    comp.append(w)
+                elif color[w] == cu:
+                    ok = False
+        if not ok:
+            possible = False
+            break
+        # Determine which color should be 1 for lexicographically smallest
+        # We want as many small-indexed vertices as possible to be 1.
+        # If color[start] == 2, flipping the whole component makes start 1.
+        if color[start] == 2:
+            for v in comp:
+                color[v] = 3 - color[v]
+
+    if not possible:
+        sys.stdout.write("NO\n")
+        return
+
+    sys.stdout.write("YES\n")
+    sys.stdout.write(" ".join(str(color[i]) for i in range(1, n + 1)) + "\n")
+
+solve()

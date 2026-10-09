@@ -1,0 +1,56 @@
+from collections import defaultdict
+import sys
+
+def solve():
+    k, t = map(int, input().split())
+    
+    if k == 0:
+        print("YES")
+        return
+    
+    profiles = []
+    freq_to_profiles = defaultdict(list)
+    
+    for _ in range(t):
+        x, y, z = map(int, input().split())
+        profiles.append((x, y, z))
+        freq_to_profiles[x].append((x, y, z))
+    
+    # Check if we have at least one profile for each frequency
+    for freq in range(1, k + 1):
+        if not freq_to_profiles[freq]:
+            print("NO")
+            return
+    
+    # Try to find a balanced configuration using backtracking
+    def backtrack(freq_index, selected_profiles, used_voltages, used_phases):
+        if freq_index == k:
+            return selected_profiles[:]
+        
+        for profile in freq_to_profiles[freq_index + 1]:
+            x, y, z = profile
+            if y not in used_voltages and z not in used_phases:
+                selected_profiles.append(profile)
+                used_voltages.add(y)
+                used_phases.add(z)
+                
+                result = backtrack(freq_index + 1, selected_profiles, used_voltages, used_phases)
+                if result:
+                    return result
+                
+                selected_profiles.pop()
+                used_voltages.remove(y)
+                used_phases.remove(z)
+        
+        return None
+    
+    result = backtrack(0, [], set(), set())
+    
+    if result:
+        print("YES")
+        for profile in result:
+            print(profile[0], profile[1], profile[2])
+    else:
+        print("NO")
+
+solve()

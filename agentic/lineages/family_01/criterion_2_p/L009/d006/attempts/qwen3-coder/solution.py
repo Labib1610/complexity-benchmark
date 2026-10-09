@@ -1,5 +1,5 @@
 import sys
-from collections import defaultdict, deque
+from collections import defaultdict
 
 def main():
     import sys
@@ -9,155 +9,282 @@ def main():
     n = int(data[0])
     m = int(data[1])
     
+    if m == 0:
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
+    
     edges = []
-    adj = [[] for _ in range(n)]
-    edge_indices = []
+    adj = [0] * (n + 1)
+    edge_list = []
     
-    for i in range(m):
-        u = int(data[2 + 2*i]) - 1
-        v = int(data[2 + 2*i + 1]) - 1
+    index = 2
+    for _ in range(m):
+        u = int(data[index])
+        v = int(data[index + 1])
+        index += 2
         edges.append((u, v))
-        adj[u].append((v, i))
-        adj[v].append((u, i))
-        edge_indices.append(i)
+        adj[u] += 1
+        adj[v] += 1
+        edge_list.append((u, v))
     
-    # Define the configuration arrays
-    A = [
-        [0, 1, 2, 3],  # 1-indexed, so A[1][k] = k
-        [0, 1, 2, 3],  # A1 = [1,2,3]
-        [0, 2, 1, 3]   # A2 = [2,1,3]
-    ]
+    # We want to find s_i in {1,2} such that:
+    # Sum over all nodes i of d_i * s_i^2 - Sum over all edges (u,v) of 2*s_u*s_v = m
+    # Since s_i is either 1 or 2, s_i^2 is either 1 or 4.
+    # So node potential for node i is d_i * s_i^2 which is either d_i or 4*d_i
     
-    # Precompute for each pair of configurations (p_u, p_v), whether the bridge condition is satisfied
-    # valid[p_u][p_v] = True if bridge between u (config p_u) and v (config p_v) has exactly one inversion
-    valid = [[False, False], [False, False]]
+    # Let's think about this differently.
+    # Total harmonic potential = Sum_i d_i * s_i^2 - Sum_{(u,v)} 2*s_u*s_v
+    # We want this to equal m.
     
-    # There are only 4 combinations to check: (1,1), (1,2), (2,1), (2,2)
-    configs = [ [1,2,3], [2,1,3] ]
+    # Rearranging:
+    # Sum_i d_i * s_i^2 - Sum_{(u,v)} 2*s_u*s_v = m
+    # Sum_i d_i * s_i^2 = m + Sum_{(u,v)} 2*s_u*s_v
     
-    for pu in range(1, 3):
-        for pv in range(1, 3):
-            # Compute C[k] = V_u[ V_v[k] ] = A[pu][ A[pv][k] ]
-            C = [0] * 4  # 1-indexed
-            for k in range(1, 4):
-                C[k] = A[pu][ A[pv][k] ]
-            
-            # Count inversions in C
-            inv_count = 0
-            for i in range(1, 4):
-                for j in range(i+1, 4):
-                    if C[i] > C[j]:
-                        inv_count += 1
-            
-            if inv_count == 1:
-                valid[pu-1][pv-1] = True
+    # This seems complex. Let's try another approach.
+    # Let's consider what happens when we change s_i from 1 to 2.
+    # The change in node potential for node i is: d_i*(4 - 1) = 3*d_i
+    # But changing s_i also affects all edges incident to i.
+    # If s_i changes from 1 to 2, and it's connected to node j with s_j,
+    # Then the edge potential changes by: 2*2*s_j - 2*1*s_j = 2*s_j
+    # So total change in harmonic potential when s_i goes from 1 to 2 is:
+    # 3*d_i - Sum_{j neighbor of i} 2*s_j
     
-    # Now we model this as a 2-SAT problem
-    # Each variable is a crystal i, value is p_i (1 or 2)
-    # For each edge (u,v), we need valid[p_u][p_v] to be True
-    # This gives us implications
+    # Let's try a different approach. 
+    # Let's model this as a system of equations over GF(2) or use 2-SAT.
+    # Actually, let's think of it more carefully.
     
-    # We'll use the implication graph approach for 2-SAT
-    # Variables: for each node i, we have two variables: i_1 (p_i=1) and i_2 (p_i=2)
-    # We'll number them as: for node i, var i_1 = 2*i, var i_2 = 2*i + 1
-    # But in 2-SAT, it's easier to use: for node i, var for p_i=1 is 2*i, var for p_i=2 is 2*i+1
-    # But let's use: for node i, variable i represents p_i=1, variable i+n represents p_i=2
-    # Actually, standard approach: variables 0 to 2n-1
-    # variable 2*i represents p_i = 1, variable 2*i+1 represents p_i = 2
+    # Node potential for node i: d_i * s_i^2
+    # Edge potential for edge (u,v): 2 * s_u * s_v
+    # Total harmonic potential: Sum(d_i * s_i^2) - Sum(2 * s_u * s_v) = m
     
-    # For each edge (u,v), if valid[p_u][p_v] is False, then we cannot have that combination
-    # So we add implications:
-    # If p_u=1 and p_v=1 leads to invalid, then add clause: NOT(p_u=1) OR NOT(p_v=1)
-    # Which is: (p_u != 1) OR (p_v != 1)
-    # Which is: (p_u=2) OR (p_v=2)
-    # Add edges: NOT(p_u=1) -> p_u=2, NOT(p_v=1) -> p_v=2
+    # Since s_i in {1,2}, s_i^2 in {1,4}. 
+    # So d_i * s_i^2 in {d_i, 4*d_i}
+    # And 2 * s_u * s_v in {2*1*1, 2*1*2, 2*2*1, 2*2*2} = {2, 4, 4, 8}
+    # So 2 * s_u * s_v in {2, 4, 8}
     
-    # Build implication graph
-    # Nodes: 0 to 2*n - 1
-    # 2*i : p_i = 1
-    # 2*i + 1 : p_i = 2
+    # Let's consider parity. All terms involving s are even except possibly d_i * s_i^2 when d_i is odd and s_i=1.
+    # When s_i=2, d_i * s_i^2 = 4*d_i which is always even.
+    # So the parity of the total harmonic potential depends only on nodes i where d_i is odd and s_i=1.
+    # The target m has some parity. We need the number of nodes i with d_i odd and s_i=1 to have the same parity as m.
     
-    imp_graph = [[] for _ in range(2 * n)]
-    rev_graph = [[] for _ in range(2 * n)]
+    # But this might not be enough. Let's look at the examples.
     
+    # Example 1: n=4, m=4, edges=(1,2),(2,3),(3,4),(1,4)
+    # Degrees: d1=2, d2=2, d3=2, d4=2
+    # Target: Sum(d_i * s_i^2) - Sum(2*s_u*s_v) = 4
+    # With s=[1,2,1,2]:
+    # Node potentials: 2*1 + 2*4 + 2*1 + 2*4 = 2+8+2+8 = 20
+    # Edge potentials: 2*1*2 + 2*2*1 + 2*1*2 + 2*1*2 = 4+4+4+4 = 16
+    # Total: 20-16 = 4 ✓
+    
+    # Example 2: n=3, m=3, edges=(1,2),(1,3),(2,3)
+    # Degrees: d1=2, d2=2, d3=2
+    # Target: Sum(2 * s_i^2) - Sum(2*s_u*s_v) = 3
+    # Node potentials: 2*s1^2 + 2*s2^2 + 2*s3^2
+    # Edge potentials: 2*s1*s2 + 2*s1*s3 + 2*s2*s3
+    # Total: 2(s1^2 + s2^2 + s3^2 - s1*s2 - s1*s3 - s2*s3) = 3
+    # But left side is even, right side is odd. Impossible.
+    
+    # So we can detect impossibility by parity when all degrees are even.
+    # More generally, let's compute the expression:
+    # H = Sum(d_i * s_i^2) - Sum(2 * s_u * s_v)
+    # We want H = m
+    
+    # Let's group by edges:
+    # Each edge (u,v) contributes to both node potentials and one edge potential.
+    # Contribution of edge (u,v) to H is: d_u*s_u^2 + d_v*s_v^2 - 2*s_u*s_v
+    # But this isn't helpful because d_u includes contributions from other edges.
+    
+    # Let's think of it this way:
+    # H = Sum over nodes i of d_i * s_i^2 - Sum over edges e=(u,v) of 2*s_u*s_v
+    # H = Sum over edges e=(u,v) of (s_u^2 + s_v^2 - 2*s_u*s_v) 
+    #     + Sum over nodes i of (d_i - degree(i)) * s_i^2
+    # Wait, degree(i) = d_i, so second term is 0.
+    
+    # No, that's wrong. Each node i appears in exactly d_i edges.
+    # So H = Sum over edges (u,v) of (s_u^2 + s_v^2 - 2*s_u*s_v)
+    # Because each s_i^2 gets multiplied by d_i, and s_i^2 appears in exactly d_i edge terms.
+    
+    # So H = Sum over edges (u,v) of (s_u^2 + s_v^2 - 2*s_u*s_v) = Sum over edges of (s_u - s_v)^2
+    # We want Sum over edges of (s_u - s_v)^2 = m
+    
+    # Since s_u, s_v in {1,2}, s_u - s_v in {-1, 0, 1}
+    # So (s_u - s_v)^2 in {0, 1}
+    # Specifically: 
+    # - If s_u = s_v, then (s_u - s_v)^2 = 0
+    # - If s_u != s_v, then (s_u - s_v)^2 = 1
+    # So we want the number of edges where s_u != s_v to be equal to m.
+    
+    # This is now a graph bipartition problem!
+    # We want to color the vertices with two colors such that exactly m edges are monochromatic.
+    # No, wait. We want exactly m edges to be bichromatic (s_u != s_v).
+    
+    # This is equivalent to finding a cut of size exactly m.
+    # Or equivalently, assigning bits (0,1) to vertices such that exactly m edges cross the cut.
+    # Where we map 1 -> 0 and 2 -> 1.
+    
+    # This is the exact perfect matching cut problem variant, which is NP-hard in general.
+    # But maybe there's structure here or we can solve it efficiently for this case.
+    
+    # Alternatively, since we're looking for lexicographically smallest solution,
+    # we can do backtracking with pruning.
+    
+    # But let's reconsider the math. 
+    # H = Sum over edges (u,v) of (s_u - s_v)^2 = m
+    # Since (s_u - s_v)^2 is 0 if s_u=s_v and 1 if s_u!=s_v,
+    # we want exactly m edges where s_u != s_v.
+    
+    # This is indeed asking for a cut of size exactly m.
+    # A cut is a partition of vertices into S and T, and the cut size is the number of edges crossing.
+    # Here, we can think of s_i = 1 as being in one part, s_i = 2 as in the other.
+    # An edge contributes to the cut iff s_u != s_v.
+    # We want exactly m such edges.
+    
+    # This is computationally hard in general, but maybe we can enumerate efficiently.
+    # Or perhaps there's a greedy approach.
+    
+    # Let's try a greedy method:
+    # Try to build a solution bit by bit, maintaining how many edges would contribute.
+    # But this doesn't guarantee finding the lex smallest.
+    
+    # Let's try backtracking with pruning:
+    # Assign variables from 1 to n, trying 1 then 2.
+    # Keep track of how many edges are already satisfied (both endpoints assigned and different).
+    # Prune if impossible to reach exactly m.
+    
+    # Actually, let's check if it's possible at all first.
+    # Maximum value of H is when all (s_u - s_v)^2 = 1, i.e., m.
+    # Minimum value is 0.
+    # So any value between 0 and m is achievable in principle.
+    # But we need exactly m, which means ALL edges must contribute, i.e., s_u != s_v for all edges.
+    # This means the graph must be bipartite!
+    
+    # Wait, that's not right either. We want Sum (s_u - s_v)^2 = m.
+    # Maximum of this sum is m (when all (s_u - s_v)^2 = 1).
+    # So we want the maximum possible value, which means (s_u - s_v)^2 = 1 for all edges.
+    # Which means s_u != s_v for all edges.
+    # This is possible iff the graph is bipartite.
+    
+    # So the condition is:
+    # 1. The graph is bipartite.
+    # 2. In the bipartition, we want exactly m edges to cross, which is automatic since we require all edges to cross.
+    
+    # Therefore, the solution exists if and only if the graph is bipartite.
+    # And in that case, any valid 2-coloring works, and we just pick the lexicographically smallest one.
+    
+    # But wait, let's double-check with example 2:
+    # Graph is triangle 1-2-3-1. This contains an odd cycle, so not bipartite. Hence NO. ✓
+    
+    # Example 1: Cycle 1-2-3-4-1. Bipartite (as even cycle). Hence YES. ✓
+    
+    # So the algorithm is:
+    # 1. Check if graph is bipartite.
+    # 2. If not, output "NO".
+    # 3. If yes, find the lexicographically smallest 2-coloring.
+    
+    # Build adjacency list
+    adj_list = [[] for _ in range(n + 1)]
     for u, v in edges:
-        # For each forbidden combination, add implications
-        for pu in range(1, 3):
-            for pv in range(1, 3):
-                if not valid[pu-1][pv-1]:
-                    # Cannot have p_u = pu and p_v = pv
-                    # Add clause: NOT(p_u=pu) OR NOT(p_v=pv)
-                    # Which means: (p_u != pu) OR (p_v != pv)
-                    # Add implications: p_u=pu -> p_v != pv, p_v=pv -> p_u != pu
-                    u_var = 2*u + (pu - 1)  # 2*u if pu=1, 2*u+1 if pu=2
-                    v_var = 2*v + (pv - 1)
-                    not_u_var = 2*u + (1 - (pu - 1))  # flip: 2*u+1 if pu=1, 2*u if pu=2
-                    not_v_var = 2*v + (1 - (pv - 1))
-                    # p_u=pu -> p_v != pv
-                    imp_graph[u_var].append(not_v_var)
-                    rev_graph[not_v_var].append(u_var)
-                    # p_v=pv -> p_u != pu
-                    imp_graph[v_var].append(not_u_var)
-                    rev_graph[not_u_var].append(v_var)
+        adj_list[u].append(v)
+        adj_list[v].append(u)
     
-    # Now solve 2-SAT using SCC
-    # Kosaraju's algorithm
-    order = []
-    visited = [False] * (2 * n)
+    color = [-1] * (n + 1)  # -1 unvisited, 0 and 1 are colors
     
-    def dfs1(u):
-        visited[u] = True
-        for v in imp_graph[u]:
-            if not visited[v]:
-                dfs1(v)
-        order.append(u)
+    def is_bipartite(start):
+        stack = [start]
+        color[start] = 0
+        while stack:
+            node = stack.pop()
+            c = color[node]
+            for nei in adj_list[node]:
+                if color[nei] == -1:
+                    color[nei] = 1 - c
+                    stack.append(nei)
+                elif color[nei] == c:
+                    return False
+        return True
     
-    for i in range(2 * n):
+    for i in range(1, n + 1):
+        if color[i] == -1:
+            if not is_bipartite(i):
+                print("NO")
+                return
+    
+    # It's bipartite. Now find lexicographically smallest coloring.
+    # We already have a valid coloring in 'color'. 
+    # To get lexicographically smallest, we can ensure color[1]=0 by flipping if needed.
+    # But we need to be more careful - we want the actual lexicographically smallest among all valid ones.
+    
+    # A better approach: for each connected component, there are two colorings.
+    # We choose the one that gives lexicographically smaller result.
+    
+    # Find components
+    visited = [False] * (n + 1)
+    components = []
+    
+    def dfs_comp(node, comp):
+        visited[node] = True
+        comp.append(node)
+        for nei in adj_list[node]:
+            if not visited[nei]:
+                dfs_comp(nei, comp)
+                
+    for i in range(1, n + 1):
         if not visited[i]:
-            dfs1(i)
+            comp = []
+            dfs_comp(i, comp)
+            components.append(comp)
     
-    # Second DFS on reverse graph
-    visited = [False] * (2 * n)
-    scc_id = [-1] * (2 * n)
-    scc_count = 0
+    # For each component, determine the better coloring
+    final_color = [0] * (n + 1)
     
-    def dfs2(u):
-        visited[u] = True
-        scc_id[u] = scc_count
-        for v in rev_graph[u]:
-            if not visited[v]:
-                dfs2(v)
-    
-    while order:
-        u = order.pop()
-        if not visited[u]:
-            dfs2(u)
-            scc_count += 1
-    
-    # Check if satisfiable
-    for i in range(n):
-        if scc_id[2*i] == scc_id[2*i + 1]:
-            print("NO")
-            return
-    
-    # Assign values: if scc_id[2*i] > scc_id[2*i+1], then p_i = 1, else p_i = 2
-    # But actually, in Kosaraju, later finishing times correspond to source SCCs in reverse
-    # So if scc_id[2*i] > scc_id[2*i+1], then NOT(x_i) is in a later SCC, so x_i should be False
-    # Wait, let's think carefully.
-    # In the implication graph, if there's a path from x to y, then x being true forces y to be true
-    # SCC with higher index in the topological order of SCCs are "later"
-    # If NOT(x) is in a later SCC than x, then setting x=True doesn't force contradiction
-    # If x is in a later SCC than NOT(x), then x should be True
-    
-    assignment = [0] * n
-    for i in range(n):
-        if scc_id[2*i] > scc_id[2*i + 1]:
-            assignment[i] = 1  # p_i = 1
-        else:
-            assignment[i] = 2  # p_i = 2
-    
+    for comp in components:
+        # Two possible colorings. Try both and pick lexicographically smaller
+        c1 = [-1] * (n + 1)
+        def color_from(start, c):
+            stack = [start]
+            c1[start] = c
+            while stack:
+                node = stack.pop()
+                col = c1[node]
+                for nei in adj_list[node]:
+                    if c1[nei] == -1:
+                        c1[nei] = 1 - col
+                        stack.append(nei)
+        
+        # First coloring starting with node comp[0] as 0
+        color_from(comp[0], 0)
+        col1_seq = [c1[i] for i in comp]
+        
+        # Second coloring is flip of first
+        col2_seq = [1 - c for c in col1_seq]
+        
+        # Associate nodes with their colors in each sequence
+        col1_assign = {comp[i]: col1_seq[i] for i in range(len(comp))}
+        col2_assign = {comp[i]: col2_seq[i] for i in range(len(comp))}
+        
+        # Compare sequences
+        use_col1 = True
+        for i in comp:
+            if col1_assign[i] < col2_assign[i]:
+                use_col1 = True
+                break
+            elif col1_assign[i] > col2_assign[i]:
+                use_col1 = False
+                break
+        
+        chosen = col1_assign if use_col1 else col2_assign
+        for i in comp:
+            final_color[i] = chosen[i]
+            
+    # Convert 0,1 to 1,2
+    result = []
+    for i in range(1, n + 1):
+        result.append(str(final_color[i] + 1))
+        
     print("YES")
-    print(' '.join(map(str, assignment)))
+    print(" ".join(result))
 
 if __name__ == "__main__":
     main()

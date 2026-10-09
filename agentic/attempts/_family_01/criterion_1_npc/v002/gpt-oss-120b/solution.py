@@ -1,0 +1,75 @@
+import sys
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    adj = [set() for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u].add(v)
+        adj[v].add(u)
+
+    # possible colors bitmask: bit 0->color1, 1->color2, 2->color3
+    poss = [0b111] * n
+    color = [0] * n  # 0 means uncolored, else 1..3
+
+    # order vertices by degree for tie-breaking
+    degree = [len(adj[i]) for i in range(n)]
+
+    sys.setrecursionlimit(10000)
+
+    def select_vertex():
+        # MRV: uncolored vertex with smallest number of possible colors
+        best = -1
+        best_cnt = 4
+        for v in range(n):
+            if color[v] == 0:
+                cnt = (poss[v] & 0b111).bit_count()
+                if cnt < best_cnt or (cnt == best_cnt and degree[v] > degree[best]):
+                    best_cnt = cnt
+                    best = v
+        return best
+
+    def dfs(colored_cnt: int) -> bool:
+        if colored_cnt == n:
+            return True
+        v = select_vertex()
+        mask = poss[v]
+        # try each possible color
+        for c in range(3):
+            if mask & (1 << c):
+                # assign color c+1 to v
+                color[v] = c + 1
+                changed = []  # list of (neighbor, previous mask)
+                fail = False
+                for nb in adj[v]:
+                    if color[nb] == 0:
+                        prev = poss[nb]
+                        new = prev & ~(1 << c)
+                        if new != prev:
+                            changed.append((nb, prev))
+                            poss[nb] = new
+                            if new == 0:
+                                fail = True
+                                break
+                if not fail and dfs(colored_cnt + 1):
+                    return True
+                # backtrack
+                for nb, prev in reversed(changed):
+                    poss[nb] = prev
+                color[v] = 0
+        return False
+
+    if dfs(0):
+        sys.stdout.write("YES\n")
+        sys.stdout.write(" ".join(map(str, color)) + "\n")
+    else:
+        sys.stdout.write("NO\n")
+
+if __name__ == "__main__":
+    solve()

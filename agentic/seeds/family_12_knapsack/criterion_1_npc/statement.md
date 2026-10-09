@@ -4,9 +4,7 @@ Time limit: 5 s   Memory limit: 256 MB
 
 ## Description
 
-You are choosing among **n** investments. Investment **i** has a **cost** and a **value**. You have a total budget **B**. You may either take an investment whole or not take it at all — no partial investments.
-
-Choose a subset of investments whose total cost does not exceed **B** so that the total value is as large as possible.
+An allocation board weighs **n** candidate initiatives, each with a cost and a value, against a fixed budget **B**. An initiative is funded in full or not at all — no partial funding. The board wants the funded subset whose total cost stays within B while the total value is as large as possible, and must report that maximum value together with a subset achieving it. Themes and sponsors are irrelevant; only costs, values, and the budget matter. The costs and values here span a wide range, so the value achievable at each budget level does not compress into a small table, and greedy value-per-cost picks do not in general reach the optimum. Report the maximum achievable total value within budget.
 
 ## Input
 

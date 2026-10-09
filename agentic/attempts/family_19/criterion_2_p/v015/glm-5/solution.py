@@ -1,0 +1,93 @@
+import sys
+from collections import deque
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    _ = int(next(it))  # the number 1
+    s = int(next(it))
+    t = int(next(it))
+    d = int(next(it))
+    
+    edges = []
+    adj = [[] for _ in range(n + 1)]
+    
+    for i in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        cap = int(next(it))
+        edges.append((u, v, cap))
+        adj[u].append((v, i))
+        adj[v].append((u, i + m))  # reverse edge index
+    
+    # Dinic's algorithm
+    level = [0] * (n + 1)
+    ptr = [0] * (n + 1)
+    flow = [0] * (2 * m)
+    cap_arr = [0] * (2 * m)
+    
+    for i in range(m):
+        u, v, c = edges[i]
+        cap_arr[i] = c
+        cap_arr[i + m] = 0
+    
+    def bfs():
+        for i in range(1, n + 1):
+            level[i] = -1
+        level[s] = 0
+        q = deque([s])
+        while q:
+            u = q.popleft()
+            for v, idx in adj[u]:
+                if level[v] == -1 and flow[idx] < cap_arr[idx]:
+                    level[v] = level[u] + 1
+                    q.append(v)
+        return level[t] != -1
+    
+    def dfs(u, pushed):
+        if pushed == 0:
+            return 0
+        if u == t:
+            return pushed
+        for i in range(ptr[u], len(adj[u])):
+            v, idx = adj[u][i]
+            if level[v] != level[u] + 1 or flow[idx] == cap_arr[idx]:
+                ptr[u] += 1
+                continue
+            tr = dfs(v, min(pushed, cap_arr[idx] - flow[idx]))
+            if tr == 0:
+                ptr[u] += 1
+                continue
+            flow[idx] += tr
+            flow[idx ^ m] -= tr
+            return tr
+        return 0
+    
+    total_flow = 0
+    while bfs():
+        ptr = [0] * (n + 1)
+        while True:
+            pushed = dfs(s, d - total_flow)
+            if pushed == 0:
+                break
+            total_flow += pushed
+            if total_flow == d:
+                break
+        if total_flow == d:
+            break
+    
+    if total_flow == d:
+        print("YES")
+        result = []
+        for i in range(m):
+            result.append(str(flow[i]))
+        print(" ".join(result))
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()

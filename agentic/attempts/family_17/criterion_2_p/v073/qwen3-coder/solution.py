@@ -1,0 +1,81 @@
+from collections import defaultdict, deque
+
+def find_maximum_matching(graph, drone_count):
+    # Hopcroft-Karp algorithm for maximum bipartite matching
+    pair_u = [0] * (drone_count + 1)  # pair_u[u] = v means u is matched to v
+    pair_v = [0] * (drone_count + 1)  # pair_v[v] = u means v is matched to u
+    dist = [0] * (drone_count + 1)     # distance array for BFS
+    
+    def bfs():
+        queue = deque()
+        for u in range(1, drone_count + 1):
+            if pair_u[u] == 0:  # u is free
+                dist[u] = 0
+                queue.append(u)
+            else:
+                dist[u] = float('inf')
+        dist[0] = float('inf')  # 0 is the NIL node
+        
+        while queue:
+            u = queue.popleft()
+            if dist[u] < dist[0]:  # if u is not NIL and distance is less than distance to NIL
+                for v in graph[u]:
+                    if dist[pair_v[v]] == float('inf'):  # if pair of v is not yet visited
+                        dist[pair_v[v]] = dist[u] + 1
+                        queue.append(pair_v[v])
+        return dist[0] != float('inf')
+    
+    def dfs(u):
+        if u != 0:
+            for v in graph[u]:
+                if dist[pair_v[v]] == dist[u] + 1:
+                    if dfs(pair_v[v]):
+                        pair_v[v] = u
+                        pair_u[u] = v
+                        return True
+            dist[u] = float('inf')
+            return False
+        return True
+    
+    matching = 0
+    while bfs():
+        for u in range(1, drone_count + 1):
+            if pair_u[u] == 0:  # u is free
+                if dfs(u):
+                    matching += 1
+                    
+    return matching, pair_u
+
+def main():
+    q, t = map(int, input().split())
+    
+    # Build adjacency list for the bipartite graph
+    # Drones: 1 to q
+    # Landing zones: q+1 to 2*q (we'll map them to 1 to q for easier handling)
+    graph = defaultdict(list)
+    edges = []
+    
+    for _ in range(t):
+        a, b = map(int, input().split())
+        # Map landing zone b to index b - q
+        landing_zone_idx = b - q
+        graph[a].append(landing_zone_idx)
+        edges.append((a, b))
+    
+    # Find maximum matching
+    matching_size, pair_u = find_maximum_matching(graph, q)
+    
+    # Check if perfect matching exists
+    if matching_size != q:
+        print("NO")
+        return
+    
+    print("YES")
+    for drone in range(1, q + 1):
+        landing_zone = pair_u[drone]
+        # Map back to original landing zone number
+        landing_zone_original = landing_zone + q
+        print(drone, landing_zone_original)
+
+if __name__ == "__main__":
+    main()

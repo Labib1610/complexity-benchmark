@@ -1,5 +1,4 @@
 import sys
-
 sys.setrecursionlimit(10000)
 
 def solve() -> None:
@@ -9,79 +8,56 @@ def solve() -> None:
     it = iter(data)
     n = int(next(it))
     m = int(next(it))
-
-    adj = [0] * n                     # bitmask of neighbours
+    adj = [0] * n          # bitmask of neighbors
+    neigh = [[] for _ in range(n)]
     for _ in range(m):
         u = int(next(it)) - 1
         v = int(next(it)) - 1
         adj[u] |= 1 << v
         adj[v] |= 1 << u
+        neigh[u].append(v)
+        neigh[v].append(u)
 
-    col = [0] * n                     # 0 = uncoloured, else 1..3
-    mask = [0, 0, 0, 0]               # mask[c] = vertices coloured c
+    # order vertices by degree descending
+    order = sorted(range(n), key=lambda x: -len(neigh[x]))
+    pos_in_order = [0]*n
+    for i, v in enumerate(order):
+        pos_in_order[v] = i
 
-    # ------------------------------------------------------------
-    # existence test: can the current partial colouring be completed?
-    def exists() -> bool:
-        # find uncoloured vertex with fewest possible colours
-        best_v = -1
-        best_opts = 0
-        min_cnt = 4                     # more than max possible (3)
-        for v in range(n):
-            if col[v]:
-                continue
-            opts = 0
-            for c in (1, 2, 3):
-                if (adj[v] & mask[c]) == 0:
-                    opts |= 1 << c
-            cnt = opts.bit_count()
-            if cnt == 0:
-                return False
-            if cnt < min_cnt:
-                min_cnt = cnt
-                best_v = v
-                best_opts = opts
-                if cnt == 1:
-                    break
-        if best_v == -1:                # all coloured
-            return True
+    colors = [-1]*n
+    found = False
 
-        # try colours in natural order 1,2,3
-        for c in (1, 2, 3):
-            if best_opts & (1 << c):
-                col[best_v] = c
-                mask[c] |= 1 << best_v
-                if exists():
-                    # undo before returning, we only need existence
-                    col[best_v] = 0
-                    mask[c] &= ~(1 << best_v)
-                    return True
-                col[best_v] = 0
-                mask[c] &= ~(1 << best_v)
-        return False
-    # ------------------------------------------------------------
-
-    # build lexicographically smallest assignment
-    for i in range(n):
-        placed = False
-        for c in (1, 2, 3):
-            if (adj[i] & mask[c]) != 0:          # conflict with already fixed neighbours
-                continue
-            col[i] = c
-            mask[c] |= 1 << i
-            if exists():
-                placed = True
-                break
-            # not feasible, revert
-            col[i] = 0
-            mask[c] &= ~(1 << i)
-        if not placed:
-            print("NO")
+    def dfs(idx: int):
+        nonlocal found
+        if found:
             return
+        if idx == n:
+            found = True
+            return
+        v = order[idx]
+        # compute forbidden colors from already colored neighbors
+        forbid = 0
+        for u in neigh[v]:
+            c = colors[u]
+            if c != -1:
+                forbid |= 1 << c
+        for col in range(3):
+            if not (forbid >> col) & 1:
+                colors[v] = col
+                dfs(idx+1)
+                if found:
+                    return
+                colors[v] = -1
 
-    # all vertices coloured
-    print("YES")
-    print(' '.join(str(col[i]) for i in range(n)))
+    dfs(0)
+
+    if not found:
+        print("NO")
+    else:
+        print("YES")
+        # output colors as 1..3 in original order
+        out = [str(colors[i]+1) for i in range(n)]
+        print(' '.join(out))
 
 if __name__ == "__main__":
     solve()

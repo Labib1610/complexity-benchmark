@@ -1,20 +1,21 @@
-# Problem B — Resonant Foundations
+# Problem B — Network Configurations
 
-Time limit: 1 s   Memory limit: 256 MB
+Time limit: 1 s
+Memory limit: 256 MB
 
-The structural integrity of a new skyscraper depends on $n$ primary load-bearing pillars, numbered 1 to $n$. The engineering firm must select a concrete composite for each pillar. There are exactly two approved composites, designated as composite 1 and composite 2.
+A communication grid consists of $n$ radio towers. You need to assign each tower a configuration value, which must be either 1 or 2. 
 
-To mitigate wind-induced vibrations, the design includes $m$ acoustic dampeners. Each dampener spans between a specific pair of pillars. If the two pillars spanned by a dampener are cast from the same concrete composite, they will share the same resonant frequency, causing the dampener to shatter under heavy winds. Therefore, any two pillars sharing a dampener must be constructed from different composites.
+There are $m$ critical links between specific pairs of towers. To prevent signal degradation, the two towers in any critical link must have configuration values that sum to exactly 3. 
 
-Your task is to determine if there is a safe composite selection for all $n$ pillars. If multiple safe selections exist, the procurement system requires the one that is lexicographically smallest when represented as a sequence of $n$ composite identifiers.
+Determine if a valid assignment exists for all towers. If no such assignment is possible, report impossibility.
 
 ## Input
 The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$).
-Each of the next $m$ lines contains two integers $u$ and $v$ — the indices of the two pillars spanned by a dampener.
+Each of the next $m$ lines contains two integers $u$ and $v$ — a pair of towers connected by a critical link.
 
 ## Output
-If no safe selection exists, print a single line NO.
-Otherwise print YES, then a second line with $n$ integers $c_1 \dots c_n$ (each in {1,2}), the lexicographically smallest safe selection.
+If no valid assignment exists, print a single line NO.
+Otherwise print YES, then a second line with $n$ integers $f_1 \dots f_n$ (each in $\{1,2\}$), the lexicographically smallest valid assignment.
 
 ## Example 1
 Input:

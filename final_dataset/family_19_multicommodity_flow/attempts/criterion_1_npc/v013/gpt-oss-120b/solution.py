@@ -1,0 +1,124 @@
+import sys
+from collections import deque
+
+def solve() -> None:
+    data = list(map(int, sys.stdin.read().strip().split()))
+    if not data:
+        return
+    it = iter(data)
+    n, m, k = next(it), next(it), next(it)
+    prod = [(next(it)-1, next(it)-1, next(it)) for _ in range(k)]
+    edges = [(next(it)-1, next(it)-1, next(it)) for _ in range(m)]
+
+    # adjacency for Dinic with edge index reference
+    class Dinic:
+        __slots__ = ('N', 'g', 'level', 'it')
+        def __init__(self, N):
+            self.N = N
+            self.g = [[] for _ in range(N)]
+
+        def add_edge(self, fr, to, cap, idx):
+            # forward edge stores original index, backward stores -1
+            self.g[fr].append([to, cap, len(self.g[to]), idx])
+            self.g[to].append([fr, 0, len(self.g[fr]) - 1, -1])
+
+        def bfs(self, s, t):
+            level = [-1]*self.N
+            q = deque([s])
+            level[s] = 0
+            while q:
+                v = q.popleft()
+                for to, cap, rev, _ in self.g[v]:
+                    if cap and level[to] < 0:
+                        level[to] = level[v] + 1
+                        q.append(to)
+            self.level = level
+            return level[t] >= 0
+
+        def dfs(self, v, t, f):
+            if v == t:
+                return f
+            for i in range(self.it[v], len(self.g[v])):
+                self.it[v] = i
+                to, cap, rev, _ = self.g[v][i]
+                if cap and self.level[v] < self.level[to]:
+                    ret = self.dfs(to, t, min(f, cap))
+                    if ret:
+                        self.g[v][i][1] -= ret
+                        self.g[to][rev][1] += ret
+                        return ret
+            return 0
+
+        def max_flow(self, s, t):
+            flow = 0
+            INF = 10**18
+            while self.bfs(s, t):
+                self.it = [0]*self.N
+                while True:
+                    f = self.dfs(s, t, INF)
+                    if not f:
+                        break
+                    flow += f
+            return flow
+
+        def get_edge_flows(self):
+            # returns dict idx->flow sent (original direction)
+            res = {}
+            for v in range(self.N):
+                for to, cap, rev, idx in self.g[v]:
+                    if idx >= 0:
+                        # original capacity stored elsewhere; flow = original_cap - remaining cap
+                        # we can retrieve by looking at reverse edge capacity
+                        rev_edge = self.g[to][rev]
+                        flow = rev_edge[1]  # amount pushed forward
+                        res[idx] = flow
+            return res
+
+    # remaining capacities per edge
+    rem_cap = [c for _, _, c in edges]
+    product_flows = [[0]*m for _ in range(k)]
+
+    for pi, (s, t, d) in enumerate(prod):
+        din = Dinic(n)
+        for idx, (u, v, _) in enumerate(edges):
+            if rem_cap[idx]:
+                din.add_edge(u, v, rem_cap[idx], idx)
+        sent = din.max_flow(s, t)
+        if sent < d:
+            print("NO")
+            return
+        # retrieve flows and deduct from remaining capacities
+        edge_flow = din.get_edge_flows()
+        # we need exactly d units; the flow may be larger than d if extra capacity used.
+        # Since we only required d, we can trim excess arbitrarily.
+        # We'll take the flow as is but if total > d, we scale down proportionally not possible integer.
+        # Simpler: run Dinic on a copy with capacity d as limit by adding super source with edge of capacity d.
+        # Re-run correctly:
+        din = Dinic(n)
+        for idx, (u, v, _) in enumerate(edges):
+            if rem_cap[idx]:
+                din.add_edge(u, v, rem_cap[idx], idx)
+        # add super source/sink trick not needed; just limit total flow by stopping after d units.
+        # We'll perform augmentations manually.
+        flow_needed = d
+        while flow_needed:
+            if not din.bfs(s, t):
+                print("NO")
+                return
+            din.it = [0]*n
+            f = din.dfs(s, t, flow_needed)
+            if not f:
+                print("NO")
+                return
+            flow_needed -= f
+        edge_flow = din.get_edge_flows()
+        for idx, f in edge_flow.items():
+            product_flows[pi][idx] = f
+            rem_cap[idx] -= f
+
+    print("YES")
+    out_lines = [' '.join(str(x) for x in row) for row in product_flows]
+    sys.stdout.write('\n'.join(out_lines))
+
+if __name__ == "__main__":
+    solve()

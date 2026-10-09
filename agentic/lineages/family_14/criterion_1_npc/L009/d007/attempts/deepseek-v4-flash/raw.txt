@@ -1,0 +1,106 @@
+We can model this as a minimum spanning tree (MST) problem on a graph where the vertices are the priority targets plus possibly some other vertices that help connect them.
+
+The key observation:  
+- If we select transpositions, the generated subgroup connects elements into orbits.  
+- All priority targets must be in the same orbit, meaning they must be connected in the graph formed by the selected transpositions.  
+- We can include non-priority vertices as intermediate nodes to reduce cost.
+
+So the problem reduces to:  
+Find the minimum cost to connect all `t` priority targets in a graph with `n` vertices, where edges are the given transpositions with their costs.
+
+Since `t ≤ 10`, we can use a **Steiner tree** approach:  
+- We only care about connecting the `t` priority targets.  
+- We can run a DP over subsets of priority targets, using shortest paths between all pairs of vertices.
+
+Steps:
+1. Build the graph with `n` vertices and `m` edges.
+2. Compute all-pairs shortest paths (Floyd–Warshall or Dijkstra from each node).
+3. Use DP over subsets of priority targets:
+   - `dp[mask][v]` = minimum cost to connect the priority targets in `mask` with a tree rooted at vertex `v`.
+   - Initialize: for each priority target `p`, `dp[1<<i][p] = 0`.
+   - Combine subsets: `dp[mask][v] = min(dp[sub][v] + dp[mask^sub][v])` for all submasks.
+   - Relax with shortest paths: `dp[mask][v] = min(dp[mask][u] + dist[u][v])`.
+4. Answer is `min(dp[full_mask][v])` for any `v`.
+
+Let's implement this.
+
+```python
+import sys
+import heapq
+
+def solve():
+    input_data = sys.stdin.read().strip().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    t = int(next(it))
+    
+    targets = [int(next(it)) - 1 for _ in range(t)]
+    
+    INF = 10**18
+    dist = [[INF] * n for _ in range(n)]
+    for i in range(n):
+        dist[i][i] = 0
+    
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        w = int(next(it))
+        if w < dist[u][v]:
+            dist[u][v] = w
+            dist[v][u] = w
+    
+    # Floyd-Warshall
+    for k in range(n):
+        dk = dist[k]
+        for i in range(n):
+            dik = dist[i][k]
+            if dik == INF:
+                continue
+            di = dist[i]
+            for j in range(n):
+                nd = dik + dk[j]
+                if nd < di[j]:
+                    di[j] = nd
+    
+    full_mask = (1 << t) - 1
+    dp = [[INF] * n for _ in range(1 << t)]
+    
+    for i, p in enumerate(targets):
+        dp[1 << i][p] = 0
+    
+    for mask in range(1 << t):
+        # Combine subsets
+        sub = (mask - 1) & mask
+        while sub:
+            other = mask ^ sub
+            if sub < other:  # avoid double work
+                for v in range(n):
+                    if dp[sub][v] + dp[other][v] < dp[mask][v]:
+                        dp[mask][v] = dp[sub][v] + dp[other][v]
+            sub = (sub - 1) & mask
+        
+        # Relax with shortest paths
+        # Dijkstra-like relaxation using priority queue
+        pq = []
+        for v in range(n):
+            if dp[mask][v] < INF:
+                heapq.heappush(pq, (dp[mask][v], v))
+        while pq:
+            d, u = heapq.heappop(pq)
+            if d > dp[mask][u]:
+                continue
+            for v in range(n):
+                nd = d + dist[u][v]
+                if nd < dp[mask][v]:
+                    dp[mask][v] = nd
+                    heapq.heappush(pq, (nd, v))
+    
+    ans = min(dp[full_mask])
+    print(ans)
+
+if __name__ == "__main__":
+    solve()
+```

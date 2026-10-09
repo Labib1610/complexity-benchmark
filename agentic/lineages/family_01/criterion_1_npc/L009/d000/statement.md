@@ -1,16 +1,18 @@
-# Problem A — Schedule Constraints
+# Problem A — Shift Assignment Module
 
 Time limit: 2 s   Memory limit: 256 MB
 
-A factory runs shifts labeled 1, 2, and 3. There are n workers. Certain workers have a restriction and must not be placed on the same shift as each other. Assign every worker to exactly one of the available shifts so that no restricted workers share a shift, or report that it is impossible.
+A factory's automated scheduling pipeline consists of three stages. First, the human resources department collects reports of interpersonal conflicts among the n workers. Second, the shift assignment module must allocate every worker to exactly one of the three operational shifts (labeled 1, 2, and 3) so that no conflicting pair shares a shift. Finally, the payroll system processes the resulting schedule to calculate shift differentials.
+
+Your task is to implement the second stage: given the conflict reports from the first stage, assign the shifts or report that a valid schedule is impossible.
 
 ## Input
-The first line contains two integers n and m — the number of workers and the number of restrictions (1 ≤ n ≤ 40, 0 ≤ m ≤ n·(n−1)/2).
-Each of the next m lines contains two integers u v — two workers that cannot share a shift.
+The first line contains two integers n and m — the number of workers and the number of conflict pairs (1 ≤ n ≤ 40, 0 ≤ m ≤ n·(n−1)/2).
+Each of the next m lines contains two integers u v — a conflicting pair.
 
 ## Output
-If no valid assignment exists, print a single line NO.
-Otherwise print YES on the first line. On the second line print n integers s₁ s₂ … sₙ (each in {1,2,3}), where sᵢ is the shift of worker i. Among all valid assignments output the lexicographically smallest sequence (compare s₁ first, then s₂, and so on).
+If no valid assignment exists for the payroll system to process, print a single line NO.
+Otherwise print YES on the first line. On the second line print n integers s₁ s₂ … sₙ (each in {1,2,3}), where sᵢ is the shift of worker i. Any valid assignment is accepted.
 
 ## Example 1
 Input:

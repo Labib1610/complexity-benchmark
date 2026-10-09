@@ -1,0 +1,246 @@
+import sys
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+
+    n, m = data[0], data[1]
+    adj = [0] * n
+    impossible = False
+
+    p = 2
+    for _ in range(m):
+        u = data[p] - 1
+        v = data[p + 1] - 1
+        p += 2
+        if u == v:
+            impossible = True
+        else:
+            adj[u] |= 1 << v
+            adj[v] |= 1 << u
+
+    if impossible:
+        print("NO")
+        return
+
+    colors = [-1] * n
+    full = (1 << n) - 1
+
+    def components(mask):
+        result = []
+        rest = mask
+        while rest:
+            start = rest & -rest
+            comp = 0
+            frontier = start
+            rest ^= start
+            while frontier:
+                comp |= frontier
+                neighbors = 0
+                f = frontier
+                while f:
+                    b = f & -f
+                    f ^= b
+                    v = b.bit_length() - 1
+                    neighbors |= adj[v]
+                frontier = neighbors & rest
+                rest ^= frontier
+            result.append(comp)
+        return result
+
+    def bipartite_color(mask):
+        local = {}
+        rest = mask
+        while rest:
+            start = rest & -rest
+            s = start.bit_length() - 1
+            local[s] = 0
+            queue = [s]
+            rest ^= start
+            head = 0
+            while head < len(queue):
+                v = queue[head]
+                head += 1
+                neighbors = adj[v] & mask
+                while neighbors:
+                    b = neighbors & -neighbors
+                    neighbors ^= b
+                    u = b.bit_length() - 1
+                    if u not in local:
+                        local[u] = local[v] ^ 1
+                        rest &= ~b
+                        queue.append(u)
+                    elif local[u] == local[v]:
+                        return False
+        for v, c in local.items():
+            colors[v] = c
+        return True
+
+    def solve_component(comp):
+        if comp & (comp - 1) == 0:
+            colors[comp.bit_length() - 1] = 0
+            return True
+
+        if bipartite_color(comp):
+            return True
+
+        # Remove the temporary failed bipartite coloring, if any.
+        bits = comp
+        while bits:
+            b = bits & -bits
+            bits ^= b
+            colors[b.bit_length() - 1] = -1
+
+        first = max(
+            (v for v in range(n) if (comp >> v) & 1),
+            key=lambda v: (adj[v] & comp).bit_count()
+        )
+
+        classes = [1 << first, 0, 0]
+        colors[first] = 0
+        initial_uncolored = comp & ~(1 << first)
+
+        def get_subcomponents(mask):
+            result = []
+            rest = mask
+            while rest:
+                seed = rest & -rest
+                rest ^= seed
+                frontier = seed
+                part = 0
+                while frontier:
+                    part |= frontier
+                    nbr = 0
+                    f = frontier
+                    while f:
+                        b = f & -f
+                        f ^= b
+                        nbr |= adj[b.bit_length() - 1]
+                    frontier = nbr & rest
+                    rest ^= frontier
+                result.append(part)
+            return result
+
+        def dfs(mask, used, depth):
+            if mask == 0:
+                return used
+
+            if mask.bit_count() >= 10 and depth % 5 == 1:
+                parts = get_subcomponents(mask)
+                if len(parts) > 1:
+                    parts.sort(
+                        key=lambda x: (
+                            x.bit_count(),
+                            sum((adj[v] & x).bit_count()
+                                for v in range(n) if (x >> v) & 1)
+                        ),
+                        reverse=True
+                    )
+                    saved_classes = classes[:]
+                    current_used = used
+                    for part in parts:
+                        current_used = dfs(part, current_used, depth + 1)
+                        if current_used < 0:
+                            classes[:] = saved_classes
+                            bmask = mask
+                            while bmask:
+                                b = bmask & -bmask
+                                bmask ^= b
+                                colors[b.bit_length() - 1] = -1
+                            return -1
+                    return current_used
+
+            best_v = -1
+            best_sat = -1
+            best_deg = -1
+            best_total = -1
+            best_seen = 0
+
+            bits = mask
+            while bits:
+                b = bits & -bits
+                bits ^= b
+                v = b.bit_length() - 1
+
+                seen = 0
+                av = adj[v]
+                for c in range(used):
+                    if av & classes[c]:
+                        seen |= 1 << c
+
+                sat = seen.bit_count()
+                if sat == 3:
+                    return -1
+
+                deg = (av & mask).bit_count()
+                total = av.bit_count()
+                if (sat > best_sat or
+                    (sat == best_sat and deg > best_deg) or
+                    (sat == best_sat and deg == best_deg and total > best_total)):
+                    best_v = v
+                    best_sat = sat
+                    best_deg = deg
+                    best_total = total
+                    best_seen = seen
+
+            choices = []
+            for c in range(used):
+                if not (best_seen >> c) & 1:
+                    impact = (adj[best_v] & mask & ~classes[c]).bit_count()
+                    choices.append((impact, c, used))
+
+            if used < 3:
+                choices.append(((adj[best_v] & mask).bit_count(), used, used + 1))
+
+            choices.sort()
+            bit_v = 1 << best_v
+            remaining = mask ^ bit_v
+
+            for _, c, next_used in choices:
+                classes[c] |= bit_v
+                colors[best_v] = c
+
+                conflict = False
+                affected = adj[best_v] & remaining
+                check = affected
+                while check:
+                    b = check & -check
+                    check ^= b
+                    u = b.bit_length() - 1
+                    au = adj[u]
+                    if (au & classes[0] and
+                        au & classes[1] and
+                        au & classes[2]):
+                        conflict = True
+                        break
+
+                if not conflict:
+                    result = dfs(remaining, next_used, depth + 1)
+                    if result >= 0:
+                        return result
+
+                classes[c] ^= bit_v
+                colors[best_v] = -1
+
+            return -1
+
+        if dfs(initial_uncolored, 1, 1) < 0:
+            bits = comp
+            while bits:
+                b = bits & -bits
+                bits ^= b
+                colors[b.bit_length() - 1] = -1
+            return False
+        return True
+
+    for comp in components(full):
+        if not solve_component(comp):
+            print("NO")
+            return
+
+    print("YES")
+    print(*[c + 1 for c in colors])
+
+if __name__ == "__main__":
+    main()

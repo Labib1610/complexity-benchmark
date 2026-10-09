@@ -8,41 +8,44 @@ def solve() -> None:
     it = iter(data)
     n = int(next(it))
     m = int(next(it))
-    g = [[] for _ in range(n + 1)]
+    adj = [[] for _ in range(n)]
     for _ in range(m):
-        u = int(next(it)); v = int(next(it))
-        g[u].append(v)
-        g[v].append(u)
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        if u == v:
+            print("NO")
+            return
+        adj[u].append(v)
+        adj[v].append(u)
 
-    color = [ -1 ] * (n + 1)   # 0/1 parity
-    ans = [0] * (n + 1)
-
-    for start in range(1, n + 1):
-        if color[start] != -1:
+    color = [0] * n          # 0 = unvisited, 1 or 2 later
+    parity = [-1] * n        # 0/1 bipartite side
+    for i in range(n):
+        if parity[i] != -1:
             continue
-        # BFS component
-        q = deque([start])
-        color[start] = 0
-        comp = [start]
+        # start new component
+        q = deque([i])
+        parity[i] = 0
+        comp = [i]
         ok = True
         while q:
-            u = q.popleft()
-            for v in g[u]:
-                if color[v] == -1:
-                    color[v] = color[u] ^ 1
-                    q.append(v)
-                    comp.append(v)
-                elif color[v] == color[u]:
+            v = q.popleft()
+            for to in adj[v]:
+                if parity[to] == -1:
+                    parity[to] = parity[v] ^ 1
+                    q.append(to)
+                    comp.append(to)
+                elif parity[to] == parity[v]:
                     print("NO")
                     return
-        # decide orientation: smallest index gets shift 1
-        min_v = min(comp)
-        p = color[min_v]          # parity that should map to 1
+        # decide which parity gets color 1 -> make smallest index vertex color 1
+        min_vertex = min(comp)
+        side_one = parity[min_vertex]   # this side will be color 1
         for v in comp:
-            ans[v] = 1 if color[v] == p else 2
+            color[v] = 1 if parity[v] == side_one else 2
 
     print("YES")
-    sys.stdout.write(' '.join(str(ans[i]) for i in range(1, n + 1)))
+    print(' '.join(map(str, color)))
 
 if __name__ == "__main__":
     solve()

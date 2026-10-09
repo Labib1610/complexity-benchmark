@@ -1,0 +1,139 @@
+import sys
+from collections import deque
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    idx = 0
+    n = int(data[idx]); idx += 1
+    m = int(data[idx]); idx += 1
+    _ = int(data[idx]); idx += 1  # pallet type, always 1
+
+    s = int(data[idx]); idx += 1
+    t = int(data[idx]); idx += 1
+    d = int(data[idx]); idx += 1
+
+    edges = []
+    adj = [[] for _ in range(n + 1)]
+    for i in range(m):
+        u = int(data[idx]); idx += 1
+        v = int(data[idx]); idx += 1
+        cap = int(data[idx]); idx += 1
+        edges.append((u, v, cap))
+        adj[u].append((v, i))
+        adj[v].append((u, i))
+
+    # Build LP: maximize flow from s to t, check if >= d
+    # Variables: x_i for each edge, 0 <= x_i <= cap_i
+    # Flow conservation at intermediate nodes
+    # Net outflow at s = d, net inflow at t = d
+
+    # Use Dinic's max flow algorithm
+    # Build residual graph
+    # Each edge: forward with capacity cap, backward with 0
+
+    class Dinic:
+        def __init__(self, n):
+            self.n = n
+            self.graph = [[] for _ in range(n + 1)]
+
+        def add_edge(self, u, v, cap):
+            self.graph[u].append([v, cap, len(self.graph[v])])
+            self.graph[v].append([u, 0, len(self.graph[u]) - 1])
+
+        def bfs(self, s, t):
+            self.level = [-1] * (self.n + 1)
+            self.level[s] = 0
+            q = deque([s])
+            while q:
+                u = q.popleft()
+                for e in self.graph[u]:
+                    v, cap, _ = e
+                    if cap > 0 and self.level[v] < 0:
+                        self.level[v] = self.level[u] + 1
+                        q.append(v)
+            return self.level[t] >= 0
+
+        def dfs(self, u, t, f):
+            if u == t:
+                return f
+            while self.it[u] < len(self.graph[u]):
+                e = self.graph[u][self.it[u]]
+                v, cap, rev = e
+                if cap > 0 and self.level[v] == self.level[u] + 1:
+                    ret = self.dfs(v, t, min(f, cap))
+                    if ret > 0:
+                        e[1] -= ret
+                        self.graph[v][rev][1] += ret
+                        return ret
+                self.it[u] += 1
+            return 0
+
+        def max_flow(self, s, t):
+            flow = 0
+            while self.bfs(s, t):
+                self.it = [0] * (self.n + 1)
+                while True:
+                    f = self.dfs(s, t, float('inf'))
+                    if f == 0:
+                        break
+                    flow += f
+            return flow
+
+    dinic = Dinic(n)
+    for i, (u, v, cap) in enumerate(edges):
+        dinic.add_edge(u, v, cap)
+
+    flow = dinic.max_flow(s, t)
+
+    if flow < d:
+        print("NO")
+        return
+
+    # Extract flow values
+    result = [0] * m
+    for i, (u, v, cap) in enumerate(edges):
+        # The backward edge in residual graph tells us how much flow was pushed
+        # backward edge is at graph[v][rev_index]
+        # forward edge is graph[u][i*2] roughly... let me re-check
+        # Actually in add_edge: graph[u].append([v, cap, len(graph[v])])
+        #                        graph[v].append([u, 0, len(graph[u])-1])
+        # So forward edge for edge i is graph[u][2*i] (since each add_edge adds 2 edges)
+        # Wait no, graph[u] might have edges from different add_edge calls
+        # Let me track properly
+
+        # Forward edge is the one we added first for this corridor
+        # Its residual capacity = cap - flow
+        # Backward edge residual capacity = flow
+        forward_edge = dinic.graph[u][i * 2]  # This works if each add_edge appends to graph[u] in order
+        # Actually this only works if all edges start from different u or we track properly
+        # Let me use a different approach
+
+    # Better approach: track edge indices
+    result = [0] * m
+    for i, (u, v, cap) in enumerate(edges):
+        # Find the forward edge in graph[u]
+        # We added edges in order, so forward edge for corridor i is at position
+        # Let's count how many edges from u were added before this one
+        pass
+
+    # Simplest: re-build with explicit edge tracking
+    dinic2 = Dinic(n)
+    edge_forward_idx = []
+    for i, (u, v, cap) in enumerate(edges):
+        idx_in_u = len(dinic2.graph[u])
+        dinic2.add_edge(u, v, cap)
+        edge_forward_idx.append((u, idx_in_u))
+
+    dinic2.max_flow(s, t)
+
+    result = [0] * m
+    for i, (u, v, cap) in enumerate(edges):
+        u_node, idx = edge_forward_idx[i]
+        forward_edge = dinic2.graph[u_node][idx]
+        flow_on_edge = cap - forward_edge[1]
+        result[i] = flow_on_edge
+
+    print("YES")
+    print(' '.join(map(str, result)))
+
+solve()

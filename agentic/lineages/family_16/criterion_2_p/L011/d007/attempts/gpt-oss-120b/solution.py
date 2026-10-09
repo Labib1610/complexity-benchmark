@@ -1,0 +1,30 @@
+import sys
+
+def solve() -> None:
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    early = []
+    late = []
+    for _ in range(n):
+        s = int(next(it))
+        c = int(next(it))
+        if s < c:
+            early.append((s, c))
+        else:
+            late.append((s, c))
+    early.sort(key=lambda x: x[0])          # increasing s
+    late.sort(key=lambda x: x[1], reverse=True)  # decreasing c
+    seq = early + late
+
+    A = 0  # completion time on machine 1 (Structural)
+    B = 0  # completion time on machine 2 (Cargo)
+    for s, c in seq:
+        A += s
+        B = max(A, B) + c
+    print(B)
+
+if __name__ == "__main__":
+    solve()

@@ -1,0 +1,51 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    B = int(next(it))
+    edges = [(int(next(it)), int(next(it))) for _ in range(m)]
+
+    def cost(perm):
+        pos = [0]*(n+1)
+        for i, v in enumerate(perm, 1):
+            pos[v] = i
+        s = 0
+        for u, v in edges:
+            s += abs(pos[u] - pos[v])
+            if s > B:
+                break
+        return s
+
+    # try identity
+    perm = list(range(1, n+1))
+    if cost(perm) <= B:
+        print("YES")
+        print(' '.join(map(str, perm)))
+        return
+    # try reverse
+    perm = list(range(n, 0, -1))
+    if cost(perm) <= B:
+        print("YES")
+        print(' '.join(map(str, perm)))
+        return
+    # try simple greedy: sort by degree descending
+    deg = [0]*(n+1)
+    for u, v in edges:
+        deg[u] += 1
+        deg[v] += 1
+    order = sorted(range(1, n+1), key=lambda x: -deg[x])
+    perm = order
+    if cost(perm) <= B:
+        print("YES")
+        print(' '.join(map(str, perm)))
+        return
+    # fallback: no solution found
+    print("NO")
+
+if __name__ == "__main__":
+    solve()

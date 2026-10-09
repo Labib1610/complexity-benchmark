@@ -1,0 +1,140 @@
+import sys
+import heapq
+from array import array
+
+data = sys.stdin.buffer.read()
+pos = 0
+n_data = len(data)
+
+def next_int():
+    global pos
+    while pos < n_data and data[pos] <= 32:
+        pos += 1
+    value = 0
+    while pos < n_data and data[pos] > 32:
+        value = value * 10 + data[pos] - 48
+        pos += 1
+    return value
+
+A = next_int()
+B = next_int()
+L = next_int()
+V = A + B
+
+left = array('i')
+right = array('i')
+degree = array('i', [0]) * V
+seed = 0x9E3779B9
+
+for i in range(L):
+    u = next_int() - 1
+    v = A + next_int() - 1
+    left.append(u)
+    right.append(v)
+    degree[u] += 1
+    degree[v] += 1
+    seed ^= (u + 0x7F4A7C15) * 0x85EBCA6B
+    seed ^= (v + 0x165667B1) * 0xC2B2AE35
+    seed &= 0xFFFFFFFF
+
+if L == 0:
+    sys.stdout.write("YES\n\n")
+    raise SystemExit
+
+K = max(degree)
+colors = array('i', [0]) * L
+
+order = array('i', range(L))
+x = seed or 0xA341316C
+for i in range(L - 1, 0, -1):
+    x ^= (x << 13) & 0xFFFFFFFF
+    x ^= x >> 17
+    x ^= (x << 5) & 0xFFFFFFFF
+    x &= 0xFFFFFFFF
+    j = x % (i + 1)
+    order[i], order[j] = order[j], order[i]
+
+incident = [None] * V
+free_heaps = [None] * V
+next_color = array('i', [1]) * V
+
+heappush = heapq.heappush
+heappop = heapq.heappop
+
+def get_missing(vertex):
+    d = incident[vertex]
+    h = free_heaps[vertex]
+    if h is not None:
+        while h and h[0] in d:
+            heappop(h)
+        if h:
+            return h[0]
+
+    c = next_color[vertex]
+    while c in d:
+        c += 1
+    next_color[vertex] = c
+    return c
+
+for eid in order:
+    u = left[eid]
+    v = right[eid]
+
+    if incident[u] is None:
+        incident[u] = {}
+    if incident[v] is None:
+        incident[v] = {}
+
+    a = get_missing(u)
+    b = get_missing(v)
+
+    if a == b:
+        colors[eid] = a
+        incident[u][a] = eid
+        incident[v][a] = eid
+        continue
+
+    path = []
+    cur = u
+    wanted = b
+
+    while wanted in incident[cur]:
+        pe = incident[cur][wanted]
+        path.append(pe)
+        x1 = left[pe]
+        x2 = right[pe]
+        cur = x2 if cur == x1 else x1
+        wanted = a if wanted == b else b
+
+    if path:
+        old_last = colors[path[-1]]
+
+        for pe in path:
+            old = colors[pe]
+            x1 = left[pe]
+            x2 = right[pe]
+            del incident[x1][old]
+            del incident[x2][old]
+
+        for pe in path:
+            old = colors[pe]
+            new = b if old == a else a
+            colors[pe] = new
+            x1 = left[pe]
+            x2 = right[pe]
+            incident[x1][new] = pe
+            incident[x2][new] = pe
+
+        h = free_heaps[cur]
+        if h is None:
+            h = []
+            free_heaps[cur] = h
+        heappush(h, old_last)
+
+    colors[eid] = b
+    incident[u][b] = eid
+    incident[v][b] = eid
+
+sys.stdout.write("YES\n")
+sys.stdout.write(" ".join(map(str, colors)))
+sys.stdout.write("\n")

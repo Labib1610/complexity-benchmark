@@ -1,0 +1,35 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    j = int(input_data[0])
+    vessels = []
+    idx = 1
+    for _ in range(j):
+        p1 = int(input_data[idx])
+        p2 = int(input_data[idx+1])
+        vessels.append((p1, p2))
+        idx += 2
+
+    # Sort by p2 - p1 in descending order
+    vessels.sort(key=lambda x: x[1] - x[0], reverse=True)
+
+    prefix_p1 = [0] * (j + 1)
+    prefix_p2 = [0] * (j + 1)
+    for i in range(j):
+        prefix_p1[i+1] = prefix_p1[i] + vessels[i][0]
+        prefix_p2[i+1] = prefix_p2[i] + vessels[i][1]
+
+    total_p2 = prefix_p2[j]
+    max_penalty = 0
+    for k in range(1, j + 1):
+        penalty = prefix_p1[k] + (total_p2 - prefix_p2[k-1])
+        if penalty > max_penalty:
+            max_penalty = penalty
+
+    print(max_penalty)
+
+if __name__ == '__main__':
+    solve()

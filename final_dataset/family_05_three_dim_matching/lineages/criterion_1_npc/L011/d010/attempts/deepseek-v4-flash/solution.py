@@ -1,0 +1,81 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.read().strip().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    k = int(next(it))
+    t = int(next(it))
+    
+    configs = []
+    for _ in range(t):
+        x = int(next(it))
+        y = int(next(it))
+        z = int(next(it))
+        configs.append((x-1, y-1, z-1))  # 0-based indexing for bitmask
+    
+    # sort by some heuristic: try to pick configurations that use lesser used coordinates later
+    # We can first sort by sum or by something; but let's just keep as is and backtrack.
+    
+    full_mask = (1 << k) - 1
+    chosen = []
+    
+    # Precompute mask for each config
+    masks = [(1 << x, 1 << y, 1 << z) for (x,y,z) in configs]
+    
+    # neighbor lists: for each config, list of indices of compatible configs (no shared coordinate)
+    n = len(configs)
+    compat = [[] for _ in range(n)]
+    for i in range(n):
+        xi, yi, zi = configs[i]
+        for j in range(i+1, n):
+            xj, yj, zj = configs[j]
+            if xi != xj and yi != yj and zi != zj:
+                compat[i].append(j)
+                compat[j].append(i)
+    
+    # To speed, sort configs by degree (number of compatible partners) ascending?
+    # But we need to output original; we can store index mapping.
+    
+    order = sorted(range(n), key=lambda i: len(compat[i]))
+    
+    used_x = 0
+    used_y = 0
+    used_z = 0
+    
+    result = []
+    
+    def backtrack(idx, start):
+        nonlocal used_x, used_y, used_z, result
+        if idx == k:
+            return True
+        # Try next config from start in order
+        for i in range(start, n):
+            ci = order[i]
+            mx, my, mz = masks[ci]
+            if (used_x & mx) or (used_y & my) or (used_z & mz):
+                continue
+            # Choose
+            used_x |= mx
+            used_y |= my
+            used_z |= mz
+            result.append(configs[ci])
+            if backtrack(idx+1, i+1):
+                return True
+            # Undo
+            used_x ^= mx
+            used_y ^= my
+            used_z ^= mz
+            result.pop()
+        return False
+    
+    if backtrack(0, 0):
+        print("YES")
+        for x, y, z in result:
+            print(x+1, y+1, z+1)
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()

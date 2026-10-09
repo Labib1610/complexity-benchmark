@@ -1,0 +1,32 @@
+import sys
+
+def solve() -> None:
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    it = iter(data)
+    j = int(next(it))
+    T = int(next(it))
+    sum1 = 0
+    sum2 = 0
+    for idx in range(1, j + 1):
+        p1 = int(next(it))
+        p2 = int(next(it))
+        # job-specific check: need p1 + p2 <= T
+        if p1 + p2 > T:
+            sys.stdout.write(f"JOB {idx}")
+            return
+        sum1 += p1
+        sum2 += p2
+    # load-specific checks
+    if sum1 > T:
+        sys.stdout.write("LOAD 1")
+    elif sum2 > T:
+        sys.stdout.write("LOAD 2")
+    else:
+        # According to problem statement, at least one certificate exists.
+        # This branch should never be reached.
+        sys.stdout.write("JOB 1")
+
+if __name__ == "__main__":
+    solve()

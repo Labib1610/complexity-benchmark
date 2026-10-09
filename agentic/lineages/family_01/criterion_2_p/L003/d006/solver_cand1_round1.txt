@@ -1,0 +1,111 @@
+```python
+import sys
+
+# The determinant of the matrix C_{x,y} with columns w_x, w_y, r_{x,y}
+# If s_x = 1, w_x = (3x-1, 2x, 2)
+# If s_x = 2, w_x = (3x+5, 2x, 4)
+# r_{x,y} = (3(x+y), 2(x+y), 0)
+# Let x < y.
+# det = (w_x_x * w_y_y * 0 + w_x_y * 0 * r_x + 2 * w_y_x * r_y) - (r_x * w_y_y * 2 + 0 * w_y_x * w_x_x + 3(x+y) * w_y_x * w_x_z)
+# Actually, let's compute det(C) = w_x_x * (w_y_y * 0 - 2 * r_y) - w_x_y * (w_y_x * 0 - 3(x+y) * 2) + w_x_z * (w_y_x * 2(x+y) - w_y_y * 3(x+y))
+# det = w_x_x * (-2 * 2(x+y)) - w_x_y * (-6(x+y)) + w_x_z * (w_y_x * 2(x+y) - w_y_y * 3(x+y))
+# det = -4x(x+y) - 4y(x+y) + 6(x+y) * w_x_y + w_x_z * (x+y) * (2 * w_y_x - 3 * w_y_y)
+# Note w_y_x = 2y, w_y_y = 2y. So (2 * 2y - 3 * 2y) = -2y.
+# det = (x+y) * [-4(x+y) + 6 * w_x_y + w_x_z * (-2y)]
+# Since x+y > 0, det != 0 iff -4(x+y) + 6 * w_x_y - 2y * w_x_z != 0
+# If s_x = 1: w_x_y = 2x, w_x_z = 2.
+#   val1 = -4x - 4y + 12x - 4y = 8x - 8y = 8(x-y) != 0 (True since x < y)
+# If s_x = 2: w_x_y = 2x, w_x_z = 4.
+#   val2 = -4x - 4y + 12x - 8y = 8x - 12y != 0 (True since 8x < 12y)
+# Wait, the condition depends on both s_x and s_y.
+# Let's re-evaluate:
+# det = w_x_x * (w_y_y * 0 - 2 * r_y) - w_x_y * (w_y_x * 0 - 3(x+y) * 2) + w_x_z * (w_y_x * 2(x+y) - w_y_y * 3(x+y))
+# det = w_x_x * (-4(x+y)) + w_x_y * (6(x+y)) + w_x_z * (2y * 2(x+y) - 2y * 3(x+y))
+# det = (x+y) * [-4 * w_x_x + 6 * w_x_y - 2y * w_x_z]
+# If s_x = 1: w_x_x = 3x-1, w_x_y = 2x, w_x_z = 2.
+#   det1 = (x+y) * [-4(3x-1) + 6(2x) - 2y(2)] = (x+y) * [-12x + 4 + 12x - 4y] = (x+y) * (4 - 4y)
+#   det1 = 0 iff 4 - 4y = 0 => y = 1. But x < y, so y >= 2. det1 is never 0.
+# If s_x = 2: w_x_x = 3x+5, w_x_y = 2x, w_x_z = 4.
+#   det2 = (x+y) * [-4(3x+5) + 6(2x) - 2y(4)] = (x+y) * [-12x - 20 + 12x - 8y] = (x+y) * (-20 - 8y)
+#   det2 is never 0.
+# Wait, the determinant depends on s_y too? No, the columns are w_x, w_y, r.
+# The determinant is linear in w_x and w_y.
+# det(w_x, w_y, r) = det(w_x, (3y+5s_y-5, 2y, 2s_y), r)
+# Actually, the determinant is 0 if w_x, w_y, r are linearly dependent.
+# Since r = (3(x+y), 2(x+y), 0), r is always in the plane z=0? No.
+# The condition is simply: for each edge (u, v), s_u and s_v must satisfy det != 0.
+# Re-calculating: det = w_x_x * (w_y_y * 0 - 2 * r_y) - w_x_y * (w_y_x * 0 - 3(x+y) * 2) + w_x_z * (w_y_x * 2(x+y) - w_y_y * 3(x+y))
+# det = -4(x+y) * w_x_x + 6(x+y) * w_x_y + (x+y) * (2 * w_y_x - 3 * w_y_y) * w_x_z
+# Since w_y_x = 2y and w_y_y = 2y, (2*2y - 3*2y) = -2y.
+# det = (x+y) * (-4 * w_x_x + 6 * w_x_y - 2y * w_x_z)
+# This only depends on s_x! And it's never 0.
+# Let me re-read: "If det(C) = 0, the array will experience a feedback loop".
+# Maybe I miscalculated the determinant. Let's re-check.
+# w_x = (3x-1, 2x, 2) or (3x+5, 2x, 4). w_y = (3y-1, 2y, 2) or (3y+5, 2y, 4).
+# The determinant is 0 if s_x and s_y are specific values.
+# The condition is: for each edge (u, v), (s_u, s_v) cannot be a "bad" pair.
+# Since the problem asks for lexicographically smallest, use 2-SAT.
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data: return
+    n, m = int(input_data[0]), int(input_data[1])
+    adj = [[] for _ in range(n + 1)]
+    idx = 2
+    for _ in range(m):
+        u, v = int(input_data[idx]), int(input_data[idx+1])
+        if u > v: u, v = v, u
+        # det = (x+y) * [w_x_x * (w_y_y * 0 - 2 * r_y) - w_x_y * (w_y_x * 0 - 3(x+y) * 2) + w_x_z * (w_y_x * 2(x+y) - w_y_y * 3(x+y))]
+        # Actually, the determinant is:
+        # | 3x+a  3y+b  3(x+y) |
+        # | 2x    2y    2(x+y) |
+        # | c     d     0      |
+        # = c(2x*2(x+y) - 2y*3(x+y)) - d(3x+a*2(x+y) - 3y+b*3(x+y)) + 0
+        # = c(4x^2+4xy - 6xy-6y^2) - d(6x^2+6xy+2ax+2ay - 9xy-9y^2-3bx-3by)
+        # This is 0 for some (s_u, s_v).
+        # Let's test s_u=1, s_v=1: a=-1, b=-1, c=2, d=2.
+        # det = 2(4x^2-2xy-6y^2) - 2(6x^2-3xy-9y^2-2x-2y-3x-3y) = 8x^2-4xy-12y^2 - 12x^2+6xy+18y^2+10x+10y = -4x^2+2xy+6y^2+10x+10y != 0.
+        # The only way to solve this is to check the determinant for all 4 pairs (s_u, s_v).
+        def get_det(u, v, su, sv):
+            wx = (3*u-1, 2*u, 2) if su == 1 else (3*u+5, 2*u, 4)
+            wy = (3*v-1, 2*v, 2) if sv == 1 else (3*v+5, 2*v, 4)
+            r = (3*(u+v), 2*(u+v), 0)
+            return wx[0]*(wy[1]*r[2] - wy[2]*r[1]) - wx[1]*(wy[0]*r[2] - wy[2]*r[0]) + wx[2]*(wy[0]*r[1] - wy[1]*r[0])
+        
+        bad = []
+        for su in [1, 2]:
+            for sv in [1, 2]:
+                if get_det(u, v, su, sv) == 0:
+                    bad.append((su, sv))
+        
+        # 2-SAT: s_i=1 is variable x_i=False, s_i=2 is x_i=True
+        # If (su, sv) is bad, add clause: NOT (x_u == (su==2) AND x_v == (sv==2))
+        # Which is: x_u != (su==2) OR x_v != (sv==2)
+        for su, sv in bad:
+            adj[u].append((v, su == 2, sv == 2))
+            adj[v].append((u, sv == 2, su == 2))
+            
+    res = [0] * (n + 1)
+    for i in range(1, n + 1):
+        if res[i] == 0:
+            # Try s_i = 1
+            stack = [(i, 1)]
+            res[i] = 1
+            path = [i]
+            while stack:
+                u, su = stack.pop()
+                for v, bu, bv in adj[u]:
+                    if su == (1 if bu else 2):
+                        target_sv = 2 if bv else 1
+                        if res[v] == 0:
+                            res[v] = target_sv
+                            stack.append((v, target_sv))
+                            path.append(v)
+                        elif res[v] != target_sv:
+                            print("NO")
+                            return
+    print("YES")
+    print(*(res[1:]))
+
+solve()
+```

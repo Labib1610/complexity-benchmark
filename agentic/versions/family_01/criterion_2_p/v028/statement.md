@@ -1,20 +1,20 @@
-# Botanical Gardens
+# Chemical Storage
 
 Time limit: 1 s   Memory limit: 256 MB
 
-You are tasked with arranging $n$ rare plant species in a newly constructed botanical conservatory. The conservatory features a primary cultivation area, designated as Zone 1, and a secondary cultivation area, designated as Zone 2. Every species must be allocated to exactly one of these areas.
+A laboratory is organizing a collection of $n$ chemical reagents, numbered from 1 to $n$. The facility has exactly two containment units, designated by the identifiers 1 and 2. Every reagent must be placed into exactly one of these two units.
 
-Extensive research has identified $m$ cases of allelopathy between specific pairs of species. If two species involved in such a case are placed in the same cultivation area, they will release biochemicals that inhibit each other's growth. To ensure the survival of all plants, your arrangement must separate every allelopathic pair into different areas.
+The laboratory has identified $m$ reactive pairs among the reagents. Placing both reagents of a reactive pair into the same containment unit will result in a hazardous reaction. Therefore, the two reagents in any reactive pair must be separated into different units.
 
-Given the number of species and the list of allelopathic pairs, determine if a safe allocation is possible.
+Your task is to determine if there is a safe way to distribute all $n$ reagents into the two units. If there are multiple safe distributions, you must select the one that resolves ties by prioritizing unit 1 as early as possible. Specifically, among all safe distributions, find those that assign the smallest possible unit identifier to reagent 1. If there is more than one such distribution, narrow them down to those that also assign the smallest possible identifier to reagent 2, and continue this sequential elimination up to reagent $n$.
 
 ## Input
-The first line provides the number of species, $n$, and the number of allelopathic cases, $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$). The species are indexed from $1$ to $n$.
-Each of the subsequent $m$ lines contains two integers $u$ and $v$ — representing a pair of species that inhibit each other.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$).
+Each of the following $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$), representing a reactive pair of reagents.
 
 ## Output
-If no safe allocation can be achieved, output a single line containing `NO`.
-Otherwise, output `YES` on the first line. On the second line, output $n$ space-separated integers $z_1, z_2, \dots, z_n$ (where each $z_i \in \{1, 2\}$) representing the area assigned to each species. If multiple safe allocations exist, output the one that is lexicographically smallest.
+If there is no safe way to distribute the reagents, output a single line containing `NO`.
+Otherwise, output `YES` on the first line. On the second line, output $n$ integers separated by spaces, where the $i$-th integer (either 1 or 2) is the unit assigned to the $i$-th reagent in your chosen distribution.
 
 ## Example 1
 Input:

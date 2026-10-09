@@ -1,0 +1,141 @@
+import sys
+from collections import defaultdict, deque
+
+def main():
+    import sys
+    sys.setrecursionlimit(1 << 25)
+    
+    n, m = map(int, sys.stdin.readline().split())
+    
+    if m == 0:
+        # No constraints, choose all 1s for minimal energy
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
+    
+    # Build graph
+    adj = defaultdict(list)
+    for _ in range(m):
+        u, v = map(int, sys.stdin.readline().split())
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # Color array: 0 = unvisited, 1 and 2 are colors
+    color = [0] * (n + 1)
+    visited = [False] * (n + 1)
+    
+    # Check if bipartite (2-colorable) using BFS
+    def bfs(start):
+        queue = deque()
+        queue.append(start)
+        color[start] = 1
+        visited[start] = True
+        
+        while queue:
+            u = queue.popleft()
+            current_color = color[u]
+            next_color = 3 - current_color  # flips 1->2 and 2->1
+            
+            for v in adj[u]:
+                if not visited[v]:
+                    visited[v] = True
+                    color[v] = next_color
+                    queue.append(v)
+                elif color[v] != next_color:
+                    return False  # Not bipartite
+        return True
+    
+    # Process each connected component
+    for i in range(1, n + 1):
+        if not visited[i]:
+            if not bfs(i):
+                print("NO")
+                return
+    
+    # If we reach here, it's bipartite. Now we need to minimize energy.
+    # Energy E = sum(s_i * 2^(n-i)) for i=1 to n
+    # Since 2^(n-i) is decreasing with i, earlier positions have higher weights.
+    # So we prefer s_i = 1 for earlier indices.
+    # For each connected component, we can choose which color class gets 1 or 2.
+    # We'll do a second traversal to decide the assignment that minimizes energy.
+    
+    # Re-initialize visited for second traversal
+    visited = [False] * (n + 1)
+    final_color = [0] * (n + 1)
+    
+    def assign_colors(node):
+        # BFS to assign final colors minimizing energy
+        queue = deque()
+        queue.append(node)
+        visited[node] = True
+        
+        # Count how many nodes of each color are there in this component
+        count1 = 0
+        count2 = 0
+        nodes1 = []
+        nodes2 = []
+        
+        if color[node] == 1:
+            count1 += 1
+            nodes1.append(node)
+        else:
+            count2 += 1
+            nodes2.append(node)
+            
+        local_nodes = [node]
+        
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if not visited[v]:
+                    visited[v] = True
+                    local_nodes.append(v)
+                    if color[v] == 1:
+                        count1 += 1
+                        nodes1.append(v)
+                    else:
+                        count2 += 1
+                        nodes2.append(v)
+                    queue.append(v)
+        
+        # Compute energy for both assignments:
+        # Option A: color 1 -> mode 1, color 2 -> mode 2
+        # Option B: color 1 -> mode 2, color 2 -> mode 1
+        
+        def compute_energy(assign1_to_mode1):
+            energy = 0
+            if assign1_to_mode1:
+                for x in nodes1:
+                    energy += 1 * (2 ** (n - x))
+                for x in nodes2:
+                    energy += 2 * (2 ** (n - x))
+            else:
+                for x in nodes1:
+                    energy += 2 * (2 ** (n - x))
+                for x in nodes2:
+                    energy += 1 * (2 ** (n - x))
+            return energy
+        
+        energy_a = compute_energy(True)
+        energy_b = compute_energy(False)
+        
+        if energy_a <= energy_b:
+            for x in nodes1:
+                final_color[x] = 1
+            for x in nodes2:
+                final_color[x] = 2
+        else:
+            for x in nodes1:
+                final_color[x] = 2
+            for x in nodes2:
+                final_color[x] = 1
+                
+    for i in range(1, n + 1):
+        if not visited[i]:
+            assign_colors(i)
+            
+    print("YES")
+    print(" ".join(str(final_color[i]) for i in range(1, n+1)))
+
+if __name__ == "__main__":
+    main()

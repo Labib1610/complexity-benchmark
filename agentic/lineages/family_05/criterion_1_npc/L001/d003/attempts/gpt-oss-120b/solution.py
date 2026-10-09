@@ -1,0 +1,62 @@
+import sys
+sys.setrecursionlimit(1000000)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    k = int(next(it))
+    t = int(next(it))
+    adj = [[] for _ in range(k)]          # tech index 0..k-1
+    for _ in range(t):
+        x = int(next(it)) - 1
+        y = int(next(it)) - 1
+        z = int(next(it)) - 1
+        adj[x].append((y, z))
+
+    # order technicians by fewest options to improve pruning
+    order = sorted(range(k), key=lambda i: len(adj[i]))
+    # map from position in order to tech id
+    pos2tech = order
+    # precompute for quick degree check
+    used_bay = [False] * k
+    used_core = [False] * k
+    solution = [None] * k  # indexed by tech id
+
+    # simple pruning: if any tech has zero options, impossible
+    for i in range(k):
+        if not adj[i]:
+            print("NO")
+            return
+
+    # recursive search
+    def dfs(idx: int) -> bool:
+        if idx == k:
+            return True
+        tech = pos2tech[idx]
+        # try each possible (bay,core) that are still free
+        for bay, core in adj[tech]:
+            if not used_bay[bay] and not used_core[core]:
+                # forward check: remaining free counts must be enough
+                used_bay[bay] = used_core[core] = True
+                solution[tech] = (tech + 1, bay + 1, core + 1)
+                # quick feasibility: count free bays/cores
+                # (optional but cheap)
+                # continue recursion
+                if dfs(idx + 1):
+                    return True
+                # backtrack
+                used_bay[bay] = used_core[core] = False
+                solution[tech] = None
+        return False
+
+    if dfs(0):
+        print("YES")
+        for triple in solution:
+            print(*triple)
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()

@@ -1,0 +1,109 @@
+from collections import defaultdict, deque
+
+def solve():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    k = int(data[0])
+    t = int(data[1])
+    
+    index = 2
+    channels = []
+    sensor_to_processor = {}
+    
+    for _ in range(t):
+        s = int(data[index])
+        p = int(data[index+1])
+        a = int(data[index+2])
+        channels.append((s, p, a))
+        if s not in sensor_to_processor:
+            sensor_to_processor[s] = p
+        elif sensor_to_processor[s] != p:
+            # This should not happen according to problem statement
+            pass
+        index += 3
+    
+    # If we don't have at least k sensors, it's impossible
+    if len(sensor_to_processor) < k:
+        print("NO")
+        return
+        
+    # Build a graph for matching: sensors/processors -> antennas
+    # Since each sensor is locked to exactly one processor, we can treat sensor->antenna
+    # We need a bipartite matching between sensors and antennas
+    # But we also need to ensure that the processor corresponding to each sensor is also matched
+    
+    # Actually, let's think differently:
+    # Each channel is (sensor, processor, antenna)
+    # Due to Phase I, for each sensor s, there is exactly one processor p(s) it's locked to.
+    # So a channel is effectively (s, p(s), a) where p(s) is fixed.
+    # We want to select k channels such that:
+    # - Each sensor appears exactly once
+    # - Each processor appears exactly once  
+    # - Each antenna appears exactly once
+    
+    # Since sensors and processors are in 1-to-1 correspondence due to hardware lock,
+    # we can consider this as selecting k antennas such that when paired with 
+    # the corresponding (sensor, processor) pairs, we get a perfect matching.
+    
+    # Let's build a mapping from sensors to possible antennas
+    sensor_antennas = defaultdict(list)
+    for s, p, a in channels:
+        if s in sensor_to_processor and sensor_to_processor[s] == p:
+            sensor_antennas[s].append(a)
+            
+    # Now we need to match sensors to antennas such that:
+    # - Each sensor gets exactly one antenna from its list
+    # - Each antenna is used exactly once
+    
+    # This is a standard bipartite matching problem
+    # Sensors on one side, antennas on the other side
+    
+    # Build adjacency list for sensors -> antennas
+    adj = defaultdict(list)
+    for s in sensor_to_processor:
+        adj[s] = sensor_antennas[s]
+        
+    # Check if we have k sensors
+    if len(sensor_to_processor) < k:
+        print("NO")
+        return
+        
+    # Hungarian algorithm / Bipartite matching implementation
+    # Using a simple DFS-based approach for bipartite matching
+    
+    def dfs(u, match_sensor, match_antenna, visited):
+        for v in adj[u]:
+            if v in visited:
+                continue
+            visited.add(v)
+            if match_antenna[v] == -1 or dfs(match_antenna[v], match_sensor, match_antenna, visited):
+                match_sensor[u] = v
+                match_antenna[v] = u
+                return True
+        return False
+    
+    # Initialize matching arrays
+    match_sensor = {s: -1 for s in sensor_to_processor}
+    match_antenna = {a: -1 for a in range(1, k+1)}
+    
+    result = 0
+    # Try to find augmenting paths for each sensor
+    for s in sensor_to_processor:
+        visited = set()
+        if dfs(s, match_sensor, match_antenna, visited):
+            result += 1
+            
+    if result < k:
+        print("NO")
+        return
+        
+    print("YES")
+    # Output the selected channels
+    for s in sensor_to_processor:
+        a = match_sensor[s]
+        p = sensor_to_processor[s]
+        print(s, p, a)
+
+solve()

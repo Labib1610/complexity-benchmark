@@ -1,0 +1,169 @@
+import sys
+from collections import defaultdict, deque
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
+    
+    pairs = []
+    index = 2
+    for _ in range(m):
+        u = int(data[index]) - 1
+        v = int(data[index+1]) - 1
+        pairs.append((u, v))
+        index += 2
+    
+    # For each row j, M[j][u] and M[j][v] are incremented by 1
+    # So row j of M*S contributes S[u] + S[v] to the j-th entry of M*S
+    # We want each M*S[j] = 3
+    
+    # This gives us a system of equations:
+    # For each j: S[u] + S[v] = 3, where (u,v) is the j-th pair
+    
+    # Since S[i] is either 1 or 2, S[u] + S[v] can be:
+    # 1+1=2, 1+2=3, 2+1=3, 2+2=4
+    # So the equation S[u] + S[v] = 3 is satisfied iff one of S[u], S[v] is 1 and the other is 2
+    
+    # This is a 2-SAT problem:
+    # For each pair (u,v):
+    #   If u == v: S[u] + S[u] = 2*S[u] = 3 => S[u] = 1.5, impossible => NO
+    #   Else: S[u] + S[v] = 3 => (S[u] = 1 and S[v] = 2) OR (S[u] = 2 and S[v] = 1)
+    
+    # We can model this as implications:
+    # For pair (u,v) with u != v:
+    #   If S[u] = 1 => S[v] = 2
+    #   If S[v] = 2 => S[u] = 1
+    #   If S[u] = 2 => S[v] = 1
+    #   If S[v] = 1 => S[u] = 2
+    
+    # Let's use variables:
+    # For variable i (0-based), 
+    # Literal i*2   represents S[i] = 1
+    # Literal i*2+1 represents S[i] = 2
+    
+    # Implication a => b is equivalent to (not a or b)
+    
+    # For each pair (u,v) with u != v:
+    # Add clauses:
+    # (not (u*2) or v*2+1)  i.e. S[u]=1 => S[v]=2
+    # (not (v*2+1) or u*2)  i.e. S[v]=2 => S[u]=1
+    # (not (u*2+1) or v*2)  i.e. S[u]=2 => S[v]=1
+    # (not (v*2) or u*2+1)  i.e. S[v]=1 => S[u]=2
+    
+    # If u == v:
+    # S[u] + S[u] = 2*S[u] = 3 => S[u] = 1.5 => impossible => return NO
+    
+    adj = [[] for _ in range(2 * n)]
+    adj_rev = [[] for _ in range(2 * n)]
+    
+    for u, v in pairs:
+        if u == v:
+            # S[u] + S[u] = 2*S[u] = 3 => S[u] = 1.5 => impossible
+            print("NO")
+            return
+        # S[u] + S[v] = 3
+        # This means (S[u]=1 and S[v]=2) or (S[u]=2 and S[v]=1)
+        # Clauses:
+        # (not S[u]=1 or S[v]=2) and (not S[v]=2 or S[u]=1)
+        # (not S[u]=2 or S[v]=1) and (not S[v]=1 or S[u]=2)
+        
+        # S[u]=1 => S[v]=2
+        adj[u*2].append(v*2 + 1)
+        adj_rev[v*2 + 1].append(u*2)
+        # S[v]=2 => S[u]=1
+        adj[v*2 + 1].append(u*2)
+        adj_rev[u*2].append(v*2 + 1)
+        # S[u]=2 => S[v]=1
+        adj[u*2 + 1].append(v*2)
+        adj_rev[v*2].append(u*2 + 1)
+        # S[v]=1 => S[u]=2
+        adj[v*2].append(u*2 + 1)
+        adj_rev[u*2 + 1].append(v*2)
+    
+    # Now we do 2-SAT with Kosaraju's algorithm to find strongly connected components
+    # and check if for each variable i, literals i*2 and i*2+1 are in different SCCs
+    
+    # Kosaraju's algorithm
+    visited = [False] * (2 * n)
+    order = []
+    
+    def dfs1(u):
+        visited[u] = True
+        for v in adj[u]:
+            if not visited[v]:
+                dfs1(v)
+        order.append(u)
+    
+    for i in range(2 * n):
+        if not visited[i]:
+            dfs1(i)
+    
+    # Second DFS on transpose graph
+    visited = [False] * (2 * n)
+    scc_id = [-1] * (2 * n)
+    scc_count = 0
+    
+    def dfs2(u):
+        visited[u] = True
+        scc_id[u] = scc_count
+        for v in adj_rev[u]:
+            if not visited[v]:
+                dfs2(v)
+    
+    while order:
+        u = order.pop()
+        if not visited[u]:
+            dfs2(u)
+            scc_count += 1
+    
+    # Check if for each variable i, literals i*2 and i*2+1 are in different SCCs
+    for i in range(n):
+        if scc_id[i*2] == scc_id[i*2 + 1]:
+            print("NO")
+            return
+    
+    # To get the lexicographically smallest assignment, we process SCCs in reverse topological order
+    # and assign values based on the first time we encounter a literal
+    
+    # The order of SCCs from Kosaraju gives reverse topological order
+    # So we process SCCs from last to first
+    
+    assignment = [-1] * n
+    for i in range(2 * n):
+        var = i // 2
+        if assignment[var] == -1:
+            # Literal i is (var*2) or (var*2+1)
+            # If scc_id[i] is processed later (higher number), it means it's in a later SCC
+            # We want to assign value based on which literal is in a later SCC
+            # Actually, in Kosaraju, the order in which we finish gives reverse topological order
+            # So if scc_id[i] is higher, it means it's in a later SCC, so we should set it to true
+            # But we need to be more careful
+            
+            # In 2-SAT, if literal x is in a later SCC than not x, then x should be true
+            # SCC ids are assigned in finishing order, so higher SCC id means later in topological order
+            # So if scc_id[i*2 + 1] > scc_id[i*2], then S[i] = 2 should be true
+            # if scc_id[i*2] > scc_id[i*2 + 1], then S[i] = 1 should be true
+            # If equal, impossible (already checked)
+            
+            id1 = scc_id[i*2]      # SCC id for S[i] = 1
+            id2 = scc_id[i*2 + 1]  # SCC id for S[i] = 2
+            
+            if id2 > id1:
+                assignment[var] = 2
+            else:
+                assignment[var] = 1
+    
+    print("YES")
+    print(" ".join(map(str, assignment)))
+
+if __name__ == "__main__":
+    main()

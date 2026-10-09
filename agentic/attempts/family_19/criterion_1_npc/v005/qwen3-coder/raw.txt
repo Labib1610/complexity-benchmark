@@ -1,0 +1,235 @@
+```python
+from collections import defaultdict, deque
+import sys
+
+def solve():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    idx = 0
+    n = int(data[idx])
+    idx += 1
+    m = int(data[idx])
+    idx += 1
+    k = int(data[idx])
+    idx += 1
+    
+    products = []
+    for _ in range(k):
+        s = int(data[idx]) - 1
+        idx += 1
+        t = int(data[idx]) - 1
+        idx += 1
+        d = int(data[idx])
+        idx += 1
+        products.append((s, t, d))
+    
+    edges = []
+    capacity = []
+    graph = defaultdict(list)
+    edge_index = {}
+    
+    for i in range(m):
+        u = int(data[idx]) - 1
+        idx += 1
+        v = int(data[idx]) - 1
+        idx += 1
+        cap = int(data[idx])
+        idx += 1
+        edges.append((u, v))
+        capacity.append(cap)
+        graph[u].append(len(edges) - 1)
+        graph[v].append(len(edges) - 1)
+        edge_index[(u, v)] = len(edges) - 1
+    
+    # For each product, compute a feasible flow (ignoring other products)
+    # We'll use a simple max-flow approach for each product individually
+    def bfs_flow(s, t, d, edge_flows):
+        # Build residual graph for this product
+        # We need to consider current flows of other products
+        res_cap = [capacity[i] - sum(edge_flows[i]) for i in range(m)]
+        
+        # Now find a flow of value d from s to t using at most res_cap on each edge
+        # This is a max-flow problem with demand d
+        # We can use Ford-Fulkerson or similar
+        # But since we only need to find one feasible flow (if exists), we can use a path decomposition approach
+        
+        # Let's build a flow network and find a flow of value d
+        # We'll use a simple approach: find paths and push flow
+        
+        # To find a flow of exactly d, we can do the following:
+        # Create a super-source connected to s with capacity d
+        # Create a super-sink connected from t with capacity d
+        # Find a max flow from super-source to super-sink
+        # If it's less than d, then impossible
+        
+        # But since we are looking for any feasible flow (not unique), we can use a path-based method
+        
+        # Let's use a residual graph and find augmenting paths
+        local_flow = [0] * m
+        local_res = [res_cap[i] for i in range(m)]
+        
+        def find_path_bfs():
+            parent_edge = [-1] * n
+            parent_node = [-1] * n
+            visited = [False] * n
+            queue = deque()
+            queue.append(s)
+            visited[s] = True
+            
+            while queue:
+                u = queue.popleft()
+                if u == t:
+                    break
+                for e_idx in graph[u]:
+                    u_e, v_e = edges[e_idx]
+                    if u_e == u and local_res[e_idx] > 0 and not visited[v_e]:
+                        visited[v_e] = True
+                        parent_node[v_e] = u
+                        parent_edge[v_e] = e_idx
+                        queue.append(v_e)
+            
+            if not visited[t]:
+                return None
+            
+            # Reconstruct path
+            path = []
+            cur = t
+            while cur != s:
+                e_idx = parent_edge[cur]
+                path.append(e_idx)
+                cur = parent_node[cur]
+            path.reverse()
+            return path
+        
+        flow_sent = 0
+        while flow_sent < d:
+            path = find_path_bfs()
+            if path is None:
+                break
+            # Find bottleneck
+            bottleneck = min(local_res[e] for e in path)
+            if bottleneck == 0:
+                break
+            send = min(bottleneck, d - flow_sent)
+            for e in path:
+                local_flow[e] += send
+                local_res[e] -= send
+            flow_sent += send
+        
+        if flow_sent < d:
+            return None
+        return local_flow
+    
+    # Now, we need to find flows for all products simultaneously
+    # This is a multi-commodity flow problem with integer flows and shared capacities
+    # We can model this as an integer linear program and solve it
+    # But since the constraints are small, we can try a greedy approach or backtracking
+    # However, given the nature of the problem, a more systematic approach is needed
+    
+    # Let's try to model this as a constraint satisfaction problem
+    # For each product, we need to find a flow that satisfies:
+    # 1. Flow conservation at each node (except source and sink)
+    # 2. Net outflow from source = demand
+    # 3. Net inflow to sink = demand
+    # 4. For each edge, sum of flows over all products <= capacity
+    
+    # We can represent the flow of each product on each edge as a variable
+    # And solve the system of constraints
+    
+    # Let's use a backtracking approach with constraint propagation
+    
+    # But first, let's see if a simple greedy approach works:
+    # For each product in order, find any feasible flow given current usage
+    # If none exists, return NO
+    
+    # Let's try that
+    
+    flows = []  # flows[i][j] = flow of product i on edge j
+    edge_usage = [0] * m  # total flow on each edge so far
+    
+    def find_flow_for_product(p_idx):
+        s, t, d = products[p_idx]
+        # We need to find a flow of value d from s to t
+        # Subject to edge_usage[e] + flow[e] <= capacity[e]
+        # Which means flow[e] <= capacity[e] - edge_usage[e]
+        # This is a max-flow problem with capacities cap[e] - edge_usage[e]
+        
+        # Let's build a residual graph and find a flow of value d
+        res_cap = [capacity[i] - edge_usage[i] for i in range(m)]
+        
+        # Now find a flow of value d in this residual graph
+        # We can use a path decomposition or a standard max-flow algorithm
+        
+        # Let's use a simple path-based approach
+        local_flow = [0] * m
+        
+        # Build adjacency list for residual graph
+        adj = [[] for _ in range(n)]
+        for i in range(m):
+            if res_cap[i] > 0:
+                u, v = edges[i]
+                adj[u].append((v, i))
+        
+        def dfs_path(node, target, visited, path_edges):
+            if node == target:
+                return True
+            visited[node] = True
+            for nei, e_idx in adj[node]:
+                if not visited[nei] and res_cap[e_idx] > 0:
+                    path_edges.append(e_idx)
+                    if dfs_path(nei, target, visited, path_edges):
+                        return True
+                    path_edges.pop()
+            return False
+        
+        flow_value = 0
+        while flow_value < d:
+            visited = [False] * n
+            path_edges = []
+            if not dfs_path(s, t, visited, path_edges):
+                break
+            # Find bottleneck
+            if not path_edges:
+                break
+            bottleneck = min(res_cap[e] for e in path_edges)
+            if bottleneck == 0:
+                break
+            send = min(bottleneck, d - flow_value)
+            for e in path_edges:
+                local_flow[e] += send
+                res_cap[e] -= send
+                # Update adjacency list if capacity becomes 0
+                if res_cap[e] == 0:
+                    u, v = edges[e]
+                    adj[u] = [(x, y) for x, y in adj[u] if y != e]
+            flow_value += send
+        
+        if flow_value < d:
+            return None
+        return local_flow
+    
+    # Try to assign flows one by one
+    for i in range(k):
+        flow = find_flow_for_product(i)
+        if flow is None:
+            print("NO")
+            return
+        flows.append(flow)
+        for j in range(m):
+            edge_usage[j] += flow[j]
+    
+    # Verify that we haven't exceeded capacities
+    for j in range(m):
+        if edge_usage[j] > capacity[j]:
+            print("NO")
+            return
+    
+    # If we reached here, we have a valid solution
+    print("YES")
+    for flow in flows:
+        print(' '.join(map(str, flow)))
+
+solve()
+```

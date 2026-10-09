@@ -1,5 +1,5 @@
 import sys
-from collections import deque
+sys.setrecursionlimit(1 << 25)
 
 def solve() -> None:
     data = sys.stdin.read().strip().split()
@@ -14,37 +14,38 @@ def solve() -> None:
         adj[u].append(v)
         adj[v].append(u)
 
-    colour = [-1] * (n + 1)          # -1 = unvisited, 0/1 = colour
-    answer = [0] * (n + 1)
+    color = [-1] * (n + 1)          # 0 / 1 for bipartition
+    answer = [0] * (n + 1)          # final phases 1 or 2
+    from collections import deque
 
     for start in range(1, n + 1):
-        if colour[start] != -1:
+        if color[start] != -1:
             continue
         # BFS this component
         q = deque([start])
-        colour[start] = 0
-        comp = [start]
-        min_v = start
+        color[start] = 0
+        comp_nodes = [start]
+        ok = True
         while q:
-            v = q.popleft()
-            if v < min_v:
-                min_v = v
-            for to in adj[v]:
-                if colour[to] == -1:
-                    colour[to] = colour[v] ^ 1
-                    q.append(to)
-                    comp.append(to)
-                elif colour[to] == colour[v]:
-                    print("NO")
-                    return
-        # orient component so that min_v gets value 1 (colour 0)
-        if colour[min_v] == 1:
-            for v in comp:
-                colour[v] ^= 1
-
-    # build answer
-    for i in range(1, n + 1):
-        answer[i] = 1 + colour[i]   # colour 0 -> 1, colour 1 -> 2
+            u = q.popleft()
+            for v in adj[u]:
+                if color[v] == -1:
+                    color[v] = color[u] ^ 1
+                    q.append(v)
+                    comp_nodes.append(v)
+                elif color[v] == color[u]:
+                    ok = False
+        if not ok:
+            print("NO")
+            return
+        # decide orientation: make smallest index node phase 1
+        min_node = min(comp_nodes)
+        min_col = color[min_node]
+        for node in comp_nodes:
+            if color[node] == min_col:
+                answer[node] = 1
+            else:
+                answer[node] = 2
 
     print("YES")
     print(' '.join(str(answer[i]) for i in range(1, n + 1)))

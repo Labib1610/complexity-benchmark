@@ -1,0 +1,53 @@
+# Problem B — Quantum Array Calibration
+
+Time limit: 1 s   Memory limit: 256 MB
+
+## Description
+
+You are tasked with finding a valid operating state for a quantum computing array consisting of $n$ qubits. Each qubit must be calibrated into one of two basis states: state 1 or state 0. The configuration space contains $2^n$ possible global calibrations.
+
+The system's error-correction protocol monitors a rigid set of $m$ directional signal routes. The array is considered stable if and only if no route triggers a critical fault. Due to the hardware's entanglement routing, each route connects a source trigger to a target trigger. Whenever a source trigger fires, it propagates an interference signal along that route to its target trigger. A critical fault is triggered if a target trigger fires while receiving an interference signal from its connected source.
+
+Write a program to evaluate the $2^n$ configuration space to determine if a stable global calibration exists, and if so, output one.
+
+## Input
+The first line contains two integers $n$ and $m$ ($1 \le n \le 10^5$, $0 \le m \le 2 \cdot 10^5$).
+Each of the next $m$ lines describes a route using two non-zero signed integers $l_1$ and $l_2$, where $|l_1|, |l_2| \le n$. 
+
+These integers specify the source and target triggers for that route:
+- A positive integer $x$ indicates that a trigger fires when qubit $x$ is in state 0.
+- A negative integer $-x$ indicates that a trigger fires when qubit $x$ is in state 1.
+
+The integer $l_1$ represents the source trigger, and $l_2$ represents the target trigger. To prevent a fault, a calibration must ensure that for every route, the target trigger does not fire if its source trigger is firing.
+
+## Output
+If no valid calibration exists in the state space, print a single line `NO`.
+Otherwise, print `YES` on the first line. On the second line, print $n$ integers $s_1, s_2, \ldots, s_n$ (each either 0 or 1) representing the state of each qubit in a valid calibration.
+
+## Example 1
+Input:
+```
+2 2
+1 2
+-1 -2
+```
+Output:
+```
+YES
+1 0
+```
+
+## Example 2
+Input:
+```
+1 2
+1 1
+-1 -1
+```
+Output:
+```
+NO
+```
+
+## Note
+Multiple valid calibrations may exist; any one is accepted. The same qubit may appear in multiple routes.

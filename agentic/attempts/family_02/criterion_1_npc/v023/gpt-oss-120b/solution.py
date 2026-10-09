@@ -1,0 +1,90 @@
+import sys
+
+sys.setrecursionlimit(1000000)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    clauses = []
+    for _ in range(m):
+        lits = []
+        for _ in range(3):
+            x = int(next(it))
+            var = abs(x) - 1
+            sign = x > 0          # True means needs 1, False means needs 0
+            lits.append((var, sign))
+        clauses.append(lits)
+
+    assign = [None] * n  # None, 0, 1
+
+    # For quick checking, maintain for each clause count of satisfied literals
+    # and count of undecided literals.
+    # We'll recompute on the fly in recursion (since n,m are small).
+
+    def clause_status(cl):
+        """Return:
+        -1 if clause already satisfied,
+        0 if still possibly satisfiable,
+        1 if clause is currently unsatisfied (all literals false)."""
+        unsat = True
+        for var, sign in cl:
+            val = assign[var]
+            if val is None:
+                unsat = False  # could become true later
+            elif (val == 1) == sign:
+                return -1  # satisfied
+        if unsat:
+            return 1   # unsatisfied
+        return 0       # undetermined
+
+    # early check for contradictions
+    for cl in clauses:
+        if clause_status(cl) == 1:
+            print("NO")
+            return
+
+    # order variables by occurrence frequency for better pruning
+    occ = [0] * n
+    for cl in clauses:
+        for var, _ in cl:
+            occ[var] += 1
+    order = sorted(range(n), key=lambda v: -occ[v])
+
+    # map from position in order to variable index
+    pos2var = order
+    var2pos = {v: i for i, v in enumerate(pos2var)}
+
+    def dfs(idx: int) -> bool:
+        if idx == n:
+            # all assigned, check all clauses satisfied
+            for cl in clauses:
+                if clause_status(cl) == 1:
+                    return False
+            return True
+        var = pos2var[idx]
+        for val in (0, 1):
+            assign[var] = val
+            # prune: any clause unsatisfied?
+            bad = False
+            for cl in clauses:
+                st = clause_status(cl)
+                if st == 1:
+                    bad = True
+                    break
+            if not bad and dfs(idx + 1):
+                return True
+            assign[var] = None
+        return False
+
+    if dfs(0):
+        print("YES")
+        print(' '.join(str(assign[i] if assign[i] is not None else 0) for i in range(n)))
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()

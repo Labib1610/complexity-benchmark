@@ -1,0 +1,113 @@
+import sys
+from functools import lru_cache
+
+def solve():
+    input_data = sys.stdin.read().strip().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    j = int(next(it))
+    m = int(next(it))
+    
+    jobs = []
+    for _ in range(j):
+        o = int(next(it))
+        steps = []
+        for _ in range(o):
+            w = int(next(it)) - 1  # 0-indexed workstation
+            d = int(next(it))
+            steps.append((w, d))
+        jobs.append(steps)
+    
+    # total steps per job
+    total_steps = [len(job) for job in jobs]
+    total_all = sum(total_steps)
+    
+    # DP state: tuple of current step index per job + time
+    # We need to find minimal completion time.
+    # Use branch and bound: earliest start time for each job is cumulative sum of its own
+    # (machine constraints ignored) as lower bound.
+    
+    # Precompute an upper bound: schedule without interleaving (sequential jobs)
+    ub = 0
+    for job in jobs:
+        ub += sum(d for _, d in job)
+    
+    # State: current step index for each job and current time
+    # We'll do DFS with pruning
+    start_positions = [0] * j
+    best = ub
+    
+    # next_step_time: for each job, cumulative time before its k-th step starts
+    cum_time = []
+    for job in jobs:
+        c = [0]
+        for _, d in job:
+            c.append(c[-1] + d)
+        cum_time.append(c)
+    
+    # Lower bound: maximum of (cum_time[job][idx] + remaining) can't be less than max of all
+    # We'll use an optimistic finish estimate: max over job of (current completion time of already started steps) + remained durations.
+    def optimistic_finish(idxs):
+        finish = 0
+        for i, idx in enumerate(idxs):
+            done = cum_time[i][idx]
+            remain = cum_time[i][-1] - cum_time[i][idx]
+            finish = max(finish, done + remain)
+        return finish
+    
+    # We do a priority queue? Actually use recursive search with pruning.
+    # Use dict for memoization: (idxs tuple) -> best time to reach this state? 
+    # But time depends on machine schedule, so memoization tricky.
+    # Instead use DFS with machine availability list.
+    
+    # Track machine free time
+    machine_free = [0] * m
+    
+    # Recursive search
+    # Represent state as tuple of idxs
+    from heapq import heappush, heappop
+    
+    # Use priority queue: state = (current_time, idxs tuple, machine_free tuple)
+    # At each state, pick a job's next step that can start at max(current_time, machine_free[workstation])
+    # Since we are minimizing completion, we'll try fastest possible next steps.
+    
+    # Arrays for step data per job: list of (worker, dur)
+    # steps[job][step_idx] = (workstation, duration)
+    
+    heap = []
+    init_idxs = tuple(0 for _ in range(j))
+    init_time = 0
+    init_mf = tuple(0 for _ in range(m))
+    heappush(heap, (optimistic_finish(list(init_idxs)), init_time, init_idxs, init_mf))
+    
+    while heap:
+        _, cur_time, idxs, mf = heappop(heap)
+        if all(idxs[i] == total_steps[i] for i in range(j)):
+            best = min(best, cur_time)
+            continue
+        # lower bound already filters
+        if cur_time >= best:
+            continue
+        
+        # Try all possible next steps
+        for job_id in range(j):
+            if idxs[job_id] < total_steps[job_id]:
+                w, d = jobs[job_id][idxs[job_id]]
+                start_time = max(cur_time, mf[w])
+                new_time = start_time + d
+                if new_time >= best:
+                    continue
+                # new idxs
+                new_idxs = list(idxs)
+                new_idxs[job_id] += 1
+                new_mf = list(mf)
+                new_mf[w] = new_time
+                lb = max(new_time, optimistic_finish(new_idxs))
+                if lb < best:
+                    heappush(heap, (lb, new_time, tuple(new_idxs), tuple(new_mf)))
+    
+    print(best)
+
+if __name__ == "__main__":
+    solve()

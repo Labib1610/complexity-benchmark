@@ -1,0 +1,113 @@
+import sys
+sys.setrecursionlimit(1000000)
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    # Each clause is (a, b) meaning (a OR b)
+    # Convert to implication graph: (!a -> b) and (!b -> a)
+    # Variables: 0 to 2*n-1 representing x0, !x0, x1, !x1, ..., xn-1, !xn-1
+    # xi corresponds to switch i+1 being UP (1), !xi corresponds to switch i+1 being DOWN (0)
+    
+    adj = [[] for _ in range(2 * n)]
+    rev_adj = [[] for _ in range(2 * n)]
+    
+    index = 2
+    for i in range(m):
+        l1 = int(data[index])
+        l2 = int(data[index + 1])
+        index += 2
+        
+        # Convert to 0-based indexing
+        # l1 > 0 means switch |l1| is UP
+        # l1 < 0 means switch |l1| is DOWN
+        # Similarly for l2
+        
+        # We want (x_{|l1|-1}^{up if l1>0, down if l1<0}) OR (x_{|l2|-1}^{up if l2>0, down if l2<0})
+        # Let's define:
+        # For switch i (0-based), 
+        # node 2*i represents x_i = 0 (DOWN)
+        # node 2*i+1 represents x_i = 1 (UP)
+        
+        # l1: if l1 > 0, then we want x_{l1-1} = 1 (node 2*(l1-1)+1)
+        #     if l1 < 0, then we want x_{-l1-1} = 0 (node 2*(-l1-1)))
+        # Same for l2
+        
+        if l1 > 0:
+            v1 = 2 * (l1 - 1) + 1  # x_{l1-1} = 1
+        else:
+            v1 = 2 * (-l1 - 1)     # x_{-l1-1} = 0
+            
+        if l2 > 0:
+            v2 = 2 * (l2 - 1) + 1  # x_{l2-1} = 1
+        else:
+            v2 = 2 * (-l2 - 1)     # x_{-l2-1} = 0
+            
+        # Add clauses: (!v1 -> v2) and (!v2 -> v1)
+        # !v1 is v1^1, !v2 is v2^1
+        adj[v1 ^ 1].append(v2)
+        adj[v2 ^ 1].append(v1)
+        rev_adj[v2].append(v1 ^ 1)
+        rev_adj[v1].append(v2 ^ 1)
+    
+    # Kosaraju's algorithm for SCC
+    order = []
+    visited = [False] * (2 * n)
+    
+    def dfs1(u):
+        visited[u] = True
+        for v in adj[u]:
+            if not visited[v]:
+                dfs1(v)
+        order.append(u)
+    
+    for i in range(2 * n):
+        if not visited[i]:
+            dfs1(i)
+    
+    # Reverse the graph and do DFS in reverse order
+    comp = [-1] * (2 * n)
+    cnt = 0
+    
+    def dfs2(u):
+        comp[u] = cnt
+        for v in rev_adj[u]:
+            if comp[v] == -1:
+                dfs2(v)
+    
+    for i in reversed(order):
+        if comp[i] == -1:
+            dfs2(i)
+            cnt += 1
+    
+    # Check if any variable and its negation are in the same SCC
+    for i in range(n):
+        if comp[2 * i] == comp[2 * i + 1]:
+            print("NO")
+            return
+    
+    print("YES")
+    assignment = [0] * n
+    # Assign values based on component numbers
+    # Variables with higher component number are assigned True first
+    comp_order = sorted(range(2 * n), key=lambda x: comp[x], reverse=True)
+    assigned = [False] * n
+    
+    for u in comp_order:
+        var_idx = u // 2
+        if not assigned[var_idx]:
+            if u % 2 == 0:
+                assignment[var_idx] = 0  # DOWN
+            else:
+                assignment[var_idx] = 1  # UP
+            assigned[var_idx] = True
+    
+    print(' '.join(map(str, assignment)))
+
+if __name__ == "__main__":
+    main()

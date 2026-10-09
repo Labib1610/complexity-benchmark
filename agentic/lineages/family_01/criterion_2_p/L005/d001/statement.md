@@ -1,20 +1,21 @@
-# Problem B — Module Configuration
+# Problem B — Frequency Calibration
 
-Time limit: 1 s   Memory limit: 256 MB
+Time limit: 1 s
+Memory limit: 256 MB
 
-You are configuring a system of $n$ modules. Each module must be assigned a power state of either $1$ or $2$. 
+An industrial plant operates a system of $n$ robotic units. Each unit must be calibrated to operate on one of two available frequency bands, labeled 1 and 2.
 
-The system has $m$ interference links, each connecting a pair of modules. To prevent system failure, any two modules connected by an interference link must have their power states configured such that the product of their states is exactly $2$. 
+The plant's safety system contains $m$ proximity records. Each record identifies two units that operate close to one another. To prevent signal interference, the calibration must satisfy a strict safety rule: for any pair of units listed in a proximity record, the sum of their assigned frequency bands must evaluate to exactly 3.
 
-You must assign a power state to every module. If it is impossible to configure the system to satisfy the product requirement for all interference links, report impossibility.
+You must assign a frequency band to each of the $n$ units such that every proximity record satisfies this safety rule, or determine that no such assignment is possible.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 200000$, $0 \le m \le 200000$).
-Each of the next $m$ lines contains two integers $u$ and $v$ — a pair of modules connected by an interference link.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$).
+Each of the next $m$ lines contains two integers $u$ and $v$ — a pair of units listed in a proximity record.
 
 ## Output
-If no valid configuration exists, print a single line NO.
-Otherwise print YES, then a second line with $n$ integers $s_1 \dots s_n$, each equal to 1 or 2, representing the power states of the modules. If multiple valid configurations exist, output the lexicographically smallest one.
+If no valid calibration exists, print a single line NO.
+Otherwise print YES, then a second line with $n$ integers $s_1 \dots s_n$ (each in {1,2}), representing the lexicographically smallest valid calibration.
 
 ## Example 1
 Input:

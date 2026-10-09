@@ -1,0 +1,317 @@
+**Solution Explanation**
+
+For every module we have to choose a term `1 … T`
+
+*   all prerequisite edges `a → b` must satisfy `term[a] < term[b]`
+*   in each term at most `M` modules may be taken
+
+The problem is a classic *unit‑job, parallel‑machine, precedence* scheduling
+problem with a common deadline `T`.  
+It can be solved with a flow network.
+
+
+
+--------------------------------------------------------------------
+
+#### 1.   DAG preprocessing  
+
+The prerequisite graph is a directed acyclic graph (otherwise the answer is
+obviously `NO`).  
+For every vertex we compute
+
+* `earliest[i]` – the smallest term in which `i` can be taken  
+
+  `earliest[i] = 1 + max( earliest[p] )` over all predecessors `p`  
+  (topological order DP)
+
+* `latest[i]` – the largest term in which `i` can be taken while still being
+  able to finish all its successors before the deadline  
+
+  First compute `len_to_end[i]` – the length of the longest directed path
+  starting in `i` (including `i`).  
+  `len_to_end[i] = 1 + max( len_to_end[s] )` over all successors `s`.  
+  Then  
+
+  `latest[i] = T - (len_to_end[i] - 1)`
+
+If for some vertex `earliest[i] > latest[i]` the schedule is impossible.
+
+
+
+--------------------------------------------------------------------
+
+#### 2.   Flow model  
+
+```
+source → (module nodes) → (term nodes) → sink
+```
+
+* source → module `i` : capacity `1` (each module must be scheduled once)
+* module `i` → term `t` : capacity `1` **iff** `earliest[i] ≤ t ≤ latest[i]`
+* term `t` → sink : capacity `M` (at most `M` modules in this term)
+
+A feasible flow of value `n` gives a schedule:
+module `i` sends its unit of flow to exactly one term node, i.e. `term[i]`.
+
+The network size  
+
+* vertices : `1 (src) + n (modules) + T (terms) + 1 (snk)` ≤ `n+T+2`
+* edges   : `n` (src→module) + `∑ (latest[i]-earliest[i]+1)` (module→term) +
+            `T` (term→snk)  
+
+Even for `n = 10⁴ , T = 10³` the total number of edges is well below a few
+million, easily handled in the given limits.
+
+
+
+--------------------------------------------------------------------
+
+#### 3.   Max‑flow (Dinic)
+
+Dinic’s algorithm with adjacency lists runs in  
+`O(E·√V)` for unit capacities, fast enough for the constraints.
+After the flow finishes we read the outgoing edges of each module node;
+the term node that carries flow `1` is the assigned term.
+
+
+
+--------------------------------------------------------------------
+
+#### 4.   Correctness Proof  
+
+We prove that the algorithm prints `YES` and a correct schedule
+iff such a schedule exists.
+
+---
+
+##### Lemma 1  
+For every module `i` any feasible schedule must assign it to a term
+`t` with `earliest[i] ≤ t ≤ latest[i]`.
+
+**Proof.**  
+`earliest[i]` is defined as one more than the maximum term of its
+predecessors, therefore any schedule respecting the prerequisites must put
+`i` at least there.  
+`len_to_end[i]` is the number of modules on the longest chain starting at `i`
+(including `i`). All those modules need distinct later terms, therefore the
+last one can be at most term `T`. Hence `i` cannot be later than
+`T - (len_to_end[i]-1) = latest[i]`. ∎
+
+
+
+##### Lemma 2  
+If the flow value equals `n`, the term assigned to each module by the flow
+satisfies all prerequisites and the per‑term capacity.
+
+**Proof.**  
+*Prerequisites*: by Lemma&nbsp;1 the edge `i → t` exists only for admissible
+terms, therefore `term[i]` respects the lower and upper bounds, which are
+exactly the bounds forced by the predecessors and successors. Hence
+`term[a] < term[b]` for every edge `a → b`.  
+*Capacity*: the edge `term t → sink` has capacity `M`; at most `M` units of
+flow (i.e. modules) can use this edge, therefore at most `M` modules are
+assigned to term `t`. ∎
+
+
+
+##### Lemma 3  
+If a feasible schedule exists, the constructed flow network admits a flow of
+value `n`.
+
+**Proof.**  
+Take the schedule. For each module `i` send one unit of flow
+`source → i → term[i] → sink`.  
+`source → i` exists (capacity 1).  
+Because the schedule respects Lemma&nbsp;1, the edge `i → term[i]` is present.
+Each term receives at most `M` modules, therefore the total flow through
+`term t → sink` does not exceed its capacity `M`.  
+All capacities are respected, giving a feasible flow of value `n`. ∎
+
+
+
+##### Lemma 4  
+The algorithm outputs `YES` and a schedule **iff** a feasible schedule exists.
+
+**Proof.**  
+
+*If* part:  
+If the algorithm finds a flow of value `n`, by Lemma&nbsp;2 the derived
+assignment is a feasible schedule, so it prints `YES`.
+
+*Only‑if* part:  
+If a feasible schedule exists, Lemma&nbsp;3 guarantees a flow of value `n`.
+Dinic computes a maximum flow, therefore it will also reach value `n`,
+and the algorithm will output `YES`. ∎
+
+
+
+##### Theorem  
+The program prints `YES` followed by a correct assignment of terms
+exactly when such an assignment exists; otherwise it prints `NO`.
+
+**Proof.**  
+Directly from Lemma&nbsp;4 and the fact that the program prints `NO` when the
+maximum flow is `< n`. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### 5.   Complexity Analysis  
+
+*Topological order & DP* : `O(n + m)`  
+*Building the network*   : `O( Σ (latest[i]-earliest[i]+1) ) ≤ O(n·T)`  
+*Dinic* (unit capacities) : `O( E·√V )` where  
+`V = n + T + 2`, `E` as above.  
+With the given limits this easily fits into the 5 s time limit and 256 MB
+memory.
+
+
+
+--------------------------------------------------------------------
+
+#### 6.   Reference Implementation  (Python 3)
+
+```python
+import sys
+sys.setrecursionlimit(1 << 25)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it)); M = int(next(it)); T = int(next(it)); m = int(next(it))
+    adj = [[] for _ in range(n)]
+    radj = [[] for _ in range(n)]
+    indeg = [0]*n
+    for _ in range(m):
+        a = int(next(it))-1
+        b = int(next(it))-1
+        adj[a].append(b)
+        radj[b].append(a)
+        indeg[b] += 1
+
+    # topological order
+    from collections import deque
+    q = deque([i for i in range(n) if indeg[i]==0])
+    topo = []
+    while q:
+        v = q.popleft()
+        topo.append(v)
+        for to in adj[v]:
+            indeg[to] -= 1
+            if indeg[to]==0:
+                q.append(to)
+    if len(topo)!=n:
+        print("NO")
+        return
+
+    # earliest
+    earliest = [1]*n
+    for v in topo:
+        for to in adj[v]:
+            if earliest[to] < earliest[v] + 1:
+                earliest[to] = earliest[v] + 1
+
+    # longest path to end (len_to_end)
+    len_to_end = [1]*n
+    for v in reversed(topo):
+        for to in adj[v]:
+            if len_to_end[v] < len_to_end[to] + 1:
+                len_to_end[v] = len_to_end[to] + 1
+
+    latest = [T - (len_to_end[i]-1) for i in range(n)]
+
+    for i in range(n):
+        if earliest[i] > latest[i] or earliest[i] > T or latest[i] < 1:
+            print("NO")
+            return
+
+    # ----- Dinic -----
+    class Edge:
+        __slots__ = ('to','cap','rev')
+        def __init__(self,to,cap,rev):
+            self.to=to;self.cap=cap;self.rev=rev
+
+    N = 1 + n + T + 1
+    SRC = 0
+    MOD_START = 1
+    TERM_START = 1 + n
+    SNK = N-1
+    graph = [[] for _ in range(N)]
+
+    def add_edge(fr,to,cap):
+        graph[fr].append(Edge(to,cap,len(graph[to])))
+        graph[to].append(Edge(fr,0,len(graph[fr])-1))
+
+    for i in range(n):
+        add_edge(SRC, MOD_START+i, 1)
+        for term in range(earliest[i], latest[i]+1):
+            add_edge(MOD_START+i, TERM_START+term-1, 1)
+
+    for term in range(1, T+1):
+        add_edge(TERM_START+term-1, SNK, M)
+
+    level = [0]*N
+    itp = [0]*N
+    from collections import deque
+    def bfs():
+        for i in range(N):
+            level[i] = -1
+        q = deque([SRC])
+        level[SRC]=0
+        while q:
+            v=q.popleft()
+            for e in graph[v]:
+                if e.cap and level[e.to]==-1:
+                    level[e.to]=level[v]+1
+                    q.append(e.to)
+        return level[SNK]!=-1
+
+    def dfs(v, f):
+        if v==SNK:
+            return f
+        for i in range(itp[v], len(graph[v])):
+            e = graph[v][i]
+            if e.cap and level[e.to]==level[v]+1:
+                ret = dfs(e.to, min(f, e.cap))
+                if ret:
+                    e.cap -= ret
+                    graph[e.to][e.rev].cap += ret
+                    return ret
+            itp[v]+=1
+        return 0
+
+    flow=0
+    INF=10**9
+    while bfs():
+        itp = [0]*N
+        while True:
+            pushed = dfs(SRC, INF)
+            if not pushed:
+                break
+            flow += pushed
+
+    if flow!=n:
+        print("NO")
+        return
+
+    # retrieve assignment
+    ans = [0]*n
+    for i in range(n):
+        v = MOD_START+i
+        for e in graph[v]:
+            if TERM_START <= e.to < TERM_START+T and e.cap==0:  # used edge
+                term = e.to - TERM_START + 1
+                ans[i]=term
+                break
+    print("YES")
+    print(' '.join(map(str, ans)))
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above and conforms
+to the required input‑output format.

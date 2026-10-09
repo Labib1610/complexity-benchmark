@@ -1,0 +1,221 @@
+import sys
+from collections import defaultdict
+import heapq
+
+def find(parent, x):
+    if parent[x] != x:
+        parent[x] = find(parent, parent[x])
+    return parent[x]
+
+def union(parent, rank, x, y):
+    px, py = find(parent, x), find(parent, y)
+    if px == py:
+        return False
+    if rank[px] < rank[py]:
+        px, py = py, px
+    parent[py] = px
+    if rank[px] == rank[py]:
+        rank[px] += 1
+    return True
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    idx = 0
+    n = int(data[idx])
+    idx += 1
+    m = int(data[idx])
+    idx += 1
+    t = int(data[idx])
+    idx += 1
+    
+    T = list(map(int, data[idx:idx+t]))
+    idx += t
+    
+    edges = []
+    for _ in range(m):
+        u = int(data[idx]) - 1  # Convert to 0-indexed
+        idx += 1
+        v = int(data[idx]) - 1
+        idx += 1
+        w = int(data[idx])
+        idx += 1
+        edges.append((w, u, v))
+    
+    # If t <= 1, no constraints, so we can choose no transformations
+    if t <= 1:
+        print(0)
+        return
+    
+    # Sort edges by weight
+    edges.sort()
+    
+    # We want the minimum spanning tree that connects all nodes in T
+    # This is equivalent to finding the minimum Steiner tree for terminals T
+    # But since the full graph is a tree (m=n-1), we can do the following:
+    # Find the minimal subtree that connects all terminals T
+    
+    # Build the graph as a tree with all m edges
+    parent = list(range(n))
+    rank = [0] * n
+    
+    # We'll use a different approach:
+    # In the final subspace, all e_i for i in T must have the same projection
+    # This means they must be in the same connected component
+    # So we need to connect all nodes in T
+    # The minimum cost is the cost of the MST of the subgraph induced by the minimal
+    # connected subtree containing all nodes in T
+    
+    # But since we have m=n-1 edges forming a spanning tree of the complete graph,
+    # we can think of this differently:
+    # We want to take the minimum cost set of edges such that all nodes in T
+    # are in the same connected component.
+    # The complement of this is a set of edges whose removal keeps T connected.
+    # Actually, let's think of it this way:
+    # We want to find the minimum cost to make all terminals equivalent.
+    # In the final space V_C, two basis vectors e_a and e_b have the same projection
+    # iff they are in the same connected component of the graph formed by the
+    # transformations NOT in C.
+    # Wait, no. Let me re-read...
+    # V_C is the space of vectors invariant under all transformations in C.
+    # So if S_{u,v} is in C, then x_u = x_v for all x in V_C.
+    # So in the graph where we have edges corresponding to transformations in C,
+    # all nodes in the same connected component must have equal coordinates in V_C.
+    # We want all nodes in T to have the same projection, which means
+    # we want them to be in the same connected component in the graph of selected transformations.
+    
+    # So we want the minimum cost set of edges (transformations) such that
+    # all nodes in T are connected.
+    # This is the minimum Steiner tree problem.
+    # But since the available edges form a tree (m=n-1), the solution is:
+    # Find the minimal subtree that connects all terminals T.
+    
+    # In a tree, the minimal subtree connecting a set of terminals is unique
+    # and is called the Steiner tree. Its edges are exactly the paths between
+    # consecutive terminals in the tree when the terminals are considered.
+    
+    # But there's a simpler way for a tree:
+    # The minimum cost to connect all terminals is the total cost of all edges
+    # minus the maximum cost forest that doesn't disconnect the terminals.
+    # Even simpler: since we're in a tree, the Steiner tree is the union of
+    # paths between terminals, but we need to avoid double-counting.
+    
+    # Let's use the standard algorithm for Steiner tree in a tree:
+    # 1. Root the tree at some node
+    # 2. Find the minimal subtree containing all terminals
+    # 3. Its cost is the sum of edge costs in this subtree
+    
+    # But we don't have the tree structure yet. Let's build it.
+    # Actually, let's think of it this way:
+    # We have m=n-1 edges. If we take all of them, we get a connected graph.
+    # Since m=n-1, it's a tree if it's connected.
+    # The problem states that taking all transformations gives a 1D space,
+    # which means all coordinates become equal, i.e., all nodes are connected.
+    # So the m edges form a spanning tree.
+    
+    # So we have a tree with weighted edges, and we want the minimum cost
+    # subtree that connects all terminals in T.
+    
+    # Algorithm:
+    # 1. Build the tree from all m edges (it's a spanning tree of the complete graph)
+    # 2. Find the minimal subtree that contains all nodes in T
+    # 3. The cost is the sum of weights in this subtree
+    
+    # To find the minimal subtree containing T in a tree:
+    # It's the union of paths between all pairs of terminals, but more efficiently:
+    # It's the subtree formed by all nodes and edges that lie on some path
+    # between two terminals in T.
+    
+    # Even simpler approach:
+    # In a tree, the minimal connected subtree containing terminals T
+    # can be found by:
+    # 1. Rooting the tree at some node
+    # 2. Finding the lowest common ancestor (LCA) structure
+    # 3. The minimal subtree is the union of paths from each terminal to the root,
+    #    but we only count edges that are necessary.
+    
+    # But there's an even simpler linear-time algorithm for trees:
+    # 1. Root the tree at terminal t0
+    # 2. For each other terminal, find its path to t0
+    # 3. The union of these paths forms the minimal subtree
+    # 4. But we need to avoid double-counting edges
+    
+    # Best approach:
+    # Use the fact that in a tree, the minimal subtree containing terminals T
+    # is the union of paths between terminals, and its edges are exactly those
+    # edges that separate two subtrees each containing at least one terminal.
+    
+    # But the simplest for implementation:
+    # 1. Build the tree
+    # 2. Mark all terminals
+    # 3. Do a DFS to find which edges are needed: an edge is needed if
+    #    removing it creates two components each with at least one terminal.
+    
+    # Let's implement this.
+    
+    # First, build adjacency list representation of the tree
+    adj = [[] for _ in range(n)]
+    edge_list = []
+    for w, u, v in edges:
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+        edge_list.append((w, u, v))
+    
+    # Convert T to 0-indexed
+    terminals = [x - 1 for x in T]
+    
+    if len(terminals) <= 1:
+        print(0)
+        return
+    
+    # Mark which nodes are terminals
+    is_terminal = [False] * n
+    for x in terminals:
+        is_terminal[x] = True
+    
+    # DFS to compute for each node:
+    # - number of terminals in its subtree
+    # - which edges from this node to its children are needed
+    
+    # Root the tree at terminal[0]
+    root = terminals[0]
+    parent_node = [-1] * n
+    parent_edge_weight = [0] * n  # weight of edge from parent to this node
+    
+    # First DFS to set up parent relationships
+    def dfs_parent(u, parent, weight_from_parent):
+        parent_node[u] = parent
+        parent_edge_weight[u] = weight_from_parent
+        for v, w in adj[u]:
+            if v != parent:
+                dfs_parent(v, u, w)
+    
+    dfs_parent(root, -1, 0)
+    
+    # Second DFS to count terminals in subtree and mark needed edges
+    terminal_count = [0] * n
+    needed_edges = []
+    
+    def dfs_count(u, parent):
+        count = 1 if is_terminal[u] else 0
+        for v, w in adj[u]:
+            if v != parent:
+                child_count = dfs_count(v, u)
+                count += child_count
+                # If this edge separates terminals, it's needed
+                if child_count > 0 and (total_terminals - child_count) > 0:
+                    needed_edges.append(w)
+        terminal_count[u] = count
+        return count
+    
+    total_terminals = len(terminals)
+    dfs_count(root, -1)
+    
+    # The answer is the sum of weights of needed edges
+    result = sum(needed_edges)
+    print(result)
+
+if __name__ == "__main__":
+    main()

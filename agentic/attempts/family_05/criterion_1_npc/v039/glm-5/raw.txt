@@ -1,0 +1,336 @@
+```python
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    k = int(next(it))
+    t = int(next(it))
+    
+    triples = []
+    for _ in range(t):
+        x = int(next(it)) - 1
+        y = int(next(it)) - 1
+        z = int(next(it)) - 1
+        triples.append((x, y, z))
+    
+    if k == 0:
+        print("YES")
+        return
+    
+    # For each (x, y), collect list of z values
+    xy_to_zs = {}
+    for (x, y, z) in triples:
+        key = (x, y)
+        if key not in xy_to_zs:
+            xy_to_zs[key] = []
+        xy_to_zs[key].append(z)
+    
+    # Build bipartite graph: left = (x,y) pairs, right = z values
+    # Edge from (x,y) to z if (x,y,z) is viable
+    # We need matching of size k where each x appears once, each y appears once, each z appears once
+    
+    # Left nodes: (x,y) pairs that have at least one z
+    left_nodes = list(xy_to_zs.keys())
+    left_index = {node: i for i, node in enumerate(left_nodes)}
+    
+    # Right nodes: z = 0..k-1
+    # adj[i] = list of z values reachable from left node i
+    adj = []
+    for node in left_nodes:
+        adj.append(xy_to_zs[node])
+    
+    n_left = len(left_nodes)
+    n_right = k
+    
+    # Hopcroft-Karp
+    pair_u = [-1] * n_left  # which z is matched to left i
+    pair_v = [-1] * n_right  # which left is matched to z j
+    dist = [0] * n_left
+    
+    from collections import deque
+    
+    INF = float('inf')
+    
+    def bfs():
+        queue = deque()
+        for u in range(n_left):
+            if pair_u[u] == -1:
+                dist[u] = 0
+                queue.append(u)
+            else:
+                dist[u] = INF
+        d = INF
+        while queue:
+            u = queue.popleft()
+            if dist[u] < d:
+                for v in adj[u]:
+                    if pair_v[v] != -1:
+                        if dist[pair_v[v]] == INF:
+                            dist[pair_v[v]] = dist[u] + 1
+                            queue.append(pair_v[v])
+                    else:
+                        d = dist[u] + 1
+        return d != INF
+    
+    def dfs(u):
+        for v in adj[u]:
+            if pair_v[v] == -1 or (dist[pair_v[v]] == dist[u] + 1 and dfs(pair_v[v])):
+                pair_u[u] = v
+                pair_v[v] = u
+                return True
+        dist[u] = INF
+        return False
+    
+    matching = 0
+    while bfs():
+        for u in range(n_left):
+            if pair_u[u] == -1:
+                if dfs(u):
+                    matching += 1
+    
+    if matching < k:
+        print("NO")
+        return
+    
+    # Now we have matching of size k: each z matched to exactly one (x,y)
+    # But we need each x used once and each y used once
+    # The matching gives us k pairs (x,y) -> z, but x and y might repeat
+    
+    # We need to select k triples such that x's form permutation, y's form permutation, z's form permutation
+    # This is a 3D matching problem
+    
+    # Let's think differently: we need a permutation of triples
+    # Actually, let's model as: choose for each x a (y, z) pair
+    # Constraints: y's all distinct, z's all distinct
+    
+    # Build: for each x, list of (y, z) pairs
+    x_to_yz = {}
+    for (x, y, z) in triples:
+        if x not in x_to_yz:
+            x_to_yz[x] = []
+        x_to_yz[x].append((y, z))
+    
+    # Check all x's present
+    for x in range(k):
+        if x not in x_to_yz or len(x_to_yz[x]) == 0:
+            print("NO")
+            return
+    
+    # Now we need to assign to each x a (y,z) pair such that all y's distinct and all z's distinct
+    # This is a matching problem: left = x, right = (y, z) but with constraint that y's and z's are distinct
+    
+    # Alternative: for each x, for each (y,z) option, we pick one
+    # y's must be a permutation, z's must be a permutation
+    
+    # Let's do: match x to y (bipartite), but also need z's distinct
+    # Actually, let's think of it as: we need k triples (x_i, y_i, z_i) where x is permutation of 0..k-1,
+    # y is permutation, z is permutation
+    
+    # Model as bipartite matching between x and (y,z) pairs where each (y,z) used once,
+    # but also y's distinct and z's distinct among chosen (y,z) pairs
+    
+    # This is harder. Let's use the structure: 
+    # For each (y, z), check if there's an x with (x,y,z) viable
+    # Then we need to select k (y,z) pairs forming a perfect matching in y-z, and assign x's
+    
+    # Actually, let's just do a more direct approach with backtracking since k <= 22
+    # But 22! is too large
+    
+    # Better: 3D matching via reduction to bipartite matching with colors
+    # Actually for 3D matching, we can use the following: 
+    # Create bipartite graph between x and y. Each edge (x,y) has a set of possible z values.
+    # We need perfect matching in x-y where the z values assigned are all distinct.
+    
+    # This is a "colored matching" problem. For small k, we can use bitmask DP or other methods.
+    
+    # Let's try: match x to y (perfect matching), then check if we can assign z's
+    # But there might be multiple perfect matchings in x-y
+    
+    # Alternative approach: since k <= 22, use the bipartite matching between x and z,
+    # where edge (x, z) exists if there's some y with (x, y, z) viable.
+    # Then for each matched (x, z), we need to find a y. But y's must be distinct.
+    
+    # Hmm, this is getting complex. Let me think about it as a flow problem.
+    
+    # Actually, the cleanest way: this is 3-dimensional matching which is NP-hard in general,
+    # but here the sets are all of size k and we need a perfect matching.
+    
+    # Wait, 3D matching is NP-hard. But k <= 22... 
+    
+    # For k <= 22, we could potentially use exponential algorithms.
+    # One approach: fix the assignment of x to y (there could be many perfect matchings),
+    # but that's not directly enumerable.
+    
+    # Let me try a different approach: reduce to finding a perfect matching in a bipartite graph
+    # where left = x, right = z, and edge (x,z) exists if there's a y with (x,y,z).
+    # Then for the matched pairs, assign y's greedily/check.
+    
+    # Actually, let's think about it as a bipartite matching between (x) and (y),
+    # where each edge (x,y) is labeled with possible z values.
+    # We need a perfect matching where the z-labels are all distinct.
+    
+    # For k <= 22, we can use the following: 
+    # Enumerate using DFS with pruning, or use the structure of the problem.
+    
+    # Let me try a cleaner approach: model as maximum matching in a bipartite graph
+    # Left: x (0..k-1), Right: z (0..k-1)
+    # Edge (x, z) if exists y with (x, y, z) viable, and store the possible y values
+    # Find perfect matching, then for each (x, z) pair, find an unused y
+    
+    # But this doesn't guarantee y's are distinct...
+    
+    # OK let me think about this more carefully. The problem is 3D matching.
+    # 3D matching is NP-hard, but the constraints are small (k <= 22).
+    
+    # For k <= 22, we can use a meet-in-the-middle or other exponential approach.
+    # Or we can use an ILP solver, but we don't have one.
+    
+    # Actually, let's use the following observation: 
+    # We can model this as a bipartite matching between x and (y, z) pairs,
+    # where we need to select k (y, z) pairs such that y's are all distinct and z's are all distinct.
+    
+    # The (y, z) pairs that are "valid" are those for which there exists an x with (x, y, z) viable.
+    # But we also need each (y, z) pair to be assigned to a distinct x.
+    
+    # Hmm, let me just try a backtracking approach with good pruning.
+    
+    # For k <= 22, backtracking might work if the graph is dense enough.
+    # But worst case could be bad.
+    
+    # Let me try a different formulation: 
+    # This is equivalent to finding a system of distinct representatives (SDR) for the sets.
+    # 
+    # Actually, let's model it as a bipartite matching problem cleverly:
+    # Left nodes: x values (0 to k-1)
+    # Right nodes: pairs (y, z) where y and z are both in 0..k-1
+    # Edge from x to (y, z) if (x, y, z) is viable
+    # We need a matching of size k where the selected (y, z) pairs have all distinct y and all distinct z.
+    
+    # The constraint on distinct y and z makes this not a standard bipartite matching.
+    
+    # For k <= 22, let's try: 
+    # Use bipartite matching between x and y. For each perfect matching found,
+    # check if we can assign z's. But enumerating all perfect matchings is expensive.
+    
+    # Alternative: Use the "color-coding" or "algebraic" approach.
+    
+    # Actually, I think the cleanest approach for k <= 22 is:
+    # 1. Build bipartite graph between x and y (edge if exists z with (x,y,z))
+    # 2. Find a perfect matching (if none, answer is NO)
+    # 3. For the matched (x, y) pairs, try to assign z's (bipartite matching between matched pairs and z)
+    # 4. If z assignment fails, try a different x-y matching
+    
+    # But step 4 requires enumerating matchings, which could be expensive.
+    
+    # Let me try a different approach: model as a flow problem with lower bounds or something.
+    
+    # Actually, I think the right approach is to note that this is a 3-uniform hypergraph matching,
+    # and for k <= 22, we can use a bitmask DP approach.
+    
+    # State: (set of used x's, set of used y's, set of used z's) -> but this is 2^66 states, too many.
+    
+    # Hmm. Let me think about the structure more.
+    
+    # Actually, we can fix the order of x's (process x = 0, 1, 2, ..., k-1 in order).
+    # For each x, we choose a (y, z) pair. State = (set of used y's, set of used z's).
+    # This is 2^k * 2^k = 2^(2k) states. For k=22, that's 2^44, still too many.
+    
+    # But we can use meet in the middle: process first k/2 x's and last k/2 x's.
+    # For each half, enumerate all (used_y_mask, used_z_mask) pairs.
+    # Then find complementary pairs. This is 2^(k) * 2^(k) for each half = 2^22 * 2^22... still too much.
+    
+    # Hmm, let me think about this differently.
+    
+    # Actually, for each x, the number of (y, z) options might be small.
+    # If the total number of triples t is small, backtracking with pruning could work.
+    
+    # t can be up to k^3 = 22^3 = 10648. That's a lot.
+    
+    # Let me try the bipartite matching approach with retries:
+    # 1. Match x to y (bipartite, edge if exists z with (x,y,z))
+    # 2. For matched pairs, match to z (bipartite, edge if (x,y,z) viable)
+    # 3. If step 2 fails, find a different x-y matching and retry
+    
+    # To find different matchings, we can use the standard technique of finding 
+    # "alternating cycles" in the matching.
+    
+    # Actually, let me try a cleaner approach: 
+    # Build a tripartite graph and use network flow.
+    # Source -> x nodes (capacity 1)
+    # x nodes -> y nodes (capacity 1, edge if exists z with (x,y,z))  
+    # y nodes -> z nodes (capacity 1, edge if exists x with (x,y,z))
+    # z nodes -> sink (capacity 1)
+    # 
+    # Wait, this doesn't capture the constraint correctly. The issue is that 
+    # x->y and y->z must be "consistent" (same triple).
+    
+    # The flow model doesn't directly work because the choice of y links x and z.
+    
+    # OK, I think for this problem, given k <= 22, we should use a backtracking approach
+    # with good pruning, or use the bipartite matching + retry approach.
+    
+    # Let me implement the bipartite matching + retry approach:
+    # 1. Find a perfect matching between x and y (if none, NO)
+    # 2. Try to assign z's to the matched (x,y) pairs
+    # 3. If z assignment fails, modify the x-y matching and retry
+    
+    # For step 3, we can use the following: when z assignment fails, it means 
+    # the current x-y matching doesn't allow a valid z assignment. We need to 
+    # find an alternating path that changes the x-y matching.
+    
+    # This is getting complex. Let me just implement a backtracking solution 
+    # with pruning and hope it's fast enough for k <= 22.
+    
+    # Backtracking: assign x=0, then x=1, etc. For each x, try all (y,z) options.
+    # Prune if y or z already used.
+    
+    # Order x's by number of options (fewest first) for better pruning.
+    
+    # Let's implement this.
+    
+    # Build x -> list of (y, z)
+    x_options = []
+    for x in range(k):
+        if x in x_to_yz:
+            x_options.append((x, x_to_yz[x]))
+        else:
+            print("NO")
+            return
+    
+    # Sort by number of options (ascending) for better pruning
+    x_options.sort(key=lambda item: len(item[1]))
+    
+    # Backtracking
+    used_y = [False] * k
+    used_z = [False] * k
+    assignment = [None] * k  # assignment[i] = (y, z) for x_options[i][0]
+    
+    def backtrack(i):
+        if i == k:
+            return True
+        x, options = x_options[i]
+        for (y, z) in options:
+            if not used_y[y] and not used_z[z]:
+                used_y[y] = True
+                used_z[z] = True
+                assignment[i] = (y, z)
+                if backtrack(i + 1):
+                    return True
+                used_y[y] = False
+                used_z[z] = False
+        return False
+    
+    if backtrack(0):
+        print("YES")
+        for i in range(k):
+            x = x_options[i][0]
+            y, z = assignment[i]
+            print(f"{x+1} {y+1} {z+1}")
+    else:
+        print("NO")
+
+solve()
+```

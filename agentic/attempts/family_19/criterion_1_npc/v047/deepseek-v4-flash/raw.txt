@@ -1,0 +1,187 @@
+We need to model this as a **multi-commodity flow** with integrality constraints professional solvers handle, but here we have to deal with it manually using **integer linear programming** or a **max-flow based reduction**.
+
+Since constraints are small enough (≤2e5 edges maybe), we can use an **integer max-flow per commodity** if there is only one source/demand at a time.  
+But because multiple orders share edges, the combined flow should not exceed capacity.
+
+Here’s what to do:
+
+- Create a flow network with an edge per corridor with capacity `c_j`.
+- For each order, we must send `d_i` units from `s_i` to `t_i`.  
+We can run all commodities *simultaneously* using **minimum-cost flow with lower bounds** but that’s heavy.  
+Instead: because quotas are small, and problem guarantees properties, we can use **max-flow per commodity in a residual graph with capacities from earlier commodities**.
+
+A greedy commutative approach works if flows are *path decomposition* and shared limits are strict — but in general multi-commodity flow is NP-hard.  
+But here, the guarantees say *distinct* origins count ≤ k; still not enough. So problem *forces* a small case → we can use **integer linear programming** with an ILP solver, but we can implement **brute force flow checking** given limits.
+
+Since the time limit is 5s and memory reasonable, we can implement:
+
+1. Build directed graph with edges.
+2. For each order’s quota, perform a DFS/BFS to assign flows edge-by-edge in incremental capacities.
+3. Because problem likely has a unique structure, we can treat it as **k separate max-flows** and update capacities.
+
+We’ll attempt: treat all orders together as integer multicommodity using repeated max-flow and adjustment, if not possible then no.
+
+Given it’s a contest problem, likely the intended is **max-flow with node splitting per commodity** or **LP solver**.
+
+I’ll write code using **network simplex**-like approach via Python’s `scipy` if allowed, else simulate.
+
+Since we cannot use external libs here (only standard), we'll implement a simple **successive shortest path for min-cost flow** on an expanded network representing each commodity separately with shared capacity.
+
+We’ll expand:
+- For each commodity i, create a copy of the graph.
+- Add interconnection capacity constraints by linking edges of same original index.
+
+This can be solved as an **integer min-cost flow** on the expanded network — flow splits must be integer.
+
+The expanded network:
+
+- Node (u, i) for each center u and each commodity i.  
+- For each edge (u,v,c) in original:  
+   add edge from (u,i) to (v,i) with capacity c and cost 0 for each i.  
+- We need inter-commodity capacitation: for each original edge, sum of flows across commodities ≤ c. To enforce, we can add a shared capacity node:  
+    - From (u,i) to a shared edge-node with cap c,  
+    - then from edge-node to (v,i) with cap c.  
+  but same edge-node for all i → shared capacity is enforced.
+
+We also have sources/sinks:  
+Add super source to each (s_i,i) with cap d_i, and each (t_i,i) to super sink with cap d_i.  
+Then check if max flow = sum d_i.
+
+Because of integrality, the integer max flow will give integer assignments.
+
+This is feasible as number of nodes = n*k + m (edge nodes) maybe small enough if k is small in tests.
+
+Let’s implement Dinic algorithm for max flow on this expanded graph.
+
+We'll parse input, build graph, run Dinic.
+
+Let’s code it.```python
+import sys
+from collections import deque
+
+class Dinic:
+    def __init__(self, n):
+        self.n = n
+        self.adj = [[] for _ in range(n)]
+
+    def add_edge(self, u, v, cap):
+        self.adj[u].append([v, cap, len(self.adj[v])])
+        self.adj[v].append([u, 0, len(self.adj[u]) - 1])
+
+    def bfs(self, s, t):
+        self.level = [-1] * self.n
+        q = deque([s])
+        self.level[s] = 0
+        while q:
+            v = q.popleft()
+            for to, cap, rev in self.adj[v]:
+                if cap > 0 and self.level[to] < 0:
+                    self.level[to] = self.level[v] + 1
+                    q.append(to)
+        return self.level[t] >= 0
+
+    def dfs(self, v, t, f):
+        if v == t:
+            return f
+        for i in range(self.it[v], len(self.adj[v])):
+            self.it[v] = i
+            to, cap, rev = self.adj[v][i]
+            if cap > 0 and self.level[v] + 1 == self.level[to]:
+                ret = self.dfs(to, t, min(f, cap))
+                if ret > 0:
+                    self.adj[v][i][1] -= ret
+                    self.adj[to][rev][1] += ret
+                    return ret
+        return 0
+
+    def max_flow(self, s, t):
+        flow = 0
+        INF = 10**18
+        while self.bfs(s, t):
+            self.it = [0] * self.n
+            while True:
+                f = self.dfs(s, t, INF)
+                if not f:
+                    break
+                flow += f
+        return flow
+
+
+def solve():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    k = int(next(it))
+
+    orders = []
+    for _ in range(k):
+        s = int(next(it)) - 1
+        t = int(next(it)) - 1
+        d = int(next(it))
+        orders.append((s, t, d))
+
+    edges = []
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        c = int(next(it))
+        edges.append((u, v, c))
+
+    # Build expanded network
+    # Node indices:
+    # (commodity i, center u) -> i*n + u
+    # edge node for j-th original edge -> k*n + j
+    # super source -> k*n + m
+    # super sink -> k*n + m + 1
+    N = k * n + m + 2
+    S = k * n + m
+    T = k * n + m + 1
+
+    dinic = Dinic(N)
+
+    total_demand = 0
+    for idx, (s, t, d) in enumerate(orders):
+        total_demand += d
+        dinic.add_edge(S, idx * n + s, d)
+        dinic.add_edge(idx * n + t, T, d)
+
+    # For each original edge (u,v,c):
+    # For each commodity i: add (i,u)->edge_node_j->(i,v)
+    for j, (u, v, c) in enumerate(edges):
+        edge_node = k * n + j
+        for i in range(k):
+            from_node = i * n + u
+            to_node = i * n + v
+            dinic.add_edge(from_node, edge_node, c)
+            dinic.add_edge(edge_node, to_node, c)
+
+    flow = dinic.max_flow(S, T)
+    if flow != total_demand:
+        print("NO")
+        return
+
+    # Extract flows per commodity per edge
+    res = [[0] * m for _ in range(k)]
+    for j in range(m):
+        edge_node = k * n + j
+        for i in range(k):
+            from_node = i * n + edges[j][0]
+            # find reverse edge from edge_node to from_node to get flow
+            for to, cap, rev in dinic.adj[edge_node]:
+                if to == from_node:
+                    # flow sent = capacity of reverse edge
+                    flow_sent = dinic.adj[from_node][rev][1]
+                    res[i][j] = flow_sent
+                    break
+
+    print("YES")
+    for row in res:
+        print(" ".join(map(str, row)))
+
+
+if __name__ == "__main__":
+    solve()
+```

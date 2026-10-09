@@ -1,0 +1,311 @@
+```python
+import sys
+from collections import deque
+
+sys.setrecursionlimit(10000)
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if len(data) < 2:
+        return
+
+    n, m = data[0], data[1]
+    adj = [[] for _ in range(n)]
+    eu = [0] * m
+    ev = [0] * m
+
+    p = 2
+    for i in range(m):
+        u = data[p] - 1
+        v = data[p + 1] - 1
+        p += 2
+        eu[i] = u
+        ev[i] = v
+        adj[u].append(i)
+        adj[v].append(i)
+
+    if m * 2 != 3 * n or any(len(adj[v]) != 3 for v in range(n)):
+        print("NO")
+        return
+
+    edge_color = [0] * m
+    vertex_mask = [0] * n
+    seen = [False] * n
+    components = []
+
+    for start in range(n):
+        if seen[start]:
+            continue
+        q = [start]
+        seen[start] = True
+        vertices = []
+        edge_set = set()
+
+        while q:
+            u = q.pop()
+            vertices.append(u)
+            for e in adj[u]:
+                edge_set.add(e)
+                v = ev[e] if eu[e] == u else eu[e]
+                if not seen[v]:
+                    seen[v] = True
+                    q.append(v)
+
+        components.append((vertices, list(edge_set)))
+
+    def bipartite_coloring(vertices):
+        side = {}
+        for start in vertices:
+            if start in side:
+                continue
+            side[start] = 0
+            q = deque([start])
+            while q:
+                u = q.popleft()
+                for e in adj[u]:
+                    v = ev[e] if eu[e] == u else eu[e]
+                    if v not in side:
+                        side[v] = side[u] ^ 1
+                        q.append(v)
+                    elif side[v] == side[u]:
+                        return None
+        return side
+
+    def color_bipartite_component(vertices, edges, side):
+        left = [v for v in vertices if side[v] == 0]
+        match_l = [-1] * n
+        match_r = [-1] * n
+        match_edge_l = [-1] * n
+        dist = [-1] * n
+
+        def bfs():
+            q = deque()
+            found = False
+            for u in left:
+                if match_l[u] == -1:
+                    dist[u] = 0
+                    q.append(u)
+                else:
+                    dist[u] = -1
+
+            while q:
+                u = q.popleft()
+                for e in adj[u]:
+                    v = ev[e] if eu[e] == u else eu[e]
+                    mu = match_r[v]
+                    if mu == -1:
+                        found = True
+                    elif dist[mu] == -1:
+                        dist[mu] = dist[u] + 1
+                        q.append(mu)
+            return found
+
+        def dfs(u):
+            for e in adj[u]:
+                v = ev[e] if eu[e] == u else eu[e]
+                mu = match_r[v]
+                if mu == -1 or (dist[mu] == dist[u] + 1 and dfs(mu)):
+                    match_l[u] = v
+                    match_r[v] = u
+                    match_edge_l[u] = e
+                    return True
+            dist[u] = -1
+            return False
+
+        matched = 0
+        while bfs():
+            for u in left:
+                if match_l[u] == -1 and dfs(u):
+                    matched += 1
+
+        if matched != len(left):
+            return False
+
+        for u in left:
+            edge_color[match_edge_l[u]] = 1
+
+        for start_edge in edges:
+            if edge_color[start_edge] != 0:
+                continue
+
+            edge_color[start_edge] = 2
+            start_vertex = eu[start_edge]
+            current = ev[start_edge]
+            current_color = 2
+
+            while True:
+                next_edge = -1
+                for e in adj[current]:
+                    if edge_color[e] == 0:
+                        next_edge = e
+                        break
+
+                if next_edge == -1:
+                    break
+
+                current_color = 6 ^ current_color
+                edge_color[next_edge] = current_color
+                current = ev[next_edge] if eu[next_edge] == current else eu[next_edge]
+
+            if current != start_vertex:
+                return False
+
+        for e in edges:
+            u, v = eu[e], ev[e]
+            c = edge_color[e]
+            if (vertex_mask[u] & c) or (vertex_mask[v] & c):
+                return False
+            vertex_mask[u] |= c
+            vertex_mask[v] |= c
+
+        return True
+
+    def color_general_component(vertices, edges):
+        trail = []
+
+        def put(e, color, queue):
+            if edge_color[e]:
+                return edge_color[e] == color
+
+            u, v = eu[e], ev[e]
+            if (vertex_mask[u] & color) or (vertex_mask[v] & color):
+                return False
+
+            edge_color[e] = color
+            vertex_mask[u] |= color
+            vertex_mask[v] |= color
+            trail.append(e)
+
+            for x in adj[u]:
+                if edge_color[x] == 0:
+                    queue.append(x)
+            for x in adj[v]:
+                if edge_color[x] == 0:
+                    queue.append(x)
+            return True
+
+        def rollback(mark):
+            while len(trail) > mark:
+                e = trail.pop()
+                color = edge_color[e]
+                u, v = eu[e], ev[e]
+                vertex_mask[u] ^= color
+                vertex_mask[v] ^= color
+                edge_color[e] = 0
+
+        def propagate(queue):
+            pos = 0
+            while pos < len(queue):
+                e = queue[pos]
+                pos += 1
+                if edge_color[e]:
+                    continue
+
+                u, v = eu[e], ev[e]
+                available = 7 & ~(vertex_mask[u] | vertex_mask[v])
+
+                if available == 0:
+                    return False
+
+                if available & (available - 1) == 0:
+                    if not put(e, available, queue):
+                        return False
+            return True
+
+        def dfs(queue):
+            if not propagate(queue):
+                return False
+
+            chosen = -1
+            chosen_available = 0
+            best_count = 4
+            best_score = -1
+
+            for e in edges:
+                if edge_color[e]:
+                    continue
+                u, v = eu[e], ev[e]
+                available = 7 & ~(vertex_mask[u] | vertex_mask[v])
+                count = available.bit_count()
+
+                if count == 0:
+                    return False
+
+                score = vertex_mask[u].bit_count() + vertex_mask[v].bit_count()
+                if count < best_count or (count == best_count and score > best_score):
+                    best_count = count
+                    best_score = score
+                    chosen = e
+                    chosen_available = available
+                    if count == 1:
+                        break
+
+            if chosen == -1:
+                return True
+
+            choices = []
+            bits = chosen_available
+            while bits:
+                color = bits & -bits
+                bits -= color
+                impact = 0
+                u, v = eu[chosen], ev[chosen]
+                for x in adj[u]:
+                    if edge_color[x] == 0 and x != chosen:
+                        a, b = eu[x], ev[x]
+                        if (7 & ~(vertex_mask[a] | vertex_mask[b])) & color:
+                            impact += 1
+                for x in adj[v]:
+                    if edge_color[x] == 0 and x != chosen:
+                        a, b = eu[x], ev[x]
+                        if (7 & ~(vertex_mask[a] | vertex_mask[b])) & color:
+                            impact += 1
+                choices.append((impact, color))
+
+            choices.sort()
+            for _, color in choices:
+                mark = len(trail)
+                new_queue = []
+                if put(chosen, color, new_queue) and dfs(new_queue):
+                    return True
+                rollback(mark)
+
+            return False
+
+        root = vertices[0]
+        root_edges = adj[root]
+        initial_queue = []
+
+        for e, color in zip(root_edges, (1, 2, 4)):
+            if not put(e, color, initial_queue):
+                rollback(0)
+                return False
+
+        if dfs(initial_queue):
+            return True
+
+        rollback(0)
+        return False
+
+    for vertices, edges in components:
+        side = bipartite_coloring(vertices)
+        if side is not None:
+            if not color_bipartite_component(vertices, edges, side):
+                print("NO")
+                return
+        else:
+            if not color_general_component(vertices, edges):
+                print("NO")
+                return
+
+    if any(mask != 7 for mask in vertex_mask):
+        print("NO")
+        return
+
+    answer = [str(c.bit_length()) for c in edge_color]
+    print("YES")
+    print(" ".join(answer))
+
+if __name__ == "__main__":
+    main()
+```

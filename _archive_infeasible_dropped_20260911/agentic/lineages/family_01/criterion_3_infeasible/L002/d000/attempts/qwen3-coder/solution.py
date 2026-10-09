@@ -1,0 +1,42 @@
+import sys
+from collections import defaultdict
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    index = 2
+    grievances = []
+    adj = defaultdict(set)
+    
+    for _ in range(m):
+        u = int(data[index])
+        v = int(data[index+1])
+        index += 2
+        grievances.append((u, v))
+        adj[u].add(v)
+        adj[v].add(u)
+    
+    # Create a list of neighbors for each node for faster access
+    neighbors = {i: adj[i] for i in range(1, n+1)}
+    
+    # Iterate through all triplets (i, j, k) in lexicographical order
+    for i in range(1, n-1):
+        for j in range(i+1, n):
+            if j not in neighbors[i]:
+                continue
+            for k in range(j+1, n+1):
+                if k not in neighbors[i]:
+                    continue
+                if k not in neighbors[j]:
+                    continue
+                # Found a triangle
+                print(i, j, k)
+                return
+
+if __name__ == "__main__":
+    main()

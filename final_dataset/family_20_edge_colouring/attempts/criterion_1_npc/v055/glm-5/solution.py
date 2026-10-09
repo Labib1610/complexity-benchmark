@@ -1,0 +1,183 @@
+import sys
+
+# Increase recursion depth for DFS
+sys.setrecursionlimit(10000)
+
+def solve():
+    # Read all input at once
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    iterator = iter(input_data)
+    try:
+        n = int(next(iterator))
+        m = int(next(iterator))
+    except StopIteration:
+        return
+    
+    adj = [[] for _ in range(n + 1)]
+    edges = []
+    
+    # Build adjacency list and edge list
+    for i in range(m):
+        u = int(next(iterator))
+        v = int(next(iterator))
+        edges.append((u, v))
+        adj[u].append((v, i))
+        adj[v].append((u, i))
+    
+    # Check if the graph is 3-regular
+    for i in range(1, n + 1):
+        if len(adj[i]) != 3:
+            print("NO")
+            return
+    
+    # Colors array: 0 means uncolored
+    colors = [0] * m
+    
+    # We use a simple DFS approach to color the edges
+    # Since the graph is 3-regular, we can greedily color edges
+    # by ensuring no two edges incident to the same vertex share a color.
+    
+    # We'll process edges in order and try to assign valid colors.
+    # For each edge (u, v), we find colors used at u and v, and pick an available color.
+    
+    # To speed up, we can precompute available colors for each vertex.
+    # But since n is up to 2000, a simple approach should work.
+    
+    # Let's implement a recursive DFS with backtracking if needed.
+    # However, for 3-regular graphs, a greedy approach might work.
+    
+    # Let's try a greedy approach first.
+    # For each edge, pick the smallest available color not used at its endpoints.
+    
+    # We'll maintain a list of used colors for each vertex.
+    used_colors = [set() for _ in range(n + 1)]
+    
+    for i in range(m):
+        u, v = edges[i]
+        
+        # Find available colors for this edge
+        available = {1, 2, 3}
+        available -= used_colors[u]
+        available -= used_colors[v]
+        
+        if not available:
+            # Greedy failed, need to backtrack or use a different approach
+            # For 3-regular graphs, a proper edge coloring with 3 colors exists
+            # if and only if the graph is bipartite (by Kőnig's theorem).
+            # So we need to check if the graph is bipartite.
+            # If it is, we can color it with 3 colors.
+            # If not, we need 4 colors (by Vizing's theorem), but the problem requires 3.
+            # So the answer is NO if the graph is not bipartite.
+            
+            # Let's check bipartiteness
+            color = [None] * (n + 1)
+            is_bipartite = True
+            from collections import deque
+            
+            for start in range(1, n + 1):
+                if color[start] is None:
+                    queue = deque([start])
+                    color[start] = 0
+                    while queue and is_bipartite:
+                        u_node = queue.popleft()
+                        for v_node, _ in adj[u_node]:
+                            if color[v_node] is None:
+                                color[v_node] = 1 - color[u_node]
+                                queue.append(v_node)
+                            elif color[v_node] == color[u_node]:
+                                is_bipartite = False
+                                break
+                        if not is_bipartite:
+                            break
+                if not is_bipartite:
+                    break
+            
+            if not is_bipartite:
+                print("NO")
+                return
+            
+            # If bipartite, we can color with 3 colors.
+            # We need a proper edge coloring.
+            # For bipartite graphs, we can use a matching-based approach.
+            # But since the graph is 3-regular, we can decompose it into 3 matchings.
+            
+            # Let's implement a proper edge coloring for bipartite graphs.
+            # We'll use the fact that a k-regular bipartite graph can be edge-colored with k colors.
+            
+            # Reset colors
+            colors = [0] * m
+            # We'll use a greedy approach with backtracking for bipartite graphs.
+            # But a simpler approach is to find perfect matchings iteratively.
+            
+            # Since the graph is 3-regular and bipartite, we can find 3 perfect matchings.
+            # Each perfect matching will be assigned a color.
+            
+            # We'll implement a Hopcroft-Karp algorithm to find perfect matchings.
+            # But that's complex. Instead, we can use a simpler DFS-based matching.
+            
+            # Given the constraints, let's implement a simpler approach.
+            # We'll find a perfect matching, color it, remove it, and repeat.
+            
+            # Create adjacency list with edge indices
+            adj_match = [[] for _ in range(n + 1)]
+            for idx, (u, v) in enumerate(edges):
+                adj_match[u].append((v, idx))
+                adj_match[v].append((u, idx))
+            
+            # We'll find 3 perfect matchings
+            for color_val in range(1, 4):
+                # Find a perfect matching
+                match = [None] * (n + 1)  # match[u] = (v, edge_index)
+                visited = [False] * (n + 1)
+                
+                def dfs(u):
+                    for v, edge_idx in adj_match[u]:
+                        if not visited[v] and colors[edge_idx] == 0:
+                            visited[v] = True
+                            if match[v] is None or dfs(match[v][0]):
+                                match[u] = (v, edge_idx)
+                                match[v] = (u, edge_idx)
+                                return True
+                    return False
+                
+                # Try to find a perfect matching
+                for u in range(1, n + 1):
+                    if match[u] is None:
+                        visited = [False] * (n + 1)
+                        dfs(u)
+                
+                # Color the matching edges
+                for u in range(1, n + 1):
+                    if match[u] is not None:
+                        v, edge_idx = match[u]
+                        if colors[edge_idx] == 0:
+                            colors[edge_idx] = color_val
+                            # Remove this edge from adj_match
+                            # We'll mark it as colored and skip in future iterations
+                
+                # Remove colored edges from consideration
+                # We can do this by checking colors[edge_idx] == 0 in dfs
+            
+            # Verify all edges are colored
+            for c in colors:
+                if c == 0:
+                    print("NO")
+                    return
+            
+            print("YES")
+            print(' '.join(map(str, colors)))
+            return
+        
+        # Pick the smallest available color
+        chosen_color = min(available)
+        colors[i] = chosen_color
+        used_colors[u].add(chosen_color)
+        used_colors[v].add(chosen_color)
+    
+    print("YES")
+    print(' '.join(map(str, colors)))
+
+solve()

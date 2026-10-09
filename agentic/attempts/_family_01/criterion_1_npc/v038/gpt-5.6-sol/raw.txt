@@ -1,0 +1,196 @@
+```python
+import sys
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+
+    n, m = data[0], data[1]
+    adj = [0] * n
+    impossible = False
+
+    p = 2
+    for _ in range(m):
+        u = data[p] - 1
+        v = data[p + 1] - 1
+        p += 2
+        if u == v:
+            impossible = True
+        else:
+            adj[u] |= 1 << v
+            adj[v] |= 1 << u
+
+    if impossible:
+        print("NO")
+        return
+
+    answer = [-1] * n
+    all_vertices = (1 << n) - 1
+
+    # Connected components
+    components = []
+    unseen = all_vertices
+    while unseen:
+        start_bit = unseen & -unseen
+        component = 0
+        frontier = start_bit
+        unseen ^= start_bit
+
+        while frontier:
+            bit = frontier & -frontier
+            frontier ^= bit
+            v = bit.bit_length() - 1
+            component |= bit
+            nxt = adj[v] & unseen
+            frontier |= nxt
+            unseen ^= nxt
+
+        components.append(component)
+
+    # Try denser components first, so non-3-colorable components are found early.
+    components.sort(
+        key=lambda mask: sum((adj[v] & mask).bit_count()
+                             for v in range(n) if (mask >> v) & 1),
+        reverse=True
+    )
+
+    def bipartite_color(comp):
+        colors = {}
+        remaining = comp
+
+        while remaining:
+            bit = remaining & -remaining
+            root = bit.bit_length() - 1
+            colors[root] = 0
+            stack = [root]
+            remaining ^= bit
+
+            while stack:
+                v = stack.pop()
+                neighbors = adj[v] & comp
+                while neighbors:
+                    b = neighbors & -neighbors
+                    neighbors ^= b
+                    u = b.bit_length() - 1
+                    if u not in colors:
+                        colors[u] = colors[v] ^ 1
+                        remaining &= ~b
+                        stack.append(u)
+                    elif colors[u] == colors[v]:
+                        return None
+
+        return colors
+
+    def find_triangle(comp):
+        bits = comp
+        while bits:
+            bi = bits & -bits
+            bits ^= bi
+            i = bi.bit_length() - 1
+            neighbors = adj[i] & comp
+            while neighbors:
+                bj = neighbors & -neighbors
+                neighbors ^= bj
+                j = bj.bit_length() - 1
+                common = adj[i] & adj[j] & comp
+                if common:
+                    bk = common & -common
+                    return i, j, bk.bit_length() - 1
+        return None
+
+    def color_component(comp):
+        bip = bipartite_color(comp)
+        if bip is not None:
+            for v, c in bip.items():
+                answer[v] = c
+            return True
+
+        classes = [0, 0, 0]
+        uncolored = comp
+
+        triangle = find_triangle(comp)
+        if triangle is not None:
+            for c, v in enumerate(triangle):
+                bit = 1 << v
+                classes[c] |= bit
+                answer[v] = c
+                uncolored &= ~bit
+            used = 3
+        else:
+            vertices = [v for v in range(n) if (comp >> v) & 1]
+            start = max(vertices, key=lambda v: (adj[v] & comp).bit_count())
+            bit = 1 << start
+            classes[0] = bit
+            answer[start] = 0
+            uncolored &= ~bit
+            used = 1
+
+        static_degree = [(adj[v] & comp).bit_count() for v in range(n)]
+
+        def dfs(left, used_colors):
+            if not left:
+                return True
+
+            selected = -1
+            best_score = (-1, -1, -1)
+
+            bits = left
+            while bits:
+                bit = bits & -bits
+                bits ^= bit
+                v = bit.bit_length() - 1
+                av = adj[v]
+
+                saturation = (
+                    int(bool(av & classes[0])) +
+                    int(bool(av & classes[1])) +
+                    int(bool(av & classes[2]))
+                )
+
+                if saturation == 3:
+                    return False
+
+                score = (
+                    saturation,
+                    (av & left).bit_count(),
+                    static_degree[v]
+                )
+                if score > best_score:
+                    best_score = score
+                    selected = v
+
+            bit = 1 << selected
+            neighbors = adj[selected]
+            limit = min(3, used_colors + 1)
+
+            for color in range(limit):
+                if neighbors & classes[color]:
+                    continue
+
+                classes[color] |= bit
+                answer[selected] = color
+                new_used = used_colors + 1 if color == used_colors else used_colors
+
+                if dfs(left ^ bit, new_used):
+                    return True
+
+                classes[color] ^= bit
+                answer[selected] = -1
+
+            return False
+
+        return dfs(uncolored, used)
+
+    for component in components:
+        if not color_component(component):
+            print("NO")
+            return
+
+    print("YES")
+    print(*(c + 1 for c in answer))
+
+
+if __name__ == "__main__":
+    main()
+```

@@ -1,0 +1,73 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    k = int(next(it))
+    t = int(next(it))
+    
+    paths = []
+    for _ in range(t):
+        x = int(next(it))
+        y = int(next(it))
+        z = int(next(it))
+        paths.append((x, y, z))
+    
+    # Required sum: 2^(k+1) - 2 = 2 + 4 + 8 + ... + 2^k
+    # This means we need exactly one of each value 1, 2, ..., k in each dimension
+    
+    target_sum = (1 << (k + 1)) - 2
+    
+    # Create set of available paths for quick lookup
+    path_set = set(paths)
+    
+    # We need to select k paths such that:
+    # - Each x value 1..k appears exactly once
+    # - Each y value 1..k appears exactly once
+    # - Each z value 1..k appears exactly once
+    
+    # Use backtracking with pruning
+    used_x = [False] * (k + 1)
+    used_y = [False] * (k + 1)
+    used_z = [False] * (k + 1)
+    
+    result = []
+    
+    def backtrack(count):
+        if count == k:
+            return True
+        
+        # Find the smallest unused x value to reduce branching
+        for x in range(1, k + 1):
+            if not used_x[x]:
+                break
+        
+        used_x[x] = True
+        for y in range(1, k + 1):
+            if used_y[y]:
+                continue
+            used_y[y] = True
+            for z in range(1, k + 1):
+                if used_z[z]:
+                    continue
+                if (x, y, z) in path_set:
+                    used_z[z] = True
+                    result.append((x, y, z))
+                    if backtrack(count + 1):
+                        return True
+                    result.pop()
+                    used_z[z] = False
+            used_y[y] = False
+        used_x[x] = False
+        return False
+    
+    if backtrack(0):
+        print("YES")
+        for p in result:
+            print(p[0], p[1], p[2])
+    else:
+        print("NO")
+
+solve()

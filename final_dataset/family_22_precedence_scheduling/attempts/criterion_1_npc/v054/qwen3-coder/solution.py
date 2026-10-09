@@ -1,0 +1,92 @@
+from collections import deque, defaultdict
+import sys
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    idx = 0
+    n = int(data[idx])
+    idx += 1
+    M = int(data[idx])
+    idx += 1
+    T = int(data[idx])
+    idx += 1
+    m = int(data[idx])
+    idx += 1
+    
+    # Build graph and in-degree count
+    graph = defaultdict(list)
+    in_degree = [0] * (n + 1)
+    
+    for _ in range(m):
+        a = int(data[idx])
+        idx += 1
+        b = int(data[idx])
+        idx += 1
+        graph[a].append(b)
+        in_degree[b] += 1
+    
+    # Topological sort with cycle detection
+    queue = deque()
+    for i in range(1, n + 1):
+        if in_degree[i] == 0:
+            queue.append(i)
+    
+    topo_order = []
+    while queue:
+        node = queue.popleft()
+        topo_order.append(node)
+        for neighbor in graph[node]:
+            in_degree[neighbor] -= 1
+            if in_degree[neighbor] == 0:
+                queue.append(neighbor)
+    
+    # If topo_order doesn't include all nodes, there's a cycle
+    if len(topo_order) != n:
+        print("NO")
+        return
+    
+    # Assign cycles using greedy approach
+    # We'll process nodes in topological order
+    # For each node, assign it to the earliest cycle such that:
+    # 1. Its predecessors have finished before this cycle
+    # 2. The machine capacity constraint is satisfied
+    
+    # cycle_usage[c] = number of machines used in cycle c
+    cycle_usage = defaultdict(int)
+    # latest_allowed[i] = latest cycle step i can be scheduled (due to material degradation)
+    latest_allowed = T
+    # finish_time[i] = cycle when step i finishes (step takes 1 cycle)
+    finish_time = [0] * (n + 1)
+    
+    # pred_finish[i] = max finish time of all predecessors of step i
+    pred_finish = [0] * (n + 1)
+    for u in topo_order:
+        for v in graph[u]:
+            pred_finish[v] = max(pred_finish[v], finish_time[u])
+    
+    # Now assign each step to a cycle
+    for u in topo_order:
+        earliest_start = pred_finish[u] + 1  # Must start after all predecessors finish
+        # Try to find the earliest cycle >= earliest_start where we can schedule this step
+        cycle = earliest_start
+        while True:
+            if cycle > T:
+                print("NO")
+                return
+            if cycle_usage[cycle] < M:
+                cycle_usage[cycle] += 1
+                finish_time[u] = cycle
+                break
+            cycle += 1
+    
+    print("YES")
+    result = []
+    for i in range(1, n + 1):
+        result.append(str(finish_time[i]))
+    print(' '.join(result))
+
+if __name__ == "__main__":
+    main()

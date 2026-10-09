@@ -1,0 +1,92 @@
+We can model this as a **Steiner tree** problem, but with a small number of required sites (≤ 10) and optional relays (< 100), we can solve it using **bitmask DP over subsets of required sites** combined with shortest paths.
+
+Here’s the plan:
+
+1. Compute all-pairs shortest paths between all nodes (Floyd–Warshall or Dijkstra from each node).
+2. Let `req` be the list of required site IDs.
+3. Use DP:
+   - `dp[mask][v]` = minimum cost to connect the required sites in `mask` and end at node `v`.
+   - Initialize: for each required site `i`, `dp[1 << i][req[i]] = 0`.
+4. Transition:
+   - Combine two disjoint masks at the same node: `dp[mask1 | mask2][v] = min(dp[mask1][v] + dp[mask2][v])`.
+   - Move along shortest paths: `dp[mask][v] = min(dp[mask][u] + dist[u][v])`.
+5. Answer is `min(dp[(1 << t) - 1][v])` over all `v`.
+
+We’ll implement it efficiently.
+
+```python
+import sys
+import heapq
+
+def solve():
+    input_data = sys.stdin.read().strip().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    t = int(next(it))
+    req = [int(next(it)) - 1 for _ in range(t)]
+    
+    INF = 10**18
+    dist = [[INF] * n for _ in range(n)]
+    for i in range(n):
+        dist[i][i] = 0
+    
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        w = int(next(it))
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+    
+    # Dijkstra from each node to get all-pairs shortest paths
+    for src in range(n):
+        d = [INF] * n
+        d[src] = 0
+        pq = [(0, src)]
+        while pq:
+            du, u = heapq.heappop(pq)
+            if du != d[u]:
+                continue
+            for v, w in adj[u]:
+                nd = du + w
+                if nd < d[v]:
+                    d[v] = nd
+                    heapq.heappush(pq, (nd, v))
+        dist[src] = d
+    
+    full_mask = (1 << t) - 1
+    dp = [[INF] * n for _ in range(1 << t)]
+    
+    for i, node in enumerate(req):
+        dp[1 << i][node] = 0
+    
+    # For each mask, relax via shortest paths
+    for mask in range(1 << t):
+        # Combine submasks
+        sub = (mask - 1) & mask
+        while sub:
+            other = mask ^ sub
+            if sub < other:  # avoid double work
+                for v in range(n):
+                    if dp[sub][v] < INF and dp[other][v] < INF:
+                        dp[mask][v] = min(dp[mask][v], dp[sub][v] + dp[other][v])
+            sub = (sub - 1) & mask
+        
+        # Relax along shortest paths
+        for u in range(n):
+            if dp[mask][u] < INF:
+                for v in range(n):
+                    if dist[u][v] < INF:
+                        nd = dp[mask][u] + dist[u][v]
+                        if nd < dp[mask][v]:
+                            dp[mask][v] = nd
+    
+    ans = min(dp[full_mask])
+    print(ans)
+
+if __name__ == "__main__":
+    solve()
+```

@@ -1,0 +1,139 @@
+import sys
+sys.setrecursionlimit(1 << 25)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    nU = int(next(it))
+    nD = int(next(it))
+    m = int(next(it))
+    edges = [(int(next(it)) - 1, int(next(it)) - 1) for _ in range(m)]
+
+    # degree calculation
+    degU = [0] * nU
+    degD = [0] * nD
+    for u, v in edges:
+        degU[u] += 1
+        degD[v] += 1
+    K = max(max(degU, default=0), max(degD, default=0))
+
+    # adjacency: for each vertex store color -> edge index
+    colU = [{} for _ in range(nU)]
+    colD = [{} for _ in range(nD)]
+
+    # next free color pointer for each vertex
+    nxtU = [1] * nU
+    nxtD = [1] * nD
+
+    ans = [0] * m
+
+    # helper to find a free color for a vertex
+    def free_color(col_dict, nxt_ptr):
+        c = nxt_ptr[0]
+        while c in col_dict:
+            c += 1
+        nxt_ptr[0] = c
+        return c
+
+    # augmenting path using two colors a,b
+    from collections import deque
+    def augment(u_start, a, b):
+        # BFS on vertices, alternating colors a<->b
+        # store predecessor (vertex, via_edge, via_color)
+        pred = {}
+        q = deque()
+        q.append(('U', u_start))
+        pred[('U', u_start)] = None
+        end = None
+        while q:
+            side, x = q.popleft()
+            if side == 'U':
+                # from U vertex, we can follow edge of color a (if exists)
+                if a in colU[x]:
+                    e = colU[x][a]
+                    v = edges[e][1]
+                    if ('D', v) not in pred:
+                        pred[('D', v)] = (('U', x), e, a)
+                        q.append(('D', v))
+                # also can follow edge of color b if exists
+                if b in colU[x]:
+                    e = colU[x][b]
+                    v = edges[e][1]
+                    if ('D', v) not in pred:
+                        pred[('D', v)] = (('U', x), e, b)
+                        q.append(('D', v))
+            else:  # side D
+                # from D vertex, we can follow edge of color a or b that is NOT the one we came from
+                if a in colD[x]:
+                    e = colD[x][a]
+                    u = edges[e][0]
+                    if ('U', u) not in pred:
+                        pred[('U', u)] = (('D', x), e, a)
+                        q.append(('U', u))
+                if b in colD[x]:
+                    e = colD[x][b]
+                    u = edges[e][0]
+                    if ('U', u) not in pred:
+                        pred[('U', u)] = (('D', x), e, b)
+                        q.append(('U', u))
+        # find a vertex where one of the colors is free
+        for (side, x), p in pred.items():
+            if side == 'U':
+                if a not in colU[x] or b not in colU[x]:
+                    end = (side, x)
+                    break
+            else:
+                if a not in colD[x] or b not in colD[x]:
+                    end = (side, x)
+                    break
+        if end is None:
+            return False
+        # flip colors along the path
+        cur = end
+        while pred[cur] is not None:
+            prev, e_idx, col = pred[cur]
+            # assign edge e_idx the opposite color
+            new_col = b if col == a else a
+            u, v = edges[e_idx]
+            # remove old assignment
+            if col in colU[u]:
+                del colU[u][col]
+            if col in colD[v]:
+                del colD[v][col]
+            # set new assignment
+            colU[u][new_col] = e_idx
+            colD[v][new_col] = e_idx
+            cur = prev
+        return True
+
+    for idx, (u, v) in enumerate(edges):
+        # try to assign a free color directly
+        cu = free_color(colU[u], [nxtU[u]])
+        if cu not in colD[v]:
+            # assign
+            colU[u][cu] = idx
+            colD[v][cu] = idx
+            ans[idx] = cu
+            continue
+        # need recoloring
+        # find a free color at u
+        cu = free_color(colU[u], [nxtU[u]])
+        # find a free color at v
+        cv = free_color(colD[v], [nxtD[v]])
+        # try to make cu free at v via augmenting path with colors cu and cv
+        if not augment(v, cu, cv):
+            # fallback (should not happen)
+            print("NO")
+            return
+        # now cu is free at v
+        colU[u][cu] = idx
+        colD[v][cu] = idx
+        ans[idx] = cu
+
+    print("YES")
+    print(' '.join(str(x) for x in ans))
+
+if __name__ == "__main__":
+    solve()

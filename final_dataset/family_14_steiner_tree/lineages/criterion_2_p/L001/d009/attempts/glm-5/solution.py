@@ -1,0 +1,66 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    t = int(input_data[2])
+    
+    idx = 3
+    critical = set()
+    for _ in range(t):
+        critical.add(int(input_data[idx]))
+        idx += 1
+        
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx+1])
+        w = int(input_data[idx+2])
+        idx += 3
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+        
+    parent = [0] * (n + 1)
+    parent_weight = [0] * (n + 1)
+    depth = [0] * (n + 1)
+    order = [1]
+    parent[1] = 0
+    
+    head = 0
+    while head < len(order):
+        u = order[head]
+        head += 1
+        for v, w in adj[u]:
+            if v != parent[u]:
+                parent[v] = u
+                parent_weight[v] = w
+                depth[v] = depth[u] + 1
+                order.append(v)
+                
+    dp = [0] * (n + 1)
+    cnt = [0] * (n + 1)
+    
+    for u in reversed(order):
+        if u in critical:
+            cnt[u] = 1
+            
+        for v, w in adj[u]:
+            if v != parent[u]:
+                cnt[u] += cnt[v]
+                
+        for v, w in adj[u]:
+            if v != parent[u]:
+                if cnt[v] > 0 and cnt[v] < t:
+                    dp[u] += dp[v] + w
+                else:
+                    dp[u] += dp[v]
+                    
+    ans = dp[1]
+    print(ans)
+
+if __name__ == '__main__':
+    solve()

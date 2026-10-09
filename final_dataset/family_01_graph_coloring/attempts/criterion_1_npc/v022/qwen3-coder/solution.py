@@ -1,0 +1,75 @@
+def solve():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    # Build adjacency list representation of the graph
+    adj = [[] for _ in range(n)]
+    index = 2
+    edges = []
+    for _ in range(m):
+        u = int(data[index]) - 1  # Convert to 0-based indexing
+        v = int(data[index+1]) - 1
+        edges.append((u, v))
+        adj[u].append(v)
+        adj[v].append(u)
+        index += 2
+    
+    # Try all possible assignments of tiers (1, 2, 3) to each node
+    # Since n <= 40 and each node has only 3 possible values, 
+    # we can't brute-force all 3^n possibilities.
+    # However, we can model this as a 2-SAT problem or use a graph coloring approach.
+    
+    # This is essentially a graph coloring problem where each node must be colored with one of {1,2,3}
+    # and adjacent nodes must have colors differing by at least 1 (so colors 1 and 3 are allowed to be adjacent,
+    # but 1 and 2 or 2 and 3 are not allowed to be adjacent).
+    
+    # Actually, |t_u - t_v| >= 1 means they can't be equal. So adjacent nodes must have different colors.
+    # This is a 3-coloring problem where adjacent nodes must have different colors.
+    
+    # But wait, |t_u - t_v| >= 1 means they can't be equal, so this is just a proper 3-coloring where
+    # colors are 1, 2, 3 and adjacent nodes must have different colors.
+    
+    # Let's build the complement graph: connect nodes that are NOT connected in original graph
+    # Then, we need to check if the original graph is 3-colorable.
+    
+    # No, let's re-read: |t_u - t_v| >= 1 means they can't be equal. That's it.
+    # So this is simply a proper 3-coloring problem.
+    
+    # We'll use backtracking with constraint propagation
+    
+    # Initialize color array (-1 means unassigned)
+    color = [-1] * n
+    
+    def is_valid(v, c):
+        # Check if assigning color c to vertex v violates any constraints
+        for neighbor in adj[v]:
+            if color[neighbor] == c:
+                return False
+        return True
+    
+    def backtrack(v):
+        if v == n:
+            return True
+            
+        # Try colors 1, 2, 3 in order
+        for c in [1, 2, 3]:
+            if is_valid(v, c):
+                color[v] = c
+                if backtrack(v + 1):
+                    return True
+                color[v] = -1  # Backtrack
+                
+        return False
+    
+    # Optimization: start with node of highest degree
+    if backtrack(0):
+        print("YES")
+        print(' '.join(map(str, color)))
+    else:
+        print("NO")
+
+solve()

@@ -1,0 +1,184 @@
+```python
+import sys
+
+# Increase recursion depth just in case
+sys.setrecursionlimit(200000)
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    k = int(input_data[2])
+    
+    idx = 3
+    commodities = []
+    for _ in range(k):
+        s = int(input_data[idx])
+        t = int(input_data[idx+1])
+        d = int(input_data[idx+2])
+        commodities.append((s, t, d))
+        idx += 3
+        
+    edges = []
+    for _ in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx+1])
+        cap = int(input_data[idx+2])
+        edges.append((u, v, cap))
+        idx += 3
+        
+    # Try using scipy.optimize.milp
+    try:
+        from scipy.optimize import milp, LinearConstraint, Bounds
+        from scipy.sparse import dok_matrix
+        import numpy as np
+        
+        num_vars = k * m
+        lb = np.zeros(num_vars)
+        ub = np.zeros(num_vars)
+        for i in range(k):
+            for j in range(m):
+                ub[i * m + j] = edges[j][2]
+        bounds = Bounds(lb, ub)
+        integrality = np.ones(num_vars)
+        
+        nodes = set()
+        for u, v, _ in edges:
+            nodes.add(u)
+            nodes.add(v)
+        for s, t, _ in commodities:
+            nodes.add(s)
+            nodes.add(t)
+        node_list = list(nodes)
+        node_to_idx = {node: i for i, node in enumerate(node_list)}
+        num_nodes = len(node_list)
+        
+        num_constraints = m + k * num_nodes
+        A = dok_matrix((num_constraints, num_vars), dtype=float)
+        lhs = np.zeros(num_constraints)
+        rhs = np.zeros(num_constraints)
+        
+        # Capacity constraints
+        for j in range(m):
+            for i in range(k):
+                A[j, i * m + j] = 1.0
+            lhs[j] = 0.0
+            rhs[j] = edges[j][2]
+            
+        # Conservation constraints
+        row_offset = m
+        for i in range(k):
+            s_i, t_i, d_i = commodities[i]
+            for j, (u, v, cap) in enumerate(edges):
+                u_idx = node_to_idx[u]
+                v_idx = node_to_idx[v]
+                A[row_offset + i * num_nodes + u_idx, i * m + j] += 1.0
+                A[row_offset + i * num_nodes + v_idx, i * m + j] -= 1.0
+                
+            for node, u_idx in node_to_idx.items():
+                req = 0.0
+                if node == s_i:
+                    req += d_i
+                if node == t_i:
+                    req -= d_i
+                r = row_offset + i * num_nodes + u_idx
+                lhs[r] = req
+                rhs[r] = req
+                
+        constraints = LinearConstraint(A.tocsc(), lhs, rhs)
+        c = np.zeros(num_vars)
+        
+        res = milp(c=c, integrality=integrality, bounds=bounds, constraints=constraints)
+        
+        if res.success:
+            print("YES")
+            x = np.round(res.x).astype(int)
+            for i in range(k):
+                row = [str(x[i * m + j]) for j in range(m)]
+                print(" ".join(row))
+        else:
+            print("NO")
+        return
+    except Exception:
+        pass
+
+    # Fallback solver: Backtracking path search for unit/integral demands
+    rem_cap = [cap for _, _, cap in edges]
+    ans = [[0] * m for _ in range(k)]
+    
+    # Pre-build graph
+    adj = {}
+    for j, (u, v, cap) in enumerate(edges):
+        if u not in adj:
+            adj[u] = []
+        adj[u].append((v, j))
+        
+    def backtrack(comm_idx, rem_demand):
+        if comm_idx == k:
+            return True
+        s, t, d = commodities[comm_idx]
+        if rem_demand == 0:
+            if comm_idx + 1 == k:
+                return True
+            return backtrack(comm_idx + 1, commodities[comm_idx + 1][2])
+            
+        # Find a simple path from s to t with positive remaining capacity
+        visited = set()
+        parent_edge = {}
+        parent_node = {}
+        
+        # DFS to find path
+        stack = [s]
+        visited.add(s)
+        found = False
+        while stack:
+            curr = stack.pop()
+            if curr == t:
+                found = True
+                break
+            for nxt, edge_idx in adj.get(curr, []):
+                if rem_cap[edge_idx] > 0 and nxt not in visited:
+                    visited.add(nxt)
+                    parent_node[nxt] = curr
+                    parent_edge[nxt] = edge_idx
+                    stack.append(nxt)
+                    
+        if not found:
+            return False
+            
+        # Reconstruct path and find max flow on this path
+        curr = t
+        path_edges = []
+        path_max = rem_demand
+        while curr != s:
+            p_edge = parent_edge[curr]
+            path_edges.append(p_edge)
+            path_max = min(path_max, rem_cap[p_edge])
+            curr = parent_node[curr]
+            
+        # Try pushing flow along this path
+        for flow in range(path_max, 0, -1):
+            for e_idx in path_edges:
+                rem_cap[e_idx] -= flow
+                ans[comm_idx][e_idx] += flow
+            if backtrack(comm_idx, rem_demand - flow):
+                return True
+            for e_idx in path_edges:
+                rem_cap[e_idx] += flow
+                ans[comm_idx][e_idx] -= flow
+                
+        return False
+
+    if backtrack(0, commodities[0][2] if k > 0 else 0):
+        print("YES")
+        for i in range(k):
+            print(" ".join(map(str, ans[i])))
+    else:
+        print("NO")
+
+if __name__ == '__main__':
+    solve()
+```

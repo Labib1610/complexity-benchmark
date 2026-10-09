@@ -1,0 +1,99 @@
+import sys
+from collections import deque
+
+def main():
+    input_buffer = sys.stdin.buffer
+    first = input_buffer.readline().split()
+    if not first:
+        return
+
+    k, t = map(int, first)
+    graph = [[] for _ in range(k)]
+    station = [0] * k
+
+    for _ in range(t):
+        d, c, f = map(int, input_buffer.readline().split())
+        d -= 1
+        graph[d].append(f - 1)
+        station[d] = c
+
+    if any(c == 0 for c in station):
+        print("NO")
+        return
+
+    pair_drone = [-1] * k
+    pair_freq = [-1] * k
+    dist = [0] * k
+    inf = k + 1
+
+    sys.setrecursionlimit(10000)
+
+    def bfs():
+        queue = deque()
+        for d in range(k):
+            if pair_drone[d] == -1:
+                dist[d] = 0
+                queue.append(d)
+            else:
+                dist[d] = inf
+
+        shortest = inf
+
+        while queue:
+            d = queue.popleft()
+            if dist[d] >= shortest:
+                continue
+
+            next_dist = dist[d] + 1
+            for f in graph[d]:
+                other = pair_freq[f]
+                if other == -1:
+                    shortest = next_dist
+                elif dist[other] == inf:
+                    dist[other] = next_dist
+                    queue.append(other)
+
+        return shortest
+
+    def dfs(d, shortest):
+        next_dist = dist[d] + 1
+
+        for f in graph[d]:
+            other = pair_freq[f]
+
+            if other == -1:
+                if next_dist != shortest:
+                    continue
+            elif dist[other] != next_dist or not dfs(other, shortest):
+                continue
+
+            pair_drone[d] = f
+            pair_freq[f] = d
+            return True
+
+        dist[d] = inf
+        return False
+
+    matched = 0
+
+    while True:
+        shortest = bfs()
+        if shortest == inf:
+            break
+
+        for d in range(k):
+            if pair_drone[d] == -1 and dfs(d, shortest):
+                matched += 1
+
+    if matched != k:
+        print("NO")
+        return
+
+    output = ["YES"]
+    for d in range(k):
+        output.append(f"{d + 1} {station[d]} {pair_drone[d] + 1}")
+
+    sys.stdout.write("\n".join(output))
+
+if __name__ == "__main__":
+    main()

@@ -1,5 +1,5 @@
 import sys
-sys.setrecursionlimit(1 << 25)
+from collections import deque
 
 def solve() -> None:
     data = sys.stdin.read().strip().split()
@@ -8,46 +8,58 @@ def solve() -> None:
     it = iter(data)
     n = int(next(it))
     m = int(next(it))
-    g = [[] for _ in range(n + 1)]
+    adj = [[] for _ in range(n + 1)]
     for _ in range(m):
         u = int(next(it)); v = int(next(it))
-        g[u].append(v)
-        g[v].append(u)
+        adj[u].append(v)
+        adj[v].append(u)
 
-    color = [-1] * (n + 1)          # 0 or 1
-    ans = [0] * (n + 1)
-    from collections import deque
+    color = [0] * (n + 1)          # 0 = unvisited, 1 or 2 = final answer
+    side = [0] * (n + 1)           # temporary bipartite side (0/1)
 
     for start in range(1, n + 1):
-        if color[start] != -1:
+        if color[start]:
             continue
-        # BFS this component
+        # BFS for this component
         q = deque([start])
-        color[start] = 0
-        comp = [start]
+        side[start] = 0
+        comp_nodes = [start]
         ok = True
         while q:
             u = q.popleft()
-            for v in g[u]:
-                if color[v] == -1:
-                    color[v] = color[u] ^ 1
+            for v in adj[u]:
+                if side[v] == 0 and color[v] == 0 and v not in comp_nodes:
+                    # not visited in this component yet
+                    side[v] = side[u] ^ 1
                     q.append(v)
-                    comp.append(v)
-                elif color[v] == color[u]:
-                    print("NO")
-                    return
-        # decide flip so that smallest vertex gets color 0 (=> shift 1)
-        min_v = min(comp)
-        if color[min_v] == 1:
-            # flip whole component
-            for v in comp:
-                color[v] ^= 1
-        # store answer
-        for v in comp:
-            ans[v] = color[v] + 1   # 0->1, 1->2
+                    comp_nodes.append(v)
+                elif side[v] == 0 and color[v] == 0 and v in comp_nodes:
+                    # already in component but side not set yet (should not happen)
+                    pass
+                else:
+                    if side[v] == side[u]:
+                        ok = False
+                        break
+            if not ok:
+                break
+        if not ok:
+            print("NO")
+            return
 
+        # Determine which side gets label 1
+        min_node = min(comp_nodes)
+        # side of min_node
+        if side[min_node] == 0:
+            map0, map1 = 1, 2
+        else:
+            map0, map1 = 2, 1
+
+        for v in comp_nodes:
+            color[v] = map0 if side[v] == 0 else map1
+
+    # all components processed
     print("YES")
-    print(' '.join(str(ans[i]) for i in range(1, n + 1)))
+    print(' '.join(str(color[i]) for i in range(1, n + 1)))
 
 if __name__ == "__main__":
     solve()

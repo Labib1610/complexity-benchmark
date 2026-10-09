@@ -1,0 +1,59 @@
+def is_safe(a, b):
+    # Check if sum of squares > 3 * square of smaller
+    min_val = min(a, b)
+    return a*a + b*b > 3 * min_val * min_val
+
+def solve():
+    n, m = map(int, input().split())
+    
+    # Build adjacency list
+    adj = [[] for _ in range(n + 1)]
+    edges = []
+    
+    for _ in range(m):
+        u, v = map(int, input().split())
+        adj[u].append(v)
+        adj[v].append(u)
+        edges.append((u, v))
+    
+    # Try all possible assignments (3^40 would be too much, but we can do better)
+    # We'll use backtracking with constraint checking
+    
+    assignment = [0] * (n + 1)  # 1-indexed
+    
+    def backtrack(emitter):
+        if emitter > n:
+            return True
+            
+        # Try each phase offset for this emitter
+        for phase in [1, 2, 3]:
+            assignment[emitter] = phase
+            
+            # Check if this assignment conflicts with any neighbor
+            valid = True
+            for neighbor in adj[emitter]:
+                if assignment[neighbor] != 0:  # If neighbor already assigned
+                    if not is_safe(phase, assignment[neighbor]):
+                        valid = False
+                        break
+            
+            if valid:
+                if backtrack(emitter + 1):
+                    return True
+                    
+        assignment[emitter] = 0  # Backtrack
+        return False
+    
+    # Special case: if no edges, any assignment works
+    if m == 0:
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
+    
+    if backtrack(1):
+        print("YES")
+        print(" ".join(map(str, assignment[1:])))
+    else:
+        print("NO")
+
+solve()

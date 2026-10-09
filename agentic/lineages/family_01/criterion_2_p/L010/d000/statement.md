@@ -1,20 +1,20 @@
-# Frequency Interference
+# Problem B — Alternating Cycles
 
 Time limit: 1 s   Memory limit: 256 MB
 
-A city is deploying a network of $n$ wireless sensors. To operate correctly, each sensor must be configured to transmit on either channel 1 or channel 2. However, certain pairs of sensors are installed physically close to each other. If a close pair transmits on the exact same channel, their signals will interfere and data will be lost.
+A manufacturing plant operates $n$ robotic assembly arms. The arms must be connected to one of two distinct power grids, labeled 1 and 2. 
 
-You are given a list of $m$ pairs of sensors that are at risk of interfering. Your task is to determine whether it is possible to configure every sensor with a channel such that no two interfering sensors share the same channel. 
+There are $m$ pairs of arms that have overlapping physical motion ranges. To prevent collisions, any pair of arms with overlapping ranges must be connected to different power grids so they operate on alternating cycles. 
 
-If a valid configuration exists, you must provide it. Because there may be multiple ways to configure the network without interference, the engineering team requires the lexicographically smallest sequence of channel assignments. A sequence of channel assignments $s_1, \dots, s_n$ is lexicographically smaller than another valid sequence $t_1, \dots, t_n$ if, at the first sensor index $i$ where they differ, $s_i < t_i$.
+Assign each assembly arm to a power grid such that no two arms with overlapping ranges share the same grid, or report that this is impossible. 
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$), representing the number of sensors and the number of interfering pairs.
-Each of the next $m$ lines contains two integers $u$ and $v$ — a pair of sensors that will interfere if assigned the same channel.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$), representing the number of assembly arms and the number of overlapping pairs, respectively.
+Each of the next $m$ lines contains two integers $u$ and $v$ — a pair of arms with overlapping motion ranges.
 
 ## Output
-If there is no way to assign channels 1 and 2 to all sensors without causing interference, print a single line containing `NO`.
-Otherwise, print `YES` on the first line. On the second line, print $n$ integers $s_1 \dots s_n$ (each in $\{1,2\}$), representing the lexicographically smallest valid channel assignment.
+If no valid grid assignment exists, print a single line NO.
+Otherwise print YES, followed by a second line containing $n$ integers $s_1 \dots s_n$ (where each $s_i \in \{1,2\}$), representing the grid assigned to each arm. If multiple valid assignments exist, output the one that is lexicographically smallest.
 
 ## Example 1
 Input:

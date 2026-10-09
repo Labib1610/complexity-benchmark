@@ -4,19 +4,25 @@ from collections import defaultdict, deque
 def main():
     import sys
     sys.setrecursionlimit(1 << 25)
+    input = sys.stdin.read
+    data = input().split()
     
-    n, m = map(int, sys.stdin.readline().split())
+    n = int(data[0])
+    m = int(data[1])
     
     if m == 0:
         print("YES")
         print(" ".join(["1"] * n))
         return
     
-    adj = defaultdict(list)
+    graph = [[] for _ in range(n + 1)]
+    index = 2
     for _ in range(m):
-        u, v = map(int, sys.stdin.readline().split())
-        adj[u].append(v)
-        adj[v].append(u)
+        u = int(data[index])
+        v = int(data[index + 1])
+        graph[u].append(v)
+        graph[v].append(u)
+        index += 2
     
     color = [0] * (n + 1)  # 0: unvisited, 1: color 1, 2: color 2
     
@@ -24,17 +30,15 @@ def main():
         queue = deque()
         queue.append(start)
         color[start] = 1
-        
         while queue:
-            u = queue.popleft()
-            current_color = color[u]
+            node = queue.popleft()
+            current_color = color[node]
             next_color = 3 - current_color  # flips 1->2 and 2->1
-            
-            for v in adj[u]:
-                if color[v] == 0:
-                    color[v] = next_color
-                    queue.append(v)
-                elif color[v] == current_color:
+            for neighbor in graph[node]:
+                if color[neighbor] == 0:
+                    color[neighbor] = next_color
+                    queue.append(neighbor)
+                elif color[neighbor] == current_color:
                     return False
         return True
     
@@ -47,7 +51,10 @@ def main():
     print("YES")
     result = []
     for i in range(1, n + 1):
-        result.append(str(color[i]))
+        if color[i] == 0:
+            result.append("1")
+        else:
+            result.append(str(color[i]))
     print(" ".join(result))
 
 if __name__ == "__main__":

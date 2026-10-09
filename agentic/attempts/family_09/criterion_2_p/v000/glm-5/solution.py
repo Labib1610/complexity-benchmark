@@ -1,0 +1,98 @@
+import sys
+from collections import deque
+
+def solve():
+    input_data = sys.stdin.buffer.read().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    k = int(next(it))
+    
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    color = [0] * (n + 1)
+    comp_nodes = []
+    
+    for start in range(1, n + 1):
+        if color[start] == 0:
+            color[start] = 1
+            q = deque([start])
+            comp = []
+            while q:
+                u = q.popleft()
+                comp.append(u)
+                for v in adj[u]:
+                    if color[v] == 0:
+                        color[v] = 3 - color[u]
+                        q.append(v)
+            comp_nodes.append(comp)
+    
+    total = len(comp_nodes)
+    dp = [False] * (k + 1)
+    dp[0] = True
+    parent = [[-1] * (k + 1) for _ in range(total + 1)]
+    
+    for i in range(total):
+        comp = comp_nodes[i]
+        cnt1 = 0
+        cnt2 = 0
+        for u in comp:
+            if color[u] == 1:
+                cnt1 += 1
+            else:
+                cnt2 += 1
+        for j in range(k, -1, -1):
+            if dp[j]:
+                if j + cnt1 <= k and not dp[j + cnt1]:
+                    dp[j + cnt1] = True
+                    parent[i + 1][j + cnt1] = j
+                if j + cnt2 <= k and not dp[j + cnt2]:
+                    dp[j + cnt2] = True
+                    parent[i + 1][j + cnt2] = j
+    
+    if not dp[k]:
+        sys.stdout.write("NO\n")
+        return
+    
+    sys.stdout.write("YES\n")
+    
+    j = k
+    chosen_colors = []
+    for i in range(total, 0, -1):
+        prev = parent[i][j]
+        diff = j - prev
+        if diff == 0:
+            chosen_colors.append(0)
+        else:
+            comp = comp_nodes[i - 1]
+            cnt1 = 0
+            for u in comp:
+                if color[u] == 1:
+                    cnt1 += 1
+            if diff == cnt1:
+                chosen_colors.append(1)
+            else:
+                chosen_colors.append(2)
+        j = prev
+    
+    chosen_colors.reverse()
+    result = []
+    for i in range(total):
+        c = chosen_colors[i]
+        if c == 0:
+            continue
+        comp = comp_nodes[i]
+        for u in comp:
+            if color[u] == c:
+                result.append(u)
+    
+    sys.stdout.write(' '.join(map(str, result)) + '\n')
+
+solve()

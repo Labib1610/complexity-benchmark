@@ -1,0 +1,65 @@
+import sys
+from sys import setrecursionlimit
+
+def solve():
+    input_data = sys.stdin.buffer.read().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    t = int(next(it))
+    
+    key_holders = [int(next(it)) for _ in range(t)]
+    
+    adj = [[] for _ in range(n + 1)]
+    edges = []
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        w = int(next(it))
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+        edges.append((u, v, w))
+    
+    if t == 1:
+        print(0)
+        return
+    
+    parent = [0] * (n + 1)
+    depth = [0] * (n + 1)
+    parent_edge_weight = [0] * (n + 1)
+    order = []
+    stack = [1]
+    parent[1] = -1
+    depth[1] = 0
+    
+    while stack:
+        u = stack.pop()
+        order.append(u)
+        for v, w in adj[u]:
+            if parent[v] == 0 and v != parent[1]:
+                parent[v] = u
+                depth[v] = depth[u] + 1
+                parent_edge_weight[v] = w
+                stack.append(v)
+    
+    cnt = [0] * (n + 1)
+    for k in key_holders:
+        cnt[k] = 1
+    
+    for u in reversed(order):
+        if parent[u] != -1:
+            cnt[parent[u]] += cnt[u]
+    
+    total_fee = 0
+    for u, v, w in edges:
+        if depth[u] > depth[v]:
+            u, v = v, u
+        if 0 < cnt[v] < t:
+            total_fee += w
+    
+    print(total_fee)
+
+if __name__ == "__main__":
+    solve()

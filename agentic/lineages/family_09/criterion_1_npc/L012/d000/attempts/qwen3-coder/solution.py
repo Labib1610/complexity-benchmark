@@ -1,0 +1,117 @@
+import sys
+from itertools import combinations
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    k = int(data[2])
+    
+    # Build adjacency list for conflicts
+    conflicts = [set() for _ in range(n + 1)]
+    idx = 3
+    for _ in range(m):
+        u = int(data[idx])
+        v = int(data[idx + 1])
+        conflicts[u].add(v)
+        conflicts[v].add(u)
+        idx += 2
+    
+    # If k is 1, just pick any compound
+    if k == 1:
+        print("YES")
+        print(1)
+        return
+    
+    # For small n, we can check all combinations
+    # But since n can be up to 46, we need a better approach
+    # Let's use meet-in-the-middle approach
+    
+    if n <= 23:
+        # Brute force: check all subsets of size k
+        for combo in combinations(range(1, n + 1), k):
+            valid = True
+            for i in range(k):
+                for j in range(i + 1, k):
+                    if combo[j] in conflicts[combo[i]]:
+                        valid = False
+                        break
+                if not valid:
+                    break
+            if valid:
+                print("YES")
+                print(' '.join(map(str, combo)))
+                return
+        print("NO")
+        return
+    
+    # For larger n, use meet-in-the-middle
+    mid = n // 2
+    left_compounds = list(range(1, mid + 1))
+    right_compounds = list(range(mid + 1, n + 1))
+    
+    # Generate all valid subsets for left and right parts
+    def get_valid_subsets(comp_list, max_size):
+        subsets = {}
+        for sz in range(max_size + 1):
+            subsets[sz] = []
+        
+        total = len(comp_list)
+        for mask in range(1 << total):
+            subset = []
+            for i in range(total):
+                if mask & (1 << i):
+                    subset.append(comp_list[i])
+            
+            if len(subset) > max_size:
+                continue
+                
+            # Check if subset is valid internally
+            valid_internal = True
+            for i in range(len(subset)):
+                for j in range(i + 1, len(subset)):
+                    if subset[j] in conflicts[subset[i]]:
+                        valid_internal = False
+                        break
+                if not valid_internal:
+                    break
+            
+            if valid_internal:
+                subsets[len(subset)].append((set(subset), subset))
+        
+        return subsets
+    
+    left_valid = get_valid_subsets(left_compounds, k)
+    right_valid = get_valid_subsets(right_compounds, k)
+    
+    # Now check all combinations
+    for left_size in range(min(k, len(left_compounds)) + 1):
+        right_size = k - left_size
+        if right_size > len(right_compounds) or right_size < 0:
+            continue
+            
+        for left_set, left_list in left_valid[left_size]:
+            for right_set, right_list in right_valid[right_size]:
+                # Check if there's conflict between left and right
+                valid = True
+                for u in left_list:
+                    for v in right_list:
+                        if v in conflicts[u]:
+                            valid = False
+                            break
+                    if not valid:
+                        break
+                
+                if valid:
+                    result = left_list + right_list
+                    print("YES")
+                    print(' '.join(map(str, result)))
+                    return
+    
+    print("NO")
+
+if __name__ == "__main__":
+    main()

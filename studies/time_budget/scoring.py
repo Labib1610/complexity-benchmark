@@ -38,8 +38,12 @@ def _load_objective(criterion):
     return mod
 
 
-def score_case(criterion, produced_output: str, optimal_output: str, run_result) -> dict:
+def score_case(criterion, input_text: str, produced_output: str, optimal_output: str,
+               run_result) -> dict:
     """Score one test case under the time-budget study.
+
+    Audit B7: `input_text` is the actual test input (was previously a directory name), and
+    `produced_output` is the program's real stdout (was previously a checker diagnostic).
 
     Returns a dict with keys:
       tle      : bool  — did the run exceed the time limit?
@@ -69,14 +73,9 @@ def score_case(criterion, produced_output: str, optimal_output: str, run_result)
         return {"tle": False, "exact": False, "ratio": 0.0, "strategy": None}
 
     try:
-        produced_val = objective_mod.value(
-            Path(criterion.dir).parent.name,  # placeholder; objective reads output
-            produced_output,
-        )
-        optimal_val = objective_mod.value(
-            Path(criterion.dir).parent.name,
-            optimal_output,
-        )
+        # objective.value(input_text, output_text) -> float, computed from the ACTUAL input.
+        produced_val = objective_mod.value(input_text, produced_output)
+        optimal_val = objective_mod.value(input_text, optimal_output)
         minimize = getattr(objective_mod, "MINIMIZE", True)
         ratio = approx_ratio(produced_val, optimal_val, minimize)
     except Exception:

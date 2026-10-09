@@ -1,0 +1,251 @@
+import sys
+from array import array
+from collections import deque
+
+sys.setrecursionlimit(1_000_000)
+
+data = list(map(int, sys.stdin.buffer.read().split()))
+nL, nR, m = data[0], data[1], data[2]
+
+if m == 0:
+    sys.stdout.write("YES\n\n")
+    raise SystemExit
+
+orig_u = array('i')
+orig_v = array('i')
+deg_l = [0] * nL
+deg_r = [0] * nR
+
+p = 3
+for _ in range(m):
+    u = data[p] - 1
+    v = data[p + 1] - 1
+    p += 2
+    orig_u.append(u)
+    orig_v.append(v)
+    deg_l[u] += 1
+    deg_r[v] += 1
+
+del data
+
+K = max(max(deg_l), max(deg_r))
+
+
+def pack_vertices(degrees, capacity):
+    mapping = [-1] * len(degrees)
+    loads = []
+    group = -1
+    current = 0
+
+    for i, d in enumerate(degrees):
+        if d == 0:
+            continue
+        if group < 0 or current + d > capacity:
+            if group >= 0:
+                loads.append(current)
+            group += 1
+            current = 0
+        mapping[i] = group
+        current += d
+
+    if group >= 0:
+        loads.append(current)
+
+    return mapping, loads
+
+
+map_l, loads_l = pack_vertices(deg_l, K)
+map_r, loads_r = pack_vertices(deg_r, K)
+del deg_l, deg_r
+
+EU = array('i', (map_l[u] for u in orig_u))
+EV = array('i', (map_r[v] for v in orig_v))
+del orig_u, orig_v, map_l, map_r
+
+N = max(len(loads_l), len(loads_r))
+loads_l.extend([0] * (N - len(loads_l)))
+loads_r.extend([0] * (N - len(loads_r)))
+
+def_l = [K - x for x in loads_l]
+def_r = [K - x for x in loads_r]
+del loads_l, loads_r
+
+i = j = 0
+while i < N and j < N:
+    while i < N and def_l[i] == 0:
+        i += 1
+    while j < N and def_r[j] == 0:
+        j += 1
+    if i == N or j == N:
+        break
+
+    cnt = min(def_l[i], def_r[j])
+    EU.extend([i] * cnt)
+    EV.extend([j] * cnt)
+    def_l[i] -= cnt
+    def_r[j] -= cnt
+
+del def_l, def_r
+
+total_edges = len(EU)
+answer = [0] * m
+
+
+def perfect_matching(edges):
+    adj = [[] for _ in range(N)]
+    for e in edges:
+        adj[EU[e]].append(e)
+
+    pair_u = [-1] * N
+    pair_v = [-1] * N
+    edge_u = [-1] * N
+
+    # Initial greedy matching
+    for u in range(N):
+        for e in adj[u]:
+            v = EV[e]
+            if pair_v[v] == -1:
+                pair_u[u] = v
+                pair_v[v] = u
+                edge_u[u] = e
+                break
+
+    INF = N + 1
+    dist = [INF] * N
+
+    def dfs(u):
+        du = dist[u]
+        for e in adj[u]:
+            v = EV[e]
+            pu = pair_v[v]
+            if pu == -1 or (dist[pu] == du + 1 and dfs(pu)):
+                pair_u[u] = v
+                pair_v[v] = u
+                edge_u[u] = e
+                return True
+        dist[u] = INF
+        return False
+
+    while True:
+        q = deque()
+        for u in range(N):
+            if pair_u[u] == -1:
+                dist[u] = 0
+                q.append(u)
+            else:
+                dist[u] = INF
+
+        found = False
+        while q:
+            u = q.popleft()
+            nd = dist[u] + 1
+            for e in adj[u]:
+                v = EV[e]
+                pu = pair_v[v]
+                if pu == -1:
+                    found = True
+                elif dist[pu] == INF:
+                    dist[pu] = nd
+                    q.append(pu)
+
+        if not found:
+            break
+
+        augmented = False
+        for u in range(N):
+            if pair_u[u] == -1 and dfs(u):
+                augmented = True
+        if not augmented:
+            break
+
+    return edge_u
+
+
+def split_even(edges):
+    length = len(edges)
+    adj = [[] for _ in range(2 * N)]
+
+    for local, e in enumerate(edges):
+        adj[EU[e]].append(local)
+        adj[N + EV[e]].append(local)
+
+    partner_l = [-1] * length
+    partner_r = [-1] * length
+
+    for u in range(N):
+        a = adj[u]
+        for k in range(0, len(a), 2):
+            x, y = a[k], a[k + 1]
+            partner_l[x] = y
+            partner_l[y] = x
+
+    for v in range(N):
+        a = adj[N + v]
+        for k in range(0, len(a), 2):
+            x, y = a[k], a[k + 1]
+            partner_r[x] = y
+            partner_r[y] = x
+
+    seen = bytearray(length)
+    first = []
+    second = []
+
+    for start in range(length):
+        if seen[start]:
+            continue
+
+        cur = start
+        use_left = True
+        parity = 0
+
+        while not seen[cur]:
+            seen[cur] = 1
+            if parity == 0:
+                first.append(edges[cur])
+            else:
+                second.append(edges[cur])
+
+            if use_left:
+                cur = partner_l[cur]
+            else:
+                cur = partner_r[cur]
+
+            use_left = not use_left
+            parity ^= 1
+
+    return first, second
+
+
+def assign_color(edge, color):
+    if edge < m:
+        answer[edge] = color
+
+
+def color_graph(edges, degree, base_color):
+    if degree == 1:
+        for e in edges:
+            assign_color(e, base_color)
+        return
+
+    if degree & 1:
+        matching = perfect_matching(edges)
+        chosen = set(matching)
+        color = base_color + degree - 1
+
+        for e in matching:
+            assign_color(e, color)
+
+        remaining = [e for e in edges if e not in chosen]
+        color_graph(remaining, degree - 1, base_color)
+    else:
+        first, second = split_even(edges)
+        half = degree // 2
+        color_graph(first, half, base_color)
+        color_graph(second, half, base_color + half)
+
+
+color_graph(list(range(total_edges)), K, 1)
+
+sys.stdout.write("YES\n")
+sys.stdout.write(" ".join(map(str, answer)))
+sys.stdout.write("\n")

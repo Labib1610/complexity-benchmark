@@ -1,0 +1,107 @@
+from collections import defaultdict, deque
+
+def solve():
+    q, t = map(int, input().split())
+    
+    if t < q:
+        print("NO")
+        return
+    
+    # Build adjacency list for bipartite graph
+    adj = defaultdict(list)
+    edges = []
+    
+    for _ in range(t):
+        a, b = map(int, input().split())
+        adj[a].append(b)
+        adj[b].append(a)
+        edges.append((a, b))
+    
+    # Try to find a perfect matching using BFS-based approach (Hopcroft-Karp like)
+    # But we'll use a simpler approach: try to find maximum matching using augmenting paths
+    
+    # pair_a[i] represents which node in B is matched to node i in A (or -1 if unmatched)
+    # pair_b[j] represents which node in A is matched to node j in B (or -1 if unmatched)
+    pair_a = [-1] * (q + 1)  # 1-indexed
+    pair_b = [-1] * (q + 1)  # 1-indexed, for nodes q+1 to 2q, we map to 1..q
+    
+    def bfs():
+        # BFS to find shortest augmenting paths
+        dist = [-1] * (q + 1)
+        queue = deque()
+        
+        # Find free vertices in A
+        for u in range(1, q + 1):
+            if pair_a[u] == -1:
+                dist[u] = 0
+                queue.append(u)
+            else:
+                dist[u] = -1
+        
+        found = False
+        while queue:
+            u = queue.popleft()
+            
+            if dist[u] < 0:
+                continue
+                
+            for v in adj[u]:
+                # Map v from [q+1, 2q] to [1, q]
+                v_mapped = v - q
+                
+                # If v is already matched
+                if pair_b[v_mapped] != -1:
+                    # Check if we can extend alternating path
+                    u_next = pair_b[v_mapped]
+                    if dist[u_next] == -1:
+                        dist[u_next] = dist[u] + 1
+                        queue.append(u_next)
+                else:
+                    # Found an augmenting path
+                    found = True
+                    
+        return found
+    
+    def dfs(u):
+        # DFS to find augmenting path starting from u
+        for v in adj[u]:
+            # Map v from [q+1, 2q] to [1, q]
+            v_mapped = v - q
+            
+            # If v is already matched
+            if pair_b[v_mapped] != -1:
+                u_next = pair_b[v_mapped]
+                # Check if distance is exactly one more
+                if dist[u_next] == dist[u] + 1 and dfs(u_next):
+                    # Augment along this path
+                    pair_b[v_mapped] = u
+                    pair_a[u] = v
+                    return True
+            else:
+                # v is free, so we found an augmenting path
+                pair_b[v_mapped] = u
+                pair_a[u] = v
+                return True
+        # No augmenting path from u
+        dist[u] = -1
+        return False
+    
+    # Main matching algorithm
+    matching = 0
+    dist = [0] * (q + 1)
+    
+    while bfs():
+        # For each free vertex in A, try to find augmenting path
+        for u in range(1, q + 1):
+            if pair_a[u] == -1 and dfs(u):
+                matching += 1
+    
+    if matching < q:
+        print("NO")
+        return
+    
+    print("YES")
+    for u in range(1, q + 1):
+        print(u, pair_a[u])
+
+solve()

@@ -1,0 +1,33 @@
+import sys
+
+def solve() -> None:
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+    n = data[0]
+    A = []
+    B = []
+    idx = 1
+    for _ in range(n):
+        p1 = data[idx]
+        p2 = data[idx + 1]
+        idx += 2
+        if p1 <= p2:
+            A.append((p1, p2))
+        else:
+            B.append((p1, p2))
+    A.sort(key=lambda x: x[0])          # increasing p1
+    B.sort(key=lambda x: -x[1])         # decreasing p2
+    order = A + B
+
+    t1 = 0  # completion time on machine 1
+    t2 = 0  # completion time on machine 2
+    for p1, p2 in order:
+        t1 += p1
+        if t2 < t1:
+            t2 = t1
+        t2 += p2
+    sys.stdout.write(str(t2))
+
+if __name__ == "__main__":
+    solve()

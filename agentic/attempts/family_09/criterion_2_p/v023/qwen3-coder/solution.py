@@ -1,0 +1,89 @@
+import sys
+from collections import defaultdict, deque
+
+def solve():
+    n, m, k = map(int, sys.stdin.readline().split())
+    
+    # Build adjacency list
+    adj = defaultdict(list)
+    conflicts = set()
+    
+    for _ in range(m):
+        u, v = map(int, sys.stdin.readline().split())
+        adj[u].append(v)
+        adj[v].append(u)
+        conflicts.add((u, v))
+        conflicts.add((v, u))
+    
+    # If no conflicts, we can take any k modules
+    if m == 0:
+        print("YES")
+        print(" ".join(map(str, range(1, k + 1))))
+        return
+    
+    # Try to 2-color the graph (bipartite check)
+    color = [-1] * (n + 1)  # -1: unvisited, 0: color A, 1: color B
+    partition = [[], []]  # partition[0] and partition[1] for the two colors
+    
+    # Process all components
+    visited = [False] * (n + 1)
+    valid = True
+    
+    for start in range(1, n + 1):
+        if visited[start]:
+            continue
+            
+        # BFS to color this component
+        queue = deque([start])
+        color[start] = 0
+        partition[0].append(start)
+        visited[start] = True
+        
+        while queue:
+            node = queue.popleft()
+            current_color = color[node]
+            next_color = 1 - current_color
+            
+            for neighbor in adj[node]:
+                if not visited[neighbor]:
+                    visited[neighbor] = True
+                    color[neighbor] = next_color
+                    partition[next_color].append(neighbor)
+                    queue.append(neighbor)
+                elif color[neighbor] != next_color:
+                    # Not bipartite - this shouldn't happen according to problem statement
+                    valid = False
+                    break
+            
+            if not valid:
+                break
+        
+        if not valid:
+            break
+    
+    if not valid:
+        # This case shouldn't occur based on problem constraints
+        print("NO")
+        return
+    
+    # Now we have a bipartition
+    set_a = [x for x in partition[0] if x != 0]  # Remove placeholder if any
+    set_b = [x for x in partition[1] if x != 0]
+    
+    # Check if we can form a cluster of size k
+    if len(set_a) >= k:
+        print("YES")
+        print(" ".join(map(str, set_a[:k])))
+    elif len(set_b) >= k:
+        print("YES")
+        print(" ".join(map(str, set_b[:k])))
+    elif len(set_a) + len(set_b) >= k:
+        # We can take all of one set and some from the other
+        # But since they're in different partitions, we can only take from one partition
+        # to maintain stability. So this case is not applicable.
+        # Actually, we can only take from one side of the bipartition
+        print("NO")
+    else:
+        print("NO")
+
+solve()

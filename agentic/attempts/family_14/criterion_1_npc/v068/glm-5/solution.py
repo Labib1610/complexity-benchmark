@@ -1,0 +1,78 @@
+import sys
+from heapq import heappush, heappop
+
+def solve():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    t = int(next(it))
+    
+    mandatory = set()
+    for _ in range(t):
+        mandatory.add(int(next(it)))
+    
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        w = int(next(it))
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+    
+    if t <= 1:
+        print(0)
+        return
+    
+    # Compute pairwise shortest paths between mandatory nodes
+    mandatory_list = list(mandatory)
+    t_count = len(mandatory_list)
+    
+    # dist_matrix[i][j] = shortest path between mandatory node i and mandatory node j
+    dist_matrix = [[float('inf')] * t_count for _ in range(t_count)]
+    
+    for idx, start in enumerate(mandatory_list):
+        # Dijkstra from start
+        dist = [float('inf')] * (n + 1)
+        dist[start] = 0
+        pq = [(0, start)]
+        while pq:
+            d, u = heappop(pq)
+            if d > dist[u]:
+                continue
+            for v, w in adj[u]:
+                nd = d + w
+                if nd < dist[v]:
+                    dist[v] = nd
+                    heappush(pq, (nd, v))
+        
+        for jdx, node in enumerate(mandatory_list):
+            dist_matrix[idx][jdx] = dist[node]
+    
+    # Prim's algorithm on the complete graph of mandatory nodes
+    total_cost = 0
+    in_mst = [False] * t_count
+    min_edge = [float('inf')] * t_count
+    min_edge[0] = 0
+    
+    for _ in range(t_count):
+        # Find minimum edge to add
+        u = -1
+        for v in range(t_count):
+            if not in_mst[v] and (u == -1 or min_edge[v] < min_edge[u]):
+                u = v
+        
+        in_mst[u] = True
+        total_cost += min_edge[u]
+        
+        # Update minimum edges
+        for v in range(t_count):
+            if not in_mst[v] and dist_matrix[u][v] < min_edge[v]:
+                min_edge[v] = dist_matrix[u][v]
+    
+    print(total_cost)
+
+if __name__ == "__main__":
+    solve()

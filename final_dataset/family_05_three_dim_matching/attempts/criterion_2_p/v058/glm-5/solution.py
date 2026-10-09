@@ -1,0 +1,89 @@
+import sys
+from collections import deque
+
+def solve():
+    input_data = sys.stdin.buffer.read().split()
+    idx = 0
+    k = int(input_data[idx]); idx += 1
+    t = int(input_data[idx]); idx += 1
+    
+    # adj[x] = list of catalyst enzymes z that form a valid complex with protein chain x
+    adj = [[] for _ in range(k + 1)]
+    
+    for _ in range(t):
+        x = int(input_data[idx]); idx += 1
+        y = int(input_data[idx]); idx += 1
+        z = int(input_data[idx]); idx += 1
+        adj[x].append(z)
+    
+    # Remove duplicates
+    for i in range(1, k + 1):
+        if adj[i]:
+            adj[i] = list(set(adj[i]))
+    
+    # Hopcroft-Karp
+    pair_u = [0] * (k + 1)  # pair_u[x] = z matched to x
+    pair_v = [0] * (k + 1)  # pair_v[z] = x matched to z
+    dist = [0] * (k + 1)
+    NIL = 0
+    INF = float('inf')
+    
+    def bfs():
+        queue = deque()
+        for u in range(1, k + 1):
+            if pair_u[u] == NIL:
+                dist[u] = 0
+                queue.append(u)
+            else:
+                dist[u] = INF
+        dist[NIL] = INF
+        while queue:
+            u = queue.popleft()
+            if dist[u] < dist[NIL]:
+                for v in adj[u]:
+                    if dist[pair_v[v]] == INF:
+                        dist[pair_v[v]] = dist[u] + 1
+                        queue.append(pair_v[v])
+        return dist[NIL] != INF
+    
+    def dfs(u):
+        if u != NIL:
+            for v in adj[u]:
+                if dist[pair_v[v]] == dist[u] + 1:
+                    if dfs(pair_v[v]):
+                        pair_u[u] = v
+                        pair_v[v] = u
+                        return True
+            dist[u] = INF
+            return False
+        return True
+    
+    matching = 0
+    while bfs():
+        for u in range(1, k + 1):
+            if pair_u[u] == NIL:
+                if dfs(u):
+                    matching += 1
+    
+    if matching == k:
+        print("YES")
+        # Need to output x y z for each complex
+        # y is the fixed receptor for x - we need to find it from input
+        # Re-read to get the y for each x
+        idx2 = 2
+        y_for_x = {}
+        for _ in range(t):
+            x = int(input_data[idx2]); idx2 += 1
+            y = int(input_data[idx2]); idx2 += 1
+            z = int(input_data[idx2]); idx2 += 1
+            if x not in y_for_x:
+                y_for_x[x] = y
+        
+        for x in range(1, k + 1):
+            z = pair_u[x]
+            y = y_for_x[x]
+            print(f"{x} {y} {z}")
+    else:
+        print("NO")
+
+solve()

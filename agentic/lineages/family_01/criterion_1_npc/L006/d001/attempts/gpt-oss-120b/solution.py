@@ -9,61 +9,61 @@ def solve() -> None:
     it = iter(data)
     n = int(next(it))
     m = int(next(it))
-    adj = [[] for _ in range(n)]
+    adj = [0] * n
     for _ in range(m):
         u = int(next(it)) - 1
         v = int(next(it)) - 1
-        adj[u].append(v)
-        adj[v].append(u)
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
 
-    colors = [0] * n          # 0 = uncolored, else 1..3
-    possible = [0b111] * n    # bitmask of allowed colors for each vertex
+    # order vertices by degree descending for better pruning
+    order = sorted(range(n), key=lambda x: -adj[x].bit_count())
+    pos_in_order = [0] * n
+    for idx, v in enumerate(order):
+        pos_in_order[v] = idx
 
-    # Preprocess: if any vertex has degree >= 3 and graph is a triangle? not needed.
+    colors = [0] * n  # 0 = uncolored, else 1..3
+
+    # adjacency in order-indexed form for quick check
+    adj_order = [0] * n
+    for i, v in enumerate(order):
+        mask = 0
+        nb = adj[v]
+        while nb:
+            lsb = nb & -nb
+            u = (lsb.bit_length() - 1)
+            mask |= 1 << pos_in_order[u]
+            nb ^= lsb
+        adj_order[i] = mask
 
     def dfs(idx: int) -> bool:
         if idx == n:
             return True
-        # try colors 1..3 in order
-        for c in (1, 2, 3):
-            if not (possible[idx] & (1 << (c - 1))):
-                continue
-            # check already colored neighbors
-            conflict = False
-            for nb in adj[idx]:
-                if nb < idx and colors[nb] == c:
-                    conflict = True
-                    break
-            if conflict:
-                continue
-
-            # assign
-            colors[idx] = c
-            changed = []  # list of (vertex, old_mask)
-            ok = True
-            for nb in adj[idx]:
-                if nb > idx and colors[nb] == 0:
-                    old = possible[nb]
-                    new = old & ~(1 << (c - 1))
-                    if new != old:
-                        possible[nb] = new
-                        changed.append((nb, old))
-                    if new == 0:
-                        ok = False
-                        break
-            if ok and dfs(idx + 1):
-                return True
-            # revert
-            for v, old in reversed(changed):
-                possible[v] = old
-            colors[idx] = 0
+        v = idx
+        # try colors 1..3
+        forbidden = 0
+        nb_mask = adj_order[v]
+        # check already colored neighbours
+        while nb_mask:
+            lsb = nb_mask & -nb_mask
+            u = (lsb.bit_length() - 1)
+            c = colors[order[u]]
+            if c:
+                forbidden |= 1 << (c - 1)
+            nb_mask ^= lsb
+        for col in range(1, 4):
+            if not (forbidden & (1 << (col - 1))):
+                colors[order[v]] = col
+                if dfs(idx + 1):
+                    return True
+                colors[order[v]] = 0
         return False
 
     if dfs(0):
-        out = "YES\n" + " ".join(map(str, colors))
+        print("YES")
+        print(' '.join(str(c) for c in colors))
     else:
-        out = "NO"
-    sys.stdout.write(out)
+        print("NO")
 
 if __name__ == "__main__":
     solve()

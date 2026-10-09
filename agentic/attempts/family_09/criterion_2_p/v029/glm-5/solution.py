@@ -1,0 +1,50 @@
+import sys
+from collections import deque
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    k = int(next(it))
+    
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # Bipartition the graph
+    color = [-1] * (n + 1)
+    sets = [[], []]
+    possible = True
+    
+    for i in range(1, n + 1):
+        if color[i] == -1:
+            color[i] = 0
+            queue = deque([i])
+            while queue:
+                u = queue.popleft()
+                sets[color[u]].append(u)
+                for v in adj[u]:
+                    if color[v] == -1:
+                        color[v] = 1 - color[u]
+                        queue.append(v)
+    
+    # Choose the smaller set
+    if len(sets[0]) <= len(sets[1]):
+        chosen = sets[0]
+    else:
+        chosen = sets[1]
+    
+    if len(chosen) >= k:
+        sys.stdout.write("YES\n")
+        sys.stdout.write(" ".join(map(str, chosen[:k])))
+    else:
+        sys.stdout.write("NO")
+
+if __name__ == "__main__":
+    solve()

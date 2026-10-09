@@ -1,0 +1,46 @@
+# Acoustic Resonance Tuning
+
+Time limit: 1 s
+Memory limit: 256 MB
+
+A research facility operates an array of $n$ acoustic projectors. To ensure structural integrity, the continuous operation protocol dictates that every projector must be assigned a pulse cycle of either 1 or 2 microseconds.
+
+The facility's layout introduces $m$ interference thresholds. Each threshold connects a specific pair of projectors. A cycle assignment is only viable if it maintains strict harmony across these connections: for any two projectors joined by a threshold, the mathematical product of their assigned pulse cycles must equal exactly 2.
+
+Your objective is to determine if a viable cycle assignment exists for the complete array. Since multiple viable assignments might be possible, the diagnostic system will always adopt the one whose sequence of $n$ pulse cycles is lexicographically smallest. Therefore, when comparing two viable sequences, the correct sequence will feature the smaller cycle (1 instead of 2) at the earliest projector index where the assignments differ.
+
+## Input
+The first line provides two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$), representing the number of acoustic projectors and the number of interference thresholds.
+Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$), indicating that a threshold connects projector $u$ and projector $v$.
+
+## Output
+If it is impossible to find a viable cycle assignment, print `NO` on a single line.
+If a viable assignment can be found, print `YES` on the first line. On the second line, print $n$ space-separated integers (each either 1 or 2) indicating the pulse cycle for each projector from 1 to $n$. This sequence must be the lexicographically smallest valid assignment.
+
+## Example 1
+Input:
+```
+4 4
+1 2
+2 3
+3 4
+1 4
+```
+Output:
+```
+YES
+1 2 1 2
+```
+
+## Example 2
+Input:
+```
+3 3
+1 2
+1 3
+2 3
+```
+Output:
+```
+NO
+```

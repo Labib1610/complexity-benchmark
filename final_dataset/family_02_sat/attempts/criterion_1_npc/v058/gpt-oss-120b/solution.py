@@ -1,0 +1,97 @@
+import sys
+
+sys.setrecursionlimit(10000)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    clauses = []
+    for _ in range(m):
+        c1 = int(next(it)); c2 = int(next(it)); c3 = int(next(it))
+        clauses.append([c1, c2, c3])
+
+    # assignment: None = unassigned, True = ACTIVE (1), False = STANDBY (0)
+    assign = [None] * (n + 1)
+
+    # helper to get literal value under current assignment
+    def lit_val(lit):
+        v = assign[abs(lit)]
+        if v is None:
+            return None
+        return v if lit > 0 else (not v)
+
+    # unit propagation, returns False if conflict
+    def propagate(stack):
+        changed = True
+        while changed:
+            changed = False
+            for clause in clauses:
+                satisfied = False
+                unassigned_lits = []
+                for lit in clause:
+                    val = lit_val(lit)
+                    if val is True:
+                        satisfied = True
+                        break
+                    elif val is None:
+                        unassigned_lits.append(lit)
+                if satisfied:
+                    continue
+                if not unassigned_lits:
+                    # all false -> conflict
+                    return False
+                if len(unassigned_lits) == 1:
+                    # unit clause
+                    unit = unassigned_lits[0]
+                    var = abs(unit)
+                    val = unit > 0
+                    if assign[var] is None:
+                        assign[var] = val
+                        stack.append(var)
+                        changed = True
+                    elif assign[var] != val:
+                        return False
+        return True
+
+    # recursive DPLL
+    def dpll():
+        stack = []
+        if not propagate(stack):
+            # undo assignments made in this call
+            for v in stack:
+                assign[v] = None
+            return False
+        # check if all variables assigned
+        if all(a is not None for a in assign[1:]):
+            return True
+        # choose unassigned variable
+        for v in range(1, n + 1):
+            if assign[v] is None:
+                var = v
+                break
+        # try True then False
+        for val in (True, False):
+            assign[var] = val
+            local_stack = [var]
+            if propagate(local_stack):
+                if dpll():
+                    return True
+            # backtrack
+            for v2 in local_stack:
+                assign[v2] = None
+        return False
+
+    possible = dpll()
+    if not possible:
+        print("NO")
+    else:
+        print("YES")
+        res = ['1' if assign[i] else '0' for i in range(1, n + 1)]
+        print(' '.join(res))
+
+if __name__ == "__main__":
+    solve()

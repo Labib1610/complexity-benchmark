@@ -1,0 +1,75 @@
+import sys
+sys.setrecursionlimit(1 << 25)
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    B = int(next(it))
+    
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # BFS to get parent pointers and order
+    parent = [-1] * n
+    order = []
+    q = [0]
+    parent[0] = -2  # mark root visited
+    for u in q:
+        order.append(u)
+        for v in adj[u]:
+            if parent[v] == -1:
+                parent[v] = u
+                q.append(v)
+    
+    # Compute subtree sizes
+    size = [1] * n
+    for u in reversed(order):
+        for v in adj[u]:
+            if parent[v] == u:
+                size[u] += size[v]
+    
+    # Sort children by subtree size (smallest first)
+    children = [[] for _ in range(n)]
+    for v in order:
+        p = parent[v]
+        if p >= 0:
+            children[p].append(v)
+    for u in range(n):
+        children[u].sort(key=lambda x: size[x])
+    
+    # Assign positions using DFS
+    pos = [0] * n
+    cur = 1
+    stack = [(0, 0)]
+    while stack:
+        u, idx = stack[-1]
+        if idx < len(children[u]):
+            stack[-1] = (u, idx + 1)
+            stack.append((children[u][idx], 0))
+        else:
+            pos[u] = cur
+            cur += 1
+            stack.pop()
+    
+    # Calculate total length
+    total = 0
+    for u in range(1, n):
+        p = parent[u]
+        total += abs(pos[u] - pos[p])
+    
+    if total <= B:
+        print("YES")
+        print(' '.join(map(str, pos)))
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()

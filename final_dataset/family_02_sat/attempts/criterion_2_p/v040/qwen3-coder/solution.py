@@ -1,0 +1,110 @@
+import sys
+from collections import defaultdict
+
+def main():
+    import sys
+    sys.setrecursionlimit(1 << 25)
+    
+    n, m = map(int, sys.stdin.readline().split())
+    
+    # For each requirement, we have two literals l1 and l2
+    # We need at least one of them to be true
+    # This is a 2-SAT problem
+    
+    # Variables: for each channel i (1-based), 
+    # variable i represents channel i in primary mode (1)
+    # variable -i represents channel i in secondary mode (0)
+    
+    # We build implication graph
+    # For each clause (l1 OR l2), we add edges:
+    # NOT l1 -> l2
+    # NOT l2 -> l1
+    
+    adj = defaultdict(list)
+    rev_adj = defaultdict(list)
+    
+    for _ in range(m):
+        l1, l2 = map(int, sys.stdin.readline().split())
+        # Add implications
+        # NOT l1 -> l2  which is  -l1 -> l2
+        # NOT l2 -> l1  which is  -l2 -> l1
+        adj[-l1].append(l2)
+        adj[-l2].append(l1)
+        rev_adj[l2].append(-l1)
+        rev_adj[l1].append(-l2)
+    
+    # Now we do Kosaraju's algorithm to find strongly connected components
+    # First DFS on original graph to get finishing times
+    visited = [False] * (2 * n + 1)
+    finish_stack = []
+    
+    def dfs1(u):
+        if visited[u]:
+            return
+        visited[u] = True
+        for v in adj[u]:
+            dfs1(v)
+        finish_stack.append(u)
+    
+    # Run DFS1 on all nodes including negatives
+    for i in range(1, n+1):
+        if not visited[i]:
+            dfs1(i)
+        if not visited[-i]:
+            dfs1(-i)
+    
+    # Second DFS on transpose graph in reverse finish order
+    visited = [False] * (2 * n + 1)
+    scc_id = {}
+    scc_count = 0
+    
+    def dfs2(u, cid):
+        if visited[u]:
+            return
+        visited[u] = True
+        scc_id[u] = cid
+        for v in rev_adj[u]:
+            dfs2(v, cid)
+    
+    # Process in reverse order of finishing times
+    while finish_stack:
+        u = finish_stack.pop()
+        if not visited[u]:
+            dfs2(u, scc_count)
+            scc_count += 1
+    
+    # Check if any variable and its negation are in the same SCC
+    for i in range(1, n+1):
+        if scc_id[i] == scc_id[-i]:
+            print("NO")
+            return
+    
+    # Otherwise, there exists a solution
+    # Assign values based on topological order of SCCs
+    # In Kosaraju, later finishing SCCs should be assigned TRUE first
+    # But since we used the transpose graph in second pass,
+    # earlier components in our numbering get assigned later
+    
+    assignment = [None] * (n + 1)
+    
+    # Create list of (scc_id, node) and sort by scc_id descending
+    scc_nodes = [(scc_id[u], u) for u in scc_id]
+    scc_nodes.sort(reverse=True)
+    
+    for _, u in scc_nodes:
+        if u > 0 and assignment[u] is None:
+            assignment[u] = 1
+        elif u < 0 and assignment[-u] is None:
+            assignment[-u] = 0
+    
+    print("YES")
+    result = []
+    for i in range(1, n+1):
+        if assignment[i] == 1:
+            result.append('1')
+        else:
+            result.append('0')
+    print(' '.join(result))
+
+if __name__ == "__main__":
+    main()

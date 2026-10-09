@@ -1,0 +1,386 @@
+```python
+import sys
+from collections import deque
+
+def read_input():
+    n, m, k, B = map(int, sys.stdin.readline().split())
+    sovereign = set(map(int, sys.stdin.readline().split()))
+    edges = []
+    for _ in range(m):
+        u, v, w = map(int, sys.stdin.readline().split())
+        edges.append((u, v, w))
+    return n, m, k, B, sovereign, edges
+
+def find_critical_edges(n, sovereign, edges):
+    # We need to ensure no path exists between any two sovereign nodes
+    # This is equivalent to finding a cut that separates all sovereign nodes from each other
+    
+    # Create a graph representation
+    adj = [[] for _ in range(n+1)]
+    edge_indices = {}
+    for i, (u, v, w) in enumerate(edges):
+        adj[u].append((v, w, i))
+        adj[v].append((u, w, i))
+        edge_indices[(u, v)] = i
+        edge_indices[(v, u)] = i
+    
+    # For each pair of sovereign nodes, we need to make sure they're disconnected
+    # This is essentially a multi-source cut problem
+    
+    # A simpler approach: Try to find minimum cut that separates all sovereign nodes
+    # But since this is NP-hard in general, let's use a greedy approach
+    
+    # Strategy: Build a graph with only non-sovereign nodes initially connected
+    # Then add edges one by one until all sovereign pairs are disconnected
+    
+    # Actually, let's think differently:
+    # We want to separate ALL sovereign nodes from EACH OTHER
+    # So we can create a "super node" and connect all sovereign nodes to it
+    # Then find a min-cut that separates these nodes
+    
+    # Even simpler approach:
+    # Try all possible combinations of cutting edges within budget B
+    # But that's exponential
+    
+    # Let's model this as finding a minimum cut in a modified graph:
+    # Create a new graph where we contract all non-sovereign nodes into components
+    # But this gets complex
+    
+    # Simpler practical approach:
+    # Use BFS/DFS to check connectivity between sovereign nodes
+    # Greedily remove cheapest edges that help separate them
+    
+    def is_valid_solution(removed_edges):
+        # Check if removing these edges disconnects all sovereign nodes from each other
+        removed_set = set(removed_edges)
+        
+        # Build adjacency list without removed edges
+        temp_adj = [[] for _ in range(n+1)]
+        for i, (u, v, w) in enumerate(edges):
+            if i not in removed_set:
+                temp_adj[u].append(v)
+                temp_adj[v].append(u)
+        
+        # Check if any two sovereign nodes are still connected
+        sovereign_list = list(sovereign)
+        visited = [False] * (n+1)
+        
+        def bfs(start):
+            queue = deque([start])
+            visited[start] = True
+            component = {start}
+            
+            while queue:
+                node = queue.popleft()
+                for neighbor in temp_adj[node]:
+                    if not visited[neighbor]:
+                        visited[neighbor] = True
+                        queue.append(neighbor)
+                        component.add(neighbor)
+            
+            return component
+        
+        # For each connected component, check how many sovereign nodes it contains
+        visited = [False] * (n+1)
+        for s in sovereign_list:
+            if not visited[s]:
+                component = bfs(s)
+                # Count sovereign nodes in this component
+                sovereign_in_component = component.intersection(sovereign)
+                if len(sovereign_in_component) > 1:
+                    return False  # Still connected
+        
+        return True
+    
+    # Greedy approach: sort edges by weight and try removing them
+    # But we need to be smarter - remove edges that actually help separate sovereign nodes
+    
+    # Better approach: 
+    # 1. Find which edges are part of paths between sovereign nodes
+    # 2. Among those, select the cheapest set that breaks all connections
+    
+    # Let's identify critical edges first
+    sovereign_list = list(sovereign)
+    
+    # Find all edges that lie on paths between sovereign nodes
+    critical_edge_indices = set()
+    
+    # For each pair of sovereign nodes, find paths between them
+    for i in range(len(sovereign_list)):
+        for j in range(i+1, len(sovereign_list)):
+            s1, s2 = sovereign_list[i], sovereign_list[j]
+            
+            # BFS to find if there's a path between s1 and s2
+            def bfs_path_exists():
+                if s1 == s2:
+                    return False
+                
+                visited = [False] * (n+1)
+                queue = deque([s1])
+                visited[s1] = True
+                
+                while queue:
+                    node = queue.popleft()
+                    if node == s2:
+                        return True
+                    
+                    for neighbor, _, _ in adj[node]:
+                        if not visited[neighbor]:
+                            visited[neighbor] = True
+                            queue.append(neighbor)
+                
+                return False
+            
+            if bfs_path_exists():
+                # There's a path, so we need to break it
+                # But identifying which specific edges to remove requires more work
+                pass
+    
+    # Let's use a flow-based approach conceptually but implement a greedy solution
+    # Sort edges by weight (ascending)
+    indexed_edges = [(w, i, u, v) for i, (u, v, w) in enumerate(edges)]
+    indexed_edges.sort()
+    
+    # Greedily try removing edges
+    removed_edges = []
+    total_cost = 0
+    
+    current_removed = set()
+    
+    for w, i, u, v in indexed_edges:
+        if total_cost + w > B:
+            continue
+            
+        # Temporarily add this edge to removed set and check if solution becomes valid
+        temp_removed = current_removed.copy()
+        temp_removed.add(i)
+        
+        if is_valid_solution(temp_removed):
+            # This removal makes the solution valid
+            removed_edges.append((i, u, v))
+            current_removed.add(i)
+            total_cost += w
+            break
+        elif total_cost + w <= B:
+            # Add it anyway if within budget - might help towards solution
+            removed_edges.append((i, u, v))
+            current_removed.add(i)
+            total_cost += w
+    
+    # Final check
+    if is_valid_solution(current_removed) and total_cost <= B:
+        return True, removed_edges
+    elif total_cost <= B:  # Try to improve
+        # Continue removing edges until valid or budget exceeded
+        pass
+    
+    # If not yet valid, let's do a more thorough search
+    if not is_valid_solution(current_removed):
+        # Try removing more edges
+        remaining_edges = [(w, i, u, v) for w, i, u, v in indexed_edges if i not in current_removed]
+        
+        for w, i, u, v in remaining_edges:
+            if total_cost + w > B:
+                continue
+                
+            temp_removed = current_removed.copy()
+            temp_removed.add(i)
+            
+            if is_valid_solution(temp_removed):
+                removed_edges.append((i, u, v))
+                current_removed.add(i)
+                total_cost += w
+                break
+    
+    if is_valid_solution(current_removed) and total_cost <= B:
+        return True, [(u, v) for _, u, v in removed_edges]
+    else:
+        # Brute force for small cases or use approximation
+        # Since this is complex, let's try a different approach
+        
+        # Simple greedy: keep removing edges until separation achieved
+        selected_edges = []
+        selected_indices = set()
+        total_weight = 0
+        
+        # Rebuild adjacency without currently selected edges
+        def build_adj_without_selected():
+            temp_adj = [[] for _ in range(n+1)]
+            for i, (u, v, w) in enumerate(edges):
+                if i not in selected_indices:
+                    temp_adj[u].append(v)
+                    temp_adj[v].append(u)
+            return temp_adj
+        
+        def are_sovereign_separated():
+            temp_adj = build_adj_without_selected()
+            visited = [False] * (n+1)
+            
+            components = []
+            for s in sovereign:
+                if not visited[s]:
+                    component = []
+                    queue = deque([s])
+                    visited[s] = True
+                    component.append(s)
+                    
+                    while queue:
+                        node = queue.popleft()
+                        for neighbor in temp_adj[node]:
+                            if not visited[neighbor]:
+                                visited[neighbor] = True
+                                queue.append(neighbor)
+                                component.append(neighbor)
+                    
+                    components.append(component)
+            
+            # Check if any component has more than one sovereign node
+            for comp in components:
+                sovereign_count = len(set(comp).intersection(sovereign))
+                if sovereign_count > 1:
+                    return False
+            return True
+        
+        # Sort edges by weight for greedy selection
+        edge_weights = [(w, i) for i, (_, _, w) in enumerate(edges)]
+        edge_weights.sort()
+        
+        for w, i in edge_weights:
+            if total_weight + w > B:
+                continue
+                
+            # Try adding this edge to selection
+            selected_indices.add(i)
+            if are_sovereign_separated():
+                selected_edges.append((edges[i][0], edges[i][1]))
+                total_weight += w
+                return True, selected_edges
+            elif total_weight + w <= B:
+                selected_edges.append((edges[i][0], edges[i][1]))
+                total_weight += w
+            else:
+                selected_indices.remove(i)  # Remove if over budget
+        
+        if are_sovereign_separated() and total_weight <= B:
+            return True, selected_edges
+    
+    return False, []
+
+def solve():
+    n, m, k, B, sovereign, edges = read_input()
+    
+    # Special case: if k <= 1, no need to separate anything
+    if k <= 1:
+        print("YES")
+        print(0)
+        return
+    
+    # Try to find a valid solution
+    success, result = find_critical_edges(n, sovereign, edges)
+    
+    if success and sum(edges[edge_indices[(u, v)]][2] for u, v in result if (u, v) in edge_indices or (v, u) in edge_indices) <= B:
+        print("YES")
+        print(len(result))
+        for u, v in result:
+            print(u, v)
+    else:
+        # Fallback brute-force for correctness
+        # Check if empty set works (all sovereign already separated)
+        adj = [[] for _ in range(n+1)]
+        for u, v, w in edges:
+            adj[u].append(v)
+            adj[v].append(u)
+        
+        def check_separation():
+            visited = [False] * (n+1)
+            components = []
+            for s in sovereign:
+                if not visited[s]:
+                    component = set()
+                    queue = deque([s])
+                    visited[s] = True
+                    component.add(s)
+                    
+                    while queue:
+                        node = queue.popleft()
+                        for neighbor in adj[node]:
+                            if not visited[neighbor]:
+                                visited[neighbor] = True
+                                queue.append(neighbor)
+                                component.add(neighbor)
+                    
+                    components.append(component)
+            
+            for comp in components:
+                if len(comp.intersection(sovereign)) > 1:
+                    return False
+            return True
+        
+        if check_separation():
+            print("YES")
+            print(0)
+            return
+        
+        # Otherwise try greedy approach
+        edge_with_index = [(w, i, u, v) for i, (u, v, w) in enumerate(edges)]
+        edge_with_index.sort()
+        
+        removed = []
+        total_cost = 0
+        disabled = [False] * m
+        
+        def is_disconnected():
+            temp_adj = [[] for _ in range(n+1)]
+            for i, (u, v, w) in enumerate(edges):
+                if not disabled[i]:
+                    temp_adj[u].append(v)
+                    temp_adj[v].append(u)
+            
+            visited = [False] * (n+1)
+            for start_sovereign in sovereign:
+                if visited[start_sovereign]:
+                    continue
+                    
+                component = []
+                stack = [start_sovereign]
+                visited[start_sovereign] = True
+                component.append(start_sovereign)
+                
+                while stack:
+                    node = stack.pop()
+                    for neighbor in temp_adj[node]:
+                        if not visited[neighbor]:
+                            visited[neighbor] = True
+                            stack.append(neighbor)
+                            component.append(neighbor)
+                
+                # Check if this component has multiple sovereign nodes
+                sovereign_here = [x for x in component if x in sovereign]
+                if len(sovereign_here) > 1:
+                    return False
+            return True
+        
+        for w, i, u, v in edge_with_index:
+            if total_cost + w <= B:
+                disabled[i] = True
+                if is_disconnected():
+                    removed.append((u, v))
+                    total_cost += w
+                    break
+                else:
+                    removed.append((u, v))
+                    total_cost += w
+        
+        if is_disconnected():
+            print("YES")
+            print(len(removed))
+            for u, v in removed:
+                print(u, v)
+        else:
+            print("NO")
+
+# Global variables for edge indexing
+edge_indices = {}
+
+solve()
+```

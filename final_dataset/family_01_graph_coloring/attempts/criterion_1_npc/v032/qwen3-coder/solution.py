@@ -1,0 +1,38 @@
+def solve():
+    n, m = map(int, input().split())
+    
+    # Build adjacency list for the graph
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u, v = map(int, input().split())
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # Try all possible assignments
+    # Each variable can be 1, 2, or 3
+    for mask in range(3**n):
+        # Extract values for each variable
+        values = []
+        temp_mask = mask
+        for i in range(n):
+            values.append((temp_mask % 3) + 1)
+            temp_mask //= 3
+        
+        # Check if this assignment satisfies all conditions
+        valid = True
+        for u in range(1, n + 1):
+            for v in adj[u]:
+                if values[u - 1] == values[v - 1]:
+                    valid = False
+                    break
+            if not valid:
+                break
+        
+        if valid:
+            print("YES")
+            print(*values)
+            return
+    
+    print("NO")
+
+solve()

@@ -1,21 +1,20 @@
-# Magnetic Containment Field
+# Problem B — Laser Grid Polarization
 
-Time limit: 1 s
-Memory limit: 256 MB
+Time limit: 1 s   Memory limit: 256 MB
 
-You are programming the assembly sequence for a new fusion reactor's magnetic containment field. The field relies on $n$ electromagnetic emitters, numbered 1 through $n$. Each emitter must be calibrated to one of two phase states, designated as 1 and 2.
+You are designing a security system composed of $n$ laser emitters, numbered 1 through $n$. Each emitter must be fitted with exactly one of two types of polarization filters: type 1 or type 2.
 
-The reactor design specifies $m$ interference channels. Each channel connects a specific pair of emitters. If the two emitters connected by an interference channel are calibrated to the same phase state, their waves will resonate and destabilise the field. Therefore, they must always be calibrated to different phase states.
+The physical layout of the facility causes the beams from certain emitters to intersect. There are $m$ such intersection points. At each intersection point, the beams from two specific emitters cross paths. If both intersecting beams have the exact same polarization type, they will cause destructive interference and trigger a false alarm. To prevent this, any two emitters whose beams cross must be equipped with different types of polarization filters.
 
-Determine if there is a valid calibration for all $n$ emitters that avoids destabilising the field. If multiple valid calibrations exist, the reactor's diagnostic system requires the one that is lexicographically smallest when the phase states of emitters 1 through $n$ are written as a sequence.
+Your task is to determine if it is possible to assign a polarization filter to every emitter such that no false alarms are triggered. If it is possible, you must output a valid assignment. Due to inventory preferences, if there are multiple valid assignments, you must provide the lexicographically smallest one (i.e., assignment $A$ is lexicographically smaller than assignment $B$ if, at the first emitter $i$ where their filter types differ, assignment $A$ uses type 1 and assignment $B$ uses type 2).
 
 ## Input
 The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$).
-Each of the next $m$ lines contains two integers $u$ and $v$ — an interference channel between emitter $u$ and emitter $v$.
+Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$), indicating that the beams from emitter $u$ and emitter $v$ intersect.
 
 ## Output
-If no safe calibration exists, print a single line `NO`.
-Otherwise print `YES`, then a second line with $n$ integers $s_1 \dots s_n$ (each in $\{1, 2\}$), representing the lexicographically smallest valid calibration sequence.
+If there is no way to assign the filters without causing interference, print a single line containing `NO`.
+Otherwise, print `YES` on the first line. On the second line, print $n$ integers $f_1, f_2, \ldots, f_n$ (where each $f_i \in \{1, 2\}$), representing the lexicographically smallest valid assignment of filters to the $n$ emitters.
 
 ## Example 1
 Input:

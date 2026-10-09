@@ -1,0 +1,133 @@
+import sys
+from collections import deque
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    k = int(next(it))
+    
+    contracts = []
+    for _ in range(k):
+        s = int(next(it))
+        t = int(next(it))
+        d = int(next(it))
+        contracts.append((s, t, d))
+    
+    edges_input = []
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        cap = int(next(it))
+        edges_input.append((u, v, cap))
+    
+    # Build flow network
+    # Node indexing:
+    # For each original node v and contract i: node (v-1)*k + i (0-indexed)
+    # Total nodes: n * k
+    # Super source: n*k, super sink: n*k + 1
+    
+    base = n * k
+    S = base
+    T = base + 1
+    total_nodes = base + 2
+    
+    # Edge structure: adjacency list with edge objects
+    # Each edge: [to, rev, cap, flow, edge_id, contract_id]
+    # edge_id: original corridor index (0 to m-1) for corridor edges, -1 otherwise
+    # contract_id: which contract this edge belongs to (for corridor edges)
+    
+    graph = [[] for _ in range(total_nodes)]
+    
+    def add_edge(u, v, cap, edge_id=-1, contract_id=-1):
+        graph[u].append([v, len(graph[v]), cap, 0, edge_id, contract_id])
+        graph[v].append([u, len(graph[u]) - 1, 0, 0, -1, -1])
+    
+    # Add edges from super source to each contract's origin
+    for i, (s, t, d) in enumerate(contracts):
+        node_s = (s - 1) * k + i
+        add_edge(S, node_s, d)
+    
+    # Add edges from each contract's destination to super sink
+    for i, (s, t, d) in enumerate(contracts):
+        node_t = (t - 1) * k + i
+        add_edge(node_t, T, d)
+    
+    # Add corridor edges for each contract
+    for j, (u, v, cap) in enumerate(edges_input):
+        for i in range(k):
+            node_u = (u - 1) * k + i
+            node_v = (v - 1) * k + i
+            add_edge(node_u, node_v, cap, j, i)
+    
+    # Dinic's algorithm
+    def bfs_level():
+        level = [-1] * total_nodes
+        level[S] = 0
+        q = deque([S])
+        while q:
+            u = q.popleft()
+            for edge in graph[u]:
+                v, rev, cap, flow, _, _ = edge
+                if cap - flow > 0 and level[v] < 0:
+                    level[v] = level[u] + 1
+                    q.append(v)
+        return level
+    
+    def dfs_flow(u, t, f, level, ptr):
+        if u == t:
+            return f
+        while ptr[u] < len(graph[u]):
+            edge = graph[u][ptr[u]]
+            v, rev, cap, flow, _, _ = edge
+            if cap - flow > 0 and level[v] == level[u] + 1:
+                pushed = dfs_flow(v, t, min(f, cap - flow), level, ptr)
+                if pushed > 0:
+                    edge[3] += pushed
+                    graph[v][rev][3] -= pushed
+                    return pushed
+            ptr[u] += 1
+        return 0
+    
+    def max_flow():
+        flow = 0
+        while True:
+            level = bfs_level()
+            if level[T] < 0:
+                break
+            ptr = [0] * total_nodes
+            while True:
+                pushed = dfs_flow(S, T, float('inf'), level, ptr)
+                if pushed == 0:
+                    break
+                flow += pushed
+        return flow
+    
+    # Calculate total demand
+    total_demand = sum(d for _, _, d in contracts)
+    
+    # Run max flow
+    flow = max_flow()
+    
+    if flow < total_demand:
+        print("NO")
+        return
+    
+    # Extract flows for each contract and corridor
+    result = [[0] * m for _ in range(k)]
+    
+    for u in range(base):
+        for edge in graph[u]:
+            v, rev, cap, f, edge_id, contract_id = edge
+            if edge_id >= 0 and f > 0:
+                result[contract_id][edge_id] = f
+    
+    print("YES")
+    for row in result:
+        print(' '.join(map(str, row)))
+
+if __name__ == "__main__":
+    solve()

@@ -1,0 +1,223 @@
+```python
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    nL = int(data[0])
+    nR = int(data[1])
+    m = int(data[2])
+    edges = []
+    idx = 3
+    degL = [0] * (nL + 1)
+    degR = [0] * (nR + 1)
+    for _ in range(m):
+        u = int(data[idx]); v = int(data[idx+1]); idx += 2
+        edges.append((u, v))
+        degL[u] += 1
+        degR[v] += 1
+    peak = 0
+    for i in range(1, nL+1):
+        if degL[i] > peak: peak = degL[i]
+    for i in range(1, nR+1):
+        if degR[i] > peak: peak = degR[i]
+    if m == 0:
+        sys.stdout.write("YES\n")
+        sys.stdout.write("\n")
+        return
+    # Build adjacency for left side (morning presenters)
+    # We will use edge coloring via Vizing-like greedy with available colors
+    # Since bipartite, edge chromatic number = peak (Konig's theorem)
+    # Use greedy with conflict tracking per vertex
+    # For each vertex, maintain set of used colors and a free color pointer
+    # To find a free color quickly, maintain next available color per vertex
+    # and a dictionary of used colors.
+    # Since peak can be up to 400000, we need efficient approach.
+    # We'll use arrays of size peak+2 for each vertex? That's too much memory.
+    # Instead, use dict for used colors and a counter for next free.
+    # But worst-case each vertex has degree up to peak, so dict size = degree.
+    # Total memory O(m). Acceptable.
+    # For finding augmenting path, we use standard approach:
+    # When edge (u,v) cannot be colored with a free color for both,
+    # we recolor along an alternating path.
+    # We'll implement the standard bipartite edge coloring algorithm.
+    
+    # We need color arrays for edges
+    color = [0] * m
+    # For each left vertex, store mapping color->edge index
+    # For each right vertex, store mapping color->edge index
+    # Use dict
+    from collections import defaultdict
+    leftColor = [None] * (nL + 1)  # dict color -> edge index
+    rightColor = [None] * (nR + 1)
+    for i in range(1, nL+1):
+        leftColor[i] = {}
+    for i in range(1, nR+1):
+        rightColor[i] = {}
+    
+    # free color finder: for each vertex, the smallest free color
+    # we can compute by maintaining a set or just scanning from 1
+    # Since peak can be large, we maintain a "next" pointer and a used set
+    # Actually, we can maintain for each vertex a counter `ptr` and a set `used`
+    # find_free: while ptr in used: ptr += 1; return ptr
+    # But after recoloring, ptr might need reset. We'll just scan from 1 each time
+    # but that could be O(peak) per edge -> too slow.
+    # Better: maintain `used` as a set, and `min_free` as integer.
+    # When we free a color c < min_free, set min_free = c.
+    # When we need free color, if min_free not in used, return it, else scan upward.
+    # This is amortized efficient.
+    
+    leftUsed = [None] * (nL + 1)
+    rightUsed = [None] * (nR + 1)
+    leftMinFree = [1] * (nL + 1)
+    rightMinFree = [1] * (nR + 1)
+    for i in range(1, nL+1):
+        leftUsed[i] = set()
+    for i in range(1, nR+1):
+        rightUsed[i] = set()
+    
+    def get_free_left(u):
+        mf = leftMinFree[u]
+        used = leftUsed[u]
+        while mf in used:
+            mf += 1
+        leftMinFree[u] = mf
+        return mf
+    
+    def get_free_right(v):
+        mf = rightMinFree[v]
+        used = rightUsed[v]
+        while mf in used:
+            mf += 1
+        rightMinFree[v] = mf
+        return mf
+    
+    for i in range(m):
+        u, v = edges[i]
+        a = get_free_left(u)
+        b = get_free_right(v)
+        if a == b:
+            color[i] = a
+            leftColor[u][a] = i
+            rightColor[v][a] = i
+            leftUsed[u].add(a)
+            rightUsed[v].add(a)
+            if a == leftMinFree[u]:
+                leftMinFree[u] = a + 1
+            if a == rightMinFree[v]:
+                rightMinFree[v] = a + 1
+        else:
+            # Need to recolor. We have a < b typically (since a is free for u, b free for v)
+            # Actually a and b are just free colors, not necessarily ordered.
+            # We'll try to color with a, and if v already has a, we do alternating path.
+            # Standard algorithm: color edge with a, then if conflict on v, 
+            # follow alternating path of colors a and b starting from v.
+            # Let's set c1 = a, c2 = b.
+            c1 = a
+            c2 = b
+            # We want to assign c1 to edge (u,v). 
+            # u is free for c1. v may or may not have c1.
+            # If v doesn't have c1, assign c1.
+            # If v has c1, we need to find alternating path from v using c1 and c2.
+            # The path: v -> (edge colored c1) -> left vertex -> (edge colored c2) -> right vertex -> ...
+            # until we find a right vertex that doesn't have c2 or left vertex that doesn't have c1.
+            # Then flip colors along path.
+            # Since graph is bipartite and max degree = peak, this works.
+            
+            # Build the path
+            # We'll traverse from v
+            # Current side: right
+            # We look for edge colored c1 at v
+            # Then go to its left endpoint, look for edge colored c2, etc.
+            # Collect edges in path
+            path_edges = []
+            current_v = v
+            current_c = c1
+            side = 'R'  # we are at right vertex
+            while True:
+                if side == 'R':
+                    # look for edge with color current_c at current_v
+                    if current_c in rightColor[current_v]:
+                        e = rightColor[current_v][current_c]
+                        path_edges.append(e)
+                        # move to left endpoint
+                        eu, ev = edges[e]
+                        current_v = eu
+                        side = 'L'
+                        current_c = c2 if current_c == c1 else c1
+                    else:
+                        break
+                else:
+                    # side == 'L', look for edge with color current_c at current_v (left)
+                    if current_c in leftColor[current_v]:
+                        e = leftColor[current_v][current_c]
+                        path_edges.append(e)
+                        eu, ev = edges[e]
+                        current_v = ev
+                        side = 'R'
+                        current_c = c2 if current_c == c1 else c1
+                    else:
+                        break
+            # Now flip colors along path
+            # The path_edges alternate: first edge has color c1 (at right side), 
+            # we want to recolor it to c2, then next edge from c2 to c1, etc.
+            # Actually, let's think: we want to assign c1 to edge (u,v).
+            # v currently has c1 on some edge e0. We want to change e0 to c2.
+            # Then the left endpoint of e0 might have c2 on some edge e1, change e1 to c1.
+            # Continue until we find a vertex that doesn't have the target color.
+            # So we flip: c1->c2, c2->c1, c1->c2, ...
+            for j, e in enumerate(path_edges):
+                eu, ev = edges[e]
+                old_c = color[e]
+                new_c = c2 if old_c == c1 else c1
+                # remove old color
+                del leftColor[eu][old_c]
+                del rightColor[ev][old_c]
+                leftUsed[eu].discard(old_c)
+                rightUsed[ev].discard(old_c)
+                # update min free if needed
+                if old_c < leftMinFree[eu]:
+                    leftMinFree[eu] = old_c
+                if old_c < rightMinFree[ev]:
+                    rightMinFree[ev] = old_c
+                # set new color
+                color[e] = new_c
+                leftColor[eu][new_c] = e
+                rightColor[ev][new_c] = e
+                leftUsed[eu].add(new_c)
+                rightUsed[ev].add(new_c)
+                if new_c == leftMinFree[eu]:
+                    # find next free
+                    mf = leftMinFree[eu]
+                    while mf in leftUsed[eu]:
+                        mf += 1
+                    leftMinFree[eu] = mf
+                if new_c == rightMinFree[ev]:
+                    mf = rightMinFree[ev]
+                    while mf in rightUsed[ev]:
+                        mf += 1
+                    rightMinFree[ev] = mf
+            # Now assign c1 to edge i
+            color[i] = c1
+            leftColor[u][c1] = i
+            rightColor[v][c1] = i
+            leftUsed[u].add(c1)
+            rightUsed[v].add(c1)
+            if c1 == leftMinFree[u]:
+                mf = leftMinFree[u]
+                while mf in leftUsed[u]:
+                    mf += 1
+                leftMinFree[u] = mf
+            if c1 == rightMinFree[v]:
+                mf = rightMinFree[v]
+                while mf in rightUsed[v]:
+                    mf += 1
+                rightMinFree[v] = mf
+    
+    out = ["YES"]
+    out.append(" ".join(map(str, color)))
+    sys.stdout.write("\n".join(out) + "\n")
+
+solve()
+```

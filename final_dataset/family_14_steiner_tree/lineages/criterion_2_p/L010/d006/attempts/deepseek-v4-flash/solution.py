@@ -1,0 +1,69 @@
+import sys
+sys.setrecursionlimit(300000)
+
+def solve():
+    input = sys.stdin.readline
+    n, m, t = map(int, input().split())
+    terminals = set(map(int, input().split()))
+    edges = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u, v, w = map(int, input().split())
+        edges[u].append((v, w))
+        edges[v].append((u, w))
+    
+    if t <= 1:
+        print(0)
+        return
+    
+    # Find minimal subtree connecting all terminals
+    # For a tree, remove leaves that are not terminals
+    degree = [0] * (n + 1)
+    for u in range(1, n + 1):
+        degree[u] = len(edges[u])
+    
+    from collections import deque
+    q = deque()
+    visited = [False] * (n + 1)
+    for i in range(1, n + 1):
+        if degree[i] == 1 and i not in terminals:
+            q.append(i)
+            visited[i] = True
+    
+    total_weight = 0
+    in_subtree = [False] * (n + 1)
+    for i in range(1, n + 1):
+        if i in terminals:
+            in_subtree[i] = True
+    
+    while q:
+        u = q.popleft()
+        for v, w in edges[u]:
+            if not visited[v]:
+                if in_subtree[u]:
+                    total_weight += w
+                degree[v] -= 1
+                in_subtree[v] = True
+                if degree[v] == 1 and v not in terminals:
+                    visited[v] = True
+                    q.append(v)
+    
+    # After pruning non-terminal leaves, the remaining tree connects all terminals.
+    # We have accumulated weights when removing leaves — but that approach adds edges when deleting,
+    # we need to sum edges in final subtree instead.
+    
+    # Let's recompute correctly: prune non-terminal leaves, then sum edges between remaining nodes
+    active = [False] * (n + 1)
+    for i in range(1, n + 1):
+        if not visited[i]:
+            active[i] = True
+    
+    ans = 0
+    for u in range(1, n + 1):
+        if active[u]:
+            for v, w in edges[u]:
+                if v > u and active[v]:
+                    ans += w
+    print(ans)
+
+if __name__ == "__main__":
+    solve()

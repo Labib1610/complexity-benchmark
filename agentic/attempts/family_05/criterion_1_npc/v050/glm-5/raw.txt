@@ -1,0 +1,972 @@
+<think>
+the final version.
+</think>
+Looking at this problem, I need to find k triples (x, y, z) such that:
+- Each x value 1..k appears exactly once
+- Each y value 1..k appears exactly once  
+- Each z value 1..k appears exactly once
+
+This is a 3-dimensional matching problem. With k ≤ 22, I can use bitmask DP where the state tracks which x, y, z values are used. But 2^22 * 2^22 is too large.
+
+Better approach: Since we need a perfect matching in 3D, I can think of it as: for each x in 1..k, pick a triple with that x. The y's must form a permutation and z's must form a permutation.
+
+Let me use DP over x values (process x from 1 to k), tracking which y values and z values are used. State = (used_y_bitmask, used_z_bitmask). But that's 2^22 * 2^22 = too much.
+
+Alternative: Use meet-in-the-middle or a smarter approach. Actually, with k ≤ 22, 2^22 ≈ 4M, and 2^22 * 2^22 is way too much.
+
+Let me think differently. This is 3D matching which is NP-hard in general, but k ≤ 22 suggests exponential in k.
+
+Key insight: Process x from 1 to k. For each x, we have a set of available triples. We need to assign each x a (y, z) pair such that y's are all distinct and z's are all distinct. State: (which x we're at, used_y_mask, used_z_mask). Still too large.
+
+But we can use the fact that at step i, exactly i y's and i z's are used, so used_y_mask and used_z_mask have the same popcount. The number of states with popcount i is C(k,i)^2. Total states = sum over i of C(k,i)^2 = C(2k, k) which for k=22 is about 705 billion. Too much.
+
+Hmm, let me reconsider. Maybe use a different DP: track only used_y_mask, and for z use a matching approach. Actually, we can reduce to: find a permutation of y's and z's.
+
+Alternative approach: This is equivalent to finding a perfect matching in a bipartite-like structure. Let me think of it as: we need to select k triples. Consider building a bipartite graph between y and z values, where edge (y,z) exists if there's a triple (x,y,z) for some x. We need a perfect matching, AND we need to assign each matched (y,z) pair to a distinct x such that (x,y,z) is a valid triple.
+
+Actually, let's think of it as a bipartite matching between x and (y,z) pairs, but that's k^2 pairs.
+
+Let me try: for each x, list available (y,z) pairs. We need to pick one (y,z) per x such that all y's distinct and all z's distinct. This is like an assignment problem.
+
+With k ≤ 22, maybe we can use inclusion-exclusion or a clever bitmask DP with just one mask.
+
+DP idea: dp[used_y_mask] = set of possible used_z_masks. But storing sets is expensive.
+
+Better: dp[used_y_mask] = bitmask of achievable used_z_masks. For k=22, 2^22 bits = 512KB per mask, times 2^22 masks = 2TB. Too much.
+
+Let me try meet-in-the-middle: split x's into two halves of size k/2 ≤ 11. For each half, enumerate all possible (used_y_mask, used_z_mask) pairs. For k=11, 2^11 = 2048, so at most 2048^2 = 4M pairs per half, but actually constrained by popcount. For half of size 11, popcount ranges 0..11, and C(11,5)*C(11,5) etc. Total pairs per half ≈ C(22,11) ≈ 705K. Then match: for each (y_mask1, z_mask1) from first half, we need (y_mask2, z_mask2) from second half where y_mask2 = complement of y_mask1 and z_mask2 = complement of z_mask1. So we can store second half results in a hash set keyed by (y_mask2, z_mask2) and look up.
+
+Wait, but the two halves process different x's. First half processes x=1..k/2, second half processes x=k/2+1..k. The y and z masks from both halves must combine to full mask. So for first half result (y1, z1), we need second half to have (y2, z2) where y2 = full_mask ^ y1 and z2 = full_mask ^ z1.
+
+So: enumerate all valid (y_mask, z_mask) for second half, store in a set. Then enumerate first half and check if complement exists.
+
+For each half, the enumeration: recursively assign each x in the half a triple, tracking y_mask and z_mask. Number of leaf states is bounded by product of available triples per x, but with pruning it's manageable.
+
+For k=22, each half has 11 x's. Worst case each x has k^2 = 484 triples. 484^11 is way too much. But with the constraint that y's and z's must be distinct within the half, the branching is limited. At step i, we've used i y's and i z's, so available y's = k-i, available z's = k-i, and available triples for current x that use unused y and z... could still be up to (k-i)^2.
+
+Hmm, this could still be large. But k ≤ 22 and t ≤ k^3 = 10648, so the graph is sparse-ish.
+
+Let me just implement the meet-in-the-middle with DFS and pruning, and hope it's fast enough given the 5-second time limit.
+
+Actually, let me reconsider the DP with one mask. 
+
+dp[mask_y] where mask_y represents used y values. The value stored is a bitmask of achievable z_masks. But we process x one at a time, so at step with popcount(mask_y) = i, we've processed x=1..i.
+
+For k=22: 2^22 states, each storing up to 2^22 bits. That's 2^22 * 2^22 / 8 bytes = 2TB. Way too much.
+
+But we can use a dictionary: dp[mask_y] = set of z_masks. The total number of (mask_y, mask_z) pairs across all steps is bounded. At step i, popcount(mask_y) = i and popcount(mask_z) = i. Total = sum_i C(k,i)^2 = C(2k,k). For k=22, C(44,22) ≈ 2.1 trillion. Still too much.
+
+Meet-in-the-middle with k/2=11: C(22,11) ≈ 705K per half. That's manageable!
+
+Let me implement this. For each half, DFS through the x's in that half, collecting all (y_mask, z_mask) pairs. Store second half's pairs in a set/dict. For first half, check if complement exists.
+
+To reconstruct the solution, I need to track which triple was chosen for each x. I'll store the actual assignment along with each (y_mask, z_mask) pair.
+
+Let me code this up.
+
+```python
+import sys
+from collections import defaultdict
+
+def solve():
+    input_data = sys.stdin.buffer.read().split()
+    idx = 0
+    k = int(input_data[idx]); idx += 1
+    t = int(input_data[idx]); idx += 1
+    
+    # Group triples by x
+    triples_by_x = defaultdict(list)
+    for _ in range(t):
+        x = int(input_data[idx]); idx += 1
+        y = int(input_data[idx]); idx += 1
+        z = int(input_data[idx]); idx += 1
+        triples_by_x[x].append((y, z))
+    
+    full_mask = (1 << k) - 1
+    
+    # Split x's into two halves
+    xs = list(range(1, k+1))
+    mid = k // 2
+    first_half = xs[:mid]
+    second_half = xs[mid:]
+    
+    # For second half: enumerate all (y_mask, z_mask) and store with assignment
+    # assignment: dict from x -> (y, z)
+    second_results = {}  # (y_mask, z_mask) -> assignment dict
+    
+    def dfs_second(i, y_mask, z_mask, assignment):
+        if i == len(second_half):
+            second_results[(y_mask, z_mask)] = dict(assignment)
+            return
+        x = second_half[i]
+        for (y, z) in triples_by_x[x]:
+            yb = 1 << (y - 1)
+            zb = 1 << (z - 1)
+            if y_mask & yb or z_mask & zb:
+                continue
+            assignment[x] = (y, z)
+            dfs_second(i + 1, y_mask | yb, z_mask | zb, assignment)
+            del assignment[x]
+    
+    dfs_second(0, 0, 0, {})
+    
+    # For first half: enumerate and check complement
+    first_assignment = {}
+    found = [False]
+    result = [None]
+    
+    def dfs_first(i, y_mask, z_mask, assignment):
+        if found[0]:
+            return
+        if i == len(first_half):
+            # Check if complement exists in second half
+            need_y = full_mask ^ y_mask
+            need_z = full_mask ^ z_mask
+            key = (need_y, need_z)
+            if key in second_results:
+                found[0] = True
+                result[0] = (dict(assignment), second_results[key])
+            return
+        x = first_half[i]
+        for (y, z) in triples_by_x[x]:
+            yb = 1 << (y - 1)
+            zb = 1 << (z - 1)
+            if y_mask & yb or z_mask & zb:
+                continue
+            assignment[x] = (y, z)
+            dfs_first(i + 1, y_mask | yb, z_mask | zb, assignment)
+            del assignment[x]
+            if found[0]:
+                return
+    
+    dfs_first(0, 0, 0, {})
+    
+    if found[0]:
+        print("YES")
+        a1, a2 = result[0]
+        for x in range(1, k+1):
+            if x in a1:
+                y, z = a1[x]
+            else:
+                y, z = a2[x]
+            print(f"{x} {y} {z}")
+    else:
+        print("NO")
+
+solve()
+```
+
+Wait, there's an issue: if k is odd, the halves are unequal sizes. That's fine, the approach still works. But the worst case for the second half enumeration could be large.
+
+For k=22, second half has 11 x's. The number of (y_mask, z_mask) pairs is at most C(22, 11) * C(22, 11) but constrained by the actual triples available. In the worst case where all k^3 triples exist, every (y,z) pair is available for every x, so the number of valid assignments for 11 x's is the number of ways to choose 11 distinct y's and 11 distinct z's and match them, which is C(22,11) * C(22,11) * 11! ... that's huge.
+
+Hmm, this won't work for dense inputs. Let me think of a better approach.
+
+Actually, when all triples exist, the answer is always YES (just pick (i,i,i) for all i). The problem is when the graph is sparse but still has many partial matchings.
+
+Let me reconsider. The meet-in-the-middle stores all (y_mask, z_mask) pairs for the second half. The number of such pairs is bounded by the number of ways to assign distinct y's and z's to the second half x's. In the worst case (all triples available), for 11 x's, the number of valid (y_mask, z_mask) pairs is at most C(22,11)^2 ≈ 540 billion. Way too much.
+
+I need a better approach. Let me think about this differently.
+
+Alternative: Use the fact that this is a 3D matching and reduce to bipartite matching with some tricks.
+
+Actually, let me think about it as a flow problem or use Hall's theorem style reasoning.
+
+Hmm, but 3D matching is NP-hard, so there's no polynomial solution. With k ≤ 22, we need something exponential but manageable.
+
+Let me reconsider the DP. The key insight: process x from 1 to k. State = (used_y_mask). Value = bitmask of achievable used_z_masks. But we can represent this as a set of integers (bitmasks).
+
+The total number of (y_mask, z_mask) pairs across all steps is bounded by C(2k, k) ≈ C(44, 22) ≈ 2.1 trillion. Too much.
+
+But wait, the actual number of reachable states depends on the input. For sparse inputs, it's small. For dense inputs, we can use a different strategy (e.g., greedy or the trivial solution).
+
+Actually, let me think about this more carefully. The number of reachable (y_mask, z_mask) pairs at step i is at most min(C(k,i)^2, product of degrees). For dense graphs, C(k, i)^2 is large, but we can use the bitmask representation.
+
+Let me try a different DP: dp[i][y_mask] = set of z_masks. But use a bitset for z_masks. For k=22, a z_mask is 22 bits, so we can store it as an integer. The set of z_masks for a given y_mask can be stored as... well, it could be up to C(k, i) values.
+
+Actually, let me just try the meet-in-the-middle but with a smarter enumeration. Instead of storing all (y_mask, z_mask) pairs, I can group by y_mask and store a set of z_masks for each y_mask. Then for the first half, for each (y_mask, z_mask), I check if (full ^ y_mask) is a key and (full ^ z_mask) is in its z_mask set.
+
+The number of distinct y_masks for the second half is at most C(k, len(second_half)). For k=22, len=11, that's C(22,11) ≈ 705K. For each y_mask, the number of z_masks is at most C(k, 11) ≈ 705K. But in practice, for a given y_mask, the z_masks are constrained by the triples.
+
+Hmm, this is still potentially large. Let me think about whether there's a polynomial-time approach I'm missing.
+
+Wait, actually, re-reading the problem: we need to select exactly k specifications. Each specification is a triple (x, y, z). The x values must be a permutation of 1..k, same for y and z. This is exactly 3-dimensional matching, which is NP-hard.
+
+Given k ≤ 22, the intended solution is likely exponential. Let me think about what's feasible.
+
+Option 1: DP with state = used_y_mask, value = bitmask of used_z_masks (as a Python int, which can be arbitrarily large). At step i (processing x=i+1), we have popcount(y_mask) = i. The number of distinct y_masks at step i is C(k, i). For each, we store a set of z_masks (as a big integer where bit j means z_mask j is achievable). But z_mask has 2^k possible values, so the big integer has 2^k bits = 4M bits = 512KB. Times C(k,i) masks... at i=11, C(22,11) ≈ 705K masks * 512KB = 360GB. Too much.
+
+Option 2: Use a dictionary instead of array. dp[y_mask] = set of z_masks (as a Python set of ints). The total number of (y_mask, z_mask) pairs is bounded by the number of valid partial matchings, which depends on the input.
+
+For the worst case (all triples present), the number of valid partial matchings at step i is C(k,i)^2 (choose i y's and i z's, and there's always a valid assignment). Sum over i: C(2k, k) ≈ 2.1 trillion. Too much.
+
+But wait, for the all-triples-present case, we can just output the trivial solution. So maybe we should handle dense cases specially?
+
+Actually, let me think about this differently. The problem says t ≤ k^3. For k=22, that's 10648 triples. The total possible triples is k^3 = 10648. So t can be up to all possible triples.
+
+When all triples are present, the answer is trivially YES with (i, i, i). When the graph is sparse, the DP states are limited.
+
+Let me try the dictionary-based DP and see if it's fast enough. The key optimization: at each step, we only keep reachable states, and the number of reachable states is bounded by the actual structure of the problem.
+
+Actually, I think the meet-in-the-middle approach can work if I'm smarter about it. Let me reconsider.
+
+For the second half (x's from mid+1 to k), I enumerate all valid (y_mask, z_mask) pairs. The number of such pairs is at most the number of ways to assign distinct (y, z) to each x in the second half. 
+
+For the second half with m x's, the number of valid assignments is at most: (number of triples for first x) * (number of triples for second x with distinct y,z) * ... 
+
+In the worst case (all triples present), for m=11 x's, the first x has 22*22=484 choices, the second has 21*21=441, etc. Product = 484 * 441 * 400 * ... ≈ (22!)^2 / (11!)^2 which is astronomically large.
+
+So meet-in-the-middle with full enumeration doesn't work for dense inputs.
+
+Let me think of another approach. 
+
+What about using the structure: we need a permutation of y's and a permutation of z's. We can think of this as: first find a perfect matching between x and y (i.e., assign each x a distinct y such that (x, y, *) exists for some z). Then, given the x-y assignment, find a perfect matching between the assigned (x, y) pairs and z values.
+
+But this doesn't work because the x-y matching might not lead to a valid z assignment.
+
+What about: for each permutation of y (assigning y to x), check if there's a valid z assignment? There are k! permutations, which for k=22 is way too many.
+
+Let me think about this as a bipartite matching problem. Create a bipartite graph where left nodes are x values (1..k) and right nodes are (y, z) pairs that appear in some triple. We need a perfect matching where the selected (y, z) pairs have all distinct y's and all distinct z's.
+
+This is still a 3D matching, but we can use the bipartite structure: for each x, the available (y, z) pairs are given. We need to select one (y, z) per x such that y's are all distinct and z's are all distinct.
+
+This is equivalent to finding a system of distinct representatives for the sets, with two constraints. 
+
+Hmm, let me try a different approach: reduce to bipartite matching.
+
+Step 1: For each x, the set of available y values is Y_x = {y : (x, y, z) exists for some z}. We need a perfect matching between x's and y's. This is a necessary condition.
+
+Step 2: Given a matching x -> y, for each x, the set of available z values is Z_{x,y} = {z : (x, y, z) exists}. We need a perfect matching between x's (or equivalently (x, y) pairs) and z's.
+
+But the choice of x-y matching affects the z matching. So we need to find an x-y matching that also allows a z matching.
+
+This is a "matroid intersection" or "bipartite matching with two constraints" problem.
+
+Actually, I think we can model this as a bipartite matching in a clever way. Let me think...
+
+Consider a bipartite graph where:
+- Left side: x values 1..k
+- Right side: y values 1..k
+- Edge (x, y) exists if there's some z with (x, y, z) in the triple set
+
+We need a perfect matching M in this graph. Additionally, for the matched pairs (x, y), we need to assign z values such that (x, y, z) is a valid triple and z's are all distinct.
+
+The z assignment is a bipartite matching between matched (x, y) pairs and z values. This is a second bipartite matching problem.
+
+So the overall problem is: find a perfect matching M in the x-y bipartite graph such that the induced x-y-z bipartite graph (between matched pairs and z values) has a perfect matching.
+
+This is a "matching with a side constraint" problem, which is generally NP-hard (it's essentially 3D matching).
+
+OK so let me just go with the DP approach but optimize it. Let me use dp as a dictionary mapping y_mask to a set of z_masks, but process x one at a time. The key insight is that for sparse inputs, the number of states is small, and for dense inputs, we can use a greedy/heuristic approach.
+
+Actually, let me just try the straightforward DP with a dictionary and see. The number of states at each step is bounded by the number of valid (y_mask, z_mask) pairs, which for sparse inputs is small. For dense inputs, we can add a check: if the x-y bipartite graph has a perfect matching and the x-z bipartite graph has a perfect matching and the y-z bipartite graph has a perfect matching, then... no, that's not sufficient for 3D matching.
+
+Let me just implement the DP with dictionary and hope it works within the time limit for the given constraints. The problem has a 5-second time limit and k ≤ 22.
+
+Actually, I realize there might be a smarter way. Let me use the DP where state is y_mask, and value is a set of z_masks. But instead of storing all z_masks, I can use a different representation.
+
+Wait, here's an idea: use DP where state is (y_mask, z_mask) but only store reachable states. Process x from 1 to k. At each step, for each reachable state, try all triples for the current x.
+
+The number of reachable states at step i is at most C(k, i)^2, but in practice much less due to the constraint from triples.
+
+For the worst case (all triples present), at step i, every (y_mask, z_mask) with popcount i is reachable. C(k, i)^2 summed over i is C(2k, k) ≈ 2.1 trillion for k=22. Too much.
+
+But for all triples present, we can just output (i, i, i). So let me add a special case: if the number of triples is large enough (say, > k^2 * some threshold), use a greedy approach.
+
+Actually, let me think about this more carefully. When is the DP feasible?
+
+The DP is feasible when the number of reachable states is small. This happens when the triples are sparse. When triples are dense, we can use a different approach.
+
+For dense inputs, we can use the following: if for every pair (x, y), there exists at least one z with (x, y, z), and for every pair (y, z), there exists at least one x, etc., then we can try to construct a solution greedily or using bipartite matching.
+
+Actually, let me try a different approach entirely: model as a maximum matching problem in a 3-uniform hypergraph and use the fact that k ≤ 22 to do a clever search.
+
+Let me try the following approach:
+1. Use bipartite matching to find a perfect matching between x and y (necessary condition).
+2. For each such matching, try to find a z assignment.
+3. If no z assignment works, backtrack and try a different x-y matching.
+
+But the number of x-y matchings can be exponential.
+
+OK, let me just go with the meet-in-the-middle approach but optimize the enumeration. Instead of enumerating all valid assignments for each half, I'll use DP within each half.
+
+For the second half (m x's), dp2[y_mask] = set of z_masks. The number of states is at most C(k, m) for y_mask, and for each y_mask, the z_masks set is bounded.
+
+For m = k/2 = 11, C(22, 11) ≈ 705K y_masks. For each, the z_masks set could have up to C(22, 11) ≈ 705K elements. Total: 705K * 705K ≈ 5 * 10^11. Too much for dense.
+
+Hmm. Let me think about what makes this problem tractable for k=22.
+
+Actually, maybe the intended solution is a simple backtracking with pruning, and the test cases are not adversarial enough to make it TLE. Let me try a backtracking approach with good pruning:
+
+1. Sort x's by number of available triples (fewest first) for better pruning.
+2. Use bitmasks for used y and z.
+3. Prune using Hall's theorem: check if a perfect matching is still possible.
+
+The Hall's theorem check: for the remaining x's, check if for every subset S of remaining x's, the union of their available y's has size ≥ |S|, and similarly for z's. But checking all subsets is exponential.
+
+A simpler pruning: for remaining x's, check if the bipartite graph (remaining x's vs remaining y's) has a perfect matching. This can be done in O(k^3) using Hopcroft-Karp or similar. Similarly for z's.
+
+Let me implement this:
+
+```python
+import sys
+from collections import defaultdict
+
+def solve():
+    input_data = sys.stdin.buffer.read().split()
+    idx = 0
+    k = int(input_data[idx]); idx += 1
+    t = int(input_data[idx]); idx += 1
+    
+    triples_by_x = defaultdict(list)
+    for _ in range(t):
+        x = int(input_data[idx]); idx += 1
+        y = int(input_data[idx]); idx += 1
+        z = int(input_data[idx]); idx += 1
+        triples_by_x[x].append((y, z))
+    
+    # Check if any x has no triples
+    for x in range(1, k+1):
+        if x not in triples_by_x or not triples_by_x[x]:
+            print("NO")
+            return
+    
+    # Bipartite matching for feasibility check
+    def has_perfect_matching(left_nodes, right_mask, adj):
+        # adj: for each left node, set of right nodes (as bitmask)
+        # Check if there's a matching covering all left nodes using only right nodes in right_mask
+        n = len(left_nodes)
+        if n == 0:
+            return True
+        # Simple augmenting path based matching
+        match = {}  # right_node -> left_node_index
+        def try_kuhn(v, visited):
+            for u_bit in adj[left_nodes[v]]:
+                if not (right_mask & u_bit):
+                    continue
+                u = u_bit.bit_length() - 1  # This is wrong, need index
+                # Actually, let me use a different representation
+                pass
+        # This is getting complicated, let me use a simpler approach
+        pass
+    
+    # Let me use a different approach: backtracking with bitmask
+    full_mask = (1 << k) - 1
+    
+    # Sort x's by number of triples (ascending) for better pruning
+    xs = sorted(range(1, k+1), key=lambda x: len(triples_by_x[x]))
+    
+    assignment = {}
+    used_y = [0]
+    used_z = [0]
+    found = [False]
+    
+    def backtrack(i):
+        if found[0]:
+            return
+        if i == k:
+            found[0] = True
+            return
+        x = xs[i]
+        remaining = k - i
+        # Pruning: check if perfect matching is possible for remaining y's and z's
+        # Simple check: count available y's and z's
+        avail_y = full_mask & ~used_y[0]
+        avail_z = full_mask & ~used_z[0]
+        if bin(avail_y).count('1') < remaining or bin(avail_z).count('1') < remaining:
+            return
+        
+        for (y, z) in triples_by_x[x]:
+            yb = 1 << (y - 1)
+            zb = 1 << (z - 1)
+            if used_y[0] & yb or used_z[0] & zb:
+                continue
+            assignment[x] = (y, z)
+            used_y[0] |= yb
+            used_z[0] |= zb
+            backtrack(i + 1)
+            if found[0]:
+                return
+            used_y[0] &= ~yb
+            used_z[0] &= ~zb
+            del assignment[x]
+    
+    backtrack(0)
+    
+    if found[0]:
+        print("YES")
+        for x in range(1, k+1):
+            y, z = assignment[x]
+            print(f"{x} {y} {z}")
+    else:
+        print("NO")
+
+solve()
+```
+
+This simple backtracking might TLE on adversarial cases. Let me add better pruning using bipartite matching checks.
+
+Actually, let me add a bipartite matching feasibility check. For the remaining x's, I need to check:
+1. The bipartite graph between remaining x's and remaining y's (edge if (x, y, z) exists for some unused z) has a perfect matching.
+2. Similarly for z's.
+
+But this is expensive to check at every node. Let me add it only at certain depths.
+
+Actually, let me try a different approach. Let me use the bipartite matching between x and y first, then check z.
+
+Hmm, let me think about this problem from a different angle. 
+
+The problem is 3D matching with k ≤ 22. The standard approach for small k is backtracking with pruning. Let me implement it with good pruning:
+
+1. Order x's by increasing degree.
+2. At each step, check Hall's condition for both y and z dimensions.
+3. Use bitmasks for efficiency.
+
+For Hall's condition, I can check: for the remaining x's, does the bipartite graph to remaining y's have a perfect matching? This can be checked with a max-flow or Hungarian algorithm in O(k^3) or so.
+
+Let me implement this properly:
+
+```python
+import sys
+from collections import defaultdict
+
+def solve():
+    input_data = sys.stdin.buffer.read().split()
+    idx = 0
+    k = int(input_data[idx]); idx += 1
+    t = int(input_data[idx]); idx += 1
+    
+    triples_by_x = [[] for _ in range(k + 1)]
+    for _ in range(t):
+        x = int(input_data[idx]); idx += 1
+        y = int(input_data[idx]); idx += 1
+        z = int(input_data[idx]); idx += 1
+        triples_by_x[x].append((y - 1, z - 1))  # 0-indexed
+    
+    for x in range(1, k + 1):
+        if not triples_by_x[x]:
+            print("NO")
+            return
+    
+    full_mask = (1 << k) - 1
+    
+    # Precompute for each x: set of available y's and z's (as bitmasks)
+    y_avail = [0] * (k + 1)
+    z_avail = [0] * (k + 1)
+    for x in range(1, k + 1):
+        for (y, z) in triples_by_x[x]:
+            y_avail[x] |= (1 << y)
+            z_avail[x] |= (1 << z)
+    
+    # Bipartite matching check: can we match remaining x's to remaining y's?
+    def check_y_matching(remaining_xs, avail_y_mask):
+        n = len(remaining_xs)
+        if n == 0:
+            return True
+        # Build adjacency
+        adj = []
+        for x in remaining_xs:
+            mask = y_avail[x] & avail_y_mask
+            adj.append(mask)
+        
+        # Check Hall's condition using max matching
+        # Use augmenting path algorithm
+        match_y = [-1] * k  # match_y[j] = index of x matched to y j, -1 if unmatched
+        
+        def augment(v, visited):
+            # Try to find augmenting path from x index v
+            mask = adj[v]
+            j = 0
+            while mask:
+                if mask & 1:
+                    if j not in visited:
+                        visited.add(j)
+                        if match_y[j] == -1 or augment(match_y[j], visited):
+                            match_y[j] = v
+                            return True
+                mask >>= 1
+                j += 1
+            return False
+        
+        matched = 0
+        for v in range(n):
+            visited = set()
+            if augment(v, visited):
+                matched += 1
+            else:
+                return False
+        return matched == n
+    
+    def check_z_matching(remaining_xs, avail_z_mask):
+        n = len(remaining_xs)
+        if n == 0:
+            return True
+        adj = []
+        for x in remaining_xs:
+            mask = z_avail[x] & avail_z_mask
+            adj.append(mask)
+        
+        match_z = [-1] * k
+        
+        def augment(v, visited):
+            mask = adj[v]
+            j = 0
+            while mask:
+                if mask & 1:
+                    if j not in visited:
+                        visited.add(j)
+                        if match_z[j] == -1 or augment(match_z[j], visited):
+                            match_z[j] = v
+                            return True
+                mask >>= 1
+                j += 1
+            return False
+        
+        matched = 0
+        for v in range(n):
+            visited = set()
+            if augment(v, visited):
+                matched += 1
+            else:
+                return False
+        return matched == n
+    
+    # Sort x's by degree (ascending)
+    xs = sorted(range(1, k + 1), key=lambda x: len(triples_by_x[x]))
+    
+    assignment = [None] * (k + 1)
+    used_y = 0
+    used_z = 0
+    found = False
+    result = None
+    
+    def backtrack(i, uy, uz):
+        nonlocal found, result
+        if found:
+            return
+        if i == k:
+            found = True
+            result = list(assignment)
+            return
+        
+        remaining = k - i
+        avail_y_mask = full_mask & ~uy
+        avail_z_mask = full_mask & ~uz
+        
+        if bin(avail_y_mask).count('1') < remaining or bin(avail_z_mask).count('1') < remaining:
+            return
+        
+        # Periodic bipartite matching check
+        remaining_xs = xs[i:]
+        if i % 3 == 0 or remaining <= 5:
+            if not check_y_matching(remaining_xs, avail_y_mask):
+                return
+            if not check_z_matching(remaining_xs, avail_z_mask):
+                return
+        
+        x = xs[i]
+        for (y, z) in triples_by_x[x]:
+            yb = 1 << y
+            zb = 1 << z
+            if uy & yb or uz & zb:
+                continue
+            assignment[x] = (y + 1, z + 1)
+            backtrack(i + 1, uy | yb, uz | zb)
+            if found:
+                return
+            assignment[x] = None
+    
+    backtrack(0, 0, 0)
+    
+    if found:
+        print("YES")
+        for x in range(1, k + 1):
+            y, z = result[x]
+            print(f"{x} {y} {z}")
+    else:
+        print("NO")
+
+solve()
+```
+
+Hmm, the bipartite matching check is O(k^3) and we do it at many nodes, which could be slow. Let me optimize.
+
+Actually, let me reconsider. The problem has k ≤ 22 and a 5-second time limit. Let me try a cleaner approach.
+
+Let me use the DP with dictionary approach but with a key optimization: process x's in order of increasing degree, and use a dictionary to store reachable (y_mask, z_mask) states. For sparse inputs, this is fast. For dense inputs, we can add a check: if the bipartite graph between x and y has a perfect matching, and between x and z has a perfect matching, and between y and z has a perfect matching, then try a greedy assignment first.
+
+Actually, let me just try the simple backtracking with the degree ordering and basic pruning (count check). If it TLEs, I'll add more pruning.
+
+Let me also add the bipartite matching check but make it more efficient using bitmasks.
+
+Here's my refined approach:
+
+```python
+import sys
+from collections import defaultdict
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    idx = 0
+    k = int(data[idx]); idx += 1
+    t = int(data[idx]); idx += 1
+    
+    triples_by_x = [[] for _ in range(k + 1)]
+    for _ in range(t):
+        x = int(data[idx]); idx += 1
+        y = int(data[idx]); idx += 1
+        z = int(data[idx]); idx += 1
+        triples_by_x[x].append((y - 1, z - 1))
+    
+    for x in range(1, k + 1):
+        if not triples_by_x[x]:
+            print("NO")
+            return
+    
+    full = (1 << k) - 1
+    
+    # Sort by degree
+    order = sorted(range(1, k + 1), key=lambda x: len(triples_by_x[x]))
+    
+    # Bipartite max matching using bitmasks (Hopcroft-Karp style, but simple)
+    def max_matching(adj_masks, n_left, n_right):
+        """adj_masks: list of bitmasks for each left node"""
+        match_r = [-1] * n_right
+        def augment(u, visited):
+            m = adj_masks[u]
+            while m:
+                lb = m & (-m)
+                v = lb.bit_length() - 1
+                m ^= lb
+                if not (visited >> v) & 1:
+                    visited |= (1 << v)
+                    if match_r[v] == -1 or augment(match_r[v], visited):
+                        match_r[v] = u
+                        return True
+            return False
+        result = 0
+        for u in range(n_left):
+            if augment(u, 0):
+                result += 1
+        return result
+    
+    # Precompute y and z adjacency masks for each x
+    y_adj = [0] * (k + 1)
+    z_adj = [0] * (k + 1)
+    for x in range(1, k + 1):
+        for (y, z) in triples_by_x[x]:
+            y_adj[x] |= (1 << y)
+            z_adj[x] |= (1 << z)
+    
+    assignment = [None] * (k + 1)
+    found = [False]
+    
+    def backtrack(i, uy, uz):
+        if found[0]:
+            return
+        if i == k:
+            found[0] = True
+            return
+        
+        remaining = k - i
+        ay = full & ~uy
+        az = full & ~uz
+        
+        if bin(ay).count('1') < remaining or bin(az).count('1') < remaining:
+            return
+        
+        # Bipartite matching check (every few steps)
+        if remaining <= 8 or i % 4 == 0:
+            rem_xs = order[i:]
+            adj_y = [y_adj[x] & ay for x in rem_xs]
+            if max_matching(adj_y, len(rem_xs), k) < remaining:
+                return
+            adj_z = [z_adj[x] & az for x in rem_xs]
+            if max_matching(adj_z, len(rem_xs), k) < remaining:
+                return
+        
+        x = order[i]
+        for (y, z) in triples_by_x[x]:
+            yb = 1 << y
+            zb = 1 << z
+            if uy & yb or uz & zb:
+                continue
+            assignment[x] = (y + 1, z + 1)
+            backtrack(i + 1, uy | yb, uz | zb)
+            if found[0]:
+                return
+    
+    backtrack(0, 0, 0)
+    
+    if found[0]:
+        print("YES")
+        for x in range(1, k + 1):
+            y, z = assignment[x]
+            print(f"{x} {y} {z}")
+    else:
+        print("NO")
+
+solve()
+```
+
+This should work for most cases. The bipartite matching check prunes branches where no perfect matching is possible in either the y or z dimension. The degree ordering helps find solutions or prune early.
+
+Let me test this mentally on the examples:
+
+Example 1: k=2, triples: (1,1,1), (1,2,2), (2,2,2)
+- x=1 has triples: (0,0), (1,1) [0-indexed]
+- x=2 has triples: (1,1)
+- order: [2, 1] (x=2 has 1 triple, x=1 has 2)
+- backtrack(0, 0, 0): x=2, try (1,1): uy=2, uz=2
+  - backtrack(1, 2, 2): x=1, try (0,0): uy=3, uz=3 -> found!
+- Output: (1,1,1), (2,2,2) ✓
+
+Example 2: k=2, triples: (1,1,1), (2,1,2)
+- x=1: (0,0), x=2: (0,1)
+- order: [1, 2] or [2, 1] (both have 1 triple)
+- backtrack: x=1, try (0,0): uy=1, uz=1
+  - x=2, try (0,1): y=0 already used -> skip
+  - No more triples for x=2 -> backtrack
+- x=1 has no more triples -> NO ✓
+
+Example 3: k=1, triple: (1,1,1)
+- x=1: (0,0)
+- backtrack: found immediately ✓
+
+The solution looks correct. Let me clean it up.
+
+Actually, I realize the recursion depth could be up to 22, which is fine for Python. Let me also make sure the bipartite matching is correct.
+
+One issue: in the `max_matching` function, I'm using recursion which could be deep. Let me make sure it's correct.
+
+Also, I should handle the case where t=0 (no triples). In that case, if k > 0, output NO.
+
+Let me finalize the solution:
+
+```python
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    idx = 0
+    k = int(data[idx]); idx += 1
+    t = int(data[idx]); idx += 1
+    
+    if t == 0:
+        print("NO" if k > 0 else "YES")
+        return
+    
+    triples_by_x = [[] for _ in range(k + 1)]
+    for _ in range(t):
+        x = int(data[idx]); idx += 1
+        y = int(data[idx]); idx += 1
+        z = int(data[idx]); idx += 1
+        triples_by_x[x].append((y - 1, z - 1))
+    
+    for x in range(1, k + 1):
+        if not triples_by_x[x]:
+            print("NO")
+            return
+    
+    full = (1 << k) - 1
+    
+    y_adj = [0] * (k + 1)
+    z_adj = [0] * (k + 1)
+    for x in range(1, k + 1):
+        for (y, z) in triples_by_x[x]:
+            y_adj[x] |= (1 << y)
+            z_adj[x] |= (1 << z)
+    
+    order = sorted(range(1, k + 1), key=lambda x: len(triples_by_x[x]))
+    
+    def max_matching(adj_masks, n_left):
+        match_r = [-1] * k
+        def augment(u, visited):
+            m = adj_masks[u]
+            while m:
+                lb = m & (-m)
+                v = lb.bit_length() - 1
+                m ^= lb
+                if not (visited >> v) & 1:
+                    visited |= (1 << v)
+                    if match_r[v] == -1 or augment(match_r[v], visited):
+                        match_r[v] = u
+                        return True
+            return False
+        result = 0
+        for u in range(n_left):
+            if augment(u, 0):
+                result += 1
+        return result
+    
+    assignment = [None] * (k + 1)
+    found = [False]
+    
+    def backtrack(i, uy, uz):
+        if found[0]:
+            return
+        if i == k:
+            found[0] = True
+            return
+        
+        remaining = k - i
+        ay = full & ~uy
+        az = full & ~uz
+        
+        if bin(ay).count('1') < remaining or bin(az).count('1') < remaining:
+            return
+        
+        if remaining <= 10 or i % 3 == 0:
+            rem_xs = order[i:]
+            adj_y = [y_adj[x] & ay for x in rem_xs]
+            if max_matching(adj_y, remaining) < remaining:
+                return
+            adj_z = [z_adj[x] & az for x in rem_xs]
+            if max_matching(adj_z, remaining) < remaining:
+                return
+        
+        x = order[i]
+        for (y, z) in triples_by_x[x]:
+            yb = 1 << y
+            zb = 1 << z
+            if uy & yb or uz & zb:
+                continue
+            assignment[x] = (y + 1, z + 1)
+            backtrack(i + 1, uy | yb, uz | zb)
+            if found[0]:
+                return
+    
+    backtrack(0, 0, 0)
+    
+    if found[0]:
+        print("YES")
+        for x in range(1, k + 1):
+            y, z = assignment[x]
+            print(f"{x} {y} {z}")
+    else:
+        print("NO")
+
+solve()
+```
+
+I think this solution should work. Let me review it once more for correctness and edge cases.
+
+Edge cases:
+- k=1, t=1: Should work.
+- k=1, t=0: Output NO (handled by t==0 check, but actually k>0 so NO).
+- All triples present: The bipartite matching checks will pass, and backtracking will find a solution quickly.
+- No solution: The bipartite matching pruning will help prune early.
+
+I think the solution is correct. Let me also consider the recursion limit - with k=22, the backtracking depth is at most 22, and the augment function depth is at most k=22. Python's default recursion limit is 1000, so this should be fine.
+
+One more thing: the `max_matching` function uses `match_r` as a non-local variable, but it's defined inside the function. The `augment` function modifies `match_r` in place, which should work since lists are mutable.
+
+Actually, I see a potential issue: `match_r` is defined inside `max_matching`, and `augment` is a nested function that accesses `match_r` and `adj_masks`. This should work in Python due to closures.
+
+Let me also make sure the output format is correct: "YES" followed by k lines of "x y z", or "NO".
+
+I think the solution is complete. Let me write```python
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    idx = 0
+    k = int(data[idx]); idx += 1
+    t = int(data[idx]); idx += 1
+    
+    if t == 0:
+        print("NO" if k > 0 else "YES")
+        return
+    
+    triples_by_x = [[] for _ in range(k + 1)]
+    for _ in range(t):
+        x = int(data[idx]); idx += 1
+        y = int(data[idx]); idx += 1
+        z = int(data[idx]); idx += 1
+        triples_by_x[x].append((y - 1, z - 1))
+    
+    for x in range(1, k + 1):
+        if not triples_by_x[x]:
+            print("NO")
+            return
+    
+    full = (1 << k) - 1
+    
+    y_adj = [0] * (k + 1)
+    z_adj = [0] * (k + 1)
+    for x in range(1, k + 1):
+        for (y, z) in triples_by_x[x]:
+            y_adj[x] |= (1 << y)
+            z_adj[x] |= (1 << z)
+    
+    order = sorted(range(1, k + 1), key=lambda x: len(triples_by_x[x]))
+    
+    def max_matching(adj_masks, n_left):
+        match_r = [-1] * k
+        def augment(u, visited):
+            m = adj_masks[u]
+            while m:
+                lb = m & (-m)
+                v = lb.bit_length() - 1
+                m ^= lb
+                if not (visited >> v) & 1:
+                    visited |= (1 << v)
+                    if match_r[v] == -1 or augment(match_r[v], visited):
+                        match_r[v] = u
+                        return True
+            return False
+        result = 0
+        for u in range(n_left):
+            if augment(u, 0):
+                result += 1
+        return result
+    
+    assignment = [None] * (k + 1)
+    found = [False]
+    
+    def backtrack(i, uy, uz):
+        if found[0]:
+            return
+        if i == k:
+            found[0] = True
+            return
+        
+        remaining = k - i
+        ay = full & ~uy
+        az = full & ~uz
+        
+        if bin(ay).count('1') < remaining or bin(az).count('1') < remaining:
+            return
+        
+        if remaining <= 10 or i % 3 == 0:
+            rem_xs = order[i:]
+            adj_y = [y_adj[x] & ay for x in rem_xs]
+            if max_matching(adj_y, remaining) < remaining:
+                return
+            adj_z = [z_adj[x] & az for x in rem_xs]
+            if max_matching(adj_z, remaining) < remaining:
+                return
+        
+        x = order[i]
+        for (y, z) in triples_by_x[x]:
+            yb = 1 << y
+            zb = 1 << z
+            if uy & yb or uz & zb:
+                continue
+            assignment[x] = (y + 1, z + 1)
+            backtrack(i + 1, uy | yb, uz | zb)
+            if found[0]:
+                return
+    
+    backtrack(0, 0, 0)
+    
+    if found[0]:
+        print("YES")
+        for x in range(1, k + 1):
+            y, z = assignment[x]
+            print(f"{x} {y} {z}")
+    else:
+        print("NO")
+
+solve()
+```

@@ -1,0 +1,110 @@
+We can model this as finding a minimum cut that separates all the given hub nodes from each other.  
+That is a **multiway cut** problem, which is NP-hard in general, but here the constraints are small enough for a brute-force or flow-based approach.
+
+We can solve it by trying all possible ways to assign non-hub nodes to one of the hubs (or to no hub), and then computing the minimum cut between the hubs in the resulting graph.  
+But a simpler approach: since we only need to separate the hubs, we can use a **minimum s-t cut** repeatedly.
+
+A known method:  
+- For each pair of hubs, compute the minimum cut between them.  
+- The answer is the minimum total cost to separate all hubs, which can be solved by a **Gomory-Hu tree** or by **minimum cut on a super-source/sink** formulation.
+
+However, with small `k`, we can do a **brute-force over subsets**:
+
+We can fix one hub as the "source" and try to separate it from all others by cutting edges.  
+But the cleanest is:  
+- Build a flow network where each hub is a terminal.  
+- We want the minimum weight edge set whose removal disconnects all hubs from each other.  
+- This is exactly the **minimum multiway cut** problem. For small `k`, we can solve it by trying all possible partitions of the non-hub nodes into `k` groups (one per hub), and then computing the cut cost as the sum of edges crossing different groups.
+
+Since `n` is small (likely ≤ 15 or so), we can do this.
+
+Let’s implement:
+
+1. Read input.
+2. If `k == 1`, no cut needed → output `YES` and `0` edges.
+3. Otherwise, assign each non-hub node to one of the `k` hubs (or to a dummy "no hub" group).  
+   But we can just assign each node to one of the `k` hubs.  
+   Then the cost is the sum of weights of edges whose endpoints are in different groups.  
+   We want the minimum such cost ≤ B.
+4. We can brute-force all `k^n` assignments (if `n` small) or use a more clever DP.
+
+Given typical constraints (n ≤ 10, m ≤ 45), `k^n` is fine.
+
+Let’s write the solution.
+
+We'll also need to output the edges we cut.  
+We can reconstruct by checking which edges cross groups in the best assignment.
+
+Edge case: if no assignment gives cost ≤ B, output `NO`.
+
+Let's code it.```python
+import sys
+from itertools import product
+
+def solve():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it)); m = int(next(it)); k = int(next(it)); B = int(next(it))
+    hubs = [int(next(it))-1 for _ in range(k)]
+    edges = []
+    for _ in range(m):
+        u = int(next(it))-1
+        v = int(next(it))-1
+        w = int(next(it))
+        edges.append((u,v,w))
+    
+    if k == 1:
+        print("YES")
+        print(0)
+        return
+    
+    # If k > n, impossible? Actually k <= n always.
+    # We'll brute force assignment of each node to one of k hubs.
+    # But hubs must be in their own group.
+    # So we fix hub i to group i.
+    # For non-hub nodes, try all k^n assignments.
+    
+    non_hub = [i for i in range(n) if i not in hubs]
+    hub_set = set(hubs)
+    
+    best_cost = B+1
+    best_assignment = None
+    
+    # Precompute hub index for each hub
+    hub_idx = {h:i for i,h in enumerate(hubs)}
+    
+    # For each assignment of non-hub nodes to groups 0..k-1
+    for assign in product(range(k), repeat=len(non_hub)):
+        group = [-1]*n
+        for i,h in enumerate(hubs):
+            group[h] = i
+        for idx, node in enumerate(non_hub):
+            group[node] = assign[idx]
+        
+        # Compute cut cost
+        cost = 0
+        cut_edges = []
+        for u,v,w in edges:
+            if group[u] != group[v]:
+                cost += w
+                cut_edges.append((u,v))
+                if cost > B:
+                    break
+        if cost <= B and cost < best_cost:
+            best_cost = cost
+            best_assignment = (group, cut_edges)
+    
+    if best_assignment is None:
+        print("NO")
+    else:
+        group, cut_edges = best_assignment
+        print("YES")
+        print(len(cut_edges))
+        for u,v in cut_edges:
+            print(u+1, v+1)
+
+if __name__ == "__main__":
+    solve()
+```

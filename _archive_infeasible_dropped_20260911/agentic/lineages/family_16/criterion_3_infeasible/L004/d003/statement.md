@@ -1,0 +1,60 @@
+# Problem C — Impossible Deadline: Certify It
+
+Time limit: 2 s   Memory limit: 256 MB
+
+## Description
+
+A manufacturing facility processes **j** orders using two specialized workstations. Each order must first be processed at workstation 1 and subsequently at workstation 2. Each workstation can handle only one order at a time, and an order cannot begin at workstation 2 until its processing at workstation 1 is complete. For each order, you are given its required processing time at workstation 1 ($p1$) and workstation 2 ($p2$).
+
+All orders must be completely finished by time **T**. 
+
+For all test cases provided in this problem, it is guaranteed that finishing by time **T** is impossible regardless of the processing sequence. Your job is not to search for a schedule; it is to prove impossibility with a short certificate checkable from the input. Exactly one of the following valid certificates always applies. Print the one that holds:
+
+- A specific order **i** (1-based index) inherently requires a sequential duration across the two workstations that exceeds the allowed time **T**. Print: `JOB i`.
+- A specific workstation **c** (where **c** is 1 or 2) is assigned a total processing volume across all orders that exceeds the allowed time **T**. Print: `LOAD c`.
+
+## Input
+
+The first line contains two integers **j** and **T** (1 ≤ j ≤ 200000, 1 ≤ T ≤ 1000000000).
+Each of the next **j** lines contains two integers **p1** and **p2** (1 ≤ p1, p2 ≤ 1000000): the processing times of an order on workstation 1 and workstation 2.
+
+## Output
+
+Print a single line containing the certificate of impossibility: either `JOB i` (where i is the order index) or `LOAD c` (where c is the workstation number).
+
+## Examples
+
+### Example 1
+
+**Input**
+```
+3 100
+70 60
+2 2
+3 4
+```
+
+**Output**
+```
+JOB 1
+```
+
+### Example 2
+
+**Input**
+```
+4 150
+50 1
+50 1
+50 1
+50 1
+```
+
+**Output**
+```
+LOAD 1
+```
+
+## Note
+
+In Example 1, even if the facility only had to process the first order, it would still fail to finish by time 100 because of the time it must spend sequentially across the two workstations (70 then 60, total 130). Thus, `JOB 1` proves it is impossible. In Example 2, no single order violates the time limit on its own, but the first workstation is required to operate for a combined 200 time units overall. Since it processes tasks one at a time, it cannot finish by time 150, making `LOAD 1` the valid certificate.

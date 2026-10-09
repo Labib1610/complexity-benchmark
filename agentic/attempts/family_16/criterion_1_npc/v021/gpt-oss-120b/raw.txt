@@ -1,0 +1,111 @@
+```python
+import sys
+sys.setrecursionlimit(10000)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    J = int(next(it))
+    M = int(next(it))
+    jobs = []
+    total_dur = 0
+    for _ in range(J):
+        o = int(next(it))
+        ops = []
+        for __ in range(o):
+            f = int(next(it)) - 1
+            d = int(next(it))
+            ops.append((f, d))
+            total_dur += d
+        jobs.append(ops)
+
+    # precompute remaining duration per job from each index
+    rem_job = [[0]*(len(j)+1) for j in jobs]
+    for idx, ops in enumerate(jobs):
+        s = 0
+        for i in range(len(ops)-1, -1, -1):
+            s += ops[i][1]
+            rem_job[idx][i] = s
+        rem_job[idx][len(ops)] = 0
+
+    # precompute remaining per machine
+    rem_machine = [0]*M
+    for ops in jobs:
+        for f,d in ops:
+            rem_machine[f] += d
+    # initial bound = total duration (trivial)
+    best = total_dur
+
+    # state arrays
+    job_pos = [0]*J          # next op index per job
+    job_ready = [0]*J        # time when job is ready for next op
+    mach_avail = [0]*M       # time when machine is free
+
+    # for pruning compute remaining per machine dynamically
+    # we keep a list of remaining durations per machine for unscheduled ops
+    from collections import defaultdict
+    rem_mach_ops = [0]*M
+    for ops in jobs:
+        for f,d in ops:
+            rem_mach_ops[f] += d
+
+    def dfs(current_makespan: int):
+        nonlocal best
+        # lower bound
+        lb = current_makespan
+        # job based
+        for j in range(J):
+            if job_pos[j] < len(jobs[j]):
+                lb = max(lb, job_ready[j] + rem_job[j][job_pos[j]])
+        # machine based
+        for m in range(M):
+            if rem_mach_ops[m]:
+                lb = max(lb, mach_avail[m] + rem_mach_ops[m])
+        if lb >= best:
+            return
+
+        # check if all done
+        if all(job_pos[j] == len(jobs[j]) for j in range(J)):
+            best = min(best, current_makespan)
+            return
+
+        # collect enabled operations
+        enabled = []
+        for j in range(J):
+            p = job_pos[j]
+            if p < len(jobs[j]):
+                f, d = jobs[j][p]
+                start = max(job_ready[j], mach_avail[f])
+                enabled.append((start, j, f, d))
+
+        # order by earliest start (heuristic)
+        enabled.sort(key=lambda x: x[0])
+
+        for start, j, f, d in enabled:
+            # schedule this operation
+            finish = start + d
+
+            # update state
+            old_job_ready = job_ready[j]
+            old_mach = mach_avail[f]
+            job_ready[j] = finish
+            mach_avail[f] = finish
+            job_pos[j] += 1
+            rem_mach_ops[f] -= d
+
+            dfs(max(current_makespan, finish))
+
+            # revert
+            job_pos[j] -= 1
+            job_ready[j] = old_job_ready
+            mach_avail[f] = old_mach
+            rem_mach_ops[f] += d
+
+    dfs(0)
+    print(best)
+
+if __name__ == "__main__":
+    solve()
+```

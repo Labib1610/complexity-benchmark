@@ -2,67 +2,141 @@
 import sys
 
 def solve():
-    data = sys.stdin.read().split()
+    data = sys.stdin.read().strip().split()
     if not data:
         return
-    n = int(data[0])
-    m = int(data[1])
-    adj = [0] * (n + 1)
-    idx = 2
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [[False] * n for _ in range(n)]
     for _ in range(m):
-        u = int(data[idx]); v = int(data[idx+1])
-        idx += 2
-        adj[u] |= 1 << v
-        adj[v] |= 1 << u
-
-    # Precompute for each subset of vertices the set of vertices adjacent to any vertex in the subset.
-    # adj_union[subset] = union of neighbors of vertices in subset, restricted to vertices not in subset.
-    size = 1 << n
-    adj_union = [0] * size
-    for subset in range(size):
-        temp = 0
-        s = subset
-        while s:
-            low = s & (-s)
-            v = low.bit_length() - 1
-            temp |= adj[v + 1]
-            s ^= low
-        adj_union[subset] = temp & (~subset)
-
-    # DP over subsets: dp[mask] = True if mask is 3-colorable.
-    dp = [False] * size
-    dp[0] = True
-    for mask in range(1, size):
-        s = mask
-        while s:
-            low = s & (-s)
-            sub = low | (adj_union[low] & mask & (low - 1))
-            if dp[mask ^ sub]:
-                dp[mask] = True
-                break
-            s ^= low
-
-    if not dp[size - 1]:
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u][v] = True
+        adj[v][u] = True
+    
+    # color[i] = 0: uncolored, 1, 2, 3: colors
+    color = [0] * n
+    
+    # For each component, we need to track which vertices are in it
+    # and their bipartite coloring (if possible)
+    
+    def dfs_bipartite(u, c, comp, bipartite_colors):
+        color[u] = c
+        comp.append(u)
+        bipartite_colors.append(c)
+        for v in range(n):
+            if adj[u][v]:
+                if color[v] == 0:
+                    if not dfs_bipartite(v, 3 - c, comp, bipartite_colors):
+                        return False
+                elif color[v] == c:
+                    return False
+        return True
+    
+    components = []
+    
+    for i in range(n):
+        if color[i] == 0:
+            comp = []
+            bipartite_colors = []
+            if not dfs_bipartite(i, 1, comp, bipartite_colors):
+                print("NO")
+                return
+            components.append((comp, bipartite_colors))
+    
+    k = len(components)
+    
+    # dp[i][j] = True if we can achieve difference j using first i components
+    # We need to track the choices to reconstruct
+    # Since n <= 40, max difference is 40
+    
+    # dp[i][j] = (possible, choice) where choice is 0 or 1
+    # choice 0: use bipartite colors as-is
+    # choice 1: flip bipartite colors
+    
+    max_diff = n + 1
+    dp = [[None] * (2 * max_diff + 1) for _ in range(k + 1)]
+    offset = max_diff
+    
+    dp[0][offset] = True  # difference 0 with 0 components
+    
+    for i in range(1, k + 1):
+        comp, bip_colors = components[i - 1]
+        cnt1 = bip_colors.count(1)
+        cnt2 = bip_colors.count(2)
+        diff = cnt1 - cnt2
+        
+        for j in range(-max_diff, max_diff + 1):
+            if dp[i - 1][j + offset] is not None:
+                # Choice 0: use as-is, add diff
+                nj = j + diff
+                if -max_diff <= nj <= max_diff:
+                    if dp[i][nj + offset] is None:
+                        dp[i][nj + offset] = 0
+                # Choice 1: flip, subtract diff
+                nj = j - diff
+                if -max_diff <= nj <= max_diff:
+                    if dp[i][nj + offset] is None:
+                        dp[i][nj + offset] = 1
+    
+    # Find if we can achieve difference 0, 1, or -1
+    target = None
+    for t in [0, 1, -1]:
+        if dp[k][t + offset] is not None:
+            target = t
+            break
+    
+    if target is None:
         print("NO")
         return
-
-    # Greedy lexicographically smallest assignment.
-    color = [0] * (n + 1)
-    remaining = size - 1
-    for i in range(1, n + 1):
-        bit = 1 << (i - 1)
-        for c in range(1, 4):
-            # Build the set of vertices that must take color c: vertex i plus all uncolored vertices adjacent to i.
-            forced = bit
-            forced |= adj[i] & remaining
-            # Check if removing 'forced' from 'remaining' leaves a 3-colorable set.
-            if dp[remaining ^ forced]:
-                color[i] = c
-                remaining ^= forced
-                break
-
+    
+    # Reconstruct choices
+    choices = []
+    curr_diff = target
+    for i in range(k, 0, -1):
+        choice = dp[i][curr_diff + offset]
+        choices.append(choice)
+        comp, bip_colors = components[i - 1]
+        cnt1 = bip_colors.count(1)
+        cnt2 = bip_colors.count(2)
+        diff = cnt1 - cnt2
+        if choice == 0:
+            curr_diff -= diff
+        else:
+            curr_diff += diff
+    
+    choices.reverse()
+    
+    # Now assign colors
+    # First, assign bipartite colors (1 or 2) based on choices
+    final_color = [0] * n
+    for i, (comp, bip_colors) in enumerate(components):
+        flip = choices[i]
+        for idx, u in enumerate(comp):
+            c = bip_colors[idx]
+            if flip:
+                c = 3 - c
+            final_color[u] = c
+    
+    # Count how many have color 1 and color 2
+    cnt1 = final_color.count(1)
+    cnt2 = final_color.count(2)
+    
+    # Assign color 3 to the smaller group
+    if cnt1 <= cnt2:
+        small_color = 1
+    else:
+        small_color = 2
+    
+    # Change all small_color to 3
+    for i in range(n):
+        if final_color[i] == small_color:
+            final_color[i] = 3
+    
     print("YES")
-    print(' '.join(str(color[i]) for i in range(1, n + 1)))
+    print(" ".join(map(str, final_color)))
 
 solve()
 ```

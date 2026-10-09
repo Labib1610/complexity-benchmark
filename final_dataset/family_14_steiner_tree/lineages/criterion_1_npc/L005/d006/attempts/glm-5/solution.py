@@ -1,0 +1,68 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    t = int(next(it))
+    focal = [int(next(it)) for _ in range(t)]
+    edges = []
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        w = int(next(it))
+        edges.append((u, v, w))
+    
+    if t <= 1:
+        print(0)
+        return
+    
+    INF = float('inf')
+    dist = [[INF] * (n + 1) for _ in range(n + 1)]
+    for i in range(n + 1):
+        dist[i][i] = 0
+    for u, v, w in edges:
+        if w < dist[u][v]:
+            dist[u][v] = w
+            dist[v][u] = w
+    
+    for k in range(1, n + 1):
+        dk = dist[k]
+        for i in range(1, n + 1):
+            di = dist[i]
+            dik = di[k]
+            if dik == INF:
+                continue
+            for j in range(1, n + 1):
+                nd = dik + dk[j]
+                if nd < di[j]:
+                    di[j] = nd
+    
+    k = t - 1
+    dp = [[INF] * k for _ in range(1 << k)]
+    for mask in range(1 << k):
+        ones = bin(mask).count('1')
+        for last in range(k):
+            if not (mask & (1 << last)):
+                continue
+            if ones == 1:
+                dp[mask][last] = dist[focal[0]][focal[last + 1]]
+            else:
+                prev_mask = mask ^ (1 << last)
+                best = INF
+                dpl = dp[prev_mask]
+                for prev_last in range(k):
+                    if prev_mask & (1 << prev_last):
+                        val = dpl[prev_last] + dist[focal[prev_last + 1]][focal[last + 1]]
+                        if val < best:
+                            best = val
+                dp[mask][last] = best
+    
+    full_mask = (1 << k) - 1
+    ans = min(dp[full_mask][last] for last in range(k))
+    print(ans)
+
+solve()

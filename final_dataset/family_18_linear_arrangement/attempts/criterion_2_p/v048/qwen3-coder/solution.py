@@ -1,0 +1,217 @@
+import sys
+from collections import defaultdict, deque
+
+def main():
+    import sys
+    sys.setrecursionlimit(1000000)
+    
+    n, m, B = map(int, sys.stdin.readline().split())
+    
+    # Since m = n - 1 and the graph is connected, it's a tree
+    adj = defaultdict(list)
+    for _ in range(m):
+        u, v = map(int, sys.stdin.readline().split())
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # We need to find a layout (permutation of slots 1..n for qubits 1..n)
+    # such that the sum of |position[u] - position[v]| over all edges (u,v) <= B
+    
+    # Since it's a tree, we can try to find an optimal layout by doing a BFS
+    # and laying out nodes in a way that minimizes the total edge length.
+    
+    # A good heuristic is to do a BFS traversal and assign slots in BFS order.
+    # This tends to keep connected nodes close together.
+    
+    # Let's try all nodes as root and do BFS layout, pick the best one
+    # Actually, let's think differently. Since it's a tree, we can do a DFS
+    # and try to layout in a line optimally.
+    
+    # Another approach: since it's a tree, we can try to find a linear arrangement
+    # that minimizes the sum of edge lengths. This is essentially finding
+    # a layout that minimizes the "bandwidth" or "cutwidth" of the tree.
+    
+    # For trees, a good heuristic is to do a BFS from a central node (centroid)
+    # and layout in BFS order.
+    
+    # But let's try a simpler approach first: try a DFS layout from node 1
+    # and see if it fits within budget.
+    
+    def dfs_layout(start):
+        order = []
+        visited = [False] * (n+1)
+        stack = [start]
+        visited[start] = True
+        while stack:
+            u = stack.pop()
+            order.append(u)
+            for v in adj[u]:
+                if not visited[v]:
+                    visited[v] = True
+                    stack.append(v)
+        return order
+    
+    def bfs_layout(start):
+        order = []
+        visited = [False] * (n+1)
+        queue = deque([start])
+        visited[start] = True
+        while queue:
+            u = queue.popleft()
+            order.append(u)
+            for v in adj[u]:
+                if not visited[v]:
+                    visited[v] = True
+                    queue.append(v)
+        return order
+    
+    # Try BFS from node 1
+    layout_order = bfs_layout(1)
+    
+    # Assign slots 1 to n in the order of layout
+    position = [0] * (n+1)
+    for i, qubit in enumerate(layout_order):
+        position[qubit] = i + 1  # Slots are 1-indexed
+    
+    # Calculate total cost
+    total_cost = 0
+    for u in adj:
+        for v in adj[u]:
+            if u < v:  # Count each edge once
+                total_cost += abs(position[u] - position[v])
+    
+    if total_cost <= B:
+        result = [0] * n
+        for qubit in range(1, n+1):
+            result[qubit-1] = position[qubit]
+        print("YES")
+        print(" ".join(map(str, result)))
+        return
+    
+    # If BFS from 1 doesn't work, try DFS
+    layout_order = dfs_layout(1)
+    position = [0] * (n+1)
+    for i, qubit in enumerate(layout_order):
+        position[qubit] = i + 1
+    
+    total_cost = 0
+    for u in adj:
+        for v in adj[u]:
+            if u < v:
+                total_cost += abs(position[u] - position[v])
+    
+    if total_cost <= B:
+        result = [0] * n
+        for qubit in range(1, n+1):
+            result[qubit-1] = position[qubit]
+        print("YES")
+        print(" ".join(map(str, result)))
+        return
+    
+    # Try a different approach: find a centroid and do BFS from it
+    # Centroid: a node whose removal leaves no component with more than n/2 nodes
+    
+    def find_centroid():
+        # First, find the size of subtree for each node when rooted at 1
+        size = [0] * (n+1)
+        parent = [0] * (n+1)
+        
+        def dfs_size(u, p):
+            parent[u] = p
+            size[u] = 1
+            for v in adj[u]:
+                if v != p:
+                    dfs_size(v, u)
+                    size[u] += size[v]
+        
+        dfs_size(1, 0)
+        
+        # Now find centroid
+        u = 1
+        total = size[1]
+        while True:
+            found = False
+            for v in adj[u]:
+                if v != parent[u] and size[v] > total // 2:
+                    u = v
+                    found = True
+                    break
+            if not found:
+                return u
+    
+    try:
+        centroid = find_centroid()
+        layout_order = bfs_layout(centroid)
+        position = [0] * (n+1)
+        for i, qubit in enumerate(layout_order):
+            position[qubit] = i + 1
+        
+        total_cost = 0
+        for u in adj:
+            for v in adj[u]:
+                if u < v:
+                    total_cost += abs(position[u] - position[v])
+        
+        if total_cost <= B:
+            result = [0] * n
+            for qubit in range(1, n+1):
+                result[qubit-1] = position[qubit]
+            print("YES")
+            print(" ".join(map(str, result)))
+            return
+    except:
+        pass
+    
+    # If all heuristics fail, let's try a more systematic approach
+    # For small n, we could try all permutations, but that's too slow.
+    # Let's try to model this as an assignment problem.
+    
+    # Since it's a tree, the optimal layout is to place it on a line
+    # in a way that minimizes sum of edge lengths.
+    # This is equivalent to finding a linear arrangement of tree nodes
+    # that minimizes the sum of absolute differences of positions for edges.
+    
+    # A known result: for trees, a DFS ordering gives a 2-approximation.
+    # Let's just try to construct a layout and check.
+    
+    # Let's try laying out in the order of a post-order DFS
+    def postorder_dfs(start):
+        order = []
+        visited = [False] * (n+1)
+        
+        def dfs(u):
+            visited[u] = True
+            for v in adj[u]:
+                if not visited[v]:
+                    dfs(v)
+            order.append(u)
+        
+        dfs(start)
+        return order
+    
+    layout_order = postorder_dfs(1)
+    position = [0] * (n+1)
+    for i, qubit in enumerate(layout_order):
+        position[qubit] = i + 1
+    
+    total_cost = 0
+    for u in adj:
+        for v in adj[u]:
+            if u < v:
+                total_cost += abs(position[u] - position[v])
+    
+    if total_cost <= B:
+        result = [0] * n
+        for qubit in range(1, n+1):
+            result[qubit-1] = position[qubit]
+        print("YES")
+        print(" ".join(map(str, result)))
+        return
+    
+    # One more try: inorder-like traversal for trees
+    # Root the tree and do something like an inorder traversal
+    
+    print("NO")
+
+if __name__ == "__main__":
+    main()

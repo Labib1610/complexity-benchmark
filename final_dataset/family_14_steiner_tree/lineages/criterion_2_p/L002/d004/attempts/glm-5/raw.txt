@@ -1,0 +1,109 @@
+Looking at this problem, I need to understand the structure:
+
+- We have n basis vectors and m = n-1 difference vectors that span the (n-1)-dimensional subspace (sum of coordinates = 0).
+- The m difference vectors form a tree structure (since they span an (n-1)-dimensional space with n vertices).
+- For target indices, I need v_a - v_b to be in the span of selected vectors for all pairs a, b of targets.
+
+The key insight: v_a - v_b is in the span of selected difference vectors iff a and b are connected in the graph formed by selected edges (difference vectors). So I need all targets to be in the same connected component.
+
+This is a minimum spanning forest problem where I want all targets in one component. 
+
+**Algorithm:**
+1. Build minimum spanning forest of all n nodes using Kruskal's.
+2. For each tree in the forest containing at least one target, I need to keep enough edges to connect all targets within that tree. The minimum cost to connect k targets in a tree is (total tree cost) - (cost of edges not needed).
+3. Edges not needed are those in subtrees with no targets - I can prune those.
+4. Sum up the required costs across all trees containing targets.
+
+For pruning: in each tree, do a DFS. An edge is needed only if both sides have targets. Remove edges where one side has zero targets.
+
+Let me verify with examples:
+- Example 1: Tree 1-2-3-4, costs 5,1,2. Targets {1,4}. All edges needed (each edge separates targets). Total = 8. ✓
+- Example 2: Single target, no edges needed. Output 0. ✓
+- Example 3: Tree 1-2-3, costs 4,5. Targets {1,2,3}. All edges needed. Total = 9. ✓
+
+```python
+import sys
+from sys import setrecursionlimit
+
+def solve():
+    input_data = sys.stdin.buffer.read().split()
+    idx = 0
+    n = int(input_data[idx]); idx += 1
+    m = int(input_data[idx]); idx += 1
+    t = int(input_data[idx]); idx += 1
+    
+    targets = set()
+    for _ in range(t):
+        targets.add(int(input_data[idx])); idx += 1
+    
+    edges = []
+    for _ in range(m):
+        u = int(input_data[idx]); idx += 1
+        v = int(input_data[idx]); idx += 1
+        w = int(input_data[idx]); idx += 1
+        edges.append((w, u, v))
+    
+    if t <= 1:
+        print(0)
+        return
+    
+    edges.sort()
+    parent = list(range(n + 1))
+    def find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+    
+    tree_adj = [[] for _ in range(n + 1)]
+    tree_cost = [0] * (n + 1)
+    total_mst = 0
+    
+    for w, u, v in edges:
+        ru, rv = find(u), find(v)
+        if ru != rv:
+            parent[ru] = rv
+            tree_adj[u].append((v, w))
+            tree_adj[v].append((u, w))
+            total_mst += w
+    
+    is_target = [False] * (n + 1)
+    for x in targets:
+        is_target[x] = True
+    
+    setrecursionlimit(600000)
+    
+    # Iterative DFS to compute removable edges (edges where one side has no targets)
+    removable = 0
+    visited = [False] * (n + 1)
+    stack = []
+    
+    for start in range(1, n + 1):
+        if not visited[start] and tree_adj[start]:
+            visited[start] = True
+            stack.append((start, 0, 0, 0))  # node, child_idx, parent, edge_weight
+            
+            while stack:
+                node, ci, par, ew = stack[-1]
+                if ci < len(tree_adj[node]):
+                    stack[-1] = (node, ci + 1, par, ew)
+                    child, cw = tree_adj[node][ci]
+                    if child != par and not visited[child]:
+                        visited[child] = True
+                        stack.append((child, 0, node, cw))
+                else:
+                    stack.pop()
+                    cnt = 1 if is_target[node] else 0
+                    for child, cw in tree_adj[node]:
+                        if child != par:
+                            cnt += subtree_target_count[child]
+                    subtree_target_count[node] = cnt
+                    
+                    if par != 0:
+                        if cnt == 0 or cnt == t:
+                            removable += ew
+    
+    print(total_mst - removable)
+
+solve()
+```

@@ -1,0 +1,240 @@
+import sys
+from collections import deque
+
+def solve():
+    input_data = sys.stdin.read().strip().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    k = int(next(it))
+    
+    groups = []
+    for _ in range(k):
+        s = int(next(it)) - 1
+        t = int(next(it)) - 1
+        d = int(next(it))
+        groups.append((s, t, d))
+    
+    edges = []
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        cap = int(next(it))
+        edges.append((u, v, cap))
+    
+    # Build flow network
+    N = n + 2
+    S = n
+    T = n + 1
+    
+    # Dinic's algorithm
+    class Dinic:
+        def __init__(self, N):
+            self.N = N
+            self.graph = [[] for _ in range(N)]
+        
+        def add_edge(self, u, v, cap):
+            self.graph[u].append([v, cap, len(self.graph[v])])
+            self.graph[v].append([u, 0, len(self.graph[u]) - 1])
+        
+        def bfs(self, s, t):
+            self.level = [-1] * self.N
+            q = deque([s])
+            self.level[s] = 0
+            while q:
+                u = q.popleft()
+                for v, cap, rev in self.graph[u]:
+                    if cap > 0 and self.level[v] < 0:
+                        self.level[v] = self.level[u] + 1
+                        q.append(v)
+            return self.level[t] >= 0
+        
+        def dfs(self, u, t, f):
+            if u == t:
+                return f
+            for i in range(self.it[u], len(self.graph[u])):
+                self.it[u] = i
+                v, cap, rev = self.graph[u][i]
+                if cap > 0 and self.level[v] == self.level[u] + 1:
+                    ret = self.dfs(v, t, min(f, cap))
+                    if ret > 0:
+                        self.graph[u][i][1] -= ret
+                        self.graph[v][rev][1] += ret
+                        return ret
+            return 0
+        
+        def max_flow(self, s, t):
+            flow = 0
+            INF = 10**18
+            while self.bfs(s, t):
+                self.it = [0] * self.N
+                while True:
+                    f = self.dfs(s, t, INF)
+                    if f == 0:
+                        break
+                    flow += f
+            return flow
+    
+    dinic = Dinic(N)
+    
+    # Add group source/sink edges
+    for i, (s, t, d) in enumerate(groups):
+        dinic.add_edge(S, s, d)
+        dinic.add_edge(t, T, d)
+    
+    # Add turnstile edges
+    for u, v, cap in edges:
+        dinic.add_edge(u, v, cap)
+    
+    total_demand = sum(d for _,_,d in groups)
+    maxflow = dinic.max_flow(S, T)
+    
+    if maxflow < total_demand:
+        print("NO")
+        return
+    
+    # Now decompose flow per group
+    # We need to know the flow on each original edge per group.
+    # We'll run flow decomposition using residual graph.
+    
+    # Build residual graph from the Dinic graph after max flow
+    # We'll store original edge indices for mapping.
+    
+    # First, let's get the flow on each original edge from the Dinic graph.
+    # The edges we added for turnstiles are after the group edges.
+    # We'll track them.
+    
+    # Rebuild network for decomposition: we need to know which edges are original turnstiles.
+    # We'll store the edge index for each turnstile edge added.
+    
+    # Let's rebuild with edge indices.
+    class Dinic2:
+        def __init__(self, N):
+            self.N = N
+            self.graph = [[] for _ in range(N)]
+        
+        def add_edge(self, u, v, cap, edge_id=None):
+            self.graph[u].append([v, cap, len(self.graph[v]), edge_id])
+            self.graph[v].append([u, 0, len(self.graph[u]) - 1, None])
+    
+    dinic2 = Dinic2(N)
+    edge_ids = []
+    for i, (s, t, d) in enumerate(groups):
+        dinic2.add_edge(S, s, d)
+        dinic2.add_edge(t, T, d)
+    for idx, (u, v, cap) in enumerate(edges):
+        dinic2.add_edge(u, v, cap, idx)
+        edge_ids.append(idx)
+    
+    # Run max flow again to get residual capacities
+    # We'll reuse the same max flow function but with edge_id tracking.
+    # Actually we can just use the previous flow result, but we need the residual graph.
+    # Let's implement max flow again on dinic2.
+    
+    def max_flow2(dinic, s, t):
+        flow = 0
+        INF = 10**18
+        while True:
+            level = [-1] * dinic.N
+            q = deque([s])
+            level[s] = 0
+            while q:
+                u = q.popleft()
+                for v, cap, rev, eid in dinic.graph[u]:
+                    if cap > 0 and level[v] < 0:
+                        level[v] = level[u] + 1
+                        q.append(v)
+            if level[t] < 0:
+                break
+            it = [0] * dinic.N
+            def dfs(u, f):
+                if u == t:
+                    return f
+                for i in range(it[u], len(dinic.graph[u])):
+                    it[u] = i
+                    v, cap, rev, eid = dinic.graph[u][i]
+                    if cap > 0 and level[v] == level[u] + 1:
+                        ret = dfs(v, min(f, cap))
+                        if ret:
+                            dinic.graph[u][i][1] -= ret
+                            dinic.graph[v][rev][1] += ret
+                            return ret
+                return 0
+            while True:
+                f = dfs(s, INF)
+                if not f:
+                    break
+                flow += f
+        return flow
+    
+    maxflow2 = max_flow2(dinic2, S, T)
+    # Should equal total_demand
+    
+    # Now decompose per group.
+    # For each group, we trace from s_i to t_i using residual capacities on original edges.
+    # We'll use the residual graph from dinic2.
+    
+    # We need to know for each original edge, the current flow (cap - residual).
+    # But we'll do path tracing.
+    
+    result = [[0]*m for _ in range(k)]
+    
+    for gi, (s, t, d) in enumerate(groups):
+        remaining = d
+        while remaining > 0:
+            # Find a path from s to t in residual graph using only original edges with cap > 0
+            # BFS/DFS to find path
+            parent = [-1]*n
+            parent_edge = [-1]*n
+            q = deque([s])
+            visited = [False]*n
+            visited[s] = True
+            while q:
+                u = q.popleft()
+                if u == t:
+                    break
+                for v, cap, rev, eid in dinic2.graph[u]:
+                    if v < n and cap > 0 and not visited[v]:
+                        visited[v] = True
+                        parent[v] = u
+                        parent_edge[v] = eid
+                        q.append(v)
+            if not visited[t]:
+                # Should not happen if flow is valid
+                print("NO")
+                return
+            # Find bottleneck
+            path_flow = remaining
+            v = t
+            while v != s:
+                u = parent[v]
+                eid = parent_edge[v]
+                # find the edge in dinic2.graph[u] with eid
+                for i, (vv, cap, rev, eid2) in enumerate(dinic2.graph[u]):
+                    if eid2 == eid:
+                        path_flow = min(path_flow, cap)
+                        break
+                v = u
+            # Apply flow
+            v = t
+            while v != s:
+                u = parent[v]
+                eid = parent_edge[v]
+                for i, (vv, cap, rev, eid2) in enumerate(dinic2.graph[u]):
+                    if eid2 == eid:
+                        dinic2.graph[u][i][1] -= path_flow
+                        dinic2.graph[vv][rev][1] += path_flow
+                        if eid is not None:
+                            result[gi][eid] += path_flow
+                        break
+                v = u
+            remaining -= path_flow
+    
+    print("YES")
+    for row in result:
+        print(" ".join(map(str, row)))
+
+if __name__ == "__main__":
+    solve()

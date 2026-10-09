@@ -1,34 +1,47 @@
 import sys
-from sys import setrecursionlimit
+from collections import deque
 
 def solve():
-    input = sys.stdin.readline
-    n, m = map(int, input().split())
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    iterator = iter(input_data)
+    try:
+        n = int(next(iterator))
+        m = int(next(iterator))
+    except StopIteration:
+        return
+
     adj = [[] for _ in range(n + 1)]
     for _ in range(m):
-        u, v = map(int, input().split())
+        u = int(next(iterator))
+        v = int(next(iterator))
         adj[u].append(v)
         adj[v].append(u)
 
-    color = [0] * (n + 1)
-    possible = True
-
+    # 0: unassigned, 1: assigned value 1, 2: assigned value 2
+    assignment = [0] * (n + 1)
+    
     for i in range(1, n + 1):
-        if color[i] == 0:
-            color[i] = 1
-            stack = [i]
-            while stack:
-                u = stack.pop()
+        if assignment[i] == 0:
+            # Start BFS for this component
+            queue = deque([i])
+            assignment[i] = 1
+            
+            while queue:
+                u = queue.popleft()
                 for v in adj[u]:
-                    if color[v] == 0:
-                        color[v] = 3 - color[u]
-                        stack.append(v)
-                    elif color[v] == color[u]:
-                        nonlocal_possible = False
+                    if assignment[v] == 0:
+                        # XOR must be 3. If u is 1, v must be 2. If u is 2, v must be 1.
+                        assignment[v] = 3 - assignment[u]
+                        queue.append(v)
+                    elif assignment[v] == assignment[u]:
+                        # Conflict found
                         print("NO")
                         return
-
+    
     print("YES")
-    print(' '.join(map(str, color[1:])))
+    print(*(assignment[1:]))
 
-solve()
+if __name__ == '__main__':
+    solve()

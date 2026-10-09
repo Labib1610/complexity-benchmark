@@ -1,0 +1,46 @@
+import sys
+
+def solve() -> None:
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    edges = []
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        w = int(next(it))
+        edges.append((w, u, v))
+    edges.sort()
+    parent = list(range(n))
+    rank = [0] * n
+
+    def find(x: int) -> int:
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    total = 0
+    cnt = 0
+    for w, u, v in edges:
+        ru = find(u)
+        rv = find(v)
+        if ru != rv:
+            if rank[ru] < rank[rv]:
+                parent[ru] = rv
+            elif rank[ru] > rank[rv]:
+                parent[rv] = ru
+            else:
+                parent[rv] = ru
+                rank[ru] += 1
+            total += w
+            cnt += 1
+            if cnt == n - 1:
+                break
+    sys.stdout.write(str(total))
+
+if __name__ == "__main__":
+    solve()

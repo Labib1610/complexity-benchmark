@@ -1,25 +1,29 @@
-# Resonance Field Alignment
+# Vault Allocation Module
 
 Time limit: 1 s
 Memory limit: 256 MB
 
-A containment grid consists of $n$ resonance nodes. Each node must be calibrated to one of two polarity states, designated as state 1 and state 2.
+The automated pharmaceutical pipeline consists of three stages. You are programming the Vault Allocation Module (Phase B).
+Phase A synthesizes a batch of $n$ volatile compounds, numbered $1$ to $n$. It also records $m$ specific pairs of these compounds that will aggressively degrade if placed in the same environment.
 
-The grid contains $m$ interference monitors, each operating between a specific pair of nodes. A monitor functions correctly only when it observes a polarity differential between its assigned pair. If both nodes connected by a monitor are calibrated to the exact same polarity state, the monitor will fail and initiate a grid shutdown.
+Your module must allocate each of the $n$ compounds to one of two climate-controlled vaults, designated as Vault 1 and Vault 2. 
+To prevent degradation, if Phase A indicates that two compounds are incompatible, they must be assigned to different vaults.
 
-Due to hardware limitations, the grid adheres to the following structural guarantees:
-- The total number of monitor endpoints across all nodes is exactly $2m$, which will never exceed $400,000$.
-- For any monitor linking node $u$ and node $v$, the absolute difference between their identifiers is strictly less than $n$ ($|u - v| < n$), and the sum of their identifiers is at most $2n$ ($u + v \le 2n$).
+Due to the stabilization properties of the Phase A synthesis chamber, the input is guaranteed to satisfy the following conditions:
+- If you tally how many times each compound appears across all $m$ incompatible pairs, the sum of these tallies across all $n$ compounds is identically $2m$.
+- There are at least $\max(0, n - 2m)$ compounds that do not appear in any incompatible pair.
+- The $n$ compounds can always be partitioned into at least $\max(1, n - m)$ disjoint, non-empty subsets such that no incompatible pair contains compounds from two different subsets.
 
-You must determine if there exists a valid polarity calibration for all $n$ nodes such that every monitor observes a differential. If multiple safe calibrations exist, the automated safety protocol mandates selecting the sequence of polarities $s_1, s_2, \dots, s_n$ that is as small as possible when compared element by element starting from the first node.
+If there is no way to safely allocate all compounds into the two vaults without putting incompatible compounds together, your module must trigger an abort sequence.
+If a safe allocation is possible, you must generate the final manifest for Phase C (Automated Retrieval). Phase C's routing logic is deterministic and requires a standardized manifest: among all safe allocations, the sequence of assignments $s_1, s_2, \dots, s_n$ (where each $s_i \in \{1, 2\}$ is the vault assigned to compound $i$) must be the lexicographically smallest possible sequence.
 
 ## Input
-The first line provides two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$).
-The following $m$ lines each contain two integers $u$ and $v$ ($1 \le u, v \le n$), representing an interference monitor operating between node $u$ and node $v$.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$), representing the number of synthesized compounds and the number of incompatible pairs.
+Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$) — a pair of compounds that are incompatible and cannot share a vault.
 
 ## Output
-If no safe calibration is possible, output a single line containing `NO`.
-Otherwise, output `YES` on the first line. On the second line, output $n$ integers (each being 1 or 2) representing the lexicographically smallest safe polarity sequence.
+If no safe allocation exists, print a single line containing `NO`.
+Otherwise, print `YES` on the first line. On the second line, print $n$ space-separated integers $s_1, s_2, \dots, s_n$ (each either `1` or `2`), representing the lexicographically smallest valid vault assignment.
 
 ## Example 1
 Input:

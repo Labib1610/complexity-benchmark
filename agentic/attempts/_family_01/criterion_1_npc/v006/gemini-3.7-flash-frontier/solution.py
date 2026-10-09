@@ -1,0 +1,95 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    adj = [0] * n
+    idx = 2
+    for _ in range(m):
+        u = int(input_data[idx]) - 1
+        v = int(input_data[idx+1]) - 1
+        idx += 2
+        if u != v:
+            adj[u] |= (1 << v)
+            adj[v] |= (1 << u)
+            
+    color = [-1] * n
+    # domain[i] is a bitmask of available colors (0, 1, 2) represented by bits 1, 2, 4
+    # i.e., bit 0: color 0, bit 1: color 1, bit 2: color 2
+    domain = [7] * n
+    
+    # Precompute popcount for 0..7
+    popcount = [0, 1, 1, 2, 1, 2, 2, 3]
+
+    def backtrack(assigned_count):
+        if assigned_count == n:
+            return True
+        
+        # MRV: Choose unassigned vertex with smallest domain size > 0
+        best_u = -1
+        min_size = 4
+        max_deg = -1
+        
+        for u in range(n):
+            if color[u] == -1:
+                sz = popcount[domain[u]]
+                if sz == 0:
+                    return False
+                if sz < min_size:
+                    min_size = sz
+                    best_u = u
+                    max_deg = bin(adj[u]).count('1')
+                elif sz == min_size:
+                    deg = bin(adj[u]).count('1')
+                    if deg > max_deg:
+                        best_u = u
+                        max_deg = deg
+        
+        u = best_u
+        u_domain = domain[u]
+        
+        for c in range(3):
+            c_mask = 1 << c
+            if u_domain & c_mask:
+                color[u] = c
+                
+                # Forward checking: remove c from neighbors
+                changed = []
+                possible = True
+                nbrs = adj[u]
+                while nbrs:
+                    v = (nbrs & -nbrs).bit_length() - 1
+                    nbrs &= nbrs - 1
+                    if color[v] == -1 and (domain[v] & c_mask):
+                        domain[v] &= ~c_mask
+                        changed.append(v)
+                        if domain[v] == 0:
+                            possible = False
+                            # Don't break immediately to keep undo clean, or just break and undo
+                            break
+                
+                if possible:
+                    if backtrack(assigned_count + 1):
+                        return True
+                
+                # Undo domain changes
+                for v in changed:
+                    domain[v] |= c_mask
+                
+                color[u] = -1
+                
+        return False
+
+    if backtrack(0):
+        print("YES")
+        print(*(color[i] + 1 for i in range(n)))
+    else:
+        print("NO")
+
+if __name__ == '__main__':
+    solve()

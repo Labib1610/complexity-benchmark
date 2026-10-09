@@ -12,47 +12,49 @@ def main():
         print(" ".join(["1"] * n))
         return
     
-    # Build adjacency list
     adj = defaultdict(list)
     edges = []
+    
     for _ in range(m):
         u, v = map(int, sys.stdin.readline().split())
         adj[u].append(v)
         adj[v].append(u)
         edges.append((u, v))
     
-    # Color array: 0 = unvisited, 1 and 2 are colors
     color = [0] * (n + 1)
     
-    # Check if bipartite using BFS for each component
-    for start in range(1, n + 1):
-        if color[start] != 0:
-            continue
-            
+    def bfs(start):
         queue = deque()
         queue.append(start)
-        color[start] = 1  # Start with color 1
+        color[start] = 1
         
         while queue:
-            node = queue.popleft()
-            current_color = color[node]
-            next_color = 2 if current_color == 1 else 1
+            u = queue.popleft()
+            current_color = color[u]
+            next_color = 3 - current_color
             
-            for neighbor in adj[node]:
-                if color[neighbor] == 0:
-                    color[neighbor] = next_color
-                    queue.append(neighbor)
-                elif color[neighbor] == current_color:
-                    print("NO")
-                    return
+            for v in adj[u]:
+                if color[v] == 0:
+                    color[v] = next_color
+                    queue.append(v)
+                elif color[v] == current_color:
+                    return False
+        return True
     
-    # If we reach here, it's bipartite
-    # Ensure lexicographically smallest by assigning 1 to nodes with no constraints first
-    # But since we already did BFS starting from low nodes, and always preferred color 1 first,
-    # the coloring should already be lex smallest.
+    for i in range(1, n + 1):
+        if color[i] == 0:
+            if not bfs(i):
+                print("NO")
+                return
     
     print("YES")
-    print(" ".join(str(color[i]) for i in range(1, n + 1)))
+    result = []
+    for i in range(1, n + 1):
+        if color[i] == 1:
+            result.append("1")
+        else:
+            result.append("2")
+    print(" ".join(result))
 
 if __name__ == "__main__":
     main()

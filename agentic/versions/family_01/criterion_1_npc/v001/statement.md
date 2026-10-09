@@ -1,16 +1,16 @@
-# Problem A — Schedule Constraints
+# Problem A — Shift Scheduling
 
 Time limit: 2 s   Memory limit: 256 MB
 
-A factory runs shifts labeled 1, 2, and 3. There are n workers. Certain workers have a restriction and must not be placed on the same shift as each other. Assign every worker to exactly one of the available shifts so that no restricted workers share a shift, or report that it is impossible.
+A factory requires each of its $n$ workers to be assigned a shift identifier from the set $\{1, 2, 3\}$. However, certain workers are incompatible with each other and must not be assigned the same shift identifier. Determine an assignment for every worker such that no two incompatible workers share the same shift identifier, or report that it is impossible.
 
 ## Input
-The first line contains two integers n and m — the number of workers and the number of restrictions (1 ≤ n ≤ 40, 0 ≤ m ≤ n·(n−1)/2).
-Each of the next m lines contains two integers u v — two workers that cannot share a shift.
+The first line contains two integers $n$ and $m$ — the number of workers and the number of incompatible pairs ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
+Each of the next $m$ lines contains two integers $u$ and $v$ — indicating that worker $u$ and worker $v$ are incompatible.
 
 ## Output
-If no valid assignment exists, print a single line NO.
-Otherwise print YES on the first line. On the second line print n integers s₁ s₂ … sₙ (each in {1,2,3}), where sᵢ is the shift of worker i. Among all valid assignments output the lexicographically smallest sequence (compare s₁ first, then s₂, and so on).
+If no valid assignment exists, print a single line `NO`.
+Otherwise print `YES` on the first line. On the second line print $n$ integers $s_1, s_2, \dots, s_n$ (each in $\{1, 2, 3\}$), where $s_i$ is the shift identifier of worker $i$. Any valid assignment is accepted.
 
 ## Example 1
 Input:

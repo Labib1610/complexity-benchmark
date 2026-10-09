@@ -1,0 +1,129 @@
+We need to determine if there is an assignment of 0/1 to **n** switches such that for every constraint (three literals), at least one literal is satisfied.  
+
+This is exactly the **3-SAT** problem (each clause has exactly three literals).  
+However, constraints can repeat and have duplicates within the same clause, but that doesn't change the structure.  
+
+Since **n ≤ 90** and **m ≤ 400**, we can use a backtracking algorithm with **unit propagation** and **pure literal** heuristics, like DPLL, for 3-SAT. Such an approach will be efficient enough.  
+
+We will map each switch index to a boolean variable.  
+- A positive integer `x` means variable `x` must be True.  
+- A negative integer `-x` means variable `x` must be False.
+
+We’ll implement backtracking search that chooses an unassigned variable, tries both values, and propagates.
+
+Here’s the solution:
+
+```python
+import sys
+
+def solve():
+    input_data = sys.stdin.read().strip().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    clauses = []
+    for _ in range(m):
+        a = int(next(it))
+        b = int(next(it))
+        c = int(next(it))
+        # normalize to (var, value) pairs where value is True if lit > 0
+        clause = []
+        for lit in (a, b, c):
+            var = abs(lit) - 1  # 0-indexed
+            val = lit > 0
+            clause.append((var, val))
+        clauses.append(clause)
+    
+    assignment = [None] * n  # None = unassigned, True/False assigned
+
+    # For each clause, check which are satisfied, which are unresolved
+    def evaluate(clause):
+        satisfied = False
+        unresolved = []
+        for var, val in clause:
+            if assignment[var] is None:
+                unresolved.append((var, val))
+            elif assignment[var] == val:
+                satisfied = True
+        return satisfied, unresolved
+
+    def propagate():
+        changed = True
+        while changed:
+            changed = False
+            for clause in clauses[:]:
+                sat, unresolved = evaluate(clause)
+                if sat:
+                    continue
+                if not unresolved:
+                    return False  # conflict
+                if len(unresolved) == 1:
+                    var, val = unresolved[0]
+                    if assignment[var] is None:
+                        assignment[var] = val
+                        changed = True
+                    elif assignment[var] != val:
+                        return False
+        return True
+
+    def pure_literal():
+        # Pure literal elimination
+        pos_count = {}
+        neg_count = {}
+        for clause in clauses:
+            for var, val in clause:
+                if assignment[var] is not None:
+                    continue
+                if val:
+                    pos_count[var] = pos_count.get(var, 0) + 1
+                else:
+                    neg_count[var] = neg_count.get(var, 0) + 1
+        for var in set(pos_count) | set(neg_count):
+            if assignment[var] is not None:
+                continue
+            if var in pos_count and var not in neg_count:
+                assignment[var] = True
+            elif var in neg_count and var not in pos_count:
+                assignment[var] = False
+
+    def backtrack():
+        nonlocal assignment
+        if not propagate():
+            return False
+        pure_literal()
+        if not propagate():
+            return False
+        # Check if all clauses satisfied
+        all_sat = True
+        for clause in clauses:
+            sat, _ = evaluate(clause)
+            if not sat:
+                all_sat = False
+                break
+        if all_sat:
+            return True
+        # Choose an unassigned variable
+        for var in range(n):
+            if assignment[var] is None:
+                # try True
+                assignment[var] = True
+                if backtrack():
+                    return True
+                assignment[var] = False
+                if backtrack():
+                    return True
+                assignment[var] = None
+                return False
+        return False
+
+    if backtrack():
+        print("YES")
+        print(" ".join("1" if x else "0" for x in assignment))
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()
+```

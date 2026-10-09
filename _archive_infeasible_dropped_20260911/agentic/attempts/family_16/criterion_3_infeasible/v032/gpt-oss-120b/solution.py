@@ -1,0 +1,27 @@
+import sys
+
+def solve() -> None:
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    it = iter(data)
+    j = next(it)
+    T = next(it)
+
+    total1 = 0
+    total2 = 0
+
+    for idx in range(1, j + 1):
+        p1 = next(it)
+        p2 = next(it)
+        if p1 + p2 > T:
+            print(f"JOB {idx}")
+            return
+        total1 += p1
+        total2 += p2
+
+    if total1 > T:
+        print("LOAD 1")
+    else:
+        print("LOAD 2")
+
+if __name__ == "__main__":
+    solve()

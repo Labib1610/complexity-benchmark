@@ -1,24 +1,27 @@
-# Problem A — Orbital Telemetry Pipeline
+# Phase 2: Frequency Multiplexing
 
 Time limit: 2 s   Memory limit: 256 MB
 
-The orbital mapping pipeline operates in three distinct stages to ensure stable telemetry from a constellation of $n$ satellites. 
+You are developing a module for a satellite communications pipeline. The pipeline operates in three sequential phases:
 
-**Stage A: Calibration.** The system registers the satellites and conducts signal diagnostics. This stage has already been completed. Its output is a log of $m$ satellite pairs whose transmission beams overlap and cause cross-talk.
+**Phase 1: Telemetry Ingestion**
+The system receives raw data streams from $n$ distinct monitoring satellites. An interference analysis is performed to determine which pairs of data streams have overlapping harmonics.
 
-**Stage B: Frequency Allocation (Your Module).** You must process the diagnostic log from Stage A to configure the communications array. The array hardware supports exactly three distinct frequency bands, designated 1, 2, and 3. Your module must assign every satellite to exactly one frequency band. To guarantee data integrity, no two satellites flagged for cross-talk in Stage A may be assigned the same frequency band. 
+**Phase 2: Frequency Multiplexing (Your Task)**
+The $n$ data streams must be modulated onto one of three available carrier frequencies (labeled 1, 2, and 3) for the downlink transmission. Your module receives the number of satellites and the list of interfering stream pairs identified in Phase 1. You must assign every data stream to exactly one carrier frequency. To ensure data integrity, no two streams that have overlapping harmonics may be assigned the same carrier frequency. If no such assignment is possible, the batch must be rejected.
 
-**Stage C: Initialization.** The satellites boot up and begin transmission using your configuration. The boot sequence is fully deterministic: if multiple valid allocations exist, your module must provide the one that is lexicographically first. That is, it must minimize the frequency band assigned to satellite 1; if there are ties, it must minimize the band for satellite 2, and so on. If no valid allocation can be found, your module must halt the pipeline.
+**Phase 3: Downlink and Decoding**
+The ground station receives the multiplexed signals, demodulates them using your assigned frequencies, and archives the telemetry.
 
-Write the software for Stage B.
+Your task is to implement the logic for Phase 2. Given the output from Phase 1, determine a valid frequency assignment for all $n$ streams, or report that the batch cannot be processed.
 
 ## Input
-The first line of the input contains two integers $n$ and $m$ — the number of satellites and the number of cross-talk pairs (1 ≤ $n$ ≤ 40, 0 ≤ $m$ ≤ $n \cdot (n-1)/2$). 
-Each of the following $m$ lines contains two integers $u$ and $v$ — a pair of satellites that experience cross-talk.
+The first line contains two integers $n$ and $m$ — the number of data streams and the number of interfering pairs ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
+Each of the next $m$ lines contains two integers $u$ and $v$ — a pair of data streams that have overlapping harmonics.
 
 ## Output
-If the pipeline must be halted because no valid frequency allocation exists, print a single line containing `NO`. 
-Otherwise, print `YES` on the first line. On the second line, print $n$ integers $f_1, f_2, \dots, f_n$ (each in $\{1, 2, 3\}$), where $f_i$ is the frequency band assigned to satellite $i$. Remember to output the lexicographically smallest valid sequence.
+If there is no way to assign the frequencies without interference, print a single line containing `NO`.
+Otherwise, print `YES` on the first line. On the second line, print $n$ integers $f_1, f_2, \dots, f_n$ (each in {1, 2, 3}), where $f_i$ is the carrier frequency assigned to data stream $i$. If there are multiple valid assignments, any valid assignment is accepted.
 
 ## Example 1
 Input:

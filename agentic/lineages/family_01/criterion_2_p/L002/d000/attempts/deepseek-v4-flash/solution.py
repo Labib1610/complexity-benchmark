@@ -21,7 +21,7 @@ def bfs(start):
         u = q.popleft()
         for v in adj[u]:
             if color[v] == -1:
-                color[v] = 3 - color[u]  # alternate
+                color[v] = 3 - color[u]  # alternate 1<->2
                 q.append(v)
             elif color[v] == color[u]:
                 return False
@@ -33,11 +33,8 @@ for i in range(n):
             print("NO")
             sys.exit()
 
-# Now we have a valid coloring, but we want lexicographically smallest.
-# We can try to flip colors in each connected component if it makes earlier nodes smaller.
-# Since BFS above already starts with 1, we just need to check if flipping a component
-# gives a lexicographically smaller result.
-
+# Now we have a valid bipartite coloring, but we need lexicographically smallest.
+# We can try to flip components if it makes the sequence smaller.
 visited = [False] * n
 for i in range(n):
     if not visited[i]:
@@ -45,28 +42,25 @@ for i in range(n):
         comp = []
         q = deque([i])
         visited[i] = True
+        comp.append(i)
         while q:
             u = q.popleft()
-            comp.append(u)
             for v in adj[u]:
                 if not visited[v]:
                     visited[v] = True
+                    comp.append(v)
                     q.append(v)
-        # Try flipping this component
-        # Compare current vs flipped
-        current = [color[u] for u in comp]
-        flipped = [3 - color[u] for u in comp]
-        # We want lexicographically smallest overall assignment.
-        # Since comp is in increasing order of index (because we iterate i from 0..n-1),
-        # we can decide per component.
-        # If flipping makes the first differing index smaller, flip.
-        for a, b in zip(current, flipped):
-            if a < b:
-                break
-            elif b < a:
-                for u in comp:
-                    color[u] = 3 - color[u]
-                break
+        # Try flipping colors in this component
+        # If flipping makes the smallest index in comp become 1, do it
+        # Actually we want lexicographically smallest overall, so for each component,
+        # check if flipping improves the first differing position.
+        # Since components are independent, we can decide per component.
+        # The smallest index in comp determines the decision.
+        min_idx = min(comp)
+        if color[min_idx] == 2:
+            # flip
+            for u in comp:
+                color[u] = 3 - color[u]
 
 print("YES")
 print(" ".join(str(color[i]) for i in range(n)))

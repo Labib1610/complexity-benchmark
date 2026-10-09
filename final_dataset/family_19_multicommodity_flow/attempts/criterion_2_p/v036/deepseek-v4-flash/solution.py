@@ -1,0 +1,88 @@
+import sys
+from collections import deque
+
+def solve():
+    input_data = sys.stdin.read().strip().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    _ = int(next(it))  # pallet type, always 1
+    s = int(next(it))
+    t = int(next(it))
+    d = int(next(it))
+
+    edges = []
+    graph = [[] for _ in range(n + 1)]
+    edge_index = 0
+
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        cap = int(next(it))
+        graph[u].append([v, cap, edge_index])
+        graph[v].append([u, 0, edge_index])
+        edges.append([u, v, cap])
+        edge_index += 1
+
+    # Dinic's algorithm
+    level = [-1] * (n + 1)
+    it_ptr = [0] * (n + 1)
+
+    def bfs():
+        for i in range(1, n + 1):
+            level[i] = -1
+        q = deque([s])
+        level[s] = 0
+        while q:
+            u = q.popleft()
+            for v, cap, idx in graph[u]:
+                if cap > 0 and level[v] == -1:
+                    level[v] = level[u] + 1
+                    q.append(v)
+        return level[t] != -1
+
+    def dfs(u, f):
+        if u == t:
+            return f
+        for i in range(it_ptr[u], len(graph[u])):
+            it_ptr[u] = i
+            v, cap, idx = graph[u][i]
+            if cap > 0 and level[v] == level[u] + 1:
+                pushed = dfs(v, min(f, cap))
+                if pushed:
+                    graph[u][i][1] -= pushed
+                    # find reverse edge
+                    for j in range(len(graph[v])):
+                        if graph[v][j][2] == idx and graph[v][j][0] == u:
+                            graph[v][j][1] += pushed
+                            break
+                    return pushed
+        return 0
+
+    flow = 0
+    INF = 10**18
+    while bfs():
+        it_ptr = [0] * (n + 1)
+        while True:
+            pushed = dfs(s, INF)
+            if not pushed:
+                break
+            flow += pushed
+
+    if flow < d:
+        print("NO")
+    else:
+        print("YES")
+        result = []
+        for u, v, cap in edges:
+            # find flow on this edge: original cap - remaining cap
+            for vv, cap_left, idx in graph[u]:
+                if vv == v and cap_left <= cap and idx == len(result):
+                    result.append(cap - cap_left)
+                    break
+        print(" ".join(map(str, result)))
+
+if __name__ == "__main__":
+    solve()

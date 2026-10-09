@@ -1,0 +1,57 @@
+import sys
+from collections import defaultdict, deque
+
+def read_input():
+    n, m, k = map(int, sys.stdin.readline().split())
+    edges = []
+    for _ in range(m):
+        u, v = map(int, sys.stdin.readline().split())
+        edges.append((u, v))
+    return n, m, k, edges
+
+def solve(n, m, k, edges):
+    # Build adjacency list
+    adj = defaultdict(set)
+    for u, v in edges:
+        adj[u].add(v)
+        adj[v].add(u)
+    
+    # Color the graph with BFS (bipartite check)
+    color = {}
+    for start in range(1, n+1):
+        if start not in color:
+            queue = deque([start])
+            color[start] = 0
+            while queue:
+                node = queue.popleft()
+                current_color = color[node]
+                neighbor_color = 1 - current_color
+                for neighbor in adj[node]:
+                    if neighbor not in color:
+                        color[neighbor] = neighbor_color
+                        queue.append(neighbor)
+                    elif color[neighbor] != neighbor_color:
+                        # This should never happen according to problem statement
+                        return "NO", []
+    
+    # Group nodes by their color
+    group0 = [node for node in range(1, n+1) if color.get(node, 0) == 0]
+    group1 = [node for node in range(1, n+1) if color.get(node, 0) == 1]
+    
+    # Try to select k nodes
+    if len(group0) >= k:
+        return "YES", group0[:k]
+    elif len(group1) >= k:
+        return "YES", group1[:k]
+    else:
+        return "NO", []
+
+def main():
+    n, m, k, edges = read_input()
+    result, panel = solve(n, m, k, edges)
+    print(result)
+    if result == "YES":
+        print(' '.join(map(str, panel)))
+
+if __name__ == "__main__":
+    main()

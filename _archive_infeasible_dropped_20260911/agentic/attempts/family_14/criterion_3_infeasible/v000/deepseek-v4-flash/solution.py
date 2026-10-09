@@ -1,0 +1,22 @@
+import sys
+
+def main():
+    input = sys.stdin.readline
+    n, m, t = map(int, input().split())
+    required = list(map(int, input().split()))
+    
+    has_cable = [False] * (n + 1)
+    
+    for _ in range(m):
+        u, v, w = map(int, input().split())
+        has_cable[u] = True
+        has_cable[v] = True
+    
+    required.sort()
+    for site in required:
+        if not has_cable[site]:
+            print(site)
+            return
+
+if __name__ == "__main__":
+    main()

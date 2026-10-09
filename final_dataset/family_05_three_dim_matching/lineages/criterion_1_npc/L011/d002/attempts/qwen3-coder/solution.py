@@ -1,0 +1,70 @@
+from collections import defaultdict
+
+def solve():
+    k, t = map(int, input().split())
+    
+    if t < k:
+        print("NO")
+        return
+    
+    vectors = []
+    for _ in range(t):
+        x, y, z = map(int, input().split())
+        vectors.append((x, y, z))
+    
+    # Try all combinations of k vectors using backtracking
+    # We'll use a matching approach: this is essentially finding a 3D matching
+    
+    # For small k (up to 22), we can use a backtracking approach
+    # But more efficiently, this is a tripartite matching problem
+    
+    # Model as a tripartite graph matching problem:
+    # Left part: pulsar frequencies (1 to k)
+    # Middle part: gravimetric distortions (1 to k)  
+    # Right part: subspace harmonics (1 to k)
+    # Edges are the stable vectors
+    
+    # This is equivalent to finding a perfect matching in a 3D bipartite graph
+    # We can reduce this to a maximum bipartite matching by creating a graph
+    # where left side is pulsar frequencies and right side is pairs (y,z)
+    # But there's an additional constraint that each y and each z appears only once
+    
+    # Better approach: use backtracking with pruning
+    # Try to assign each pulsar frequency to a vector
+    
+    # Build adjacency for each pulsar frequency
+    adj = defaultdict(list)
+    for i, (x, y, z) in enumerate(vectors):
+        adj[x].append((y, z, i))
+    
+    # Try to find a matching using backtracking
+    used_y = [False] * (k + 1)
+    used_z = [False] * (k + 1)
+    selected = [-1] * (k + 1)  # selected[pulsar] = index of vector
+    
+    def backtrack(pulsar):
+        if pulsar > k:
+            return True
+            
+        for y, z, idx in adj[pulsar]:
+            if not used_y[y] and not used_z[z]:
+                used_y[y] = True
+                used_z[z] = True
+                selected[pulsar] = idx
+                if backtrack(pulsar + 1):
+                    return True
+                used_y[y] = False
+                used_z[z] = False
+                selected[pulsar] = -1
+        return False
+    
+    if backtrack(1):
+        print("YES")
+        for pulsar in range(1, k + 1):
+            idx = selected[pulsar]
+            x, y, z = vectors[idx]
+            print(x, y, z)
+    else:
+        print("NO")
+
+solve()

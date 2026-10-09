@@ -1,0 +1,241 @@
+import sys
+from array import array
+
+
+def arrangement_cost(order, adj):
+    pos = [0] * len(order)
+    for i, v in enumerate(order):
+        pos[v] = i
+    total = 0
+    for u in range(len(order)):
+        pu = pos[u]
+        for v in adj[u]:
+            if u < v:
+                total += abs(pu - pos[v])
+    return total
+
+
+def improve_adjacent(order, adj, max_passes=100):
+    n = len(order)
+    pos = [0] * n
+    for i, v in enumerate(order):
+        pos[v] = i
+
+    for _ in range(max_passes):
+        changed = False
+        for i in range(n - 1):
+            a, b = order[i], order[i + 1]
+            delta = 0
+
+            for x in adj[a]:
+                if x != b:
+                    delta += abs((i + 1) - pos[x]) - abs(i - pos[x])
+            for x in adj[b]:
+                if x != a:
+                    delta += abs(i - pos[x]) - abs((i + 1) - pos[x])
+
+            if delta < 0:
+                order[i], order[i + 1] = b, a
+                pos[a], pos[b] = i + 1, i
+                changed = True
+
+        if not changed:
+            break
+
+    return order
+
+
+def dfs_order(root, adj, reverse_sort=False):
+    n = len(adj)
+    order = []
+    parent = [-2] * n
+    parent[root] = -1
+    stack = [root]
+
+    while stack:
+        v = stack.pop()
+        order.append(v)
+        children = [u for u in adj[v] if parent[u] == -2]
+        children.sort(key=lambda x: len(adj[x]), reverse=not reverse_sort)
+        for u in reversed(children):
+            parent[u] = v
+            stack.append(u)
+
+    return order
+
+
+def independent_set_lower_bound(adj):
+    n = len(adj)
+    if n == 0:
+        return 0
+
+    parent = [-1] * n
+    order = [0]
+    for v in order:
+        for u in adj[v]:
+            if u != parent[v]:
+                parent[u] = v
+                order.append(u)
+
+    take = [0] * n
+    skip = [0] * n
+
+    for v in reversed(order):
+        d = len(adj[v])
+        q = d // 2
+        if d & 1:
+            weight = (q + 1) * (q + 1)
+        else:
+            weight = q * (q + 1)
+
+        tv = weight
+        sv = 0
+        for u in adj[v]:
+            if parent[u] == v:
+                tv += skip[u]
+                sv += max(take[u], skip[u])
+        take[v] = tv
+        skip[v] = sv
+
+    return max(take[0], skip[0])
+
+
+def exact_subset_dp(n, adj_masks, degrees, m, budget):
+    size = 1 << n
+    limit = min(max(budget + 1, 0), 0xFFFFFFFE)
+
+    dp = array('I', [limit]) * size
+    dp[0] = 0
+
+    if m <= 255:
+        cuts = array('B', [0]) * size
+    elif m <= 65535:
+        cuts = array('H', [0]) * size
+    else:
+        cuts = array('I', [0]) * size
+
+    for mask in range(1, size):
+        bit = mask & -mask
+        v = bit.bit_length() - 1
+        rest = mask ^ bit
+        cut = cuts[rest] + degrees[v] - 2 * ((adj_masks[v] & rest).bit_count())
+        cuts[mask] = cut
+
+        best = limit
+        bits = mask
+        while bits:
+            b = bits & -bits
+            value = dp[mask ^ b]
+            if value < best:
+                best = value
+            bits ^= b
+
+        value = best + cut
+        if value > limit:
+            value = limit
+        dp[mask] = value
+
+    full = size - 1
+    if dp[full] > budget:
+        return None
+
+    positions = [0] * n
+    mask = full
+    position = n
+
+    while mask:
+        target = dp[mask]
+        cut = cuts[mask]
+        bits = mask
+        chosen = -1
+
+        while bits:
+            b = bits & -bits
+            if dp[mask ^ b] + cut == target:
+                chosen = b.bit_length() - 1
+                break
+            bits ^= b
+
+        if chosen < 0:
+            return None
+
+        positions[chosen] = position
+        position -= 1
+        mask ^= 1 << chosen
+
+    return positions
+
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if len(data) < 3:
+        return
+
+    n, m, budget = data[0], data[1], data[2]
+    adj = [[] for _ in range(n)]
+    adj_masks = [0] * n
+
+    p = 3
+    for _ in range(m):
+        u = data[p] - 1
+        v = data[p + 1] - 1
+        p += 2
+        adj[u].append(v)
+        adj[v].append(u)
+        adj_masks[u] |= 1 << v
+        adj_masks[v] |= 1 << u
+
+    if n == 0:
+        if budget >= 0:
+            print("YES")
+            print()
+        else:
+            print("NO")
+        return
+
+    if m > budget:
+        print("NO")
+        return
+
+    lower_bound = independent_set_lower_bound(adj)
+    if lower_bound > budget:
+        print("NO")
+        return
+
+    candidates = [list(range(n))]
+    if n > 1:
+        max_degree_vertex = max(range(n), key=lambda x: len(adj[x]))
+        min_degree_vertex = min(range(n), key=lambda x: len(adj[x]))
+        candidates.append(dfs_order(max_degree_vertex, adj, False))
+        candidates.append(dfs_order(max_degree_vertex, adj, True))
+        candidates.append(dfs_order(min_degree_vertex, adj, False))
+
+    best_order = None
+    best_cost = None
+
+    for order in candidates:
+        order = improve_adjacent(order, adj)
+        cost = arrangement_cost(order, adj)
+        if best_cost is None or cost < best_cost:
+            best_cost = cost
+            best_order = order
+        if cost <= budget:
+            positions = [0] * n
+            for i, v in enumerate(order):
+                positions[v] = i + 1
+            print("YES")
+            print(*positions)
+            return
+
+    degrees = [len(x) for x in adj]
+    positions = exact_subset_dp(n, adj_masks, degrees, m, budget)
+
+    if positions is None:
+        print("NO")
+    else:
+        print("YES")
+        print(*positions)
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,56 @@
+import sys
+
+def main():
+    data = sys.stdin.read().strip().split()
+    idx = 0
+    j = int(data[idx]); idx += 1
+    m = int(data[idx]); idx += 1
+    
+    petitions = []
+    for _ in range(j):
+        o = int(data[idx]); idx += 1
+        steps = []
+        for _ in range(o):
+            mag = int(data[idx]); idx += 1
+            dur = int(data[idx]); idx += 1
+            steps.append((mag, dur))
+        petitions.append(steps)
+    
+    # Track when each magistrate is free
+    free_time = [0] * (m + 1)  # 1-indexed
+    
+    # Track next step index for each petition and when it can start
+    next_step = [0] * j
+    available_time = [0] * j  # earliest time petition can start next step
+    
+    current_time = 0
+    completed = 0
+    
+    while completed < j:
+        # Find the earliest next event among all petitions
+        min_time = float('inf')
+        min_pet = -1
+        for p in range(j):
+            if next_step[p] < len(petitions[p]):
+                start_time = max(available_time[p], free_time[petitions[p][next_step[p]][0]])
+                if start_time < min_time:
+                    min_time = start_time
+                    min_pet = p
+        
+        # Schedule that step
+        p = min_pet
+        mag, dur = petitions[p][next_step[p]]
+        start = max(available_time[p], free_time[mag])
+        end = start + dur
+        free_time[mag] = end
+        available_time[p] = end
+        next_step[p] += 1
+        
+        if next_step[p] == len(petitions[p]):
+            completed += 1
+            current_time = max(current_time, end)
+    
+    print(current_time)
+
+if __name__ == "__main__":
+    main()

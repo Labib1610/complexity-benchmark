@@ -1,0 +1,45 @@
+import sys
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    adj_int = [0] * n          # bitmask adjacency
+    neigh = [[] for _ in range(n)]  # sorted neighbor lists
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        if u == v:
+            continue
+        # store undirected edge
+        adj_int[u] |= 1 << v
+        adj_int[v] |= 1 << u
+        if v not in neigh[u]:
+            neigh[u].append(v)
+        if u not in neigh[v]:
+            neigh[v].append(u)
+
+    for a in range(n):
+        neigh[a].sort()
+    # search lexicographically smallest triangle
+    for a in range(n):
+        for b in neigh[a]:
+            if b <= a:
+                continue
+            common = adj_int[a] & adj_int[b]
+            # keep only vertices > b
+            mask = common >> (b + 1)
+            if mask:
+                # lowest set bit in mask
+                low = mask & -mask
+                idx = low.bit_length() - 1
+                c = b + 1 + idx
+                # output 1‑based sorted triple
+                print(a + 1, b + 1, c + 1)
+                return
+
+if __name__ == "__main__":
+    solve()

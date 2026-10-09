@@ -1,0 +1,41 @@
+import sys
+from collections import deque
+
+def main():
+    input_data = sys.stdin.read().strip().split()
+    if not input_data:
+        return
+    n, m = int(input_data[0]), int(input_data[1])
+    adj = [[] for _ in range(n + 1)]
+    indeg = [0] * (n + 1)
+    
+    idx = 2
+    for _ in range(m):
+        a = int(input_data[idx])
+        b = int(input_data[idx + 1])
+        idx += 2
+        adj[a].append(b)
+        indeg[b] += 1
+    
+    q = deque()
+    for i in range(1, n + 1):
+        if indeg[i] == 0:
+            q.append(i)
+    
+    order = []
+    while q:
+        u = q.popleft()
+        order.append(u)
+        for v in adj[u]:
+            indeg[v] -= 1
+            if indeg[v] == 0:
+                q.append(v)
+    
+    if len(order) != n:
+        print("NO")
+    else:
+        print("YES")
+        print(" ".join(map(str, order)))
+
+if __name__ == "__main__":
+    main()

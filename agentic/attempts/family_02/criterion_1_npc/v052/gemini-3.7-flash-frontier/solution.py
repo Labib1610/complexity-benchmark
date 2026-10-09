@@ -1,0 +1,151 @@
+import sys
+
+# Increase recursion depth just in case
+sys.setrecursionlimit(2000)
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    clauses = []
+    idx = 2
+    for _ in range(m):
+        c = [int(input_data[idx]), int(input_data[idx+1]), int(input_data[idx+2])]
+        idx += 3
+        # Simplify clause: remove duplicate literals
+        # If clause contains both x and -x, it's always satisfied, can be ignored
+        c_set = set(c)
+        tautology = False
+        for lit in c_set:
+            if -lit in c_set:
+                tautology = True
+                break
+        if not tautology:
+            clauses.append(list(c_set))
+            
+    # Assignment: 0 = unassigned, 1 = True, -1 = False
+    # index 1 to n
+    assignment = [0] * (n + 1)
+    
+    # DPLL Implementation
+    # We maintain the current clauses state or evaluate them dynamically.
+    # Since n <= 90, m <= 400, maintaining clause states is fast.
+    
+    def get_jw_scores(active_clauses):
+        # Two-sided Jeroslow-Wang heuristic
+        # score[lit] for lit in -n..n
+        pos_scores = [0.0] * (n + 1)
+        neg_scores = [0.0] * (n + 1)
+        
+        for c in active_clauses:
+            weight = 2.0 ** (-len(c))
+            for lit in c:
+                if lit > 0:
+                    pos_scores[lit] += weight
+                else:
+                    neg_scores[-lit] += weight
+                    
+        best_var = -1
+        best_score = -1.0
+        best_val = 1
+        
+        for v in range(1, n + 1):
+            if assignment[v] == 0:
+                score = pos_scores[v] + neg_scores[v]
+                if score > best_score:
+                    best_score = score
+                    best_var = v
+                    best_val = 1 if pos_scores[v] >= neg_scores[v] else -1
+                    
+        return best_var, best_val
+
+    def dpll(current_clauses):
+        # Unit propagation
+        while True:
+            unit_literals = []
+            for c in current_clauses:
+                if len(c) == 0:
+                    return False
+                if len(c) == 1:
+                    unit_literals.append(c[0])
+            
+            if not unit_literals:
+                break
+                
+            unit = unit_literals[0]
+            var = abs(unit)
+            val = 1 if unit > 0 else -1
+            
+            if assignment[var] != 0:
+                if assignment[var] != val:
+                    return False
+                # If already assigned same, just remove satisfied clauses
+            else:
+                assignment[var] = val
+                
+            # Apply unit to clauses
+            new_clauses = []
+            for c in current_clauses:
+                if unit in c:
+                    continue  # satisfied
+                if -unit in c:
+                    new_c = [lit for lit in c if lit != -unit]
+                    new_clauses.append(new_c)
+                else:
+                    new_clauses.append(c)
+            current_clauses = new_clauses
+
+        if not current_clauses:
+            return True
+            
+        for c in current_clauses:
+            if len(c) == 0:
+                return False
+
+        var, preferred_val = get_jw_scores(current_clauses)
+        if var == -1:
+            return True
+
+        # Try preferred value first
+        for val in (preferred_val, -preferred_val):
+            lit = var if val == 1 else -var
+            assignment[var] = val
+            
+            # Form new clauses with this branch
+            new_clauses = []
+            conflict = False
+            for c in current_clauses:
+                if lit in c:
+                    continue
+                if -lit in c:
+                    new_c = [l for l in c if l != -lit]
+                    if len(new_c) == 0:
+                        conflict = True
+                        break
+                    new_clauses.append(new_c)
+                else:
+                    new_clauses.append(c)
+                    
+            if not conflict:
+                # Save assignment state copy or just recurse
+                if dpll(new_clauses):
+                    return True
+                    
+            assignment[var] = 0
+
+        return False
+
+    if dpll(clauses):
+        print("YES")
+        # For any unassigned variables, assign 0 (isolated)
+        res = [1 if assignment[i] == 1 else 0 for i in range(1, n + 1)]
+        print(*(res))
+    else:
+        print("NO")
+
+if __name__ == '__main__':
+    solve()

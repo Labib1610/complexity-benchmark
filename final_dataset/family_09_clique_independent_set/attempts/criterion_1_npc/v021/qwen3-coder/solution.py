@@ -1,0 +1,173 @@
+from itertools import combinations
+import sys
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    k = int(data[2])
+    
+    edges = []
+    index = 3
+    for _ in range(m):
+        u = int(data[index]) - 1  # Convert to 0-based indexing
+        v = int(data[index+1]) - 1
+        edges.append((u, v))
+        index += 2
+    
+    # We want to find a subset of k nodes such that no edge connects two nodes in the subset.
+    # This is the independent set problem.
+    
+    # Since n <= 46, we can't check all subsets. But we can use meet-in-the-middle approach.
+    
+    if m == 0:
+        # No constraints, just pick any k nodes
+        print("YES")
+        print(' '.join(str(i) for i in range(1, k+1)))
+        return
+    
+    # For small n, we can try all combinations
+    if n <= 25:
+        # Try all combinations of k nodes
+        for combo in combinations(range(n), k):
+            # Check if this combination is an independent set
+            valid = True
+            for u, v in edges:
+                if u in combo and v in combo:
+                    valid = False
+                    break
+            if valid:
+                print("YES")
+                print(' '.join(str(x+1) for x in combo))
+                return
+        print("NO")
+        return
+    
+    # For larger n, still feasible with optimized checking
+    # Let's try a greedy approach or randomized search as well, but let's stick with combinations for correctness
+    # Actually, combinations up to 46 choose k might be too much depending on k.
+    # Let's do meet-in-the-middle for larger cases.
+    
+    # Meet-in-the-middle approach
+    mid = n // 2
+    left_nodes = list(range(mid))
+    right_nodes = list(range(mid, n))
+    
+    # Generate all subsets of left_nodes and right_nodes
+    # And store those that are independent sets along with their neighbors
+    
+    def get_neighbors(node):
+        neighbors = set()
+        for u, v in edges:
+            if u == node:
+                neighbors.add(v)
+            elif v == node:
+                neighbors.add(u)
+        return neighbors
+    
+    # Precompute neighbors for all nodes
+    N = [[] for _ in range(n)]
+    for u, v in edges:
+        N[u].append(v)
+        N[v].append(u)
+    
+    def get_neighbors_set(nodes):
+        res = set()
+        for node in nodes:
+            res.update(N[node])
+        return res
+    
+    # Generate all subsets of left side
+    left_subsets = []
+    for i in range(1 << mid):
+        subset = []
+        for j in range(mid):
+            if i & (1 << j):
+                subset.append(j)
+        # Check if independent
+        valid = True
+        for u, v in edges:
+            if u < mid and v < mid and u in subset and v in subset:
+                valid = False
+                break
+        if valid:
+            left_subsets.append(subset)
+    
+    # Generate all subsets of right side
+    right_subsets = []
+    for i in range(1 << (n - mid)):
+        subset = []
+        for j in range(n - mid):
+            if i & (1 << j):
+                subset.append(j + mid)
+        # Check if independent
+        valid = True
+        for u, v in edges:
+            if u >= mid and v >= mid and u in subset and v in subset:
+                valid = False
+                break
+        if valid:
+            right_subsets.append(subset)
+    
+    # Now for each left subset, find compatible right subsets
+    # A left subset S1 and right subset S2 are compatible if:
+    # 1. |S1| + |S2| = k
+    # 2. No edge between S1 and S2
+    
+    # To speed up, for each left subset, precompute its neighborhood in right part
+    left_info = []
+    for s in left_subsets:
+        neigh = set()
+        for node in s:
+            for neighbor in N[node]:
+                if neighbor >= mid:
+                    neigh.add(neighbor)
+        left_info.append((s, neigh))
+    
+    right_map = {}
+    for idx, s in enumerate(right_subsets):
+        mask = 0
+        for node in s:
+            mask |= 1 << (node - mid)
+        right_map[mask] = s
+    
+    # Also create a map from size to list of right subsets
+    from collections import defaultdict
+    size_to_right = defaultdict(list)
+    for s in right_subsets:
+        size_to_right[len(s)].append(s)
+    
+    # For each left subset
+    for left_set, left_neigh in left_info:
+        size_left = len(left_set)
+        needed_right = k - size_left
+        if needed_right < 0:
+            continue
+        if needed_right > (n - mid):
+            continue
+        
+        # Get all right subsets of size needed_right
+        candidates = size_to_right[needed_right]
+        for right_set in candidates:
+            # Check if there's an edge between left_set and right_set
+            conflict = False
+            for u in left_set:
+                for v in right_set:
+                    if v in N[u]:
+                        conflict = True
+                        break
+                if conflict:
+                    break
+            if not conflict:
+                result = left_set + right_set
+                print("YES")
+                print(' '.join(str(x+1) for x in result))
+                return
+    
+    print("NO")
+
+if __name__ == "__main__":
+    main()

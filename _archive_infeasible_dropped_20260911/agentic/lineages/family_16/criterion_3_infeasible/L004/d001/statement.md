@@ -1,0 +1,61 @@
+# Problem C — Impossible Deadline: Certify It
+
+Time limit: 2 s   Memory limit: 256 MB
+
+## Description
+
+A factory processes **j** jobs through exactly **two** machines. Every job is processed on machine 1 first and then on machine 2. For each job you are given its processing time on machine 1 and on machine 2. Each machine processes only one job at a time, and a job reaches machine 2 only after finishing on machine 1.
+
+There is a required deadline **T**: every job must be completely finished by time **T**. In general, finding a valid schedule requires evaluating the **j!** possible job orderings to see if any permutation avoids delaying jobs past the deadline.
+
+For the inputs in this problem, no sequence among the **j!** possibilities will successfully meet the deadline. Instead of searching for a schedule, you must output a short certificate proving the deadline is impossible. You are guaranteed that for all inputs, exactly one of the following fundamental physical constraints is violated, and you must print the corresponding certificate:
+
+- A specific job inherently requires more sequential time from start to finish than the deadline permits, even if it were the only task in the entire factory. Print: `JOB i` — where **i** (1-based) is the index of such a job.
+
+- A specific machine is assigned more total work than the duration of the deadline allows it to complete, regardless of how the operations are ordered. Print: `LOAD c` — where **c** is 1 or 2, representing the overloaded machine.
+
+## Input
+
+The first line contains two integers **j** and **T** (1 ≤ j ≤ 200000, 1 ≤ T ≤ 1000000000).
+Each of the next **j** lines contains two integers **p1** and **p2** (1 ≤ p1, p2 ≤ 1000000): the processing times of a job on machine 1 and machine 2.
+
+## Output
+
+Print a single line containing the certificate of impossibility: either `JOB i` (where i is the job index) or `LOAD c` (where c is the machine number).
+
+## Examples
+
+### Example 1
+
+**Input**
+```
+3 100
+70 60
+2 2
+3 4
+```
+
+**Output**
+```
+JOB 1
+```
+
+### Example 2
+
+**Input**
+```
+4 150
+50 1
+50 1
+50 1
+50 1
+```
+
+**Output**
+```
+LOAD 1
+```
+
+## Note
+
+In Example 1, even if the factory only had to process the first job, it would still fail to meet the 100-unit deadline because of the time it must spend sequentially across the two machines (70 then 60). Thus, `JOB 1` proves the deadline is impossible. In Example 2, no single job violates the deadline on its own, but the first machine is required to operate for a combined 200 time units overall. Since it processes tasks one at a time, it cannot finish within the 150-unit deadline, making `LOAD 1` the valid certificate.

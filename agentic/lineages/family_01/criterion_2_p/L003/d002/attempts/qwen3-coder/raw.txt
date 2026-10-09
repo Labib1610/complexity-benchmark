@@ -4,74 +4,85 @@ from collections import defaultdict, deque
 
 def main():
     import sys
-    sys.setrecursionlimit(1 << 25)
+    input = sys.stdin.read
+    data = input().split()
     
-    n, m = map(int, sys.stdin.readline().split())
+    n = int(data[0])
+    m = int(data[1])
     
-    if m == 0:
-        print("YES")
-        print(" ".join(["1"] * n))
-        return
-    
-    # Build graph
-    graph = defaultdict(list)
     edges = []
+    graph = defaultdict(list)
+    
+    index = 2
     for _ in range(m):
-        u, v = map(int, sys.stdin.readline().split())
-        edges.append((u-1, v-1))  # Convert to 0-indexed
-        graph[u-1].append(v-1)
-        graph[v-1].append(u-1)
+        u = int(data[index]) - 1
+        v = int(data[index+1]) - 1
+        edges.append((u, v))
+        graph[u].append(v)
+        graph[v].append(u)
+        index += 2
     
-    # For each connected component, we'll do BFS/DFS to determine assignments
-    # State: 0 means unassigned, 1 and 2 are the two states
-    state = [0] * n
-    visited = [False] * n
+    # For each edge (u,v), the constraint is:
+    # |s[u] - s[v]| == min(s[u], s[v])
+    # Since s[u], s[v] in {1,2}, let's enumerate the possibilities:
+    # If s[u]=1, s[v]=1: |1-1|=0, min=1 → 0≠1 → invalid
+    # If s[u]=1, s[v]=2: |1-2|=1, min=1 → 1=1 → valid
+    # If s[u]=2, s[v]=1: |2-1|=1, min=1 → 1=1 → valid
+    # If s[u]=2, s[v]=2: |2-2|=0, min=2 → 0≠2 → invalid
+    # So the only valid assignments are (1,2) and (2,1) for each edge.
     
-    # Check if bipartite for each component
-    for i in range(n):
-        if visited[i] or not graph[i]: 
-            if not visited[i] and not graph[i]:  # Isolated node
-                visited[i] = True
-            continue
+    # This means the graph must be bipartite, and we need to 2-color it.
+    # But we also need the lexicographically smallest assignment.
+    # So we try to assign 1 to earlier nodes if possible.
+    
+    color = [-1] * n  # -1: unvisited, 0: color 1, 1: color 2
+    
+    # We want the lexicographically smallest assignment.
+    # That means we want s[0] = 1 if possible.
+    # If that leads to a contradiction, then s[0] = 2.
+    # But since we're doing a BFS/DFS, we can just try to assign 1 to the first node,
+    # and propagate the constraints.
+    
+    # For each connected component, we can choose the color of the first node.
+    # To get lex smallest, we try color 0 (which represents mode 1) first.
+    
+    for start in range(n):
+        if color[start] == -1:
+            # BFS to 2-color this component
+            queue = deque()
+            queue.append(start)
+            color[start] = 0  # Try mode 1 first
             
-        # BFS to assign states
-        queue = deque()
-        queue.append(i)
-        state[i] = 1
-        visited[i] = True
-        
-        while queue:
-            u = queue.popleft()
-            for v in graph[u]:
-                if not visited[v]:
-                    visited[v] = True
-                    # Assign opposite state scaled to 1 or 2
-                    if state[u] == 1:
-                        state[v] = 2
+            while queue:
+                u = queue.popleft()
+                for v in graph[u]:
+                    if color[v] == -1:
+                        # Assign the opposite color
+                        color[v] = 1 - color[u]
+                        queue.append(v)
                     else:
-                        state[v] = 1
-                    queue.append(v)
-                else:
-                    # Check consistency
-                    ratio1 = state[u] / state[v]
-                    if ratio1 not in [0.5, 2.0]:
-                        print("NO")
-                        return
+                        # Check if the constraint is satisfied
+                        c_u = color[u]
+                        c_v = color[v]
+                        # Mode values: 0->1, 1->2
+                        s_u = c_u + 1
+                        s_v = c_v + 1
+                        if abs(s_u - s_v) != min(s_u, s_v):
+                            print("NO")
+                            return
     
-    # Now verify all edges satisfy the balance condition
+    # Check all edges to make sure the constraint is satisfied
     for u, v in edges:
-        ratio = state[u] / state[v]
-        if ratio not in [0.5, 2.0]:
+        s_u = color[u] + 1
+        s_v = color[v] + 1
+        if abs(s_u - s_v) != min(s_u, s_v):
             print("NO")
             return
-            
-    # Assign state 1 to any remaining unassigned nodes
-    for i in range(n):
-        if state[i] == 0:
-            state[i] = 1
-            
+    
+    # If we reach here, a valid configuration exists
     print("YES")
-    print(" ".join(map(str, state)))
+    result = [str(color[i] + 1) for i in range(n)]
+    print(" ".join(result))
 
 if __name__ == "__main__":
     main()

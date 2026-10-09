@@ -1,0 +1,191 @@
+import sys
+from collections import defaultdict, deque
+
+def main():
+    import sys
+    sys.setrecursionlimit(1000000)
+    
+    n, m, t = map(int, sys.stdin.readline().split())
+    critical = set(map(int, sys.stdin.readline().split()))
+    
+    # Since it's a tree (n nodes, n-1 edges, connected), we can represent it as adjacency list
+    adj = defaultdict(list)
+    edges = []
+    
+    for _ in range(m):
+        u, v, w = map(int, sys.stdin.readline().split())
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+        edges.append((u, v, w))
+    
+    # If there's only one critical node, cost is 0
+    if t <= 1:
+        print(0)
+        return
+    
+    # Find the subtree that spans all critical nodes
+    # We can do this by finding all edges that are on paths between critical nodes
+    
+    # First, find one critical node to start BFS
+    start = next(iter(critical))
+    
+    # BFS to find parent and depth for each node
+    parent = [-1] * (n + 1)
+    depth = [-1] * (n + 1)
+    depth[start] = 0
+    queue = deque([start])
+    
+    while queue:
+        u = queue.popleft()
+        for v, w in adj[u]:
+            if depth[v] == -1:
+                depth[v] = depth[u] + 1
+                parent[v] = u
+                queue.append(v)
+    
+    # Function to find path from u to v
+    def get_path(u, v):
+        path_edges = []
+        # Bring u and v to same depth
+        while depth[u] > depth[v]:
+            # Find parent of u
+            p = parent[u]
+            # Find the edge weight between u and p
+            for neighbor, weight in adj[u]:
+                if neighbor == p:
+                    path_edges.append(weight)
+                    break
+            u = p
+        while depth[v] > depth[u]:
+            # Find parent of v
+            p = parent[v]
+            # Find the edge weight between v and p
+            for neighbor, weight in adj[v]:
+                if neighbor == p:
+                    path_edges.append(weight)
+                    break
+            v = p
+        # Now u and v are at same depth, move both up until they meet
+        while u != v:
+            # Move u up
+            p_u = parent[u]
+            for neighbor, weight in adj[u]:
+                if neighbor == p_u:
+                    path_edges.append(weight)
+                    break
+            u = p_u
+            # Move v up
+            p_v = parent[v]
+            for neighbor, weight in adj[v]:
+                if neighbor == p_v:
+                    path_edges.append(weight)
+                    break
+            v = p_v
+        return path_edges
+    
+    # For each pair of critical nodes, we need the path between them
+    # But we don't want to double count edges
+    # Better approach: find the minimal subtree that connects all critical nodes
+    
+    # In a tree, the minimal connected subgraph containing a set of nodes
+    # is the union of paths between all pairs, which is equivalent to
+    # the subtree formed by taking all nodes that lie on some path between two critical nodes
+    
+    # Even better: we can find the "Steiner tree" for the critical nodes in a tree
+    # which is the minimal subtree connecting all critical nodes
+    
+    # Algorithm:
+    # 1. Root the tree at any node
+    # 2. For each node, compute if its subtree contains any critical node
+    # 3. An edge is needed if it connects two subtrees that both contain critical nodes
+    
+    # Let's root the tree at node 1
+    root = 1
+    
+    # Re-build parent/depth with root=1
+    parent = [-1] * (n + 1)
+    depth = [-1] * (n + 1)
+    children = defaultdict(list)
+    
+    depth[root] = 0
+    queue = deque([root])
+    
+    while queue:
+        u = queue.popleft()
+        for v, w in adj[u]:
+            if depth[v] == -1:
+                depth[v] = depth[u] + 1
+                parent[v] = u
+                children[u].append((v, w))
+                queue.append(v)
+    
+    # For each node, compute if its subtree contains any critical node
+    contains_critical = [False] * (n + 1)
+    
+    # Post-order traversal to compute contains_critical
+    def dfs(u):
+        if u in critical:
+            contains_critical[u] = True
+        for v, w in children[u]:
+            dfs(v)
+            if contains_critical[v]:
+                contains_critical[u] = True
+    
+    dfs(root)
+    
+    # Now, count the edges that need to be included
+    # An edge from u to v (where v is child of u) is needed if
+    # v's subtree contains at least one critical node AND
+    # there exists a critical node outside v's subtree
+    
+    total_cost = 0
+    
+    # Check all edges from parent to child
+    def dfs_count(u):
+        nonlocal total_cost
+        for v, w in children[u]:
+            dfs_count(v)
+            # If v's subtree contains critical nodes
+            if contains_critical[v]:
+                # Check if there are critical nodes outside v's subtree
+                # This is true if the whole tree has more than the ones in v's subtree
+                # Or if the root's subtree contains critical nodes but v's doesn't cover all
+                # Simpler: if the total number of critical nodes > number in v's subtree
+                # We need to count critical nodes in v's subtree
+                total_cost += w
+    
+    # Actually, we need a more precise count
+    # An edge (u,v) where v is child of u is in the Steiner tree if:
+    # 1. v's subtree contains at least one critical node
+    # 2. The rest of the tree (including u) contains at least one critical node
+    
+    # Let's count critical nodes in each subtree
+    crit_count = [0] * (n + 1)
+    
+    def count_critical(u):
+        if u in critical:
+            crit_count[u] = 1
+        for v, w in children[u]:
+            count_critical(v)
+            crit_count[u] += crit_count[v]
+    
+    count_critical(root)
+    
+    total_critical = crit_count[root]
+    
+    # Now check each edge
+    def compute_cost(u):
+        nonlocal total_cost
+        for v, w in children[u]:
+            compute_cost(v)
+            # v's subtree has crit_count[v] critical nodes
+            # Rest of tree has (total_critical - crit_count[v]) critical nodes
+            if crit_count[v] > 0 and (total_critical - crit_count[v]) > 0:
+                total_cost += w
+    
+    compute_cost(root)
+    
+    print(total_cost)
+
+if __name__ == "__main__":
+    main()

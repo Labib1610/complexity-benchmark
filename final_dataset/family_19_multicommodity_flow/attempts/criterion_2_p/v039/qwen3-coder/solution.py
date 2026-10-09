@@ -1,0 +1,122 @@
+from collections import deque, defaultdict
+
+def solve():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    idx = 0
+    n = int(data[idx]); idx += 1
+    m = int(data[idx]); idx += 1
+    _ = int(data[idx]); idx += 1
+    s = int(data[idx]); idx += 1
+    t = int(data[idx]); idx += 1
+    d = int(data[idx]); idx += 1
+    
+    edges = []
+    edge_index = {}
+    graph = defaultdict(list)
+    capacity = []
+    
+    for i in range(m):
+        u = int(data[idx]); idx += 1
+        v = int(data[idx]); idx += 1
+        cap = int(data[idx]); idx += 1
+        edges.append((u, v))
+        edge_index[(u, v, i)] = i
+        graph[u].append((v, cap, i))
+        graph[v].append((u, 0, i))  # residual edge
+        capacity.append(cap)
+    
+    # Add super source and super sink
+    SUPER_SOURCE = 0
+    SUPER_SINK = n + 1
+    
+    # Connect super source to s with capacity d
+    graph[SUPER_SOURCE].append((s, d, m))
+    graph[s].append((SUPER_SOURCE, 0, m))
+    
+    # Connect t to super sink with capacity d
+    graph[t].append((SUPER_SINK, d, m+1))
+    graph[SUPER_SINK].append((t, 0, m+1))
+    
+    def bfs():
+        parent = [-1] * (n + 2)
+        visited = [False] * (n + 2)
+        queue = deque([SUPER_SOURCE])
+        visited[SUPER_SOURCE] = True
+        
+        while queue:
+            u = queue.popleft()
+            for v, cap, edge_idx in graph[u]:
+                if not visited[v] and cap > 0:
+                    visited[v] = True
+                    parent[v] = (u, edge_idx)
+                    if v == SUPER_SINK:
+                        return parent
+                    queue.append(v)
+        return None
+    
+    def edmonds_karp():
+        max_flow = 0
+        flows = [0] * (m + 2)
+        
+        while True:
+            parent = bfs()
+            if parent is None:
+                break
+                
+            # Find minimum capacity along the path
+            path_flow = float('inf')
+            s_node = SUPER_SINK
+            while s_node != SUPER_SOURCE:
+                u, edge_idx = parent[s_node]
+                for v, cap, idx in graph[u]:
+                    if v == s_node and idx == edge_idx:
+                        path_flow = min(path_flow, cap)
+                        break
+                s_node = u
+            
+            # Update capacities and flows
+            v_node = SUPER_SINK
+            while v_node != SUPER_SOURCE:
+                u, edge_idx = parent[v_node]
+                for i in range(len(graph[u])):
+                    if graph[u][i][0] == v_node and graph[u][i][2] == edge_idx:
+                        graph[u][i] = (graph[u][i][0], graph[u][i][1] - path_flow, graph[u][i][2])
+                        break
+                for i in range(len(graph[v_node])):
+                    if graph[v_node][i][0] == u and graph[v_node][i][2] == edge_idx:
+                        graph[v_node][i] = (graph[v_node][i][0], graph[v_node][i][1] + path_flow, graph[v_node][i][2])
+                        break
+                if edge_idx < m:
+                    if edge_idx < len(flows):
+                        flows[edge_idx] += path_flow
+                    else:
+                        flows.extend([0] * (edge_idx - len(flows) + 1))
+                        flows[edge_idx] += path_flow
+                elif edge_idx == m:
+                    # This is the edge from super source to s
+                    pass
+                elif edge_idx == m+1:
+                    # This is the edge from t to super sink
+                    pass
+                v_node = u
+            
+            max_flow += path_flow
+        
+        return max_flow, flows
+    
+    max_flow, flow_values = edmonds_karp()
+    
+    if max_flow < d:
+        print("NO")
+        return
+    
+    # Extract the flow on original edges
+    result = flow_values[:m]
+    
+    print("YES")
+    print(' '.join(map(str, result)))
+
+solve()

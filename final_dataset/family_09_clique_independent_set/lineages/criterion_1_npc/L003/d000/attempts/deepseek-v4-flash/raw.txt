@@ -1,0 +1,148 @@
+We need to choose exactly `k` pins to be HIGH such that no NAND gate has both inputs HIGH.  
+That means the set of HIGH pins must be an independent set in the graph where edges are the NAND gates.
+
+So the problem reduces to:  
+Given a graph with `n` vertices (n ≤ 46), find an independent set of size exactly `k`.
+
+We can solve this with a meet-in-the-middle approach:
+
+- Split vertices into two halves (size ~23 each).
+- For each half, enumerate all independent sets and store their bitmask and size.
+- For each independent set in the first half, we need an independent set in the second half that is compatible (no edges between the halves) and together they sum to size `k`.
+
+We can precompute for each mask in the first half the set of vertices in the second half that are **not** adjacent to any vertex in the mask. Then we need to find an independent set in the second half that is a subset of that allowed set and has the required size.
+
+Implementation details:
+- Use bitmasks (Python ints) for sets.
+- For each half, generate all independent sets via recursion/DP.
+- Store them by size.
+- For the second half, for each mask, we can precompute its size and also store a list of masks per size.
+- For the first half, for each mask, compute allowed second-half vertices, then check if there exists a second-half independent set of required size that is subset of allowed.
+
+Let's code it.```python
+import sys
+
+def solve():
+    input = sys.stdin.readline
+    n, m, k = map(int, input().split())
+    adj = [0] * n
+    for _ in range(m):
+        u, v = map(int, input().split())
+        u -= 1
+        v -= 1
+        adj[u] |= (1 << v)
+        adj[v] |= (1 << u)
+
+    # Split vertices into two halves
+    half1 = n // 2
+    half2 = n - half1
+
+    # Enumerate independent sets for each half
+    # For half1: vertices 0..half1-1
+    # For half2: vertices half1..n-1
+
+    # Generate all independent sets for a given list of vertices
+    def gen_independent_sets(vertices):
+        size = len(vertices)
+        # map local index to global
+        local_adj = [0] * size
+        for i, v in enumerate(vertices):
+            mask = 0
+            for j, u in enumerate(vertices):
+                if adj[v] & (1 << u):
+                    mask |= (1 << j)
+            local_adj[i] = mask
+        res = []  # list of (mask, size)
+        # DP over subsets
+        # We'll use recursion to generate all independent sets
+        masks = []
+        def dfs(idx, cur_mask, cur_size):
+            if idx == size:
+                masks.append((cur_mask, cur_size))
+                return
+            # skip vertex idx
+            dfs(idx + 1, cur_mask, cur_size)
+            # take vertex idx if possible
+            if not (local_adj[idx] & cur_mask):
+                dfs(idx + 1, cur_mask | (1 << idx), cur_size + 1)
+        dfs(0, 0, 0)
+        return masks
+
+    verts1 = list(range(half1))
+    verts2 = list(range(half1, n))
+
+    ind1 = gen_independent_sets(verts1)
+    ind2 = gen_independent_sets(verts2)
+
+    # For half2, group by size
+    by_size2 = [[] for _ in range(half2 + 1)]
+    for mask, sz in ind2:
+        by_size2[sz].append(mask)
+
+    # For half1, we need to know which half2 vertices are allowed (not adjacent to any in mask)
+    # Precompute for each mask in half1 the allowed half2 mask
+    # We'll map local mask to global mask for half1
+    # For each independent set in half1, compute allowed half2 vertices
+    # allowed_half2_mask: bit i (local to half2) is 1 if vertex half1+i is not adjacent to any in mask
+
+    # Precompute adjacency from half1 to half2
+    adj_h1_to_h2 = [0] * half1
+    for i in range(half1):
+        mask = 0
+        for j in range(half2):
+            if adj[i] & (1 << (half1 + j)):
+                mask |= (1 << j)
+        adj_h1_to_h2[i] = mask
+
+    # For each independent set in half1, compute allowed half2 mask
+    # We'll store as dict: mask1 -> allowed_mask2
+    allowed_map = {}
+    for mask1, sz1 in ind1:
+        allowed = 0
+        # For each vertex in mask1, mark its neighbors in half2 as forbidden
+        forbidden = 0
+        m = mask1
+        while m:
+            lsb = m & -m
+            idx = (lsb.bit_length() - 1)
+            forbidden |= adj_h1_to_h2[idx]
+            m ^= lsb
+        allowed = ((1 << half2) - 1) & ~forbidden
+        allowed_map[mask1] = allowed
+
+    # Now search for combination
+    # For each mask1, need size2 = k - sz1, and an independent set in half2 of that size
+    # that is subset of allowed_map[mask1]
+    for mask1, sz1 in ind1:
+        need = k - sz1
+        if need < 0 or need > half2:
+            continue
+        allowed = allowed_map[mask1]
+        # Check if any mask in by_size2[need] is subset of allowed
+        for mask2 in by_size2[need]:
+            if (mask2 & ~allowed) == 0:
+                # Found
+                chosen = []
+                # add half1 vertices
+                m = mask1
+                while m:
+                    lsb = m & -m
+                    idx = (lsb.bit_length() - 1)
+                    chosen.append(idx + 1)
+                    m ^= lsb
+                # add half2 vertices
+                m = mask2
+                while m:
+                    lsb = m & -m
+                    idx = (lsb.bit_length() - 1)
+                    chosen.append(half1 + idx + 1)
+                    m ^= lsb
+                print("YES")
+                print(" ".join(map(str, chosen)))
+                return
+
+    print("NO")
+
+if __name__ == "__main__":
+    solve()
+```

@@ -1,0 +1,228 @@
+**Solution Explanation**
+
+For every item we know  
+
+* `p1` – time on the primary processor (machine 1)  
+* `p2` – time on the secondary processor (machine 2)
+
+All items have to be processed in the **same order** on both machines.
+Both machines work in parallel, i.e. while machine 1 processes item *i*,
+machine 2 may already be processing some earlier item *k* (if its primary
+work is already finished).
+
+The problem is the classic *two‑machine flow shop* makespan minimisation.
+For two machines the optimal order is given by **Johnson’s rule**.
+
+--------------------------------------------------------------------
+
+#### Johnson’s rule
+
+* Split the items into two groups  
+
+```
+L = { items with p1 ≤ p2 }
+R = { items with p1 >  p2 }
+```
+
+* Sort `L` by increasing `p1`.
+* Sort `R` by decreasing `p2`.
+* The optimal sequence is `L` followed by `R`.
+
+*Proof sketch* (standard, omitted for brevity)  
+Consider two consecutive items `i , j`.  
+If `p1_i ≤ p2_i` and `p1_j ≤ p2_j` then swapping them cannot improve the
+makespan unless `p1_i > p1_j`; therefore sorting `L` by `p1` is optimal.
+Analogously for `R`.  
+If an item of `L` is placed after an item of `R`, swapping them never
+increases the makespan, so all `L` items can be moved to the front.
+Thus the described order is optimal. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### Computing the makespan for a given order
+
+```
+t1 = 0          # finishing time on machine 1
+t2 = 0          # finishing time on machine 2
+for each (p1, p2) in order:
+        t1 += p1                # machine 1 finishes this item
+        t2 = max(t2, t1) + p2   # machine 2 may have to wait for t1
+answer = t2
+```
+
+Both variables fit into 64‑bit signed integers
+(`j ≤ 2·10⁵`, each time ≤ 10⁶, total ≤ 2·10¹¹).
+
+--------------------------------------------------------------------
+
+#### Algorithm
+```
+read j
+read all pairs (p1, p2)
+L = [(p1,p2) for each pair if p1 <= p2]
+R = [(p1,p2) for each pair if p1 >  p2]
+
+sort L by p1   (ascending)
+sort R by p2   (descending)
+
+order = L + R
+
+t1 = t2 = 0
+for p1,p2 in order:
+        t1 += p1
+        t2 = max(t2, t1) + p2
+
+print t2
+```
+
+--------------------------------------------------------------------
+
+#### Correctness Proof  
+
+We prove that the algorithm outputs the minimal possible finishing time.
+
+---
+
+**Lemma 1**  
+For any two items `i, j` with `p1_i ≤ p2_i` and `p1_j ≤ p2_j`,
+placing the one with smaller `p1` first does not increase the makespan.
+
+*Proof.*  
+When both items belong to group `L`, their secondary work can start only
+after their own primary work finishes. Swapping them changes only the
+order of their primary intervals; the later start of the second primary
+interval is `p1` of the first item. The later start of the second secondary
+interval is the later of the two primary completions, i.e. the larger `p1`.
+Thus the makespan after the two items equals  
+`max(p1_i, p1_j) + p2_i + p2_j`.  
+If `p1_i ≤ p1_j` the expression is unchanged or smaller when `i` precedes
+`j`. ∎
+
+
+
+**Lemma 2**  
+For any two items `i, j` with `p1_i > p2_i` and `p1_j > p2_j`,
+placing the one with larger `p2` first does not increase the makespan.
+
+*Proof.* Symmetric to Lemma&nbsp;1, using the decreasing order of `p2`. ∎
+
+
+
+**Lemma 3**  
+If an item `x` belongs to `L` (`p1_x ≤ p2_x`) and an item `y` belongs to
+`R` (`p1_y > p2_y`), then putting `x` before `y` never yields a larger
+makespan than the opposite order.
+
+*Proof.*  
+Consider the schedule of the two items only.  
+When `x` is first, machine 1 finishes `x` at time `p1_x`, then `y` at
+`p1_x + p1_y`. Machine 2 can start `x` at `p1_x` and finishes it at
+`p1_x + p2_x`. It can start `y` only after both its own previous work
+(`p1_x + p2_x`) and the primary work of `y` (`p1_x + p1_y`) are done,
+i.e. at `max(p1_x + p2_x, p1_x + p1_y)`. Because `p1_x ≤ p2_x`,
+`p1_x + p2_x ≥ p1_x + p1_y`. Hence the finish time of `y` is
+`p1_x + p2_x + p2_y`.
+
+If the order is reversed, the finish time of `y` is at least
+`p1_y + p2_y + p2_x` (by the same reasoning, using `p1_y > p2_y`).
+Since `p2_x ≥ p1_x`, we have `p1_x + p2_x + p2_y ≤ p1_y + p2_y + p2_x`.
+Thus the first order is never worse. ∎
+
+
+
+**Lemma 4**  
+The sequence produced by the algorithm (all `L` sorted ascending `p1`,
+followed by all `R` sorted descending `p2`) is optimal.
+
+*Proof.*  
+Starting from any permutation, repeatedly apply Lemma&nbsp;1 to reorder
+any adjacent pair inside `L` so that `p1` is non‑decreasing; similarly apply
+Lemma&nbsp;2 inside `R` to obtain non‑increasing `p2`. Afterwards,
+whenever an `R` item appears before an `L` item, swap them using
+Lemma&nbsp;3. Each step never increases the makespan, and the process ends
+exactly with the algorithm’s order. Therefore no other order can have a
+smaller makespan. ∎
+
+
+
+**Lemma 5**  
+The simulation loop computes the makespan of the given order correctly.
+
+*Proof.*  
+Induction over the processed items.  
+Before processing the first item, both machines are idle (`t1 = t2 = 0`).
+Assume after processing the first `k‑1` items `t1` equals the finishing time
+of machine 1 and `t2` the finishing time of machine 2.
+For item `k` machine 1 finishes at `t1 + p1`. Machine 2 can start only after
+both its own previous work (`t2`) and the primary work of this item
+(`t1 + p1`) are done, i.e. at `max(t2, t1 + p1)`. Adding `p2` gives the new
+`t2`. The update in the loop matches exactly this calculation. ∎
+
+
+
+**Theorem**  
+The algorithm outputs the minimum possible time at which the secondary
+processor finishes the last item.
+
+*Proof.*  
+By Lemma&nbsp;4 the order constructed by the algorithm is optimal.
+By Lemma&nbsp;5 the subsequent simulation returns the makespan of this order.
+Hence the printed value equals the global optimum. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### Complexity Analysis
+
+* Splitting into two groups: `O(j)`
+* Sorting: `O(j log j)`
+* Simulation: `O(j)`
+
+Memory consumption: storing all pairs → `O(j)`.
+
+Both limits satisfy the given constraints (`j ≤ 200 000`).
+
+--------------------------------------------------------------------
+
+#### Reference Implementation  (Python 3)
+
+```python
+import sys
+
+def solve() -> None:
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    L = []
+    R = []
+    for _ in range(n):
+        p1 = int(next(it))
+        p2 = int(next(it))
+        if p1 <= p2:
+            L.append((p1, p2))
+        else:
+            R.append((p1, p2))
+    L.sort(key=lambda x: x[0])          # ascending p1
+    R.sort(key=lambda x: x[1], reverse=True)  # descending p2
+    order = L + R
+
+    t1 = 0
+    t2 = 0
+    for p1, p2 in order:
+        t1 += p1
+        if t2 < t1:
+            t2 = t1
+        t2 += p2
+    sys.stdout.write(str(t2))
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above and
+conforms to the required input‑

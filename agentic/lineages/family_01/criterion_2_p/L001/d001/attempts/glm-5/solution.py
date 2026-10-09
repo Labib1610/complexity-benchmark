@@ -1,54 +1,48 @@
 import sys
+from sys import setrecursionlimit
 
 def solve():
     input_data = sys.stdin.read().split()
     if not input_data:
         return
-    iterator = iter(input_data)
-    try:
-        n = int(next(iterator))
-        m = int(next(iterator))
-    except StopIteration:
-        return
-
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    
     adj = [[] for _ in range(n + 1)]
     for _ in range(m):
-        try:
-            u = int(next(iterator))
-            v = int(next(iterator))
-            adj[u].append(v)
-            adj[v].append(u)
-        except StopIteration:
-            break
-
+        u = int(next(it))
+        v = int(next(it))
+        adj[u].append(v)
+        adj[v].append(u)
+    
     color = [0] * (n + 1)
-    possible = True
+    parent = [0] * (n + 1)
+    visited = [False] * (n + 1)
+    stack = []
+    
+    for start in range(1, n + 1):
+        if visited[start]:
+            continue
+        visited[start] = True
+        color[start] = 1
+        parent[start] = 0
+        stack.append(start)
+        
+        while stack:
+            u = stack.pop()
+            for v in adj[u]:
+                if not visited[v]:
+                    visited[v] = True
+                    color[v] = 3 - color[u]
+                    parent[v] = u
+                    stack.append(v)
+                else:
+                    if color[v] == color[u]:
+                        print("NO")
+                        return
+    
+    print("YES")
+    print(' '.join(str(color[i]) for i in range(1, n + 1)))
 
-    for i in range(1, n + 1):
-        if color[i] == 0:
-            color[i] = 1
-            queue = [i]
-            head = 0
-            while head < len(queue):
-                u = queue[head]
-                head += 1
-                for v in adj[u]:
-                    if color[v] == 0:
-                        color[v] = 3 - color[u]
-                        queue.append(v)
-                    elif color[v] == color[u]:
-                        possible = False
-                        break
-                if not possible:
-                    break
-        if not possible:
-            break
-
-    if not possible:
-        print("NO")
-    else:
-        print("YES")
-        print(*(color[1:]))
-
-if __name__ == '__main__':
-    solve()
+solve()

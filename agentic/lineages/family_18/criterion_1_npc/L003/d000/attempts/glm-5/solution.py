@@ -1,0 +1,51 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    try:
+        n = int(next(it))
+        m = int(next(it))
+        B = int(next(it))
+    except StopIteration:
+        return
+    
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # Count degrees
+    deg = [0] * (n + 1)
+    for i in range(1, n + 1):
+        deg[i] = len(adj[i])
+    
+    # Sort crops by degree (descending)
+    crops = list(range(1, n + 1))
+    crops.sort(key=lambda x: -deg[x])
+    
+    # Assign zones: highest degree gets middle zone
+    zones = [0] * (n + 1)
+    mid = (n + 1) // 2
+    for i, crop in enumerate(crops):
+        zones[crop] = mid + i if i % 2 == 0 else mid - (i + 1) // 2
+    
+    # Calculate total pipe length
+    total = 0
+    for u in range(1, n + 1):
+        for v in adj[u]:
+            if u < v:
+                total += abs(zones[u] - zones[v])
+    
+    if total <= B:
+        print("YES")
+        print(' '.join(map(str, zones[1:])))
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()

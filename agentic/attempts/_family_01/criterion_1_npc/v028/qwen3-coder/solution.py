@@ -1,0 +1,43 @@
+import sys
+from collections import defaultdict
+
+def solve():
+    n, m = map(int, input().split())
+    
+    # Build adjacency list for the graph
+    adj = defaultdict(list)
+    for _ in range(m):
+        u, v = map(int, input().split())
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # Color the graph with 3 colors using backtracking
+    color = [0] * (n + 1)  # 0 means uncolored, 1, 2, 3 are the three slots
+    
+    def is_safe(node, c):
+        for neighbor in adj[node]:
+            if color[neighbor] == c:
+                return False
+        return True
+    
+    def backtrack(node):
+        if node > n:
+            return True
+            
+        for c in range(1, 4):
+            if is_safe(node, c):
+                color[node] = c
+                if backtrack(node + 1):
+                    return True
+                color[node] = 0
+        
+        return False
+    
+    # Try to color the graph
+    if backtrack(1):
+        print("YES")
+        print(*color[1:])
+    else:
+        print("NO")
+
+solve()

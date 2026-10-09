@@ -1,0 +1,71 @@
+import sys
+
+def main():
+    input = sys.stdin.read
+    data = input().split()
+    if not data:
+        return
+    
+    n = int(data[0])
+    m = int(data[1])
+    t = int(data[2])
+    
+    idx = 3
+    life_nodes = [int(x) for x in data[idx:idx+t]]
+    idx += t
+    
+    if t <= 1:
+        print(0)
+        return
+    
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(data[idx])
+        v = int(data[idx+1])
+        w = int(data[idx+2])
+        idx += 3
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+        
+    is_marked = [0] * (n + 1)
+    for x in life_nodes:
+        is_marked[x] = 1
+        
+    # BFS to get parent, edge weight, and topological order
+    parent = [0] * (n + 1)
+    weight_to_parent = [0] * (n + 1)
+    order = []
+    
+    root = life_nodes[0]
+    queue = [root]
+    visited = [False] * (n + 1)
+    visited[root] = True
+    
+    head = 0
+    while head < len(queue):
+        u = queue[head]
+        head += 1
+        order.append(u)
+        for v, w in adj[u]:
+            if not visited[v]:
+                visited[v] = True
+                parent[v] = u
+                weight_to_parent[v] = w
+                queue.append(v)
+                
+    count = [0] * (n + 1)
+    for i in range(1, n + 1):
+        count[i] = is_marked[i]
+        
+    ans = 0
+    for u in reversed(order):
+        if u != root:
+            if count[u] > 0:
+                if count[u] < t:
+                    ans += weight_to_parent[u]
+                count[parent[u]] += count[u]
+                
+    print(ans)
+
+if __name__ == '__main__':
+    main()

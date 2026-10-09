@@ -13,6 +13,7 @@ for _ in range(m):
     adj[v].append(u)
 
 color = [-1] * n
+possible = True
 
 for i in range(n):
     if color[i] == -1:
@@ -25,8 +26,15 @@ for i in range(n):
                     color[v] = 3 - color[u]
                     q.append(v)
                 elif color[v] == color[u]:
-                    print("NO")
-                    sys.exit()
+                    possible = False
+                    break
+            if not possible:
+                break
+    if not possible:
+        break
 
-print("YES")
-print(" ".join(str(c) for c in color))
+if not possible:
+    print("NO")
+else:
+    print("YES")
+    print(" ".join(str(color[i]) for i in range(n)))

@@ -1,0 +1,42 @@
+import sys
+
+def solve():
+    input = sys.stdin.readline
+    k, t = map(int, input().split())
+    allowed = [[] for _ in range(k)]
+    for _ in range(t):
+        x, y, z = map(int, input().split())
+        allowed[x-1].append((y-1, z-1))
+    
+    # Sort to try more constrained first
+    for i in range(k):
+        allowed[i].sort(key=lambda p: (p[0], p[1]))
+    
+    used_machine = [False] * k
+    used_time = [False] * k
+    assignment = [None] * k
+    
+    def dfs(spec):
+        if spec == k:
+            return True
+        for y, z in allowed[spec]:
+            if not used_machine[y] and not used_time[z]:
+                used_machine[y] = True
+                used_time[z] = True
+                assignment[spec] = (y, z)
+                if dfs(spec + 1):
+                    return True
+                used_machine[y] = False
+                used_time[z] = False
+        return False
+    
+    if dfs(0):
+        print("YES")
+        for i in range(k):
+            y, z = assignment[i]
+            print(i+1, y+1, z+1)
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()

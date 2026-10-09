@@ -1,0 +1,263 @@
+We need to choose an ordering of the tiles to minimize the maximum possible path cost chosen by an adversary who maximizes the cost.
+
+Let’s first see what a path looks like. The adversary starts at `(1, 1)` and ends at `(2, j)`, moving only right or down. A path will go right for some columns at the top row and then down once at some column `k` and then continue right on the bottom row.
+
+So for a fixed ordering of tiles:
+
+If the adversary switches from top to bottom at column `k` (1-indexed), the cost is:
+
+```
+cost(k) = sum of top values of tiles 1..k + sum of bottom values of tiles k..j
+```
+
+Because the starting at `(1,1)` includes tile 1 top, and going down at column `k` means tile `k` bottom is visited tooickle.
+
+We want to minimize `max_k cost(k)`.  
+
+For a given order, cost(k) can be written as:
+
+```
+cost(k) = (sum_top_1_to_k + sum_bottom_k_to_j)
+```
+
+Let `total_sum = sum(all top) + sum(all bottom)` for all tiles.  
+Then:
+
+`sum_top_1_to_k + sum_bottom_k_to_j = sum_top_1_to_k + sum_bottom_1_to_j - sum_bottom_1_to_{k-1}`  
+
+Let’s rewrite:
+
+```
+cost(k) = sum_top_1_to_k + (total_bottom - sum_bottom_1_to_{k-1})
+        = total_bottom + (sum_top_1_to_k - sum_bottom_1_to_{k-1})
+```
+
+Notice:
+
+- For k=1:  sum_top_1 + total_bottom - sum_bottom_0 = top_1 + total_bottom
+- For k=j:  total_top + bottom_j
+
+Instead of summing over top prefix and bottom suffix, we can view each tile's contribution difference.
+
+Consider the difference `d = p1 - p2` for each tile. When ordering, each tile when passed on top contributes `p1`, when passed on bottom contributes `p2`. The adversary’s path switches once.
+
+The cost is:
+
+```
+cost(k) = sum_top_1_to_k + sum_bottom_k_to_j
+```
+
+We can write it as:
+
+```
+cost(k) = (sum_top_1_to_k - sum_bottom_1_to_k) + sum_bottom_1_to_j  + p2_k
+```
+
+But simpler:
+  
+Let `S = total_top + total_bottom`.  
+We have:
+
+`cost(k) = S - (sum_bottom_1_to_{k-1} + sum_top_{k+1}_to_j)`
+
+So maximizing path is minimizing sum of omitted cells. But that’s messy.
+
+Better known trick:  
+For each tile i, define `a_i = p1_i`, `b_i = p2_i`.  
+`cost(k) = (a_1 + ... + a_k) + (b_k + ... + b_j)`  
+= `(a_1 + ... + a_k) + (b_k + ... + b_j) + 0`  
+We can rewrite as constant + prefix of `(a_i - b_i)`:
+
+Let prefix sum `Pref[i] = sum_{t=1..i} (a_t - b_t)`.  
+Let total_bottom_sum = `B = sum b_i`.  
+Then:
+- For k from 1 to j:  
+`cost(k) = (sum_{t=1..k} a_t) + (sum_{t=k..j} b_t)`  
+`= (sum_{t=1..k} a_t) + (B - sum_{t=1..k-1} b_t)`  
+`= B + sum_{t=1..k} a_t - sum_{t=1..k-1} b_t`  
+`= B + (sum_{t=1..k} (a_t - b_t)) + b_k`  
+Wait: Let’s do it carefully:
+
+`sum_{t=1..k} a_t - sum_{t=1..k-1} b_t`  
+= `(a_k - b_k) + sum_{t=1..k-1}(a_t - b_t)`  
+= `Pref[k]` is `sum_{t=1..k}(a_t-b_t)`.
+
+We have:
+
+`sum_{t=1..k} a_t - sum_{t=1..k-1} b_t`  
+= `(sum_{t=1..k} a_t - sum_{t=1..k} b_t) + b_k`  
+= `Pref[k] + b_k`.
+
+Thus:
+
+```
+cost(k) = B + Pref[k] + b_k
+```
+
+Where `Pref[k] = sum_{t=1..k}(a_t - b_t)`.
+
+We need to order tiles to minimize `max_k (B + Pref[k] + b_k)`.
+
+Since `B` is constant over ordering, minimizing `max_k (Pref[k] + b_k)` is the key.
+
+Let’s define for each tile:  
+`x_i = a_i - b_i`  
+`b_i` is also known.
+
+We need to arrange tiles so that prefix sums of `x_i` plus current `b_i` never get too large.
+
+### Key insight:
+We can reorder such that we “spread” the negative `x_i` earlier to keep prefix sums low.
+
+Known sorting strategy:  
+Sort by `a_i + b_i`?  
+We want small prefix sums. Sort by `a_i - b_i` in increasing order? Let’s check.
+
+If we sort by `x_i = a_i - b_i` ascending, the prefix sums of `x` grow slowly)Skip. But note `Pref[k] + b_k` involves `b_k`.
+
+We can try: Sort by `x_i` ascending. Let's test with example:
+
+Example 1:  
+Tiles:  
+(3,2): x=1, b=2  
+(2,4): x=-2, b=4  
+(1,3): x=-2, b=3  
+
+Sort by x ascending: (2,4) x=-2 b=4, (1,3) x=-2 b=3, (3,2) x=1 b=2  
+Pref: -2, -4, -3  
+Pref + b: -2+4=2, -4+3=-1, -3+2=-1  
+Max = 2. Then answer = B + max = (2+4+3)=9 + 2 = 11. But optimal is 10. So not optimal.
+
+We need better arrangement. Example optimal: (1,3), (2,4), (3,2)  
+x: -2, -2, 1  
+Pref: -2, -4, -3  
+Pref + b: -2+3=1, -4+4=0, -3+2=-1  
+Max = 1, B=9 => 10. Works.
+
+So ordering matters in the multi-same x case)Skip. Perhaps sort by `b_i - a_i` (descending b-a) or by something else.  
+
+Known approach: Sort by `a_i+b_i`? Let's test:  
+Example: (1,3) sum=4, (2,4) sum=6, (3,2) sum=5  
+Sort ascending sum: (1,3), (3,2), (2,4)  
+Pref: -2, -1, -3  
+Pref+b: -2+3=1, -1+2=1, -3+4=1 => max=1 ⇒ B=9 → total=10, works.  
+But example 3: All (2,2), sum=4 each, any order gives pref: 0,0,0, max=0 ⇒ B=6 → 6? Wait example 3 output is 8. Let's check:
+
+j=3, each (2,2): B= bottom sum = 6, Pref=0 each time, so cost(k) = 6+0+2=8, indeed. So B + max = 6+2=8 → matches.
+
+Example 2: (5,3): B=3, Order only one, Pref=2, b=3 => B + (2+3) = 8, works.
+
+Let's reason more generally.
+
+We want to minimize `max_k (Pref[k] + b_k)`.  
+Note `Pref[k] = sum_{t=1..k} (a_t - b_t)`  
+So `Pref[k] + b_k = sum_{t=1..k-1} (a_t - b_t) + a_k`.
+
+That’s exactly the sum of top values up to k, minus bottom values before k... It's basically cost formula.
+
+We can sort by difference `a-b` descending? Example:  
+If we have large positive difference tile early, pref increases → bad. So put negative differences early)Skip.
+
+Sort by `a-b` ascending.
+
+But example has ties: two with -2.  
+In optimal we put (1,3) before (2,4). That's because among same `a-b`, we want smaller `b` first (to keep `Pref+b` small). Indeed, (1,3) b=3 versus (2,4) b=4, so b smaller first helps.
+
+So sorting rule:  
+- Primary key: `a-b` ascending  
+- Secondary key: `b` ascending  
+
+Let’s test:  
+Sorted: (1,3) x=-2 b=3, (2,4) x=-2 b=4, (3,2) x=1 b=2  
+Pref: -2, -4, -3  
+Pref+b: 1, 0, -1 => max=1, B=9 => total 10. Works.
+
+We must ensure this always gives minimal maximum. Known result:  
+To minimize max over k of (pref_sum + b_k) when we can permute, sort by `a_i - b_i` ascending, and within equal differences, put larger `b_i` first? Actually from example seen.
+
+Let’s test another:  
+j=3: (10,1) diff=9, (1,10) diff=-9, (5,5) diff=0  
+Sort diff ascending: (1,10) diff=-9 b=10, (5,5) diff=0 b=5, (10,1) diff=9 b=1  
+Pref: -9,-9,0  
+cost(k): B=16  
+k=1: 16 + (-9)+10=17? Actually cost formula: B + Pref + b = 16+(-9)+10=17  
+k=2: 16+(-9)+5=12  
+k=3: 16+0+1=17  
+Max=17. Could it be better? Try (10,1) first: Pref=9,9,0  
+cost: 16+9+1=26, worse. So sorting by x ascending works here.
+
+But earlier example showed tie-breaking matters careless.  
+
+Known solution: sort by `p1 + p2`? Let's check known result:  
+This is reminiscent of problem “Grid Path Minimax”. The optimal strategy is to sort by `p1 - p2` ascending BB. It is a known fact that for minimizing maximum prefix sum of `(a_i - b_i) + b_i`, sort by `a_i + b_i`? Let’s derive.
+
+We have `cost(k) = B + Pref[k] + b_k`.  
+`Pref[k] = sum_{t≤k} (a_t-b_t)`.
+
+Define `c_i = a_i - b_i`.  
+Then `Pref[k] + b_k = sum_{t<k} c_t + a_k`. Because `Pref[k] + b_k = sum_{t≤k} c_t + b_k = sum_{t<k} c_t + (c_k + b_k) = sum_{t<k} c_t + a_k`.
+
+So `cost(k) = B + sum_{t<k} c_t + a_k`.
+
+Now, for each k, we add `a_k` plus previous sum of `c`. That means if we put tiles with large `c` early, prefix c grows fast, increasing future costs. So we want small `c` first. Also if `c` is equal, we prefer smaller `a_k`? Because `a_k` appears directly at its position.
+
+Thus sort by `c = a-b` ascending, and if tie, by `a` ascending.
+
+Let's verify with example 1:
+(3,2): c=1, a=3  
+(2,4): c=-2, a=2  
+(1,3): c=-2, a=1  
+
+Sort by c asc, then by a:  
+(1,3) c=-2 a=1, (2,4) c=-2 a=2, (3,2) c=1 a=3  
+Order: (1,3), (2,4), (3,2)  
+B=9  
+Compute:  
+k=1: Pref=-2, b=3 => -2+3=1  
+k=2: Pref=-4, b=4 => -4+4=0  
+k=3: Pref=-3, b=2 => -3+2=-1  
+Max=1 ⇒ total=10. Good.
+
+Example with all equal: (2,2) c=0, a=2, b=2  
+Sorting stays any order.  
+B=6, Pref all 0, Pref+b=2 each => max=2 => total=8, matches.
+
+Thus sorting key: `(a-b, a)` ascending.
+
+Now implement.
+
+Be careful with size: j up to 2e5.
+
+Complexity O(j log j).
+
+Now produce code.
+
+```python
+import sys
+
+def solve():
+    input = sys.stdin.readline
+    j = int(input())
+    tiles = []
+    total_bottom = 0
+    for _ in range(j):
+        p1, p2 = map(int, input().split())
+        tiles.append((p1 - p2, p1, p2))
+        total_bottom += p2
+    
+    # Sort by difference, then by p1
+    tiles.sort(key=lambda x: (x[0], x[1]))
+    
+    max_val = -10**18
+    pref = 0
+    for diff, a, b in tiles:
+        pref += diff
+        val = pref + b
+        if val > max_val:
+            max_val = val
+    
+    print(total_bottom + max_val)
+
+if __name__ == "__main__":
+    solve()
+```

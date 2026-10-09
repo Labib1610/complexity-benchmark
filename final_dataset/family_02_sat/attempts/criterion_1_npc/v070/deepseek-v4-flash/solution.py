@@ -1,0 +1,131 @@
+import sys
+from itertools import product
+
+def solve():
+    input_data = sys.stdin.read().strip().split()
+    if not input_data:
+        return
+    n = int(input_data[0])
+    m = int(input_data[1])
+    clauses = []
+    idx = 2
+    for _ in range(m):
+        p1 = int(input_data[idx]); p2 = int(input_data[idx+1]); p3 = int(input_data[idx+2])
+        idx += 3
+        clause = []
+        for p in (p1, p2, p3):
+            var = abs(p) - 1
+            if p > 0:
+                clause.append(var)
+            else:
+                clause.append(~var)
+        clauses.append(clause)
+
+    # Since n <= 90, we can use brute force over all 2^n assignments? No, too large.
+    # But m <= 400, n <= 90. This is a 3-SAT problem.
+    # We can use a backtracking algorithm with unit propagation and pure literal elimination.
+
+    assignment = [None] * n
+
+    def propagate(clauses, assignment):
+        changed = True
+        while changed:
+            changed = False
+            # Unit propagation
+            for clause in clauses:
+                unassigned = []
+                satisfied = False
+                for lit in clause:
+                    var = lit if lit >= 0 else ~lit
+                    val = assignment[var]
+                    if val is not None:
+                        if (lit >= 0 and val == 1) or (lit < 0 and val == 0):
+                            satisfied = True
+                            break
+                    else:
+                        unassigned.append(lit)
+                if satisfied:
+                    continue
+                if len(unassigned) == 0:
+                    return False
+                if len(unassigned) == 1:
+                    lit = unassigned[0]
+                    var = lit if lit >= 0 else ~lit
+                    val = 1 if lit >= 0 else 0
+                    if assignment[var] is not None and assignment[var] != val:
+                        return False
+                    if assignment[var] is None:
+                        assignment[var] = val
+                        changed = True
+        return True
+
+    def pure_literal_elimination(clauses, assignment):
+        # Find pure literals
+        literals = set()
+        for clause in clauses:
+            for lit in clause:
+                var = lit if lit >= 0 else ~lit
+                if assignment[var] is None:
+                    literals.add(lit)
+        for lit in literals:
+            if ~lit not in literals:
+                var = lit if lit >= 0 else ~lit
+                val = 1 if lit >= 0 else 0
+                assignment[var] = val
+                return True
+        return False
+
+    def simplify(clauses, assignment):
+        new_clauses = []
+        for clause in clauses:
+            satisfied = False
+            new_clause = []
+            for lit in clause:
+                var = lit if lit >= 0 else ~lit
+                val = assignment[var]
+                if val is not None:
+                    if (lit >= 0 and val == 1) or (lit < 0 and val == 0):
+                        satisfied = True
+                        break
+                    # else literal false, skip
+                else:
+                    new_clause.append(lit)
+            if not satisfied:
+                if len(new_clause) == 0:
+                    return None
+                new_clauses.append(new_clause)
+        return new_clauses
+
+    def backtrack(clauses, assignment):
+        # Propagate
+        if not propagate(clauses, assignment):
+            return False
+        # Pure literal elimination
+        while pure_literal_elimination(clauses, assignment):
+            if not propagate(clauses, assignment):
+                return False
+        # Simplify
+        clauses = simplify(clauses, assignment)
+        if clauses is None:
+            return False
+        if not clauses:
+            return True
+        # Choose a variable to branch on
+        # Pick variable from first clause
+        var = clauses[0][0] if clauses[0][0] >= 0 else ~clauses[0][0]
+        for val in (0, 1):
+            old_assignment = assignment[:]
+            assignment[var] = val
+            if backtrack(clauses, assignment):
+                return True
+            assignment[:] = old_assignment
+        return False
+
+    if backtrack(clauses, assignment):
+        print("YES")
+        print(" ".join(str(1 if x == 1 else 0) for x in assignment))
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()

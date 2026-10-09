@@ -1,0 +1,77 @@
+import sys
+sys.setrecursionlimit(1 << 25)
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [[] for _ in range(2 * n)]
+    
+    for _ in range(m):
+        l1 = int(next(it))
+        l2 = int(next(it))
+        
+        u = (abs(l1) - 1) * 2 + (1 if l1 > 0 else 0)
+        v = (abs(l2) - 1) * 2 + (1 if l2 > 0 else 0)
+        
+        adj[u ^ 1].append(v)
+        adj[v ^ 1].append(u)
+    
+    order = []
+    visited = [False] * (2 * n)
+    
+    def dfs1(u):
+        stack = [(u, 0)]
+        while stack:
+            node, idx = stack[-1]
+            if not visited[node]:
+                visited[node] = True
+            if idx < len(adj[node]):
+                child = adj[node][idx]
+                stack[-1] = (node, idx + 1)
+                if not visited[child]:
+                    stack.append((child, 0))
+            else:
+                stack.pop()
+                order.append(node)
+    
+    for i in range(2 * n):
+        if not visited[i]:
+            dfs1(i)
+    
+    adj_rev = [[] for _ in range(2 * n)]
+    for u in range(2 * n):
+        for v in adj[u]:
+            adj_rev[v].append(u)
+    
+    comp_id = [-1] * (2 * n)
+    current_comp = 0
+    
+    for u in reversed(order):
+        if comp_id[u] == -1:
+            stack = [u]
+            comp_id[u] = current_comp
+            while stack:
+                node = stack.pop()
+                for child in adj_rev[node]:
+                    if comp_id[child] == -1:
+                        comp_id[child] = current_comp
+                        stack.append(child)
+            current_comp += 1
+    
+    assignment = [0] * n
+    for i in range(n):
+        if comp_id[2 * i] == comp_id[2 * i + 1]:
+            print("NO")
+            return
+        assignment[i] = 1 if comp_id[2 * i] > comp_id[2 * i + 1] else 0
+    
+    print("YES")
+    print(" ".join(map(str, assignment)))
+
+if __name__ == "__main__":
+    solve()

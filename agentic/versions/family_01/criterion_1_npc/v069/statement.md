@@ -1,21 +1,20 @@
-# Problem A — Resilient Deployment
+# Problem A — Portfolio Risk Mitigation
 
-Time limit: 2 s
-Memory limit: 256 MB
+Time limit: 2 s   Memory limit: 256 MB
 
-A software architecture consists of $n$ microservices. To ensure high availability, these microservices must be distributed across three distinct cloud environments, identified as 1, 2, and 3.
+A wealth management firm is structuring a new fund composed of $n$ distinct financial assets. To maintain regulatory compliance, the firm must distribute these assets across three separate investment portfolios, identified as portfolio 1, portfolio 2, and portfolio 3. 
 
-Certain pairs of microservices provide fallback functionality for each other. If a pair of such mutually dependent microservices were hosted in the same environment and that environment experienced an outage, the system would lose both the primary and fallback mechanisms at once. Therefore, you must guarantee that any two microservices with this relationship are deployed to entirely different environments.
+Market analysis has revealed that certain pairs of these assets are critically interlinked. If two interlinked assets are placed into the same portfolio, it creates an unacceptable concentration of risk. Therefore, the firm's strict policy dictates that no two interlinked assets may be assigned to the same portfolio. 
 
-Your task is to determine if it is possible to assign every microservice to exactly one of the three cloud environments without violating any of these separation requirements. When multiple valid deployment configurations exist, the automated provisioning system resolves the choice by selecting the configuration that is lexicographically smallest. This means it strongly prefers placing microservice 1 in environment 1, then environment 2, and finally environment 3; if there are still multiple options, it applies the same preference to microservice 2, and so forth.
+You must assign every single asset to exactly one of the three portfolios such that no two interlinked assets share a portfolio, or determine that this distribution is impossible.
 
 ## Input
-The first line provides two integers $n$ and $m$ — the number of microservices and the number of fallback dependencies ($1 \le n \le 40$, $0 \le m \le n \cdot (n-1)/2$).
-Each of the following $m$ lines contains two integers $u$ and $v$ — a mutually dependent pair of microservices that cannot share an environment.
+The first line contains two integers $n$ and $m$ — the total number of financial assets and the number of interlinked asset pairs ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$). The assets are numbered from $1$ to $n$.
+Each of the next $m$ lines contains two integers $u$ and $v$ — a pair of assets that are critically interlinked.
 
 ## Output
-If there is no way to deploy the microservices safely, print a single line containing NO.
-If a safe deployment is possible, print YES on the first line. On the second line, print $n$ integers $e_1\ e_2\ \dots\ e_n$ (where each $e_i \in \{1,2,3\}$), representing the environment assigned to each microservice $1 \dots n$. This sequence must be the lexicographically smallest valid configuration.
+If no valid distribution exists, print a single line NO.
+Otherwise print YES on the first line. On the second line print $n$ integers $p_1\ p_2\ \dots\ p_n$ (each in $\{1,2,3\}$), where $p_i$ is the portfolio of asset $i$. Any valid distribution is accepted.
 
 ## Example 1
 Input:

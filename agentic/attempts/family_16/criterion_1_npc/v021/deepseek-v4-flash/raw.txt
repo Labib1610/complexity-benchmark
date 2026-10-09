@@ -1,0 +1,345 @@
+We can model this as a scheduling problem with precedence constraints and resource constraints.  
+Since the number of potions and foci is small, we can use a search over possible orderings of phases, or a dynamic programming over states.
+
+Here’s a possible approach:
+
+- Each potion has a sequence of phases, each with a focus and duration.
+- We need to schedule all phases respecting:
+  - Order within each potion.
+  - No two phases using the same focus at the same time.
+  - No preemption.
+
+We can use a priority-queue simulation with backtracking, or a DP over the set of completed phases per potion.
+
+Because total phases ≤ 50, and j ≤ 10, we can do a DP over the vector of next phase indices for each potion.  
+State: tuple of current phase index for each potion (0 = not started, o_i = done).  
+Transitions: pick a potion whose next phase can start at the earliest possible time given current focus availability.
+
+We can compute earliest start time for each possible next phase given the current schedule.  
+We keep track of the finish time of the last phase on each focus.
+
+We can use Dijkstra-like search over states, minimizing the maximum finish time.
+
+Let’s implement:
+
+```python
+import sys
+import heapq
+
+def solve():
+    data = sys.stdin.read().strip().split()
+    idx = 0
+    j = int(data[idx]); idx += 1
+    m = int(data[idx]); idx += 1
+    
+    phases = []  # phases[potion] = list of (focus, duration)
+    for _ in range(j):
+        o = int(data[idx]); idx += 1
+        potion_phases = []
+        for _ in range(o):
+            f = int(data[idx]); idx += 1
+            d = int(data[idx]); idx += 1
+            potion_phases.append((f-1, d))
+        phases.append(potion_phases)
+    
+    # DP: state = tuple of next phase index for each potion
+    # We'll use Dijkstra: state -> earliest time when all phases up to that state are done
+    # Actually we need to minimize the makespan, so we can do BFS/DP with priority queue
+    # State: (current phase index for each potion)
+    # We'll store best time to reach that state (time when all phases up to that state are completed)
+    
+    start_state = tuple(0 for _ in range(j))
+    # dist[state] = minimal time when all phases up to that state are completed
+    dist = {start_state: 0}
+    pq = [(0, start_state)]
+    
+    # Precompute total phases per potion
+    total_phases = [len(p) for p in phases]
+    final_state = tuple(total_phases)
+    
+    while pq:
+        cur_time, state = heapq.heappop(pq)
+        if cur_time != dist.get(state):
+            continue
+        if state == final_state:
+            print(cur_time)
+            return
+        
+        # For each potion that can advance
+        for p in range(j):
+            if state[p] < total_phases[p]:
+                # Try to schedule next phase of potion p
+                focus, dur = phases[p][state[p]]
+                # Earliest start time = max(cur_time, last time focus is free)
+                # We need to know when focus becomes free given current schedule.
+                # We can compute by simulating from start_state to current state.
+                # But that's expensive. Instead, we can store focus_free times in state?
+                # We'll store in state the finish times of each focus? That's too big.
+                # Alternative: we can compute earliest start by replaying schedule.
+                # Since total phases small, we can reconstruct schedule from state.
+                # But easier: we can store in dist the schedule? Not feasible.
+                
+                # Let's do a different approach: we can store in state the finish time of each focus.
+                # But that's huge. Instead, we can use a recursive search with memoization on (state, focus_free_times).
+                # But focus_free_times can be up to 50*1000 = 50000, too many.
+                
+                # Better: Since j <= 10 and phases <= 50, we can do a DFS with pruning.
+                # But let's try a different DP: we can treat it as a job-shop scheduling problem with small size.
+                # We can use branch and bound.
+                
+                # Let's implement a simple backtracking with best bound.
+                pass
+    
+    # If we reach here, no solution? Shouldn't happen.
+
+# Let's implement a proper backtracking search with pruning.
+# We'll keep track of:
+# - next phase index for each potion
+# - finish time of each focus
+# - current time (max finish time so far)
+# We'll try to schedule next phase of any potion that can start.
+
+def solve2():
+    import sys
+    sys.setrecursionlimit(10000)
+    data = sys.stdin.read().strip().split()
+    idx = 0
+    j = int(data[idx]); idx += 1
+    m = int(data[idx]); idx += 1
+    
+    phases = []
+    for _ in range(j):
+        o = int(data[idx]); idx += 1
+        potion_phases = []
+        for _ in range(o):
+            f = int(data[idx]); idx += 1
+            d = int(data[idx]); idx += 1
+            potion_phases.append((f-1, d))
+        phases.append(potion_phases)
+    
+    total_phases = [len(p) for p in phases]
+    best = [10**9]
+    
+    # state: (next_idx_tuple, focus_free_times_tuple)
+    # We'll use memoization on (next_idx_tuple, focus_free_times_tuple) -> minimal makespan from that state
+    from functools import lru_cache
+    
+    @lru_cache(None)
+    def dfs(next_idx, focus_free):
+        # next_idx: tuple of ints
+        # focus_free: tuple of ints (finish time of each focus)
+        if all(next_idx[i] == total_phases[i] for i in range(j)):
+            return max(focus_free) if focus_free else 0
+        # Try all possible next phases
+        best_time = 10**9
+        for p in range(j):
+            if next_idx[p] < total_phases[p]:
+                f, d = phases[p][next_idx[p]]
+                start = max(focus_free[f], max(focus_free) if focus_free else 0)  # can start after all current phases? Actually can start after previous phase of same potion, which is already accounted in focus_free? No, we need to know when potion p is free.
+                # We need to track when each potion becomes free. So we need potion_free times too.
+                # Let's add potion_free to state.
+                pass
+    
+    # We need potion_free times as well. Let's include them.
+    
+    @lru_cache(None)
+    def dfs(next_idx, focus_free, potion_free):
+        if all(next_idx[i] == total_phases[i] for i in range(j)):
+            return max(focus_free) if focus_free else 0
+        best_time = 10**9
+        for p in range(j):
+            if next_idx[p] < total_phases[p]:
+                f, d = phases[p][next_idx[p]]
+                start = max(focus_free[f], potion_free[p])
+                finish = start + d
+                # update
+                new_next = list(next_idx)
+                new_next[p] += 1
+                new_focus = list(focus_free)
+                new_focus[f] = finish
+                new_potion = list(potion_free)
+                new_potion[p] = finish
+                t = dfs(tuple(new_next), tuple(new_focus), tuple(new_potion))
+                best_time = min(best_time, t)
+        return best_time
+    
+    # Initial state
+    next_idx = tuple(0 for _ in range(j))
+    focus_free = tuple(0 for _ in range(m))
+    potion_free = tuple(0 for _ in range(j))
+    ans = dfs(next_idx, focus_free, potion_free)
+    print(ans)
+
+# The above DFS with memoization might be too slow because state space is huge.
+# But total phases <= 50, j <= 10, m <= 10. The state space is product of (o_i+1) * (max_time)^(m+j) which is huge.
+# We need a better approach.
+
+# Let's think: This is a job-shop scheduling with unit resources (each focus is a machine, each potion is a job with ordered operations).
+# Since j <= 10, m <= 10, total ops <= 50, we can use branch and bound with lower bound.
+
+# We'll implement a DFS with pruning:
+# - At each step, choose the next operation to schedule among all available (potion not finished, focus free).
+# - We'll keep track of current time (max finish time so far).
+# - Lower bound: sum of remaining durations on the critical path? Or simple: max(current time, earliest possible finish of remaining ops).
+# We can compute a simple lower bound: for each potion, sum of remaining durations + current time of that potion (potion_free). The max over potions is a lower bound.
+# Also for each focus, sum of remaining durations on that focus + current focus_free time.
+
+# Let's implement that.
+
+def solve3():
+    import sys
+    sys.setrecursionlimit(100000)
+    data = sys.stdin.read().strip().split()
+    idx = 0
+    j = int(data[idx]); idx += 1
+    m = int(data[idx]); idx += 1
+    
+    phases = []
+    for _ in range(j):
+        o = int(data[idx]); idx += 1
+        potion_phases = []
+        for _ in range(o):
+            f = int(data[idx]); idx += 1
+            d = int(data[idx]); idx += 1
+            potion_phases.append((f-1, d))
+        phases.append(potion_phases)
+    
+    total_phases = [len(p) for p in phases]
+    # Precompute remaining durations for lower bound
+    # We'll compute on the fly.
+    
+    best = [10**9]
+    
+    def dfs(next_idx, focus_free, potion_free, current_time):
+        # current_time = max(focus_free) maybe, but we can pass it
+        if all(next_idx[i] == total_phases[i] for i in range(j)):
+            best[0] = min(best[0], current_time)
+            return
+        # Lower bound
+        lb = current_time
+        # For each potion, remaining duration + potion_free
+        for p in range(j):
+            if next_idx[p] < total_phases[p]:
+                rem = sum(d for _, d in phases[p][next_idx[p]:])
+                lb = max(lb, potion_free[p] + rem)
+        # For each focus, remaining duration on that focus + focus_free
+        for f in range(m):
+            rem = 0
+            for p in range(j):
+                for k in range(next_idx[p], total_phases[p]):
+                    if phases[p][k][0] == f:
+                        rem += phases[p][k][1]
+            if rem > 0:
+                lb = max(lb, focus_free[f] + rem)
+        if lb >= best[0]:
+            return
+        
+        # Try to schedule next operation
+        # We can choose any potion p with next_idx[p] < total_phases[p] and focus free
+        # Actually focus free means focus_free[f] <= current_time? But we can start after focus_free[f] and potion_free[p].
+        # We'll try all possible next operations.
+        for p in range(j):
+            if next_idx[p] < total_phases[p]:
+                f, d = phases[p][next_idx[p]]
+                start = max(focus_free[f], potion_free[p])
+                finish = start + d
+                # Update
+                new_next = list(next_idx)
+                new_next[p] += 1
+                new_focus = list(focus_free)
+                new_focus[f] = finish
+                new_potion = list(potion_free)
+                new_potion[p] = finish
+                new_time = max(current_time, finish)
+                dfs(tuple(new_next), tuple(new_focus), tuple(new_potion), new_time)
+    
+    dfs(tuple(0 for _ in range(j)), tuple(0 for _ in range(m)), tuple(0 for _ in range(j)), 0)
+    print(best[0])
+
+# This might still be too slow without ordering heuristics. But with j<=10, total ops<=50, it might pass with pruning.
+# Let's add a heuristic: try potions with earliest possible start time first, or with longest remaining.
+
+# We'll implement with sorting candidates by start time.
+
+def solve4():
+    import sys
+    sys.setrecursionlimit(100000)
+    data = sys.stdin.read().strip().split()
+    idx = 0
+    j = int(data[idx]); idx += 1
+    m = int(data[idx]); idx += 1
+    
+    phases = []
+    for _ in range(j):
+        o = int(data[idx]); idx += 1
+        potion_phases = []
+        for _ in range(o):
+            f = int(data[idx]); idx += 1
+            d = int(data[idx]); idx += 1
+            potion_phases.append((f-1, d))
+        phases.append(potion_phases)
+    
+    total_phases = [len(p) for p in phases]
+    best = [10**9]
+    
+    def dfs(next_idx, focus_free, potion_free, current_time):
+        if all(next_idx[i] == total_phases[i] for i in range(j)):
+            best[0] = min(best[0], current_time)
+            return
+        # Lower bound
+        lb = current_time
+        for p in range(j):
+            if next_idx[p] < total_phases[p]:
+                rem = sum(d for _, d in phases[p][next_idx[p]:])
+                lb = max(lb, potion_free[p] + rem)
+        for f in range(m):
+            rem = 0
+            for p in range(j):
+                for k in range(next_idx[p], total_phases[p]):
+                    if phases[p][k][0] == f:
+                        rem += phases[p][k][1]
+            if rem > 0:
+                lb = max(lb, focus_free[f] + rem)
+        if lb >= best[0]:
+            return
+        
+        # Generate candidates
+        candidates = []
+        for p in range(j):
+            if next_idx[p] < total_phases[p]:
+                f, d = phases[p][next_idx[p]]
+                start = max(focus_free[f], potion_free[p])
+                candidates.append((start, p, f, d))
+        # Sort by start time (earliest first)
+        candidates.sort()
+        for start, p, f, d in candidates:
+            finish = start + d
+            new_next = list(next_idx)
+            new_next[p] += 1
+            new_focus = list(focus_free)
+            new_focus[f] = finish
+            new_potion = list(potion_free)
+            new_potion[p] = finish
+            new_time = max(current_time, finish)
+            dfs(tuple(new_next), tuple(new_focus), tuple(new_potion), new_time)
+    
+    dfs(tuple(0 for _ in range(j)), tuple(0 for _ in range(m)), tuple(0 for _ in range(j)), 0)
+    print(best[0])
+
+# This should work for the constraints. Let's test with examples.
+
+# Example 1
+# j=2, m=3, phases: both potions: 3 phases: (1,2),(2,2),(3,2)
+# Expected 8.
+
+# Example 2: j=1, m=3, phases: (1,5),(2,3),(3,2) -> total 10.
+
+# Example 3: j=2, m=3, phases: potion1: (1,4), potion2: (2,3) -> parallel -> 4.
+
+# Let's run mentally: Example 1: schedule potion1 phases 0-2, potion2 phases 2-4, 4-6, 6-8 -> 8. Good.
+
+# We'll output the code.
+
+if __name__ == "__main__":
+    solve4()
+```

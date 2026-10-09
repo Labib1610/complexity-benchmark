@@ -1,0 +1,45 @@
+from itertools import product
+
+def solve():
+    n, m = map(int, input().split())
+    
+    # Read edges
+    edges = []
+    for _ in range(m):
+        u, v = map(int, input().split())
+        edges.append((u-1, v-1))  # Convert to 0-indexed
+    
+    # If no edges, any assignment works
+    if m == 0:
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
+    
+    # Try all possible assignments of clock speeds (1, 2, 3)
+    for assignment in product([1, 2, 3], repeat=n):
+        valid = True
+        
+        # Check each edge
+        for u, v in edges:
+            x = assignment[u]  # Clock speed of node u
+            y = assignment[v]  # Clock speed of node v
+            
+            # Calculate V_u and V_w
+            V_u = x**2 * (v * x + u * y) + y**2 * (x**2 + y)
+            V_w = y**2 * (u * y + v * x) + x**2 * (y**2 + x)
+            
+            # If they are equal, this assignment is invalid
+            if V_u == V_w:
+                valid = False
+                break
+        
+        # If this assignment is valid, output it
+        if valid:
+            print("YES")
+            print(" ".join(map(str, assignment)))
+            return
+    
+    # If no valid assignment found
+    print("NO")
+
+solve()

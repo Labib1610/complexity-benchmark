@@ -1,0 +1,274 @@
+```python
+import sys
+
+# Increase recursion depth for deep recursions if any
+sys.setrecursionlimit(2000000)
+
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+
+    nP = int(input_data[0])
+    nS = int(input_data[1])
+    m = int(input_data[2])
+
+    if m == 0:
+        print("YES")
+        print()
+        return
+
+    orig_u = [0] * m
+    orig_v = [0] * m
+    deg_P = [0] * (nP + 1)
+    deg_S = [0] * (nS + 1)
+
+    idx = 3
+    for i in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx + 1])
+        idx += 2
+        orig_u[i] = u
+        orig_v[i] = v
+        deg_P[u] += 1
+        deg_S[v] += 1
+
+    Delta = max(max(deg_P), max(deg_S))
+    if Delta == 0:
+        print("YES")
+        print(" ".join(["1"] * m))
+        return
+
+    # Step 1: Merging vertices with degree sum <= Delta
+    # Bin pack P
+    bin_P = [0] * (nP + 1)
+    P_bins = []
+    cur_bin = []
+    cur_sum = 0
+    for u in range(1, nP + 1):
+        if deg_P[u] == 0:
+            continue
+        if cur_sum + deg_P[u] > Delta:
+            P_bins.append(cur_bin)
+            cur_bin = [u]
+            cur_sum = deg_P[u]
+        else:
+            cur_bin.append(u)
+            cur_sum += deg_P[u]
+    if cur_bin:
+        P_bins.append(cur_bin)
+
+    for b_idx, b in enumerate(P_bins):
+        for u in b:
+            bin_P[u] = b_idx
+
+    # Bin pack S
+    bin_S = [0] * (nS + 1)
+    S_bins = []
+    cur_bin = []
+    cur_sum = 0
+    for v in range(1, nS + 1):
+        if deg_S[v] == 0:
+            continue
+        if cur_sum + deg_S[v] > Delta:
+            S_bins.append(cur_bin)
+            cur_bin = [v]
+            cur_sum = deg_S[v]
+        else:
+            cur_bin.append(v)
+            cur_sum += deg_S[v]
+    if cur_bin:
+        S_bins.append(cur_bin)
+
+    for b_idx, b in enumerate(S_bins):
+        for v in b:
+            bin_S[v] = b_idx
+
+    num_bins = max(len(P_bins), len(S_bins), 1)
+
+    # Calculate degrees of bins
+    bdeg_P = [0] * num_bins
+    bdeg_S = [0] * num_bins
+    for i in range(m):
+        bdeg_P[bin_P[orig_u[i]]] += 1
+        bdeg_S[bin_S[orig_v[i]]] += 1
+
+    # Add dummy edges to make each bin have degree Delta
+    edges_u = []
+    edges_v = []
+    edges_id = []
+
+    for i in range(m):
+        edges_u.append(bin_P[orig_u[i]])
+        edges_v.append(bin_S[orig_v[i]])
+        edges_id.append(i)
+
+    # Deficiencies
+    p_ptr = 0
+    s_ptr = 0
+    while p_ptr < num_bins and s_ptr < num_bins:
+        while p_ptr < num_bins and bdeg_P[p_ptr] == Delta:
+            p_ptr += 1
+        while s_ptr < num_bins and bdeg_S[s_ptr] == Delta:
+            s_ptr += 1
+        if p_ptr < num_bins and s_ptr < num_bins:
+            add = min(Delta - bdeg_P[p_ptr], Delta - bdeg_S[s_ptr])
+            for _ in range(add):
+                edges_u.append(p_ptr)
+                edges_v.append(s_ptr)
+                edges_id.append(-1)
+            bdeg_P[p_ptr] += add
+            bdeg_S[s_ptr] += add
+
+    edge_color = [-1] * m
+
+    import random
+
+    rng = random.Random(42)
+
+    def find_perfect_matching(deg, cur_edges_u, cur_edges_v, cur_edges_id):
+        # Build adjacency for fast random walk
+        # adj_u[u] holds list of (v, edge_idx_in_cur_list)
+        adj_u = [[] for _ in range(num_bins)]
+        for e_idx, (u, v) in enumerate(zip(cur_edges_u, cur_edges_v)):
+            adj_u[u].append((v, e_idx))
+
+        match_L = [-1] * num_bins
+        match_R = [-1] * num_bins
+        match_edge = [-1] * num_bins  # edge_idx in cur_edges for the match
+
+        for start_u in range(num_bins):
+            curr_u = start_u
+            while True:
+                # Pick a random edge from curr_u
+                v, e_idx = rng.choice(adj_u[curr_u])
+                prev_u = match_R[v]
+                match_R[v] = curr_u
+                match_L[curr_u] = v
+                match_edge[curr_u] = e_idx
+                if prev_u == -1:
+                    break
+                curr_u = prev_u
+
+        matching_edge_set = set(match_edge)
+
+        rem_u = []
+        rem_v = []
+        rem_id = []
+        matched_edges = []
+
+        for e_idx, (u, v, eid) in enumerate(
+            zip(cur_edges_u, cur_edges_v, cur_edges_id)
+        ):
+            if e_idx in matching_edge_set:
+                matched_edges.append(eid)
+            else:
+                rem_u.append(u)
+                rem_v.append(v)
+                rem_id.append(eid)
+
+        return matched_edges, rem_u, rem_v, rem_id
+
+    def euler_split(deg, cur_edges_u, cur_edges_v, cur_edges_id):
+        E = len(cur_edges_u)
+        head = [-1] * (2 * num_bins)
+        to = [0] * (2 * E)
+        nxt = [0] * (2 * E)
+        orig_e = [0] * (2 * E)
+
+        for i in range(E):
+            u = cur_edges_u[i]
+            v = cur_edges_v[i] + num_bins
+            # edge 2*i: u -> v
+            to[2 * i] = v
+            nxt[2 * i] = head[u]
+            orig_e[2 * i] = i
+            head[u] = 2 * i
+
+            # edge 2*i + 1: v -> u
+            to[2 * i + 1] = u
+            nxt[2 * i + 1] = head[v]
+            orig_e[2 * i + 1] = i
+            head[v] = 2 * i + 1
+
+        used = [False] * E
+        side = [0] * E  # 0 or 1
+
+        cur_edge = list(head)
+
+        for i in range(2 * num_bins):
+            while True:
+                e = cur_edge[i]
+                while e != -1 and used[orig_e[e]]:
+                    e = nxt[e]
+                cur_edge[i] = e
+                if e == -1:
+                    break
+
+                # Start an Eulerian circuit
+                stack = [i]
+                path_edges = []
+                while stack:
+                    x = stack[-1]
+                    e = cur_edge[x]
+                    while e != -1 and used[orig_e[e]]:
+                        e = nxt[e]
+                    cur_edge[x] = e
+                    if e != -1:
+                        edge_idx = orig_e[e]
+                        used[edge_idx] = True
+                        stack.append(to[e])
+                        path_edges.append(edge_idx)
+                    else:
+                        stack.pop()
+
+                for step, edge_idx in enumerate(path_edges):
+                    side[edge_idx] = step % 2
+
+        u1, v1, id1 = [], [], []
+        u2, v2, id2 = [], [], []
+        for i in range(E):
+            if side[i] == 0:
+                u1.append(cur_edges_u[i])
+                v1.append(cur_edges_v[i])
+                id1.append(cur_edges_id[i])
+            else:
+                u2.append(cur_edges_u[i])
+                v2.append(cur_edges_v[i])
+                id2.append(cur_edges_id[i])
+
+        return (u1, v1, id1), (u2, v2, id2)
+
+    def color_graph(deg, cur_edges_u, cur_edges_v, cur_edges_id, color_offset):
+        if deg == 1:
+            for eid in cur_edges_id:
+                if eid != -1:
+                    edge_color[eid] = color_offset
+            return
+
+        if deg % 2 == 1:
+            matched_eids, rem_u, rem_v, rem_id = find_perfect_matching(
+                deg, cur_edges_u, cur_edges_v, cur_edges_id
+            )
+            for eid in matched_eids:
+                if eid != -1:
+                    edge_color[eid] = color_offset
+            color_graph(deg - 1, rem_u, rem_v, rem_id, color_offset + 1)
+        else:
+            (u1, v1, id1), (u2, v2, id2) = euler_split(
+                deg, cur_edges_u, cur_edges_v, cur_edges_id
+            )
+            half = deg // 2
+            color_graph(half, u1, v1, id1, color_offset)
+            color_graph(half, u2, v2, id2, color_offset + half)
+
+    color_graph(Delta, edges_u, edges_v, edges_id, 1)
+
+    print("YES")
+    print(" ".join(map(str, edge_color)))
+
+
+if __name__ == "__main__":
+    solve()
+```

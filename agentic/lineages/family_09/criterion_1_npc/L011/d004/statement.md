@@ -1,0 +1,80 @@
+# Problem A — Panel Selection
+
+Time limit: 5 s   Memory limit: 256 MB
+
+## Description
+
+A social network tracks **n** member profiles, identified by numbers from 1 to **n**. The system has recorded **m** bilateral interaction events, each representing an exchange between two distinct members.
+
+A research initiative requires selecting exactly **k** members to form a focus panel. The selection process uses an algebraic validation criterion based on the network's interaction structure.
+
+Let $x$ be a binary column vector of length $n$, where $x_i = 1$ if member $i$ is selected for the panel, and $x_i = 0$ otherwise. A proposed panel must contain exactly $k$ members, meaning the sum of the elements in $x$ must equal $k$.
+
+Let $D$ be the $n \times n$ diagonal matrix where $D_{i,i}$ is the total number of interaction events involving member $i$.
+Let $A$ be the $n \times n$ symmetric matrix where $A_{u,v} = 1$ if there is a recorded interaction event between member $u$ and member $v$, and $A_{u,v} = 0$ otherwise.
+Let $L = D - A$.
+
+The focus panel is considered valid if and only if the vector $x$ satisfies the following equation:
+$$x^T L x = \sum_{i=1}^n D_{i,i} x_i$$
+
+Your objective is to evaluate whether it is possible to construct a valid focus panel of exactly **k** members under these constraints. If such a panel can be formed, you must also provide a list of its members.
+
+## Input
+
+The first line provides three integers **n**, **m**, and **k** (1 ≤ n ≤ 46, 0 ≤ m ≤ n·(n−1)/2, 1 ≤ k ≤ n).
+Following this are **m** lines, each containing two integers **u** and **v** (1 ≤ u, v ≤ n, u ≠ v). These indicate an interaction event between member **u** and member **v**. Each interaction event is listed at most once.
+
+## Output
+
+If a valid focus panel of exactly **k** members can be formed, output `YES` on the first line. On the next line, output the **k** distinct member numbers that constitute the panel, separated by spaces. Any valid panel will be accepted if more than one exists.
+
+If forming such a panel is impossible, output `NO`.
+
+## Examples
+
+### Example 1
+
+**Input**
+```
+4 4 3
+1 2
+1 3
+2 3
+3 4
+```
+
+**Output**
+```
+NO
+```
+
+### Example 2
+
+**Input**
+```
+5 2 3
+1 2
+3 4
+```
+
+**Output**
+```
+YES
+1 3 5
+```
+
+### Example 3
+
+**Input**
+```
+3 3 1
+1 2
+2 3
+1 3
+```
+
+**Output**
+```
+YES
+1
+```

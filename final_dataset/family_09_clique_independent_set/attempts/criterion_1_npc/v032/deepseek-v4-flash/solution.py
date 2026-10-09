@@ -1,0 +1,78 @@
+import sys
+
+def solve():
+    input = sys.stdin.readline
+    n, m, k = map(int, input().split())
+    adj = [0] * n
+    for _ in range(m):
+        u, v = map(int, input().split())
+        u -= 1
+        v -= 1
+        adj[u] |= (1 << v)
+        adj[v] |= (1 << u)
+
+    # Split vertices into two halves
+    mid = n // 2
+    left_size = mid
+    right_size = n - mid
+
+    # Enumerate independent sets for left half
+    left_sets = []  # list of (mask, size)
+    for mask in range(1 << left_size):
+        ok = True
+        for i in range(left_size):
+            if mask & (1 << i):
+                # check if any other selected vertex in left is adjacent
+                if (adj[i] & mask & ~(1 << i)):
+                    ok = False
+                    break
+        if ok:
+            left_sets.append((mask, bin(mask).count("1")))
+
+    # Enumerate independent sets for right half
+    right_sets = []  # list of (mask, size)
+    for mask in range(1 << right_size):
+        ok = True
+        for i in range(right_size):
+            if mask & (1 << i):
+                if (adj[left_size + i] & (mask << left_size) & ~(1 << (left_size + i))):
+                    ok = False
+                    break
+        if ok:
+            right_sets.append((mask, bin(mask).count("1")))
+
+    # For right half, group by size
+    right_by_size = {}
+    for mask, sz in right_sets:
+        right_by_size.setdefault(sz, []).append(mask)
+
+    # For each left set, try to find compatible right set
+    for lmask, lsz in left_sets:
+        need = k - lsz
+        if need < 0 or need > right_size:
+            continue
+        if need not in right_by_size:
+            continue
+        # Build forbidden mask for right half: vertices adjacent to any selected left vertex
+        forbidden = 0
+        for i in range(left_size):
+            if lmask & (1 << i):
+                forbidden |= (adj[i] >> left_size)
+        for rmask in right_by_size[need]:
+            if (rmask & forbidden) == 0:
+                # Found solution
+                selected = []
+                for i in range(left_size):
+                    if lmask & (1 << i):
+                        selected.append(i + 1)
+                for j in range(right_size):
+                    if rmask & (1 << j):
+                        selected.append(left_size + j + 1)
+                print("YES")
+                print(" ".join(map(str, selected)))
+                return
+
+    print("NO")
+
+if __name__ == "__main__":
+    solve()

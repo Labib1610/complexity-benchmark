@@ -1,0 +1,51 @@
+import sys
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    j = int(data[0])
+    effects = []
+    index = 1
+    for _ in range(j):
+        p1 = int(data[index])
+        p2 = int(data[index+1])
+        effects.append((p1, p2))
+        index += 2
+    
+    # Sort by p1 increasing, then by p2 decreasing
+    effects.sort(key=lambda x: (x[0], -x[1]))
+    
+    # Johnson's rule: split into two groups
+    # Group1: p1 <= p2
+    # Group2: p1 > p2
+    group1 = []  # p1 <= p2
+    group2 = []  # p1 > p2
+    
+    for p1, p2 in effects:
+        if p1 <= p2:
+            group1.append((p1, p2))
+        else:
+            group2.append((p1, p2))
+    
+    # For group1: sort by p1 ascending
+    group1.sort(key=lambda x: x[0])
+    # For group2: sort by p2 descending
+    group2.sort(key=lambda x: x[1], reverse=True)
+    
+    # Final sequence
+    sequence = group1 + group2
+    
+    # Simulate the process
+    time_solver = 0
+    time_tracer = 0
+    
+    for p1, p2 in sequence:
+        time_solver += p1
+        time_tracer = max(time_tracer, time_solver) + p2
+    
+    print(time_tracer)
+
+if __name__ == "__main__":
+    main()

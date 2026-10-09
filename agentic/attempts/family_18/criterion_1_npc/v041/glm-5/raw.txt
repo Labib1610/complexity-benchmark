@@ -1,0 +1,354 @@
+Looking at this problem, I need to find a permutation of artifacts to bays such that the sum of |p(u) - p(v)| over all edges (u,v) is at most B.
+
+**Key Insight:** The minimum possible cumulative tension is achieved when connected artifacts are placed as close together as possible. This is related to the Minimum Linear Arrangement problem, which is NP-hard in general.
+
+However, let me think about the structure. If I place artifacts so that connected ones are adjacent, I minimize tension. 
+
+For a path graph 1-2-3-4, placing them in order 1,2,3,4 gives tension 1+1+1=3. But the example uses 1,2,4,3 with edges 1-2, 2-3, 3-4, 4-1 giving |1-2|+|2-4|+|4-3|+|3-1| = 1+2+1+2 = 6.
+
+So the minimum for this cycle is 4 (arrangement 1,2,3,4 gives 1+1+1+3=6... wait let me recompute: edges are 1-2, 2-3, 3-4, 4-1. With positions 1,2,3,4: |1-2|+|2-3|+|3-4|+|4-1| = 1+1+1+3 = 6). Actually the minimum for a 4-cycle is 4 (arrangement 1,3,2,4: |1-3|+|3-2|+|2-4|+|4-1| = 2+1+2+3 = 8, no). Let me try 1,2,4,3: 1+2+1+2=6. Try 1,3,4,2: 2+1+2+1=6. The minimum for C4 is actually 4: arrangement 2,1,3,4 gives 1+2+1+2=6... 
+
+Actually for C4, minimum linear arrangement = 4. Try positions: artifact 1→1, 2→2, 3→4, 4→3: edges give 1+2+1+2=6. Try 1→1, 2→3, 3→2, 4→4: 2+1+2+3=8. Try 1→2, 2→1, 3→3, 4→4: 1+2+1+2=6. Hmm, seems like 6 might be the min for C4 with this edge set, or maybe 4 is achievable. Actually minLA(C4) = 4: arrangement 1,3,2,4 → edges 1-2:|1-3|=2, 2-3:|3-2|=1, 3-4:|2-4|=2, 4-1:|4-1|=3 → 8. No.
+
+The minimum is actually 4 for C4: 1,2,4,3 gives 6, but 2,4,1,3 gives |2-4|+|4-1|+|1-3|+|3-2| = 2+3+2+1 = 8. Let me just accept that this is NP-hard and needs a heuristic/greedy approach with the tight constraint.
+
+Given the 5-second time limit and NP-hardness, I'll use a greedy approach: BFS-based placement starting from a high-degree node, placing neighbors close by, with multiple random restarts.
+
+```python
+import sys
+from collections import deque
+import random
+
+def solve():
+    input_data = sys.stdin.read().split()
+    idx = 0
+    n = int(input_data[idx]); idx += 1
+    m = int(input_data[idx]); idx += 1
+    B = int(input_data[idx]); idx += 1
+    
+    adj = [[] for _ in range(n+1)]
+    for _ in range(m):
+        u = int(input_data[idx]); idx += 1
+        v = int(input_data[idx]); idx += 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(str(i) for i in range(1, n+1)))
+        return
+    
+    best_pos = None
+    best_cost = float('inf')
+    
+    for trial in range(200):
+        if trial == 0:
+            start = max(range(1, n+1), key=lambda x: len(adj[x]))
+        else:
+            start = random.randint(1, n)
+        
+        order = []
+        visited = [False] * (n+1)
+        dq = deque([start])
+        visited[start] = True
+        while dq:
+            u = dq.popleft()
+            order.append(u)
+            neighbors = sorted(adj[u], key=lambda x: len(adj[x]), reverse=True)
+            for v in neighbors:
+                if not visited[v]:
+                    visited[v] = True
+                    dq.append(v)
+        
+        for unvisited in range(1, n+1):
+            if not visited[unvisited]:
+                order.append(unvisited)
+        
+        pos = [0] * (n+1)
+        for i, u in enumerate(order):
+            pos[u] = i + 1
+        
+        cost = 0
+        for u in range(1, n+1):
+            for v in adj[u]:
+                if v > u:
+                    cost += abs(pos[u] - pos[v])
+        
+        if cost <= B:
+            print("YES")
+            print(" ".join(str(pos[i]) for i in range(1, n+1)))
+            return
+        
+        if cost < best_cost:
+            best_cost = cost
+            best_pos = pos[:]
+    
+    # Try local search
+    pos = best_pos[:]
+    for _ in range(100000):
+        i, j = random.randint(1, n), random.randint(1, n)
+        if i == j:
+            continue
+        pos[i], pos[j] = pos[j], pos[i]
+        cost = 0
+        for u in range(1, n+1):
+            for v in adj[u]:
+                if v > u:
+                    cost += abs(pos[u] - pos[v])
+        if cost <= B:
+            print("YES")
+            print(" ".join(str(pos[i]) for i in range(1, n+1)))
+            return
+        if cost >= best_cost:
+            pos[i], pos[j] = pos[j], pos[i]
+        else:
+            best_cost = cost
+    
+    print("NO")
+
+solve()
+```
+
+Wait, I have a syntax error. Let me fix and also optimize the cost computation using incremental deltas.
+
+```python
+import sys
+from collections import deque
+import random
+
+def solve():
+    input_data = sys.stdin.buffer.read().split()
+    idx = 0
+    n = int(input_data[idx]); idx += 1
+    m = int(input_data[idx]); idx += 1
+    B = int(input_data[idx]); idx += 1
+    
+    adj = [[] for _ in range(n+1)]
+    for _ in range(m):
+        u = int(input_data[idx]); idx += 1
+        v = int(input_data[idx]); idx += 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(str(i) for i in range(1, n+1)))
+        return
+    
+    def compute_cost(pos):
+        cost = 0
+        for u in range(1, n+1):
+            pu = pos[u]
+            for v in adj[u]:
+                if v > u:
+                    cost += abs(pu - pos[v])
+        return cost
+    
+    best_pos = None
+    best_cost = float('inf')
+    
+    for trial in range(300):
+        if trial == 0:
+            start = max(range(1, n+1), key=lambda x: len(adj[x]))
+        else:
+            start = random.randint(1, n)
+        
+        order = []
+        visited = [False] * (n+1)
+        dq = deque([start])
+        visited[start] = True
+        while dq:
+            u = dq.popleft()
+            order.append(u)
+            neighbors = sorted(adj[u], key=lambda x: len(adj[x]), reverse=True)
+            for v in neighbors:
+                if not visited[v]:
+                    visited[v] = True
+                    dq.append(v)
+        
+        for unvisited in range(1, n+1):
+            if not visited[unvisited]:
+                order.append(unvisited)
+        
+        pos = [0] * (n+1)
+        for i, u in enumerate(order):
+            pos[u] = i + 1
+        
+        cost = compute_cost(pos)
+        
+        if cost <= B:
+            print("YES")
+            print(" ".join(str(pos[i]) for i in range(1, n+1)))
+            return
+        
+        if cost < best_cost:
+            best_cost = cost
+            best_pos = pos[:]
+    
+    # Local search with simulated annealing
+    pos = best_pos[:]
+    cost = best_cost
+    import math
+    T = 1.0
+    for iteration in range(200000):
+        i = random.randint(1, n)
+        j = random.randint(1, n)
+        if i == j:
+            continue
+        
+        # Compute delta
+        old_contrib = 0
+        new_contrib = 0
+        for v in adj[i]:
+            if v != j:
+                old_contrib += abs(pos[i] - pos[v])
+                new_contrib += abs(pos[j] - pos[v])
+        for v in adj[j]:
+            if v != i:
+                old_contrib += abs(pos[j] - pos[v])
+                new_contrib += abs(pos[i] - pos[v])
+        
+        delta = new_contrib - old_contrib
+        new_cost = cost + delta
+        
+        if new_cost <= B:
+            pos[i], pos[j] = pos[j], pos[i]
+            print("YES")
+            print(" ".join(str(pos[k]) for k in range(1, n+1)))
+            return
+        
+        if delta < 0 or random.random() < math.exp(-delta / max(T, 0.01)):
+            pos[i], pos[j] = pos[j], pos[i]
+            cost = new_cost
+            if cost < best_cost:
+                best_cost = cost
+                best_pos = pos[:]
+        
+        T *= 0.99999
+    
+    print("NO")
+
+solve()
+```
+
+This should handle the problem reasonably. Let me clean it up:
+
+```python
+import sys
+from collections import deque
+import random
+import math
+
+def solve():
+    input_data = sys.stdin.buffer.read().split()
+    idx = 0
+    n = int(input_data[idx]); idx += 1
+    m = int(input_data[idx]); idx += 1
+    B = int(input_data[idx]); idx += 1
+    
+    adj = [[] for _ in range(n+1)]
+    for _ in range(m):
+        u = int(input_data[idx]); idx += 1
+        v = int(input_data[idx]); idx += 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(str(i) for i in range(1, n+1)))
+        return
+    
+    def compute_cost(pos):
+        cost = 0
+        for u in range(1, n+1):
+            pu = pos[u]
+            for v in adj[u]:
+                if v > u:
+                    cost += abs(pu - pos[v])
+        return cost
+    
+    best_pos = None
+    best_cost = float('inf')
+    
+    for trial in range(300):
+        if trial == 0:
+            start = max(range(1, n+1), key=lambda x: len(adj[x]))
+        else:
+            start = random.randint(1, n)
+        
+        order = []
+        visited = [False] * (n+1)
+        dq = deque([start])
+        visited[start] = True
+        while dq:
+            u = dq.popleft()
+            order.append(u)
+            neighbors = sorted(adj[u], key=lambda x: len(adj[x]), reverse=True)
+            for v in neighbors:
+                if not visited[v]:
+                    visited[v] = True
+                    dq.append(v)
+        
+        for unvisited in range(1, n+1):
+            if not visited[unvisited]:
+                order.append(unvisited)
+        
+        pos = [0] * (n+1)
+        for i, u in enumerate(order):
+            pos[u] = i + 1
+        
+        cost = compute_cost(pos)
+        
+        if cost <= B:
+            print("YES")
+            print(" ".join(str(pos[i]) for i in range(1, n+1)))
+            return
+        
+        if cost < best_cost:
+            best_cost = cost
+            best_pos = pos[:]
+    
+    pos = best_pos[:]
+    cost = best_cost
+    T = 1.0
+    for iteration in range(300000):
+        i = random.randint(1, n)
+        j = random.randint(1, n)
+        if i == j:
+            continue
+        
+        old_contrib = 0
+        new_contrib = 0
+        for v in adj[i]:
+            if v != j:
+                old_contrib += abs(pos[i] - pos[v])
+                new_contrib += abs(pos[j] - pos[v])
+        for v in adj[j]:
+            if v != i:
+                old_contrib += abs(pos[j] - pos[v])
+                new_contrib += abs(pos[i] - pos[v])
+        
+        delta = new_contrib - old_contrib
+        new_cost = cost + delta
+        
+        if new_cost <= B:
+            pos[i], pos[j] = pos[j], pos[i]
+            print("YES")
+            print(" ".join(str(pos[k]) for k in range(1, n+1)))
+            return
+        
+        if delta < 0 or random.random() < math.exp(-delta / max(T, 0.01)):
+            pos[i], pos[j] = pos[j], pos[i]
+            cost = new_cost
+            if cost < best_cost:
+                best_cost = cost
+                best_pos = pos[:]
+        
+        T *= 0.99998
+    
+    print("NO")
+
+solve()
+```
+
+This solution uses BFS-based greedy initialization with multiple random restarts, followed by simulated annealing local search. The incremental delta computation makes each swap evaluation O(degree) rather than O(m).

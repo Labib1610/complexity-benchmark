@@ -1,0 +1,231 @@
+import sys
+from collections import deque
+
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    k = int(next(it))
+    B = int(next(it))
+
+    terminals = [int(next(it)) - 1 for _ in range(k)]
+    adj = [{} for _ in range(n)]
+    edges = []
+
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        w = int(next(it))
+        if u == v:
+            continue
+        adj[u][v] = adj[u].get(v, 0) + w
+        adj[v][u] = adj[v].get(u, 0) + w
+        edges.append((u, v, w))
+
+    term_set = set(terminals)
+    term_map = {t: i for i, t in enumerate(terminals)}
+
+    def max_flow(source_nodes, sink_nodes, node_labels):
+        nodes = []
+        for i in range(n):
+            if node_labels[i] == -1 or i in source_nodes or i in sink_nodes:
+                nodes.append(i)
+        node_idx = {node: i for i, node in enumerate(nodes)}
+        num_v = len(nodes)
+        src = num_v
+        snk = num_v + 1
+        total_v = num_v + 2
+
+        head = [-1] * total_v
+        to = []
+        cap = []
+        nxt = []
+
+        def add_edge(u, v, c):
+            to.append(v)
+            cap.append(c)
+            nxt.append(head[u])
+            head[u] = len(to) - 1
+            to.append(u)
+            cap.append(0)
+            nxt.append(head[v])
+            head[v] = len(to) - 1
+
+        for s in source_nodes:
+            if s in node_idx:
+                add_edge(src, node_idx[s], float("inf"))
+        for t in sink_nodes:
+            if t in node_idx:
+                add_edge(node_idx[t], snk, float("inf"))
+
+        for u in nodes:
+            u_idx = node_idx[u]
+            for v, w in adj[u].items():
+                if v in node_idx and u < v:
+                    v_idx = node_idx[v]
+                    add_edge(u_idx, v_idx, w)
+                    add_edge(v_idx, u_idx, w)
+
+        level = [-1] * total_v
+        flow = 0
+
+        def bfs():
+            for i in range(total_v):
+                level[i] = -1
+            level[src] = 0
+            q = deque([src])
+            while q:
+                u = q.popleft()
+                e = head[u]
+                while e != -1:
+                    v = to[e]
+                    if cap[e] > 0 and level[v] < 0:
+                        level[v] = level[u] + 1
+                        q.append(v)
+                    e = nxt[e]
+            return level[snk] >= 0
+
+        def dfs(u, pushed, ptr):
+            if u == snk:
+                return pushed
+            e = ptr[u]
+            while e != -1:
+                v = to[e]
+                tr = cap[e]
+                if tr > 0 and level[v] == level[u] + 1:
+                    push = dfs(v, min(pushed, tr), ptr)
+                    if push > 0:
+                        cap[e] -= push
+                        cap[e ^ 1] += push
+                        return push
+                e = nxt[e]
+                ptr[u] = e
+            return 0
+
+        while bfs():
+            ptr = list(head)
+            while True:
+                pushed = dfs(src, float("inf"), ptr)
+                if pushed == 0:
+                    break
+                flow += pushed
+
+        return flow
+
+    best_cost = [float("inf")]
+    best_assignment = [None]
+
+    init_assign = [-1] * n
+    for i, t in enumerate(terminals):
+        init_assign[t] = i
+
+    iso_cuts = []
+    for i in range(k):
+        srcs = [terminals[i]]
+        snks = [terminals[j] for j in range(k) if j != i]
+        iso_cuts.append(max_flow(srcs, snks, init_assign))
+
+    iso_cuts_sorted = sorted(iso_cuts)
+    heuristic_upper = sum(iso_cuts_sorted[:-1])
+    if heuristic_upper <= B:
+        best_cost[0] = heuristic_upper
+
+    def compute_lower_bound(assign):
+        cost_internal_cuts = 0
+        for u in range(n):
+            if assign[u] != -1:
+                for v, w in adj[u].items():
+                    if u < v and assign[v] != -1 and assign[u] != assign[v]:
+                        cost_internal_cuts += w
+
+        flow_sum = 0
+        for i in range(k):
+            srcs = [u for u in range(n) if assign[u] == i]
+            snks = [u for u in range(n) if assign[u] != -1 and assign[u] != i]
+            f = max_flow(srcs, snks, assign)
+            flow_sum += f
+
+        lb = cost_internal_cuts + (flow_sum + 1) // 2
+        return lb
+
+    non_terminals = [i for i in range(n) if i not in term_set]
+
+    def count_adj_assigned(u, assign):
+        return sum(1 for v in adj[u] if assign[v] != -1)
+
+    non_terminals.sort(key=lambda u: len(adj[u]), reverse=True)
+
+    def search(idx, current_assign):
+        if idx == len(non_terminals):
+            cost = 0
+            for u in range(n):
+                for v, w in adj[u].items():
+                    if u < v and current_assign[u] != current_assign[v]:
+                        cost += w
+            if cost < best_cost[0]:
+                best_cost[0] = cost
+                best_assignment[0] = list(current_assign)
+            return
+
+        best_next = idx
+        best_cnt = -1
+        for i in range(idx, len(non_terminals)):
+            cnt = count_adj_assigned(non_terminals[i], current_assign)
+            if cnt > best_cnt:
+                best_cnt = cnt
+                best_next = i
+
+        non_terminals[idx], non_terminals[best_next] = (
+            non_terminals[best_next],
+            non_terminals[idx],
+        )
+        u = non_terminals[idx]
+
+        lb = compute_lower_bound(current_assign)
+        if lb >= best_cost[0] or lb > B:
+            non_terminals[idx], non_terminals[best_next] = (
+                non_terminals[best_next],
+                non_terminals[idx],
+            )
+            return
+
+        conn_weight = [0] * k
+        for v, w in adj[u].items():
+            if current_assign[v] != -1:
+                conn_weight[current_assign[v]] += w
+
+        order = sorted(range(k), key=lambda c: conn_weight[c], reverse=True)
+
+        for c in order:
+            current_assign[u] = c
+            search(idx + 1, current_assign)
+            current_assign[u] = -1
+
+        non_terminals[idx], non_terminals[best_next] = (
+            non_terminals[best_next],
+            non_terminals[idx],
+        )
+
+    search(0, list(init_assign))
+
+    if best_cost[0] <= B and best_assignment[0] is not None:
+        assign = best_assignment[0]
+        severed = []
+        for u, v, w in edges:
+            if assign[u] != assign[v]:
+                severed.append((u + 1, v + 1))
+        print("YES")
+        print(len(severed))
+        for u, v in severed:
+            print(f"{u} {v}")
+    else:
+        print("NO")
+
+
+if __name__ == "__main__":
+    solve()

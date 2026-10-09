@@ -1,5 +1,5 @@
 import sys
-from collections import deque
+sys.setrecursionlimit(1 << 25)
 
 def solve() -> None:
     data = sys.stdin.read().strip().split()
@@ -14,39 +14,40 @@ def solve() -> None:
         adj[u].append(v)
         adj[v].append(u)
 
-    color = [-1] * (n + 1)          # 0 or 1
-    result = [0] * (n + 1)          # final 1/2 values
+    visited = [False] * (n + 1)
+    color = [0] * (n + 1)          # 0/1 provisional
+    ans = [0] * (n + 1)
+
     for start in range(1, n + 1):
-        if color[start] != -1:
+        if visited[start]:
             continue
-        # BFS this component
-        q = deque([start])
+        # BFS/DFS to collect component
+        stack = [start]
+        visited[start] = True
         color[start] = 0
         comp = [start]
-        min_node = start
-        while q:
-            u = q.popleft()
-            if u < min_node:
-                min_node = u
+        ok = True
+        while stack:
+            u = stack.pop()
+            cu = color[u]
             for v in adj[u]:
-                if color[v] == -1:
-                    color[v] = color[u] ^ 1
-                    q.append(v)
+                if not visited[v]:
+                    visited[v] = True
+                    color[v] = cu ^ 1
+                    stack.append(v)
                     comp.append(v)
-                elif color[v] == color[u]:
+                elif color[v] == cu:
+                    # not bipartite
                     print("NO")
                     return
-        # decide orientation: make min_node have value 1 (color 0)
-        if color[min_node] == 1:
-            # flip colors in this component
-            for v in comp:
-                color[v] ^= 1
-        # map to 1/2
-        for v in comp:
-            result[v] = 1 if color[v] == 0 else 2
+        # decide orientation to make start node have mode 1
+        flip = (color[start] == 1)   # if true, we invert colors
+        for node in comp:
+            final_color = color[node] ^ flip
+            ans[node] = 1 if final_color == 0 else 2
 
     print("YES")
-    print(' '.join(str(result[i]) for i in range(1, n + 1)))
+    print(' '.join(str(ans[i]) for i in range(1, n + 1)))
 
 if __name__ == "__main__":
     solve()

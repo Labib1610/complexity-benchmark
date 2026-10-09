@@ -1,0 +1,13 @@
+def solve():
+    k = int(input())
+    fragments = []
+    for _ in range(k):
+        fragments.append(input())
+    f = input()
+    
+    for i in range(k):
+        if f in fragments[i]:
+            print(i + 1)
+            return
+
+solve()

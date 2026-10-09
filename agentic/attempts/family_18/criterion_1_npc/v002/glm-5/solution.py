@@ -1,0 +1,37 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    B = int(next(it))
+    
+    deg = [0] * (n + 1)
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        deg[u] += 1
+        deg[v] += 1
+    
+    exhibits = list(range(1, n + 1))
+    exhibits.sort(key=lambda x: -deg[x])
+    
+    pos = [0] * (n + 1)
+    L = 1
+    R = n
+    for i in range(n):
+        if i % 2 == 0:
+            pos[exhibits[i]] = L
+            L += 1
+        else:
+            pos[exhibits[i]] = R
+            R -= 1
+    
+    print("YES")
+    print(' '.join(str(pos[i]) for i in range(1, n + 1)))
+
+if __name__ == "__main__":
+    solve()

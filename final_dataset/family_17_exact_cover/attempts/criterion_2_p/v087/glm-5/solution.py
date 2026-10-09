@@ -1,0 +1,64 @@
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    it = iter(data)
+    q = int(next(it))
+    t = int(next(it))
+    acids = [[] for _ in range(q + 1)]
+    alkalis = [[] for _ in range(q + 1)]
+    seen = set()
+    for _ in range(t):
+        a = int(next(it))
+        b = int(next(it))
+        if (a, b) in seen:
+            continue
+        seen.add((a, b))
+        acids[a].append(b)
+        alkalis[b - q].append(a)
+
+    matchA = [0] * (q + 1)
+    matchB = [0] * (q + 1)
+    visited = [0] * (q + 1)
+    timestamp = 0
+
+    def try_kuhn(v):
+        stack = [(v, iter(acids[v]))]
+        while stack:
+            node, it_edges = stack[-1]
+            advanced = False
+            for to in it_edges:
+                if visited[to - q] == timestamp:
+                    continue
+                visited[to - q] = timestamp
+                if matchB[to - q] == 0:
+                    matchA[node] = to
+                    matchB[to - q] = node
+                    stack.pop()
+                    return True
+                else:
+                    stack.append((matchB[to - q], iter(acids[matchB[to - q]])))
+                    advanced = True
+                    break
+            if not advanced:
+                stack.pop()
+                if stack:
+                    stack.pop()
+                return False
+        return False
+
+    for v in range(1, q + 1):
+        timestamp += 1
+        if not try_kuhn(v):
+            print("NO")
+            return
+
+    print("YES")
+    out = []
+    for v in range(1, q + 1):
+        out.append(f"{v} {matchA[v]}")
+    sys.stdout.write("\n".join(out) + "\n")
+
+solve()

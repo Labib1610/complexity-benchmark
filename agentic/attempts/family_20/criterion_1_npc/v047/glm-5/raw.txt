@@ -1,0 +1,222 @@
+Looking at this problem, we have a 3-regular graph where we need to 3-edge-color it such that each color class has exactly n/2 edges.
+
+**Key insight:** In a 3-regular graph with n vertices and m = 3n/2 edges, any proper 3-edge-coloring automatically gives exactly n/2 edges per color. This is because:
+- Each vertex has exactly 3 edges, one of each color
+- Counting (vertex, color) pairs: n vertices × 3 colors = 3n
+- Each edge contributes 2 to this count (one for each endpoint)
+- So edges per color = 3n / (2×3) = n/2
+
+So the problem reduces to finding a proper 3-edge-coloring of a 3-regular graph.
+
+**Algorithm:**
+1. Find a perfect matching M (exists by Petersen's theorem for bridgeless cubic graphs)
+2. Remove M, leaving a 2-regular graph (disjoint cycles)
+3. Color cycles alternately with colors 1,2
+4. Color matching edges with color 3
+
+For finding a perfect matching, I use the blossom algorithm. For cycles, even cycles are 2-colored directly; odd cycles require swapping along an alternating path to a matching edge.
+
+```python
+import sys
+from collections import defaultdict, deque
+
+def solve():
+    input_data = sys.stdin.read().split()
+    idx = 0
+    n = int(input_data[idx]); idx += 1
+    m = int(input_data[idx]); idx += 1
+    
+    edges = []
+    adj = defaultdict(list)
+    for i in range(m):
+        u = int(input_data[idx]); idx += 1
+        v = int(input_data[idx]); idx += 1
+        edges.append((u, v))
+        adj[u].append((v, i))
+        adj[v].append((u, i))
+    
+    # Find perfect matching using blossom algorithm
+    mate = [0] * (n + 1)
+    
+    def find_path_blossom(root):
+        label = [0] * (n + 1)
+        parent = [0] * (n + 1)
+        blossom = [0] * (n + 1)
+        base = list(range(n + 1))
+        
+        label[root] = 1
+        queue = deque([root])
+        
+        while queue:
+            v = queue.popleft()
+            for u, _ in adj[v]:
+                if base[v] == base[u] or mate[v] == u:
+                    continue
+                if label[u] == 0:
+                    parent[u] = v
+                    if mate[u] == 0:
+                        return u, parent, base, blossom
+                    label[u] = 2
+                    label[mate[u]] = 1
+                    queue.append(mate[u])
+                elif label[u] == 1:
+                    lca = u
+                    a = v
+                    while a != lca:
+                        if base[a] != lca:
+                            blossom[base[a]] = 1
+                        a = parent[mate[a]]
+                    a = u
+                    while a != lca:
+                        if base[a] != lca:
+                            blossom[base[a]] = 1
+                        a = parent[mate[a]]
+                    for i in range(1, n + 1):
+                        if blossom[base[i]]:
+                            base[i] = lca
+                            if label[i] == 2:
+                                queue.append(i)
+        
+        return 0, parent, base, blossom
+    
+    def augment(path_end, parent, base, blossom):
+        v = path_end
+        while v != 0:
+            p = parent[v]
+            if p == 0:
+                break
+            w = mate[p]
+            mate[v] = p
+            mate[p] = v
+            v = w
+    
+    for v in range(1, n + 1):
+        if mate[v] == 0:
+            path_end, parent, base, blossom = find_path_blossom(v)
+            if path_end != 0:
+                augment(path_end, parent, base, blossom)
+    
+    matched_edges = set()
+    for v in range(1, n + 1):
+        if mate[v] > v:
+            matched_edges.add((v, mate[v]))
+        elif mate[v] > 0 and mate[v] < v:
+            matched_edges.add((mate[v], v))
+    
+    if len(matched_edges) != n // 2:
+        print("NO")
+        return
+    
+    color = [0] * m
+    for i, (u, v) in enumerate(edges):
+        if (u, v) in matched_edges:
+            color[i] = 3
+    
+    # Build 2-regular graph from non-matching edges
+    adj2 = defaultdict(list)
+    for i, (u, v) in enumerate(edges):
+        if color[i] == 0:
+            adj2[u].append((v, i))
+            adj2[v].append((u, i))
+    
+    visited = [False] * (n + 1)
+    
+    for start in range(1, n + 1):
+        if visited[start] or not adj2[start]:
+            continue
+        
+        cycle = []
+        prev = -1
+        curr = start
+        while True:
+            visited[curr] = True
+            next_node = -1
+            next_edge = -1
+            for nb, e in adj2[curr]:
+                if e != prev:
+                    next_node = nb
+                    next_edge = e
+                    break
+            if next_node == -1:
+                break
+            cycle.append((curr, next_edge))
+            prev = next_edge
+            curr = next_node
+            if curr == start:
+                break
+        
+        if len(cycle) % 2 == 0:
+            for j, (node, e) in enumerate(cycle):
+                color[e] = 1 if j % 2 == 0 else 2
+        else:
+            # Odd cycle: find matching edge from cycle[0]
+            s = cycle[0][0]
+            t = mate[s]
+            me = None
+            for i, (u, v) in enumerate(edges):
+                if color[i] == 3 and ((u == s and v == t) or (u == t and v == s)):
+                    me = i
+                    break
+            
+            # BFS alternating path from t in 2-regular graph
+            parent = {}
+            parent[t] = (-1, -1)
+            queue = deque([t])
+            found = -1
+            while queue:
+                v = queue.popleft()
+                for nb, e in adj2[v]:
+                    if v in parent and parent[v][0] == e:
+                        continue
+                    if nb in parent:
+                        continue
+                    parent[nb] = (e, v)
+                    if nb in {c[0] for c in cycle}:
+                        found = nb
+                        queue.clear()
+                        break
+                    queue.append(nb)
+            
+            if found == -1:
+                print("NO")
+                return
+            
+            # Collect path edges
+            path_edges = []
+            curr = found
+            while parent[curr][1] != -1:
+                path_edges.append(parent[curr][0])
+                curr = parent[curr][1]
+            
+            # Swap matching
+            color[me] = 0
+            adj2[s].append((t, me))
+            adj2[t].append((s, me))
+            
+            for i in range(0, len(path_edges), 2):
+                e = path_edges[i]
+                color[e] = 3
+            
+            # Recolor cycle
+            for j, (node, e) in enumerate(cycle):
+                color[e] = 1 if j % 2 == 0 else 2
+            
+            # Color remaining path edges
+            for i in range(1, len(path_edges), 2):
+                e = path_edges[i]
+                color[e] = 1 if i % 4 == 1 else 2
+    
+    # Verify
+    for v in range(1, n + 1):
+        colors = set()
+        for nb, e in adj[v]:
+            colors.add(color[e])
+        if colors != {1, 2, 3}:
+            print("NO")
+            return
+    
+    print("YES")
+    print(' '.join(map(str, color)))
+
+solve()
+```

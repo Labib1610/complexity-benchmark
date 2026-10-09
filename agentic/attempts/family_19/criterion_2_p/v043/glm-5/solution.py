@@ -1,0 +1,185 @@
+import sys
+from collections import deque
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    _ = int(next(it))
+    s = int(next(it))
+    t = int(next(it))
+    d = int(next(it))
+    
+    edges = []
+    adj = [[] for _ in range(n + 1)]
+    for i in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        cap = int(next(it))
+        edges.append((u, v, cap))
+        adj[u].append((v, cap, i))
+        adj[v].append((u, cap, i))
+    
+    # BFS to find augmenting paths
+    def bfs():
+        parent_edge = [-1] * (n + 1)
+        visited = [False] * (n + 1)
+        visited[s] = True
+        q = deque([s])
+        while q:
+            u = q.popleft()
+            if u == t:
+                break
+            for v, cap, idx in adj[u]:
+                if not visited[v] and cap > 0:
+                    visited[v] = True
+                    parent_edge[v] = (u, idx)
+                    q.append(v)
+        if not visited[t]:
+            return None
+        path = []
+        v = t
+        while v != s:
+            u, idx = parent_edge[v]
+            path.append((u, v, idx))
+            v = u
+        path.reverse()
+        return path
+    
+    flow = 0
+    while flow < d:
+        path = bfs()
+        if path is None:
+            break
+        # find bottleneck
+        bottleneck = float('inf')
+        for u, v, idx in path:
+            bottleneck = min(bottleneck, edges[idx][2])
+        bottleneck = min(bottleneck, d - flow)
+        # update residual capacities
+        for u, v, idx in path:
+            eu, ev, ecap = edges[idx]
+            edges[idx] = (eu, ev, ecap - bottleneck)
+            # update adjacency list
+            for j in range(len(adj[eu])):
+                nv, ncap, nidx = adj[eu][j]
+                if nidx == idx and nv == ev:
+                    adj[eu][j] = (nv, ncap - bottleneck, nidx)
+                    break
+            for j in range(len(adj[ev])):
+                nu, ncap, nidx = adj[ev][j]
+                if nidx == idx and nu == eu:
+                    adj[ev][j] = (nu, ncap + bottleneck, nidx)
+                    break
+        flow += bottleneck
+    
+    if flow < d:
+        print("NO")
+        return
+    
+    # Reconstruct flow values
+    # We need to track how much flow went through each edge
+    # Let's redo the max flow with proper flow tracking
+    # Actually, let's redo with a cleaner approach
+    
+    # Reset
+    edges = []
+    adj = [[] for _ in range(n + 1)]
+    edge_list = []
+    for i in range(m):
+        u = int(next(it)) if False else None
+    # Re-read input
+    data2 = sys.stdin.read().split() if False else data
+    it2 = iter(data2)
+    n2 = int(next(it2))
+    m2 = int(next(it2))
+    _ = int(next(it2))
+    s2 = int(next(it2))
+    t2 = int(next(it2))
+    d2 = int(next(it2))
+    
+    original_caps = []
+    for i in range(m2):
+        u = int(next(it2))
+        v = int(next(it2))
+        cap = int(next(it2))
+        original_caps.append(cap)
+        edges.append([u, v, cap, 0])  # u, v, residual_cap, flow
+        adj[u].append([v, i, True])   # forward edge
+        adj[v].append([u, i, False]) # backward edge
+    
+    flow = 0
+    while flow < d2:
+        # BFS
+        parent = [-1] * (n2 + 1)
+        parent_edge = [-1] * (n2 + 1)
+        parent_dir = [False] * (n2 + 1)
+        visited = [False] * (n2 + 1)
+        visited[s2] = True
+        q = deque([s2])
+        found = False
+        while q and not found:
+            u = q.popleft()
+            for v, idx, is_forward in adj[u]:
+                if not visited[v]:
+                    if is_forward and edges[idx][2] > 0:
+                        visited[v] = True
+                        parent[v] = u
+                        parent_edge[v] = idx
+                        parent_dir[v] = True
+                        q.append(v)
+                        if v == t2:
+                            found = True
+                            break
+                    elif not is_forward and edges[idx][3] > 0:
+                        visited[v] = True
+                        parent[v] = u
+                        parent_edge[v] = idx
+                        parent_dir[v] = False
+                        q.append(v)
+                        if v == t2:
+                            found = True
+                            break
+        
+        if not visited[t2]:
+            break
+        
+        # Find bottleneck
+        bottleneck = float('inf')
+        v = t2
+        while v != s2:
+            idx = parent_edge[v]
+            if parent_dir[v]:
+                bottleneck = min(bottleneck, edges[idx][2])
+            else:
+                bottleneck = min(bottleneck, edges[idx][3])
+            v = parent[v]
+        bottleneck = min(bottleneck, d2 - flow)
+        
+        # Update
+        v = t2
+        while v != s2:
+            idx = parent_edge[v]
+            if parent_dir[v]:
+                edges[idx][2] -= bottleneck
+                edges[idx][3] += bottleneck
+            else:
+                edges[idx][2] += bottleneck
+                edges[idx][3] -= bottleneck
+            v = parent[v]
+        flow += bottleneck
+    
+    if flow < d2:
+        print("NO")
+        return
+    
+    print("YES")
+    result = []
+    for i in range(m2):
+        result.append(str(edges[i][3]))
+    print(" ".join(result))
+
+solve()

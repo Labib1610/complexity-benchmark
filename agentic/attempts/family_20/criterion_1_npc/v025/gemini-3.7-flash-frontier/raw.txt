@@ -1,0 +1,233 @@
+```python
+import sys
+
+# Increase recursion depth just in case
+sys.setrecursionlimit(20000)
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    edges = []
+    idx = 2
+    for _ in range(m):
+        u = int(input_data[idx]) - 1
+        v = int(input_data[idx+1]) - 1
+        edges.append((u, v))
+        idx += 2
+        
+    # Check for bridges using Tarjan's bridge-finding algorithm
+    # Any cubic graph with a bridge is not 3-edge-colorable.
+    adj = [[] for _ in range(n)]
+    for i, (u, v) in enumerate(edges):
+        adj[u].append((v, i))
+        adj[v].append((u, i))
+        
+    tin = [-1] * n
+    low = [-1] * n
+    timer = 0
+    has_bridge = False
+    
+    def dfs_bridge(v, p_edge):
+        nonlocal timer, has_bridge
+        tin[v] = low[v] = timer
+        timer += 1
+        for to, e_idx in adj[v]:
+            if e_idx == p_edge:
+                continue
+            if tin[to] != -1:
+                low[v] = min(low[v], tin[to])
+            else:
+                dfs_bridge(to, e_idx)
+                low[v] = min(low[v], low[to])
+                if low[to] > tin[v]:
+                    has_bridge = True
+    
+    for i in range(n):
+        if tin[i] == -1:
+            dfs_bridge(i, -1)
+            
+    if has_bridge:
+        print("NO")
+        return
+
+    # Build line graph adjacency
+    # For each edge, find adjacent edges (sharing a vertex)
+    edge_adj = [[] for _ in range(m)]
+    for v in range(n):
+        inc = [e_idx for to, e_idx in adj[v]]
+        for i in range(len(inc)):
+            for j in range(i + 1, len(inc)):
+                e1, e2 = inc[i], inc[j]
+                edge_adj[e1].append(e2)
+                edge_adj[e2].append(e1)
+                
+    for i in range(m):
+        edge_adj[i] = list(set(edge_adj[i]))
+
+    # Backtracking with MRV, Forward Checking, and Unit Propagation
+    # Mask: 7 = 111_2 (colors 1, 2, 3 available)
+    # color 1 -> mask 1, color 2 -> mask 2, color 3 -> mask 4
+    
+    mask = [7] * m
+    color_assigned = [0] * m
+    
+    # Popcount lookup
+    pc = [0, 1, 1, 2, 1, 2, 2, 3]
+    
+    import random
+    random.seed(42)
+    
+    # We will use an iterative backtracking approach with trail for undo
+    # To handle potential snarks/hardness, use restarts
+    max_conflicts_per_run = 4000
+    max_total_conflicts = 60000
+    total_conflicts = 0
+
+    def run_solver():
+        nonlocal total_conflicts
+        
+        # Reset state
+        for i in range(m):
+            mask[i] = 7
+            color_assigned[i] = 0
+            
+        trail = [] # (edge_idx, old_mask)
+        assigned_order = []
+        
+        # Unit propagation queue
+        prop_queue = []
+        
+        def assign(e, c_mask):
+            # c_mask is 1, 2, or 4
+            if (mask[e] & c_mask) == 0:
+                return False
+            trail.append((e, mask[e], color_assigned[e]))
+            mask[e] = c_mask
+            color_assigned[e] = c_mask
+            
+            # Remove c_mask from neighbors
+            for nb in edge_adj[e]:
+                if mask[nb] & c_mask:
+                    trail.append((nb, mask[nb], color_assigned[nb]))
+                    mask[nb] &= ~c_mask
+                    if mask[nb] == 0:
+                        return False
+                    if pc[mask[nb]] == 1 and color_assigned[nb] == 0:
+                        prop_queue.append(nb)
+            return True
+
+        # Pre-assign edge 0 to color 1 to break symmetry
+        if not assign(0, 1):
+            return False
+            
+        # Initial propagation
+        while prop_queue:
+            e = prop_queue.pop()
+            if color_assigned[e] == 0:
+                if not assign(e, mask[e]):
+                    return False
+
+        run_conflicts = 0
+        
+        # Stack for DFS: (edge, chosen_colors_tried, trail_pos)
+        # We can implement a randomized DFS
+        stack = []
+        
+        while True:
+            # Check if all colored
+            # Find unassigned edge with min remaining values (MRV)
+            best_e = -1
+            min_c = 4
+            
+            # Fast search for MRV
+            for i in range(m):
+                if color_assigned[i] == 0:
+                    c = pc[mask[i]]
+                    if c < min_c:
+                        min_c = c
+                        best_e = i
+                        if c == 1:
+                            break
+            
+            if best_e == -1:
+                # All assigned successfully!
+                return True
+                
+            # Get possible colors for best_e
+            m_val = mask[best_e]
+            possible_colors = []
+            if m_val & 1: possible_colors.append(1)
+            if m_val & 2: possible_colors.append(2)
+            if m_val & 4: possible_colors.append(4)
+            random.shuffle(possible_colors)
+            
+            stack.append((best_e, possible_colors, len(trail)))
+            
+            # Try to advance
+            backtrack = False
+            while stack:
+                e, colors_left, t_pos = stack[-1]
+                if not colors_left:
+                    # No more colors to try for this decision
+                    stack.pop()
+                    # Undo trail to t_pos
+                    while len(trail) > t_pos:
+                        idx_e, old_m, old_c = trail.pop()
+                        mask[idx_e] = old_m
+                        color_assigned[idx_e] = old_c
+                    continue
+                
+                c_try = colors_left.pop()
+                # Undo to t_pos before trying this branch
+                while len(trail) > t_pos:
+                    idx_e, old_m, old_c = trail.pop()
+                    mask[idx_e] = old_m
+                    color_assigned[idx_e] = old_c
+                
+                prop_queue.clear()
+                if assign(e, c_try):
+                    # Propagate unit clauses
+                    conflict = False
+                    while prop_queue:
+                        qe = prop_queue.pop()
+                        if color_assigned[qe] == 0:
+                            if not assign(qe, mask[qe]):
+                                conflict = True
+                                break
+                    if not conflict:
+                        # Successfully assigned, break to pick next MRV
+                        break
+                
+                # Conflict occurred
+                run_conflicts += 1
+                total_conflicts += 1
+                if run_conflicts > max_conflicts_per_run or total_conflicts > max_total_conflicts:
+                    return "RESTART"
+            
+            if not stack:
+                return False
+
+    while total_conflicts < max_total_conflicts:
+        res = run_solver()
+        if res is True:
+            # Map mask to 1, 2, 3
+            mask_to_val = {1: 1, 2: 2, 4: 3}
+            ans = [mask_to_val[color_assigned[i]] for i in range(m)]
+            print("YES")
+            print(*(ans))
+            return
+        elif res is False:
+            print("NO")
+            return
+        # If RESTART, loop continues
+        
+    print("NO")
+
+if __name__ == '__main__':
+    solve()
+```

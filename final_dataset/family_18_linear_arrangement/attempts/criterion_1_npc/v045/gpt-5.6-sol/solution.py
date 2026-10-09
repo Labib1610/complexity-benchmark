@@ -1,0 +1,256 @@
+import sys
+from array import array
+
+
+def solve():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+
+    it = iter(data)
+    n = next(it)
+    m = next(it)
+    budget = next(it)
+
+    parent = list(range(n))
+    size = [1] * n
+
+    def find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    def union(a, b):
+        ra = find(a)
+        rb = find(b)
+        if ra == rb:
+            return
+        if size[ra] < size[rb]:
+            ra, rb = rb, ra
+        parent[rb] = ra
+        size[ra] += size[rb]
+
+    weights = {}
+    identity_cost = 0
+    effective_edges = 0
+    active = set()
+
+    for _ in range(m):
+        u = next(it) - 1
+        v = next(it) - 1
+        if u == v:
+            continue
+        identity_cost += abs(u - v)
+        effective_edges += 1
+        if u > v:
+            u, v = v, u
+        key = (u, v)
+        weights[key] = weights.get(key, 0) + 1
+        active.add(u)
+        active.add(v)
+        union(u, v)
+
+    if identity_cost <= budget:
+        print("YES")
+        print(*range(1, n + 1))
+        return
+
+    if effective_edges > budget:
+        print("NO")
+        return
+
+    components = {}
+    for v in active:
+        r = find(v)
+        components.setdefault(r, []).append(v)
+
+    component_edges = {r: [] for r in components}
+    for (u, v), w in weights.items():
+        component_edges[find(u)].append((u, v, w))
+
+    component_data = []
+    for r, nodes in components.items():
+        nodes.sort()
+        index = {v: i for i, v in enumerate(nodes)}
+        edges = []
+        degrees = [0] * len(nodes)
+        for u, v, w in component_edges[r]:
+            a = index[u]
+            b = index[v]
+            edges.append((a, b, w))
+            degrees[a] += w
+            degrees[b] += w
+        component_data.append((nodes, edges, degrees))
+
+    component_data.sort(key=lambda x: x[0][0])
+
+    def order_cost(order, edges):
+        pos = [0] * len(order)
+        for p, v in enumerate(order):
+            pos[v] = p
+        total = 0
+        for a, b, w in edges:
+            total += w * abs(pos[a] - pos[b])
+        return total
+
+    heuristic_orders = []
+    heuristic_total = 0
+
+    for nodes, edges, degrees in component_data:
+        k = len(nodes)
+
+        order1 = list(range(k))
+        best_order = order1
+        best_cost = order_cost(order1, edges)
+
+        ranked = sorted(range(k), key=lambda x: (-degrees[x], x))
+        slots = sorted(range(k), key=lambda p: (abs(2 * p - (k - 1)), p))
+        order2 = [0] * k
+        for vertex, slot in zip(ranked, slots):
+            order2[slot] = vertex
+        cost2 = order_cost(order2, edges)
+
+        if cost2 < best_cost:
+            best_cost = cost2
+            best_order = order2
+
+        heuristic_orders.append(best_order)
+        heuristic_total += best_cost
+
+    isolated = [v for v in range(n) if v not in active]
+
+    if heuristic_total <= budget:
+        final_order = []
+        for (nodes, _, _), local_order in zip(component_data, heuristic_orders):
+            final_order.extend(nodes[i] for i in local_order)
+        final_order.extend(isolated)
+
+        answer = [0] * n
+        for position, vertex in enumerate(final_order, 1):
+            answer[vertex] = position
+        print("YES")
+        print(*answer)
+        return
+
+    def exact_component_order(nodes, edges, degrees, limit):
+        k = len(nodes)
+        count = 1 << k
+        cap = limit + 1
+
+        matrix = [[0] * k for _ in range(k)]
+        neighbor_masks = [0] * k
+        simple = True
+
+        for a, b, w in edges:
+            matrix[a][b] += w
+            matrix[b][a] += w
+            neighbor_masks[a] |= 1 << b
+            neighbor_masks[b] |= 1 << a
+            if w != 1:
+                simple = False
+
+        cuts = array('I', [0]) * count
+
+        if simple:
+            for mask in range(1, count):
+                bit = mask & -mask
+                v = bit.bit_length() - 1
+                rest = mask ^ bit
+                inside = (neighbor_masks[v] & rest).bit_count()
+                cuts[mask] = cuts[rest] + degrees[v] - 2 * inside
+        else:
+            for mask in range(1, count):
+                bit = mask & -mask
+                v = bit.bit_length() - 1
+                rest = mask ^ bit
+                x = neighbor_masks[v] & rest
+                inside = 0
+                row = matrix[v]
+                while x:
+                    b = x & -x
+                    inside += row[b.bit_length() - 1]
+                    x ^= b
+                cuts[mask] = cuts[rest] + degrees[v] - 2 * inside
+
+        dp = array('Q', [cap]) * count
+        dp[0] = 0
+
+        for mask in range(1, count):
+            cut = cuts[mask]
+            x = mask
+            best = cap
+            while x:
+                bit = x & -x
+                prev = dp[mask ^ bit]
+                if prev < cap:
+                    value = prev + cut
+                    if value < best:
+                        best = value
+                x ^= bit
+            if best > cap:
+                best = cap
+            dp[mask] = best
+
+        full = count - 1
+        optimum = dp[full]
+        if optimum > limit:
+            return None, None
+
+        reversed_order = []
+        mask = full
+        while mask:
+            cut = cuts[mask]
+            x = mask
+            chosen = -1
+            while x:
+                bit = x & -x
+                prev_mask = mask ^ bit
+                if dp[prev_mask] + cut == dp[mask]:
+                    chosen = bit.bit_length() - 1
+                    mask = prev_mask
+                    break
+                x ^= bit
+            if chosen < 0:
+                return None, None
+            reversed_order.append(chosen)
+
+        reversed_order.reverse()
+        return reversed_order, optimum
+
+    exact_orders = []
+    total_minimum = 0
+
+    for nodes, edges, degrees in component_data:
+        remaining = budget - total_minimum
+        if remaining < 0:
+            print("NO")
+            return
+        local_order, local_cost = exact_component_order(
+            nodes, edges, degrees, remaining
+        )
+        if local_order is None:
+            print("NO")
+            return
+        exact_orders.append(local_order)
+        total_minimum += local_cost
+
+    if total_minimum > budget:
+        print("NO")
+        return
+
+    final_order = []
+    for (nodes, _, _), local_order in zip(component_data, exact_orders):
+        final_order.extend(nodes[i] for i in local_order)
+    final_order.extend(isolated)
+
+    answer = [0] * n
+    for position, vertex in enumerate(final_order, 1):
+        answer[vertex] = position
+
+    print("YES")
+    print(*answer)
+
+
+if __name__ == "__main__":
+    solve()

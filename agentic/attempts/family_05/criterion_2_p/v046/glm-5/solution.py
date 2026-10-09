@@ -1,0 +1,183 @@
+import sys
+from collections import deque
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    k = int(next(it))
+    t = int(next(it))
+    
+    # Each pilot p has a fixed aircraft a_p.
+    # We need to assign each pilot a distinct window w.
+    # This is a bipartite matching problem: pilots on left, windows on right.
+    # Edge (p, w) exists if clearance (p, a_p, w) is approved.
+    
+    adj = [[] for _ in range(k + 1)]
+    
+    for _ in range(t):
+        p = int(next(it))
+        a = int(next(it))
+        w = int(next(it))
+        adj[p].append(w)
+    
+    # Hopcroft-Karp algorithm
+    # pairU[u] = matched v for u in U (pilots)
+    # pairV[v] = matched u for v in V (windows)
+    # dist[u] = distance in BFS layering
+    
+    pairU = [0] * (k + 1)
+    pairV = [0] * (k + 1)
+    dist = [0] * (k + 1)
+    
+    def bfs():
+        queue = deque()
+        for u in range(1, k + 1):
+            if pairU[u] == 0:
+                dist[u] = 0
+                queue.append(u)
+            else:
+                dist[u] = float('inf')
+        dist[0] = float('inf')
+        
+        while queue:
+            u = queue.popleft()
+            if dist[u] < dist[0]:
+                for v in adj[u]:
+                    if dist[pairV[v]] == float('inf'):
+                        dist[pairV[v]] = dist[u] + 1
+                        queue.append(pairV[v])
+        return dist[0] != float('inf')
+    
+    def dfs(u):
+        if u != 0:
+            for v in adj[u]:
+                if pairV[v] == 0 or (dist[pairV[v]] == dist[u] + 1 and dfs(pairV[v])):
+                    pairU[u] = v
+                    pairV[v] = u
+                    return True
+            dist[u] = float('inf')
+            return False
+        return True
+    
+    matching = 0
+    while bfs():
+        for u in range(1, k + 1):
+            if pairU[u] == 0:
+                if dfs(u):
+                    matching += 1
+    
+    if matching == k:
+        print("YES")
+        for p in range(1, k + 1):
+            w = pairU[p]
+            # Find the aircraft for pilot p.
+            # Since adj[p] contains windows, we need to find a_p.
+            # The problem guarantees a_p is consistent for a pilot.
+            # We can scan adj[p] to find a valid clearance to get a_p.
+            # Actually, we just need to output p, a_p, w.
+            # We need to find a_p. Let's look at the input again.
+            # We didn't store a_p. We can find it by checking any edge for p.
+            # But we need to be careful: adj[p] might be empty if no clearances?
+            # If matching == k, adj[p] cannot be empty.
+            # Let's find a_p from the first available clearance for p.
+            # We need to reconstruct a_p.
+            # We can iterate through the input again or store a_p during input reading.
+            # Let's re-read the input to find a_p for each p.
+            # Or better, store a_p during the first pass.
+            pass
+    
+    # Re-reading to get a_p values is clumsy. Let's modify the first pass.
+    # Actually, let's just re-run the input parsing logic to get a_p.
+    # Since input is already read, we can't re-read easily without storing.
+    # Let's store a_p during the first pass.
+    
+    # Re-implementing with a_p storage.
+    
+if 0:
+    pass # dummy to allow structure modification
+
+def main():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    k = int(next(it))
+    t = int(next(it))
+    
+    adj = [[] for _ in range(k + 1)]
+    pilot_aircraft = [0] * (k + 1)
+    
+    for _ in range(t):
+        p = int(next(it))
+        a = int(next(it))
+        w = int(next(it))
+        adj[p].append(w)
+        pilot_aircraft[p] = a
+    
+    pairU = [0] * (k + 1)
+    pairV = [0] * (k + 1)
+    dist = [0] * (k + 1)
+    
+    def bfs():
+        queue = deque()
+        for u in range(1, k + 1):
+            if pairU[u] == 0:
+                dist[u] = 0
+                queue.append(u)
+            else:
+                dist[u] = float('inf')
+        dist[0] = float('inf')
+        
+        while queue:
+            u = queue.popleft()
+            if dist[u] < dist[0]:
+                for v in adj[u]:
+                    # If v is matched, explore its partner
+                    if pairV[v] != 0:
+                        if dist[pairV[v]] == float('inf'):
+                            dist[pairV[v]] = dist[u] + 1
+                            queue.append(pairV[v])
+                    else:
+                        # v is unmatched, so we reached the end of an augmenting path
+                        # We represent this by reaching the NIL node (0)
+                        if dist[0] == float('inf'):
+                            dist[0] = dist[u] + 1
+        return dist[0] != float('inf')
+    
+    def dfs(u):
+        if u != 0:
+            for v in adj[u]:
+                if pairV[v] == 0:
+                    # Found an augmenting path
+                    pairU[u] = v
+                    pairV[v] = u
+                    return True
+                elif dist[pairV[v]] == dist[u] + 1:
+                    if dfs(pairV[v]):
+                        pairU[u] = v
+                        pairV[v] = u
+                        return True
+            dist[u] = float('inf')
+            return False
+        return True
+    
+    matching = 0
+    while bfs():
+        for u in range(1, k + 1):
+            if pairU[u] == 0:
+                if dfs(u):
+                    matching += 1
+    
+    if matching == k:
+        print("YES")
+        for p in range(1, k + 1):
+            w = pairU[p]
+            a = pilot_aircraft[p]
+            print(p, a, w)
+    else:
+        print("NO")
+
+if __name__ == '__main__':
+    main()

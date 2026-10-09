@@ -156,7 +156,7 @@ def gen_for_criterion(family, criterion, args, run_cfg, models):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--family", required=True)
-    ap.add_argument("--criterion", type=int, choices=[1, 2, 3])
+    ap.add_argument("--criterion", type=int, choices=[1, 2])
     ap.add_argument("--n", type=int, default=12)
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--reset", action="store_true")
@@ -164,7 +164,7 @@ def main():
 
     run_cfg = B.load_run_config()
     models = B.load_models()
-    crits = [args.criterion] if args.criterion else run_cfg.get("criteria", [1, 2, 3])
+    crits = [args.criterion] if args.criterion else run_cfg.get("criteria", [1, 2])
     for family in B.list_families(args.family):
         for c in crits:
             gen_for_criterion(family, c, args, run_cfg, models)

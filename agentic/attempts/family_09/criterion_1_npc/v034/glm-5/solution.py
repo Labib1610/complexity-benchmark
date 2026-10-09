@@ -1,0 +1,307 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    k = int(next(it))
+    
+    adj = [0] * (n + 1)
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+    
+    # Precompute popcount for numbers up to 2^n
+    popcount = [0] * (1 << n)
+    for i in range(1, 1 << n):
+        popcount[i] = popcount[i & (i - 1)] + 1
+    
+    # Iterate over all subsets of size k
+    # We use a Gray code-like iteration to find a valid subset
+    # But for n <= 46, we need a smarter approach
+    
+    # Since n <= 46, we can use meet-in-the-middle
+    # Split vertices into two halves
+    n1 = n // 2
+    n2 = n - n1
+    
+    # Map vertices: 1..n1 go to left, n1+1..n go to right
+    # For each subset of left half, check if it's independent
+    # For each subset of right half, check if it's independent
+    # Then combine
+    
+    # But we need exactly k vertices
+    # Let's try a different approach: iterate over subsets of size k
+    # using combinatorial generation
+    
+    # Actually, let's use a simple approach:
+    # Try to find an independent set of size k using greedy + backtracking
+    
+    # Since n is small (<=46), we can use a recursive approach with pruning
+    
+    # But let's use the meet-in-the-middle approach properly
+    
+    # First, let's reindex vertices to 0..n-1
+    # adj[i] will be a bitmask of neighbors
+    
+    adj_bits = [0] * n
+    for i in range(1, n + 1):
+        mask = 0
+        for j in range(1, n + 1):
+            if adj[i] & (1 << j):
+                if j <= n1:
+                    mask |= 1 << (j - 1)
+                else:
+                    mask |= 1 << (n1 + (j - n1 - 1))
+        adj_bits[i-1] = mask
+    
+    # Actually, let's simplify: vertices 1..n map to indices 0..n-1
+    # Left half: indices 0..n1-1 (vertices 1..n1)
+    # Right half: indices n1..n-1 (vertices n1+1..n)
+    
+    adj_bits = [0] * n
+    for i in range(1, n + 1):
+        mask = 0
+        neighbors = adj[i]
+        # Iterate through set bits in neighbors
+        nb = neighbors
+        while nb:
+            j = (nb & -nb).bit_length() - 1
+            if j == 0:
+                nb &= nb - 1
+                continue
+            # j is the vertex number (power of 2 position)
+            # We need to find which bit position j corresponds to
+            # Actually, j is the value, not the position
+            # Let me redo this
+            break
+        # Let me use a different approach
+        for j in range(1, n + 1):
+            if adj[i] & (1 << j):
+                adj_bits[i-1] |= 1 << (j - 1)
+    
+    # Now adj_bits[i] has bit j set if vertex i+1 is connected to vertex j+1
+    
+    # Split into two halves
+    left_size = n // 2
+    right_size = n - left_size
+    
+    # For left half: vertices 0..left_size-1
+    # For right half: vertices left_size..n-1
+    
+    # Generate all independent sets in left half
+    left_independent = []
+    for mask in range(1 << left_size):
+        is_independent = True
+        # Check if any two vertices in mask are connected
+        # We can check if mask & (union of neighbors of vertices in mask) == 0
+        # But we need to be careful: neighbors within left half only
+        submask = mask
+        neighbor_union = 0
+        while submask:
+            v = (submask & -submask).bit_length() - 1
+            # v is the index in left half
+            # Get neighbors of v within left half
+            v_neighbors_in_left = adj_bits[v] & ((1 << left_size) - 1)
+            neighbor_union |= v_neighbors_in_left
+            submask &= submask - 1
+        if mask & neighbor_union == 0:
+            left_independent.append(mask)
+    
+    # Generate all independent sets in right half
+    right_independent = []
+    for mask in range(1 << right_size):
+        is_independent = True
+        submask = mask
+        neighbor_union = 0
+        while submask:
+            bit_pos = (submask & -submask).bit_length() - 1
+            v = left_size + bit_pos  # actual vertex index
+            # Get neighbors of v within right half
+            v_neighbors_in_right = (adj_bits[v] >> left_size) & ((1 << right_size) - 1)
+            neighbor_union |= v_neighbors_in_right
+            submask &= submask - 1
+        if mask & neighbor_union == 0:
+            right_independent.append(mask)
+    
+    # For each independent set in left half, compute forbidden vertices in right half
+    # Forbidden = vertices in right half that are neighbors of any vertex in the left set
+    
+    # For each left independent set, store (mask, forbidden_in_right)
+    left_info = []
+    for mask in left_independent:
+        forbidden = 0
+        submask = mask
+        while submask:
+            bit_pos = (submask & -submask).bit_length() - 1
+            v = bit_pos
+            # Get neighbors of v in right half
+            v_neighbors_in_right = (adj_bits[v] >> left_size) & ((1 << right_size) - 1)
+            forbidden |= v_neighbors_in_right
+            submask &= submask - 1
+        left_info.append((mask, forbidden))
+    
+    # For each right independent set, store (mask, forbidden_in_left)
+    right_info = []
+    for mask in right_independent:
+        forbidden = 0
+        submask = mask
+        while submask:
+            bit_pos = (submask & -submask).bit_length() - 1
+            v = left_size + bit_pos
+            # Get neighbors of v in left half
+            v_neighbors_in_left = adj_bits[v] & ((1 << left_size) - 1)
+            forbidden |= v_neighbors_in_left
+            submask &= submask - 1
+        right_info.append((mask, forbidden))
+    
+    # Now we need to find left_mask and right_mask such that:
+    # 1. left_mask is independent in left half
+    # 2. right_mask is independent in right half
+    # 3. left_mask & forbidden_by_right == 0 (no vertex in left is neighbor of any vertex in right)
+    # 4. right_mask & forbidden_by_left == 0 (no vertex in right is neighbor of any vertex in left)
+    # 5. popcount(left_mask) + popcount(right_mask) == k
+    
+    # Group right_info by size
+    right_by_size = {}
+    for mask, forbidden in right_info:
+        size = popcount[mask] if mask < len(popcount) else bin(mask).count('1')
+        if size not in right_by_size:
+            right_by_size[size] = []
+        right_by_size[size].append((mask, forbidden))
+    
+    # For each left independent set
+    for left_mask, left_forbidden in left_info:
+        left_size_count = popcount[left_mask] if left_mask < len(popcount) else bin(left_mask).count('1')
+        need = k - left_size_count
+        if need < 0:
+            continue
+        if need in right_by_size:
+            for right_mask, right_forbidden in right_by_size[need]:
+                # Check if left_mask and right_mask are compatible
+                if (left_mask & right_forbidden) == 0 and (right_mask & left_forbidden) == 0:
+                    # Found a valid combination
+                    result = []
+                    for i in range(left_size):
+                        if left_mask & (1 << i):
+                            result.append(i + 1)
+                    for i in range(right_size):
+                        if right_mask & (1 << i):
+                            result.append(left_size + i + 1)
+                    print("YES")
+                    print(' '.join(map(str, result)))
+                    return
+    
+    print("NO")
+
+# Precompute popcount for larger numbers
+def precompute_popcount(limit):
+    pc = [0] * (limit + 1)
+    for i in range(1, limit + 1):
+        pc[i] = pc[i & (i - 1)] + 1
+    return pc
+
+def solve_optimized():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    k = int(next(it))
+    
+    adj = [0] * n
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+    
+    # Split vertices into two halves
+    n1 = n // 2
+    n2 = n - n1
+    
+    # Generate all independent sets in left half (vertices 0..n1-1)
+    left_sets = []
+    for mask in range(1 << n1):
+        ok = True
+        sub = mask
+        while sub:
+            v = (sub & -sub).bit_length() - 1
+            if mask & adj[v] & ((1 << n1) - 1):
+                ok = False
+                break
+            sub &= sub - 1
+        if ok:
+            left_sets.append(mask)
+    
+    # Generate all independent sets in right half (vertices n1..n-1)
+    right_sets = []
+    for mask in range(1 << n2):
+        ok = True
+        sub = mask
+        while sub:
+            bit = (sub & -sub).bit_length() - 1
+            v = n1 + bit
+            neighbors_in_right = (adj[v] >> n1) & ((1 << n2) - 1)
+            if mask & neighbors_in_right:
+                ok = False
+                break
+            sub &= sub - 1
+        if ok:
+            right_sets.append(mask)
+    
+    # Precompute popcount
+    max_mask = max(1 << n1, 1 << n2)
+    popcount = [0] * max_mask
+    for i in range(1, max_mask):
+        popcount[i] = popcount[i & (i - 1)] + 1
+    
+    # For each left set, compute forbidden vertices in right half
+    left_with_forbidden = []
+    for mask in left_sets:
+        forbidden = 0
+        sub = mask
+        while sub:
+            v = (sub & -sub).bit_length() - 1
+            forbidden |= (adj[v] >> n1)
+            sub &= sub - 1
+        left_with_forbidden.append((mask, forbidden))
+    
+    # Group right sets by size
+    right_by_size = {}
+    for mask in right_sets:
+        sz = popcount[mask] if mask < len(popcount) else bin(mask).count('1')
+        if sz not in right_by_size:
+            right_by_size[sz] = []
+        right_by_size[sz].append(mask)
+    
+    # Try each left set
+    for left_mask, forbidden in left_with_forbidden:
+        left_sz = popcount[left_mask] if left_mask < len(popcount) else bin(left_mask).count('1')
+        need = k - left_sz
+        if need < 0 or need > n2:
+            continue
+        if need in right_by_size:
+            for right_mask in right_by_size[need]:
+                if (right_mask & forbidden) == 0:
+                    # Found solution
+                    result = []
+                    for i in range(n1):
+                        if left_mask & (1 << i):
+                            result.append(i + 1)
+                    for i in range(n2):
+                        if right_mask & (1 << i):
+                            result.append(n1 + i + 1)
+                    print("YES")
+                    print(' '.join(map(str, result)))
+                    return
+    
+    print("NO")
+
+solve_optimized()

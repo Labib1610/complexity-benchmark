@@ -1,0 +1,94 @@
+import sys
+from collections import deque
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    iterator = iter(input_data)
+    N = int(next(iterator))
+    E = int(next(iterator))
+    F = int(next(iterator))
+    
+    vital = [False] * (N + 1)
+    for _ in range(F):
+        v = int(next(iterator))
+        vital[v] = True
+    
+    adj = [[] for _ in range(N + 1)]
+    for _ in range(E):
+        u = int(next(iterator))
+        v = int(next(iterator))
+        w = int(next(iterator))
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+    
+    # Build parent and depth arrays using BFS from node 1
+    parent = [0] * (N + 1)
+    parent_edge_weight = [0] * (N + 1)
+    depth = [0] * (N + 1)
+    
+    q = deque([1])
+    parent[1] = 0
+    depth[1] = 0
+    
+    while q:
+        u = q.popleft()
+        for v, w in adj[u]:
+            if v != parent[u]:
+                parent[v] = u
+                parent_edge_weight[v] = w
+                depth[v] = depth[u] + 1
+                q.append(v)
+    
+    # Process nodes from deepest to root
+    # We need to know for each node if its subtree contains a vital node
+    # that is not yet connected to the current component of its parent.
+    # Actually, the logic is:
+    # A node `u` needs to be connected to its parent `p` if:
+    # The subtree rooted at `u` contains a vital node that is not yet connected
+    # to the component containing `p` through other paths.
+    # Since we process bottom-up, we can track for each node if its subtree
+    # has a vital node that is "pending" connection upwards.
+    # Let's call this state `needs_connection[u]`.
+    # Initially, `needs_connection[u]` is true if `u` is vital.
+    # When processing `u`, if `needs_connection[u]` is true, we must connect `u` to `parent[u]`.
+    # This adds `parent_edge_weight[u]` to the total cost.
+    # Then, `needs_connection[parent[u]]` becomes true (because now the subtree of `u`
+    # is connected to `parent[u]`, and if `parent[u]` is not yet connected upwards,
+    # it needs to be).
+    # Wait, the logic is slightly different.
+    # If `needs_connection[u]` is true, we connect `u` to `p`. This merges the component
+    # of `u` with `p`. Now, `p` has a vital node in its subtree (the one from `u`).
+    # So `needs_connection[p]` should be set to true.
+    # But what if `p` itself is vital? `needs_connection[p]` would already be true.
+    # What if multiple children of `p` have `needs_connection` true?
+    # We connect `p` to each such child. Each connection adds to the cost.
+    # And `needs_connection[p]` becomes true (if not already).
+    # Actually, `needs_connection[p]` becomes true if ANY of its children needed connection,
+    # OR if `p` itself is vital.
+    
+    needs_connection = [False] * (N + 1)
+    for i in range(1, N + 1):
+        needs_connection[i] = vital[i]
+    
+    total_effort = 0
+    
+    # Process nodes in order of decreasing depth
+    # Nodes at depth d are processed before nodes at depth d-1
+    nodes_by_depth = [[] for _ in range(N)]
+    for i in range(1, N + 1):
+        nodes_by_depth[depth[i]].append(i)
+    
+    for d in range(N - 1, 0, -1):
+        for u in nodes_by_depth[d]:
+            if needs_connection[u]:
+                p = parent[u]
+                total_effort += parent_edge_weight[u]
+                needs_connection[p] = True
+    
+    print(total_effort)
+
+if __name__ == '__main__':
+    solve()

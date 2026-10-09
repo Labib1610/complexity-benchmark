@@ -1,0 +1,66 @@
+import sys
+import heapq
+
+def main():
+    data = sys.stdin.read().strip().split()
+    idx = 0
+    j = int(data[idx]); idx += 1
+    m = int(data[idx]); idx += 1
+    
+    proposals = []
+    for _ in range(j):
+        o = int(data[idx]); idx += 1
+        stages = []
+        for _ in range(o):
+            expert = int(data[idx]); idx += 1
+            duration = int(data[idx]); idx += 1
+            stages.append((expert, duration))
+        proposals.append(stages)
+    
+    # Each proposal has a pointer to next stage
+    next_stage = [0] * j
+    # Time when each proposal becomes available for next stage
+    avail_proposal = [0] * j
+    # Time when each expert becomes free
+    expert_free = [0] * (m + 1)  # experts are 1-indexed
+    
+    # Min-heap for events: (time, type, proposal, stage_index)
+    # type 0 = proposal ready to start next stage
+    # type 1 = expert finished a stage
+    heap = []
+    
+    # Initially all proposals are ready at time 0
+    for p in range(j):
+        heapq.heappush(heap, (0, 0, p, 0))
+    
+    max_time = 0
+    
+    while heap:
+        t, typ, p, s = heapq.heappop(heap)
+        
+        if typ == 0:
+            # Proposal p is ready to start stage s
+            if s >= len(proposals[p]):
+                # All stages done
+                max_time = max(max_time, t)
+                continue
+            expert, dur = proposals[p][s]
+            # Check if expert is free at time t
+            start_time = max(t, expert_free[expert])
+            finish_time = start_time + dur
+            expert_free[expert] = finish_time
+            # Schedule the finish event
+            heapq.heappush(heap, (finish_time, 1, p, s))
+        else:
+            # Stage s of proposal p finished
+            # Move to next stage
+            next_s = s + 1
+            if next_s < len(proposals[p]):
+                heapq.heappush(heap, (t, 0, p, next_s))
+            else:
+                max_time = max(max_time, t)
+    
+    print(max_time)
+
+if __name__ == "__main__":
+    main()

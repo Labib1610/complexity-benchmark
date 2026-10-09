@@ -1,0 +1,239 @@
+**Solution Explanation**
+
+The technicians are the vertices of a graph, a dispute is an edge.
+We have to colour the vertices with three colours `1,2,3` so that adjacent
+vertices obtain different colours – exactly the *graph 3‑colouring* problem.
+
+`n ≤ 40`, therefore an exponential back‑tracking search is fast enough.
+The search is heavily pruned by
+
+* always colouring the still uncoloured vertex with the largest degree
+  (most constraints – *DSATUR* heuristic),
+* rejecting a colour as soon as a neighbour already has that colour.
+
+If the recursion colours all vertices we have a solution,
+otherwise the instance is impossible.
+
+
+
+--------------------------------------------------------------------
+
+#### Algorithm
+```
+read n , m
+build adjacency list adj[0…n-1]
+
+col = [-1] * n                     # -1 = uncoloured, else 0,1,2
+
+order = vertices sorted by degree descending   # static order, used only for tie‑break
+
+def dfs(coloured_cnt):
+    if coloured_cnt == n:          # all vertices coloured
+        return True
+
+    # choose uncoloured vertex with maximal degree (break ties by static order)
+    v = -1
+    best_deg = -1
+    for u in range(n):
+        if col[u] == -1:
+            d = len(adj[u])
+            if d > best_deg or (d == best_deg and order.index(u) < order.index(v)):
+                best_deg = d
+                v = u
+
+    # try the three colours
+    for c in range(3):
+        ok = True
+        for nb in adj[v]:
+            if col[nb] == c:
+                ok = False
+                break
+        if not ok:
+            continue
+        col[v] = c
+        if dfs(coloured_cnt + 1):
+            return True
+        col[v] = -1                 # backtrack
+    return False
+
+if dfs(0):
+    print "YES"
+    print colours + 1 (convert 0‑based to 1‑based)
+else:
+    print "NO"
+```
+
+--------------------------------------------------------------------
+
+#### Correctness Proof  
+
+We prove that the algorithm prints **YES** and a valid assignment
+iff such an assignment exists.
+
+---
+
+##### Lemma 1  
+During the recursion, `col` never contains a conflict:
+for every edge `{u,v}` either `col[u] = -1` or `col[v] = -1`
+or `col[u] ≠ col[v]`.
+
+**Proof.**  
+A colour `c` is assigned to a vertex `v` only after checking all neighbours
+`nb` and confirming `col[nb] ≠ c`. Hence after the assignment the invariant
+holds. The backtrack restores `col[v] = -1`, which also preserves it. ∎
+
+
+
+##### Lemma 2  
+If the recursive call `dfs(k)` returns `True`, the current array `col`
+is a proper 3‑colouring of the whole graph.
+
+**Proof.**  
+`dfs(k)` returns `True` only in the base case `k = n`, i.e. every vertex
+has a colour (`col[v] ≠ -1`). By Lemma&nbsp;1 no edge connects two equal
+colours, therefore the colouring is proper. ∎
+
+
+
+##### Lemma 3  
+If a proper 3‑colouring exists, the recursion eventually reaches a state
+where all vertices are coloured and returns `True`.
+
+**Proof.**  
+Consider any fixed proper colouring `C`.  
+The recursion explores **all** possibilities that respect the already
+coloured neighbours (it tries every colour that does not immediately
+conflict).  
+When the algorithm selects an uncoloured vertex `v`, colour `C(v)` is among
+the tried colours because all neighbours of `v` already have the colour
+`C` and therefore differ from `C(v)`.  
+Thus there exists a path of recursive choices that exactly follows `C`,
+leading to the state where every vertex receives its colour from `C`.
+Consequently the algorithm will reach the base case and return `True`. ∎
+
+
+
+##### Lemma 4  
+If the recursion returns `False`, no proper 3‑colouring exists.
+
+**Proof.**  
+Assume a proper colouring existed. By Lemma&nbsp;3 the recursion would have a
+successful path, contradicting the return value `False`. Hence no proper
+colouring can exist. ∎
+
+
+
+##### Theorem  
+The program outputs  
+
+*`YES` and a list of cycles* **iff** a feasible allocation exists;  
+otherwise it outputs `NO`.
+
+**Proof.**  
+
+*If part*:  
+When the program prints `YES`, it did so because `dfs(0)` returned `True`.
+By Lemma&nbsp;2 the stored colours form a proper 3‑colouring, i.e. a feasible
+allocation.
+
+*Only‑if part*:  
+If a feasible allocation exists, Lemma&nbsp;3 guarantees that `dfs(0)` returns
+`True`, therefore the program prints `YES`.  
+If none exists, Lemma&nbsp;4 shows `dfs(0)` returns `False` and the program
+prints `NO`. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### Complexity Analysis  
+
+`n ≤ 40`.  
+In the worst case the algorithm tries all `3^n` colourings, but the
+pruning (conflict check) eliminates most branches early.
+The dominant work per recursive step is scanning the neighbours of the
+chosen vertex, `O(deg(v))`.  
+Overall worst‑case time: `O(3^n · n)` – acceptable for `n = 40`
+(well below the 2 s limit in practice).  
+Memory consumption: adjacency list `O(n + m)` and the colour array
+`O(n)`, i.e. `O(n + m) ≤ O(n^2) ≤ 1600` integers, far under the limit.
+
+
+
+--------------------------------------------------------------------
+
+#### Reference Implementation  (Python 3)
+
+```python
+import sys
+
+sys.setrecursionlimit(10000)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+
+    # static order for tie‑break (higher degree first)
+    order = sorted(range(n), key=lambda x: -len(adj[x]))
+
+    col = [-1] * n  # -1 uncoloured, else 0,1,2
+
+    # pre‑compute position of each vertex in 'order' for fast tie‑break
+    pos_in_order = [0] * n
+    for i, v in enumerate(order):
+        pos_in_order[v] = i
+
+    def dfs(coloured_cnt: int) -> bool:
+        if coloured_cnt == n:
+            return True
+
+        # choose vertex with maximal degree among uncoloured
+        v = -1
+        best_deg = -1
+        best_pos = n + 1
+        for u in range(n):
+            if col[u] == -1:
+                d = len(adj[u])
+                p = pos_in_order[u]
+                if d > best_deg or (d == best_deg and p < best_pos):
+                    best_deg = d
+                    best_pos = p
+                    v = u
+
+        # try colours 0,1,2
+        for c in range(3):
+            conflict = False
+            for nb in adj[v]:
+                if col[nb] == c:
+                    conflict = True
+                    break
+            if conflict:
+                continue
+            col[v] = c
+            if dfs(coloured_cnt + 1):
+                return True
+            col[v] = -1
+        return False
+
+    if dfs(0):
+        out = ['YES', ' '.join(str(c + 1) for c in col)]
+    else:
+        out = ['NO']
+    sys.stdout.write('\n'.join(out))
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above and
+conforms to the required input‑output format.

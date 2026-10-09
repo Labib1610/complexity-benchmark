@@ -1,0 +1,70 @@
+import sys
+
+# Increase recursion depth just in case
+sys.setrecursionlimit(2000)
+
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    n = int(input_data[0])
+    m = int(input_data[1])
+    k = int(input_data[2])
+
+    adj = [0] * n
+    idx = 3
+    for _ in range(m):
+        u = int(input_data[idx]) - 1
+        v = int(input_data[idx + 1]) - 1
+        idx += 2
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+
+    current_set = []
+
+    def dfs(P):
+        if len(current_set) == k:
+            return True
+        if len(current_set) + P.bit_count() < k:
+            return False
+
+        min_deg = 100
+        best_u = -1
+        temp = P
+        while temp:
+            lsb = temp & -temp
+            u = lsb.bit_length() - 1
+            deg = (adj[u] & P).bit_count()
+            if deg < min_deg:
+                min_deg = deg
+                best_u = u
+                if min_deg == 0:
+                    break
+            temp ^= lsb
+
+        candidates = (adj[best_u] | (1 << best_u)) & P
+        cand_temp = candidates
+        while cand_temp:
+            lsb = cand_temp & -cand_temp
+            w = lsb.bit_length() - 1
+            cand_temp ^= lsb
+
+            current_set.append(w + 1)
+            next_P = P & ~adj[w] & ~(1 << w)
+            if dfs(next_P):
+                return True
+            current_set.pop()
+
+        return False
+
+    initial_P = (1 << n) - 1
+    if dfs(initial_P):
+        print("YES")
+        print(*(current_set))
+    else:
+        print("NO")
+
+
+if __name__ == "__main__":
+    solve()

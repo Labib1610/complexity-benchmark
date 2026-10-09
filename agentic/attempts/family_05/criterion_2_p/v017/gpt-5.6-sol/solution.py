@@ -1,0 +1,93 @@
+import sys
+from collections import deque
+
+sys.setrecursionlimit(10000)
+
+readline = sys.stdin.buffer.readline
+k, t = map(int, readline().split())
+
+adj = [[] for _ in range(k)]
+terminal = [-1] * k
+
+for _ in range(t):
+    x, y, z = map(int, readline().split())
+    x -= 1
+    terminal[x] = y
+    adj[x].append(z - 1)
+
+pair_left = [-1] * k
+pair_right = [-1] * k
+dist = [-1] * k
+ptr = [0] * k
+matched = 0
+
+while True:
+    queue = deque()
+    for u in range(k):
+        if pair_left[u] == -1:
+            dist[u] = 0
+            queue.append(u)
+        else:
+            dist[u] = -1
+
+    shortest = k + 1
+
+    while queue:
+        u = queue.popleft()
+        du = dist[u]
+        if du >= shortest:
+            continue
+
+        for v in adj[u]:
+            nxt = pair_right[v]
+            if nxt == -1:
+                shortest = du + 1
+            elif dist[nxt] == -1:
+                dist[nxt] = du + 1
+                queue.append(nxt)
+
+    if shortest == k + 1:
+        break
+
+    ptr[:] = [0] * k
+
+    def dfs(u):
+        du = dist[u]
+        edges = adj[u]
+        i = ptr[u]
+
+        while i < len(edges):
+            v = edges[i]
+            i += 1
+            ptr[u] = i
+            nxt = pair_right[v]
+
+            if nxt == -1:
+                if du + 1 != shortest:
+                    continue
+            elif dist[nxt] != du + 1 or not dfs(nxt):
+                continue
+
+            pair_left[u] = v
+            pair_right[v] = u
+            return True
+
+        dist[u] = -1
+        return False
+
+    augmented = 0
+    for u in range(k):
+        if pair_left[u] == -1 and dfs(u):
+            augmented += 1
+
+    if augmented == 0:
+        break
+    matched += augmented
+
+if matched != k:
+    sys.stdout.write("NO\n")
+else:
+    output = ["YES"]
+    for x in range(k):
+        output.append(f"{x + 1} {terminal[x]} {pair_left[x] + 1}")
+    sys.stdout.write("\n".join(output))

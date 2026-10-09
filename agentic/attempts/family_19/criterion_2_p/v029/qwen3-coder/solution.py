@@ -1,0 +1,150 @@
+from collections import defaultdict, deque
+
+def solve():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    idx = 0
+    n = int(data[idx])
+    m = int(data[idx+1])
+    idx += 3
+    
+    s = int(data[idx])
+    t = int(data[idx+1])
+    d = int(data[idx+2])
+    idx += 3
+    
+    edges = []
+    graph = defaultdict(list)
+    capacity = {}
+    
+    for i in range(m):
+        u = int(data[idx])
+        v = int(data[idx+1])
+        ceil = int(data[idx+2])
+        idx += 3
+        edges.append((u, v, ceil))
+        graph[u].append((v, len(edges)-1))
+        graph[v].append((u, len(edges)-1))  # Add reverse edge
+        capacity[len(edges)-1] = ceil
+    
+    # We will use a flow network approach with Ford-Fulkerson using BFS (Edmonds-Karp)
+    # But we need to find a feasible flow of exactly d units from s to t
+    
+    # To do this, we'll model it as a max-flow problem and check if we can send exactly d flow
+    
+    def bfs_flow.getPath():
+        parent = [-1] * (n + 1)
+        visited = [False] * (n + 1)
+        queue = deque([s])
+        visited[s] = True
+        
+        while queue:
+            u = queue.popleft()
+            for v, edge_idx in graph[u]:
+                if not visited[v] and flow[edge_idx] < capacity[edge_idx]:
+                    visited[v] = True
+                    parent[v] = u
+                    queue.append(v)
+                    if v == t:
+                        return parent
+        return None
+    
+    # Actually, let's build the residual graph properly
+    # For each edge (u,v,cap), we have forward edge with cap and backward with 0 initially
+    # When we push f flow, forward becomes cap-f, backward becomes f
+    
+    # Let's restructure: for each original edge i from u to v,
+    # we create two indices: 2*i for forward, 2*i+1 for backward
+    
+    edge_forward = []  # (u, v, capacity) for original edges
+    edge_backward = [] # (v, u, 0) for back edges
+    adj = [[] for _ in range(n+1)]
+    
+    for i in range(m):
+        u, v, cap = edges[i]
+        # Forward edge index: 2*i
+        # Backward edge index: 2*i + 1
+        adj[u].append(2*i)
+        adj[v].append(2*i + 1)
+        edge_forward.append((u, v, cap))
+        edge_backward.append((v, u, 0))
+    
+    # Combine into one list for easier access
+    all_edges = []
+    for i in range(m):
+        all_edges.append(edge_forward[i])
+        all_edges.append(edge_backward[i])
+    
+    def edmonds_karp():
+        total_flow = 0
+        # flow[i] represents current flow on edge with index i
+        flow = [0] * (2 * m)
+        
+        while total_flow < d:
+            # BFS to find augmenting path
+            parent = [-1] * (n + 1)
+            edge_used = [-1] * (n + 1)  # which edge was used to reach node
+            queue = deque([s])
+            parent[s] = s
+            
+            found = False
+            while queue and not found:
+                u = queue.popleft()
+                for edge_idx in adj[u]:
+                    v = all_edges[edge_idx][1]
+                    cap = all_edges[edge_idx][2]
+                    if parent[v] == -1 and cap - flow[edge_idx] > 0 and v != s:
+                        parent[v] = u
+                        edge_used[v] = edge_idx
+                        if v == t:
+                            found = True
+                            break
+                        queue.append(v)
+            
+            if not found:
+                break
+                
+            # Find minimum capacity along the path
+            path_flow = d - total_flow
+            v = t
+            while v != s:
+                u = parent[v]
+                edge_idx = edge_used[v]
+                path_flow = min(path_flow, all_edges[edge_idx][2] - flow[edge_idx])
+                v = u
+            
+            # Update flows
+            v = t
+            while v != s:
+                u = parent[v]
+                edge_idx = edge_used[v]
+                flow[edge_idx] += path_flow
+                # The backward edge is either edge_idx ^ 1 or needs mapping
+                # Since forward edges are even indices and backward are odd,
+                # the reverse of edge 2*i is 2*i+1 and vice versa
+                rev_edge_idx = edge_idx ^ 1
+                flow[rev_edge_idx] -= path_flow
+                v = u
+                
+            total_flow += path_flow
+        
+        return total_flow, flow
+    
+    total_flow, flow_result = edmonds_karp()
+    
+    if total_flow < d:
+        print("NO")
+        return
+    
+    # Extract the actual flow on original edges
+    result = []
+    for i in range(m):
+        # Flow on original edge i is flow on forward edge 2*i
+        result.append(str(flow_result[2*i]))
+    
+    print("YES")
+    print(" ".join(result))
+
+solve()

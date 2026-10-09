@@ -1,0 +1,215 @@
+```python
+import sys
+
+def solve():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if len(data) < 2:
+        return
+
+    k, t = data[0], data[1]
+    ncols = 3 * k
+
+    xs = [0] * t
+    ys = [0] * t
+    zs = [0] * t
+    signatures = [0] * t
+    column_rows = [0] * ncols
+
+    pos = 2
+    for i in range(t):
+        x = data[pos] - 1
+        y = data[pos + 1] - 1
+        z = data[pos + 2] - 1
+        pos += 3
+
+        xs[i] = x
+        ys[i] = y
+        zs[i] = z
+
+        cx = x
+        cy = k + y
+        cz = 2 * k + z
+        bit = 1 << i
+
+        column_rows[cx] |= bit
+        column_rows[cy] |= bit
+        column_rows[cz] |= bit
+        signatures[i] = (1 << cx) | (1 << cy) | (1 << cz)
+
+    all_columns = (1 << ncols) - 1
+    all_rows = (1 << t) - 1
+
+    # Necessary GF(2) condition at the root.
+    basis = [0] * ncols
+    for sig in signatures:
+        v = sig
+        while v:
+            p = v.bit_length() - 1
+            if basis[p]:
+                v ^= basis[p]
+            else:
+                basis[p] = v
+                break
+
+    v = all_columns
+    while v:
+        p = v.bit_length() - 1
+        if basis[p]:
+            v ^= basis[p]
+        else:
+            print("NO")
+            return
+
+    failed = set()
+    answer = []
+
+    def has_matching(adj, left_mask, right_mask):
+        match = [-1] * k
+
+        def augment(a):
+            nonlocal seen
+            choices = adj[a] & right_mask & ~seen
+            while choices:
+                bbit = choices & -choices
+                choices ^= bbit
+                b = bbit.bit_length() - 1
+                seen |= bbit
+                old = match[b]
+                if old == -1 or augment(old):
+                    match[b] = a
+                    return True
+            return False
+
+        left = left_mask
+        while left:
+            abit = left & -left
+            left ^= abit
+            a = abit.bit_length() - 1
+            seen = 0
+            if not augment(a):
+                return False
+        return True
+
+    def strong_feasible(available, columns):
+        local_basis = [0] * ncols
+        adj_xy = [0] * k
+        adj_xz = [0] * k
+        adj_yz = [0] * k
+
+        rows = available
+        while rows:
+            rbit = rows & -rows
+            rows ^= rbit
+            r = rbit.bit_length() - 1
+
+            x = xs[r]
+            y = ys[r]
+            z = zs[r]
+            adj_xy[x] |= 1 << y
+            adj_xz[x] |= 1 << z
+            adj_yz[y] |= 1 << z
+
+            v = signatures[r]
+            while v:
+                p = v.bit_length() - 1
+                if local_basis[p]:
+                    v ^= local_basis[p]
+                else:
+                    local_basis[p] = v
+                    break
+
+        target = columns
+        while target:
+            p = target.bit_length() - 1
+            if local_basis[p]:
+                target ^= local_basis[p]
+            else:
+                return False
+
+        xmask = columns & ((1 << k) - 1)
+        ymask = (columns >> k) & ((1 << k) - 1)
+        zmask = (columns >> (2 * k)) & ((1 << k) - 1)
+
+        if not has_matching(adj_xy, xmask, ymask):
+            return False
+        if not has_matching(adj_xz, xmask, zmask):
+            return False
+        if not has_matching(adj_yz, ymask, zmask):
+            return False
+        return True
+
+    sys.setrecursionlimit(1000000)
+
+    def dfs(columns, available, depth):
+        if columns == 0:
+            return True
+        if columns in failed:
+            return False
+
+        if depth % 4 == 0 and not strong_feasible(available, columns):
+            failed.add(columns)
+            return False
+
+        degrees = [0] * ncols
+        best_candidates = 0
+        best_count = t + 1
+
+        remaining_columns = columns
+        while remaining_columns:
+            cbit = remaining_columns & -remaining_columns
+            remaining_columns ^= cbit
+            c = cbit.bit_length() - 1
+            candidates = available & column_rows[c]
+            count = candidates.bit_count()
+            degrees[c] = count
+
+            if count == 0:
+                failed.add(columns)
+                return False
+            if count < best_count:
+                best_count = count
+                best_candidates = candidates
+                if count == 1:
+                    break
+
+        choices = []
+        candidates = best_candidates
+        while candidates:
+            rbit = candidates & -candidates
+            candidates ^= rbit
+            r = rbit.bit_length() - 1
+            cx = xs[r]
+            cy = k + ys[r]
+            cz = 2 * k + zs[r]
+            score = degrees[cx] + degrees[cy] + degrees[cz]
+            choices.append((score, r))
+
+        if len(choices) > 1:
+            choices.sort()
+
+        for _, r in choices:
+            sig = signatures[r]
+            conflict = (
+                column_rows[xs[r]]
+                | column_rows[k + ys[r]]
+                | column_rows[2 * k + zs[r]]
+            )
+            answer.append(r)
+            if dfs(columns ^ sig, available & ~conflict, depth + 1):
+                return True
+            answer.pop()
+
+        failed.add(columns)
+        return False
+
+    if dfs(all_columns, all_rows, 0):
+        out = ["YES"]
+        for r in answer:
+            out.append(f"{xs[r] + 1} {ys[r] + 1} {zs[r] + 1}")
+        sys.stdout.write("\n".join(out))
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()
+```

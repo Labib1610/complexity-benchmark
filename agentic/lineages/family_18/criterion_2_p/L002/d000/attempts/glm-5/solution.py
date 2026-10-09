@@ -1,0 +1,70 @@
+import sys
+from collections import deque
+
+def solve():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    B = int(next(it))
+    
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # BFS to get order
+    order = []
+    visited = [False] * n
+    q = deque([0])
+    visited[0] = True
+    while q:
+        u = q.popleft()
+        order.append(u)
+        for v in adj[u]:
+            if not visited[v]:
+                visited[v] = True
+                q.append(v)
+    
+    # Compute depths
+    depth = [0] * n
+    for u in order:
+        for v in adj[u]:
+            if depth[v] == 0 and v != order[0]:
+                depth[v] = depth[u] + 1
+    
+    # Sort by depth descending
+    nodes = list(range(n))
+    nodes.sort(key=lambda x: -depth[x])
+    
+    # Assign positions
+    pos = [0] * n
+    L = 1
+    R = n
+    for u in nodes:
+        if depth[u] % 2 == 0:
+            pos[u] = L
+            L += 1
+        else:
+            pos[u] = R
+            R -= 1
+    
+    # Compute total length
+    total = 0
+    for u in range(n):
+        for v in adj[u]:
+            if v > u:
+                total += abs(pos[u] - pos[v])
+    
+    if total <= B:
+        print("YES")
+        print(' '.join(map(str, pos)))
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()

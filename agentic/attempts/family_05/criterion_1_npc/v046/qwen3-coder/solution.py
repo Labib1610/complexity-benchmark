@@ -1,0 +1,38 @@
+from itertools import permutations
+
+def solve():
+    k, t = map(int, input().split())
+    
+    if t < k:
+        print("NO")
+        return
+    
+    triads = []
+    for _ in range(t):
+        x, y, z = map(int, input().split())
+        triads.append((x, y, z))
+    
+    # Try all permutations of k triads
+    for perm in permutations(triads, k):
+        analysts = set()
+        clusters = set()
+        weeks = set()
+        
+        valid = True
+        for x, y, z in perm:
+            if x in analysts or y in clusters or z in weeks:
+                valid = False
+                break
+            analysts.add(x)
+            clusters.add(y)
+            weeks.add(z)
+        
+        if valid and len(analysts) == k and len(clusters) == k and len(weeks) == k:
+            print("YES")
+            for x, y, z in perm:
+                print(x, y, z)
+            return
+    
+    print("NO")
+
+solve()

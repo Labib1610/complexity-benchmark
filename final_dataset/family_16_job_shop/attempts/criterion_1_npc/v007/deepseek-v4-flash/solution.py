@@ -1,0 +1,149 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    j = int(next(it))
+    m = int(next(it))
+    
+    jobs = []
+    for _ in range(j):
+        o = int(next(it))
+        ops = []
+        for _ in range(o):
+            machine = int(next(it)) - 1
+            dur = int(next(it))
+            ops.append((machine, dur))
+        jobs.append(ops)
+    
+    # Flatten operations with job index
+    operations = []  # (job, op_index, machine, duration)
+    for job_idx, ops in enumerate(jobs):
+        for op_idx, (machine, dur) in enumerate(ops):
+            operations.append((job_idx, op_idx, machine, dur))
+    
+    n_ops = len(operations)
+    
+    # Predecessor in same job
+    job_prev = {}
+    for job_idx, ops in enumerate(jobs):
+        for op_idx in range(len(ops)):
+            if op_idx > 0:
+                job_prev[(job_idx, op_idx)] = (job_idx, op_idx - 1)
+            else:
+                job_prev[(job_idx, op_idx)] = None
+    
+    # Map operation index to (job, op_idx)
+    op_id_to_job = [ (op[0], op[1]) for op in operations ]
+    
+    # For each machine, list of operation indices
+    machine_ops = [[] for _ in range(m)]
+    for idx, (job_idx, op_idx, machine, dur) in enumerate(operations):
+        machine_ops[machine].append(idx)
+    
+    # Precompute durations
+    durations = [op[3] for op in operations]
+    
+    # Upper bound: simple sequential schedule (jobs one after another)
+    # Actually we can compute a simple heuristic upper bound
+    # Use list scheduling: process operations in order of job, machine availability
+    # We'll just use a large bound initially
+    upper_bound = sum(durations)  # trivial bound
+    
+    best = [upper_bound]
+    
+    # Start times
+    start = [0] * n_ops
+    # Machine availability
+    machine_free = [0] * m
+    # Job next op time
+    job_free = [0] * j
+    
+    # For pruning: lower bound = max of machine total load, job total load
+    machine_load = [0] * m
+    job_load = [0] * j
+    for job_idx, ops in enumerate(jobs):
+        for machine, dur in ops:
+            machine_load[machine] += dur
+            job_load[job_idx] += dur
+    lb_global = max(max(machine_load), max(job_load))
+    
+    # Sort operations by some heuristic (e.g., longest processing time first)
+    order = list(range(n_ops))
+    order.sort(key=lambda x: -durations[x])
+    
+    # Backtracking
+    assigned = [False] * n_ops
+    
+    def lower_bound(cur_time):
+        # Simple lower bound: max of machine loads remaining + current time
+        # We'll compute remaining loads for unassigned ops
+        rem_machine = [0] * m
+        rem_job = [0] * j
+        for idx in range(n_ops):
+            if not assigned[idx]:
+                job_idx, op_idx, machine, dur = operations[idx]
+                rem_machine[machine] += dur
+                rem_job[job_idx] += dur
+        lb = cur_time
+        for mm in range(m):
+            lb = max(lb, machine_free[mm] + rem_machine[mm])
+        for jj in range(j):
+            lb = max(lb, job_free[jj] + rem_job[jj])
+        return lb
+    
+    def dfs(depth, cur_makespan):
+        nonlocal best
+        if cur_makespan >= best[0]:
+            return
+        if depth == n_ops:
+            best[0] = cur_makespan
+            return
+        
+        # Lower bound pruning
+        if lower_bound(cur_makespan) >= best[0]:
+            return
+        
+        # Try next operation
+        for idx in order:
+            if assigned[idx]:
+                continue
+            job_idx, op_idx, machine, dur = operations[idx]
+            # Check job predecessor done
+            pred = job_prev[(job_idx, op_idx)]
+            if pred is not None:
+                pred_idx = None
+                for k in range(n_ops):
+                    if op_id_to_job[k] == pred:
+                        pred_idx = k
+                        break
+                if not assigned[pred_idx]:
+                    continue
+                job_ready = start[pred_idx] + durations[pred_idx]
+            else:
+                job_ready = 0
+            machine_ready = machine_free[machine]
+            s = max(job_ready, machine_ready)
+            # Assign
+            assigned[idx] = True
+            old_machine_free = machine_free[machine]
+            old_job_free = job_free[job_idx]
+            start[idx] = s
+            machine_free[machine] = s + dur
+            job_free[job_idx] = s + dur
+            new_makespan = max(cur_makespan, s + dur)
+            
+            dfs(depth + 1, new_makespan)
+            
+            # Backtrack
+            assigned[idx] = False
+            machine_free[machine] = old_machine_free
+            job_free[job_idx] = old_job_free
+    
+    dfs(0, 0)
+    print(best[0])
+
+if __name__ == "__main__":
+    solve()

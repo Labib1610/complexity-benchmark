@@ -1,0 +1,64 @@
+import sys
+import heapq
+
+input = sys.stdin.readline
+
+n, m, t = map(int, input().split())
+focal = list(map(int, input().split()))
+focal = [x - 1 for x in focal]
+
+# Build adjacency list
+adj = [[] for _ in range(n)]
+for _ in range(m):
+    u, v, w = map(int, input().split())
+    u -= 1
+    v -= 1
+    adj[u].append((v, w))
+    adj[v].append((u, w))
+
+# If only one focal variable, cost is 0
+if t == 1:
+    print(0)
+    sys.exit()
+
+# Map focal variables to bit positions
+focal_index = {v: i for i, v in enumerate(focal)}
+
+# dp[mask][v] = min cost to connect focal set 'mask' and end at node v
+INF = 10**18
+dp = [[INF] * n for _ in range(1 << t)]
+
+# Initialize: for each focal variable, cost 0 to reach it with its own bit set
+for i, f in enumerate(focal):
+    dp[1 << i][f] = 0
+
+# Dijkstra-like relaxation for each mask
+for mask in range(1 << t):
+    # First, combine submasks
+    sub = (mask - 1) & mask
+    while sub:
+        other = mask ^ sub
+        if sub < other:  # avoid double work
+            for v in range(n):
+                dp[mask][v] = min(dp[mask][v], dp[sub][v] + dp[other][v])
+        sub = (sub - 1) & mask
+
+    # Then run Dijkstra from all nodes with current mask
+    pq = []
+    for v in range(n):
+        if dp[mask][v] < INF:
+            heapq.heappush(pq, (dp[mask][v], v))
+    while pq:
+        d, u = heapq.heappop(pq)
+        if d > dp[mask][u]:
+            continue
+        for v, w in adj[u]:
+            nd = d + w
+            if nd < dp[mask][v]:
+                dp[mask][v] = nd
+                heapq.heappush(pq, (nd, v))
+
+# Answer is min over all nodes for full mask
+full_mask = (1 << t) - 1
+ans = min(dp[full_mask][v] for v in range(n))
+print(ans)

@@ -1,0 +1,106 @@
+```python
+import sys
+from collections import deque
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it)); m = int(next(it)); k = int(next(it))
+    contracts = [(int(next(it))-1, int(next(it))-1, int(next(it))) for _ in range(k)]
+    edges = []
+    for _ in range(m):
+        u = int(next(it))-1; v = int(next(it))-1; c = int(next(it))
+        edges.append([u, v, c])
+    # adjacency for flow
+    def build_graph(cap):
+        g = [[] for _ in range(n)]
+        for idx, (u, v, _) in enumerate(edges):
+            c = cap[idx]
+            if c:
+                g[u].append([v, c, idx, len(g[v])])
+                g[v].append([u, 0, -1, len(g[u])-1])
+        return g
+
+    def bfs(level, g, s, t):
+        q = deque([s])
+        level[s] = 0
+        while q:
+            v = q.popleft()
+            for to, cap, _, rev in g[v]:
+                if cap and level[to] < 0:
+                    level[to] = level[v] + 1
+                    q.append(to)
+        return level[t] >= 0
+
+    def dfs(v, t, f, level, it_ptr, g):
+        if v == t:
+            return f
+        for i in range(it_ptr[v], len(g[v])):
+            it_ptr[v] = i
+            to, cap, eidx, rev = g[v][i]
+            if cap and level[v] + 1 == level[to]:
+                ret = dfs(to, t, min(f, cap), level, it_ptr, g)
+                if ret:
+                    g[v][i][1] -= ret
+                    g[to][rev][1] += ret
+                    return ret
+        return 0
+
+    # remaining capacities per edge
+    rem = [c for _, _, c in edges]
+    # result matrix k x m
+    res = [[0]*m for _ in range(k)]
+
+    for ci, (s, t, d) in enumerate(contracts):
+        # build graph with current remaining caps
+        g = build_graph(rem)
+        flow = 0
+        level = [-1]*n
+        while bfs(level, g, s, t):
+            it_ptr = [0]*n
+            while True:
+                pushed = dfs(s, t, 10**18, level, it_ptr, g)
+                if not pushed:
+                    break
+                flow += pushed
+            level = [-1]*n
+        if flow < d:
+            print("NO")
+            return
+        # retrieve flow amounts on original edges
+        # run another maxflow to get exact d flow and record edges
+        # we reuse g which already has some flow; we need to extract used amounts
+        # We'll run a flow algorithm that stops after d units and records.
+        # Simpler: run Dinic again but stop when total reaches d, recording.
+        # Reset graph
+        g = build_graph(rem)
+        need = d
+        level = [-1]*n
+        while need and bfs(level, g, s, t):
+            it_ptr = [0]*n
+            while need:
+                pushed = dfs(s, t, need, level, it_ptr, g)
+                if not pushed:
+                    break
+                need -= pushed
+            level = [-1]*n
+        # now extract used flow from residual capacities
+        for u in range(n):
+            for to, cap, eidx, rev in g[u]:
+                if eidx == -1:
+                    continue
+                used = edges[eidx][2] - rem[eidx] - cap  # original - remaining - residual = flow sent
+                if used:
+                    res[ci][eidx] = used
+                    rem[eidx] -= used
+        # after subtraction, ensure non-negative
+    print("YES")
+    out = sys.stdout
+    for row in res:
+        out.write(" ".join(map(str, row)) + "\n")
+
+if __name__ == "__main__":
+    solve()
+```

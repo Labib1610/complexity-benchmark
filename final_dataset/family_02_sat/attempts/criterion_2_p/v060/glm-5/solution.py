@@ -1,0 +1,98 @@
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    size = 2 * n + 2
+    graph = [[] for _ in range(size)]
+    
+    def node(x):
+        if x > 0:
+            return 2 * x
+        else:
+            return 2 * (-x) + 1
+    
+    def add_impl(a, b):
+        graph[a].append(b)
+    
+    def add_or(l1, l2):
+        a = node(l1)
+        b = node(l2)
+        na = a ^ 1
+        nb = b ^ 1
+        add_impl(na, b)
+        add_impl(nb, a)
+    
+    for _ in range(m):
+        l1 = int(next(it))
+        l2 = int(next(it))
+        add_or(l1, l2)
+    
+    # Tarjan's SCC
+    index_counter = [0]
+    lowlink = [0] * size
+    index = [0] * size
+    on_stack = [False] * size
+    stack = []
+    comp = [-1] * size
+    comp_counter = [0]
+    
+    sys.setrecursionlimit(1 << 25)
+    
+    def strongconnect(v):
+        # iterative Tarjan to avoid recursion depth issues
+        call_stack = [(v, 0)]
+        while call_stack:
+            node_v, pi = call_stack[-1]
+            if pi == 0:
+                index[node_v] = index_counter[0]
+                lowlink[node_v] = index_counter[0]
+                index_counter[0] += 1
+                stack.append(node_v)
+                on_stack[node_v] = True
+            if pi < len(graph[node_v]):
+                w = graph[node_v][pi]
+                call_stack[-1] = (node_v, pi + 1)
+                if index[w] == 0:
+                    call_stack.append((w, 0))
+                elif on_stack[w]:
+                    if index[w] < lowlink[node_v]:
+                        lowlink[node_v] = index[w]
+            else:
+                if lowlink[node_v] == index[node_v]:
+                    while True:
+                        w = stack.pop()
+                        on_stack[w] = False
+                        comp[w] = comp_counter[0]
+                        if w == node_v:
+                            break
+                    comp_counter[0] += 1
+                call_stack.pop()
+                if call_stack:
+                    parent_v = call_stack[-1][0]
+                    if lowlink[node_v] < lowlink[parent_v]:
+                        lowlink[parent_v] = lowlink[node_v]
+    
+    for v in range(2, 2 * n + 2):
+        if index[v] == 0:
+            strongconnect(v)
+    
+    assignment = [0] * (n + 1)
+    for i in range(1, n + 1):
+        pos = 2 * i
+        neg = 2 * i + 1
+        if comp[pos] == comp[neg]:
+            sys.stdout.write("NO\n")
+            return
+        assignment[i] = 1 if comp[pos] < comp[neg] else 0
+    
+    out = ["YES"]
+    out.append(" ".join(str(assignment[i]) for i in range(1, n + 1)))
+    sys.stdout.write("\n".join(out) + "\n")
+
+solve()

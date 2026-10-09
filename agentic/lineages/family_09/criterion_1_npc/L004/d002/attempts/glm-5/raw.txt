@@ -1,0 +1,846 @@
+Let me analyze this problem.
+
+We have a graph with $n$ vertices (up to 46) and $m$ edges. We need to find an independent set of size exactly $k$ (a set of $k$ vertices such that no edge has both endpoints in the set).
+
+So the problem is: does the graph have an independent set of size exactly $k$? If yes, output one.
+
+$n \le 46$. This is the classic "maximum independent set in 55 vertices" meet-in-the-middle problem. With $n = 46$, we can split vertices into two halves of 23 each. For each half, enumerate all independent sets... but $2^{23} \approx 8.4$ million subsets per half, which is feasible in Python? Hmm, $2^{23} = 8388608$. Enumerating all subsets of 23 vertices and checking independence... that's a lot in Python but might be doable with bit tricks.
+
+Actually, the standard approach for maximum independent set with meet-in-the-middle for $n \le 40$ or so:
+
+Split vertices into two halves $A$ (first $n/2$) and $B$ (rest). For each independent set $S_A \subseteq A$, and each independent set $S_B \subseteq B$ such that there are no edges between $S_A$ and $S_B$, $S_A \cup S_B$ is independent. We want to find one with $|S_A| + |S_B| = k$.
+
+Standard approach: For each independent set $S_B$ in $B$, compute the set of vertices in $A$ that are NOT adjacent to any vertex in $S_B$ — call it $N(S_B)$ complement... Actually, let $A_{S_B}$ = set of vertices in $A$ with no neighbor in $S_B$. Then we need an independent set $S_A \subseteq A_{S_B}$ with $|S_A| = k - |S_B|$.
+
+So for each subset $T \subseteq A$ (all $2^{23}$ subsets), we can precompute $f[T]$ = maximum size of an independent set contained in $T$. Wait, but we need "exactly $k$", not "at least $k$". Hmm, but if there's an independent set of size $\ge k$ within a set, is there one of size exactly $k$? Yes! Any subset of an independent set is independent. So if the maximum independent set within $T$ has size $\ge k$, then there's one of size exactly $k$ (just take any $k$ vertices of it).
+
+So the condition "there exists an independent set of size exactly $k$" is equivalent to "the maximum independent set has size $\ge k$". Wait, but $k \le n$, so if max independent set size $\ge k$, we can pick exactly $k$ vertices from it. Yes.
+
+So the problem reduces to: find maximum independent set (or at least determine if $\alpha(G) \ge k$ and find an independent set of size $k$).
+
+Meet-in-the-middle approach:
+
+1. Split $V$ into $A$ (first half, size $h = n // 2$ or so) and $B$ (rest, size $n - h$).
+2. For each subset $T$ of $A$ (there are $2^h$), compute $f[T]$ = size of maximum independent set within $T$. This can be computed via DP: $f[T] = \max(f[T \setminus \{v\}], f[T \setminus N[v] \cap T] + 1)$ where $v$ is the lowest set bit of $T$. Actually standard: $f[\emptyset] = 0$; for $T \ne \emptyset$, pick lowest vertex $v \in T$: $f[T] = \max(f[T \setminus \{v\}], 1 + f[T \setminus (\{v\} \cup N(v))])$.
+
+   With $h = 23$, $2^{23} = 8.4M$ iterations in Python — that's slow but maybe feasible within 5 seconds? Python does maybe 10-30 million simple operations per second... 8.4M iterations each with a few operations might take ~10-20 seconds. Hmm, risky.
+
+   Alternative: use $h = n//2 = 23$ and $n - h = 23$. Both halves have $2^{23}$ subsets. That's 16.8M total DP operations. Too slow in pure Python probably.
+
+Let me think about optimizations.
+
+Alternative approach: enumerate only independent sets in each half, not all subsets. The number of independent sets could still be large in the worst case (empty graph: $2^{23}$ independent sets in each half). Hmm.
+
+But wait — for the empty graph, the answer is trivially YES if $k \le n$. The hard cases are dense graphs where the number of independent sets is small... but medium-density graphs can have many independent sets.
+
+Hmm, let me think about the structure. $n \le 46$. Meet in the middle with $2^{23}$ per side.
+
+Actually, there's a smarter approach for the "exactly $k$" formulation. Let me think about the standard MIS meet-in-the-middle:
+
+For each independent set $S_B \subseteq B$, let $\text{mask}_A(S_B)$ = set of vertices in $A$ non-adjacent to all of $S_B$. Then we need $\max_{S_B} (|S_B| + f[\text{mask}_A(S_B)]) \ge k$.
+
+Enumerating all independent sets of $B$: in the worst case (empty graph on $B$), that's $2^{23}$. But if $B$ has no edges, then... hmm, we still need to handle it.
+
+Alternative: enumerate all $2^{|B|}$ subsets of $B$ but only keep track of the best. Actually we can do a different DP:
+
+For each subset $U \subseteq B$, define $g[U]$ = ... hmm.
+
+Let me think of a cleaner formulation. Define for each subset $S_B \subseteq B$: $\text{avail}(S_B) \subseteq A$ = vertices of $A$ with no neighbor in $S_B$. Note $\text{avail}$ is monotone decreasing: $S_B \subseteq S_B' \Rightarrow \text{avail}(S_B) \supseteq \text{avail}(S_B')$.
+
+We want $\max_{S_B \text{ independent}} (|S_B| + f[\text{avail}(S_B)])$.
+
+Hmm, but actually we don't need $S_B$ to be independent if we define things carefully... no wait, we do.
+
+Alternative approach: DP over subsets of $B$ where $g[S_B]$ = (max independent set in $S_B$'s "closure"...). Hmm.
+
+Let me think again. Standard technique: 
+
+For each subset $T \subseteq A$: $f[T]$ = max independent set size in induced subgraph on $T$. Computed in $O(2^h)$ time with the recurrence.
+
+For each subset $U \subseteq B$: define $h[U]$ = max over independent sets $S \subseteq U$ of ($|S| + f[\text{avail}(S)]$)? That doesn't decompose nicely because $\text{avail}$ depends on the specific $S$.
+
+Hmm, alternative: For each subset $U \subseteq B$, let $\text{cnt}[U]$ = max independent set size in $U$ (same DP as $f$), and let $\text{reach}[U]$ = ... hmm.
+
+Actually here's a cleaner way. Let me define:
+
+For each subset $S \subseteq B$ (not necessarily independent), define $F[S] = \max_{S' \subseteq S, S' \text{ independent}} (|S'| + f[\text{avail}(S')])$.
+
+Hmm, that's not obviously computable by subset DP because $\text{avail}(S')$ for different $S'$...
+
+Wait, actually there's a classic trick: since $\text{avail}(S') = A \setminus \bigcup_{v \in S'} N_A(v)$, and we want $f$ of that... 
+
+Alternative classic approach for MIS meet-in-the-middle (from the "maximum independent set in 40-50 vertices" literature):
+
+For each independent set $S_A$ in $A$, compute the set of vertices in $B$ available: $\text{avail}_B(S_A)$. Then group independent sets of $A$ by their available set in $B$... no.
+
+Actually the standard approach: enumerate all independent sets of $A$ (with their sizes), and for each, compute $\text{avail}_B(S_A)$. Then we want: does there exist $S_A$ with $|S_A| + g[\text{avail}_B(S_A)] \ge k$ where $g[U]$ = max independent set in $U \subseteq B$.
+
+To avoid enumerating all independent sets of $A$ (up to $2^{23}$), we can do: for each subset $T \subseteq A$, compute $best[T]$ = max over independent $S_A \subseteq T$ of ($|S_A| + g[\text{avail}_B(S_A)]$)? Still doesn't decompose.
+
+Hmm, but here's a trick: $\text{avail}_B(S_A) = B \setminus N_B(S_A)$. If $S_A \subseteq T$, then $\text{avail}_B(S_A) \supseteq \text{avail}_B(T)$. So $g[\text{avail}_B(S_A)] \ge g[\text{avail}_B(T)]$... that gives a lower bound but not exact.
+
+OK here's the actual standard meet-in-the-middle for MIS (e.g., from competitive programming):
+
+Split into halves $A$ (size $h$) and $B$ (size $n-h$).
+
+Step 1: For each subset $T \subseteq A$, compute $f[T]$ = max independent set size in $T$. $O(2^h)$.
+
+Step 2: Enumerate all independent sets of $B$. For each independent set $S_B$ with size $s$, compute $M = \text{avail}_A(S_B)$ (vertices of $A$ non-adjacent to $S_B$), and check $s + f[M]$. Keep the best.
+
+The issue: enumerating all independent sets of $B$ can be $2^{n-h}$ in the worst case (empty graph). But with empty graph, $f$ handles it... Hmm wait, if $B$ is empty graph, then every subset is independent, so we enumerate $2^{23}$ subsets. But actually, we could be smarter: we only need to consider maximal useful $S_B$... 
+
+Hmm, actually here's a key insight: we want to check if $\alpha \ge k$. Equivalently, find max over independent $S_B$ of $|S_B| + f[\text{avail}_A(S_B)]$.
+
+Note that if $S_B$ is independent and $S_B \subseteq S_B'$ where $S_B'$ is also independent, then $|S_B| \le |S_B'|$ and $\text{avail}_A(S_B) \supseteq \text{avail}_A(S_B')$, so $f[\text{avail}_A(S_B)] \ge f[\text{avail}_A(S_B')]$. So the objective isn't monotone — a bigger $S_B$ has bigger $|S_B|$ but potentially smaller $f[\text{avail}]$. So we can't just consider maximal independent sets of $B$. We need all of them.
+
+But here's a pruning: if $|S_B| + f[\text{avail}_A(S_B)]$... hmm.
+
+Alternative: swap the roles. For each subset $T \subseteq A$, we have $f[T]$. Now define for each subset $U \subseteq B$: $g[U]$ = max independent set size in $U$, computed the same way in $O(2^{n-h})$.
+
+Then the answer is $\max_{S_B \text{ indep}} |S_B| + f[A \setminus N_A(S_B)]$.
+
+Hmm, how to compute this max efficiently without enumerating independent sets of $B$?
+
+Idea: Define $W[U]$ for $U \subseteq B$: $W[U] = \max_{S \subseteq U, S \text{ indep}} \left( |S| + f[A \setminus N_A(S)] \right)$.
+
+Can we compute $W$ via subset DP? $W[U] = \max(W[U \setminus \{v\}], ...)$ — the problem is that different subsets $S$ of $U$ have different $N_A(S)$.
+
+Alternative idea: process vertices of $B$ one at a time and maintain a mapping from "available set in $A$" to best count. That's the standard "profile" DP but the profile is a subset of $A$ — $2^h$ possible profiles, and $2^{n-h}$ subsets of $B$... total states $2^h \times$ something. Hmm.
+
+Actually, here's a neat approach: 
+
+For each subset $T \subseteq A$, let $c[T]$ = max size of an independent set $S_A \subseteq T$ such that... no wait.
+
+Let me think differently. Classic approach for "exact weight independent set" meet in the middle:
+
+For each independent set $S_A$ of $A$: key = $\text{avail}_B(S_A)$ (subset of $B$), value = $|S_A|$. We want to find $S_A, S_B$ with $\text{avail}$ compatible: $S_B \subseteq \text{avail}_B(S_A)$ (equivalently $S_A \subseteq \text{avail}_A(S_B)$), maximizing $|S_A| + |S_B|$.
+
+Group by key: for each subset $U \subseteq B$, let $\text{best}_A[U]$ = max $|S_A|$ over independent $S_A \subseteq A$ with $\text{avail}_B(S_A) \supseteq U$... hmm, that's a "superset query". 
+
+Alternatively: for each $U \subseteq B$, $\text{best}_A[U]$ = max $|S_A|$ over independent $S_A$ with $\text{avail}_B(S_A) = U$ exactly. Then for a given independent $S_B$, we need max over $U \supseteq S_B$ of $\text{best}_A[U]$. Superset sums / max: we can compute via zeta transform (max over supersets) in $O(2^{|B|} \cdot |B|)$.
+
+But enumerating all independent sets of $A$ to fill $\text{best}_A$ is still $2^h$ worst case.
+
+Hmm OK so the fundamental issue: worst case (empty graph), we have $2^{23}$ independent sets in each half. Total work ~ $2^{23} \times$ constant for enumeration + $2^{23} \times 23$ for zeta transform. In Python, $2^{23} \times 23 \approx 193M$ operations — way too slow.
+
+But wait — for the empty graph, the answer is trivially YES (any $k$ vertices work). More generally, sparse graphs have many independent sets but also large independent sets, so $\alpha \ge k$ is easy to satisfy... but we need to PROVE it, i.e., find an independent set of size $k$ or prove none exists.
+
+Hmm, but actually the hard instances: we need to determine if $\alpha(G) \ge k$. If $\alpha(G) \ge k$, we need to find a witness. If $\alpha(G) < k$, we need to prove no independent set of size $k$ exists.
+
+Known: for $n = 46$, this is like the "independent set" problem which is NP-hard in general but $n \le 46$ suggests meet-in-the-middle with $2^{23}$ or so per side, OR the intended solution might be different.
+
+Wait, actually, maybe there's additional structure. $m \le n(n-1)/2$, so it's a general graph. $n \le 46$... Hmm, 46 is interesting. Meet in the middle: $2 \times 2^{23} = 16.7M$. With careful bit manipulation in Python... still slow.
+
+Hmm wait, maybe the problem intends something else. Let me re-read.
+
+"You need to determine if there exists an assignment of values to the $n$ variables such that exactly $k$ variables are set to $1$, and the overall function evaluates to exactly $0$."
+
+Yes, it's exact independent set of size $k$. As noted, this is equivalent to $\alpha(G) \ge k$ (since subsets of independent sets are independent, and $k \le n$).
+
+Hmm wait, is that right? If $\alpha(G) \ge k$, take a maximum independent set $S$ with $|S| \ge k$, then any $k$-subset of $S$ is independent. Yes. So the problem is: find max independent set, or determine if $\alpha \ge k$ and exhibit one of size exactly $k$.
+
+$n \le 46$. Hmm. Classic problem: "Maximum independent set, $n \le 40$" solved with meet-in-the-middle in $O(2^{n/2})$. For $n = 46$, $2^{23} = 8.4M$.
+
+In Python, we need to be clever. Let me think about how to do this efficiently.
+
+Approach 1: Meet in the middle with numpy.
+
+Let me think about how to vectorize.
+
+Split: $A$ = vertices $0..h-1$, $B$ = vertices $h..n-1$, with $h = n // 2$ (so $h \le 23$, $|B| \le 23$).
+
+Step 1: Compute $f[T]$ for all $T \subseteq A$: max independent set size in induced subgraph $G[T]$. 
+
+DP: $f[0] = 0$. For $T > 0$: let $v$ = lowest set bit. $f[T] = \max(f[T \& (T-1)], 1 + f[T \& \sim(\text{adj}[v] | (1<<v))])$... wait, $T \setminus (\{v\} \cup N(v))$ = $T \& \sim(\text{adjA}[v])$ where adjA[v] includes v itself and neighbors within A.
+
+This is $2^h$ iterations, each with array lookups. In pure Python: ~8.4M iterations × maybe 5-10 operations = too slow (probably 20-60 seconds). With numpy, this DP is sequential (each $f[T]$ depends on smaller-index values)... but actually $f[T \& (T-1)]$ and $f[T \& \sim adj]$ — both are subsets of $T$ with fewer bits... hmm, not necessarily smaller as integers! $T \& \sim adj[v]$ could be a larger integer than $T$? No wait: $T \& \sim adj[v]$ removes bits from $T$, so it's $\le T$ as integer, and it's $< T$ since $v$'s bit is removed. And $T \& (T-1)$ clears the lowest bit, so $< T$. So we can process $T$ in increasing order. But it's inherently sequential per element... 
+
+Can we vectorize the DP over all $T$? Process in order of popcount? For all $T$ with the same lowest-bit structure... Hmm.
+
+Alternative vectorization: process $T$ in increasing order but batch by lowest set bit. For all $T$ with lowest set bit $v$: $T = (1<<v) + (T' << (v+1))$ where $T'$ ranges over all subsets of the high bits. Then:
+- $f[T \& (T-1)] = f[T' << (v+1)]$ — these are $T$ with bit $v$ cleared.
+- $f[T \& \sim adj[v]]$: $adj[v]$ restricted appropriately.
+
+Hmm, this is getting complicated. Let me think of a different vectorized approach.
+
+Alternative: compute $f$ via a different recurrence that's more amenable: 
+
+$f[T] = \max(f[T \setminus \{v\}], 1 + f[T \setminus N[v]])$ where $v$ = any vertex in $T$ (say highest bit).
+
+Vectorized over all $T$ with highest bit $v$: $T = X | (1 << v)$ where $X \subseteq \{0..v-1\}$. Then:
+- $f[X | (1<<v)]$ candidate 1: $f[X]$.
+- candidate 2: $1 + f[X \& \sim adj[v]]$ where $adj[v]$ here is closed neighborhood restricted to bits $< v$... wait, $T \setminus N[v] = X \setminus N(v)$ (bit $v$ removed along with neighbors of $v$ in $X$).
+
+So: for each $v$ from 0 to $h-1$, for all $X \subseteq [0, v)$: $f[(1<<v) | X] = \max(f[X], 1 + f[X \& \sim nbr_v])$ where $nbr_v$ = adjacency mask of $v$ within bits $0..v-1$.
+
+This is vectorizable with numpy: for each $v$, we take the array slice $f[0 : 2^v]$ (all $X$), compute $X \& \sim nbr_v$ for all $X$... but computing $X \& \sim nbr_v$ for all $X \subseteq [0,v)$ — we can precompute an index array. Hmm, for each $v$, we need the array $idx[X] = X \& \sim nbr_v$ for all $X$ in $[0, 2^v)$. 
+
+Actually, there's a nice way: $X \& \sim nbr_v$ where $nbr_v \subseteq [0, v)$. The map $X \mapsto X \& \sim nbr_v$ on the domain $[0, 2^v)$: we can build it via bit tricks. For all $X$ in $[0, 2^v)$: if we have an array $ar = np.arange(2^v)$, then $ar \& \sim nbr_v$ is just `ar & mask` — elementwise AND with a constant! That's vectorizable: `idx = ar & (~nbr_v & ((1<<v)-1))`. Then `f[(1<<v) | ar] = np.maximum(f[ar], 1 + f[idx])`.
+
+Wait but careful: `f[idx]` — idx values are in $[0, 2^v)$, and we're writing to positions $(1<<v) | ar$ which are $\ge 2^v$. Since we process $v$ in increasing order, when we process $v$, all $f[X]$ for $X < 2^v$ are already computed. 
+
+So the total work: $\sum_v 2^v = 2^h - 1$ numpy element operations, done in $h$ numpy calls. For $h = 23$: arrays of size up to $4M$ (for $v=22$, $2^{22} = 4.2M$). Total elements processed: $2^{23} \approx 8.4M$. With numpy, this is fast — maybe 0.1-0.5 seconds. 
+
+But wait, we also need to reconstruct the actual independent set, not just the size. Hmm. For reconstruction, we could store a "parent" or "choice" array: for each $T$, whether we took vertex $v$ (highest bit) or not. Or we can just recompute: once we know the max size, we can reconstruct by walking down. Actually, simpler: store choice bit per $T$: `took[T] = 1` if $f[T] = 1 + f[T \setminus N[v]]$ (and that's $\ge f[T\setminus\{v\}]$), else 0. That's one more numpy array of size $2^h$ (uint8). Fine.
+
+Actually, even simpler for reconstruction: we can do a second pass. But storing choice is easy: `choice[(1<<v)|ar] = (1 + f[idx] > f[ar])` as uint8. Hmm, need to be careful: if equal, either choice works for max size, but for reconstruction we need consistency: if we say "took", then next set is $T \setminus N[v]$; if "not took", next is $T \setminus \{v\}$. As long as choice is consistent with the max, reconstruction works.
+
+Wait, but actually there's a subtlety: we need $f$ of subsets, and we need to reconstruct an independent set of size exactly $k$ within a given subset $T$ of $A$. Since $f[T] \ge$ needed, we can take the max independent set and trim to $k$. But during reconstruction we get the max set; trimming is fine.
+
+Hmm, but actually there's another subtlety: in the meet-in-the-middle, we need, for a given $S_B$ (independent set in $B$) and its available set $M = \text{avail}_A(S_B) \subseteq A$, an independent set in $A$ of size $\max(k - |S_B|, 0)$... well, we need $f[M] \ge k - |S_B|$, and then reconstruct within $M$.
+
+Step 2: Now for the $B$ side. We need $\max_{S_B \text{ indep}} (|S_B| + f[\text{avail}_A(S_B)])$.
+
+How to compute this efficiently? 
+
+Option A: enumerate all independent sets of $B$ via DFS with pruning. Worst case $2^{23}$ (empty graph on B). But with pruning: if the graph on $B$ is empty, then... hmm, we'd still enumerate all $2^{23}$ subsets. That's too slow in Python (DFS with 8.4M nodes, each with Python overhead ~ maybe 5-10 seconds... borderline).
+
+Hmm, but wait: we can prune smartly. In the DFS over $B$'s independent sets, we can prune when the current partial solution can't beat the best found. But for the decision problem "$\alpha \ge k$", we can stop as soon as we find any combination achieving $k$. The hard case is when $\alpha < k$ and we must exhaust... but if $\alpha < k$, the graph is dense, so the number of independent sets is small!
+
+Interesting. Let's think: when is the search expensive? The number of independent sets of $B$ (23 vertices) is large only when $B$ is sparse. But if $B$ is sparse, then $\alpha(B)$ is large, and likely $\alpha(G) \ge k$ is quickly found... but not necessarily — maybe $k$ is large and $A$ is dense.
+
+Hmm, let me think about worst cases. Adversarial: $B$ = empty graph on 23 vertices, $A$ = empty graph on 23 vertices, $k = 46$. Then $\alpha = 46 \ge k$. We'd find it quickly if the DFS finds a large set early. If DFS explores in a way that quickly builds large sets, fine.
+
+Adversarial case 2: $B$ empty (23 vertices), $A$ = complete graph on 23 vertices, $k = 24$. Then $\alpha = 1 + 23 = 24 \ge k$. Found quickly.
+
+Adversarial case 3: $B$ = graph with many independent sets but $\alpha(B) + \alpha(A) < k$... e.g., $B$ = empty graph? No, empty graph has $\alpha = 23$. To have many independent sets but small independence number... The number of independent sets is maximized for given edge count by... hmm. A graph on 23 vertices with $\alpha(B) = t$ — the minimum number of... The number of independent sets can be huge even when $\alpha$ is small? E.g., disjoint union of cliques: $\alpha = $ number of cliques, and number of independent sets = product of clique sizes. With 23 vertices in cliques of size ~3: 7 cliques of size 3 + 1 of size 2: $\alpha = 8$, number of independent sets = $3^7 \times 2 = 4374$. Small. 
+
+What about a graph designed to have exponentially many independent sets but small $\alpha$? By the Moon-Moser / counting results, a graph with independence number $\le t$ on $q$ vertices... The maximum number of independent sets in a graph with $n$ vertices and independence number at most $\alpha$ is achieved by disjoint cliques of size $\lceil n/\alpha \rceil$ roughly (this is a theorem by ... hmm, I recall the maximal number of independent sets given independence number constraint). Actually the theorem (by Wood 2007?): among graphs with independence number $\le \alpha$, the disjoint union of cliques of nearly equal sizes maximizes the number of independent sets. So with $\alpha(B) = t$, max number of independent sets $\approx (q/t)^t$ roughly. For $q = 23$: $t=8$: $(23/8)^8 \approx 2.875^8 \approx 47000$. $t = 11$: $(23/11)^{11} \approx 2.09^{11} \approx 30000$. $t=5$: $4.6^5 \approx 2000$. Max around $t \approx q/e \approx 8.5$: ~$e^{q/e}$... wait $(q/t)^t$ maximized at $t = q/e$: $(e)^{q/e} = e^{23/e} \approx e^{8.45} \approx 4700$. Hmm wait let me recompute: $(23/8)^8 = 2.875^8$. $2.875^2 = 8.27$, $^4 = 68.3$, $^8 = 4667$. So ~4700. That's small!
+
+So: if $\alpha(B) \le 10$ or so, the number of independent sets of $B$ is at most ~50K, very manageable.
+
+And if $\alpha(B)$ is large (say $\ge 12$), then... hmm, but we still need $f[\text{avail}]$ to be large enough. The DFS could still be expensive if $B$ is empty graph: $2^{23} = 8.4M$ independent sets. But in that case, $\alpha(B) = 23$, and if $k \le 23 + f[A]$... we'd find a solution quickly IF the DFS order is good. But if $k > \alpha(G)$, we need to exhaust. If $B$ is an empty graph, $\alpha(G) \ge 23$. If $k > \alpha(G) \ge 23$, then $k \ge 24$. To have $\alpha(G) < k$ with $B$ empty... e.g., $A$ = complete graph, $\alpha(G) = 24$, $k = 25$? Wait $n = 46$, $k \le 46$. $B$ empty (23 vertices), $A$ complete (23 vertices): $\alpha(G) = 24$. $k = 25$: answer NO. DFS over $B$'s independent sets: all $2^{23}$ subsets, each gives $|S_B| + f[\text{avail}] = |S_B| + 1$ (since $A$ complete, $f$ of any nonempty avail = 1, of empty = 0). Max = 24 < 25. We'd exhaust all $2^{23}$ subsets. In Python DFS, that's too slow.
+
+But with good pruning: DFS with bound "current size + upper bound on remaining $\le$ best found" — we can prune. Upper bound on remaining: (number of remaining vertices) + ... hmm, we need a good bound: $|S_B| + (\text{remaining vertices count}) + f[\text{avail of current}]$? Hmm, as we add more vertices to $S_B$, avail shrinks. A valid upper bound at any DFS node: $|S_{cur}| + |\text{candidates left}|$... but that ignores $f[\text{avail}]$ interplay. Hmm.
+
+Actually, let's think about it as: we want $\max_{S_B} (|S_B| + f[\text{avail}(S_B)])$. 
+
+Alternative formulation avoiding enumeration of all independent sets of $B$:
+
+For each subset $U \subseteq B$, define $g[U]$ = max independent set size in $U$ (computed like $f$, via numpy, $O(2^{|B|})$ vectorized — fast).
+
+Then... hmm, we want $\max_{S_B \text{ indep}} (|S_B| + f[A \setminus N_A(S_B)])$.
+
+Define $W[U]$ for $U \subseteq B$: $W[U] = \max_{S \subseteq U, S \text{ indep}} (|S| + f[A \setminus N_A(S)])$.
+
+Hmm, can we compute $W$ with a subset DP? $W[U] = \max(W[U \setminus \{v\}], \max_{S \ni v, S \subseteq U \text{ indep}} (...))$. The second term: $S = \{v\} \cup S'$ where $S' \subseteq U \setminus N[v]$, indep. Then $|S| + f[A \setminus N_A(S)] = 1 + |S'| + f[(A \setminus N_A(v)) \setminus N_A(S')]$. Hmm, this depends on $S'$ through both $|S'|$ and $N_A(S')$ restricted to $A \setminus N_A(v)$. So define a generalized function: for each $M \subseteq A$ (available set) and $U \subseteq B$: $V[M][U] = \max_{S \subseteq U \text{ indep}} (|S| + f[M \setminus N_A(S)])$. That's $2^{23} \times 2^{23}$ states — way too many.
+
+OK so that doesn't work directly. Let's go back to enumerating independent sets of $B$, but with the observation about counting:
+
+The number of independent sets of $B$ is at most $\max_t (q/t)^t \cdot$ something when $\alpha(B)$ is small, but unbounded ($2^q$) when $\alpha(B)$ is large. However — here's the thing — we can choose which half to enumerate! 
+
+Symmetric approach: enumerate independent sets of the half where it's cheap. Hmm, but we need pairs $(S_A, S_B)$ compatible. 
+
+Alternative: Let me reconsider. The standard approach enumerates independent sets of one half and uses precomputed $f$ on the other half. The cost is (# independent sets of enumerated half) + $2^{\text{size of other half}}$ for the $f$ table.
+
+With $n = 46$, both halves ~23. $2^{23}$ for $f$ table via numpy: fine (~8.4M uint8 array = 8MB, and vectorized DP fast).
+
+Enumerating independent sets of $B$: worst case $2^{23} = 8.4M$ — in Python, a DFS visiting 8.4M nodes is too slow (each node = function call overhead ~ 0.5-1 μs at best with tight code... actually Python function calls are ~100ns-1μs; 8.4M nodes × maybe 2-3 calls each... could be 10+ seconds). Too slow.
+
+Can we vectorize the enumeration of independent sets of $B$ too? 
+
+Hmm! Idea: compute, for all $2^{|B|}$ subsets $U$ of $B$: (a) whether $U$ is independent, (b) $|U|$... but we need $f[\text{avail}_A(U)]$ for independent $U$, and take max of $|U| + f[\text{avail}_A(U)]$.
+
+Wait — actually, do we need $U$ to be independent? Let's double check: we want max over independent $S_B$ of $|S_B| + f[\text{avail}(S_B)]$. If $U$ is NOT independent, then $U$ doesn't correspond to a valid partial solution. But hmm, could we relax? If $U$ is not independent, $f[\text{avail}(U)]$... no, we can't use non-independent $U$.
+
+But here's a trick: instead of iterating over all subsets $U$ of $B$ and checking independence, we can compute a DP over subsets of $B$ that computes exactly $\max_{S \subseteq U, S \text{ indep}} (|S| + f[\text{avail}(S)])$... which we said doesn't decompose. Hmm.
+
+Wait, actually, maybe it does decompose with a different angle! Let me define:
+
+$H[U] = \max_{S \subseteq U, S \text{ indep}} (|S| + f[A \setminus N_A(S)])$.
+
+Recurrence on the highest bit $v$ of $U$: either $v \notin S$: $H[U \setminus \{v\}]$; or $v \in S$: $S = \{v\} \cup S'$, $S' \subseteq U \setminus N[v]$, indep, and value $= 1 + |S'| + f[(A \setminus N_A(v)) \setminus N_A(S')]$.
+
+Define $H_M[U] = \max_{S \subseteq U \text{ indep}} (|S| + f[M \setminus N_A(S)])$ for $M \subseteq A$. Then $H[U] = H_A[U]$, and the recurrence needs $H_{A \setminus N_A(v)}[U \setminus N[v]]$. The set of distinct $M$ values encountered: starting from $A$, removing $N_A(v)$ for each $v$ added... The distinct $M$ values are of the form $A \setminus N_A(S)$ for independent $S$ — could be up to # independent sets of $B$ distinct values. No good.
+
+Hmm. OK here's another thought — the "profile" method:
+
+Process vertices of $B$ one by one (in some order $b_1, \dots, b_q$). Maintain a table over subsets... no.
+
+Alternative: think of it as a max over independent sets, and use the technique of "for each subset $U \subseteq B$, compute the max over independent subsets $S \subseteq U$ of $|S|$ (that's $g[U]$, easy) — but we need the $f[\text{avail}]$ coupling.
+
+Coupling idea: swap loops! For each subset $M \subseteq A$... hmm, $2^{23}$ subsets of $A$ too.
+
+Hmm, what about this: 
+
+$\max_{S_B \text{ indep}} (|S_B| + f[\text{avail}(S_B)]) = \max_{S_B \text{ indep}} \max_{S_A \subseteq \text{avail}(S_B) \text{ indep}} (|S_B| + |S_A|)$.
+
+$S_A \subseteq \text{avail}(S_B)$ means no edges between $S_A$ and $S_B$.
+
+So it's $\max$ over pairs of independent sets with no cross edges of total size. 
+
+Alternative meet-in-the-middle formulation: enumerate independent sets of $A$; for each, we have (size, avail set in $B$). We want max over pairs $(S_A, S_B)$, $S_B$ indep $\subseteq \text{avail}_B(S_A)$, of $|S_A| + |S_B|$. 
+
+For each subset $U \subseteq B$, let $g[U]$ = max indep set size in $U$ (numpy DP, fast). Then answer = $\max_{S_A \text{ indep}} (|S_A| + g[\text{avail}_B(S_A)])$.
+
+Same problem: enumerating independent sets of $A$.
+
+Hmm, so either way we need to enumerate independent sets of one half. Worst case $2^{23}$.
+
+BUT: here's a key realization. We can use the following pruning/early-exit strategy:
+
+1. First, compute a greedy/quick lower bound on $\alpha(G)$. If we find an independent set of size $\ge k$ quickly, output it. (Fast path.)
+
+2. Otherwise, we need to either find one or prove none exists. 
+
+For the exhaustive part, use branch and bound with good upper bounds, which for hard instances (where $\alpha < k$, dense-ish graphs) is fast because the number of independent sets is small... but is that guaranteed? The adversary controls the graph. Let me think about whether there's a graph on 46 vertices where the number of independent sets is huge (say $> 10^6$) AND $\alpha < k$ for the given $k$... 
+
+Number of independent sets is huge iff the graph is sparse-ish. If the graph is sparse, $\alpha$ is large (by Turan/carousel: $\alpha \ge n/(\bar{d}+1)$). But $k$ can be up to $n = 46$. So the adversary wants: sparse graph (many independent sets) with $\alpha < k$, where $k$ is close to $\alpha$. E.g., a graph with $\alpha = 20$ and $k = 21$, with a huge number of independent sets.
+
+Hmm, e.g., disjoint union of cliques: 46 vertices, cliques of size 3 → 15 cliques + 1 leftover: $\alpha = 16$, # indep sets = $3^{15} \times 2 \approx 28.7M$?? Wait, $3^{15} = 14{,}348{,}907$, times 2 (leftover vertex in/out... wait 46 = 15×3 + 1, so 15 triangles + 1 single vertex: # indep sets = $3^{15} \times 2 = 28.7M$). And $\alpha = 16$. With $k = 17$: answer NO, but we'd need to exhaust... well, with branch and bound, we can prune using the clique-union structure? A good B&B with upper bound "current + number of remaining cliques"... Standard MIS branch and bound on disjoint triangles: at each triangle, 3 choices, but upper bound prunes: if we need 17 and only 16 possible, the bound (sum over remaining cliques of 1 each + current) would prune immediately at the root if the bound is tight! Because bound = current + #remaining cliques ≤ 16 < 17 = k... wait, we're checking $\alpha \ge k$; if upper bound on achievable < k, prune. For disjoint triangles, the bound "current + number of remaining connected components"... hmm, more simply "current + remaining vertices / (max clique... )". A simple bound: current + (remaining vertices) — too weak. Better: current + (remaining vertices)/(1+min degree)? Or use a coloring-based bound.
+
+Hmm, this is getting complicated. Let me think about the intended solution. This is "Problem A" from some contest ("Zero Sum Assignment"). $n \le 46$, TL 5s. The intended solution is likely meet-in-the-middle: split into two halves of 23, enumerate all $2^{23}$ subsets of one half... in C++ that's trivial. In Python, we need to be smart with numpy/bit tricks.
+
+Let me design a fully vectorized meet-in-the-middle:
+
+Let $h = \lceil n/2 \rceil$ or $\lfloor \rfloor$... Let's say $A$ = first $h$ vertices, $B$ = remaining $q = n - h$. Choose $h = 23$, $q = 23$ for $n = 46$.
+
+Part 1 (numpy, vectorized): For all $T \subseteq A$: $f[T]$ = max indep set size in $T$. Also store choice for reconstruction. Memory: $2^{23}$ uint8 = 8MB each for $f$ and choice. OK within 256MB.
+
+Part 2: For all $U \subseteq B$: compute $\text{isIndep}[U]$ (bool), $\text{popcnt}[U]$, and $\text{avail}_A(U) = A \setminus \bigcup_{v \in U} N_A(v)$, then value $= \text{popcnt}[U] + f[\text{avail}_A(U)]$ for independent $U$; take max over all.
+
+Can Part 2 be vectorized? 
+
+- $\text{isIndep}[U]$: $U$ is independent iff for all $v \in U$: $U \cap N_B(v) = \emptyset$ iff $U \& \text{adj}_B = 0$ where... hmm, standard trick: $U$ independent iff $\text{popcount}(U \& \text{adj}_B^{\text{fold}}[U])$... Let me think: define for each vertex $v$, $\text{adj}[v]$ (within $B$, as bitmask). $U$ is independent iff $\forall v \in U: \text{adj}[v] \& U = 0$. 
+
+  Vectorized: for each $v$ in $B$: the set of $U$ containing $v$ with a neighbor of $v$: mask out. Alternative: compute $\text{conflict}[U] = $ OR over $v \in U$ of ... hmm.
+
+  Trick: $\sum_{v \in U} \text{popcount}(\text{adj}[v] \& U) = 2 \times (\text{number of edges inside } U)$. So $U$ independent iff this sum is 0. Vectorizing "for each $U$, sum over $v \in U$ of popcount(adj[v] & U)": 
+
+  We can compute an array $E[U]$ = number of edges induced by $U$, via DP: $E[U] = E[U \setminus \{v\}] + \text{popcount}(\text{adj}[v] \& U)$ where $v$ = lowest bit of $U$. Vectorized by lowest bit like before? Hmm, for each $v$, all $U$ with lowest bit $v$: $U = (1<<v) | (X << (v+1))$, $X \subseteq [0, q-1-v)$. Then $E[U] = E[X << (v+1)] + \text{popcount}(\text{adj}[v] \& U)$. The popcount term: $\text{adj}[v] \& ((1<<v) | (X << (v+1)))$ = $(\text{adj}[v] \& X\text{-part})$... since $\text{adj}[v]$ has bit $v$ = 0 (no self-loops), $\text{adj}[v] \& U = \text{adj}[v] \& (X << (v+1))$. Hmm, popcount of that — vectorized popcount of (constant & shifted X)... 
+
+  Alternatively simpler: $U$ independent iff $U \& \text{nbrFold}(U) == 0$ where $\text{nbrFold}(U) = \bigcup_{v \in U} \text{adj}[v]$. Computing nbrFold for all $U$: DP: $\text{nbrFold}[U] = \text{nbrFold}[U \setminus \{v\}] \mid \text{adj}[v]$. Vectorizable by highest bit: for $v$, all $X \subseteq [0,v)$: $\text{nbrFold}[(1<<v)|X] = \text{nbrFold}[X] \mid \text{adj}_v^{\text{low}}$ where $\text{adj}_v^{\text{low}} = \text{adj}[v] \& ((1<<v)-1)$ (neighbors with smaller index; larger-index neighbors don't matter for independence check? Wait, they do: $U$ contains $v$ and maybe a larger neighbor $w$; then $\text{adj}[w]$ contains $v$, so $U \& \text{nbrFold}(U)$ has bit $v$ set. So checking $U \& \text{nbrFold}(U) == 0$ catches it via $w$'s adjacency. But if I only OR in low-neighbors for each $v$... let me redo: define $\text{lowNbr}[U] = \bigcup_{v \in U} (\text{adj}[v] \& \text{lowmask}_v)$ where lowmask keeps bits $< v$. Then $U$ has an edge $\{v, w\}$, $v < w$, both in $U$: then $w \in \text{adj}[v] \& \text{lowmask}_v$, so bit $w$... wait no, $\text{adj}[v] \& \text{lowmask}_v$ keeps neighbors of $v$ with index $< v$; $w > v$ so not included. Hmm. Let me instead define $\text{highNbr}$: for edge $\{v,w\}$, $v<w$: include $v$ in $\text{adj}'[w]$ (i.e., each vertex's lower-indexed neighbors). Then $U$ independent iff $\text{adj}'[U] \& U == 0$ where $\text{adj}'[U] = \bigcup_{v \in U} \text{adj}'[v]$? If edge $\{v,w\} \subseteq U$, $v < w$: $\text{adj}'[w] \ni v$, so $\text{adj}'[U]$ has bit $v$, and $U$ has bit $v$: conflict detected. Conversely if no edge, $\text{adj}'[U] \& U = 0$. 
+
+  So: $\text{adj}'[U]$ via DP by highest bit: $\text{adj}'[(1<<v)|X] = \text{adj}'[X] \mid \text{lowAdj}[v]$ where $\text{lowAdj}[v] = \{w < v : \{v,w\} \in E\}$. Vectorized: for each $v$: `adjp[(1<<v) + ar] = adjp[ar] | lowAdj[v]` where `ar = np.arange(2**v)`. Total: $2^q$ operations in $q$ numpy calls. 
+
+  Then $\text{indep}[U] = ((\text{adj}'[U] \& U) == 0)$.
+
+- $\text{avail}_A(U)$: $= A \setminus \bigcup_{v \in U} N_A(v)$. DP by highest bit: $\text{avail}[(1<<v)|X] = \text{avail}[X] \& \sim N_A(v)$ (as an $A$-bitmask). Vectorized similarly: `avail[(1<<v)+ar] = avail[ar] & ~NA[v]`. But storing avail for all $2^q$ subsets: $2^{23}$ entries × (int32 or int64) = 32-64MB. Hmm, that's OK-ish. Actually we could use uint32 (A has ≤ 23 bits... wait, $h$ could be 23, needs 23 bits, uint32 fine). 4 bytes × 8.4M = 33.6MB. OK.
+
+  Actually, we don't even need to store all avail values — we can process incrementally and compute the final value array. But we need avail per $U$ to look up $f[\text{avail}]$. We could compute value array: $\text{val}[U] = \text{popcnt}[U] + f[\text{avail}[U]]$ for independent $U$. Let's just store avail array (uint32) and popcnt array (uint8), then compute.
+
+- $\text{popcnt}[U]$: standard, vectorized: `popcnt = np.zeros(2**q, uint8)`; for each bit $i$: `popcnt[(1<<i) + ar_i] = popcnt[ar_i] + 1`? That's $\sum 2^i = 2^q$ total. Or the classic: build via `popcnt[U] = popcnt[U>>1] + (U&1)` — vectorized as: `popcnt = np.zeros(2**q, dtype=uint8); for i in range(1, 2**q): ...` no, that's sequential. Better: doubling: `pc = np.array([0,1], uint8)`; repeatedly: `pc = np.concatenate([pc, pc+1])`. That's $q$ doublings, total memory fine. 
+
+Then: $\text{best} = \max_{U \text{ indep}} (\text{popcnt}[U] + f[\text{avail}[U]])$.
+
+All vectorized: total ~ $5 \times 2^{23}$ numpy element-ops in ~100 numpy calls. Should run in ~1-2 seconds. Memory: several arrays of $2^{23}$: f (uint8, 8MB), choice (uint8, 8MB), adjp (uint32, 33MB), avail (uint32, 33MB), popcnt (uint8, 8MB), val (uint8 or uint16, 8-16MB), indep mask (bool, 8MB). Total ~110MB. Under 256MB. OK. Hmm, but numpy operations create temporaries; need to be careful. Also `np.arange(2**22)` etc. — fine.
+
+Wait, but actually, I realize we should double check sizes: $n \le 46$. If $h = 23$, $q = 23$: $2^{23} = 8{,}388{,}608$. Arrays of that size: uint8 = 8MB, uint32 = 33.5MB, uint64 = 67MB. Let's use uint32 where possible.
+
+Hmm wait, but there's a subtlety: for the $A$-side DP ($f$), I described a vectorized DP by highest bit. Let me re-derive it carefully.
+
+$f$-DP (max independent set size within subset $T$ of $A$):
+
+For $T = 0$: $f = 0$.
+For $T \ne 0$ with highest bit $v$: either $v \notin$ solution: $f[T \setminus \{v\}] = f[T \wedge (2^v - 1)]$ (clear bit $v$ and higher — since $v$ is highest, just clear bit $v$): $f[T - 2^v]$; or $v \in$ solution: $1 + f[T \setminus (\{v\} \cup N(v))] = 1 + f[(T - 2^v) \& \sim \text{adj}_A[v]]$ where $\text{adj}_A[v]$ = neighbors of $v$ within $A$ (bitmask over $A$'s local indices).
+
+So for each $v \in [0, h)$, for all $X \subseteq [0, v)$ (i.e., $X \in [0, 2^v)$):
+$f[2^v + X] = \max(f[X], 1 + f[X \& \sim \text{adj}_A[v]])$.
+
+Vectorized: `X = np.arange(2**v)`; `idx = X & mask_v` where `mask_v = (~adjA[v]) & ((1<<v)-1)`... wait, adjA[v] may have bits ≥ v (neighbors with higher index in A); we only care about bits of $X$ which are $< v$. So `idx = X & comp_mask` where `comp_mask = full_mask & ~adjA[v]`, `full_mask = (1<<v) - 1`. Then `f[2**v + X] = np.maximum(f[X], 1 + f[idx])`. And choice: `took = (1 + f[idx]) >= f[X]`? Careful: if $1 + f[idx] > f[X]$, must take; if equal, either is fine but must be consistent with stored $f$. Let me store `choice[2**v + X] = (1 + f[idx] > f[X]) ? 1 : 0`. Then reconstruction: at $T \ne 0$, $v$ = highest bit: if choice[T] == 1: take $v$, go to $T' = (T - 2^v) \& \sim \text{adj}_A[v]$; else go to $T - 2^v$. This yields an independent set of size $f[T]$. 
+
+Hmm wait, but there's an issue: `f[idx]` where idx is an array of size $2^v$ with values in $[0, 2^v)$ — fancy indexing, fine. `f[2**v + X]` — also fancy indexing with `2**v + X` = arange($2^v, 2^{v+1}$), which is a contiguous slice! So we can use slicing: `f[2**v : 2**(v+1)] = np.maximum(f[:2**v], 1 + f[idx])`. And `f[:2**v]` is a contiguous slice. 
+
+For the choice array: `choice[2**v : 2**(v+1)] = (1 + f[idx] > f[:2**v]).astype(uint8)`. Hmm, this creates temporaries of size $2^v$ — fine.
+
+Total numpy work: $\sum_v O(2^v)$ = $O(2^h)$, in $2h$ numpy calls. For $h = 23$: the last call handles $2^{22} = 4.2M$ elements. Fast.
+
+Similarly for $B$-side arrays (adjp, avail, popcnt): each is a DP by highest bit with $q$ numpy calls, total $O(2^q)$ elements.
+
+Then final: `val = popcnt_B + f[avail]` — wait, `f[avail]` is fancy indexing with an array of $2^q$ uint32 indices into $f$ (size $2^h$). That's a gather of 8.4M elements — fine, fast in numpy.
+
+Then mask by independence: `val[~indep] = -1` or use `np.where`. Then `best_val = val.max()`, and `best_U = argmax`. 
+
+If `best_val >= k`: reconstruct. The winning $U^*$ = independent set in $B$ with $\text{popcnt} + f[\text{avail}]$ max. Then we need an independent set in $A$ within $\text{avail}(U^*)$ of size $\ge k - |U^*|$; reconstruct via choice array starting from $T = \text{avail}(U^*)$, take the first $k - |U^*$| vertices of the reconstructed max independent set. Wait — reconstruction gives max independent set within avail, of size $f[\text{avail}] \ge k - |U^*|$. Take any $k - |U^*$| of them. But careful: we need exactly $k$ total: $|U^*| + (k - |U^*|) = k$. And $U^*$ itself has size $\text{popcnt}[U^*]$, and we need $k - \text{popcnt}[U^*] \ge 0$ and $\le f[\text{avail}]$. Since best_val = popcnt + f[avail] ≥ k and popcnt ≤ k? Hmm, wait: what if popcnt[U*] > k? Then we'd want to trim $U^*$ too. Hmm! Let me handle: we need an independent set of size exactly $k$. If best_val ≥ k, we have an independent set of size best_val (U* plus reconstructed A-set). Since best_val ≥ k, take any $k$ vertices of it. But wait — is the union actually independent? $U^*$ is independent in $B$, the A-set is independent in $A$, and the A-set ⊆ avail(U*) means no cross edges. Yes, independent. So take any $k$ of the best_val vertices. 
+
+But hold on — is it possible that best_val ≥ k but... no wait, also need best_val ≥ k exactly means we can trim down to k. And if best_val < k, answer NO. But wait — is best_val really the max independent set size of the whole graph? $\alpha(G) = \max_{S_B \text{ indep}} (|S_B| + \alpha(G[\text{avail}_A(S_B)])) = \max_{S_B} (|S_B| + f[\text{avail}(S_B)])$. Yes, because any independent set $S$ of $G$ splits into $S_B = S \cap B$ and $S_A = S \cap A$ with $S_A \subseteq \text{avail}(S_B)$, and conversely. So best_val = $\alpha(G)$. 
+
+So the algorithm:
+1. If $k > \alpha(G)$: NO. Else YES with any $k$ vertices of a maximum independent set.
+
+Edge cases: $m = 0$: any $k$ vertices. The algorithm handles it (empty graph: all subsets independent, $f[T] = |T|$... fine).
+
+$n$ small: if $n \le$ some threshold, could do simpler, but the general algorithm works for any $n$ (with $h, q \le 23$). Actually for small $n$, $2^h$ is small. Fine.
+
+Memory concern: for $n = 46$: arrays of size $2^{23}$:
+- f: uint8, 8.4MB
+- choice: uint8, 8.4MB
+- adjp (B-side): needs $q = 23$ bits → uint32, 33.5MB
+- avail (B-side): $h = 23$ bits → uint32, 33.5MB
+- popcnt: uint8, 8.4MB
+- val: computed as popcnt + f[avail]: uint8? popcnt ≤ 23, f ≤ 23, sum ≤ 46 — fits uint8. 8.4MB.
+- indep mask: bool, 8.4MB.
+
+Total ~110MB + temporaries. Temporaries during computation: e.g., `f[idx]` creates array of size up to $2^{22}$ (4.2M × 1 byte = 4.2MB), `1 + f[idx]` another, `np.maximum(...)` another. Small. The gather `f[avail]`: 8.4MB result. OK.
+
+Hmm, but wait: `np.arange(2**22)` as index — for the f-DP, `idx = X & comp_mask` where X = arange($2^v$): for $v = 22$, that's a 4.2M-element int array (int64 by default = 33MB!). Hmm, `np.arange(2**22)` defaults to int64 on Linux: 33.5MB. Plus `idx` another 33.5MB. That's 67MB of temporaries at peak for the f-DP. Plus the persistent arrays (~110MB). Total ~180MB. Under 256MB but let's be careful. We could use `dtype=np.uint32` for arange to halve. Or better: note that `X & comp_mask` where X = arange — we can avoid materializing arange by... hmm, we need it for fancy indexing `f[idx]`. Alternatively, realize that the map $X \mapsto X \& \text{comp}$ on $[0, 2^v)$ has structure: if comp has bits $S$, then $X \& \text{comp}$ = ... we could compute `f[idx]` differently: hmm.
+
+Alternative for computing `f[2**v:2**(v+1)]` without fancy indexing: 
+
+$f[2^v + X] = \max(f[X], 1 + f[X \& c_v])$.
+
+Note $X \& c_v$: think of it as: split $X$'s bits into "kept" bits (in $c_v$) and "dropped" bits. $X \& c_v$ as a function of $X$... The set $\{f[X \& c_v] : X\}$ — we can compute via: for the dropped bits, $f[X \& c_v]$ is constant. Hmm, we could compute `g = f[all subsets of c_v's bits]`... but indexing "subsets of $c_v$" requires a bit-compression map, which itself is a gather.
+
+Honestly, fancy indexing with uint32 indices is fine. Let me just use `np.arange(2**v, dtype=np.uint32)` — wait, but fancy indexing `f[idx]` with idx as uint32 array: numpy handles any integer dtype for indexing. Memory: $2^{22}$ × 4 bytes = 16.7MB for arange, same for idx. OK.
+
+Actually, here's a cleaner way to think about the f-DP that avoids per-$v$ index arrays: 
+
+Process bits from low to high using the "doubling" structure. Hmm, let me think... 
+
+Alternative recurrence by lowest bit: $f[T] = \max(f[T \& (T-1)], 1 + f[T \& \sim \text{cn}[v]])$ where $v$ = lowest bit. Same complexity.
+
+Another idea: compute $f$ via "for each vertex $v$, for each subset $T$ containing $v$..." — no.
+
+I think the per-$v$ vectorized DP is fine. Let me now also think: can we reduce memory by not storing `choice`? For reconstruction, alternative: after finding best $U^*$ and $M = \text{avail}(U^*)$, we need an independent set in $G[M]$ of size $\ge k - |U^*|$. We could recompute the DP restricted to $M$... but that's another $O(2^h)$ — or we could do a simple greedy/DFS on $G[M]$ — but we need guaranteed size $f[M]$, greedy won't guarantee. 
+
+Alternative reconstruction without choice array: walk down from $T = M$: at each step, $v$ = highest bit of $T$; check if $1 + f[T' ] == f[T]$ where $T' = (T - 2^v) \& \sim \text{adj}[v]$; if yes, take $v$, move to $T'$; else move to $T - 2^v$. This uses only $f$ and adjacency — no choice array needed! Because: $f[T] = \max(f[T - 2^v], 1 + f[T'])$; if $1 + f[T'] \ge f[T - 2^v]$... hmm, we need: if $f[T] == 1 + f[T']$, then taking $v$ is valid (there's an indep set of size $f[T]$ containing $v$ within $T$). If $f[T] \ne 1 + f[T']$, then $f[T] = f[T - 2^v]$, so don't take $v$. This works with just $f$. 
+
+So we don't need the choice array. Saves 8.4MB and one numpy op per $v$.
+
+Similarly, for finding $U^*$: we take argmax of val over independent $U$. Then $|U^*| = \text{popcnt}[U^*]$, and we need the actual vertex list — just extract bits of $U^*$.
+
+Wait, one more consideration: we want max over independent $U$ of val[U]. But actually, do we even need $U$ to be independent for correctness of the final answer? If $U$ is not independent, val[U] doesn't correspond to a real independent set. So yes, we must restrict to independent $U$. 
+
+Hmm, but actually here's a subtle alternative: define $f'[T]$ = max indep set in $T$ (as before), and note that if $U$ is not independent, we could replace... no, let's just restrict.
+
+Actually wait, here's an even cleaner idea that avoids the independence check on $B$ entirely: 
+
+$\alpha(G) = \max_{U \subseteq B} \left( g[U] + f[\text{avail}(\text{some max indep subset of } U)] \right)$ — no, the coupling again. Hmm no. Let me think again...
+
+Actually here's a thought: $\alpha(G) = \max_{S_A \text{ indep} \subseteq A} (|S_A| + g[\text{avail}_B(S_A)])$ where $g$ = max indep set in a subset of $B$. By symmetry with what I said. Both need enumeration of independent sets of one side. The subset-DP formulation I have (iterate over ALL $U \subseteq B$, check independence, compute val) handles it vectorized. Good.
+
+But wait — actually, I realize there might be an issue with iterating over all $U \subseteq B$ including non-independent ones for the avail DP: `avail[(1<<v)+X] = avail[X] & ~NA[v]` — this is fine for all $U$ (it's just a set computation), and we only use val at independent $U$. Good.
+
+Let me now also double check the independence check vectorization:
+
+`lowAdj[v]` = bitmask of neighbors of $v$ (in $B$'s local indexing) with index $< v$. 
+`adjp[U]` = OR of lowAdj[v] for $v \in U$. DP: `adjp[0] = 0`; for $v \ge 0$: `adjp[2**v : 2**(v+1)] = adjp[:2**v] | lowAdj[v]`.
+Then `indep[U] = (adjp[U] & U) == 0`.
+
+Check: edge $\{v, w\}$ with $v < w$, both in $U$: lowAdj[w] has bit $v$; adjp[U] has bit $v$; U has bit $v$ → conflict. If no edge within $U$: adjp[U] = union of lowAdj of vertices in $U$, each lowAdj[v] ⊆ neighbors of $v$; could a neighbor bit coincide with a vertex in $U$ without an edge? lowAdj[v] ∋ bit $u$ iff $\{u, v\}$ is an edge, $u < v$. If $u \in U$ and bit $u$ set in adjp[U], then conflict detected — and indeed $\{u,v\}$ is an edge within $U$. So indep[U] iff no edge in $U$. Correct.
+
+Memory for adjp: uint32 (23 bits), 33.5MB. Alternatively, we can avoid storing adjp for all U: we only need `indep` as a bool array. Compute `indep` directly: `indep[2**v:2**(v+1)] = indep[:2**v] & ((adjp...))` — hmm, adjp is needed as intermediate. We could compute a bool array `conflict[U] = (adjp[U] & U) != 0` incrementally: `conflict[2**v + X] = conflict[X] | ((lowAdj[v] & ((1<<v)|X)) != 0)`. Note lowAdj[v] & X: lowAdj[v] has bits < v; X ⊆ [0, v). So `lowAdj[v] & X` — vectorized: `(X & lowAdj_v) != 0` where X = arange(2^v). So:
+
+`conflict[2**v : 2**(v+1)] = conflict[:2**v] | ((np.arange(2**v, dtype=uint32) & lowAdj_v) != 0)`
+
+This avoids the 33.5MB adjp array; conflict is bool 8.4MB. But it needs arange(2^v) per v — temporaries up to 16.7MB (uint32) plus bool temp 4.2MB. Fine. Actually we can precompute arange once at max size and slice: `AR = np.arange(2**(q-1), dtype=np.uint32)` then use `AR[:2**v]`. 
+
+Hmm wait, but actually we could reuse: `AR[:2**v] & lowAdj_v` — creates temp of size 2^v. OK.
+
+Alternatively keep adjp as uint32 — simpler code, 33.5MB is affordable. Let me tally memory with adjp approach:
+
+Persistent arrays (n=46, h=q=23, N=2^23=8.39M):
+- f: uint8, 8.4MB
+- avail: uint32, 33.5MB
+- popcnt: uint8, 8.4MB
+- adjp: uint32, 33.5MB (or conflict: bool, 8.4MB)
+- val: uint8, 8.4MB (popcnt + f[avail] ≤ 46)
+- indep/conflict: bool, 8.4MB
+
+With conflict-bool approach: 8.4×4 (f, popcnt, val, conflict) + 33.5 (avail) = 67MB. 
+
+Temporaries: arange slices (uint32, up to 16.7MB for v=22... wait 2^22 × 4 = 16.8MB), f[idx] gathers (up to 4.2MB for f-DP since idx < 2^22... hmm for v=22, idx array size 2^22, gather result 2^22 bytes), etc. Peak maybe ~100MB. Fine.
+
+Actually hold on, let me reconsider the sizes. For the f-DP over $A$ with $h = 23$: at step $v$, arrays of size $2^v$; total across steps $2^{23}$. The largest single step: $v = 22$: size $2^{22} = 4.2M$. arange uint32: 16.8MB; idx = arange & mask: 16.8MB; f[idx]: 4.2MB; 1+f[idx]: 4.2MB; np.maximum: 4.2MB. Peak temp ~46MB at that moment, plus persistent ~67MB → ~113MB. OK.
+
+For the B-side: avail DP at $v = 22$: slice assignment `avail[2**22:2**23] = avail[:2**22] & ~NA[22]` — the RHS creates a temp of 16.8MB (uint32). conflict DP similar. popcnt via doubling: `pc = np.concatenate([pc, pc+1])` — creates temps ~2× current size; at the end 8.4MB + temps. Fine.
+
+Then final: `val = popcnt + f[avail]` — f[avail] is a gather: 8.4M-element uint32 index array (already have avail) → result uint8? numpy: f is uint8, f[avail] is uint8 array 8.4MB. `popcnt + f[avail]`: uint8 + uint8 → might overflow? Max 23+23=46 < 255, fine. val: 8.4MB.
+
+Then `best = np.where(conflict, 0, val).max()`? Or `val[conflict] = 0` then max. Hmm, wait: conflict[U] means U not independent → val should be excluded. Set val[conflict] = 0 (0 is a valid lower bound since empty set gives val 0... actually val[0] = 0 + f[avail(∅)] = f[A] ≥ 0). Then `best_val = val.max()`, `U* = val.argmax()`.
+
+Hmm wait, one concern: `val[conflict] = 0` — but what if k... no, we compare best_val ≥ k. Since val[∅] = f[A] ≥ 0, and if all independent sets give < k... best_val correctly = α(G). Good.
+
+Then reconstruction:
+- If best_val < k: print NO.
+- Else: U* = argmax. Extract B-vertices: bits of U* → global indices $h + i$.
+- M = avail[U*] (subset of A). Need indep set in G[M] of size $k - |U^*|$... wait, need total exactly k. We have |U*| + f[M] = best_val ≥ k. We'll reconstruct the max indep set S_A in M (size f[M]), then total set = U* ∪ S_A has size best_val; take first k of them. But careful: if |U*| > k? Then take k vertices from U* alone — but wait, is any subset of U* independent? Yes. So: combined = list(U* vertices) + list(S_A vertices); answer = combined[:k]. Since combined is an independent set of size best_val ≥ k, combined[:k] is an independent set of size k. 
+
+Reconstruction of S_A from f: 
+```
+T = M
+S_A = []
+while T and len(S_A) < needed:
+    v = T.bit_length() - 1
+    T1 = T - (1 << v)  # exclude v
+    T2 = T1 & ~adjA[v]  # exclude v and neighbors
+    if 1 + f[T2] == f[T]:
+        S_A.append(v)
+        T = T2
+    else:
+        T = T1
+```
+Wait, need to double-check: f[T] = max(f[T1], 1 + f[T2]). If f[T] == 1 + f[T2], take v. Else f[T] == f[T1] (since f[T] is the max, if it's not 1+f[T2] then it's f[T1]... well, f[T] = max of the two, so if f[T] != 1+f[T2], then f[T] = f[T1] and f[T1] ≥ 1+f[T2]). Move to T1. This correctly builds a max independent set in M. But we only need `needed = k - |U*|` vertices — but we might as well build the full max set and trim. Actually, we can stop early once we have enough: but careful — stopping early is fine since any subset works. Actually simpler: build full set (≤ 23 iterations), then trim.
+
+Hmm wait, actually there's a subtle issue: what if `needed ≤ 0`, i.e., |U*| ≥ k? Then just take k vertices from U*. Fine.
+
+Also, what if best_val ≥ k but... all good.
+
+Now, is `f[T]` for T with bits only in A — adjA[v] = adjacency of v within A (bits 0..h-1). Yes.
+
+Let me also double check the f-DP vectorization once more:
+
+```
+f = np.zeros(1 << h, dtype=np.uint8)
+for v in range(h):
+    lo = 1 << v; hi = lo << 1
+    X = np.arange(lo, dtype=np.uint32)  # or reuse precomputed
+    mask = ~adjA[v] & (lo - 1)   # keep bits < v not adjacent to v
+    idx = X & mask   # wait — X & mask where mask = complement of adj within [0,v)
+    f[lo:hi] = np.maximum(f[:lo], f[idx] + 1)
+```
+
+Hmm: `f[idx]` — idx is uint32 array; fancy indexing OK. `f[idx] + 1` — uint8 + 1 → hmm, numpy: uint8 array + python int 1 → stays uint8 (value ≤ 23+1 fine). `np.maximum(f[:lo], f[idx]+1)` → uint8. Assign to f[lo:hi]. 
+
+Wait, but there's a correctness check: for T = lo + X (X ⊆ [0, v)), highest bit of T is v (since X < 2^v). f[T] = max(f[X], 1 + f[X \ N[v]]) where X \ N[v] = X & ~adjA[v] (restricted to bits < v, which X already is) = X & mask where mask = (~adjA[v]) & (2^v - 1). Yes. Correct.
+
+Edge: v=0: lo=1, X=[0], mask = ~adjA[0] & 0 = 0, idx=[0], f[1] = max(f[0], f[0]+1) = 1. Correct (single vertex).
+
+Now the B-side DPs:
+
+```
+NB_full = ...  # for each v in B (local index j = v - h), NA[j] = bitmask over A of neighbors in A
+lowAdj[j] = bitmask over B-local indices of neighbors with local index < j
+```
+
+avail DP:
+```
+avail = np.empty(1 << q, dtype=np.uint32)
+avail[0] = fullA  # (1<<h) - 1
+for j in range(q):
+    lo = 1 << j; hi = lo << 1
+    avail[lo:hi] = avail[:lo] & (~NA[j] & fullA_mask)  # hmm, ~NA[j] as Python int, & with uint32 array
+```
+Wait: `avail[:lo] & comp` where comp is a Python int (the complement mask). numpy will broadcast: uint32 array & Python int — if the int fits in uint32, result uint32. `~NA[j] & ((1<<h)-1)` computed in Python as int, then `avail[:lo] & that_int`. Should work; to be safe, use `np.uint32(...)`. Hmm, numpy array & Python int: in newer numpy (2.x), int is converted per NEP 50 to the array's dtype if it fits. `(1<<h)-1` with h=23 fits in uint32. OK. To be extra safe, I can compute `comp = np.uint32((1 << h) - 1 - NAj)`... hmm, `(~NAj) & mask` as Python int then wrap. Let me just do `comp = ((1<<h)-1) & ~NAj` (Python int), then `avail[lo:hi] = avail[:lo] & comp` — numpy handles it. Or `np.bitwise_and(avail[:lo], comp)`. Fine.
+
+conflict DP:
+```
+conflict = np.zeros(1 << q, dtype=bool)
+AR = np.arange(1 << (q-1), dtype=np.uint32)  # hmm, need arange up to 2^(q-1); for j = q-1, size 2^(q-1)
+for j in range(q):
+    lo = 1 << j; hi = lo << 1
+    X = AR[:lo]
+    conflict[lo:hi] = conflict[:lo] | ((X & lowAdj[j]) != 0)
+```
+Wait, but lowAdj[j] & X: lowAdj[j] has bits < j; X ⊆ [0, j). But hold on — conflict[U] should be: exists edge within U. With U = (1<<j) | X: edges within U = edges within X (captured by conflict[X]) + edges {j, u} for u ∈ X ∩ N(j) — captured by (lowAdj[j] & X) != 0. But wait — what about edges {j, w} with w > j? w ∉ X since X ⊆ [0, j). So all edges incident to j within U go to lower-indexed vertices. Correct: conflict[U] = conflict[X] | (lowAdj[j] & X ≠ 0). 
+
+Hmm, but wait: I should double-check the claim "conflict[U] = OR over v∈U of (lowAdj[v] & U ≠ 0)" equals "exists edge in U". Edge {a,b} ⊆ U, a<b: then lowAdj[b] ∋ a, and a ∈ U... but in the DP by highest bit: conflict[U] with highest bit j: edges within U either don't involve j (→ conflict[X]) or involve j and some u ∈ X with {j,u} edge (→ lowAdj[j] & X). Yes, correct.
+
+popcnt: 
+```
+pc = np.zeros(1, dtype=np.uint8)
+for j in range(q):
+    pc = np.concatenate([pc, pc + 1])
+```
+This creates arrays: at the end 8.4MB; temps during concatenate ~2×. Fine. Or `pc = np.repeat`/other tricks. Fine.
+
+Actually, alternative for popcnt without loop: `pc = np.zeros(1<<q, uint8); for j: pc[lo:hi] = pc[:lo] + 1` — same thing but in-place-ish:
+```
+pc = np.zeros(1 << q, dtype=np.uint8)
+for j in range(q):
+    lo = 1 << j
+    pc[lo:lo*2] = pc[:lo] + 1
+```
+This is clean. 
+
+Then:
+```
+val = pc + f[avail]   # uint8
+val[conflict] = 0
+best = int(val.max())
+```
+Wait — `f[avail]`: avail is uint32 array of size 2^q; f has size 2^h. Gather → uint8 array size 2^q. `pc + that` → uint8. Good.
+
+Hmm, wait: `val[conflict] = 0` — but is 0 safe? val[∅] = 0 + f[fullA] ≥ 0. If all independent U have val < k... best < k → NO. But if some non-independent U had val ≥ k, we zero it. But could zeroing make best too low? best = max over independent U of val = α(G). Since ∅ is independent, best ≥ f[fullA] ≥ 0. Correct.
+
+Then `U* = int(val.argmax())`.
+
+Hmm, one more check: is it possible that argmax picks a conflict U? No, because conflict U's have val 0, and if best > 0, argmax picks a non-conflict one. If best == 0... then f[fullA] = 0 → h = 0? But h ≥ 1 (n ≥ 1, h = n//2... if n = 1, h = 0!). Hmm, edge case: n = 1: h = 0, q = 1. Then A is empty, f has size 1 (f[0] = 0), avail[0] = 0 (fullA = 0). Let me make sure the code handles h = 0: f = np.zeros(1, uint8); loop over v in range(0) — no-op. avail: fullA = 0; avail[0] = 0; loop j in range(q=1): avail[1:2] = avail[:1] & comp... comp = 0 & ~NA[0] = 0. Fine. val = pc + f[avail] = pc + 0. conflict: vertex 0 in B: lowAdj[0] = 0. val[1] = 1. If k = 1: best = 1 ≥ 1 → U* = 1, S_A empty, output vertex h+0 = 1. Correct: n=1, m=0, k=1 → YES, "1".
+
+Also n=1 with m: m ≤ n(n-1)/2 = 0. So m=0 always for n=1. Fine.
+
+What about k... "1 ≤ k ≤ n". OK.
+
+Now, splitting: h = n // 2, q = n - h. For n = 46: h = 23, q = 23. For n = 45: h = 22, q = 23. Max array size 2^23. Good.
+
+Hmm, wait: should I put the larger half in A or B? A-side needs f array of size 2^h; B-side needs avail (uint32) of size 2^q, plus pc, conflict, val. Memory-wise, B-side is heavier per element. Time-wise similar. For odd n, h = n//2 = 22, q = 23: B-side arrays 2^23. Alternatively h = 23, q = 22: A-side f 2^23 (8.4MB), B-side 2^22. Slightly better memory. Let me set h = n - n//2 = ceil(n/2), q = n//2. For n=46: h=23, q=23. For n=45: h=23, q=22. Good — A gets the extra vertex. A-side is cheaper per element (uint8 vs uint32).
+
+Wait, actually, hmm: the f-DP does a gather `f[idx]` per step; the avail DP does `avail[:lo] & comp` (elementwise, no gather). The conflict DP does `X & lowAdj` + compare. All O(2^side) total. Fine either way.
+
+Now let me also consider: is numpy definitely available? The problem says "Python 3". Typically judges have numpy... but not guaranteed! Hmm. This is a risk. Let me think about whether a pure-Python solution could pass within 5 seconds for n=46.
+
+Pure Python: 2^23 = 8.4M iterations for f-DP, each iteration: compute lowest/highest bit, mask, two list lookups, max, store. That's maybe 8.4M × ~0.5-1 μs = 4-8 seconds just for f. Plus B-side: another 8.4M × several ops for avail/conflict/pc = another 10+ seconds. Total way over 5s. Unless... we use tricks.
+
+Pure-Python trick: bytes/bytearray operations? Hmm. Or use big-integer bit tricks to process many subsets at once? 
+
+Hmm, there's a classic pure-Python trick for subset DP: process via "for each mask in range(2^n)" is unavoidable ~8.4M iterations... Python can do maybe 30-50M simple loop iterations per second... no, more like 10-30M for very simple loops. With ~5-10 bytecode ops per iteration, 8.4M iterations ≈ 1-3 seconds per DP. Three DPs (f, avail+conflict+pc combined?) — could be 5-10s. Risky.
+
+Alternatively, pure Python with recursion + memo? No.
+
+Hmm, what about a smarter algorithm that avoids full enumeration? 
+
+Branch and bound for MIS with n=46: worst case exponential but with good bounds (e.g., coloring-based bound), typical hard instances at n=46 are solvable... but adversarial instances could blow up. The meet-in-the-middle is the "safe" intended solution (n ≤ 46 strongly suggests 2^{n/2} MITM; 46 = 2×23).
+
+Given the problem constraints (n ≤ 46, TL 5s — generous, suggesting they expect heavier constant factors, maybe for Python), I'll go with numpy but with a pure-Python fallback? Hmm, that doubles code complexity. Let me think about whether I can write a solution that's fast enough in pure Python using clever bit-parallel techniques.
+
+Bit-parallel idea: represent the f-DP... f[T] values 0..23, 8.4M entries. Can't avoid touching each entry. In pure Python, iterating 8.4M times with list operations: roughly `for T in range(1, 1<<h): v = (T & -T).bit_length() - 1; ...` — that's already several ops. Realistically ~1-2 μs per iteration → 8-16s. Too slow.
+
+Alternative pure-Python: use the structure — enumerate independent sets of B via recursion with pruning, and f-table for A computed... still need f-table (8.4M). Hmm.
+
+Could we avoid computing the full f-table? In MITM, we need f[M] for M = avail(S_B) over all independent S_B. The number of distinct avail values could be much smaller than 2^h... but computing f on demand per query: each f evaluation via DP is exponential. Hmm, no — f[M] can be computed via memoized recursion but worst case still touches many subsets.
+
+Alternatively: swap roles — enumerate independent sets of A (via DFS), and for B use... same issue.
+
+OK here's another thought: maybe use the "sum-product over subsets with big integers" trick. For the avail DP: avail[U] for all U — we need it as a table for the gather. Hmm.
+
+Actually, you know what — let me reconsider. Maybe there's a way to make the whole thing work with big-integer bit-parallelism where Python's big-int operations on ~2^23-bit integers are fast (implemented in C). 
+
+For example, the popcount array pc[U] for all U: can we compute "pc" as a packed array? We want, for the final val, max over independent U of pc[U] + f[avail[U]]. Hmm, max-reductions are hard bit-parallel.
+
+Alternatively, reformulate as a decision problem with bitsets: for each target size t, compute the set of U ⊆ B that are independent with |U| = t... and check if exists U with f[avail[U]] ≥ k - t. Hmm, "exists U in set S with avail[U] ⊆ ..." — no, f[avail[U]] ≥ k-t means exists independent S_A ⊆ avail[U] with |S_A| = k - t. 
+
+Define for each s, the family F_s = {M ⊆ A : exists indep S_A ⊆ M, |S_A| = s} = {M : f[M] ≥ s}. Note F_s is upward closed. And we need: exists independent U ⊆ B with |U| = t and avail[U] ∈ F_{k-t}, i.e., f[avail[U]] ≥ k - t.
+
+Hmm, bit-parallel over the 2^q universe: represent sets of U's as big integers (bit U set iff U in family). 
+
+Families needed: for each t, I_t = {U : U independent, |U| = t} — as big ints over universe [0, 2^q). And we need for each U in I_t, check f[avail[U]] ≥ k - t. 
+
+Hmm, how to check that bit-parallel? For each threshold s, define G_s = {U : f[avail[U]] ≥ s}. Then answer YES iff exists t with I_t ∩ G_{k-t} ≠ ∅.
+
+Computing G_s bit-parallel: G_s = {U : avail[U] ⊇ some M with f[M] ≥ s}... since f is monotone (f[M] ≥ s iff M ⊇ some indep set of size s; and f monotone in M), f[avail[U]] ≥ s iff avail[U] ∈ F_s iff avail[U] ⊇ (some fixed...) hmm, F_s = upward closure of {indep sets of size s}. 
+
+Alternatively: f[avail[U]] ≥ s iff exists indep S_A, |S_A| = s, S_A ⊆ avail[U] iff no edge between S_A and U... So G_s = {U : exists indep S_A of size s with U ⊆ avail_B(S_A)} = union over indep S_A of size s of the down-closure of avail_B(S_A). Hmm, computing this union bit-parallel: for each indep S_A (up to 2^h of them!) — too many.
+
+This is getting complicated. Let me step back.
+
+Decision: I'll write the solution with numpy, since it's the standard approach and most judges (Codeforces-style, and this looks like it's from some contest with "Problem A") have numpy for Python. But wait — actually, let me reconsider the problem source. "Problem A — Zero Sum Assignment", TL 5s, ML 256MB. The 5s TL suggests they anticipated slower solutions (Python?). Many such problem sets (e.g., from "ICPC-style" contests with Python submissions allowed) do have numpy.
+
+Hmm, but to be safe, maybe I should write a solution that works in pure Python within 5s. Let me think harder about pure-Python performance.
+
+Pure Python MITM with careful optimization:
+
+Total work: ~2^23 for A-side f-table + ~2^23 for B-side tables. Can we fuse B-side computations into one pass and use arrays (bytearray) with minimal per-element cost?
+
+B-side per U: need (a) independence, (b) popcount, (c) avail, then val = pc + f[avail] if indep. 
+
+One pass over U from 1 to 2^q - 1: 
+```
+for U in range(1, 1<<q):
+    v = (U & -U).bit_length() - 1  # lowest bit — hmm, or highest
+    ...
+```
+Per iteration: ~10-15 bytecode ops → ~1μs → 8.4s. Too slow.
+
+Chunked processing with big ints: Hmm! Here's an idea: use Python big integers to simulate arrays. E.g., the popcount table as a big int where each entry takes a fixed width w of bits: pc_arr = sum(pc[U] << (w*U)). Updating "pc[lo:hi] = pc[:lo] + 1" bit-parallel: adding 1 to each w-bit field of a chunk — if w large enough to avoid carries (w=8, values ≤ 23+1), then `new = old | (old + (0x0101...))`? Adding a constant with 1 in each field: `chunk + mask_of_ones` where each field gets +1: since fields don't overflow (23+1 ≤ 255... wait pc values ≤ 23, +1 → ≤ 24 < 256, no carry), `pc_hi = pc_lo + ones_pattern` where ones_pattern = int with 1 in each 8-bit field. That works! Big-int add of a 2^22×8-bit = 33.5M-bit number: CPython big-int addition is O(bits/64) ≈ 500K words → fast (~ms). 
+
+Similarly, `avail[lo:hi] = avail[:lo] & comp`: bit-parallel AND of big ints — but fields are 23 bits wide (h=23); need padding to avoid... AND doesn't have carry issues! avail fields: pack each 23-bit value into, say, 32-bit fields: avail_packed. `avail_packed_hi = avail_packed_lo & comp_pattern` where comp_pattern has comp replicated in each 32-bit field. AND is carry-safe regardless. 
+
+conflict: `conflict[lo:hi] = conflict[:lo] | ((X & lowAdj) != 0)`: X = the index pattern — X as packed: X_packed = the identity pattern (field U contains U)? That's a huge precomputed big int (2^22 fields × 1 bit... if fields are 1 bit, X & lowAdj needs multi-bit). Hmm: (X & lowAdj[j]) != 0 — we need per-field "is (U & lowAdj_j) nonzero". With fields of width w ≥ q bits: store U itself in each field (identity array), then AND with lowAdj pattern → per-field (U & lowAdj_j), then need "!= 0" → OR-fold within field... then compress to 1 bit. Compressing: hmm, "nonzero" test per field is not a simple bit op. Alternative: use the fact that (U & lowAdj_j) != 0 iff popcount > 0. Hmm.
+
+Alternative for conflict: conflict[U] = conflict[U without highest bit] | (highest bit's lowAdj & U != 0). Process by highest bit j: U = (1<<j)|X. Hmm.
+
+Alternatively, compute conflict differently: U independent iff U & adjFold[U] == 0 where adjFold[U] = OR of adj[v] over v ∈ U. As packed big-int with fields of width ≥ q bits: adjFold[(1<<j)|X] = adjFold[X] | adj_pattern_j (adj[j] replicated). OR is carry-safe. Then need per-field test (U & adjFold[U]) == 0. U & adjFold[U]: U is the identity pattern (field U = U), adjFold is packed; AND them: identity_pattern & adjFold_packed → per-field (U & adjFold[U]). Then test == 0 per field... again the "zero test per field" problem.
+
+Zero-test per field trick: with fields of width w, a field is zero iff... we can use multiplication? Or: add a pattern that makes nonzero fields detectable... Hmm: for a w-bit field value z, z != 0 iff (z | (something))... Classic trick: compute `z | (z >> 1) | ... ` no. Another: `z + ones`? Hmm.
+
+Alternative: use wider approach — instead of computing "independent" flags, note that we can just compute val for ALL U (independent or not) but with a modified f that... no.
+
+Hmm, alternative: avoid the independence check by using a different B-side formulation! 
+
+Idea: define $g[U]$ for $U \subseteq B$ = max independent set size in U (like f, over B). Then... we want max over independent S_B of |S_B| + f[avail(S_B)]. 
+
+What if instead we compute, for all U ⊆ B: $W[U] = \max_{S \subseteq U, S \text{ indep}} (|S| + f[\text{avail}(S)])$? We showed the recurrence needs the avail-coupling... BUT: what if we fold the A-side into the B-side DP differently — process ALL n vertices in one subset DP?! I.e., f over all $2^{46}$ subsets — no way.
+
+Hmm OK. What about the zero-test trick: fields of width w, want per-field indicator of (value != 0). Trick: `t = z | ((z | H) - H)`? Let me think... For a single field: given z (w bits), want 1 if z ≠ 0. Classic: `(z | -z) >> (w-1)` for w-bit... With big ints and fields, negatives are problematic. 
+
+Alternative: since we ultimately want max over U of val[U] where val[U] = pc[U] + f[avail[U]] for independent U — maybe we can arrange that non-independent U automatically get small val? E.g., define pc'[U] = ... no. Hmm: what if instead of pc[U] (popcount), we use g[U] = max indep set in U? Then val'[U] = g[U] + f[avail[U]] — for non-independent U, this OVERCOUNTS (g[U] counts an indep subset, but avail[U] is computed with all of U's vertices). So val' is an upper bound, not exact. Not directly usable.
+
+Hmm, but wait: maybe we can use a different decomposition where non-independent sets are naturally excluded... 
+
+What about this: enumerate over subsets U of B, but define the B-side value as $h[U] = \max_{S \subseteq U \text{ indep}}(|S| + f[\text{avail}(S)])$ computed via a DP that... the issue remains.
+
+OK here's yet another angle — the classic MITM for MIS actually enumerates independent sets of one half explicitly (not all subsets). The number of independent sets of a 23-vertex graph: worst case 2^23 (empty graph). But for the empty-graph-like cases, we can special-case: if B has few edges... Hmm, actually here's a nice observation:
+
+Claim: We can choose to enumerate independent sets of whichever half has FEWER independent sets? No — the algorithm structure requires: enumerate indep sets of one half + f-table of the other half. The f-table costs 2^h regardless (well, we need f[M] for various M; computing the full table costs 2^h). Hmm, but actually we don't need the full f-table if the number of queries is small! 
+
+Alternative algorithm: enumerate independent sets of BOTH halves (with sizes and avail-masks), then combine: for each pair (S_A, S_B) compatible... too many pairs.
+
+Standard approach for combining: sort/bucket indep sets of A by avail_B(S_A)... Let me think: for each indep S_B, we need max |S_A| over indep S_A with S_A ⊆ avail_A(S_B). If we have the list of all indep sets of A with their masks, then for a query mask M, we need max |S_A| over S_A ⊆ M. That's a subset-max query over a family — expensive in general, but we can precompute f-table over A (2^h) which answers it in O(1). So f-table it is.
+
+So the costs: 2^h for f-table + (#indep sets of B) for enumeration. If we could make the enumeration of indep sets of B fast in pure Python... worst case 2^23 = 8.4M sets. Each set: compute avail (incremental in DFS), query f[avail], update best. DFS in pure Python: ~8.4M nodes × ~1μs = 8.4s. Too slow. BUT with pruning: 
+
+Pruning idea: In the DFS over B's independent sets, maintain current best answer `best`. Prune a branch if |S_cur| + (upper bound on extension) ≤ best... but for the DECISION problem (≥ k), we can stop as soon as we find val ≥ k. The bad case is when answer is NO (α < k): then we must exhaust all independent sets of B... but if α < k, hmm, is the number of independent sets of B necessarily small? No! Example: B = empty graph on 23 vertices (2^23 indep sets), A = complete graph on 23 vertices, k = 25 > α = 24. Exhausting 2^23 indep sets of B... but wait, with pruning: at DFS node with current S_B (size s) and remaining candidate set R, upper bound = s + |R| + f[avail(S_B ∪ R... )] hmm. Let me think of a good bound: any completion S_B ∪ S' with S' ⊆ R: val = s + |S'| + f[avail(S_B ∪ S')]. Since avail shrinks as we add: f[avail(S_B ∪ S')] ≤ f[avail(S_B)]. And |S'| ≤ |R|. So bound = s + |R| + f[avail(S_B)]. Hmm, is that right? avail(S_B ∪ S') ⊆ avail(S_B), so f[avail(S_B ∪ S')] ≤ f[avail(S_B)]. Yes. So prune if s + |R| + f[avail(S_B)] < k... wait, but we want to prune when we can't reach k: if s + |R| + f[avail(S_B)] < k, prune. Hmm, but actually even better: bound = s + min(|R|, ...) hmm.
+
+In the empty-B example: at the root, S_B = ∅, R = all 23, avail = A (complete → f[A] = 1). Bound = 0 + 23 + 1 = 24 < 25 → prune immediately! So with this bound, the empty-B + complete-A + k=25 case is O(1). 
+
+Interesting. So a B&B with bound s + |R| + f[avail(S_B)] — how does it perform in adversarial cases? The bound is weak when f[avail(S_B)] is large, i.e., A-side sparse. Hmm. Adversarial: A = empty graph (f[M] = |M|), B = empty graph, k = 46: then α = 46 ≥ k, found immediately (DFS goes deep first, finds S_B = all 23, avail = A, f = 23, val = 46 ≥ k → done). Fast.
+
+Adversarial: A empty, B = graph with α(B) = 22, k = 46 → α = 23 + 22 = 45 < 46 → NO. DFS over B's indep sets with bound: s + |R| + f[avail(S_B)] = s + |R| + 23 (A empty, avail always = A... wait, no cross edges? If A is empty graph but there might be cross edges A-B! Let me re-set: to make f[avail] always 23, need no cross edges and A empty. Then bound = s + |R| + 23. We need to exhaust all indep sets S_B with s + |R| ≥ 23... hmm, DFS: at each node, R = candidates. If B is a graph on 23 vertices with α(B) = 22 (e.g., one edge): indep sets: 2^23 - 1 (all subsets except... subsets containing both endpoints of the edge: 2^21 such). So ~2^23 sets. Bound at root: 0 + 23 + 23 = 46 ≥ 46 → no prune at root. Hmm! So we'd enumerate... but wait — we want val ≥ k = 46: val = s + 23 ≥ 46 → s ≥ 23 → S_B = all 23 vertices — not independent (the edge). So answer NO, but the DFS with bound s + |R| + 23: at a node with S_B (size s) and candidates R: bound s + |R| + 23 ≥ 46 iff s + |R| ≥ 23. In DFS on B = single edge {a,b}: consider the branch where we skip a: R still has 22+... hmm, let me think about how many nodes have s + |R| ≥ 23. |R| = # candidates remaining. In a DFS that considers vertices in order, at depth d, R ⊆ remaining vertices... If we process vertices in a fixed order and R = {vertices after current position that are compatible}, then s + |R| ≥ 23 happens only near the root... Let me define DFS: order vertices 0..22; at each step, choose to include v (if compatible) or exclude v. R = compatible vertices after v. s + |R|: including everything: at the root s=0, R=23. After deciding vertex 0 (include): s=1, R ≤ 22. The bound s+|R| stays ≥ 23 only if we include almost everything. The number of DFS nodes with s + |R| ≥ 23: hmm, if we exclude a vertex, |R| drops by 1 without s increasing. Total vertices 23; s + |R| ≥ 23 requires... every excluded-or-incompatible vertex reduces s+|R| by... hmm: initially s + |R| = 23 (R = all). Each vertex processed: if included: s+1, R loses it and its incompatible neighbors → s+|R| decreases by #neighbors-in-R... if included and no neighbors in R: s+|R| unchanged. If excluded: s+|R| decreases by 1. So s + |R| ≥ 23 requires zero exclusions and zero edge-conflicts — i.e., only nodes along the "include everything" path... but with an edge {a,b}: when we include a, b becomes incompatible → s+|R| drops to 22 → prune. So the DFS explores: paths with at most... s+|R| ≥ 23 - (number of "losses"). We prune when s + |R| + 23 < 46, i.e., s + |R| < 23, i.e., losses ≥ 1. So we explore only nodes with 0 losses: the root and include-chains without conflict: O(n) nodes. 
+
+So the bound f[avail(S_B)] + s + |R| is quite strong when A is empty (f = |avail| = h - #cross-conflicts...). Hmm, wait, in that example f[avail] = 23 always (no cross edges). The bound was s + |R| + 23. The DFS prunes when s + |R| < 23. Since each "loss" (exclusion or conflict) decrements s+|R|... but wait, that analysis assumed R = all remaining compatible vertices and we process in fixed order. The number of nodes with s + |R| ≥ 23 - L for small L is like C(23, L)-ish. In general, the DFS explores nodes where "losses" ≤ (bound deficit). Hmm, this is essentially a B&B whose efficiency depends on the instance. Adversarial instances for B&B MIS exist (it's the classic hard problem), but n = 46 with MITM is the intended safe route.
+
+I think the safest is: numpy MITM (vectorized, guaranteed ~2-3s worst case, deterministic). The risk is numpy availability. Alternatively, pure-Python MITM with big-int bit-parallelism — let me think if that's feasible, because it would be both fast and dependency-free.
+
+Big-int bit-parallel MITM design:
+
+Represent tables over universe [0, 2^q) as big integers with fixed-width fields. Operations needed:
+
+A-side (f-table over A, size 2^h): the f-DP is a gather-heavy recurrence: f[T] = max(f[T'], 1 + f[T'']) — the gather f[T & mask] for all T in a range is NOT bit-parallel-friendly (it's a permuted read). Hmm. Can we compute the f-table differently in a bit-parallel way?
+
+Alternative: compute f-table via a different order: f as "for each s, the family of subsets T with f[T] ≥ s"? Hmm.
+
+Hmm, actually, wait. Let me reconsider — maybe there's a completely different formulation for the A-side that avoids the gather. 
+
+f[T] = max indep set in T. Equivalent: f[T] ≥ s iff T contains an independent set of size s.
+
+Alternative: compute for each s ∈ [0, h], the family $\mathcal{F}_s$ = {T ⊆ A : f[T] ≥ s} as a big-int bitmask over universe [0, 2^h). $\mathcal{F}_0$ = everything. $\mathcal{F}_{s+1}$ = {T : ∃v ∈ T with T \ N[v] ∈ ... hmm, T contains indep set of size s+1 iff ∃v ∈ T: T ⊇ {v} ∪ (indep set of size s within T \ N[v]) iff ∃v ∈ T with f[T \ N[v]] ≥ s... The families are upward-closed. Upward-closed families can be represented by their minimal elements... The number of minimal elements of $\mathcal{F}_s$ = number of inclusion-minimal T containing an s-indep-set = number of... hmm, minimal T containing an indep set of size s: T = S ∪ (stuff)? No — minimal T such that T ⊇ some indep S with |S| = s: the minimal such T are exactly the independent sets of size s themselves! Because if T is minimal with f[T] ≥ s, then T is an independent set of size s (any proper subset has f < s; if T had an edge or extra vertex, removing it keeps an s-indep-set... wait: if T ⊇ indep S, |S| = s, and T ≠ S, then S ⊊ T, so T not minimal). Yes! Minimal elements of $\mathcal{F}_s$ = independent sets of size exactly s.
+
+So $\mathcal{F}_s$ = upward closure of {indep sets of size s}. And f[T] = max{s : T ∈ $\mathcal{F}_s$}.
+
+Hmm, so if we can compute the families of independent sets of A by size, we can answer queries "f[T] ≥ s?" as "T ⊇ some indep-s set". But querying still needs subset checks...
+
+OK let me step back and think about what's really needed:
+
+Final combination: answer YES iff ∃ independent U ⊆ B and independent S ⊆ A with |U| + |S| ≥ k and no cross edges. 
+
+Reformulate: YES iff ∃ independent S_A ⊆ A, ∃ independent S_B ⊆ B, S_B ⊆ avail_B(S_A), |S_A| + |S_B| ≥ k.
+
+MITM standard: for each independent S_B, need max |S_A| over S_A ⊆ avail_A(S_B) — answered by f-table.
+
+The f-table computation (2^h DP with gathers) is the A-side cost; the B-side enumeration is the other cost. Both ~2^23 worst case.
+
+Pure-Python with big ints — let me think about which parts can be bit-parallel:
+
+1. B-side: enumerate all U ⊆ B (not just independent), compute for each: indep flag, popcount, avail, then val = pc + f[avail] (if indep), take max. 
+
+   - avail: packed big-int DP by highest bit: avail_packed[hi half] = avail_packed[lo half] & comp_j. Bit-parallel: YES (one big-int AND per level j; total bits processed: sum over j of 2^j × w = 2^q × w bits ≈ 8.4M × 32 = 268M bits = 33.5MB numbers; big-int AND at C speed ~ 268M/64 ≈ 4.2M word-ops per level... total ~8.4M words ≈ fast, <0.1s). 
+
+   - popcount: packed with 8-bit fields: pc[hi] = pc[lo] + ones_pattern (no carries since ≤ 24 < 256). Bit-parallel: YES.
+
+   - independence: conflict[U] = conflict[X] | ((X & lowAdj_j) != 0) for U = (1<<j)|X. The "(X & lowAdj_j) != 0" per-field nonzero test — problematic. Alternative: compute adjFold[U] = OR of adj[v], v ∈ U (packed, w ≥ q bits... fields of 32 bits): adjFold[hi] = adjFold[lo] | adj_j_pattern. Then need per-field (U & adjFold[U]) == 0 test — again per-field zero/nonzero test.
+
+   Per-field nonzero test via bit tricks on big ints: given packed z (w-bit fields), produce packed indicator (1-bit fields? or w-bit 0/1). Trick: t = z | (z >> 1) | (z >> 2) | ... | (z >> (w-1)) — OR-fold within fields: after this, field has LSB set iff original nonzero. That's w shifts+ORs of huge ints: w=32 → 32 ops × 268M bits each... 32 × 4.2M words = 134M word ops ≈ 0.5s. Hmm, but shifts by non-multiples of 64 are slower (not word-aligned). Alternatively use fewer, wider tricks: 
+
+   Better trick for per-field "nonzero → all-ones": standard SWAR: given field value z (w bits, top bit free): 
+   - Let m = z + carry-protector... SWAR "is zero" test: `(z | ((z | H) - H))`? Hmm, the classic: for detecting if any bit set: t = ((z | H) - H) | z... where H = high bit of each field (0x8080... for 8-bit). Then t has high bit set iff z nonzero... Let me recall SWAR: to compute per-byte "zero" flag: `haszero(v) = (v - 0x01010101) & ~v & 0x80808080`. For "nonzero": (v - ones) & ~v & highbits: if byte of v is 0: (0 - 1) = borrow... hmm, haszero works per byte with the trick `(v - 0x01..) & ~v & 0x80..` — this requires no borrows across bytes, which holds if... the standard haszero trick: `(v - 0x01010101) & ~v & 0x80808080` is nonzero iff v has a zero byte — but it's approximate when bytes are large (≥ 0x80 causes issues?). Actually the trick is exact for detecting zero bytes when... hmm, it can give false positives? The known caveat: haszero can be fooled... Let me not go down this path; there's a cleaner way:
+
+   For the conflict test, alternative formulation avoiding per-field tests: 
+
+   conflict as a packed 1-bit-per-field big int? We want conflict[U] ∈ {0,1} per U. Recurrence: conflict[(1<<j)|X] = conflict[X] | nz(X & lowAdj_j). If we had nz(·) as a 1-bit-packed array... 
+
+   Alternative: compute the independent-set families directly! For B-side, instead of testing each U, enumerate independent sets by size: I_j = family (bitmask over universe 2^q) of independent sets... via DP: indep sets of U... hmm.
+
+   Actually — here's a cleaner idea for the whole B-side: we don't need per-U conflict flags if we compute val differently. What if we compute, for each U ⊆ B, the value $g[U] + f[\text{avail}[U]]$ where g[U] = max indep set in U (B-side f-table, same DP as A-side)? For independent U: = |U| + f[avail[U]] ✓. For non-independent U: g[U] < |U|, but avail[U] uses all of U → overcounts f... so val'[U] = g[U] + f[avail[U]] ≥ true value for... hmm, for non-independent U, val'[U] could exceed the true α contribution — bad (false YES). E.g., U = {a,b} with edge {a,b}, no cross edges, f[avail] = f[A] = 23: val' = 1 + 23 = 24, but true: can't use both a,b. But the true α might still be 24 via other sets... not guaranteed. So val' overestimates → can't use for decision. ✗.
+
+   Hmm. What about: val''[U] = g[U] + f[avail'[U]] where avail'[U] = avail of the max indep subset... no, that's the coupling again.
+
+2. A-side f-table: gather-based DP — not bit-parallel friendly.
+
+Hmm, so pure-Python bit-parallel has obstacles. Let me think about whether the A-side f-table can be computed bit-parallel differently.
+
+f-table via "for each s: family of subsets with f ≥ s": 
+
+$\mathcal{F}_s$ = {T : f[T] ≥ s}, upward-closed with minimal elements = indep sets of size s. If we can enumerate all independent sets of A (grouped by size) — worst case 2^23 of them (empty graph) — then $\mathcal{F}_s$ = OR of up-closures. Computing up-closure of a family bit-parallel: up-closure = OR over bits v of (F | F << (1 << v))? The up-closure (as a set of subsets) of family F: closure = F; repeat for each v: closure |= closure << bit_v... Actually the upward closure: T ∈ closure iff ∃S ∈ F, S ⊆ T. Closure computation: for each vertex v: closure = closure | (closure << (1<<v)) — after processing all v, closure is up-closed? Let me verify: this is the standard "subset sum OR" (SOS) transform: for each bit position v (in subset-encoding universe where bit index = U's bit v): F |= F << (1 << v). After all v: F[T] = OR over S ⊆ T of F_orig[S]. Yes! That's the SOS (sum over subsets) with OR — exactly the up-closure. Cost: h passes of shift+OR on 2^h-bit integers: 23 × (8.4M bits → 131K words) ≈ 3M word ops — fast!
+
+So: if we can get, for each s, the family Ind_s of independent sets of A of size exactly s (as bitmask over universe [0, 2^h)), then up-closure gives $\mathcal{F}_s$, and then f[T] = max s with T ∈ $\mathcal{F}_s$. But we need f as a random-access table for the B-side queries (f[avail[U]] for 2^q values U). Getting f[T] for all T from the families: f = sum over s of (indicator)... we'd need to convert $\mathcal{F}_s$ bitmasks into a byte table — that's 2^h × h bit extractions = 8.4M × 23 — too slow in Python... unless bit-parallel: 
+
+f_table (packed 8-bit fields) = Σ_s s × indicator(F_s)? Computing indicator arrays bit-parallel... Hmm: we can compute f_table via: start with f_packed = 0 (all fields 0); for s from h down to 1: f_packed |= s_pattern × ... no — "where F_s has bit set, set field to s": f_packed = f_packed | (broadcast(s) & mask_to_fields(F_s))? Converting a 1-bit-per-U array (F_s as big int) into an 8-bit-field packed array with field = s where bit set: 
+
+packed_s = ... we need "expand" each bit of F_s into an 8-bit field. Bit expansion bit-parallel: hmm, there's a trick: multiply? Big-int multiplication in CPython is O(n^1.58) (Karatsuba) — multiplying a 8.4M-bit number by a small pattern... Let me think: we want E(F) = Σ_{U: bit U set} (1 << (8U)) — i.e., replace bit U with bit 8U. This is a "bit spread" by factor 8. Bit-spread can be done via multiplication? Spreading bits by factor k: there are classic tricks using masks and shifts in O(log) big-int ops: e.g., spread by 2: x = (x | (x << S)) & M1... The standard technique: to spread bits from density 1 to spacing w: 
+```
+x |= x << shift; x &= mask... 
+```
+Actually the standard "interleave/spread" sequence: for spreading bits by factor 8 (positions i → 8i): 
+Step 1: x = (x | (x << 4*S)) & mask4 — hmm, let me recall the general "expand bits" used in chess programming (e.g., "flip" bitboards)... 
+
+The classic: to spread n bits (at positions 0..n-1) to positions 0, w, 2w, ...: 
+```
+x = (x | (x << (w-1)*2^{k})...)...
+```
+Let me derive: we want map bit i → bit w·i. Equivalent to multiplying the "binary number with digits at positions i" by... Consider x as number; we want Σ b_i 2^{wi}. Trick: repeatedly double spacing: to go from spacing 1 to spacing 2: x2 = spread once: x2 = (x & M0) | ((x & M1) << n) where M0 = bits at even positions, M1 = odd... For spreading to spacing 2^t: t rounds, each: split into blocks and shift halves. Each round doubles the spacing: round r: block size... Total O(t) big-int ops each O(2^h × w / 64) words. For w = 8 = 2^3: 3 rounds. Feasible!
+
+Round details for spreading by 2: given bits at positions multiples of s (spacing s), want spacing 2s: x has bits at positions s·i. Write i = 2j + b. Then position s·i = 2sj + s·b. So: x = A | (B << s) where A = bits with b=0 (i even), B = bits with b=1. We want output bits at 2s·i = 2s(2j+b) = 4sj + 2sb: out = A' | (B' << 2s) where A' = A spread... hmm, this recursion: A has bits at s·2j = 2s·j — already spacing 2s ✓. B has bits at s(2j+1) = 2sj + s: shift B >> s → bits at 2sj: spacing 2s ✓. So: out = A | ((B >> s) << 2s) = A | (B << s). Where A = x & mask(even multiples of s), B = x & mask(odd multiples of s). Masks: positions ≡ 0 mod 2s vs ≡ s mod 2s. So round: `x = (x & M_even) | ((x & M_odd) << s)` where M_even = bits at positions ≡0 mod 2s, M_odd = positions ≡ s mod 2s. Then s → 2s. Start s=1, do 3 rounds → s=8. Each round: 2 ANDs + 1 OR + 1 shift on numbers of size ~2^h × 8 bits = 67M bits ≈ 1M words → ~4M word ops per round, 3 rounds per s value, × h values of s (23) → ~280M word ops... hmm, that's getting heavy but each big-int op on 67M-bit numbers is ~1M words ~ few ms; total ops: 23 s-values × 3 rounds × ~4 ops = ~276 big-int ops × ~2-5ms = 0.5-1.5s. Hmm, plus we need the families Ind_s first!
+
+And enumerating Ind_s (independent sets of A by size) — worst case 2^23 sets — how do we get them as bitmask-over-universe without enumerating one by one?! Bit-parallel: Ind[U] as... we can compute the family of ALL independent sets as a bitmask over universe [0, 2^h) via: Ind = {U : U & adjFold[U] = 0}. Hmm, computing this bit-parallel: 
+
+DP by highest bit: Ind = {0} ∪ ... : family of indep sets: I. Recurrence: indep sets not containing highest... hmm, universe structure: Let's compute IndAll as big int over universe [0, 2^h). Split by bit j (highest): sets with bit j = 0: indep sets of [0, j) — sub-universe [0, 2^j) → occupies low half. Sets with bit j: X ∪ {j} where X indep ⊆ [0,j) and X ∩ N(j) = ∅: = I_j-1 restricted to X ⊆ ~N(j)... "family of indep sets of [0,j) that avoid N(j)" — hmm, that's Ind_{[0,j)} AND-masked... Family intersection with downset: sets avoiding N(j) = sets ⊆ complement of N(j) — the family of indep sets within a subset mask M: that's not a simple bit-parallel op on the family bitmask... 
+
+Alternative: compute per-vertex: the family bitmask of indep sets of the graph restricted... Hmm, actually here's a cleaner way: IndAll = Π... no.
+
+Alternative: independent sets family via "for each vertex, choose: not in set (2 choices... )" — the family of indep sets = product structure only for disjoint components.
+
+Hmm, what about: IndAll[U] = 1 iff U & adjFold[U] == 0. We can compute adjFold as packed array (per-U fields) bit-parallel (shown earlier: adjFold[(1<<j)|X] = adjFold[X] | adj_j — one big OR per level ✓). Then need per-field test (U & adjFold[U]) == 0 → per-field zero test → the SWAR problem again. 
+
+Per-field zero/nonzero test, bit-parallel, exact: Let z = per-field values (w-bit fields, w = 32 say). Want per-field flag f = 1 if z_field ≠ 0. Trick: t = z | (z >> 16) | (z >> 8) | (z >> 4) | (z >> 2) | (z >> 1) — folds all bits of each 32-bit field into low bits? Shifting z >> c moves bits across fields — contamination! Need masking between steps: t = z; t |= (t >> 1) & M1; t |= (t >> 2) & M2; t |= (t >> 4) & M4; ... where masks prevent cross-field bleed. With w=32: 5 steps (shifts 1,2,4,8,16) each with mask: ~10 big-int ops on 268M-bit numbers (4.2M words): ~10 × 4.2M = 42M word ops per level j... × 23 levels = ~1G word ops — too slow (~3-10s). Hmm. Wait, no — the fold can be done ONCE at the end, not per level! adjFold is computed over all U (2^q entries), then ONE fold pass computes nz flags for all U. The fold: 5 shift+mask+OR steps on the full 2^q × 32-bit packed array: 268M bits = 4.2M words per op, ~15 ops → 63M word ops ≈ 0.2-0.5s. OK-ish. Then extract the low bit of each field → 1-bit-per-U array: another spread/compress... "compress by 32": take bits at positions ≡ 0 mod 32: x & M0pattern then "compact" — compaction is the inverse of spreading — doable via the reverse of the spread rounds (3-5 rounds of shifts/masks): each round halves spacing: from 32 → 16 → 8 → 4 → 2 → 1: 5 rounds × ~4 ops on shrinking... total ~20 ops × up to 4.2M words = 84M word ops ≈ 0.3-1s. Hmm, this is all adding up: pure-Python big-int approach might total 3-8s. Risky but maybe OK within 5s? Hard to predict.
+
+And the A-side f-table: we need f[avail[U]] for all U — a GATHER: reading f at 2^q scattered indices. Bit-parallel gather is not a simple big-int op. Hmm!! The gather is the killer: f[avail[U]] for each U — 8.4M random reads into an 8.4M-entry table. In pure Python: 8.4M iterations ≈ 5-10s. ✗.
+
+Alternative to avoid the gather: reformulate the combination step. We want: ∃U indep, ∃S_A indep ⊆ avail(U), |U| + |S_A| ≥ k. 
+
+= ∃U indep, ∃S_A indep: S_A ⊆ avail(U), |U| + |S_A| ≥ k.
+
+Flip: for each independent S_A, the set of allowed U: U ⊆ B, U indep, U ∩ N_B(S_A) = ∅, |U| ≥ k - |S_A|. 
+
+Define for each t: G_t = family (over universe [0, 2^q)) of U that are independent and |U| ≥ t... no wait, we need pairs. Hmm: YES iff ∃ indep S_A, ∃ indep U ⊆ avail_B(S_A) with |U| ≥ k - |S_A|.
+
+Define H_c = family over B-universe: {U : U indep, |U| ≥ c}... but the constraint U ⊆ avail_B(S_A) couples. 
+
+Standard MITM trick: define for each subset M ⊆ B: g[M] = max indep set in M (B-side table). Then YES iff ∃ indep S_A: |S_A| + g[avail_B(S_A)] ≥ k. Symmetric gather problem. 
+
+To avoid gathers: bucket by avail! For each indep S_A, key = avail_B(S_A) (a subset of B), value = |S_A|. We want max over S_A with avail_B(S_A) ⊇ (some U...)... Specifically: YES iff ∃ indep S_A and indep U ⊆ avail_B(S_A) with |S_A| + |U| ≥ k. For fixed U (indep, size t): need max |S_A| over indep S_A with S_A ∩ N_A(U) = ∅ i.e. avail_B(S_A) ⊇ U. Define W[U] = max{|S_A| : S_A indep, U ⊆ avail_B(S_A)} = max{|S_A| : S_A indep, S_A ⊆ A \ N_A(U)} = f[A \ N_A(U)] = f[avail_A(U)]. Circular — same thing.
+
+Bit-parallel combination: Let's define for each s: FAM_A_s = family over A-universe of indep sets of A of size s (big int over [0, 2^h)). And FAM_B_t = indep sets of B of size t (big int over [0, 2^q)). We need: ∃ S_A ∈ FAM_A_s, U ∈ FAM_B_t, s + t ≥ k, no cross edges. 
+
+The cross-edge condition: for pair (S_A, U): for every edge (a, b) cross: not (a ∈ S_A and b ∈ U). Hmm — this is like a "compatibility" relation between the two universes. 
+
+Think of it as: we need to compute, over pairs, whether any compatible pair with sizes summing ≥ k exists. Define for each S_A: its "forbidden pattern" — the family of U that conflict = up-closure of... U conflicts with S_A iff U ∩ N_B(S_A) ≠ ∅. So compatible U ⊆ avail_B(S_A). 
+
+Alternative bit-parallel: for each t, compute the family over B-universe: OK_t = {U : U indep, |U| = t, and ∃ indep S_A of size k - t with S_A ⊆ avail_A(U)}... circular again.
+
+Hmm, what about a join over the cross-edge structure: The condition "no cross edge between S_A and U" — consider processing cross-edges as constraints. If there are few cross edges, this is easy. If many... hmm.
+
+OK, let me step back and take stock. Options:
+
+Option 1: numpy MITM. Clean, fast (~1-3s), risk: numpy availability. I believe for these "solve in Python 3" tasks, numpy is usually available (the instructions say "Python 3 solutions" — typical for these meta-tasks, numpy is fine). Given the constraints (n ≤ 46, 5s TL), the intended solution is clearly MITM 2^23, and in Python that REQUIRES vectorization (numpy) or very clever big-int tricks. I'll go with numpy as primary. 
+
+Hmm, but wait — should I add a pure-Python fallback in case numpy is missing? The code would detect `import numpy` failure and fall back to a pure-Python MITM that might TLE on worst cases but works on smaller ones... Actually, a pure-Python fallback could still be decent: let me estimate pure-Python MITM cost more carefully with optimized loops.
+
+Pure-Python f-table (A-side, h ≤ 23): 
+```
+f = bytearray(1 << h)
+for v in range(h):
+    lo = 1 << v
+    adjv = ~adjA[v] & (lo - 1)   # mask of allowed lower bits
+    # for X in range(lo): f[lo + X] = max(f[X], f[X & adjv] + 1)
+    fl = f[:lo]  # bytes copy
+    ...
+```
+The inner loop over X in range(lo) — pure Python — total 2^h iterations ≈ 8.4M × (index ops, & op, max) ≈ maybe 6-10s. Too slow. 
+
+Could use precomputed structure: for fixed v, the map X → X & adjv: if adjv has k bits... For X in a blocked order, X & adjv is computable incrementally... Still 8.4M iterations of Python bytecode. ~5s+ just for this. Then B-side similar. Total 15s+. ✗ for worst case. But for smaller n (say n ≤ 30 → 2^15 = 32K), pure Python is fine. A fallback could handle n ≤ ~36 in time and larger n... risky.
+
+Option 2: Pure-Python big-int bit-parallel MITM. Let me think again if the GATHER can be avoided.
+
+The gather: val[U] = pc[U] + f[avail[U]] for all U. 
+
+Bit-parallel alternative: compute for each s (0..h): the family over B-universe: Q_s = {U : f[avail[U]] ≥ s} = {U : avail[U] ∈ F_s} = {U : avail[U] ⊇ some indep S_A of size s} = {U : U ∩ N_B(S_A) = ∅ for some indep S_A, |S_A| = s} = ∪_{S_A indep, |S_A|=s} down-closure... wait: U ∩ N_B(S_A) = ∅ means U ⊆ B \ N_B(S_A) = avail_B(S_A). So Q_s = ∪ over indep S_A of size s of {U : U ⊆ avail_B(S_A)} = union of down-closures of the singletons... i.e., Q_s = {U : ∃ indep S_A, |S_A| = s, U ⊆ avail_B(S_A)}.
+
+Then YES iff ∃ s, t with s + t ≥ k, and ∃U ∈ Q_s with U indep and |U| ≥ t... wait more precisely: YES iff ∃U indep, |U| = t, f[avail[U]] ≥ s, s + t ≥ k. Using Q_s: ∃U ∈ Q_s, U indep, |U| ≥ k - s. Hmm, since subsets of independent sets are independent: if U ∈ Q_s via S_A, and U' ⊆ U with |U'| = k - s, then U' ⊆ avail_B(S_A) too, so U' ∈ Q_s and indep. So: YES iff ∃s: Q_s ∩ {U : U indep, |U| ≥ k - s} ≠ ∅. And since members of Q_s... hmm, actually simpler: YES iff ∃s ∈ [max(0, k - q), min(h, k)]: Q_s ∩ Ind_{≥ k-s} ≠ ∅ where Ind_{≥c} = {U indep : |U| ≥ c}.
+
+Now, computing Q_s bit-parallel: Q_s = ∪_{S_A ∈ Ind^A_s} Down(avail_B(S_A)) where Down(M) = {U : U ⊆ M} = all subsets of M. Down(M) as a bitmask over B-universe: it's a "subcube": bits set at positions ⊆ M. OR of subcubes... 
+
+Down(M) = product over bits: for each vertex b ∈ B: if b ∈ M: both choices; else: bit must be 0. As a big-int pattern: Down(M) = Π_{b ∈ M} (1 + 2^{2^{pos_b}})? i.e., the indicator = AND over b ∉ M of mask_b where mask_b clears... hmm: Down(M) = full & ∏... Let me think: Down(M) = the set of U ⊆ M. As integer: Σ_{U ⊆ M} 2^U = Π_{b ∈ M} (1 + 2^{2^{b_local}}). Computing this product for each S_A: expensive per set (up to 2^h sets!). ✗ unless few.
+
+BUT: Q_s = {U : ∃S_A ∈ Ind^A_s, S_A ∩ N_A(U) = ∅} — symmetric! So Q_s = {U : f[avail_A(U)] ≥ s} — that's just the definition. Computing Q_s directly over B-universe: Q_s = {U : avail_A(U) ∈ F_s}. Hmm, F_s is up-closed over A-universe. avail_A(U) = A \ N_A(U) — monotone decreasing in U. So U ∈ Q_s iff N_A(U) ⊆ A \ (some indep s-set)... iff ∃ indep S_A size s: S_A ∩ N_A(U) = ∅.
+
+Bit-parallel computation of Q_s: hmm, Q_s = ∪_{S_A} {U : U ∩ N_B(S_A) = ∅} = ∪_{S_A} Down(B \ N_B(S_A)). 
+
+Alternatively compute complement: U ∉ Q_s iff ∀ indep S_A size s: U ∩ N_B(S_A) ≠ ∅. Hmm.
+
+Alternative: think of Q_s recursively over B vertices (SOS-like transform): Define R_s[U] = 1 if ∃S_A indep, |S_A| = s, S_A ⊆ avail_A(U). Note R_s[U] = F_s[avail_A(U)] where F_s : A-universe → bool. avail_A(U) = AND over b ∈ U of (~N_A(b) pattern). So R_s = F_s ∘ (bitwise-AND-fold of per-vertex patterns). This is like an "AND-convolution"... 
+
+Hmm, here's a thought: R_s[U] as function of U: R_s[U ∪ {b}] = F_s[avail_A(U) & ~N_A(b)]. So if we define the "profile" DP over B-vertices: state = current avail (subset of A) — 2^h states; process each b ∈ B: transition avail &= ~N_A(b) if b included. We want: over all U, whether R_s[U]... The set of reachable profiles and their F_s values... The DP: for each U, profile(U) = avail_A(U). We want to know if any U with profile p where F_s[p] = 1, and also U indep with |U| ≥ k - s. Combining independence and size into the profile DP: state = (avail_A) only tracks cross-edges; independence within B and size need separate tracking. Hmm, we could do: DP over B vertices in order, state = (avail_A profile, ...) — the within-B independence is handled by processing order (like a subset DP: U's independence is a property of U, and we're iterating over all U anyway).
+
+I keep going in circles. The fundamental issue: pure-Python bit-parallel struggles with (a) per-field tests, (b) gathers, (c) enumerating families.
+
+Let me now seriously evaluate: is numpy a safe bet? The problem statement here (the meta-task) says "You write correct, efficient Python 3 solutions." — In these evaluation environments, numpy is typically available. Also, the TL of 5 seconds (very generous) and n ≤ 46 (exactly 2×23) strongly suggests the intended solution is MITM with 2^23 work, feasible in Python only with numpy (or PyPy, but we must write Python 3 — CPython presumably). I'll commit to numpy, but let me ALSO make the code degrade

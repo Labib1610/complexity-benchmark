@@ -1,0 +1,65 @@
+import sys
+from collections import defaultdict, deque
+
+def solve():
+    n, m, k = map(int, input().split())
+    
+    # Build adjacency list
+    adj = defaultdict(list)
+    for _ in range(m):
+        u, v = map(int, input().split())
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # If no edges, we can take any k nodes
+    if m == 0:
+        print("YES")
+        print(' '.join(map(str, range(1, k + 1))))
+        return
+    
+    # BFS to check bipartiteness and get the two parts
+    color = [-1] * (n + 1)  # -1: unvisited, 0: type A, 1: type B
+    visited = [False] * (n + 1)
+    
+    # Process all components
+    parts = [[], []]  # parts[0] and parts[1]
+    
+    for start in range(1, n + 1):
+        if visited[start]:
+            continue
+            
+        queue = deque([start])
+        color[start] = 0
+        visited[start] = True
+        parts[0].append(start)
+        
+        while queue:
+            node = queue.popleft()
+            current_color = color[node]
+            
+            for neighbor in adj[node]:
+                if not visited[neighbor]:
+                    visited[neighbor] = True
+                    color[neighbor] = 1 - current_color
+                    parts[1 - current_color].append(neighbor)
+                    queue.append(neighbor)
+                elif color[neighbor] == current_color:
+                    # This should not happen according to problem statement
+                    # but let's handle it gracefully
+                    pass
+    
+    # Now we have the two parts
+    part0 = parts[0]
+    part1 = parts[1]
+    
+    # Check if we can take k nodes from either part
+    if len(part0) >= k:
+        print("YES")
+        print(' '.join(map(str, part0[:k])))
+    elif len(part1) >= k:
+        print("YES")
+        print(' '.join(map(str, part1[:k])))
+    else:
+        print("NO")
+
+solve()

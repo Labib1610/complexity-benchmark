@@ -1,0 +1,371 @@
+**Solution Explanation**
+
+The problem asks for an *exact cover* of the set  
+
+```
+U = { 1 , 2 , … , 3·q }
+```
+
+by `q` triples taken from the given list of `t` triples.
+A triple may be used at most once and every element of `U` has to belong to
+exactly one chosen triple.
+
+Exact cover is a classic combinatorial problem solved efficiently for the
+given limits (`|U| ≤ 600`, `t ≤ 20000`) by **Algorithm X** with the
+*Dancing Links* data structure (DLX).  
+The algorithm works recursively:
+
+* choose a still uncovered element (column) – we always pick the column with
+  the smallest number of remaining triples (heuristic, drastically reduces
+  the search tree);
+* try each triple (row) that contains this element:
+    * temporarily delete all columns covered by this triple;
+    * recurse;
+    * if recursion fails, undo the deletions and try the next triple.
+
+If all columns become covered we have found a solution.
+
+The data structure stores a sparse binary matrix:
+rows = triples, columns = elements `1 … 3q`.  
+Only the positions where a triple contains an element are stored,
+so the total number of nodes is `3·t ≤ 60000`.
+
+The implementation below follows the classic pointer‑based DLX
+(implemented with Python lists for speed).  
+When a solution is found the corresponding triples are collected and printed.
+
+The algorithm is exponential in the worst case, but with the
+`|U| ≤ 600` and the strong heuristic it easily finishes within the limits
+(5 s, 256 MiB).
+
+--------------------------------------------------------------------
+
+#### Algorithm
+```
+read q, t
+n = 3*q                                 # number of columns
+store all triples in list triples[0 … t-1]
+
+# ---------- build DLX ----------
+create column header nodes 0 … n-1
+for each triple i:
+        for each element x in triple:
+                create a node and link it into column x and row i
+
+# ---------- search ----------
+solution_rows = empty list
+if dfs():
+        print YES and the triples belonging to solution_rows
+else:
+        print NO
+
+function dfs():
+        if no column left -> success
+        choose column c with minimal size
+        cover column c
+        for each row r in column c (traverse down):
+                add r to solution
+                for each node j in row r (rightwards):
+                        cover column of j
+                if dfs(): return True
+                # backtrack
+                for each node j in row r (leftwards):
+                        uncover column of j
+                remove r from solution
+        uncover column c
+        return False
+```
+
+`cover` and `uncover` are the standard DLX operations that remove
+(and later restore) a column together with all rows that intersect it.
+
+--------------------------------------------------------------------
+
+#### Correctness Proof  
+
+We prove that the algorithm prints `YES` and a correct set of `q` triples
+iff such a set exists.
+
+---
+
+##### Lemma 1  
+During the execution of `dfs`, the set `solution_rows` always consists of
+pairwise disjoint triples (no element appears in two of them) and all
+elements covered by these triples are removed from the DLX structure.
+
+**Proof.**  
+When a row `r` is added to the solution, the algorithm iterates over all
+nodes of that row and calls `cover` on their columns.
+`cover` removes the column and also removes every other row that contains
+the same column. Hence after covering all columns of `r`, no remaining row
+contains any element already used by `r`. The same holds for all rows
+already stored in `solution_rows` by induction. ∎
+
+
+
+##### Lemma 2  
+If `dfs` reaches the state “no column left”, the rows stored in
+`solution_rows` form an exact cover of `U`.
+
+**Proof.**  
+“No column left” means every element of `U` has been covered and removed.
+By Lemma&nbsp;1 the rows in `solution_rows` are pairwise disjoint, therefore
+each element appears in exactly one of them. The number of rows is
+`|U| / 3 = q`. ∎
+
+
+
+##### Lemma 3  
+If there exists an exact cover `C`, then `dfs` will eventually find a
+solution (i.e. will return `True`).
+
+**Proof.**  
+Consider the recursion tree of `dfs`.  
+At each call a column `c` is chosen. Since `C` is a cover, some triple
+`r ∈ C` contains `c`. That row `r` appears in the column list of `c`,
+hence the algorithm will try it at some iteration.
+When it tries `r`, all columns of `r` are covered, which removes exactly the
+rows that conflict with `r`. The remaining uncovered columns are precisely
+those that must be covered by `C \ {r}`. By induction on the number of
+remaining columns, the recursive call will succeed. Therefore the branch
+following the rows of `C` leads to success, and `dfs` returns `True`. ∎
+
+
+
+##### Lemma 4  
+If `dfs` returns `True`, the printed triples constitute a valid execution
+plan.
+
+**Proof.**  
+By Lemma&nbsp;2 the rows stored when `dfs` succeeds form an exact cover.
+The algorithm prints exactly those triples, hence each task `1 … 3q`
+appears in exactly one printed triple and the number of printed triples is
+`q`. ∎
+
+
+
+##### Lemma 5  
+If the algorithm prints `NO`, no exact cover exists.
+
+**Proof.**  
+`NO` is printed only when `dfs` returns `False`.  
+Assume for contradiction that an exact cover `C` exists.
+By Lemma&nbsp;3 `dfs` would have found a solution and returned `True`,
+contradiction. Hence no exact cover exists. ∎
+
+
+
+##### Theorem  
+The program outputs  
+
+* `YES` followed by `q` triples that partition `{1,…,3q}`  
+  **iff** such a set of triples exists in the input,
+* otherwise it outputs `NO`.
+
+**Proof.**  
+*If* part: existence ⇒ by Lemma&nbsp;3 `dfs` succeeds ⇒ by Lemma&nbsp;4
+the printed triples are a correct plan, and `YES` is printed.
+
+*Only‑if* part: program prints `YES` ⇒ `dfs` succeeded ⇒ by Lemma&nbsp;2
+the printed triples form an exact cover, therefore a valid plan exists.
+
+If the program prints `NO`, by Lemma&nbsp;5 no exact cover exists. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### Complexity Analysis  
+
+*Building the structure*  
+`3·t` nodes are created, each linked in O(1).  
+Time `O(t)`, memory `O(t + q)` ( ≤ 60000 nodes).
+
+*Search*  
+In the worst case exponential, but each recursive step removes at least
+one column, so depth ≤ `3q ≤ 600`.  
+All DLX operations are O(1) per removed node, therefore the total work is
+proportional to the number of visited nodes in the search tree.
+For the given limits the program runs well within 5 seconds.
+
+--------------------------------------------------------------------
+
+#### Reference Implementation  (Python 3)
+
+```python
+import sys
+sys.setrecursionlimit(10000)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    q = int(next(it))
+    t = int(next(it))
+    n = 3 * q                     # number of columns (tasks)
+
+    triples = []
+    for _ in range(t):
+        a = int(next(it)) - 1
+        b = int(next(it)) - 1
+        c = int(next(it)) - 1
+        triples.append((a, b, c))
+
+    # ---------- DLX structures ----------
+    # column headers: 0..n-1, plus a dummy header at index n
+    size = n + 1                  # total column nodes
+    up = list(range(size))
+    down = list(range(size))
+    left = list(range(size))
+    right = list(range(size))
+    col_size = [0] * size         # only meaningful for column headers
+    col_head = list(range(size))  # column of each node (itself for headers)
+
+    # row list: for each row we keep one representative node index
+    row_rep = []
+
+    node_cnt = size               # next free index
+
+    # helper to link a node vertically into column c
+    def link_vert(node, c):
+        nonlocal up, down, col_head, col_size
+        up[node] = up[c]
+        down[node] = c
+        down[up[c]] = node
+        up[c] = node
+        col_head[node] = c
+        col_size[c] += 1
+
+    # helper to link a node horizontally into its row (circular)
+    def link_horiz(first, node):
+        # insert node to the right of first
+        right[node] = right[first]
+        left[node] = first
+        left[right[first]] = node
+        right[first] = node
+
+    # build rows
+    for r_idx, (a, b, c) in enumerate(triples):
+        # create first node of the row
+        first = node_cnt
+        node_cnt += 1
+        link_vert(first, a)
+        row_rep.append(first)
+
+        # second node
+        second = node_cnt
+        node_cnt += 1
+        link_vert(second, b)
+        link_horiz(first, second)
+
+        # third node
+        third = node_cnt
+        node_cnt += 1
+        link_vert(third, c)
+        link_horiz(first, third)
+
+    # ---------- DLX operations ----------
+    header = n  # dummy header node
+
+    # initially link column headers left-right
+    for i in range(n):
+        left[i] = i - 1 if i > 0 else header
+        right[i] = i + 1 if i < n - 1 else header
+    left[header] = n - 1
+    right[header] = 0
+
+    def cover(c):
+        # remove column header
+        right[left[c]] = right[c]
+        left[right[c]] = left[c]
+        # remove rows
+        i = down[c]
+        while i != c:
+            j = right[i]
+            while j != i:
+                down[up[j]] = down[j]
+                up[down[j]] = up[j]
+                col_size[col_head[j]] -= 1
+                j = right[j]
+            i = down[i]
+
+    def uncover(c):
+        i = up[c]
+        while i != c:
+            j = left[i]
+            while j != i:
+                col_size[col_head[j]] += 1
+                down[up[j]] = j
+                up[down[j]] = j
+                j = left[j]
+            i = up[i]
+        right[left[c]] = c
+        left[right[c]] = c
+
+    solution = []
+
+    # heuristic: choose column with minimal size
+    def choose_column():
+        c = right[header]
+        min_sz = 10**9
+        best = -1
+        while c != header:
+            if col_size[c] < min_sz:
+                min_sz = col_size[c]
+                best = c
+                if min_sz == 0:
+                    break
+            c = right[c]
+        return best
+
+    def dfs():
+        if right[header] == header:   # all columns covered
+            return True
+        c = choose_column()
+        if c == -1 or col_size[c] == 0:
+            return False
+        cover(c)
+        r = down[c]
+        while r != c:
+            solution.append(r)
+            j = right[r]
+            while j != r:
+                cover(col_head[j])
+                j = right[j]
+            if dfs():
+                return True
+            # backtrack
+            solution.pop()
+            j = left[r]
+            while j != r:
+                uncover(col_head[j])
+                j = left[j]
+            r = down[r]
+        uncover(c)
+        return False
+
+    if dfs():
+        out = ["YES"]
+        # translate node indices back to original triples
+        for node in solution:
+            # collect the three columns of this row
+            cols = []
+            j = node
+            while True:
+                cols.append(col_head[j] + 1)   # back to 1‑based
+                j = right[j]
+                if j == node:
+                    break
+            cols.sort()
+            out.append(f"{cols[0]} {cols[1]} {cols[2]}")
+        sys.stdout.write("\n".join(out))
+    else:
+        sys.stdout.write("NO")
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above and conforms
+to the required input‑output format.

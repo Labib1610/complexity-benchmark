@@ -1,0 +1,95 @@
+We can model the problem as finding the **minimum cost to connect** all priority vertices in a graph, where catalog entries are edges with weights.  
+
+Because we only care about whether the priority vertices become connected through the graph (with edges representing vectors), the task reduces to finding a **minimum spanning tree (MST)** on the set of priority nodes, allowing intermediate non-priority nodes as Steiner points.
+
+Given the constraints, we can use a **Steiner tree** approach with a small `t` (≤ 10) via **bitmask DP over subsets of priority nodes**, while using the graph distances (shortest paths) between all relevant nodes.
+
+Here’s the Python 3 implementation:
+
+```python
+import sys
+import heapq
+
+def solve():
+    input_data = sys.stdin.read().strip().split()
+    idx = 0
+    n = int(input_data[idx]); idx += 1
+    m = int(input_data[idx]); idx += 1
+    t = int(input_data[idx]); idx += 1
+    
+    priority = [int(input_data[idx + i]) - 1 for i in range(t)]
+    idx += t
+    
+    # Build adjacency for graph
+    INF = 10**15
+    dist = [[INF]*n for _ in range(n)]
+    for i in range(n):
+        dist[i][i] = 0
+    
+    for _ in range(m):
+        u = int(input_data[idx]) - 1
+        v = int(input_data[idx+1]) - 1
+        w = int(input_data[idx+2])
+        idx += 3
+        if w < dist[u][v]:
+            dist[u][v] = w
+            dist[v][u] = w
+    
+    # Floyd-Warshall for all-pairs shortest path
+    for k in range(n):
+        for i in range(n):
+            if dist[i][k] == INF:
+                continue
+            for j in range(n):
+                if dist[k][j] == INF:
+                    continue
+                if dist[i][k] + dist[k][j] < dist[i][j]:
+                    dist[i][j] = dist[i][k] + dist[k][j]
+    
+    # If t == 1, no pairs, cost = 0
+    if t == 1:
+        print(0)
+        return
+    
+    # Steiner tree DP: dp[mask][root] = min cost to connect subset mask with root as connector
+    dp = [[INF]*n for _ in range(1<<t)]
+    
+    # Init: single priority points
+    for i in range(t):
+        p = priorities[i]
+        dp[1<<i][p] = 0
+    
+    # Iterate over masks
+    for mask in range(1<<t):
+        # Combine submasks
+        sub = (mask - 1) & mask
+        while sub:
+            other = mask ^ sub
+            if sub < other:
+                for v in range(n):
+                    if dp[sub][v] < INF and dp[other][v] < INF:
+                        dp[mask][v] = min(dp[mask][v], dp[sub][v] + dp[other][v])
+            sub = (sub - 1) & mask
+        
+        # Relax using shortest paths to other vertices
+        if dp[mask]:
+            # Dijkstra-like relaxation using min-heap
+            pq = [(cost, v) for v, cost in enumerate(dp[mask]) if cost < INF]
+            heapq.heapify(pq)
+            while pq:
+                cost, u = heapq.heappop(pq)
+                if cost != dp[mask][u]:
+                    continue
+                for v in range(n):
+                    nd = cost + dist[u][v]
+                    if nd < dp[mask][v]:
+                        dp[mask][v] = nd
+                        heapq.heappush(pq, (nd, v))
+    
+    full_mask = (1<<t) - 1
+    ans = min(dp[full_mask])
+    print(ans)
+
+if __name__ == "__main__":
+    solve()
+```

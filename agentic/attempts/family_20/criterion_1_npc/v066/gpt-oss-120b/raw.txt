@@ -1,0 +1,146 @@
+```python
+import sys
+from collections import deque
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    edges = []
+    adj = [[] for _ in range(n)]
+    for idx in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        edges.append((u, v))
+        adj[u].append((v, idx))
+        adj[v].append((u, idx))
+
+    # check bipartite
+    color = [-1] * n
+    part = [0, 0]  # counts
+    ok = True
+    for start in range(n):
+        if color[start] != -1:
+            continue
+        q = deque([start])
+        color[start] = 0
+        while q:
+            v = q.popleft()
+            for to, _ in adj[v]:
+                if color[to] == -1:
+                    color[to] = color[v] ^ 1
+                    q.append(to)
+                elif color[to] == color[v]:
+                    ok = False
+                    break
+            if not ok:
+                break
+        if not ok:
+            break
+    if not ok:
+        print("NO")
+        return
+
+    # build left/right sets
+    left = [i for i in range(n) if color[i] == 0]
+    right = [i for i in range(n) if color[i] == 1]
+    # map vertex to side index
+    left_id = {v: i for i, v in enumerate(left)}
+    right_id = {v: i for i, v in enumerate(right)}
+    L = len(left)
+    R = len(right)
+
+    # remaining edges per left vertex: list of (right_index, edge_id)
+    rem_adj = [[] for _ in range(L)]
+    for eid, (u, v) in enumerate(edges):
+        if color[u] == 0:
+            l = left_id[u]
+            r = right_id[v]
+        else:
+            l = left_id[v]
+            r = right_id[u]
+        rem_adj[l].append((r, eid))
+
+    edge_color = [0] * m
+    # Hopcroft–Karp implementation
+    INF = 10 ** 9
+
+    def hopcroft_karp(adj):
+        """adj: list for left side, each element list of (right, edge_id)"""
+        nL = len(adj)
+        nR = R
+        pairU = [-1] * nL
+        pairV = [-1] * nR
+        dist = [0] * nL
+
+        def bfs():
+            q = deque()
+            for u in range(nL):
+                if pairU[u] == -1:
+                    dist[u] = 0
+                    q.append(u)
+                else:
+                    dist[u] = INF
+            d = INF
+            while q:
+                u = q.popleft()
+                if dist[u] < d:
+                    for v, _ in adj[u]:
+                        if pairV[v] == -1:
+                            d = dist[u] + 1
+                        elif dist[pairV[v]] == INF:
+                            dist[pairV[v]] = dist[u] + 1
+                            q.append(pairV[v])
+            return d != INF
+
+        def dfs(u):
+            for v, _ in adj[u]:
+                if pairV[v] == -1 or (dist[pairV[v]] == dist[u] + 1 and dfs(pairV[v])):
+                    pairU[u] = v
+                    pairV[v] = u
+                    return True
+            dist[u] = INF
+            return False
+
+        matching = []
+        while bfs():
+            for u in range(nL):
+                if pairU[u] == -1:
+                    dfs(u)
+        for u in range(nL):
+            if pairU[u] != -1:
+                matching.append((u, pairU[u]))
+        return matching, pairU, pairV
+
+    for col in range(1, 4):
+        # find perfect matching
+        matching, pairU, pairV = hopcroft_karp(rem_adj)
+        if len(matching) != L:
+            print("NO")
+            return
+        # assign color and remove edges
+        for u, v in matching:
+            # find edge id between u and v
+            for idx, (rv, eid) in enumerate(rem_adj[u]):
+                if rv == v:
+                    edge_color[eid] = col
+                    # remove from both sides
+                    rem_adj[u].pop(idx)
+                    # also need to remove from opposite side's adjacency; we will rebuild later
+                    break
+        # rebuild adjacency for remaining edges
+        new_adj = [[] for _ in range(L)]
+        for u in range(L):
+            for v, eid in rem_adj[u]:
+                new_adj[u].append((v, eid))
+        rem_adj = new_adj
+
+    print("YES")
+    print(' '.join(str(edge_color[i]) for i in range(m)))
+
+if __name__ == "__main__":
+    solve()
+```

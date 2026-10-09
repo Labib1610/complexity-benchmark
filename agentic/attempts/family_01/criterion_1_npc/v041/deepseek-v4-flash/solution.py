@@ -1,46 +1,33 @@
-import sys
+n, m = map(int, input().split())
+edges = [[] for _ in range(n)]
+for _ in range(m):
+    u, v = map(int, input().split())
+    u -= 1
+    v -= 1
+    edges[u].append(v)
+    edges[v].append(u)
 
-def solve():
-    input_data = sys.stdin.read().strip().split()
-    if not input_data:
-        return
-    n, m = int(input_data[0]), int(input_data[1])
-    edges = []
-    idx = 2
-    for _ in range(m):
-        u = int(input_data[idx]) - 1
-        v = int(input_data[idx+1]) - 1
-        idx += 2
-        edges.append((u, v))
-    
-    adj = [[] for _ in range(n)]
-    for u, v in edges:
-        adj[u].append(v)
-        adj[v].append(u)
-    
-    color = [0] * n
-    # Try to assign colors 1,2,3 in lexicographic order
-    def backtrack(person):
-        if person == n:
-            return True
-        for c in (1, 2, 3):
-            ok = True
-            for nb in adj[person]:
-                if color[nb] == c:
-                    ok = False
-                    break
-            if ok:
-                color[person] = c
-                if backtrack(person + 1):
-                    return True
-                color[person] = 0
-        return False
-    
-    if backtrack(0):
-        print("YES")
-        print(" ".join(map(str, color)))
-    else:
-        print("NO")
+color = [0] * n
 
-if __name__ == "__main__":
-    solve()
+def ok(idx, c):
+    for nb in edges[idx]:
+        if color[nb] == c:
+            return False
+    return True
+
+def dfs(idx):
+    if idx == n:
+        return True
+    for c in range(1, 4):
+        if ok(idx, c):
+            color[idx] = c
+            if dfs(idx + 1):
+                return True
+            color[idx] = 0
+    return False
+
+if dfs(0):
+    print("YES")
+    print(" ".join(str(c) for c in color))
+else:
+    print("NO")

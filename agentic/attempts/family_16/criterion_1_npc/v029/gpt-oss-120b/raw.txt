@@ -1,0 +1,111 @@
+```python
+import sys
+sys.setrecursionlimit(10000)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    J = int(next(it))
+    M = int(next(it))
+    jobs = []
+    total_ops = 0
+    for _ in range(J):
+        o = int(next(it))
+        ops = []
+        for __ in range(o):
+            f = int(next(it)) - 1
+            d = int(next(it))
+            ops.append((f, d))
+        jobs.append(ops)
+        total_ops += o
+
+    # precompute remaining processing time per job from each index
+    rem_job = [ [0]*(len(jobs[i])+1) for i in range(J) ]
+    for i in range(J):
+        s = 0
+        for idx in range(len(jobs[i])-1, -1, -1):
+            s += jobs[i][idx][1]
+            rem_job[i][idx] = s
+        rem_job[i][len(jobs[i])] = 0
+
+    # remaining per machine from each job index (sum of durations of ops on that machine not yet done)
+    rem_machine = [ [0]*M for _ in range(J) ]  # total remaining per machine for each job
+    for i in range(J):
+        for f,d in jobs[i]:
+            rem_machine[i][f] += d
+
+    # total remaining per machine across all jobs (updated during search)
+    total_rem_machine = [0]*M
+    for i in range(J):
+        for f,d in jobs[i]:
+            total_rem_machine[f] += d
+
+    best = [float('inf')]
+
+    # current state
+    job_pos = [0]*J          # next op index for each job
+    job_ready = [0]*J        # time when job is ready for its next op
+    machine_ready = [0]*M    # time when machine becomes free
+
+    def lower_bound() -> int:
+        # max of job ready + its remaining, and machine ready + its remaining
+        lb = 0
+        for i in range(J):
+            if job_pos[i] < len(jobs[i]):
+                lb = max(lb, job_ready[i] + rem_job[i][job_pos[i]])
+        for f in range(M):
+            if total_rem_machine[f]:
+                lb = max(lb, machine_ready[f] + total_rem_machine[f])
+        return lb
+
+    def dfs(scheduled: int):
+        if scheduled == total_ops:
+            cur = max(machine_ready)
+            if cur < best[0]:
+                best[0] = cur
+            return
+        # prune
+        if lower_bound() >= best[0]:
+            return
+
+        # collect ready operations
+        ready_ops = []
+        for i in range(J):
+            p = job_pos[i]
+            if p < len(jobs[i]):
+                f,d = jobs[i][p]
+                est = max(job_ready[i], machine_ready[f])
+                ready_ops.append((est, -d, i, f, d))  # sort by earliest start, longer duration first
+
+        # sort to try promising ones first
+        ready_ops.sort()
+        for est, negd, i, f, d in ready_ops:
+            start = est
+            finish = start + d
+
+            # update state
+            old_job_ready = job_ready[i]
+            old_machine_ready = machine_ready[f]
+            old_total_rem = total_rem_machine[f]
+
+            job_ready[i] = finish
+            machine_ready[f] = finish
+            job_pos[i] += 1
+            total_rem_machine[f] -= d
+
+            dfs(scheduled + 1)
+
+            # revert
+            job_ready[i] = old_job_ready
+            machine_ready[f] = old_machine_ready
+            job_pos[i] -= 1
+            total_rem_machine[f] = old_total_rem
+
+    dfs(0)
+    print(best[0])
+
+if __name__ == "__main__":
+    solve()
+```

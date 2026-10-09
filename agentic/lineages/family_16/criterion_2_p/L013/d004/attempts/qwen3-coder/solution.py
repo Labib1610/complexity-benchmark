@@ -1,0 +1,34 @@
+import sys
+import threading
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    j = int(data[0])
+    nodes = []
+    index = 1
+    for i in range(j):
+        p1 = int(data[index])
+        p2 = int(data[index+1])
+        nodes.append((p1, p2))
+        index += 2
+    
+    # Sort nodes based on p1 - p2 in ascending order
+    # If p1 - p2 is negative, it's better to place it earlier
+    # If p1 - p2 is positive, it's better to place it later
+    # This is a known greedy strategy for this type of scheduling problem
+    nodes.sort(key=lambda x: x[0] - x[1])
+    
+    E = 0
+    C = 0
+    for p1, p2 in nodes:
+        C += p1
+        E = max(E, C)
+        E += p2
+    
+    print(E)
+
+# Increase recursion limit and use threading to avoid stack overflow for large inputs
+threading.Thread(target=main).start()

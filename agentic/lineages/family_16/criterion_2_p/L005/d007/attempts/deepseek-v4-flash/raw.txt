@@ -1,0 +1,217 @@
+We can model each processor as a pair \((t1, t2)\).  
+If we place processors in some order, the interference spike at position \(k\) is:
+
+\[
+\text{spike}(k) = \sum_{i=1}^j t2_i + \sum_{i=1}^k t1_i - \sum_{i=1}^{k-1} t2_i
+\]
+
+Let \(S = \sum t2_i\) (base latency).  
+Then:
+
+\[
+\text{spike}(k) = S + \sum_{i=1}^k t1_i - \sum_{i=1}^{k-1} t2_i
+\]
+
+We want to minimize the maximum over all \(k\).
+
+---
+
+### Key observation
+
+Define for each processor \(p\):  
+\[
+d_p = t1_p - t2_p
+\]
+
+If we place processors in some order, the spike at position \(k\) can be rewritten as:
+
+\[
+\text{spike}(k) = S + \sum_{i=1}^k (t1_i - t2_i) + t2_k
+\]
+
+Wait, let’s check:
+
+\[
+\sum_{i=1}^k t1_i - \sum_{i=1}^{k-1} t2_i
+= \sum_{i=1}^k t1_i - \left( \sum_{i=1}^k t2_i - t2_k \right)
+= \sum_{i=1}^k (t1_i - t2_i) + t2_k
+\]
+
+So:
+
+\[
+\text{spike}(k) = S + \sum_{i=1}^k d_i + t2_k
+\]
+
+where \(d_i = t1_i - t2_i\).
+
+---
+
+### Minimizing the maximum
+
+We want to order the processors to minimize:
+
+\[
+\max_{1 \le k \le j} \left( S + \sum_{i=1}^k d_i + t2_k \right)
+\]
+
+Since \(S\) is constant, we minimize:
+
+\[
+\max_{1 \le k \le j} \left( \sum_{i=1}^k d_i + t2_k \right)
+\]
+
+---
+
+### Greedy ordering
+
+This is a known scheduling problem: we want to order items with “profit” \(d_i\) and “cost” \(t2_i\) to minimize the maximum prefix sum plus current cost.
+
+The optimal order is to sort by \(t2_i\) **descending** when \(d_i\) is positive, and by \(d_i\) **ascending** when \(d_i\) is negative? Actually, the known result:  
+Sort by \(t2_i\) descending if \(d_i \ge 0\), and by \(d_i\) ascending if \(d_i < 0\).  
+But a simpler known rule: sort by \(t2_i\) descending, and for equal \(t2_i\), sort by \(d_i\) descending.
+
+Let’s test with examples.
+
+---
+
+### Example 1
+
+Processors:  
+(3,2) → d=1  
+(2,4) → d=-2  
+(1,3) → d=-2  
+
+S = 2+4+3 = 9
+
+Sort by t2 descending:  
+(2,4) d=-2  
+(1,3) d=-2  
+(3,2) d=1  
+
+Compute spikes:  
+k=1: 9 + (-2) + 4 = 11  
+k=2: 9 + (-4) + 3 = 8  
+k=3: 9 + (-3) + 2 = 8  
+Max = 11 → not optimal (expected 10).
+
+Try another order:  
+(3,2) d=1  
+(1,3) d=-2  
+(2,4) d=-2  
+
+k=1: 9+1+2=12  
+k=2: 9-1+3=11  
+k=3: 9-3+4=10  
+Max=12.
+
+Try:  
+(1,3) d=-2  
+(3,2) d=1  
+(2,4) d=-2  
+
+k=1: 9-2+3=10  
+k=2: 9-1+2=10  
+k=3: 9-3+4=10  
+Max=10 → optimal.
+
+So sorting by t2 descending alone doesn’t work.  
+We need a smarter rule.
+
+---
+
+### Known optimal rule
+
+For minimizing \(\max_k (\text{prefix sum of } d + t2_k)\), the optimal order is:
+
+- Sort by \(t2\) **ascending** if \(d < 0\)  
+- Sort by \(t2\) **descending** if \(d \ge 0\)
+
+But we need to combine both groups.
+
+Actually, the known result:  
+Place all processors with \(d < 0\) first, sorted by \(t2\) ascending.  
+Then place all processors with \(d \ge 0\), sorted by \(t2\) descending.
+
+Let’s test:
+
+Example 1:  
+d<0: (2,4) d=-2, (1,3) d=-2 → sort by t2 asc: (1,3), (2,4)  
+d>=0: (3,2) d=1 → sort by t2 desc: (3,2)  
+
+Order: (1,3), (2,4), (3,2)  
+Compute:  
+k=1: 9-2+3=10  
+k=2: 9-4+4=9  
+k=3: 9-3+2=8  
+Max=10 → correct.
+
+---
+
+### Example 3
+
+All (2,2) d=0 → d>=0 group, sort by t2 desc (all equal).  
+S=6  
+Order: any  
+k=1: 6+0+2=8  
+k=2: 6+0+2=8  
+k=3: 6+0+2=8  
+Max=8 → correct.
+
+---
+
+### Implementation
+
+We split into two lists:  
+- neg: d < 0, sort by t2 ascending  
+- pos: d >= 0, sort by t2 descending  
+
+Then concatenate, compute prefix sums, and find max.
+
+Complexity: O(j log j).
+
+---
+
+```python
+import sys
+
+def solve():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    j = int(data[0])
+    neg = []
+    pos = []
+    S = 0
+    idx = 1
+    for _ in range(j):
+        t1 = int(data[idx])
+        t2 = int(data[idx+1])
+        idx += 2
+        S += t2
+        d = t1 - t2
+        if d < 0:
+            neg.append((t2, d))
+        else:
+            pos.append((t2, d))
+    
+    # sort neg by t2 ascending
+    neg.sort(key=lambda x: x[0])
+    # sort pos by t2 descending
+    pos.sort(key=lambda x: -x[0])
+    
+    order = neg + pos
+    
+    prefix = 0
+    max_spike = 0
+    for t2, d in order:
+        prefix += d
+        spike = S + prefix + t2
+        if spike > max_spike:
+            max_spike = spike
+    
+    print(max_spike)
+
+if __name__ == "__main__":
+    solve()
+```

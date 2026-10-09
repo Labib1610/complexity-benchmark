@@ -1,0 +1,154 @@
+```python
+import sys
+sys.setrecursionlimit(1 << 25)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    nL = int(next(it))
+    nR = int(next(it))
+    m = int(next(it))
+    edges = [(int(next(it)) - 1, int(next(it)) - 1) for _ in range(m)]
+
+    degL = [0] * nL
+    degR = [0] * nR
+    for u, v in edges:
+        degL[u] += 1
+        degR[v] += 1
+    Delta = max(max(degL) if degL else 0, max(degR) if degR else 0)
+
+    # adjacency: for each vertex store (neighbor, edge_id, color)
+    adjL = [[] for _ in range(nL)]
+    adjR = [[] for _ in range(nR)]
+    color = [0] * m
+
+    # for each vertex, which colors are currently used (set)
+    usedL = [set() for _ in range(nL)]
+    usedR = [set() for _ in range(nR)]
+
+    # helper to find an augmenting path and recolor
+    from collections import deque
+
+    def bfs(u_start, c_start):
+        """Find alternating path starting from left vertex u_start with a free color c_start.
+        Returns parent dict to reconstruct path."""
+        q = deque()
+        q.append(('L', u_start, c_start))
+        parent = {}  # key (side, vertex, color) -> (prev_side, prev_vertex, prev_color)
+        visited = set()
+        visited.add(('L', u_start, c_start))
+
+        while q:
+            side, v, col = q.popleft()
+            if side == 'L':
+                # look at edge of color col incident to v, if any
+                for nb, eid, col_e in adjL[v]:
+                    if col_e == col:
+                        # go to right vertex nb via this edge
+                        nxt = ('R', nb, col)
+                        if nxt not in visited:
+                            visited.add(nxt)
+                            parent[nxt] = (side, v, col)
+                            q.append(nxt)
+                        break
+                else:
+                    # no edge of this color -> free at left vertex
+                    return (side, v, col), parent
+            else:  # side == 'R'
+                # try to take free color at this right vertex
+                if col not in usedR[v]:
+                    return (side, v, col), parent
+                # otherwise there is an edge of this color at right vertex
+                for nb, eid, col_e in adjR[v]:
+                    if col_e == col:
+                        nxt = ('L', nb, col)
+                        if nxt not in visited:
+                            visited.add(nxt)
+                            parent[nxt] = (side, v, col)
+                            q.append(nxt)
+                        break
+        return None, parent  # should not happen
+
+    for eid, (u, v) in enumerate(edges):
+        # try to assign a free color directly
+        for c in range(1, Delta + 1):
+            if c not in usedL[u] and c not in usedR[v]:
+                color[eid] = c
+                usedL[u].add(c)
+                usedR[v].add(c)
+                adjL[u].append((v, eid, c))
+                adjR[v].append((u, eid, c))
+                break
+        else:
+            # need to recolor via augmenting path
+            # pick a color free at left side
+            for c in range(1, Delta + 1):
+                if c not in usedL[u]:
+                    free_c = c
+                    break
+            # find augmenting path to make free_c also free at right side
+            end, parent = bfs(u, free_c)
+            # reconstruct and flip colors along the path
+            cur = end
+            while True:
+                side, vert, col = cur
+                prev = parent.get(cur)
+                if prev is None:
+                    # reached start vertex (u, free_c) on left side
+                    break
+                pside, pvert, pcol = prev
+                # edge between pvert and vert has color pcol (=col)
+                # we will recolor that edge to col
+                # find edge id
+                if pside == 'L':
+                    # edge stored in adjL[pvert] with color pcol
+                    for nb, eid2, col_e in adjL[pvert]:
+                        if nb == vert and col_e == pcol:
+                            break
+                else:
+                    for nb, eid2, col_e in adjR[pvert]:
+                        if nb == vert and col_e == pcol:
+                            break
+                # recolor
+                # remove old
+                usedL[pvert].remove(pcol)
+                usedR[vert].remove(pcol)
+                # add new
+                usedL[pvert].add(col)
+                usedR[vert].add(col)
+                # update adjacency entry
+                if pside == 'L':
+                    # update in both lists
+                    for i, (nb, eid2b, col_e) in enumerate(adjL[pvert]):
+                        if nb == vert and col_e == pcol:
+                            adjL[pvert][i] = (nb, eid2b, col)
+                            break
+                    for i, (nb, eid2b, col_e) in enumerate(adjR[vert]):
+                        if nb == pvert and col_e == pcol:
+                            adjR[vert][i] = (nb, eid2b, col)
+                            break
+                else:
+                    for i, (nb, eid2b, col_e) in enumerate(adjR[pvert]):
+                        if nb == vert and col_e == pcol:
+                            adjR[pvert][i] = (nb, eid2b, col)
+                            break
+                    for i, (nb, eid2b, col_e) in enumerate(adjL[vert]):
+                        if nb == pvert and col_e == pcol:
+                            adjL[vert][i] = (nb, eid2b, col)
+                            break
+                cur = prev
+            # finally assign free_c to current edge
+            color[eid] = free_c
+            usedL[u].add(free_c)
+            usedR[v].add(free_c)
+            adjL[u].append((v, eid, free_c))
+            adjR[v].append((u, eid, free_c))
+
+    out = ['YES', ' '.join(map(str, color))]
+    sys.stdout.write('\n'.join(out))
+
+if __name__ == "__main__":
+    solve()
+```

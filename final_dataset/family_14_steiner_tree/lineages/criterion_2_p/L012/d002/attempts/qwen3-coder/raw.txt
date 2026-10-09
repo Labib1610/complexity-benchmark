@@ -1,0 +1,211 @@
+```python
+import sys
+from collections import defaultdict, deque
+
+def main():
+    import sys
+    sys.setrecursionlimit(1 << 25)
+    
+    input = sys.stdin.read
+    data = input().split()
+    
+    idx = 0
+    n = int(data[idx])
+    idx += 1
+    m = int(data[idx])
+    idx += 1
+    t = int(data[idx])
+    idx += 1
+    
+    auditing = set()
+    for _ in range(t):
+        auditing.add(int(data[idx]))
+        idx += 1
+        
+    edges = []
+    graph = defaultdict(list)
+    
+    for _ in range(m):
+        u = int(data[idx])
+        idx += 1
+        v = int(data[idx])
+        idx += 1
+        w = int(data[idx])
+        idx += 1
+        edges.append((w, u, v))
+        graph[u].append((v, w))
+        graph[v].append((u, w))
+        
+    # If there's only one auditing office, no connections needed
+    if t <= 1:
+        print(0)
+        return
+        
+    # Sort edges by weight for Kruskal's algorithm
+    edges.sort()
+    
+    # Union-Find data structure
+    parent = list(range(n+1))
+    rank = [0] * (n+1)
+    
+    def find(x):
+        if parent[x] != x:
+            parent[x] = find(parent[x])
+        return parent[x]
+    
+    def union(x, y):
+        px, py = find(x), find(y)
+        if px == py:
+            return False
+        if rank[px] < rank[py]:
+            px, py = py, px
+        parent[py] = px
+        if rank[px] == rank[py]:
+            rank[px] += 1
+        return True
+    
+    # Kruskal's algorithm to find MST
+    total_cost = 0
+    connected_audits = set()
+    
+    for w, u, v in edges:
+        if union(u, v):
+            total_cost += w
+            # Check if both u and v are auditing offices
+            if u in auditing:
+                connected_audits.add(find(u))
+            if v in auditing:
+                connected_audits.add(find(v))
+                
+        # Early termination: if all auditing offices are connected
+        if len(connected_audits) == t:
+            # Check if all auditing offices belong to the same component
+            root = find(next(iter(auditing)))
+            if all(find(a) == root for a in auditing):
+                break
+                
+    # Alternative approach: Build a tree and find the minimal subtree connecting all auditing nodes
+    # This is essentially finding the Steiner tree in a tree, which can be solved efficiently
+    
+    # Since the graph is a tree, we can do the following:
+    # 1. Find the subtree that connects all auditing offices
+    # 2. The minimal cost is the sum of weights of edges in this subtree
+    
+    # Algorithm:
+    # 1. Mark all auditing nodes as "terminals"
+    # 2. Perform a post-order traversal of the tree
+    # 3. For each node, count how many terminals are in its subtree
+    # 4. If a node has terminals in more than one of its subtrees, or it itself is terminal and has terminals in at least one subtree,
+    #    then the edges to those subtrees must be included
+    
+    # Let's implement this correctly:
+    
+    # First, build adjacency list with edge indices
+    adj = defaultdict(list)
+    edge_weights = {}
+    
+    for i, (w, u, v) in enumerate(edges):
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+        edge_weights[(u,v)] = w
+        edge_weights[(v,u)] = w
+    
+    # We need to root the tree at some node; let's use node 1 if it exists, otherwise the first node
+    root = 1 if 1 in adj else next(iter(adj)) if adj else 1
+    
+    # DFS to compute the minimal subtree connecting all terminals
+    visited = [False] * (n+1)
+    result = [0]
+    
+    def dfs(node):
+        visited[node] = True
+        terminals_in_subtree = 1 if node in auditing else 0
+        total_cost = 0
+        
+        for neighbor, weight in adj[node]:
+            if not visited[neighbor]:
+                sub_terminals, sub_cost = dfs(neighbor)
+                if sub_terminals > 0:  # This subtree has terminals
+                    total_cost += sub_cost + weight
+                    terminals_in_subtree += sub_terminals
+                    
+        return terminals_in_subtree, total_cost
+    
+    # But this approach might not work directly because we're double-counting costs
+    
+    # Better approach: 
+    # 1. Root the tree at an arbitrary node
+    # 2. Do a post-order traversal
+    # 3. For each node, calculate how many terminals are in its subtree
+    # 4. If a node has terminals in more than one child subtree, or it's a terminal and has terminals in child subtrees,
+    #    then we need to connect them through this node
+    
+    # Actually, since it's a tree, the minimal subtree connecting all terminals is unique.
+    # It's called the "Steiner tree" for terminals in a tree, and it's obtained by taking the 
+    # union of paths between all pairs of terminals, but there's a simpler way:
+    # Take the subtree induced by all paths between terminal nodes.
+    
+    # Even simpler approach:
+    # 1. Mark all nodes that are on paths between any two terminals
+    # 2. The minimal subtree is the one spanning these marked nodes
+    # 3. Its total weight is what we want
+    
+    # How to mark nodes efficiently?
+    # 1. Pick a terminal as root
+    # 2. Compute distances from root to all other terminals
+    # 3. The nodes on shortest paths are those that are on paths between terminals
+    
+    # But in a tree, we can do better:
+    # Find the "minimal subtree" that connects all terminals by:
+    # 1. Rooting the tree arbitrarily
+    # 2. For each node, compute if its subtree contains any terminal
+    # 3. An edge should be included if it separates two parts of the tree each containing terminals
+    
+    # Let's re-root at node 1 and do a proper traversal
+    
+    # Clear visited array
+    visited = [False] * (n+1)
+    
+    # Convert edges to adjacency list with weights
+    tree = defaultdict(list)
+    for w, u, v in edges:
+        tree[u].append((v, w))
+        tree[v].append((u, w))
+    
+    # Function to find which nodes are needed in the final subtree
+    # We'll use a two-pass approach:
+    # Pass 1: Post-order traversal to mark nodes that are terminals or have terminal descendants
+    # Pass 2: Pre-order traversal to accumulate edge weights when both sides have terminals
+    
+    is_terminal_descendant = [False] * (n+1)
+    
+    def mark_descendants(node, parent):
+        is_terminal_descendant[node] = (node in auditing)
+        for neighbor, _ in tree[node]:
+            if neighbor != parent:
+                mark_descendants(neighbor, node)
+                is_terminal_descendant[node] = is_terminal_descendant[node] or is_terminal_descendant[neighbor]
+        return is_terminal_descendant[node]
+    
+    mark_descendants(1, -1)
+    
+    # Now traverse again to calculate the minimum cost
+    total_weight = [0]
+    
+    def calculate_cost(node, parent):
+        for neighbor, weight in tree[node]:
+            if neighbor != parent:
+                # Recurse first
+                calculate_cost(neighbor, node)
+                # If both current node's side and neighbor's side have terminals, include this edge
+                # But in a tree, we just check if the subtree of neighbor has terminals
+                if is_terminal_descendant[neighbor]:
+                    total_weight[0] += weight
+                    
+    calculate_cost(1, -1)
+    
+    print(total_weight[0])
+
+if __name__ == "__main__":
+    main()
+```

@@ -1,0 +1,217 @@
+**Solution Explanation**
+
+For the given tree we have to choose a minimum‑weight set of edges that makes all
+high‑priority rooms (the *special* vertices) connected.
+In a tree the unique path between two vertices is forced, therefore the
+required set of edges is exactly the union of all paths that connect the
+special vertices.
+That union is the *minimal subtree* containing all special vertices.
+Its weight equals the sum of the original edge weights **minus** the weights of
+edges that are not needed any more.
+
+--------------------------------------------------------------------
+
+#### 1.   Removing useless leaves  
+
+An edge is useless iff one of its ends is a leaf that is **not** special,
+because such a leaf can never lie on a path between two special vertices.
+If we delete that leaf, the neighbour may become a leaf as well – again,
+if it is not special it can be deleted, and so on.
+
+The procedure:
+
+```
+total = sum of all edge weights
+queue = all vertices with degree == 1 and not special
+
+while queue not empty:
+        leaf = queue.pop()
+        if leaf already removed: continue
+        neighbour = the only still‑alive neighbour of leaf
+        w = weight(leaf , neighbour)
+
+        total -= w                 # edge becomes unnecessary
+        delete leaf (degree[leaf] = 0)
+        degree[neighbour] -= 1
+
+        if degree[neighbour] == 1 and neighbour not special:
+                queue.push(neighbour)
+```
+
+When the loop finishes, exactly the edges of the minimal subtree remain,
+and `total` is its weight – the answer.
+
+--------------------------------------------------------------------
+
+#### 2.   Correctness Proof  
+
+We prove that the algorithm outputs the weight of the minimum subgraph
+connecting all special vertices.
+
+---
+
+##### Lemma 1  
+If a leaf `v` is not special, no optimal solution contains the edge incident to `v`.
+
+**Proof.**  
+All paths that start in `v` must use its only incident edge `e`.  
+Since `v` itself is not required to be connected to any other special vertex,
+removing `e` (and `v`) cannot disconnect any pair of special vertices.
+Thus any solution containing `e` can be made cheaper by deleting `e`. ∎
+
+
+
+##### Lemma 2  
+During the algorithm, when a leaf `v` (non‑special) is removed,
+the edge removed is never part of the minimal connecting subtree.
+
+**Proof.**  
+At the moment of removal `v` is a leaf of the *current* tree and not special,
+therefore Lemma&nbsp;1 applies to the current tree as well.
+All still remaining special vertices stay connected after deleting the edge,
+so the edge does not belong to the minimal subtree. ∎
+
+
+
+##### Lemma 3  
+When the algorithm stops, every leaf of the remaining tree is special.
+
+**Proof.**  
+The loop stops only when the queue is empty, i.e. there is no vertex with
+`degree == 1` that is non‑special.
+Consequently each leaf (degree 1) must be special. ∎
+
+
+
+##### Lemma 4  
+Let `T'` be the tree that remains after the algorithm.
+`T'` is the unique minimal subtree containing all special vertices.
+
+**Proof.**  
+*Containment.*  
+All special vertices were never removed, therefore belong to `T'`.  
+Every edge of `T'` connects two vertices that are still present, so the
+subgraph is connected and contains all specials.
+
+*Minimality.*  
+Assume an edge `e` of `T'` could be removed while keeping the specials connected.
+Then after removing `e` one of its incident vertices would become a leaf that is
+not special, contradicting Lemma&nbsp;3.
+Hence no edge of `T'` can be removed – `T'` is minimal. ∎
+
+
+
+##### Lemma 5  
+The variable `total` at the end of the algorithm equals the sum of the
+weights of the edges of `T'`.
+
+**Proof.**  
+Initially `total` is the sum of *all* edge weights.
+Each time the algorithm removes a leaf edge, it subtracts exactly the weight
+of that edge from `total` (Lemma&nbsp;2).  
+No other modifications of `total` occur.  
+Therefore after all deletions `total` equals the sum of the still present
+edges, i.e. the weight of `T'`. ∎
+
+
+
+##### Theorem  
+The algorithm outputs the minimum possible total installation cost that connects
+all high‑priority rooms.
+
+**Proof.**  
+By Lemma&nbsp;4 the remaining tree `T'` is the unique minimal subtree spanning all
+special vertices, thus its weight is the optimum.
+By Lemma&nbsp;5 the algorithm outputs exactly that weight.
+Hence the output is optimal. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### 3.   Complexity Analysis  
+
+*`n = R`* (number of vertices, `n ≤ 200 000`)
+
+* building adjacency lists: `O(n)`
+* initial degree computation: `O(n)`
+* each vertex is processed at most once, each edge is examined at most twice
+  (once from each endpoint) → `O(n)`
+
+Memory consumption: adjacency list stores `2·(n‑1)` pairs → `O(n)`.
+
+Both limits satisfy the given constraints.
+
+--------------------------------------------------------------------
+
+#### 4.   Reference Implementation  (Python 3)
+
+```python
+import sys
+from collections import deque
+
+def solve() -> None:
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    it = iter(data)
+
+    R = next(it)          # number of rooms (vertices)
+    S = next(it)          # number of segments (edges) = R-1
+    P = next(it)          # number of high‑priority rooms
+
+    special = [False] * (R + 1)
+    for _ in range(P):
+        special[next(it)] = True
+
+    adj = [[] for _ in range(R + 1)]
+    total = 0
+    for _ in range(S):
+        u = next(it)
+        v = next(it)
+        w = next(it)
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+        total += w
+
+    # If there is 0 or 1 special vertex, no edge is needed.
+    if P <= 1:
+        print(0)
+        return
+
+    degree = [0] * (R + 1)
+    for v in range(1, R + 1):
+        degree[v] = len(adj[v])
+
+    q = deque()
+    for v in range(1, R + 1):
+        if degree[v] == 1 and not special[v]:
+            q.append(v)
+
+    while q:
+        leaf = q.popleft()
+        if degree[leaf] == 0:          # already removed earlier
+            continue
+
+        # find the still‑alive neighbour
+        for nb, w in adj[leaf]:
+            if degree[nb] > 0:
+                neighbour = nb
+                weight = w
+                break
+        else:
+            continue  # should not happen
+
+        total -= weight                # edge becomes unnecessary
+        degree[leaf] = 0
+        degree[neighbour] -= 1
+        if degree[neighbour] == 1 and not special[neighbour]:
+            q.append(neighbour)
+
+    print(total)
+
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above and conforms
+to the required input‑output format.

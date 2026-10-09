@@ -1,0 +1,118 @@
+import sys
+from collections import defaultdict, deque
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
+    
+    edges = []
+    adj = [[] for _ in range(n + 1)]
+    edge_indices = defaultdict(list)
+    
+    idx = 2
+    for i in range(m):
+        u = int(data[idx])
+        v = int(data[idx + 1])
+        idx += 2
+        edges.append((u, v))
+        adj[u].append((v, i))
+        adj[v].append((u, i))
+        edge_indices[(u, v)].append(i)
+        edge_indices[(v, u)].append(i)
+    
+    # For each edge, compute the contribution to the sum based on z_u and z_v
+    # If z_u=1, z_v=1: 1/1 + 1/1 = 2
+    # If z_u=1, z_v=2: 1/2 + 2/1 = 2.5
+    # If z_u=2, z_v=1: 2/1 + 1/2 = 2.5
+    # If z_u=2, z_v=2: 2/2 + 2/2 = 2
+    # We want the total sum to be 5m/2 = 2.5*m
+    # So we need exactly m edges where one is 1 and the other is 2
+    
+    # This means that in a valid assignment, exactly m edges must be (1,2) or (2,1)
+    # and 0 edges must be (1,1) or (2,2). But that's impossible unless we can make all edges contribute 2.5
+    # Wait, let's recheck:
+    # We want sum over all edges of (z_u/z_v + z_v/z_u) = 5m/2
+    # Each edge contributes either 2 or 2.5
+    # Let x be the number of edges contributing 2.5, then 2.5*x + 2*(m-x) = 5m/2
+    # 2.5x + 2m - 2x = 5m/2
+    # 0.5x = 5m/2 - 2m = m/2
+    # x = m
+    # So ALL edges must contribute 2.5, meaning for every edge (u,v), (z_u, z_v) is either (1,2) or (2,1)
+    
+    # This is equivalent to a 2-coloring problem where adjacent nodes must have different values
+    # But not just any different values - they must be specifically (1,2) or (2,1)
+    # This is a bipartite graph check
+    
+    # Check if the graph is bipartite
+    color = [-1] * (n + 1)  # -1: unvisited, 0: color 0, 1: color 1
+    assignment = [0] * (n + 1)  # 0: unassigned, 1: value 1, 2: value 2
+    
+    # We'll do BFS for each connected component
+    for start in range(1, n + 1):
+        if color[start] == -1:
+            queue = deque()
+            queue.append(start)
+            color[start] = 0  # Assign color 0 to start
+            
+            while queue:
+                u = queue.popleft()
+                current_color = color[u]
+                
+                for v, edge_idx in adj[u]:
+                    if color[v] == -1:
+                        color[v] = 1 - current_color
+                        queue.append(v)
+                    elif color[v] == current_color:
+                        # Not bipartite - adjacent nodes have same color
+                        print("NO")
+                        return
+    
+    # Graph is bipartite. Now we need to assign values 1 and 2
+    # We want the lexicographically smallest assignment
+    # In a bipartite graph, nodes with color 0 can be assigned one value, color 1 the other
+    # To get lexicographically smallest, we try assigning color 0 -> 1, color 1 -> 2 first
+    # If that doesn't work (some edge gets (1,1) or (2,2)), we try the other way
+    
+    # Actually, in a valid bipartition, if we assign color 0 -> 1 and color 1 -> 2,
+    # then every edge connects a node with value 1 to a node with value 2
+    # This means every edge contributes 1/2 + 2/1 = 0.5 + 2 = 2.5
+    # Which is what we want.
+    
+    # So any valid bipartition works. For lexicographically smallest:
+    # For each node i from 1 to n:
+    #   if color[i] == 0: assign 1
+    #   if color[i] == 1: assign 2
+    # But we want the lexicographically smallest, so we should check if we can assign node 1 to 1
+    # In fact, we can just follow the coloring
+    
+    for i in range(1, n + 1):
+        if color[i] == 0:
+            assignment[i] = 1
+        else:
+            assignment[i] = 2
+    
+    # Verify the solution
+    total = 0.0
+    for u, v in edges:
+        zu = assignment[u]
+        zv = assignment[v]
+        total += (zu / zv) + (zv / zu)
+    
+    # Check if total equals 5*m/2
+    if abs(total - 2.5 * m) < 1e-9:
+        print("YES")
+        print(" ".join(map(str, assignment[1:])))
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    main()

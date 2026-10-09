@@ -1,0 +1,127 @@
+import sys
+from collections import deque
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it)); m = int(next(it)); k = int(next(it))
+    species = []
+    for _ in range(k):
+        s = int(next(it)) - 1
+        t = int(next(it)) - 1
+        d = int(next(it))
+        species.append((s, t, d))
+    edges = []
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        cap = int(next(it))
+        edges.append([u, v, cap])
+
+    # residual capacities per original edge
+    residual = [e[2] for e in edges]
+
+    # result matrix k x m
+    result = [[0] * m for _ in range(k)]
+
+    # Dinic implementation that works on current residual capacities
+    class Dinic:
+        __slots__ = ('N', 'g', 'level', 'it')
+        def __init__(self, N):
+            self.N = N
+            self.g = [[] for _ in range(N)]
+
+        def add_edge(self, fr, to, cap, idx):
+            # forward edge stores original index, backward edge idx = -1
+            self.g[fr].append([to, cap, len(self.g[to]), idx])
+            self.g[to].append([fr, 0, len(self.g[fr]) - 1, -1])
+
+        def bfs(self, s, t):
+            level = [-1] * self.N
+            q = deque([s])
+            level[s] = 0
+            while q:
+                v = q.popleft()
+                for to, cap, rev, _ in self.g[v]:
+                    if cap and level[to] < 0:
+                        level[to] = level[v] + 1
+                        q.append(to)
+            self.level = level
+            return level[t] >= 0
+
+        def dfs(self, v, t, f):
+            if v == t:
+                return f
+            for i in range(self.it[v], len(self.g[v])):
+                self.it[v] = i
+                to, cap, rev, _ = self.g[v][i]
+                if cap and self.level[v] < self.level[to]:
+                    ret = self.dfs(to, t, min(f, cap))
+                    if ret:
+                        self.g[v][i][1] -= ret
+                        self.g[to][rev][1] += ret
+                        return ret
+            return 0
+
+        def max_flow(self, s, t):
+            flow = 0
+            INF = 10**18
+            while self.bfs(s, t):
+                self.it = [0] * self.N
+                while True:
+                    f = self.dfs(s, t, INF)
+                    if not f:
+                        break
+                    flow += f
+            return flow
+
+    for idx, (s, t, d) in enumerate(species):
+        dinic = Dinic(n)
+        # add edges with current residual capacities, keep original index
+        for e_idx, (u, v, _) in enumerate(edges):
+            cap = residual[e_idx]
+            if cap:
+                dinic.add_edge(u, v, cap, e_idx)
+        maxf = dinic.max_flow(s, t)
+        if maxf < d:
+            print("NO")
+            return
+        # we need to extract exactly d units flow distribution.
+        # Since max flow may be larger, we will run a second flow limited to d.
+        # Rebuild with capacities limited to residual, but stop after d.
+        dinic = Dinic(n)
+        for e_idx, (u, v, _) in enumerate(edges):
+            cap = residual[e_idx]
+            if cap:
+                dinic.add_edge(u, v, cap, e_idx)
+        # augment until d units
+        need = d
+        while need:
+            dinic.bfs(s, t)
+            dinic.it = [0]*n
+            f = dinic.dfs(s, t, need)
+            if not f:
+                break
+            need -= f
+        # now collect used flow per original edge
+        used = [0]*m
+        for u in range(n):
+            for to, cap, rev, orig in dinic.g[u]:
+                if orig != -1:
+                    # original forward edge: flow = original capacity - remaining cap
+                    orig_cap = residual[orig]
+                    flow_used = orig_cap - cap
+                    used[orig] = flow_used
+        # subtract used from residual and store
+        for e_idx in range(m):
+            residual[e_idx] -= used[e_idx]
+            result[idx][e_idx] = used[e_idx]
+
+    print("YES")
+    out_lines = [' '.join(map(str, row)) for row in result]
+    sys.stdout.write("\n".join(out_lines))
+
+if __name__ == "__main__":
+    solve()

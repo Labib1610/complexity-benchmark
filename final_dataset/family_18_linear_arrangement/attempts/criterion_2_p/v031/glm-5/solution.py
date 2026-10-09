@@ -1,0 +1,70 @@
+import sys
+sys.setrecursionlimit(1000000)
+
+def solve():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    B = int(next(it))
+    
+    children = [[] for _ in range(n+1)]
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        children[u].append(v)
+    
+    # Build tree structure with root at 1
+    # BFS to set parent relationships and order children
+    parent = [0]*(n+1)
+    order = [1]
+    parent[1] = -1
+    for u in order:
+        for v in children[u]:
+            if parent[v] == 0:
+                parent[v] = u
+                order.append(v)
+    
+    # Rebuild children list based on tree structure
+    tree_children = [[] for _ in range(n+1)]
+    for v in range(2, n+1):
+        p = parent[v]
+        tree_children[p].append(v)
+    
+    # Sort children by subtree size (heaviest first for better placement)
+    subsize = [1]*(n+1)
+    for u in reversed(order):
+        for v in tree_children[u]:
+            subsize[u] += subsize[v]
+    
+    for u in range(1, n+1):
+        tree_children[u].sort(key=lambda x: -subsize[x])
+    
+    # Assign positions using DFS
+    pos = [0]*(n+1)
+    timer = 1
+    
+    stack = [1]
+    while stack:
+        u = stack.pop()
+        pos[u] = timer
+        timer += 1
+        # Push children in reverse order so they're processed in sorted order
+        for v in reversed(tree_children[u]):
+            stack.append(v)
+    
+    # Calculate total wait time
+    total_wait = 0
+    for v in range(2, n+1):
+        p = parent[v]
+        total_wait += abs(pos[v] - pos[p])
+    
+    if total_wait <= B:
+        print("YES")
+        print(' '.join(str(pos[i]) for i in range(1, n+1)))
+    else:
+        print("NO")
+
+solve()

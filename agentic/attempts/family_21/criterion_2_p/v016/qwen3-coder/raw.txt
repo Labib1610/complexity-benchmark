@@ -1,0 +1,223 @@
+```python
+import sys
+from collections import defaultdict, deque
+
+def find_min_cut(n, m, s, t, edges):
+    # Build adjacency list with edge indices
+    adj = defaultdict(list)
+    for idx, (u, v, w) in enumerate(edges):
+        adj[u].append((v, w, idx))
+        adj[v].append((u, w, idx))
+    
+    # Use Ford-Fulkerson with BFS (Edmonds-Karp) to find max flow/min cut
+    def bfs_flow():
+        parent = [-1] * (n + 1)
+        parent_edge = [-1] * (n + 1)
+        queue = deque([s])
+        parent[s] = s
+        flow = [0] * (n + 1)
+        flow[s] = float('inf')
+        
+        while queue:
+            u = queue.popleft()
+            for v, w, edge_idx in adj[u]:
+                if parent[v] == -1 and w > 0:
+                    parent[v] = u
+                    parent_edge[v] = edge_idx
+                    flow[v] = min(flow[u], w)
+                    if v == t:
+                        return flow[t], parent, parent_edge
+                    queue.append(v)
+        return 0, parent, parent_edge
+    
+    # Find minimum cut
+    total_flow = 0
+    while True:
+        curr_flow, parent, parent_edge = bfs_flow()
+        if curr_flow == 0:
+            break
+        total_flow += curr_flow
+        
+        # Update residual capacities
+        cur = t
+        while cur != s:
+            prev = parent[cur]
+            edge_idx = parent_edge[cur]
+            u, v, w = edges[edge_idx]
+            edges[edge_idx] = (u, v, w - curr_flow)
+            
+            # Find reverse edge
+            for i, (ru, rv, rw) in enumerate(edges):
+                if ru == v and rv == u:
+                    edges[i] = (ru, rv, rw + curr_flow)
+                    break
+            else:
+                edges.append((cur, prev, curr_flow))
+                adj[cur].append((prev, curr_flow, len(edges)-1))
+            
+            cur = prev
+    
+    # Find the actual cut edges
+    visited = [False] * (n + 1)
+    queue = deque([s])
+    visited[s] = True
+    
+    while queue:
+        u = queue.popleft()
+        for v, w, edge_idx in adj[u]:
+            if not visited[v] and w > 0:
+                visited[v] = True
+                queue.append(v)
+    
+    cut_edges = []
+    cut_cost = 0
+    for idx, (u, v, w) in enumerate(edges_orig):
+        # Original edge weights
+        _, _, orig_w = edges_orig[idx]
+        if visited[u] and not visited[v]:
+            cut_edges.append((u, v))
+            cut_cost += orig_w
+        elif visited[v] and not visited[u]:
+            cut_edges.append((v, u))
+            cut_cost += orig_w
+            
+    return cut_cost, cut_edges
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    idx = 0
+    n = int(data[idx]); idx += 1
+    m = int(data[idx]); idx += 1
+    s = int(data[idx]); idx += 1
+    t = int(data[idx]); idx += 1
+    B = int(data[idx]); idx += 1
+    
+    edges = []
+    for _ in range(m):
+        u = int(data[idx]); idx += 1
+        v = int(data[idx]); idx += 1
+        w = int(data[idx]); idx += 1
+        edges.append((u, v, w))
+    
+    global edges_orig
+    edges_orig = edges[:]
+    
+    # Create residual graph for max flow
+    res_edges = edges[:]
+    
+    # Implementing a simpler approach using network flow
+    # We'll use a more direct implementation
+    
+    # For simplicity, let's implement a basic Ford-Fulkerson
+    
+    # But we need to be careful about multiple edges and self-loops
+    # Let's build the graph properly
+    
+    graph = [[] for _ in range(n+1)]
+    edge_list = []  # Store original edges with their indices
+    
+    for i, (u, v, w) in enumerate(edges):
+        # Add forward and backward edges
+        graph[u].append((v, w, i, len(edge_list)))
+        edge_list.append((u, v, w))
+        graph[v].append((u, 0, i, len(edge_list)))  
+        edge_list.append((v, u, 0))
+    
+    # Now run Ford-Fulkerson
+    def bfs():
+        parent = [-1] * (n+1)
+        parent_edge = [-1] * (n+1)
+        queue = deque([s])
+        parent[s] = s
+        
+        while queue:
+            u = queue.popleft()
+            for v, cap, idx, edge_idx in graph[u]:
+                if parent[v] == -1 and cap > 0:
+                    parent[v] = u
+                    parent_edge[v] = edge_idx
+                    if v == t:
+                        return parent, parent_edge
+                    queue.append(v)
+        return parent, parent_edge
+    
+    max_flow = 0
+    original_caps = [edge[2] for edge in edges]
+    
+    while True:
+        parent, parent_edge = bfs()
+        if parent[t] == -1:
+            break
+            
+        # Find minimum capacity along the path
+        path_flow = float('inf')
+        cur = t
+        while cur != s:
+            prev = parent[cur]
+            edge_idx = parent_edge[cur]
+            # Find the edge in graph[prev] that leads to cur
+            for v, cap, idx, e_idx in graph[prev]:
+                if v == cur and e_idx == edge_idx:
+                    path_flow = min(path_flow, cap)
+                    break
+            cur = prev
+            
+        # Update capacities
+        cur = t
+        while cur != s:
+            prev = parent[cur]
+            edge_idx = parent_edge[cur]
+            # Update forward edge
+            for i in range(len(graph[prev])):
+                v, cap, idx, e_idx = graph[prev][i]
+                if v == cur and e_idx == edge_idx:
+                    graph[prev][i] = (v, cap - path_flow, idx, e_idx)
+                    break
+            # Update backward edge (find corresponding reverse edge)
+            for i in range(len(graph[cur])):
+                v, cap, idx, e_idx = graph[cur][i]
+                if v == prev and idx == graph[prev][i][2]:  # Matching original edge index
+                    graph[cur][i] = (v, cap + path_flow, idx, e_idx)
+                    break
+            cur = prev
+            
+        max_flow += path_flow
+    
+    # Now find which edges form the cut
+    # Run BFS from source in residual graph
+    visited = [False] * (n+1)
+    q = deque([s])
+    visited[s] = True
+    
+    while q:
+        u = q.popleft()
+        for v, cap, idx, edge_idx in graph[u]:
+            if not visited[v] and cap > 0:
+                visited[v] = True
+                q.append(v)
+    
+    # Find cut edges
+    cut_edges = []
+    total_cost = 0
+    
+    for i in range(len(edges)):
+        u, v, w = edges[i]
+        # If u is reachable from s but v is not, then this edge is in the cut
+        if visited[u] and not visited[v]:
+            cut_edges.append((u, v))
+            total_cost += w
+    
+    if total_cost <= B:
+        print("YES")
+        print(len(cut_edges))
+        for u, v in cut_edges:
+            print(u, v)
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    main()
+```

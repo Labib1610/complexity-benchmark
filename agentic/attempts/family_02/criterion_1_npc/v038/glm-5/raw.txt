@@ -1,0 +1,1650 @@
+<think>
+-constrained-variable heuristic.
+</think>
+Looking at this problem, I need to understand the alarm condition:
+
+- A check triggers an alarm if and only if ALL THREE of its criteria fail to match the current state.
+- A criterion fails to match if: the toggle is at position 1 but criterion requires 0 (negative), OR the toggle is at position 0 but criterion requires 1 (positive).
+
+So a check is silent if at least one criterion matches.
+
+Let me think about when a check triggers an alarm. If criterion is `+k` (requires position 1), it fails when toggle k is 0. If criterion is `-k` (requires position 0), it fails when toggle k is 1.
+
+So a check triggers an alarm when all three criteria fail simultaneously. For each criterion, this determines a specific position for that toggle. If all three toggles are at those specific positions, the alarm triggers.
+
+This is essentially a constraint satisfaction problem where I need to avoid certain configurations. With n ≤ 90 and m ≤ 400, I can use a SAT solver approach or backtracking with constraint propagation.
+
+Let me think of this as: for each check, there's a "bad" configuration (specific positions for up to 3 toggles) that I must avoid. I need to find an assignment that avoids all bad configurations.
+
+This is like a hitting set / SAT problem. I'll use a backtracking approach with unit propagation.
+
+Actually, let me think more carefully. Each check defines a forbidden partial assignment. I need to find a complete assignment that doesn't violate any forbidden partial assignment.
+
+This is essentially SAT solving. Let me implement a simple DPLL-style backtracking solver.
+
+For efficiency, I'll represent each constraint as a set of (toggle, required_bad_position) pairs. A constraint is violated if all its conditions are met.
+
+Let me implement this with backtracking and forward checking:
+
+```python
+def solve():
+    import sys
+    input_data = sys.stdin.read().split()
+    idx = 0
+    n = int(input_data[idx]); idx += 1
+    m = int(input_data[idx]); idx += 1
+    
+    constraints = []
+    for _ in range(m):
+        l1 = int(input_data[idx]); idx += 1
+        l2 = int(input_data[idx]); idx += 1
+        l3 = int(input_data[idx]); idx += 1
+        # For each criterion, the "bad" position is:
+        # +k means requires 1, fails when toggle=0, so bad position is 0
+        # -k means requires 0, fails when toggle=1, so bad position is 1
+        crits = []
+        for l in [l1, l2, l3]:
+            toggle = abs(l)
+            bad_pos = 0 if l > 0 else 1  # position that makes this criterion fail
+            crits.append((toggle, bad_pos))
+        constraints.append(crits)
+    
+    # assignment[i] = -1 (unassigned), 0, or 1
+    assignment = [-1] * (n + 1)
+    
+    # For each constraint, count how many criteria are already satisfied (i.e., toggle is at non-bad position)
+    # A constraint is violated when all criteria have toggle at bad position
+    # A constraint is "satisfied" (safe) when at least one criterion has toggle at non-bad position
+    
+    # For each constraint, track: number of criteria that could still all be bad
+    # If any criterion is already non-bad (toggle assigned to non-bad position), constraint is safe
+    # If all criteria are assigned to bad positions, constraint is violated
+    # If some are bad and rest unassigned, still potentially dangerous
+    
+    constraint_safe = [False] * m  # True if at least one criterion is definitely non-bad
+    constraint_violated = [False] * m  # True if all criteria are bad
+    
+    # For each constraint, count assigned-bad and assigned-nonbad
+    bad_count = [0] * m  # criteria assigned to bad position
+    nonbad_count = [0] * m  # criteria assigned to non-bad position
+    unassigned_count = [3] * m  # criteria not yet assigned
+    
+    # For each toggle, which constraints involve it
+    toggle_constraints = [[] for _ in range(n + 1)]
+    for ci, crits in enumerate(constraints):
+        for toggle, _ in crits:
+            toggle_constraints[toggle].append(ci)
+    
+    def assign(toggle, pos):
+        """Assign toggle to pos. Returns list of (constraint_index, change) for undo."""
+        changes = []
+        assignment[toggle] = pos
+        for ci in toggle_constraints[toggle]:
+            # Find criteria in this constraint involving this toggle
+            for t, bad_pos in constraints[ci]:
+                if t == toggle:
+                    if pos == bad_pos:
+                        bad_count[ci] += 1
+                        unassigned_count[ci] -= 1
+                        changes.append((ci, 'bad'))
+                    else:
+                        nonbad_count[ci] += 1
+                        unassigned_count[ci] -= 1
+                        changes.append((ci, 'nonbad'))
+                        constraint_safe[ci] = True
+                    break  # only first criterion with this toggle? No, there could be multiple
+            # Actually, a toggle can appear multiple times in same check
+            # Let me handle all occurrences
+        return changes
+    
+    # Wait, the problem says "A single toggle index may appear multiple times within the same check."
+    # So I need to handle all occurrences, not just the first.
+    
+    # Let me redo this
+    pass
+
+solve()
+```
+
+Let me rewrite more carefully:
+
+```python
+def solve():
+    import sys
+    input_data = sys.stdin.read().split()
+    idx = 0
+    n = int(input_data[idx]); idx += 1
+    m = int(input_data[idx]); idx += 1
+    
+    constraints = []
+    for _ in range(m):
+        vals = [int(input_data[idx+i]) for i in range(3)]
+        idx += 3
+        crits = []
+        for l in vals:
+            toggle = abs(l)
+            bad_pos = 0 if l > 0 else 1
+            crits.append((toggle, bad_pos))
+        constraints.append(crits)
+    
+    assignment = [-1] * (n + 1)
+    
+    # For each constraint: count of criteria where toggle is assigned to bad position
+    bad_count = [0] * m
+    # count of criteria where toggle is assigned to non-bad position
+    nonbad_count = [0] * m
+    # count of unassigned criteria
+    unassigned_count = [3] * m
+    
+    toggle_in_constraints = [[] for _ in range(n + 1)]
+    for ci, crits in enumerate(constraints):
+        for ti, (toggle, bad_pos) in enumerate(crits):
+            toggle_in_constraints[toggle].append((ci, ti, bad_pos))
+    
+    def assign(toggle, pos):
+        changes = []
+        assignment[toggle] = pos
+        for ci, ti, bad_pos in toggle_in_constraints[toggle]:
+            if pos == bad_pos:
+                bad_count[ci] += 1
+                unassigned_count[ci] -= 1
+                changes.append((ci, 'bad'))
+            else:
+                nonbad_count[ci] += 1
+                unassigned_count[ci] -= 1
+                changes.append((ci, 'nonbad'))
+        return changes
+    
+    def undo(toggle, changes):
+        for ci, change_type in changes:
+            if change_type == 'bad':
+                bad_count[ci] -= 1
+                unassigned_count[ci] += 1
+            else:
+                nonbad_count[ci] -= 1
+                unassigned_count[ci] += 1
+        assignment[toggle] = -1
+    
+    def is_violated(ci):
+        return bad_count[ci] == 3
+    
+    def is_safe(ci):
+        return nonbad_count[ci] > 0
+    
+    def backtrack(toggle):
+        if toggle > n:
+            return True
+        
+        for pos in [0, 1]:
+            changes = assign(toggle, pos)
+            # Check if any constraint is violated
+            violated = False
+            for ci, _, _ in toggle_in_constraints[toggle]:
+                if is_violated(ci):
+                    violated = True
+                    break
+            
+            if not violated:
+                if backtrack(toggle + 1):
+                    return True
+            
+            undo(toggle, changes)
+        
+        return False
+    
+    if backtrack(1):
+        print("YES")
+        print(" ".join(str(assignment[i]) for i in range(1, n+1)))
+    else:
+        print("NO")
+
+solve()
+```
+
+This basic backtracking might be too slow for n=90. I need better pruning. Let me add forward checking: if any constraint has all criteria assigned to bad positions, prune. Also, if a constraint has unassigned_count == 1 and bad_count == 2, then the last unassigned toggle must NOT be at its bad position.
+
+Let me add unit propagation:
+
+```python
+def solve():
+    import sys
+    input_data = sys.stdin.read().split()
+    idx = 0
+    n = int(input_data[idx]); idx += 1
+    m = int(input_data[idx]); idx += 1
+    
+    constraints = []
+    for _ in range(m):
+        vals = [int(input_data[idx+i]) for i in range(3)]
+        idx += 3
+        crits = []
+        for l in vals:
+            toggle = abs(l)
+            bad_pos = 0 if l > 0 else 1
+            crits.append((toggle, bad_pos))
+        constraints.append(crits)
+    
+    assignment = [-1] * (n + 1)
+    
+    bad_count = [0] * m
+    nonbad_count = [0] * m
+    unassigned_count = [3] * m
+    
+    toggle_in_constraints = [[] for _ in range(n + 1)]
+    for ci, crits in enumerate(constraints):
+        for ti, (toggle, bad_pos) in enumerate(crits):
+            toggle_in_constraints[toggle].append((ci, ti, bad_pos))
+    
+    def assign(toggle, pos):
+        changes = []
+        assignment[toggle] = pos
+        for ci, ti, bad_pos in toggle_in_constraints[toggle]:
+            if pos == bad_pos:
+                bad_count[ci] += 1
+                unassigned_count[ci] -= 1
+                changes.append((ci, 'bad'))
+            else:
+                nonbad_count[ci] += 1
+                unassigned_count[ci] -= 1
+                changes.append((ci, 'nonbad'))
+        return changes
+    
+    def undo(toggle, changes):
+        for ci, change_type in changes:
+            if change_type == 'bad':
+                bad_count[ci] -= 1
+                unassigned_count[ci] += 1
+            else:
+                nonbad_count[ci] -= 1
+                unassigned_count[ci] += 1
+        assignment[toggle] = -1
+    
+    def check_violations(toggle):
+        for ci, _, _ in toggle_in_constraints[toggle]:
+            if bad_count[ci] == 3:
+                return False
+        return True
+    
+    def propagate():
+        """Unit propagation: if a constraint has 2 bad and 1 unassigned, 
+        the unassigned toggle must be non-bad."""
+        forced = []
+        for ci in range(m):
+            if nonbad_count[ci] > 0:
+                continue
+            if bad_count[ci] == 2 and unassigned_count[ci] == 1:
+                # Find the unassigned toggle
+                for toggle, bad_pos in constraints[ci]:
+                    if assignment[toggle] == -1:
+                        forced.append((toggle, 1 - bad_pos))
+                        break
+        return forced
+    
+    def backtrack(toggle):
+        if toggle > n:
+            return True
+        
+        for pos in [0, 1]:
+            changes = assign(toggle, pos)
+            if check_violations(toggle):
+                # Try propagation
+                forced = propagate()
+                # Apply forced assignments
+                forced_changes = []
+                valid = True
+                for ft, fp in forced:
+                    if assignment[ft] != -1:
+                        if assignment[ft] != fp:
+                            valid = False
+                            break
+                    else:
+                        fc = assign(ft, fp)
+                        forced_changes.append((ft, fc))
+                        if not check_violations(ft):
+                            valid = False
+                            break
+                
+                if valid:
+                    if backtrack(toggle + 1):
+                        return True
+                
+                # Undo forced changes
+                for ft, fc in reversed(forced_changes):
+                    undo(ft, fc)
+            
+            undo(toggle, changes)
+        
+        return False
+    
+    if backtrack(1):
+        print("YES")
+        print(" ".join(str(assignment[i]) for i in range(1, n+1)))
+    else:
+        print("NO")
+
+solve()
+```
+
+Hmm, the propagation logic is getting complex and might have bugs. Let me think about whether the basic approach with good pruning is enough.
+
+Actually, with n=90 and m=400, and each constraint involving 3 toggles, the constraint graph is relatively sparse. Basic backtracking with violation checking should work if there are enough constraints to prune the search early. But worst case could be bad.
+
+Let me think about this differently. This is essentially a SAT problem where each constraint is a clause (the alarm condition is a conjunction of 3 literals that must be false, meaning the clause (not all three fail) must be true, which is a 3-SAT clause).
+
+Actually, let me reconsider. The alarm triggers when all 3 criteria fail. A criterion `+k` fails when toggle k = 0. A criterion `-k` fails when toggle k = 1.
+
+So the alarm condition for a check is: (toggle1 = bad1) AND (toggle2 = bad2) AND (toggle3 = bad3).
+
+We want NO alarm, so we want: NOT(all three fail) = at least one criterion succeeds.
+
+A criterion `+k` succeeds when toggle k = 1. A criterion `-k` succeeds when toggle k = 0.
+
+So for each check, we need at least one criterion to succeed. This is exactly a 3-SAT clause!
+
+For criterion `+k`: success means toggle k = 1, i.e., literal x_k
+For criterion `-k`: success means toggle k = 0, i.e., literal ¬x_k
+
+So each check is a 3-CNF clause, and we need to find a satisfying assignment. This is 3-SAT!
+
+With n=90 variables and m=400 clauses, this is a moderate 3-SAT instance. I should use a proper SAT solver approach.
+
+Let me implement DPLL with:
+1. Unit propagation
+2. Pure literal elimination (optional)
+3. Smart variable selection (most constrained)
+
+Actually, let me just implement a clean DPLL:
+
+```python
+def solve():
+    import sys
+    from collections import defaultdict
+    
+    input_data = sys.stdin.read().split()
+    idx = 0
+    n = int(input_data[idx]); idx += 1
+    m = int(input_data[idx]); idx += 1
+    
+    # Each clause is a set of literals
+    # Literal: (toggle, value) where value is what the toggle should be for this literal to be true
+    # +k -> (k, 1), -k -> (k, 0)
+    clauses = []
+    for _ in range(m):
+        vals = [int(input_data[idx+i]) for i in range(3)]
+        idx += 3
+        clause = []
+        for l in vals:
+            toggle = abs(l)
+            val = 1 if l > 0 else 0
+            clause.append((toggle, val))
+        clauses.append(clause)
+    
+    # assignment[toggle] = -1 (unassigned), 0, or 1
+    assignment = [-1] * (n + 1)
+    
+    # For each clause: count of true literals, false literals, unassigned literals
+    # clause[i] is satisfied if true_count > 0
+    # clause[i] is violated if false_count == 3 (all false)
+    # clause[i] is unit if unassigned_count == 1 and true_count == 0
+    
+    true_count = [0] * m
+    false_count = [0] * m
+    unassigned_count = [3] * m
+    
+    # For each toggle, which clauses contain it and what value makes it true
+    toggle_clauses = [[] for _ in range(n + 1)]
+    for ci, clause in enumerate(clauses):
+        for ti, (toggle, val) in enumerate(clause):
+            toggle_clauses[toggle].append((ci, val))
+    
+    def assign(toggle, val):
+        changes = []
+        assignment[toggle] = val
+        for ci, clause_val in toggle_clauses[toggle]:
+            if val == clause_val:
+                true_count[ci] += 1
+                changes.append((ci, 'true'))
+            else:
+                false_count[ci] += 1
+                changes.append((ci, 'false'))
+            unassigned_count[ci] -= 1
+        return changes
+    
+    def undo(toggle, changes):
+        for ci, change_type in changes:
+            if change_type == 'true':
+                true_count[ci] -= 1
+            else:
+                false_count[ci] -= 1
+            unassigned_count[ci] += 1
+        assignment[toggle] = -1
+    
+    def unit_propagate():
+        """Find and assign all unit clauses. Returns (success, list_of_assignments)"""
+        assigned = []
+        changed = True
+        while changed:
+            changed = False
+            for ci in range(m):
+                if true_count[ci] > 0:
+                    continue
+                if unassigned_count[ci] == 0:
+                    # All false - conflict
+                    return False, assigned
+                if unassigned_count[ci] == 1 and false_count[ci] == 2:
+                    # Unit clause - assign the remaining literal
+                    for toggle, val in clauses[ci]:
+                        if assignment[toggle] == -1:
+                            assign(toggle, val)
+                            assigned.append(toggle)
+                            changed = True
+                            # Check for immediate conflict
+                            for ci2, _ in toggle_clauses[toggle]:
+                                if true_count[ci2] == 0 and unassigned_count[ci2] == 0:
+                                    return False, assigned
+                            break
+        return True, assigned
+    
+    def backtrack():
+        # Find unassigned toggle with most occurrences in unsatisfied clauses
+        best_toggle = -1
+        best_count = -1
+        for toggle in range(1, n + 1):
+            if assignment[toggle] == -1:
+                count = 0
+                for ci, _ in toggle_clauses[toggle]:
+                    if true_count[ci] == 0:
+                        count += 1
+                if count > best_count:
+                    best_count = count
+                    best_toggle = toggle
+        
+        if best_toggle == -1:
+            return True  # All assigned
+        
+        for val in [0, 1]:
+            changes = assign(best_toggle, val)
+            
+            # Check for immediate conflicts
+            conflict = False
+            for ci, _ in toggle_clauses[best_toggle]:
+                if true_count[ci] == 0 and unassigned_count[ci] == 0:
+                    conflict = True
+                    break
+            
+            if not conflict:
+                success, propagated = unit_propagate()
+                if success:
+                    if backtrack():
+                        return True
+                # Undo propagated
+                for t in reversed(propagated):
+                    undo(t, None)  # Need to track changes properly
+            
+            undo(best_toggle, changes)
+        
+        return False
+    
+    # Wait, the undo function needs the changes list. Let me fix the propagation undo.
+    pass
+```
+
+The issue is that `unit_propagate` calls `assign` but doesn't track the changes for undo. Let me restructure:
+
+```python
+def solve():
+    import sys
+    
+    input_data = sys.stdin.read().split()
+    idx = 0
+    n = int(input_data[idx]); idx += 1
+    m = int(input_data[idx]); idx += 1
+    
+    clauses = []
+    for _ in range(m):
+        vals = [int(input_data[idx+i]) for i in range(3)]
+        idx += 3
+        clause = []
+        for l in vals:
+            toggle = abs(l)
+            val = 1 if l > 0 else 0
+            clause.append((toggle, val))
+        clauses.append(clause)
+    
+    assignment = [-1] * (n + 1)
+    true_count = [0] * m
+    false_count = [0] * m
+    unassigned_count = [3] * m
+    
+    toggle_clauses = [[] for _ in range(n + 1)]
+    for ci, clause in enumerate(clauses):
+        for toggle, val in clause:
+            toggle_clauses[toggle].append((ci, val))
+    
+    def assign(toggle, val):
+        changes = []
+        assignment[toggle] = val
+        for ci, clause_val in toggle_clauses[toggle]:
+            if val == clause_val:
+                true_count[ci] += 1
+                changes.append((ci, 'true'))
+            else:
+                false_count[ci] += 1
+                changes.append((ci, 'false'))
+            unassigned_count[ci] -= 1
+        return changes
+    
+    def undo(toggle, changes):
+        for ci, change_type in changes:
+            if change_type == 'true':
+                true_count[ci] -= 1
+            else:
+                false_count[ci] -= 1
+            unassigned_count[ci] += 1
+        assignment[toggle] = -1
+    
+    def unit_propagate():
+        assigned = []  # list of (toggle, changes)
+        changed = True
+        while changed:
+            changed = False
+            for ci in range(m):
+                if true_count[ci] > 0:
+                    continue
+                if unassigned_count[ci] == 0:
+                    return False, assigned
+                if unassigned_count[ci] == 1 and false_count[ci] == 2:
+                    for toggle, val in clauses[ci]:
+                        if assignment[toggle] == -1:
+                            ch = assign(toggle, val)
+                            assigned.append((toggle, ch))
+                            changed = True
+                            break
+        return True, assigned
+    
+    def backtrack():
+        best_toggle = -1
+        best_count = -1
+        for toggle in range(1, n + 1):
+            if assignment[toggle] == -1:
+                count = 0
+                for ci, _ in toggle_clauses[toggle]:
+                    if true_count[ci] == 0:
+                        count += 1
+                if count > best_count:
+                    best_count = count
+                    best_toggle = toggle
+        
+        if best_toggle == -1:
+            return True
+        
+        for val in [0, 1]:
+            changes = assign(best_toggle, val)
+            conflict = False
+            for ci, _ in toggle_clauses[best_toggle]:
+                if true_count[ci] == 0 and unassigned_count[ci] == 0:
+                    conflict = True
+                    break
+            
+            if not conflict:
+                success, propagated = unit_propagate()
+                if success:
+                    if backtrack():
+                        return True
+                for t, ch in reversed(propagated):
+                    undo(t, ch)
+            
+            undo(best_toggle, changes)
+        
+        return False
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(["0"] * n))
+        return
+    
+    success, propagated = unit_propagate()
+    if success:
+        if backtrack():
+            print("YES")
+            print(" ".join(str(assignment[i]) for i in range(1, n+1)))
+            return
+    
+    # Try without initial propagation
+    for t, ch in reversed(propagated):
+        undo(t, ch)
+    
+    if backtrack():
+        print("YES")
+        print(" ".join(str(assignment[i]) for i in range(1, n+1)))
+    else:
+        print("NO")
+
+solve()
+```
+
+Wait, I'm overcomplicating this. The initial unit propagation is already part of the backtracking. Let me clean this up:
+
+```python
+def solve():
+    import sys
+    
+    input_data = sys.stdin.read().split()
+    idx = 0
+    n = int(input_data[idx]); idx += 1
+    m = int(input_data[idx]); idx += 1
+    
+    clauses = []
+    for _ in range(m):
+        vals = [int(input_data[idx+i]) for i in range(3)]
+        idx += 3
+        clause = []
+        for l in vals:
+            toggle = abs(l)
+            val = 1 if l > 0 else 0
+            clause.append((toggle, val))
+        clauses.append(clause)
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(["0"] * n))
+        return
+    
+    assignment = [-1] * (n + 1)
+    true_count = [0] * m
+    false_count = [0] * m
+    unassigned_count = [3] * m
+    
+    toggle_clauses = [[] for _ in range(n + 1)]
+    for ci, clause in enumerate(clauses):
+        for toggle, val in clause:
+            toggle_clauses[toggle].append((ci, val))
+    
+    def assign(toggle, val):
+        changes = []
+        assignment[toggle] = val
+        for ci, clause_val in toggle_clauses[toggle]:
+            if val == clause_val:
+                true_count[ci] += 1
+                changes.append((ci, 'true'))
+            else:
+                false_count[ci] += 1
+                changes.append((ci, 'false'))
+            unassigned_count[ci] -= 1
+        return changes
+    
+    def undo(toggle, changes):
+        for ci, change_type in changes:
+            if change_type == 'true':
+                true_count[ci] -= 1
+            else:
+                false_count[ci] -= 1
+            unassigned_count[ci] += 1
+        assignment[toggle] = -1
+    
+    def has_conflict():
+        for ci in range(m):
+            if true_count[ci] == 0 and unassigned_count[ci] == 0:
+                return True
+        return False
+    
+    def unit_propagate():
+        assigned = []
+        changed = True
+        while changed:
+            changed = False
+            for ci in range(m):
+                if true_count[ci] > 0:
+                    continue
+                if unassigned_count[ci] == 0:
+                    return False, assigned
+                if unassigned_count[ci] == 1 and false_count[ci] == 2:
+                    for toggle, val in clauses[ci]:
+                        if assignment[toggle] == -1:
+                            ch = assign(toggle, val)
+                            assigned.append((toggle, ch))
+                            changed = True
+                            break
+        return True, assigned
+    
+    def backtrack():
+        # Check conflicts
+        if has_conflict():
+            return False
+        
+        # Unit propagation
+        success, propagated = unit_propagate()
+        if not success:
+            for t, ch in reversed(propagated):
+                undo(t, ch)
+            return False
+        
+        if has_conflict():
+            for t, ch in reversed(propagated):
+                undo(t, ch)
+            return False
+        
+        # Find unassigned toggle
+        best_toggle = -1
+        for toggle in range(1, n + 1):
+            if assignment[toggle] == -1:
+                best_toggle = toggle
+                break
+        
+        if best_toggle == -1:
+            return True  # All assigned, no conflicts
+        
+        for val in [0, 1]:
+            changes = assign(best_toggle, val)
+            if backtrack():
+                return True
+            undo(best_toggle, changes)
+        
+        # Undo propagated
+        for t, ch in reversed(propagated):
+            undo(t, ch)
+        return False
+    
+    if backtrack():
+        print("YES")
+        print(" ".join(str(assignment[i]) for i in range(1, n+1)))
+    else:
+        print("NO")
+
+solve()
+```
+
+This should work but might be slow for hard instances. Let me add better variable selection (most constrained variable) and try both values starting with the one that appears more in clauses.
+
+Actually, for a competitive programming problem with these constraints, a well-implemented DPLL should be sufficient. Let me also add a simple heuristic: choose the variable that appears in the most unsatisfied clauses.
+
+Let me also think about whether there's a simpler approach. With n ≤ 90 and m ≤ 400, and 3-SAT being NP-hard... but the constraints might be loose enough that simple backtracking works.
+
+Let me also consider: the problem says "the sum of the absolute values of the toggle identifiers in any single check will never exceed 3n". This is always true since each check has 3 criteria with identifiers ≤ n, so sum ≤ 3n. This doesn't add any real constraint.
+
+Let me also consider: "the aggregate count of criteria evaluated across the entire set of checks is exactly 3m" - this just confirms each check has exactly 3 criteria, which we already know.
+
+I think the DPLL approach is correct. Let me optimize it a bit:
+
+```python
+def solve():
+    import sys
+    sys.setrecursionlimit(10000)
+    
+    input_data = sys.stdin.read().split()
+    idx = 0
+    n = int(input_data[idx]); idx += 1
+    m = int(input_data[idx]); idx += 1
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(["0"] * n))
+        return
+    
+    clauses = []
+    for _ in range(m):
+        vals = [int(input_data[idx+i]) for i in range(3)]
+        idx += 3
+        clause = []
+        for l in vals:
+            toggle = abs(l)
+            val = 1 if l > 0 else 0
+            clause.append((toggle, val))
+        clauses.append(clause)
+    
+    assignment = [-1] * (n + 1)
+    true_count = [0] * m
+    false_count = [0] * m
+    unassigned_count = [3] * m
+    
+    toggle_clauses = [[] for _ in range(n + 1)]
+    for ci, clause in enumerate(clauses):
+        for toggle, val in clause:
+            toggle_clauses[toggle].append((ci, val))
+    
+    def assign(toggle, val):
+        changes = []
+        assignment[toggle] = val
+        for ci, clause_val in toggle_clauses[toggle]:
+            if val == clause_val:
+                true_count[ci] += 1
+                changes.append((ci, 1))  # 1 for true
+            else:
+                false_count[ci] += 1
+                changes.append((ci, 0))  # 0 for false
+            unassigned_count[ci] -= 1
+        return changes
+    
+    def undo(toggle, changes):
+        for ci, is_true in changes:
+            if is_true:
+                true_count[ci] -= 1
+            else:
+                false_count[ci] -= 1
+            unassigned_count[ci] += 1
+        assignment[toggle] = -1
+    
+    def backtrack():
+        # Find unit clauses and propagate
+        propagated = []
+        while True:
+            found_unit = False
+            for ci in range(m):
+                if true_count[ci] > 0:
+                    continue
+                if unassigned_count[ci] == 0:
+                    # Conflict
+                    for t, ch in reversed(propagated):
+                        undo(t, ch)
+                    return False
+                if unassigned_count[ci] == 1 and false_count[ci] == 2:
+                    for toggle, val in clauses[ci]:
+                        if assignment[toggle] == -1:
+                            ch = assign(toggle, val)
+                            propagated.append((toggle, ch))
+                            found_unit = True
+                            break
+            if not found_unit:
+                break
+        
+        # Find best unassigned toggle
+        best_toggle = -1
+        best_score = -1
+        for toggle in range(1, n + 1):
+            if assignment[toggle] == -1:
+                score = 0
+                for ci, _ in toggle_clauses[toggle]:
+                    if true_count[ci] == 0:
+                        score += 1
+                if score > best_score:
+                    best_score = score
+                    best_toggle = toggle
+        
+        if best_toggle == -1:
+            return True
+        
+        for val in [0, 1]:
+            changes = assign(best_toggle, val)
+            if backtrack():
+                return True
+            undo(best_toggle, changes)
+        
+        for t, ch in reversed(propagated):
+            undo(t, ch)
+        return False
+    
+    if backtrack():
+        print("YES")
+        print(" ".join(str(assignment[i]) for i in range(1, n+1)))
+    else:
+        print("NO")
+
+solve()
+```
+
+This looks correct. Let me trace through the examples:
+
+Example 1: n=3, m=2
+- Clause 1: (1,1), (2,1), (3,1) - need at least one of toggles 1,2,3 to be 1
+- Clause 2: (1,0), (2,1), (3,0) - need at least one of: toggle1=0, toggle2=1, toggle3=0
+
+Assignment 0 0 1:
+- Clause 1: toggle1=0 (false), toggle2=0 (false), toggle3=1 (true) → satisfied
+- Clause 2: toggle1=0 (true) → satisfied
+
+Yes, this works.
+
+Example 2: n=1, m=2
+- Clause 1: (1,1), (1,1), (1,1) - need toggle1=1
+- Clause 2: (1,0), (1,0), (1,0) - need toggle1=0
+
+These are contradictory, so NO.
+
+The code should handle these. Let me also handle the edge case where a clause has duplicate toggles with different values - e.g., (1,1) and (1,0) in the same clause. In that case, the clause is always satisfiable (just set toggle 1 to either value and one literal is true).
+
+Actually wait, if a clause has (1,1) and (1,0), then regardless of what toggle 1 is, one of them is true. So the clause is always satisfied. The code handles this correctly because true_count would be > 0.
+
+I think the solution is correct. Let me finalize it:
+
+```python
+def solve():
+    import sys
+    sys.setrecursionlimit(10000)
+    
+    input_data = sys.stdin.read().split()
+    idx = 0
+    n = int(input_data[idx]); idx += 1
+    m = int(input_data[idx]); idx += 1
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(["0"] * n))
+        return
+    
+    clauses = []
+    for _ in range(m):
+        vals = [int(input_data[idx+i]) for i in range(3)]
+        idx += 3
+        clause = []
+        for l in vals:
+            toggle = abs(l)
+            val = 1 if l > 0 else 0
+            clause.append((toggle, val))
+        clauses.append(clause)
+    
+    assignment = [-1] * (n + 1)
+    true_count = [0] * m
+    false_count = [0] * m
+    unassigned_count = [3] * m
+    
+    toggle_clauses = [[] for _ in range(n + 1)]
+    for ci, clause in enumerate(clauses):
+        for toggle, val in clause:
+            toggle_clauses[toggle].append((ci, val))
+    
+    def assign(toggle, val):
+        changes = []
+        assignment[toggle] = val
+        for ci, clause_val in toggle_clauses[toggle]:
+            if val == clause_val:
+                true_count[ci] += 1
+                changes.append((ci, 1))
+            else:
+                false_count[ci] += 1
+                changes.append((ci, 0))
+            unassigned_count[ci] -= 1
+        return changes
+    
+    def undo(toggle, changes):
+        for ci, is_true in changes:
+            if is_true:
+                true_count[ci] -= 1
+            else:
+                false_count[ci] -= 1
+            unassigned_count[ci] += 1
+        assignment[toggle] = -1
+    
+    def backtrack():
+        propagated = []
+        while True:
+            found_unit = False
+            for ci in range(m):
+                if true_count[ci] > 0:
+                    continue
+                if unassigned_count[ci] == 0:
+                    for t, ch in reversed(propagated):
+                        undo(t, ch)
+                    return False
+                if unassigned_count[ci] == 1 and false_count[ci] == 2:
+                    for toggle, val in clauses[ci]:
+                        if assignment[toggle] == -1:
+                            ch = assign(toggle, val)
+                            propagated.append((toggle, ch))
+                            found_unit = True
+                            break
+            if not found_unit:
+                break
+        
+        best_toggle = -1
+        best_score = -1
+        for toggle in range(1, n + 1):
+            if assignment[toggle] == -1:
+                score = 0
+                for ci, _ in toggle_clauses[toggle]:
+                    if true_count[ci] == 0:
+                        score += 1
+                if score > best_score:
+                    best_score = score
+                    best_toggle = toggle
+        
+        if best_toggle == -1:
+            return True
+        
+        for val in [0, 1]:
+            changes = assign(best_toggle, val)
+            if backtrack():
+                return True
+            undo(best_toggle, changes)
+        
+        for t, ch in reversed(propagated):
+            undo(t, ch)
+        return False
+    
+    if backtrack():
+        print("YES")
+        print(" ".join(str(assignment[i]) for i in range(1, n+1)))
+    else:
+        print("NO")
+
+solve()
+```
+
+I think this is correct and should be efficient enough. The unit propagation loop might be slow because it scans all clauses each time. Let me optimize by only checking clauses that might have become unit after the last assignment.
+
+Actually, let me just keep it simple. The constraints are small enough (m ≤ 400) that scanning all clauses is fine.
+
+One more thing: I should make sure the recursion depth is sufficient. With n=90, the maximum recursion depth is about 90, which is fine with the default limit of 1000, but I've set it to 10000 to be safe.
+
+Let me also consider: what if a clause has all three literals being the same toggle with the same value? E.g., (1,1), (1,1), (1,1). Then the clause is satisfied iff toggle 1 = 1. This is handled correctly.
+
+What if a clause has (1,1), (1,1), (1,0)? Then regardless of toggle 1's value, one literal is true. The clause is always satisfied. This is also handled correctly.
+
+I'm satisfied with this solution. Let me write the final version:
+
+```python
+import sys
+
+def solve():
+    sys.setrecursionlimit(10000)
+    input_data = sys.stdin.read().split()
+    idx = 0
+    n = int(input_data[idx]); idx += 1
+    m = int(input_data[idx]); idx += 1
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(["0"] * n))
+        return
+    
+    clauses = []
+    for _ in range(m):
+        vals = [int(input_data[idx+i]) for i in range(3)]
+        idx += 3
+        clause = []
+        for l in vals:
+            toggle = abs(l)
+            val = 1 if l > 0 else 0
+            clause.append((toggle, val))
+        clauses.append(clause)
+    
+    assignment = [-1] * (n + 1)
+    true_count = [0] * m
+    false_count = [0] * m
+    unassigned_count = [3] * m
+    
+    toggle_clauses = [[] for _ in range(n + 1)]
+    for ci, clause in enumerate(clauses):
+        for toggle, val in clause:
+            toggle_clauses[toggle].append((ci, val))
+    
+    def assign(toggle, val):
+        changes = []
+        assignment[toggle] = val
+        for ci, clause_val in toggle_clauses[toggle]:
+            if val == clause_val:
+                true_count[ci] += 1
+                changes.append((ci, 1))
+            else:
+                false_count[ci] += 1
+                changes.append((ci, 0))
+            unassigned_count[ci] -= 1
+        return changes
+    
+    def undo(toggle, changes):
+        for ci, is_true in changes:
+            if is_true:
+                true_count[ci] -= 1
+            else:
+                false_count[ci] -= 1
+            unassigned_count[ci] += 1
+        assignment[toggle] = -1
+    
+    def backtrack():
+        propagated = []
+        while True:
+            found_unit = False
+            for ci in range(m):
+                if true_count[ci] > 0:
+                    continue
+                if unassigned_count[ci] == 0:
+                    for t, ch in reversed(propagated):
+                        undo(t, ch)
+                    return False
+                if unassigned_count[ci] == 1 and false_count[ci] == 2:
+                    for toggle, val in clauses[ci]:
+                        if assignment[toggle] == -1:
+                            ch = assign(toggle, val)
+                            propagated.append((toggle, ch))
+                            found_unit = True
+                            break
+            if not found_unit:
+                break
+        
+        best_toggle = -1
+        best_score = -1
+        for toggle in range(1, n + 1):
+            if assignment[toggle] == -1:
+                score = 0
+                for ci, _ in toggle_clauses[toggle]:
+                    if true_count[ci] == 0:
+                        score += 1
+                if score > best_score:
+                    best_score = score
+                    best_toggle = toggle
+        
+        if best_toggle == -1:
+            return True
+        
+        for val in [0, 1]:
+            changes = assign(best_toggle, val)
+            if backtrack():
+                return True
+            undo(best_toggle, changes)
+        
+        for t, ch in reversed(propagated):
+            undo(t, ch)
+        return False
+    
+    if backtrack():
+        print("YES")
+        print(" ".join(str(assignment[i]) for i in range(1, n+1)))
+    else:
+        print("NO")
+
+solve()
+```
+
+This should be the correct and efficient solution. Let me double-check the logic one more time...
+
+Actually, I realize there might be an issue with the unit propagation. When I find a unit clause and assign a value, I should continue scanning from the beginning (which I do with the `while True` loop and `found_unit` flag). But I should also check if the newly assigned value causes any clause to become a conflict. The current code does check this in the next iteration of the while loop.
+
+Wait, actually there's a subtle issue. When I assign a value due to unit propagation, I set `found_unit = True` and `break` out of the inner for loop (iterating over clauses). Then the while loop continues and scans all clauses again. This is correct but potentially slow. For m=400, this should be fine.
+
+Let me also make sure the conflict check is correct. A clause is in conflict when `true_count[ci] == 0 and unassigned_count[ci] == 0`, meaning all literals are false. This is checked in the unit propagation loop.
+
+I think the solution is correct. Let me finalize.
+
+Actually, I want to reconsider the efficiency. The unit propagation scans all m clauses in each iteration of the while loop. In the worst case, we might have O(n) iterations (one per variable), giving O(nm) per backtrack node. With n=90 and m=400, that's 36000 operations per node. If the search tree has many nodes, this could be slow.
+
+But for typical 3-SAT instances with 90 variables and 400 clauses, the clause-to-variable ratio is about 4.4, which is near the satisfiability threshold (≈4.26 for 3-SAT). This means instances could be hard. However, the problem likely has test cases that are solvable with reasonable backtracking.
+
+Let me optimize the unit propagation to only check clauses affected by the last assignment:
+
+Actually, let me just keep it simple. If it times out, I'll optimize. But for a 2-second time limit with Python, I need to be careful.
+
+Let me try a different approach: instead of scanning all clauses, maintain a queue of clauses to check. When a variable is assigned, add affected clauses to the queue.
+
+Actually, let me just try the simple approach first. If it's too slow, I'll optimize.
+
+Let me also add a small optimization: when choosing the value to try first, choose the one that satisfies more clauses.
+
+```python
+import sys
+
+def solve():
+    sys.setrecursionlimit(10000)
+    input_data = sys.stdin.read().split()
+    idx = 0
+    n = int(input_data[idx]); idx += 1
+    m = int(input_data[idx]); idx += 1
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(["0"] * n))
+        return
+    
+    clauses = []
+    for _ in range(m):
+        vals = [int(input_data[idx+i]) for i in range(3)]
+        idx += 3
+        clause = []
+        for l in vals:
+            toggle = abs(l)
+            val = 1 if l > 0 else 0
+            clause.append((toggle, val))
+        clauses.append(clause)
+    
+    assignment = [-1] * (n + 1)
+    true_count = [0] * m
+    false_count = [0] * m
+    unassigned_count = [3] * m
+    
+    toggle_clauses = [[] for _ in range(n + 1)]
+    for ci, clause in enumerate(clauses):
+        for toggle, val in clause:
+            toggle_clauses[toggle].append((ci, val))
+    
+    def assign(toggle, val):
+        changes = []
+        assignment[toggle] = val
+        for ci, clause_val in toggle_clauses[toggle]:
+            if val == clause_val:
+                true_count[ci] += 1
+                changes.append((ci, 1))
+            else:
+                false_count[ci] += 1
+                changes.append((ci, 0))
+            unassigned_count[ci] -= 1
+        return changes
+    
+    def undo(toggle, changes):
+        for ci, is_true in changes:
+            if is_true:
+                true_count[ci] -= 1
+            else:
+                false_count[ci] -= 1
+            unassigned_count[ci] += 1
+        assignment[toggle] = -1
+    
+    def backtrack():
+        propagated = []
+        queue = list(range(m))  # clauses to check
+        while queue:
+            new_queue = []
+            for ci in queue:
+                if true_count[ci] > 0:
+                    continue
+                if unassigned_count[ci] == 0:
+                    for t, ch in reversed(propagated):
+                        undo(t, ch)
+                    return False
+                if unassigned_count[ci] == 1 and false_count[ci] == 2:
+                    for toggle, val in clauses[ci]:
+                        if assignment[toggle] == -1:
+                            ch = assign(toggle, val)
+                            propagated.append((toggle, ch))
+                            # Add affected clauses to new queue
+                            for ci2, _ in toggle_clauses[toggle]:
+                                new_queue.append(ci2)
+                            break
+            queue = new_queue
+        
+        best_toggle = -1
+        best_score = -1
+        for toggle in range(1, n + 1):
+            if assignment[toggle] == -1:
+                score = 0
+                for ci, _ in toggle_clauses[toggle]:
+                    if true_count[ci] == 0:
+                        score += 1
+                if score > best_score:
+                    best_score = score
+                    best_toggle = toggle
+        
+        if best_toggle == -1:
+            return True
+        
+        # Try the value that satisfies more unsatisfied clauses first
+        scores = [0, 0]
+        for ci, clause_val in toggle_clauses[best_toggle]:
+            if true_count[ci] == 0:
+                scores[clause_val] += 1
+        
+        order = [0, 1] if scores[0] >= scores[1] else [1, 0]
+        
+        for val in order:
+            changes = assign(best_toggle, val)
+            if backtrack():
+                return True
+            undo(best_toggle, changes)
+        
+        for t, ch in reversed(propagated):
+            undo(t, ch)
+        return False
+    
+    if backtrack():
+        print("YES")
+        print(" ".join(str(assignment[i]) for i in range(1, n+1)))
+    else:
+        print("NO")
+
+solve()
+```
+
+Hmm, the queue-based approach might have issues with duplicates. Let me use a set instead:
+
+Actually, let me just go with the simple approach. It should be fast enough for the given constraints.
+
+```python
+import sys
+
+def solve():
+    sys.setrecursionlimit(10000)
+    input_data = sys.stdin.read().split()
+    idx = 0
+    n = int(input_data[idx]); idx += 1
+    m = int(input_data[idx]); idx += 1
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(["0"] * n))
+        return
+    
+    clauses = []
+    for _ in range(m):
+        vals = [int(input_data[idx+i]) for i in range(3)]
+        idx += 3
+        clause = []
+        for l in vals:
+            toggle = abs(l)
+            val = 1 if l > 0 else 0
+            clause.append((toggle, val))
+        clauses.append(clause)
+    
+    assignment = [-1] * (n + 1)
+    true_count = [0] * m
+    false_count = [0] * m
+    unassigned_count = [3] * m
+    
+    toggle_clauses = [[] for _ in range(n + 1)]
+    for ci, clause in enumerate(clauses):
+        for toggle, val in clause:
+            toggle_clauses[toggle].append((ci, val))
+    
+    def assign(toggle, val):
+        changes = []
+        assignment[toggle] = val
+        for ci, clause_val in toggle_clauses[toggle]:
+            if val == clause_val:
+                true_count[ci] += 1
+                changes.append((ci, 1))
+            else:
+                false_count[ci] += 1
+                changes.append((ci, 0))
+            unassigned_count[ci] -= 1
+        return changes
+    
+    def undo(toggle, changes):
+        for ci, is_true in changes:
+            if is_true:
+                true_count[ci] -= 1
+            else:
+                false_count[ci] -= 1
+            unassigned_count[ci] += 1
+        assignment[toggle] = -1
+    
+    def backtrack():
+        propagated = []
+        changed = True
+        while changed:
+            changed = False
+            for ci in range(m):
+                if true_count[ci] > 0:
+                    continue
+                if unassigned_count[ci] == 0:
+                    for t, ch in reversed(propagated):
+                        undo(t, ch)
+                    return False
+                if unassigned_count[ci] == 1 and false_count[ci] == 2:
+                    for toggle, val in clauses[ci]:
+                        if assignment[toggle] == -1:
+                            ch = assign(toggle, val)
+                            propagated.append((toggle, ch))
+                            changed = True
+                            break
+        
+        best_toggle = -1
+        best_score = -1
+        for toggle in range(1, n + 1):
+            if assignment[toggle] == -1:
+                score = 0
+                for ci, _ in toggle_clauses[toggle]:
+                    if true_count[ci] == 0:
+                        score += 1
+                if score > best_score:
+                    best_score = score
+                    best_toggle = toggle
+        
+        if best_toggle == -1:
+            return True
+        
+        for val in [0, 1]:
+            changes = assign(best_toggle, val)
+            if backtrack():
+                return True
+            undo(best_toggle, changes)
+        
+        for t, ch in reversed(propagated):
+            undo(t, ch)
+        return False
+    
+    if backtrack():
+        print("YES")
+        print(" ".join(str(assignment[i]) for i in range(1, n+1)))
+    else:
+        print("NO")
+
+solve()
+```
+
+This should work. Let me finalize this as my answer.
+
+Actually, I just realized there might be an issue with clauses that have duplicate toggles. For example, if a clause is [(1, 1), (1, 1), (1, 0)], then:
+- If toggle 1 = 1: true_count = 2, false_count = 1 → satisfied
+- If toggle 1 = 0: true_count = 1, false_count = 2 → satisfied
+
+So this clause is always satisfied. The code handles this correctly.
+
+But what about a clause like [(1, 1), (1, 1), (1, 1)]?
+- If toggle 1 = 1: true_count = 3 → satisfied
+- If toggle 1 = 0: false_count = 3, true_count = 0, unassigned = 0 → conflict
+
+This is correct - the clause requires toggle 1 = 1.
+
+And [(1, 0), (1, 0), (1, 0)]?
+- If toggle 1 = 0: true_count = 3 → satisfied
+- If toggle 1 = 1: false_count = 3 → conflict
+
+Also correct.
+
+I'm confident the solution is correct. Here's the final version:
+
+```python
+import sys
+
+def solve():
+    sys.setrecursionlimit(10000)
+    data = sys.stdin.read().split()
+    idx = 0
+    n = int(data[idx]); idx += 1
+    m = int(data[idx]); idx += 1
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(["0"] * n))
+        return
+    
+    clauses = []
+    for _ in range(m):
+        vals = [int(data[idx+i]) for i in range(3)]
+        idx += 3
+        clause = []
+        for l in vals:
+            clause.append((abs(l), 1 if l > 0 else 0))
+        clauses.append(clause)
+    
+    assignment = [-1] * (n + 1)
+    tc = [0] * m  # true count
+    fc = [0] * m  # false count
+    uc = [3] * m  # unassigned count
+    
+    tc_list = [[] for _ in range(n + 1)]
+    for ci, clause in enumerate(clauses):
+        for toggle, val in clause:
+            tc_list[toggle].append((ci, val))
+    
+    def assign(toggle, val):
+        changes = []
+        assignment[toggle] = val
+        for ci, cv in tc_list[toggle]:
+            if val == cv:
+                tc[ci] += 1
+                changes.append((ci, 1))
+            else:
+                fc[ci] += 1
+                changes.append((ci, 0))
+            uc[ci] -= 1
+        return changes
+    
+    def undo(toggle, changes):
+        for ci, is_true in changes:
+            if is_true:
+                tc[ci] -= 1
+            else:
+                fc[ci] -= 1
+            uc[ci] += 1
+        assignment[toggle] = -1
+    
+    def backtrack():
+        propagated = []
+        changed = True
+        while changed:
+            changed = False
+            for ci in range(m):
+                if tc[ci] > 0:
+                    continue
+                if uc[ci] == 0:
+                    for t, ch in reversed(propagated):
+                        undo(t, ch)
+                    return False
+                if uc[ci] == 1 and fc[ci] == 2:
+                    for toggle, val in clauses[ci]:
+                        if assignment[toggle] == -1:
+                            ch = assign(toggle, val)
+                            propagated.append((toggle, ch))
+                            changed = True
+                            break
+        
+        best_toggle = -1
+        best_score = -1
+        for toggle in range(1, n + 1):
+            if assignment[toggle] == -1:
+                score = 0
+                for ci, _ in tc_list[toggle]:
+                    if tc[ci] == 0:
+                        score += 1
+                if score > best_score:
+                    best_score = score
+                    best_toggle = toggle
+        
+        if best_toggle == -1:
+            return True
+        
+        for val in [0, 1]:
+            changes = assign(best_toggle, val)
+            if backtrack():
+                return True
+            undo(best_toggle, changes)
+        
+        for t, ch in reversed(propagated):
+            undo(t, ch)
+        return False
+    
+    if backtrack():
+        print("YES")
+        print(" ".join(str(assignment[i]) for i in range(1, n+1)))
+    else:
+        print("NO")
+
+solve()
+```
+
+This is my final solution. It implements a DPLL-style SAT solver with unit propagation and most```python
+import sys
+
+def solve():
+    sys.setrecursionlimit(10000)
+    data = sys.stdin.read().split()
+    idx = 0
+    n = int(data[idx]); idx += 1
+    m = int(data[idx]); idx += 1
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(["0"] * n))
+        return
+    
+    clauses = []
+    for _ in range(m):
+        vals = [int(data[idx+i]) for i in range(3)]
+        idx += 3
+        clause = []
+        for l in vals:
+            clause.append((abs(l), 1 if l > 0 else 0))
+        clauses.append(clause)
+    
+    assignment = [-1] * (n + 1)
+    tc = [0] * m
+    fc = [0] * m
+    uc = [3] * m
+    
+    tc_list = [[] for _ in range(n + 1)]
+    for ci, clause in enumerate(clauses):
+        for toggle, val in clause:
+            tc_list[toggle].append((ci, val))
+    
+    def assign(toggle, val):
+        changes = []
+        assignment[toggle] = val
+        for ci, cv in tc_list[toggle]:
+            if val == cv:
+                tc[ci] += 1
+                changes.append((ci, 1))
+            else:
+                fc[ci] += 1
+                changes.append((ci, 0))
+            uc[ci] -= 1
+        return changes
+    
+    def undo(toggle, changes):
+        for ci, is_true in changes:
+            if is_true:
+                tc[ci] -= 1
+            else:
+                fc[ci] -= 1
+            uc[ci] += 1
+        assignment[toggle] = -1
+    
+    def backtrack():
+        propagated = []
+        changed = True
+        while changed:
+            changed = False
+            for ci in range(m):
+                if tc[ci] > 0:
+                    continue
+                if uc[ci] == 0:
+                    for t, ch in reversed(propagated):
+                        undo(t, ch)
+                    return False
+                if uc[ci] == 1 and fc[ci] == 2:
+                    for toggle, val in clauses[ci]:
+                        if assignment[toggle] == -1:
+                            ch = assign(toggle, val)
+                            propagated.append((toggle, ch))
+                            changed = True
+                            break
+        
+        best_toggle = -1
+        best_score = -1
+        for toggle in range(1, n + 1):
+            if assignment[toggle] == -1:
+                score = 0
+                for ci, _ in tc_list[toggle]:
+                    if tc[ci] == 0:
+                        score += 1
+                if score > best_score:
+                    best_score = score
+                    best_toggle = toggle
+        
+        if best_toggle == -1:
+            return True
+        
+        for val in [0, 1]:
+            changes = assign(best_toggle, val)
+            if backtrack():
+                return True
+            undo(best_toggle, changes)
+        
+        for t, ch in reversed(propagated):
+            undo(t, ch)
+        return False
+    
+    if backtrack():
+        print("YES")
+        print(" ".join(str(assignment[i]) for i in range(1, n+1)))
+    else:
+        print("NO")
+
+solve()
+```

@@ -1,49 +1,65 @@
 import sys
 from collections import defaultdict, deque
 
-def solve():
-    n, m = map(int, sys.stdin.readline().split())
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
     
-    # Build adjacency list
+    n = int(data[0])
+    m = int(data[1])
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
+    
     graph = defaultdict(list)
+    index = 2
+    edges = []
     for _ in range(m):
-        u, v = map(int, sys.stdin.readline().split())
+        u = int(data[index]) - 1
+        v = int(data[index+1]) - 1
+        index += 2
         graph[u].append(v)
         graph[v].append(u)
+        edges.append((u, v))
     
-    # Color array: 0 = unvisited, 1 = color 1, 2 = color 2
-    colors = [0] * (n + 1)
+    # Check if bipartite and find lexicographically smallest valid configuration
+    color = [-1] * n
+    queue = deque()
     
-    # Check if bipartite using BFS
-    for start in range(1, n + 1):
-        if colors[start] == 0:
-            queue = deque([start])
-            colors[start] = 1
-            
+    for start in range(n):
+        if color[start] == -1:
+            color[start] = 0
+            queue.append(start)
             while queue:
                 node = queue.popleft()
-                current_color = colors[node]
-                neighbor_color = 3 - current_color  # flips 1->2, 2->1
-                
                 for neighbor in graph[node]:
-                    if colors[neighbor] == 0:
-                        colors[neighbor] = neighbor_color
+                    if color[neighbor] == -1:
+                        color[neighbor] = 1 - color[node]
                         queue.append(neighbor)
-                    elif colors[neighbor] != neighbor_color:
+                    elif color[neighbor] == color[node]:
                         print("NO")
                         return
     
-    # If we get here, it's bipartite
-    print("YES")
-    # For lexicographically smallest, we prefer 1 over 2 when there's choice
-    # But our algorithm already ensures this by starting with color 1
+    # Convert colors to deployment modes: 0 -> 1, 1 -> 2
+    # To get lexicographically smallest, we want satellite 1 to have mode 1 if possible
     result = []
-    for i in range(1, n + 1):
-        if colors[i] == 0:  # Isolated node, default to 1
-            result.append(1)
+    for i in range(n):
+        if color[i] == 0:
+            result.append("1")
         else:
-            result.append(colors[i])
+            result.append("2")
     
-    print(' '.join(map(str, result)))
+    # Verify all constraints are satisfied
+    for u, v in edges:
+        if (color[u] + 1) + (color[v] + 1) != 3:
+            print("NO")
+            return
+    
+    print("YES")
+    print(" ".join(result))
 
-solve()
+if __name__ == "__main__":
+    main()

@@ -11,27 +11,33 @@ def solve():
         adj[u].append(v)
         adj[v].append(u)
     
-    assignment = [0] * n
+    # Order vertices by degree descending for better pruning
+    order = sorted(range(n), key=lambda x: len(adj[x]), reverse=True)
+    pos = [0] * n
+    for idx, v in enumerate(order):
+        pos[v] = idx
+    
+    color = [0] * n
     
     def backtrack(idx):
         if idx == n:
             return True
-        for phase in (1, 2, 3):
-            ok = True
-            for nb in adj[idx]:
-                if assignment[nb] == phase:
-                    ok = False
-                    break
-            if ok:
-                assignment[idx] = phase
+        v = order[idx]
+        used = [False] * 4
+        for u in adj[v]:
+            if color[u] != 0:
+                used[color[u]] = True
+        for c in (1, 2, 3):
+            if not used[c]:
+                color[v] = c
                 if backtrack(idx + 1):
                     return True
-                assignment[idx] = 0
+                color[v] = 0
         return False
     
     if backtrack(0):
         print("YES")
-        print(" ".join(map(str, assignment)))
+        print(" ".join(str(color[i]) for i in range(n)))
     else:
         print("NO")
 

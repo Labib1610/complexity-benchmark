@@ -1,0 +1,175 @@
+import sys
+from collections import deque
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    A = int(next(it))
+    B = int(next(it))
+    L = int(next(it))
+    
+    adj_alpha = [[] for _ in range(A + 1)]
+    adj_beta = [[] for _ in range(B + 1)]
+    links = []
+    
+    deg_alpha = [0] * (A + 1)
+    deg_beta = [0] * (B + 1)
+    
+    for i in range(L):
+        u = int(next(it))
+        v = int(next(it))
+        links.append((u, v))
+        adj_alpha[u].append((v, i))
+        adj_beta[v].append((u, i))
+        deg_alpha[u] += 1
+        deg_beta[v] += 1
+    
+    K = 0
+    for i in range(1, A + 1):
+        if deg_alpha[i] > K:
+            K = deg_alpha[i]
+    for i in range(1, B + 1):
+        if deg_beta[i] > K:
+            K = deg_beta[i]
+    
+    if K == 0:
+        print("YES")
+        print("")
+        return
+    
+    # Build bipartite graph for edge coloring
+    # Left side: Alpha terminals 1..A
+    # Right side: Beta terminals A+1..A+B
+    N = A + B + 2
+    adj = [[] for _ in range(N)]
+    edge_to_link = {}
+    
+    for i, (u, v) in enumerate(links):
+        v_node = v + A
+        adj[u].append(v_node)
+        adj[v_node].append(u)
+        edge_to_link[(u, v_node)] = i
+        edge_to_link[(v_node, u)] = i
+    
+    color = [0] * L
+    used = [0] * (K + 2)
+    
+    for u in range(1, A + 1):
+        for v_node in adj[u]:
+            if v_node > A:  # Beta terminal
+                # Find available color
+                for c in range(1, K + 1):
+                    used[c] = 0
+                
+                # Mark colors used by edges at u
+                for w in adj[u]:
+                    if w > A:
+                        idx = edge_to_link[(u, w)]
+                        if color[idx] != 0:
+                            used[color[idx]] = 1
+                
+                # Mark colors used by edges at v_node
+                for w in adj[v_node]:
+                    if w <= A:
+                        idx = edge_to_link[(v_node, w)]
+                        if color[idx] != 0:
+                            used[color[idx]] = 1
+                
+                # Find free color
+                free_c = -1
+                for c in range(1, K + 1):
+                    if used[c] == 0:
+                        free_c = c
+                        break
+                
+                if free_c != -1:
+                    idx = edge_to_link[(u, v_node)]
+                    color[idx] = free_c
+                else:
+                    # Need to recolor - find two colors to swap
+                    c1 = -1
+                    c2 = -1
+                    colors_at_u = {}
+                    for w in adj[u]:
+                        if w > A:
+                            idx = edge_to_link[(u, w)]
+                            if color[idx] != 0:
+                                colors_at_u[color[idx]] = w
+                    
+                    colors_at_v = {}
+                    for w in adj[v_node]:
+                        if w <= A:
+                            idx = edge_to_link[(v_node, w)]
+                            if color[idx] != 0:
+                                colors_at_v[color[idx]] = w
+                    
+                    for c in colors_at_u:
+                        if c not in colors_at_v:
+                            c1 = c
+                            break
+                    
+                    if c1 == -1:
+                        # All colors at u are also at v
+                        c1 = next(iter(colors_at_u))
+                    
+                    # Find c2: color at v but not at u
+                    for c in colors_at_v:
+                        if c != c1:
+                            c2 = c
+                            break
+                    
+                    if c2 == -1:
+                        c2 = 1 if c1 != 1 else 2
+                    
+                    # BFS to find alternating path
+                    target = v_node
+                    start = u
+                    
+                    # BFS from start looking for alternating c1-c2 path to target
+                    parent = {}
+                    q = deque()
+                    q.append((start, c1))
+                    found = False
+                    
+                    while q and not found:
+                        node, expected = q.popleft()
+                        for w in adj[node]:
+                            if w <= A:  # Alpha terminal
+                                idx = edge_to_link[(node, w)]
+                                c = color[idx]
+                                if c == expected:
+                                    if w not in parent:
+                                        parent[w] = (node, c)
+                                        next_c = c2 if expected == c1 else c1
+                                        q.append((w, next_c))
+                            else:  # Beta terminal
+                                idx = edge_to_link[(node, w)]
+                                c = color[idx]
+                                if c == expected:
+                                    if w not in parent:
+                                        parent[w] = (node, c)
+                                        if w == target:
+                                            found = True
+                                            break
+                                        next_c = c2 if expected == c1 else c1
+                                        q.append((w, next_c))
+                    
+                    # Swap colors along the path
+                    curr = target
+                    while curr in parent:
+                        prev, c = parent[curr]
+                        idx = edge_to_link[(prev, curr)]
+                        color[idx] = c2 if c == c1 else c1
+                        curr = prev
+                    
+                    # Now assign c1 to current edge
+                    idx = edge_to_link[(u, v_node)]
+                    color[idx] = c1
+    
+    print("YES")
+    print(" ".join(map(str, color)))
+
+if __name__ == "__main__":
+    solve()

@@ -1,0 +1,253 @@
+```python
+import sys
+from heapq import heappush, heappop
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    idx = 0
+    j = int(data[idx]); idx += 1
+    m = int(data[idx]); idx += 1
+    
+    songs = []
+    for _ in range(j):
+        o = int(data[idx]); idx += 1
+        tasks = []
+        for _ in range(o):
+            eq = int(data[idx]); idx += 1
+            dur = int(data[idx]); idx += 1
+            tasks.append((eq, dur))
+        songs.append(tasks)
+    
+    # State: (time, song_index, task_index_per_song, equipment_free_times)
+    # We use Dijkstra-like search with pruning.
+    
+    # Initial state
+    init_eq = tuple([0] * (m + 1))  # equipment 1..m, index 0 unused
+    init_state = (0, tuple([0] * j), init_eq)
+    
+    # Priority queue: (time, song_progress, eq_free_times)
+    pq = [(0, tuple([0] * j), init_eq)]
+    
+    # Visited: we store best time for (song_progress, eq_free_times)
+    visited = {}
+    
+    while pq:
+        time, progress, eq_free = heappop(pq)
+        
+        key = (progress, eq_free)
+        if key in visited and visited[key] <= time:
+            continue
+        visited[key] = time
+        
+        # Check if all songs are done
+        all_done = True
+        for s in range(j):
+            if progress[s] < len(songs[s]):
+                all_done = False
+                break
+        if all_done:
+            print(time)
+            return
+        
+        # Try to schedule the next task for each song
+        for s in range(j):
+            if progress[s] < len(songs[s]):
+                eq, dur = songs[s][progress[s]]
+                # Task can start at max(time, eq_free[eq])
+                start = max(time, eq_free[eq])
+                end = start + dur
+                
+                new_progress = list(progress)
+                new_progress[s] += 1
+                new_progress = tuple(new_progress)
+                
+                new_eq = list(eq_free)
+                new_eq[eq] = end
+                new_eq = tuple(new_eq)
+                
+                new_time = end  # The time when this task finishes
+                
+                new_key = (new_progress, new_eq)
+                if new_key in visited and visited[new_key] <= new_time:
+                    continue
+                
+                # Also, we need to consider that other tasks might still be running
+                # The actual "current time" for the state is max of all equipment free times
+                # But we track it as the max time we've committed
+                
+                # Actually, the state time should be the max of eq_free times? No.
+                # The time in the priority queue represents the earliest time we can make a decision.
+                # But since tasks run continuously, we need to track when each equipment is free.
+                
+                # Let's reconsider: the state is (progress, eq_free), and the "time" is the
+                # minimum time at which we can start a new task. That's max(time, min over all
+                # possible next tasks of their start times). But for Dijkstra, we push the
+                # completion time of the task we just scheduled.
+                
+                # This might not be correct because we could start a task on another equipment
+                # earlier. Let me rethink.
+                
+                # Actually, the correct approach: the state is (progress, eq_free).
+                # The "cost" to reach this state is the maximum of eq_free times? No, that's
+                # not right either because we want the minimum makespan.
+                
+                # Let me use a different approach: the time in the PQ is the time when the
+                # last scheduled task finishes, but we need to allow scheduling tasks in
+                # parallel. 
+                
+                # Better: state = (progress, eq_free), and we always pick the earliest available
+                # slot. The time we associate with the state is max(eq_free) only when all
+                # tasks are done. During the process, we should push states with the end time
+                # of the scheduled task, and when we pop, the "time" is the minimum over all
+                # possible start times.
+                
+                # Actually, the issue is that when we schedule a task ending at `end`, other
+                # tasks might start before `end`. So the state's "time" should be the minimum
+                # time at which we can start any next task, which is min over all songs of
+                # max(time, eq_free[eq_of_next_task]).
+                
+                # This is getting complicated. Let me just use the end time and rely on the
+                # priority queue to explore all possibilities. The key insight is that we
+                # push (end, new_progress, new_eq) and when we pop, we try all possible next
+                # tasks. The `time` when we pop is the end time of the last task we scheduled,
+                # but we can start a new task at max(time, eq_free[eq]) which could be less
+                # than time if... no, eq_free[eq] >= time only if we just used that equipment.
+                # Actually eq_free[eq] could be < time if that equipment was freed earlier.
+                
+                # So start = max(time, eq_free[eq]) is correct, and we push end = start + dur.
+                # But the issue is: what if we want to start a task on equipment that's free
+                # at time 3, but our current `time` (from PQ) is 5? Then start = 5, which is
+                # wrong because we could have started at 3.
+                
+                # The problem is that `time` in the PQ should represent the earliest time
+                # we can make a decision, not the end time of the last task.
+                
+                # Let me redefine: when we pop a state, `time` = the earliest time at which
+                # we can start any new task. This is the minimum over all possible next tasks
+                # of max(current_time, eq_free[eq]). But current_time itself is... circular.
+                
+                # Actually, the correct `time` for a state is: the minimum time at which any
+                # task can be started. Since we can start a task as soon as both the song is
+                # ready and the equipment is free, the earliest start time is:
+                # min over all songs s (with progress[s] < len) of max(0, eq_free[eq_s])
+                # where eq_s is the equipment needed by song s's next task.
+                # But we also need the song's previous task to be done, which is captured
+                # by progress[s] (if progress[s] > 0, the previous task is done, and its end
+                # time is... not directly tracked unless we track per-song completion times).
+                
+                # I think we need to track per-song completion times as well.
+                pass
+    
+    # Let me rewrite with a cleaner state representation.
+    
+    # State: (song_completion_times, eq_free_times)
+    # song_completion_times[s] = time when song s's last completed task finished
+    # eq_free_times[eq] = time when equipment eq becomes free
+    # A task for song s can start at max(song_completion_times[s], eq_free_times[eq])
+    
+    # The "current time" for Dijkstra is the minimum possible start time over all schedulable tasks.
+    # But actually, we don't need a "current time" - we just push states and the priority is
+    # the completion time of the task we just scheduled. When we pop, we try all possible
+    # next tasks and compute their start times based on the state.
+    
+    # The issue with the previous approach was that `time` in the PQ was used as song_completion
+    # time, but it was the max over all songs, not per-song.
+    
+    # Let me redo this properly.
+    
+    init_song_comp = tuple([0] * j)
+    init_eq_free = tuple([0] * (m + 1))
+    init_state = (0, init_song_comp, init_eq_free)
+    
+    pq = [init_state]
+    visited = {}
+    
+    while pq:
+        max_time, song_comp, eq_free = heappop(pq)
+        # max_time here is just for priority ordering; the actual times are in song_comp and eq_free
+        
+        key = (song_comp, eq_free)
+        if key in visited:
+            continue
+        visited[key] = max_time
+        
+        # Check if all done
+        all_done = True
+        for s in range(j):
+            if len(songs[s]) > 0 and song_comp[s] == 0 and progress_check:
+                pass
+        # Actually, we need to track progress separately from completion times.
+        # song_comp[s] = 0 could mean either "no tasks done" or "first task ends at 0".
+        # Since durations are >= 1, if any task is done, song_comp[s] >= 1.
+        # So song_comp[s] == 0 means no tasks done for song s.
+        # But we need to know how many tasks are done. Let me add progress back.
+        pass
+    
+    # OK let me just write a clean solution from scratch.
+    
+    # State: (progress_tuple, song_comp_tuple, eq_free_tuple)
+    # progress_tuple[s] = number of tasks completed for song s
+    # song_comp_tuple[s] = completion time of the last task of song s (0 if none)
+    # eq_free_tuple[eq] = time when equipment eq becomes free
+    
+    # Priority: we want to minimize the final makespan. Use a priority based on the
+    # maximum of all song_comp times (which equals the makespan when all done).
+    # But for Dijkstra, we should use the time of the most recent event.
+    
+    # Actually, let's just use the completion time of the task we just scheduled as the priority.
+    # When we pop a state, we try scheduling any possible next task.
+    
+    init_progress = tuple([0] * j)
+    init_song_comp = tuple([0] * j)
+    init_eq_free = tuple([0] * (m + 1))
+    
+    pq = [(0, init_progress, init_song_comp, init_eq_free)]
+    visited = set()
+    
+    while pq:
+        last_comp, progress, song_comp, eq_free = heappop(pq)
+        
+        key = (progress, song_comp, eq_free)
+        if key in visited:
+            continue
+        visited.add(key)
+        
+        # Check if all done
+        all_done = True
+        for s in range(j):
+            if progress[s] < len(songs[s]):
+                all_done = False
+                break
+        if all_done:
+            print(max(song_comp))
+            return
+        
+        # Try scheduling next task for each song
+        for s in range(j):
+            if progress[s] < len(songs[s]):
+                eq, dur = songs[s][progress[s]]
+                start = max(song_comp[s], eq_free[eq])
+                end = start + dur
+                
+                new_progress = list(progress)
+                new_progress[s] += 1
+                new_progress = tuple(new_progress)
+                
+                new_song_comp = list(song_comp)
+                new_song_comp[s] = end
+                new_song_comp = tuple(new_song_comp)
+                
+                new_eq_free = list(eq_free)
+                new_eq_free[eq] = end
+                new_eq_free = tuple(new_eq_free)
+                
+                new_key = (new_progress, new_song_comp, new_eq_free)
+                if new_key not in visited:
+                    heappush(pq, (end, new_progress, new_song_comp, new_eq_free))
+    
+    print(0)
+
+solve()
+```

@@ -1,20 +1,22 @@
-# Problem A — Security Clearance Resolution
+# Problem A — Trichrome Shifts
 
 Time limit: 2 s   Memory limit: 256 MB
 
-In a secure distributed architecture, permissions must be carefully allocated across a network of $n$ modules. You must assign exactly one security tier to each module, choosing from the available tiers $\{1, 2, 3\}$.
+A manufacturing facility operates continuously across three distinct shifts, designated as 1, 2, and 3. The facility employs $n$ personnel.
 
-The system's integrity is maintained by $m$ strict isolation policies. Each policy dictates that a specific pair of modules, $u$ and $v$, cannot share the same security tier. While a single policy only limits two modules, the overlapping nature of these rules creates complex, system-wide dependencies. Be warned: the evaluation scenarios contain explicit adversarial instances. Module indices are intentionally arranged to defeat increasing-index exploration and ascending-tier trial orders, and the tests contain such instances with no exploitable structural promise.
+Certain pairs of personnel have complex operational dependencies. You are provided with $m$ dependency records, each specifying two individuals $u$ and $v$. 
 
-You must determine whether a complete security tier assignment exists that satisfies every isolation policy. If such an assignment is possible, you must find the one that is lexicographically smallest.
+To prevent critical workflow failures, the shift scheduling must satisfy a specific mathematical safety condition. For every recorded pair $(u, v)$, their assigned shifts $s_u$ and $s_v$ must be chosen such that the remainder when $(s_u^2 + s_v^2)$ is divided by $(s_u + s_v)$ is strictly greater than $0$.
+
+Your task is to allocate each person to exactly one of the three shifts such that every dependency record satisfies this safety condition, or to determine that no such allocation exists.
 
 ## Input
-The first line contains two integers $n$ and $m$ (1 ≤ $n$ ≤ 40, 0 ≤ $m$ ≤ $n(n−1)/2$), denoting the number of modules and the number of isolation policies.
-Each of the next $m$ lines contains two integers $u$ and $v$ (1 ≤ $u, v$ ≤ $n$, $u \neq v$), representing a policy that prevents module $u$ and module $v$ from operating at the same security tier.
+The first line provides two integers $n$ and $m$ — the total number of personnel and the number of dependency records ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
+Each of the subsequent $m$ lines provides two integers $u$ and $v$, representing a pair of personnel whose assigned shifts must satisfy the safety condition.
 
 ## Output
-If it is impossible to assign tiers without breaking a policy, output `NO` on a single line.
-If a valid assignment can be made, output `YES` on the first line. On the second line, output $n$ integers $c_1, c_2, \dots, c_n$ (where $c_i \in \{1, 2, 3\}$) to represent the assigned security tier for each module. This sequence of tiers must be the lexicographically smallest valid configuration (comparing the tier of module 1 first, then module 2, and so on).
+If there is no valid shift allocation, output a single line containing `NO`.
+Otherwise, output `YES` on the first line. On the second line, output $n$ integers $s_1, s_2, \dots, s_n$ (where each $s_i \in \{1, 2, 3\}$), with $s_i$ representing the shift assigned to person $i$. Any valid allocation is accepted.
 
 ## Example 1
 Input:

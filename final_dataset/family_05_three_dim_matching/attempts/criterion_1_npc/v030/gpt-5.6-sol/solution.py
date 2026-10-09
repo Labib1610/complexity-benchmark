@@ -1,0 +1,208 @@
+import sys
+
+sys.setrecursionlimit(1_000_000)
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if len(data) < 2:
+        return
+
+    k, t = data[0], data[1]
+    rows = []
+    adj = [[] for _ in range(3 * k)]
+
+    p = 2
+    for _ in range(t):
+        x = data[p] - 1
+        y = data[p + 1] - 1
+        z = data[p + 2] - 1
+        p += 3
+        i = len(rows)
+        rows.append((x, y, z, 1 << x, 1 << y, 1 << z))
+        adj[x].append(i)
+        adj[k + y].append(i)
+        adj[2 * k + z].append(i)
+
+    if k == 0:
+        print("YES")
+        return
+
+    for a in adj:
+        if not a:
+            print("NO")
+            return
+
+    full = (1 << k) - 1
+
+    def compatible(row, mx, my, mz):
+        return not (mx & row[3] or my & row[4] or mz & row[5])
+
+    def parity_consistent(mx, my, mz):
+        target = ((full ^ mx)
+                  | ((full ^ my) << k)
+                  | ((full ^ mz) << (2 * k)))
+
+        basis = [0] * (3 * k)
+        for x, y, z, bx, by, bz in rows:
+            if mx & bx or my & by or mz & bz:
+                continue
+            v = bx | (by << k) | (bz << (2 * k))
+            while v:
+                b = v.bit_length() - 1
+                if basis[b]:
+                    v ^= basis[b]
+                else:
+                    basis[b] = v
+                    break
+
+        v = target
+        while v:
+            b = v.bit_length() - 1
+            if not basis[b]:
+                return False
+            v ^= basis[b]
+        return True
+
+    def has_matching(neigh, left_mask, right_mask):
+        left = []
+        m = left_mask
+        while m:
+            bit = m & -m
+            u = bit.bit_length() - 1
+            opts = neigh[u] & right_mask
+            if not opts:
+                return False
+            left.append((opts.bit_count(), u))
+            m ^= bit
+        left.sort()
+
+        match = [-1] * k
+
+        def augment(u, seen):
+            opts = neigh[u] & right_mask & ~seen
+            while opts:
+                bit = opts & -opts
+                opts ^= bit
+                v = bit.bit_length() - 1
+                old = match[v]
+                if old == -1 or augment(old, seen | bit):
+                    match[v] = u
+                    return True
+            return False
+
+        for _, u in left:
+            if not augment(u, 0):
+                return False
+        return True
+
+    def projection_consistent(mx, my, mz):
+        rx = full ^ mx
+        ry = full ^ my
+        rz = full ^ mz
+
+        xy = [0] * k
+        xz = [0] * k
+        yz = [0] * k
+
+        for x, y, z, bx, by, bz in rows:
+            if mx & bx or my & by or mz & bz:
+                continue
+            xy[x] |= by
+            xz[x] |= bz
+            yz[y] |= bz
+
+        return (has_matching(xy, rx, ry)
+                and has_matching(xz, rx, rz)
+                and has_matching(yz, ry, rz))
+
+    if not parity_consistent(0, 0, 0) or not projection_consistent(0, 0, 0):
+        print("NO")
+        return
+
+    answer = []
+    failed = set()
+    nodes = 0
+    MEMO_LIMIT = 300_000
+
+    def search(mx, my, mz, depth):
+        nonlocal nodes
+        if depth == k:
+            return True
+
+        state = (mx, my, mz)
+        if state in failed:
+            return False
+
+        nodes += 1
+        best_candidates = None
+        best_count = 10**9
+        counts = [0] * (3 * k)
+
+        for c in range(3 * k):
+            if c < k:
+                if mx & (1 << c):
+                    continue
+            elif c < 2 * k:
+                if my & (1 << (c - k)):
+                    continue
+            else:
+                if mz & (1 << (c - 2 * k)):
+                    continue
+
+            candidates = []
+            for ri in adj[c]:
+                row = rows[ri]
+                if compatible(row, mx, my, mz):
+                    candidates.append(ri)
+
+            cnt = len(candidates)
+            counts[c] = cnt
+            if cnt == 0:
+                if len(failed) < MEMO_LIMIT:
+                    failed.add(state)
+                return False
+            if cnt < best_count:
+                best_count = cnt
+                best_candidates = candidates
+                if cnt == 1:
+                    break
+
+        if best_count > 1:
+            if depth % 4 == 0 and not parity_consistent(mx, my, mz):
+                if len(failed) < MEMO_LIMIT:
+                    failed.add(state)
+                return False
+            if depth % 3 == 0 and not projection_consistent(mx, my, mz):
+                if len(failed) < MEMO_LIMIT:
+                    failed.add(state)
+                return False
+
+            def score(ri):
+                x, y, z, _, _, _ = rows[ri]
+                sx = counts[x] if counts[x] else len(adj[x])
+                sy = counts[k + y] if counts[k + y] else len(adj[k + y])
+                sz = counts[2 * k + z] if counts[2 * k + z] else len(adj[2 * k + z])
+                return sx + sy + sz
+
+            best_candidates.sort(key=score)
+
+        for ri in best_candidates:
+            x, y, z, bx, by, bz = rows[ri]
+            answer.append((x + 1, y + 1, z + 1))
+            if search(mx | bx, my | by, mz | bz, depth + 1):
+                return True
+            answer.pop()
+
+        if len(failed) < MEMO_LIMIT:
+            failed.add(state)
+        return False
+
+    if search(0, 0, 0, 0):
+        out = ["YES"]
+        out.extend(f"{x} {y} {z}" for x, y, z in answer)
+        sys.stdout.write("\n".join(out))
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    main()

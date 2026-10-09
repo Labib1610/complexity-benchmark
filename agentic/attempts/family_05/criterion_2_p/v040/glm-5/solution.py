@@ -1,0 +1,86 @@
+import sys
+from collections import deque
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    k = int(next(it))
+    t = int(next(it))
+    
+    # For each drone, store list of (station, frequency) pairs
+    # Since each drone is paired with exactly one station, we can simplify
+    drone_configs = [[] for _ in range(k + 1)]
+    drone_station = [0] * (k + 1)
+    
+    for _ in range(t):
+        d = int(next(it))
+        c = int(next(it))
+        f = int(next(it))
+        drone_configs[d].append((c, f))
+        drone_station[d] = c
+    
+    # Build bipartite graph: drones on left, frequencies on right
+    # Edge exists if drone d has a config with frequency f
+    adj = [[] for _ in range(k + 1)]
+    for d in range(1, k + 1):
+        for c, f in drone_configs[d]:
+            adj[d].append(f)
+    
+    # Hopcroft-Karp for maximum matching
+    match_r = [0] * (k + 1)  # match_r[f] = d (frequency f matched to drone d)
+    dist = [0] * (k + 1)
+    NIL = 0
+    
+    def bfs():
+        queue = deque()
+        for d in range(1, k + 1):
+            if match_r[d] == NIL:
+                dist[d] = 0
+                queue.append(d)
+            else:
+                dist[d] = float('inf')
+        dist[NIL] = float('inf')
+        
+        while queue:
+            d = queue.popleft()
+            if dist[d] < dist[NIL]:
+                for f in adj[d]:
+                    if dist[match_r[f]] == float('inf'):
+                        dist[match_r[f]] = dist[d] + 1
+                        queue.append(match_r[f])
+        return dist[NIL] != float('inf')
+    
+    def dfs(d):
+        if d != NIL:
+            for f in adj[d]:
+                if dist[match_r[f]] == dist[d] + 1:
+                    if dfs(match_r[f]):
+                        match_r[f] = d
+                        return True
+            dist[d] = float('inf')
+            return False
+        return True
+    
+    matching = 0
+    while bfs():
+        for d in range(1, k + 1):
+            if match_r[d] == NIL:
+                if dfs(d):
+                    matching += 1
+    
+    if matching != k:
+        print("NO")
+        return
+    
+    print("YES")
+    # match_r[f] = d means drone d uses frequency f
+    # We need to output: d, station_of_d, f
+    for f in range(1, k + 1):
+        d = match_r[f]
+        c = drone_station[d]
+        print(f"{d} {c} {f}")
+
+if __name__ == "__main__":
+    solve()

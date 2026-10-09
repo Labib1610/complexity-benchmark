@@ -13,28 +13,40 @@ for _ in range(m):
     adj[v].append(u)
 
 color = [-1] * n
-possible = True
 
+def bfs(start, first_color):
+    q = deque([start])
+    color[start] = first_color
+    while q:
+        u = q.popleft()
+        for v in adj[u]:
+            if color[v] == -1:
+                color[v] = 1 - color[u]
+                q.append(v)
+            elif color[v] == color[u]:
+                return False
+    return True
+
+# Try coloring node 0 as 1 first
+ok = True
 for i in range(n):
     if color[i] == -1:
-        color[i] = 1
-        q = deque([i])
-        while q:
-            u = q.popleft()
-            for v in adj[u]:
-                if color[v] == -1:
-                    color[v] = 3 - color[u]
-                    q.append(v)
-                elif color[v] == color[u]:
-                    possible = False
-                    break
-            if not possible:
-                break
-    if not possible:
-        break
+        if not bfs(i, 1):
+            ok = False
+            break
 
-if not possible:
+if not ok:
+    # Try coloring node 0 as 2 instead
+    color = [-1] * n
+    ok = True
+    for i in range(n):
+        if color[i] == -1:
+            if not bfs(i, 0):
+                ok = False
+                break
+
+if not ok:
     print("NO")
 else:
     print("YES")
-    print(" ".join(str(color[i]) for i in range(n)))
+    print(" ".join(str(c + 1) for c in color))

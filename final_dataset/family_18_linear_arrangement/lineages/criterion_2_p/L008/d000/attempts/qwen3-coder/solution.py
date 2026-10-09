@@ -1,0 +1,262 @@
+import sys
+from collections import defaultdict, deque
+
+def main():
+    import sys
+    sys.setrecursionlimit(1000000)
+    
+    n, m, B = map(int, sys.stdin.readline().split())
+    
+    # Build adjacency list for the tree
+    adj = defaultdict(list)
+    indegree = [0] * (n + 1)
+    
+    edges = []
+    for _ in range(m):
+        u, v = map(int, sys.stdin.readline().split())
+        adj[u].append(v)
+        adj[v].append(u)
+        indegree[v] += 1
+        edges.append((u, v))
+    
+    if n == 1:
+        if 0 <= B:
+            print("YES")
+            print(1)
+        else:
+            print("NO")
+        return
+    
+    # Find root (node with indegree 0)
+    root = None
+    for i in range(1, n+1):
+        if indegree[i] == 0:
+            root = i
+            break
+    if root is None:
+        # If no node has indegree 0, it means it's undirected tree.
+        # We need to build the tree with direction
+        # Rebuild with proper parent-child relationship
+        
+        # Let's find the root by assuming node 1 is root and build the tree
+        root = 1
+        # Build tree with BFS to get parent-child relationships
+        tree = defaultdict(list)
+        parent = [-1] * (n + 1)
+        visited = [False] * (n + 1)
+        queue = deque([root])
+        visited[root] = True
+        
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if not visited[v]:
+                    visited[v] = True
+                    parent[v] = u
+                    tree[u].append(v)
+                    queue.append(v)
+        
+        # Now we have a proper tree with parent-child relationships
+    else:
+        # Build tree with BFS from root
+        tree = defaultdict(list)
+        parent = [-1] * (n + 1)
+        visited = [False] * (n + 1)
+        queue = deque([root])
+        visited[root] = True
+        
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if not visited[v]:
+                    visited[v] = True
+                    parent[v] = u
+                    tree[u].append(v)
+                    queue.append(v)
+    
+    # For undirected reconstruction, let's just rebuild properly
+    if root is None:
+        root = 1
+    
+    # Reconstruct tree properly
+    tree = defaultdict(list)
+    parent = [-1] * (n + 1)
+    visited = [False] * (n + 1)
+    queue = deque([root])
+    visited[root] = True
+    
+    # Rebuild adjacency to treat as directed
+    temp_adj = defaultdict(list)
+    for u, v in edges:
+        temp_adj[u].append(v)
+        temp_adj[v].append(u)
+        
+    queue = deque([root])
+    while queue:
+        u = queue.popleft()
+        for v in temp_adj[u]:
+            if not visited[v]:
+                visited[v] = True
+                parent[v] = u
+                tree[u].append(v)
+                queue.append(v)
+    
+    # Compute subtree sizes
+    size = [0] * (n + 1)
+    
+    def compute_size(u):
+        sz = 1
+        for v in tree[u]:
+            sz += compute_size(v)
+        size[u] = sz
+        return sz
+    
+    compute_size(root)
+    
+    # Try greedy placement: centroid decomposition approach or DFS ordering
+    # Let's try DFS post-order traversal which often gives good results for trees
+    
+    def dfs_order(u):
+        order = []
+        stack = [(u, 0)]  # (node, processed_children)
+        result = []
+        
+        while stack:
+            node, idx = stack.pop()
+            if idx == 0:
+                # First visit to node
+                if not tree[node]:
+                    result.append(node)
+                else:
+                    stack.append((node, 1))
+                    # Add children in reverse order to maintain left-to-right in stack
+                    for i in range(len(tree[node])-1, -1, -1):
+                        child = tree[node][i]
+                        stack.append((child, 0))
+            else:
+                # All children processed
+                result.append(node)
+        return result
+    
+    # Try different approach: assign positions based on subtree sizes
+    position = [0] * (n + 1)
+    time = [0]
+    
+    def assign_positions(u, start, end):
+        # Assign position to u based on centroid or middle
+        k = len(tree[u])
+        if k == 0:
+            position[u] = start
+            return
+        
+        # Divide interval [start, end] among subtrees and u itself
+        # This is complex, let's use a simpler approach
+        
+        # Use DFS post-order and assign consecutive positions
+        order = []
+        def postorder(x):
+            for y in tree[x]:
+                postorder(y)
+            order.append(x)
+        
+        postorder(root)
+        
+        for i in range(n):
+            position[order[i]] = i + 1
+        return
+    
+    # Simpler: just do a post-order and see
+    order = []
+    def postorder(x):
+        for y in tree[x]:
+            postorder(y)
+        order.append(x)
+    
+    postorder(root)
+    
+    for i in range(n):
+        position[order[i]] = i + 1
+    
+    # Calculate cost
+    total_cost = 0
+    for u, v in edges:
+        total_cost += abs(position[u] - position[v])
+    
+    if total_cost <= B:
+        result = [0] * n
+        for i in range(1, n+1):
+            result[position[i]-1] = i
+        print("YES")
+        print(' '.join(map(str, result)))
+        return
+    
+    # Try another ordering: inorder traversal for better balance
+    position = [0] * (n + 1)
+    
+    def inorder_placement(u, nodes_list):
+        children = tree[u]
+        if not children:
+            nodes_list.append(u)
+            return
+        
+        # Place first half of children
+        mid = len(children) // 2
+        for i in range(mid):
+            inorder_placement(children[i], nodes_list)
+        
+        nodes_list.append(u)
+        
+        for i in range(mid, len(children)):
+            inorder_placement(children[i], nodes_list)
+    
+    nodes_list = []
+    inorder_placement(root, nodes_list)
+    
+    for i in range(n):
+        position[nodes_list[i]] = i + 1
+    
+    # Recalculate cost
+    total_cost = 0
+    for u, v in edges:
+        total_cost += abs(position[u] - position[v])
+    
+    if total_cost <= B:
+        result = [0] * n
+        for i in range(1, n+1):
+            result[position[i]-1] = i
+        print("YES")
+        print(' '.join(map(str, result)))
+        return
+    
+    # Last resort: try greedy min-cost assignment using dynamic programming approach
+    # But that's too complex. Let's just try all permutations for small n.
+    # Since n can be up to 1000, we need heuristic.
+    
+    # Final simple approach: use DFS pre-order numbering
+    position = [0] * (n + 1)
+    time_counter = [0]
+    
+    def preorder(u):
+        time_counter[0] += 1
+        position[u] = time_counter[0]
+        for v in tree[u]:
+            preorder(v)
+    
+    preorder(root)
+    
+    total_cost = 0
+    for u, v in edges:
+        total_cost += abs(position[u] - position[v])
+    
+    if total_cost <= B:
+        result = [0] * n
+        for i in range(1, n+1):
+            result[position[i]-1] = i
+        print("YES")
+        print(' '.join(map(str, result)))
+        return
+    
+    print("NO")
+
+if __name__ == "__main__":
+    main()

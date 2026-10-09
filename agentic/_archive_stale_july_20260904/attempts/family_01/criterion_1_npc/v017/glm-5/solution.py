@@ -1,0 +1,37 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # Greedy assignment for lexicographically smallest sequence
+    assignment = [0] * n
+    for u in range(n):
+        forbidden = set()
+        for v in adj[u]:
+            if v < u:
+                forbidden.add(assignment[v])
+        for period in range(1, 4):
+            if period not in forbidden:
+                assignment[u] = period
+                break
+        else:
+            print("NO")
+            return
+    
+    print("YES")
+    print(' '.join(map(str, assignment)))
+
+if __name__ == "__main__":
+    solve()

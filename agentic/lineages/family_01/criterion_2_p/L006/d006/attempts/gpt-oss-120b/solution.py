@@ -1,67 +1,54 @@
 import sys
-sys.setrecursionlimit(1 << 25)
+from collections import deque
 
 def solve() -> None:
     data = sys.stdin.read().strip().split()
     if not data:
         return
     it = iter(data)
-    n = int(next(it)); m = int(next(it))
-    g = [[] for _ in range(n)]
+    n = int(next(it))
+    m = int(next(it))
+    adj = [[] for _ in range(n + 1)]
     for _ in range(m):
-        u = int(next(it)) - 1
-        v = int(next(it)) - 1
-        g[u].append(v)
-        g[v].append(u)
+        u = int(next(it)); v = int(next(it))
+        if u == v:
+            print("NO")
+            return
+        adj[u].append(v)
+        adj[v].append(u)
 
-    color = [-1] * n          # 0 -> mode 1, 1 -> mode 2
-    answer = [0] * n
-    from collections import deque
+    color = [-1] * (n + 1)          # 0 / 1 for bipartite sides
+    ans = [0] * (n + 1)             # final values 1 or 2
 
-    for start in range(n):
+    for start in range(1, n + 1):
         if color[start] != -1:
             continue
         # BFS this component
         q = deque([start])
         color[start] = 0
         comp = [start]
-        ok = True
         while q:
-            v = q.popleft()
-            for to in g[v]:
-                if color[to] == -1:
-                    color[to] = color[v] ^ 1
-                    q.append(to)
-                    comp.append(to)
-                elif color[to] == color[v]:
+            u = q.popleft()
+            cu = color[u]
+            for v in adj[u]:
+                if color[v] == -1:
+                    color[v] = cu ^ 1
+                    q.append(v)
+                    comp.append(v)
+                elif color[v] == cu:
                     print("NO")
                     return
-        # decide orientation for lexicographically smallest
-        comp.sort()                     # nodes in increasing index
-        # option A: as currently colored (0->1,1->2)
-        # option B: flipped
-        better = None
-        for node in comp:
-            a = 1 if color[node] == 0 else 2
-            b = 2 if color[node] == 0 else 1
-            if a != b:
-                if a < b:
-                    better = 0
-                else:
-                    better = 1
-                break
-        # if all equal (cannot happen), keep 0
-        if better is None:
-            better = 0
-        # apply chosen orientation
-        for node in comp:
-            if better == 0:
-                answer[node] = 1 if color[node] == 0 else 2
-            else:
-                answer[node] = 2 if color[node] == 0 else 1
+        # decide mapping to 1/2 to get lexicographically smallest
+        min_node = min(comp)
+        if color[min_node] == 0:
+            map0, map1 = 1, 2
+        else:
+            map0, map1 = 2, 1
+        for v in comp:
+            ans[v] = map0 if color[v] == 0 else map1
 
     print("YES")
-    print(' '.join(map(str, answer)))
+    print(' '.join(str(ans[i]) for i in range(1, n + 1)))
 
 if __name__ == "__main__":
     solve()

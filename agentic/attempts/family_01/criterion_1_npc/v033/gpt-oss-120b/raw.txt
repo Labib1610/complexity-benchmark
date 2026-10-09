@@ -1,0 +1,297 @@
+**Solution Explanation**
+
+For every worker we have to choose one of three shifts  
+(shift 1, 2 or 3) such that two workers that are in conflict never obtain the
+same shift.
+The conflict relation is an undirected graph `G = (V,E)` (`|V| = n ≤ 40`).
+The task is exactly the *graph 3‑colouring* problem.
+
+`n` is small, therefore a backtracking search with strong pruning is fast
+enough.  
+The algorithm keeps for every still uncoloured vertex the set of colours that
+are still possible for it.  
+When a vertex gets a colour, this colour is removed from the possible‑colour
+sets of all its neighbours.  
+If some neighbour loses its last possible colour the current partial
+colouring cannot be extended – we backtrack immediately.
+
+The vertex that is coloured next is the *most constrained* one:
+the uncoloured vertex with the smallest number of still possible colours.
+Choosing such a vertex reduces the branching factor as much as possible.
+
+The whole search tree has depth at most `n = 40`, therefore recursion depth
+is safe.
+
+
+
+--------------------------------------------------------------------
+
+#### Data structures
+
+* `adj[v]` – list of neighbours of vertex `v` (0‑based indices).
+* `allowed[v]` – bit mask of still possible colours for `v`.  
+  Bit `0` → colour 1, bit `1` → colour 2, bit `2` → colour 3.  
+  Initially `allowed[v] = 0b111 = 7`.
+* `col[v]` – assigned colour (`-1` = not assigned yet, otherwise `0,1,2`).
+
+All masks are ordinary Python integers, bit operations are O(1).
+
+--------------------------------------------------------------------
+
+#### Recursive search  
+
+```
+dfs():
+    if every vertex is coloured:   success
+    choose an uncoloured vertex v with the smallest popcount(allowed[v])
+    for each colour c that is still allowed for v:
+        assign c to v
+        for every uncoloured neighbour u of v:
+                if colour c is still allowed for u:
+                        delete c from allowed[u]   (remember u)
+        recurse
+        if recursion succeeded → propagate success
+        undo all changes (restore allowed[u] and col[v])
+    return failure
+```
+
+*Choosing the vertex*  
+`popcnt = allowed[v].bit_count()` (Python ≥3.8).  
+If any vertex has `popcnt == 0` the current partial colouring is already
+invalid → immediate backtrack.
+
+*Undoing*  
+Only the colour bit that was removed from a neighbour is added back,
+therefore a simple list of changed neighbours is sufficient.
+
+The recursion explores at most `3^n` states, but the pruning described above
+cuts the tree dramatically; for `n = 40` it easily fits into the limits.
+
+--------------------------------------------------------------------
+
+#### Correctness Proof  
+
+We prove that the algorithm prints **YES** and a correct assignment
+iff a feasible assignment exists.
+
+---
+
+##### Lemma 1  
+During the execution of `dfs` the invariant holds:
+
+*For every uncoloured vertex `v` the mask `allowed[v]` contains exactly the
+colours that can still be given to `v` without creating a conflict with the
+already coloured vertices.*
+
+**Proof.**  
+Initially no vertex is coloured, `allowed[v] = {1,2,3}` – the invariant holds.  
+Assume it holds before a recursive step.  
+When we assign colour `c` to vertex `v`, for each uncoloured neighbour `u`
+the colour `c` becomes impossible (otherwise `v` and `u` would share a shift).
+The algorithm removes exactly this bit from `allowed[u]`.  
+No other vertex is affected, therefore after the update the invariant still
+holds.  
+Undoing restores the removed bits, bringing the masks back to their previous
+state, thus the invariant is preserved also when backtracking. ∎
+
+
+
+##### Lemma 2  
+If `dfs` reaches the line *“every vertex is coloured”*,
+the current assignment is a valid shift allocation.
+
+**Proof.**  
+All vertices are coloured, and by Lemma&nbsp;1 each vertex received a colour
+that was still allowed at the moment of assignment, i.e. it does not clash
+with any already coloured neighbour. Because this holds for every vertex,
+no edge connects two vertices of the same colour. ∎
+
+
+
+##### Lemma 3  
+If a partial assignment can be extended to a full proper 3‑colouring,
+`dfs` never backtracks from the branch that follows this extension.
+
+**Proof.**  
+Consider a step where the algorithm chooses a vertex `v` and tries a colour
+`c` that belongs to some extendable full colouring `C`.  
+All neighbours of `v` that have colour `c` in `C` are uncoloured at this moment,
+otherwise `C` would already be invalid.  
+Consequently removing colour `c` from their `allowed` masks does **not**
+eliminate all possibilities for any neighbour (they still have the colour
+used in `C`). Hence the invariant of Lemma&nbsp;1 guarantees that after the
+update every still uncoloured vertex keeps at least one allowed colour,
+so the recursive call does not fail immediately.  
+Induction on the recursion depth shows that the whole branch following the
+choices of `C` never backtracks. ∎
+
+
+
+##### Lemma 4  
+If a proper 3‑colouring exists, `dfs` eventually finds one and returns success.
+
+**Proof.**  
+Take any proper 3‑colouring `C`.  
+At the root, the algorithm selects some vertex `v`.  
+If `C` colours `v` with colour `c`, the algorithm will try `c` among the at
+most three possibilities.  
+By Lemma&nbsp;3 the recursive call that follows colour `c` cannot be discarded
+by backtracking, because `C` is still compatible with the reduced problem.
+Repeating the argument for every deeper level, the recursion can follow the
+exact sequence of colours of `C` down to depth `n`.  
+At that leaf all vertices are coloured, Lemma&nbsp;2 shows the assignment is
+valid, and the function returns success. ∎
+
+
+
+##### Lemma 5  
+If `dfs` returns success, the produced assignment is a proper 3‑colouring.
+
+**Proof.**  
+Success is returned only when the base case “every vertex is coloured” is
+reached. By Lemma&nbsp;2 the assignment at that moment is proper. The algorithm
+does not modify colours afterwards, therefore the final output is proper. ∎
+
+
+
+##### Theorem  
+The program prints  
+
+* “YES” and a valid shift assignment **iff** such an assignment exists;  
+* otherwise prints “NO”.
+
+**Proof.**  
+
+*If part*:  
+Assume a valid assignment exists. By Lemma&nbsp;4 `dfs` finds one and returns
+success. The program prints “YES” and the assignment, which is valid by
+Lemma&nbsp;5.
+
+*Only‑if part*:  
+If the program prints “YES”, `dfs` succeeded, therefore by Lemma&nbsp;5 the
+printed assignment is a proper 3‑colouring, i.e. a feasible allocation.
+
+If the program prints “NO”, `dfs` explored the whole search space without
+finding a full colouring. If a feasible assignment existed, Lemma&nbsp;4 would
+guarantee that `dfs` finds it, contradiction. Hence no feasible assignment
+exists. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### Complexity Analysis  
+
+`n ≤ 40`.
+
+*Each recursive step*  
+
+* selects a vertex – `O(n)` scan,
+* iterates over its neighbours – `O(deg(v))`,
+* updates at most `deg(v)` masks (constant‑time bit operations).
+
+Overall work is proportional to the number of visited nodes in the search tree.
+In the worst case the tree size is `3^n`, but the strong pruning makes the
+practical number far smaller.  
+For the given limits the program runs well within 2 seconds.
+
+Memory consumption:
+
+* adjacency lists – `O(n + m) ≤ O(n²)`,
+* three integer arrays of length `n` – `O(n)`.
+
+All together far below the 256 MB limit.
+
+
+
+--------------------------------------------------------------------
+
+#### Reference Implementation  (Python 3)
+
+```python
+import sys
+
+sys.setrecursionlimit(10000)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        if u == v:
+            continue
+        adj[u].append(v)
+        adj[v].append(u)
+
+    # bit 0 -> colour 1, bit 1 -> colour 2, bit 2 -> colour 3
+    ALL = 0b111
+    allowed = [ALL] * n
+    col = [-1] * n          # -1 = uncoloured, otherwise 0,1,2
+
+    # ------------------------------------------------------------
+    def dfs() -> bool:
+        # find uncoloured vertex with fewest allowed colours
+        v = -1
+        min_cnt = 4
+        for i in range(n):
+            if col[i] == -1:
+                cnt = allowed[i].bit_count()
+                if cnt == 0:
+                    return False          # dead end
+                if cnt < min_cnt:
+                    min_cnt = cnt
+                    v = i
+                    if cnt == 1:
+                        break
+        if v == -1:                     # all coloured
+            return True
+
+        mask = allowed[v]
+        # try colours in order 0,1,2
+        for c in range(3):
+            bit = 1 << c
+            if mask & bit:
+                # assign colour c to v
+                col[v] = c
+                saved_allowed_v = allowed[v]
+                allowed[v] = bit          # keep only this colour for v
+
+                changed = []              # neighbours from which we removed the bit
+                for nb in adj[v]:
+                    if col[nb] == -1 and (allowed[nb] & bit):
+                        allowed[nb] &= ~bit
+                        changed.append(nb)
+
+                if dfs():
+                    return True
+
+                # undo
+                allowed[v] = saved_allowed_v
+                for nb in changed:
+                    allowed[nb] |= bit
+                col[v] = -1
+        return False
+    # ------------------------------------------------------------
+
+    possible = dfs()
+    out = []
+    if possible:
+        out.append("YES")
+        out.append(" ".join(str(col[i] + 1) for i in range(n)))
+    else:
+        out.append("NO")
+    sys.stdout.write("\n".join(out))
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above and conforms
+to the required input‑output format.

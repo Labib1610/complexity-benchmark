@@ -1,0 +1,105 @@
+import sys
+sys.setrecursionlimit(1 << 25)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    B = int(next(it))
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+
+    # find centroid
+    parent = [-1] * n
+    size = [0] * n
+    order = []
+
+    stack = [0]
+    parent[0] = -2
+    while stack:
+        v = stack.pop()
+        order.append(v)
+        for to in adj[v]:
+            if parent[to] == -1:
+                parent[to] = v
+                stack.append(to)
+    for v in reversed(order):
+        sz = 1
+        for to in adj[v]:
+            if to != parent[v]:
+                sz += size[to]
+        size[v] = sz
+
+    centroid = 0
+    for v in range(n):
+        max_part = n - size[v]
+        for to in adj[v]:
+            if to != parent[v]:
+                max_part = max(max_part, size[to])
+        if max_part <= n // 2:
+            centroid = v
+            break
+
+    # recompute parent/size rooted at centroid
+    parent = [-1] * n
+    size = [0] * n
+    order = []
+    stack = [centroid]
+    parent[centroid] = -2
+    while stack:
+        v = stack.pop()
+        order.append(v)
+        for to in adj[v]:
+            if parent[to] == -1:
+                parent[to] = v
+                stack.append(to)
+    for v in reversed(order):
+        sz = 1
+        for to in adj[v]:
+            if to != parent[v]:
+                sz += size[to]
+        size[v] = sz
+
+    # compute minimal possible sum = sum min(subtree, n-subtree)
+    min_sum = 0
+    for v in range(n):
+        if parent[v] >= 0:
+            s = size[v]
+            min_sum += min(s, n - s)
+
+    if B < min_sum:
+        print("NO")
+        return
+
+    # construct preorder positions
+    pos = [0] * n
+    cur = 1
+    stack = [(centroid, iter(adj[centroid]))]
+    visited = [False] * n
+    visited[centroid] = True
+    pos[centroid] = cur
+    cur += 1
+    while stack:
+        v, it_adj = stack[-1]
+        try:
+            to = next(it_adj)
+            if not visited[to]:
+                visited[to] = True
+                pos[to] = cur
+                cur += 1
+                stack.append((to, iter(adj[to])))
+        except StopIteration:
+            stack.pop()
+
+    print("YES")
+    print(' '.join(str(pos[i]) for i in range(n)))
+
+if __name__ == "__main__":
+    solve()

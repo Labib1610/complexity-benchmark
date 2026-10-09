@@ -1,0 +1,166 @@
+```python
+import sys
+
+# Increase recursion depth just in case
+sys.setrecursionlimit(100000)
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    adj_edges = [[] for _ in range(n + 1)]
+    edges = []
+    
+    idx = 2
+    for i in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx + 1])
+        idx += 2
+        edges.append((u, v))
+        adj_edges[u].append(i)
+        adj_edges[v].append(i)
+        
+    # Precompute edge adjacency: edge_neighbors[e] = list of edges sharing a vertex with e
+    edge_neighbors = [[] for _ in range(m)]
+    for e in range(m):
+        u, v = edges[e]
+        for ne in adj_edges[u]:
+            if ne != e:
+                edge_neighbors[e].append(ne)
+        for ne in adj_edges[v]:
+            if ne != e:
+                edge_neighbors[e].append(ne)
+                
+    # Domains: bitmask where 1=color 1, 2=color 2, 4=color 3
+    # domain[e] initially 7 (binary 111)
+    domain = [7] * m
+    assigned_color = [0] * m  # 1, 2, or 3
+    
+    popcount = [0, 1, 1, 2, 1, 2, 2, 3]
+    
+    def propagate(q, history):
+        while q:
+            e = q.pop()
+            mask = domain[e]
+            if mask == 0:
+                return False
+            # Determine color
+            if mask == 1:
+                c = 1
+            elif mask == 2:
+                c = 2
+            elif mask == 4:
+                c = 3
+            else:
+                continue
+                
+            c_mask = 1 << (c - 1)
+            inv_mask = 7 ^ c_mask
+            
+            for ne in edge_neighbors[e]:
+                d = domain[ne]
+                if d & c_mask:
+                    new_d = d & inv_mask
+                    if new_d == 0:
+                        return False
+                    history.append((ne, d))
+                    domain[ne] = new_d
+                    if popcount[new_d] == 1:
+                        q.append(ne)
+                        
+            # Hidden singles on adjacent vertices
+            u, v = edges[e]
+            for vert in (u, v):
+                inc = adj_edges[vert]
+                for color_bit in (1, 2, 4):
+                    count = 0
+                    last_e = -1
+                    for ie in inc:
+                        if domain[ie] & color_bit:
+                            count += 1
+                            last_e = ie
+                    if count == 0:
+                        return False
+                    elif count == 1:
+                        if domain[last_e] != color_bit:
+                            history.append((last_e, domain[last_e]))
+                            domain[last_e] = color_bit
+                            q.append(last_e)
+        return True
+
+    def backtrack():
+        # Find unassigned edge with minimum remaining domain size > 1
+        best_e = -1
+        min_size = 4
+        
+        for e in range(m):
+            sz = popcount[domain[e]]
+            if sz > 1:
+                if sz < min_size:
+                    min_size = sz
+                    best_e = e
+                    if sz == 2:
+                        break
+                        
+        if best_e == -1:
+            return True
+            
+        cur_domain = domain[best_e]
+        for color_bit in (1, 2, 4):
+            if cur_domain & color_bit:
+                history = []
+                history.append((best_e, domain[best_e]))
+                domain[best_e] = color_bit
+                
+                q = [best_e]
+                if propagate(q, history):
+                    if backtrack():
+                        return True
+                        
+                # Undo
+                for e, old_d in reversed(history):
+                    domain[e] = old_d
+                    
+        return False
+
+    # Initial propagation
+    q = []
+    # Check initial hidden singles if any
+    for vert in range(1, n + 1):
+        inc = adj_edges[vert]
+        for color_bit in (1, 2, 4):
+            count = 0
+            last_e = -1
+            for ie in inc:
+                if domain[ie] & color_bit:
+                    count += 1
+                    last_e = ie
+            if count == 1:
+                domain[last_e] = color_bit
+                q.append(last_e)
+                
+    init_history = []
+    if propagate(q, init_history) and backtrack():
+        ans = []
+        for e in range(m):
+            mask = domain[e]
+            if mask == 1:
+                ans.append(1)
+            elif mask == 2:
+                ans.append(2)
+            elif mask == 4:
+                ans.append(3)
+            else:
+                ans.append(1)
+        print("YES")
+        print(*(ans))
+    else:
+        print("NO")
+
+if __name__ == '__main__':
+    solve()
+```

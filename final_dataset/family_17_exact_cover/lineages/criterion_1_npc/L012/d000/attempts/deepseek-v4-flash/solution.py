@@ -1,0 +1,65 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.read().strip().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    q = int(next(it))
+    t = int(next(it))
+    triples = []
+    for _ in range(t):
+        a = int(next(it))
+        b = int(next(it))
+        c = int(next(it))
+        triples.append((a, b, c))
+    
+    # Map each gear to the triples that contain it
+    gear_to_triples = [[] for _ in range(3 * q + 1)]
+    for idx, (a, b, c) in enumerate(triples):
+        gear_to_triples[a].append(idx)
+        gear_to_triples[b].append(idx)
+        gear_to_triples[c].append(idx)
+    
+    used = [False] * t
+    chosen = []
+    remaining = set(range(1, 3 * q + 1))
+    
+    def backtrack():
+        if not remaining:
+            return True
+        # Pick the smallest remaining gear
+        gear = min(remaining)
+        # Try each triple containing this gear
+        for idx in gear_to_triples[gear]:
+            if used[idx]:
+                continue
+            a, b, c = triples[idx]
+            if a in remaining and b in remaining and c in remaining:
+                # Choose this triple
+                used[idx] = True
+                chosen.append((a, b, c))
+                remaining.remove(a)
+                remaining.remove(b)
+                remaining.remove(c)
+                
+                if backtrack():
+                    return True
+                
+                # Undo
+                remaining.add(a)
+                remaining.add(b)
+                remaining.add(c)
+                chosen.pop()
+                used[idx] = False
+        return False
+    
+    if backtrack():
+        print("YES")
+        for a, b, c in chosen:
+            print(a, b, c)
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()

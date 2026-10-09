@@ -1,0 +1,347 @@
+```python
+import sys
+import heapq
+import itertools
+from collections import deque
+
+sys.setrecursionlimit(1_000_000)
+
+
+def build_graph(n, edges, reverse=False):
+    adj = [[] for _ in range(n)]
+    pred = [[] for _ in range(n)]
+    pred_mask = [0] * n
+
+    for a, b in edges:
+        if reverse:
+            a, b = b, a
+        adj[a].append(b)
+        pred[b].append(a)
+        pred_mask[b] |= 1 << a
+
+    indeg = [len(pred[v]) for v in range(n)]
+    q = deque(v for v in range(n) if indeg[v] == 0)
+    topo = []
+
+    while q:
+        v = q.popleft()
+        topo.append(v)
+        for w in adj[v]:
+            indeg[w] -= 1
+            if indeg[w] == 0:
+                q.append(w)
+
+    if len(topo) != n:
+        return None
+
+    bottom = [1] * n
+    top = [1] * n
+
+    for v in topo:
+        tv = top[v] + 1
+        for w in adj[v]:
+            if top[w] < tv:
+                top[w] = tv
+
+    for v in reversed(topo):
+        if adj[v]:
+            bottom[v] = 1 + max(bottom[w] for w in adj[v])
+
+    return {
+        "adj": adj,
+        "pred": pred,
+        "pred_mask": pred_mask,
+        "topo": topo,
+        "bottom": bottom,
+        "top": top,
+    }
+
+
+def greedy_schedule(n, M, graph, mode):
+    adj = graph["adj"]
+    bottom = graph["bottom"]
+    top = graph["top"]
+    indeg = [len(graph["pred"][v]) for v in range(n)]
+
+    def key(v):
+        if mode == 0:
+            return (-bottom[v], -len(adj[v]), -top[v], v)
+        if mode == 1:
+            return (-bottom[v], -top[v], -len(adj[v]), v)
+        if mode == 2:
+            return (-len(adj[v]), -bottom[v], -top[v], v)
+        if mode == 3:
+            return (-bottom[v], top[v], -len(adj[v]), v)
+        if mode == 4:
+            x = (v * 1103515245 + 12345) & 0x7fffffff
+            return (-bottom[v], x, v)
+        x = (v * 2654435761 + 1013904223) & 0xffffffff
+        return (-len(adj[v]), -bottom[v], x, v)
+
+    heap = []
+    for v in range(n):
+        if indeg[v] == 0:
+            heapq.heappush(heap, key(v))
+
+    assignment = [0] * n
+    completed = 0
+    term = 0
+
+    while completed < n:
+        if not heap:
+            return None
+        term += 1
+        selected = []
+        for _ in range(min(M, len(heap))):
+            item = heapq.heappop(heap)
+            selected.append(item[-1])
+
+        newly_available = []
+        for v in selected:
+            assignment[v] = term
+            completed += 1
+            for w in adj[v]:
+                indeg[w] -= 1
+                if indeg[w] == 0:
+                    newly_available.append(w)
+
+        for v in newly_available:
+            heapq.heappush(heap, key(v))
+
+    return term, assignment
+
+
+def exact_schedule(n, M, T, graph):
+    adj = graph["adj"]
+    pred = graph["pred"]
+    pred_mask = graph["pred_mask"]
+    topo = graph["topo"]
+    bottom = graph["bottom"]
+
+    all_mask = (1 << n) - 1
+    dead = set()
+    chosen = {}
+    earliest = [0] * n
+
+    def density_check(rem_mask, R):
+        bs = []
+        x = rem_mask
+        while x:
+            bit = x & -x
+            v = bit.bit_length() - 1
+            if bottom[v] > R:
+                return False
+            bs.append(bottom[v])
+            x -= bit
+
+        bs.sort(reverse=True)
+        for i, b in enumerate(bs, 1):
+            if i > M * (R - b + 1):
+                return False
+
+        es = []
+        for v in topo:
+            if not ((rem_mask >> v) & 1):
+                continue
+            e = 1
+            for p in pred[v]:
+                if (rem_mask >> p) & 1:
+                    ep = earliest[p] + 1
+                    if ep > e:
+                        e = ep
+            earliest[v] = e
+            if e > R:
+                return False
+            es.append(e)
+
+        es.sort(reverse=True)
+        for i, e in enumerate(es, 1):
+            if i > M * (R - e + 1):
+                return False
+
+        return True
+
+    def dfs(done, term):
+        if done == all_mask:
+            return True
+
+        R = T - term + 1
+        if R <= 0:
+            return False
+
+        state = (done, term)
+        if state in dead:
+            return False
+
+        rem_mask = all_mask ^ done
+        remaining = rem_mask.bit_count()
+        if remaining > M * R:
+            dead.add(state)
+            return False
+
+        if not density_check(rem_mask, R):
+            dead.add(state)
+            return False
+
+        available = []
+        avail_mask = 0
+        x = rem_mask
+        while x:
+            bit = x & -x
+            v = bit.bit_length() - 1
+            if pred_mask[v] & rem_mask == 0:
+                available.append(v)
+                avail_mask |= bit
+            x -= bit
+
+        if not available:
+            dead.add(state)
+            return False
+
+        mandatory = []
+        for v in available:
+            if bottom[v] == R:
+                mandatory.append(v)
+
+        x = rem_mask
+        while x:
+            bit = x & -x
+            v = bit.bit_length() - 1
+            if bottom[v] == R and not (avail_mask & bit):
+                dead.add(state)
+                return False
+            x -= bit
+
+        if len(mandatory) > M:
+            dead.add(state)
+            return False
+
+        if len(available) <= M:
+            sel_mask = avail_mask
+            if dfs(done | sel_mask, term + 1):
+                chosen[state] = sel_mask
+                return True
+            dead.add(state)
+            return False
+
+        mandatory_set = set(mandatory)
+        optional = [v for v in available if v not in mandatory_set]
+        optional.sort(key=lambda v: (-bottom[v], -len(adj[v]), -graph["top"][v], v))
+
+        need = M - len(mandatory)
+        base_mask = 0
+        for v in mandatory:
+            base_mask |= 1 << v
+
+        for comb in itertools.combinations(optional, need):
+            sel_mask = base_mask
+            for v in comb:
+                sel_mask |= 1 << v
+            if dfs(done | sel_mask, term + 1):
+                chosen[state] = sel_mask
+                return True
+
+        dead.add(state)
+        return False
+
+    if not dfs(0, 1):
+        return None
+
+    assignment = [0] * n
+    done = 0
+    term = 1
+    while done != all_mask:
+        state = (done, term)
+        sel_mask = chosen[state]
+        x = sel_mask
+        while x:
+            bit = x & -x
+            v = bit.bit_length() - 1
+            assignment[v] = term
+            x -= bit
+        done |= sel_mask
+        term += 1
+
+    return assignment
+
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+
+    n, M, T, m = data[:4]
+    raw_edges = []
+    pos = 4
+    seen = set()
+
+    for _ in range(m):
+        a = data[pos] - 1
+        b = data[pos + 1] - 1
+        pos += 2
+        if a == b:
+            print("NO")
+            return
+        if (a, b) not in seen:
+            seen.add((a, b))
+            raw_edges.append((a, b))
+
+    if n > M * T:
+        print("NO")
+        return
+
+    forward = build_graph(n, raw_edges, False)
+    if forward is None:
+        print("NO")
+        return
+
+    if max(forward["bottom"], default=0) > T:
+        print("NO")
+        return
+
+    if not raw_edges:
+        assignment = [i // M + 1 for i in range(n)]
+        print("YES")
+        print(*assignment)
+        return
+
+    reverse = build_graph(n, raw_edges, True)
+
+    for graph, is_reverse in ((forward, False), (reverse, True)):
+        for mode in range(6):
+            result = greedy_schedule(n, M, graph, mode)
+            if result is None:
+                continue
+            length, assignment = result
+            if length <= T:
+                if is_reverse:
+                    assignment = [T + 1 - x for x in assignment]
+                print("YES")
+                print(*assignment)
+                return
+
+    forward_sources = sum(1 for v in range(n) if not forward["pred"][v])
+    reverse_sources = sum(1 for v in range(n) if not reverse["pred"][v])
+
+    if reverse_sources < forward_sources:
+        graph = reverse
+        is_reverse = True
+    else:
+        graph = forward
+        is_reverse = False
+
+    assignment = exact_schedule(n, M, T, graph)
+    if assignment is None:
+        print("NO")
+        return
+
+    if is_reverse:
+        assignment = [T + 1 - x for x in assignment]
+
+    print("YES")
+    print(*assignment)
+
+
+if __name__ == "__main__":
+    main()
+```

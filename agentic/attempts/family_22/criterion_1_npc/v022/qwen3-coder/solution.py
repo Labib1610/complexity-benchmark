@@ -1,0 +1,66 @@
+import sys
+from collections import defaultdict, deque
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    index = 0
+    n = int(data[index])
+    M = int(data[index+1])
+    T = int(data[index+2])
+    m = int(data[index+3])
+    index += 4
+    
+    # Build graph and in-degree count
+    graph = defaultdict(list)
+    in_degree = [0] * (n + 1)
+    
+    for _ in range(m):
+        a = int(data[index])
+        b = int(data[index+1])
+        graph[a].append(b)
+        in_degree[b] += 1
+        index += 2
+    
+    # Topological sort with Kahn's algorithm
+    queue = deque()
+    for i in range(1, n + 1):
+        if in_degree[i] == 0:
+            queue.append(i)
+    
+    order = []
+    while queue:
+        node = queue.popleft()
+        order.append(node)
+        for neighbor in graph[node]:
+            in_degree[neighbor] -= 1
+            if in_degree[neighbor] == 0:
+                queue.append(neighbor)
+    
+    if len(order) != n:
+        print("NO")
+        return
+    
+    # Assign days respecting topological order and capacity constraints
+    day_assignment = [0] * (n + 1)
+    day_count = [0] * (T + 1)
+    
+    for crate in order:
+        assigned = False
+        for d in range(1, T + 1):
+            if day_count[d] < M:
+                day_assignment[crate] = d
+                day_count[d] += 1
+                assigned = True
+                break
+        if not assigned:
+            print("NO")
+            return
+    
+    print("YES")
+    print(' '.join(map(str, day_assignment[1:])))
+
+if __name__ == "__main__":
+    main()

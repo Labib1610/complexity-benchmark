@@ -1,0 +1,247 @@
+```python
+import sys
+
+def solve():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+
+    k, t = data[0], data[1]
+    triples = []
+    incidence = [0] * (3 * k)
+    xy_edges = [0] * (k * k)
+    xz_edges = [0] * (k * k)
+    yz_edges = [0] * (k * k)
+
+    pos = 2
+    for eid in range(t):
+        x = data[pos] - 1
+        y = data[pos + 1] - 1
+        z = data[pos + 2] - 1
+        pos += 3
+
+        triples.append((x, y, z))
+        bit = 1 << eid
+        incidence[x] |= bit
+        incidence[k + y] |= bit
+        incidence[2 * k + z] |= bit
+        xy_edges[x * k + y] |= bit
+        xz_edges[x * k + z] |= bit
+        yz_edges[y * k + z] |= bit
+
+    if t == 0:
+        print("NO")
+        return
+
+    for edge_set in incidence:
+        if edge_set == 0:
+            print("NO")
+            return
+
+    conflict = [0] * t
+    vertices = [None] * t
+    for eid, (x, y, z) in enumerate(triples):
+        vx, vy, vz = x, k + y, 2 * k + z
+        vertices[eid] = (vx, vy, vz)
+        conflict[eid] = incidence[vx] | incidence[vy] | incidence[vz]
+
+    all_vertices = (1 << (3 * k)) - 1
+    all_edges = (1 << t) - 1
+    part_mask = (1 << k) - 1
+
+    def bipartite_possible(pair_sets, rem_a, rem_b, active):
+        rows = []
+        ma = rem_a
+        while ma:
+            lb = ma & -ma
+            a = lb.bit_length() - 1
+            ma ^= lb
+
+            adj = 0
+            mb = rem_b
+            base = a * k
+            while mb:
+                cb = mb & -mb
+                b = cb.bit_length() - 1
+                mb ^= cb
+                if pair_sets[base + b] & active:
+                    adj |= cb
+
+            if adj == 0:
+                return False
+            rows.append((adj.bit_count(), adj))
+
+        rows.sort()
+        match = [-1] * k
+
+        def augment(row_adj, seen):
+            options = row_adj & ~seen[0]
+            while options:
+                bit = options & -options
+                options ^= bit
+                c = bit.bit_length() - 1
+                seen[0] |= bit
+                old = match[c]
+                if old == -1 or augment(rows_adj[old], seen):
+                    match[c] = current_row[0]
+                    return True
+            return False
+
+        rows_adj = [adj for _, adj in rows]
+
+        for r in range(len(rows_adj)):
+            current_row[0] = r
+            if not augment(rows_adj[r], [0]):
+                return False
+        return True
+
+    # Mutable holder used by the augmenting-path routine.
+    current_row = [0]
+
+    # Replace the matching routine with one that safely carries row identities.
+    def bipartite_possible(pair_sets, rem_a, rem_b, active):
+        row_adjs = []
+        ma = rem_a
+        while ma:
+            lb = ma & -ma
+            a = lb.bit_length() - 1
+            ma ^= lb
+
+            adj = 0
+            mb = rem_b
+            base = a * k
+            while mb:
+                cb = mb & -mb
+                b = cb.bit_length() - 1
+                mb ^= cb
+                if pair_sets[base + b] & active:
+                    adj |= cb
+
+            if adj == 0:
+                return False
+            row_adjs.append(adj)
+
+        row_adjs.sort(key=int.bit_count)
+        match = [-1] * k
+
+        def augment(r, seen):
+            options = row_adjs[r] & ~seen
+            while options:
+                bit = options & -options
+                options ^= bit
+                c = bit.bit_length() - 1
+                old = match[c]
+                if old == -1 or augment(old, seen | bit):
+                    match[c] = r
+                    return True
+            return False
+
+        for r in range(len(row_adjs)):
+            if not augment(r, 0):
+                return False
+        return True
+
+    failed = set()
+    failed_limit = 1_000_000
+    answer = []
+
+    sys.setrecursionlimit(10000)
+
+    def dfs(active, uncovered, depth):
+        if uncovered == 0:
+            return True
+
+        covered = all_vertices ^ uncovered
+        if covered in failed:
+            return False
+
+        min_count = t + 1
+        chosen_vertex = -1
+
+        uv = uncovered
+        while uv:
+            bit = uv & -uv
+            v = bit.bit_length() - 1
+            uv ^= bit
+            count = (incidence[v] & active).bit_count()
+            if count == 0:
+                if len(failed) < failed_limit:
+                    failed.add(covered)
+                return False
+            if count < min_count:
+                min_count = count
+                chosen_vertex = v
+                if count == 1:
+                    break
+
+        if depth % 2 == 0:
+            rem_x = uncovered & part_mask
+            rem_y = (uncovered >> k) & part_mask
+            rem_z = (uncovered >> (2 * k)) & part_mask
+
+            if not bipartite_possible(xy_edges, rem_x, rem_y, active):
+                if len(failed) < failed_limit:
+                    failed.add(covered)
+                return False
+            if not bipartite_possible(xz_edges, rem_x, rem_z, active):
+                if len(failed) < failed_limit:
+                    failed.add(covered)
+                return False
+            if not bipartite_possible(yz_edges, rem_y, rem_z, active):
+                if len(failed) < failed_limit:
+                    failed.add(covered)
+                return False
+
+        candidates_mask = incidence[chosen_vertex] & active
+
+        if min_count <= 32:
+            candidates = []
+            cm = candidates_mask
+            while cm:
+                bit = cm & -cm
+                eid = bit.bit_length() - 1
+                cm ^= bit
+                remaining_count = (active & ~conflict[eid]).bit_count()
+                candidates.append((-remaining_count, eid))
+            candidates.sort()
+            candidate_ids = [eid for _, eid in candidates]
+        else:
+            candidate_ids = None
+
+        if candidate_ids is not None:
+            iterator = candidate_ids
+        else:
+            iterator = []
+            cm = candidates_mask
+            while cm:
+                bit = cm & -cm
+                cm ^= bit
+                iterator.append(bit.bit_length() - 1)
+
+        for eid in iterator:
+            vx, vy, vz = vertices[eid]
+            new_uncovered = uncovered & ~(1 << vx) & ~(1 << vy) & ~(1 << vz)
+            new_active = active & ~conflict[eid]
+
+            answer.append(eid)
+            if dfs(new_active, new_uncovered, depth + 1):
+                return True
+            answer.pop()
+
+        if len(failed) < failed_limit:
+            failed.add(covered)
+        return False
+
+    if not dfs(all_edges, all_vertices, 0):
+        print("NO")
+        return
+
+    out = ["YES"]
+    for eid in answer:
+        x, y, z = triples[eid]
+        out.append(f"{x + 1} {y + 1} {z + 1}")
+    sys.stdout.write("\n".join(out))
+
+if __name__ == "__main__":
+    solve()
+```

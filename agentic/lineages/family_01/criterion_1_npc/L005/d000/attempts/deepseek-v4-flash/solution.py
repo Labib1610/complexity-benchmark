@@ -11,27 +11,27 @@ def solve():
         adj[u].append(v)
         adj[v].append(u)
 
-    colors = [0] * n
+    color = [0] * n
 
-    def backtrack(idx):
-        if idx == n:
+    def backtrack(node):
+        if node == n:
             return True
-        for c in range(1, 4):
+        for c in (1, 2, 3):
             ok = True
-            for nb in adj[idx]:
-                if colors[nb] == c:
+            for nb in adj[node]:
+                if color[nb] == c:
                     ok = False
                     break
             if ok:
-                colors[idx] = c
-                if backtrack(idx + 1):
+                color[node] = c
+                if backtrack(node + 1):
                     return True
-                colors[idx] = 0
+                color[node] = 0
         return False
 
     if backtrack(0):
         print("YES")
-        print(" ".join(map(str, colors)))
+        print(" ".join(map(str, color)))
     else:
         print("NO")
 

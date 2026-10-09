@@ -1,0 +1,134 @@
+We can model this as a **2-SAT** problem.  
+
+Each actuator variable \( x_i \) can be `True` (1) or `False` (0).  
+Each cross-bar is a clause of three literals, where a positive linkage `a` means literal \( x_a \), and a negative linkage `-a` means literal \( \neg x_a \).  
+We need all clauses to be satisfied.
+
+Since each clause has exactly 3 literals, we can convert each 3-literal clause into 2-SAT form using auxiliary variables, or we can use a direct approach:  
+For a clause \((l_1 \lor l_2 \lor l_3)\), it is false only when all three literals are false.  
+We can encode this as:  
+\[
+(\neg l_1 \rightarrow l_2) \lor l_3
+\]
+But that’s not directly 2-SAT.  
+
+However, we can use the standard reduction:  
+For each clause \((a \lor b \lor c)\), introduce a new variable \(v\) and add these 2-SAT clauses:  
+\[
+(a \lor v), \quad (b \lor v), \quad (c \lor \neg v)
+\]
+This works because:
+- If \(v\) is true, then \(a\) or \(b\) must be true.
+- If \(v\) is false, then \(c\) must be true.
+Thus the original clause is satisfied.
+
+We can then solve the 2-SAT instance with implication graph and SCC.
+
+Let’s implement this.
+
+```python
+import sys
+sys.setrecursionlimit(1000000)
+
+def solve():
+    input_data = sys.stdin.read().strip().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    # We'll have n original variables, plus m auxiliary variables (one per clause)
+    # Variable indexing: 0..n-1 for original, n..n+m-1 for aux
+    total_vars = n + m
+    # 2-SAT: each variable x has two nodes: 2*x (False) and 2*x+1 (True)
+    N = 2 * total_vars
+    g = [[] for _ in range(N)]
+    gr = [[] for _ in range(N)]
+    
+    def add_imp(u, v):
+        # u -> v
+        g[u].append(v)
+        gr[v].append(u)
+    
+    def add_clause(a, b):
+        # (a or b)
+        # ~a -> b, ~b -> a
+        add_imp(a ^ 1, b)
+        add_imp(b ^ 1, a)
+    
+    for i in range(m):
+        l1 = int(next(it))
+        l2 = int(next(it))
+        l3 = int(next(it))
+        
+        # Convert literal to node index
+        def lit_node(lit):
+            var = abs(lit) - 1
+            if lit > 0:
+                return 2 * var + 1  # True
+            else:
+                return 2 * var      # False
+        
+        a = lit_node(l1)
+        b = lit_node(l2)
+        c = lit_node(l3)
+        
+        aux = n + i
+        # aux variable: 2*aux (False), 2*aux+1 (True)
+        v_true = 2 * aux + 1
+        v_false = 2 * aux
+        
+        # (a or v_true)
+        add_clause(a, v_true)
+        # (b or v_true)
+        add_clause(b, v_true)
+        # (c or v_false)
+        add_clause(c, v_false)
+    
+    # Kosaraju SCC
+    visited = [False] * N
+    order = []
+    
+    def dfs1(u):
+        visited[u] = True
+        for w in g[u]:
+            if not visited[w]:
+                dfs1(w)
+        order.append(u)
+    
+    for i in range(N):
+        if not visited[i]:
+            dfs1(i)
+    
+    comp = [-1] * N
+    def dfs2(u, cid):
+        comp[u] = cid
+        for w in gr[u]:
+            if comp[w] == -1:
+                dfs2(w, cid)
+    
+    cid = 0
+    for u in reversed(order):
+        if comp[u] == -1:
+            dfs2(u, cid)
+            cid += 1
+    
+    # Check satisfiability
+    for i in range(total_vars):
+        if comp[2*i] == comp[2*i+1]:
+            print("NO")
+            return
+    
+    # Assign values
+    assignment = [False] * total_vars
+    for i in range(total_vars):
+        # In Kosaraju, comp id order: if comp[2*i] > comp[2*i+1] then True
+        assignment[i] = comp[2*i] > comp[2*i+1]
+    
+    print("YES")
+    print(" ".join('1' if assignment[i] else '0' for i in range(n)))
+
+if __name__ == "__main__":
+    solve()
+```

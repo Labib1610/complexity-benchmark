@@ -1,0 +1,1040 @@
+Let me analyze this problem carefully.
+
+We have an n×n matrix A, initially identity. Then m symmetric updates add 1 to A_{u,v} and A_{v,u} for pairs (u,v). Since pairs are distinct, each off-diagonal entry A_{u,v} is either 0 or 1 (well, A_{u,v} = A_{v,u} = 1 if the pair was updated, else 0). Diagonal entries are all 1.
+
+We need to find a binary vector x with exactly k ones such that x^T A x = k.
+
+Let's compute x^T A x. The diagonal contributes sum of x_i^2 = sum of x_i = k (since x_i ∈ {0,1}). The off-diagonal part: x^T A x = sum_{i,j} x_i A_{i,j} x_j = sum_i x_i^2 A_{i,i} + sum_{i≠j} x_i A_{i,j} x_j.
+
+Since A is symmetric, sum_{i≠j} x_i A_{i,j} x_j = 2 * sum_{i<j} x_i A_{i,j} x_j.
+
+So x^T A x = k + 2 * (number of edges (u,v) in the graph G — where edges are the updated pairs — with both endpoints selected).
+
+We need x^T A x = k, which means the number of edges with both endpoints in the selected set S must be 0. In other words, S must be an independent set in the graph G (the graph formed by the m update pairs), with |S| = k.
+
+So the problem reduces to: given a graph with n ≤ 46 vertices and m edges, find an independent set of size exactly k, or report NO if none exists.
+
+This is the classic maximum independent set problem, solvable with meet-in-the-middle for n ≤ 46 (actually n ≤ 40 is standard for the meet-in-the-middle with 2^(n/2), but n = 46 means halves of size 23 each, 2^23 = 8.4M... that's a lot for Python).
+
+Hmm, n ≤ 46, so halves of 23 each. 2^23 = 8,388,608. In Python, iterating over 8M subsets with bit operations would be slow but maybe feasible within 5 seconds? Let's think.
+
+Actually, there's a better approach. We need an independent set of size exactly k. We can use the standard "maximum independent set via complement graph cliques" or the branch-and-bound / greedy with bitset approach.
+
+Alternative: The classic algorithm for maximum independent set in a graph with n vertices uses recursion with bitmasks: pick a vertex v, branch on including v (then remove v and its neighbors) or excluding v. With pruning (if current + remaining ≤ best, prune), this is quite fast in practice. But worst case could be exponential.
+
+Actually, there's a well-known polynomial-ish approach for this specific problem size: meet in the middle for maximum independent set. Let me think about the standard approach:
+
+Split vertices into two halves L and R (sizes n1, n2). For each independent subset S_R of R, compute its size. For each independent subset S_L of L, we need to know the maximum size independent subset of R that avoids N(S_L) ∩ R (the neighbors of S_L in R). 
+
+Standard technique: For each subset T of R, precompute maxInd[T] = maximum size of an independent set of R contained in T (i.e., R \ T is excluded... wait let me define: f[T] = maximum independent set size using only vertices in T ⊆ R). This is computed via f[T] = f[T \ {v}] or 1 + f[T \ N[v]] where v is the lowest bit of T. This table has 2^23 entries — 8.4M. In Python, computing this table with a loop over 8.4M subsets... each iteration doing bit operations. That's maybe 8-15 seconds in pure Python. Hmm, tight but time limit is 5s. Might be too slow.
+
+But wait — we don't need the full table if we're smart. We need: does there exist an independent set of size exactly k?
+
+Alternative approach: Since we need size exactly k, and k could be small... Hmm, but k can be up to n.
+
+Let me think about the structure. Actually, let me think about a different angle: we need an independent set of size k in a graph with n ≤ 46 vertices. 
+
+Hmm, one classic result: maximum independent set can be found in O(2^(n/2)) time and space, or with the "branch and reduce" algorithm which is fast in practice. For n=46, branch-and-reduce with good pruning (degree-based, folding, etc.) is typically very fast. But adversarial cases could be hard.
+
+Actually wait — there's a subtlety. The problem says "The input will never list the same pair of indices more than once." So the graph is simple. n ≤ 46, m ≤ n(n-1)/2 ≤ 1035.
+
+Let me think about the meet-in-the-middle more carefully with Python performance in mind.
+
+n ≤ 46. Split into halves: first n1 = n//2 vertices (say vertices 0..n1-1) and remaining n2 = n - n1 vertices. With n = 46, n1 = 23, n2 = 23. 2^23 = 8.4M.
+
+Approach 1 (full table on one half):
+- Compute for the right half R (n2 vertices): table f of size 2^n2 where f[T] = max independent set size within T.
+- Enumerate all independent subsets S_L of L. For each, the available vertices in R are R \ N(S_L). Then best total = |S_L| + f[R \ N(S_L)]. Check if ≥ k... but we need exactly k. Hmm, if max independent set ≥ k, can we always find one of size exactly k? Yes! Any subset of an independent set is independent. So if the maximum independent set has size ≥ k, then an independent set of size exactly k exists (take any k vertices of the maximum independent set). 
+
+So the problem reduces to: find the maximum independent set size α(G). If α(G) ≥ k, output any k vertices from a maximum independent set. Otherwise NO.
+
+Great, that simplifies things — we just need the maximum independent set (or at least one of size ≥ k, but computing max is the standard approach).
+
+Meet-in-the-middle for max independent set:
+- f[T] for T ⊆ R: f[0] = 0; for T ≠ 0, let v = lowest set bit of T: f[T] = max(f[T \ {v}], 1 + f[T \ (N[v] ∩ R)]) where N[v] includes v itself. Actually f[T \ {v}] covers excluding v, and 1 + f[T \ N[v]] covers including v. This is correct.
+
+Memory: 2^23 = 8.4M entries. If stored as a Python list of small ints, that's ~67MB+ for the list (8.4M pointers × 8 bytes = 67MB) plus small ints are cached (0..256), so fine. Actually a list of 8.4M elements: the list itself is 8.4M × 8 bytes ≈ 67 MB. Memory limit is 256 MB. Should be OK. Could also use bytearray (8.4MB) since max independent set size ≤ 23 < 256. That's much better: bytearray of size 2^23.
+
+But computing f requires iterating over all 2^23 subsets. In pure Python, a loop of 8.4M iterations with bit operations... each iteration: extract lowest bit (T & -T), index to find vertex (need bit->vertex mapping; can precompute via a dict or via (lbit.bit_length()-1)), compute neighbor masks, do list lookups, max, store. That's maybe 10-15 operations per iteration → 8.4M × ~1μs+ = probably 10-20 seconds. Too slow for 5s limit in CPython... Hmm.
+
+Wait, but actually there's a smarter way to compute f using the structure: f[T] can be computed in a different order. Actually, there's a classic trick: instead of computing f for all subsets, we can enumerate independent sets of L and for each, we need f on a specific mask. Alternatively:
+
+Approach 2: Enumerate independent subsets of each half explicitly (not all subsets). The number of independent subsets could still be large (e.g., empty graph on 23 vertices → 2^23 = 8.4M independent subsets). Hmm, same issue.
+
+But wait — for the empty graph case, the answer is trivially YES (α = n ≥ k always since k ≤ n). Hmm, but we need a general algorithm.
+
+Let me think about the branch-and-bound approach instead, which is typically much faster in practice:
+
+Standard MIS algorithm with bitmasks:
+```
+def solve(P):  # P = bitmask of candidate vertices
+    if P == 0: return 0
+    # pruning: if |current| + popcount(P) <= best: return
+    # pick vertex v in P (e.g., one with max degree in P)
+    # branch: include v → 1 + solve(P ∩ ~N[v])
+    #         exclude v → solve(P \ {v})
+```
+
+With good pruning this handles n=46 easily for most graphs. Worst-case hard instances for MIS branch-and-bound are things like random graphs around density ~0.5 or specific hard instances... For n=46, even worst cases are usually manageable. Actually, for maximum independent set, the branch-and-bound with "max degree vertex" branching has worst case O(1.38^n) or so with simple rules, but with better reductions it's much better. 1.38^46 ≈ 3.7M... hmm, that could be slow in Python if hit.
+
+Hmm, but actually there's a classic better approach for this problem size: since we need to compare against k, we can use the "branch and bound with bound" where we only need to determine if α ≥ k. 
+
+Alternatively, think about it differently: we need an independent set of size k. There's a classic result: a graph on n vertices with small m has large independent set (Turán / Caro-Wei bound). α ≥ n/(d_avg+1) ≥ n²/(2m+n). If this bound ≥ k, we can find one greedily... but greedy doesn't guarantee achieving the Caro-Wei bound exactly. Hmm, actually greedy (repeatedly pick min-degree vertex and remove it and its neighbors) achieves at least the Caro-Wei bound? Let me recall: the Caro-Wei bound α ≥ Σ 1/(d(v)+1) is achieved by... hmm, greedy min-degree achieves at least Σ_v 1/(d(v)+1) where degrees are in the original graph? I recall that the greedy algorithm that picks a vertex of minimum degree, includes it, and removes its neighbors gives an independent set of size at least Σ 1/(d(v)+1)? Actually I think that's true for the randomized algorithm and also for min-degree greedy. Let me not rely on this.
+
+Let me think about the structure of hard cases. n ≤ 46. The meet-in-the-middle is the guaranteed approach. The question is Python performance.
+
+Alternative meet-in-the-middle formulation that avoids the full 2^23 table:
+
+For max independent set via MITM:
+- Let L = first half, R = second half.
+- Enumerate all independent subsets of L: for each, we have (size s, mask of forbidden vertices in R: F = N(S_L) ∩ R).
+- We want max over pairs (S_L, S_R) of |S_L| + |S_R| where S_R independent in R and S_R ∩ F = ∅.
+- Equivalently: for each independent S_R in R with mask M_R, we want max |S_L| over S_L with N(S_L) ∩ M_R = ∅, i.e., S_L ⊆ L \ N(M_R).
+
+Define g[T] for T ⊆ L: max size of independent subset of L contained in T. Then answer = max over independent S_R of (|S_R| + g[L \ N(S_R)]).
+
+The table g has 2^23 entries again. Same problem.
+
+Hmm, but here's a trick: we don't need g for all T; we only need g[L \ N(S_R)] for independent sets S_R of R. The number of independent sets of R can be up to 2^23 anyway (empty graph). But in the empty graph case, g is trivial...
+
+Alternatively, we can flip: define the problem as finding max over independent S_L of (|S_L| + f[R \ N(S_L)]) where f is the table for R. We need f evaluated at points R \ N(S_L) for each independent S_L of L. The number of distinct evaluation points is at most the number of independent sets of L, which is at most 2^23.
+
+Hmm. What if we compute f lazily with memoization? The number of distinct masks R \ N(S_L) — in the worst case (empty graph on L side... then only one mask). Actually the masks R \ N(S_L) form a set closed under... hmm, N(S_L ∪ S'_L) = N(S_L) | N(S'_L), so the set of masks {R \ N(S_L)} is closed under AND. The number of such masks could still be large.
+
+Let me think about the actual worst case for Python performance. n=46, both halves 23. Full table of 2^23 with a tight loop. Let me estimate more carefully.
+
+In CPython, a simple loop like:
+```python
+for T in range(1, 1 << n2):
+    v = (T & -T).bit_length() - 1
+    f[T] = max(f[T ^ (1 << v)], f[T & ~nbr[v]] + 1)
+```
+Each iteration: T & -T (fast), bit_length (method call, ~100ns), list indexing ×3, max of two ints, store. Roughly 0.5-1 μs per iteration in CPython. 8.4M iterations → 4-8 seconds. Too risky for a 5s limit. Hmm.
+
+Can we vectorize with numpy? Let's think. f[T] = max(f[T without lowest bit], 1 + f[T & ~N[v]]) where v = lowest bit of T.
+
+Hmm, this recurrence has dependencies that make vectorization tricky but maybe doable by processing in a specific order... Actually, here's a thought: process by lowest bit. For each vertex v, all T whose lowest bit is v: T = (1<<v) | S where S ⊆ {v+1, ..., n2-1}. f[T] = max(f[S], 1 + f[(S & ~N[v]) | ... wait, T & ~N[v] where N[v] includes v and neighbors of v. T & ~N[v] = ((1<<v) | S) & ~N[v] = S & ~N[v] (since bit v is cleared by ~N[v] as v ∈ N[v]). So f[T] = max(f[S], 1 + f[S & ~N[v]]).
+
+So for fixed v, over all S ⊆ {v+1,...}: f[(1<<v)|S] = max(f[S], 1 + f[S & ~N_v]) where N_v = N[v] restricted to bits > v.
+
+With numpy: we could iterate v from 0 to n2-1, and for each v, process all S in a vectorized manner. The set of S ranges over 2^(n2-1-v) values. For v=0: 2^22 = 4.2M values. Total work Σ 2^(n2-1-v) ≈ 2^23. But with numpy, each v-step is vectorized:
+
+For v fixed, we need arrays indexed by S over bits {v+1,...,n2-1}. Hmm, but f is indexed by full masks. Let me think of a cleaner vectorization.
+
+Alternative: think of f as computed via a different recurrence that's more numpy-friendly. 
+
+Actually, here's a classic alternative: f[T] (max independent set in induced subgraph T) satisfies f[T] = f[T \ {v}] or 1 + f[T \ N[v]] for any v ∈ T. If we always choose v = highest bit, similar structure.
+
+Numpy vectorization idea: Let's define the array f of size 2^n2 as a numpy array (dtype uint8). Process vertices v = 0, 1, ..., n2-1 in order. Claim: after processing vertex v, f[T] is correct for all T ⊆ {0,...,v} (masks using only bits 0..v). 
+
+Initialize f[0] = 0, and f[T] = 0 for all T? Hmm, let me think. Let's define f_v[T] = max independent set size in T ∩ {0..v} using the induced subgraph. Then f_{v}[T] = max(f_{v-1}[T], 1 + f_{v-1}[T & ~N[v]]) for T containing bit v... and f_v[T] = f_{v-1}[T] for T not containing bit v.
+
+Hmm, this is like a DP over subsets which is hard to vectorize directly because T & ~N[v] for all T simultaneously... Actually that IS vectorizable! For all T simultaneously: f_new = f_old.copy(); then for all T with bit v set: f_new[T] = max(f_old[T], 1 + f_old[T & ~N_v_full]).
+
+The issue: "for all T with bit v set" — we can view the array as blocks. For bit v, the array of size 2^n2 splits into 2^v blocks of size 2^(n2-v), where within each block, the first half has bit v = 0 and second half has bit v = 1. So indices with bit v set: T = B | (1<<v) | S where B ⊆ {v+1,...} and S ⊆ {0,...,v-1}.
+
+f_new[B | (1<<v) | S] = max(f_old[B | (1<<v) | S], 1 + f_old[B | (1<<v) | S & ~N[v]]).
+
+Hmm wait, but this isn't quite the right recurrence. Let me redo it.
+
+Actually the recurrence f[T] = max(f[T \ {v}], 1 + f[T \ N[v]]) requires f to be already computed for the smaller sets. If I process vertices in order v = 0, 1, ..., and maintain the invariant that f[T] is correct for all T ⊆ {0,...,v-1} (i.e., masks not using bits ≥ v)... hmm, but T \ N[v] can have bits above v.
+
+Let me reconsider. Standard approach: f[T] where v = lowest bit of T. f[T] = max(f[T \ {v}], 1 + f[T \ N[v]]). Both T \ {v} and T \ N[v] have lowest bit > v (well, T \ {v} has lowest bit > v since v was the lowest; T \ N[v] ⊆ T \ {v} so also lowest bit > v... wait no: T \ N[v] removes v and its neighbors, all of which... hmm, neighbors of v could be any bits. T \ N[v] ⊆ T \ {v}, and T \ {v} has all bits > v, so T \ N[v] also has all bits > v. Yes.)
+
+So f[T] for T with lowest bit v depends only on f values at masks with lowest bit > v. So we can compute in order of... any topological order where masks with higher lowest-bit come first. E.g., process masks in increasing order of integer value? If T1 < T2 as integers, is lowest-bit(T1) ≥ lowest-bit(T2)? No. E.g., T1 = 4 (lowest bit 2), T2 = 5 (lowest bit 0). T1 < T2 but lowest bit of T1 is higher. Hmm, so increasing integer order doesn't work directly. But decreasing order of... hmm.
+
+Alternative: order by lowest bit descending: all masks with lowest bit n2-1 (just {1<<(n2-1)}), then lowest bit n2-2, etc. Within the numpy array indexed 0..2^n2-1, masks with lowest bit ≥ v are exactly masks T with T & ((1<<v)-1) == 0, i.e., T = B << v... these are multiples of 2^v: T ∈ {0, 2^v, 2·2^v, ...}. Hmm.
+
+Let me think of the vectorized computation differently. Process v from n2-1 down to 0. Maintain array f indexed by all 2^n2 masks, where after processing step v, f[T] is correct for all T whose lowest set bit is ≥ v (and f[0] = 0). Initially (before any processing), only f[0] correct. 
+
+At step v: for all masks T with lowest bit exactly v: T = (1<<v) | S, S ⊆ {v+1, ..., n2-1}. f[T] = max(f[S], 1 + f[S & ~N_v]) where N_v = N[v] (mask including v and neighbors). Note S and S & ~N_v both have lowest bit > v, so they're already computed. 
+
+Vectorized over all S ⊆ {v+1,...,n2-1}: there are 2^(n2-1-v) such S. For each v, we do a numpy operation over an array of size 2^(n2-1-v). Total: Σ_v 2^(n2-1-v) ≈ 2^(n2-1) + ... ≈ 2^n2. But each step is a separate numpy call with fancy indexing. The fancy indexing: we need f[S] for all S in some enumeration, and f[S & ~N_v]. 
+
+Hmm, how to enumerate S ⊆ {v+1,...,n2-1} and map to indices? The masks T = (1<<v) | S. In the array of size 2^n2, these are at positions... Let me think of the array as indexed by (high bits, bit v, low bits): index = H · 2^(v+1) + (1<<v) + L where H ⊆ {v+1,...} (as bits above v) and L ⊆ {0,...,v-1}. But S ⊆ {v+1,...} means L = 0. So T = H·2^(v+1) + 2^v where H ranges over 0..2^(n2-v-1)-1. So positions T = 2^v + H·2^(v+1) for H = 0, 1, ..., 2^(n2-v-1)-1. That's a strided slice: f[2^v :: 2^(v+1)] — a slice with step 2^(v+1), giving exactly the masks with bit v set and no bits below v. 
+
+And S = T - 2^v = H·2^(v+1) → positions S = 0 + H·2^(v+1): slice f[0 :: 2^(v+1)].
+
+And S & ~N_v: S has bits only in {v+1,...}. N_v has bit v and some bits in {v+1,...} (neighbors above v) and possibly bits below v (neighbors below v — but those don't matter since S has no bits below v). So S & ~N_v = S & ~N_v_high where N_v_high = N_v & ~((1<<(v+1))-1) restricted... Let me define M = N_v | ((1<<v)-1) — mask of v, neighbors of v, and all bits below v. Then S & ~M = S with neighbors of v (above v) removed. Positions: (H & ~h_v) · 2^(v+1) where h_v = M >> (v+1) (bits of neighbors above v, shifted down). So f[S & ~M] = f[0::2^(v+1)] indexed by (H & ~h_v).
+
+So the vectorized step:
+```python
+stride = 1 << (v+1)
+base = f[0 : None : stride]  # view, length 2^(n2-v-1), indexed by H
+# f[T] for T = 2^v + H*stride:
+f[2^v :: stride] = np.maximum(base, base[H_masked] + 1)  # where H_masked = H & ~h_v
+```
+Wait, base[H_masked] requires fancy indexing with an array H_masked = np.arange(len) & ~h_v. We can precompute arange once and mask per v. Fancy indexing on 4.2M elements for v=0... total across all v: Σ 2^(n2-1-v) ≈ 2^n2 elements of fancy indexing work ≈ 8.4M element gathers. Numpy handles ~100M ops/sec for fancy indexing, so ~0.1-0.5s total. 
+
+But wait — there's a subtlety: the recurrence f[T] = max(f[S], 1 + f[S & ~N_v]) — is this valid? f[T] = max independent set in T. Standard recurrence: either v not in the set → f[T \ {v}] = f[S]; or v in the set → 1 + f[T \ N[v]] = 1 + f[S & ~N_v]. Yes, valid.
+
+But hold on: when I process v from high to low, at step v I write f[T] for all T with lowest bit v. These writes use f at masks with lowest bit > v, which were written at steps v+1, ..., n2-1. But those steps wrote only masks with lowest bit exactly v+1, etc. What about masks with lowest bit > v that... all masks with lowest bit exactly w (w > v) were written at step w. And f[0] = 0 initially. So yes, all needed values are available. 
+
+But there's another subtlety: at step v, the slice f[0::stride] — does it contain the correct values for masks S = H·stride (lowest bit ≥ v+1)? These were written at steps v+1..n2-1 at positions that are multiples of 2^(v+1)... yes, positions H·2^(v+1) for various H. At step w > v, we wrote positions 2^w + H'·2^(w+1). Is 2^w + H'·2^(w+1) a multiple of 2^(v+1)? 2^w + H'·2^(w+1) = 2^w(1 + 2H') — since w ≥ v+1, 2^w is divisible by 2^(v+1). Yes. Good.
+
+Also initial values: f initialized to 0 everywhere. For masks never written (those with... every nonzero mask has a lowest bit, so every mask gets written exactly once, at step = its lowest bit). f[0] = 0. Good.
+
+Hmm wait, but actually there's an issue: at step v, we read f[0::stride] (values at S) — but S ranges over all masks with bits ≥ v+1, i.e., all multiples of 2^(v+1). These were all written at steps w > v (if nonzero) or are 0 (if zero). Correct.
+
+And we read base[H & ~h_v]·stride... wait I need to be careful: f[S & ~M] where S = H·2^(v+1). S & ~M = (H & ~h_v)·2^(v+1) where h_v = (M >> (v+1))... let me double check: M includes bits 0..v (all of them) plus neighbors of v above v. S & ~M: S's bits above v, minus neighbors of v. S = H·2^(v+1) means bits of H shifted up by v+1. So S & ~M = (H & ~h_v)·2^(v+1) where h_v = (M >> (v+1)). Yes.
+
+So:
+```python
+for v in range(n2-1, -1, -1):
+    stride = 1 << (v+1)
+    M = nbr_mask[v] | ((1 << v) - 1)  # v, neighbors, and all lower bits
+    h = M >> (v+1)
+    H = arange  # 0..2^(n2-v-1)-1
+    src = f[0::stride]  # view
+    vals = np.maximum(src, src[H & ~h] + 1)
+    f[1<<v :: stride] = vals
+```
+Wait, but `src` is a view into f, and we're writing to f[1<<v::stride] which is a different view (different positions, since positions with bit v set vs. not set are disjoint). But `vals` is computed from `src` before writing, so no aliasing issue as long as we compute vals first (numpy will materialize src[H & ~h] + 1 into a new array). Actually `np.maximum(src, src[H & ~h] + 1)` creates a new array. Then assigning to f[1<<v::stride] — the source positions (multiples of stride) and destination positions (2^v + multiples of stride) are disjoint. Fine.
+
+Hmm wait, but there's still a correctness concern: the recurrence requires f[S] to be the max independent set of S. But at step v, when we compute f[T] for T with lowest bit v, we use f[S] where S = T \ {v}. S has lowest bit ≥ v+1, computed at earlier steps. ✓. And f[S & ~M] ⊆ S. ✓.
+
+But actually wait, I realize the recurrence as I've set it up processes each mask exactly once (at its lowest bit step), and the values it reads are final. But is the recurrence f[T] = max(f[T\{v}], 1+f[T\N[v]]) with v = lowest bit correct? Yes, standard.
+
+Hmm, but hold on: is it true that after all steps, f[T] is correct for ALL T? Each T ≠ 0 is written at step v = lowest bit of T, using correct inputs. By induction on lowest bit: masks with lowest bit n2-1: only T = 2^(n2-1), f = max(f[0], 1+f[0]) = 1. ✓. Then inductively correct. 
+
+So the full table f over 2^n2 masks can be computed with n2 numpy operations. Total memory: 2^23 bytes = 8.4MB for uint8. 
+
+Then, enumerate independent subsets S_L of L. For each, compute avail = R_mask_all & ~N(S_L) (restricted to R bits), and candidate = |S_L| + f[avail]. Track max and also record the actual S_L achieving it, then reconstruct S_R from avail via... hmm, reconstruction: we need the actual independent set in R, not just its size. 
+
+Reconstruction: given the mask T = avail (the available vertices in R), find an independent set of size f[T] in T. We can do this by walking the recurrence: v = lowest bit of T; if f[T] == f[T \ {v}] then exclude v, T = T\{v}; else include v, T = T & ~N[v]. This walk is O(n2) steps. Easy.
+
+But enumerating all independent subsets of L: how many? Up to 2^23 = 8.4M in the worst case (L independent, empty graph on L). Enumerating them in Python loop: 8.4M iterations → too slow again?
+
+Hmm. But wait: if L has no internal edges, then... we could handle it differently. Let me think about what we actually need: max over independent S_L of (|S_L| + f[R \ N(S_L)]).
+
+Alternative: define g[T] for T ⊆ L: max over independent S ⊆ T of (|S| + f[R \ N(S)]). Hmm, that's a different DP: g[T] = max(g[T \ {v}], 1 + f[R \ N(S)... no wait, N(S) depends on the whole set S, not just v. Hmm: g[T] = max over independent S ⊆ T of (|S| + f[R_all \ N(S)]). Recurrence on lowest bit v of T: either S doesn't contain v: g[T\{v}]; or S contains v: S = {v} ∪ S', S' ⊆ T \ N[v] independent, value = 1 + |S'| + f[R_all \ (N(v) | N(S'))]. Hmm, that's 1 + (|S'| + f[(R_all \ N(v)) \ N(S')]) = 1 + g'[T \ N[v]] where g' is the same DP but with R_all replaced by R_all \ N(v). So the DP needs the R-mask as part of the state. That's g[T][Rmask] — too much.
+
+OK here's the thing. Let me reconsider. The standard MITM for MIS:
+
+max over independent S_L of (|S_L| + f[R \ N(S_L)]).
+
+We can compute this as another DP over subsets of L! Define h[T] = max over independent S ⊆ T of (|S| + f[R \ N(S)]). Hmm, as noted, when we add vertex v to S, the available R set shrinks by N(v). So define the DP with state = (subset of L processed)... 
+
+Alternative formulation: h[T] = max over independent S ⊆ T of (|S| + f[R \ N(S)]). Recurrence with v = highest bit of T: S either excludes v: h[T \ {v}], or includes v: 1 + max over independent S' ⊆ T \ N[v] of (|S'| + f[(R \ N(v)) \ N(S')]). The inner max is like h but with R replaced by R \ N(v). So define h_w[T] = max over independent S ⊆ T of (|S| + f[R_w \ N(S)]) where R_w is some R-mask... but R_w depends on the set of chosen vertices, so we'd need h as function of both T and the accumulated neighbor mask. Not a clean DP.
+
+OK, different approach: just enumerate independent sets of L. But do it efficiently.
+
+Observation: the number of independent sets of L is at most 2^|L|, and equals 2^|L| only when L has no edges. In the worst case (empty graph on L), we have 8.4M independent sets, but then f[R \ N(S_L)] = f[R] for all S_L (no neighbors), so the answer is |L| + f[R] achieved at S_L = L. More generally, when L is sparse, there are many independent sets but the function is "smooth"...
+
+Hmm, let me think about whether we can avoid enumerating all independent sets of L. 
+
+Alternative: swap roles. Compute the full table f for the half with FEWER independent sets? No wait, we need the table over one half and enumeration over the other. The table computation is over all 2^n2 subsets (vectorized, fast). The enumeration is over independent sets of L (potentially 2^n1, slow in Python loop).
+
+Hmm, what if we make the enumeration vectorized too? Enumerating independent sets vectorized... 
+
+Alternative idea: compute a second table! Define F[T] for T ⊆ L: F[T] = max over independent S ⊆ T of (|S| + f[R \ N(S)]). Wait, I showed this doesn't decompose nicely because N(S) isn't additive... but wait, actually let me redo this. 
+
+F[T] = max over independent S ⊆ T of (|S| + f[R \ N(S)]).
+
+Take v = lowest bit of T. Case 1: v ∉ S: F[T \ {v}]. Case 2: v ∈ S: S = {v} ∪ S', S' independent ⊆ T \ N[v]. Value = 1 + |S'| + f[R \ N(v) \ N(S')].
+
+Hmm, define F_M[T] = max over independent S ⊆ T of (|S| + f[M \ N(S)]) for a mask M ⊆ R. Then case 2 gives 1 + F_{M \ N(v)}[T \ N[v]]. So F_M[T] = max(F_M[T\{v}], 1 + F_{M \ N(v)}[T \ N[v]]). The state includes M, which changes. Number of distinct M values reachable: M = R \ (union of N(v) for v in some independent set). Could be many. Not a clean polynomial DP. 
+
+OK here's another thought. Let's just think about the sizes more cleverly. n ≤ 46. What if we split unevenly: make the "table" half bigger and the "enumeration" half smaller? The table is vectorized (fast), the enumeration is a Python loop (slow). Enumeration over independent sets of L where |L| = n1. If n1 = 16, enumeration ≤ 65536 iterations — fast. Table over R with n2 = 30: 2^30 = 1 billion entries — way too much memory. No good.
+
+Hmm. So we need the enumeration to handle up to 2^23 independent sets. Can we vectorize the enumeration of independent sets of L, or find a smarter formulation?
+
+Alternative: Note that max over independent S_L of (|S_L| + f[R \ N(S_L)]) — we can compute this with a DP over subsets of L where the state is just the subset of L, if we restructure: 
+
+Define d[T] for T ⊆ L: d[T] = max over independent S ⊆ T of (|S| + f[R \ N(S)]). Hmm same thing.
+
+What about: define e[T] = max over independent S with N(S) ∩ ... hmm.
+
+Let me think again. Actually, here's a cleaner way to think: the answer α(G) = max over S_L independent of (|S_L| + α(G[R \ N(S_L)])).
+
+Alternatively: α(G) = max over subsets X ⊆ R of (α(G[L \ N(X)]) + |X|) for X independent in R. Symmetric.
+
+Hmm, what about a different decomposition: for each subset M ⊆ R (not just independent sets), define p[M] = max over independent S ⊆ L with N(S) ∩ M = ∅... no wait.
+
+Let me think about: q[M] for M ⊆ R: q[M] = max over independent S ⊆ L \ N(M) of |S|. I.e., q[M] = α(G[L] restricted to L \ N(M)) = α(G[L \ N(M)]). Then answer = max over independent X ⊆ R of (|X| + q[N(X)]).
+
+Hmm, and q[M] = α(L \ N(M)) — this is a max-independent-set table on the L side, evaluated at masks L \ N(M). The set of masks {L \ N(M) : M independent in R} — again up to 2^23 distinct.
+
+But here's the thing: computing the full table for L (call it fL[T] = α(G[T]) for T ⊆ L) is vectorized and fast (same numpy trick). Then answer = max over independent X ⊆ R of (|X| + fL[L \ N(X)]). Still need to enumerate independent X ⊆ R. Same problem.
+
+Hmm OK so the crux: enumerate up to 2^23 independent sets and for each do O(1) work — in Python, that's too slow if done in a pure loop. Can we vectorize the enumeration of independent sets?
+
+Vectorized enumeration of independent sets: The set of independent sets of a graph H on n1 vertices. One way: DP where we build the list incrementally: start with [0]; for each vertex v, new_list = list + [s | (1<<v) for s in list if s & N(v) == 0]. This builds all independent sets. The final list can have up to 2^23 elements. Building it with list comprehensions: total work Σ over vertices of current list size ≈ could be up to 2^24 operations of Python-level work. Hmm, 16M Python operations ≈ 10+ seconds. Too slow.
+
+But with numpy: represent independent sets as an array of uint64 (or uint32) masks. Start: arr = np.array([0], dtype=np.int64). For each vertex v: candidates = arr[arr & N_v == 0] | (1 << v); arr = np.concatenate([arr, candidates]). Each step is vectorized. Total elements processed: Σ_i (size after i steps) ≤ 2^24 element-ops across all steps, in numpy that's fast (~0.1-0.5s). Memory: final array up to 8.4M × 8 bytes = 67MB. Plus intermediate copies — concatenate doubles... peak maybe 100-150MB. Hmm, within 256MB but tight. Could use uint32 (n1 ≤ 23 bits fits): 8.4M × 4 = 33MB. Better.
+
+Then, for each independent set S_L in the array, compute avail = R_full & ~N(S_L) — but N(S_L) as a function of S_L: we need, for each mask S_L, the union of neighbors in R. That's another DP: nbrR[S] = union of N_R(v) for v ∈ S. Vectorized: build alongside: nbrR_arr = np.array([0]); for each v: new = nbrR_arr[arr & N_v == 0] | N_R(v); nbrR_arr = concat. Same structure. Then avail = R_full & ~nbrR_arr (vectorized), then values = popcount(S_L) + f[avail] (vectorized gather from f table — fancy indexing with 8.4M indices: fine, ~0.5s maybe). Then max.
+
+Wait, but actually we can simplify: instead of tracking nbrR separately, note that when we add vertex v to an independent set S (with S & N_L(v) == 0), the new neighbor mask in R is nbrR(S) | N_R(v). So we track pairs (mask, nbrR_mask). Both arrays of size up to 2^23. Memory: 2 arrays × 33MB (uint32) = 67MB, plus f table 8.4MB, plus temporaries. Should be OK.
+
+Hmm wait, but actually there's an even simpler approach: we don't need to enumerate independent sets of L at all if we use a different MITM formulation!
+
+Classic MITM for MIS (from literature, e.g., "Exact maximum independent set" by Kojevnikov et al., or the standard 2^(n/2) algorithm):
+
+Actually, the standard approach IS: table over one half + enumeration over the other. But there's a neater way:
+
+For each subset T ⊆ R, f[T] = α(G[T]) (max independent set within T). Then define for the L side: we want max over independent S ⊆ L of (|S| + f[R \ N_R(S)]).
+
+Alternatively define: for each subset U ⊆ L, let w[U] = max over independent S ⊆ U of |S| = α(G[U]) — that's the same kind of table, fL. And note: max over independent S ⊆ L of (|S| + f[R \ N_R(S)])... the issue is coupling.
+
+Hmm, what about this: g[T] for T ⊆ R: g[T] = max over independent S ⊆ L \ N(T) of |S| = fL[L \ N(T)]. Then answer = max over independent X ⊆ R of (|X| + g[N(X)])... still needs enumeration of independent X ⊆ R and evaluation of g at N(X) points. But g[T] = fL[L \ N(T)] — computing g for ALL T ⊆ R requires 2^23 evaluations of fL at points L \ N(T) — vectorizable! g = fL[L_full & ~N(T)] for all T — but N(T) for all T ⊆ R: that's a table nbr[T] = union of N_L(v) for v ∈ T, over all T ⊆ R. Computing nbr[T] for all 2^23 T: recurrence nbr[T] = nbr[T \ {v}] | N_L(v) with v = lowest bit. Vectorized similar to before? Hmm: nbr[(1<<v) | S] = nbr[S] | N_L(v) for S ⊆ {v+1,...}. With the same slicing trick: nbr[2^v::2^(v+1)] = nbr[0::2^(v+1)] | N_L(v)_shifted... wait, careful: nbr is indexed by masks over R-vertices, and N_L(v) is a mask over L-vertices. So nbr[T] is an L-mask (up to 23 bits). Store as uint32 array of size 2^23. The vectorized step: nbr[2^v :: stride] = nbr[0::stride] | N_L_v. That's just a shifted OR — very fast, no fancy indexing needed!
+
+Then g[T] = fL[L_full & ~nbr[T]] — vectorized gather: 2^23 gathers. Then answer = max over independent X ⊆ R of (|X| + g[N(X)])... hmm wait, no. Let me redo.
+
+Hmm, I conflated things. Let me restate cleanly.
+
+Vertices split: L (n1 vertices), R (n2 vertices). For S ⊆ L independent, X ⊆ R independent, S ∪ X independent iff N_R(S) ∩ X = ∅ (no edges within L or within R violated, and no cross edges between S and X).
+
+α(G) = max over independent S ⊆ L of (|S| + α(G[R \ N_R(S)])) = max over independent S ⊆ L of (|S| + f[R_full \ N_R(S)]).
+
+So I need: for each independent S ⊆ L, the value |S| + f[R_full \ N_R(S)]. 
+
+Now, here's a trick to avoid enumerating independent sets of L: 
+
+max over independent S ⊆ L of (|S| + f[R_full \ N_R(S)]) 
+= max over independent S ⊆ L of (|S| + max over independent X ⊆ R \ N_R(S) of |X|)
+= max over (independent S ⊆ L, independent X ⊆ R, N_R(S) ∩ X = ∅) of (|S| + |X|)
+= max over independent X ⊆ R of (|X| + max over independent S ⊆ L \ N_L(X) of |S|)
+= max over independent X ⊆ R of (|X| + fL[L_full \ N_L(X)]).
+
+Symmetric. Either way, we enumerate independent sets on one side and evaluate a full table on the other side at points determined by the enumerated sets.
+
+Now the question: can we compute max over independent S ⊆ L of (|S| + f[R_full \ N_R(S)]) without enumerating independent sets of L, using full tables?
+
+Define for T ⊆ R: h[T] = max over independent S ⊆ L with N_R(S) ⊆ T... hmm, i.e., S's R-neighbors all inside T. Then answer = max over T ⊆ R of (h[T] + f[R_full \ T])? Because for independent S with N_R(S) = T', pairing with X ⊆ R \ T'. So answer = max over independent S of (|S| + f[R_full \ N_R(S)]) = max over T ⊆ R of (h[T] + f[R_full \ T]) where h[T] = max{|S| : S independent ⊆ L, N_R(S) ⊆ T}. Hmm wait, need N_R(S) ⊆ T exactly or ⊆? If N_R(S) ⊆ T then R_full \ T ⊆ R_full \ N_R(S), so f[R_full \ T] ≤ f[R_full \ N_R(S)]. So max over T of (h[T] + f[R_full\T]) ≤ answer? Let's see: for the optimal S with N_R(S) = T', h[T'] ≥ |S| and f[R_full \ T'] is exactly the match, so max over T ≥ |S| + f[R_full \ T'] = answer. And conversely, for any T and S with N_R(S) ⊆ T: |S| + f[R_full \ T] ≤ |S| + f[R_full \ N_R(S)] ≤ answer. So equality holds. 
+
+So answer = max over T ⊆ R of (h[T] + f[R \ T]) where h[T] = max{|S| : S independent in L, N_R(S) ⊆ T}.
+
+Now, can we compute h[T] for all T ⊆ R efficiently? h[T] = α(G[L \ N_L(R \ T)])... wait: S must avoid... hmm, N_R(S) ⊆ T means S contains no vertex with an R-neighbor outside T, i.e., S ⊆ L \ {u ∈ L : N_R(u) ⊄ T} = L \ N_L(R \ T). And S must be independent in L. So h[T] = fL[L_full & ~N_L(R \ T)] where N_L(Y) = union of L-neighbors of vertices in Y ⊆ R.
+
+So h[T] = fL[L_full & ~nbrL[R_full \ T]] where nbrL[Y] = ∪_{v ∈ Y} N_L(v).
+
+Computing nbrL[Y] for all Y ⊆ R: vectorized as described (uint32 array over 2^n2, shifted ORs). Then h[T] = fL[L_full & ~nbrL_complement...] — for each T, we need nbrL[R_full \ T]. Note that as T ranges over all subsets, R_full \ T also ranges over all subsets. So define array A[Y] = nbrL[Y] for Y ⊆ R (computed via vectorized DP). Then answer = max over T of (fL[L_full & ~A[R_full \ T]] + f[R_full \ T]) = max over Y ⊆ R of (fL[L_full & ~A[Y]] + f[R_full \ Y]).
+
+So: answer = max over Y ⊆ R of (fL[L_full & ~A[Y]] + f[R_full \ Y]).
+
+All quantities are full tables over 2^n2 (for the Y index) with vectorized computation:
+1. f table over R: f[T] = α(G[T]) for T ⊆ R — computed via the vectorized lowest-bit DP. (n2 numpy steps)
+2. fL table over L: fL[T] = α(G[T]) for T ⊆ L — same vectorized DP, size 2^n1. (n1 numpy steps)
+3. A table over R: A[Y] = ∪_{v ∈ Y} N_L(v) — vectorized shifted-OR DP, size 2^n2, values are L-masks (uint32).
+4. Compute vals[Y] = fL[L_full & ~A[Y]] + f[R_full \ Y] for all Y — vectorized: gather fL at indices (L_full & ~A[Y]) — fancy indexing 2^n2 gathers; f[R_full \ Y] — this is f indexed by reversed... R_full \ Y = R_full XOR Y (since Y ⊆ R): f[R_full ^ Y] — that's a gather too, or we can compute f_rev = f[R_full ^ arange] once... Actually f[R_full \ Y]: as Y ranges over all subsets of R in order, R_full \ Y = R_full ^ Y ranges in "bit-reversed-ish" order — it's just f evaluated at R_full ^ Y. We can create an array fcomp where fcomp[Y] = f[R_full ^ Y] via fcomp = f[R_full ^ arange_all] (one big gather, 8.4M elements — fine).
+
+Then answer = max(vals). All vectorized! Total numpy work: a few passes over 8.4M-element arrays. Should run in ~1-2 seconds. Memory: f (uint8, 8.4MB), fL (uint8, 8.4MB), A (uint32, 33MB), plus temporaries for gathers (fL_gathered: need fL[L_full & ~A[Y]] — the index array L_full & ~A[Y] is uint32 33MB, the gathered values uint8 8.4MB). Total well under 256MB. 
+
+But wait — we also need to RECONSTRUCT the actual independent set of size ≥ k (we need to output k vertices). Reconstruction from tables:
+
+We found answer = α(G) ≥ k (or < k → NO). To reconstruct: find the Y* achieving the max. Then S_L is a max independent set of G[L_full & ~A[Y*]] — wait, h[T] with T = R_full \ Y*: S_L = max independent set in L_full & ~A[Y*] (since N_R(S_L) ⊆ R_full \ Y*... hmm wait let me recheck the correspondence).
+
+Let me recheck: answer = max over Y ⊆ R of (fL[L_full & ~A[Y]] + f[R_full \ Y]). Hmm wait, I had answer = max over T of (h[T] + f[R_full \ T]) with h[T] = fL[L_full & ~N_L(R_full \ T)]. Setting Y = R_full \ T: answer = max over Y of (fL[L_full & ~N_L(Y)] + f[Y]) = max over Y of (fL[L_full & ~A[Y]] + f[Y]).
+
+Wait, f[R_full \ T] = f[Y]. And h[T] = fL[L_full & ~A[R_full \ T]] = fL[L_full & ~A[Y]]. Yes. So:
+
+answer = max over Y ⊆ R of ( fL[L_full & ~A[Y]] + f[Y] ).
+
+Interpretation: Y is the part of the independent set in R (f[Y] = α(G[Y]) — max independent set within Y), and the L part must avoid N_L(Y) — cross edges — and be independent within L: fL[L_full & ~A[Y]]. 
+
+So reconstruction: find Y* = argmax. Then X_R = max independent set in G[Y*] (reconstruct via walking the f recurrence). Then S_L = max independent set in G[L_full & ~A[Y*]] (reconstruct via walking fL recurrence). Then S_L ∪ X_R is a maximum independent set of G. Verify: S_L independent in L ✓, X_R independent in R ✓, no cross edges: S_L ⊆ L \ N_L(Y*)... wait, S_L ⊆ L_full & ~A[Y*] means S_L avoids all L-neighbors of vertices in Y*. Cross edges between S_L and X_R ⊆ Y*: any edge (u ∈ S_L, w ∈ X_R ⊆ Y*) would mean u ∈ N_L(w) ⊆ A[Y*], contradiction. ✓. And |S_L| + |X_R| = fL[...] + f[Y*] = α(G). ✓.
+
+But hold on — is it guaranteed that α(G) = max over Y of (fL[L\A[Y]] + f[Y])? Let me re-derive directly: For any independent set I of G, let X_R = I ∩ R, Y* = X_R... hmm wait, in the formula, Y is the R-part. I ⊇ X_R ⊆ Y where... Let me verify both directions:
+
+Direction 1 (≤): For any Y ⊆ R, fL[L \ A[Y]] + f[Y] is achieved by an actual independent set: take X_R = max ind. set in G[Y], S_L = max ind. set in G[L \ A[Y]]. As shown, S_L ∪ X_R is independent in G. So fL[...] + f[Y] ≤ α(G). ✓.
+
+Direction 2 (≥): Take I a maximum independent set, X_R = I ∩ R, S_L = I ∩ L. Set Y = X_R. Then S_L ⊆ L \ A[X_R]? Need: no u ∈ S_L with u ∈ A[X_R] = N_L(X_R). If u ∈ S_L ∩ N_L(X_R), there's w ∈ X_R with edge (u,w) — but both in I, contradiction. ✓. So S_L independent ⊆ L \ A[Y], giving fL[L \ A[Y]] ≥ |S_L|; and f[Y] ≥ α(G[Y]) ≥ |X_R| (X_R independent ⊆ Y). So fL[...] + f[Y] ≥ |S_L| + |X_R| = α(G). ✓.
+
+So the formula is correct. And it's fully vectorized. 
+
+Now, the split: n ≤ 46. We need 2^n1 and 2^n2 sized tables. To balance, n1 = n//2, n2 = n - n1. For n = 46: n1 = 23, n2 = 23. Tables of size 2^23 = 8.4M. For odd n, e.g., n = 45: n1 = 22, n2 = 23. Fine.
+
+Hmm wait, but actually, which side should be bigger? The A-table and f-table are over R (size 2^n2), fL over L (size 2^n1). The heavy operations (A table as uint32, gathers) are over the R side. So maybe make n2 the smaller half? The gathers are over 2^n2 elements. Let's set n2 = n//2 (smaller or equal), n1 = n - n2. For n=46: n1=23, n2=23. For n=45: n1=23, n2=22. OK either way, max table size 2^23.
+
+Wait, actually, hmm, but there's an important consideration: the f table DP (vectorized lowest-bit recurrence) — let me double check the numpy slicing approach works when n2 is the table size.
+
+Actually hold on. Let me reconsider whether we even need this heavy machinery. n ≤ 46 and we need MIS. Alternative: branch and bound might just be fast enough for all test cases, and much simpler. But worst-case risk... The problem is from some contest ("Problem A — Sparse Bilinear Form"); test data might include hard MIS instances (e.g., random graphs with n=46 at critical density, or structured hard instances). With a 5-second limit and Python, branch-and-bound could TLE on adversarial data. The MITM approach is guaranteed O(2^(n/2)) with vectorization — much safer. Let me go with MITM + numpy.
+
+But wait — what if numpy isn't available? The problem says Python 3; typically numpy is available on competitive judges (Codeforces has it). This looks like it might be from a specific contest... "Problem A — Sparse Bilinear Form" with n ≤ 46 — this smells like it's designed for meet-in-the-middle MIS (n ≤ 40ish typical; 46 with 5s limit). I'll assume numpy is available. But let me also consider a pure-Python fallback... Actually, let me think about whether pure Python could work within 5s.
+
+Pure Python MITM: 2^23 table DP loop — ~8.4M iterations, each with several ops. In CPython, that's likely 8-20 seconds. Too slow. PyPy would fly but we must assume CPython. So numpy it is. Alternatively, I could write the solution to try numpy and fall back to a pure-Python branch-and-bound if numpy is unavailable. That's a nice safety net. But the fallback might TLE anyway on hard cases... Let me think about what's most robust.
+
+Actually, let me reconsider: maybe there's a smarter pure-Python approach exploiting problem structure? Hmm, the graph is arbitrary (m up to ~1000 edges, any simple graph on 46 vertices). So no structural guarantees. MIS on 46 vertices. 
+
+Hmm, one more thought: maybe branch and bound in pure Python with bit tricks is actually fine? The number of branching nodes for MIS with good pruning on n=46... For random graphs G(46, 1/2), α ≈ 2 log2(46) ≈ 11.3, and branch-and-bound with max-degree branching and bound pruning typically explores maybe thousands to millions of nodes. Hard instances at n=46 exist but contest test data probably isn't adversarial against a specific algorithm... risky. 
+
+I'll go with numpy MITM as primary. Let me also implement a pure-Python fallback (branch and bound) in case numpy import fails — best effort.
+
+Hmm, wait. Actually, let me reconsider the problem constraints once more: n ≤ 46, m ≤ n(n-1)/2. Time 5s. This is clearly a meet-in-the-middle MIS problem (classic: "find independent set of size k" with n ≤ ~40-64). The intended solution is MITM. In C++ it's trivial. In Python, we need the vectorized approach.
+
+Let me now carefully design the numpy solution.
+
+Setup:
+- Read n, m, k.
+- Read edges, build adjacency bitmasks adj[i] (over all n vertices), 0-indexed vertices.
+- If k... note k ≥ 1 and k ≤ n.
+- Split: L = vertices [0, n1), R = vertices [n1, n). n1 = n // 2? Or n1 = (n+1)//2? Let me decide: tables over R: f (uint8, 2^n2), A (uint32, 2^n2), plus gathers over 2^n2. Tables over L: fL (uint8, 2^n1). To minimize the biggest table, n1 and n2 as equal as possible. Let me put n2 = n // 2 (R smaller or equal), n1 = n - n2 ≥ n2. Then biggest table is 2^n1 for fL... hmm, both tables matter. For n=46: both 23. For n=45: n1=23, n2=22 → fL table 2^23, f/A tables 2^22. Alternatively n1=22, n2=23. Either way max is 2^23. Fine, just pick n1 = n - n//2 = ceil(n/2), n2 = n//2.
+
+Hmm wait, actually let me reconsider: the A-table is uint32 (4 bytes × 2^n2), the gathers are over 2^n2 elements. The fL table is uint8 (2^n1). The fL DP is over 2^n1 with n1 steps. To balance memory: A-table dominates: 4·2^n2 bytes. For n=46, n2=23: 33.5MB. OK.
+
+Actually, wait. Let me reconsider — maybe I can avoid the A-table (uint32) entirely! Note:
+
+answer = max over Y ⊆ R of ( fL[L_full & ~A[Y]] + f[Y] ).
+
+Alternative: enumerate over T ⊆ L instead? By symmetry: answer = max over S ⊆ L of ( f[R_full & ~B[S]] + fL[S] ) where B[S] = ∪_{u∈S} N_R(u) (R-masks). Same structure. Either way one side needs the "neighbor-union" table.
+
+Hmm, is there a way to compute max over Y of (fL[L_full & ~A[Y]] + f[Y]) without materializing A for all Y? 
+
+Alternative: note that L_full & ~A[Y] — as Y increases (more vertices), A[Y] grows, so L_full & ~A[Y] shrinks. Hmm.
+
+Alternative approach via a different DP: define over subsets of R: best[Y] = max over independent S ⊆ L with N_R(S) ∩ Y = ∅ of |S|... that's fL[L_full & ~B[Y]] where B[Y] = N_L(Y) — same as A but with L/R roles swapped in meaning. Hmm: fL[L_full & ~A[Y]] where A[Y] = N_L(Y) = union of L-neighbors of Y's vertices. Yes that's what A is.
+
+OK so we need, for all Y ⊆ R, the value N_L(Y) (an L-mask). The vectorized computation: A[0] = 0; for v ∈ R (bit position j = v - n1 in the R-mask): A[masks with lowest R-bit j] = A[masks without bit j] | N_L(v). Using the slicing trick:
+
+For j from n2-1 down to 0:
+  stride = 1 << (j+1)
+  A[1<<j :: stride] = A[0 :: stride] | N_L(v_j)
+
+Wait, need to double check the direction of processing. The recurrence: A[Y] for Y with lowest bit j: A[Y] = A[Y \ {v_j}] | N_L(v_j). Y \ {v_j} has lowest bit > j. So process j from high to low: when processing j, A at masks with lowest bit > j are already computed. Masks with lowest bit > j are exactly multiples of 2^(j+1). ✓. So:
+
+```python
+A = np.zeros(1 << n2, dtype=np.uint32)
+for j in range(n2-1, -1, -1):
+    stride = 1 << (j+1)
+    v = n1 + j
+    nl = N_L(v)  # L-mask of neighbors of v that are in L
+    if nl:
+        A[1<<j :: stride] = A[0 :: stride] | np.uint32(nl)
+    else:
+        A[1<<j :: stride] = A[0 :: stride]
+```
+Hmm wait, but A[0::stride] at the time of processing j — does it contain correct values for all masks that are multiples of 2^(j+1)? Those masks have lowest bit ≥ j+1, computed at steps j+1, ..., n2-1 (or are 0). ✓. And we write to positions 2^j + multiples of 2^(j+1) — masks with lowest bit exactly j. ✓. 
+
+Wait, but there's an ordering issue within the loop: at step j, we read A[0::stride] (positions 0, stride, 2·stride, ...) and write A[2^j::stride] (positions 2^j, stride + 2^j, ...). These position sets are disjoint. ✓. And the read positions were finalized at previous steps. ✓.
+
+Hmm, wait, actually there's a subtle issue: at step j, positions that are multiples of 2^(j+1) — were they ALL written at previous steps? A mask Y that is a multiple of 2^(j+1) and nonzero has lowest bit ≥ j+1, so it was written at step (its lowest bit) which is > j, i.e., already processed. ✓. And Y=0: A[0] = 0 initially, correct (empty union). ✓.
+
+Great, that works. Similarly for the f tables:
+
+f[T] = α(G[T]) for T ⊆ R (R-internal edges only). DP: for T ≠ 0, v = lowest bit: f[T] = max(f[T \ {v}], 1 + f[T \ N[v]]).
+
+Vectorized (processing j = R-bit position from n2-1 down to 0):
+```python
+f = np.zeros(1 << n2, dtype=np.uint8)  # f[0] = 0
+for j in range(n2-1, -1, -1):
+    stride = 1 << (j+1)
+    v = n1 + j
+    Nv = adj[v] restricted to R bits, plus bit j itself: nbr_in_R[v] | (1<<j)
+    # f[T] for T = 2^j + H*stride: max(f[H*stride], 1 + f[(H*stride) & ~Nv])
+    src = f[0::stride]  # view, f at masks H*stride
+    # masks (H*stride) & ~Nv: since H*stride has bits ≥ j+1, and Nv has bit j and possibly bits above j (neighbors in R above v) and below j (neighbors below — irrelevant):
+    # (H*stride) & ~Nv = (H & ~h) * stride where h = Nv >> (j+1)
+    idx = H_arr[:len] & ~h   # H_arr = arange over 0..2^(n2-j-1)-1
+    f[1<<j :: stride] = np.maximum(src, src[idx] + 1)
+```
+Wait: src[idx] — src is a strided view; fancy indexing on a strided view works in numpy (it will gather). But performance: gathering from a strided view might be slower; could copy first: src = f[0::stride] is a view with stride 2^(j+1) elements... For j = n2-1, stride = 2^n2, so src has length 1. For j=0, stride=2, src = f[0::2], length 2^(n2-1) = 4.2M. Fancy indexing src[idx] where idx has 4.2M elements — numpy handles it, maybe ~0.2-0.5s. Total across all j: Σ 2^(n2-1-j) = 2^n2 - 1 ≈ 8.4M gather-elements. Plus the maximum and the +1 and the strided writes. Overall maybe 1-2 seconds. Acceptable.
+
+Hmm, wait: there's a subtlety with `src[idx] + 1` and dtype uint8: values ≤ 23, no overflow. ✓. And np.maximum(src, src[idx]+1): both arrays length 2^(n2-1-j). ✓.
+
+But wait, I should double-check the recurrence direction once more. f[T] where T = 2^j | S, S ⊆ {j+1, ..., n2-1} (bits above j). v = vertex n1+j. f[T] = max(f[T \ {v}] , 1 + f[T \ N[v]]) = max(f[S], 1 + f[S & ~Nv_R]) where Nv_R = (adj[v] restricted to R) | (1<<j). Now S = H·2^(j+1) where H = S >> (j+1). S & ~Nv_R = (H & ~h)·2^(j+1) where h = Nv_R >> (j+1). ✓ (bits of Nv_R below j+1 don't affect S since S has no such bits; bit j of Nv_R clears... S has no bit j anyway).
+
+So f[2^j + H·stride] = max(f[H·stride], 1 + f[(H & ~h)·stride]). ✓.
+
+And the invariant: f[H·stride] (masks with lowest bit ≥ j+1) already computed. ✓.
+
+Similarly fL over L with L-internal edges: fL[T] for T ⊆ L, using vertices 0..n1-1, adjacency within L.
+
+Then:
+```python
+# A[Y] for all Y ⊆ R (uint32 L-masks)
+# vals[Y] = fL[L_full & ~A[Y]] + f[Y]
+Lmask = (1 << n1) - 1
+idxL = (Lmask & ~A)  # vectorized: Lmask ^ A? Since A[Y] ⊆ Lmask always (A values are L-masks). So Lmask & ~A = Lmask ^ A. As uint32: idxL = np.uint32(Lmask) ^ A... careful with ~ on uint32 (~A = 255-A for uint8 semantics... in numpy, ~ on unsigned = bitwise not, fine). Simpler: idxL = Lmask ^ A (since A ⊆ Lmask). But to be safe: idxL = (~A) & Lmask.
+partL = fL[idxL]   # gather, 2^n2 elements
+partR = f  # f[Y] directly (aligned by Y)
+vals = partL.astype(np.int32) + partR  # or int16
+best = vals.max()
+```
+Wait — vals[Y] = fL[L_full & ~A[Y]] + f[Y]. And answer = max over Y. ✓.
+
+If best < k → NO. Else reconstruct.
+
+Reconstruction: find Y* = argmax(vals). Then:
+- X_R: max independent set in G[R ∩ Y*]... wait, f[Y*] = α(G[Y*]) where G[Y*] is the induced subgraph on vertices of Y* (R vertices). Reconstruct by walking: T = Y*; while T: j = lowest bit; if f[T] == f[T ^ (1<<j)]: T ^= 1<<j (exclude); else: include vertex n1+j; T &= ~Nv_R[j] (i.e., T & ~((adj[v]|(1<<j)) restricted to R)). Collect included vertices.
+- S_L: max independent set in G[L_full & ~A[Y*]]: T = Lmask & ~A[Y*]; walk fL similarly with L vertices.
+
+Then I = S_L ∪ X_R, |I| = best ≥ k. Output any k vertices of I.
+
+Wait, but I should double check: is |S_L| + |X_R| = best exactly? fL[Lmask & ~A[Y*]] = |S_L| by reconstruction ✓ (the walk produces an independent set of size equal to the table value — need to confirm the walk is correct). f[Y*] = |X_R| ✓. So |I| = best. ✓.
+
+Let me double check the reconstruction walk for f: T ≠ 0, j = lowest bit of T, v = n1+j. Claim: f[T] = max(f[T \ {v}], 1 + f[T \ N[v]]). If f[T] == f[T ^ (1<<j)]: then there's a max ind. set of G[T] avoiding v — recurse on T \ {v}. Else f[T] = 1 + f[T \ N[v]] (must be > f[T\{v}]): include v, recurse on T \ N[v]. The walk: 
+```python
+T = start
+while T:
+    j = (T & -T).bit_length() - 1
+    v = base + j
+    if f[T] == f[T ^ (1 << j)]:
+        T ^= 1 << j
+    else:
+        include v
+        T &= ~full_nbr_mask[v]  # restricted to the same side
+```
+Hmm, but is it guaranteed that when f[T] != f[T \ {v}], we have f[T] == 1 + f[T \ N[v]]? Yes, by the recurrence (f[T] is one of the two). ✓. And when f[T] == f[T\{v}], excluding v is optimal. ✓. But careful: f[T \ N[v]] — T \ N[v] here means T with bit j and R-neighbors of v removed. full_nbr_mask[v] restricted to R bits: nbrR[v] | (1<<j). T &= ~that. ✓.
+
+Edge cases: n2 = 0 (n=1: n1=1, n2=0). Then R is empty: tables of size 1. f = [0], A = [0], vals[0] = fL[Lmask & ~0] + f[0] = fL[0]... wait A[0] = 0, so idxL = Lmask & ~0 = Lmask, vals[0] = fL[Lmask] + 0 = α(G). ✓. Y* = 0, X_R = ∅, S_L = max ind. set of G[L]. ✓. Good, handles n=1.
+
+Also n1 could be 0? n ≥ 1, n1 = n - n//2 ≥ 1 for n ≥ 1. n2 = n//2 could be 0 (n=1). OK.
+
+Edge case: k... if α ≥ k, output k vertices. Since k ≥ 1 and I nonempty when best ≥ 1 (k ≥ 1 means best ≥ 1). ✓.
+
+Now, memory check for n=46: n1=23, n2=23.
+- fL: 2^23 uint8 = 8.4MB.
+- f: 2^23 uint8 = 8.4MB.
+- A: 2^23 uint32 = 33.5MB.
+- idxL = (~A) & Lmask: another uint32 33.5MB (temporary).
+- fL[idxL]: uint8 8.4MB gather result.
+- vals: int16/int32 16.7MB.
+- H_arr for the f DP: for j=0, arange of 2^22... wait, for the f DP at step j, we need idx = H & ~h over H ∈ [0, 2^(n2-1-j)). The largest is j=0: 2^22 = 4.2M elements. If we precompute arange once at size 2^(n2-1) (uint32, 16.7MB) and slice per j — but slicing arange[:2^(n2-1-j)] gives the right values (H from 0 to 2^(n2-1-j)-1). ✓. And idx = arange_slice & ~h — temporary uint32 arrays of decreasing size; peak at j=0: 16.7MB. Fine.
+
+Total peak: ~130MB or so. Under 256MB. ✓. Actually let me recount: A (33.5) + idxL (33.5) + fL (8.4) + f (8.4) + gather results (8.4) + vals (16.7) + arange (16.7) + temporaries during DP (~16.7 max) ≈ 143MB. OK. We can free intermediates (del) to be safe.
+
+Hmm, wait: actually, can I reduce memory by combining? vals could be computed as: partL = fL[idxL] (uint8), then best = (partL + f).max() — but partL + f with uint8 could overflow? Max value 23+23=46 < 255. ✓. So vals = partL + f (uint8, 8.4MB), best = vals.max(), Y* = vals.argmax(). 
+
+Also, I realize we could avoid materializing idxL separately: partL = fL[(~A) & Lmask] — the temporary (~A) & Lmask is created anyway. Fine.
+
+Alternatively, to save memory, note A values fit in n1 ≤ 23 bits → uint32 needed (uint16 max 65535 ≥ 2^23? No! 2^23 = 8.4M > 65535). So uint32 needed. OK.
+
+Hmm, wait — actually, can we avoid the A table altogether by restructuring? Alternative: compute the answer as max over Y of (fL[Lmask & ~A[Y]] + f[Y]) — we need A[Y] for all Y. Alternatively swap: max over S ⊆ L of (f[Rmask & ~B[S]] + fL[S]) where B[S] = N_R(S) — table over L side (2^n1), B as uint32 (R-masks fit in 23 bits). Then the heavy tables are over L: B (2^n1 uint32), and gathers f[...] over 2^n1. And fL over 2^n1, f over 2^n2. Same sizes by symmetry. No difference. Keep as is.
+
+Now, performance of the f DP in numpy — let me think again about the per-step cost. At step j:
+- src = f[0::stride] — a view, no copy.
+- idx = Hslice & ~h — creates array of size 2^(n2-1-j) (uint32). For j=0: 4.2M uint32 = 16.7MB temp.
+- gathered = src[idx] — fancy indexing on strided view. Hmm, numpy fancy indexing on a view: it works, but might be slower due to stride computation. Alternative: make src contiguous copy? f[0::stride].copy() — for j=0 that's a 4.2MB copy, cheap. Actually for small strides the view is "non-contiguous but regular" — numpy handles it fine. Let me just use it directly; if worried, copy. Actually, hmm, for j near 0, stride = 2^(j+1) is small, and the view f[0::2] for j=0 — fancy indexing into it: numpy will compute memory offsets = idx*2*itemsize — fine, fast.
+
+Actually wait, there's a subtlety: `src[idx]` where src is a view — numpy returns a new array. Then `src[idx] + 1` — another temp. Then np.maximum(src, that) — another temp. Then assignment f[1<<j::stride] = result — strided write. For j=0: arrays of 4.2M elements, a few ops each — maybe 50-100ms. For all j: total elements Σ 2^(n2-1-j) ≈ 2^n2 ≈ 8.4M per op type, so maybe 5-8 array passes of total 8.4M elements each ≈ well under 1s. 
+
+The A DP: per step, A[2^j::stride] = A[0::stride] | nl — strided read-modify... actually it's: read view, OR with scalar (temp), strided write. Σ sizes ≈ 2^n2. Fast.
+
+The final gather: fL[idxL] with idxL of size 2^23 — fancy gather of 8.4M elements from an 8.4M-element table — ~0.3-0.8s maybe. Then + f, max, argmax — cheap passes.
+
+fL DP: same as f DP but over 2^n1.
+
+Total estimated: ~1-3 seconds. Should fit in 5s. 
+
+Hmm, one concern: numpy fancy indexing with uint32 index arrays — fine. Also `np.maximum` on uint8 with +1: `src[idx] + 1` — numpy will upcast? uint8 + python int 1 → in newer numpy (NEP 50), uint8 + 1 stays uint8 (value-based casting removed; python int is weak). In older numpy, uint8 + 1 → uint8 (since 1 fits in uint8, value-based casting keeps uint8). Either way fine since values ≤ 23+1. Actually careful: in old numpy, `uint8_array + 1` → uint8 (yes, scalar 1 fits). OK.
+
+But wait — `src[idx] + 1` where src is uint8: result uint8, max value 23+1=24 < 256 ✓.
+
+Another approach for the f DP to avoid fancy indexing: hmm, is there a way? The gather src[H & ~h] is inherently a gather. Alternatively, restructure: note f[T] = max(f[T\{v}], 1 + f[T \ N[v]]) — we could compute f via a different order: process masks in increasing order of... hmm, the gather seems necessary. It's fine.
+
+Actually — wait. Let me reconsider. There's an alternative classic vectorized formulation for such subset DPs: process vertices one at a time, maintaining f over "masks within processed prefix". I.e., let f_i[T] = α(G[T]) for T ⊆ {0..i-1} (first i R-vertices). Then f_{i+1}[T | (1<<i)] = max(f_i[T], 1 + f_i[T & ~N_i]) for T ⊆ {0..i-1}, and f_{i+1}[T] = f_i[T]. If we store arrays of size 2^i at step i (growing), total memory Σ 2^i ≈ 2^(n2+1) — same as before but with reallocation. The gather f_i[T & ~N_i]: T & ~N_i for T ⊆ {0..i-1}: = T with neighbors of vertex i (within {0..i-1}) removed. Vectorized: view f_i as array indexed by T ∈ [0, 2^i); the new entries at positions (1<<i) + T for T ∈ [0, 2^i): value = max(f_i[T], 1 + f_i[T & ~N_i]). The index array T & ~N_i over T = arange(2^i) — that's a full-size index array at each step, total Σ 2^i work ≈ 2^(n2+1) — same. But memory: need f arrays of growing size; at the last step, 2^n2 + 2^(n2-1)... Actually this formulation needs the previous level array (size 2^i) intact while writing the new level (size 2^(i+1)). If we allocate the full 2^n2 array upfront and write the second half of block... hmm, the "levels" don't align with a single array's structure nicely. The lowest-bit formulation I had writes each position exactly once into a fixed-size array — cleaner. Keep it.
+
+Let me also double check the lowest-bit DP handles the case where vertex v has no neighbors: Nv_R = 1<<j only. Then h = Nv_R >> (j+1) = 0, idx = H & ~0 = H, f[2^j + H·stride] = max(f[H·stride], 1 + f[H·stride]) = f[H·stride] + 1. ✓ (isolated vertex always included).
+
+Now, the reconstruction walk needs f values at specific masks — we have the numpy arrays; convert to Python ints or use .item(). The walk is O(n) steps, trivial.
+
+Also need A[Y*] as a Python int for computing the L-side start mask: A[Y*].item() or int(A[Y*]).
+
+Wait, one more check on the formula: answer = max over Y ⊆ R of (fL[Lmask & ~A[Y]] + f[Y]). Note Y ranges over ALL subsets of R, not just independent ones. f[Y] for non-independent Y is still well-defined (α of induced subgraph). And the derivation showed equality. ✓. But hmm, let me re-verify direction 1 once more with a concrete concern: Y arbitrary (maybe not independent), X_R = max ind. set in G[Y] (so X_R ⊆ Y, independent), S_L = max ind. set in G[Lmask & ~A[Y]] (independent, avoids N_L(Y) ⊇ N_L(X_R)). Is S_L ∪ X_R independent? Cross edges: u ∈ S_L, w ∈ X_R ⊆ Y: edge (u,w) → u ∈ N_L(w) ⊆ A[Y] → u ∉ Lmask & ~A[Y] ⊇ S_L. Contradiction. ✓. So fL[...] + f[Y] = |S_L| + |X_R| ≤ α(G). ✓.
+
+Direction 2: shown. ✓.
+
+Great.
+
+Now let me also handle the trivial pre-checks:
+- If k ≤ α: YES with k vertices. Since we compute α exactly, just compare.
+- Actually, we don't even need α exactly — we need to know if there's an independent set of size ≥ k, and produce one of size ≥ k, then output any k of its vertices. Since subsets of independent sets are independent, outputting k of them works. ✓.
+
+Wait, actually — hold on. Let me re-verify the problem reduction once more, carefully.
+
+x^T A x where A = I + (updates). Updates: each pair (u,v) adds 1 to A_{u,v} and A_{v,u}. So A = I + B where B is the symmetric adjacency matrix of the graph G (B_{u,v} = 1 iff pair updated, since pairs distinct). Then x^T A x = x^T I x + x^T B x = Σ_i x_i + Σ_{u≠v} x_u B_{u,v} x_v = |S| + 2·(# edges of G inside S) where S = {i : x_i = 1}. We need this = k with |S| = k. So # edges inside S = 0, i.e., S independent in G. ✓. And |S| = k. So: find independent set of size exactly k. Since any subset of an independent set is independent, exists iff α(G) ≥ k. ✓.
+
+Example 1: n=4, edges (1,2),(1,3),(2,3),(3,4) — triangle 1-2-3 plus edge 3-4. α = 2 ({1,4} or {2,4}). k=3 > 2 → NO. ✓.
+
+Example 2: n=5, edges (1,2),(3,4). α = 3 ({1,3,5} etc.). k=3 → YES, e.g., {1,3,5}. ✓ (our algorithm might output a different valid set — "any valid selection is accepted").
+
+Example 3: n=3, triangle, k=1 → α=2 ≥ 1 → YES, output any single vertex. Expected output "1" but any single vertex should be accepted (checker presumably flexible). Hmm — "If multiple valid vectors exist, any valid selection is accepted." OK.
+
+Now, implementation details:
+
+```python
+import sys
+import numpy as np
+
+def main():
+    data = sys.stdin.buffer.read().split()
+    n = int(data[0]); m = int(data[1]); k = int(data[2])
+    adj = [0] * n
+    idx = 3
+    for _ in range(m):
+        u = int(data[idx]) - 1; v = int(data[idx+1]) - 1
+        idx += 2
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+    ...
+```
+
+Split: n2 = n // 2, n1 = n - n2. L = [0, n1), R = [n1, n).
+
+L-internal adjacency: adjL[i] = adj[i] & Lmask (for i in L).
+R-internal: for v = n1+j: adjR[j] = (adj[n1+j] >> n1) (R-neighbors as R-bit mask).
+
+fL table (size 2^n1) via DP over L vertices 0..n1-1 with adjL.
+f table (size 2^n2) via DP over R bits with adjR.
+A table (size 2^n2, uint32): A[Y] = union of adjL_full... wait, A[Y] = N_L(Y) = union over j ∈ Y of (adj[n1+j] & Lmask). So per R-vertex j: aL[j] = adj[n1+j] & Lmask.
+
+Then:
+```python
+Lmask = (1 << n1) - 1
+idxL = (~A) & np.uint32(Lmask)   # or Lmask ^ A
+partL = fL[idxL]                  # uint8
+vals = partL + f                  # uint8 (max 46)
+best = int(vals.max())
+if best < k: print("NO")
+else:
+    Y = int(vals.argmax())
+    # reconstruct X_R from f within mask Y
+    # reconstruct S_L from fL within mask Lmask & ~A[Y]
+    ...
+```
+
+Wait — careful: `(~A) & Lmask`: A is uint32; ~A in numpy = bitwise complement (fine for unsigned). Lmask as np.uint32. OK. Or since A ⊆ Lmask: idxL = np.uint32(Lmask) ^ A. Both fine; I'll use XOR for clarity but AND-complement is safer if A somehow had bits outside (it can't). Use (~A) & Lmask.
+
+Hmm, one more important check: `partL + f` — both uint8 arrays of size 2^n2. Sum ≤ 46 < 256 ✓. But numpy uint8 + uint8 → uint8 ✓.
+
+Reconstruction of X_R given mask T0 = Y (R-bits):
+```python
+resR = []
+T = Y
+while T:
+    lb = T & (-T)
+    j = lb.bit_length() - 1
+    if int(f[T]) == int(f[T ^ lb]):
+        T ^= lb
+    else:
+        resR.append(n1 + j + 1)  # 1-based
+        T &= ~nbrR_closed[j]  # nbrR_closed[j] = adjR[j] | lb
+```
+Wait: T \ N[v] = T & ~(adjR[j] | (1<<j)). ✓.
+
+Hmm, but careful: f[T ^ lb] — is T ^ lb = T \ {v}? Yes since lb ⊆ T. ✓.
+
+Reconstruction of S_L given T0 = Lmask & ~A[Y] (L-bits):
+```python
+resL = []
+T = startL
+while T:
+    lb = T & (-T)
+    i = lb.bit_length() - 1
+    if int(fL[T]) == int(fL[T ^ lb]):
+        T ^= lb
+    else:
+        resL.append(i + 1)
+        T &= ~(adjL[i] | lb)
+```
+
+Then I = resL + resR, |I| = best. Output first k: `print("YES"); print(' '.join(map(str, I[:k])))`.
+
+Wait — need |I| ≥ k guaranteed: |I| = best ≥ k ✓. And I[:k] is independent (subset) ✓, size exactly k ✓.
+
+Hmm, but let me double-check the walk correctness once more with the recurrence f[T] = max(f[T\{v}], 1 + f[T\N[v]]) where v = lowest bit. In the walk, if f[T] == f[T\{v}], we exclude v and continue with T\{v} — the max ind. set of G[T] has size f[T] and can be chosen to avoid v? Hmm wait, is that right? f[T\{v}] = f[T] means there's an ind. set of size f[T] in T\{v}, i.e., avoiding v. ✓. If f[T] > f[T\{v}], then f[T] = 1 + f[T\N[v]] (since f[T] = max of the two, and it's not the first), so including v is optimal. ✓. The walk terminates with a set of size f[T0]. Let me verify by induction: the walk produces set of size = f[T]... at each step, if exclude: size = f[T\{v}] = f[T] ✓ (by induction). If include: 1 + f[T\N[v]] = f[T] ✓. 
+
+Now, potential issue: numpy scalar comparisons — `int(f[T])` where T is a Python int: f[T] is a numpy scalar; int() converts. Fine. The walk runs ≤ n times. ✓.
+
+Now let me also double check the f DP vectorized code once more, especially the slicing.
+
+```python
+def build_mis_table(nv, adj_local):  # nv vertices, adj_local[i] = mask of neighbors within these nv vertices (bit i = vertex i)
+    size = 1 << nv
+    f = np.zeros(size, dtype=np.uint8)
+    # H index array, max needed size 2^(nv-1)
+    if nv > 0:
+        Hfull = np.arange(size >> 1, dtype=np.uint32)  # 0 .. 2^(nv-1)-1
+    for j in range(nv - 1, -1, -1):
+        stride = 1 << (j + 1)
+        Nv = adj_local[j] | (1 << j)   # closed neighborhood (within local bits)
+        h = Nv >> (j + 1)
+        src = f[0::stride]             # view: f at masks H*stride, H in [0, 2^(nv-1-j))
+        L = size >> (j + 1)            # = 2^(nv-1-j)
+        if h:
+            idx = Hfull[:L] & np.uint32(~h)   # hmm, ~h on python int: ~h = -h-1, negative! Careful.
+```
+Oops: `~h` where h is a Python int gives -(h+1) — negative. Need `Hfull[:L] & np.uint32(h ^ mask_all)` or use `& ~h` with numpy: `Hfull[:L] & (~np.uint32(h))`. Let me use: `idx = Hfull[:L] & np.uint32((~h) & 0xFFFFFFFF)`. Or simpler: `not_h = (~h) & 0xFFFFFFFF` as Python int, then `idx = Hfull[:L] & not_h` — numpy will convert not_h to uint32? With NEP 50 (numpy 2.x), `uint32_array & python_int` → uint32 if the int fits; not_h < 2^32 fits ✓. In older numpy, value-based: also uint32 ✓. OK: `idx = Hfull[:L] & ((~h) & 0xFFFFFFFF)`.
+
+Hmm wait, but actually h = Nv >> (j+1) — bits of Nv above position j. Nv ≤ 2^nv - 1 < 2^23, so h < 2^23, ~h & 0xFFFFFFFF fine.
+
+Then:
+```python
+        gathered = src[idx]           # uint8
+        cand = gathered + np.uint8(1) # or + 1
+        f[(1 << j)::stride] = np.maximum(src, cand)
+```
+Wait — `src` here is f[0::stride], and we're assigning to f[(1<<j)::stride]. But `np.maximum(src, cand)` — src is a strided view; np.maximum returns a new array. Then assignment into the strided view f[2^j::stride]. ✓.
+
+Hmm, but there's a subtle correctness point: when h == 0 (vertex j has no neighbors above j... wait, h = Nv >> (j+1) — neighbors of vertex j at positions above j; note Nv also includes bit j itself and neighbors below j, but those are below position j+1 so excluded from h). If h == 0: idx = Hfull[:L] & 0xFFFFFFFF... no wait, (~h) & 0xFFFFFFFF = 0xFFFFFFFF, so idx = Hfull[:L] — gather of the identity. Then f[2^j::stride] = max(src, src+1) = src+1. We could special-case for speed but it's fine either way. Actually for correctness it's fine; for speed, special-case:
+```python
+        if h == 0:
+            f[(1 << j)::stride] = src + 1
+        else:
+            ...
+```
+Minor optimization; include it.
+
+Wait, actually there's another subtlety: `src + 1` where src is uint8 view — creates new array ✓.
+
+Also, when j = nv-1: stride = 2^nv = size, src = f[0::size] → length 1 ([f[0]]), f[2^(nv-1)::size] → length 1. idx = Hfull[:1] & ... = [0]. gathered = [f[0]] = [0], cand = [1], max(0, 1) = 1. f[2^(nv-1)] = 1 ✓.
+
+Edge: nv = 0 → size 1, f = [0], loop doesn't run. ✓.
+
+Now the A table:
+```python
+A = np.zeros(1 << n2, dtype=np.uint32)
+for j in range(n2 - 1, -1, -1):
+    stride = 1 << (j + 1)
+    aLj = adj[n1 + j] & Lmask   # L-mask of neighbors
+    if aLj:
+        A[(1 << j)::stride] = A[0::stride] | np.uint32(aLj)
+    else:
+        A[(1 << j)::stride] = A[0::stride]
+```
+✓.
+
+Hmm wait, actually — do I even need the A table as a separate full array? I need fL evaluated at Lmask & ~A[Y] for all Y. Alternative: I could compute the combined value differently... Let me think if there's a way to fuse. 
+
+Actually here's a thought: instead of A (uint32, 4 bytes/elem), note that we ultimately need fL[Lmask & ~A[Y]]. What if we instead run a DP over R-subsets that directly tracks... hmm, the value fL[Lmask & ~A[Y]] doesn't decompose nicely. Keep A.
+
+Alternatively, reduce memory: A as uint32 is needed since L-masks up to 23 bits. OK, 33.5MB, fine.
+
+Actually, wait. Let me reconsider the whole approach — is there an alternative with less memory/computation? 
+
+Alternative known technique for MITM MIS: enumerate independent sets of one half (list), for each compute f[avail] via table. We rejected due to enumeration cost in Python. The all-subsets approach avoids enumeration entirely. I think the all-subsets approach is good.
+
+Let me now also think: is 2^23 the max table size? n=46 → n1=23, n2=23. Yes. n=45 → n1=23, n2=22: tables 2^23 (fL) and 2^22 (f, A). n=44 → 22/22.
+
+Hmm, wait: should n1 (L, the fL side) be the smaller half to reduce the biggest table? For n odd, say n=45: options (n1=22, n2=23) → fL: 2^22, f/A: 2^23 (A = 4·2^23 = 33.5MB); or (n1=23, n2=22) → fL: 2^23 (8.4MB), f/A: 2^22 (16.7MB). Max memory: option 1: A=33.5MB; option 2: A=16.7MB + fL=8.4MB. Option 2 uses less memory. Also the big gather fL[idxL] is over 2^n2 elements — smaller in option 2. So put the bigger half on the L side (fL side): n2 = n // 2 (smaller), n1 = n - n2. For n=46 both 23. OK: n2 = n // 2, n1 = n - n2. ✓ (This is what I had.)
+
+Now — the Hfull arange array: size 2^(n2-1) for the f DP (max 2^22 = 4.2M uint32 = 16.7MB) and 2^(n1-1) for fL DP. Fine.
+
+Let me now also think about whether numpy operations on strided views with step 2^(j+1) for large j are efficient — for large stride, the views are short; overhead per step is small (n2 steps total). ✓.
+
+One more potential performance concern: `src[idx]` fancy indexing where src is a strided view (non-contiguous). numpy handles it but may be somewhat slower than contiguous. For j=0, stride=2: src = f[0::2], 4.2M elements, idx 4.2M uint32. The gather: 4.2M random-ish accesses within an 8.4MB array — cache-unfriendly but OK (~50-100ms). Total across steps ~2x that. Fine.
+
+Alternatively, I could restructure to avoid gathers: Hmm, think... f[T] = max(f[T\{v}], 1+f[T\N[v]]). Is there an order where the second term is a "shift" instead of a gather? T\N[v] vs T: removes bits — not a uniform shift. No. Gather it is.
+
+Now, the final combine: idxL = (~A) & Lmask — 8.4M-element uint32 op (2 temps). partL = fL[idxL] — 8.4M gather from 8.4MB table. vals = partL + f. best/argmax. All fine.
+
+Total numpy time estimate: fL DP (~n1 steps, Σ 2^n1 gathers+ops) + f DP (Σ 2^n2) + A DP (Σ 2^n2 cheap ops) + final (2^n2 gather). Roughly: gathers ~ 2^23 (fL) + 2^23 (f) + 2^23 (final) ≈ 25M gathered elements + assorted elementwise ops ~50M. Numpy does ~100-500M element-ops/sec → ~0.5-2s. 
+
+Now, what about correctness of using uint8 for f/fL: values ≤ 23 ✓.
+
+Let me also consider: what if numpy is not available? I'll add a pure-Python fallback using branch-and-bound MIS. Given the problem constraints, if numpy is missing, B&B is the best we can do. Let me write a decent B&B:
+
+```python
+def mis_python(n, adj, k):
+    # find independent set of size >= k via branch and bound, return set or None
+    best_set = []
+    # iterative or recursive with bitmask
+```
+A standard approach: recursive function solve(cand_mask, chosen) with pruning: if len(chosen) + popcount(cand) <= len(best): return. Choose a pivot vertex v in cand (e.g., max degree within cand). Branch: include v (chosen + [v], cand &= ~closed_nbr[v]) or exclude (cand &= ~bit_v). Additional strong pruning: if cand has a vertex of degree 0 in cand, include it immediately. Also "if len(chosen) + popcount(cand) <= best: return".
+
+Actually, a cleaner well-known efficient scheme: 
+- If cand is empty: update best.
+- Prune: if best >= k: stop early (we only need ≥ k).
+- Pick vertex v of max degree in cand. If deg(v) ≤ ... hmm.
+
+Also a common trick: partition-based bound (max independent set ≤ sum over components...). Keep it simpler: coloring bound is for cliques... For MIS, a bound: α(G[cand]) ≤ |cand| trivially; better: use greedy coloring of the complement? Too complex. Simple bound: len(chosen) + popcount(cand) ≤ best → prune. Plus: if the subgraph on cand has a vertex u with degree 0 (in cand), include it (safe). Plus branching on max-degree vertex.
+
+Hmm, actually a much better and simple exact approach for the fallback: since we just need "α ≥ k?", and n ≤ 46 — the pure-Python MITM would be too slow, but maybe a hybrid: use the MITM structure but with smaller effective sizes via... no. Let me just write a reasonable B&B and hope numpy exists. Actually, you know what — let me think about whether pure Python B&B is likely sufficient anyway, in which case I could even skip numpy... No — adversarial MIS instances at n=46 can blow up B&B badly (e.g., random graphs G(46, 0.5) can take many nodes; hard instances like "dimacs" at 46 vertices... actually 46 vertices is small; modern B&B solves 46-vertex hard instances in milliseconds in C, but Python is 100x slower — could be seconds). Risky. numpy MITM is deterministic ~2^n/2. Go with numpy primary + B&B fallback.
+
+Hmm, wait, actually — let me reconsider one more time whether there's a pure-Python-viable exact algorithm with guaranteed bounds for n=46... 
+
+There's the "split and list"/MITM which is 2^23-ish table ops — in pure Python with lists, ~8.4M iterations for the f table + 8.4M for enumeration... too slow (each iteration in pure Python ~0.3-1μs at best with tight code... 8.4M × 2 tables × ~0.5μs ≈ 8s+). Too slow. 
+
+What about a smarter exact algorithm: the "Robson" algorithm or the simple O(3^(n/3)) branching for MIS (branch on a vertex, or on an edge...)? The classic simple MIS algorithm: pick vertex v of max degree; branch: (a) exclude v, (b) include v. That's O(2^n) worst... with the refinement: pick edge (u,v)... For vertex cover (complement), the classic 2-branching on an edge gives O(2^τ)... Hmm, MIS = n - minimum vertex cover. MVC branching: pick edge (u,v), branch include u or include v in cover: O(1.62^n)... wait, the simple edge-branching for VC is O(1.47^n)? Let me recall: branching on an edge (u,v): T(n) = 2T(n-2) → 2^(n/2) = 1.42^n. Plus degree-based reductions. 1.42^46 ≈ 2^23 ≈ 8.4M nodes worst case — too slow for Python if hit. With better reductions (degree-0, degree-1 folding, dominance), practical performance is far better, but worst case still bad.
+
+OK, decision: numpy primary. Fallback: B&B with reductions (best effort). Actually, for the fallback, let me implement a decent one: iterative deepening? We need α ≥ k. Alternative for fallback: since it's only used if numpy is missing (unlikely on most judges), keep it simple but reasonable.
+
+Hmm, actually, wait. Let me reconsider the problem source. "Problem A — Sparse Bilinear Form", n ≤ 46, 5s, 256MB. 46 = 2·23. This is clearly MITM. The judge likely supports numpy (most do). But to be safe, fallback B&B.
+
+Actually, hmm, let me reconsider: maybe I should make the PRIMARY solution a smart combination: if n is small (say n ≤ 20ish or the graph is easy), do B&B; else numpy MITM. But if numpy import fails and n is large, B&B anyway. Simplest: try numpy; if import fails, B&B. Also, maybe: if m == 0, answer trivially YES (any k vertices). If the graph is disconnected, solve per component? That could massively speed up B&B fallback. Also for numpy path, components don't matter (MITM handles all).
+
+Also, quick win: greedy lower bound — if a greedy independent set already has size ≥ k, output it immediately (no need for exact MIS!). This is a great fast path: repeatedly pick min-degree vertex, remove closed neighborhood. If greedy achieves ≥ k, done. This handles all easy instances instantly. Only if greedy < k do we need exact computation. Similarly, an upper bound (e.g., via greedy... hmm, upper bounds are harder). 
+
+For the numpy path, we could also apply the greedy fast path first — cheap and sometimes avoids the heavy work. But the heavy work is only ~1-2s, fine either way. I'll include greedy fast path before everything (it also serves the no-numpy fallback partially).
+
+Wait, actually for the no-numpy fallback, a good approach: 
+1. Greedy → if ≥ k, done.
+2. Exact B&B to find whether α ≥ k, with pruning against target k (we can stop as soon as found ≥ k). Pruning: bound = current + upper_bound(remaining). A decent upper bound for MIS on remaining graph: n_remaining (trivial) or better via clique-cover of complement... For simplicity: bound = |chosen| + popcount(cand), prune if ≤ best_found; also stop if ≥ k found. Plus reductions: degree-0 vertices in cand → include; degree-1 → folding is more complex; skip. Also component decomposition: solve each connected component of cand separately and sum — that's a big win for sparse graphs. Hmm, implementing per-component exact solving recursively... Let me implement B&B on the whole cand with the simple bound and max-degree branching, plus isolated-vertex inclusion. For a fallback, that's acceptable.
+
+Hmm, actually, let me think about the fallback differently: pure-Python MITM but with the table built only over the SMALLER side and enumeration over independent sets of the bigger side, using the fact that... no, still 2^23-ish Python ops.
+
+Alternatively, pure-Python MITM with bitset tricks... no.
+
+OK let me also reconsider: maybe implement the numpy solution to gracefully handle small n without numpy overhead — trivial, numpy handles small arrays fine.
+
+Let me now write the full solution.
+
+```python
+import sys
+
+def main():
+    data = sys.stdin.buffer.read().split()
+    n = int(data[0]); m = int(data[1]); k = int(data[2])
+    adj = [0] * n
+    ptr = 3
+    for _ in range(m):
+        u = int(data[ptr]) - 1
+        v = int(data[ptr + 1]) - 1
+        ptr += 2
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+
+    # Fast path: greedy independent set
+    # pick min-degree vertex repeatedly
+    # (work on a copy)
+    ...
+```
+
+Greedy: 
+```python
+    def greedy_set(adjm):
+        cand = (1 << n) - 1
+        chosen = []
+        # simple: repeatedly pick vertex with min degree in cand
+        while cand:
+            # find min degree vertex
+            best_v = -1; best_d = n + 1
+            c = cand
+            while c:
+                lb = c & (-c)
+                v = lb.bit_length() - 1
+                d = bin(adjm[v] & cand).count('1')  # popcount
+                if d < best_d:
+                    best_d = d; best_v = v
+                    if d == 0: break
+                c ^= lb
+            chosen.append(best_v)
+            cand &= ~( (1 << best_v) | adjm[best_v] )
+        return chosen
+```
+This is O(n^2 · n/...) fine for n=46. If len(chosen) ≥ k → output first k. 
+
+Hmm, but greedy min-degree might not be optimal; it's just a fast path. If greedy < k, proceed to exact.
+
+Then exact via numpy:
+
+```python
+    try:
+        import numpy as np
+        HAVE_NP = True
+    except ImportError:
+        HAVE_NP = False
+```
+
+numpy path:
+```python
+    n2 = n // 2
+    n1 = n - n2
+    Lmask = (1 << n1) - 1
+    Rmask = (1 << n2) - 1  # not really needed
+
+    # local adjacency
+    adjL = [adj[i] & Lmask for i in range(n1)]
+    adjR = [(adj[n1 + j] >> n1) for j in range(n2)]  # R-internal, bits 0..n2-1 correspond to vertices n1..n-1
+    aL_of_R = [adj[n1 + j] & Lmask for j in range(n2)]  # L-neighbors of R vertex j, as L-mask
+
+    def build_table(nv, adjloc):
+        size = 1 << nv
+        f = np.zeros(size, dtype=np.uint8)
+        if nv:
+            Hfull = np.arange(size >> 1, dtype=np.uint32)
+            for j in range(nv - 1, -1, -1):
+                stride = 1 << (j + 1)
+                Nv = adjloc[j] | (1 << j)
+                h = Nv >> (j + 1)
+                src = f[0::stride]
+                if h == 0:
+                    f[(1 << j)::stride] = src + np.uint8(1)
+                else:
+                    L = size >> (j + 1)
+                    idx = Hfull[:L] & ((~h) & 0xFFFFFFFF)
+                    f[(1 << j)::stride] = np.maximum(src, src[idx] + np.uint8(1))
+        return f
+```
+
+Wait, `src + np.uint8(1)` — src is uint8 view; +1 → new uint8 array ✓. `src[idx] + np.uint8(1)` ✓.
+
+Hmm, careful with `Hfull[:L] & ((~h) & 0xFFFFFFFF)`: Hfull[:L] is uint32; the scalar ((~h) & 0xFFFFFFFF) is a Python int < 2^32. In numpy 2.x (NEP 50): uint32_array & python_int → uint32 ✓ (int fits in uint32). In numpy 1.x: value-based casting → uint32 ✓. OK.
+
+But hmm, one concern: `(~h) & 0xFFFFFFFF` — h < 2^nv ≤ 2^23, so ~h & 0xFFFFFFFF = 0xFFFFFFFF - h... fine.
+
+Also `src[idx]`: idx is uint32 array — fancy indexing with unsigned ints ✓.
+
+```python
+    fL = build_table(n1, adjL)
+    f = build_table(n2, adjR)
+
+    # A table
+    sizeR = 1 << n2
+    A = np.zeros(sizeR, dtype=np.uint32)
+    for j in range(n2 - 1, -1, -1):
+        stride = 1 << (j + 1)
+        aLj = aL_of_R[j]
+        if aLj:
+            A[(1 << j)::stride] = A[0::stride] | np.uint32(aLj)
+        else:
+            A[(1 << j)::stride] = A[0::stride]
+```
+
+Hmm, `A[0::stride] | np.uint32(aLj)` — creates temp then strided write ✓.
+
+```python
+    idxL = (~A) & np.uint32(Lmask)
+    partL = fL[idxL]     # uint8
+    vals = partL + f     # uint8
+    best = int(vals.max())
+    if best < k:
+        print("NO")
+        return
+    Y = int(vals.argmax())
+```
+
+Wait — `(~A)`: numpy bitwise NOT on uint32 → uint32 ✓. `& np.uint32(Lmask)` ✓.
+
+Hmm, but hold on: `partL + f` — f is uint8, partL uint8 → uint8, values ≤ 46 ✓.
+
+Reconstruction:
+```python
+    # R part
+    startR = Y
+    T = startR
+    resR = []
+    while T:
+        lb = T & (-T)
+        j = lb.bit_length() - 1
+        if int(f[T]) == int(f[T ^ lb]):
+            T ^= lb
+        else:
+            resR.append(n1 + j)
+            T &= ~(adjR[j] | lb)
+    # L part
+    startL = Lmask & (~int(A[Y]) & 0xFFFFFFFF)  # careful: A[Y] as int
+    # Actually: startL = Lmask & ~A_Y where A_Y = int(A[Y])
+    T = startL
+    resL = []
+    while T:
+        lb = T & (-T)
+        i = lb.bit_length() - 1
+        if int(fL[T]) == int(fL[T ^ lb]):
+            T ^= lb
+        else:
+            resL.append(i)
+            T &= ~(adjL[i] | lb)
+    indep = resL + resR
+    # sanity: len(indep) == best
+    print("YES")
+    print(' '.join(str(v + 1) for v in indep[:k]))
+```
+
+Wait, `int(A[Y])` — A[Y] is np.uint32 scalar; int() ✓. startL = Lmask & ~A_Y — Python ints: ~A_Y = -A_Y-1, and & with Lmask gives correct bits ✓ (Python's infinite-precision two's complement handles it).
+
+Hmm, wait: there's a subtle issue with the reconstruction of the R part: the walk uses f[T] for T ⊆ Y — all fine. But is the walk guaranteed to produce size f[Y]? Yes as argued. But one more check: in the walk, when we include v, we set T &= ~(adjR[j] | lb) — removing v and its R-neighbors. The remaining walk finds an independent set of size f[T_new] in T_new, and total = 1 + f[T_new] = f[T_orig] ✓ (given f[T_orig] = 1 + f[T_new], which holds because we're in the else-branch meaning f[T] ≠ f[T\{v}], so f[T] = 1 + f[T\N[v]]).
+
+Hmm wait, actually — careful: the else branch is when f[T] != f[T ^ lb]. Then f[T] = 1 + f[T & ~(adjR[j]|lb)]. ✓. But what if BOTH f[T\{v}] and 1+f[T\N[v]] equal f[T]? Then we take the if-branch (exclude v) — still correct size. ✓.
+
+Now, the L part reconstruction: startL = Lmask & ~A[Y]. fL[startL] should equal partL[Y] = fL[idxL[Y]] ✓ (idxL[Y] = Lmask & ~A[Y]).
+
+And total: len(resL) + len(resR) = fL[startL] + f[Y] = vals[Y] = best ✓.
+
+Let me double check with Example 1: n=4, edges (0,1),(0,2),(1,2),(2,3) (0-indexed). n2 = 2, n1 = 2. L = {0,1}, R = {2,3} (bits j=0→vertex 2, j=1→vertex 3).
+adjL[0] = adj[0] & Lmask(=3) = {1} → 0b10 = 2. adjL[1] = adj[1] & 3 = {0} → 1.
+adjR[0] = (adj[2] >> 2) = neighbors of 2 among {3}: adj[2] = {0,1,3} → >>2 = {1} → 1. adjR[1] = (adj[3] >> 2) = {2}>>... adj[3] = {2} → (1<<2)>>2 = 1. So adjR[1] = 1 (vertex 3 adjacent to vertex 2 = R-bit 0). ✓.
+aL_of_R[0] = adj[2] & 3 = {0,1} = 3. aL_of_R[1] = adj[3] & 3 = 0.
+
+fL over L (vertices 0,1, edge between): fL[00]=0, fL[01]=1, fL[10]=1, fL[11]=1 (edge). Let me trace build_table(nv=2, adjloc=[2, 1]):
+size=4, f=[0,0,0,0]. Hfull = arange(2) = [0,1].
+j=1: stride=4. Nv = adjloc[1]|2 = 1|2 = 3. h = 3>>2 = 0. src = f[0::4] = [0]. f[2::4] = src+1 = [1]. → f[2] = 1.
+j=0: stride=2. Nv = adjloc[0]|1 = 2|1 = 3. h = 3>>1 = 1. src = f[0::2] = [f[0], f[2]] = [0, 1]. L = 4>>1 = 2. idx = [0,1] & ~1 = [0, 0]. src[idx] = [0, 0]. cand = [1,1]. np.maximum(src, cand) = [1, 1]. f[1::2] = [1,1] → f[1] = 1, f[3] = 1.
+fL = [0,1,1,1] ✓.
+
+f over R (bits 0=vertex2, 1=vertex3, edge between them): adjR = [1, 1]. Same structure: f = [0,1,1,1].
+
+A: size 4. j=1: stride 4, aLj = aL_of_R[1] = 0 → A[2::4] = A[0::4] = [0]. A[2] = 0. j=0: stride 2, aLj = 3 → A[1::2] = A[0::2] | 3 = [0|3, 0|3] = [3,3]. A[1] = 3, A[3] = 3.
+A = [0, 3, 0, 3].
+
+idxL = (~A) & 3 = [3, 0, 3, 0].
+partL = fL[[3,0,3,0]] = [1, 0, 1, 0].
+vals = partL + f = [1+0, 0+1, 1+1, 0+1] = [1, 1, 2, 1].
+best = 2 < k=3 → NO ✓.
+
+Example 2: n=5, edges (0,1),(2,3). n2=2, n1=3. L={0,1,2}, R={3,4} (j=0→3, j=1→4).
+adjL: adj[0]&7 = {1} = 2; adj[1]&7 = {0} = 1; adj[2]&7 = {3} & 7 = 0 (vertex 3 not in L). So adjL = [2,1,0].
+adjR: adj[3]>>2 = {2,4}>>2 = {0 (from 2), 1 (from 4)} = 3. adj[4]>>2 = {3}>>2 = 0. adjR = [3, 0].
+aL_of_R: adj[3]&7 = {2} = 4; adj[4]&7 = 0. → [4, 0].
+
+fL (L: edge 0-1, vertex 2 isolated): expected fL[110] (mask with vertices 0,1) = 1, fL[100]=1, fL[011]... let me just trust the DP; expected α(L)=2 (e.g., {0,2}).
+f (R: edge between bits 0,1): f = [0,1,1,1].
+A: j=1: A[2::4] = A[0::4] | 0 = [0]. j=0: A[1::2] = A[0::2] | 4 = [4, 4]. A = [0,4,0,4].
+idxL = ~A & 7 = [7, 3, 7, 3].
+partL = fL[[7,3,7,3]] = [α(L)=2, α({0,1})=1, 2, 1].
+vals = [2+0, 1+1, 2+1, 1+1] = [2, 2, 3, 2]. best = 3 ≥ k=3 ✓. Y = argmax = 2 → Y = {bit1} = {vertex 4}. 
+Reconstruct R part: T=2: lb=2, j=1, f[2]=1, f[0]=0 → include vertex n1+1 = 4 (0-indexed), T &= ~(adjR[1]|2) = ~(0|2)=~2 → T=0. resR=[4].
+startL = 7 & ~A[2] = 7 & ~0 = 7. Reconstruct L part in mask 7: fL[7] = 2. Walk: T=7, lb=1, i=0: fL[7]=2 vs fL[6]=? mask 6 = vertices 1,2: edge 1-... adjL[1]={0} not in mask; vertex 2 isolated → fL[6] = 2. So fL[7]==fL[6] → exclude 0, T=6. lb=2, i=1: fL[6]=2 vs fL[4] (vertex 2 alone) = 1 → include vertex 1, T &= ~(adjL[1]|2) = ~(1|2)=~3 → T = 6 & ~3 = 4. lb=4, i=2: fL[4]=1 vs fL[0]=0 → include 2, T &= ~(0|4) = 0. resL = [1, 2].
+indep = [1, 2, 4] (0-indexed) = [2, 3, 5] 1-indexed. Check: edges (0,1),(2,3) — set {2,3,5} (1-indexed) = {1,2,4} 0-indexed: edge (0,1)? 0 not in set. edge (2,3): 2∈, 3∉. ✓ independent, size 3. Output "2 3 5". Valid (any accepted). ✓.
+
+Example 3: n=3, triangle, k=1. n2=1, n1=2. L={0,1}, R={2}. adjL=[2,1]. adjR=[(adj[2]>>2)]=0. aL_of_R=[adj[2]&3 = 3].
+fL = [0,1,1,1]. f = [0,1]. A: j=0: stride 2, A[1::2] = A[0::2] | 3 = [3]. A=[0,3]. idxL = [3, 0]. partL = fL[[3,0]] = [1, 0]. vals = [1+0, 0+1] = [1,1]. best=1 ≥ 1. Y=0. resR: T=0 → none. startL = 3 & ~0 = 3. Walk: T=3, lb=1, i=0: fL[3]=1, fL[2]=1 → equal → exclude 0, T=2. lb=2, i=1: fL[2]=1, fL[0]=0 → include 1. resL=[1]. indep=[1] → output "2". Valid ✓ (any single vertex).
+
+The algorithm works on examples.
+
+Now, let me also double check the A-table DP once more with a trickier case: R has 3 bits, vertex j=0 has L-neighbors {a}, j=1 has {b}, j=2 has {c}. A[Y] should be union. E.g., Y = {0,2} = 0b101: A = {a,c}. Trace: size=8. j=2: stride 8: A[4::8] = A[0::8] | {c} → A[4] = c. j=1: stride 4: A[2::4] = A[0::4] | b → A[2] = b, A[6] = A[4] | b = c|b. j=0: stride 2: A[1::2] = A[0::2] | a → A[1] = a, A[3] = A[2]|a = a|b, A[5] = A[4]|a = a|c, A[7] = A[6]|a = a|b|c. ✓.
+
+Now — performance edge cases: n=46 with n2=23: the arrays are 8.4M. The A DP: 23 steps, each a strided OR over Σ 2^(22-j)... wait: at step j, the slice length is size >> (j+1) = 2^(23-j-1) = 2^(22-j). Σ_{j=0}^{22} 2^(22-j) = 2^23 - 1 ≈ 8.4M. Each step: read view, OR scalar (allocates temp), strided write. ~3 passes over 8.4M total → fast (<0.5s).
+
+f DP: at step j: idx computation (1 pass over 2^(22-j)), gather (random access), +1, maximum (2 passes), strided write. Total ≈ 8.4M gathered + ~25M elementwise. Maybe 0.5-1.5s.
+
+fL DP: same, 8.4M.
+
+Final: idxL (2 passes over 8.4M), gather fL (8.4M random), add, max, argmax (3 passes). ~0.5-1s.
+
+Total: maybe 2-4s. Hmm, cutting close to 5s. Let me think about optimizations.
+
+Optimization 1: reduce the gather cost in build_table. The gather src[idx] where idx = H & ~h. Note: when h has few bits... hmm. Alternative: note that idx = H & ~h means we clear certain bits of H. The map H → H & ~h is many-to-one. Alternative formulation: instead of gathering, we can compute via "bit-clearing transformations"... For each set bit b of h, clearing bit b of H: the array src indexed by H with bit b cleared = a "fold" operation: for the array viewed as [H_high, bit b, H_low], value at [H_high, 1, H_low] ← max with value at [H_high, 0, H_low]... wait no, we need src[H & ~h] for all H, i.e., f_new[H] = max(f[H], 1 + f[H & ~h]). Hmm, this is like: for each bit b in h, "fold" the array along bit b: for all H with bit b set: f[H] = max(f[H], f[H ^ (1<<b)])... but that changes f in place and the folds compose! Let me think:
+
+Claim: Let g = f (copy). For each bit b ∈ h: for all H with bit b set: g[H] = max(g[H], g[H ^ (1<<b)]). After processing all bits of h, is g[H] = f[H & ~h]? Hmm, no — that's not right either. Let me think again.
+
+We want: f_new[H] = max(f[H], 1 + f[H & ~h]) for all H (then f_new gets written to positions 2^j + H·stride). 
+
+Consider the operation: for each bit b in h (in any order?): op_b: g[H] = max(g[H], g[H & ~(1<<b)]) for H with bit b set. If we apply op_b for all b ∈ h to a copy g of f... Let's test: h = {b1, b2}. Start g = f. After op_b1: g[H] = max(f[H], f[H & ~2^b1]). After op_b2: g[H] = max(previous[H], previous[H & ~2^b2]) = max over H' ∈ {H, H^b1... hmm: g2[H] = max(g1[H], g1[H & ~b2]) = max(f[H], f[H~b1], f[H~b2], f[H~b1~b2])? Let me expand: g1[H] = max(f[H], f[H&~b1]). g1[H&~b2] = max(f[H&~b2], f[H&~b2&~b1]). So g2[H] = max(f[H], f[H~b1], f[H~b2], f[H~b1~b2]) = max over subsets S ⊆ h of f[H & ~S] = f[H & ~h]?? No wait — max over S ⊆ {b1,b2} of f[H & ~S] — the maximum over all subsets cleared, which equals... we want f[H & ~h] (clear ALL bits of h), but the max includes f[H] itself (S=∅). So g2[H] = max(f[H & ~S] for S ⊆ h) ≥ f[H & ~h]. Not equal in general. ✗. So that fold trick computes the wrong thing (it computes a max-closure, not the specific projection).
+
+Hmm right, because f is not monotone... wait, actually IS f monotone? f[T] = α(G[T]) — is it monotone under subset? T1 ⊆ T2 → α(G[T1]) ≤ α(G[T2])? Yes! Any independent set in T1 is also in T2. So f is monotone: T1 ⊆ T2 ⟹ f[T1] ≤ f[T2]. Therefore max over S ⊆ h of f[H & ~S] = f[H & ~h] (since H & ~h is the smallest). 
+
+So the fold trick works: g = copy of f; for each bit b in h: for all H with bit b set: g[H] = max(g[H], g[H ^ (1<<b)]). Then g[H] = f[H & ~h] by monotonicity + the expansion above. Wait, let me redo the expansion with monotonicity: after all folds, g[H] = max_{S ⊆ h} f[H & ~S] = f[H & ~h] (monotonicity: H & ~h ⊆ H & ~S for all S ⊆ h, so f[H&~h] is the max). ✓.
+
+But wait — the folds must read from the ORIGINAL f or can they be in-place on g? In the expansion I did: g2[H] = max(g1[H], g1[H&~b2]) where g1[H] = max(f[H], f[H~b1]) — in-place sequential folds: g1 = fold_b1(f), g2 = fold_b2(g1). g2[H] = max(g1[H], g1[H & ~b2]). g1[H&~b2] = max(f[H&~b2], f[H&~b2&~b1]). So g2[H] = max(f[H], f[H~b1], f[H~b2], f[H~b1~b2]) ✓ = max_{S⊆h} f[H&~S] = f[H&~h] ✓ (monotonicity). 
+
+And each fold op_b is vectorizable WITHOUT gather: view g as shape (..., 2, 2^b): g[..., 1, :] = maximum(g[..., 1, :], g[..., 0, :]). With numpy: reshape g (size 2^m) to (-1, 2, 2^b) and do np.maximum(g[:, 0, :], g[:, 1, :], out=g[:, 1, :])? Hmm, g[:, 1, :] = np.maximum(g[:, 0, :], g[:, 1, :]) — this is a pure "block" operation, contiguous-ish. Cost per fold: one pass over half the array... total for |h| folds: |h| passes over 2^(nv-1-j) elements. Compare to gather: 1 gather pass (random access). Which is faster? A gather with random access over 4.2M elements vs |h| sequential passes. If |h| is large (up to 22), the folds cost more. Hmm. But folds are cache-friendly. Gather of 4.2M elements from an 8.4MB table: ~8.4MB working set — fits in L2/L3 mostly; gather maybe 30-80ms. Folds: |h| × 4.2M element ops, each pass ~10-20ms → up to 400ms for |h|=22. Hmm, comparable. But actually — wait, there's a subtlety: the fold approach requires g to be a full-size array at each step j (size 2^(nv-1-j) for the H-range)... and we'd need to copy f's slice into it. Hmm, actually the fold operates on the H-indexed array = f[0::stride] view — non-contiguous. We'd copy it out (contiguous), fold, then write back. Copy cost: 1 pass. Total per step: copy + |h| fold passes + write. vs gather: 1 random-access pass. I think the gather is simpler and probably comparable or better when |h| is small; worse when... hmm, actually gather cost is roughly constant per element (~few ns amortized if table fits in cache — 8.4MB table, 4.2M gathers... modern CPUs do ~100-200M gathers/sec from L3 → 4.2M gathers ≈ 20-40ms). Fine. Let me keep the gather — simpler and correct. Actually, hmm, but numpy fancy indexing overhead: src[idx] with idx uint32 — numpy converts indices to intp (int64) internally — that's an extra pass/copy of 4.2M×8 bytes = 33MB temp! Hmm, that could be slow-ish (~50ms) and memory-heavy. Using int64 idx arrays directly avoids conversion: make Hfull int64? Then idx = Hfull[:L] & ~h — int64 ops, 4.2M×8B = 33MB temp at j=0. Memory OK. Or keep uint32 and eat the conversion. Let me use int64 for Hfull to avoid conversions: Hfull = np.arange(size>>1, dtype=np.int64). idx = Hfull[:L] & (~h) — with Python int ~h... careful: ~h negative. Use mask = (~h) & 0xFFFFFFFF... but for int64 array & python int: NEP50: int64_array & python_int → int64 if fits ✓. Hmm, (~h) & 0xFFFFFFFF is a positive int < 2^32 ✓.
+
+Actually wait, maybe better: idx = Hfull[:L] & not_h where not_h = ~(h | ((1<<(j+1))-1))? No — simpler: since H < 2^(nv-1-j) and h < 2^(nv-1-j)... hmm, h = Nv >> (j+1) where Nv < 2^nv, so h < 2^(nv-j-1) = L. So h fits in the H-range. not_h = (~h) & (L-1)? Since H < L: H & ~h = H & ((~h) & (L-1))... because H's bits are all < log2(L). ✓. So not_h = (~h) & (L - 1) — a clean positive int. Then idx = Hfull[:L] & not_h. ✓.
+
+Hmm, but with int64 Hfull of size 2^22 = 4.2M × 8B = 33MB. Plus idx temp 33MB. OK.
+
+Alternatively use int32 for Hfull (values < 2^31 ✓) — numpy fancy indexing with int32 indices: also converts to intp internally I believe (on 64-bit platforms). Meh. The conversion is a memcpy-ish pass. Let me just use int64 to avoid it. Memory: fine.
+
+Hmm, wait, actually let me reconsider: maybe there's an even better way to compute the f table that avoids per-step gathers entirely — using the monotonicity insight differently... 
+
+Alternative f-table computation via "for each mask, α" — hmm, there's the classic: f[T] can also be computed as: f[T] = max(f[T \ {v}], 1 + f[T \ N[v]]) — the gather is inherent to this recurrence. The fold trick replaces gather with |h| passes. Let me think about which is better in total across all steps... 
+
+Actually, you know what — here's a cleaner idea combining both: at step j, we need f_new[H] = max(f[H], 1 + f[H & ~h]) for H ∈ [0, L). Using monotonicity-based folds: 
+
+tmp = src.copy() (contiguous, L elements)
+for b in bits of h: fold along bit b of tmp.
+result = np.maximum(src, tmp + 1)
+
+Fold along bit b: tmp = tmp.reshape(-1, 2, 2^b); np.maximum(tmp[:, 0, :], tmp[:, 1, :], out=tmp[:, 1, :])? Hmm, tmp[:, 1, :] = np.maximum(tmp[:, 0, :], tmp[:, 1, :]) — shapes: tmp.reshape(-1, 2, 2^b): axis0 = higher bits above b, axis1 = bit b, axis2 = lower bits. The operation: for entries with bit b = 1: max with the corresponding bit b = 0 entry. tmp[:, 1, :] = np.maximum(tmp[:, 0, :], tmp[:, 1, :]) ✓. Each fold: reads 2×(L/2)... one pass over L elements roughly. |h| folds → |h| passes. For j=0, L = 2^22 = 4.2M, |h| up to 22 → 92M element ops ≈ 0.3-0.5s just for j=0... vs gather ~50ms. Gather wins when |h| large. When |h| small (1-2), folds win slightly. Just use gather everywhere — simpler, and total gather work Σ L_j = 2^23 ≈ 8.4M gathers ≈ 0.2-0.5s total. Fine.
+
+Hmm, wait, actually, I realize there might be an issue with using `src[idx]` when src is a strided VIEW: numpy's fancy indexing on views works correctly (it computes with strides). Performance is fine. OK.
+
+But actually, hmm, let me reconsider the memory/time for j=0 step: L = 2^22, idx int64 = 33MB, gathered uint8 = 4.2MB, cand = 4.2MB, maximum result = 4.2MB. Fine.
+
+Let me now also think: can I shrink the tables by choosing the split adaptively based on the graph? E.g., if the graph is disconnected or has vertices of low degree... Not needed; 2^23 is fine.
+
+One more important thing: numpy availability of `np.uint8(1)` additions — fine.
+
+Also: for very small n (like n=1,2), the code must not crash: n=1: n2=0, n1=1. build_table(0, []) → size 1, f=[0] ✓ (loop `if nv:` guards Hfull). build_table(1, [adjL[0]=0]): size 2, Hfull = arange(1) = [0]. j=0: stride 2, Nv = 1, h = 0 → f[1::2] = src+1 → f[1] = 1 ✓. A: size 1, no loop. idxL = (~A)&Lmask: A = np.zeros(1, uint32); ~A = [0xFFFFFFFF]; & 1 → [1]... wait Lmask = 1. idxL = [1]. partL = fL[[1]] = [1]. vals = [1 + f[0]=0] = [1]. best=1. If k=1 → YES, Y=0, resR=[], startL = 1 & ~A[0]=1&~0=1, walk: T=1, lb=1

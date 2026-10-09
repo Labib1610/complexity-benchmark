@@ -1,0 +1,183 @@
+```python
+import sys
+from collections import deque
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    k = int(next(it))
+    
+    orders = []
+    for _ in range(k):
+        s = int(next(it))
+        t = int(next(it))
+        d = int(next(it))
+        orders.append((s, t, d))
+    
+    edges = []
+    adj = [[] for _ in range(n + 1)]
+    for i in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        cap = int(next(it))
+        edges.append((u, v, cap))
+        adj[u].append((v, i))
+    
+    # Build flow network
+    # Nodes: 1..n for stations, plus source and sink
+    # For each edge i: create edge node i with capacity edges[i][2]
+    # Node indices: stations 1..n, edge nodes n+1..n+m, source = n+m+1, sink = n+m+2
+    N = n + m + 2
+    source = n + m + 1
+    sink = n + m + 2
+    
+    cap = [[0] * (N + 1) for _ in range(N + 1)]
+    flow = [[0] * (N + 1) for _ in range(N + 1)]
+    graph = [[] for _ in range(N + 1)]
+    
+    # Add edges from source to order origins
+    for order_id, (s, t, d) in enumerate(orders):
+        cap[source][s] += d
+        graph[source].append(s)
+        if s not in graph[s]:
+            graph[s].append(source)
+    
+    # Add edges from order destinations to sink
+    for order_id, (s, t, d) in enumerate(orders):
+        cap[t][sink] += d
+        graph[t].append(sink)
+        if sink not in graph[sink]:
+            graph[sink].append(t)
+    
+    # Add edges for tracks
+    # From station u to edge node n+1+i, from edge node to station v
+    for i, (u, v, c) in enumerate(edges):
+        edge_node = n + 1 + i
+        cap[u][edge_node] = c
+        cap[edge_node][v] = c
+        graph[u].append(edge_node)
+        graph[edge_node].append(u)
+        graph[edge_node].append(v)
+        graph[v].append(edge_node)
+    
+    # Dinic's algorithm
+    level = [0] * (N + 1)
+    
+    def bfs():
+        for i in range(N + 1):
+            level[i] = -1
+        level[source] = 0
+        q = deque([source])
+        while q:
+            u = q.popleft()
+            for v in graph[u]:
+                if level[v] < 0 and cap[u][v] > flow[u][v]:
+                    level[v] = level[u] + 1
+                    q.append(v)
+        return level[sink] >= 0
+    
+    def dfs(u, f):
+        if u == sink:
+            return f
+        for v in graph[u]:
+            if level[v] == level[u] + 1 and cap[u][v] > flow[u][v]:
+                ret = dfs(v, min(f, cap[u][v] - flow[u][v]))
+                if ret > 0:
+                    flow[u][v] += ret
+                    flow[v][u] -= ret
+                    return ret
+        return 0
+    
+    total_flow = 0
+    while bfs():
+        while True:
+            f = dfs(source, float('inf'))
+            if f == 0:
+                break
+            total_flow += f
+    
+    total_demand = sum(d for _, _, d in orders)
+    
+    if total_flow != total_demand:
+        print("NO")
+        return
+    
+    print("YES")
+    
+    # Extract flow for each order
+    # For order i, we need to find flow on each track edge
+    # We'll decompose the flow for each order
+    
+    # Build residual graph for flow decomposition
+    res_cap = [[0] * (N + 1) for _ in range(N + 1)]
+    for u in range(1, N + 1):
+        for v in range(1, N + 1):
+            res_cap[u][v] = cap[u][v] - flow[u][v]
+    
+    # For each order, decompose flow from s to t
+    result = [[0] * m for _ in range(k)]
+    
+    for order_id, (s, t, d) in enumerate(orders):
+        # Find d units of flow from s to t
+        remaining = d
+        while remaining > 0:
+            # BFS to find augmenting path in residual graph
+            parent = [-1] * (N + 1)
+            parent_edge = [-1] * (N + 1)  # To track which edge node
+            q = deque([s])
+            parent[s] = s
+            found = False
+            while q and not found:
+                u = q.popleft()
+                for v in graph[u]:
+                    if parent[v] < 0 and res_cap[u][v] > 0:
+                        parent[v] = u
+                        if n + 1 <= u <= n + m:
+                            parent_edge[v] = u - n - 1  # Track edge index
+                        else:
+                            parent_edge[v] = parent_edge[u]
+                        if v == t:
+                            found = True
+                            break
+                        q.append(v)
+            
+            if not found:
+                break
+            
+            # Find minimum capacity on path
+            path_cap = float('inf')
+            v = t
+            while v != s:
+                u = parent[v]
+                path_cap = min(path_cap, res_cap[u][v])
+                v = u
+            
+            # Update residual capacities
+            v = t
+            while v != s:
+                u = parent[v]
+                res_cap[u][v] -= path_cap
+                res_cap[v][u] += path_cap
+                v = u
+            
+            remaining -= path_cap
+            
+            # Add to result for edges used
+            v = t
+            while v != s:
+                u = parent[v]
+                if n + 1 <= u <= n + m:
+                    edge_idx = u - n - 1
+                    result[order_id][edge_idx] += path_cap
+                v = u
+    
+    for i in range(k):
+        print(' '.join(map(str, result[i])))
+
+if __name__ == "__main__":
+    solve()
+```

@@ -1,0 +1,48 @@
+# Problem A — Harmonic Resonance Mitigation
+
+Time limit: 2 s   Memory limit: 256 MB
+
+A smart grid manages three distinct power grids, designated by the codes 1, 2, and 3. The system supports $n$ industrial facilities, numbered 1 through $n$. Due to harmonic resonance, certain pairs of facilities induce severe voltage fluctuations if they draw power from the same grid. To guarantee stability, you must connect each facility to exactly one of the three grids such that no two resonating facilities share a grid.
+
+Your objective is to determine whether a stable configuration exists for all $n$ facilities, and if so, to find the optimal valid connection layout.
+
+## Input
+The first line contains two integers $n$ and $m$ — the number of facilities and the number of resonating facility pairs ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
+The next $m$ lines each contain two integers $u$ and $v$ — representing a pair of facilities that exhibit harmonic resonance with each other.
+
+## Output
+If no stable configuration is possible, print a single line containing `NO`.
+If a stable configuration is possible, print `YES` on the first line. On the second line, print $n$ integers $g_1, g_2, \dots, g_n$ (each chosen from {1, 2, 3}), where $g_i$ is the grid code assigned to facility $i$.
+If multiple stable configurations exist, you must resolve ties by preferring the configuration that assigns the lowest possible grid code to facility 1; if still tied, prefer the lowest possible grid code for facility 2, and continue this tie-breaking process sequentially up to facility $n$.
+
+## Example 1
+Input:
+```
+4 5
+1 2
+1 3
+2 3
+1 4
+2 4
+```
+Output:
+```
+YES
+1 2 3 3
+```
+
+## Example 2
+Input:
+```
+4 6
+1 2
+1 3
+1 4
+2 3
+2 4
+3 4
+```
+Output:
+```
+NO
+```

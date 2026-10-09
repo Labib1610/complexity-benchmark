@@ -1,49 +1,59 @@
+from itertools import product
+
 def solve():
-    import sys
-    input = sys.stdin.read
-    data = input().split()
+    n, m = map(int, input().split())
     
-    n = int(data[0])
-    m = int(data[1])
+    if m == 0:
+        # No toxic pairs, just check water constraint
+        if n > 45:
+            print("NO")
+            return
+        else:
+            print("YES")
+            print(" ".join(["1"] * n))
+            return
     
-    # Build adjacency list representation of conflicts
-    adj = [[] for _ in range(n+1)]
-    idx = 2
+    # Read toxic pairs
+    toxic_pairs = []
     for _ in range(m):
-        u = int(data[idx])
-        v = int(data[idx+1])
-        adj[u].append(v)
-        adj[v].append(u)
-        idx += 2
+        u, v = map(int, input().split())
+        toxic_pairs.append((u-1, v-1))  # Convert to 0-indexed
     
-    # Color the graph with 3 colors (1, 2, 3). This is a backtracking solution.
-    # We'll use a greedy backtracking approach, trying colors 1,2,3 in order 
-    # to ensure lexicographically smallest result.
-    
-    color = [0] * (n+1)  # color[i] represents the bank for block i
-    
-    def is_safe(node, c):
-        for neighbor in adj[node]:
-            if color[neighbor] == c:
-                return False
-        return True
-    
-    def backtrack(node):
-        if node > n:
-            return True
+    # Try all possible assignments
+    for assignment in product([1, 2, 3], repeat=n):
+        # Check water constraint: each greenhouse can have at most 45 species
+        count = [0, 0, 0]
+        for greenhouse in assignment:
+            count[greenhouse-1] += 1
+        
+        if any(c > 45 for c in count):
+            continue
             
-        for c in [1, 2, 3]:
-            if is_safe(node, c):
-                color[node] = c
-                if backtrack(node + 1):
-                    return True
-                color[node] = 0
-        return False
-    
-    if backtrack(1):
+        # Check toxicity isolation constraint
+        valid = True
+        for u, v in toxic_pairs:
+            if assignment[u] == assignment[v]:
+                valid = False
+                break
+                
+        if not valid:
+            continue
+            
+        # Check filtration budget: count pairs assigned to different greenhouses
+        filtration_units = 0
+        for u, v in toxic_pairs:
+            if assignment[u] != assignment[v]:
+                filtration_units += 1
+                
+        if filtration_units > 800:
+            continue
+            
+        # If we reach here, we found a valid assignment
         print("YES")
-        print(' '.join(map(str, color[1:])))
-    else:
-        print("NO")
+        print(" ".join(map(str, assignment)))
+        return
+    
+    # If no valid assignment found
+    print("NO")
 
 solve()

@@ -21,7 +21,7 @@ def bfs(start):
         u = q.popleft()
         for v in adj[u]:
             if color[v] == -1:
-                color[v] = 3 - color[u]  # 1 -> 2, 2 -> 1
+                color[v] = 3 - color[u]
                 q.append(v)
             elif color[v] == color[u]:
                 return False
@@ -34,4 +34,4 @@ for i in range(n):
             sys.exit()
 
 print("YES")
-print(" ".join(str(c) for c in color))
+print(" ".join(str(color[i]) for i in range(n)))

@@ -1,0 +1,106 @@
+import sys
+from collections import deque
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+
+    it = iter(data)
+    n = next(it)
+    m = next(it)
+    _ = next(it)
+
+    s = next(it) - 1
+    t = next(it) - 1
+    required = next(it)
+
+    graph = [[] for _ in range(n)]
+    to = []
+    residual = []
+    original_edges = []
+
+    def add_edge(u, v, capacity):
+        edge_id = len(to)
+        to.append(v)
+        residual.append(capacity)
+        to.append(u)
+        residual.append(0)
+        graph[u].append(edge_id)
+        graph[v].append(edge_id ^ 1)
+        original_edges.append((edge_id, capacity))
+
+    for _ in range(m):
+        u = next(it) - 1
+        v = next(it) - 1
+        capacity = next(it)
+        add_edge(u, v, capacity)
+
+    if required == 0 or s == t:
+        print("YES")
+        print(" ".join("0" for _ in range(m)))
+        return
+
+    sys.setrecursionlimit(max(10000, n + 100))
+    level = [-1] * n
+    ptr = [0] * n
+
+    def bfs():
+        level[:] = [-1] * n
+        level[s] = 0
+        queue = deque([s])
+
+        while queue:
+            v = queue.popleft()
+            for edge_id in graph[v]:
+                u = to[edge_id]
+                if residual[edge_id] > 0 and level[u] == -1:
+                    level[u] = level[v] + 1
+                    queue.append(u)
+
+        return level[t] != -1
+
+    def dfs(v, pushed):
+        if v == t:
+            return pushed
+
+        while ptr[v] < len(graph[v]):
+            edge_id = graph[v][ptr[v]]
+            u = to[edge_id]
+
+            if residual[edge_id] > 0 and level[u] == level[v] + 1:
+                sent = dfs(u, min(pushed, residual[edge_id]))
+                if sent:
+                    residual[edge_id] -= sent
+                    residual[edge_id ^ 1] += sent
+                    return sent
+
+            ptr[v] += 1
+
+        return 0
+
+    total_flow = 0
+
+    while total_flow < required and bfs():
+        ptr[:] = [0] * n
+
+        while total_flow < required:
+            sent = dfs(s, required - total_flow)
+            if sent == 0:
+                break
+            total_flow += sent
+
+    if total_flow < required:
+        print("NO")
+        return
+
+    flows = [
+        str(capacity - residual[edge_id])
+        for edge_id, capacity in original_edges
+    ]
+
+    print("YES")
+    print(" ".join(flows))
+
+if __name__ == "__main__":
+    main()

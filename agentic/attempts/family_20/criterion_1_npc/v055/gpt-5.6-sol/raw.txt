@@ -1,0 +1,243 @@
+```python
+import sys
+
+sys.setrecursionlimit(1000000)
+
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if len(data) < 2:
+        print("NO")
+        return
+
+    n, m = data[0], data[1]
+    if m != 3 * n // 2 or len(data) != 2 + 2 * m:
+        print("NO")
+        return
+
+    adj = [[] for _ in range(n)]
+    ends = [None] * m
+    degree = [0] * n
+
+    p = 2
+    for eid in range(m):
+        u = data[p] - 1
+        v = data[p + 1] - 1
+        p += 2
+        if not (0 <= u < n and 0 <= v < n) or u == v:
+            print("NO")
+            return
+        ends[eid] = (u, v)
+        adj[u].append((v, eid))
+        adj[v].append((u, eid))
+        degree[u] += 1
+        degree[v] += 1
+
+    if any(d != 3 for d in degree):
+        print("NO")
+        return
+
+    # A cubic graph with a bridge cannot have a proper 3-edge-coloring.
+    tin = [-1] * n
+    low = [0] * n
+    timer = 0
+    has_bridge = False
+
+    def bridge_dfs(v, parent_edge):
+        nonlocal timer, has_bridge
+        tin[v] = low[v] = timer
+        timer += 1
+        for to, eid in adj[v]:
+            if eid == parent_edge:
+                continue
+            if tin[to] == -1:
+                bridge_dfs(to, eid)
+                low[v] = min(low[v], low[to])
+                if low[to] > tin[v]:
+                    has_bridge = True
+            else:
+                low[v] = min(low[v], tin[to])
+
+    for s in range(n):
+        if tin[s] == -1:
+            bridge_dfs(s, -1)
+
+    if has_bridge:
+        print("NO")
+        return
+
+    # Connected components.
+    components = []
+    seen = [False] * n
+    for s in range(n):
+        if seen[s]:
+            continue
+        stack = [s]
+        seen[s] = True
+        vertices = []
+        edge_set = set()
+        while stack:
+            v = stack.pop()
+            vertices.append(v)
+            for to, eid in adj[v]:
+                edge_set.add(eid)
+                if not seen[to]:
+                    seen[to] = True
+                    stack.append(to)
+        components.append((vertices, list(edge_set)))
+
+    # Colors are represented by bits 1, 2, 4.
+    edge_color = [0] * m
+    used_mask = [0] * n
+    colored_degree = [0] * n
+    changes = []
+    colored_total = 0
+
+    def assign(eid, color_bit, queue):
+        nonlocal colored_total
+        old = edge_color[eid]
+        if old:
+            return old == color_bit
+
+        u, v = ends[eid]
+        if (used_mask[u] & color_bit) or (used_mask[v] & color_bit):
+            return False
+
+        edge_color[eid] = color_bit
+        changes.append(eid)
+        colored_total += 1
+
+        used_mask[u] |= color_bit
+        used_mask[v] |= color_bit
+        colored_degree[u] += 1
+        colored_degree[v] += 1
+
+        if colored_degree[u] == 2:
+            queue.append(u)
+        if colored_degree[v] == 2:
+            queue.append(v)
+        return True
+
+    def rollback(checkpoint):
+        nonlocal colored_total
+        while len(changes) > checkpoint:
+            eid = changes.pop()
+            bit = edge_color[eid]
+            edge_color[eid] = 0
+            colored_total -= 1
+            u, v = ends[eid]
+            used_mask[u] ^= bit
+            used_mask[v] ^= bit
+            colored_degree[u] -= 1
+            colored_degree[v] -= 1
+
+    def propagate(queue):
+        while queue:
+            v = queue.pop()
+            if colored_degree[v] != 2:
+                continue
+
+            missing_edge = -1
+            for _, eid in adj[v]:
+                if edge_color[eid] == 0:
+                    missing_edge = eid
+                    break
+
+            if missing_edge == -1:
+                return False
+
+            missing_color = 7 ^ used_mask[v]
+            if missing_color not in (1, 2, 4):
+                return False
+            if not assign(missing_edge, missing_color, queue):
+                return False
+        return True
+
+    def solve_component(vertices, component_edges):
+        start_total = colored_total
+        goal = start_total + len(component_edges)
+        root_checkpoint = len(changes)
+
+        # Fix the global permutation symmetry of the three colors.
+        root = vertices[0]
+        root_edges = [eid for _, eid in adj[root]]
+        queue = []
+        for eid, bit in zip(root_edges, (1, 2, 4)):
+            if not assign(eid, bit, queue):
+                rollback(root_checkpoint)
+                return False
+
+        def dfs(pending):
+            if not propagate(pending):
+                return False
+            if colored_total == goal:
+                return True
+
+            chosen = -1
+            best_score = -1
+
+            # Prefer a frontier vertex whose uncolored edges lead to other
+            # already reached vertices, as this causes faster propagation.
+            for v in vertices:
+                if colored_degree[v] != 1:
+                    continue
+                score = 0
+                for to, eid in adj[v]:
+                    if edge_color[eid] == 0 and colored_degree[to] > 0:
+                        score += 1
+                if score > best_score:
+                    best_score = score
+                    chosen = v
+                    if score == 2:
+                        break
+
+            if chosen == -1:
+                return False
+
+            uncolored = []
+            for _, eid in adj[chosen]:
+                if edge_color[eid] == 0:
+                    uncolored.append(eid)
+
+            if len(uncolored) != 2:
+                return False
+
+            available = [bit for bit in (1, 2, 4)
+                         if not (used_mask[chosen] & bit)]
+            if len(available) != 2:
+                return False
+
+            for first, second in ((available[0], available[1]),
+                                  (available[1], available[0])):
+                checkpoint = len(changes)
+                next_queue = []
+                if (assign(uncolored[0], first, next_queue) and
+                        assign(uncolored[1], second, next_queue) and
+                        dfs(next_queue)):
+                    return True
+                rollback(checkpoint)
+
+            return False
+
+        if dfs(queue):
+            return True
+
+        rollback(root_checkpoint)
+        return False
+
+    # Solve smaller components first.
+    components.sort(key=lambda item: len(item[0]))
+
+    for vertices, component_edges in components:
+        if not solve_component(vertices, component_edges):
+            print("NO")
+            return
+
+    answer = [str(bit.bit_length()) for bit in edge_color]
+    print("YES")
+    print(" ".join(answer))
+
+
+if __name__ == "__main__":
+    main()
+```

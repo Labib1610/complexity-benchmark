@@ -1,46 +1,33 @@
-import sys
-from collections import defaultdict
+from itertools import product
 
 def solve():
-    n, m = map(int, sys.stdin.readline().split())
+    n, m = map(int, input().split())
     
-    # Build adjacency list
-    adj = defaultdict(list)
+    # Valid schedule codes: positive integers s such that s^2 <= 9
+    # This means s can be 1, 2, or 3
+    valid_codes = [1, 2, 3]
+    
+    # Read incompatibility conditions
+    incompatible = set()
     for _ in range(m):
-        u, v = map(int, sys.stdin.readline().split())
-        adj[u].append(v)
-        adj[v].append(u)
+        u, v = map(int, input().split())
+        incompatible.add((u-1, v-1))  # Convert to 0-indexed
+        incompatible.add((v-1, u-1))
     
-    # Colors for each node (0 means uncolored)
-    colors = [0] * (n + 1)
-    
-    # Try to color the graph with 3 colors using backtracking
-    # We want the lexicographically smallest coloring
-    
-    def is_safe(node, color):
-        for neighbor in adj[node]:
-            if colors[neighbor] == color:
-                return False
-        return True
-    
-    def backtrack(node):
-        if node > n:
-            return True
-            
-        for color in [1, 2, 3]:
-            if is_safe(node, color):
-                colors[node] = color
-                if backtrack(node + 1):
-                    return True
-                colors[node] = 0
+    # Try all possible assignments
+    for assignment in product(valid_codes, repeat=n):
+        valid = True
+        # Check all incompatibility conditions
+        for u, v in incompatible:
+            if assignment[u] == assignment[v]:
+                valid = False
+                break
         
-        return False
+        if valid:
+            print("YES")
+            print(' '.join(map(str, assignment)))
+            return
     
-    # Check if the graph is 3-colorable
-    if not backtrack(1):
-        print("NO")
-    else:
-        print("YES")
-        print(' '.join(map(str, colors[1:])))
+    print("NO")
 
 solve()

@@ -1,43 +1,41 @@
 def solve():
     import sys
-    from collections import defaultdict
+    from itertools import product
     
-    n, m = map(int, sys.stdin.readline().split())
+    input = sys.stdin.read
+    data = input().split()
     
-    # Build adjacency list
-    adj = defaultdict(set)
+    n = int(data[0])
+    m = int(data[1])
+    
+    # Build adjacency list representation of conflicts
+    conflicts = [[] for _ in range(n + 1)]
+    idx = 2
     for _ in range(m):
-        u, v = map(int, sys.stdin.readline().split())
-        adj[u].add(v)
-        adj[v].add(u)
+        u = int(data[idx])
+        v = int(data[idx + 1])
+        conflicts[u].append(v)
+        conflicts[v].append(u)
+        idx += 2
     
-    # Try all 3^N combinations in lexicographical order
-    # But we'll use backtracking for efficiency
-    assignment = [0] * (n + 1)  # 1-indexed
+    # Try all 3^n assignments
+    for assignment in product([1, 2, 3], repeat=n):
+        valid = True
+        # Check each artifact against its conflicting neighbors
+        for i in range(1, n + 1):
+            for neighbor in conflicts[i]:
+                # Only check in one direction to avoid double checking
+                if neighbor > i and assignment[i-1] == assignment[neighbor-1]:
+                    valid = False
+                    break
+            if not valid:
+                break
+        
+        if valid:
+            print("YES")
+            print(' '.join(map(str, assignment)))
+            return
     
-    def is_valid(sample, unit):
-        # Check if assigning 'unit' to 'sample' conflicts with its neighbors
-        for neighbor in adj[sample]:
-            if assignment[neighbor] == unit:
-                return False
-        return True
-    
-    def backtrack(index):
-        if index > n:
-            return True
-            
-        for unit in [1, 2, 3]:
-            if is_valid(index, unit):
-                assignment[index] = unit
-                if backtrack(index + 1):
-                    return True
-                assignment[index] = 0  # Backtrack
-        return False
-    
-    if backtrack(1):
-        print("YES")
-        print(' '.join(map(str, assignment[1:])))
-    else:
-        print("NO")
+    print("NO")
 
 solve()

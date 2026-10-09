@@ -1,19 +1,20 @@
-# Channel Allocation
+# Problem B — Maintenance Windows
 
-Time limit: 1 s
-Memory limit: 256 MB
+Time limit: 1 s   Memory limit: 256 MB
 
-A fleet of $n$ autonomous surveying vessels must each be assigned to one of two communication channels, designated as channel 1 and channel 2. During the survey, certain pairs of vessels will operate in close proximity. If two vessels in close proximity broadcast on the same channel, their signals will interfere. You are given $m$ records of such vessel pairs.
+A cloud provider must schedule maintenance updates for $n$ database instances. The update process requires assigning each instance to one of two maintenance windows, designated 1 and 2.
 
-Your task is to assign a channel to every vessel such that no two vessels in close proximity share the same channel, or determine that this is impossible. If there are multiple valid ways to assign the channels, you must output the configuration that produces the lexicographically smallest sequence of channel assignments for vessels 1 through $n$.
+Certain pairs of instances share a dedicated backup storage array. To prevent storage overload, these pairs cannot undergo maintenance during the same window. 
+
+You must assign a window to each instance to satisfy all storage constraints, or determine that no such schedule exists. If multiple valid schedules exist, the automated deployment system requires the schedule whose sequence of window assignments $s_1 \dots s_n$ (where $s_i$ is the window assigned to instance $i$) is lexicographically smallest.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$), representing the number of vessels and the number of proximity records.
-Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$), indicating that vessel $u$ and vessel $v$ will operate in close proximity.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$), representing the number of database instances and the number of shared backup arrays.
+Each of the next $m$ lines contains two integers $u$ and $v$, indicating that instances $u$ and $v$ share a backup array.
 
 ## Output
-If no assignment can prevent all interference, print a single line containing `NO`.
-Otherwise, print `YES` on the first line. On the second line, print $n$ integers $s_1, \ldots, s_n$ (each $s_i \in \{1, 2\}$), representing the lexicographically smallest valid channel assignment.
+If no valid schedule exists, print a single line NO.
+Otherwise print YES, then a second line with $n$ integers $s_1 \dots s_n$ (each in {1,2}), representing the lexicographically smallest valid schedule.
 
 ## Example 1
 Input:

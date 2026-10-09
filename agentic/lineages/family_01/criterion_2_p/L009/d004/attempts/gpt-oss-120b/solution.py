@@ -1,5 +1,5 @@
 import sys
-from collections import deque
+sys.setrecursionlimit(1 << 25)
 
 def solve() -> None:
     data = sys.stdin.read().strip().split()
@@ -14,38 +14,43 @@ def solve() -> None:
         adj[u].append(v)
         adj[v].append(u)
 
-    colour = [-1] * (n + 1)          # -1 unvisited, 0/1 two colours
-    ans = [0] * (n + 1)
+    side = [-1] * (n + 1)          # 0 or 1 for bipartition
+    answer = [0] * (n + 1)         # final 1/2 values
+
+    from collections import deque
 
     for start in range(1, n + 1):
-        if colour[start] != -1:
+        if side[start] != -1:
             continue
         # BFS this component
         q = deque([start])
-        colour[start] = 0
+        side[start] = 0
         comp = [start]
         ok = True
         while q:
             u = q.popleft()
-            cu = colour[u]
             for v in adj[u]:
-                if colour[v] == -1:
-                    colour[v] = cu ^ 1
+                if side[v] == -1:
+                    side[v] = side[u] ^ 1
                     q.append(v)
                     comp.append(v)
-                elif colour[v] == cu:
-                    # not bipartite
+                elif side[v] == side[u]:
                     print("NO")
                     return
-        # choose mapping: smallest index gets value 1
+        # choose mapping to make smallest index vertex have value 1
         min_v = min(comp)
-        c_min = colour[min_v]
-        for v in comp:
-            ans[v] = 1 if colour[v] == c_min else 2
+        if side[min_v] == 0:
+            # map 0->1, 1->2
+            for v in comp:
+                answer[v] = 1 if side[v] == 0 else 2
+        else:
+            # map 0->2, 1->1
+            for v in comp:
+                answer[v] = 2 if side[v] == 0 else 1
 
-    # isolated vertices (no edges) are already handled: they form a component of size 1
+    # all vertices assigned
     print("YES")
-    print(' '.join(str(ans[i]) for i in range(1, n + 1)))
+    print(' '.join(str(answer[i]) for i in range(1, n + 1)))
 
 if __name__ == "__main__":
     solve()

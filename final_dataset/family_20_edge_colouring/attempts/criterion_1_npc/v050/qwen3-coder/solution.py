@@ -1,0 +1,310 @@
+import sys
+from collections import defaultdict
+
+def main():
+    import sys
+    sys.setrecursionlimit(10000)
+    
+    n, m = map(int, sys.stdin.readline().split())
+    
+    edges = []
+    adj = [[] for _ in range(n + 1)]
+    
+    for i in range(m):
+        u, v = map(int, sys.stdin.readline().split())
+        edges.append((u, v))
+        adj[u].append((v, i))
+        adj[v].append((u, i))
+    
+    # Colorings: 1, 2, 3
+    coloring = [0] * m  # 0 means uncolored
+    
+    # For each node, we need to color its 3 edges with 3 different colors
+    # This is essentially edge-coloring with 3 colors for a cubic graph
+    
+    # We'll try to perform a BFS-like approach to assign colors
+    # Since every vertex has degree 3, and we have 3 colors, 
+    # we can assign the 3 colors to the 3 edges around each vertex
+    
+    # Let's build the adjacency for edges (line graph)
+    # But since it's a cubic graph and we want to 3-edge-color it,
+    # we can use the fact that a cubic graph is 3-edge-colorable iff it's bridgeless
+    # But we don't know if it's bridgeless, so we'll try to construct it
+    
+    # A more practical approach: since each vertex connects to exactly 3 edges,
+    # and we have 3 colors, we just need to ensure that for each vertex,
+    # its 3 edges get 3 different colors
+    
+    # We can model this as a constraint satisfaction problem
+    # For each vertex, the 3 edges must have pairwise different colors
+    
+    # Let's try a greedy approach with backtracking simulation
+    # But since n <= 2000, we need something efficient
+    
+    # Actually, let's think differently:
+    # This is equivalent to properly 3-edge-coloring a cubic graph
+    # It's known that a cubic graph is 3-edge-colorable iff it's bridgeless
+    # But checking if it's bridgeless and then finding the coloring is complex
+    
+    # Let's try a simple greedy method:
+    # For each edge, assign the lowest numbered color not used by adjacent edges at either endpoint
+    
+    # But "adjacent edges" here means edges that share a vertex with current edge
+    # That's too complex. Let's think of another way.
+    
+    # Since each vertex has exactly 3 edges, and we have 3 colors,
+    # we can simply assign the 3 colors to the 3 edges at each vertex
+    
+    # So we can do this:
+    # Pick a vertex, assign colors 1,2,3 to its 3 edges arbitrarily
+    # Then propagate this constraint to neighbors
+    
+    # But this requires a proper algorithm. Let's use a known approach:
+    # Try to find a perfect matching, remove it, get a cycle, color accordingly
+    # But that's also non-trivial
+    
+    # Let's go with a SAT approach simulation or backtracking
+    # But that might be too slow
+    
+    # Wait, let's re-examine the example:
+    # Vertices: 1,2,3,4
+    # Edges: 1-2, 1-3, 1-4, 2-3, 2-4, 3-4
+    # This is complete graph K_4
+    # Coloring: 1-2:1, 1-3:2, 1-4:3, 2-3:3, 2-4:2, 3-4:1
+    # Check vertex 1: edges to 2(1), 3(2), 4(3) -> OK
+    # Check vertex 2: edges to 1(1), 3(3), 4(2) -> OK
+    # Check vertex 3: edges to 1(2), 2(3), 4(1) -> OK
+    # Check vertex 4: edges to 1(3), 2(2), 3(1) -> OK
+    
+    # So the approach is to model this as an edge coloring problem
+    # Each vertex has 3 edges, which must get 3 different colors
+    
+    # Let's try a greedy assignment:
+    # Process vertices one by one
+    # For each vertex, look at its 3 edges
+    # Assign colors 1,2,3 to them in some order, respecting already assigned colors
+    
+    # But this can cause conflicts. Better approach:
+    # Use backtracking with constraint propagation
+    
+    # Since the constraints are local (only involving edges of one vertex),
+    # we can model this as:
+    # For each vertex, its 3 edges must have 3 distinct colors from {1,2,3}
+    
+    # This is equivalent to hypergraph 3-coloring where each hyperedge has size 3
+    # But let's think of it as a CSP
+    
+    # Let's represent the problem properly:
+    # Variables: edges e_0, ..., e_{m-1}, values in {1,2,3}
+    # Constraints: for each vertex v with edges e_i, e_j, e_k, 
+    #              we have coloring[e_i] != coloring[e_j] != coloring[e_k] != coloring[e_i]
+    
+    # Since each variable participates in exactly 2 constraints (one for each endpoint),
+    # and each constraint involves exactly 3 variables, 
+    # this is a very structured CSP
+    
+    # Let's try a randomized or heuristic approach:
+    # Start with random assignment, then fix conflicts
+    
+    # But let's try a deterministic approach:
+    # Build the line graph where each edge is a vertex,
+    # and two vertices are connected if their corresponding edges share a vertex
+    # Then color this line graph with 3 colors
+    # But the line graph of a cubic graph can have high degree
+    
+    # Alternative: since maximum degree of line graph of cubic graph is 4,
+    # and we want to 3-color it, this relates to Brook's theorem
+    # But this is getting too theoretical
+    
+    # Let's implement a simple backtracking with constraint checking
+    
+    def solve():
+        # Initialize coloring
+        coloring = [0] * m
+        
+        # For each vertex, store list of its incident edges
+        vertex_edges = [[] for _ in range(n+1)]
+        for i in range(m):
+            u, v = edges[i]
+            vertex_edges[u].append(i)
+            vertex_edges[v].append(i)
+        
+        def is_valid_assignment(vertex):
+            """Check if the edges of this vertex have valid coloring"""
+            edge_indices = vertex_edges[vertex]
+            colors = [coloring[idx] for idx in edge_indices]
+            if 0 in colors:
+                return True  # Not all colored yet
+            return len(set(colors)) == 3  # All different
+        
+        def find_unassigned_edge():
+            for i in range(m):
+                if coloring[i] == 0:
+                    return i
+            return -1
+            
+        def get_possible_colors(edge_idx):
+            u, v = edges[edge_idx]
+            used_colors_u = set()
+            used_colors_v = set()
+            
+            for idx in vertex_edges[u]:
+                if coloring[idx] != 0:
+                    used_colors_u.add(coloring[idx])
+                    
+            for idx in vertex_edges[v]:
+                if coloring[idx] != 0:
+                    used_colors_v.add(coloring[idx])
+                    
+            used_colors = used_colors_u | used_colors_v
+            return [c for c in [1,2,3] if c not in used_colors]
+        
+        def backtrack():
+            edge_idx = find_unassigned_edge()
+            if edge_idx == -1:
+                return True
+                
+            for color in get_possible_colors(edge_idx):
+                coloring[edge_idx] = color
+                u, v = edges[edge_idx]
+                
+                # Check if both vertices are still valid
+                if is_valid_assignment(u) and is_valid_assignment(v):
+                    if backtrack():
+                        return True
+                        
+                coloring[edge_idx] = 0
+                
+            return False
+            
+        # Try to find a solution
+        if backtrack():
+            return True, coloring
+        else:
+            return False, []
+    
+    # Actually, let's try a smarter approach
+    # Since this is a 3-regular graph, and we want to 3-edge-color it,
+    # we can use the fact that it's equivalent to finding 3 perfect matchings
+    # But let's stick to a simpler method
+    
+    # Let's try a greedy approach with conflict resolution
+    def greedy_solve():
+        coloring = [0] * m
+        vertex_edges = [[] for _ in range(n+1)]
+        for i in range(m):
+            u, v = edges[i]
+            vertex_edges[u].append(i)
+            vertex_edges[v].append(i)
+            
+        # Try to assign colors greedily
+        changed = True
+        while changed:
+            changed = False
+            for v in range(1, n+1):
+                edge_indices = vertex_edges[v]
+                colored_edges = [(idx, coloring[idx]) for idx in edge_indices if coloring[idx] != 0]
+                uncolored_edges = [idx for idx in edge_indices if coloring[idx] == 0]
+                
+                used_colors = {color for _, color in colored_edges}
+                
+                if len(colored_edges) == 3:
+                    if len(used_colors) < 3:
+                        return False, []  # Conflict
+                        
+                elif len(colored_edges) == 2 and len(uncolored_edges) == 1:
+                    available_colors = {1,2,3} - used_colors
+                    if len(available_colors) == 1:
+                        coloring[uncolored_edges[0]] = available_colors.pop()
+                        changed = True
+                        
+                elif len(colored_edges) == 1 and len(uncolored_edges) == 2:
+                    # Two uncolored edges, one colored with color C
+                    # Need to assign the other two colors to uncolored edges
+                    # But we can't decide which gets which without more info
+                    pass
+                    
+        # After greedy pass, if there are still uncolored edges, 
+        # try to enumerate possibilities
+        
+        uncolored = [i for i in range(m) if coloring[i] == 0]
+        if not uncolored:
+            return True, coloring
+            
+        # Simple case: if only 3 uncolored edges remain and they form a triangle
+        if len(uncolored) == 3:
+            # Check if they form a triangle
+            nodes = set()
+            for idx in uncolored:
+                u, v = edges[idx]
+                nodes.add(u)
+                nodes.add(v)
+                
+            if len(nodes) == 3:  # Forms a triangle
+                # Try all 6 permutations of assigning colors 1,2,3
+                from itertools import permutations
+                for p in permutations([1,2,3]):
+                    valid = True
+                    old_colors = [coloring[idx] for idx in uncolored]
+                    for i in range(3):
+                        coloring[uncolored[i]] = p[i]
+                        
+                    # Check validity for all vertices in the triangle
+                    for node in nodes:
+                        edge_indices = vertex_edges[node]
+                        colors_here = [coloring[idx] for idx in edge_indices]
+                        if 0 not in colors_here and len(set(colors_here)) != 3:
+                            valid = False
+                            break
+                            
+                    if valid:
+                        return True, coloring
+                        
+                    # Restore
+                    for i in range(3):
+                        coloring[uncolored[i]] = old_colors[i]
+                        
+        # Otherwise, fall back to backtracking for small cases
+        if len(uncolored) <= 9:  # Small enough to backtrack
+            def backtrack_small(indices_list):
+                if not indices_list:
+                    return True
+                    
+                idx = indices_list[0]
+                u, v = edges[idx]
+                used_u = set()
+                used_v = set()
+                
+                for e_idx in vertex_edges[u]:
+                    if coloring[e_idx] != 0:
+                        used_u.add(coloring[e_idx])
+                        
+                for e_idx in vertex_edges[v]:
+                    if coloring[e_idx] != 0:
+                        used_v.add(coloring[e_idx])
+                        
+                forbidden = used_u | used_v
+                
+                for color in {1,2,3} - forbidden:
+                    coloring[idx] = color
+                    if backtrack_small(indices_list[1:]):
+                        return True
+                    coloring[idx] = 0
+                    
+                return False
+                
+            if backtrack_small(uncolored):
+                return True, coloring
+                
+        return False, []
+        
+    success, result = greedy_solve()
+    
+    if success:
+        print("YES")
+        print(' '.join(map(str, result)))
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    main()

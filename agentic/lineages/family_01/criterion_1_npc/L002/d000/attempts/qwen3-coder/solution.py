@@ -1,47 +1,53 @@
 import sys
 from collections import defaultdict
 
-def solve():
+def read_input():
     n, m = map(int, sys.stdin.readline().split())
-    
-    # Build adjacency list
-    adj = defaultdict(list)
+    edges = []
     for _ in range(m):
         u, v = map(int, sys.stdin.readline().split())
+        edges.append((u-1, v-1))  # Convert to 0-indexed
+    return n, edges
+
+def solve(n, edges):
+    # Build adjacency list
+    adj = defaultdict(list)
+    for u, v in edges:
         adj[u].append(v)
         adj[v].append(u)
     
-    # Colors: 1, 2, 3 - we need to assign colors such that no adjacent nodes have the same color
-    # This is a 3-coloring problem
+    # Try to color the graph with 3 colors
+    # Color 0: uncolored, 1, 2, 3: colors
+    colors = [0] * n
     
-    # Use backtracking to find lexicographically smallest valid coloring
-    color = [0] * (n + 1)  # color[i] represents color of node i (1-indexed)
-    
-    def is_valid(node, c):
-        # Check if assigning color c to node is valid
+    def is_safe(node, color):
         for neighbor in adj[node]:
-            if color[neighbor] == c:
+            if colors[neighbor] == color:
                 return False
         return True
     
     def backtrack(node):
-        if node > n:
+        if node == n:
             return True
             
-        for c in [1, 2, 3]:
-            if is_valid(node, c):
-                color[node] = c
+        for color in range(1, 4):
+            if is_safe(node, color):
+                colors[node] = color
                 if backtrack(node + 1):
                     return True
-                color[node] = 0  # Backtrack
-        
+                colors[node] = 0
+                
         return False
     
-    # Start backtracking from node 1
-    if backtrack(1):
-        print("YES")
-        print(*color[1:])
+    if backtrack(0):
+        return "YES\n" + " ".join(map(str, colors))
     else:
-        print("NO")
+        return "NO"
 
-solve()
+def main():
+    n, edges = read_input()
+    result = solve(n, edges)
+    print(result)
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,146 @@
+import sys
+
+def solve():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+
+    n, m, k = data[0], data[1], data[2]
+    conflict = [0] * n
+
+    pos = 3
+    for _ in range(m):
+        u = data[pos] - 1
+        v = data[pos + 1] - 1
+        pos += 2
+        conflict[u] |= 1 << v
+        conflict[v] |= 1 << u
+
+    if k == 1:
+        print("YES")
+        print(1)
+        return
+
+    a = min(22, n // 2)
+    b = n - a
+
+    full_a = (1 << a) - 1
+    full_b = (1 << b) - 1
+
+    conflict_a = [conflict[i] & full_a for i in range(a)]
+
+    size_a = 1 << a
+    dp = bytearray(size_a)
+
+    for mask in range(1, size_a):
+        bit = mask & -mask
+        v = bit.bit_length() - 1
+        rest = mask ^ bit
+
+        without_v = dp[rest]
+        with_v = dp[rest & ~conflict_a[v]] + 1
+        dp[mask] = with_v if with_v > without_v else without_v
+
+    def reconstruct_a(mask, need):
+        result = []
+        while need:
+            bit = mask & -mask
+            v = bit.bit_length() - 1
+            rest = mask ^ bit
+
+            if dp[rest] >= need:
+                mask = rest
+            else:
+                result.append(v + 1)
+                mask = rest & ~conflict_a[v]
+                need -= 1
+        return result
+
+    if dp[full_a] >= k:
+        answer = reconstruct_a(full_a, k)
+        print("YES")
+        print(*answer)
+        return
+
+    compatible_a = [0] * b
+    compatible_b = [0] * b
+
+    for j in range(b):
+        g = a + j
+        compatible_a[j] = full_a & ~conflict[g]
+        compatible_b[j] = full_b & ~(conflict[g] >> a) & ~(1 << j)
+
+    path = []
+    solution_b = None
+    solution_allowed_a = 0
+
+    def search(candidates, allowed_a):
+        nonlocal solution_b, solution_allowed_a
+
+        path_len = len(path)
+        need = k - path_len
+        if dp[allowed_a] >= need:
+            solution_b = path.copy()
+            solution_allowed_a = allowed_a
+            return True
+
+        if candidates == 0:
+            return False
+
+        if path_len + candidates.bit_count() + dp[allowed_a] < k:
+            return False
+
+        order = []
+        bounds = []
+        remaining = candidates
+        color = 0
+
+        while remaining:
+            color += 1
+            available = remaining
+            while available:
+                bit = available & -available
+                v = bit.bit_length() - 1
+
+                remaining ^= bit
+                available ^= bit
+                order.append(bit)
+                bounds.append(color)
+
+                available &= ~compatible_b[v]
+
+        current = candidates
+        base_a = dp[allowed_a]
+
+        for i in range(len(order) - 1, -1, -1):
+            if path_len + bounds[i] + base_a < k:
+                return False
+
+            bit = order[i]
+            v = bit.bit_length() - 1
+
+            path.append(v)
+            next_candidates = current & compatible_b[v]
+            next_allowed_a = allowed_a & compatible_a[v]
+
+            if search(next_candidates, next_allowed_a):
+                return True
+
+            path.pop()
+            current ^= bit
+
+        return False
+
+    if not search(full_b, full_a):
+        print("NO")
+        return
+
+    need_a = k - len(solution_b)
+    answer = reconstruct_a(solution_allowed_a, need_a)
+    answer.extend(a + v + 1 for v in solution_b)
+
+    print("YES")
+    print(*answer)
+
+if __name__ == "__main__":
+    solve()

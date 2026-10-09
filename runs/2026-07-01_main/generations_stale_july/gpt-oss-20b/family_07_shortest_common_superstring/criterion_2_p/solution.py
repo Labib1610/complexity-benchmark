@@ -1,0 +1,51 @@
+import sys
+
+def prefix_function(s: str):
+    n = len(s)
+    pi = [0] * n
+    for i in range(1, n):
+        j = pi[i - 1]
+        while j > 0 and s[i] != s[j]:
+            j = pi[j - 1]
+        if s[i] == s[j]:
+            j += 1
+        pi[i] = j
+    return pi
+
+def overlap_suffix_prefix(a: str, b: str) -> int:
+    # longest suffix of a that matches prefix of b
+    combined = b + '#' + a
+    pi = prefix_function(combined)
+    return pi[-1]
+
+def main():
+    data = sys.stdin.read().splitlines()
+    if not data:
+        return
+    s1 = data[0].rstrip('\n')
+    s2 = data[1].rstrip('\n') if len(data) > 1 else ''
+    
+    # Check containment
+    if s2 in s1:
+        print(s1)
+        return
+    if s1 in s2:
+        print(s2)
+        return
+    
+    # Overlaps
+    ov1 = overlap_suffix_prefix(s1, s2)  # suffix of s1 with prefix of s2
+    ov2 = overlap_suffix_prefix(s2, s1)  # suffix of s2 with prefix of s1
+    
+    cand1 = s1 + s2[ov1:]
+    cand2 = s2 + s1[ov2:]
+    
+    if len(cand1) < len(cand2):
+        print(cand1)
+    elif len(cand2) < len(cand1):
+        print(cand2)
+    else:
+        print(cand1 if cand1 < cand2 else cand2)
+
+if __name__ == "__main__":
+    main()

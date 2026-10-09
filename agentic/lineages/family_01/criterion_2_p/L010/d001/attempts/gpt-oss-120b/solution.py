@@ -2,49 +2,51 @@ import sys
 from collections import deque
 
 def solve() -> None:
-    data = sys.stdin.buffer.read().split()
+    data = list(map(int, sys.stdin.buffer.read().split()))
     if not data:
         return
     it = iter(data)
-    n = int(next(it))
-    m = int(next(it))
+    n = next(it)
+    m = next(it)
+
     adj = [[] for _ in range(n + 1)]
     for _ in range(m):
-        u = int(next(it)); v = int(next(it))
+        u = next(it); v = next(it)
         adj[u].append(v)
         adj[v].append(u)
 
-    colour = [-1] * (n + 1)          # -1 unvisited, 0/1 bipartite colour
-    ans = [0] * (n + 1)
+    parity = [-1] * (n + 1)          # temporary 0/1 colours
+    answer = [0] * (n + 1)           # final 1/2 values
 
     for start in range(1, n + 1):
-        if colour[start] != -1:
+        if parity[start] != -1:
             continue
-        # BFS this component
+        # BFS of one component
         q = deque([start])
-        colour[start] = 0
-        comp = []
+        parity[start] = 0
+        comp = [start]
         while q:
-            x = q.popleft()
-            comp.append(x)
-            for y in adj[x]:
-                if colour[y] == -1:
-                    colour[y] = colour[x] ^ 1
-                    q.append(y)
-                elif colour[y] == colour[x]:
+            v = q.popleft()
+            pv = parity[v]
+            for to in adj[v]:
+                if parity[to] == -1:
+                    parity[to] = pv ^ 1
+                    q.append(to)
+                    comp.append(to)
+                elif parity[to] == pv:
+                    # not bipartite
                     sys.stdout.write("NO")
                     return
-        # decide mapping to get smallest lexicographic
-        p = min(comp)
-        if colour[p] == 0:
-            map0, map1 = 1, 2
-        else:
-            map0, map1 = 2, 1
-        for v in comp:
-            ans[v] = map0 if colour[v] == 0 else map1
 
-    out = ["YES", " ".join(str(ans[i]) for i in range(1, n + 1))]
-    sys.stdout.write("\n".join(out))
+        # orient so that smallest index gets value 1
+        min_v = min(comp)
+        want = parity[min_v]          # parity that must become 1
+        for v in comp:
+            answer[v] = 1 if parity[v] == want else 2
+
+    # all components processed successfully
+    out_lines = ["YES", " ".join(str(answer[i]) for i in range(1, n + 1))]
+    sys.stdout.write("\n".join(out_lines))
 
 if __name__ == "__main__":
     solve()

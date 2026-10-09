@@ -1,0 +1,91 @@
+import sys
+from collections import defaultdict
+
+def solve():
+    input = sys.stdin.readline
+    n, m, k = map(int, input().split())
+    adj = [0] * n
+    for _ in range(m):
+        u, v = map(int, input().split())
+        u -= 1
+        v -= 1
+        adj[u] |= (1 << v)
+        adj[v] |= (1 << u)
+    
+    # Split vertices into two halves
+    left_size = n // 2
+    right_size = n - left_size
+    left_vertices = list(range(left_size))
+    right_vertices = list(range(left_size, n))
+    
+    # Enumerate all independent sets in left half
+    left_sets = []  # list of (mask, size)
+    for mask in range(1 << left_size):
+        ok = True
+        for i in range(left_size):
+            if mask & (1 << i):
+                # check conflicts within left
+                if (adj[i] & mask) & ((1 << left_size) - 1) != 0:
+                    # conflict with another selected left vertex
+                    if (adj[i] & mask) != 0:
+                        ok = False
+                        break
+        if ok:
+            size = bin(mask).count("1")
+            left_sets.append((mask, size))
+    
+    # Enumerate all independent sets in right half
+    right_sets = []
+    for mask in range(1 << right_size):
+        ok = True
+        for i in range(right_size):
+            if mask & (1 << i):
+                # check conflicts within right
+                if (adj[left_size + i] & (mask << left_size)) != 0:
+                    ok = False
+                    break
+        if ok:
+            size = bin(mask).count("1")
+            right_sets.append((mask, size))
+    
+    # For each right set, store by size the mask with minimal conflicts? Actually we need to check cross edges.
+    # We'll store right sets by size, and for each left set we try to find a compatible right set.
+    
+    # Precompute for each right mask, the set of left vertices that are forbidden (adjacent to any selected right vertex)
+    right_forbidden = {}
+    for mask, size in right_sets:
+        forb = 0
+        for i in range(right_size):
+            if mask & (1 << i):
+                forb |= (adj[left_size + i] & ((1 << left_size) - 1))
+        right_forbidden[mask] = forb
+    
+    # Group right sets by size
+    right_by_size = defaultdict(list)
+    for mask, size in right_sets:
+        right_by_size[size].append(mask)
+    
+    # Try to find combination
+    for lmask, lsize in left_sets:
+        need = k - lsize
+        if need < 0 or need > right_size:
+            continue
+        # For each right set of size need, check no cross conflicts
+        for rmask in right_by_size.get(need, []):
+            if (lmask & right_forbidden[rmask]) == 0:
+                # Found solution
+                chosen = []
+                for i in range(left_size):
+                    if lmask & (1 << i):
+                        chosen.append(i + 1)
+                for i in range(right_size):
+                    if rmask & (1 << i):
+                        chosen.append(left_size + i + 1)
+                print("YES")
+                print(" ".join(map(str, chosen)))
+                return
+    
+    print("NO")
+
+if __name__ == "__main__":
+    solve()

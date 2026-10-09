@@ -1,0 +1,50 @@
+# Committee Deadlock Resolution
+
+## Time and Memory Limits
+Time limit: 2 s
+Memory limit: 256 MB
+
+## Description
+A selection panel is evaluating a roster of candidates, numbered $1$ to $n$. During the vetting process, the panel recorded mutual vetoes. Each veto is an unordered pair of distinct candidates who cannot be placed on the same committee.
+
+To formally document a scheduling failure, you must locate a specific obstruction: a deadlocked trio. A trio is defined as a set of exactly three distinct candidates. A trio $S$ is considered deadlocked if it is impossible to partition the three candidates of $S$ into two disjoint sets (either of which may be empty) such that neither set contains a pair of candidates who have a recorded mutual veto.
+
+You must systematically evaluate the vetoes to find a deadlocked trio. If there are multiple deadlocked trios, you must report the trio whose candidate numbers form the lexicographically smallest sequence when sorted in ascending order. (A sequence $a_1 < b_1 < c_1$ is lexicographically smaller than $a_2 < b_2 < c_2$ if $a_1 < a_2$; or if $a_1 = a_2$ and $b_1 < b_2$; or if $a_1 = a_2$ and $b_1 = b_2$ and $c_1 < c_2$).
+
+## Input
+The first line contains two integers $n$ and $m$, indicating the candidate headcount and the log size. The bounds are $3 \le n \le 2000$ and $3 \le m \le \min(n(n-1)/2, 200000)$.
+Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), representing a mutual veto between candidate $u$ and candidate $v$. It is guaranteed that at least one deadlocked trio exists.
+
+## Output
+Output a single line containing three integers $a$, $b$, and $c$, ordered such that $a < b < c$, representing the candidate numbers in the chosen trio. Among all valid deadlocked trios, output the lexicographically smallest one (smallest $a$; if tied, smallest $b$; if tied, smallest $c$).
+
+## Example 1
+Input:
+```
+4 5
+1 2
+1 3
+2 3
+2 4
+3 4
+```
+Output:
+```
+1 2 3
+```
+
+## Example 2
+Input:
+```
+5 6
+1 2
+1 4
+2 4
+3 4
+3 5
+4 5
+```
+Output:
+```
+1 2 4
+```

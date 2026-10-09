@@ -1,186 +1,133 @@
 **Solution Explanation**
 
-For a pillar we have two possible vectors  
-
-* grade 1 : **a** = (1, 2, 3)  
-* grade 2 : **b** = (3, 1, 2)
-
-For an edge `{u,v}` the required value is  
+For a link `{u,v}` we need  
 
 ```
-‖ v_u × v_v ‖²
+f_u = 3 - f_v          (1)
 ```
 
-```
-a × a = 0                     → 0
-b × b = 0                     → 0
-a × b = (1,7,‑5)              → 1²+7²+5² = 75
-b × a = –(a × b)              → 75
-```
+because the inactive protocol of a tower is the other one (`3‑f_i`).  
+Equation (1) is equivalent to `f_u != f_v`.  
+Thus every critical link forces the two incident towers to have **different**
+protocols. The whole instance is exactly a 2‑coloring problem of an
+undirected graph.
 
-Hence an edge contributes  
+The graph may be disconnected. A component is bipartite iff it can be
+2‑colored. If any component is not bipartite the answer is `NO`.
 
-* `0` if both ends have the same grade,
-* `75` if the grades differ.
+If the graph is bipartite we have two possible colorings for each component:
+the colors can be swapped.  
+To obtain the lexicographically smallest overall assignment we process the
+components in increasing order of the smallest vertex index they contain.
+For each component we try the two possible colorings and pick the one that
+gives the smaller values for the vertices of this component (the rest of the
+vertices are still unassigned, therefore they do not influence the decision).
 
-The total required sum is `75·m`.  
-Therefore **every edge must contribute 75**, i.e. its ends must have different
-grades.  
-The problem is exactly:  
+Implementation details
+----------------------
+* adjacency list `g`.
+* `color[i] = -1` – unvisited, otherwise `0` or `1`.
+* BFS from every unvisited vertex:
+    * assign start vertex color `0`.
+    * while BFS, if we meet an already colored neighbour with the same color –
+      the component is not bipartite → print `NO`.
+    * collect all vertices of the component in a list `comp`.
+* After BFS finishes, we have one bipartite component.
+    * Build two possible assignments for this component:
+        * `cand1[i] = 1` if `color[i]==0` else `2`
+        * `cand2[i] = 2` if `color[i]==0` else `1`
+    * Compare the two candidates lexicographically **restricted to the
+      vertices of this component sorted increasingly**.
+      The first differing vertex decides which candidate is smaller.
+    * Apply the chosen candidate to the global answer array `ans`.
+* Continue with the next component.
 
-> Is the given graph bipartite?  
-> If yes, output the lexicographically smallest 2‑coloring (colors 1 and 2).
+Complexities
+------------
 
---------------------------------------------------------------------
+* `O(n+m)` time – each edge and vertex is processed once.
+* `O(n+m)` memory for the adjacency list and auxiliary arrays.
 
-#### 1.   Bipartite test and component handling  
+Correctness Proof
+-----------------
 
-We run BFS/DFS on each connected component.
+We prove that the algorithm outputs `NO` iff no valid assignment exists,
+otherwise it outputs the lexicographically smallest valid assignment.
 
-*During BFS* we assign a temporary side `0/1` to every visited vertex.
-If we ever meet an edge whose two ends already have the same side,
-the graph is not bipartite → answer `NO`.
+### Lemma 1  
+For any edge `{u,v}` the condition “primary protocol of `u` equals inactive
+protocol of `v`” is equivalent to `f_u != f_v`.
 
-While exploring a component we store all its vertices in a list `comp`.
-After the BFS finishes we know the bipartition of this component.
+*Proof.* Inactive protocol of `v` is the other one, i.e. `3-f_v`.  
+Requirement `f_u = 3-f_v` ⇔ `f_u + f_v = 3` ⇔ `f_u != f_v`. ∎
 
---------------------------------------------------------------------
+### Lemma 2  
+A labeling `f` satisfies all edges iff it is a proper 2‑coloring of the graph
+(where colors are `{1,2}`).
 
-#### 2.   Lexicographically smallest coloring  
+*Proof.* By Lemma&nbsp;1 each edge forces its endpoints to have different
+values, which is exactly the definition of a proper 2‑coloring. ∎
 
-For a component we may flip the meaning of the two sides:
+### Lemma 3  
+A connected component admits a labeling satisfying all its edges
+iff the component is bipartite.
 
-```
-side 0 → grade 1 , side 1 → grade 2
-or
-side 0 → grade 2 , side 1 → grade 1
-```
+*Proof.* By Lemma&nbsp;2 this is precisely the definition of a bipartite
+graph. ∎
 
-Lexicographic order compares vertices `1 … n`.  
-The first vertex of the component that appears in this order is the smallest
-index `min_idx = min(comp)`.  
-If we give this vertex grade 1, the whole sequence becomes as small as
-possible, because later vertices cannot affect earlier positions.
+### Lemma 4  
+During BFS the algorithm detects non‑bipartiteness exactly when the
+component is not bipartite.
 
-So:
+*Proof.* BFS assigns alternating colors along every traversed edge.
+If an edge connects two vertices of the same BFS color, an odd cycle exists,
+hence the component is not bipartite. Conversely, if the component is not
+bipartite it contains an odd cycle, and BFS will eventually encounter an edge
+inside that cycle whose endpoints already have equal colors. ∎
 
-```
-s = side[min_idx]          # 0 or 1
-if s == 0:   mapping = {0:1, 1:2}
-else:        mapping = {0:2, 1:1}
-```
+### Lemma 5  
+For a bipartite component the algorithm chooses, among the two possible
+labelings, the lexicographically smaller one restricted to the vertices of
+that component.
 
-All vertices of the component receive their final grades according to this
-mapping. Isolated vertices are a component of size 1, they obtain grade 1.
+*Proof.* The two possible labelings are exactly the two color‑swaps.
+The algorithm builds both candidate arrays `cand1`, `cand2` and compares them
+vertex‑by‑vertex in increasing vertex order until a difference appears.
+That is the definition of the lexicographically smaller restriction. ∎
 
-Processing vertices in increasing order guarantees that each component is
-oriented independently, and the whole resulting sequence is the lexicographically
-smallest among all proper 2‑colorings.
+### Lemma 6  
+After processing components in order of their smallest vertex index,
+the global assignment produced by the algorithm is the lexicographically
+smallest among all valid assignments.
 
---------------------------------------------------------------------
+*Proof.* Consider the first vertex `v` where the algorithm’s output differs
+from any other valid assignment `f'`. Let `C` be the component containing `v`.
+All vertices with index `< v` belong to components processed earlier, and by
+induction the algorithm already chose the smallest possible values for them,
+so `f'` must coincide on those vertices. Within component `C` the algorithm
+selected the smallest possible restriction (Lemma&nbsp;5), therefore `f_v`
+is ≤ `f'_v`. If it were strictly smaller, the whole assignment is lexicographically
+smaller; if equal, the first difference would be later. Hence no other valid
+assignment can be lexicographically smaller. ∎
 
-#### 3.   Correctness Proof  
-
-We prove that the algorithm prints `YES` and the lexicographically smallest
-valid assignment iff such an assignment exists.
-
----
-
-##### Lemma 1  
-For any edge `{u,v}` the value `‖v_u × v_v‖²` equals `0` if `c_u = c_v`
-and `75` otherwise.
-
-*Proof.* Direct computation of the three possible cross products shown above. ∎
-
-
-
-##### Lemma 2  
-A coloring satisfies the required total sum `75·m` **iff** every edge connects
-vertices of different grades, i.e. the coloring is a proper 2‑coloring of the
-graph.
-
-*Proof.* By Lemma&nbsp;1 each edge contributes either `0` or `75`.  
-The sum equals `75·m` exactly when all `m` edges contribute `75`, i.e. when
-their ends have different grades. ∎
-
-
-
-##### Lemma 3  
-If the algorithm reports `NO`, the graph is not bipartite.
-
-*Proof.* The algorithm reports `NO` only when during BFS an edge is found whose
-endpoints already have the same temporary side. This is precisely a violation
-of bipartiteness. ∎
-
-
-
-##### Lemma 4  
-If the graph is bipartite, the algorithm produces a proper 2‑coloring.
-
-*Proof.* For each component BFS assigns sides `0/1` without conflict,
-because the graph is bipartite. Afterwards we map the two sides to grades
-`1` and `2` (possibly swapping). Adjacent vertices belong to opposite sides,
-hence receive opposite grades. ∎
-
-
-
-##### Lemma 5  
-For a bipartite graph, the coloring output by the algorithm is the
-lexicographically smallest among all proper 2‑colorings.
-
-*Proof.* Consider one connected component `C`.  
-Let `p = min(C)` be its smallest vertex index.
-All vertices with index `< p` belong to earlier components and are already
-fixed. To minimise the whole sequence we must give `p` the smallest possible
-grade, i.e. `1`. The algorithm chooses exactly the mapping that assigns grade 1
-to the side containing `p`. Any other proper coloring either gives `p` grade 2
-or coincides on `p` and differs later, thus is not lexicographically smaller.
-Since components are independent, applying this rule to every component yields the
-global lexicographically minimum sequence. ∎
-
-
-
-##### Lemma 6  
-If a proper 2‑coloring exists, the algorithm never reports `NO`.
-
-*Proof.* Existence of a proper 2‑coloring implies the graph is bipartite.
-BFS on a bipartite graph never encounters a same‑side edge, so the algorithm
-does not reject. ∎
-
-
-
-##### Theorem  
-The algorithm outputs  
-
-* `NO` iff no safe selection exists;  
-* otherwise `YES` followed by the lexicographically smallest safe selection.
+### Theorem  
+The algorithm outputs `NO` iff no assignment satisfying all critical links
+exists; otherwise it outputs `YES` followed by the lexicographically smallest
+valid assignment.
 
 *Proof.*  
-- If the algorithm prints `NO`, by Lemma&nbsp;3 the graph is not bipartite,
-  thus by Lemma&nbsp;2 no safe selection exists.
-- If a safe selection exists, the graph is bipartite, so by Lemma&nbsp;6 the
-  algorithm does not reject. By Lemma&nbsp;4 it outputs a proper 2‑coloring,
-  which by Lemma&nbsp;2 satisfies the required sum. Lemma&nbsp;5 shows this
-  coloring is the lexicographically smallest possible. ∎
+*If* the algorithm prints `NO`, it must have detected a non‑bipartite component
+(Lemma&nbsp;4). By Lemma&nbsp;3 such a component cannot be labeled, thus no
+global assignment exists.
 
+*Only if* a global assignment exists, every component is bipartite
+(Lemma&nbsp;3), so the algorithm never prints `NO`. It constructs a labeling
+by choosing for each component one of its two possible colorings, therefore
+the final array satisfies all edges (Lemma&nbsp;2). By Lemma&nbsp;6 this
+labeling is the lexicographically smallest among all valid ones. ∎
 
-
---------------------------------------------------------------------
-
-#### 4.   Complexity Analysis  
-
-`BFS` visits each vertex once and scans each edge twice.
-
-```
-Time   :  O(n + m)   ≤ 4·10⁵ operations
-Memory :  O(n + m)   adjacency lists + arrays
-```
-
-Both fit easily into the limits.
-
---------------------------------------------------------------------
-
-#### 5.   Reference Implementation  (Python 3)
+Reference Implementation
+------------------------
 
 ```python
 import sys
@@ -193,50 +140,62 @@ def solve() -> None:
     it = iter(data)
     n = int(next(it))
     m = int(next(it))
-
-    adj = [[] for _ in range(n + 1)]
+    g = [[] for _ in range(n)]
     for _ in range(m):
-        u = int(next(it)); v = int(next(it))
-        adj[u].append(v)
-        adj[v].append(u)
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        g[u].append(v)
+        g[v].append(u)
 
-    side = [-1] * (n + 1)          # temporary bipartition side 0/1
-    color = [0] * (n + 1)          # final grades 1/2
-    q = deque()
+    color = [-1] * n          # 0 / 1 during BFS
+    ans = [0] * n             # final protocols (1 or 2)
+    visited = [False] * n
 
-    for start in range(1, n + 1):
-        if side[start] != -1:
+    # components will be processed in order of their minimal vertex
+    for start in range(n):
+        if color[start] != -1:
             continue
-        # start new component
-        comp = []
-        side[start] = 0
-        q.append(start)
-        bip = True
+        # BFS this component
+        q = deque([start])
+        color[start] = 0
+        comp = [start]
+        ok = True
         while q:
             v = q.popleft()
-            comp.append(v)
-            for to in adj[v]:
-                if side[to] == -1:
-                    side[to] = side[v] ^ 1
+            for to in g[v]:
+                if color[to] == -1:
+                    color[to] = color[v] ^ 1
                     q.append(to)
-                elif side[to] == side[v]:
-                    # not bipartite
+                    comp.append(to)
+                elif color[to] == color[v]:
                     print("NO")
                     return
-        # choose orientation to make smallest index vertex colour 1
-        min_idx = min(comp)
-        s = side[min_idx]          # side (0 or 1) of that vertex
-        # mapping: side == s -> 1, else -> 2
+        # decide which coloring to use
+        comp.sort()
+        # candidate 1: color 0 -> protocol 1, color 1 -> 2
+        # candidate 2: swapped
+        better = 0  # 0 means cand1, 1 means cand2
         for v in comp:
-            color[v] = 1 if side[v] == s else 2
+            c = color[v]
+            p1 = 1 if c == 0 else 2
+            p2 = 2 if c == 0 else 1
+            if p1 < p2:
+                better = 0
+                break
+            if p2 < p1:
+                better = 1
+                break
+        # apply chosen candidate
+        for v in comp:
+            c = color[v]
+            ans[v] = 1 if (c == 0) ^ better else 2
 
-    # all components processed, graph bipartite
     print("YES")
-    print(' '.join(str(color[i]) for i in range(1, n + 1)))
+    print(' '.join(map(str, ans)))
 
 if __name__ == "__main__":
     solve()
 ```
 
 The program follows exactly the algorithm proven correct above and conforms
-to the required input‑output format.
+to the required time and memory limits.

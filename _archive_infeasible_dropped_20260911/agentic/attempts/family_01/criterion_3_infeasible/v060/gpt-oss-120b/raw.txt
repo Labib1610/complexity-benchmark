@@ -1,0 +1,214 @@
+**Solution Explanation**
+
+For every pair of assets we know whether they are correlated.
+A *regulatory violation* is a triple of distinct assets `{a,b,c}` such that all
+three pairs are correlated – in graph terms a **triangle**.
+The task is to output the lexicographically smallest triangle
+(`a < b < c`, minimise `a`, then `b`, then `c`).
+
+`n ≤ 2000`, `m ≤ 2·10⁵`.  
+The graph is undirected, without loops and without multiple edges.
+At least one triangle exists.
+
+
+
+--------------------------------------------------------------------
+
+#### 1.   Data structures  
+
+* `adj[v]` – a `set` containing all neighbours of vertex `v`
+  (1‑based indices).  
+  Set intersection is fast in Python and gives us the common neighbours of
+  two vertices.
+
+* `adj_mat` – a list of `bytearray`s, `adj_mat[u][v] == 1` iff edge `u‑v`
+  exists.  
+  It allows `O(1)` test `v in neighbours of u` when we need it
+  (used only for the final check, not strictly necessary).
+
+Both structures need `O(n + m)` memory – well below the limits.
+
+
+
+--------------------------------------------------------------------
+
+#### 2.   Searching the smallest triangle  
+
+We iterate vertices in increasing order, therefore the first triangle we
+encounter is already the lexicographically smallest one.
+
+```
+for a = 1 … n:
+        for each b in neighbours[a] with b > a   (sorted order):
+                # a < b is guaranteed
+                common = adj[a] ∩ adj[b]          # all vertices forming a triangle with a and b
+                best_c = +∞
+                for c in common:
+                        if c > b and c < best_c:
+                                best_c = c
+                if best_c was found:
+                        output a, b, best_c and finish
+```
+
+*Why does this work?*
+
+* The outer loops guarantee that we examine pairs `(a,b)` in lexicographic
+  order (`a` increasing, for a fixed `a` also `b` increasing).
+* For a fixed pair `(a,b)` we look at **all** vertices `c` that are adjacent
+  to both `a` and `b`.  
+  Among them we pick the smallest `c` that is larger than `b`
+  (otherwise the order `a<b<c` would be violated).
+* Consequently the first printed triple is the smallest possible
+  `(a,b,c)`.
+
+The inner work for a pair `(a,b)` is proportional to the size of the
+smaller neighbour set, because Python computes the intersection by
+iterating over the smaller set.  
+Overall complexity  
+
+```
+ Σ over all edges (a,b)   min( deg(a), deg(b) )
+```
+
+With `n ≤ 2000` this is comfortably below the time limit
+(the worst case dense graph gives about 4·10⁸ elementary operations,
+still feasible in CP‑Python because the inner loops are very short).
+
+--------------------------------------------------------------------
+
+#### 3.   Correctness Proof  
+
+We prove that the algorithm outputs exactly the lexicographically smallest
+triangle.
+
+---
+
+##### Lemma 1  
+For any pair of vertices `a < b`, the algorithm finds the smallest vertex
+`c` such that `{a,b,c}` is a triangle and `c > b`, if such a vertex exists.
+
+**Proof.**  
+`common = adj[a] ∩ adj[b]` contains precisely the vertices adjacent to both
+`a` and `b`.  
+Scanning `common` and keeping the minimum `c` with `c > b` yields exactly the
+desired smallest `c`. ∎
+
+
+
+##### Lemma 2  
+If the algorithm outputs a triple `(a,b,c)`, then `{a,b,c}` is a triangle
+and `a < b < c`.
+
+**Proof.**  
+The triple is produced only after the test in Lemma&nbsp;1 succeeded,
+therefore `c` belongs to `common = adj[a] ∩ adj[b]`, i.e. edges `a‑c` and
+`b‑c` exist.  
+Edges `a‑b` exists because the outer loop iterates over neighbours `b` of
+`a`.  
+Thus all three edges are present – a triangle.  
+The loops enforce `a < b`; Lemma&nbsp;1 guarantees `c > b`. ∎
+
+
+
+##### Lemma 3  
+Let `T = (a₀,b₀,c₀)` be the lexicographically smallest triangle in the
+graph. The algorithm will output `T`.
+
+**Proof.**  
+Consider the moment the outer loops reach `a = a₀`.  
+All neighbours `b` of `a₀` with `b > a₀` are processed in increasing order.
+Since `b₀ > a₀`, the pair `(a₀,b₀)` will be examined.
+By Lemma&nbsp;1 the algorithm will find the smallest `c > b₀` that together
+with `a₀,b₀` forms a triangle.
+Because `T` is the smallest triangle, such a `c` must be exactly `c₀`.
+Consequently the algorithm outputs `(a₀,b₀,c₀)` and terminates
+before any lexicographically larger triple could be considered. ∎
+
+
+
+##### Theorem  
+The algorithm always terminates and prints the lexicographically smallest
+triangle of the given graph.
+
+**Proof.**  
+The graph contains at least one triangle, so by Lemma&nbsp;3 there exists a
+pair `(a,b)` for which Lemma&nbsp;1 succeeds, guaranteeing termination.
+By Lemma&nbsp;2 the printed triple is a triangle, and by Lemma&nbsp;3 it is
+the lexicographically smallest one. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### 4.   Complexity Analysis  
+
+*Memory*  
+
+* adjacency sets: `O(n + m)`
+* adjacency matrix (`bytearray` rows): `O(n²)` bits ≈ 0.5 MiB for `n = 2000`
+
+Total well below 256 MiB.
+
+*Time*  
+
+```
+building structures:  O(n + m)
+searching triangles : Σ_{(a,b)∈E} min(deg(a),deg(b))   ≤ 4·10⁸   (worst case)
+```
+
+In practice far less; comfortably fits into the 2 seconds limit.
+
+
+
+--------------------------------------------------------------------
+
+#### 5.   Reference Implementation  (Python 3)
+
+```python
+import sys
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+
+    adj = [set() for _ in range(n + 1)]
+    # also build a boolean matrix for O(1) edge test (optional)
+    adj_mat = [bytearray(n + 1) for _ in range(n + 1)]
+
+    for _ in range(m):
+        u = int(next(it)); v = int(next(it))
+        adj[u].add(v)
+        adj[v].add(u)
+        adj_mat[u][v] = adj_mat[v][u] = 1
+
+    # iterate a, then b in increasing order
+    for a in range(1, n + 1):
+        # neighbours larger than a, sorted
+        for b in sorted(v for v in adj[a] if v > a):
+            # intersection of neighbours
+            # iterate over the smaller set for efficiency
+            if len(adj[a]) < len(adj[b]):
+                common = adj[a] & adj[b]
+            else:
+                common = adj[b] & adj[a]
+
+            best_c = None
+            for c in common:
+                if c > b:
+                    if best_c is None or c < best_c:
+                        best_c = c
+            if best_c is not None:
+                # a < b < best_c holds
+                sys.stdout.write(f"{a} {b} {best_c}")
+                return
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above
+and conforms to the required input‑output format.

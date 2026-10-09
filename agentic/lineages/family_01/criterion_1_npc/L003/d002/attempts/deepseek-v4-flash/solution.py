@@ -1,46 +1,56 @@
 import sys
 
 def solve():
-    input = sys.stdin.readline
-    n, m = map(int, input().split())
+    input_data = sys.stdin.read().strip().split()
+    if not input_data:
+        return
+    n, m = int(input_data[0]), int(input_data[1])
     adj = [[] for _ in range(n)]
+    idx = 2
     for _ in range(m):
-        u, v = map(int, input().split())
-        u -= 1
-        v -= 1
+        u = int(input_data[idx]) - 1
+        v = int(input_data[idx+1]) - 1
+        idx += 2
         adj[u].append(v)
         adj[v].append(u)
     
-    color = [0] * n
-    # Precompute conflict masks for each node
-    conflict_mask = [0] * n
-    for i in range(n):
-        mask = 0
-        for j in adj[i]:
-            mask |= (1 << j)
-        conflict_mask[i] = mask
+    colors = [0] * n  # 0 = uncolored, 1,2,3 = colors
     
-    # Backtracking with pruning
-    def dfs(idx):
-        if idx == n:
+    # Sort vertices by degree for better pruning
+    order = sorted(range(n), key=lambda x: len(adj[x]), reverse=True)
+    pos = [0] * n
+    for i, v in enumerate(order):
+        pos[v] = i
+    
+    # Build adjacency in new order
+    adj_ordered = [[] for _ in range(n)]
+    for u in range(n):
+        for v in adj[u]:
+            adj_ordered[pos[u]].append(pos[v])
+    
+    def backtrack(i):
+        if i == n:
             return True
-        # Try colors 1,2,3 in order
+        v = order[i]
+        used = [False] * 4
+        for nb in adj_ordered[i]:
+            if colors[nb] != 0:
+                used[colors[nb]] = True
         for c in (1, 2, 3):
-            ok = True
-            for nb in adj[idx]:
-                if color[nb] == c:
-                    ok = False
-                    break
-            if ok:
-                color[idx] = c
-                if dfs(idx + 1):
+            if not used[c]:
+                colors[i] = c
+                if backtrack(i + 1):
                     return True
-                color[idx] = 0
+                colors[i] = 0
         return False
     
-    if dfs(0):
+    if backtrack(0):
+        # Map back to original order
+        result = [0] * n
+        for i, v in enumerate(order):
+            result[v] = colors[i]
         print("YES")
-        print(" ".join(map(str, color)))
+        print(" ".join(map(str, result)))
     else:
         print("NO")
 

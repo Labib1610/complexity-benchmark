@@ -1,27 +1,29 @@
+import sys
+from collections import defaultdict
+
 def solve():
-    import sys
-    from collections import defaultdict
+    n, m = map(int, input().split())
     
-    n, m = map(int, sys.stdin.readline().split())
+    if m == 0:
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
     
-    # Build adjacency list for the graph
+    # Build adjacency list
     adj = defaultdict(list)
+    edges = []
     for _ in range(m):
-        u, v = map(int, sys.stdin.readline().split())
+        u, v = map(int, input().split())
+        edges.append((u, v))
         adj[u].append(v)
         adj[v].append(u)
     
-    # Try all possible colorings with 3 colors
-    # We want the lexicographically smallest assignment
-    # So we'll use backtracking with early termination
+    # Try to color the graph with 3 colors using backtracking
+    colors = [0] * (n + 1)  # colors[i] represents the color of node i
     
-    # Color assignment: 0 means unassigned, 1,2,3 are the blocks
-    color = [0] * (n + 1)
-    
-    def is_safe(node, c):
-        # Check if assigning color c to node is safe
+    def is_safe(node, color):
         for neighbor in adj[node]:
-            if color[neighbor] == c:
+            if colors[neighbor] == color:
                 return False
         return True
     
@@ -29,18 +31,18 @@ def solve():
         if node > n:
             return True
             
-        for c in [1, 2, 3]:
-            if is_safe(node, c):
-                color[node] = c
+        for color in range(1, 4):  # colors 1, 2, 3
+            if is_safe(node, color):
+                colors[node] = color
                 if backtrack(node + 1):
                     return True
-                color[node] = 0
+                colors[node] = 0
+        
         return False
     
-    # Check if graph is 3-colorable
     if backtrack(1):
         print("YES")
-        print(*color[1:])
+        print(" ".join(map(str, colors[1:])))
     else:
         print("NO")
 

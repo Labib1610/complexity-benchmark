@@ -1,120 +1,107 @@
-We can model this as a constraint satisfaction problem.  
-Since \( n \leq 40 \), we can use a backtracking search with pruning, trying assignments in lexicographic order.
+We can brute-force all assignments since \( n \le 40 \) but \( 3^{40} \) is too large.  
+However, we can use backtracking with pruning: assign speeds one by one and check constraints with already assigned neighbors.  
+
+Let’s first simplify the resonance condition.  
+
+Given:
+\[
+V_u = x^2 (w x + u y) + y^2 (x^2 + y)
+\]
+\[
+V_w = y^2 (u y + w x) + x^2 (y^2 + x)
+\]
+
+We need \( V_u \neq V_w \).  
+Let’s compute the difference:
+
+\[
+V_u - V_w = x^2 w x + x^2 u y + y^2 x^2 + y^3 - (y^2 u y + y^2 w x + x^2 y^2 + x^3)
+\]
+Simplify:
+\[
+= w x^3 + u x^2 y + x^2 y^2 + y^3 - u y^3 - w x y^2 - x^2 y^2 - x^3
+\]
+Cancel \( x^2 y^2 \):
+\[
+= w x^3 + u x^2 y + y^3 - u y^3 - w x y^2 - x^3
+\]
+Group:
+\[
+= (w x^3 - x^3) + (u x^2 y - w x y^2) + (y^3 - u y^3)
+\]
+\[
+= x^3(w-1) + xy(ux - wy) + y^3(1-u)
+\]
+
+We need this ≠ 0.
+
+Since \( x, y \in \{1,2,3\} \), we can precompute for each ordered pair \((x,y)\) whether it’s allowed for a given \((u,w)\).  
+But \(u,w\) are node labels, so the condition depends on the labels.
+
+We can precompute a boolean `ok[u][w][x][y]` for all \(u,w,x,y\) (n ≤ 40, so 40×40×3×3 is small).
+
+Then backtracking with pruning works.
+
+Let’s implement:
 
 ```python
 import sys
 
 def solve():
-    input = sys.stdin.readline
-    n, m = map(int, input().split())
+    input_data = sys.stdin.read().strip().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
     edges = []
-    deg = [0] * (n + 1)
+    adj = [[] for _ in range(n)]
     for _ in range(m):
-        u, v = map(int, input().split())
-        edges.append((u, v))
-        deg[u] += 1
-        deg[v] += 1
+        u = int(next(it)) - 1
+        w = int(next(it)) - 1
+        edges.append((u, w))
+        adj[u].append(w)
+        adj[w].append(u)
 
-    # Precompute edge list per vertex
-    adj = [[] for _ in range(n + 1)]
-    for u, v in edges:
-        adj[u].append(v)
-        adj[v].append(u)
+    # Precompute allowed pairs
+    # ok[u][w][x][y] = True if assigning x to u and y to w is fine
+    ok = [[[[False]*3 for _ in range(3)] for _ in range(n)] for _ in range(n)]
+    for u in range(n):
+        for w in range(n):
+            for x in range(1,4):
+                for y in range(1,4):
+                    diff = (x**3)*(w+1-1) + x*y*(u*x - w*y) + (y**3)*(1-u-1)  # wait, careful
+                    # Actually use formula:
+                    diff = (x**3)*(w-1) + x*y*(u*x - w*y) + (y**3)*(1-u)
+                    ok[u][w][x-1][y-1] = (diff != 0)
 
-    # Collaborative load table
-    load = {}
-    for a in range(1, 4):
-        for b in range(a, 4):
-            if a == 1 and b == 1:
-                load[(a, b)] = 10
-            elif a == 2 and b == 2:
-                load[(a, b)] = 16
-            elif a == 3 and b == 3:
-                load[(a, b)] = 26
-            elif a == 1 and b == 2:
-                load[(a, b)] = 5
-            elif a == 1 and b == 3:
-                load[(a, b)] = 10
-            elif a == 2 and b == 3:
-                load[(a, b)] = 13
+    # Backtracking
+    assign = [0]*n
+    used = [False]*n
 
-    # Precompute baseline risk contribution for each vertex and agency
-    base_risk = [[0] * 4 for _ in range(n + 1)]
-    for i in range(1, n + 1):
-        for f in range(1, 4):
-            base_risk[i][f] = (f * f) * deg[i]
-
-    # Precompute collaborative load contribution for each edge and agency pair
-    edge_load = []
-    for u, v in edges:
-        edge_load.append([[0] * 4 for _ in range(4)])
-        for a in range(1, 4):
-            for b in range(1, 4):
-                if a <= b:
-                    edge_load[-1][a][b] = load[(a, b)]
-                else:
-                    edge_load[-1][a][b] = load[(b, a)]
-
-    assign = [0] * (n + 1)
-    used = [False] * (n + 1)
-
-    # We'll do DFS with pruning
-    # We'll compute current total risk and load incrementally
-    total_risk = 0
-    total_load = 0
-
-    # Precompute edge indices per vertex for quick updates
-    edge_idx = [[] for _ in range(n + 1)]
-    for idx, (u, v) in enumerate(edges):
-        edge_idx[u].append((idx, v))
-        edge_idx[v].append((idx, u))
-
-    found = False
-
-    def dfs(pos):
-        nonlocal total_risk, total_load, found
-        if found:
-            return
-        if pos == n + 1:
-            if total_risk == total_load:
-                found = True
-            return
-
-        # Try agencies in lexicographic order
-        for f in range(1, 4):
-            # Add risk
-            total_risk += base_risk[pos][f]
-            # Add loads for edges to already assigned neighbors
-            added_load = 0
-            for idx, nb in edge_idx[pos]:
+    def backtrack(idx):
+        if idx == n:
+            return True
+        # Try speeds 1,2,3
+        for sp in [1,2,3]:
+            assign[idx] = sp
+            good = True
+            for nb in adj[idx]:
                 if assign[nb] != 0:
-                    a = f
-                    b = assign[nb]
-                    if a > b:
-                        a, b = b, a
-                    added_load += edge_load[idx][a][b]
-            total_load += added_load
+                    if not ok[idx][nb][sp-1][assign[nb]-1]:
+                        good = False
+                        break
+            if good:
+                if backtrack(idx+1):
+                    return True
+        assign[idx] = 0
+        return False
 
-            assign[pos] = f
-
-            # Prune: if total_load > total_risk, no need to continue
-            if total_load <= total_risk:
-                dfs(pos + 1)
-                if found:
-                    return
-
-            # Backtrack
-            assign[pos] = 0
-            total_load -= added_load
-            total_risk -= base_risk[pos][f]
-
-    dfs(1)
-
-    if not found:
-        print("NO")
-    else:
+    if backtrack(0):
         print("YES")
-        print(" ".join(map(str, assign[1:])))
+        print(" ".join(str(x) for x in assign))
+    else:
+        print("NO")
 
 if __name__ == "__main__":
     solve()

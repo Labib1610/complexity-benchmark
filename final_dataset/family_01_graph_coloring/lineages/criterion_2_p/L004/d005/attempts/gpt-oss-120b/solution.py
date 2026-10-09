@@ -1,0 +1,51 @@
+import sys
+sys.setrecursionlimit(1 << 25)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(next(it)); v = int(next(it))
+        adj[u].append(v)
+        adj[v].append(u)
+
+    color = [ -1 ] * (n + 1)          # temporary 0/1 colors
+    ans = [0] * (n + 1)               # final 1/2 values
+    from collections import deque
+
+    for start in range(1, n + 1):
+        if color[start] != -1:
+            continue
+        # BFS this component
+        q = deque([start])
+        color[start] = 0
+        comp_nodes = [start]
+        ok = True
+        while q:
+            u = q.popleft()
+            cu = color[u]
+            for v in adj[u]:
+                if color[v] == -1:
+                    color[v] = cu ^ 1
+                    q.append(v)
+                    comp_nodes.append(v)
+                elif color[v] == cu:
+                    print("NO")
+                    return
+        # decide mapping so that smallest index gets 1
+        min_node = min(comp_nodes)
+        flip = (color[min_node] == 1)   # if min node currently 1, we need to flip
+        for v in comp_nodes:
+            final = 1 if (color[v] ^ flip) == 0 else 2
+            ans[v] = final
+
+    print("YES")
+    print(' '.join(str(ans[i]) for i in range(1, n + 1)))
+
+if __name__ == "__main__":
+    solve()

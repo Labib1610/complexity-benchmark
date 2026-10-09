@@ -1,0 +1,81 @@
+import sys
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    t = int(next(it))
+    terminals = [int(next(it)) - 1 for _ in range(t)]
+
+    INF = 10**18
+    dist = [[INF] * n for _ in range(n)]
+    for i in range(n):
+        dist[i][i] = 0
+
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        w = int(next(it))
+        if w < dist[u][v]:
+            dist[u][v] = dist[v][u] = w
+
+    # Floyd-Warshall
+    for k in range(n):
+        dk = dist[k]
+        for i in range(n):
+            di = dist[i]
+            ik = di[k]
+            if ik == INF:
+                continue
+            for j in range(n):
+                nd = ik + dk[j]
+                if nd < di[j]:
+                    di[j] = nd
+
+    full = (1 << t) - 1
+    dp = [[INF] * n for _ in range(1 << t)]
+
+    # base masks
+    for i, term in enumerate(terminals):
+        mask = 1 << i
+        drow = dist[term]
+        dp[mask] = drow[:]  # copy list
+
+    # DP over subsets
+    for mask in range(1, full + 1):
+        if mask & (mask - 1) == 0:  # single bit, already initialized
+            continue
+        cur = dp[mask]
+        sub = (mask - 1) & mask
+        while sub:
+            other = mask ^ sub
+            # combine at same root vertex
+            dsub = dp[sub]
+            doth = dp[other]
+            for v in range(n):
+                val = dsub[v] + doth[v]
+                if val < cur[v]:
+                    cur[v] = val
+            sub = (sub - 1) & mask
+
+        # relaxation via shortest paths
+        # cur[v] = min_u cur[u] + dist[u][v]
+        # we can compute by trying all u
+        new_cur = cur[:]  # will store relaxed values
+        for v in range(n):
+            best = cur[v]
+            for u in range(n):
+                cand = cur[u] + dist[u][v]
+                if cand < best:
+                    best = cand
+            new_cur[v] = best
+        dp[mask] = new_cur
+
+    answer = min(dp[full])
+    print(answer)
+
+if __name__ == "__main__":
+    solve()

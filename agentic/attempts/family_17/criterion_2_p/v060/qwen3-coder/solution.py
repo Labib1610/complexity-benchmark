@@ -1,0 +1,153 @@
+from collections import defaultdict, deque
+
+def solve():
+    q, t = map(int, input().split())
+    
+    # Build graph for bipartite matching
+    # Drones: 1 to q
+    # Pads: q+1 to 2*q
+    graph = defaultdict(list)
+    for _ in range(t):
+        a, b = map(int, input().split())
+        graph[a].append(b)
+    
+    # Try to find maximum matching using BFS (Hopcroft-Karp like approach)
+    # But we'll use a simpler approach: try to find augmenting paths
+    
+    # match_pad[pad] = drone assigned to this pad (0 if none)
+    match_pad = [0] * (2*q + 1)
+    # match_drone[drone] = pad assigned to this drone (0 if none)
+    match_drone = [0] * (q + 1)
+    
+    def bfs():
+        # Find shortest augmenting paths
+        dist = [float('inf')] * (q + 1)
+        queue = deque()
+        
+        # Initialize: add all free drones to queue
+        for drone in range(1, q + 1):
+            if match_drone[drone] == 0:
+                dist[drone] = 0
+                queue.append(drone)
+        
+        min_dist = float('inf')
+        
+        while queue:
+            drone = queue.popleft()
+            
+            if dist[drone] > min_dist:
+                break
+                
+            for pad in graph[drone]:
+                matched_drone = match_pad[pad]
+                
+                if matched_drone == 0:
+                    # Found an augmenting path
+                    min_dist = dist[drone]
+                elif dist[matched_drone] == float('inf'):
+                    # Continue BFS
+                    dist[matched_drone] = dist[drone] + 1
+                    queue.append(matched_drone)
+        
+        return min_dist != float('inf')
+    
+    def dfs(drone):
+        for pad in graph[drone]:
+            matched_drone = match_pad[pad]
+            
+            if matched_drone == 0:
+                # Assign this pad to this drone
+                match_pad[pad] = drone
+                match_drone[drone] = pad
+                return True
+            elif match_drone[matched_drone] != pad:
+                # This pad is matched but let's see if we can rematch
+                continue
+            
+            # Try to find alternative for the drone currently using this pad
+            if dist[matched_drone] == dist[drone] + 1 and dfs(matched_drone):
+                match_pad[pad] = drone
+                match_drone[drone] = pad
+                return True
+        
+        dist[drone] = float('inf')  # Mark as visited
+        return False
+    
+    # Main matching loop
+    while bfs():
+        for drone in range(1, q + 1):
+            if match_drone[drone] == 0:
+                dfs(drone)
+    
+    # Check if all drones are matched
+    if all(match_drone[i] != 0 for i in range(1, q + 1)):
+        print("YES")
+        for drone in range(1, q + 1):
+            print(drone, match_drone[drone])
+    else:
+        print("NO")
+
+# Simpler implementation using a greedy approach with backtracking might be too slow
+# Let's implement Hopcroft-Karp properly
+
+def main():
+    q, t = map(int, input().split())
+    
+    # Build adjacency list for drones to pads
+    adj = defaultdict(list)
+    for _ in range(t):
+        a, b = map(int, input().split())
+        adj[a].append(b)
+    
+    # Hopcroft-Karp algorithm for maximum bipartite matching
+    pair_u = [0] * (q + 1)      # pair_u[u] = v means drone u is matched to pad v
+    pair_v = [0] * (2*q + 1)    # pair_v[v] = u means pad v is matched to drone u
+    dist = [0] * (q + 1)
+    
+    def bfs():
+        queue = deque()
+        for u in range(1, q + 1):
+            if pair_u[u] == 0:
+                dist[u] = 0
+                queue.append(u)
+            else:
+                dist[u] = float('inf')
+        dist[0] = float('inf')
+        
+        while queue:
+            u = queue.popleft()
+            if dist[u] < dist[0]:
+                for v in adj[u]:
+                    if dist[pair_v[v]] == float('inf'):
+                        dist[pair_v[v]] = dist[u] + 1
+                        queue.append(pair_v[v])
+        return dist[0] != float('inf')
+    
+    def dfs(u):
+        if u != 0:
+            for v in adj[u]:
+                if dist[pair_v[v]] == dist[u] + 1:
+                    if dfs(pair_v[v]):
+                        pair_v[v] = u
+                        pair_u[u] = v
+                        return True
+            dist[u] = float('inf')
+            return False
+        return True
+    
+    matching = 0
+    while bfs():
+        for u in range(1, q + 1):
+            if pair_u[u] == 0:
+                if dfs(u):
+                    matching += 1
+    
+    if matching == q:
+        print("YES")
+        for u in range(1, q + 1):
+            print(u, pair_u[u])
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    main()

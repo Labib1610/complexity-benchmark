@@ -4,14 +4,7 @@ Time limit: 1 s   Memory limit: 256 MB
 
 ## Description
 
-A delivery company operates across **n** locations numbered 1 to n, connected by **m** one-way roads. Every road leads strictly forward — once a vehicle leaves a location it can never return to it. (You may think of each location as belonging to a stage, and every road goes from a lower stage to a higher one.)
-
-A valid delivery route is a sequence of all n locations such that:
-
-- every location appears exactly once, and
-- each pair of consecutive locations in the sequence is connected by a direct one-way road in the forward direction.
-
-Determine whether a valid delivery route exists. If one exists, output it.
+A courier plans a sweep across **n** depots joined by **m** one-way service roads. Every road runs strictly forward: picture the depots arranged in stages, each road leading from an earlier stage to a later one, so once the vehicle leaves a depot it can never return. The sweep must be an ordering of all n depots visiting each exactly once, with every consecutive pair joined by a forward road. Because the roads never loop back, reachability is acyclic and feasibility can be settled without trying all orders. Decide whether a single-pass forward sweep visiting all depots exists, and if so report one ordering; otherwise report that none exists.
 
 ## Input
 

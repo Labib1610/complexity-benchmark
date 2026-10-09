@@ -1,20 +1,21 @@
-# Problem A — Deployment Tiers
+# Gastronomic Harmony
 
-Time limit: 2 s   Memory limit: 256 MB
+Time limit: 2 s
+Memory limit: 256 MB
 
-A software system consists of $n$ microservices, identified by integers from 1 to $n$. You must assign each microservice a security tier. A tier is represented by a positive integer strictly less than 4.
+You are designing a daily nutritional plan consisting of $n$ distinct ingredients. Each ingredient must be incorporated into exactly one of the available daily meal slots, which are identified by the integers 1, 2, and 3.
 
-Extensive testing has revealed that certain pairs of microservices exhibit parallel execution flaws. If a pair with this flaw operates at the exact same security tier, the system becomes unstable. To guarantee stability, the two microservices in any such pair must be assigned to different tiers.
+Due to specific enzymatic reactions, certain pairs of ingredients will cause severe indigestion if they are consumed during the same meal slot. You have a list of these incompatible pairs.
 
-You must determine a valid tier assignment for all $n$ microservices. If there are several valid ways to assign the tiers, you must prefer the configuration that assigns the lowest possible tier to microservice 1. If ties remain, you must break them by minimizing the tier assigned to microservice 2, continuing this element-by-element comparison up to microservice $n$. If no such configuration is possible, you must report this failure.
+Determine whether it is possible to assign every ingredient to a meal slot such that no two incompatible ingredients are assigned to the same slot. If a valid plan exists, provide one.
 
 ## Input
-The first line provides $n$ and $m$ — the number of microservices and the number of flawed pairs ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
-The following $m$ lines each contain two integers $u$ and $v$, indicating that microservice $u$ and microservice $v$ share a parallel execution flaw.
+The first line contains two integers $n$ and $m$ — the number of ingredients and the number of incompatible pairs ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
+Each of the next $m$ lines contains two integers $u$ and $v$ — an incompatible pair of ingredients. Ingredients are numbered from 1 to $n$.
 
 ## Output
-If the system cannot be stabilized, output a single line with the word NO.
-Otherwise, output YES on the first line. On the second line, output $n$ integers separated by spaces, representing the tiers assigned to microservices 1 through $n$ respectively, following the tie-breaking rules described above.
+If no valid meal plan can be formed, print a single line `NO`.
+Otherwise, print `YES` on the first line. On the second line, print $n$ integers $s_1, s_2, \dots, s_n$ (each in $\{1, 2, 3\}$), where $s_i$ is the meal slot assigned to ingredient $i$. Any valid plan is accepted.
 
 ## Example 1
 Input:

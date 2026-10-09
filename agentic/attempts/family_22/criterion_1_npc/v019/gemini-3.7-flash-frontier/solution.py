@@ -1,0 +1,157 @@
+import sys
+
+# Increase recursion depth just in case
+sys.setrecursionlimit(200000)
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+
+    n = int(input_data[0])
+    M = int(input_data[1])
+    T = int(input_data[2])
+    m = int(input_data[3])
+
+    if n > M * T:
+        print("NO")
+        return
+
+    adj = [[] for _ in range(n + 1)]
+    rev_adj = [[] for _ in range(n + 1)]
+    in_deg = [0] * (n + 1)
+
+    idx = 4
+    for _ in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx + 1])
+        idx += 2
+        adj[u].append(v)
+        rev_adj[v].append(u)
+        in_deg[v] += 1
+
+    # Cycle detection and topological sort
+    zero_in = [i for i in range(1, n + 1) if in_deg[i] == 0]
+    topo_order = []
+    temp_in = list(in_deg)
+    q = list(zero_in)
+    while q:
+        u = q.pop()
+        topo_order.append(u)
+        for v in adj[u]:
+            temp_in[v] -= 1
+            if temp_in[v] == 0:
+                q.append(v)
+
+    if len(topo_order) < n:
+        print("NO")
+        return
+
+    # Earliest Start (ES)
+    ES = [1] * (n + 1)
+    for u in topo_order:
+        for v in adj[u]:
+            if ES[u] + 1 > ES[v]:
+                ES[v] = ES[u] + 1
+
+    # Latest Start (LS)
+    LS = [T] * (n + 1)
+    for u in reversed(topo_order):
+        for v in rev_adj[u]:
+            if LS[u] - 1 < LS[v]:
+                LS[v] = LS[u] - 1
+
+    for i in range(1, n + 1):
+        if ES[i] > LS[i]:
+            print("NO")
+            return
+
+    # Height / depth in DAG for heuristic ordering
+    height = [0] * (n + 1)
+    for u in reversed(topo_order):
+        h = 0
+        for v in adj[u]:
+            if height[v] + 1 > h:
+                h = height[v] + 1
+        height[u] = h
+
+    assigned_slot = [0] * (n + 1)
+    rem_in_deg = list(in_deg)
+
+    # Backtracking search to assign tasks slot by slot
+    def backtrack(slot):
+        if slot > T:
+            # All slots processed, check if all tasks assigned
+            return all(assigned_slot[i] > 0 for i in range(1, n + 1))
+
+        # Check remaining capacity vs remaining tasks
+        unassigned_count = sum(1 for i in range(1, n + 1) if assigned_slot[i] == 0)
+        if unassigned_count > (T - slot + 1) * M:
+            return False
+        if unassigned_count == 0:
+            return True
+
+        # Check LS bounds for all future deadlines
+        # For each deadline t' >= slot, count unassigned tasks with LS <= t'
+        ls_counts = [0] * (T + 2)
+        for i in range(1, n + 1):
+            if assigned_slot[i] == 0:
+                ls_counts[LS[i]] += 1
+        
+        cum = 0
+        for t_prime in range(slot, T + 1):
+            cum += ls_counts[t_prime]
+            if cum > (t_prime - slot + 1) * M:
+                return False
+
+        # Available tasks for this slot: rem_in_deg == 0 and assigned_slot == 0 and ES <= slot
+        available = [i for i in range(1, n + 1) if assigned_slot[i] == 0 and rem_in_deg[i] == 0 and ES[i] <= slot]
+
+        # Tasks that MUST be scheduled at this slot (LS == slot)
+        must_schedule = [i for i in available if LS[i] == slot]
+        if len(must_schedule) > M:
+            return False
+
+        # Sort available: must_schedule first, then by LS asc, then by height desc
+        other_available = [i for i in available if LS[i] > slot]
+        other_available.sort(key=lambda x: (LS[x], -height[x]))
+
+        # We need to choose a subset of size k <= M, where must_schedule is included.
+        # Greedy choice works very well: take as many highest priority items as possible.
+        needed = must_schedule + other_available
+        max_take = min(M, len(needed))
+
+        # Try from taking max_take down to len(must_schedule)
+        for take_k in range(max_take, len(must_schedule) - 1, -1):
+            chosen = needed[:take_k]
+            
+            # Apply chosen
+            for u in chosen:
+                assigned_slot[u] = slot
+                for v in adj[u]:
+                    rem_in_deg[v] -= 1
+
+            if backtrack(slot + 1):
+                return True
+
+            # Revert
+            for u in chosen:
+                assigned_slot[u] = 0
+                for v in adj[u]:
+                    rem_in_deg[v] += 1
+
+            # If all must_schedule and some others failed, trying fewer non-mandatory tasks might help,
+            # but usually taking greedy prefix is sufficient. We only try a few branchings.
+            if take_k < max_take - 2:
+                break
+
+        return False
+
+    if backtrack(1):
+        print("YES")
+        print(*(assigned_slot[i] for i in range(1, n + 1)))
+    else:
+        print("NO")
+
+if __name__ == '__main__':
+    solve()

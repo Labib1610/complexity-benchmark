@@ -1,0 +1,130 @@
+import sys
+from collections import deque
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    M = int(next(it))
+    T = int(next(it))
+    m = int(next(it))
+    adj = [[] for _ in range(n)]
+    radj = [[] for _ in range(n)]
+    indeg = [0]*n
+    outdeg = [0]*n
+    for _ in range(m):
+        a = int(next(it))-1
+        b = int(next(it))-1
+        adj[a].append(b)
+        radj[b].append(a)
+        indeg[b] += 1
+        outdeg[a] += 1
+
+    # topological order
+    q = deque([i for i in range(n) if indeg[i]==0])
+    topo = []
+    indeg2 = indeg[:]
+    while q:
+        v = q.popleft()
+        topo.append(v)
+        for nb in adj[v]:
+            indeg2[nb] -= 1
+            if indeg2[nb]==0:
+                q.append(nb)
+    if len(topo)!=n:
+        print("NO")
+        return
+
+    # earliest times
+    earliest = [1]*n
+    for v in topo:
+        for p in radj[v]:
+            earliest[v] = max(earliest[v], earliest[p]+1)
+
+    # latest times
+    latest = [T]*n
+    for v in reversed(topo):
+        for nb in adj[v]:
+            latest[v] = min(latest[v], latest[nb]-1)
+
+    for i in range(n):
+        if earliest[i] > latest[i] or earliest[i] > T or latest[i] < 1:
+            print("NO")
+            return
+
+    # flow network
+    N = 2 + n + T
+    SRC = N-2
+    SNK = N-1
+    g = [[] for _ in range(N)]
+
+    class Edge:
+        __slots__ = ('to','cap','rev')
+        def __init__(self,to,cap,rev):
+            self.to=to;self.cap=cap;self.rev=rev
+
+    def add_edge(fr,to,cap):
+        g[fr].append(Edge(to,cap,len(g[to])))
+        g[to].append(Edge(fr,0,len(g[fr])-1))
+
+    for i in range(n):
+        add_edge(SRC, i, 1)
+        for t in range(earliest[i]-1, latest[i]):  # t index 0..T-1
+            add_edge(i, n+t, 1)
+    for t in range(T):
+        add_edge(n+t, SNK, M)
+
+    level = [0]*N
+    itp = [0]*N
+    def bfs():
+        for i in range(N):
+            level[i] = -1
+        dq = deque([SRC])
+        level[SRC]=0
+        while dq:
+            v = dq.popleft()
+            for e in g[v]:
+                if e.cap and level[e.to]==-1:
+                    level[e.to]=level[v]+1
+                    dq.append(e.to)
+        return level[SNK]!=-1
+
+    def dfs(v,f):
+        if v==SNK:
+            return f
+        for i in range(itp[v], len(g[v])):
+            itp[v]=i
+            e = g[v][i]
+            if e.cap and level[e.to]==level[v]+1:
+                ret = dfs(e.to, min(f, e.cap))
+                if ret:
+                    e.cap -= ret
+                    g[e.to][e.rev].cap += ret
+                    return ret
+        return 0
+
+    flow=0
+    while bfs():
+        itp = [0]*N
+        while True:
+            f=dfs(SRC,10**9)
+            if not f: break
+            flow+=f
+
+    if flow!=n:
+        print("NO")
+        return
+
+    ans = [0]*n
+    for i in range(n):
+        for e in g[i]:
+            if n <= e.to < n+T and e.cap==0:  # used edge
+                ans[i]=e.to - n + 1
+                break
+    print("YES")
+    print(' '.join(map(str, ans)))
+
+if __name__ == "__main__":
+    solve()

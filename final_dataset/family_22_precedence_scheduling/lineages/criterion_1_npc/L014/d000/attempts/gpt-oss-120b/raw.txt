@@ -1,0 +1,343 @@
+**Solution Explanation**
+
+For every job we have to choose a minute `1 … T`
+
+*   all predecessors are finished strictly earlier  
+    `time[a] < time[b]` for every edge `a → b`
+*   in each minute at most `M` jobs are executed
+
+The jobs are unit‑length, the machines are identical, therefore the only
+information that matters is the minute a job is placed in.
+
+
+
+--------------------------------------------------------------------
+
+#### 1.   Topological order, earliest and latest possible minutes  
+
+If the precedence graph contains a directed cycle the answer is `NO`.
+
+Otherwise a topological order exists.
+For a job `v`
+
+```
+earliest[v] = 1 + max( earliest[u] ) over all predecessors u
+```
+
+If `v` has no predecessor, `earliest[v] = 1`.
+
+Processing the vertices in reverse topological order we obtain the latest
+minute a job may be placed at while still being able to finish all its
+successors before the deadline `T`.
+
+```
+latest[v] = T                                   (sink)
+latest[v] = min( latest[w] - 1 ) over all successors w   (otherwise)
+```
+
+If for some vertex `earliest[v] > latest[v]` the constraints are already
+contradictory → `NO`.
+
+Now every job `v` may be scheduled in **any** minute of the interval
+
+```
+[ earliest[v] , latest[v] ]          (inclusive)
+```
+
+--------------------------------------------------------------------
+
+#### 2.   Reducing to “interval scheduling with capacities”
+
+All intervals are contiguous.
+We have to pick for each interval a minute inside it,
+such that each minute `t` is used at most `M` times.
+
+This is a classic problem and can be solved greedily:
+
+*process intervals in non‑decreasing order of their right end (`latest`)*
+and always put the job into the **earliest still free minute** not earlier
+than its `earliest`.
+
+The greedy rule is optimal for unit‑size jobs and interval
+feasibility (a simple exchange argument).
+
+--------------------------------------------------------------------
+
+#### 3.   Data structure – “next free minute”
+
+We need a structure that, given a minute `x`,
+returns the smallest minute `y ≥ x` whose remaining capacity is still
+positive, and after using a minute we may decrease its capacity.
+When the capacity of a minute becomes zero it must be skipped forever.
+
+A disjoint‑set union (DSU, “union‑find”) works perfectly:
+
+* `parent[t]` – the smallest minute `≥ t` that still has free capacity.
+* initially `parent[t] = t` for all `t = 1 … T` (capacity = `M` > 0)
+* when the capacity of minute `t` drops to `0` we **union** it with `t+1`:
+  `parent[t] = find(t+1)`
+
+`find(x)` returns the current `parent[x]` with path compression.
+All operations are amortised `α(T)` (inverse Ackermann), i.e. practically
+constant.
+
+--------------------------------------------------------------------
+
+#### 4.   Algorithm
+```
+read input
+build adjacency lists, indegrees
+topological sort (Kahn)
+if not all vertices visited -> NO
+
+compute earliest[]   (forward pass)
+compute latest[]     (backward pass)
+if any earliest > latest -> NO
+
+create list L = [(latest[v], earliest[v], v) for v = 1..n]
+sort L by latest
+
+capacity[t] = M   for t = 1..T
+parent[t] = t     for t = 1..T
+parent[T+1] = T+1   (sentinel)
+
+answer = array of size n
+
+for (latest, earliest, v) in L:
+        t = find(earliest)          # first free minute ≥ earliest
+        if t > latest or t > T:     # no feasible minute
+                NO
+        answer[v] = t
+        capacity[t] -= 1
+        if capacity[t] == 0:
+                parent[t] = find(t+1)   # remove this minute
+
+print YES and the answer (1‑based minutes)
+```
+
+--------------------------------------------------------------------
+
+#### 5.   Correctness Proof  
+
+We prove that the algorithm prints `YES` and a valid schedule
+iff such a schedule exists.
+
+---
+
+##### Lemma 1  
+For every job `v` any feasible schedule must assign it a minute inside
+`[earliest[v], latest[v]]`.
+
+**Proof.**  
+`earliest[v]` is defined as one more than the maximum minute of all its
+predecessors, therefore any schedule respecting the precedence must place
+`v` at least there.  
+Analogously, `latest[v]` is one less than the minimum minute of all its
+successors, otherwise a successor could not start later than `v`. ∎
+
+
+
+##### Lemma 2  
+If the algorithm assigns a minute `t` to a job `v` then `t` lies inside
+`[earliest[v], latest[v]]`.
+
+**Proof.**  
+During processing of `v` we query `find(earliest[v])`, which returns the
+smallest minute `≥ earliest[v]` that still has free capacity.
+If this minute `t` were larger than `latest[v]` the algorithm would abort
+with `NO`. Hence when it continues we have `earliest[v] ≤ t ≤ latest[v]`. ∎
+
+
+
+##### Lemma 3  
+When the algorithm finishes, no minute is assigned to more than `M` jobs.
+
+**Proof.**  
+The DSU only returns a minute `t` while its remaining capacity `capacity[t]`
+is positive. After each assignment we decrement this counter.
+When it reaches zero we permanently remove `t` from future answers by
+setting `parent[t] = find(t+1)`. Therefore `t` can be returned at most `M`
+times. ∎
+
+
+
+##### Lemma 4  
+If the algorithm outputs `YES`, the produced assignment satisfies all
+requirements.
+
+**Proof.**  
+By Lemma&nbsp;2 every job respects its interval, and by Lemma&nbsp;1 this
+implies all precedence constraints.
+Lemma&nbsp;3 guarantees the per‑minute server limit.
+All minutes are between `1` and `T`. ∎
+
+
+
+##### Lemma 5  
+If a feasible schedule exists, the algorithm never aborts with `NO`.
+
+**Proof.**  
+Consider the jobs sorted by non‑decreasing `latest` (the order used by the
+algorithm).  
+We prove by induction over this order that after processing the first `k`
+jobs the algorithm has placed them into minutes that also appear in *some*
+feasible schedule.
+
+*Base `k = 0`* – trivial.
+
+*Induction step.*  
+Assume it holds for the first `k‑1` jobs.
+Take the `k`‑th job `v`.  
+In the feasible schedule there is a minute `t*` with `earliest[v] ≤ t* ≤
+latest[v]` that is not used by any of the already placed `k‑1` jobs
+(because those jobs occupy at most `M` slots per minute and the schedule is
+valid).  
+The algorithm looks for the smallest free minute `t ≥ earliest[v]`.  
+Since `t*` is free, `t` exists and `t ≤ t* ≤ latest[v]`.  
+Thus the algorithm finds a minute inside the allowed interval and never
+fails. ∎
+
+
+
+##### Lemma 6  
+If the algorithm aborts with `NO`, no feasible schedule exists.
+
+**Proof.**  
+The algorithm can abort only in two situations:
+
+1. **Cycle detected** – a directed cycle makes the precedence constraints
+   unsatisfiable.
+2. **During assignment** a job `v` needs a minute `t = find(earliest[v])`
+   with `t > latest[v]`.  
+   All minutes `≥ earliest[v]` and `≤ latest[v]` are already full
+   (capacity `0`). Any schedule must place `v` inside this interval
+   (Lemma&nbsp;1), which is impossible because every minute there is already
+   the maximum of `M` jobs. Hence no schedule exists. ∎
+
+
+
+##### Theorem  
+The algorithm prints `YES` and a correct schedule **iff** such a schedule
+exists; otherwise it prints `NO`.
+
+**Proof.**  
+*If* the algorithm prints `YES`, Lemma&nbsp;4 shows the schedule is valid.  
+*Only if* a valid schedule exists, Lemma&nbsp;5 guarantees the algorithm
+never aborts, therefore it reaches the end and prints `YES`.  
+If the algorithm prints `NO`, by Lemma&nbsp;6 no schedule can exist. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### 6.   Complexity Analysis  
+
+*Topological sort* : `O(n + m)`  
+*Earliest / latest computation* : `O(n + m)`  
+*Sorting jobs* : `O(n log n)`  
+*DSU operations* : one `find` and at most one union per job → `O(n α(T))`
+
+Overall  
+
+```
+Time   :  O( n log n + m )
+Memory :  O( n + m + T )
+```
+
+Both satisfy the limits (`n, m, T ≤ 2·10⁵` comfortably).
+
+--------------------------------------------------------------------
+
+#### 7.   Reference Implementation  (Python 3)
+
+```python
+import sys
+sys.setrecursionlimit(1 << 25)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    M = int(next(it))
+    T = int(next(it))
+    m = int(next(it))
+
+    adj = [[] for _ in range(n)]
+    radj = [[] for _ in range(n)]
+    indeg = [0] * n
+    for _ in range(m):
+        a = int(next(it)) - 1
+        b = int(next(it)) - 1
+        adj[a].append(b)
+        radj[b].append(a)
+        indeg[b] += 1
+
+    # topological order (Kahn)
+    from collections import deque
+    q = deque([i for i in range(n) if indeg[i] == 0])
+    topo = []
+    while q:
+        v = q.popleft()
+        topo.append(v)
+        for to in adj[v]:
+            indeg[to] -= 1
+            if indeg[to] == 0:
+                q.append(to)
+    if len(topo) != n:
+        print("NO")
+        return
+
+    # earliest
+    earliest = [1] * n
+    for v in topo:
+        for to in adj[v]:
+            if earliest[to] < earliest[v] + 1:
+                earliest[to] = earliest[v] + 1
+
+    # latest
+    latest = [T] * n
+    for v in reversed(topo):
+        for pre in radj[v]:
+            if latest[pre] > latest[v] - 1:
+                latest[pre] = latest[v] - 1
+
+    for i in range(n):
+        if earliest[i] > latest[i]:
+            print("NO")
+            return
+
+    jobs = [(latest[i], earliest[i], i) for i in range(n)]
+    jobs.sort()                     # by latest
+
+    # DSU for next free minute
+    parent = list(range(T + 2))     # 1..T, T+1 sentinel
+    cap = [M] * (T + 2)             # capacity, extra element unused
+
+    def find(x: int) -> int:
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    ans = [0] * n
+    for latest_v, earliest_v, idx in jobs:
+        t = find(earliest_v)
+        if t > latest_v or t > T:
+            print("NO")
+            return
+        ans[idx] = t
+        cap[t] -= 1
+        if cap[t] == 0:
+            parent[t] = find(t + 1)
+
+    print("YES")
+    print(' '.join(str(x) for x in ans))
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above
+and conforms to the required input‑output format.

@@ -1,0 +1,287 @@
+**Solution Explanation**
+
+For a functional `(u , v)` the equation `x_u – x_v = 0` forces the two
+coordinates to be equal.
+If we activate several functionals, the kernel consists of all vectors in
+which every pair of vertices that are connected by the activated edges have
+the same coordinate.
+Therefore
+
+*the kernel condition required in the statement is equivalent to*  
+
+*“all critical indices must belong to the same connected component of the
+graph formed by the activated edges (the component may also contain other
+vertices).”*
+
+So we have to choose a set of edges of minimum total cost that connects all
+critical vertices – exactly the **Steiner Tree** problem in an undirected
+graph with up to `t ≤ 10` terminals and `n ≤ 100` vertices.
+
+The classic DP for Steiner tree works in `O( 3^t · n + 2^t · m )`,
+which is easily fast enough.
+
+
+
+--------------------------------------------------------------------
+
+#### 1.   Notation  
+
+* `n` – number of vertices (1‑based in the input, we use 0‑based).
+* `term[0 … t-1]` – the critical vertices (0‑based).
+* `adj[u]` – list of `(v , w)` edges, undirected.
+* `FULL = (1<<t) - 1` – bitmask of all terminals.
+* `dp[mask][v]` – minimal cost of a set of edges that
+  * connects exactly the terminals whose bits are set in `mask`,
+  * and whose whole subgraph is contained in the connected component that
+    ends at vertex `v` (i.e. `v` is the “root” of the tree).
+
+All values are initialised with `INF = 10**18`.
+
+--------------------------------------------------------------------
+
+#### 2.   Initialisation  
+
+For each terminal `i` (vertex `term[i]`) we can have a tree consisting of
+only this vertex, cost `0`:
+
+```
+dp[1<<i][ term[i] ] = 0
+```
+
+All other entries stay `INF`.
+
+--------------------------------------------------------------------
+
+#### 3.   DP over subsets  
+
+For every mask `M (1 … FULL)` we improve `dp[M]` by merging two
+non‑empty disjoint sub‑masks `A` and `B` (`A | B = M`).
+
+```
+for sub = (M-1) & M; sub > 0; sub = (sub-1) & M:
+        other = M ^ sub
+        for every vertex v:
+                dp[M][v] = min( dp[M][v] , dp[sub][v] + dp[other][v] )
+```
+
+After the merge step the tree may still be “stuck” at vertex `v`.
+We have to allow it to expand through graph edges.
+That is done by a shortest‑path relaxation (Dijkstra) for the current mask.
+
+--------------------------------------------------------------------
+
+#### 4.   Dijkstra for a fixed mask  
+
+All vertices are sources with initial distance `dp[mask][v]`.
+Running a multi‑source Dijkstra propagates the tree through edges,
+adding the edge weight when we move the root from `u` to `v`.
+
+```
+dist = dp[mask][*]   (copy)
+priority queue with (dist[v], v) for all v where dist[v] < INF
+while queue not empty:
+        d, u = pop
+        if d != dist[u]: continue
+        for (v, w) in adj[u]:
+                if dist[v] > d + w:
+                        dist[v] = d + w
+                        push(dist[v], v)
+dp[mask] = dist
+```
+
+Running Dijkstra after each merge guarantees that `dp[mask][v]`
+always stores the cheapest possible cost of a Steiner tree for `mask`
+whose root is `v`.
+
+The total complexity:
+
+* merging: `O( 3^t · n )` (each mask iterates over its proper sub‑masks)
+* Dijkstra: `O( 2^t · (m log n) )`
+
+With `t ≤ 10`, `n ≤ 100`, `m ≤ 4950` this is far below the limits.
+
+--------------------------------------------------------------------
+
+#### 5.   Answer  
+
+The whole set of terminals is `FULL`.  
+The Steiner tree may end at any vertex, therefore the answer is
+
+```
+ans = min_v dp[FULL][v]
+```
+
+If `t = 1` the mask `FULL` is a single bit, the initialisation already gives
+`0`, which matches the vacuous condition of the problem.
+
+--------------------------------------------------------------------
+
+#### 6.   Correctness Proof  
+
+We prove that the algorithm outputs the minimum possible total cost.
+
+---
+
+##### Lemma 1  
+For any mask `M` and vertex `v`, after the Dijkstra step
+`dp[M][v]` equals the minimum cost of a set of edges that
+
+* connects exactly the terminals of `M`,
+* is contained in a connected subgraph whose root is `v`
+  (i.e. `v` belongs to the subgraph and the subgraph is connected).
+
+**Proof.**  
+Induction over the order in which masks are processed.
+
+*Base.* For a mask consisting of a single terminal `i`,
+`dp[1<<i][term[i]] = 0` (empty edge set) and `INF` elsewhere.
+Running Dijkstra spreads this value through the graph, giving exactly the
+shortest path distance from `term[i]` to any `v`.  
+That is precisely the cheapest way to connect terminal `i` and have the
+resulting connected subgraph end at `v`.
+
+*Induction step.* Assume the statement holds for all proper sub‑masks of `M`.
+First we consider the merge operation:
+for any partition `M = A ∪ B` (disjoint, non‑empty) and any vertex `v`,
+`dp[A][v] + dp[B][v]` is the cost of two edge‑disjoint trees,
+both ending at `v`. Their union is a connected subgraph ending at `v`
+that connects all terminals of `M`. Taking the minimum over all partitions
+gives the cheapest such union **that is forced to meet at `v`**.
+
+After the merge we run Dijkstra with these values as sources.
+Dijkstra adds edges possibly moving the root away from `v`,
+exactly modelling the extension of the connected subgraph by additional
+edges. Because Dijkstra computes shortest paths, the resulting value for
+any vertex `x` is the cheapest cost of a connected subgraph that
+contains all terminals of `M` and ends at `x`. ∎
+
+
+
+##### Lemma 2  
+For every mask `M` the value `min_v dp[M][v]` equals the minimum possible
+cost of any edge set whose kernel forces all terminals of `M` to be equal
+(i.e. that connects the terminals of `M`).
+
+**Proof.**  
+By Lemma&nbsp;1, for each `v` the value `dp[M][v]` is the cheapest cost of a
+connected subgraph that connects all terminals of `M` and has `v` inside it.
+Any edge set that connects the terminals can be rooted at any vertex it
+contains, therefore its cost is at least `min_v dp[M][v]`.  
+Conversely, the subgraph achieving `min_v dp[M][v]` is a feasible edge set,
+so the minimum over `v` is attainable. ∎
+
+
+
+##### Lemma 3  
+The algorithm finally outputs the minimum total cost of a set of functionals
+that satisfies the problem requirement.
+
+**Proof.**  
+The requirement is exactly that all critical indices (the terminals) become
+equal, i.e. they are connected in the graph of activated edges.
+By Lemma&nbsp;2 the cheapest cost to achieve this is `min_v dp[FULL][v]`,
+which the algorithm prints. ∎
+
+
+
+##### Theorem  
+The program prints the minimum possible total activation cost.
+
+**Proof.**  
+Directly from Lemma&nbsp;3. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### 7.   Complexity Analysis  
+
+*Number of masks*: `2^t ≤ 1024`.
+
+*Merge step*: each mask iterates over its proper sub‑masks →  
+`∑_{M} 2^{popcount(M)} = 3^t` operations, each touching `n` vertices.  
+`O(3^t · n) ≤ O(59049·100) ≈ 6·10^6`.
+
+*Dijkstra*: performed once per mask.  
+Each run costs `O( (m + n) log n )`.  
+Total `O( 2^t · (m log n) ) ≤ 1024·5000·7 ≈ 3.5·10^7`.
+
+Both time and memory (`dp` array size `2^t·n ≤ 1024·100 = 102400`) fit easily
+into the limits.
+
+--------------------------------------------------------------------
+
+#### 8.   Reference Implementation  (Python 3)
+
+```python
+import sys
+import heapq
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    t = int(next(it))
+    terminals = [int(next(it)) - 1 for _ in range(t)]
+
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        w = int(next(it))
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+
+    INF = 10**18
+    T = 1 << t
+    dp = [[INF] * n for _ in range(T)]
+
+    # initialise single terminals
+    for i, v in enumerate(terminals):
+        dp[1 << i][v] = 0
+
+    # helper: run multi-source Dijkstra for a given mask
+    def dijkstra(mask: int):
+        dist = dp[mask]
+        pq = [(dist[v], v) for v in range(n) if dist[v] < INF]
+        heapq.heapify(pq)
+        while pq:
+            d, u = heapq.heappop(pq)
+            if d != dist[u]:
+                continue
+            for v, w in adj[u]:
+                nd = d + w
+                if nd < dist[v]:
+                    dist[v] = nd
+                    heapq.heappush(pq, (nd, v))
+
+    # DP over masks
+    for mask in range(1, T):
+        # skip singletons (already optimal)
+        sub = (mask - 1) & mask
+        while sub:
+            other = mask ^ sub
+            # combine two already computed masks
+            # only need to consider sub where sub < other to avoid duplicate work,
+            # but simplicity: process all
+            for v in range(n):
+                val = dp[sub][v] + dp[other][v]
+                if val < dp[mask][v]:
+                    dp[mask][v] = val
+            sub = (sub - 1) & mask
+        # after merging, propagate through edges
+        dijkstra(mask)
+
+    full = T - 1
+    ans = min(dp[full])
+    print(ans)
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above and conforms
+to the required input‑output format.

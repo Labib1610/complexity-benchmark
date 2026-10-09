@@ -1,0 +1,341 @@
+import sys
+from collections import defaultdict, deque
+
+def main():
+    import sys
+    sys.setrecursionlimit(1000000)
+    
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    B = int(data[2])
+    
+    edges = []
+    graph = defaultdict(list)
+    index = 3
+    for _ in range(m):
+        u = int(data[index]) - 1
+        v = int(data[index+1]) - 1
+        index += 2
+        edges.append((u, v))
+        graph[u].append(v)
+        graph[v].append(u)
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(map(str, [1]*n)))
+        return
+    
+    # Build tree structure from the edges
+    # Find root (node with in-degree 0 in the tree orientation)
+    out_deg = [0] * n
+    for u, v in edges:
+        out_deg[u] += 1
+    
+    root = -1
+    for i in range(n):
+        if out_deg[i] == 0:
+            # This is a leaf in the directed tree, so its parent is the other node
+            pass
+        else:
+            # Check if this could be root
+            pass
+    
+    # Actually, let's build the tree properly
+    # We need to orient the edges according to the hierarchy
+    # Let's count parents to find the root
+    parent_count = [0] * n
+    for u,v in edges:
+        parent_count[v] += 1
+    
+    root = -1
+    for i in range(n):
+        if parent_count[i] == 0:
+            root = i
+            break
+    
+    # Build children list
+    children = defaultdict(list)
+    for u,v in edges:
+        children[u].append(v)
+    
+    # DFS to get tree structure
+    def dfs_size(u):
+        size = 1
+        for v in children[u]:
+            size += dfs_size(v)
+        return size
+    
+    # Compute subtree sizes
+    subtree_size = [0] * n
+    def compute_subtree_sizes(u):
+        size = 1
+        for v in children[u]:
+            size += compute_subtree_sizes(v)
+        subtree_size[u] = size
+        return size
+    
+    compute_subtree_sizes(root)
+    
+    # Try to find an optimal layout
+    # Use heavy-path decomposition idea or just try to minimize total distance
+    # Place nodes to minimize sum of distances
+    
+    # A greedy approach: place the tree in inorder traversal to minimize distances
+    position = [0] * n
+    pos_counter = [0]  # Use list to allow modification in nested function
+    
+    def inorder_placement(u, start_pos):
+        # Place children in order
+        k = len(children[u])
+        if k == 0:
+            position[u] = start_pos
+            return start_pos + 1
+        
+        # Place children optimally
+        current_pos = start_pos
+        for v in children[u]:
+            current_pos = inorder_placement(v, current_pos)
+        
+        # Place current node
+        position[u] = current_pos
+        return current_pos + 1
+    
+    # Try a different approach: use centroid or just place in a way that minimizes cost
+    # Let's try placing in a line with DFS inorder
+    
+    def dfs_inorder(u):
+        nodes = []
+        def traverse(v):
+            for child in children[v]:
+                traverse(child)
+            nodes.append(v)
+        traverse(u)
+        return nodes
+    
+    # Actually, let's do a proper inorder placement
+    # Place tree nodes to minimize total edge length
+    # This is similar to optimal linear arrangement
+    
+    def place_tree(u):
+        # Returns (positions_list, total_cost)
+        if not children[u]:
+            return [u], 0
+        
+        all_nodes = []
+        total_cost = 0
+        child_segments = []
+        
+        for v in children[u]:
+            seg, cost = place_tree(v)
+            child_segments.append((seg, cost))
+            all_nodes.extend(seg)
+            total_cost += cost
+        
+        # Now place u optimally among children
+        # For simplicity, place u at the end
+        all_nodes.append(u)
+        
+        # Calculate additional cost for edges from u to its children
+        for v in children[u]:
+            # Edge u-v contributes distance between their positions
+            # In our placement, u is at the end, v's segment is before
+            # So distance is position of u minus position of v's rightmost node
+            # But this is getting complex. Let's compute actual distances.
+            pass
+        
+        # Let's compute the cost properly
+        return all_nodes, total_cost
+    
+    # Simpler approach: just place in a reasonable order and compute cost
+    # Use DFS to create an ordering
+    order = []
+    def dfs_order(u):
+        order.append(u)
+        for v in children[u]:
+            dfs_order(v)
+    
+    dfs_order(root)
+    
+    # Assign positions 0 to n-1
+    for i in range(n):
+        position[order[i]] = i
+    
+    # Compute total cost
+    total_cost = 0
+    for u, v in edges:
+        total_cost += abs(position[u] - position[v])
+    
+    if total_cost <= B:
+        # Convert to 1-based indexing
+        result = [0] * n
+        for i in range(n):
+            result[position[i]] = i + 1
+        print("YES")
+        print(" ".join(map(str, result)))
+        return
+    
+    # Try a different arrangement
+    # Place using inorder traversal of the tree
+    inorder_list = []
+    def inorder(u):
+        k = len(children[u])
+        if k == 0:
+            inorder_list.append(u)
+            return
+        
+        # Place first child
+        if k > 0:
+            inorder(children[u][0])
+        
+        # Place current node
+        inorder_list.append(u)
+        
+        # Place remaining children
+        for i in range(1, k):
+            inorder(children[u][i])
+    
+    inorder(root)
+    
+    # Assign positions
+    for i in range(n):
+        position[inorder_list[i]] = i
+    
+    # Compute cost
+    total_cost = 0
+    for u, v in edges:
+        total_cost += abs(position[u] - position[v])
+    
+    if total_cost <= B:
+        result = [0] * n
+        for i in range(n):
+            result[position[i]] = i + 1
+        print("YES")
+        print(" ".join(map(str, result)))
+        return
+    
+    # Try yet another approach - postorder placement
+    postorder_list = []
+    def postorder(u):
+        for v in children[u]:
+            postorder(v)
+        postorder_list.append(u)
+    
+    postorder_list = []
+    postorder(root)
+    
+    # Assign positions
+    for i in range(n):
+        position[postorder_list[i]] = i
+    
+    # Compute cost
+    total_cost = 0
+    for u, v in edges:
+        total_cost += abs(position[u] - position[v])
+    
+    if total_cost <= B:
+        result = [0] * n
+        for i in range(n):
+            result[position[i]] = i + 1
+        print("YES")
+        print(" ".join(map(str, result)))
+        return
+    
+    # Try optimal tree layout algorithm
+    # For trees, optimal linear arrangement can be solved efficiently
+    
+    def compute_optimal_arrangement():
+        # For each node, we compute an optimal interval assignment
+        # But let's use a known result: for trees, there's a polynomial algorithm
+        # We'll use a greedy approach that works well in practice
+        
+        # Re-root at centroid for better balance
+        def get_centroid(u, parent, total_size):
+            sz = 1
+            is_centroid = True
+            max_subtree = 0
+            
+            for v in children[u]:
+                if v == parent:
+                    continue
+                subtree_sz = get_size(v, u)
+                if subtree_sz > total_size // 2:
+                    is_centroid = False
+                max_subtree = max(max_subtree, subtree_sz)
+                temp_sz, temp_is_centroid, temp_centroid = get_centroid(v, u, total_size)
+                if temp_is_centroid:
+                    return temp_sz, temp_is_centroid, temp_centroid
+                sz += subtree_sz
+            
+            if total_size - sz > total_size // 2:
+                is_centroid = False
+                
+            return sz, is_centroid, u if is_centroid else -1
+        
+        def get_size(u, parent):
+            sz = 1
+            for v in children[u]:
+                if v != parent:
+                    sz += get_size(v, u)
+            return sz
+        
+        # Simplify: just try a good ordering
+        # Use heavy-light decomposition style or just DFS with better ordering
+        
+        # Try placing children in order of decreasing subtree size
+        def optimized_order(u):
+            nodes = []
+            
+            # Sort children by subtree size descending
+            child_subtree_pairs = [(children[v], subtree_size[v], v) for v in children[u]]
+            child_subtree_pairs.sort(key=lambda x: x[1], reverse=True)
+            
+            for child_list, sz, v in child_subtree_pairs:
+                nodes.extend(optimized_order(v))
+            
+            nodes.append(u)
+            return nodes
+        
+        ordered_nodes = optimized_order(root)
+        
+        # Assign positions
+        pos = [0] * n
+        for i in range(n):
+            pos[ordered_nodes[i]] = i
+            
+        # Compute cost
+        cost = 0
+        for u, v in edges:
+            cost += abs(pos[u] - pos[v])
+            
+        return pos, cost
+    
+    pos, cost = compute_optimal_arrangement()
+    
+    if cost <= B:
+        result = [0] * n
+        for i in range(n):
+            result[pos[i]] = i + 1
+        print("YES")
+        print(" ".join(map(str, result)))
+        return
+    
+    # Last resort: try all permutations for small n
+    if n <= 8:
+        import itertools
+        for perm in itertools.permutations(range(n)):
+            cost = 0
+            pos_map = {perm[i]: i for i in range(n)}
+            for u, v in edges:
+                cost += abs(pos_map[u] - pos_map[v])
+            if cost <= B:
+                print("YES")
+                print(" ".join(map(str, [x+1 for x in perm])))
+                return
+    
+    print("NO")
+
+if __name__ == "__main__":
+    main()

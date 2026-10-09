@@ -1,0 +1,125 @@
+import sys
+from collections import deque
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it)); m = int(next(it)); k = int(next(it))
+    adj = [[] for _ in range(n + 1)]
+    edges = []
+    for _ in range(m):
+        u = int(next(it)); v = int(next(it))
+        adj[u].append(v)
+        adj[v].append(u)
+        edges.append((u, v))
+
+    # bipartition via BFS
+    color = [-1] * (n + 1)
+    left_nodes = []
+    right_nodes = []
+    for start in range(1, n + 1):
+        if color[start] != -1:
+            continue
+        q = deque([start])
+        color[start] = 0
+        while q:
+            u = q.popleft()
+            for v in adj[u]:
+                if color[v] == -1:
+                    color[v] = color[u] ^ 1
+                    q.append(v)
+                # input guarantees bipartite, no need to check conflict
+
+    for v in range(1, n + 1):
+        if color[v] == 0:
+            left_nodes.append(v)
+        else:
+            right_nodes.append(v)
+
+    # Build adjacency from left to right only
+    left_adj = {u: [] for u in left_nodes}
+    for u, v in edges:
+        if color[u] == 0:
+            left_adj[u].append(v)
+        else:
+            left_adj[v].append(u)
+
+    # Hopcroft–Karp
+    INF = 10 ** 9
+    pair_u = {u: 0 for u in left_nodes}
+    pair_v = {v: 0 for v in right_nodes}
+    dist = {}
+
+    def bfs() -> bool:
+        q = deque()
+        for u in left_nodes:
+            if pair_u[u] == 0:
+                dist[u] = 0
+                q.append(u)
+            else:
+                dist[u] = INF
+        dist[0] = INF
+        while q:
+            u = q.popleft()
+            if dist[u] < dist[0]:
+                for v in left_adj[u]:
+                    if dist.get(pair_v[v], INF) == INF:
+                        dist[pair_v[v]] = dist[u] + 1
+                        q.append(pair_v[v])
+        return dist[0] != INF
+
+    def dfs(u: int) -> bool:
+        if u == 0:
+            return True
+        for v in left_adj[u]:
+            if dist.get(pair_v[v], INF) == dist[u] + 1 and dfs(pair_v[v]):
+                pair_u[u] = v
+                pair_v[v] = u
+                return True
+        dist[u] = INF
+        return False
+
+    matching = 0
+    while bfs():
+        for u in left_nodes:
+            if pair_u[u] == 0 and dfs(u):
+                matching += 1
+
+    # Minimum vertex cover via alternating BFS from free left vertices
+    visited_left = set()
+    visited_right = set()
+    q = deque()
+    for u in left_nodes:
+        if pair_u[u] == 0:
+            q.append(u)
+            visited_left.add(u)
+    while q:
+        u = q.popleft()
+        for v in left_adj[u]:
+            if v not in visited_right and pair_u[u] != v:  # edge not in matching
+                visited_right.add(v)
+                pu = pair_v[v]
+                if pu and pu not in visited_left:
+                    visited_left.add(pu)
+                    q.append(pu)
+
+    # Minimum vertex cover = (Left \ visited_left) ∪ (Right ∩ visited_right)
+    # Maximum independent set = (Left ∩ visited_left) ∪ (Right \ visited_right)
+    indep = []
+    for u in left_nodes:
+        if u in visited_left:
+            indep.append(u)
+    for v in right_nodes:
+        if v not in visited_right:
+            indep.append(v)
+
+    if len(indep) < k:
+        print("NO")
+        return
+    print("YES")
+    print(' '.join(map(str, indep[:k])))
+
+if __name__ == "__main__":
+    solve()

@@ -1,26 +1,31 @@
-# Problem B — Resonant Foundations
+# Problem B — Network Configurations
 
 Time limit: 1 s
 Memory limit: 256 MB
 
-The structural integrity of a new skyscraper depends on $n$ primary load-bearing pillars, numbered 1 to $n$. The engineering firm must select a concrete composite grade for each pillar. The approved composite grades are exactly 1 and 2.
+A communication grid consists of $n$ radio towers. You need to assign each tower $i$ a protocol flag $f_i$, which must be chosen from the set $\{1, 2\}$. 
 
-To mitigate wind-induced vibrations, the design includes $m$ acoustic dampeners. Each dampener spans between a specific pair of pillars. A dampener's ability to properly distribute stress depends on the composite grades of the two pillars it connects. 
+There are $m$ critical links between specific pairs of towers. 
 
-For any dampener connecting pillar $u$ with composite grade $c_u$ and pillar $v$ with composite grade $c_v$, its local resonance value is calculated as:
-$R(c_u, c_v) = 3(c_u + c_v) - 2 c_u c_v$
+During operation, the network runs in synchronized time steps $t \ge 0$. Each tower maintains an active state from the set {Sync, Ping, Ack}. At time step $t=0$, every tower is initialized to the Sync state.
+For each subsequent time step $t \ge 1$, a tower's state updates based on its assigned protocol flag:
+- A tower with flag $f_i = 1$ follows the state transition cycle: Sync $\to$ Ping, Ping $\to$ Ack, Ack $\to$ Sync.
+- A tower with flag $f_i = 2$ follows the state transition cycle: Sync $\to$ Ack, Ack $\to$ Ping, Ping $\to$ Sync.
 
-The skyscraper's vibration control system is considered safe if and only if the sum of the local resonance values across all $m$ dampeners is exactly $5m$.
+To prevent interference, the two towers connected by any critical link must remain conflict-free. A critical link between tower $u$ and tower $v$ is conflict-free if and only if, at every time step $t \ge 1$:
+- It is never the case that both towers are simultaneously in the Ping state.
+- It is never the case that both towers are simultaneously in the Ack state.
+(It is permissible for both towers to be in the Sync state at the same time).
 
-Your task is to determine if there is a safe composite selection for all $n$ pillars. If multiple safe selections exist, the procurement system requires the one that is lexicographically smallest when represented as a sequence of $n$ composite grades.
+Determine if a valid assignment of protocol flags exists for all towers such that all critical links are conflict-free. If no such assignment is possible, report impossibility.
 
 ## Input
 The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$).
-Each of the next $m$ lines contains two integers $u$ and $v$ — the indices of the two pillars spanned by a dampener.
+Each of the next $m$ lines contains two integers $u$ and $v$ — a pair of towers connected by a critical link.
 
 ## Output
-If no safe selection exists, print a single line `NO`.
-Otherwise print `YES`, then a second line with $n$ integers $c_1 \dots c_n$ (each being 1 or 2), representing the lexicographically smallest safe selection.
+If no valid assignment exists, print a single line NO.
+Otherwise print YES, then a second line with $n$ integers $f_1 \dots f_n$ (each in $\{1,2\}$), representing the lexicographically smallest valid assignment.
 
 ## Example 1
 Input:

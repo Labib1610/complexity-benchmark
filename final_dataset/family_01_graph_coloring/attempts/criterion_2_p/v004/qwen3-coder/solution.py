@@ -1,0 +1,69 @@
+import sys
+from collections import defaultdict, deque
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
+    
+    # Build adjacency list
+    adj = defaultdict(list)
+    index = 2
+    for _ in range(m):
+        u = int(data[index]) - 1
+        v = int(data[index+1]) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+        index += 2
+    
+    # Color array: 0 = unvisited, 1 = color 1, 2 = color 2
+    color = [0] * n
+    visited = [False] * n
+    
+    # Check each component
+    for start in range(n):
+        if visited[start]:
+            continue
+            
+        # BFS to check bipartiteness and find coloring
+        queue = deque()
+        queue.append(start)
+        color[start] = 1
+        visited[start] = True
+        
+        while queue:
+            node = queue.popleft()
+            current_color = color[node]
+            next_color = 2 if current_color == 1 else 1
+            
+            for neighbor in adj[node]:
+                if not visited[neighbor]:
+                    visited[neighbor] = True
+                    color[neighbor] = next_color
+                    queue.append(neighbor)
+                elif color[neighbor] != next_color:
+                    print("NO")
+                    return
+    
+    # If we reach here, a valid assignment exists
+    # Convert colors: 1->1, 2->2
+    result = []
+    for c in color:
+        if c == 0:  # Isolated node, assign 1
+            result.append("1")
+        else:
+            result.append(str(c))
+    
+    print("YES")
+    print(" ".join(result))
+
+if __name__ == "__main__":
+    main()

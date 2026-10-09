@@ -1,0 +1,110 @@
+import sys
+sys.setrecursionlimit(1 << 25)
+
+def main():
+    import sys
+    input = sys.stdin.readline
+    nL, nR, m = map(int, input().split())
+    edges = [tuple(map(int, input().split())) for _ in range(m)]
+    degL = [0] * (nL + 1)
+    degR = [0] * (nR + 1)
+    for u, v in edges:
+        degL[u] += 1
+        degR[v] += 1
+    Δ = max(max(degL), max(degR))
+    # adjacency: for each vertex store color -> edge id
+    colL = [{} for _ in range(nL + 1)]
+    colR = [{} for _ in range(nR + 1)]
+    ans = [0] * m
+
+    # helper to get free color for a vertex
+    def free_color(col_dict):
+        for c in range(1, Δ + 1):
+            if c not in col_dict:
+                return c
+        return None  # should not happen
+
+    # augmenting path DFS
+    def dfs_left(u, target_color, seenL, seenR):
+        if u in seenL:
+            return False
+        seenL.add(u)
+        if target_color not in colL[u]:
+            return True
+        v = colL[u][target_color][0]
+        return dfs_right(v, target_color, seenL, seenR)
+
+    def dfs_right(v, target_color, seenL, seenR):
+        if v in seenR:
+            return False
+        seenR.add(v)
+        if target_color not in colR[v]:
+            return True
+        u = colR[v][target_color][0]
+        return dfs_left(u, target_color, seenL, seenR)
+
+    # recolor along found augmenting path
+    def recolor_left(u, target_color, new_color):
+        if target_color not in colL[u]:
+            colL[u][new_color] = colL[u].pop(target_color)
+            return
+        v = colL[u][target_color][0]
+        recolor_right(v, target_color, new_color)
+        colL[u][new_color] = colL[u].pop(target_color)
+
+    def recolor_right(v, target_color, new_color):
+        if target_color not in colR[v]:
+            colR[v][new_color] = colR[v].pop(target_color)
+            return
+        u = colR[v][target_color][0]
+        recolor_left(u, target_color, new_color)
+        colR[v][new_color] = colR[v].pop(target_color)
+
+    for idx, (u, v) in enumerate(edges):
+        # try to assign a free color directly
+        cu = set(colL[u].keys())
+        cv = set(colR[v].keys())
+        free = None
+        for c in range(1, Δ + 1):
+            if c not in cu and c not in cv:
+                free = c
+                break
+        if free is not None:
+            colL[u][free] = (idx, v)
+            colR[v][free] = (idx, u)
+            ans[idx] = free
+            continue
+
+        # need to recolor: find a color a free at u, b free at v
+        a = next(c for c in range(1, Δ + 1) if c not in cu)
+        b = next(c for c in range(1, Δ + 1) if c not in cv)
+
+        # try to free color a at u via augmenting path
+        seenL = set()
+        seenR = set()
+        if dfs_left(u, a, seenL, seenR):
+            recolor_left(u, a, b)
+            colL[u][a] = (idx, v)
+            colR[v][a] = (idx, u)
+            ans[idx] = a
+            continue
+
+        # otherwise free color b at v
+        seenL = set()
+        seenR = set()
+        if dfs_right(v, b, seenL, seenR):
+            recolor_right(v, b, a)
+            colL[u][b] = (idx, v)
+            colR[v][b] = (idx, u)
+            ans[idx] = b
+            continue
+
+        # fallback (should not happen)
+        print("NO")
+        return
+
+    print("YES")
+    print(' '.join(map(str, ans)))
+
+if __name__ == "__main__":
+    main()

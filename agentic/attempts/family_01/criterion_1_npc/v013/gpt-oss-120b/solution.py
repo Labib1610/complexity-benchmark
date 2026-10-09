@@ -1,0 +1,48 @@
+import sys
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    adj = [0] * n
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+
+    # order vertices by degree descending
+    order = sorted(range(n), key=lambda x: -adj[x].bit_count())
+    color = [-1] * n
+    # bitmask of vertices of each color
+    col_mask = [0, 0, 0]
+
+    sys.setrecursionlimit(10000)
+
+    def dfs(pos: int) -> bool:
+        if pos == n:
+            return True
+        v = order[pos]
+        # try colors
+        for c in range(3):
+            if adj[v] & col_mask[c]:
+                continue  # conflict
+            color[v] = c
+            col_mask[c] |= 1 << v
+            if dfs(pos + 1):
+                return True
+            col_mask[c] ^= 1 << v
+            color[v] = -1
+        return False
+
+    if dfs(0):
+        out = ['YES', ' '.join(str(c + 1) for c in color)]
+    else:
+        out = ['NO']
+    sys.stdout.write('\n'.join(out))
+
+if __name__ == "__main__":
+    solve()

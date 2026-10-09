@@ -1,0 +1,1242 @@
+Let me analyze this problem.
+
+We have $n$ members, $m$ edges (interactions). We need to partition into a focus panel of exactly $k$ members and a control group of $n-k$ members, such that every edge has at least one endpoint in the control group.
+
+Equivalently: the focus panel must be an independent set (no edge has both endpoints in the panel) of size exactly $k$... wait, let me check. "the control group includes at least one participant from every single recorded interaction event" — every edge must have at least one endpoint in the control group. That means no edge has both endpoints in the panel. So the panel is an independent set of size exactly $k$.
+
+Wait, but let me check example 1: $n=4$, edges 1-2, 1-3, 2-3, 3-4, $k=3$. Independent sets of size 3 in this graph: vertices {1,2,3,4}. Edges: 1-2, 1-3, 2-3, 3-4. Independent set of size 3: {1,4, ...} — 1 and 4 are not adjacent. Can we add 2? 2-1 edge exists, no. 3? 3-1 edge, no. So max independent set is size 2 ({1,4} or {2,4}). So answer NO. ✓.
+
+Example 2: $n=5$, edges 1-2, 3-4, $k=3$. Independent set of size 3: {1,3,5}. ✓.
+
+Example 3: $n=3$, triangle, $k=1$. Independent set of size 1: {1}. ✓.
+
+So the problem is: does the graph have an independent set of size exactly $k$? Note: if an independent set of size $\geq k$ exists, then any subset of it of size $k$ is also independent, so we just need to check whether the maximum independent set has size $\geq k$. Actually, we need exactly $k$, but since subsets of independent sets are independent, having an independent set of size $\geq k$ implies one of size exactly $k$. So the problem reduces to: find maximum independent set, check if its size $\geq k$; if so, output any $k$ vertices from it.
+
+$n \leq 46$. Maximum independent set for $n=46$ is a classic meet-in-the-middle problem: split into two halves of 23 each, enumerate all $2^{23} \approx 8.4M$ subsets per half. That's feasible in C++ but in Python it might be slow. Time limit is 5 seconds though. Hmm, Python with $2 \times 2^{23}$ enumeration... that's 16.7M iterations, each requiring checking independence. That could be too slow in pure Python (probably 30+ seconds).
+
+Let me think about smarter approaches.
+
+Alternative: Since $m \leq n(n-1)/2$, and we need independent set of size $k$. Note that if $k$ is small, we can use other approaches. Actually, let's think about the complement: the panel is an independent set in $G$, which is a clique in the complement graph $\bar{G}$. So we need a clique of size $k$ in $\bar{G}$.
+
+Hmm, but the standard approach for max independent set with $n \leq 46$ is meet-in-the-middle.
+
+Wait, but there might be a simpler observation. Let me think about the structure. The control group must be a vertex cover. So we need a vertex cover of size $n - k$. Minimum vertex cover size $\tau = n - \alpha$ where $\alpha$ is max independent set size. We need $\tau \leq n - k$, i.e., $\alpha \geq k$.
+
+Hmm, is there something special about this problem? Let me think... $n \leq 46$. Hmm, 46 is a weird bound. Meet-in-the-middle with halves of 23 each gives $2^{23} = 8388608$ subsets per half.
+
+Actually, there's a classic trick: for max independent set with meet-in-the-middle, for each half we enumerate all subsets, and for each subset compute whether it's independent and its size. Then for the first half, we store for each subset the maximum size of an independent subset... Actually the standard approach:
+
+Split vertices into two halves $A$ (size $n_1$) and $B$ (size $n_2$). For each independent subset $S_A \subseteq A$, we want to find the max independent subset of $B$ that avoids neighbors of $S_A$. 
+
+Standard MITM for max independent set: 
+- Enumerate all subsets of $B$; compute $f[T]$ = size of $T$ if $T$ is independent in $B$, else $-\infty$. Actually we want: for each subset $T \subseteq B$, the maximum size of an independent set contained in $T$ (within $B$'s induced subgraph). This can be computed via DP: $g[T] = \max(g[T \setminus \{v\}], 1 + g[T \setminus N(v)])$... that's $O(2^{n_2} \cdot n_2)$ which is $8M \times 23 \approx 200M$ operations — too slow in Python.
+
+Hmm. Alternative: enumerate independent subsets only. The number of independent subsets could still be huge (e.g., empty graph has $2^{23}$ independent subsets).
+
+Let me think about the time limit: 5 seconds. Python... We need something clever.
+
+Alternative approach: branch and bound / backtracking for maximum independent set. For $n = 46$, a good branch-and-bound (like the classic MCS algorithm or simple branching with greedy coloring bounds) can handle typical cases quickly. But worst cases (random graphs around density ~0.5-0.6 with $n=46$) might be hard for naive B&B but usually fine with good bounds.
+
+Actually, wait. Let me reconsider. Maybe there's a simpler characterization. Hmm, the problem says "control group must include at least one participant from every interaction". So panel = independent set. We need independent set of size exactly $k$.
+
+Hmm, but maybe the intended solution is different. Let me reconsider: maybe the problem intends that the control group must include at least one participant from every event, meaning for each edge, at least one endpoint is in control. Yes, that's vertex cover complement = independent set.
+
+With $n \leq 46$... Hmm, this looks like it's designed for meet-in-the-middle ($46 = 2 \times 23$). In C++ that's standard. In Python, we need to be careful.
+
+Let me think about how to do MITM efficiently in Python.
+
+Approach: 
+- Split vertices into halves $A$ (first $h_1 = n//2$ or so) and $B$.
+- For half $B$ (size $h_2 \leq 23$): compute for every subset $T \subseteq B$: `best[T]` = maximum size of independent subset of $T$ (in induced graph on $B$). DP over subsets: `best[T] = max over v in T of best[T without v and without N(v)] + 1`? That's expensive.
+
+Better: `best[T]`: if $T$ is independent, `best[T] = popcount(T)`. Otherwise... Hmm, standard: for each $T$, let $v$ be the lowest set bit. `best[T] = max(best[T ^ (1<<v)], 1 + best[T & ~(adj_mask_of_v_within_B)])`. Wait, that's not right either. Let me think: if $v \in T$, then either $v$ is not in the independent set (giving `best[T \ {v}]`) or $v$ is in it (giving `1 + best[T \ ({v} ∪ N(v))]`). So `best[T] = max(best[T ^ lowbit], 1 + best[(T ^ lowbit) & ~adjB[v]])`. This is $O(2^{h_2})$ with $O(1)$ work per subset (after finding lowbit). $2^{23} = 8.4M$ iterations in Python — each iteration with a few operations... maybe 10-20 seconds. Too slow probably.
+
+Hmm, but we can vectorize with numpy? Let's think.
+
+Actually, there's a neat way to compute "is independent" for all subsets quickly using the recurrence: `indep[T] = indep[T ^ lowbit] and (adj[v] & T == 0)`. Still $O(2^{h})$ scalar ops.
+
+Alternative: use numpy with bit tricks. Hmm.
+
+Let me think of another approach: since we only need to know whether there's an independent set of size $\geq k$, and $k$ can be anything from 1 to $n$.
+
+Case analysis:
+- If $k \leq \alpha$ obviously yes.
+- Note $\alpha \geq n^2/(2m+n)$ (Turán / Caro-Wei bound). Caro-Wei: $\alpha \geq \sum 1/(d_i+1)$.
+
+Hmm, but worst case we still need exact.
+
+Alternative: think about the complement graph. Panel = clique in complement. Clique of size $k$ in a graph with $n=46$.
+
+Hmm, what about using the structure: if $m$ is small, the graph is sparse, and independent sets are large. If $m$ is large, the complement is sparse, and... hmm.
+
+Key insight: We need independent set of size $k$. If $k \leq$ some bound, greedy/other methods work. If $k$ is large, then the graph must be sparse (since independent set of size $k$ requires... hmm, actually no).
+
+Let me think about branch and bound more carefully. Maximum independent set via branching: pick vertex $v$, branch on "include $v$" (remove $v$ and neighbors) or "exclude $v$" (remove $v$). With good pruning (e.g., using a greedy coloring bound on the remaining graph), $n=46$ should be very fast in practice. The hard instances for MIS branching are around density 0.5-0.7 with larger $n$ (like 100+). For $n=46$, even a moderately good B&B should handle it. But worst-case Python performance...
+
+Actually, let me think about the worst case for simple branching without bounds: it's $O(2^n)$ worst case but with the "include/exclude" branching on max-degree vertex and merging, it's more like $O(1.22^n)$ or so for the simple algorithm (branch on max degree vertex, in the exclude branch reduce). Actually the classic simple algorithm: `mis(G): if G empty return 0; pick v of max degree; return max(1 + mis(G - N[v]), mis(G - v))`. This has complexity around $O(1.44^n)$? Hmm, for $n=46$, $1.44^{46} \approx 10^7$. Hmm, that might be OK-ish but risky. With degree-based improvements (e.g., if degree ≤ 2 handle specially), it gets much better.
+
+Actually, there's a well-known result: the simple branching algorithm where you pick the vertex of maximum degree runs in $O(1.22^n)$ or so? Let me recall: The algorithm `MIS(G) = max(1 + MIS(G - N[v]), MIS(G - v))` where $v$ has degree $\geq 2$... For degree $d$, the include branch removes $d+1$ vertices, exclude removes 1. The branching vector is $(d+1, 1)$. For $d=2$: $(3,1)$ gives branching number ~1.47? Hmm, that's not great. But actually in the exclude branch, the degree of neighbors drops... The standard analysis: branching on max-degree vertex gives something like $O(1.25^n)$? Hmm, I don't remember exactly.
+
+Let me think about known results: 
+- Simple algorithm (Fomin et al): measure and conquer gives $O(1.21^n)$ for max independent set with sophisticated algorithms.
+- The naive algorithm: pick vertex of max degree $d \geq 3$, branch. If max degree ≤ 2, solve directly (paths/cycles). Branching vector $(d+1, 1)$ with $d \geq 3$: $(4,1)$ → branching number ~1.38? Hmm, $x^4 = x + 1$ → $x \approx 1.22$? Let me compute: $1.22^4 = 2.215$, $1.22+1 = 2.22$. Yes! $x^4 = x+1$ has root ≈ 1.2207. So branching vector $(4,1)$ gives 1.2207. But wait, that's only valid if in the exclude branch we can argue something... Actually the exclude branch removes only 1 vertex, so the recurrence is $T(n) = T(n-4) + T(n-1)$, giving 1.2207^n. Hmm wait, but that's not right because after excluding $v$, the max degree might drop below 3, but the recurrence $T(n) \le T(n-4) + T(n-1)$ holds regardless (in the worst case). So $T(n) = O(1.2207^n)$. For $n = 46$: $1.2207^{46} \approx e^{46 \times 0.1994} = e^{9.17} \approx 9600$. Wait that seems too small. Let me recompute: $\ln(1.2207) \approx 0.1994$. $46 \times 0.1994 = 9.17$. $e^{9.17} \approx 9630$. Hmm, that's tiny! 
+
+Wait, that can't be right. $1.22^{46}$: $1.22^{10} \approx 7.3$, $1.22^{40} \approx 7.3^4 \approx 2847$, $1.22^6 \approx 3.3$, so $\approx 9400$. Yes, about 10K leaves. That's totally fine!
+
+Hmm wait, but that analysis assumes max degree ≥ 3 always in the branching. When max degree ≤ 2, the graph is a collection of paths and cycles, solvable in polynomial time. But wait — there's a subtlety: when max degree is exactly 3, the include branch removes 4 vertices. But what if max degree is 3 but... yeah $(4,1)$. If max degree is $d \geq 3$: $(d+1, 1)$, worst at $d=3$: 1.2207. Hmm, but actually there's an issue: in the exclude branch, we remove 1 vertex, but we should also account... The standard simple MIS algorithm actually achieves $O(1.22^n)$? Let me double check with known literature. 
+
+Hmm, actually I recall the simple branching algorithm for MIS is $O(1.38^n)$ or something without the degree-2 handling... Let me redo: if we always branch on a max-degree vertex $v$ with degree $d$:
+- Include: remove $d+1$ vertices.
+- Exclude: remove 1 vertex.
+Recurrence: $T(n) \le T(n-d-1) + T(n-1)$.
+For $d = 0$: vertex is isolated, always include (no branching). $T(n) = T(n-1)$.
+For $d = 1$: include removes 2, exclude removes 1. But if $v$ has degree 1, we can always include $v$ wlog? No wait — if $v$ has degree 1 with neighbor $u$, there's always a maximum independent set containing $v$ (replace $u$ with $v$ if needed). So no branching needed: include $v$. Actually careful: if MIS contains $u$, swap to $v$: still independent since $v$'s only neighbor is $u$. So yes, for degree-1 vertices, always include. $T(n) = T(n-2)$.
+For $d = 2$: include removes 3, exclude removes 1: $(3,1)$ → $x^3 = x + 1$ → $x \approx 1.325$. Hmm, that's worse. But with degree-2 folding (series reduction), you can do better, but it's complex. Alternatively, handle max degree ≤ 2 directly (graph is disjoint paths/cycles): polynomial.
+For $d \geq 3$: $(d+1, 1)$, worst $d=3$: 1.2207.
+
+So the algorithm: while max degree ≥ 3, branch on max-degree vertex. When max degree ≤ 2, solve directly. Total: $O(1.2207^{46}) \approx 10^4$ leaves times polynomial work per node. 
+
+Wait, but hold on. Is the bound $T(n) \le T(n-4) + T(n-1)$ correct? In the exclude branch, we remove just $v$. But then the graph has $n-1$ vertices and might still have max degree ≥ 3, fine. The recurrence holds. But hmm, actually there's a subtle improvement possible: in the exclude branch, all neighbors of $v$ lose one degree... but for an upper bound, $T(n-1)$ is fine.
+
+Hmm wait, but actually I realize the standard analysis is more subtle. The recurrence $T(n) = T(n-4) + T(n-1)$ gives root $\approx 1.2207$? Let me verify: $f(n) = f(n-1) + f(n-4)$. Characteristic: $x^4 = x^3 + 1$. Hmm wait. $f(n) = f(n-1) + f(n-4)$ → $x^n = x^{n-1} + x^{n-4}$ → $x^4 = x^3 + 1$. Root: try $x=1.38$: $1.38^4 = 3.63$, $1.38^3 = 2.63$, $+1 = 3.63$. Yes! Root ≈ 1.3803. I made an error before. The branching vector $(4,1)$ means branches reduce the instance by 4 and 1, so $T(n) = T(n-4) + T(n-1)$, characteristic $x^4 = x^3 + 1$, root ≈ 1.3803. Hmm right, branching vector $(a,b)$ → $x^a = x^b$... no wait.
+
+Branching vector $(a, b)$: $T(n) = T(n-a) + T(n-b)$. Characteristic equation: $x^n = x^{n-a} + x^{n-b}$, i.e., $1 = x^{-a} + x^{-b}$, i.e., $x^a \cdot x^b$... Let me just do it: $1 = x^{-4} + x^{-1}$. Multiply by $x^4$: $x^4 = 1 + x^3$. Root: $x \approx 1.3803$ (since $1.38^4 \approx 3.63$, $1 + 1.38^3 \approx 3.63$). Yes, 1.3803.
+
+So $1.3803^{46} = e^{46 \ln 1.3803} = e^{46 \times 0.3224} = e^{14.83} \approx 2.75 \times 10^6$. Hmm, that's 2.75M leaves. In Python, with recursion, that might be ~30+ seconds. Too slow, probably. Hmm.
+
+But wait — this is a worst-case bound. In practice, the branching is much better because:
+1. Higher degree vertices give better branching.
+2. The exclude branch quickly reduces degrees.
+
+But adversarial inputs could hit near worst case. What graphs have max degree exactly 3 and force lots of branching? 3-regular graphs on 46 vertices. Hmm, for a 3-regular graph, the algorithm branches $(4,1)$ repeatedly... but actually after excluding a vertex, its 3 neighbors have degree 2, and the graph is no longer 3-regular. The analysis would need to account for that. The simple bound says 2.75M leaves worst case; in practice for 3-regular graphs it's much less because exclude branches lead to degree-2 vertices which... hmm, but we branch on max degree; if max degree is 3 somewhere else, we keep branching.
+
+Hmm, let me think more carefully. Actually, let me add better pruning:
+
+1. **Bound pruning**: maintain current best (or target $k$). Since we only need to answer "is there an independent set of size ≥ k", we can prune aggressively: if current size + upper bound on remaining < k, prune. Upper bound: number of remaining vertices, or better, greedy coloring bound.
+
+Actually since we need just feasibility of size $k$ (not exact max), we can do a DFS that tries to build an independent set of size $k$ and prunes when impossible. With a good upper bound function, this is like a clique-finding backtracking.
+
+2. Since we need size exactly $k$ but any $k$-subset of a larger independent set works, target is: find independent set of size ≥ k, output k elements.
+
+Hmm, let me think about the structure of hard instances. For the decision problem "independent set of size k", hard instances are where $\alpha$ is close to $k$.
+
+Alternative idea: **Meet in the middle with numpy vectorization**.
+
+Let me think about how to do MITM for MIS in Python efficiently.
+
+Standard MITM for MIS (independent set):
+- Split $V = A \cup B$, $|A| = h$, $|B| = n - h$.
+- Enumerate all independent subsets of $A$. For each independent subset $S \subseteq A$, compute $\text{mask}_B(S)$ = union of neighborhoods (within $B$) of vertices in $S$. Then we need the max independent subset of $B$ avoiding $\text{mask}_B(S)$.
+- Precompute for each subset $T \subseteq B$: $g[T]$ = max independent set in $B \setminus T$... or equivalently $g[T]$ = max independent subset of $T$ (within induced graph on $B$). Then answer = $\max_S (|S| + g[\bar{T}])$ where... hmm.
+
+The issue: computing $g[T]$ for all $2^{h_2}$ subsets takes $O(2^{h_2})$ DP steps, and enumerating independent subsets of $A$ could be up to $2^{h_1}$.
+
+With $h_1 = h_2 = 23$: $2^{23} = 8.4M$. In pure Python, 8.4M iterations of simple DP ≈ maybe 8-15 seconds each. Too slow. With numpy vectorization, we can maybe do it.
+
+Can we vectorize the subset DP? $g[T] = \max(g[T \setminus \{v\}], 1 + g[(T \setminus \{v\}) \setminus N(v)])$ where $v = $ lowest bit of $T$. Vectorizing "lowest bit" operations over all $T$ simultaneously... 
+
+Alternative vectorized approach: process by popcount layers? Hmm.
+
+Alternative: compute $g$ via a different recurrence that's vectorizable. Hmm.
+
+Let me think of another formulation. Define for the whole graph... hmm.
+
+Alternative approach: **Split into independent-set enumeration with pruning**. 
+
+Hmm, let me think about the actual difficulty. $n \le 46$. What are the hard cases for a good B&B? Let me estimate the practical performance of a well-implemented B&B in Python for $n=46$.
+
+Actually, you know what, let me think about the problem differently. Maybe there's a polynomial observation I'm missing.
+
+Wait, re-read the problem: "the control group includes at least one participant from every single recorded interaction event". Yes, panel = independent set. Need $|panel| = k$ exactly. Since subsets of independent sets are independent, need $\alpha \geq k$.
+
+Hmm, is it possible the problem is from a specific contest where $n \le 46$ hints at MITM? 46 = 2·23. Yes, this smells like MITM. The time limit of 5s (generous) suggests they expect a heavier algorithm. In C++, MITM with $2 \times 2^{23}$ is trivial. In Python, we need to vectorize.
+
+Let me design a numpy-based MITM:
+
+**Step 1**: Split vertices into $A$ (size $h_1$) and $B$ (size $h_2$), with $h_1 + h_2 = n$. To balance, $h_1 = h_2 = 23$ for $n = 46$.
+
+**Step 2**: For half $B$: compute array `g` of length $2^{h_2}$ where `g[T]` = max size of independent subset of $T$ (induced on $B$). 
+
+Vectorized computation of `g`: Hmm. One way: iterate over vertices. Process subsets grouped by... 
+
+Alternative: compute `g` via "for each T, g[T] = max over independent subsets". 
+
+Hmm, here's a thought: we can compute the independence DP with numpy using the following: for each vertex $v$ in $B$ (index $j$), and considering subsets... 
+
+Actually here's a cleaner vectorized method. Let me define `g` recursively over increasing popcount... no.
+
+Alternative: Let me think of `g[T]` computed as follows: `g[0] = 0`. For $T \neq 0$, let $v = \text{lowbit}(T)$: `g[T] = max(g[T \ {v}], 1 + g[(T \ {v}) \& \sim N_B(v)])`.
+
+To vectorize: group subsets $T$ by their lowest bit? For subsets where bit $j$ is the lowest set bit: these are $T = (1<<j) + S$ where $S \subseteq \{$bits $> j\}$. For all such $T$ simultaneously: `g[(1<<j) + S] = max(g[S], 1 + g[S & ~NB_j])` where `NB_j` is the adjacency mask of vertex $j$ within $B$ (restricted to bits > j... well, $S$ only has bits > j anyway).
+
+With numpy: we can index arrays with fancy indexing. Let `idx_j` = array of all $S \subseteq$ bits $> j$... but that's $2^{h_2 - 1 - j}$ entries. For each $j$ from 0 to $h_2-1$, we do vectorized operations on arrays of size $2^{h_2-1-j}$. Total work: $\sum_j 2^{h_2-1-j} = 2^{h_2} - 1$. 
+
+But the fancy indexing: `g[(1<<j) + S_arr] = np.maximum(g[S_arr], 1 + g[S_arr & ~NB_j])`. Here `S_arr` is an array of all subsets of the high bits. We need `S_arr & ~NB_j` — bitwise AND with scalar, numpy supports `&` on integer arrays. And `g[S_arr]` is fancy indexing (gather). And the assignment `g[(1<<j)+S_arr] = ...` is scatter. All vectorized. 
+
+Memory: `g` as int8 array of size $2^{23}$ = 8MB. Fine. `S_arr` for $j=0$: $2^{22}$ int32 = 16MB. Fine.
+
+But wait, there's an ordering issue: when computing `g[(1<<j)+S]`, we need `g[S]` and `g[S & ~NB_j]` to be already computed. $S$ has only bits $> j$, and $S \& \sim NB_j$ also has only bits $> j$... wait, $NB_j$ includes bits of neighbors of $j$ which could be any bits (both < j and > j), but $S$ only has bits > j, so $S \& \sim NB_j$ has only bits > j. Both $S$ and $S \& \sim NB_j$ are subsets of bits > j. If we process $j$ from high to low (i.e., $j = h_2-1$ down to 0)? Hmm, no: subsets of bits > j include bit $j+1, ..., h_2-1$. If we process $j$ in decreasing order... wait, we need `g[S]` computed before `g[(1<<j)+S]`. $S$ ranges over subsets of bits $> j$. If we process $j$ from $h_2 - 1$ down to $0$: for $j = h_2-1$, $S = \emptyset$ only. For $j = h_2-2$, $S \subseteq \{h_2-1\}$: need `g[0]` and `g[{h_2-1}]` — computed at step $j = h_2-1$. Yes! Processing $j$ from high to low works: when processing $j$, all subsets of bits $> j$ have been fully computed (they were computed at steps $j' > j$, where each step $j'$ computes all subsets with lowest bit exactly $j'$, plus $g[0]$ initially). 
+
+So the DP is:
+```
+g = np.zeros(1 << h2, dtype=np.int8)
+for j in range(h2-1, -1, -1):
+    # S ranges over subsets of bits j+1..h2-1
+    S = np.arange(1 << (h2-1-j)) << (j+1)   # all subsets of high bits, shifted
+    # Actually: S = all subsets of {j+1,...,h2-1}: these are numbers 0..2^(h2-1-j)-1 shifted left by (j+1)
+    g[(1<<j) + S] = np.maximum(g[S], 1 + g[S & ~NB[j]])
+```
+Wait, `np.arange(1 << (h2-1-j)) << (j+1)`: numbers $0, 1, ..., 2^{h2-1-j}-1$ shifted left by $j+1$ gives all subsets of bits $j+1..h2-1$. Yes.
+
+Hmm, but `S & ~NB[j]`: `~NB[j]` in numpy with int32... `~x` for signed ints is bitwise complement, fine. `S & ~NB[j]` — need consistent dtypes. NB[j] as np.int32 or int64. Let me use int64 to be safe? Memory: for $j=0$, S has $2^{22}$ elements; int64 = 32MB. Plus g[S] gather creates another array of int8 (8MB... wait, $2^{22}$ int8 = 4MB). OK.
+
+Actually, we could use int32: $2^{22}$ int32 = 16MB. Values up to $2^{23}$ fit in int32. `~NB[j]` as int32 works. Let me use int32.
+
+Hmm wait, but there's a subtlety: `1 + g[S & ~NB[j]]` — g is int8, 1 + int8 array could overflow? Max value 23, fine. But numpy: `1 + g[...]` where g is int8 — result int8, max 24, fine.
+
+Then `np.maximum(g[S], 1 + g[S & ~NB[j]])` — both int8. Fine.
+
+Total numpy operations: for each $j$, a few vectorized ops on arrays of size $2^{h2-1-j}$. Sum ≈ $2^{23}$ elements processed, each with ~6 vectorized ops (arange+shift, gather, gather, and, add, maximum, scatter). So ~50M element-ops in numpy ≈ maybe 1-2 seconds. 
+
+**Step 3**: For half $A$: enumerate all independent subsets $S \subseteq A$, and for each, we need $g[\text{avail}]$ where avail = complement (within $B$) of the neighborhood of $S$ in $B$. Then total = $|S| + g[\text{avail}]$. We need max over all independent $S$... but actually we need to find whether max ≥ k, and reconstruct.
+
+Enumerating all independent subsets of $A$: up to $2^{23}$ subsets. For each independent subset $S$, computing avail: avail = full_B_mask & ~(union of N_B(v) for v in S). 
+
+Vectorized enumeration of independent subsets with their avail masks: Hmm. We can do a similar DP: iterate over subsets of $A$ in a BFS/DFS manner... 
+
+Alternative: recursive/iterative expansion: start with list = [(mask=0, avail=fullB, size=0)], and for each vertex $j$ in $A$ (in order), extend: for each existing partial subset (which uses only vertices < j), either skip vertex j or include it (if compatible). This builds all independent subsets. The number of independent subsets could be up to $2^{23}$ (empty graph on A). Each is O(1) work with vectorization:
+
+```
+masks = [0]; avails = [fullB]; sizes=[0]
+for j in range(h1):
+    # try including vertex j: compatible with existing subsets that don't contain neighbors of j... 
+```
+Hmm wait, this doesn't directly work because "include j" must be combined with all subsets of later vertices too. Let me restructure: process vertices of $A$ one at a time; maintain list of independent subsets of vertices processed so far, along with (avail mask in B, size). When processing vertex $j$: new subsets = old subsets (not containing j) + [subset ∪ {j} for old subsets that don't contain any neighbor of j]. Since old subsets only contain vertices < j, "don't contain neighbor of j" means `mask & NA_j == 0` where NA_j = adjacency of j within A restricted to bits < j... Actually adjacency within A: `mask & adjA[j] == 0`.
+
+Vectorized:
+```
+masks = np.array([0], dtype=np.int32)  # subsets of A processed so far
+avails = np.array([fullB], dtype=np.int32)
+sizes = np.array([0], dtype=np.int8)
+for j in range(h1):
+    # subsets that can include j: those with masks & adjA_j == 0
+    can = (masks & adjA[j]) == 0
+    new_masks = masks[can] | (1 << j)
+    new_avails = avails[can] & ~NB[j]
+    new_sizes = sizes[can] + 1
+    masks = np.concatenate([masks, new_masks])
+    ...
+```
+This enumerates all independent subsets of A. Total number = number of independent sets in A's induced graph, up to $2^{23}$. Memory: 3 arrays of up to $2^{23}$ elements: int32 masks (32MB), int32 avails (32MB), int8 sizes (8MB). Plus concatenation overhead. Hmm, concatenation at each step doubles; total memory churn ~ sum of sizes = fine, but peak ~ 2× final. Might be ~150MB peak. Memory limit 256MB. Risky but maybe OK. Alternatively preallocate.
+
+Actually, we can avoid storing masks: we only need, for each independent subset, its size and avail. And ultimately we want $\max_S (\text{size}(S) + g[\text{avail}(S)])$. We could process incrementally and keep only what's needed... but we need all of them at the end to combine with g. Hmm, but actually we can combine incrementally? No — g lookup happens at the end for each candidate.
+
+Alternative: avoid storing all: note $\max_S (|S| + g[\text{avail}_S])$. We can compute this as we go? No, because g lookups need final avail.
+
+Hmm, but here's a trick: instead of storing avail masks, store them and at the end do `g[avails]` gather (vectorized fancy indexing) — that's fine, one big gather of $2^{23}$ elements. Then `total = sizes + g[avails]`, `best = total.max()`. That's all vectorized. 
+
+Memory optimization: we can drop `masks` array if we can determine "can include j" differently... we need masks to check adjacency. Hmm, we need masks. Alternatively, restructure: enumerate independent subsets via the same "lowest bit" DP as for g? 
+
+Alternative cleaner approach: enumerate ALL subsets of A (not just independent), and define `f[S]` = max size of independent subset of S (within A) — same DP as g. And also `avail[S]`... no wait, avail depends on which independent subset chosen, not just S. Hmm. But actually: for the combination, we want $\max_{S_A \text{ indep}} |S_A| + g[B \setminus N(S_A)]$. 
+
+Hmm, alternative: define $h[S]$ for $S \subseteq A$: max over independent subsets $T \subseteq S$ of $(|T| + g[B \setminus N(T)])$? That's a DP over subsets of A: $h[S] = \max(h[S \setminus \{v\}], ???)$ — the "include v" branch needs $g$ lookup with avail computed from $T \cup \{v\}$... The avail for the include branch: $1 + h'$... hmm, this doesn't decompose nicely because avail depends on T.
+
+OK here's another thought. Let me reconsider: maybe process the combination differently. 
+
+Actually, let's simplify: store arrays of (mask, avail, size) for all independent subsets of A. The count is at most $2^{23} = 8.4M$. With int32 masks and avails and int8 sizes: 8.4M × 9 bytes = 75MB, plus concatenation temporary ~ another 75MB. Should be OK within 256MB if careful. Actually, let me preallocate arrays of size $2^{h_1}$ (max possible count) and fill incrementally with two "regions" (like a two-stack approach):
+
+```
+cap = 1 << h1
+masks = np.empty(cap, dtype=np.int32)
+avails = np.empty(cap, dtype=np.int32)
+sizes = np.empty(cap, dtype=np.int8)
+cnt = 1
+masks[0] = 0; avails[0] = fullB; sizes[0] = 0
+for j in range(h1):
+    # existing entries: [0, cnt). Those with masks & adjA[j] == 0 can be extended by j.
+    old = masks[:cnt]
+    can = (old & adjA[j]) == 0
+    new_cnt = cnt + can.sum()
+    masks[cnt:new_cnt] = old[can] | (1 << j)
+    avails[cnt:new_cnt] = avails[:cnt][can] & ~NB[j]
+    sizes[cnt:new_cnt] = sizes[:cnt][can] + 1
+    cnt = new_cnt
+```
+This is clean and vectorized. Peak memory: 3 arrays of $2^{23}$: 32+32+8 = 72MB, plus temporaries (old[can] etc., each up to 8.4M elements: boolean 8MB, int32 temporaries 32MB each). Should be fine.
+
+Then:
+```
+totals = sizes[:cnt].astype(np.int8) + g[avails[:cnt]]  # gather
+best = totals.max()
+```
+Wait, `g[avails]` — avails are masks of available vertices in B; g[T] = max independent subset of T. Yes. `totals = sizes + g[avails]`, max over all. If best ≥ k, answer YES.
+
+**Reconstruction**: We need to output the actual panel of size k. Hmm, reconstruction adds complexity. Options:
+
+(a) After finding best ≥ k, find one specific independent subset $S_A$ achieving a good total, then reconstruct the independent subset of B via traceback in g's DP.
+
+(b) Simpler: once we know the answer is YES (best ≥ k), we can find a witness more cheaply. Hmm, but we still need to find an actual independent set of size ≥ k.
+
+Let me think about reconstruction via traceback:
+
+For g's DP (half B): we computed g[T] for all T. To reconstruct the independent set within T: if g[T] == g[T \ {v}] where v = lowbit... hmm, standard traceback: at T, let v = lowbit(T). If g[T] == g[T ^ lowbit]: the solution doesn't use v; recurse on T ^ lowbit. Else: uses v; recurse on (T ^ lowbit) & ~NB[v], add v. This is O(h_2) steps... wait, each step removes at least one bit, so O(h_2) steps total? Each recursion reduces T by at least the lowbit. Actually each step removes ≥ 1 bit, so ≤ h_2 = 23 steps. But careful: the recurrence was g[T] = max(g[T\{v}], 1 + g[(T\{v})\N(v)]). Traceback: if g[T] == 1 + g[(T\{v})\~NB_v] then take v and recurse on (T\{v})\~NB_v; else recurse on T\{v}. Since g[T] = max of the two, one of these holds. Fine, O(23) steps, scalar Python. 
+
+For the A side: find an index $i$ with sizes[i] + g[avails[i]] ≥ k (e.g., argmax). Then the A-part is the independent set corresponding to masks[i]. But we need to reconstruct which vertices — we have masks[i], and we know it's independent (by construction). So A-part = bits of masks[i]. Then B-part: we need an independent subset of avails[i] with size ≥ k - sizes[i]; specifically we can take g[avails[i]] which is ≥ k - sizes[i]... wait, we need total ≥ k. Take argmax i: sizes[i] + g[avails[i]] = best ≥ k. Then B-part = traceback(avails[i]) with size g[avails[i]]. Total = best ≥ k. Then output any k vertices from A-part ∪ B-part. 
+
+But wait — is the union of A-part and B-part independent in the whole graph? A-part is independent within A. B-part is independent within B. Cross edges: B-part ⊆ avails[i] = B \ N(A-part). So no cross edges between A-part and B-part. Yes, union is independent. 
+
+So the plan works. Let me now double check the g DP direction and indexing.
+
+Let me set up notation. Vertices 0..n-1 (0-indexed). Split: A = vertices 0..h1-1, B = vertices h1..n-1, h2 = n - h1.
+
+Adjacency masks:
+- `adjA[j]` for j in A: mask over A bits of neighbors of j within A. (bit i of adjA[j] set iff edge (j, i), i in A, i ≠ j)
+- `NB[j]` for j in A: mask over B bits (bit position = vertex - h1) of neighbors of j within B.
+- For B vertices: `adjB[jj]` for jj in 0..h2-1: mask over B bits of neighbors within B.
+
+g DP over subsets of B (bits 0..h2-1 correspond to B vertices h1..n-1):
+```
+g = np.zeros(1 << h2, dtype=np.int8)
+for j in range(h2 - 1, -1, -1):
+    S = np.arange(1 << (h2 - 1 - j), dtype=np.int32) << (j + 1)
+    g[(1 << j) + S] = np.maximum(g[S], 1 + g[S & ~adjB[j]])
+```
+Wait, need to double check: for T with lowest bit j: T = (1<<j) | S where S ⊆ bits j+1..h2-1. g[T] = max(g[T without j], 1 + g[(T without j) minus neighbors of j]) = max(g[S], 1 + g[S & ~adjB[j]]). Note adjB[j] may include bits < j but S doesn't have those, so fine.
+
+Processing order: j from h2-1 down to 0. When processing j, we need g[S] and g[S & ~adjB[j]] for S ⊆ bits > j. All subsets of bits > j are exactly: ∅ and all T with lowest bit > j, which were computed in previous iterations (j' = j+1 .. h2-1). ✓.
+
+Hmm, wait: at iteration j, the subsets of bits > j are precisely those computed at iterations j+1, ..., h2-1 (each iteration j' computes subsets with lowest bit exactly j', which together with ∅ covers all subsets of bits > j). ✓.
+
+Edge case: adjB[j] & (1<<j) — vertex j is not its own neighbor, so bit j not set in adjB[j]; anyway S has no bit j.
+
+Also note: `S & ~adjB[j]` — in numpy, `~adjB[j]` where adjB[j] is a Python int: `S & ~adjB[j]` with S int32 array and scalar int — numpy will handle. But careful: `~adjB[j]` for a Python int is negative (infinite leading 1s conceptually), and `S & ~x` in numpy: S is int32 (nonneg), ~x as Python int is negative; numpy converts... Hmm, potential dtype issues. Safer: `S & (~adjB[j] & full_mask)` where full_mask = (1<<h2)-1. Or compute `S & (full_mask ^ adjB[j])`. Let me use `inv = fullB_mask ^ adjB[j]` (Python int, nonneg), then `S & inv`. Since S ≤ fullB_mask, `S & inv` is correct. 
+
+Similarly in the A enumeration: `avails[can] & invB_j` where invB_j = fullB_mask ^ NB[j].
+
+Now, sizes of halves: to minimize max(2^h1, 2^h2) work... both DPs are O(2^{h}) where h is the half size. Total memory: g array 2^{h2} bytes (int8) + candidate arrays 2^{h1} × 9 bytes. For n=46: h1=h2=23: g = 8.4MB, candidates up to 75MB. OK.
+
+But wait — the A enumeration count is the number of independent subsets of A, which for sparse A could be 2^23. And the loop over j does vectorized ops on growing arrays. Total element-ops ~ 2× final count × constant. Fine.
+
+Hmm, but actually, hold on: which half should be which? The g DP is over B (all 2^h2 subsets, no independence filtering). The A enumeration only stores independent subsets. If the graph is dense, independent subsets of A are few, so A-side is cheap; B-side g DP is always 2^h2. If graph is sparse, both are ~2^23. Either way ~2^23-ish element ops with numpy vectorization. Should run in a few seconds. Let me estimate: g DP: 23 iterations, total elements processed = 2^23, each iteration involves: arange (cheap), shift, add for index computation, two gathers, one and, one add, maximum, scatter. ~8 ops × 8.4M = 67M element ops. numpy does maybe 100-500M simple ops/sec... gathers are slower, maybe 50-100M/sec. So g DP maybe 1-3 seconds. A enumeration: similar magnitude. Total maybe 3-6 seconds. Hmm, cutting close with 5s limit. Let me think about optimizations.
+
+Optimization 1: Balance halves better. Actually, we could make B smaller and A larger, or vice versa. The g DP cost is dominated by 2^h2 (always full). The A enumeration cost is #independent subsets of A ≤ 2^h1, but often much less. Hmm, but worst case (empty graph) both are full. But if the graph is empty, independent set of size k exists trivially for any k ≤ n... We could add quick checks:
+
+- If m == 0: any k vertices work. Output YES immediately.
+- More generally, quick sufficient condition: greedy independent set. If greedy finds independent set ≥ k, done. This handles sparse cases fast.
+- Quick necessary condition: if even a good upper bound < k... e.g., n - (min vertex cover lower bound)... hmm, or simple: if k > n - m... hmm. Actually a simple bound: each edge needs a control member... Let me think: vertex cover ≥ m / Δ... not helpful directly.
+
+Actually, a cleaner strategy: use the B&B approach with good pruning, and only fall back to MITM if needed? Or just make MITM fast enough.
+
+Alternatively, think about reducing the problem size first:
+- Remove isolated vertices: they can always be in the panel. If there are c isolated vertices, they contribute c to any independent set. Then we need k - c more from the rest (if k ≤ c, just output k isolated vertices... well, any k of them). Actually more precisely: α(G) = c + α(G') where G' = G minus isolated vertices. And if k ≤ c, answer YES with any k isolated vertices.
+- Hmm, also: vertices of degree... hmm.
+
+Also, connected components: solve each component independently, sum up α. But for feasibility of size k, we need to check α ≥ k; components help a lot for sparse graphs. But dense single component still needs MITM.
+
+Let me think about whether numpy MITM fits in 5s. Actually, let me reconsider the sizes: maybe use h1 = 24, h2 = 22 or similar? The g DP over B is the expensive fixed cost 2^h2. The A enumeration is ≤ 2^h1 but adaptive. Hmm, but worst case both full. With h1 = h2 = 23, worst case ~2×8.4M element-ops per phase.
+
+Actually wait, I realize the A-side enumeration as written processes ALL subsets (independent or not)? No — it only extends subsets that are compatible, so it enumerates exactly the independent subsets. For an empty graph on A, that's all 2^23 subsets. For dense graphs, fewer.
+
+Alternatively, flip: make the "enumerate independent subsets" side the smaller one? Hmm, but the g DP side must enumerate all 2^h2 subsets regardless. So put the denser half as A (fewer independent subsets) and sparser half as B? But g DP cost is fixed at 2^h2 regardless of density. Hmm, so actually we want B small if... no wait, both sides cost ~2^{half size} in the worst case. Balanced is fine.
+
+Hmm, wait, actually, can we also prune the A enumeration by size? We need independent sets of size ≥ k total. If sizes[i] + max_possible_B < k... max_possible_B = min(h2, ...). We could prune candidates whose size + h2 < k... but that doesn't reduce the enumeration itself (we still enumerate them, just don't store). Actually we could filter during enumeration: only keep candidates with size + h2 ≥ k? Hmm, but sizes only grow, and avail shrinks... A candidate with small size early might grow later. We can't prune based on current size since future vertices can be added. Hmm, but we could prune based on: size + (number of remaining A vertices) + h2 < k → can never reach k. That's a valid prune but weak.
+
+Alternatively, since we just need ≥ k, we can prune candidates with size + remaining_potential < k where remaining_potential = (h1 - 1 - j) + h2 at step j. This could help when k is large. But worst case (k small, sparse graph) no help.
+
+Hmm, let me think about the worst case more concretely: n=46, m around 300-400 (density ~0.3-0.4), k near α. E.g., random graph G(46, 0.5): α ≈ 2 log_2 46 ≈ 11.3... wait, for G(n, 1/2), α ≈ 2 log2 n ≈ 11.2. Independent subsets of a half: for G(23, 0.5), the number of independent subsets is dominated by small sets: sum over sizes s of C(23,s) 2^{-s(s-1)/2}... size 0: 1, 1: 23, 2: 253×~0.5=127, 3: 1771×0.125≈221, 4: 8855×0.0625/... hmm wait probability a given s-set is independent in G(23,1/2) is 2^{-s(s-1)/2}. s=4: C(23,4)=8855, 2^{-6}=1/64 → 138. s=5: 33649/2^10≈33. So total ≈ 1+23+127+221+138+33+... ≈ 550. Tiny! So for dense graphs, A enumeration is trivial. The g DP is the fixed cost: 2^23 element-ops.
+
+For sparse graphs, e.g., G(46, 0.1): α ≈ ? For p=0.1, average degree 4.5, α ≈ n × (something like 0.35?) ≈ 16. Independent subsets of half (23 vertices, p=0.1): sum C(23,s) × (0.9)^{s(s-1)/2}: s=0..23. s=8: C(23,8)=490314... wait C(23,8) = 490314? C(23,8) = 490314? Let me compute: C(23,8) = 490314. Hmm, 0.9^28 ≈ 0.052 → 25500. s=10: C(23,10)=1144066, 0.9^45≈0.0087 → 9950. s=12: C(23,12)=1352078, 0.9^66≈0.00095→1287. Total maybe ~200K-500K. Manageable.
+
+Worst case for A enumeration: empty graph on A → 2^23 = 8.4M candidates. But then... if A is empty-ish, hmm. The g DP is still 2^23. So worst case total ~ 8.4M (g) + 8.4M (A enum) + 8.4M (final gather) element-ops with numpy. I'd estimate 2-4 seconds. Hmm.
+
+Can we speed up the g DP? Ideas:
+
+1. Use int8 for g (done). Gathers on int8 arrays are fast-ish.
+
+2. Reduce h2: if we handle isolated vertices and small components separately, the "core" that needs MITM might be much smaller. But adversarial cases (dense 46-vertex graph) remain.
+
+3. Alternative g computation: note we don't need g[T] for ALL T — we only need g at the specific avail masks from A candidates. But avail masks can be arbitrary subsets, so we need all. Hmm, unless we do it differently: for each A candidate, we need max independent subset of avail. Could compute lazily with memoization over encountered masks? The number of distinct avail masks ≤ number of A candidates, could be 8.4M — no better.
+
+4. Symmetric MITM: Actually, there's a classic alternative: enumerate independent sets in A with their "profile"... no.
+
+5. Precompute g only up to needed... no.
+
+Alternatively, different algorithm: since we need α ≥ k, and hard instances have specific structure... Let me think about B&B more. Actually, let me reconsider: maybe a well-tuned B&B in Python is fine for n=46? The concern is worst-case instances like random 3-regular graphs or G(46, 0.5) with k = α exactly. Hmm, for G(46,0.5), α ≈ 11-12, and finding whether α ≥ 12... B&B with coloring bounds handles these OK usually. For n=46, even a few million nodes might be too slow in Python (each node maybe 2-10 μs with bit operations... a few million nodes × 5μs = 15s). Risky.
+
+Hmm, what about a hybrid: MITM is deterministic O(2^{n/2}) with numpy vectorization. Let me carefully optimize the numpy MITM.
+
+Actually, wait. Let me reconsider the problem constraints: n ≤ 46, m ≤ n(n-1)/2 = 1035. Time 5s. This is likely from a contest where the intended solution is MITM in C++. For Python, we need the numpy approach to be efficient. Let me think through the numpy implementation in detail and estimate costs.
+
+**g DP (half B, h2 = 23):**
+
+```python
+size = 1 << h2
+g = np.zeros(size, dtype=np.int8)
+full = size - 1
+for j in range(h2 - 1, -1, -1):
+    cnt = 1 << (h2 - 1 - j)
+    S = np.arange(cnt, dtype=np.int32) << (j + 1)
+    np.bitwise_and(S, inv_j, out=tmp)  # tmp = S & inv_j, need buffer
+    a = g[S]          # gather
+    b = g[tmp]         # gather
+    b += 1
+    np.maximum(a, b, out=b)
+    g[(1 << j) + S] = b   # scatter
+```
+
+Hmm, `(1<<j) + S` creates a temp array; scatter with fancy indexing. 
+
+Costs per element: arange+shift (2 ops), add (1), gather ×2 (expensive), and (1), add (1), maximum (1), scatter (expensive). Gathers/scatters on 8.4M elements: numpy fancy indexing maybe ~50-100M elements/sec → each gather ~0.1-0.2s for 8.4M... total across all j: sum over j of 2^{h2-1-j} = 2^{h2}-1 ≈ 8.4M elements total (not per j!). Wait, right: iteration j processes 2^{h2-1-j} elements; summing over j: 2^{h2-1} + 2^{h2-2} + ... + 1 = 2^{h2} - 1 ≈ 8.4M total elements across ALL iterations. So total element-ops ≈ 8 × 8.4M ≈ 67M, with maybe 4 of those being gathers/scatters. At ~100M ops/sec for gathers: ~0.7s for gathers + ~0.3s for the rest. So g DP ≈ 1-1.5s. 
+
+**A enumeration:**
+
+Worst case 2^23 candidates. Per j: boolean mask computation (masks[:cnt] & adjA_j == 0): 2 ops; compress (extract) ×3 arrays; or/and/add on extracted; store into preallocated. Total elements processed ≈ 2 × final count ≈ 16.8M, with ~6 ops each ≈ 100M element-ops, several of which are compress operations (boolean indexing) which are slower. Maybe 1-2s.
+
+**Final combination:** gather g[avails[:cnt]] (8.4M gather), add, max: ~0.3s.
+
+Total ≈ 3s worst case. Tight but probably OK within 5s. And typical cases much faster.
+
+But hold on — memory: preallocating masks (int32, 2^23 × 4 = 32MB), avails (int32, 32MB), sizes (int8, 8MB), g (int8, 8MB). Plus temporaries: at j=22 (last iteration), old arrays are full 8.4M; boolean can: 8.4MB; extracted: up to 8.4M × (4+4+1) = 75MB temporaries. Hmm, `old[can]` creates a copy — for the last iteration, if all can (empty graph), extracted arrays are 32MB+32MB+8MB = 72MB, plus originals 72MB, plus g 8MB → ~160MB. Plus Python overhead. Under 256MB, OK-ish. We can reduce by processing extraction one array at a time and writing directly into the destination slice:
+
+```python
+for j in range(h1):
+    old_m = masks[:cnt]
+    can = (old_m & adjA_j) == 0   # temp bool
+    c = int(can.sum())  # hmm, or np.count_nonzero(can)
+    if c:
+        np.compress(can, old_m, out=masks[cnt:cnt+c])?? 
+```
+Hmm, `np.compress(condition, a, out=...)` — does compress support out? Yes, np.compress has an out parameter. But out must have exactly the right shape? "out : ndarray, optional — Alternate output array in which to place the result. It must be of the same shape and buffer type as the expected output". The expected output has c elements; if we give out=masks[cnt:cnt+c] with exactly c elements, that works. 
+
+So:
+```python
+c = np.count_nonzero(can)
+if c:
+    np.compress(can, masks[:cnt], out=masks[cnt:cnt+c])
+    np.compress(can, avails[:cnt], out=avails[cnt:cnt+c])
+    np.compress(can, sizes[:cnt], out=sizes[cnt:cnt+c])
+    masks[cnt:cnt+c] |= (1 << j)
+    avails[cnt:cnt+c] &= invNB_j
+    sizes[cnt:cnt+c] += 1
+cnt += c
+```
+This avoids big temporaries (compress writes directly into preallocated tail). Memory: 3 preallocated arrays (72MB) + g (8MB) + bool temp (8.4MB) + small temps. 
+
+Wait, but there's a subtle issue: `np.compress(can, masks[:cnt], out=masks[cnt:cnt+c])` — source and destination don't overlap (source is [0,cnt), dest is [cnt, cnt+c)), so it's safe.
+
+Also `masks[cnt:cnt+c] |= (1<<j)` — in-place OR with scalar. `avails[cnt:cnt+c] &= inv` — in-place AND. `sizes[cnt:cnt+c] += 1` — in-place add. All good.
+
+Hmm, one more consideration: the order of candidates. At the end, candidates [0, cnt) are all independent subsets of A with their avail masks and sizes. 
+
+**Final:** 
+```python
+tot = sizes[:cnt] + g[avails[:cnt]]  # int8 + int8 gather
+best_idx = tot.argmax()
+best = tot[best_idx]
+```
+`g[avails[:cnt]]` — gather of cnt elements (≤8.4M) → int8 array. `sizes[:cnt] + that` → int8. argmax. ~0.3s.
+
+If best ≥ k: reconstruct:
+- A-part: bits of masks[best_idx] → vertices (bit i → vertex i).
+- B-part: traceback g at T = avails[best_idx]:
+```python
+T = int(avails[best_idx])
+bpart = []
+while T:
+    v = (T & -T).bit_length() - 1
+    without = T ^ (1 << v)
+    if g[without] == g[T]:   # hmm, need g values as ints
+        T = without
+    else:
+        # take v
+        bpart.append(v)
+        T = without & ~adjB[v]  # or without & (full ^ adjB[v])
+```
+Wait, check: g[T] = max(g[without], 1 + g[without & inv_v]) where inv_v = full ^ adjB[v]. If g[T] != g[without], then g[T] = 1 + g[without & inv_v], so take v. Correct. But careful: what if g[T] == g[without] AND also == 1 + g[...]? Then we prefer not taking v — fine, still valid.
+
+Hmm wait, actually there's an edge case: what if g[T] == g[without] but the true max uses v? Doesn't matter — we just need SOME independent set of size g[T]; the traceback as written: if g[T] == g[without], recurse on without (which has an independent set of size g[T]... wait, g[without] = g[T], and by induction the traceback on `without` yields an independent set of size g[without] = g[T]. ✓. Else g[T] = 1 + g[without & inv_v] > g[without], take v plus traceback on without & inv_v which yields size g[without & inv_v], total 1 + that = g[T]. ✓. And independence: v's neighbors within T are excluded (without & inv_v removes all neighbors of v). ✓.
+
+Then panel = A-part vertices + B-part vertices (mapped back: B bit jj → vertex h1 + jj). Total size = sizes[best_idx] + g[avails[best_idx]] = best ≥ k. Output any k of them. Since the whole set is independent, any k-subset is independent. Output first k.
+
+Wait, but actually — do we even need argmax? We need any candidate with sizes[i] + g[avails[i]] ≥ k. argmax gives the best. Fine.
+
+Hmm, one concern: `tot` might have max ≥ k but we should double check best ≥ k means YES.
+
+Edge cases:
+- k ≤ α always answerable. If best < k → NO.
+- n=1: m=0, k=1: A or B empty? h1 = n//2 = 0, h2 = 1. Then A enumeration: no vertices in A, candidates = [(mask 0, avail = fullB = bit 0, size 0)]. g DP over B: g[0]=0, g[1]=1 (vertex 0 in B has no neighbors). tot = 0 + g[1] = 1 ≥ k=1. A-part empty, B-part = {vertex 0}. Output vertex 1 (1-indexed). ✓.
+
+- m=0: works through the general algorithm (all subsets independent, g[T] = popcount(T)). Fine, though slower than needed — but n ≤ 46 so worst case is the empty graph with 2^23 candidates... that's the worst case anyway. Hmm, for m=0 we could shortcut: answer YES with vertices 1..k. Let me add that shortcut for safety/speed. Actually more generally, a greedy shortcut: compute a greedy maximal independent set; if its size ≥ k, output. This handles many easy cases instantly. But careful: greedy might not reach α; if greedy < k, we still need MITM. That's fine.
+
+Hmm wait, actually, let me reconsider whether we should reduce the graph first:
+1. Split into connected components. For each component, compute α via MITM on the component (components ≤ 46 vertices). Sum α's. If total ≥ k, need to reconstruct... Reconstruction across components: take from components greedily. Hmm, this adds complexity but massively speeds up sparse cases. But the worst case (single dense component of 46 vertices) remains. Is it worth it? The MITM on 46 vertices is the same cost as MITM on the whole graph. Components only help if the graph is disconnected. For the worst-case timing, components don't help. So skip component decomposition? It helps average case but not worst case. Since we're worried about worst case, and components don't improve it, maybe skip for simplicity... but they're cheap to implement? Eh, let me think about whether the worst case is acceptable.
+
+Actually hmm, wait. Let me reconsider: isolated vertices. If the graph has isolated vertices, they're always in some maximum independent set. Removing them reduces n for the MITM. E.g., worst case: 46 vertices, no edges → MITM on 46 vertices with 2^23 candidates. With isolated vertex removal, MITM on 0 vertices. So isolated vertex removal helps the empty/sparse cases. Let me at least handle isolated vertices:
+
+- Let Iso = set of isolated vertices, c = |Iso|, R = rest (non-isolated). α(G) = c + α(G[R]).
+- If k ≤ c: output any k isolated vertices. YES.
+- Else: need independent set of size k - c in G[R]. Run MITM on G[R] with target k' = k - c. If α(G[R]) ≥ k', take the found set (size ≥ k'), plus enough isolated vertices to pad to exactly k... wait: found set S (independent in G[R]) with |S| ≥ k'. Panel = S ∪ (k - |S|) isolated vertices. |S| ≥ k' = k - c → k - |S| ≤ c ✓. Panel size = k. Panel independent: S independent, isolated vertices have no edges. ✓.
+
+This reduces MITM size when there are isolated vertices. Similarly, degree-1 vertices could be folded but that's more complex. Let me keep it simple: just isolated vertex removal. The true worst case remains a 46-vertex graph with min degree ≥ 1 (e.g., perfect matching: 23 disjoint edges — hmm, that graph: α = 23, and MITM would... A half could contain both endpoints of edges. Independent subsets of A: for 23 vertices in A forming ~11.5 edges + cross: 3^11.5-ish ≈ 250K candidates. Fine.)
+
+Worst case for candidate count: graph on 46 vertices, min degree ≥ 1, maximizing independent subsets of a 23-vertex half. E.g., a perfect matching within A (11 edges + 1 isolated... no, min degree ≥1 globally). Independent subsets of A: 3^11 × 2 ≈ 354K. Fine. What about a graph where A is sparse: A's vertices have degree-1 edges going to B. Then A induced is empty → 2^23 candidates. E.g., a perfect matching between A and B (23 edges, each A-vertex matched to a B-vertex). Then A induced empty → 8.4M candidates. And B induced empty → g[T] = popcount(T). This is the worst case: 8.4M candidates + full g DP. So worst case stands at ~2×8.4M element-ops. OK.
+
+Hmm, so with isolated-vertex removal, the worst case is still ~2^23 candidates (matching between halves). Fine, let's just make the constant factor small.
+
+Alternatively... hmm, wait. Actually for the matching case, there's massive structure, but our algorithm doesn't exploit it. Whatever — 3s estimate should fit in 5s. But let me think about whether we can cut the A enumeration cost further.
+
+Alternative idea for A side: instead of enumerating independent subsets of A with avail masks, do the symmetric g-style DP on A too, and then combine differently? The standard MITM for MIS: 
+
+α = max over independent S_A of (|S_A| + α(B \ N(S_A))). 
+
+Alternative formulation: enumerate ALL subsets S_A of A, define F[S_A] = max over independent T ⊆ S_A of (|T| + g[B \ N(T)]). DP: F[S] with v = lowbit: F[S] = max(F[S\v], 1 + ???). The include branch: T ∋ v: |T| = 1 + |T'| where T' ⊆ S\v\N(v), and B \ N(T) = B \ (N(v) ∪ N(T')) → need g[B \ N(v) \ N(T')] — but g is indexed by avail mask, and F's include branch would need g' where g'[X] = g[X \ N(v)]... that's a shifted version of g. Hmm, this suggests defining the DP over (subset of A) with value = max(|T| + g[avail(T)]) — but avail(T) doesn't decompose... Actually it does with a different formulation:
+
+Define H[S] = max over independent T ⊆ S of (|T| + g[fullB \ N_B(T)]). Then:
+H[S], v = lowbit(S): 
+- Exclude v: H[S \ v].
+- Include v: T = {v} ∪ T', T' ⊆ (S\v) \ N_A(v) independent: value = 1 + |T'| + g[fullB \ N_B(v) \ N_B(T')].
+  Define g_v[X] = g[X \ N_B(v)] for X ⊆ B. Then value = 1 + max over T' (|T'| + g_v[fullB \ N_B(T')]).
+  Hmm, this requires a DP with a different g for each v — too much.
+
+OK, the enumeration approach is standard and fine. Let me also consider: maybe instead of storing avail per candidate, store... no, avail is needed.
+
+Alternatively, reduce candidate storage: we don't need masks after construction... we DO need masks[best_idx] for reconstruction. But we could avoid storing masks for all candidates if we reconstruct differently... Meh, 32MB is fine.
+
+Hmm, wait, actually there's another approach to reconstruction that avoids needing masks: after finding best_idx, we know avail = avails[best_idx] and size = sizes[best_idx]. To reconstruct the A-part: we need an independent subset of A of size `size` whose B-neighborhood is exactly... hmm, we need the specific subset. Alternatively, re-run the enumeration tracking parent pointers? Or: find any independent subset S_A of A with |S_A| = size and N_B(S_A) ⊆ fullB \ avail... Actually we need S_A independent in A with N_B(S_A) ∩ (chosen B-part) = ∅. Since we'll choose B-part ⊆ avail, we need S_A with N_B(S_A) ∩ avail... hmm, we need N_B(S_A) ∩ (B-part) = ∅. If we pick S_A first, then B-part from avail' = fullB \ N_B(S_A) ⊇ avail. Since g[avail] ≥ needed, g[avail'] ≥ g[avail] ≥ needed. So: we need any independent S_A in A with |S_A| = size and... wait, but we need |S_A| + g[fullB \ N_B(S_A)] ≥ k. Hmm, if we pick a different S_A of the same size, its avail' might be smaller than avail, but g[avail'] ≥ g[avail] since avail' ⊇ avail. Oh nice — avail' = fullB \ N_B(S_A') ⊇ avail? No wait, that's not guaranteed either. Hmm: avail = fullB \ N_B(S_A) for the specific S_A found. A different S_A' of the same size could have N_B(S_A') ⊄ N_B(S_A), so avail' could lack some bits that avail has... but could avail' be missing bits needed? We need g[avail'] ≥ k - size. Not guaranteed for arbitrary S_A'.
+
+Simplest: just store masks (32MB) and read masks[best_idx]. Fine.
+
+Hmm, alternatively, we can reconstruct the A-part by re-running the enumeration and checking which candidate index equals best_idx... that requires the same storage anyway. Just store masks.
+
+OK wait, but actually, I realize there might be an even simpler reconstruction: we don't need the argmax candidate specifically. We need ANY candidate i with sizes[i] + g[avails[i]] ≥ k. And then A-part = masks[i]. So store masks. Done. 32MB fine.
+
+Let me now also double check the g DP handles h2 = 0 (n small, e.g., n=1 with h1=0? Let me define h1 = n // 2, h2 = n - h1. For n=1: h1=0, h2=1. For n=2: h1=1, h2=1. For n=0? n≥1 per constraints. But after isolated vertex removal, R could be empty! E.g., n=3, m=0, k=2: all isolated, c=3 ≥ k=2 → shortcut. If k > c... can't happen since c = n here. OK but in general after removal, if R is empty then k' = k - c ≤ 0 → handled by shortcut k ≤ c. Actually if R empty and k' > 0: impossible since α = c ≥ k means k ≤ c. So if k > c, R non-empty. But also possible: k' ≤ 0 handled. Also h2 could be 0 if |R| = 1 → h1 = 0, h2 = 1. If |R| ≥ 1, h2 ≥ 1. g DP with h2=1: j=0: S = arange(1) << 1 = [0]; g[1] = max(g[0], 1 + g[0 & inv]) = 1. ✓.
+
+Also h1 = 0 case: A enumeration: candidates = [(0, fullB, 0)], cnt=1. tot = g[fullB]. ✓.
+
+Now, let me also double-check the A enumeration loop more carefully:
+
+```python
+cap = 1 << h1
+masks = np.empty(cap, dtype=np.int32)
+avails = np.empty(cap, dtype=np.int32)
+sizes = np.empty(cap, dtype=np.int8)
+masks[0] = 0
+avails[0] = fullB  # (1 << h2) - 1
+sizes[0] = 0
+cnt = 1
+for j in range(h1):
+    can = (masks[:cnt] & adjA[j]) == 0
+    c = int(np.count_nonzero(can))
+    if c:
+        np.compress(can, masks[:cnt], out=masks[cnt:cnt+c])
+        np.compress(can, avails[:cnt], out=avails[cnt:cnt+c])
+        np.compress(can, sizes[:cnt], out=sizes[cnt:cnt+c])
+        masks[cnt:cnt+c] |= (1 << j)
+        avails[cnt:cnt+c] &= invNB[j]
+        sizes[cnt:cnt+c] += 1
+        cnt += c
+```
+
+Wait, there's a bug: `np.compress(can, masks[:cnt], out=masks[cnt:cnt+c])` — but then `masks[cnt:cnt+c] |= (1<<j)`. But hold on: the new candidates are copies of old ones with bit j added. But the old candidates remain (they represent subsets without j). ✓. And independence: new candidate = old ∪ {j}; old has no neighbors of j (can condition: old & adjA[j] == 0). ✓. avail: old avail minus N_B(j). ✓. size + 1. ✓.
+
+But wait — `adjA[j]` should be the adjacency of j within A, but note when we check `masks[:cnt] & adjA[j]`, masks only contain bits < j (vertices processed so far are 0..j-1). adjA[j] restricted to bits < j matters; bits ≥ j in adjA[j] don't affect since masks don't have them. Fine, use full adjA[j].
+
+Hmm, one issue: `masks[:cnt] & adjA[j]` — adjA[j] is a Python int; numpy will broadcast. masks is int32. If adjA[j] ≥ 2^31? No, h1 ≤ 23, fine.
+
+`np.compress(can, arr, out=...)`: Let me double check the semantics: `np.compress(condition, a, axis=0, out=None)`. Yes, it selects elements where condition is true. With out parameter — I believe it's supported. Actually, hmm, let me double-check that np.compress supports `out`. From numpy docs: `numpy.compress(condition, a, axis=None, out=None)`. Yes, out is supported. But the out array must match the output shape exactly. Since we computed c = count_nonzero(can), out=masks[cnt:cnt+c] has exactly c elements. ✓.
+
+Alternatively use `arr[can]` (boolean indexing) which allocates a temp, then copy into place — extra memory but simpler. With compress+out we avoid temps. But is compress with out actually efficient? It should be similar to boolean indexing. Hmm, actually I'm not 100% sure `np.compress` supports `out` in all versions... Let me check: numpy.compress signature: `numpy.compress(condition, a, axis=None, out=None)`. Yes it has out. It's been there forever. OK.
+
+Hmm, but wait: there's a subtlety — does `np.compress` with `out` write into the out array or return a new one? Docs: "out : ndarray, optional — Alternate output array in which to place the result. It must be of the same shape and buffer type as the expected output." Standard ufunc-like semantics... but compress is not a ufunc. Hmm, actually for functions with out, if out is provided, the result is placed there and (for ufuncs) returned. For np.compress, I believe it works. But to be safe, maybe use `np.copyto` or direct boolean indexing:
+
+```python
+masks[cnt:cnt+c] = masks[:cnt][can]
+```
+This creates a temp of size c (up to 4M×4 bytes = 16MB for the largest iteration) — acceptable. Actually `masks[:cnt][can]` — boolean indexing on a view: creates temp. Then assignment copies into destination. Two copies but fine. Memory: temps up to ~16MB each, transient. Let me just use this simpler form, or use compress with out. I'll use compress with out but fall back... no, let me just test logic mentally and use the simple form with temps — safer. Actually, hmm, `masks[:cnt][can]` requires can to be a boolean array of length cnt. ✓.
+
+Actually, you know, let me reconsider: maybe simpler and safer: 
+
+```python
+sel = np.nonzero(can)[0]  # indices — temp int64 array, up to 8.4M × 8 = 67MB. Hmm, too big.
+```
+No, boolean indexing is better.
+
+Let me also think: is there an issue with `masks[cnt:cnt+c] |= (1 << j)` when c is 0? We skip. ✓.
+
+Now the g DP:
+
+```python
+gsize = 1 << h2
+g = np.zeros(gsize, dtype=np.int8)
+fullB = gsize - 1
+for j in range(h2 - 1, -1, -1):
+    c = 1 << (h2 - 1 - j)
+    S = np.arange(c, dtype=np.int32) << (j + 1)
+    base = (1 << j)
+    # g[base + S] = max(g[S], 1 + g[S & inv_j])
+    tmp = S & inv_j   # inv_j = fullB ^ adjB[j]
+    a = g[S]
+    b = g[tmp]
+    b += 1
+    np.maximum(a, b, out=b)
+    g[base + S] = b
+```
+
+Wait, `g[base + S] = b` — fancy scatter. `base + S` is a temp int32 array. OK.
+
+Hmm, but wait: is `g[S]` valid? S contains subsets of bits > j, which have been computed. ✓. `g[tmp]`: tmp ⊆ S. ✓.
+
+Edge: j = h2-1: c = 1, S = [0]. g[base] = max(g[0], 1+g[0]) = 1. ✓ (single vertex, independent).
+
+Let me double check with a small example: h2=2, vertices b0, b1, edge between them. adjB[0] = {bit1} = 2, adjB[1] = {bit0} = 1. fullB = 3.
+- j=1: c=1, S=[0], inv_1 = 3^1=2. g[2] = max(g[0], 1+g[0&2]) = max(0, 1+0) = 1. ✓ ({b1} size 1).
+- j=0: c=2, S = arange(2) << 1 = [0, 2]. inv_0 = 3^2 = 1. 
+  - S=0: g[1] = max(g[0], 1+g[0]) = 1. ✓ ({b0}).
+  - S=2: g[3] = max(g[2], 1 + g[2 & 1]) = max(g[2], 1+g[0]) = max(1, 1) = 1. ✓ ({b0,b1} with edge: α=1). ✓.
+
+Great.
+
+Now, the combination and answer:
+
+```python
+tot = sizes[:cnt].astype(np.int16) + g[avails[:cnt]]
+bi = int(tot.argmax())
+best = int(tot[bi])
+if best >= k_prime:
+    # reconstruct
+```
+Hmm, `sizes[:cnt] + g[avails[:cnt]]`: int8 + int8 = int8, max value 46 < 127, fine. argmax on int8 array fine.
+
+Wait, `g[avails[:cnt]]` — avails values are in [0, 2^h2), valid indices. ✓.
+
+Reconstruction:
+```python
+sa_mask = int(masks[bi])
+T = int(avails[bi])
+sa_size = int(sizes[bi])
+# A part: bits of sa_mask
+apart = [i for i in range(h1) if (sa_mask >> i) & 1]
+# B part: traceback
+bpart = []
+gv = g  # numpy int8; convert needed values via int()
+while T:
+    v = (T & -T).bit_length() - 1
+    w = T ^ (1 << v)
+    if int(g[w]) == int(g[T]):
+        T = w
+    else:
+        bpart.append(v)
+        T = w & (fullB ^ adjB[v])
+```
+Wait, careful: the recurrence used inv_j = fullB ^ adjB[j], and tmp = S & inv_j where S = T without v. So the include branch goes to (T ^ (1<<v)) & (fullB ^ adjB[v]). ✓.
+
+Hmm, but wait: in the DP, for T with lowbit v, we set g[T] = max(g[S], 1 + g[S & inv_v]) where S = T ^ (1<<v). In traceback: if g[T] == g[S], don't take v, T ← S. Else g[T] = 1 + g[S & inv_v] (must be, since g[T] = max of the two and it's not equal to g[S]... careful: g[T] ≥ g[S] always? Is that guaranteed? g is monotone: T ⊇ S → g[T] ≥ g[S]. Yes since any independent subset of S is a subset of T. So g[T] ≥ g[S]; if g[T] != g[S] then g[T] > g[S], so g[T] = 1 + g[S & inv_v]. ✓). Take v, T ← S & inv_v. ✓.
+
+Then panel = apart + [h1 + jj for jj in bpart], total size = sa_size + len(bpart) = sa_size + g[avails[bi]]... wait, is len(bpart) = g[T_initial]? By induction, traceback yields independent set of size g[T]. ✓. And best = sa_size + g[T_initial] ≥ k'. 
+
+Then add isolated vertices to pad: panel_full = panel + isolated[:k - len(panel)]... wait, we need total exactly k. len(panel) = best ≥ k' = k - c. Pad with k - len(panel) ≤ c isolated vertices. But hold on — len(panel) could exceed k! best could be > k'. Then we should trim: take first k elements of panel? But panel = apart ∪ bpart is independent; any subset is independent. So take (panel + isolated_padded)[... ] hmm: final = (panel + iso_list)[:k]. Since panel ∪ iso is independent (isolated have no edges at all), any k-subset works. So final = (panel + iso)[:k]. ✓. Need len(panel) + c ≥ k: len(panel) = best ≥ k - c. ✓.
+
+Wait, one more check: is `panel` (apart ∪ bpart) independent in the FULL graph? apart independent within A ✓ (constructed via adjA checks). bpart independent within B ✓ (g traceback ensures independence within B: at each step we remove neighbors of taken v — but only neighbors within B... adjB[v] is within-B adjacency ✓). Cross edges: bpart ⊆ avail = fullB \ N_B(apart) → no cross edges. ✓. And isolated vertices: no edges. ✓.
+
+Now, the isolated vertex removal: 
+```python
+deg = [0]*n; for each edge u,v: deg[u]+=1...
+iso = [v for v in range(n) if deg[v] == 0]
+rest = [v for v in range(n) if deg[v] > 0]
+c = len(iso)
+if k <= c: output iso[:k] → YES
+else: k' = k - c; build graph on rest (renumber 0..r-1); MITM with target k'; if best >= k': panel as above; final = (panel_mapped + iso)[:k]... 
+```
+Wait, need len(panel) ≥ k'? best ≥ k'. Then final = (panel_mapped + iso)[:k]: len = min(k, best + c)... we need best + c ≥ k, i.e., best ≥ k - c = k'. ✓. And final[:k] has exactly k elements since best + c ≥ k. ✓.
+
+Hmm wait, but also: what if best > k'? Then (panel + iso)[:k] takes k elements — fine.
+
+Also, what if k' ≤ 0? Handled by k ≤ c shortcut (k' = k - c > 0 in else branch). ✓.
+
+Now, mapping: rest vertices renumbered. panel contains indices in renumbered space; map back via rest[i].
+
+Also, self-check: after removal, the graph on `rest` has r vertices, all with degree ≥ 1. MITM: h1 = r // 2, h2 = r - h1.
+
+Hmm, wait, should h1 = r // 2 or should I balance differently? The A-side cost is #independent subsets of A ≤ 2^{h1}; B-side cost is 2^{h2}. To minimize max, balanced. But actually the B side is a fixed 2^{h2} while A side is adaptive... For worst case (A empty induced), both 2^{h}. Balanced h1 = h2 = r//2, (r+1)//2. For r=46: 23/23. For r=45: 22/23. Fine.
+
+Hmm, actually, wait: maybe put MORE vertices in B and fewer in A? Because A-side enumeration produces candidates that need a final gather (cost ~ #candidates), and B-side g DP costs 2^{h2} with ~8 ops per element vs A-side ~6 ops per element... roughly similar. Balanced is fine.
+
+Hmm, actually, let me reconsider: the A-side enumeration cost is: for each j, ops on cnt elements (can computation: 2 ops; compress ×3: ~3 ops; updates: 3 ops) → ~8 ops per element per... wait no. At step j, we process cnt elements (the current candidates) to produce new ones. Total across steps: sum over j of cnt_j where cnt_j = #independent subsets of first j vertices. If A is empty-induced: cnt_j = 2^j, sum = 2^{h1}. So total element-ops ≈ 8 × 2^{h1} ≈ 67M for h1=23. Plus final gather 2^{h1} elements. B side: ~8 × 2^{h2}. Total ~140M element-ops worst case. numpy at ~200-500M ops/sec for simple ops, gathers slower (~100-200M/sec). Estimate: ~1-2.5s. Should fit in 5s. 
+
+But hmm, wait: there's a subtlety in the A enumeration: `can = (masks[:cnt] & adjA[j]) == 0` — this processes cnt elements. Then compress processes cnt elements (reads all, writes c). So per step j: ~2 (can) + 3×2 (compress read+write) + 3 (updates on c) ≈ 11 ops × cnt. Sum ≈ 11 × 2^{h1} ≈ 92M. OK.
+
+Alternatively, a cheaper A enumeration: note that instead of checking `masks & adjA[j] == 0` per candidate, we could enumerate independent subsets via a different order... it's fine.
+
+Let me now also think: can we prune the A enumeration by size? Candidates with size + (h1 - j - 1 remaining A vertices) + h2 < k' can never reach k'. Pruning: at step j, when creating new candidates... but old candidates also need pruning. Hmm, we could filter periodically. This helps when k' is large relative to α... but worst case k' small. Skip pruning; keep it simple. Actually hmm, wait: there's one prune that's very effective and simple: candidates with avail == 0 and small size... no. Let me think about whether the worst case is truly 2^23 candidates: A induced empty requires no edges within A. With all r=46 vertices having degree ≥ 1, edges go A–B or within B. A–B matching: 23 edges. Then A candidates = 2^23, each with avail = complement of matched partner. g DP full. So yes, worst case achievable. ~2-3s estimated. Let me try to optimize constants a bit more.
+
+Optimization for g DP: process j from high to low; the largest iteration is j=0 with 2^{22} elements. Total 2^{23}-1 elements. Each element: 
+- S = arange << (j+1): 2 ops (arange is cheap-ish, shift 1 op)
+- base + S: 1 op (temp)
+- tmp = S & inv_j: 1 op
+- a = g[S]: gather
+- b = g[tmp]: gather
+- b += 1: 1 op
+- maximum(a, b, out=b): 1 op
+- g[base+S] = b: scatter
+
+Gathers and scatters with int32 indices into int8 array: numpy fancy indexing. Speed: roughly 100-200M elements/sec for gather? For 8.4M total elements: ~0.05-0.1s per gather op across all iterations... total maybe 0.5-1s for the whole g DP. OK good.
+
+A enumeration: per element: AND + compare (2), compress ×3 (each ~1-2 ops), OR/AND/ADD in-place (3). ~8-10 ops × 8.4M ≈ 80M ops ≈ 0.5-1s.
+
+Final: gather 8.4M + add + argmax ≈ 0.2s.
+
+Total ≈ 1.5-2.5s worst case. 
+
+Memory: masks 32MB + avails 32MB + sizes 8MB + g 8MB + temps (~16-32MB transient) ≈ 120MB. Under 256MB. ✓. Hmm, but numpy import itself ~30MB? Fine.
+
+Wait, actually, I realize we might reduce memory: avails only needed to gather g at the end and for reconstruction of the best candidate. masks needed for reconstruction. sizes needed. All fine at 72MB total.
+
+Hmm, one more thought: dtype of masks/avails: int32 suffices (h ≤ 23 bits). But numpy operations with Python int scalars: `masks[:cnt] & adjA[j]` — adjA[j] < 2^23, fits int32. OK.
+
+Now let me also handle potential edge cases in the g traceback: `int(g[w])` — g is numpy int8 array; g[w] is np.int8; int() converts. Fine.
+
+Also, `avails[bi]` etc. — numpy scalars; convert with int().
+
+Now, let me also think about correctness of the overall approach once more:
+
+α(G) = max over independent S_A ⊆ A of (|S_A| + α(G[B \ N_B(S_A)])). Since any independent set splits into A-part and B-part, with B-part ⊆ B \ N_B(A-part). ✓. And g[T] = α(G[T]) for T ⊆ B. ✓. So best = α(G_restricted_to_nonisolated)... wait, plus isolated handled separately. best = α(G[rest]). ✓.
+
+Hmm hold on, one thing: the A enumeration enumerates ALL independent subsets of A, including those with avail that makes g small. The max over all gives α. ✓.
+
+Now let me also double check the claim "if α ≥ k then there's an independent set of size exactly k": take any k-subset of the maximum independent set. ✓. And the problem asks for exactly k. ✓.
+
+Also need to double check: "Each interaction event is listed at most once" — so no duplicate edges. And u ≠ v. Good, simple graph.
+
+Now, let me also consider: what if the input has m lines but m could be 0 — then no lines. Read accordingly.
+
+Let me now also think about whether numpy is guaranteed available... The problem says "Python 3". Typically numpy is available in competitive judges (Codeforces has it for Python). This problem looks like it's from a specific contest ("Problem A — Panel Selection", 5s TL). Risky if numpy unavailable. Alternative: pure Python MITM — 8.4M×2 iterations pure Python ≈ 20-40s. Too slow. Hmm.
+
+Alternative pure-Python approach with bit tricks and early termination? Let me think about a pure-Python B&B with strong pruning, in case numpy is unavailable... But I'll assume numpy is available since it's standard. Actually, let me write the solution to use numpy but with a pure-Python fallback? That doubles the code complexity. Hmm. Let me think about what's most likely: The problem statement format (Time limit 5s, Memory 256MB) suggests Codeforces-style. Codeforces Python has numpy. I'll go with numpy.
+
+Hmm, wait, actually, let me reconsider the problem source. "Panel Selection" with n ≤ 46... This is likely from a recent contest. The MITM approach is clearly intended (46 = 2×23, and 2^23 × 2 subsets is the classic bound). For Python, numpy vectorization is the way.
+
+But let me ALSO consider: maybe a pure-Python solution with clever pruning could work within 5s for all cases? Let me think about the hardest cases for B&B with n=46:
+
+Actually, let me think again about a smarter exact algorithm: since we need α ≥ k, and if k is small (say k ≤ 10), we could use k-bounded search... The hard case is k close to α.
+
+Honestly, the numpy MITM is deterministic and reliable. Let me go with it. But let me make the implementation robust and also add fast paths:
+
+1. If m == 0: output 1..k. (Also covered by isolated shortcut, but explicit is fine — actually the isolated shortcut covers it: all vertices isolated, c = n ≥ k → output iso[:k]. So no special case needed. But the shortcut requires building deg array — trivial.)
+
+2. Greedy shortcut? Not needed; MITM handles everything. But greedy could speed up easy cases... The MITM worst case is ~2-3s; easy cases are also fast (numpy). Skip greedy.
+
+Hmm, wait, actually there's one more consideration: the A-side enumeration could produce up to 2^23 candidates, but cap = 2^{h1} — for r=46, h1=23, cap=8.4M. Preallocating 72MB upfront even for easy cases. That's fine memory-wise but allocation time ~ negligible.
+
+But hmm, wait: what if r is odd, e.g., r=45: h1=22, h2=23. cap=4M. g size 8.4M. Fine.
+
+What about r=46 exactly: h1=23, h2=23. cap = 8.4M candidates max.
+
+Let me now also double check: is it better to have h1 = ceil(r/2) or floor? A-side: adaptive count ≤ 2^{h1}, cost ~10 ops/elem. B-side: fixed 2^{h2}, ~8 ops/elem. Slightly cheaper per element on B... put more in B? h1 = floor(r/2), h2 = ceil(r/2). For r=46: 23/23. For r=45: 22/23. OK, h1 = r//2.
+
+Now, implementation details:
+
+Reading input: 
+```python
+import sys
+data = sys.stdin.buffer.read().split()
+n = int(data[0]); m = int(data[1]); k = int(data[2])
+edges = []
+idx = 3
+for _ in range(m):
+    u = int(data[idx]) - 1; v = int(data[idx+1]) - 1; idx += 2
+    edges.append((u, v))
+```
+
+Build adjacency bitmasks over full vertex set (0-indexed):
+```python
+adjfull = [0]*n
+for u, v in edges:
+    adjfull[u] |= 1 << v
+    adjfull[v] |= 1 << u
+```
+
+Isolated removal:
+```python
+iso = [v for v in range(n) if adjfull[v] == 0]
+rest = [v for v in range(n) if adjfull[v] != 0]
+c = len(iso)
+if k <= c:
+    print("YES"); print(" ".join(str(v+1) for v in iso[:k])); exit
+k2 = k - c
+r = len(rest)
+```
+
+If r == 0: then k2 ≤ 0 — but we're in else branch so k > c = n ≥ r + c → k2 = k - c > 0 but r = 0 means c = n so k ≤ n = c, contradiction. So r ≥ 1 in this branch. ✓.
+
+Renumber rest: vertex rest[i] → i.
+```python
+h1 = r // 2
+h2 = r - h1
+# A = 0..h1-1, B = h1..r-1 → B index jj = i - h1
+adjA = [0]*h1  # adjacency within A, bits over A positions
+NB = [0]*h1    # adjacency to B, bits over B positions (bit jj)
+adjB = [0]*h2  # adjacency within B, bits over B positions
+for i in range(r):
+    u = rest[i]
+    m_u = adjfull[u]
+    # translate: neighbors of u among rest
+    # build mask over rest positions
+    ...
+```
+Efficient translation: create pos map: pos[original vertex] = index in rest (or -1). Then for each i, mask over rest indices: for each neighbor w of u with pos[w] >= 0: set bit pos[w]. Since m ≤ 1035 edges, trivial.
+
+```python
+pos = {v: i for i, v in enumerate(rest)}  # or array of size n with -1
+posarr = [-1]*n
+for i, v in enumerate(rest): posarr[v] = i
+for i in range(r):
+    u = rest[i]
+    mm = 0
+    au = adjfull[u]
+    x = au
+    while x:
+        b = x & -x
+        w = b.bit_length() - 1
+        x ^= b
+        p = posarr[w]
+        mm |= 1 << p
+    # now mm = adjacency of i within rest (renumbered)
+    if i < h1:
+        adjA[i] = mm & ((1 << h1) - 1)
+        NB[i] = mm >> h1
+    else:
+        adjB[i - h1] = mm >> h1
+```
+Wait, careful: bits of mm over renumbered positions 0..r-1. A positions: 0..h1-1. B positions: h1..r-1 → B-local bit = position - h1. So NB[i] = mm >> h1 (bits 0..h2-1 = positions h1..r-1). ✓. adjB[jj] = mm >> h1 for i = h1 + jj. ✓. adjA[i] = mm & ((1<<h1)-1). ✓.
+
+Note: mm excludes self (no self loops). ✓.
+
+Now MITM:
+
+```python
+import numpy as np
+fullB = (1 << h2) - 1
+
+# g DP
+g = np.zeros(1 << h2, dtype=np.int8)
+for j in range(h2 - 1, -1, -1):
+    cntS = 1 << (h2 - 1 - j)
+    S = np.arange(cntS, dtype=np.int32) << (j + 1)
+    inv = fullB ^ adjB[j]
+    a = g[S]
+    b = g[S & inv]
+    b += 1
+    np.maximum(a, b, out=b)
+    g[(1 << j) + S] = b
+```
+
+Hmm wait, `g[S & inv]`: `S & inv` — inv is Python int; S is int32 array. `S & inv` → int32 array. ✓. But careful: if inv has bit j set? adjB[j] doesn't contain bit j (no self-loop), so inv contains bit j. S doesn't have bit j. Fine either way.
+
+Also `(1 << j) + S` — Python int + int32 array → int32 array. ✓.
+
+Wait, potential issue: `b += 1` where b = g[S & inv] is a fresh array (fancy indexing returns copy). ✓ safe to modify.
+
+`np.maximum(a, b, out=b)` — a and b both int8 arrays. ✓.
+
+`g[(1<<j) + S] = b` — scatter. ✓.
+
+Hmm, one concern: for j = h2-1, cntS = 1, S = [0]. Works.
+
+Special case h2 = 0? r ≥ 1 → h2 = r - r//2 ≥ 1. ✓ (r=1: h1=0, h2=1).
+
+A enumeration:
+
+```python
+cap = 1 << h1
+masks = np.empty(cap, dtype=np.int32)
+avails = np.empty(cap, dtype=np.int32)
+sizes = np.empty(cap, dtype=np.int8)
+masks[0] = 0
+avails[0] = fullB
+sizes[0] = 0
+cnt = 1
+for j in range(h1):
+    can = masks[:cnt] & adjA[j] == 0
+    c = int(np.count_nonzero(can))
+    if c:
+        sl = slice(cnt, cnt + c)
+        masks[sl] = masks[:cnt][can]
+        avails[sl] = avails[:cnt][can]
+        sizes[sl] = sizes[:cnt][can]
+        masks[sl] |= (1 << j)
+        avails[sl] &= (fullB ^ NB[j])
+        sizes[sl] += 1
+        cnt += c
+```
+
+Hmm, `masks[:cnt] & adjA[j] == 0` — operator precedence: `&` binds tighter than `==`? In Python, `==` has lower precedence than `&`. So `masks[:cnt] & adjA[j] == 0` parses as `(masks[:cnt] & adjA[j]) == 0`. Wait no: precedence order (high to low): `&` > comparison? Let me recall Python operator precedence: `|` < `^` < `&` < shifts < arithmetic < comparisons... Actually: comparisons (`==`, `<`, etc.) are LOWER precedence than `|`. So `a & b == 0` → `a & (b == 0)`? No wait. Let me get this right. Python precedence (from lowest to highest): `or`, `and`, `not`, comparisons (in, is, <, >, ==, !=), `|`, `^`, `&`, `<<`/`>>`, `+`/`-`, etc. So comparisons are LOWER than `|`, `^`, `&`. Therefore `a & b == 0` parses as `a & (b == 0)`?? No! Lower precedence means it binds less tightly, so `&` binds tighter: `a & b == 0` → `(a & b) == 0`. Hmm wait, I need to be careful: if comparisons have lower precedence than `&`, then `&` groups first: `(a & b) == 0`. Yes. E.g., `1 & 2 == 0` → `(1 & 2) == 0` → `0 == 0` → True. Hmm, but I recall in C, `==` binds tighter than `&` (a common bug source). In Python, `&` binds tighter than `==`. Let me verify with known example: `if x & 1 == 0:` — this is a known Python gotcha? Actually the known gotcha is in C. In Python, `&` has higher precedence than `==`, so `x & 1 == 0` is `(x & 1) == 0`. Hmm, wait, let me double check with the docs: Python operator precedence table (lowest to highest): 
+1. `lambda`
+2. `if – else`
+3. `or`
+4. `and`
+5. `not x`
+6. `in, not in, is, is not, <, <=, >, >=, !=, ==` (comparisons)
+7. `|`
+8. `^`
+9. `&`
+10. `<<, >>`
+11. `+, -`
+12. `*, /, //, %`
+13. unary `+x, -x, ~x`
+14. `**`
+...
+
+So comparisons are lower than `|`, `^`, `&`. So `a & b == 0` = `(a & b) == 0`. ✓ Good. But to be safe and readable, I'll add explicit parens: `(masks[:cnt] & adjA[j]) == 0`.
+
+`masks[:cnt][can]` — hmm, `masks[:cnt]` is a view; `[can]` boolean-indexes it → new array. ✓.
+
+Then `masks[sl] = that` — copies into destination. ✓. Then `masks[sl] |= (1 << j)` in-place. ✓.
+
+Wait, but there's a subtle issue: `masks[sl] = masks[:cnt][can]` — source is a temp copy, so no aliasing issue. ✓.
+
+Memory: `masks[:cnt][can]` temp of size c (≤ 4M int32 = 16MB at the largest step). Fine.
+
+Hmm, wait, actually there's a subtle correctness issue with the enumeration order and `can`: at step j, existing candidates [0, cnt) are independent subsets of {0..j-1}. New candidates: those + vertex j, allowed if candidate ∩ N_A(j) = ∅. Since candidate bits ⊆ {0..j-1}, checking against full adjA[j] is fine. ✓. After the loop, candidates = all independent subsets of A. ✓.
+
+Final combination:
+
+```python
+tot = sizes[:cnt] + g[avails[:cnt]]
+bi = int(tot.argmax())
+best = int(tot[bi])
+```
+Hmm: `sizes[:cnt]` int8, `g[avails[:cnt]]` int8 → sum int8 (max 46, fine). argmax returns first occurrence of max. ✓.
+
+If best >= k2:
+```python
+sa = int(masks[bi])
+T = int(avails[bi])
+panel = []
+for i in range(h1):
+    if (sa >> i) & 1: panel.append(rest[i])
+# traceback B
+while T:
+    v = (T & -T).bit_length() - 1
+    w = T ^ (1 << v)
+    if int(g[w]) == int(g[T]):
+        T = w
+    else:
+        panel.append(rest[h1 + v])
+        T = w & (fullB ^ adjB[v])
+# pad with isolated
+for v in iso:
+    if len(panel) < k:
+        panel.append(v)
+# panel now has len ≥ k? len(panel) = best + (k - best if best < k...) 
+```
+Wait: len(panel after A+B) = best. best ≥ k2 = k - c. Pad with isolated until len = k: need k - best ≤ c: k - best ≤ k - k2 = c. ✓. So:
+
+```python
+for v in iso:
+    if len(panel) < k:
+        panel.append(v)
+panel = panel[:k]  # if best > k... 
+```
+Hmm wait: if best > k, then after A+B, len(panel) = best > k, and the iso loop doesn't add; then panel[:k] trims. But trimming an independent set keeps independence. ✓. But careful: panel[:k] — the first k elements. Fine.
+
+Hmm wait, but actually if best > k, is panel[:k] still valid? panel is independent; any subset independent. ✓.
+
+Output: "YES\n" + " ".join(str(v+1) for v in panel).
+
+Else (best < k2): print("NO").
+
+Wait, also need to double-check: best is α(G[rest]). If best ≥ k2 = k - c, then α(G) = c + best ≥ k. ✓. If best < k2, α(G) = c + best < k → NO. ✓.
+
+Now let me reconsider performance for the worst case r=46 more carefully, and think about whether h1=23/h2=23 numpy ops will fit in 5s. Let me count more precisely.
+
+g DP: total elements across iterations = 2^23 - 1 ≈ 8.39M. Per element ops:
+- arange: 1 write (int32)
+- shift: 1 read + 1 write
+- S & inv: 1 read + 1 write
+- g[S]: gather: 1 index read + 1 random read + 1 write
+- g[S&inv]: gather: same
+- b += 1: 1 r+w
+- maximum: 2 reads + 1 write
+- (1<<j) + S: 1 r + 1 w
+- scatter g[...]: 1 index read + 1 random write + 1 read (value)
+
+Roughly ~20 memory ops per element, half of them random-access (gather/scatter). 8.39M × 20 = 168M memory ops. numpy gather on int8 with int32 indices: I'd estimate ~100-200M elements/sec. So gathers (3 × 8.39M ≈ 25M gather-elements) ≈ 0.15-0.25s. Sequential ops: ~100M element-ops at ~1-2 GB/s... int32 arrays: 8.39M × 4 bytes × ~10 sequential passes ≈ 335MB traffic ≈ 0.1-0.3s. So g DP ≈ 0.5s total. 
+
+A enumeration: total elements = sum cnt_j ≈ 2^23 (worst case, empty A). Per element: can computation (AND + EQ: 2 passes), boolean indexing ×3 (each: full read of bool + gather-ish write... boolean indexing is like compress: read all cnt bools, write c selected — implemented as a pass with condition), assignments (write c), in-place ops ×3 (read+write c). Roughly ~10-14 passes over int32/int8 data. 8.39M × ~12 ≈ 100M element-ops ≈ 0.5-1s.
+
+Final: gather 8.39M + add + argmax ≈ 0.2s.
+
+Total ≈ 1.5-2s worst case. Should be well within 5s. 
+
+But wait — I should double check `np.count_nonzero` and boolean indexing speed... fine.
+
+Also, the `masks[:cnt][can]` pattern: numpy handles chained boolean indexing fine.
+
+Hmm, one more potential optimization for the A enumeration: instead of 3 separate compresses, we could pack... nah, keep it simple.
+
+Now, let me also think about a potential issue: `np.arange(cntS, dtype=np.int32) << (j+1)` — for j=0, cntS = 2^{22} = 4.19M, shift by 1 → values up to 2^23-2, fits int32. ✓.
+
+`g[(1 << j) + S] = b`: `(1<<j) + S` — Python int + int32 array → int32. ✓.
+
+Another potential issue: numpy version differences for `np.compress` with out — I'm using `arr[can]` instead, safe.
+
+Let me now also handle the case where numpy might not be needed at all (small r): the code works for any r ≥ 1. For r=1: h1=0, h2=1. cap = 1. A enumeration: cnt=1, no loop iterations (h1=0). tot = sizes[:1] + g[avails[:1]] = [0 + g[fullB=1]] = [1]. best=1. If k2 == 1: panel = [] + traceback(T=1): v=0, w=0, g[0]=0 ≠ g[1]=1 → take v=0, T = 0 & ... = 0. panel = [rest[0]]. Pad with iso. ✓.
+
+Let me trace Example 1: n=4, m=4, k=3. Edges: (1,2),(1,3),(2,3),(3,4) → 0-indexed: (0,1),(0,2),(1,2),(2,3). adj: 0: {1,2} = 0b0110 = 6; 1: {0,2} = 0b0101 = 5; 2: {0,1,3} = 0b1011 = 11; 3: {2} = 0b0100 = 4. No isolated vertices. rest = [0,1,2,3], c=0, k2=3, r=4. h1=2, h2=2. A = {0,1}, B = {2,3} (renumbered: rest = [0,1,2,3] identity). adjA: vertex 0: neighbors {1,2} → within A: {1} → adjA[0] = 0b10 = 2. NB[0] = neighbors in B: {2} → B-local bit 0 → NB[0] = 1. Vertex 1: neighbors {0,2} → adjA[1] = 0b01 = 1; NB[1] = 1 (vertex 2 → B bit 0). adjB: vertex 2 (B-local 0): neighbors {0,1,3} → within B: {3} → B-local bit 1 → adjB[0] = 0b10 = 2. Vertex 3 (B-local 1): neighbors {2} → B-local bit 0 → adjB[1] = 1.
+
+g DP (h2=2, fullB=3):
+- j=1: S=[0], inv = 3 ^ adjB[1] = 3^1 = 2. g[2] = max(g[0], 1+g[0&2]=1+g[0]=1) = 1.
+- j=0: S = [0, 2], inv = 3 ^ adjB[0] = 3^2 = 1. 
+  - S=0: g[1] = max(g[0], 1+g[0]) = 1.
+  - S=2: g[3] = max(g[2], 1 + g[2 & 1]) = max(1, 1+g[0]) = max(1,1) = 1.
+
+A enumeration (h1=2, cap=4):
+- init: masks=[0], avails=[3], sizes=[0], cnt=1.
+- j=0: adjA[0]=2. can = ([0] & 2) == 0 → [True]. c=1. masks[1] = 0|1 = 1; avails[1] = 3 & (3^NB[0]=3^1=2) = 2; sizes[1] = 1. cnt=2.
+- j=1: adjA[1]=1. can for masks [0,1]: [0&1==0 → T, 1&1==0 → F]. c=1. masks[2] = 0 | 2 = 2; avails[2] = 3 & (3^NB[1]=3^1=2) = 2; sizes[2] = 1. cnt=3.
+
+Candidates: (mask 0, avail 3, size 0), (mask 1, avail 2, size 1), (mask 2, avail 2, size 1).
+tot: 0 + g[3] = 1; 1 + g[2] = 2; 1 + g[2] = 2. best = 2 < k2 = 3 → NO. ✓ Matches expected.
+
+Example 2: n=5, m=2, k=3. Edges (1,2),(3,4) → (0,1),(2,3). adj: 0:{1}, 1:{0}, 2:{3}, 3:{2}, 4:{} (isolated). iso=[4], c=1. k=3 > c=1 → k2 = 2. rest=[0,1,2,3], r=4, h1=2, h2=2. A={0,1}, B={2,3}. adjA[0]: neighbors of 0 = {1} → 0b10 = 2. NB[0] = 0. adjA[1] = 0b01 = 1, NB[1] = 0. adjB[0] (vertex 2): neighbors {3} → B-local bit 1 → 2. adjB[1] (vertex 3): neighbors {2} → B-local bit 0 → 1.
+
+g: j=1: g[2] = max(g[0], 1+g[0]) = 1. j=0: g[1] = 1; g[3] = max(g[2], 1+g[2&1]=1+g[0]=1) = 1.
+
+A enum: j=0: can=[T], add (1, avail 3, size 1). j=1: masks [0,1]: adjA[1]=1: [0&1==0 T, 1&1==0 F] → add (2, avail 3, size 1). Candidates: (0,3,0), (1,3,1), (2,3,1). tot: g[3]=1 → 1; 1+1=2; 1+1=2. best=2 ≥ k2=2 → YES. bi = argmax = 1 (first max). sa=1 → A-part = {rest[0]} = {0}. T = 3. Traceback: v=0, w=2, g[2]=1, g[3]=1 → equal → T=2. v=1, w=0, g[0]=0 ≠ g[2]=1 → take v=1 → panel += rest[h1+1] = rest[3] = 3. T = 0 & ... = 0. panel = [0, 3]. Pad with iso: panel = [0, 3, 4]. Output "1 4 5". Expected "1 3 5" — different but "Any valid panel will be accepted". {1,4,5}: edges (1,2),(3,4): 4 is in panel, edge (3,4) has 3 in control ✓; edge (1,2) has 2 in control ✓. Valid. ✓.
+
+Example 3: n=3, m=3, k=1. Triangle. No isolated. rest=[0,1,2], r=3, h1=1, h2=2. A={0}, B={1,2}. adjA[0] = 0 (no neighbors in A). NB[0] = neighbors {1,2} → bits 0,1 → 3. adjB[0] (vertex 1): neighbors {0,2} → within B: {2} → bit 1 → 2. adjB[1] (vertex 2): neighbors {0,1} → within B: {1} → bit 0 → 1.
+
+g: j=1: g[2] = 1. j=0: g[1] = 1; g[3] = max(g[2], 1+g[2&1]=1+g[0]=1) = 1.
+
+A enum: j=0: can=[T] → candidate (1, avail = 3 & (3^3=0) = 0, size 1). Candidates: (0,3,0), (1,0,1). tot: 0+g[3]=1; 1+g[0]=1. best=1 ≥ k2=1. bi=0: sa=0, T=3. Traceback: v=0,w=2: g[2]=1==g[3]=1 → T=2. v=1,w=0: g[0]=0≠g[2]=1 → take v=1 → panel=[rest[1+1]=rest[2]=2]. T=0. panel=[2] → output "3". Expected "1" but any valid accepted. ✓.
+
+The examples check out.
+
+Now, let me also think about potential precision/dtype pitfalls:
+
+1. `sizes[sl] += 1` — sizes int8; values ≤ 23. ✓.
+2. `tot = sizes[:cnt] + g[avails[:cnt]]` — int8 + int8 → int8; max 46. ✓. But hmm, numpy int8 + int8 overflow? 46 < 127. ✓.
+3. `avails[0] = fullB` — fullB ≤ 2^23-1 fits int32. ✓.
+4. `masks[sl] |= (1 << j)` — int32 |= Python int. ✓.
+
+Another consideration: what if h1 = 0 (r=1)? cap = 1, arrays of size 1. Loop doesn't run. ✓. What if h2 = 1? g DP: j=0: S = arange(1)<<1 = [0]; g[1] = max(g[0], 1+g[0&inv]) = 1. ✓.
+
+Now, about reading input robustly: m lines of pairs. Use sys.stdin.buffer.read().split().
+
+Also, note: the problem says 1 ≤ k ≤ n. And m ≥ 0.
+
+Let me also double check the isolated-vertex shortcut: if k ≤ c, output iso[:k]. These are k distinct isolated vertices — independent. ✓.
+
+Now, one more important consideration: **the A-side enumeration memory when cap = 2^23**: masks (int32, 32MB), avails (int32, 32MB), sizes (int8, 8MB), g (int8, 8MB) = 80MB. Temps during final steps: `masks[:cnt][can]` with cnt = 2^22 (at j=22, before adding, cnt = #indep subsets of first 22 vertices = up to 4.19M) → temp 16MB. `g[avails[:cnt]]` at the end: cnt up to 8.39M → gather result int8 8MB, plus tot 8MB. Fine. Total peak ~120MB. OK.
+
+Hmm, wait, actually let me re-examine: at step j (0-indexed), before the step, cnt = #independent subsets of {0..j-1} ≤ 2^j. After step, ≤ 2^{j+1}. At j = h1-1 = 22: before: ≤ 2^22, after: ≤ 2^23 = cap. ✓ cap is exactly 2^{h1}, and total independent subsets ≤ 2^{h1}. ✓ no overflow of preallocated arrays.
+
+Now — hmm, wait. Let me reconsider one thing: is it possible that the number of independent subsets of A exceeds... no, it's at most 2^{h1} = cap. ✓.
+
+Let me now also think about whether we should choose the split to balance better given density. E.g., if the graph is dense, A-side is cheap; B-side fixed. If sparse... both full. Balanced split is fine. But one refinement: we could choose which vertices go to A vs B to minimize... e.g., put high-degree vertices in A (reduces independent subsets of A)? Marginal. Skip.
+
+Hmm, actually, wait. Let me reconsider one more time whether there's a subtle issue with the g DP when h2 is large (23) and memory for `S` arrays: at j=0, S has 2^{22} int32 = 16MB, plus `S & inv` another 16MB, plus `(1<<j)+S` another 16MB, plus gathers a, b (int8, 4MB each). Transient ~60MB. Plus persistent 80MB → ~140MB peak. OK under 256MB.
+
+Could reduce by using int32 for indices but computing in chunks... not needed.
+
+Hmm, but wait: actually let me reconsider the g DP loop direction. I process j from h2-1 down to 0. At j=0, S = all subsets of bits 1..h2-1 = 2^{h2-1} elements. That's the biggest chunk. Alternatively process j from 0 up: then S = subsets of bits j+1.. — for the recurrence g[T] = max(g[S], 1+g[S & inv]) with S = T \ {lowbit}: we need g at subsets of bits > j. If we process j ascending, at step j we'd need g[S] for S ⊆ bits > j — not yet computed. So descending is required. ✓ (as established).
+
+Alternatively, reformulate with highbit: g[T] = max(g[T \ {highbit}], 1 + g[...]) and process ascending — same thing by symmetry. Fine.
+
+Now let me also think: is `np.arange(1 << (h2-1-j), dtype=np.int32) << (j+1)` correct? arange gives 0..2^{h2-1-j}-1; shifting left by j+1 gives all numbers whose bits are among positions j+1..h2-1: specifically, x << (j+1) for x in [0, 2^{h2-j-1}) covers all subsets of bits {j+1, ..., h2-1} exactly once. ✓.
+
+Now, the traceback uses `g` as numpy array with scalar indexing — g[w] returns np.int8. int() conversion. ✓.
+
+One more check on the traceback loop: it terminates since T strictly decreases (each iteration removes at least bit v). ✓. Number of iterations ≤ h2 + ... each iteration removes ≥1 bit, so ≤ 23 iterations... wait, when we take v, T ← w & inv which removes v and all neighbors — still ≥ 1 bit removed. ✓.
+
+Now, let me also double check `best` computation once more: `tot = sizes[:cnt] + g[avails[:cnt]]`. sizes int8, g gather int8. Sum could be up to 23+23=46. ✓.
+
+`bi = int(tot.argmax())` — first index of max. Then reconstruction from candidate bi. ✓.
+
+Edge case: what if cnt is huge and argmax... fine.
+
+What about the scenario where best ≥ k2 but the A-part is empty (sa=0) and B-part alone suffices? Traceback handles it. ✓.
+
+Now, output format: "YES" then the k numbers on the next line. If NO: just "NO".
+
+Let me also consider: could there be duplicate edges in input causing adj masks to be fine anyway (OR is idempotent)? "Each interaction event is listed at most once" — fine either way.
+
+Now let me also think about whether we need `sys.setrecursionlimit` — no recursion. Good.
+
+Let me now also think about the time for building adjfull etc. — trivial (m ≤ 1035).
+
+Potential numpy import failure — I'll assume it's available. Hmm, but should I write a fallback? Let me think about the risk. The problem is presented to me as "solve in Python 3". Most judges (Codeforces, AtCoder, etc.) have numpy for Python. AtCoder has numpy. Codeforces has numpy. CSES? CSES has... I think CSES Python has numpy? Not sure. This problem with n≤46 and 5s TL... Given uncertainty, maybe I should write a solution that works without numpy but fast enough? Pure Python MITM at 2^23 × 2... too slow. Pure Python B&B... risky.
+
+Alternative: write hybrid — try numpy, fall back to pure-Python B&B? The fallback might TLE on hard cases, but it's better than crashing. Hmm. Actually, let me think about how good a pure-Python B&B can be for n=46.
+
+Actually, let me think about a pure-Python MITM with bit tricks but smarter: 
+
+For the B side, instead of computing g for ALL 2^23 subsets, note we only need g at avail masks that arise. Hmm, but those can be all subsets.
+
+Alternative pure-Python approach: enumerate independent sets of A (up to 2^23 — too many in pure Python).
+
+OK here's another thought — pure Python with the "split & list" but using arrays and avoiding per-element Python overhead... 8.4M elements in pure Python loops = way too slow (each iteration ~100ns-1μs → 8.4M × 2 × maybe 0.5μs = 8s+... borderline actually? A tight loop doing a few dict/list ops per element: ~0.3-0.5μs per element → 8.4M elements × 2 phases × 0.4μs ≈ 7s. Too slow, plus final combination 8.4M lookups ≈ 3s. No.)
+
+So pure Python MITM is out. B&B in pure Python: worst case maybe millions of nodes → too slow. 
+
+I'll commit to numpy. It's the standard choice for such problems in Python. Actually, let me ALSO add a fast path: before MITM, run a quick greedy + local checks that resolve easy instances, and also a quick upper-bound check (e.g., via a simple bound) to resolve NO cases quickly? Not necessary — numpy MITM handles all cases in ~2s worst case. Keep it simple and correct.
+
+Hmm, wait, actually, one more thought about worst-case time: what if r = 46 and the A-side has 2^23 candidates AND we do the final gather — all fine as estimated.
+
+But let me reconsider the g DP cost more carefully, because gathers with int32 indices into an 8MB int8 array — cache behavior: g is 8MB, L2/L3 cache maybe 8-32MB, so gathers might be mostly cache hits. Should be fast.
+
+Actually hmm, wait. I realize there might be an issue with how I compute `can` when adjA[j] == 0 (vertex j has no neighbors in A): `masks[:cnt] & 0 == 0` → all True → c = cnt → doubles candidates. Fine.
+
+Let me also double check `np.count_nonzero(can)` — can is bool array. ✓.
+
+Now let me also think about an important potential optimization to reduce worst-case: **prune A candidates that can't possibly contribute**. Specifically, we only need candidates with size + g[avail] ≥ k2. During enumeration we don't know g yet. But we can bound: g[avail] ≤ h2. So candidates with size + h2 < k2 are useless. At step j, a candidate has size s; it can still gain up to (h1-1-j) more A vertices... so prune candidates with s + (h1-1-j) + h2 < k2? That requires filtering the candidate list mid-loop (compaction), which is doable but adds complexity and only helps when k2 is large. Worst case (k2 small) unaffected. Skip.
+
+Alternatively **prune by avail**: candidates with avail = 0 and size < ... no.
+
+OK, let me also consider: maybe I should ALSO handle the case where the answer is determined by a simple bound to avoid MITM in obvious NO cases: e.g., if k2 > r - (matching-based bound)... skip. MITM always runs; it's fast enough.
+
+Hmm, one more thing: for VERY sparse graphs after isolated removal — e.g., r=46 forming a perfect matching (23 edges). Then A-side: if the matching pairs are split across A/B randomly, A-side independent subsets ≈ 3^{11}×2 ≈ 350K; B-side g DP full 2^23. Fine. If matching pairs are all within A or within B... A induced = 11 edges + 1 vertex: independent subsets = 3^11 × 2 = 354K. Fine. The worst A-side is when A induced is empty (all A-degrees go to B): 2^23 candidates. As computed, ~1-2s. OK.
+
+Wait, actually, hmm, let me reconsider: can I reduce the B-side cost when B is sparse? g[T] for sparse B... no, the DP is over all subsets regardless. 
+
+Alternatively, choose the split adaptively: put vertices so that... the B-side cost is fixed 2^{h2}. To reduce total worst case, we want min over splits... both sides ~2^{r/2} regardless. It's fine.
+
+Let me also consider: maybe use h2 = 22, h1 = 24 for r = 46? Then B-side: 2^22 g-DP elements (halved!), A-side: up to 2^24 = 16.7M candidates (doubled!). Worse. Keep balanced. Actually hmm, interesting: the A-side per-element cost (~12 passes) vs B-side (~20 memory ops with random access). B-side is more expensive per element. So maybe h2 slightly smaller than h1? For r=46: h1=24, h2=22: A-side 2^24 candidates × 12 ops = 200M; B-side 2^22 × 20 = 84M. Total 284M vs balanced (2^23 × 12) + (2^23 × 20) = 100M + 168M = 268M. Roughly equal. Keep h1 = r//2 (h2 = ceil). Fine.
+
+Hmm, hold on, wait. Actually for the A-side, the worst case 2^{h1} candidates only happens when A induced graph is empty. But ALSO the final gather is over all candidates. Let me just keep balanced and move on.
+
+Let me now write the full code:
+
+```python
+import sys
+import numpy as np
+
+def main():
+    data = sys.stdin.buffer.read().split()
+    n = int(data[0]); m = int(data[1]); k = int(data[2])
+    adjfull = [0] * n
+    idx = 3
+    for _ in range(m):
+        u = int(data[idx]) - 1
+        v = int(data[idx + 1]) - 1
+        idx += 2
+        adjfull[u] |= 1 << v
+        adjfull[v] |= 1 << u
+
+    iso = [v for v in range(n) if adjfull[v] == 0]
+    c = len(iso)
+    if k <= c:
+        out = "YES\n" + " ".join(str(v + 1) for v in iso[:k])
+        sys.stdout.write(out + "\n")
+        return
+    k2 = k - c
+    rest = [v for v in range(n) if adjfull[v] != 0]
+    r = len(rest)
+    # positions
+    posarr = [-1] * n
+    for i, v in enumerate(rest):
+        posarr[v] = i
+    h1 = r // 2
+    h2 = r - h1
+    fullB = (1 << h2) - 1
+    adjA = [0] * h1
+    NB = [0] * h1
+    adjB = [0] * h2
+    for i in range(r):
+        u = rest[i]
+        x = adjfull[u]
+        mm = 0
+        while x:
+            b = x & -x
+            x ^= b
+            w = b.bit_length() - 1
+            mm |= 1 << posarr[w]
+        if i < h1:
+            adjA[i] = mm & ((1 << h1) - 1)
+            NB[i] = mm >> h1
+        else:
+            adjB[i - h1] = mm >> h1
+
+    # g DP over B subsets
+    g = np.zeros(1 << h2, dtype=np.int8)
+    for j in range(h2 - 1, -1, -1):
+        cntS = 1 << (h2 - 1 - j)
+        S = np.arange(cntS, dtype=np.int32) << (j + 1)
+        inv = fullB ^ adjB[j]
+        a = g[S]
+        b = g[S & inv]
+        b += 1
+        np.maximum(a, b, out=b)
+        g[(1 << j) + S] = b
+
+    # enumerate independent subsets of A
+    cap = 1 << h1
+    masks = np.empty(cap, dtype=np.int32)
+    avails = np.empty(cap, dtype=np.int32)
+    sizes = np.empty(cap, dtype=np.int8)
+    masks[0] = 0
+    avails[0] = fullB
+    sizes[0] = 0
+    cnt = 1
+    for j in range(h1):
+        can = (masks[:cnt] & adjA[j]) == 0
+        cc = int(np.count_nonzero(can))
+        if cc:
+            sl = slice(cnt, cnt + cc)
+            masks[sl] = masks[:cnt][can]
+            avails[sl] = avails[:cnt][can]
+            sizes[sl] = sizes[:cnt][can]
+            masks[sl] |= (1 << j)
+            avails[sl] &= (fullB ^ NB[j])
+            sizes[sl] += 1
+            cnt += cc
+
+    tot = sizes[:cnt] + g[avails[:cnt]]
+    bi = int(tot.argmax())
+    best = int(tot[bi])
+    if best < k2:
+        sys.stdout.write("NO\n")
+        return
+    # reconstruct
+    sa = int(masks[bi])
+    T = int(avails[bi])
+    panel = [rest[i] for i in range(h1) if (sa >> i) & 1]
+    while T:
+        v = (T & -T).bit_length() - 1
+        w = T ^ (1 << v)
+        if int(g[w]) == int(g[T]):
+            T = w
+        else:
+            panel.append(rest[h1 + v])
+            T = w & (fullB ^ adjB[v])
+    for v in iso:
+        if len(panel) < k:
+            panel.append(v)
+    panel = panel[:k]
+    sys.stdout.write("YES\n" + " ".join(str(v + 1) for v in panel) + "\n")
+
+main()
+```
+
+Wait, there's a bug in the padding: `for v in iso: if len(panel) < k: panel.append(v)` — but if len(panel) = best > k already, we skip padding, then panel[:k]. But if best < k... wait can best < k2 but ≥... no: we're in the branch best ≥ k2 = k - c. len(panel) after A+B = best. Padding adds up to c isolated. Final len = min(k, best + c)... we need exactly k: if best ≥ k, panel[:k] gives k. If best < k, padding adds k - best ≤ c (since best ≥ k - c). ✓. Then panel[:k] is a no-op (len = k). ✓.
+
+Hmm wait, but there's an issue: `panel = panel[:k]` when best > k — the panel contains A-part and B-part; taking first k might drop some B-part vertices — still independent. ✓.
+
+Another check: `tot = sizes[:cnt] + g[avails[:cnt]]` — hmm, `g[avails[:cnt]]`: avails is int32 array; fancy indexing with int32 array — numpy accepts any integer dtype for indexing. ✓.
+
+Now, `int(tot[bi])` — tot is int8. ✓.
+
+Wait, there's a subtle issue with `masks[sl] = masks[:cnt][can]` when cc could make cnt+cc exceed cap? cnt ≤ #indep subsets of {0..j-1} and after adding, cnt ≤ #indep subsets of {0..j} ≤ 2^{j+1} ≤ 2^{h1} = cap. ✓.
+
+Another subtle issue: `masks[:cnt][can]` — `can` has length cnt. ✓.
+
+Now, is there an issue with `avails[sl] &= (fullB ^ NB[j])` — NB[j] is a Python int (mask over B bits). `fullB ^ NB[j]` Python int. In-place AND on int32 slice with Python int scalar. If the scalar fits int32 — yes (≤ 2^23). ✓.
+
+Now, the g DP: `b = g[S & inv]` then `b += 1` — b is a copy (fancy indexing). ✓. `np.maximum(a, b, out=b)` — a is also a copy. ✓. `g[(1 << j) + S] = b` — scatter. ✓.
+
+Hmm, one thing: in the g DP, when h2 = 0 — can't happen (r ≥ 1 → h2 ≥ 1). ✓.
+
+Wait, r ≥ 1: h1 = r//2 could be 0 (r=1). Then the A loop doesn't execute; cap = 1. ✓. adjA, NB empty lists. ✓.
+
+Let me double check `adjA[i] = mm & ((1 <<

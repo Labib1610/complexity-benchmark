@@ -1,0 +1,109 @@
+import sys
+from collections import deque
+
+sys.setrecursionlimit(5000)
+
+def main():
+    data = sys.stdin.buffer
+    first = data.readline().split()
+    if not first:
+        return
+
+    k, t = map(int, first)
+    adj = [[] for _ in range(k)]
+    y_of_x = [-1] * k
+    pair_u = [-1] * k
+    pair_v = [-1] * k
+    matched = 0
+
+    for _ in range(t):
+        x, y, z = map(int, data.readline().split())
+        x -= 1
+        z -= 1
+        adj[x].append(z)
+        y_of_x[x] = y
+        if pair_u[x] == -1 and pair_v[z] == -1:
+            pair_u[x] = z
+            pair_v[z] = x
+            matched += 1
+
+    dist = [-1] * k
+    inf = k + 1
+
+    def bfs():
+        q = deque()
+        for u in range(k):
+            if pair_u[u] == -1:
+                dist[u] = 0
+                q.append(u)
+            else:
+                dist[u] = -1
+
+        shortest = inf
+        while q:
+            u = q.popleft()
+            du = dist[u]
+            if du >= shortest:
+                continue
+            nd = du + 1
+            for v in adj[u]:
+                other = pair_v[v]
+                if other == -1:
+                    if nd < shortest:
+                        shortest = nd
+                elif dist[other] == -1:
+                    dist[other] = nd
+                    q.append(other)
+        return shortest
+
+    def dfs(u, shortest):
+        du = dist[u]
+        edges = adj[u]
+        i = ptr[u]
+
+        while i < len(edges):
+            v = edges[i]
+            i += 1
+            ptr[u] = i
+            other = pair_v[v]
+
+            if other == -1:
+                if du + 1 == shortest:
+                    pair_u[u] = v
+                    pair_v[v] = u
+                    return True
+            elif du + 1 < shortest and dist[other] == du + 1:
+                if dfs(other, shortest):
+                    pair_u[u] = v
+                    pair_v[v] = u
+                    return True
+
+        dist[u] = -1
+        return False
+
+    while matched < k:
+        shortest = bfs()
+        if shortest == inf:
+            break
+
+        ptr = [0] * k
+        augmented = 0
+        for u in range(k):
+            if pair_u[u] == -1 and dfs(u, shortest):
+                augmented += 1
+
+        if augmented == 0:
+            break
+        matched += augmented
+
+    if matched != k:
+        sys.stdout.write("NO\n")
+        return
+
+    output = ["YES"]
+    for x in range(k):
+        output.append(f"{x + 1} {y_of_x[x]} {pair_u[x] + 1}")
+    sys.stdout.write("\n".join(output))
+
+if __name__ == "__main__":
+    main()

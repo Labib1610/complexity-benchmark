@@ -1,0 +1,406 @@
+import sys
+from array import array
+from collections import deque
+
+sys.setrecursionlimit(1_000_000)
+
+
+def arrangement_cost(order, adj):
+    pos = {v: i for i, v in enumerate(order)}
+    total = 0
+    for u in order:
+        pu = pos[u]
+        for v, w in adj[u].items():
+            if u < v:
+                total += w * abs(pu - pos[v])
+    return total
+
+
+def improve_adjacent(order, adj):
+    order = order[:]
+    n = len(order)
+    pos = {v: i for i, v in enumerate(order)}
+
+    for _ in range(12):
+        changed = False
+        i = 0
+        while i + 1 < n:
+            a, b = order[i], order[i + 1]
+            delta = 0
+
+            for x, w in adj[a].items():
+                if x == b:
+                    continue
+                px = pos[x]
+                if px < i:
+                    delta += w
+                elif px > i + 1:
+                    delta -= w
+
+            for x, w in adj[b].items():
+                if x == a:
+                    continue
+                px = pos[x]
+                if px < i:
+                    delta -= w
+                elif px > i + 1:
+                    delta += w
+
+            if delta < 0:
+                order[i], order[i + 1] = b, a
+                pos[a], pos[b] = i + 1, i
+                changed = True
+                if i:
+                    i -= 1
+                    continue
+            i += 1
+
+        if not changed:
+            break
+
+    return order
+
+
+def bfs_order(component, root, adj):
+    comp_set = set(component)
+    seen = {root}
+    q = deque([root])
+    result = []
+
+    while q:
+        u = q.popleft()
+        result.append(u)
+        nxt = [v for v in adj[u] if v in comp_set and v not in seen]
+        nxt.sort(key=lambda x: (sum(adj[x].values()), x))
+        for v in nxt:
+            seen.add(v)
+            q.append(v)
+
+    return result
+
+
+def heuristic_order(component, adj):
+    if len(component) <= 1:
+        return component[:], 0
+
+    degree = lambda v: sum(adj[v].values())
+    roots = {
+        min(component, key=lambda v: (degree(v), v)),
+        max(component, key=lambda v: (degree(v), -v)),
+        component[0],
+    }
+
+    candidates = [
+        sorted(component, key=lambda v: (degree(v), v)),
+        sorted(component, key=lambda v: (-degree(v), v)),
+    ]
+
+    for root in roots:
+        order = bfs_order(component, root, adj)
+        candidates.append(order)
+        candidates.append(list(reversed(order)))
+
+        far = order[-1]
+        order2 = bfs_order(component, far, adj)
+        candidates.append(order2)
+        candidates.append(list(reversed(order2)))
+
+    best_order = None
+    best_cost = None
+    for candidate in candidates:
+        candidate = improve_adjacent(candidate, adj)
+        cost = arrangement_cost(candidate, adj)
+        if best_cost is None or cost < best_cost:
+            best_cost = cost
+            best_order = candidate
+
+    return best_order, best_cost
+
+
+def local_graph(component, adj):
+    vertices = sorted(component, key=lambda v: (sum(adj[v].values()), v))
+    index = {v: i for i, v in enumerate(vertices)}
+    k = len(vertices)
+
+    neighbors = [[] for _ in range(k)]
+    degrees = [0] * k
+    simple = True
+    masks = [0] * k
+
+    for i, u in enumerate(vertices):
+        for v, w in adj[u].items():
+            j = index.get(v)
+            if j is not None:
+                neighbors[i].append((j, w))
+                degrees[i] += w
+                masks[i] |= 1 << j
+                if w != 1:
+                    simple = False
+
+    total_weight = sum(degrees) // 2
+    return vertices, neighbors, degrees, masks, simple, total_weight
+
+
+def exact_dense(component, adj, cap):
+    vertices, neighbors, degrees, masks, simple, _ = local_graph(component)
+    k = len(vertices)
+    size = 1 << k
+    full = size - 1
+    inf = cap + 1
+
+    cuts = array('q', [0]) * size
+    dp = array('q', [inf]) * size
+    dp[0] = 0
+
+    for mask in range(1, size):
+        bit = mask & -mask
+        v = bit.bit_length() - 1
+        prev = mask ^ bit
+
+        if simple:
+            to_prev = (masks[v] & prev).bit_count()
+        else:
+            to_prev = 0
+            for u, w in neighbors[v]:
+                if (prev >> u) & 1:
+                    to_prev += w
+
+        cut = cuts[prev] + degrees[v] - 2 * to_prev
+        cuts[mask] = cut
+
+        best = inf
+        x = mask
+        while x:
+            b = x & -x
+            p = mask ^ b
+            val = dp[p]
+            if val < best:
+                best = val
+            x ^= b
+
+        if best <= cap:
+            val = best + cut
+            remaining = k - mask.bit_count()
+            lower = remaining - 1
+            if lower < 0:
+                lower = 0
+            if val + lower <= cap:
+                dp[mask] = val
+
+    optimum = dp[full]
+    if optimum > cap:
+        return None, None
+
+    local_order_rev = []
+    mask = full
+    while mask:
+        target = dp[mask] - cuts[mask]
+        x = mask
+        chosen = -1
+        while x:
+            b = x & -x
+            v = b.bit_length() - 1
+            if dp[mask ^ b] == target:
+                chosen = v
+                break
+            x ^= b
+        if chosen < 0:
+            return None, None
+        local_order_rev.append(chosen)
+        mask ^= 1 << chosen
+
+    local_order_rev.reverse()
+    return [vertices[i] for i in local_order_rev], optimum
+
+
+def exact_sparse(component, adj, cap, heuristic, heuristic_cost):
+    vertices, neighbors, degrees, _, _, total_weight = local_graph(component)
+    k = len(vertices)
+    full = (1 << k) - 1
+
+    if heuristic_cost <= cap:
+        incumbent = heuristic_cost
+        best_order = heuristic[:]
+    else:
+        incumbent = cap + 1
+        best_order = None
+
+    best_seen = {}
+    path = []
+
+    def dfs(mask, cut, cost, remaining_internal):
+        nonlocal incumbent, best_order
+
+        old = best_seen.get(mask)
+        if old is not None and old <= cost:
+            return
+        best_seen[mask] = cost
+
+        if mask == full:
+            if cost < incumbent:
+                incumbent = cost
+                best_order = [vertices[i] for i in path]
+            return
+
+        remaining_count = k - mask.bit_count()
+        lower = max(remaining_internal, remaining_count - 1)
+        if cost + lower >= incumbent:
+            return
+
+        candidates = []
+        rem = full ^ mask
+        while rem:
+            bit = rem & -rem
+            v = bit.bit_length() - 1
+            to_prefix = 0
+            for u, w in neighbors[v]:
+                if (mask >> u) & 1:
+                    to_prefix += w
+            new_cut = cut + degrees[v] - 2 * to_prefix
+            edges_to_remaining = degrees[v] - to_prefix
+            new_remaining_internal = remaining_internal - edges_to_remaining
+            candidates.append((new_cut, -to_prefix, v, bit, new_remaining_internal))
+            rem ^= bit
+
+        candidates.sort()
+        for new_cut, _, v, bit, new_remaining_internal in candidates:
+            new_mask = mask | bit
+            new_cost = cost + new_cut
+            remaining_after = k - new_mask.bit_count()
+            lower_after = max(new_remaining_internal, max(0, remaining_after - 1))
+            if new_cost + lower_after >= incumbent:
+                continue
+            path.append(v)
+            dfs(new_mask, new_cut, new_cost, new_remaining_internal)
+            path.pop()
+
+    dfs(0, 0, 0, total_weight)
+
+    if incumbent <= cap:
+        return best_order, incumbent
+    return None, None
+
+
+def solve():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if len(data) < 3:
+        return
+
+    n, m, budget = data[0], data[1], data[2]
+    adj = [dict() for _ in range(n)]
+    total_nonloop = 0
+
+    p = 3
+    for _ in range(m):
+        u = data[p] - 1
+        v = data[p + 1] - 1
+        p += 2
+        if u == v:
+            continue
+        adj[u][v] = adj[u].get(v, 0) + 1
+        adj[v][u] = adj[v].get(u, 0) + 1
+        total_nonloop += 1
+
+    if budget < total_nonloop:
+        print("NO")
+        return
+
+    seen = [False] * n
+    components = []
+
+    for start in range(n):
+        if seen[start]:
+            continue
+        seen[start] = True
+        if not adj[start]:
+            components.append([start])
+            continue
+
+        q = [start]
+        comp = []
+        while q:
+            u = q.pop()
+            comp.append(u)
+            for v in adj[u]:
+                if not seen[v]:
+                    seen[v] = True
+                    q.append(v)
+        components.append(comp)
+
+    component_data = []
+    heuristic_total = 0
+
+    for comp in components:
+        order, cost = heuristic_order(comp, adj)
+        baseline = 0
+        for u in comp:
+            baseline += sum(adj[u].values())
+        baseline //= 2
+        component_data.append([comp, baseline, order, cost])
+        heuristic_total += cost
+
+    if heuristic_total <= budget:
+        complete_order = []
+        for _, _, order, _ in component_data:
+            complete_order.extend(order)
+
+        positions = [0] * n
+        for i, v in enumerate(complete_order, 1):
+            positions[v] = i
+
+        print("YES")
+        print(*positions)
+        return
+
+    component_data.sort(key=lambda x: (-len(x[0]), -x[1]))
+    remaining_baseline = sum(item[1] for item in component_data)
+    exact_total = 0
+    final_orders = []
+
+    for comp, baseline, heuristic, heuristic_cost in component_data:
+        remaining_baseline -= baseline
+        cap = budget - exact_total - remaining_baseline
+
+        if cap < baseline:
+            print("NO")
+            return
+
+        if len(comp) <= 1:
+            order, optimum = comp[:], 0
+        elif len(comp) <= 22:
+            try:
+                order, optimum = exact_dense(comp, adj, cap)
+            except MemoryError:
+                order, optimum = exact_sparse(
+                    comp, adj, cap, heuristic, heuristic_cost
+                )
+        else:
+            order, optimum = exact_sparse(
+                comp, adj, cap, heuristic, heuristic_cost
+            )
+
+        if order is None:
+            print("NO")
+            return
+
+        exact_total += optimum
+        final_orders.append(order)
+
+    if exact_total > budget:
+        print("NO")
+        return
+
+    complete_order = []
+    for order in final_orders:
+        complete_order.extend(order)
+
+    positions = [0] * n
+    for i, v in enumerate(complete_order, 1):
+        positions[v] = i
+
+    print("YES")
+    print(*positions)
+
+
+if __name__ == "__main__":
+    solve()

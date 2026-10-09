@@ -1,0 +1,97 @@
+from itertools import combinations
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    k = int(data[2])
+    
+    edges = []
+    adj = [set() for _ in range(n + 1)]
+    
+    idx = 3
+    for _ in range(m):
+        u = int(data[idx])
+        v = int(data[idx+1])
+        idx += 2
+        edges.append((u, v))
+        adj[u].add(v)
+        adj[v].add(u)
+    
+    if m == 0:
+        # No edges, any k subset works
+        print("YES")
+        print(' '.join(map(str, range(1, k+1))))
+        return
+    
+    # We'll use meet-in-the-middle for large n
+    # Split variables into two halves
+    mid = n // 2
+    left_vars = list(range(1, mid + 1))
+    right_vars = list(range(mid + 1, n + 1))
+    
+    # Precompute all valid subsets for left and right parts
+    # Map from subset to its neighbors (variables that would make an edge if selected)
+    
+    def get_valid_subsets(var_list):
+        valid = {}
+        # Generate all subsets
+        for r in range(len(var_list) + 1):
+            for subset in combinations(var_list, r):
+                subset_set = set(subset)
+                # Check if this subset is valid (no edges within it)
+                valid_flag = True
+                for u, v in edges:
+                    if u in subset_set and v in subset_set:
+                        valid_flag = False
+                        break
+                if valid_flag:
+                    bitmask = 0
+                    neighbors = set()
+                    for x in subset:
+                        bitmask |= (1 << (x-1))
+                        neighbors |= adj[x]
+                    valid[bitmask] = (subset, neighbors)
+        return valid
+    
+    left_valid = get_valid_subsets(left_vars)
+    right_valid = get_valid_subsets(right_vars)
+    
+    # Now for each valid left subset, find a compatible right subset
+    for l_bitmask, (l_subset, l_neighbors) in left_valid.items():
+        l_size = len(l_subset)
+        if l_size > k:
+            continue
+        needed = k - l_size
+        
+        # We need a right subset of size 'needed' that:
+        # 1. Is valid (no internal edges)
+        # 2. Has no internal edges with left (no node in right subset is neighbor of left subset)
+        # 3. Size is exactly 'needed'
+        
+        for r_bitmask, (r_subset, r_neighbors) in right_valid.items():
+            if len(r_subset) != needed:
+                continue
+            # Check for edges between left and right
+            conflict = False
+            for u in l_subset:
+                for v in r_subset:
+                    if v in adj[u]:
+                        conflict = True
+                        break
+                if conflict:
+                    break
+            if not conflict:
+                # Found a solution
+                result = list(l_subset) + list(r_subset)
+                print("YES")
+                print(' '.join(map(str, result)))
+                return
+    
+    print("NO")
+
+if __name__ == "__main__":
+    main()

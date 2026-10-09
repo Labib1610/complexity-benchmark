@@ -1,0 +1,201 @@
+**Solution Explanation**
+
+For a link `{u,v}` we need  
+
+```
+f_u = 3 - f_v          (1)
+```
+
+because the inactive protocol of a tower is the other one (`3‑f_i`).  
+Equation (1) is equivalent to `f_u != f_v`.  
+Thus every critical link forces the two incident towers to have **different**
+protocols. The whole instance is exactly a 2‑coloring problem of an
+undirected graph.
+
+The graph may be disconnected. A component is bipartite iff it can be
+2‑colored. If any component is not bipartite the answer is `NO`.
+
+If the graph is bipartite we have two possible colorings for each component:
+the colors can be swapped.  
+To obtain the lexicographically smallest overall assignment we process the
+components in increasing order of the smallest vertex index they contain.
+For each component we try the two possible colorings and pick the one that
+gives the smaller values for the vertices of this component (the rest of the
+vertices are still unassigned, therefore they do not influence the decision).
+
+Implementation details
+----------------------
+* adjacency list `g`.
+* `color[i] = -1` – unvisited, otherwise `0` or `1`.
+* BFS from every unvisited vertex:
+    * assign start vertex color `0`.
+    * while BFS, if we meet an already colored neighbour with the same color –
+      the component is not bipartite → print `NO`.
+    * collect all vertices of the component in a list `comp`.
+* After BFS finishes, we have one bipartite component.
+    * Build two possible assignments for this component:
+        * `cand1[i] = 1` if `color[i]==0` else `2`
+        * `cand2[i] = 2` if `color[i]==0` else `1`
+    * Compare the two candidates lexicographically **restricted to the
+      vertices of this component sorted increasingly**.
+      The first differing vertex decides which candidate is smaller.
+    * Apply the chosen candidate to the global answer array `ans`.
+* Continue with the next component.
+
+Complexities
+------------
+
+* `O(n+m)` time – each edge and vertex is processed once.
+* `O(n+m)` memory for the adjacency list and auxiliary arrays.
+
+Correctness Proof
+-----------------
+
+We prove that the algorithm outputs `NO` iff no valid assignment exists,
+otherwise it outputs the lexicographically smallest valid assignment.
+
+### Lemma 1  
+For any edge `{u,v}` the condition “primary protocol of `u` equals inactive
+protocol of `v`” is equivalent to `f_u != f_v`.
+
+*Proof.* Inactive protocol of `v` is the other one, i.e. `3-f_v`.  
+Requirement `f_u = 3-f_v` ⇔ `f_u + f_v = 3` ⇔ `f_u != f_v`. ∎
+
+### Lemma 2  
+A labeling `f` satisfies all edges iff it is a proper 2‑coloring of the graph
+(where colors are `{1,2}`).
+
+*Proof.* By Lemma&nbsp;1 each edge forces its endpoints to have different
+values, which is exactly the definition of a proper 2‑coloring. ∎
+
+### Lemma 3  
+A connected component admits a labeling satisfying all its edges
+iff the component is bipartite.
+
+*Proof.* By Lemma&nbsp;2 this is precisely the definition of a bipartite
+graph. ∎
+
+### Lemma 4  
+During BFS the algorithm detects non‑bipartiteness exactly when the
+component is not bipartite.
+
+*Proof.* BFS assigns alternating colors along every traversed edge.
+If an edge connects two vertices of the same BFS color, an odd cycle exists,
+hence the component is not bipartite. Conversely, if the component is not
+bipartite it contains an odd cycle, and BFS will eventually encounter an edge
+inside that cycle whose endpoints already have equal colors. ∎
+
+### Lemma 5  
+For a bipartite component the algorithm chooses, among the two possible
+labelings, the lexicographically smaller one restricted to the vertices of
+that component.
+
+*Proof.* The two possible labelings are exactly the two color‑swaps.
+The algorithm builds both candidate arrays `cand1`, `cand2` and compares them
+vertex‑by‑vertex in increasing vertex order until a difference appears.
+That is the definition of the lexicographically smaller restriction. ∎
+
+### Lemma 6  
+After processing components in order of their smallest vertex index,
+the global assignment produced by the algorithm is the lexicographically
+smallest among all valid assignments.
+
+*Proof.* Consider the first vertex `v` where the algorithm’s output differs
+from any other valid assignment `f'`. Let `C` be the component containing `v`.
+All vertices with index `< v` belong to components processed earlier, and by
+induction the algorithm already chose the smallest possible values for them,
+so `f'` must coincide on those vertices. Within component `C` the algorithm
+selected the smallest possible restriction (Lemma&nbsp;5), therefore `f_v`
+is ≤ `f'_v`. If it were strictly smaller, the whole assignment is lexicographically
+smaller; if equal, the first difference would be later. Hence no other valid
+assignment can be lexicographically smaller. ∎
+
+### Theorem  
+The algorithm outputs `NO` iff no assignment satisfying all critical links
+exists; otherwise it outputs `YES` followed by the lexicographically smallest
+valid assignment.
+
+*Proof.*  
+*If* the algorithm prints `NO`, it must have detected a non‑bipartite component
+(Lemma&nbsp;4). By Lemma&nbsp;3 such a component cannot be labeled, thus no
+global assignment exists.
+
+*Only if* a global assignment exists, every component is bipartite
+(Lemma&nbsp;3), so the algorithm never prints `NO`. It constructs a labeling
+by choosing for each component one of its two possible colorings, therefore
+the final array satisfies all edges (Lemma&nbsp;2). By Lemma&nbsp;6 this
+labeling is the lexicographically smallest among all valid ones. ∎
+
+Reference Implementation
+------------------------
+
+```python
+import sys
+from collections import deque
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    g = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        g[u].append(v)
+        g[v].append(u)
+
+    color = [-1] * n          # 0 / 1 during BFS
+    ans = [0] * n             # final protocols (1 or 2)
+    visited = [False] * n
+
+    # components will be processed in order of their minimal vertex
+    for start in range(n):
+        if color[start] != -1:
+            continue
+        # BFS this component
+        q = deque([start])
+        color[start] = 0
+        comp = [start]
+        ok = True
+        while q:
+            v = q.popleft()
+            for to in g[v]:
+                if color[to] == -1:
+                    color[to] = color[v] ^ 1
+                    q.append(to)
+                    comp.append(to)
+                elif color[to] == color[v]:
+                    print("NO")
+                    return
+        # decide which coloring to use
+        comp.sort()
+        # candidate 1: color 0 -> protocol 1, color 1 -> 2
+        # candidate 2: swapped
+        better = 0  # 0 means cand1, 1 means cand2
+        for v in comp:
+            c = color[v]
+            p1 = 1 if c == 0 else 2
+            p2 = 2 if c == 0 else 1
+            if p1 < p2:
+                better = 0
+                break
+            if p2 < p1:
+                better = 1
+                break
+        # apply chosen candidate
+        for v in comp:
+            c = color[v]
+            ans[v] = 1 if (c == 0) ^ better else 2
+
+    print("YES")
+    print(' '.join(map(str, ans)))
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above and conforms
+to the required time and memory limits.

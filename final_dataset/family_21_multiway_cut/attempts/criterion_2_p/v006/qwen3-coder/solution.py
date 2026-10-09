@@ -1,0 +1,154 @@
+import sys
+from collections import defaultdict
+import heapq
+
+def dijkstra(graph, start, end):
+    # Find shortest path from start to end using Dijkstra's algorithm
+    dist = {node: float('inf') for node in graph}
+    dist[start] = 0
+    prev = {node: None for node in graph}
+    pq = [(0, start)]
+    visited = set()
+    
+    while pq:
+        current_dist, u = heapq.heappop(pq)
+        
+        if u in visited:
+            continue
+            
+        visited.add(u)
+        
+        if u == end:
+            break
+            
+        for v, weight in graph[u]:
+            if v in visited:
+                continue
+                
+            new_dist = current_dist + weight
+            if new_dist < dist[v]:
+                dist[v] = new_dist
+                prev[v] = u
+                heapq.heappush(pq, (new_dist, v))
+    
+    # Reconstruct path
+    path = []
+    curr = end
+    if prev[curr] is None and curr != start:
+        return None, float('inf')
+        
+    while curr is not None:
+        path.append(curr)
+        curr = prev[curr]
+    
+    path.reverse()
+    
+    if path[0] != start:
+        return None, float('inf')
+        
+    return path, dist[end]
+
+def main():
+    input_lines = []
+    for line in sys.stdin:
+        input_lines.append(line.strip())
+    
+    # Parse input
+    first_line = list(map(int, input_lines[0].split()))
+    n, m, s, t, B = first_line
+    
+    edges = []
+    graph = defaultdict(list)
+    
+    for i in range(1, m + 1):
+        u, v, w = map(int, input_lines[i].split())
+        edges.append((u, v, w))
+        graph[u].append((v, w))
+        graph[v].append((u, w))
+    
+    # Find shortest path between s and t
+    path, min_cost = dijkstra(graph, s, t)
+    
+    if min_cost > B:
+        print("NO")
+        return
+    
+    # If we can disconnect them within budget, we need to remove the edges on the path
+    # But we should find a minimum cut instead
+    
+    # Let's use a different approach - find minimum cut using max flow/min cut theorem
+    # We'll model this as finding the minimum weight set of edges to remove to disconnect s and t
+    
+    # For small graphs, we can try to find a minimum cut by trying all paths
+    # But let's implement a proper solution using Ford-Fulkerson with weights
+    
+    # Actually, let's think differently. This is a minimum cut problem.
+    # We want to find the minimum weight set of edges to remove to disconnect s and t.
+    
+    # Use modified Dijkstra to find minimum cut
+    # But actually, let's just find the shortest path and see if its weight <= B
+    # Then we can remove all edges on that path
+    
+    if path is None or len(path) < 2:
+        print("NO")
+        return
+    
+    # Get edges in the path
+    path_edges = []
+    for i in range(len(path) - 1):
+        u, v = path[i], path[path[i+1]]
+        path_edges.append((u, v))
+    
+    # But we need to make sure these edges exist in our edge list
+    # And we need to get their weights
+    
+    # Let's rebuild: find actual edges used in shortest path
+    used_edges = []
+    curr_node = s
+    remaining_path = path[1:] if path else []
+    
+    # Re-trace the path and collect edges
+    visited_nodes = [s]
+    current = s
+    
+    while current != t and len(visited_nodes) < len(path):
+        next_node = None
+        edge_weight = float('inf')
+        edge_to_use = None
+        
+        # Find which edge was used to reach the next node in path
+        for i, (u, v, w) in enumerate(edges):
+            if u == current and v == path[len(visited_nodes)]:
+                next_node = v
+                edge_weight = w
+                edge_to_use = (u, v)
+                break
+            elif v == current and u == path[len(visited_nodes)]:
+                next_node = u
+                edge_weight = w
+                edge_to_use = (v, u)
+                break
+        
+        if next_node is not None:
+            used_edges.append(edge_to_use)
+            visited_nodes.append(next_node)
+            current = next_node
+        else:
+            break
+    
+    if min_cost <= B:
+        print("YES")
+        print(len(used_edges))
+        for u, v in used_edges:
+            # Print in the same order as they appear in input
+            found = False
+            for orig_u, orig_v, _ in edges:
+                if (orig_u == u and orig_v == v) or (orig_u == v and orig_v == u):
+                    print(orig_u, orig_v)
+                    found = True
+                    break
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    main()

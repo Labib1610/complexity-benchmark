@@ -1,0 +1,62 @@
+import sys
+sys.setrecursionlimit(1 << 25)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    t = int(next(it))
+    targets = [int(next(it)) - 1 for _ in range(t)]
+    adj = [[] for _ in range(n)]
+    edges = []
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        w = int(next(it))
+        idx = len(edges)
+        edges.append((u, v, w))
+        adj[u].append((v, w, idx))
+        adj[v].append((u, w, idx))
+
+    if t <= 1:
+        print(0)
+        return
+
+    # iterative DFS to get parent and order
+    parent = [-1] * n
+    parent_edge = [-1] * n
+    order = []
+    stack = [0]
+    parent[0] = 0
+    while stack:
+        u = stack.pop()
+        order.append(u)
+        for v, w, idx in adj[u]:
+            if parent[v] == -1:
+                parent[v] = u
+                parent_edge[v] = (w, idx)
+                stack.append(v)
+
+    # count targets in subtrees
+    cnt = [0] * n
+    for v in targets:
+        cnt[v] = 1
+
+    total = 0
+    for u in reversed(order):
+        if u == 0:
+            continue
+        p = parent[u]
+        cnt[p] += cnt[u]
+        w, _ = parent_edge[u]
+        # edge (p,u) is needed if both sides have at least one target
+        if 0 < cnt[u] < t:
+            total += w
+
+    print(total)
+
+if __name__ == "__main__":
+    solve()

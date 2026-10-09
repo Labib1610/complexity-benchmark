@@ -1,0 +1,30 @@
+import sys
+import threading
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    j = int(data[0])
+    researchers = []
+    for i in range(j):
+        p1 = int(data[1 + 2*i])
+        p2 = int(data[2 + 2*i])
+        researchers.append((p1, p2))
+    
+    # Sort by p1 ascending, then by p2 descending
+    # This is the optimal ordering for minimizing makespan
+    researchers.sort(key=lambda x: (x[0], -x[1]))
+    
+    wash_end_time = 0
+    bake_end_time = 0
+    
+    for p1, p2 in researchers:
+        wash_end_time += p1
+        bake_end_time = max(bake_end_time, wash_end_time) + p2
+    
+    print(bake_end_time)
+
+# Run the main function in a thread with increased stack size
+threading.Thread(target=main).start()

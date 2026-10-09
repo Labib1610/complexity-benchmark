@@ -40,6 +40,73 @@ def gen_vc(k, seed, coverable=True, pad=0):
 
 
 # --- criterion 2: bipartite vertex cover = max matching (König) -----------------
+def _bip_matching_size(nA, adjA):
+    """Hopcroft-Karp max matching size between side A (1..nA) and side B."""
+    from collections import deque
+    INF = float("inf")
+    pair_u = {u: 0 for u in adjA}; pair_v = {}; dist = {}
+
+    def bfs():
+        q = deque()
+        for u in adjA:
+            if pair_u[u] == 0:
+                dist[u] = 0; q.append(u)
+            else:
+                dist[u] = INF
+        found = False
+        while q:
+            u = q.popleft()
+            for v in adjA[u]:
+                w = pair_v.get(v, 0)
+                if w == 0:
+                    found = True
+                elif dist.get(w, INF) == INF:
+                    dist[w] = dist[u] + 1; q.append(w)
+        return found
+
+    def dfs(u):
+        for v in adjA[u]:
+            w = pair_v.get(v, 0)
+            if w == 0 or (dist.get(w, INF) == dist[u] + 1 and dfs(w)):
+                pair_u[u] = v; pair_v[v] = u; return True
+        dist[u] = INF; return False
+
+    matching = 0
+    while bfs():
+        for u in adjA:
+            if pair_u[u] == 0 and dfs(u):
+                matching += 1
+    return matching
+
+
+def gen_vc_bipartite(n, seed, kind):
+    """UNIFIED schema (audit B4): a bipartite graph on vertices 1..n (side A = 1..a, side B rest),
+    emitted as `n m k` + edges, exactly like criterion 1. Minimum vertex cover = max matching
+    (Koenig). kind='yes' -> k = minVC (a size-k cover exists); kind='no' -> k = minVC - 1."""
+    rng = random.Random(seed * 2_000_003 + 7)
+    a = max(1, n // 2); b = n - a
+    target_m = min(400_000, a * b, 3 * n + 5)
+    edges = []; adjA = {}; seen = set()
+    att = 0
+    while len(edges) < target_m and att < 40 * target_m + 500:
+        att += 1
+        ua = rng.randint(1, a); vb = rng.randint(1, b)
+        if (ua, vb) in seen:
+            continue
+        seen.add((ua, vb))
+        adjA.setdefault(ua, []).append(vb)
+        edges.append((ua, a + vb))
+    min_vc = _bip_matching_size(a, adjA)
+    if kind == "yes":
+        k = min_vc
+    else:
+        k = max(0, min_vc - 1)
+    rng.shuffle(edges)
+    lines = [f"{n} {len(edges)} {k}"]
+    lines += [f"{u} {v}" for (u, v) in edges]
+    return "\n".join(lines) + "\n"
+
+
 def gen_bipartite_vc(nA, nB, m, seed, mode="hard"):
     """mode='hard' -> a lower-triangular 'staircase' (west i connects to east 1..i):
     forces Kuhn's augmenting-path matcher into long chains ~O(V*E) while Hopcroft-Karp
@@ -112,13 +179,15 @@ def main():
     p.add_argument("--coverable", default="yes")
     p.add_argument("--pad", type=int, default=0)
     p.add_argument("--mode", default="hard")
+    p.add_argument("--kind", default="yes")   # criterion 2 (unified): yes|no
     args = p.parse_args()
 
     if args.criterion == 1:
         out = gen_vc(args.k, args.seed,
                      coverable=(args.coverable.lower() in ("yes", "y", "1", "true")), pad=args.pad)
     elif args.criterion == 2:
-        out = gen_bipartite_vc(args.nA, args.nB, args.m, args.seed, mode=args.mode)
+        # audit B4: unified vertex-cover decision + witness on a bipartite graph (schema = n m k).
+        out = gen_vc_bipartite(args.n, args.seed, args.kind)
     else:
         out = gen_big_matching(args.n, args.m, args.k, args.seed)
 

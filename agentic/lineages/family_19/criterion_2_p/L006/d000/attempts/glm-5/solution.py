@@ -1,0 +1,100 @@
+import sys
+from collections import deque
+
+def solve():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    _ = int(next(it))  # always 1
+    s = int(next(it))
+    t = int(next(it))
+    d = int(next(it))
+    
+    edges = []
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        cap = int(next(it))
+        edges.append((u, v, cap))
+    
+    # Build graph for max flow
+    # Each edge gets a reverse edge with capacity 0
+    # Edge i in input corresponds to graph edge 2*i
+    adj = [[] for _ in range(n + 1)]
+    graph_edges = []  # (to, rev_idx, cap)
+    
+    for u, v, cap in edges:
+        # Forward edge
+        fwd_idx = len(graph_edges)
+        graph_edges.append([v, -1, cap])
+        adj[u].append(fwd_idx)
+        # Backward edge
+        rev_idx = len(graph_edges)
+        graph_edges.append([u, -1, 0])
+        adj[v].append(rev_idx)
+        graph_edges[fwd_idx][1] = rev_idx
+        graph_edges[rev_idx][1] = fwd_idx
+    
+    def bfs_level(level):
+        level[:] = [-1] * (n + 1)
+        level[s] = 0
+        q = deque([s])
+        while q:
+            u = q.popleft()
+            for eidx in adj[u]:
+                v, rev, cap = graph_edges[eidx]
+                if cap > 0 and level[v] == -1:
+                    level[v] = level[u] + 1
+                    q.append(v)
+    
+    def dfs_flow(u, flow, level, ptr):
+        if u == t:
+            return flow
+        while ptr[u] < len(adj[u]):
+            eidx = adj[u][ptr[u]]
+            v, rev, cap = graph_edges[eidx]
+            if cap > 0 and level[v] == level[u] + 1:
+                pushed = dfs_flow(v, min(flow, cap), level, ptr)
+                if pushed > 0:
+                    graph_edges[eidx][2] -= pushed
+                    graph_edges[rev][2] += pushed
+                    return pushed
+            ptr[u] += 1
+        return 0
+    
+    def max_flow():
+        total = 0
+        level = [-1] * (n + 1)
+        while True:
+            bfs_level(level)
+            if level[t] == -1:
+                break
+            ptr = [0] * (n + 1)
+            while True:
+                pushed = dfs_flow(s, float('inf'), level, ptr)
+                if pushed == 0:
+                    break
+                total += pushed
+            level = [-1] * (n + 1)
+        return total
+    
+    flow = max_flow()
+    
+    if flow < d:
+        print("NO")
+    else:
+        print("YES")
+        result = []
+        for i in range(m):
+            # Edge i is at index 2*i, its reverse at 2*i+1
+            # Flow on edge = original_cap - remaining_cap
+            # Or equivalently, cap on reverse edge
+            rev_cap = graph_edges[2 * i + 1][2]
+            result.append(str(rev_cap))
+        print(" ".join(result))
+
+if __name__ == "__main__":
+    solve()

@@ -1,0 +1,179 @@
+```python
+import sys
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if len(data) < 2:
+        return
+
+    k, t = data[0], data[1]
+    triples = []
+    columns = [0] * (3 * k)
+
+    p = 2
+    for i in range(t):
+        x = data[p] - 1
+        y = data[p + 1] - 1
+        z = data[p + 2] - 1
+        p += 3
+
+        triples.append((x, y, z))
+        bit = 1 << i
+        columns[x] |= bit
+        columns[k + y] |= bit
+        columns[2 * k + z] |= bit
+
+    if t < k or any(mask == 0 for mask in columns):
+        print("NO")
+        return
+
+    all_rows = (1 << t) - 1
+    full_covered = (1 << (3 * k)) - 1
+    failed = set()
+    FAILED_LIMIT = 500_000
+    answer = []
+
+    sys.setrecursionlimit(100000)
+
+    def pair_has_matching(avail, left_offset, right_offset, covered):
+        left = [
+            i for i in range(k)
+            if not (covered >> (left_offset + i)) & 1
+        ]
+        right = [
+            j for j in range(k)
+            if not (covered >> (right_offset + j)) & 1
+        ]
+
+        if len(left) != len(right):
+            return False
+        if not left:
+            return True
+
+        neighbors = []
+        for i in left:
+            rows = avail & columns[left_offset + i]
+            mask = 0
+            for j in right:
+                if rows & columns[right_offset + j]:
+                    mask |= 1 << j
+            if mask == 0:
+                return False
+            neighbors.append((mask.bit_count(), mask))
+
+        neighbors.sort()
+        match = [-1] * k
+
+        def augment(pos, seen):
+            bits = neighbors[pos][1] & ~seen[0]
+            while bits:
+                b = bits & -bits
+                bits -= b
+                j = b.bit_length() - 1
+                seen[0] |= b
+                other = match[j]
+                if other == -1 or augment(other, seen):
+                    match[j] = pos
+                    return True
+            return False
+
+        for pos in range(len(neighbors)):
+            if not augment(pos, [0]):
+                return False
+        return True
+
+    def hall_checks(avail, covered):
+        return (
+            pair_has_matching(avail, 0, k, covered)
+            and pair_has_matching(avail, 0, 2 * k, covered)
+            and pair_has_matching(avail, k, 2 * k, covered)
+        )
+
+    def dfs(avail, covered, depth):
+        if covered == full_covered:
+            return True
+        if covered in failed:
+            return False
+
+        uncovered = full_covered ^ covered
+        best_candidates = 0
+        best_count = t + 1
+
+        bits = uncovered
+        while bits:
+            b = bits & -bits
+            bits -= b
+            c = b.bit_length() - 1
+            candidates = avail & columns[c]
+            count = candidates.bit_count()
+            if count == 0:
+                if len(failed) < FAILED_LIMIT:
+                    failed.add(covered)
+                return False
+            if count < best_count:
+                best_count = count
+                best_candidates = candidates
+                if count == 1:
+                    break
+
+        remaining = k - depth
+        if remaining >= 3 and (depth == 0 or (depth & 3) == 0):
+            if not hall_checks(avail, covered):
+                if len(failed) < FAILED_LIMIT:
+                    failed.add(covered)
+                return False
+
+        candidates_list = []
+        bits = best_candidates
+
+        if best_count <= 80 and best_count > 1:
+            while bits:
+                b = bits & -bits
+                bits -= b
+                idx = b.bit_length() - 1
+                x, y, z = triples[idx]
+                conflict = columns[x] | columns[k + y] | columns[2 * k + z]
+                score = (avail & conflict).bit_count()
+                candidates_list.append((score, idx))
+            candidates_list.sort()
+            candidate_indices = (idx for _, idx in candidates_list)
+        else:
+            def indices(mask):
+                while mask:
+                    b = mask & -mask
+                    mask -= b
+                    yield b.bit_length() - 1
+            candidate_indices = indices(bits)
+
+        for idx in candidate_indices:
+            x, y, z = triples[idx]
+            cx = x
+            cy = k + y
+            cz = 2 * k + z
+
+            row_columns = (1 << cx) | (1 << cy) | (1 << cz)
+            conflicts = columns[cx] | columns[cy] | columns[cz]
+            next_avail = avail & ~conflicts
+
+            answer.append(idx)
+            if dfs(next_avail, covered | row_columns, depth + 1):
+                return True
+            answer.pop()
+
+        if len(failed) < FAILED_LIMIT:
+            failed.add(covered)
+        return False
+
+    if not hall_checks(all_rows, 0) or not dfs(all_rows, 0, 0):
+        print("NO")
+        return
+
+    out = ["YES"]
+    for idx in answer:
+        x, y, z = triples[idx]
+        out.append(f"{x + 1} {y + 1} {z + 1}")
+    print("\n".join(out))
+
+if __name__ == "__main__":
+    main()
+```

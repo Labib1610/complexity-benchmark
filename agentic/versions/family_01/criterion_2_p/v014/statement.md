@@ -1,20 +1,23 @@
-# Factory Schedules
+# Shift Allocation
 
-Time limit: 1 s   Memory limit: 256 MB
+Time limit: 1 s
+Memory limit: 256 MB
 
-The factory is transitioning to a dual-schedule framework. Every staff member must be assigned to exactly one of two operational periods: the morning period (labeled 1) or the evening period (labeled 2).
+A manufacturing plant operates continuously across a daytime rotation (labeled `1`) and a nighttime rotation (labeled `2`). The plant's locker room has exactly 200,000 lockers, and each employee requires one. The workforce size $n$ is at least one and cannot exceed this total locker count. 
 
-The HR department maintains a list of interpersonal grievances. Each grievance involves a pair of staff members who cannot work during the same period. Your task is to determine whether it is possible to assign every staff member to a period such that no two individuals involved in a mutual grievance share the same period.
+The human resources department has compiled $m$ records of interpersonal friction between specific pairs of employees. The dispute tracking system has a fixed storage limit of 200,000 records, so the number of disputes $m$ can be anything from an empty list up to the system's maximum capacity.
 
-If there are multiple valid assignments, you must choose the one that results in the lexicographically smallest sequence of period labels when ordered by the staff members' ID numbers (from 1 to $n$).
+You must assign every employee to either rotation `1` or rotation `2`. To maintain productivity, no two employees involved in a friction record may be assigned to the same rotation. If it is impossible to satisfy all constraints, you must report this.
+
+If there are multiple valid ways to assign the rotations, you must choose the one that is lexicographically smallest when the assignments are listed in order of employee ID (from 1 to $n$).
 
 ## Input
-The first line provides two integers, $n$ and $m$. The company guarantees at least one staff member is employed, but the total headcount $n$ cannot exceed the facility's maximum capacity of two hundred thousand personnel. The grievance log contains $m$ entries; it may be completely empty, or it could be full up to its strict maximum limit of two hundred thousand records.
-Each of the subsequent $m$ lines contains two integers $u$ and $v$, representing a pair of staff members who have a grievance against each other.
+The first line contains two integers $n$ and $m$, representing the number of employees and the number of friction records, respectively. Their possible ranges are determined by the physical and system limits described above.
+Each of the following $m$ lines contains two integers $u$ and $v$, indicating a friction record between employee $u$ and employee $v$.
 
 ## Output
-If there is no way to assign the periods without violating the grievance constraints, output a single line containing `NO`.
-Otherwise, output `YES` on the first line. On the second line, output $n$ integers separated by spaces, where the $i$-th integer is the period (1 or 2) assigned to the staff member with ID $i$. This sequence must be the lexicographically smallest valid assignment.
+If there is no way to assign the employees to the two rotations without violating the friction constraints, output a single line containing `NO`.
+Otherwise, output `YES` on the first line. On the second line, output $n$ space-separated integers, each either `1` or `2`, representing the lexicographically smallest valid rotation assignment for employees 1 through $n$.
 
 ## Example 1
 Input:

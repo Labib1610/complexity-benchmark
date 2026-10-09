@@ -1,0 +1,359 @@
+**Solution Explanation**
+
+For every artifact we have to choose a room number `r[i] ( 1 ≤ r[i] ≤ T )`.
+For every given requirement `a → b` we must have `r[a] < r[b]`.
+In each room at most `M` artifacts may be placed.
+
+The problem is exactly the classic *unit‑job parallel‑machine scheduling with
+precedence constraints* :
+
+* every job (artifact) needs one unit of time,
+* there are `M` identical machines (the `M` spots of a room),
+* a job may start only after all its predecessors have finished,
+* the whole schedule has to finish not later than time `T`.
+
+A feasible schedule exists **iff** we can send a flow of value `n` through the
+following network.
+
+--------------------------------------------------------------------
+### 1.   Network construction
+
+```
+source  →  job nodes  →  time‑slot nodes  →  sink
+```
+
+* source → each job `i` : capacity `1`
+* each time‑slot `t (1 … T)` → sink : capacity `M`
+* job `i` → time‑slot `t` : capacity `1`  **iff** job `i` may be placed in room `t`
+
+When is a room `t` allowed for job `i` ?
+Let  
+
+```
+earliest[i] = 1 + max{ earliest[p] | p → i }      (earliest[ source ] = 1)
+```
+
+`earliest[i]` is the length of the longest directed path that ends in `i`
+plus one – the earliest room where `i` can appear.
+Obviously a job can be placed in any room `t ≥ earliest[i]`.
+So we add edges `i → t` for all `t = earliest[i] … T`.
+
+If a flow of value `n` can be sent, each job sends its unit to exactly one
+time‑slot, respecting capacities `M` of the slots, therefore we obtain a
+valid assignment.  
+Conversely, any valid assignment yields such a flow, thus the two
+problems are equivalent.
+
+--------------------------------------------------------------------
+### 2.   Computing `earliest[i]`
+
+The graph of requirements is a DAG (otherwise the answer is immediately `NO`).
+A standard topological order is obtained with Kahn’s algorithm.
+Processing the vertices in that order we compute `earliest[i]` as described
+above.  
+If for some vertex `earliest[i] > T` the schedule is impossible.
+
+--------------------------------------------------------------------
+### 3.   Flow algorithm
+
+`n·T` edges can be huge, therefore we use a **segment‑tree optimisation**:
+
+* Build a segment tree over the interval `[1, T]`.
+* Every internal node of the tree represents a sub‑interval.
+* Connect each job `i` to the **segment‑tree nodes** that together cover the
+  interval `[earliest[i], T]`.  
+  The number of added edges per job is `O(log T)`.
+* Each segment‑tree node has an edge to its two children with infinite capacity,
+  and leaves (which correspond to single rooms) have the edge to the sink with
+  capacity `M`.
+
+The total number of vertices is `n + (2·next_pow2(T))` and the total number of
+edges is `O( n log T + T )`.  
+Dinic’s algorithm runs in `O(E·√V)` in practice and easily satisfies the
+limits (`5 s`, `256 MiB`).
+
+--------------------------------------------------------------------
+### 4.   Reconstructing the answer
+
+After the max‑flow finishes, for each job we look at the outgoing edges to the
+segment‑tree. The unique edge that carries flow `1` leads (through the tree)
+to a leaf – the concrete room number. We store it and finally output the
+rooms.
+
+--------------------------------------------------------------------
+### 5.   Correctness Proof  
+
+We prove that the algorithm prints `YES` and a correct assignment
+iff such an assignment exists.
+
+---
+
+#### Lemma 1  
+For every artifact `i` the value `earliest[i]` computed by the topological
+pass equals the smallest room number that can contain `i` in any feasible
+assignment.
+
+*Proof.*  
+All predecessors of `i` must be placed in strictly earlier rooms.
+The longest chain ending in `i` therefore forces `i` to be at least
+`1 + length(chain)` rooms later. The recurrence used in the algorithm
+exactly computes the maximum over all predecessor chains, hence the claim. ∎
+
+
+
+#### Lemma 2  
+An artifact `i` can be placed in a room `t` **iff** `t ≥ earliest[i]`.
+
+*Proof.*  
+*If* `t ≥ earliest[i]` we can put all predecessors of `i` into rooms
+`< t` (by Lemma&nbsp;1) and put `i` into `t`.  
+*Only if* `t < earliest[i]` would contradict Lemma&nbsp;1, because then a
+predecessor chain of length `earliest[i]‑1` would have to finish before room
+`t`, impossible. ∎
+
+
+
+#### Lemma 3  
+There is a feasible assignment **iff** the constructed flow network admits a
+flow of value `n`.
+
+*Proof.*  
+
+*(`⇒`)*  
+Take a feasible assignment. For each artifact `i` send its unit of flow from
+the source to node `i`, then from `i` to the leaf representing its room
+`r[i]` (possible because `r[i] ≥ earliest[i]` by Lemma&nbsp;2), and finally to
+the sink. Room capacities are respected because at most `M` artifacts share
+the same leaf, therefore we obtain a flow of value `n`.
+
+*(`⇐`)*  
+Assume a flow of value `n`. Every job node has exactly one unit of outgoing
+flow (capacity `1` from source). Following the unique path of that unit
+through the segment tree ends at a leaf `t`. Because the edge `i → t`
+exists only when `t ≥ earliest[i]`, Lemma&nbsp;2 guarantees the precedence
+condition. The capacity `M` of leaf `t` guarantees that at most `M` jobs are
+assigned to the same room. Hence the rooms read from the flow form a feasible
+assignment. ∎
+
+
+
+#### Lemma 4  
+If the algorithm outputs `YES` and the rooms, the output satisfies all
+requirements of the problem.
+
+*Proof.*  
+`YES` is printed only when the max‑flow value equals `n`. By Lemma&nbsp;3 a
+feasible assignment exists, and the reconstruction step extracts exactly the
+rooms used by that flow, which therefore respect precedence and capacity. ∎
+
+
+
+#### Lemma 5  
+If the algorithm outputs `NO`, no feasible assignment exists.
+
+*Proof.*  
+`NO` is printed only when either the requirement graph contains a directed
+cycle, or the max‑flow value is `< n`.  
+*Cycle*: any cycle forces a strict ordering `a<b<a`, impossible.  
+*Flow < n*: by Lemma&nbsp;3 a feasible assignment would give a flow of value
+`n`, contradiction. ∎
+
+
+
+#### Theorem  
+The program prints `YES` followed by a correct list of rooms
+iff such a placement of all artifacts exists; otherwise it prints `NO`.
+
+*Proof.*  
+Directly from Lemma&nbsp;4 (soundness) and Lemma&nbsp;5 (completeness). ∎
+
+
+
+--------------------------------------------------------------------
+### 6.   Complexity Analysis
+
+*Topological sort & earliest computation* : `O(n + m)`  
+*Segment‑tree construction* : `O(T)` vertices, `O(T)` edges.  
+*Edges from jobs to tree* : `O(n log T)`  
+*Dinic* : `O( (n log T + T) · √(n + T) )` – well below the limits for the
+given constraints.  
+*Memory* : `O( n log T + T )` edges, each stored twice, fits into 256 MiB.
+
+--------------------------------------------------------------------
+### 7.   Reference Implementation  (Python 3)
+
+```python
+import sys
+sys.setrecursionlimit(1 << 25)
+
+# ---------- Dinic ----------
+class Dinic:
+    def __init__(self, n):
+        self.n = n
+        self.adj = [[] for _ in range(n)]
+
+    def add_edge(self, u, v, cap):
+        self.adj[u].append([v, cap, len(self.adj[v])])
+        self.adj[v].append([u, 0,   len(self.adj[u]) - 1])
+
+    def bfs_level(self, s, t):
+        level = [-1] * self.n
+        q = [s]
+        level[s] = 0
+        for v in q:
+            for to, cap, rev in self.adj[v]:
+                if cap and level[to] == -1:
+                    level[to] = level[v] + 1
+                    q.append(to)
+        self.level = level
+        return level[t] != -1
+
+    def dfs(self, v, t, f):
+        if v == t:
+            return f
+        for i in range(self.it[v], len(self.adj[v])):
+            self.it[v] = i
+            to, cap, rev = self.adj[v][i]
+            if cap and self.level[v] + 1 == self.level[to]:
+                ret = self.dfs(to, t, min(f, cap))
+                if ret:
+                    self.adj[v][i][1] -= ret
+                    self.adj[to][rev][1] += ret
+                    return ret
+        return 0
+
+    def max_flow(self, s, t):
+        flow = 0
+        INF = 10 ** 18
+        while self.bfs_level(s, t):
+            self.it = [0] * self.n
+            while True:
+                f = self.dfs(s, t, INF)
+                if not f:
+                    break
+                flow += f
+        return flow
+
+# ---------- main ----------
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    M = int(next(it))
+    T = int(next(it))
+    m = int(next(it))
+
+    g = [[] for _ in range(n)]
+    indeg = [0] * n
+    for _ in range(m):
+        a = int(next(it)) - 1
+        b = int(next(it)) - 1
+        g[a].append(b)
+        indeg[b] += 1
+
+    # topological order
+    from collections import deque
+    q = deque([i for i in range(n) if indeg[i] == 0])
+    topo = []
+    while q:
+        v = q.popleft()
+        topo.append(v)
+        for to in g[v]:
+            indeg[to] -= 1
+            if indeg[to] == 0:
+                q.append(to)
+    if len(topo) != n:
+        print("NO")
+        return
+
+    # earliest times
+    earliest = [1] * n
+    for v in topo:
+        ev = earliest[v]
+        for to in g[v]:
+            if earliest[to] < ev + 1:
+                earliest[to] = ev + 1
+    if any(e > T for e in earliest):
+        print("NO")
+        return
+
+    # segment tree over [1, T]
+    size = 1
+    while size < T:
+        size <<= 1
+    seg_start = n  # first index of segment tree nodes
+    total_nodes = seg_start + 2 * size
+    dinic = Dinic(total_nodes + 2)
+    SRC = total_nodes
+    SNK = total_nodes + 1
+
+    # edges source -> jobs
+    for i in range(n):
+        dinic.add_edge(SRC, i, 1)
+
+    # build tree edges
+    # node indices: seg_start + idx, where idx in [1, 2*size)
+    def node(idx):
+        return seg_start + idx
+
+    for idx in range(1, size):
+        left = idx << 1
+        right = left | 1
+        dinic.add_edge(node(idx), node(left), 10 ** 9)
+        dinic.add_edge(node(idx), node(right), 10 ** 9)
+
+    # leaves to sink with capacity M
+    for pos in range(1, T + 1):
+        leaf = node(size + pos - 1)
+        dinic.add_edge(leaf, SNK, M)
+
+    # connect jobs to segment tree covering [earliest[i], T]
+    def add_job_interval(job, l, r, idx, seg_l, seg_r):
+        if l > seg_r or r < seg_l:
+            return
+        if l <= seg_l and seg_r <= r:
+            dinic.add_edge(job, node(idx), 1)
+            return
+        mid = (seg_l + seg_r) // 2
+        add_job_interval(job, l, r, idx * 2, seg_l, mid)
+        add_job_interval(job, l, r, idx * 2 + 1, mid + 1, seg_r)
+
+    for i in range(n):
+        add_job_interval(i, earliest[i], T, 1, 1, size)
+
+    flow = dinic.max_flow(SRC, SNK)
+    if flow != n:
+        print("NO")
+        return
+
+    # retrieve rooms
+    room = [0] * n
+
+    # for each job, follow the edge with flow 1 down the tree
+    for i in range(n):
+        for to, cap, rev in dinic.adj[i]:
+            if cap == 0:  # original capacity 1, now used
+                cur = to
+                # descend until leaf
+                while cur < seg_start + size:  # not a leaf
+                    # find child with used flow
+                    for nxt, c2, rev2 in dinic.adj[cur]:
+                        if c2 == 0:  # flow used
+                            cur = nxt
+                            break
+                # leaf corresponds to position
+                pos = cur - (seg_start + size) + 1
+                room[i] = pos
+                break
+
+    print("YES")
+    print(' '.join(str(room[i]) for i in range(n)))
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above and conforms
+to the required input‑output format.

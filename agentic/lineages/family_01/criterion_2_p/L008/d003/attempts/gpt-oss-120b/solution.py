@@ -6,52 +6,50 @@ def solve() -> None:
     if not data:
         return
     it = iter(data)
-    n = int(next(it))
-    m = int(next(it))
-    adj = [[] for _ in range(n + 1)]
+    n = int(next(it)); m = int(next(it))
+    adj = [[] for _ in range(n)]
     for _ in range(m):
-        u = int(next(it)); v = int(next(it))
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
         adj[u].append(v)
         adj[v].append(u)
 
-    color = [ -1 ] * (n + 1)          # temporary 0/1 colors
-    answer = [0] * (n + 1)            # final shift codes (1 or 2)
-
+    color = [ -1 ] * n          # parity 0/1 within component
+    result = [0] * n            # final values 1 or 2
     from collections import deque
 
-    for start in range(1, n + 1):
+    for start in range(n):
         if color[start] != -1:
             continue
         # BFS this component
         q = deque([start])
         color[start] = 0
         comp_nodes = [start]
-        bip = True
+        ok = True
         while q:
             u = q.popleft()
-            cu = color[u]
             for v in adj[u]:
                 if color[v] == -1:
-                    color[v] = cu ^ 1
+                    color[v] = color[u] ^ 1
                     q.append(v)
                     comp_nodes.append(v)
-                elif color[v] == cu:
+                elif color[v] == color[u]:
                     print("NO")
                     return
-        # decide orientation to make minimal index node have shift code 1
+        # decide orientation to make lexicographically smallest
         min_node = min(comp_nodes)
+        # if min_node has parity 0, give parity0 value 1, else give parity1 value 1
         if color[min_node] == 0:
-            # map 0->1, 1->2
+            # parity 0 -> 1, parity 1 -> 2
             for v in comp_nodes:
-                answer[v] = 1 if color[v] == 0 else 2
+                result[v] = 1 if color[v] == 0 else 2
         else:
-            # flip: 0->2, 1->1
+            # parity 1 -> 1, parity 0 -> 2
             for v in comp_nodes:
-                answer[v] = 2 if color[v] == 0 else 1
+                result[v] = 1 if color[v] == 1 else 2
 
-    # all components processed
     print("YES")
-    print(' '.join(str(answer[i]) for i in range(1, n + 1)))
+    print(' '.join(map(str, result)))
 
 if __name__ == "__main__":
     solve()

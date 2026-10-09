@@ -134,11 +134,22 @@ def ollama_host() -> str:
 # across providers (OpenRouter, OpenAI, Gemini, Ollama). drop_params lets litellm strip
 # params a given model rejects (e.g. temperature on OpenAI reasoning models, max_tokens ->
 # max_completion_tokens) so we don't hand-maintain per-provider quirks.
-import litellm  # noqa: E402
+#
+# Audit B9: import litellm LAZILY. Importing this module (for its pure helpers -- dir
+# constants, extract_json, family_slug, gate's bound logic, tests) must not require litellm
+# to be installed. Only an actual model call needs it.
+_litellm = None
 
-litellm.drop_params = True
-litellm.suppress_debug_info = True
-litellm.telemetry = False
+
+def _get_litellm():
+    global _litellm
+    if _litellm is None:
+        import litellm
+        litellm.drop_params = True
+        litellm.suppress_debug_info = True
+        litellm.telemetry = False
+        _litellm = litellm
+    return _litellm
 
 
 def _litellm_target(cfg: dict):
@@ -163,6 +174,11 @@ def _litellm_target(cfg: dict):
             extra_body["reasoning"] = cfg["reasoning"]
         elif "thinking" in cfg:
             extra_body["reasoning"] = {"enabled": bool(cfg["thinking"])}
+        # Optional OpenRouter provider routing (per-model `provider:` dict), e.g.
+        # {sort: throughput, allow_fallbacks: true} to dodge an overloaded free pool, or
+        # {order: [Together, Fireworks]} to pin paid providers. Passed through verbatim.
+        if isinstance(cfg.get("provider"), dict):
+            extra_body["provider"] = cfg["provider"]
         extra_body["usage"] = {"include": True}   # make OpenRouter return actual cost
     elif "generativelanguage" in base:
         model = "gemini/" + ms
@@ -192,7 +208,7 @@ def _usage_of(resp) -> dict:
             think = (ctd.get("reasoning_tokens") if isinstance(ctd, dict)
                      else getattr(ctd, "reasoning_tokens", None))
     try:
-        cost = litellm.completion_cost(completion_response=resp)
+        cost = _get_litellm().completion_cost(completion_response=resp)
     except Exception:
         cost = None
     if not cost:   # OpenRouter returns the real cost in hidden params
@@ -247,7 +263,7 @@ def chat(model_cfg: dict, system: str, user: str,
     last_err = None
     for attempt in range(retries):
         try:
-            resp = litellm.completion(**kwargs)
+            resp = _get_litellm().completion(**kwargs)
             msg = resp.choices[0].message
             content = msg.content or ""
             # reasoning is returned separately; inline as <think> so trace.txt captures it

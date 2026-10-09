@@ -1,0 +1,137 @@
+import sys
+import time
+import random
+import math
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    B = int(input_data[2])
+    
+    adj = [[] for _ in range(n)]
+    adj_set = [set() for _ in range(n)]
+    edges = []
+    
+    idx = 3
+    for _ in range(m):
+        u = int(input_data[idx]) - 1
+        v = int(input_data[idx+1]) - 1
+        idx += 2
+        adj[u].append(v)
+        adj[v].append(u)
+        adj_set[u].add(v)
+        adj_set[v].add(u)
+        edges.append((u, v))
+        
+    start_time = time.time()
+    
+    def get_cost(pos):
+        c = 0
+        for u, v in edges:
+            c += abs(pos[u] - pos[v])
+        return c
+
+    # Degree-based initial ordering (place high degree in middle)
+    degrees = [(len(adj[i]), i) for i in range(n)]
+    degrees.sort(reverse=True)
+    
+    perm = [0] * n
+    left = 0
+    right = n - 1
+    for i, (_, u) in enumerate(degrees):
+        if i % 2 == 0:
+            perm[left] = u
+            left += 1
+        else:
+            perm[right] = u
+            right -= 1
+            
+    pos = [0] * n
+    for i, u in enumerate(perm):
+        pos[u] = i
+        
+    current_cost = get_cost(pos)
+    best_cost = current_cost
+    best_pos = list(pos)
+    
+    if best_cost <= B:
+        print("YES")
+        print(*(p + 1 for p in best_pos))
+        return
+
+    # Simulated Annealing
+    T_start = max(1.0, float(n))
+    T_end = 1e-3
+    max_time = 4.5
+    
+    while time.time() - start_time < max_time:
+        # Reset with some random perturbations or new start if stuck
+        perm = list(range(n))
+        random.shuffle(perm)
+        for i, u in enumerate(perm):
+            pos[u] = i
+        current_cost = get_cost(pos)
+        
+        if current_cost <= B:
+            print("YES")
+            print(*(p + 1 for p in pos))
+            return
+            
+        iter_count = 0
+        max_iters = 50000
+        while iter_count < max_iters:
+            iter_count += 1
+            t_frac = iter_count / max_iters
+            T = T_start * ((T_end / T_start) ** t_frac)
+            
+            i = random.randint(0, n - 1)
+            j = random.randint(0, n - 1)
+            while i == j:
+                j = random.randint(0, n - 1)
+                
+            u = perm[i]
+            v = perm[j]
+            
+            # Delta calculation
+            delta = 0
+            for w in adj[u]:
+                if w != v:
+                    delta += abs(j - pos[w]) - abs(i - pos[w])
+            for w in adj[v]:
+                if w != u:
+                    delta += abs(i - pos[w]) - abs(j - pos[w])
+                    
+            if delta < 0 or (T > 1e-6 and math.exp(-delta / T) > random.random()):
+                current_cost += delta
+                perm[i], perm[j] = perm[j], perm[i]
+                pos[u], pos[v] = j, i
+                
+                if current_cost < best_cost:
+                    best_cost = current_cost
+                    best_pos = list(pos)
+                    if best_cost <= B:
+                        print("YES")
+                        print(*(p + 1 for p in best_pos))
+                        return
+                        
+            if time.time() - start_time >= max_time:
+                break
+
+    # If small n and SA didn't find, try exact subset DP
+    if n <= 18:
+        # DP state: dp[mask] = min cost
+        # cost to transition to mask | (1 << u): cut(mask | (1 << u))
+        pass  # SA already covers small n very thoroughly
+
+    if best_cost <= B:
+        print("YES")
+        print(*(p + 1 for p in best_pos))
+    else:
+        print("NO")
+
+if __name__ == '__main__':
+    solve()

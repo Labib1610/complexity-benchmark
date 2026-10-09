@@ -1,0 +1,109 @@
+import sys
+from collections import defaultdict, deque
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    k = int(data[2])
+    
+    edges = []
+    index = 3
+    for _ in range(m):
+        u = int(data[index])
+        v = int(data[index+1])
+        edges.append((u, v))
+        index += 2
+    
+    if m == 0:
+        # No conflicts, we can take any k transmitters
+        print("YES")
+        print(' '.join(map(str, range(1, k+1))))
+        return
+    
+    # Build adjacency list
+    adj = defaultdict(list)
+    for u, v in edges:
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # Since the graph is bipartite (two-frequency structure), we can color it with two colors.
+    # We'll use BFS to 2-color the graph.
+    color = [-1] * (n + 1)  # -1: unvisited, 0: color A, 1: color B
+    visited = [False] * (n + 1)
+    
+    # Find all connected components and color them
+    components = []
+    for i in range(1, n + 1):
+        if not visited[i]:
+            # BFS to color this component
+            queue = deque()
+            queue.append(i)
+            visited[i] = True
+            color[i] = 0
+            part0 = [i]
+            part1 = []
+            
+            while queue:
+                u = queue.popleft()
+                c = color[u]
+                for v in adj[u]:
+                    if not visited[v]:
+                        visited[v] = True
+                        color[v] = 1 - c
+                        if color[v] == 0:
+                            part0.append(v)
+                        else:
+                            part1.append(v)
+                        queue.append(v)
+                    elif color[v] == c:
+                        # This should not happen in a bipartite graph
+                        # But according to problem statement, it's guaranteed to be bipartite
+                        pass
+            
+            components.append((part0, part1))
+    
+    # For each component, we can take all nodes from one side
+    total0 = 0
+    total1 = 0
+    parts0 = []
+    parts1 = []
+    
+    for part0, part1 in components:
+        total0 += len(part0)
+        total1 += len(part1)
+        parts0.append(part0)
+        parts1.append(part1)
+    
+    if k <= total0:
+        # Take from color 0
+        print("YES")
+        selected = []
+        needed = k
+        for part in parts0:
+            take = min(needed, len(part))
+            selected.extend(part[:take])
+            needed -= take
+            if needed == 0:
+                break
+        print(' '.join(map(str, selected)))
+    elif k <= total1:
+        # Take from color 1
+        print("YES")
+        selected = []
+        needed = k
+        for part in parts1:
+            take = min(needed, len(part))
+            selected.extend(part[:take])
+            needed -= take
+            if needed == 0:
+                break
+        print(' '.join(map(str, selected)))
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    main()

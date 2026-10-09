@@ -1,0 +1,124 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    n = int(data[0]); m = int(data[1])
+    adj = [0]*(n+1)
+    idx = 2
+    for _ in range(m):
+        u = int(data[idx]); v = int(data[idx+1]); idx += 2
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+
+    # complement graph: non-edges (excluding self)
+    comp = [0]*(n+1)
+    full = (1 << (n+1)) - 2  # bits 1..n
+    for i in range(1, n+1):
+        comp[i] = full & ~adj[i] & ~(1 << i)
+
+    # find maximal independent set in complement = clique in original
+    best = 0
+    # order vertices by degree in complement (fewest non-neighbors first)
+    order = sorted(range(1, n+1), key=lambda x: bin(comp[x]).count("1"))
+    # greedy + branch and bound
+    def search(cand, cur):
+        nonlocal best
+        if cur == 0:
+            return
+        if bin(cur).count("1") <= bin(best).count("1"):
+            return
+        # pick vertex with max degree in cand
+        v = -1
+        maxd = -1
+        temp = cand
+        while temp:
+            low = temp & -temp
+            vv = low.bit_length() - 1
+            d = bin(comp[vv] & cand).count("1")
+            if d > maxd:
+                maxd = d
+                v = vv
+                if d == bin(cand).count("1") - 1:
+                    break
+            temp ^= low
+        # branch: include v
+        newcand = cand & comp[v]
+        if newcand == cand:
+            if bin(cand).count("1") > bin(best).count("1"):
+                best = cand
+        else:
+            search(newcand, cand)
+        # exclude v
+        cand2 = cand ^ (1 << v)
+        if bin(cand2).count("1") > bin(best).count("1"):
+            search(cand2, cand2)
+
+    search(full, full)
+
+    if bin(best).count("1") > n // 3:
+        print("NO")
+        return
+
+    # best is a clique in original graph -> assign silo 1
+    # remaining graph must be bipartite
+    color = [0]*(n+1)
+    clique = best
+    temp = clique
+    while temp:
+        low = temp & -temp
+        v = low.bit_length() - 1
+        color[v] = 1
+        temp ^= low
+
+    # build remaining graph
+    rem_adj = [[] for _ in range(n+1)]
+    temp = full & ~clique
+    verts = []
+    t2 = temp
+    while t2:
+        low = t2 & -t2
+        v = low.bit_length() - 1
+        verts.append(v)
+        t2 ^= low
+    for v in verts:
+        t3 = adj[v] & temp
+        while t3:
+            low = t3 & -t3
+            u = low.bit_length() - 1
+            rem_adj[v].append(u)
+            t3 ^= low
+
+    # bipartite check
+    col = {}
+    ok = True
+    for v in verts:
+        if v not in col:
+            col[v] = 2
+            stack = [v]
+            while stack:
+                x = stack.pop()
+                for y in rem_adj[x]:
+                    if y not in col:
+                        col[y] = 3 if col[x] == 2 else 2
+                        stack.append(y)
+                    elif col[y] == col[x]:
+                        ok = False
+                        break
+                if not ok:
+                    break
+        if not ok:
+            break
+
+    if not ok:
+        print("NO")
+        return
+
+    for v in verts:
+        color[v] = col[v]
+
+    print("YES")
+    print(" ".join(str(color[i]) for i in range(1, n+1)))
+
+solve()

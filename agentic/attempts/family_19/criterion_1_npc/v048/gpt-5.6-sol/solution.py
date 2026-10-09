@@ -1,0 +1,316 @@
+import sys
+import random
+from collections import deque
+
+sys.setrecursionlimit(1_000_000)
+
+data = list(map(int, sys.stdin.buffer.read().split()))
+if not data:
+    sys.exit()
+
+it = iter(data)
+n = next(it)
+m = next(it)
+k = next(it)
+
+commodities = []
+for _ in range(k):
+    s = next(it) - 1
+    t = next(it) - 1
+    d = next(it)
+    commodities.append((s, t, d))
+
+edges = []
+out_edges = [[] for _ in range(n)]
+initial_caps = []
+
+for eid in range(m):
+    u = next(it) - 1
+    v = next(it) - 1
+    c = next(it)
+    edges.append((u, v))
+    initial_caps.append(c)
+    if c > 0:
+        out_edges[u].append((v, eid))
+
+
+class Dinic:
+    __slots__ = ("n", "g", "level", "pos", "refs")
+
+    def __init__(self, n):
+        self.n = n
+        self.g = [[] for _ in range(n)]
+        self.level = [-1] * n
+        self.pos = [0] * n
+        self.refs = []
+
+    def add_edge(self, u, v, cap, eid):
+        forward = [v, cap, len(self.g[v]), eid, cap]
+        backward = [u, 0, len(self.g[u]), -1, 0]
+        self.g[u].append(forward)
+        self.g[v].append(backward)
+        self.refs.append(forward)
+
+    def bfs(self, s, t):
+        level = self.level
+        for i in range(self.n):
+            level[i] = -1
+        level[s] = 0
+        q = deque([s])
+        while q:
+            u = q.popleft()
+            nl = level[u] + 1
+            for e in self.g[u]:
+                if e[1] > 0 and level[e[0]] < 0:
+                    level[e[0]] = nl
+                    if e[0] == t:
+                        return True
+                    q.append(e[0])
+        return level[t] >= 0
+
+    def dfs(self, u, t, pushed):
+        if u == t:
+            return pushed
+        g = self.g
+        level = self.level
+        while self.pos[u] < len(g[u]):
+            idx = self.pos[u]
+            e = g[u][idx]
+            if e[1] > 0 and level[e[0]] == level[u] + 1:
+                got = self.dfs(e[0], t, min(pushed, e[1]))
+                if got:
+                    e[1] -= got
+                    g[e[0]][e[2]][1] += got
+                    return got
+            self.pos[u] += 1
+        return 0
+
+    def maxflow(self, s, t, limit):
+        if s == t:
+            return limit
+        result = 0
+        while result < limit and self.bfs(s, t):
+            for i in range(self.n):
+                self.pos[i] = 0
+            while result < limit:
+                pushed = self.dfs(s, t, limit - result)
+                if not pushed:
+                    break
+                result += pushed
+        return result
+
+
+def get_flow(caps, s, t, required):
+    if required == 0 or s == t:
+        return [0] * m
+    dinic = Dinic(n)
+    for eid, (u, v) in enumerate(edges):
+        if caps[eid] > 0:
+            dinic.add_edge(u, v, caps[eid], eid)
+    value = dinic.maxflow(s, t, required)
+    if value < required:
+        return None
+
+    result = [0] * m
+    for e in dinic.refs:
+        used = e[4] - e[1]
+        if used:
+            result[e[3]] += used
+    return result
+
+
+def try_order(order):
+    caps = initial_caps[:]
+    answer = [[0] * m for _ in range(k)]
+
+    for ci in order:
+        s, t, d = commodities[ci]
+        flow = get_flow(caps, s, t, d)
+        if flow is None:
+            return None
+        answer[ci] = flow
+        for eid, value in enumerate(flow):
+            if value:
+                caps[eid] -= value
+    return answer
+
+
+active = [i for i, (_, _, d) in enumerate(commodities) if d > 0]
+if not active:
+    print("YES")
+    zero_line = " ".join(["0"] * m)
+    for _ in range(k):
+        print(zero_line)
+    sys.exit()
+
+individual_values = {}
+impossible = False
+for ci in active:
+    s, t, d = commodities[ci]
+    flow = get_flow(initial_caps, s, t, d)
+    if flow is None:
+        impossible = True
+        break
+    individual_values[ci] = sum(1 for x in flow if x)
+
+if impossible:
+    print("NO")
+    sys.exit()
+
+orders = []
+orders.append(active[:])
+orders.append(list(reversed(active)))
+orders.append(sorted(active, key=lambda x: (-commodities[x][2], individual_values[x])))
+orders.append(sorted(active, key=lambda x: (individual_values[x], -commodities[x][2])))
+orders.append(sorted(active, key=lambda x: (-individual_values[x], -commodities[x][2])))
+
+rng = random.Random(712367821)
+for _ in range(min(30, max(4, 2 * len(active)))):
+    order = active[:]
+    rng.shuffle(order)
+    orders.append(order)
+
+seen_orders = set()
+for order in orders:
+    key = tuple(order)
+    if key in seen_orders:
+        continue
+    seen_orders.add(key)
+    answer = try_order(order)
+    if answer is not None:
+        print("YES")
+        for row in answer:
+            print(*row)
+        sys.exit()
+
+# Exact exponential fallback.
+order = sorted(
+    active,
+    key=lambda x: (individual_values[x], -commodities[x][2])
+)
+
+path_cache = {}
+
+
+def enumerate_paths(ci):
+    if ci in path_cache:
+        return path_cache[ci]
+
+    s, t, _ = commodities[ci]
+    if s == t:
+        path_cache[ci] = [[]]
+        return path_cache[ci]
+
+    paths = []
+    visited = [False] * n
+    visited[s] = True
+    current = []
+
+    def dfs(u):
+        if u == t:
+            paths.append(tuple(current))
+            return
+        for v, eid in out_edges[u]:
+            if not visited[v]:
+                visited[v] = True
+                current.append(eid)
+                dfs(v)
+                current.pop()
+                visited[v] = False
+
+    dfs(s)
+    paths.sort(key=lambda p: (len(p), p))
+    path_cache[ci] = paths
+    return paths
+
+
+caps = initial_caps[:]
+answer = [[0] * m for _ in range(k)]
+failed_states = [set() for _ in range(len(order) + 1)]
+
+
+def solve_commodity(pos):
+    if pos == len(order):
+        return True
+
+    state = tuple(caps)
+    if state in failed_states[pos]:
+        return False
+
+    # Necessary feasibility checks for every remaining commodity.
+    for q in range(pos, len(order)):
+        ci = order[q]
+        s, t, d = commodities[ci]
+        if get_flow(caps, s, t, d) is None:
+            failed_states[pos].add(state)
+            return False
+
+    ci = order[pos]
+    s, t, demand = commodities[ci]
+
+    # First try one complete max-flow allocation.
+    flow = get_flow(caps, s, t, demand)
+    if flow is not None:
+        for eid, value in enumerate(flow):
+            if value:
+                caps[eid] -= value
+                answer[ci][eid] += value
+        if solve_commodity(pos + 1):
+            return True
+        for eid, value in enumerate(flow):
+            if value:
+                caps[eid] += value
+                answer[ci][eid] -= value
+
+    paths = enumerate_paths(ci)
+
+    def allocate(start, remaining):
+        if remaining == 0:
+            return solve_commodity(pos + 1)
+
+        for pi in range(start, len(paths)):
+            path = paths[pi]
+            bottleneck = remaining
+            for eid in path:
+                if caps[eid] < bottleneck:
+                    bottleneck = caps[eid]
+                if bottleneck == 0:
+                    break
+            if bottleneck == 0:
+                continue
+
+            amounts = []
+            if bottleneck > 0:
+                amounts.append(bottleneck)
+            if bottleneck > 1:
+                amounts.append(1)
+            if bottleneck > 2:
+                amounts.extend(range(bottleneck - 1, 1, -1))
+
+            for amount in amounts:
+                for eid in path:
+                    caps[eid] -= amount
+                    answer[ci][eid] += amount
+
+                if allocate(pi + 1, remaining - amount):
+                    return True
+
+                for eid in path:
+                    caps[eid] += amount
+                    answer[ci][eid] -= amount
+
+        return False
+
+    if allocate(0, demand):
+        return True
+
+    failed_states[pos].add(state)
+    return False
+
+
+if solve_commodity(0):
+    print("YES")
+    for row in answer:
+        print(*row)
+else:
+    print("NO")

@@ -1,0 +1,88 @@
+from collections import defaultdict, deque
+
+def solve():
+    q, t = map(int, input().split())
+    
+    # Build bipartite graph
+    # Left side: controllers 1 to q
+    # Right side: platforms q+1 to 2*q
+    graph = defaultdict(list)
+    edges = []
+    
+    for i in range(t):
+        a, b = map(int, input().split())
+        graph[a].append((b, i))
+        edges.append((a, b))
+    
+    # Try to find a perfect matching using BFS-based augmenting paths
+    # This is essentially the Hopcroft-Karp algorithm simplified
+    
+    # mate[u] = v means u is matched to v
+    # For controllers (1 to q): mate[i] = platform matched to controller i
+    # For platforms (q+1 to 2*q): mate[j] = controller matched to platform j
+    mate = {}
+    dist = {}
+    
+    def bfs():
+        queue = deque()
+        dist.clear()
+        
+        # Initialize distances for free controllers
+        for u in range(1, q + 1):
+            if u not in mate:
+                dist[u] = 0
+                queue.append(u)
+            else:
+                dist[u] = float('inf')
+        
+        dist[None] = float('inf')
+        
+        while queue:
+            u = queue.popleft()
+            if dist[u] < dist[None]:
+                for v, _ in graph[u]:
+                    if v not in mate:
+                        if dist[None] == float('inf'):
+                            dist[None] = dist[u] + 1
+                    else:
+                        paired_u = mate[v]
+                        if paired_u not in dist or dist[paired_u] == float('inf'):
+                            dist[paired_u] = dist[u] + 1
+                            queue.append(paired_u)
+        
+        return dist[None] != float('inf')
+    
+    def dfs(u):
+        if u is not None:
+            for v, _ in graph[u]:
+                paired_u = mate.get(v)
+                if paired_u not in dist or dist[paired_u] == dist[u] + 1:
+                    if dfs(paired_u):
+                        mate[u] = v
+                        mate[v] = u
+                        return True
+            dist[u] = float('inf')
+            return False
+        return True
+    
+    # Main matching loop
+    matching = 0
+    while bfs():
+        for u in range(1, q + 1):
+            if u not in mate and dfs(u):
+                matching += 1
+    
+    # Check if we have a perfect matching
+    if matching < q:
+        print("NO")
+        return
+    
+    print("YES")
+    # Output the matching
+    used_edges = set()
+    for u in range(1, q + 1):
+        if u in mate:
+            v = mate[u]
+            print(u, v)
+
+solve()

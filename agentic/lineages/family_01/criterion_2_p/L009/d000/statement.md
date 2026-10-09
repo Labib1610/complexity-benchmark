@@ -2,19 +2,15 @@
 
 Time limit: 1 s   Memory limit: 256 MB
 
-A manufacturing plant is organizing its $n$ staff members into two operational teams, identified as team 1 and team 2. 
-
-There are $m$ pairs of staff members who share a specialized tool. Because a tool cannot be used by two people on the same team, the two members of any such pair must be assigned to different teams. 
-
-You must determine an assignment of each staff member to either team 1 or team 2 that satisfies all tool-sharing constraints, or report that no such arrangement is possible.
+The same factory now runs only two shifts, labeled 1 and 2. With $n$ workers, there are $2^n$ possible shift configurations to consider. Given $m$ conflict pairs, search this space to assign each worker a shift so that no conflicting pair shares a shift, or report impossibility.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$).
-Each of the next $m$ lines contains two integers $u$ and $v$ — a pair of staff members who share a tool.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$).
+Each of the next $m$ lines contains two integers $u$ and $v$ — a conflicting pair.
 
 ## Output
-If no valid team arrangement exists, print a single line containing `NO`.
-Otherwise, print `YES` on the first line, followed by a second line containing $n$ integers $s_1, \dots, s_n$ (each $s_i \in \{1, 2\}$), where $s_i$ is the team assigned to staff member $i$. If there are multiple valid arrangements, output the one that is lexicographically smallest.
+If no valid assignment exists in the configuration space, print a single line NO.
+Otherwise print YES, then a second line with $n$ integers $s_1 \dots s_n$ (each in $\{1,2\}$), representing the lexicographically smallest valid assignment.
 
 ## Example 1
 Input:

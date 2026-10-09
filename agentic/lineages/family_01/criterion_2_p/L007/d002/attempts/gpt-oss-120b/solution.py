@@ -2,54 +2,56 @@ import sys
 from collections import deque
 
 def solve() -> None:
-    data = sys.stdin.buffer.read().split()
+    data = sys.stdin.read().strip().split()
     if not data:
         return
     it = iter(data)
     n = int(next(it))
     m = int(next(it))
-
-    adj = [[] for _ in range(n + 1)]
+    adj = [[] for _ in range(n)]
     for _ in range(m):
-        u = int(next(it)); v = int(next(it))
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
         adj[u].append(v)
         adj[v].append(u)
 
-    colour = [-1] * (n + 1)          # 0 / 1
-    answer = [0] * (n + 1)
+    visited = [False] * n
+    colour = [0] * n          # 0 / 1 inside a component
+    ans = [0] * n
 
-    for start in range(1, n + 1):
-        if colour[start] != -1:
+    for start in range(n):
+        if visited[start]:
             continue
-        # BFS for this component
+        # BFS this component
         q = deque([start])
+        visited[start] = True
         colour[start] = 0
         comp = [start]
-
+        ok = True
         while q:
-            x = q.popleft()
-            cx = colour[x]
-            for y in adj[x]:
-                if colour[y] == -1:
-                    colour[y] = cx ^ 1
-                    q.append(y)
-                    comp.append(y)
-                elif colour[y] == cx:
-                    sys.stdout.write("NO")
+            v = q.popleft()
+            for to in adj[v]:
+                if not visited[to]:
+                    visited[to] = True
+                    colour[to] = colour[v] ^ 1
+                    q.append(to)
+                    comp.append(to)
+                elif colour[to] == colour[v]:
+                    # not bipartite
+                    print("NO")
                     return
-
-        # decide orientation: smallest vertex gets grade 1
-        smallest = min(comp)
-        flip = (colour[smallest] == 1)   # need to swap if smallest is colour 1
-        if not flip:
-            for v in comp:
-                answer[v] = 1 if colour[v] == 0 else 2
+        # choose orientation: smallest index gets value 1
+        min_v = min(comp)
+        if colour[min_v] == 0:
+            map0, map1 = 1, 2
         else:
-            for v in comp:
-                answer[v] = 1 if colour[v] == 1 else 2
+            map0, map1 = 2, 1
+        for v in comp:
+            ans[v] = map0 if colour[v] == 0 else map1
 
-    out = ["YES", " ".join(str(answer[i]) for i in range(1, n + 1))]
-    sys.stdout.write("\n".join(out))
+    # all components processed
+    print("YES")
+    print(' '.join(map(str, ans)))
 
 if __name__ == "__main__":
     solve()

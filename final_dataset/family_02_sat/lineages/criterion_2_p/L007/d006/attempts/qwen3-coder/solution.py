@@ -1,0 +1,147 @@
+import sys
+from collections import defaultdict
+
+def main():
+    import sys
+    sys.setrecursionlimit(1 << 25)
+    
+    n, m = map(int, sys.stdin.readline().split())
+    
+    # If no interlocks, any assignment works
+    if m == 0:
+        print("YES")
+        print(" ".join(["0"] * n))
+        return
+
+    # For each constraint (l1, l2), we need:
+    # NOT (jam1 AND jam2)
+    # Which is equivalent to: NOT jam1 OR NOT jam2
+    # This gives us a 2-SAT problem.
+    
+    # For variable x_i (orientation of array i):
+    # If l > 0: jam when x_{|l|} = 0 --> NOT x_{|l|}
+    # If l < 0: jam when x_{|l|} = 1 --> x_{|l|}
+    
+    # So for each constraint (l1, l2):
+    # We want (NOT (jam1) OR NOT (jam2))
+    # jam1 happens if (l1 > 0 and x_{|l1|} = 0) or (l1 < 0 and x_{|l1|} = 1)
+    # NOT jam1 = (l1 > 0 and x_{|l1|} = 1) or (l1 < 0 and x_{|l1|} = 0)
+    # This is equivalent to:
+    # if l1 > 0: x_{|l1|} 
+    # if l1 < 0: NOT x_{|l1|}
+    # Similarly for l2
+    
+    # So the clause is:
+    # (if l1 > 0 then x_{|l1|} else NOT x_{|l1|}) OR 
+    # (if l2 > 0 then x_{|l2|} else NOT x_{|l2|})
+    
+    # In terms of literals:
+    # If l1 > 0: literal is x_{|l1|} (variable |l1|-1 in 0-indexed)
+    # If l1 < 0: literal is NOT x_{|l1|} (negated variable |l1|-1)
+    # Same for l2
+    
+    # So clause is (lit1 OR lit2)
+    # In implication graph: (NOT lit1 -> lit2) and (NOT lit2 -> lit1)
+    
+    # We'll build implication graph and solve 2-SAT
+    
+    # Node numbering: 0 to 2*n-1
+    # Variable i (0-indexed) corresponds to nodes 2*i (false) and 2*i+1 (true)
+    
+    adj = defaultdict(list)
+    rev_adj = defaultdict(list)
+    
+    for _ in range(m):
+        l1, l2 = map(int, sys.stdin.readline().split())
+        # Convert to 0-indexed variables
+        v1 = abs(l1) - 1
+        v2 = abs(l2) - 1
+        
+        # Determine literals
+        # If l > 0, literal is x_{|l|} (node 2*(|l|-1)+1)
+        # If l < 0, literal is NOT x_{|l|} (node 2*(|l|-1))
+        if l1 > 0:
+            lit1 = 2 * v1 + 1  # x_v1
+        else:
+            lit1 = 2 * v1      # NOT x_v1
+            
+        if l2 > 0:
+            lit2 = 2 * v2 + 1  # x_v2
+        else:
+            lit2 = 2 * v2      # NOT x_v2
+            
+        # Add clauses: (lit1 OR lit2) 
+        # Equivalent to (NOT lit1 -> lit2) and (NOT lit2 -> lit1)
+        
+        # NOT lit1 -> lit2
+        if lit1 % 2 == 1:  # lit1 is x_v, so NOT lit1 is node 2*v
+            not_lit1 = lit1 - 1
+        else:  # lit1 is NOT x_v, so NOT lit1 is node 2*v+1
+            not_lit1 = lit1 + 1
+            
+        adj[not_lit1].append(lit2)
+        rev_adj[lit2].append(not_lit1)
+        
+        # NOT lit2 -> lit1
+        if lit2 % 2 == 1:  # lit2 is x_v, so NOT lit2 is node 2*v
+            not_lit2 = lit2 - 1
+        else:  # lit2 is NOT x_v, so NOT lit2 is node 2*v+1
+            not_lit2 = lit2 + 1
+            
+        adj[not_lit2].append(lit1)
+        rev_adj[lit1].append(not_lit2)
+    
+    # Now we do Kosaraju's algorithm to find strongly connected components
+    visited = [False] * (2 * n)
+    order = []
+    
+    def dfs1(u):
+        visited[u] = True
+        for v in adj[u]:
+            if not visited[v]:
+                dfs1(v)
+        order.append(u)
+    
+    for i in range(2 * n):
+        if not visited[i]:
+            dfs1(i)
+    
+    # Second DFS on transpose graph
+    visited = [False] * (2 * n)
+    scc_id = [-1] * (2 * n)
+    scc_count = 0
+    
+    def dfs2(u):
+        visited[u] = True
+        scc_id[u] = scc_count
+        for v in rev_adj[u]:
+            if not visited[v]:
+                dfs2(v)
+    
+    while order:
+        u = order.pop()
+        if not visited[u]:
+            dfs2(u)
+            scc_count += 1
+    
+    # Check if for every variable, x_i and NOT x_i are in different SCCs
+    for i in range(n):
+        if scc_id[2*i] == scc_id[2*i + 1]:
+            print("NO")
+            return
+    
+    # Otherwise, there exists a solution
+    # Assign values based on topological order of SCCs
+    # Variables in later SCCs (higher id) are assigned True first
+    assignment = [0] * n
+    for i in range(n):
+        if scc_id[2*i] > scc_id[2*i + 1]:
+            assignment[i] = 1
+        else:
+            assignment[i] = 0
+    
+    print("YES")
+    print(" ".join(map(str, assignment)))
+
+if __name__ == "__main__":
+    main()

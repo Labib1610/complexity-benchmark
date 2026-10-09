@@ -1,5 +1,5 @@
 import sys
-from collections import deque
+sys.setrecursionlimit(1 << 25)
 
 def solve() -> None:
     data = sys.stdin.read().strip().split()
@@ -8,45 +8,48 @@ def solve() -> None:
     it = iter(data)
     n = int(next(it))
     m = int(next(it))
-    adj = [[] for _ in range(n + 1)]
+    adj = [[] for _ in range(n)]
     for _ in range(m):
-        u = int(next(it)); v = int(next(it))
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
         adj[u].append(v)
         adj[v].append(u)
 
-    colour = [-1] * (n + 1)          # -1 unvisited, 0/1 colours
-    ans = [0] * (n + 1)
+    color = [-1] * n          # 0 or 1
+    res = [0] * n
 
-    for start in range(1, n + 1):
-        if colour[start] != -1:
+    from collections import deque
+
+    for start in range(n):
+        if color[start] != -1:
             continue
         # BFS this component
         q = deque([start])
-        colour[start] = 0
+        color[start] = 0
         comp = [start]
+        ok = True
         while q:
-            v = q.popleft()
-            cv = colour[v]
-            for to in adj[v]:
-                if colour[to] == -1:
-                    colour[to] = cv ^ 1
-                    q.append(to)
-                    comp.append(to)
-                elif colour[to] == cv:
+            u = q.popleft()
+            for v in adj[u]:
+                if color[v] == -1:
+                    color[v] = color[u] ^ 1
+                    q.append(v)
+                    comp.append(v)
+                elif color[v] == color[u]:
                     print("NO")
                     return
-        # decide orientation: give shift 1 to colour of smallest vertex
-        min_v = min(comp)
-        if colour[min_v] == 0:
-            for x in comp:
-                ans[x] = 1 if colour[x] == 0 else 2
-        else:
-            for x in comp:
-                ans[x] = 1 if colour[x] == 1 else 2
+        # decide orientation to get lexicographically smallest
+        # find smallest index in component
+        min_idx = min(comp)
+        # if min_idx currently has color 0, map 0->1,1->2 else flip
+        flip = (color[min_idx] == 1)
+        for v in comp:
+            assigned = 1 if (color[v] ^ flip) == 0 else 2
+            res[v] = assigned
 
-    # all components processed
+    # all edges must connect 1 and 2, which is guaranteed by bipartite check
     print("YES")
-    sys.stdout.write(' '.join(str(ans[i]) for i in range(1, n + 1)))
+    print(' '.join(map(str, res)))
 
 if __name__ == "__main__":
     solve()

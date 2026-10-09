@@ -1,0 +1,177 @@
+import sys
+from collections import deque
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    k = int(next(it))
+    
+    compounds = []
+    for _ in range(k):
+        s = int(next(it))
+        t = int(next(it))
+        d = int(next(it))
+        compounds.append((s, t, d))
+    
+    edges = []
+    adj = [[] for _ in range(n + 1)]
+    for i in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        cap = int(next(it))
+        edges.append((u, v, cap))
+        adj[u].append((v, i))
+    
+    # Build flow network
+    # Nodes: 1..n for original valves, n+1..n+k for compound sources, n+k+1..n+2k for compound sinks
+    # Super source: n + 2k + 1, Super sink: n + 2k + 2
+    N = n + 2 * k + 2
+    S = n + 2 * k + 1
+    T = n + 2 * k + 2
+    
+    # Edge list for flow graph: (to, rev, capacity, edge_id)
+    # edge_id: -1 for super edges, 0..m-1 for original edges
+    flow_adj = [[] for _ in range(N + 1)]
+    
+    def add_flow_edge(u, v, cap, edge_id):
+        flow_adj[u].append([v, len(flow_adj[v]), cap, edge_id])
+        flow_adj[v].append([u, len(flow_adj[u]) - 1, 0, -1])
+    
+    # Original edges
+    for i, (u, v, cap) in enumerate(edges):
+        add_flow_edge(u, v, cap, i)
+    
+    # Compound source/sink connections
+    for i, (s, t, d) in enumerate(compounds):
+        src_node = n + i + 1
+        sink_node = n + k + i + 1
+        add_flow_edge(S, src_node, d, -1)
+        add_flow_edge(src_node, s, d, -1)
+        add_flow_edge(t, sink_node, d, -1)
+        add_flow_edge(sink_node, T, d, -1)
+    
+    # Dinic's algorithm
+    level = [0] * (N + 1)
+    ptr = [0] * (N + 1)
+    
+    def bfs():
+        for i in range(N + 1):
+            level[i] = -1
+        level[S] = 0
+        q = deque([S])
+        while q:
+            u = q.popleft()
+            for v, rev, cap, eid in flow_adj[u]:
+                if cap > 0 and level[v] == -1:
+                    level[v] = level[u] + 1
+                    q.append(v)
+        return level[T] != -1
+    
+    def dfs(u, flow):
+        if u == T:
+            return flow
+        for i in range(ptr[u], len(flow_adj[u])):
+            ptr[u] = i
+            v, rev, cap, eid = flow_adj[u][i]
+            if cap > 0 and level[v] == level[u] + 1:
+                pushed = dfs(v, min(flow, cap))
+                if pushed > 0:
+                    flow_adj[u][i][2] -= pushed
+                    flow_adj[v][rev][2] += pushed
+                    return pushed
+        return 0
+    
+    total_flow = 0
+    total_demand = sum(d for _, _, d in compounds)
+    
+    while bfs():
+        ptr = [0] * (N + 1)
+        while True:
+            pushed = dfs(S, float('inf'))
+            if pushed == 0:
+                break
+            total_flow += pushed
+    
+    if total_flow != total_demand:
+        print("NO")
+        return
+    
+    print("YES")
+    
+    # Extract flows for each compound
+    # For each compound, we need to find flow decomposition
+    # We'll use the residual graph to trace paths
+    
+    # First, get the flow on each original edge
+    edge_flows = [0] * m
+    for u in range(1, n + 1):
+        for v, rev, cap, eid in flow_adj[u]:
+            if eid >= 0:
+                original_cap = edges[eid][2]
+                flow_on_edge = original_cap - cap
+                edge_flows[eid] = flow_on_edge
+    
+    # Now decompose flow by compound
+    # Build adjacency for flow decomposition
+    flow_adj_dec = [[] for _ in range(n + 1)]
+    for i, (u, v, cap) in enumerate(edges):
+        if edge_flows[i] > 0:
+            flow_adj_dec[u].append((v, i, edge_flows[i]))
+    
+    # For each compound, find paths from s to t
+    compound_flows = [[0] * m for _ in range(k)]
+    
+    for cid, (s, t, d) in enumerate(compounds):
+        remaining = d
+        # Find paths from s to t
+        while remaining > 0:
+            # BFS to find a path
+            parent = [-1] * (n + 1)
+            parent_edge = [-1] * (n + 1)
+            q = deque([s])
+            parent[s] = s
+            found = False
+            while q and not found:
+                u = q.popleft()
+                for idx, (v, eid, f) in enumerate(flow_adj_dec[u]):
+                    if f > 0 and parent[v] == -1:
+                        parent[v] = u
+                        parent_edge[v] = (u, idx, eid)
+                        if v == t:
+                            found = True
+                            break
+                        q.append(v)
+            
+            if not found:
+                # Should not happen if flow is valid
+                break
+            
+            # Trace back and find minimum flow on path
+            path = []
+            curr = t
+            min_flow = float('inf')
+            while curr != s:
+                pu, idx, eid = parent_edge[curr]
+                path.append((pu, idx, eid))
+                min_flow = min(min_flow, flow_adj_dec[pu][idx][2])
+                curr = pu
+            
+            min_flow = min(min_flow, remaining)
+            
+            # Update flows
+            for pu, idx, eid in path:
+                v, old_eid, f = flow_adj_dec[pu][idx]
+                flow_adj_dec[pu][idx] = (v, old_eid, f - min_flow)
+                compound_flows[cid][eid] += min_flow
+            
+            remaining -= min_flow
+    
+    for cf in compound_flows:
+        print(' '.join(map(str, cf)))
+
+if __name__ == "__main__":
+    solve()

@@ -1,4 +1,5 @@
 import sys
+
 sys.setrecursionlimit(10000)
 
 def solve() -> None:
@@ -8,43 +9,79 @@ def solve() -> None:
     it = iter(data)
     n = int(next(it))
     m = int(next(it))
-    adj = [set() for _ in range(n)]
+    adj = [0] * n
     for _ in range(m):
         u = int(next(it)) - 1
         v = int(next(it)) - 1
-        adj[u].add(v)
-        adj[v].add(u)
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
 
-    color = [0] * n
-    found = False
+    # domains: 3-bit mask, bit 0->color1, bit1->color2, bit2->color3
+    ALL = 0b111
+    domain = [ALL] * n
+    color = [0] * n  # 0 means unassigned, else 1..3
 
-    def dfs(v: int):
-        nonlocal found
-        if found:
-            return
-        if v == n:
-            found = True
-            return
-        for c in (1, 2, 3):
-            ok = True
-            for nb in adj[v]:
-                if nb < v and color[nb] == c:
-                    ok = False
-                    break
-            if ok:
-                color[v] = c
-                dfs(v + 1)
-                if found:
-                    return
+    # order vertices by degree for initial heuristic
+    order = sorted(range(n), key=lambda x: -adj[x].bit_count())
+    # map position in order
+    pos_in_order = {v: i for i, v in enumerate(order)}
+
+    # helper to pick next vertex: unassigned with smallest domain size
+    def select_vertex():
+        best = -1
+        best_sz = 4
+        for v in range(n):
+            if color[v] == 0:
+                sz = domain[v].bit_count()
+                if sz < best_sz:
+                    best_sz = sz
+                    best = v
+                    if sz == 1:
+                        break
+        return best
+
+    # recursive search
+    def dfs(assigned_cnt: int) -> bool:
+        if assigned_cnt == n:
+            return True
+        v = select_vertex()
+        if v == -1:
+            return False
+        d = domain[v]
+        # try each possible color
+        for c in range(3):
+            if d & (1 << c):
+                # assign color c+1 to v
+                color[v] = c + 1
+                # record changes to revert
+                changed = []
+                ok = True
+                # remove this color from neighbors' domains
+                nb = adj[v]
+                while nb:
+                    u = (nb & -nb).bit_length() - 1
+                    nb &= nb - 1
+                    if color[u] == 0:
+                        if domain[u] & (1 << c):
+                            domain[u] &= ~(1 << c)
+                            changed.append(u)
+                            if domain[u] == 0:
+                                ok = False
+                                break
+                if ok and dfs(assigned_cnt + 1):
+                    return True
+                # revert
+                for u in changed:
+                    domain[u] |= (1 << c)
                 color[v] = 0
+        return False
 
-    dfs(0)
-    out = sys.stdout
-    if not found:
-        out.write("NO")
+    possible = dfs(0)
+    if not possible:
+        print("NO")
     else:
-        out.write("YES\n")
-        out.write(" ".join(map(str, color)))
+        print("YES")
+        print(' '.join(str(color[i]) for i in range(n)))
 
 if __name__ == "__main__":
     solve()

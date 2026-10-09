@@ -1,264 +1,5 @@
-**Solution Explanation**
-
-For every material we have to choose one of three chambers.
-Two materials that react must never be placed into the same chamber.
-The required output is the lexicographically smallest safe assignment
-(`c1 , c2 , … , cn`), or the word **NO** if no safe assignment exists.
-
-The problem is exactly the *3‑colouring* problem of a graph:
-
-* vertices – the `n` materials  
-* edges    – the `m` reactive pairs  
-
-A colour `1,2,3` corresponds to a chamber.
-We have to find a proper 3‑colouring that is lexicographically minimal.
-
-
-
---------------------------------------------------------------------
-
-#### 1.  Observations  
-
-* `n ≤ 40` – small enough for exponential backtracking,
-  but we still need good pruning.
-* Lexicographic minimality can be obtained by fixing the colour of
-  material `1`, then of material `2`, …, always trying the smallest
-  possible colour first **and** checking whether the rest of the
-  graph can still be coloured.
-* The “can the rest be coloured?” question is a pure existence test.
-  It may use any order of the remaining vertices – we only need a
-  *yes / no* answer, not the concrete colours.
-
---------------------------------------------------------------------
-
-#### 2.  Data representation  
-
-`n ≤ 40` fits into a 64‑bit integer.
-For every vertex `v`
-
-```
-adj[v]   – 64‑bit mask, bit u is 1  ⇔  (v,u) is an edge
-```
-
-Current partial assignment
-
-```
-col[v]   – 0 = not coloured yet, otherwise 1,2 or 3
-mask[c]  – 64‑bit mask of vertices already coloured with colour c
-```
-
-A colour `c` is allowed for a vertex `v` **iff**
-
-```
-adj[v] & mask[c] == 0                (no neighbour already has colour c)
-```
-
---------------------------------------------------------------------
-
-#### 3.  Existence test – recursive backtracking  
-
-```
-def exists():
-    # all vertices already coloured → success
-    if every vertex coloured: return True
-
-    # choose an uncoloured vertex with the smallest number of possible colours
-    v = vertex with minimal |allowed colours|
-    if allowed colours of v is empty: return False
-
-    for each allowed colour c of v (in order 1,2,3):
-        colour v with c
-        if exists():          # recursive call
-            undo colour of v
-            return True       # a complete colouring exists
-        undo colour of v
-    return False
-```
-
-*Choosing the vertex with the fewest possibilities* (MRV heuristic)
-drastically reduces the search tree.
-The routine works on the global arrays `col` and `mask`.
-Whenever it returns, all temporary assignments are undone,
-so the global state is exactly the state before the call.
-
-The routine is used **only** to test feasibility, never to produce the
-final answer.
-
---------------------------------------------------------------------
-
-#### 4.  Building the lexicographically smallest assignment  
-
-```
-for i = 0 … n-1 (materials in order):
-    for colour c = 1,2,3:
-        if c is allowed for i (no coloured neighbour with c):
-            colour i with c
-            if exists():          # can the rest be coloured ?
-                keep colour i permanently
-                break            # go to next material
-            undo colour i
-    if no colour succeeded → impossible → print NO
-```
-
-Because we try colours `1,2,3` in this order and stop at the first colour
-that still allows a completion, the produced sequence is the smallest
-lexicographically among all safe assignments.
-
---------------------------------------------------------------------
-
-#### 5.  Correctness Proof  
-
-We prove that the algorithm prints **YES** and the lexicographically
-smallest safe assignment iff such an assignment exists.
-
----
-
-##### Lemma 1  
-`exists()` returns *True* **iff** the current partial colouring can be
-extended to a proper 3‑colouring of the whole graph.
-
-**Proof.**  
-*If* `exists()` returns *True*, the recursion has found a sequence of
-legal colour choices for all still uncoloured vertices, therefore a
-complete proper 3‑colouring exists.
-
-*Only‑if*: assume a proper extension exists.
-During the recursion the algorithm always picks an uncoloured vertex `v`
-and tries **all** colours that are still legal for `v`.
-Since the existing extension gives at least one legal colour for `v`,
-the recursive branch that follows this colour will stay compatible
-with the extension.
-Induction on the number of still uncoloured vertices shows that the
-recursive search will eventually follow the whole extension and return
-*True*. ∎
-
-
-
-##### Lemma 2  
-When the outer loop finishes material `i` (0‑based) with colour `c`,
-there exists a proper 3‑colouring whose first `i+1` colours are exactly
-`c0 , c1 , … , ci` (the colours already fixed).
-
-**Proof.**  
-The loop tries colours `1,2,3` in order.
-For a colour `c` it first checks that `c` does not conflict with already
-fixed neighbours (otherwise it is illegal).
-Then it temporarily fixes `c` and calls `exists()`.
-By Lemma&nbsp;1 `exists()` returns *True* exactly when the current
-partial assignment can be extended to a full proper colouring.
-The algorithm keeps the first colour for which `exists()` is *True*,
-hence after the assignment the required extension exists. ∎
-
-
-
-##### Lemma 3  
-If the algorithm prints **NO**, no proper 3‑colouring of the whole graph
-exists.
-
-**Proof.**  
-The algorithm prints **NO** only when for some material `i`
-*all* three colours are either illegal (conflict with already fixed
-neighbours) **or** lead to `exists()` = *False*.
-If a colour is illegal, it cannot be part of any proper colouring.
-If a colour is legal but `exists()` = *False*, by Lemma&nbsp;1 no
-extension to a full proper colouring exists.
-Therefore no colour can be assigned to material `i` while keeping the
-already fixed prefix, i.e. no proper 3‑colouring exists at all. ∎
-
-
-
-##### Lemma 4  
-If the algorithm prints **YES** and the sequence `C = (c1,…,cn)`,
-then `C` is a proper 3‑colouring.
-
-**Proof.**  
-By construction each colour `ci` was accepted only after the test
-`exists()` succeeded, which (Lemma&nbsp;1) guarantees that the partial
-assignment up to `i` can be extended to a full proper colouring.
-When the loop reaches the last material `n`, the extension is exactly
-the already fixed complete assignment, therefore it is proper. ∎
-
-
-
-##### Lemma 5  
-The printed sequence `C` is the lexicographically smallest proper
-3‑colouring.
-
-**Proof.**  
-Consider the first position `k` where `C` differs from any other proper
-colouring `D`.  
-All positions `< k` are equal, because the algorithm fixed them
-identically (Lemma&nbsp;2).  
-When processing material `k` the algorithm examined colours `1,2,3`
-in increasing order and chose the first colour `ck` that still allowed a
-completion.  
-Since `D` is a proper colouring, its colour `dk` is a legal colour that
-admits a completion (namely `D` itself).  
-Therefore `ck ≤ dk`.  
-If `ck < dk` then `C` is lexicographically smaller than `D`.  
-If `ck = dk` then `k` would not be the first differing position – a
-contradiction.  
-Thus no proper colouring is lexicographically smaller than `C`. ∎
-
-
-
-##### Theorem  
-The algorithm outputs  
-
-* **NO**  *iff* the graph is not 3‑colourable;  
-* **YES** and a sequence `C`  *iff* the graph is 3‑colourable, and `C`
-  is the lexicographically smallest proper 3‑colouring.
-
-**Proof.**  
-
-*If the algorithm prints NO*: by Lemma&nbsp;3 the graph has no proper
-3‑colouring.
-
-*If the graph has no proper 3‑colouring*: while processing the first
-material for which the algorithm would need a colour, all three
-colours are either illegal or lead to `exists()` = *False* (otherwise a
-proper colouring would exist). Hence the algorithm prints **NO**.
-
-*If the algorithm prints YES*: Lemma&nbsp;4 gives that the printed
-sequence is a proper 3‑colouring, and Lemma&nbsp;5 shows it is the
-lexicographically smallest one.
-
-*If the graph is 3‑colourable*: by Lemma&nbsp;2 the outer loop can always
-choose a colour that keeps the possibility of a full colouring, therefore
-it never aborts and finally prints **YES**. ∎
-
-
-
---------------------------------------------------------------------
-
-#### 6.  Complexity Analysis  
-
-`n ≤ 40`.
-
-*Adjacency* – `O(n²)` memory (actually `n` 64‑bit integers).
-
-The outer loop runs `n` times.
-Each iteration calls `exists()`, a backtracking search on at most the
-remaining vertices.
-
-The MRV heuristic together with the very small size (`≤40`) makes the
-search fast in practice.
-In the worst theoretical case the algorithm explores the whole search
-tree, i.e. `O(3ⁿ)`, but for `n = 40` and the strong pruning this easily
-fits into the 2 seconds limit (the official solution for the same
-constraints uses the identical approach).
-
-Memory consumption is `O(n)`.
-
-
-
---------------------------------------------------------------------
-
-#### 7.  Reference Implementation  (Python 3)
-
 ```python
 import sys
-
 sys.setrecursionlimit(10000)
 
 def solve() -> None:
@@ -268,83 +9,57 @@ def solve() -> None:
     it = iter(data)
     n = int(next(it))
     m = int(next(it))
-
-    adj = [0] * n                     # bitmask of neighbours
+    adj = [0] * n          # bitmask of neighbors
+    neigh = [[] for _ in range(n)]
     for _ in range(m):
         u = int(next(it)) - 1
         v = int(next(it)) - 1
         adj[u] |= 1 << v
         adj[v] |= 1 << u
+        neigh[u].append(v)
+        neigh[v].append(u)
 
-    col = [0] * n                     # 0 = uncoloured, else 1..3
-    mask = [0, 0, 0, 0]               # mask[c] = vertices coloured c
+    # order vertices by degree descending
+    order = sorted(range(n), key=lambda x: -len(neigh[x]))
+    pos_in_order = [0]*n
+    for i, v in enumerate(order):
+        pos_in_order[v] = i
 
-    # ------------------------------------------------------------
-    # existence test: can the current partial colouring be completed?
-    def exists() -> bool:
-        # find uncoloured vertex with fewest possible colours
-        best_v = -1
-        best_opts = 0
-        min_cnt = 4                     # more than max possible (3)
-        for v in range(n):
-            if col[v]:
-                continue
-            opts = 0
-            for c in (1, 2, 3):
-                if (adj[v] & mask[c]) == 0:
-                    opts |= 1 << c
-            cnt = opts.bit_count()
-            if cnt == 0:
-                return False
-            if cnt < min_cnt:
-                min_cnt = cnt
-                best_v = v
-                best_opts = opts
-                if cnt == 1:
-                    break
-        if best_v == -1:                # all coloured
-            return True
+    colors = [-1]*n
+    found = False
 
-        # try colours in natural order 1,2,3
-        for c in (1, 2, 3):
-            if best_opts & (1 << c):
-                col[best_v] = c
-                mask[c] |= 1 << best_v
-                if exists():
-                    # undo before returning, we only need existence
-                    col[best_v] = 0
-                    mask[c] &= ~(1 << best_v)
-                    return True
-                col[best_v] = 0
-                mask[c] &= ~(1 << best_v)
-        return False
-    # ------------------------------------------------------------
-
-    # build lexicographically smallest assignment
-    for i in range(n):
-        placed = False
-        for c in (1, 2, 3):
-            if (adj[i] & mask[c]) != 0:          # conflict with already fixed neighbours
-                continue
-            col[i] = c
-            mask[c] |= 1 << i
-            if exists():
-                placed = True
-                break
-            # not feasible, revert
-            col[i] = 0
-            mask[c] &= ~(1 << i)
-        if not placed:
-            print("NO")
+    def dfs(idx: int):
+        nonlocal found
+        if found:
             return
+        if idx == n:
+            found = True
+            return
+        v = order[idx]
+        # compute forbidden colors from already colored neighbors
+        forbid = 0
+        for u in neigh[v]:
+            c = colors[u]
+            if c != -1:
+                forbid |= 1 << c
+        for col in range(3):
+            if not (forbid >> col) & 1:
+                colors[v] = col
+                dfs(idx+1)
+                if found:
+                    return
+                colors[v] = -1
 
-    # all vertices coloured
-    print("YES")
-    print(' '.join(str(col[i]) for i in range(n)))
+    dfs(0)
+
+    if not found:
+        print("NO")
+    else:
+        print("YES")
+        # output colors as 1..3 in original order
+        out = [str(colors[i]+1) for i in range(n)]
+        print(' '.join(out))
 
 if __name__ == "__main__":
     solve()
 ```
-
-The program follows exactly the algorithm proven correct above
-and conforms to the required input / output format.

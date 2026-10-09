@@ -1,0 +1,58 @@
+import sys
+from heapq import heappush, heappop
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    t = int(next(it))
+    
+    priority = [int(next(it)) - 1 for _ in range(t)]
+    
+    # Build graph for MST on priority vertices
+    # Edge (u, v) with weight w means we can get b_u + b_v at cost w
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        w = int(next(it))
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+    
+    if t <= 1:
+        print(0)
+        return
+    
+    # Prim's algorithm on priority vertices
+    INF = 10**18
+    in_mst = [False] * n
+    min_cost = [INF] * n
+    
+    # Start from first priority vertex
+    start = priority[0]
+    min_cost[start] = 0
+    pq = [(0, start)]
+    
+    total = 0
+    mst_size = 0
+    
+    while pq and mst_size < t:
+        w, u = heappop(pq)
+        if in_mst[u]:
+            continue
+        in_mst[u] = True
+        total += w
+        mst_size += 1
+        
+        for v, cost in adj[u]:
+            if not in_mst[v] and cost < min_cost[v]:
+                min_cost[v] = cost
+                heappush(pq, (cost, v))
+    
+    print(total)
+
+if __name__ == "__main__":
+    solve()

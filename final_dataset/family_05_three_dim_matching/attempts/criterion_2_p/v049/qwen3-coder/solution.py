@@ -1,0 +1,93 @@
+from collections import defaultdict
+
+def solve():
+    k, t = map(int, input().split())
+    
+    if t < k:
+        print("NO")
+        return
+    
+    tests = []
+    operator_to_rig = {}
+    rig_to_operator = {}
+    
+    # Read tests and build operator-rig mapping
+    for _ in range(t):
+        x, y, z = map(int, input().split())
+        tests.append((x, y, z))
+        
+        # Verify operator-rig binding constraint
+        if x in operator_to_rig:
+            if operator_to_rig[x] != y:
+                # This shouldn't happen according to problem statement
+                print("NO")
+                return
+        else:
+            if y in rig_to_operator:
+                # This shouldn't happen according to problem statement
+                print("NO")
+                return
+            operator_to_rig[x] = y
+            rig_to_operator[y] = x
+    
+    # Check if we have exactly k operators and k rigs
+    if len(operator_to_rig) != k or len(rig_to_operator) != k:
+        print("NO")
+        return
+    
+    # Build a bipartite graph between operators and zones
+    # Edge exists if there's a test with that operator-zone pair
+    operator_zone_edges = defaultdict(list)
+    zone_operator_edges = defaultdict(list)
+    
+    for x, y, z in tests:
+        operator_zone_edges[x].append(z)
+        zone_operator_edges[z].append(x)
+    
+    # Try to find a perfect matching between operators and zones
+    # using Hungarian algorithm or similar approach
+    # But since we just need to check if it's possible and find one solution,
+    # we can use a simpler approach
+    
+    # Create adjacency list for operator -> zones
+    adj = defaultdict(set)
+    for x, y, z in tests:
+        adj[x].add(z)
+    
+    # Use backtracking to find a perfect matching
+    def dfs(operator, match_op_to_zone, match_zone_to_op, visited):
+        for zone in adj[operator]:
+            if zone in visited:
+                continue
+            visited.add(zone)
+            
+            # If zone is unmatched or we can find augmenting path
+            if zone not in match_zone_to_op or dfs(match_zone_to_op[zone], match_op_to_zone, match_zone_to_op, visited):
+                match_op_to_zone[operator] = zone
+                match_zone_to_op[zone] = operator
+                return True
+        return False
+    
+    match_op_to_zone = {}
+    match_zone_to_op = {}
+    
+    for operator in range(1, k+1):
+        if operator not in match_op_to_zone:
+            visited = set()
+            if not dfs(operator, match_op_to_zone, match_zone_to_op, visited):
+                print("NO")
+                return
+    
+    # Check if we have a complete matching
+    if len(match_op_to_zone) != k:
+        print("NO")
+        return
+    
+    print("YES")
+    # Output the selected records
+    for operator in range(1, k+1):
+        zone = match_op_to_zone[operator]
+        rig = operator_to_rig[operator]
+        print(operator, rig, zone)
+
+solve()

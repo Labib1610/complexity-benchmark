@@ -1,0 +1,183 @@
+```python
+import sys
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if len(data) < 2:
+        return
+
+    k, t = data[0], data[1]
+    triples = []
+    row_masks = []
+    col_rows = [[] for _ in range(3 * k)]
+
+    p = 2
+    for rid in range(t):
+        x = data[p] - 1
+        y = data[p + 1] - 1
+        z = data[p + 2] - 1
+        p += 3
+
+        triples.append((x, y, z))
+        mask = (1 << x) | (1 << (k + y)) | (1 << (2 * k + z))
+        row_masks.append(mask)
+        col_rows[x].append(rid)
+        col_rows[k + y].append(rid)
+        col_rows[2 * k + z].append(rid)
+
+    if k == 0:
+        print("YES")
+        return
+
+    for rows in col_rows:
+        if not rows:
+            print("NO")
+            return
+
+    all_columns_mask = (1 << (3 * k)) - 1
+    failed = set()
+    failed_limit = 1_500_000
+    answer = []
+    sys.setrecursionlimit(10000)
+
+    def has_perfect_matching(adj, available_a_mask):
+        order = []
+        bits = available_a_mask
+        while bits:
+            lb = bits & -bits
+            a = lb.bit_length() - 1
+            bits -= lb
+            if adj[a] == 0:
+                return False
+            order.append(a)
+
+        order.sort(key=lambda v: adj[v].bit_count())
+        match = [-1] * k
+
+        def augment(v, seen):
+            choices = adj[v]
+            while choices:
+                lb = choices & -choices
+                choices -= lb
+                u = lb.bit_length() - 1
+                if seen[u]:
+                    continue
+                seen[u] = True
+                if match[u] == -1 or augment(match[u], seen):
+                    match[u] = v
+                    return True
+            return False
+
+        for v in order:
+            if not augment(v, [False] * k):
+                return False
+        return True
+
+    def projection_check(used):
+        adj_xy = [0] * k
+        adj_xz = [0] * k
+        adj_yz = [0] * k
+
+        masks = row_masks
+        trs = triples
+        for rid in range(t):
+            if masks[rid] & used:
+                continue
+            x, y, z = trs[rid]
+            adj_xy[x] |= 1 << y
+            adj_xz[x] |= 1 << z
+            adj_yz[y] |= 1 << z
+
+        base = (1 << k) - 1
+        free_x = base ^ (used & base)
+        free_y = base ^ ((used >> k) & base)
+
+        return (
+            has_perfect_matching(adj_xy, free_x)
+            and has_perfect_matching(adj_xz, free_x)
+            and has_perfect_matching(adj_yz, free_y)
+        )
+
+    def search(used, depth):
+        if depth == k:
+            return True
+        if used in failed:
+            return False
+
+        best_candidates = None
+        best_degree = t + 1
+        best_col = -1
+
+        free_columns = all_columns_mask ^ used
+        bits = free_columns
+
+        while bits:
+            lb = bits & -bits
+            c = lb.bit_length() - 1
+            bits -= lb
+
+            candidates = []
+            for rid in col_rows[c]:
+                if row_masks[rid] & used == 0:
+                    candidates.append(rid)
+                    if len(candidates) >= best_degree:
+                        break
+
+            degree = len(candidates)
+            if degree == 0:
+                if len(failed) < failed_limit:
+                    failed.add(used)
+                return False
+
+            if degree < best_degree:
+                best_degree = degree
+                best_col = c
+                best_candidates = candidates
+                if degree == 1:
+                    break
+
+        if best_degree > 1 and not projection_check(used):
+            if len(failed) < failed_limit:
+                failed.add(used)
+            return False
+
+        if best_degree > 1:
+            def row_score(rid):
+                x, y, z = triples[rid]
+                score = 0
+                if best_col != x:
+                    score += len(col_rows[x])
+                if best_col != k + y:
+                    score += len(col_rows[k + y])
+                if best_col != 2 * k + z:
+                    score += len(col_rows[2 * k + z])
+                return score
+
+            best_candidates.sort(key=row_score)
+
+        for rid in best_candidates:
+            rm = row_masks[rid]
+            if rm & used:
+                continue
+            answer.append(rid)
+            if search(used | rm, depth + 1):
+                return True
+            answer.pop()
+
+        if len(failed) < failed_limit:
+            failed.add(used)
+        return False
+
+    if search(0, 0):
+        out = ["YES"]
+        for rid in answer:
+            x, y, z = triples[rid]
+            out.append(f"{x + 1} {y + 1} {z + 1}")
+        sys.stdout.write("\n".join(out))
+    else:
+        print("NO")
+
+
+if __name__ == "__main__":
+    main()
+```

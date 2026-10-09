@@ -1,8 +1,8 @@
-# Problem B — Frequency Allocation
+# Problem B — High and Low
 
 Time limit: 1 s   Memory limit: 256 MB
 
-The new broadcast network uses only two frequencies, labeled 1 and 2. With n stations and m interference pairs, assign each station a frequency so that no interfering pair shares a frequency, or report impossibility.
+The upgraded network now runs only two frequencies, labeled 1 and 2. With n transmitters and m interfering pairs, assign each transmitter a frequency so that no interfering pair shares a frequency, or report impossibility.
 
 ## Input
 The first line contains two integers n and m (1 ≤ n ≤ 2·10⁵, 0 ≤ m ≤ 2·10⁵).

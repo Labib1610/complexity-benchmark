@@ -1,0 +1,31 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    j = int(next(it))
+    T = int(next(it))
+    
+    sum_p1 = 0
+    sum_p2 = 0
+    job_index = -1
+    
+    for i in range(1, j + 1):
+        p1 = int(next(it))
+        p2 = int(next(it))
+        sum_p1 += p1
+        sum_p2 += p2
+        if job_index == -1 and T - p1 < p2:
+            job_index = i
+    
+    if job_index != -1:
+        print(f"JOB {job_index}")
+    elif T < sum_p1:
+        print("LOAD 1")
+    else:
+        print("LOAD 2")
+
+if __name__ == "__main__":
+    solve()

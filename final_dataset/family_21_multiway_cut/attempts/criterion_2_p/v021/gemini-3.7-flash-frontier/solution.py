@@ -1,0 +1,113 @@
+from collections import deque
+import sys
+
+# Increase recursion depth just in case
+sys.setrecursionlimit(200000)
+
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    n = int(input_data[0])
+    m = int(input_data[1])
+    s = int(input_data[2])
+    t = int(input_data[3])
+    B = int(input_data[4])
+
+    orig_edges = []
+    idx = 5
+    adj = [[] for _ in range(n + 1)]
+    edge_list = []
+
+    def add_edge(u, v, w):
+        e1 = len(edge_list)
+        edge_list.append([u, v, w, 0])
+        adj[u].append(e1)
+        e2 = len(edge_list)
+        edge_list.append([v, u, w, 0])
+        adj[v].append(e2)
+
+    for _ in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx + 1])
+        w = int(input_data[idx + 2])
+        idx += 3
+        orig_edges.append((u, v, w))
+        add_edge(u, v, w)
+
+    level = [-1] * (n + 1)
+    ptr = [0] * (n + 1)
+
+    def bfs():
+        for i in range(n + 1):
+            level[i] = -1
+        level[s] = 0
+        q = deque([s])
+        while q:
+            v = q.popleft()
+            for e_idx in adj[v]:
+                _, nxt_node, cap, flow = edge_list[e_idx]
+                if cap - flow > 0 and level[nxt_node] == -1:
+                    level[nxt_node] = level[v] + 1
+                    q.append(nxt_node)
+        return level[t] != -1
+
+    def dfs(v, pushed):
+        if pushed == 0 or v == t:
+            return pushed
+        for cid in range(ptr[v], len(adj[v])):
+            ptr[v] = cid
+            e_idx = adj[v][cid]
+            _, nxt_node, cap, flow = edge_list[e_idx]
+            tr = cap - flow
+            if level[v] + 1 != level[nxt_node] or tr == 0:
+                continue
+            push = dfs(nxt_node, min(pushed, tr))
+            if push == 0:
+                continue
+            edge_list[e_idx][3] += push
+            edge_list[e_idx ^ 1][3] -= push
+            return push
+        ptr[v] = len(adj[v])
+        return 0
+
+    max_flow = 0
+    INF = 10**18
+    while bfs():
+        for i in range(n + 1):
+            ptr[i] = 0
+        while True:
+            pushed = dfs(s, INF)
+            if pushed == 0:
+                break
+            max_flow += pushed
+
+    if max_flow > B:
+        print("NO")
+        return
+
+    visited = [False] * (n + 1)
+    visited[s] = True
+    q = deque([s])
+    while q:
+        v = q.popleft()
+        for e_idx in adj[v]:
+            _, nxt_node, cap, flow = edge_list[e_idx]
+            if cap - flow > 0 and not visited[nxt_node]:
+                visited[nxt_node] = True
+                q.append(nxt_node)
+
+    cut_edges = []
+    for u, v, _ in orig_edges:
+        if visited[u] != visited[v]:
+            cut_edges.append((u, v))
+
+    print("YES")
+    print(len(cut_edges))
+    for u, v in cut_edges:
+        print(f"{u} {v}")
+
+
+if __name__ == "__main__":
+    solve()

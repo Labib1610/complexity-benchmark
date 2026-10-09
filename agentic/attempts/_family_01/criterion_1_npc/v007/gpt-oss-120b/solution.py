@@ -1,0 +1,76 @@
+import sys
+
+sys.setrecursionlimit(10000)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    adj = [set() for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u].add(v)
+        adj[v].add(u)
+
+    color = [0] * n                     # 0 = uncolored, else 1..3
+    sat_sets = [set() for _ in range(n)]  # colors used by colored neighbours
+    uncolored = set(range(n))
+
+    # precompute degrees for tie-breaking
+    degree = [len(adj[i]) for i in range(n)]
+
+    def select_vertex():
+        # choose vertex with max saturation, tie by degree
+        best = -1
+        best_sat = -1
+        best_deg = -1
+        for v in uncolored:
+            sat = len(sat_sets[v])
+            deg = degree[v]
+            if sat > best_sat or (sat == best_sat and deg > best_deg):
+                best = v
+                best_sat = sat
+                best_deg = deg
+        return best
+
+    def dfs(colored_cnt: int) -> bool:
+        if colored_cnt == n:
+            return True
+        v = select_vertex()
+        # possible colors are those not in sat_sets[v]
+        for c in (1, 2, 3):
+            if c in sat_sets[v]:
+                continue
+            # assign
+            color[v] = c
+            uncolored.remove(v)
+            changed = []
+            for nb in adj[v]:
+                if color[nb] == 0:
+                    if c not in sat_sets[nb]:
+                        sat_sets[nb].add(c)
+                        changed.append(nb)
+            if dfs(colored_cnt + 1):
+                return True
+            # backtrack
+            for nb in changed:
+                sat_sets[nb].remove(c)
+            uncolored.add(v)
+            color[v] = 0
+        return False
+
+    possible = dfs(0)
+    out = []
+    if possible:
+        out.append("YES")
+        out.append(" ".join(str(color[i]) for i in range(n)))
+    else:
+        out.append("NO")
+    sys.stdout.write("\n".join(out))
+
+if __name__ == "__main__":
+    solve()

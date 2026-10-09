@@ -1,0 +1,285 @@
+**Solution Explanation**
+
+For every emitter we have to choose a value `c ∈ {1,2,3}`.
+For an edge `(u,v)` the pair `(c_u , c_v)` is **forbidden** when  
+
+```
+c_u ** c_v + c_v ** c_u + c_u * c_v   ≡ 0 (mod 3)
+```
+
+The graph has at most 40 vertices, therefore a simple back‑tracking
+with forward checking is fast enough.
+
+--------------------------------------------------------------------
+
+#### 1.   Pre‑computation  
+
+For the three possible colours we build a 3×3 table  
+
+```
+forbidden[a][b] = True  ⇔  (a**b + b**a + a*b) % 3 == 0
+```
+
+The table is symmetric, we also store for each colour `a` the list of
+colours that are allowed together with it:
+
+```
+allowed[a] = [ b | not forbidden[a][b] ]
+```
+
+--------------------------------------------------------------------
+
+#### 2.   Data structures  
+
+* `adj[v]` – list of neighbours of vertex `v` (0‑based indices).
+* `domain[v]` – bitmask of still possible colours for `v`
+  (`bit 0 → colour 1`, `bit 1 → colour 2`, `bit 2 → colour 3`).
+* `color[v]` – already fixed colour (`0` = not fixed yet).
+
+--------------------------------------------------------------------
+
+#### 3.   Backtracking with forward checking  
+
+```
+solve():
+    if every vertex is coloured → success
+    pick an uncoloured vertex with the smallest domain (MRV heuristic)
+    try every colour contained in its domain
+        assign it
+        temporarily shrink the domains of all still uncoloured neighbours
+        (keep only colours compatible with the chosen one)
+        if no neighbour becomes empty → recurse
+        restore the saved domains
+    if none of the colours works → backtrack (failure)
+```
+
+Because the domain size is at most 3, copying/restoring the domains is
+cheap – we store for each neighbour the old bitmask before changing it.
+
+The recursion depth never exceeds `n ≤ 40`, well inside the limits.
+
+--------------------------------------------------------------------
+
+#### 4.   Correctness Proof  
+
+We prove that the algorithm prints `YES` and a correct assignment
+iff such an assignment exists.
+
+---
+
+##### Lemma 1  
+`allowed[a]` contains exactly the colours `b` for which the edge condition
+is satisfied when the incident vertices receive colours `a` and `b`.
+
+**Proof.** Directly from the definition of `forbidden` and the construction
+of `allowed`. ∎
+
+
+
+##### Lemma 2  
+During the search, `domain[v]` always equals the set of colours that can
+still be given to `v` without violating any already fixed edges.
+
+**Proof.** Initially every colour is possible, so the statement holds.
+When a vertex `x` gets colour `c`, for each uncoloured neighbour `y` we
+replace `domain[y]` by `domain[y] ∩ allowed[c]`.  
+By Lemma&nbsp;1 this removes exactly the colours that would create a
+forbidden pair with `c`. No other edges are affected, therefore the
+statement stays true. Restoring the saved mask when backtracking
+reverts the change, preserving the invariant. ∎
+
+
+
+##### Lemma 3  
+If the algorithm reaches a state where some uncoloured vertex has an
+empty domain, the current partial assignment cannot be extended to a
+full solution.
+
+**Proof.** By Lemma&nbsp;2 the empty domain means *no* colour can be given to
+that vertex without breaking an already fixed edge, hence any extension
+fails. ∎
+
+
+
+##### Lemma 4  
+Whenever the recursive call returns `True`, the colours stored in
+`color[·]` form a complete assignment satisfying all edges.
+
+**Proof.** The recursion stops with success only when every vertex is
+coloured. Every colour was chosen from the current domain, and domains are
+kept consistent by Lemma&nbsp;2, therefore all edges respect the
+non‑resonance condition (Lemma&nbsp;1). ∎
+
+
+
+##### Lemma 5  
+If a satisfying assignment exists, the algorithm eventually finds one.
+
+**Proof.** Consider any satisfying assignment `S`.  
+The search explores vertices in some order, always trying every colour
+present in the current domain. Because `S` never violates a fixed edge,
+all colours of `S` are always contained in the corresponding domains
+(Lemma&nbsp;2). Hence the branch that follows exactly the colours of `S`
+is never pruned and will be reached, leading to success. ∎
+
+
+
+##### Theorem  
+The program outputs  
+
+* `YES` and a valid assignment **iff** such an assignment exists,
+* otherwise `NO`.
+
+**Proof.**  
+*If the program prints `YES`*: by Lemma&nbsp;4 the printed colours satisfy
+all constraints, therefore a solution exists.  
+
+*If a solution exists*: by Lemma&nbsp;5 the backtracking will eventually
+reach a leaf representing this solution and return `True`, causing the
+program to output `YES` and that assignment.  
+
+If the search exhausts all possibilities it returns `False`; by
+Lemma&nbsp;3 no partial assignment can be extended, therefore no full
+solution exists and the program correctly prints `NO`. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### 5.   Complexity Analysis  
+
+*Pre‑computation*: constant work (3×3 table).  
+
+*Backtracking*: each recursive step tries at most 3 colours and updates
+the domains of at most `n‑1` neighbours (each update is a bit‑mask
+operation).  
+In the worst case the algorithm explores `O(3^n)` states, but with the
+MRV heuristic and strong pruning (`n ≤ 40`) the practical number of
+visited states is tiny.  
+The memory consumption is `O(n + m)` for the graph and the domain
+arrays.
+
+Both limits easily satisfy the given constraints.
+
+--------------------------------------------------------------------
+
+#### 6.   Reference Implementation  (Python 3)
+
+```python
+import sys
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+
+    # ---------- 1. forbidden table ----------
+    forbidden = [[False] * 4 for _ in range(4)]  # 1..3 used
+    for a in (1, 2, 3):
+        for b in (1, 2, 3):
+            if (a ** b + b ** a + a * b) % 3 == 0:
+                forbidden[a][b] = True
+
+    allowed = [[] for _ in range(4)]
+    for a in (1, 2, 3):
+        for b in (1, 2, 3):
+            if not forbidden[a][b]:
+                allowed[a].append(b)
+
+    # ---------- 2. domains ----------
+    ALL = 0b111  # bits 0,1,2 correspond to colours 1,2,3
+    domain = [ALL] * n
+    color = [0] * n  # 0 = unassigned, else 1..3
+
+    # ---------- 3. helper ----------
+    def bits_to_list(mask):
+        res = []
+        if mask & 1:
+            res.append(1)
+        if mask & 2:
+            res.append(2)
+        if mask & 4:
+            res.append(3)
+        return res
+
+    sys.setrecursionlimit(10000)
+
+    # ---------- 4. backtracking ----------
+    def dfs(assigned_cnt: int) -> bool:
+        if assigned_cnt == n:
+            return True
+
+        # MRV: choose vertex with smallest non‑zero domain
+        v = -1
+        best = 4
+        for i in range(n):
+            if color[i] == 0:
+                sz = (domain[i] & 1) + ((domain[i] >> 1) & 1) + ((domain[i] >> 2) & 1)
+                if sz < best:
+                    best = sz
+                    v = i
+                    if sz == 1:
+                        break
+        if best == 0:          # empty domain -> dead end
+            return False
+
+        cur_mask = domain[v]
+        for c in bits_to_list(cur_mask):
+            # assign colour c to v
+            color[v] = c
+            saved = []          # (neighbor, old_mask)
+            ok = True
+            for nb in adj[v]:
+                if color[nb] != 0:
+                    # already coloured, just check compatibility
+                    if forbidden[c][color[nb]]:
+                        ok = False
+                        break
+                else:
+                    # shrink neighbour's domain
+                    old = domain[nb]
+                    # keep only colours compatible with c
+                    mask = 0
+                    for d in allowed[c]:
+                        mask |= 1 << (d - 1)
+                    new = old & mask
+                    if new != old:
+                        saved.append((nb, old))
+                        domain[nb] = new
+                    if new == 0:
+                        ok = False
+                        break
+            if ok and dfs(assigned_cnt + 1):
+                return True
+            # restore
+            for nb, old in saved:
+                domain[nb] = old
+            color[v] = 0
+        return False
+
+    possible = dfs(0)
+
+    out = []
+    if possible:
+        out.append("YES")
+        out.append(" ".join(str(color[i]) for i in range(n)))
+    else:
+        out.append("NO")
+    sys.stdout.write("\n".join(out))
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above
+and conforms to the required input‑output format.

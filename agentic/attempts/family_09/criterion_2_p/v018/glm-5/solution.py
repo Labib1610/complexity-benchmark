@@ -1,0 +1,142 @@
+import sys
+from collections import deque
+
+def solve():
+    input_data = sys.stdin.buffer.read().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    k = int(next(it))
+    
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    color = [0] * (n + 1)
+    components = []
+    
+    for start in range(1, n + 1):
+        if color[start] != 0:
+            continue
+        color[start] = 1
+        q = deque([start])
+        comp = [start]
+        while q:
+            u = q.popleft()
+            for v in adj[u]:
+                if color[v] == 0:
+                    color[v] = 3 - color[u]
+                    comp.append(v)
+                    q.append(v)
+        components.append(comp)
+    
+    total = 0
+    for comp in components:
+        total += max(len([x for x in comp if color[x] == 1]),
+                     len([x for x in comp if color[x] == 2]))
+    
+    if k > total:
+        print("NO")
+        return
+    
+    # DP: dp[i] = set of achievable sums using first i components
+    # We need to find which component to pick which side from
+    # Use bitset for efficiency
+    # But we also need to reconstruct, so we track parent pointers
+    
+    # dp[i] = set of sums achievable
+    # We'll use a list of sets, but that might be slow
+    # Instead, use a 2D approach: dp[i][s] = True/False
+    # But n can be 100000, so we need bitset
+    
+    # Let's use Python integers as bitsets
+    # dp[i] is an integer where bit s is set if sum s is achievable
+    
+    num_comp = len(components)
+    sizes = []
+    for comp in components:
+        c1 = len([x for x in comp if color[x] == 1])
+        c2 = len(comp) - c1
+        sizes.append((c1, c2))
+    
+    # dp as bitset
+    dp = 0
+    dp |= 1  # sum 0 achievable
+    
+    # For reconstruction, we need to know for each component, which side we chose
+    # We'll store dp states after each component
+    dp_states = [0] * (num_comp + 1)
+    dp_states[0] = 1
+    
+    for i in range(num_comp):
+        c1, c2 = sizes[i]
+        new_dp = dp_states[i] | (dp_states[i] << c1) | (dp_states[i] << c2)
+        dp_states[i + 1] = new_dp
+    
+    if not (dp_states[num_comp] & (1 << k)):
+        print("NO")
+        return
+    
+    # Reconstruct
+    remaining = k
+    choices = [0] * num_comp  # 1 means pick color 1, 2 means pick color 2
+    
+    for i in range(num_comp - 1, -1, -1):
+        c1, c2 = sizes[i]
+        # Check if we can achieve 'remaining' without this component
+        if dp_states[i] & (1 << remaining):
+            # We didn't pick any from this component? No, we must pick one side
+            # Actually dp_states[i] includes the option of not adding anything
+            # But we must pick exactly one side from each component
+            # Wait, no - the DP is: dp_states[i+1] = dp_states[i] | (dp_states[i] << c1) | (dp_states[i] << c2)
+            # This means for each component, we either add c1 or c2 (or nothing, but that's from dp_states[i])
+            # Hmm, actually the | dp_states[i] part means we can skip this component
+            # But we want to pick exactly one side from each component... no wait
+            # Actually we want to pick one side from each component, and the total should be k
+            # So the DP should be: dp_states[i+1] = (dp_states[i] << c1) | (dp_states[i] << c2)
+            # Let me redo this
+            pass
+    
+    # Redo DP correctly: we must pick exactly one side from each component
+    dp_states = [0] * (num_comp + 1)
+    dp_states[0] = 1  # sum 0 with 0 components
+    
+    for i in range(num_comp):
+        c1, c2 = sizes[i]
+        dp_states[i + 1] = (dp_states[i] << c1) | (dp_states[i] << c2)
+    
+    if not (dp_states[num_comp] & (1 << k)):
+        print("NO")
+        return
+    
+    # Reconstruct
+    remaining = k
+    choices = [0] * num_comp
+    
+    for i in range(num_comp - 1, -1, -1):
+        c1, c2 = sizes[i]
+        # Did we pick c1?
+        if remaining >= c1 and (dp_states[i] & (1 << (remaining - c1))):
+            choices[i] = 1
+            remaining -= c1
+        else:
+            choices[i] = 2
+            remaining -= c2
+    
+    # Collect result
+    result = []
+    for i, comp in enumerate(components):
+        target_color = choices[i]
+        for x in comp:
+            if color[x] == target_color:
+                result.append(x)
+    
+    print("YES")
+    print(' '.join(map(str, result)))
+
+solve()

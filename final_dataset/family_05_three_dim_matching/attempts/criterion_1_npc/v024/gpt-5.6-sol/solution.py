@@ -1,0 +1,180 @@
+import sys
+
+sys.setrecursionlimit(1_000_000)
+
+data = list(map(int, sys.stdin.buffer.read().split()))
+if not data:
+    raise SystemExit
+
+k, t = data[0], data[1]
+triples = []
+incidence = [0] * (3 * k)
+
+p = 2
+for i in range(t):
+    d = data[p] - 1
+    f = data[p + 1] - 1
+    m = data[p + 2] - 1
+    p += 3
+
+    triples.append((d, f, m))
+    bit = 1 << i
+    incidence[d] |= bit
+    incidence[k + f] |= bit
+    incidence[2 * k + m] |= bit
+
+if t == 0:
+    print("NO")
+    raise SystemExit
+
+all_columns = (1 << (3 * k)) - 1
+all_edges = (1 << t) - 1
+edge_conflict = [0] * t
+
+for i, (d, f, m) in enumerate(triples):
+    edge_conflict[i] = incidence[d] | incidence[k + f] | incidence[2 * k + m]
+
+failed = set()
+solution = []
+MEMO_LIMIT = 1_400_000
+
+
+def bipartite_matching_possible(adj, left_mask, right_mask):
+    left = []
+    x = left_mask
+    while x:
+        b = x & -x
+        u = b.bit_length() - 1
+        x ^= b
+        choices = adj[u] & right_mask
+        if choices == 0:
+            return False
+        left.append((choices.bit_count(), u))
+
+    left.sort()
+    match = [-1] * k
+
+    def augment(u, seen):
+        choices = adj[u] & right_mask & ~seen
+        while choices:
+            b = choices & -choices
+            choices ^= b
+            v = b.bit_length() - 1
+            if match[v] == -1 or augment(match[v], seen | b):
+                match[v] = u
+                return True
+        return False
+
+    for _, u in left:
+        if not augment(u, 0):
+            return False
+    return True
+
+
+def hall_check(available, uncovered):
+    adj_df = [0] * k
+    adj_dm = [0] * k
+    adj_fm = [0] * k
+
+    x = available
+    while x:
+        b = x & -x
+        i = b.bit_length() - 1
+        x ^= b
+        d, f, m = triples[i]
+        adj_df[d] |= 1 << f
+        adj_dm[d] |= 1 << m
+        adj_fm[f] |= 1 << m
+
+    d_mask = uncovered & ((1 << k) - 1)
+    f_mask = (uncovered >> k) & ((1 << k) - 1)
+    m_mask = (uncovered >> (2 * k)) & ((1 << k) - 1)
+
+    return (
+        bipartite_matching_possible(adj_df, d_mask, f_mask)
+        and bipartite_matching_possible(adj_dm, d_mask, m_mask)
+        and bipartite_matching_possible(adj_fm, f_mask, m_mask)
+    )
+
+
+def dfs(uncovered, available, depth):
+    if uncovered == 0:
+        return True
+
+    if uncovered in failed:
+        return False
+
+    min_count = t + 1
+    chosen_column = -1
+    counts = [-1] * (3 * k)
+
+    cols = uncovered
+    while cols:
+        b = cols & -cols
+        c = b.bit_length() - 1
+        cols ^= b
+
+        cnt = (available & incidence[c]).bit_count()
+        counts[c] = cnt
+        if cnt == 0:
+            if len(failed) < MEMO_LIMIT:
+                failed.add(uncovered)
+            return False
+        if cnt < min_count:
+            min_count = cnt
+            chosen_column = c
+            if cnt == 1:
+                break
+
+    active_count = available.bit_count()
+    if min_count > 1 and active_count <= 1500 and depth % 3 == 0:
+        if not hall_check(available, uncovered):
+            if len(failed) < MEMO_LIMIT:
+                failed.add(uncovered)
+            return False
+
+    candidates_mask = available & incidence[chosen_column]
+    candidates = []
+
+    while candidates_mask:
+        b = candidates_mask & -candidates_mask
+        i = b.bit_length() - 1
+        candidates_mask ^= b
+        d, f, m = triples[i]
+
+        score = 0
+        for c in (d, k + f, 2 * k + m):
+            if counts[c] < 0:
+                counts[c] = (available & incidence[c]).bit_count()
+            score += counts[c]
+        candidates.append((score, i))
+
+    candidates.sort()
+
+    for _, i in candidates:
+        d, f, m = triples[i]
+        covered = (1 << d) | (1 << (k + f)) | (1 << (2 * k + m))
+        solution.append(i)
+
+        if dfs(
+            uncovered & ~covered,
+            available & ~edge_conflict[i],
+            depth + 1
+        ):
+            return True
+
+        solution.pop()
+
+    if len(failed) < MEMO_LIMIT:
+        failed.add(uncovered)
+    return False
+
+
+if dfs(all_columns, all_edges, 0):
+    out = ["YES"]
+    for i in solution:
+        d, f, m = triples[i]
+        out.append(f"{d + 1} {f + 1} {m + 1}")
+    sys.stdout.write("\n".join(out))
+else:
+    print("NO")

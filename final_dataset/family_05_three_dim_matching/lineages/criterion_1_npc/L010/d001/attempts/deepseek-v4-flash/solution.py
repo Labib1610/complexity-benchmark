@@ -1,0 +1,70 @@
+import sys
+
+def solve():
+    input = sys.stdin.readline
+    k, t = map(int, input().split())
+    triplets = [[] for _ in range(k)]
+    for _ in range(t):
+        x, y, z = map(int, input().split())
+        triplets[x-1].append((y-1, z-1))
+    
+    # Sort specialists by number of available triplets (most constrained first)
+    order = sorted(range(k), key=lambda i: len(triplets[i]))
+    
+    used_machine = 0
+    used_time = 0
+    assignment = [None] * k
+    
+    # Precompute for each specialist a list of (machine, time) pairs
+    # We'll also sort them to try more promising ones first (optional)
+    
+    def backtrack(idx):
+        nonlocal used_machine, used_time
+        if idx == k:
+            return True
+        
+        spec = order[idx]
+        for y, z in triplets[spec]:
+            if (used_machine >> y) & 1:
+                continue
+            if (used_time >> z) & 1:
+                continue
+            
+            # Prune: check if any remaining specialist has at least one available triplet
+            # with current masks
+            possible = True
+            for j in range(idx+1, k):
+                s2 = order[j]
+                ok = False
+                for y2, z2 in triplets[s2]:
+                    if not ((used_machine >> y2) & 1) and not ((used_time >> z2) & 1):
+                        ok = True
+                        break
+                if not ok:
+                    possible = False
+                    break
+            if not possible:
+                continue
+            
+            used_machine |= (1 << y)
+            used_time |= (1 << z)
+            assignment[spec] = (spec, y, z)
+            
+            if backtrack(idx+1):
+                return True
+            
+            used_machine &= ~(1 << y)
+            used_time &= ~(1 << z)
+            assignment[spec] = None
+        
+        return False
+    
+    if backtrack(0):
+        print("YES")
+        for spec, y, z in assignment:
+            print(spec+1, y+1, z+1)
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()

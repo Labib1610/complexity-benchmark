@@ -1,0 +1,55 @@
+from collections import defaultdict
+import sys
+
+def solve():
+    k, t = map(int, input().split())
+    
+    # Read all modules
+    modules = []
+    for _ in range(t):
+        x, y, z = map(int, input().split())
+        modules.append((x, y, z))
+    
+    # Group modules by frequency
+    freq_modules = defaultdict(list)
+    for i, (x, y, z) in enumerate(modules):
+        freq_modules[x].append((y, z, i))
+    
+    # Check if we have at least one module for each frequency
+    for freq in range(1, k + 1):
+        if not freq_modules[freq]:
+            print("NO")
+            return
+    
+    # Try to find a valid assignment using backtracking
+    # We need to assign one module to each frequency (1 to k)
+    # Such that all amplitudes and phases are unique
+    
+    def backtrack(freq, used_amp, used_phase, selected):
+        if freq > k:
+            return True
+        
+        for amp, phase, idx in freq_modules[freq]:
+            if amp not in used_amp and phase not in used_phase:
+                used_amp.add(amp)
+                used_phase.add(phase)
+                selected.append(idx)
+                
+                if backtrack(freq + 1, used_amp, used_phase, selected):
+                    return True
+                
+                used_amp.remove(amp)
+                used_phase.remove(phase)
+                selected.pop()
+        
+        return False
+    
+    selected_indices = []
+    if backtrack(1, set(), set(), selected_indices):
+        print("YES")
+        for idx in selected_indices:
+            print(*modules[idx])
+    else:
+        print("NO")
+
+solve()

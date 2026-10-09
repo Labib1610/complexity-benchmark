@@ -1,0 +1,60 @@
+import sys
+
+def solve():
+    input = sys.stdin.readline
+    n, m, k = map(int, input().split())
+    adj = [0] * n
+    for _ in range(m):
+        u, v = map(int, input().split())
+        u -= 1
+        v -= 1
+        adj[u] |= (1 << v)
+        adj[v] |= (1 << u)
+
+    # If k is 1, always possible
+    if k == 1:
+        print("YES")
+        print(1)
+        return
+
+    # Try to find independent set of size k
+    # Use bitmask to represent candidate set
+    # We'll do backtracking with pruning
+
+    # Precompute for each vertex, the set of vertices that are not its neighbors (including itself)
+    non_neighbors = [0] * n
+    for i in range(n):
+        non_neighbors[i] = ((1 << n) - 1) ^ adj[i]
+
+    # We'll try to build the set
+    chosen = []
+    # To speed up, we can order vertices by degree
+    order = sorted(range(n), key=lambda x: bin(adj[x]).count("1"))
+
+    def backtrack(start, candidates):
+        if len(chosen) == k:
+            return True
+        # Prune: if not enough candidates left
+        if len(chosen) + bin(candidates).count("1") < k:
+            return False
+        # Try vertices in order
+        for i in range(start, n):
+            v = order[i]
+            if (candidates >> v) & 1:
+                chosen.append(v + 1)
+                # New candidates: intersection with non_neighbors[v]
+                new_candidates = candidates & non_neighbors[v]
+                if backtrack(i + 1, new_candidates):
+                    return True
+                chosen.pop()
+        return False
+
+    all_mask = (1 << n) - 1
+    if backtrack(0, all_mask):
+        print("YES")
+        print(" ".join(map(str, chosen)))
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()

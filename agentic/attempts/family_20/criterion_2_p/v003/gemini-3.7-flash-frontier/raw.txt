@@ -1,0 +1,263 @@
+```python
+import sys
+from collections import deque
+
+# Increase recursion depth just in case
+sys.setrecursionlimit(500000)
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    nL = int(input_data[0])
+    nR = int(input_data[1])
+    m = int(input_data[2])
+    
+    if m == 0:
+        print("YES")
+        print()
+        return
+
+    deg_L = [0] * (nL + 1)
+    deg_R = [0] * (nR + 1)
+    
+    edges_raw = []
+    idx = 3
+    for i in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx + 1])
+        idx += 2
+        deg_L[u] += 1
+        deg_R[v] += 1
+        edges_raw.append((u, v, i))
+        
+    Delta = max(max(deg_L), max(deg_R))
+    if Delta == 0:
+        print("YES")
+        print(" ".join(["1"] * m))
+        return
+
+    # Merge vertices into buckets of degree <= Delta
+    bucket_map_L = [0] * (nL + 1)
+    b_L = 0
+    cur_deg = 0
+    for u in range(1, nL + 1):
+        if deg_L[u] == 0:
+            continue
+        if cur_deg + deg_L[u] > Delta:
+            b_L += 1
+            cur_deg = deg_L[u]
+        else:
+            cur_deg += deg_L[u]
+        bucket_map_L[u] = b_L
+    num_bL = b_L + 1 if any(deg_L[1:]) else 0
+
+    bucket_map_R = [0] * (nR + 1)
+    b_R = 0
+    cur_deg = 0
+    for v in range(1, nR + 1):
+        if deg_R[v] == 0:
+            continue
+        if cur_deg + deg_R[v] > Delta:
+            b_R += 1
+            cur_deg = deg_R[v]
+        else:
+            cur_deg += deg_R[v]
+        bucket_map_R[v] = b_R
+    num_bR = b_R + 1 if any(deg_R[1:]) else 0
+
+    B = max(num_bL, num_bR, 1)
+
+    # Calculate initial degree of each bucket
+    deg_bL = [0] * B
+    deg_bR = [0] * B
+    
+    edges = []
+    for u, v, eid in edges_raw:
+        bu = bucket_map_L[u]
+        bv = bucket_map_R[v]
+        edges.append((bu, bv, eid))
+        deg_bL[bu] += 1
+        deg_bR[bv] += 1
+
+    # Add dummy edges to make the graph Delta-regular
+    ptr_L = 0
+    ptr_R = 0
+    while ptr_L < B and ptr_R < B:
+        while ptr_L < B and deg_bL[ptr_L] == Delta:
+            ptr_L += 1
+        while ptr_R < B and deg_bR[ptr_R] == Delta:
+            ptr_R += 1
+        if ptr_L < B and ptr_R < B:
+            add = min(Delta - deg_bL[ptr_L], Delta - deg_bR[ptr_R])
+            for _ in range(add):
+                edges.append((ptr_L, ptr_R, -1))
+            deg_bL[ptr_L] += add
+            deg_bR[ptr_R] += add
+
+    ans = [0] * m
+
+    def find_matching(cur_edges, d):
+        adj = [[] for _ in range(B)]
+        for i, (u, v, _) in enumerate(cur_edges):
+            adj[u].append((v, i))
+
+        match_L = [-1] * B
+        match_R = [-1] * B
+        match_edge = [-1] * B
+        dist = [-1] * B
+
+        while True:
+            q = deque()
+            for u in range(B):
+                if match_L[u] == -1:
+                    dist[u] = 0
+                    q.append(u)
+                else:
+                    dist[u] = -1
+            dist_inf = float('inf')
+            found = False
+            while q:
+                u = q.popleft()
+                if dist[u] < dist_inf:
+                    for v, eid in adj[u]:
+                        w = match_R[v]
+                        if w == -1:
+                            dist_inf = dist[u] + 1
+                            found = True
+                        elif dist[w] == -1:
+                            dist[w] = dist[u] + 1
+                            q.append(w)
+            if not found:
+                break
+
+            ptr = [0] * B
+
+            def dfs(u):
+                while ptr[u] < len(adj[u]):
+                    v, eid = adj[u][ptr[u]]
+                    ptr[u] += 1
+                    w = match_R[v]
+                    if w == -1 or (dist[w] == dist[u] + 1 and dfs(w)):
+                        match_L[u] = v
+                        match_edge[u] = eid
+                        match_R[v] = u
+                        return True
+                return False
+
+            for u in range(B):
+                if match_L[u] == -1:
+                    dfs(u)
+
+        matched_indices = set(match_edge)
+        matching = []
+        remaining = []
+        for i, edge in enumerate(cur_edges):
+            if i in matched_indices:
+                matching.append(edge)
+            else:
+                remaining.append(edge)
+        return matching, remaining
+
+    def euler_split(cur_edges):
+        V_total = 2 * B
+        adj = [[] for _ in range(V_total)]
+        for i, (u, v, _) in enumerate(cur_edges):
+            adj[u].append((v + B, i))
+            adj[v + B].append((u, i))
+
+        used = [False] * len(cur_edges)
+        head = [0] * V_total
+        sub1 = []
+        sub2 = []
+
+        for start in range(V_total):
+            if head[start] >= len(adj[start]):
+                continue
+            stack = [start]
+            while stack:
+                u = stack[-1]
+                while head[u] < len(adj[u]) and used[adj[u][head[u]][1]]:
+                    head[u] += 1
+                if head[u] < len(adj[u]):
+                    v, eid = adj[u][head[u]]
+                    head[u] += 1
+                    used[eid] = True
+                    stack.append(v)
+                else:
+                    stack.pop()
+                    if stack:
+                        prev_u = stack[-1]
+                        # Edge between prev_u and u was just traversed in reverse order
+                        # To alternate properly:
+                        # We can record the traversed edge index
+                        # But simpler: we can track the tour during the traversal:
+            # Reconstruct tour via standard iterative Hierholzer:
+
+        # Let's do standard Hierholzer cleanly:
+        used = [False] * len(cur_edges)
+        head = [0] * V_total
+        for start in range(V_total):
+            while head[start] < len(adj[start]):
+                while head[start] < len(adj[start]) and used[adj[start][head[start]][1]]:
+                    head[start] += 1
+                if head[start] >= len(adj[start]):
+                    break
+                
+                stack = [start]
+                edge_stack = []
+                tour_edges = []
+                while stack:
+                    u = stack[-1]
+                    while head[u] < len(adj[u]) and used[adj[u][head[u]][1]]:
+                        head[u] += 1
+                    if head[u] < len(adj[u]):
+                        v, eid = adj[u][head[u]]
+                        head[u] += 1
+                        used[eid] = True
+                        stack.append(v)
+                        edge_stack.append(eid)
+                    else:
+                        stack.pop()
+                        if edge_stack:
+                            tour_edges.append(edge_stack.pop())
+                
+                for idx, eid in enumerate(tour_edges):
+                    if idx % 2 == 0:
+                        sub1.append(cur_edges[eid])
+                    else:
+                        sub2.append(cur_edges[eid])
+
+        return sub1, sub2
+
+    # Recursive solver
+    tasks = [(edges, Delta, 1)]
+    while tasks:
+        cur_edges, d, color_offset = tasks.pop()
+        if d == 0:
+            continue
+        if d == 1:
+            for u, v, eid in cur_edges:
+                if eid != -1:
+                    ans[eid] = color_offset
+            continue
+
+        if d % 2 == 1:
+            matching, remaining = find_matching(cur_edges, d)
+            for u, v, eid in matching:
+                if eid != -1:
+                    ans[eid] = color_offset
+            tasks.append((remaining, d - 1, color_offset + 1))
+        else:
+            sub1, sub2 = euler_split(cur_edges)
+            half = d // 2
+            tasks.append((sub1, half, color_offset))
+            tasks.append((sub2, half, color_offset + half))
+
+    print("YES")
+    print(*(ans[i] for i in range(m)))
+
+if __name__ == '__main__':
+    solve()
+```

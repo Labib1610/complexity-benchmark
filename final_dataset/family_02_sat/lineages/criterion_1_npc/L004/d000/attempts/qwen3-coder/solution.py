@@ -1,0 +1,215 @@
+from collections import defaultdict
+import sys
+
+def read_input():
+    n, m = map(int, sys.stdin.readline().split())
+    clauses = []
+    for _ in range(m):
+        clause = list(map(int, sys.stdin.readline().split()))
+        clauses.append(clause)
+    return n, m, clauses
+
+def solve_2sat(n, clauses):
+    # Create implication graph
+    # Variables: 1..n (phase 1), -1..-n (phase 0)
+    # For each variable x, node index is:
+    #   x (if x > 0) or (-x + n) (if x < 0) for phase 1
+    #   (-x) (if x > 0) or (x + n) (if x < 0) for phase 0
+    
+    def var_to_node(x):
+        if x > 0:
+            return x  # x is true (phase 1)
+        else:
+            return -x + n  # -x is false (phase 0), so x is true (phase 1)
+    
+    def neg_var_to_node(x):
+        if x > 0:
+            return x + n  # x is false (phase 0)
+        else:
+            return -x  # -x is true (phase 0), so x is false (phase 1)
+    
+    # Build adjacency list for implication graph
+    adj = defaultdict(list)
+    rev_adj = defaultdict(list)
+    
+    # For each clause (a OR b OR c), we convert to 2-SAT form
+    # This is equivalent to (~a => b OR c) AND (~b => a OR c) AND (~c => a OR b)
+    # But since we have 3 variables, it's more complex. 
+    # Actually, let's think differently.
+    # A clause (a OR b OR c) means at least one is true.
+    # This is equivalent to saying it's NOT the case that all are false.
+    # So we can add implications like: if ~a and ~b then c must be true.
+    # But this creates a 3-CNF which is harder to handle directly.
+    # Let's use a different approach: for each clause, we ensure that 
+    # at least one literal is satisfied.
+    
+    # We'll model this as: for each clause, we create constraints that
+    # if all but one literals are false, the last one must be true.
+    # But this is getting complex. Let's try a direct search approach
+    # since n <= 90 and m <= 400, which might be feasible with optimization.
+    
+    # Actually, let's reconsider the problem:
+    # Each monitor has 3 connections. It fails only if ALL 3 are mismatched.
+    # So for each clause [a, b, c], we want at least one of them to be satisfied.
+    # This is a constraint satisfaction problem.
+    # We can reduce this to 2-SAT by introducing auxiliary variables,
+    # but that might be overkill.
+    
+    # Let's think of it this way:
+    # For each clause (a OR b OR c), we can rewrite it as:
+    # (a OR b OR c) is equivalent to:
+    # (~a => (b OR c)) AND (~b => (a OR c)) AND (~c => (a OR b))
+    # But this still doesn't give us pure 2-SAT.
+    
+    # Alternative approach: Try all possible assignments using optimizations.
+    # Since n <= 90, trying all 2^90 is impossible.
+    # But we can use a randomized or heuristic approach, or look for contradictions.
+    
+    # Let's model it properly as a SAT problem:
+    # Each channel i has a boolean variable x_i (True = phase 1, False = phase 0)
+    # For each clause [a,b,c]:
+    #   if a > 0, then x_a should be True for satisfying the clause
+    #   if a < 0, then x_|a| should be False for satisfying the clause
+    # So the clause is satisfied if at least one of:
+    #   (x_a = True) OR (x_b = True) OR (x_c = True)  // if a,b,c > 0
+    # But we need to handle signs correctly.
+    
+    # Let's define the constraint properly:
+    # For a clause [a, b, c]:
+    #   if a > 0: expect phase 1 for channel |a|
+    #   if a < 0: expect phase 0 for channel |a|
+    # The clause is satisfied if at least one connection gets expected phase.
+    # So: (x_|a| = (a>0)) OR (x_|b| = (b>0)) OR (x_|c| = (c>0))
+    # Which is: (x_|a| = T when a>0, F when a<0) OR ...
+    # Equivalently: (x_|a| OR ~a>0) OR (x_|b| OR ~b>0) OR (x_|c| OR ~c>0)
+    # Where ~a>0 means "a <= 0", etc.
+    # No, that's not right either.
+    
+    # Correct modeling:
+    # For clause [a,b,c], let's say vars are va, vb, vc
+    # va = (x_|a| if a>0 else ~x_|a|)
+    # vb = (x_|b| if b>0 else ~x_|b|)
+    # vc = (x_|c| if c>0 else ~x_|c|)
+    # Clause is satisfied if va OR vb OR vc
+    
+    # To convert 3-SAT clause to 2-SAT, we introduce an auxiliary variable y:
+    # va OR vb OR vc <=> (va OR vb OR y) AND (~y OR vc)
+    # But (va OR vb OR y) still needs conversion.
+    # We can do: (va OR vb OR y) <=> (va OR z) AND (~z OR vb OR y) for another aux var z
+    # This is getting too complex.
+    
+    # Let's try a direct backtracking solution with pruning.
+    
+    assignment = [None] * (n+1)  # 1-indexed
+    
+    def is_clause_satisfied(clause):
+        for lit in clause:
+            var = abs(lit)
+            expected_phase = 1 if lit > 0 else 0
+            if assignment[var] is not None:
+                if assignment[var] == expected_phase:
+                    return True
+        return False
+    
+    def propagate():
+        changed = True
+        while changed:
+            changed = False
+            for clause in clauses:
+                # Count how many literals are already decided against us
+                false_count = 0
+                undecided_literals = []
+                satisfied = False
+                
+                for lit in clause:
+                    var = abs(lit)
+                    expected_phase = 1 if lit > 0 else 0
+                    
+                    if assignment[var] is not None:
+                        if assignment[var] == expected_phase:
+                            satisfied = True
+                            break
+                        else:
+                            false_count += 1
+                    else:
+                        undecided_literals.append(lit)
+                
+                if satisfied:
+                    continue
+                    
+                if false_count == 2 and len(undecided_literals) == 1:
+                    # Only one literal left, it must be true
+                    lit = undecided_literals[0]
+                    var = abs(lit)
+                    expected_phase = 1 if lit > 0 else 0
+                    if assignment[var] is None:
+                        assignment[var] = expected_phase
+                        changed = True
+                    elif assignment[var] != expected_phase:
+                        return False  # Contradiction
+                        
+                if false_count == 3:
+                    return False  # All literals are false, contradiction
+        
+        return True
+    
+    # Initial propagation
+    if not propagate():
+        return None
+    
+    def backtrack(var_index):
+        if var_index > n:
+            # Check if all clauses are satisfied
+            for clause in clauses:
+                if not is_clause_satisfied(clause):
+                    return False
+            return True
+            
+        if assignment[var_index] is not None:
+            return backtrack(var_index + 1)
+            
+        # Try setting variable to 1
+        assignment[var_index] = 1
+        backup = [row[:] for row in [[assignment[i] for i in range(n+1)]]][0] if n > 0 else []
+        if propagate() and backtrack(var_index + 1):
+            return True
+        # Restore state before propagation
+        for i in range(n+1):
+            assignment[i] = backup[i] if i < len(backup) else None
+            
+        # Try setting variable to 0
+        assignment[var_index] = 0
+        backup = [row[:] for row in [[assignment[i] for i in range(n+1)]]][0] if n > 0 else []
+        if propagate() and backtrack(var_index + 1):
+            return True
+        # Restore state before propagation
+        for i in range(n+1):
+            assignment[i] = backup[i] if i < len(backup) else None
+            
+        assignment[var_index] = None
+        return False
+    
+    # Start backtracking from variable 1
+    if backtrack(1):
+        return [assignment[i] for i in range(1, n+1)]
+    else:
+        return None
+
+def main():
+    n, m, clauses = read_input()
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(["0"] * n))
+        return
+        
+    result = solve_2sat(n, clauses)
+    
+    if result is None:
+        print("NO")
+    else:
+        print("YES")
+        print(" ".join(map(str, result)))
+
+if __name__ == "__main__":
+    main()

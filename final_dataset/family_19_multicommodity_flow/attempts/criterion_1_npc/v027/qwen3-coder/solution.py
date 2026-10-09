@@ -1,0 +1,116 @@
+from collections import defaultdict, deque
+import sys
+
+def solve():
+    n, m, k = map(int, input().split())
+    
+    syndicates = []
+    for i in range(k):
+        s, t, d = map(int, input().split())
+        syndicates.append((s, t, d))
+    
+    edges = []
+    edge_index = {}
+    adj = defaultdict(list)
+    
+    for i in range(m):
+        u, v, cap = map(int, input().split())
+        edges.append((u, v, cap))
+        edge_index[(u, v)] = i
+        adj[u].append((v, i))
+        adj[v].append((u, i))
+    
+    # For each syndicate, find flow paths using max flow
+    # We'll model this as a multi-commodity flow problem
+    # For each syndicate, we need to find a flow that satisfies demand
+    # We'll use the fact that we can decompose the flow into paths
+    
+    # For each syndicate, we'll find a flow using BFS to find paths
+    # and then assign the flow
+    
+    result = [[0] * m for _ in range(k)]
+    edge_flow = [0] * m  # Total flow on each edge
+    
+    # We'll solve this as a linear programming problem conceptually
+    # But since we need integer flows and the structure is simple,
+    # we can try to find paths for each syndicate
+    
+    def find_paths(source, target, demand):
+        # Find demand number of paths from source to target
+        # Return list of paths, each path is a list of edge indices
+        paths = []
+        remaining_demand = demand
+        
+        while remaining_demand > 0:
+            # BFS to find a path
+            parent = [-1] * (n + 1)
+            parent_edge = [-1] * (n + 1)
+            queue = deque([source])
+            visited = [False] * (n + 1)
+            visited[source] = True
+            
+            while queue:
+                node = queue.popleft()
+                if node == target:
+                    break
+                for next_node, edge_idx in adj[node]:
+                    if not visited[next_node]:
+                        visited[next_node] = True
+                        parent[next_node] = node
+                        parent_edge[next_node] = edge_idx
+                        queue.append(next_node)
+            
+            if not visited[target]:
+                return None  # No path found
+            
+            # Reconstruct path
+            path = []
+            current = target
+            while parent[current] != -1:
+                edge_idx = parent_edge[current]
+                path.append(edge_idx)
+                current = parent[current]
+            path.reverse()
+            
+            paths.append(path)
+            remaining_demand -= 1
+        
+        return paths
+    
+    # Try to find paths for each syndicate
+    syndicate_paths = []
+    
+    for i, (s, t, d) in enumerate(syndicates):
+        paths = find_paths(s, t, d)
+        if paths is None:
+            print("NO")
+            return
+        syndicate_paths.append(paths)
+    
+    # Now we need to check if the total flow on any edge exceeds capacity
+    # Simulate the flows
+    temp_edge_flow = [0] * m
+    
+    for i, paths in enumerate(syndicate_paths):
+        for path in paths:
+            for edge_idx in path:
+                temp_edge_flow[edge_idx] += 1
+    
+    # Check capacity constraints
+    for i in range(m):
+        if temp_edge_flow[i] > edges[i][2]:
+            print("NO")
+            return
+    
+    # If we get here, we have a valid solution
+    print("YES")
+    
+    # Output the flows for each syndicate
+    for i, paths in enumerate(syndicate_paths):
+        flow_on_edges = [0] * m
+        for path in paths:
+            for edge_idx in path:
+                flow_on_edges[edge_idx] += 1
+        print(' '.join(map(str, flow_on_edges)))
+
+solve()

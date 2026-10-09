@@ -1,0 +1,347 @@
+import sys
+from collections import deque
+from itertools import permutations
+
+sys.setrecursionlimit(10000)
+
+data = list(map(int, sys.stdin.buffer.read().split()))
+if len(data) < 2:
+    print("NO")
+    raise SystemExit
+
+n, m = data[0], data[1]
+if len(data) != 2 + 2 * m:
+    print("NO")
+    raise SystemExit
+
+edges = []
+adj = [[] for _ in range(n)]
+pos = 2
+
+valid = True
+for eid in range(m):
+    u = data[pos] - 1
+    v = data[pos + 1] - 1
+    pos += 2
+    if not (0 <= u < n and 0 <= v < n) or u == v:
+        valid = False
+        continue
+    edges.append((u, v))
+    adj[u].append((v, eid))
+    adj[v].append((u, eid))
+
+if not valid or len(edges) != m or any(len(adj[v]) != 3 for v in range(n)):
+    print("NO")
+    raise SystemExit
+
+# A cubic graph containing a bridge cannot be 3-edge-colored.
+tin = [-1] * n
+low = [0] * n
+timer = 0
+has_bridge = False
+
+def bridge_dfs(v, parent_edge):
+    global timer, has_bridge
+    tin[v] = low[v] = timer
+    timer += 1
+    for to, eid in adj[v]:
+        if eid == parent_edge:
+            continue
+        if tin[to] != -1:
+            low[v] = min(low[v], tin[to])
+        else:
+            bridge_dfs(to, eid)
+            low[v] = min(low[v], low[to])
+            if low[to] > tin[v]:
+                has_bridge = True
+
+for start in range(n):
+    if tin[start] == -1:
+        bridge_dfs(start, -1)
+
+if has_bridge:
+    print("NO")
+    raise SystemExit
+
+# Find connected components and identify bipartite ones.
+side = [-1] * n
+component = [-1] * n
+components = []
+is_bipartite = []
+
+for start in range(n):
+    if component[start] != -1:
+        continue
+    cid = len(components)
+    vertices = []
+    bip = True
+    q = deque([start])
+    component[start] = cid
+    side[start] = 0
+
+    while q:
+        v = q.popleft()
+        vertices.append(v)
+        for to, _ in adj[v]:
+            if component[to] == -1:
+                component[to] = cid
+                side[to] = side[v] ^ 1
+                q.append(to)
+            elif side[to] == side[v]:
+                bip = False
+
+    components.append(vertices)
+    is_bipartite.append(bip)
+
+answer = [0] * m
+
+# Color all bipartite components using one perfect matching and alternating cycles.
+left_vertices = [
+    v for v in range(n)
+    if is_bipartite[component[v]] and side[v] == 0
+]
+
+pair_left = [-1] * n
+pair_right = [-1] * n
+matching_edge = [-1] * n
+dist = [-1] * n
+
+def hk_bfs():
+    q = deque()
+    found = False
+    for u in left_vertices:
+        if pair_left[u] == -1:
+            dist[u] = 0
+            q.append(u)
+        else:
+            dist[u] = -1
+
+    while q:
+        u = q.popleft()
+        for v, _ in adj[u]:
+            pu = pair_right[v]
+            if pu == -1:
+                found = True
+            elif dist[pu] == -1:
+                dist[pu] = dist[u] + 1
+                q.append(pu)
+    return found
+
+def hk_dfs(u):
+    for v, eid in adj[u]:
+        pu = pair_right[v]
+        if pu == -1 or (dist[pu] == dist[u] + 1 and hk_dfs(pu)):
+            pair_left[u] = v
+            pair_right[v] = u
+            matching_edge[u] = eid
+            return True
+    dist[u] = -1
+    return False
+
+matched = 0
+while hk_bfs():
+    for u in left_vertices:
+        if pair_left[u] == -1 and hk_dfs(u):
+            matched += 1
+
+if matched != len(left_vertices):
+    print("NO")
+    raise SystemExit
+
+for u in left_vertices:
+    answer[matching_edge[u]] = 1
+
+for cid, vertices in enumerate(components):
+    if not is_bipartite[cid]:
+        continue
+
+    for v in vertices:
+        for _, eid in adj[v]:
+            if answer[eid] != 0:
+                continue
+
+            answer[eid] = 2
+            q = deque()
+            a, b = edges[eid]
+            q.append(a)
+            q.append(b)
+
+            while q:
+                x = q.popleft()
+                rem = [e for _, e in adj[x] if answer[e] != 1]
+                e1, e2 = rem[0], rem[1]
+
+                if answer[e1] and not answer[e2]:
+                    answer[e2] = 5 - answer[e1]
+                    y1, y2 = edges[e2]
+                    q.append(y2 if y1 == x else y1)
+                elif answer[e2] and not answer[e1]:
+                    answer[e1] = 5 - answer[e2]
+                    y1, y2 = edges[e1]
+                    q.append(y2 if y1 == x else y1)
+                elif answer[e1] and answer[e2] and answer[e1] == answer[e2]:
+                    print("NO")
+                    raise SystemExit
+
+# Constraint solver for non-bipartite components.
+domains = [7] * m
+trail = []
+phase_masks = (1, 2, 4)
+all_permutations = tuple(permutations(phase_masks))
+
+def set_domain(eid, new_domain, queue):
+    old = domains[eid]
+    if old == new_domain:
+        return True
+    if new_domain == 0:
+        return False
+    trail.append((eid, old))
+    domains[eid] = new_domain
+    u, v = edges[eid]
+    queue.append(u)
+    queue.append(v)
+    return True
+
+initial_queue = deque()
+
+for eid, color in enumerate(answer):
+    if color:
+        if not set_domain(eid, 1 << (color - 1), initial_queue):
+            print("NO")
+            raise SystemExit
+
+# Fix the global color permutation independently in every unresolved component.
+for cid, vertices in enumerate(components):
+    if is_bipartite[cid]:
+        continue
+    root = vertices[0]
+    root_edges = [eid for _, eid in adj[root]]
+    for eid, mask in zip(root_edges, phase_masks):
+        if not set_domain(eid, mask, initial_queue):
+            print("NO")
+            raise SystemExit
+
+def propagate(queue):
+    while queue:
+        v = queue.popleft()
+        e0 = adj[v][0][1]
+        e1 = adj[v][1][1]
+        e2 = adj[v][2][1]
+        d0, d1, d2 = domains[e0], domains[e1], domains[e2]
+
+        s0 = s1 = s2 = 0
+        possible = False
+
+        for p0, p1, p2 in all_permutations:
+            if (d0 & p0) and (d1 & p1) and (d2 & p2):
+                possible = True
+                s0 |= p0
+                s1 |= p1
+                s2 |= p2
+
+        if not possible:
+            return False
+
+        if not set_domain(e0, d0 & s0, queue):
+            return False
+        if not set_domain(e1, d1 & s1, queue):
+            return False
+        if not set_domain(e2, d2 & s2, queue):
+            return False
+
+    return True
+
+if not propagate(initial_queue):
+    print("NO")
+    raise SystemExit
+
+def vertex_options(v):
+    e0 = adj[v][0][1]
+    e1 = adj[v][1][1]
+    e2 = adj[v][2][1]
+    d0, d1, d2 = domains[e0], domains[e1], domains[e2]
+    result = []
+    for p0, p1, p2 in all_permutations:
+        if (d0 & p0) and (d1 & p1) and (d2 & p2):
+            result.append((p0, p1, p2))
+    return result
+
+def search():
+    best_v = -1
+    best_options = None
+    best_count = 7
+
+    for cid, vertices in enumerate(components):
+        if is_bipartite[cid]:
+            continue
+        for v in vertices:
+            e0 = adj[v][0][1]
+            e1 = adj[v][1][1]
+            e2 = adj[v][2][1]
+
+            if (domains[e0] & (domains[e0] - 1) == 0 and
+                domains[e1] & (domains[e1] - 1) == 0 and
+                domains[e2] & (domains[e2] - 1) == 0):
+                continue
+
+            opts = vertex_options(v)
+            count = len(opts)
+            if count == 0:
+                return False
+            if count < best_count:
+                best_count = count
+                best_v = v
+                best_options = opts
+                if count == 2:
+                    break
+        if best_count == 2:
+            break
+
+    if best_v == -1:
+        return True
+
+    branch_edges = [eid for _, eid in adj[best_v]]
+
+    for option in best_options:
+        marker = len(trail)
+        q = deque()
+        ok = True
+
+        for eid, mask in zip(branch_edges, option):
+            if not set_domain(eid, domains[eid] & mask, q):
+                ok = False
+                break
+
+        if ok and propagate(q) and search():
+            return True
+
+        while len(trail) > marker:
+            eid, old_domain = trail.pop()
+            domains[eid] = old_domain
+
+    return False
+
+if not search():
+    print("NO")
+    raise SystemExit
+
+for eid in range(m):
+    d = domains[eid]
+    if d == 1:
+        answer[eid] = 1
+    elif d == 2:
+        answer[eid] = 2
+    elif d == 4:
+        answer[eid] = 3
+    else:
+        print("NO")
+        raise SystemExit
+
+for v in range(n):
+    colors = {answer[eid] for _, eid in adj[v]}
+    if colors != {1, 2, 3}:
+        print("NO")
+        raise SystemExit
+
+print("YES")
+print(*answer)

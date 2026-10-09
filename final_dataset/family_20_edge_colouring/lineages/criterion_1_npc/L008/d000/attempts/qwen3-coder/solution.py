@@ -1,0 +1,157 @@
+import sys
+from collections import defaultdict
+
+def solve():
+    n, m = map(int, sys.stdin.readline().split())
+    
+    edges = []
+    adj = defaultdict(list)
+    
+    for i in range(m):
+        u, v = map(int, sys.stdin.readline().split())
+        edges.append((u, v))
+        adj[u].append(i)
+        adj[v].append(i)
+    
+    # Try to 3-color the line graph (each edge is a node, adjacent if they share a vertex)
+    # This is equivalent to assigning windows to cables such that cables sharing a junction 
+    # get different windows
+    
+    color = [0] * m  # 0 means uncolored, 1, 2, 3 are the three windows
+    
+    # Build adjacency list for the line graph
+    line_adj = [[] for _ in range(m)]
+    for u in range(1, n + 1):
+        incident_edges = adj[u]
+        # All pairs of edges incident to the same vertex are adjacent in the line graph
+        for i in range(len(incident_edges)):
+            for j in range(i + 1, len(incident_edges)):
+                line_adj[incident_edges[i]].append(incident_edges[j])
+                line_adj[incident_edges[j]].append(incident_edges[i])
+    
+    # Try to 3-color the line graph
+    def dfs(node):
+        # Available colors for this node
+        used_colors = set()
+        for neighbor in line_adj[node]:
+            if color[neighbor] != 0:
+                used_colors.add(color[neighbor])
+        
+        available_colors = {1, 2, 3} - used_colors
+        
+        for c in available_colors:
+            color[node] = c
+            success = True
+            # Check if we can continue with this choice
+            for neighbor in line_adj[node]:
+                if color[neighbor] == 0:
+                    if not dfs(neighbor):
+                        success = False
+                        break
+            if success:
+                return True
+            # Backtrack
+            color[node] = 0
+            
+        return False
+    
+    # Start coloring from node 0
+    stack = [0]
+    color[0] = 1  # Assign first color to first edge
+    
+    # Use iterative DFS with backtracking
+    visited = [False] * m
+    
+    def try_color(start_node):
+        stack = [(start_node, 0)]  # (node, tried_colors_bitmask)
+        while stack:
+            node, tried = stack[-1]
+            if not visited[node]:
+                visited[node] = True
+                # Determine forbidden colors from neighbors
+                forbidden = 0  # bitmask: bit 0=forbidden 1, bit 1=forbidden 2, bit 2=forbidden 3
+                for neighbor in line_adj[node]:
+                    if color[neighbor] != 0:
+                        forbidden |= (1 << (color[neighbor] - 1))
+                
+                # Try colors 1, 2, 3 in order, skipping forbidden ones
+                found_color = False
+                for c in range(1, 4):
+                    if not (forbidden & (1 << (c - 1))) and not (tried & (1 << (c - 1))):
+                        # Mark this color as tried
+                        stack.pop()
+                        stack.append((node, tried | (1 << (c - 1))))
+                        color[node] = c
+                        found_color = True
+                        
+                        # Add unvisited neighbors to stack
+                        for neighbor in line_adj[node]:
+                            if not visited[neighbor]:
+                                stack.append((neighbor, 0))
+                        break
+                
+                if not found_color:
+                    # Backtrack
+                    visited[node] = False
+                    color[node] = 0
+                    stack.pop()
+                    if stack:
+                        prev_node, prev_tried = stack[-1]
+                        stack.pop()
+                        stack.append((prev_node, prev_tried))
+            else:
+                stack.pop()
+    
+    # Better approach: sequential coloring
+    colored = [False] * m
+    
+    for node in range(m):
+        if not colored[node]:
+            # Determine which colors are forbidden for this node
+            forbidden = set()
+            for neighbor in line_adj[node]:
+                if colored[neighbor]:
+                    forbidden.add(color[neighbor])
+            
+            available = set([1, 2, 3]) - forbidden
+            if not available:
+                print("NO")
+                return
+                
+            color[node] = min(available)
+            colored[node] = True
+            
+            # Now propagate constraints to uncolored neighbors
+            queue = [node]
+            while queue:
+                current = queue.pop(0)
+                for neighbor in line_adj[current]:
+                    if not colored[neighbor]:
+                        forbidden_nbr = set()
+                        for nbr_of_nbr in line_adj[neighbor]:
+                            if colored[nbr_of_nbr]:
+                                forbidden_nbr.add(color[nbr_of_nbr])
+                        
+                        available_nbr = set([1, 2, 3]) - forbidden_nbr
+                        if not available_nbr:
+                            print("NO")
+                            return
+                            
+                        if not colored[neighbor]:
+                            color[neighbor] = min(available_nbr)
+                            colored[neighbor] = True
+                            queue.append(neighbor)
+    
+    # Verify solution
+    for u in range(1, n + 1):
+        incident_colors = set()
+        for edge_idx in adj[u]:
+            incident_colors.add(color[edge_idx])
+        if len(incident_colors) != 3:
+            print("NO")
+            return
+    
+    print("YES")
+    print(' '.join(map(str, color)))
+
+solve()

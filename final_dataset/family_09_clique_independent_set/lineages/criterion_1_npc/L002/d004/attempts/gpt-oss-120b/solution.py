@@ -1,0 +1,101 @@
+import sys
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it)); m = int(next(it)); k = int(next(it))
+    adj = [0]*n
+    for _ in range(m):
+        u = int(next(it))-1
+        v = int(next(it))-1
+        adj[u] |= 1<<v
+        adj[v] |= 1<<u
+
+    n1 = n//2
+    n2 = n - n1
+    # masks for each half
+    mask_first = [(1<<i) for i in range(n1)]
+    mask_second = [(1<<(n1+i)) for i in range(n2)]
+
+    # precompute adjacency restricted to halves
+    adj_first = [0]*n1
+    adj_second = [0]*n2
+    cross_adj_first = [0]*n1   # neighbors in second half
+    cross_adj_second = [0]*n2  # neighbors in first half
+    for i in range(n1):
+        adj_first[i] = adj[i] & ((1<<n1)-1)
+        cross_adj_first[i] = (adj[i] >> n1) & ((1<<n2)-1)
+    for i in range(n2):
+        v = n1 + i
+        adj_second[i] = (adj[v] >> n1) & ((1<<n2)-1)
+        cross_adj_second[i] = adj[v] & ((1<<n1)-1)
+
+    # enumerate independent subsets of first half
+    from collections import defaultdict
+    first_by_size = defaultdict(list)  # size -> list of (forbidMask, subsetMask)
+    for mask in range(1<<n1):
+        ok = True
+        # check internal edges
+        # iterate bits
+        sub = mask
+        while sub:
+            lsb = sub & -sub
+            i = (lsb.bit_length()-1)
+            if adj_first[i] & mask:
+                ok = False
+                break
+            sub -= lsb
+        if not ok:
+            continue
+        size = mask.bit_count()
+        forbid = 0
+        sub = mask
+        while sub:
+            lsb = sub & -sub
+            i = (lsb.bit_length()-1)
+            forbid |= cross_adj_first[i]
+            sub -= lsb
+        first_by_size[size].append((forbid, mask))
+
+    # enumerate independent subsets of second half and try to match
+    for mask2 in range(1<<n2):
+        ok = True
+        sub = mask2
+        while sub:
+            lsb = sub & -sub
+            i = (lsb.bit_length()-1)
+            if adj_second[i] & mask2:
+                ok = False
+                break
+            sub -= lsb
+        if not ok:
+            continue
+        size2 = mask2.bit_count()
+        need = k - size2
+        if need < 0 or need > n1:
+            continue
+        for forbid, mask1 in first_by_size.get(need, []):
+            if forbid & mask2 == 0:
+                # construct answer
+                res = []
+                sub = mask1
+                while sub:
+                    lsb = sub & -sub
+                    i = (lsb.bit_length()-1)
+                    res.append(i+1)
+                    sub -= lsb
+                sub = mask2
+                while sub:
+                    lsb = sub & -sub
+                    i = (lsb.bit_length()-1)
+                    res.append(n1 + i + 1)
+                    sub -= lsb
+                print("YES")
+                print(' '.join(map(str, res)))
+                return
+    print("NO")
+
+if __name__ == "__main__":
+    solve()

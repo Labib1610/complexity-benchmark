@@ -1,0 +1,203 @@
+**Solution Explanation**
+
+For every supplier we know with which other suppliers it has a transaction.
+The required triple  
+
+```
+a < b < c
+a – b   (edge)
+b – c   (edge)
+a – c   (edge)
+```
+
+is exactly a triangle of the undirected graph formed by the `m` edges.
+We have to output the lexicographically smallest triangle
+(first smallest `a`, then `b`, then `c`).
+
+`n ≤ 2000`, therefore a *bitset* of length `n` fits into a single Python
+integer (`2000` bits ≈ 250 bytes).  
+With a bitset we can intersect neighbour sets of two vertices in **O(1)**
+time using the `&` operator.
+
+
+
+--------------------------------------------------------------------
+
+#### Data structure
+
+```
+bits[v]   – Python int, bit i (1‑based) is 1  ⇔  edge (v,i) exists
+```
+
+Construction: for each input edge `u v`
+
+```
+bits[u] |= 1 << v
+bits[v] |= 1 << u
+```
+
+--------------------------------------------------------------------
+
+#### Searching the smallest triangle
+
+We iterate over all ordered pairs `(a,b)` with `a < b`.
+
+```
+if edge a‑b exists:
+        common = bits[a] & bits[b]          # vertices adjacent to both
+        # we need a vertex c > b
+        common >>= (b+1)                    # discard bits ≤ b
+        if common != 0:
+                # lowest set bit = smallest possible c
+                low = common & -common
+                c = (low.bit_length() - 1) + (b+1)
+                output a b c
+                stop
+```
+
+*Why does this give the lexicographically smallest triangle?*
+
+* the outer loop increases `a` from `1` to `n`.  
+  The first found triangle therefore has the smallest possible `a`.
+* for a fixed `a` the inner loop increases `b`.  
+  Hence the first triangle for this `a` has the smallest possible `b`.
+* for a fixed pair `(a,b)` we take the smallest `c > b` that is adjacent
+  to both, because after shifting we look at the lowest set bit.
+
+Thus the first triangle we encounter is exactly the required one.
+
+--------------------------------------------------------------------
+
+#### Correctness Proof  
+
+We prove that the algorithm outputs the lexicographically smallest
+triangle.
+
+---
+
+##### Lemma 1  
+For any vertices `a < b` the expression  
+
+```
+common = (bits[a] & bits[b]) >> (b+1)
+```
+
+has a set bit at position `k` (0‑based) **iff** vertex `c = b+1+k`
+forms a triangle `a‑b‑c` with `a < b < c`.
+
+**Proof.**  
+`bits[a] & bits[b]` contains exactly the vertices adjacent to **both**
+`a` and `b`. Shifting right by `b+1` removes all bits `≤ b`.  
+Therefore a remaining set bit corresponds to a vertex `c > b` adjacent
+to both `a` and `b`. ∎
+
+
+
+##### Lemma 2  
+If `common` is non‑zero, the vertex  
+
+```
+c = ( (common & -common).bit_length() - 1 ) + (b+1)
+```
+
+is the smallest vertex `c > b` that together with `a,b` forms a triangle.
+
+**Proof.**  
+`common & -common` isolates the lowest set bit of `common`.  
+Its index (0‑based) is `bit_length()-1`. Adding `b+1` converts the
+index back to the original vertex number. Because it is the lowest set
+bit, no smaller `c > b` satisfies the condition. ∎
+
+
+
+##### Lemma 3  
+When the algorithm prints a triple `(a,b,c)`, it is a triangle
+(`a‑b`, `b‑c`, `a‑c` are edges) and satisfies `a<b<c`.
+
+**Proof.**  
+The algorithm prints only after confirming that edge `a‑b` exists
+(`bits[a]` has bit `b`).  
+By Lemma&nbsp;1 the non‑zero `common` guarantees that `c` is adjacent to
+both `a` and `b`.  
+The construction of `c` (Lemma&nbsp;2) ensures `c > b`. ∎
+
+
+
+##### Lemma 4  
+Let `(a\*,b\*,c\*)` be the triangle printed by the algorithm.
+For any triangle `(a',b',c')` with `a' < b' < c'` we have
+`a\* ≤ a'`. If `a\* = a'` then `b\* ≤ b'`. If also `b\* = b'` then
+`c\* ≤ c'`.
+
+**Proof.**  
+The outer loop enumerates `a` in increasing order.
+The first printed triangle therefore uses the smallest possible `a`,
+otherwise a triangle with a smaller `a` would have been printed earlier.
+The same argument applied to the inner loop for a fixed `a` gives the
+minimal `b`. Finally, for a fixed pair `(a,b)` Lemma&nbsp;2 selects the
+minimal feasible `c`. ∎
+
+
+
+##### Theorem  
+The algorithm outputs the lexicographically smallest triple
+`a<b<c` that forms a triangle in the given graph.
+
+**Proof.**  
+By Lemma&nbsp;3 the output is a valid triangle.
+Lemma&nbsp;4 shows that no other triangle is lexicographically smaller.
+Therefore the printed triple is exactly the required answer. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### Complexity Analysis  
+
+*Building bitsets* : `O(m)`  
+*Main loops* : at most `n·(n-1)/2 ≤ 2·10⁶` iterations, each does only a
+constant amount of bit operations → `O(n²)` time.  
+With `n ≤ 2000` this is well below the limit.
+
+Memory: `n` integers, each ≤ `2ⁿ` → `O(n)` bits ≈ 250 KB.
+
+--------------------------------------------------------------------
+
+#### Reference Implementation  (Python 3)
+
+```python
+import sys
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+
+    bits = [0] * (n + 1)          # 1‑based
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        bits[u] |= 1 << v
+        bits[v] |= 1 << u
+
+    for a in range(1, n + 1):
+        ba = bits[a]
+        for b in range(a + 1, n + 1):
+            if not (ba >> b) & 1:          # edge a‑b ?
+                continue
+            common = (ba & bits[b]) >> (b + 1)
+            if common:
+                low = common & -common
+                c = low.bit_length() - 1 + (b + 1)
+                print(a, b, c)
+                return
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above
+and conforms to the required input‑output format.

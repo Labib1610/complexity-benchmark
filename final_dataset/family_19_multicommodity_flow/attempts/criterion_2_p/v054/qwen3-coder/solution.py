@@ -1,0 +1,191 @@
+from collections import defaultdict, deque
+
+def solve():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    index = 0
+    n = int(data[index])
+    index += 1
+    m = int(data[index])
+    index += 1
+    _ = int(data[index])
+    index += 1
+    
+    s = int(data[index])
+    index += 1
+    t = int(data[index])
+    index += 1
+    d = int(data[index])
+    index += 1
+    
+    edges = []
+    graph = defaultdict(list)
+    capacity = []
+    
+    for i in range(m):
+        u = int(data[index])
+        index += 1
+        v = int(data[index])
+        index += 1
+        cap = int(data[index])
+        index += 1
+        edges.append((u, v, cap))
+        graph[u].append((v, i))   # (node, edge_index)
+        graph[v].append((u, i))   # for residual graph
+        capacity.append(cap)
+    
+    # We model this as a circulation problem with supply/demand
+    # Node s has supply +d, node t has demand +d (or supply -d)
+    # All other nodes have supply 0 (flow conservation)
+    
+    # Add super source SS and super sink TT
+    # SS -> s with capacity d
+    # t -> TT with capacity d
+    # This converts the problem into a max flow problem
+    
+    SS = n + 1  # Super source
+    TT = n + 2  # Super sink
+    
+    # Add two new edges: SS->s (capacity d) and t->TT (capacity d)
+    # But we need to be careful about indexing
+    # Let's reindex the nodes and build a new graph for flow
+    
+    # Actually, let's use a different approach:
+    # Model the problem directly as a circulation problem with lower bounds 0 and upper bounds cap
+    # Supply at s: +d, at t: -d, others: 0
+    # This is equivalent to finding a feasible circulation
+    
+    # But since all lower bounds are 0, we can convert it to max flow:
+    # Create super source SS, super sink TT
+    # SS -> s with capacity d
+    # t -> TT with capacity d
+    # All original edges have capacity cap
+    
+    # Build the flow network
+    # Nodes: 1 to n, plus SS=n+1, TT=n+2
+    # Edges: original edges + SS->s (d) + t->TT (d)
+    
+    # But actually, let's think differently. 
+    # We want to send exactly d flow from s to t
+    # So we create a max flow problem:
+    # Source: s, Sink: t
+    # Edge capacities are given
+    # Check if we can send >= d flow
+    
+    # No, that's not right either. We need exactly d flow.
+    
+    # Let's do the standard transformation:
+    # 1. Add a edge from t to s with infinite capacity (but we'll handle it specially)
+    # 2. This makes it a circulation problem
+    # 3. But we want the amount of flow along t->s edge to be exactly d
+    # 4. So we set lower bound d and upper bound d on edge t->s
+    # 5. Then check if a feasible circulation exists
+    
+    # However, our max flow implementation doesn't support lower bounds easily.
+    
+    # Alternative approach:
+    # Create a flow network with source SS and sink TT
+    # Add edge SS -> s with capacity d
+    # Add edge t -> TT with capacity d
+    # Original edges with their capacities
+    # Find max flow from SS to TT. If it's == d, then we can send exactly d units.
+    
+    # Let's proceed with this approach
+    
+    # New node indices: 0 to n+1 where 0 is SS, n+1 is TT
+    # But input nodes are 1-indexed, so we map them:
+    # SS = 0, TT = n+1
+    # Original node i becomes i
+    
+    SOURCE = 0
+    SINK = n + 1
+    
+    # Build adjacency list for the flow network
+    adj = [[] for _ in range(n + 2)]
+    edge_list = []  # Store edges as (from, to, capacity, index_in_edge_list)
+    
+    # Add original edges
+    for i in range(m):
+        u, v, cap = edges[i]
+        # Forward edge
+        adj[u].append(len(edge_list))
+        edge_list.append([u, v, cap, len(edge_list)+1])  # forward
+        # Backward edge
+        adj[v].append(len(edge_list))
+        edge_list.append([v, u, 0, len(edge_list)-1])   # backward
+        
+    # Add SS -> s with capacity d
+    adj[SOURCE].append(len(edge_list))
+    edge_list.append([SOURCE, s, d, len(edge_list)+1])
+    adj[s].append(len(edge_list))
+    edge_list.append([s, SOURCE, 0, len(edge_list)-1])
+    
+    # Add t -> TT with capacity d
+    adj[t].append(len(edge_list))
+    edge_list.append([t, SINK, d, len(edge_list)+1])
+    adj[SINK].append(len(edge_list))
+    edge_list.append([SINK, t, 0, len(edge_list)-1])
+    
+    def bfs():
+        dist = [-1] * (n + 2)
+        dist[SOURCE] = 0
+        queue = deque([SOURCE])
+        while queue:
+            u = queue.popleft()
+            for eid in adj[u]:
+                e = edge_list[eid]
+                if dist[e[1]] == -1 and e[2] > 0:
+                    dist[e[1]] = dist[u] + 1
+                    queue.append(e[1])
+        return dist[SINK] != -1, dist
+    
+    def dfs(u, min_flow, dist):
+        if u == SINK:
+            return min_flow
+        for eid in adj[u]:
+            e = edge_list[eid]
+            if dist[e[1]] == dist[u] + 1 and e[2] > 0:
+                bottleneck = dfs(e[1], min(min_flow, e[2]), dist)
+                if bottleneck > 0:
+                    edge_list[eid][2] -= bottleneck
+                    edge_list[e[3]][2] += bottleneck
+                    return bottleneck
+        return 0
+    
+    # Dinic's algorithm
+    max_flow = 0
+    while True:
+        has_path, dist = bfs()
+        if not has_path:
+            break
+        # In a real Dinic's we'd also need blocking flows, but for simplicity let's just do DFS
+        # This is essentially Ford-Fulkerson with BFS for finding paths (Edmonds-Karp)
+        while True:
+            flow = dfs(SOURCE, float('inf'), dist)
+            if flow == 0:
+                break
+            max_flow += flow
+    
+    if max_flow < d:
+        print("NO")
+        return
+    
+    # Extract the flow on original edges
+    flow_values = [0] * m
+    for i in range(m):
+        # The forward edge was at index 2*i in edge_list (before adding SS/s/t edges)
+        # But now we have added 2 more edges at the end
+        # Actually, let's track which edges are original
+        # When we built the edge_list, first m pairs are original edges
+        forward_eid = 2 * i
+        backward_eid = 2 * i + 1
+        original_cap = edges[i][2]
+        current_flow = edge_list[backward_eid][2]  # Flow that went backward is the flow on original
+        flow_values[i] = current_flow
+    
+    print("YES")
+    print(' '.join(map(str, flow_values)))
+
+solve()

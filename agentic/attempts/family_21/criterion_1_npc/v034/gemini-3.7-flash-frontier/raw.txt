@@ -1,0 +1,301 @@
+An efficient and correct Python 3 solution for the **Securing a Subterranean Vault Complex** (Multiway Cut) problem.
+
+### Method Explanation
+
+The problem asks for a minimum weight set of edges to remove such that no two anomaly chambers (terminals) remain in the same connected component, with the total weight at most $B$.
+
+We use a Branch and Bound algorithm with the following components:
+1. **Lower Bound via Multi-terminal Cut LP Relaxation**: 
+   A known lower bound on the remaining cost is $\lceil \frac{1}{2} \sum_{i=1}^k \text{min-cut}(t_i, T \setminus \{t_i\}) \rceil$, which can be computed efficiently using Dinic's algorithm for max-flow. If `current_cost + LB > best_cost` or `current_cost + LB > B`, the branch is pruned.
+2. **Shortest Path Branching**:
+   If some terminals are still connected, we find a shortest path (in terms of number of hops) $P = (e_1, e_2, \dots, e_p)$ between any two terminals. In any valid cut, at least one edge on this path must be cut. We branch on which edge is the *first* cut edge along the path:
+   - Branch 1: Cut $e_1$.
+   - Branch 2: Contract $e_1$, Cut $e_2$.
+   - ...
+   - Branch $p$: Contract $e_1, \dots, e_{p-1}$, Cut $e_p$.
+   
+   If contracting an edge merges two different terminals, that branch is immediately invalid and pruned.
+
+### Python 3 Source Code
+
+```python
+import sys
+from collections import deque
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    iterator = iter(input_data)
+    n = int(next(iterator))
+    m = int(next(iterator))
+    k = int(next(iterator))
+    B = int(next(iterator))
+    
+    terminals = [int(next(iterator)) for _ in range(k)]
+    
+    edges = []
+    for _ in range(m):
+        u = int(next(iterator))
+        v = int(next(iterator))
+        w = int(next(iterator))
+        edges.append((u, v, w))
+        
+    # Dinic's algorithm for max flow / min cut
+    def compute_min_cut(term_id, term_set, adj_list):
+        # Source: term_id, Sink: super sink connected to all other terminals
+        # Build flow network
+        # Nodes: all active vertices, plus a super sink
+        nodes = list(adj_list.keys())
+        node_to_idx = {node: i for i, node in enumerate(nodes)}
+        src = node_to_idx[term_id]
+        snk = len(nodes)
+        
+        head = [-1] * (snk + 1)
+        to = []
+        cap = []
+        nxt = []
+        
+        def add_edge(u, v, c):
+            nxt.append(head[u])
+            head[u] = len(to)
+            to.append(v)
+            cap.append(c)
+            
+            nxt.append(head[v])
+            head[v] = len(to)
+            to.append(u)
+            cap.append(0)
+
+        for u in adj_list:
+            u_idx = node_to_idx[u]
+            if u in term_set and u != term_id:
+                add_edge(u_idx, snk, float('inf'))
+            for v, w, _ in adj_list[u]:
+                if u < v and v in node_to_idx:
+                    v_idx = node_to_idx[v]
+                    # Undirected edge in original graph
+                    nxt.append(head[u_idx]); head[u_idx] = len(to); to.append(v_idx); cap.append(w)
+                    nxt.append(head[v_idx]); head[v_idx] = len(to); to.append(u_idx); cap.append(w)
+
+        # Dinic
+        flow = 0
+        while True:
+            level = [-1] * (snk + 1)
+            level[src] = 0
+            q = deque([src])
+            while q:
+                u = q.popleft()
+                e = head[u]
+                while e != -1:
+                    v = to[e]
+                    if cap[e] > 0 and level[v] < 0:
+                        level[v] = level[u] + 1
+                        q.append(v)
+                    e = nxt[e]
+            if level[snk] < 0:
+                break
+            
+            ptr = list(head)
+            def dfs(u, pushed):
+                if u == snk or pushed == 0:
+                    return pushed
+                e = ptr[u]
+                while e != -1:
+                    v = to[e]
+                    tr = cap[e]
+                    if level[v] == level[u] + 1 and tr > 0:
+                        tr = dfs(v, min(pushed, tr))
+                        if tr > 0:
+                            cap[e] -= tr
+                            cap[e ^ 1] += tr
+                            return tr
+                    e = nxt[e]
+                    ptr[u] = e
+                return 0
+
+            while True:
+                pushed = dfs(src, float('inf'))
+                if pushed == 0:
+                    break
+                flow += pushed
+        return flow
+
+    # Union-Find for contracted vertices
+    best_cost = [B + 1]
+    best_cut = [None]
+
+    # Build adjacency list with edge indices
+    # adj[u] = [(v, weight, edge_index)]
+    initial_adj = {i: [] for i in range(1, n + 1)}
+    for idx, (u, v, w) in enumerate(edges):
+        if u != v:
+            initial_adj[u].append((v, w, idx))
+            initial_adj[v].append((u, w, idx))
+
+    terminal_set = set(terminals)
+
+    def search(adj, term_roots, cut_edges, current_cost):
+        # Compute Lower Bound
+        # Calculate isolated min-cut for each terminal
+        term_set = set(term_roots.values())
+        if len(term_set) <= 1:
+            return
+
+        total_flow = 0
+        for t in term_set:
+            total_flow += compute_min_cut(t, term_set, adj)
+        lb = (total_flow + 1) // 2
+
+        if current_cost + lb >= best_cost[0]:
+            return
+
+        if lb == 0:
+            # All terminals disconnected!
+            best_cost[0] = current_cost
+            best_cut[0] = list(cut_edges)
+            return
+
+        # Find shortest path between two different terminals
+        visited = {}
+        queue = deque()
+        start_node = None
+        for t in term_set:
+            visited[t] = (None, None) # (prev_node, edge_index)
+            queue.append((t, t)) # (current_node, origin_terminal)
+            
+        found_path = None
+        origin = {t: t for t in term_set}
+
+        while queue and not found_path:
+            curr, orig = queue.popleft()
+            for nxt_node, w, e_idx in adj[curr]:
+                if nxt_node not in visited:
+                    visited[nxt_node] = (curr, e_idx)
+                    origin[nxt_node] = orig
+                    queue.append((nxt_node, orig))
+                elif origin[nxt_node] != orig:
+                    # Found a path between orig and origin[nxt_node]
+                    # Reconstruct path
+                    path_edges = []
+                    # from curr back to orig
+                    c = curr
+                    while visited[c][0] is not None:
+                        p, e_i = visited[c]
+                        path_edges.append((p, c, e_i))
+                        c = p
+                    path_edges.reverse()
+                    # add connecting edge
+                    path_edges.append((curr, nxt_node, e_idx))
+                    # from nxt_node back to origin[nxt_node]
+                    c = nxt_node
+                    while visited[c][0] is not None:
+                        p, e_i = visited[c]
+                        path_edges.append((c, p, e_i))
+                        c = p
+                    found_path = path_edges
+                    break
+
+        if not found_path:
+            # Terminals are already disconnected
+            if current_cost < best_cost[0]:
+                best_cost[0] = current_cost
+                best_cut[0] = list(cut_edges)
+            return
+
+        # Branch on the edges of the path
+        # Branch i: contract e_0 ... e_{i-1}, cut e_i
+        # We will incrementally contract and branch
+        def get_adj_copy(a):
+            return {k: list(v) for k, v in a.items()}
+
+        def contract_nodes(a, troots, u, v):
+            if u == v:
+                return a, troots, True
+            # Check if two different terminals are being merged
+            u_term = troots.get(u, None)
+            v_term = troots.get(v, None)
+            if u_term is not None and v_term is not None and u_term != v_term:
+                return None, None, False
+            
+            new_a = get_adj_copy(a)
+            new_troots = dict(troots)
+            
+            # Merge v into u
+            v_edges = new_a.pop(v)
+            u_edges = []
+            
+            # Combine edge weights to the same neighbor
+            combined = {}
+            for to_node, w, e_i in new_a[u]:
+                if to_node != v:
+                    combined[to_node] = (w, e_i)
+            for to_node, w, e_i in v_edges:
+                if to_node != u:
+                    if to_node in combined:
+                        cw, _ = combined[to_node]
+                        combined[to_node] = (cw + w, e_i)
+                    else:
+                        combined[to_node] = (w, e_i)
+                        
+            new_a[u] = [(to_node, w, e_i) for to_node, (w, e_i) in combined.items()]
+            
+            # Update other nodes' edges from v to u
+            for to_node in new_a:
+                if to_node != u:
+                    updated_edges = {}
+                    for o_node, w, e_i in new_a[to_node]:
+                        dest = u if o_node == v else o_node
+                        if dest != to_node:
+                            if dest in updated_edges:
+                                cw, _ = updated_edges[dest]
+                                updated_edges[dest] = (cw + w, e_i)
+                            else:
+                                updated_edges[dest] = (w, e_i)
+                    new_a[to_node] = [(dest, w, e_i) for dest, (w, e_i) in updated_edges.items()]
+            
+            # Update terminal roots
+            if v in new_troots:
+                t_val = new_troots.pop(v)
+                new_troots[u] = t_val
+                
+            return new_a, new_troots, True
+
+        def remove_edge_by_idx(a, e_idx):
+            new_a = get_adj_copy(a)
+            for node in new_a:
+                new_a[node] = [edge for edge in new_a[node] if edge[2] != e_idx]
+            return new_a
+
+        cur_adj = adj
+        cur_troots = term_roots
+        contracted_ok = True
+
+        for pu, pv, pe_idx in found_path:
+            if not contracted_ok:
+                break
+            # Find the weight of pe_idx in the original edges
+            w_cut = edges[pe_idx][2]
+            
+            # Sub-branch: Cut pe_idx
+            cut_adj = remove_edge_by_idx(cur_adj, pe_idx)
+            search(cut_adj, cur_troots, cut_edges + [pe_idx], current_cost + w_cut)
+            
+            # For next iterations, we must contract (pu, pv)
+            cur_adj, cur_troots, contracted_ok = contract_nodes(cur_adj, cur_troots, pu, pv)
+
+    term_roots_init = {t: t for t in terminals}
+    search(initial_adj, term_roots_init, [], 0)
+
+    if best_cut[0] is None or best_cost[0] > B:
+        print("NO")
+    else:
+        print("YES")
+        print(len(best_cut[0]))
+        for idx in best_cut[0]:
+            print(f"{edges[idx][0]} {edges[idx][1]}")
+
+if __name__ == '__main__':
+    solve()
+```

@@ -1,0 +1,177 @@
+import sys
+from itertools import product
+
+def solve():
+    input_data = sys.stdin.read().strip().split()
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    k = int(next(it))
+    
+    requests = []
+    for _ in range(k):
+        s = int(next(it)) - 1
+        t = int(next(it)) - 1
+        d = int(next(it))
+        requests.append((s, t, d))
+    
+    edges = []
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        c = int(next(it))
+        edges.append((u, v, c))
+    
+    # We'll use a simple feasibility check via linear programming with integer variables.
+    # Since we can't rely on external libs, we'll implement a simple branch and bound
+    # for small m and k.
+    
+    # For each request, we need to find a flow from s to t of value d.
+    # We can model as: for each edge e, variable x_{i,e} for request i.
+    # Constraints:
+    #   sum_i x_{i,e} <= c_e
+    #   flow conservation for each request.
+    
+    # This is a multi-commodity flow. We'll try to solve via LP relaxation and rounding,
+    # but for exactness we'll use a simple backtracking if m and k are small.
+    
+    # Let's try a simple approach: for each request, find a path and assign flow,
+    # adjusting capacities. This is greedy and may fail, but we can backtrack.
+    
+    # We'll implement a DFS over requests, trying all possible path flows.
+    
+    # Build adjacency list
+    adj = [[] for _ in range(n)]
+    for idx, (u, v, c) in enumerate(edges):
+        adj[u].append((v, idx, c))
+    
+    # We'll store flows per request per edge
+    flows = [[0]*m for _ in range(k)]
+    
+    # We'll try to assign flows using DFS with backtracking
+    # For each request, we need to send d units from s to t.
+    # We'll try all possible decompositions into paths.
+    
+    # Since this is exponential, we'll only handle small cases.
+    # For larger, we'd need a proper ILP solver.
+    
+    # Let's implement a simple max-flow per request with capacity sharing via backtracking.
+    
+    # We'll use a recursive function to assign flows.
+    
+    def can_assign(req_idx, remaining_caps):
+        if req_idx == k:
+            return True
+        s, t, d = requests[req_idx]
+        # Try to send d units from s to t using remaining capacities
+        # We'll use DFS to find paths and assign flow.
+        # We'll try all possible path flows.
+        
+        # Use a simple max-flow to see if possible, then backtrack.
+        # But we need exact assignment, so we'll try all path combinations.
+        
+        # For small d and m, we can enumerate.
+        # We'll use a recursive path search.
+        
+        # Build residual graph from remaining_caps
+        # We'll try to send flow along simple paths.
+        
+        # We'll use a list to store path flows.
+        path_flows = []
+        
+        def send_flow(node, target, flow_needed, visited, path_edges):
+            if flow_needed == 0:
+                return True
+            if node == target:
+                # We can send flow_needed along path_edges
+                path_flows.append((path_edges[:], flow_needed))
+                return True
+            for v, eidx, cap in adj[node]:
+                if eidx not in visited and remaining_caps[eidx] > 0:
+                    visited.add(eidx)
+                    path_edges.append(eidx)
+                    # Try to send as much as possible along this edge
+                    f = min(flow_needed, remaining_caps[eidx])
+                    # We'll try all possible f values from 1 to f
+                    for val in range(f, 0, -1):
+                        remaining_caps[eidx] -= val
+                        if send_flow(v, target, flow_needed - val, visited, path_edges):
+                            # record flow
+                            flows[req_idx][eidx] += val
+                            # We need to continue? Actually we need to assign all d.
+                            # This is tricky.
+                            pass
+                        remaining_caps[eidx] += val
+                    visited.remove(eidx)
+                    path_edges.pop()
+            return False
+        
+        # This is getting complicated. Given time, I'll use a simpler approach:
+        # Use linear programming via scipy if available.
+        # But since we can't, I'll implement a simple feasibility check using
+        # max flow with lower bounds for each request sequentially, adjusting capacities.
+        
+        # Actually, let's just use a simple greedy: for each request, find a path
+        # and assign as much as possible, then move to next. If fails, backtrack.
+        
+        # We'll implement a backtracking over requests, trying all possible path assignments.
+        
+        # For simplicity, we'll use a recursive search over all possible flows.
+        # Since constraints are small, we can enumerate all possible path flows.
+        
+        # Let's generate all simple paths from s to t.
+        all_paths = []
+        def dfs_paths(node, target, path, visited_nodes):
+            if node == target:
+                all_paths.append(path[:])
+                return
+            for v, eidx, cap in adj[node]:
+                if v not in visited_nodes:
+                    visited_nodes.add(v)
+                    path.append(eidx)
+                    dfs_paths(v, target, path, visited_nodes)
+                    path.pop()
+                    visited_nodes.remove(v)
+        dfs_paths(s, t, [], {s})
+        
+        # Now we need to choose flows on these paths summing to d, respecting capacities.
+        # This is a subset sum / integer combination problem.
+        # We'll use recursion over paths.
+        
+        def try_paths(path_idx, remaining, caps):
+            if remaining == 0:
+                # assign flows
+                return True
+            if path_idx == len(all_paths):
+                return False
+            path = all_paths[path_idx]
+            # Determine max possible flow on this path
+            max_flow = min(caps[e] for e in path)
+            for f in range(min(max_flow, remaining), -1, -1):
+                # assign f
+                for e in path:
+                    caps[e] -= f
+                flows[req_idx][e] += f for e in path
+                if try_paths(path_idx+1, remaining - f, caps):
+                    return True
+                # backtrack
+                for e in path:
+                    caps[e] += f
+                flows[req_idx][e] -= f for e in path
+            return False
+        
+        if try_paths(0, d, remaining_caps):
+            return can_assign(req_idx+1, remaining_caps)
+        else:
+            return False
+    
+    remaining_caps = [c for _,_,c in edges]
+    if can_assign(0, remaining_caps):
+        print("YES")
+        for i in range(k):
+            print(' '.join(str(flows[i][j]) for j in range(m)))
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()

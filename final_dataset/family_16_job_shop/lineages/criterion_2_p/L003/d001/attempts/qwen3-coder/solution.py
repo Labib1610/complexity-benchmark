@@ -1,0 +1,45 @@
+import sys
+from functools import cmp_to_key
+
+def compare_jobs(job1, job2):
+    # job = (fabrication_time, assembly_time, index)
+    # Sort by min(fabrication_time, assembly_time) in descending order
+    # If equal, sort by fabrication_time in ascending order
+    min1 = min(job1[0], job1[1])
+    min2 = min(job2[0], job2[1])
+    
+    if min1 != min2:
+        return min2 - min1  # Descending order of min times
+    
+    # If min times are equal, prioritize by fabrication time ascending
+    return job1[0] - job2[0]
+
+def main():
+    input = sys.stdin.read
+    data = input().split()
+    
+    j = int(data[0])
+    jobs = []
+    
+    idx = 1
+    for i in range(j):
+        p1 = int(data[idx])
+        p2 = int(data[idx + 1])
+        jobs.append((p1, p2, i))
+        idx += 2
+    
+    # Sort jobs using the custom comparator
+    jobs.sort(key=cmp_to_key(compare_jobs))
+    
+    # Simulate the process
+    fabricate_time = 0
+    assembly_end_time = 0
+    
+    for fab_time, ass_time, _ in jobs:
+        fabricate_time += fab_time
+        assembly_end_time = max(assembly_end_time, fabricate_time) + ass_time
+    
+    print(assembly_end_time)
+
+if __name__ == "__main__":
+    main()

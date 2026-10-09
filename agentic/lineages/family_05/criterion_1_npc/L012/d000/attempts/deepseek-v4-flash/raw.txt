@@ -1,0 +1,128 @@
+We need to find a perfect matching in a 3D grid of size k, where each selected point has unique x, y, and z. This is equivalent to finding a permutation of coordinates such that for each x, we pick a distinct y and z, and no y or z repeats.
+
+We can model this as a bipartite matching problem: left side = x values (1..k), right side = pairs (y,z) that appear with that x. But we need each y and z used exactly once, which is a 3D matching problem, generally NP-hard. However, k ≤ 22, so we can use backtracking with pruning, or reduce to bipartite matching on x vs (y,z) pairs, but that doesn't guarantee y,z uniqueness across different x.
+
+Given constraints small, we can do DFS with bitmasks for y and z, trying to assign each x a distinct (y,z) from its list. We can sort x by number of candidates to reduce branching. Also prune if remaining x cannot be matched due to insufficient distinct y or z.
+
+Let's implement recursive backtracking:
+
+- Represent candidates per x as list of (y,z) bitmasks? Actually y,z ≤ 22, so we can use bitmasks for y and z.
+- For each x, we have list of (y,z) pairs.
+- We'll try to assign x in order of increasing candidate count.
+- Maintain usedY mask, usedZ mask.
+- At each step, for current x, iterate its candidates; if y not used and z not used, set and recurse.
+
+We also need to ensure that after assigning some x, the remaining x can still be matched. We can do a quick check: count remaining x, and count unused y, unused z; if any < remaining count, prune. Also, for each remaining x, we can check if it has at least one candidate with unused y,z; if not, prune.
+
+Since k ≤ 22, worst-case t up to k^3 = 10648, but backtracking might be okay with pruning. We'll also sort x by candidate count.
+
+Let's implement.
+
+Edge cases: k=1, t=0 => NO; t=1 with (1,1,1) => YES.
+
+If t < k, impossible.
+
+We'll read input, build list per x (1-indexed). If any x has no candidates, impossible.
+
+We'll sort indices by len(candidates).
+
+Recursive function dfs(idx, usedY, usedZ, chosen). If idx == k: success.
+
+For each candidate (y,z) in candidates[x]: if not usedY bit y and not usedZ bit z: set, recurse, if success return.
+
+
+
+We need to output chosen in original x order? Any order accepted, so we can output in the order we assigned (which is sorted by candidate count). That's fine.
+
+Let's code.
+
+We'll use bitmask: y_bit = 1 << (y-1), z_bit = 1 << (z-1).
+
+We'll store candidates as list of (y_bit, z_bit, y, z).
+
+Pruning: before loop, compute remaining = k - idx. If bin(usedY).count_ones() < remaining or bin(usedZ).count_ones() < remaining: return False. Also, for each remaining x in order, check if any candidate with y not used and z not used; if none, return False. This check can be done quickly.
+
+We'll implement count_ones using bin(x).count("1") or int.bit_count() (Python 3.8+? bit_count available 3.8? Actually 3.8? It's 3.8? No, bit_count introduced 3.8? Actually 3.8? Let's use bin(...).count("1") for safety.
+
+Let's write code.
+
+We'll also add a heuristic: try candidates that have fewer conflicts? Not necessary.
+
+Let's test with examples.
+
+Example1: k=2, x=1 candidates (1,1),(2,2); x=2 candidates (2,2). Sorted by count: x=2 first (only one candidate), assign (2,2); then x=1 assign (1,1; success.
+
+Example2: k=2, x=1 candidates (1,1; x=2 candidates (1,2; both y=1 used? Actually x=1 y=1, x=2 y=1; after assigning x=1, usedY=1, remaining x=2 has candidate y=1 used, no other, prune -> NO.
+
+Works.
+
+Let's produce final code.```python
+import sys
+
+def solve():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    k = int(next(it))
+    t = int(next(it))
+    
+    candidates = [[] for _ in range(k)]
+    for _ in range(t):
+        x = int(next(it)) - 1
+        y = int(next(it)) - 1
+        z = int(next(it)) - 1
+        candidates[x].append((1 << y, 1 << z, y + 1, z + 1))
+    
+    # If any depth has no candidates, impossible
+    for i in range(k):
+        if not candidates[i]:
+            print("NO")
+            return
+    
+    # Sort depths by number of candidates (fewest first)
+    order = sorted(range(k), key=lambda i: len(candidates[i]))
+    
+    chosen = [None] * k
+    
+    def dfs(idx, usedY, usedZ):
+        if idx == k:
+            return True
+        
+        remaining = k - idx
+        
+        # Quick prune: not enough distinct y or z left
+        if bin(usedY).count("1") < remaining or bin(usedZ).count("1") < remaining:
+            return False
+        
+        # Prune: any remaining depth has no available candidate
+        for i in range(idx, k):
+            x = order[i]
+            ok = False
+            for y_bit, z_bit, _, _ in candidates[x]:
+                if not (usedY & y_bit) and not (usedZ & z_bit):
+                    ok = True
+                    break
+            if not ok:
+                return False
+        
+        x = order[idx]
+        for y_bit, z_bit, y_val, z_val in candidates[x]:
+            if not (usedY & y_bit) and not (usedZ & z_bit):
+                chosen[x] = (y_val, z_val)
+                if dfs(idx + 1, usedY | y_bit, usedZ | z_bit):
+                    return True
+                chosen[x] = None
+        return False
+    
+    if dfs(0, 0, 0):
+        print("YES")
+        for x in range(k):
+            y_val, z_val = chosen[x]
+            print(f"{x+1} {y_val} {z_val}")
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()
+```

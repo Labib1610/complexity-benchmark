@@ -1,0 +1,264 @@
+**Solution Explanation**
+
+The problem is exactly the classic *2‑SAT* problem.
+
+*Variables* – lever `i` (`1 … n`).  
+Value `1`  → ACTIVE, value `0` → STANDBY.
+
+Each condition gives a clause  
+
+```
+(l1) OR (l2)
+```
+
+where a literal `k` means
+
+* `k > 0` : lever `k` must be ACTIVE (`x_k = 1`)
+* `k < 0` : lever `|k|` must be STANDBY (`x_|k| = 0`)
+
+A clause is satisfied iff at least one of its two literals is true.
+
+--------------------------------------------------------------------
+
+#### 1.   Implication graph
+
+For a clause `(a ∨ b)` we add the two implications  
+
+```
+¬a → b
+¬b → a
+```
+
+If we can assign truth values so that no variable and its negation belong to the same
+strongly connected component (SCC) of this directed graph, the formula is satisfiable.
+A topological order of the SCCs gives a concrete assignment.
+
+We encode each literal as a vertex:
+
+```
+index(i, value) = 2*(i-1) + value          // value = 0 (false) or 1 (true)
+```
+
+Thus we have `2*n` vertices, `0 … 2*n-1`.
+
+For a literal `k` :
+
+```
+var = abs(k) - 1
+val = 1 if k>0 else 0          // the literal itself
+node = 2*var + val
+neg  = 2*var + (1-val)         // its negation
+```
+
+Add edges `neg → node_of_other_literal` for both literals of the clause.
+
+--------------------------------------------------------------------
+
+#### 2.   Finding SCCs – Kosaraju (iterative, O(V+E))
+
+* first DFS on the original graph, store vertices in order of finishing time
+* second DFS on the reversed graph, processing vertices in reverse finishing order,
+  assigning a component id to each vertex.
+
+If for any variable `i` the two vertices `2*i` and `2*i+1` receive the same component id,
+the instance is unsatisfiable.
+
+Otherwise, the component graph is a DAG.  
+Processing components in reverse topological order (i.e. decreasing component id because
+Kosaraju gives them in that order) we set a variable to `true` iff its component id is
+*greater* than the component id of its negation.
+
+--------------------------------------------------------------------
+
+#### 3.   Correctness Proof  
+
+We prove that the algorithm prints `YES` and a correct configuration iff such a
+configuration exists.
+
+---
+
+##### Lemma 1  
+For every clause `(a ∨ b)` the added implications `¬a → b` and `¬b → a` are logically
+equivalent to the clause.
+
+**Proof.**  
+`¬a → b` is false only when `¬a` is true and `b` is false, i.e. when `a` is false and
+`b` is false. The same holds for `¬b → a`. Both implications are simultaneously true
+iff at least one of `a, b` is true, which is exactly the truth condition of the clause. ∎
+
+
+
+##### Lemma 2  
+If a variable and its negation belong to the same SCC, the formula is unsatisfiable.
+
+**Proof.**  
+Inside an SCC every vertex reaches every other vertex. Hence from `x` we can reach `¬x`
+and from `¬x` we can reach `x`. If we set `x = true`, the implication `x → ¬x` forces
+`¬x = true`, i.e. `x = false` – a contradiction. The same contradiction appears if we
+assume `x = false`. Therefore no assignment can satisfy all implications, and by Lemma 1
+no assignment can satisfy the original formula. ∎
+
+
+
+##### Lemma 3  
+If no variable shares an SCC with its negation, assigning each variable `x_i` the value  
+
+```
+x_i = 1  iff  comp(2*i) < comp(2*i+1)
+```
+
+(where `comp(v)` is the component number given by the second Kosaraju pass,
+higher numbers appear earlier in topological order) satisfies all implications.
+
+**Proof.**  
+Consider any implication `p → q`. In the SCC DAG, `comp(p) ≥ comp(q)` because there is a
+path from `p` to `q`. If `p` is assigned true, then `comp(p) > comp(¬p)`. Since
+`comp(p) ≥ comp(q)`, we have `comp(q) > comp(¬q)`, therefore `q` is also assigned true.
+Thus every true premise forces a true conclusion, so all implications hold. ∎
+
+
+
+##### Lemma 4  
+If the algorithm outputs a configuration, it satisfies every original clause.
+
+**Proof.**  
+By Lemma 3 the configuration satisfies all implications. By Lemma 1 each clause is
+logically equivalent to its two implications, therefore every clause is satisfied. ∎
+
+
+
+##### Lemma 5  
+If the formula is satisfiable, the algorithm never reports `NO`.
+
+**Proof.**  
+Assume a satisfying assignment exists. For any variable `x`, `x` and `¬x` cannot be
+mutually reachable, otherwise the assignment would contradict the implication chain.
+Hence they belong to different SCCs. Kosaraju will therefore never detect a conflict,
+so the algorithm proceeds to produce an assignment. ∎
+
+
+
+##### Theorem  
+The algorithm prints `YES` and a correct lever configuration **iff** such a
+configuration exists; otherwise it prints `NO`.
+
+**Proof.**  
+
+*If part*:  
+When the algorithm prints `YES`, by Lemma 2 no variable shares an SCC with its negation.
+The produced assignment satisfies all clauses by Lemma 4, hence a valid configuration
+exists.
+
+*Only‑if part*:  
+If a valid configuration exists, Lemma 5 guarantees the algorithm does not reject it,
+so it reaches the assignment step and prints `YES`. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### 4.   Complexity Analysis  
+
+*Vertices*: `2n ≤ 200 000`  
+*Edges*: two per clause → `2·m ≤ 400 000`
+
+Kosaraju runs in `O(V + E)` time and memory.
+
+```
+Time   : O(n + m)
+Memory : O(n + m)   (adjacency lists, reverse lists, stacks, arrays)
+```
+
+Both fit easily into the limits (1 s, 256 MiB).
+
+--------------------------------------------------------------------
+
+#### 5.   Reference Implementation  (Python 3)
+
+```python
+import sys
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+
+    N = 2 * n
+    g = [[] for _ in range(N)]
+    rg = [[] for _ in range(N)]
+
+    def lit_node(k: int):
+        var = abs(k) - 1
+        val = 1 if k > 0 else 0
+        return 2 * var + val
+
+    for _ in range(m):
+        a = int(next(it)); b = int(next(it))
+        na = lit_node(-a)   # ¬a
+        nb = lit_node(-b)   # ¬b
+        a_node = lit_node(a)
+        b_node = lit_node(b)
+        # ¬a -> b
+        g[na].append(b_node)
+        rg[b_node].append(na)
+        # ¬b -> a
+        g[nb].append(a_node)
+        rg[a_node].append(nb)
+
+    sys.setrecursionlimit(1 << 25)
+
+    visited = [False] * N
+    order = []
+
+    # iterative DFS for first pass
+    for v in range(N):
+        if not visited[v]:
+            stack = [(v, 0)]
+            while stack:
+                node, state = stack.pop()
+                if state == 0:
+                    if visited[node]:
+                        continue
+                    visited[node] = True
+                    stack.append((node, 1))
+                    for to in g[node]:
+                        if not visited[to]:
+                            stack.append((to, 0))
+                else:
+                    order.append(node)
+
+    comp = [-1] * N
+    cid = 0
+    # second pass on reversed graph
+    for v in reversed(order):
+        if comp[v] == -1:
+            stack = [v]
+            comp[v] = cid
+            while stack:
+                node = stack.pop()
+                for to in rg[node]:
+                    if comp[to] == -1:
+                        comp[to] = cid
+                        stack.append(to)
+            cid += 1
+
+    assignment = [0] * n
+    for i in range(n):
+        if comp[2*i] == comp[2*i+1]:
+            print("NO")
+            return
+        # component with larger id appears earlier in topological order
+        assignment[i] = 1 if comp[2*i] < comp[2*i+1] else 0
+
+    print("YES")
+    print(' '.join(map(str, assignment)))
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above and conforms to the
+required input‑output format.

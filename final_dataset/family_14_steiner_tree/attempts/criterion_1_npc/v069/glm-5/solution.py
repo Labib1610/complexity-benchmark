@@ -1,0 +1,123 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    t = int(next(it))
+    priority = [int(next(it)) for _ in range(t)]
+    edges = []
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        w = int(next(it))
+        edges.append((u, v, w))
+    
+    if t <= 1:
+        print(0)
+        return
+    
+    # Kruskal's MST on all nodes, then keep only edges needed to connect priority nodes
+    parent = list(range(n + 1))
+    
+    def find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+    
+    def union(x, y):
+        rx, ry = find(x), find(y)
+        if rx == ry:
+            return False
+        parent[rx] = ry
+        return True
+    
+    edges.sort(key=lambda e: e[2])
+    
+    # Build MST adjacency
+    adj = [[] for _ in range(n + 1)]
+    for u, v, w in edges:
+        if union(u, v):
+            adj[u].append((v, w))
+            adj[v].append((u, w))
+    
+    # We need the minimal Steiner tree connecting priority nodes.
+    # Since MST edges are already minimal, we can find the minimal subtree
+    # of the MST that connects all priority nodes.
+    # This is done by finding the union of paths between priority nodes.
+    
+    # Mark nodes needed: do a virtual tree / keep only nodes on paths between priority nodes
+    # Simple approach: BFS/DFS from each priority, mark edges on paths to other priorities.
+    # But easier: find minimal connected subtree containing all priority nodes.
+    
+    # We'll compute for each edge whether it's on a path between two priority nodes.
+    # Alternative: iterative pruning - remove leaves that are not priority.
+    
+    # Build adjacency with edge indices
+    adj2 = [[] for _ in range(n + 1)]
+    for idx, (u, v, w) in enumerate(edges):
+        # only consider MST edges
+        pass
+    
+    # Rebuild MST edges list
+    mst_edges = []
+    parent = list(range(n + 1))
+    def find2(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+    for u, v, w in edges:
+        ru, rv = find2(u), find2(v)
+        if ru != rv:
+            parent[ru] = rv
+            mst_edges.append((u, v, w))
+    
+    # Build adjacency for MST
+    mst_adj = [[] for _ in range(n + 1)]
+    for i, (u, v, w) in enumerate(mst_edges):
+        mst_adj[u].append((v, w, i))
+        mst_adj[v].append((u, w, i))
+    
+    # Mark priority nodes
+    is_priority = [False] * (n + 1)
+    for p in priority:
+        is_priority[p] = True
+    
+    # Iteratively remove leaves that are not priority
+    degree = [0] * (n + 1)
+    for u, v, w in mst_edges:
+        degree[u] += 1
+        degree[v] += 1
+    
+    from collections import deque
+    q = deque()
+    removed = [False] * (n + 1)
+    for i in range(1, n + 1):
+        if degree[i] == 1 and not is_priority[i]:
+            q.append(i)
+            removed[i] = True
+    
+    edge_removed = [False] * len(mst_edges)
+    while q:
+        node = q.popleft()
+        for nbr, w, eidx in mst_adj[node]:
+            if not edge_removed[eidx]:
+                edge_removed[eidx] = True
+                degree[nbr] -= 1
+                if degree[nbr] == 1 and not is_priority[nbr] and not removed[nbr]:
+                    removed[nbr] = True
+                    q.append(nbr)
+    
+    total = 0
+    for i, (u, v, w) in enumerate(mst_edges):
+        if not edge_removed[i]:
+            total += w
+    
+    print(total)
+
+solve()

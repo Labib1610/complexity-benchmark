@@ -1,0 +1,47 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [[False] * n for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u][v] = True
+        adj[v][u] = True
+    
+    # Greedy assignment
+    color = [0] * n
+    for i in range(n):
+        forbidden = set()
+        for j in range(n):
+            if adj[i][j] and color[j] != 0:
+                forbidden.add(color[j])
+        for c in [1, 2, 3]:
+            if c not in forbidden:
+                color[i] = c
+                break
+    
+    # Verify solution
+    valid = True
+    for i in range(n):
+        for j in range(i + 1, n):
+            if adj[i][j] and color[i] == color[j]:
+                valid = False
+                break
+        if not valid:
+            break
+    
+    if valid:
+        print("YES")
+        print(' '.join(map(str, color)))
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()

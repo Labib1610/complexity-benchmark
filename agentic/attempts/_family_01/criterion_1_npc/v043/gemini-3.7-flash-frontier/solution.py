@@ -1,0 +1,83 @@
+import sys
+
+def solve():
+    input = sys.stdin.read
+    data = input().split()
+    if not data:
+        return
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    adj = [[] for _ in range(n)]
+    adj_mask = [0] * n
+    idx = 2
+    for _ in range(m):
+        u = int(data[idx]) - 1
+        v = int(data[idx+1]) - 1
+        idx += 2
+        if u != v:
+            adj[u].append(v)
+            adj[v].append(u)
+            adj_mask[u] |= (1 << v)
+            adj_mask[v] |= (1 << u)
+
+    assignment = [-1] * n
+    mask = [7] * n  # 7 = 111 in binary, colors 0, 1, 2 available
+
+    def backtrack():
+        # Find unassigned vertex with minimum available colors
+        min_choices = 4
+        best_v = -1
+        
+        for i in range(n):
+            if assignment[i] == -1:
+                cnt = bin(mask[i]).count('1')
+                if cnt == 0:
+                    return False
+                if cnt < min_choices:
+                    min_choices = cnt
+                    best_v = i
+                    if cnt == 1:
+                        break
+        
+        if best_v == -1:
+            return True
+        
+        v = best_v
+        available = mask[v]
+        
+        for c in range(3):
+            if (available >> c) & 1:
+                assignment[v] = c
+                
+                # Forward checking
+                changed = []
+                conflict = False
+                bit = 1 << c
+                for neighbor in adj[v]:
+                    if assignment[neighbor] == -1 and (mask[neighbor] & bit):
+                        mask[neighbor] ^= bit
+                        changed.append(neighbor)
+                        if mask[neighbor] == 0:
+                            conflict = True
+                
+                if not conflict:
+                    if backtrack():
+                        return True
+                
+                # Revert
+                for neighbor in changed:
+                    mask[neighbor] |= bit
+                assignment[v] = -1
+                
+        return False
+
+    if backtrack():
+        print("YES")
+        print(*(assignment[i] + 1 for i in range(n)))
+    else:
+        print("NO")
+
+if __name__ == '__main__':
+    solve()

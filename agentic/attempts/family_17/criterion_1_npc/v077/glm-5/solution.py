@@ -1,0 +1,59 @@
+import sys
+input = sys.stdin.readline
+
+def solve():
+    q, t = map(int, input().split())
+    n = 3 * q
+    
+    # Read all configurations
+    configs = []
+    for _ in range(t):
+        a, b, c = map(int, input().split())
+        configs.append((a, b, c))
+    
+    # Build adjacency list: for each channel, list of config indices
+    adj = [[] for _ in range(n + 1)]
+    for i, (a, b, c) in enumerate(configs):
+        adj[a].append(i)
+        adj[b].append(i)
+        adj[c].append(i)
+    
+    # State tracking
+    used_channels = [False] * (n + 1)
+    used_configs = [False] * t
+    result_indices = []
+    
+    # Process channels in order
+    for u in range(1, n + 1):
+        if used_channels[u]:
+            continue
+        
+        # Find an unused configuration containing u
+        found = False
+        for conf_idx in adj[u]:
+            if used_configs[conf_idx]:
+                continue
+            a, b, c = configs[conf_idx]
+            if used_channels[a] or used_channels[b] or used_channels[c]:
+                continue
+            
+            # Use this configuration
+            used_configs[conf_idx] = True
+            used_channels[a] = True
+            used_channels[b] = True
+            used_channels[c] = True
+            result_indices.append(conf_idx)
+            found = True
+            break
+        
+        if not found:
+            print("NO")
+            return
+    
+    print("YES")
+    for idx in result_indices:
+        a, b, c = configs[idx]
+        print(a, b, c)
+
+if __name__ == "__main__":
+    solve()

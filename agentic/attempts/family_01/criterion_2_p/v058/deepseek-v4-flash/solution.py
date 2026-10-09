@@ -1,5 +1,5 @@
 import sys
-sys.setrecursionlimit(1_000_000)
+from collections import deque
 
 def solve():
     input = sys.stdin.readline
@@ -12,70 +12,24 @@ def solve():
         adj[u].append(v)
         adj[v].append(u)
 
-    color = [0] * n  # 0 = uncolored, 1 or 2
-    visited = [False] * n
-    parent = [-1] * n
-    cycle_edges = []  # edges that are part of odd cycle detection
+    color = [-1] * n
 
-    # Step 1: Try to color the graph with BFS/DFS (2-coloring)
-    from collections import deque
-    possible = True
-    for start in range(n):
-        if color[start] == 0:
-            color[start] = 1
-            q = deque([start])
+    for i in range(n):
+        if color[i] == -1:
+            color[i] = 0
+            q = deque([i])
             while q:
                 u = q.popleft()
                 for v in adj[u]:
-                    if color[v] == 0:
-                        color[v] = 3 - color[u]
+                    if color[v] == -1:
+                        color[v] = 1 - color[u]
                         q.append(v)
                     elif color[v] == color[u]:
-                        possible = False
-                        break
-                if not possible:
-                    break
-        if not possible:
-            break
-
-    if not possible:
-        print("NO")
-        return
-
-    # Step 2: Now we have a valid 2-coloring, but we need lexicographically smallest.
-    # Since colors are 1 and 2, we can try to flip components if it helps lexicographically.
-    # But flipping a component changes all its colors, so we need to decide per connected component.
-    # For lexicographically smallest, we process vertices in order and if flipping the component of vertex i
-    # makes the sequence lexicographically smaller, we flip it.
-
-    comp_id = [-1] * n
-    comps = []  # list of lists of vertices
-    for i in range(n):
-        if comp_id[i] == -1:
-            cid = len(comps)
-            stack = [i]
-            comp_id[i] = cid
-            comp = []
-            while stack:
-                u = stack.pop()
-                comp.append(u)
-                for v in adj[u]:
-                    if comp_id[v] == -1:
-                        comp_id[v] = cid
-                        stack.append(v)
-            comps.append(comp)
-
-    # For each component, check if flipping (swapping 1<->2) gives lexicographically smaller
-    for comp in comps:
-        # Check if flipping helps: compare first vertex in component
-        first = min(comp)
-        # If color[first] == 2, flipping makes it 1, which is better
-        if color[first] == 2:
-            for v in comp:
-                color[v] = 3 - color[v]
+                        print("NO")
+                        return
 
     print("YES")
-    print(' '.join(str(color[i]) for i in range(n)))
+    print(" ".join(str(c + 1) for c in color))
 
 if __name__ == "__main__":
     solve()

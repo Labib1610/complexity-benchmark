@@ -1,25 +1,33 @@
-# Problem B — Quantum Core Allocation
+# Debate Teams
 
-Time limit: 1 s   Memory limit: 256 MB
+Time limit: 1 s
+Memory limit: 256 MB
 
-You are tasked with initializing a dual-core quantum processor. The processor consists of $n$ quantum registers, and it has two processing cores, designated as Core 1 and Core 2.
+You are organizing a large-scale debate tournament involving $n$ speakers, indexed 1 through $n$. Each speaker must be assigned to one of two sides:
+* Affirmative (represented by the identifier 1)
+* Negative (represented by the identifier 2)
 
-During initialization, you must allocate each register to exactly one of the two cores. However, the system contains $m$ entanglement links between pairs of registers. If two registers connected by an entanglement link are allocated to the same core, the resulting interference will destabilize the processor.
+You are provided with $m$ historical dispute records. Each record indicates a pair of speakers who cannot be assigned to the same side.
 
-The entanglement network topology guarantees the following properties to ensure stability during initialization:
-- The sum of the endpoint counts across all $n$ registers is always exactly $2m$ (each link provides exactly two endpoints).
-- For any arbitrary subset of registers, the total number of entanglement links completely contained within that subset is at most $m$.
-- The combined total of registers and links ($n + m$) is guaranteed not to exceed $400,000$.
+To ensure the tournament meets the venue's regulations, your assignment must satisfy the following conditions:
+1. Dispute Avoidance: No two speakers who have a historical dispute may be assigned to the same side.
+2. Capacity Conservation: Every speaker must be assigned to exactly one side, such that the total number of speakers on the Affirmative side plus the total number of speakers on the Negative side is exactly $n$.
+3. Identifier Bounds: The sum of the assigned side identifiers across all $n$ speakers, denoted as $S$, must strictly satisfy $n - 1 < S < 2n + 1$.
 
-Your task is to determine if there is a valid allocation of all $n$ registers to the two cores such that no two linked registers are assigned to the same core. If such an allocation exists, you must find the one that is lexicographically smallest. An allocation is represented as a sequence of $n$ integers, where the $i$-th integer is the core (1 or 2) assigned to the $i$-th register. A sequence $A$ is lexicographically smaller than sequence $B$ if, at the first position where they differ, sequence $A$ has a smaller core number than sequence $B$.
+Additionally, you are guaranteed that the input data satisfies the following structural properties:
+* The sum, over all $n$ speakers, of the number of times each speaker appears in the dispute records will never exceed $400,000$.
+* No individual speaker appears in the dispute records more than $400,000$ times.
+
+If there is no way to assign the speakers while satisfying all conditions, you must announce this by printing `NO`.
+If a valid assignment exists, print `YES`. On the next line, print the valid assignment as a sequence of $n$ integers (each 1 or 2). If there are multiple valid assignments, you must output the one that is lexicographically smallest.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$) — the number of quantum registers and the number of entanglement links, respectively.
-Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$) — indicating an entanglement link between register $u$ and register $v$.
+The first line of the input contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$) — the number of speakers and the number of dispute records, respectively.
+Each of the following $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$), representing a dispute between speaker $u$ and speaker $v$.
 
 ## Output
-If there is no valid core allocation that prevents destabilization, print a single line containing `NO`.
-Otherwise, print `YES` on the first line. On the second line, print $n$ integers $c_1, c_2, \dots, c_n$ (where each $c_i \in \{1, 2\}$), representing the lexicographically smallest valid allocation.
+If no valid assignment is possible, output a single line containing `NO`.
+Otherwise, output `YES` on the first line. On the second line, output $n$ space-separated integers $s_1, s_2, \dots, s_n$ where $s_i \in \{1, 2\}$, representing the lexicographically smallest valid assignment.
 
 ## Example 1
 Input:

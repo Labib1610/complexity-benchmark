@@ -1,0 +1,81 @@
+import sys
+sys.setrecursionlimit(1000000)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    k = int(next(it))
+    t = int(next(it))
+    triples = []
+    for _ in range(t):
+        a = int(next(it)); b = int(next(it)); c = int(next(it))
+        triples.append((a, b, c))
+    if k == 0:
+        print("YES")
+        return
+    if t < k:
+        print("NO")
+        return
+
+    # group by a
+    by_a = [[] for _ in range(k + 1)]
+    for idx, (a, b, c) in enumerate(triples):
+        by_a[a].append((b, c, idx))
+
+    used_a = [False] * (k + 1)
+    used_b = [False] * (k + 1)
+    used_c = [False] * (k + 1)
+    chosen = [None] * k  # store idx
+
+    # order of a's to try: those with few candidates first
+    a_order = [a for a in range(1, k + 1) if by_a[a]]
+    a_order.sort(key=lambda a: len(by_a[a]))
+
+    # map from a to its position in order for quick skip
+    a_pos = {a: i for i, a in enumerate(a_order)}
+    total_a = len(a_order)
+
+    def dfs(depth: int) -> bool:
+        if depth == k:
+            return True
+        # select next a not used with minimal remaining options
+        best_a = -1
+        best_options = None
+        for a in a_order:
+            if not used_a[a]:
+                opts = []
+                for b, c, idx in by_a[a]:
+                    if not used_b[b] and not used_c[c]:
+                        opts.append((b, c, idx))
+                if not opts:
+                    return False
+                if best_a == -1 or len(opts) < len(best_options):
+                    best_a = a
+                    best_options = opts
+                    if len(best_options) == 1:
+                        break
+        # try options
+        used_a[best_a] = True
+        for b, c, idx in best_options:
+            used_b[b] = True
+            used_c[c] = True
+            chosen[depth] = idx
+            if dfs(depth + 1):
+                return True
+            used_b[b] = False
+            used_c[c] = False
+        used_a[best_a] = False
+        return False
+
+    if dfs(0):
+        print("YES")
+        for i in range(k):
+            a, b, c = triples[chosen[i]]
+            print(a, b, c)
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()

@@ -1,0 +1,39 @@
+import sys
+sys.setrecursionlimit(300000)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it)); m = int(next(it)); t = int(next(it))
+    specials = set(int(next(it)) for _ in range(t))
+    adj = [[] for _ in range(n + 1)]
+    edges = []
+    for _ in range(m):
+        u = int(next(it)); v = int(next(it)); w = int(next(it))
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+        edges.append((u, v, w))
+
+    total_special = t
+    ans = 0
+
+    def dfs(u: int, p: int) -> int:
+        nonlocal ans
+        cnt = 1 if u in specials else 0
+        for v, w in adj[u]:
+            if v == p:
+                continue
+            sub = dfs(v, u)
+            if 0 < sub < total_special:
+                ans += w
+            cnt += sub
+        return cnt
+
+    # tree is connected, start anywhere (1)
+    dfs(1, 0)
+    print(ans)
+
+if __name__ == "__main__":
+    solve()

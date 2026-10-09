@@ -10,30 +10,27 @@ def solve():
         v -= 1
         adj[u].append(v)
         adj[v].append(u)
-    
-    assignment = [0] * n
-    used = [False] * n  # not really needed, but we can track assigned
-    
-    def backtrack(idx):
-        if idx == n:
+
+    color = [0] * n
+
+    def backtrack(node):
+        if node == n:
             return True
-        for period in (1, 2, 3):
-            # check compatibility
-            ok = True
-            for nb in adj[idx]:
-                if assignment[nb] == period:
-                    ok = False
-                    break
-            if ok:
-                assignment[idx] = period
-                if backtrack(idx + 1):
+        used = [False] * 4
+        for nei in adj[node]:
+            if color[nei] != 0:
+                used[color[nei]] = True
+        for c in range(1, 4):
+            if not used[c]:
+                color[node] = c
+                if backtrack(node + 1):
                     return True
-                assignment[idx] = 0
+                color[node] = 0
         return False
-    
+
     if backtrack(0):
         print("YES")
-        print(" ".join(map(str, assignment)))
+        print(" ".join(map(str, color)))
     else:
         print("NO")
 

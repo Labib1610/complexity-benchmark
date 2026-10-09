@@ -1,64 +1,85 @@
 def solve():
-    import sys
-    from collections import defaultdict
-    
-    input = sys.stdin.read
-    data = input().split()
-    
-    n = int(data[0])
-    m = int(data[1])
+    n, m = map(int, input().split())
     
     # Build adjacency list
-    adj = defaultdict(list)
-    idx = 2
+    adj = [[] for _ in range(n + 1)]
     edges = []
     for _ in range(m):
-        u = int(data[idx])
-        v = int(data[idx+1])
-        idx += 2
+        u, v = map(int, input().split())
         adj[u].append(v)
         adj[v].append(u)
         edges.append((u, v))
     
-    # Possible frequencies
-    frequencies = [1, 2, 3]
+    # Precompute valid pairs: P(u,v) = c_u^2 + c_u * c_v + c_v^2 should not be divisible by 3
+    valid_pairs = set()
+    for c_u in [1, 2, 3]:
+        for c_v in [1, 2, 3]:
+            P = c_u * c_u + c_u * c_v + c_v * c_v
+            if P % 3 != 0:
+                valid_pairs.add((c_u, c_v))
     
-    # For each pair of frequencies, check if their product is a perfect square
-    forbidden = set()
-    for f1 in frequencies:
-        for f2 in frequencies:
-            prod = f1 * f2
-            # Check if prod is a perfect square
-            if int(prod**0.5) ** 2 == prod:
-                forbidden.add((f1, f2))
+    # Try all 3^n assignments (but with pruning)
+    # Since n <= 40, we can't brute force. But we can use backtracking with early pruning.
+    # Actually, let's think differently. This is a graph coloring problem with constraints.
     
-    # Try all 3^n combinations, but with backtracking for efficiency
-    # We'll use a recursive backtracking approach
-    assignment = [0] * (n + 1)  # 1-indexed
+    # Let's model this as a 3-coloring problem with specific edge constraints.
+    # For each edge (u,v), the pair of colors (color[u], color[v]) must be in valid_pairs.
     
-    def is_valid(node, freq):
-        for neighbor in adj[node]:
-            if assignment[neighbor] != 0:
-                if (freq, assignment[neighbor]) in forbidden:
-                    return False
+    # Since n <= 40, and this is a constraint satisfaction problem, let's try backtracking
+    # with constraint propagation.
+    
+    # But first, let's check if the graph has a special structure.
+    # Let's just implement a backtracking solution with bit optimization.
+    
+    # Actually, since n <= 40, and 3^40 is too large, we need a smarter approach.
+    # Let's try to model this as a 2-SAT or look for graph properties.
+    
+    # Let's compute P for all possible pairs:
+    # c_u=1, c_v=1: P = 1+1+1 = 3 (divisible by 3) -> INVALID
+    # c_u=1, c_v=2: P = 1+2+4 = 7 (not divisible) -> VALID
+    # c_u=1, c_v=3: P = 1+3+9 = 13 (not divisible) -> VALID
+    # c_u=2, c_v=1: P = 4+2+1 = 7 (not divisible) -> VALID
+    # c_u=2, c_v=2: P = 4+4+4 = 12 (divisible by 3) -> INVALID
+    # c_u=2, c_v=3: P = 4+6+9 = 19 (not divisible) -> VALID
+    # c_u=3, c_v=1: P = 9+3+1 = 13 (not divisible) -> VALID
+    # c_u=3, c_v=2: P = 9+6+4 = 19 (not divisible) -> VALID
+    # c_u=3, c_v=3: P = 9+9+9 = 27 (divisible by 3) -> INVALID
+    
+    # So the forbidden pairs are: (1,1), (2,2), (3,3)
+    # This means adjacent nodes cannot have the same color.
+    # This is a standard graph 3-coloring problem!
+    
+    # Build the graph
+    graph = [[] for _ in range(n + 1)]
+    for u, v in edges:
+        graph[u].append(v)
+        graph[v].append(u)
+    
+    # Try to 3-color the graph
+    color = [0] * (n + 1)  # 0 means uncolored, 1, 2, 3 are the colors
+    
+    def is_safe(node, c):
+        for neighbor in graph[node]:
+            if color[neighbor] == c:
+                return False
         return True
     
     def backtrack(node):
         if node > n:
             return True
-            
-        for freq in frequencies:
-            if is_valid(node, freq):
-                assignment[node] = freq
+        
+        for c in [1, 2, 3]:
+            if is_safe(node, c):
+                color[node] = c
                 if backtrack(node + 1):
                     return True
-                assignment[node] = 0
+                color[node] = 0
         return False
     
-    # Check if solution exists
+    # Start backtracking from node 1
     if backtrack(1):
         print("YES")
-        print(' '.join(map(str, assignment[1:])))
+        print(*color[1:])
     else:
         print("NO")
 

@@ -17,8 +17,9 @@ def overlap(a: str, b: str) -> int:
 
 def main():
     data = sys.stdin.buffer.read().split()
-    s1 = data[0].decode()
-    s2 = data[1].decode()
+    k = int(data[0])                       # unified schema: k header (k == 2 for this criterion)
+    s1 = data[1].decode()
+    s2 = data[2].decode()
 
     cands = []
     if s1 in s2:

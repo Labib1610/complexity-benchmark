@@ -1,0 +1,40 @@
+# Stage 2: Uplink Synchronization
+
+Time limit: 2 s   Memory limit: 256 MB
+
+## Description
+The satellite communication network is being initialized. This process consists of three sequential stages. 
+
+In Stage 1, the telemetry system scans all available frequencies to identify interference-free channels. It produces a list of viable links between the ground-based transmitters (numbered $1$ through $q$) and the orbital relays (numbered $q+1$ through $2q$). Each viable link connects exactly one transmitter to exactly one relay.
+
+You are responsible for Stage 2, the uplink synchronization. You must take the telemetry system's list and attempt to lock in a final configuration. To achieve full network capacity, the configuration must activate every single transmitter and every single relay exactly once. A device cannot be left idle, and due to hardware constraints, no device can be involved in more than one active link. You may only lock in links that were identified as viable during Stage 1. 
+
+If you can successfully lock in a configuration that meets these requirements, it will be passed to Stage 3, where the cryptographic keys for the selected links are generated. If no such configuration can be extracted from the viable links, the synchronization fails.
+
+Determine whether Stage 2 can be completed successfully, and if so, output any valid configuration to be passed to Stage 3.
+
+## Input
+The first line contains two integers $q$ and $t$ ($1 \le q \le 100000$, $0 \le t \le 400000$), where $q$ is the number of transmitters (and also the number of relays), and $t$ is the number of viable links from Stage 1. 
+The next $t$ lines each contain two integers $a$ and $b$ ($1 \le a \le q < b \le 2q$), indicating a viable link between transmitter $a$ and relay $b$.
+
+## Output
+If a valid configuration can be locked in, print `YES` on the first line. On the next $q$ lines, print the two device numbers for each link in your configuration. If Stage 2 cannot be completed, print `NO`.
+
+## Example
+
+**Input:**
+```
+3 4
+1 4
+2 5
+3 5
+2 6
+```
+
+**Output:**
+```
+YES
+1 4
+3 5
+2 6
+```

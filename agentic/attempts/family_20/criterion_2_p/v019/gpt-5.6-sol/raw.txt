@@ -1,0 +1,322 @@
+```python
+import sys
+
+sys.setrecursionlimit(1_000_000)
+
+data = list(map(int, sys.stdin.buffer.read().split()))
+it = iter(data)
+
+NE = next(it)
+NC = next(it)
+M = next(it)
+
+EU = [0] * M
+EV = [0] * M
+degL = [0] * NE
+degR = [0] * NC
+
+for i in range(M):
+    u = next(it) - 1
+    v = next(it) - 1
+    EU[i] = u
+    EV[i] = v
+    degL[u] += 1
+    degR[v] += 1
+
+D = max(max(degL, default=0), max(degR, default=0))
+
+if M == 0:
+    sys.stdout.write("YES\n\n")
+    raise SystemExit
+
+answer = [0] * M
+
+headL = [-1] * NE
+headR = [-1] * NC
+nextL = [-1] * M
+nextR = [-1] * M
+
+pairL = [-1] * NE
+pairR = [-1] * NC
+matchEdgeL = [-1] * NE
+dist = [-1] * NE
+selected = bytearray(M)
+
+linkL = [-1] * M
+linkR = [-1] * M
+seen = bytearray(M)
+
+
+def extract_matching(edges, bound):
+    touchedL = []
+    touchedR = []
+
+    for e in edges:
+        u = EU[e]
+        v = EV[e]
+
+        if headL[u] == -1:
+            touchedL.append(u)
+            pairL[u] = -1
+            matchEdgeL[u] = -1
+        nextL[e] = headL[u]
+        headL[u] = e
+
+        if headR[v] == -1:
+            touchedR.append(v)
+            pairR[v] = -1
+        nextR[e] = headR[v]
+        headR[v] = e
+
+    localDegL = {}
+    localDegR = {}
+
+    for u in touchedL:
+        cnt = 0
+        e = headL[u]
+        while e != -1:
+            cnt += 1
+            e = nextL[e]
+        localDegL[u] = cnt
+
+    for v in touchedR:
+        cnt = 0
+        e = headR[v]
+        while e != -1:
+            cnt += 1
+            e = nextR[e]
+        localDegR[v] = cnt
+
+    # Greedy matching, prioritizing maximum-degree left vertices and
+    # maximum-degree right vertices.
+    for critical_pass in (True, False):
+        for u in touchedL:
+            if (localDegL[u] == bound) != critical_pass or pairL[u] != -1:
+                continue
+
+            fallback = -1
+            e = headL[u]
+            chosen = -1
+            while e != -1:
+                v = EV[e]
+                if pairR[v] == -1:
+                    if fallback == -1:
+                        fallback = e
+                    if localDegR[v] == bound:
+                        chosen = e
+                        break
+                e = nextL[e]
+
+            if chosen == -1:
+                chosen = fallback
+            if chosen != -1:
+                v = EV[chosen]
+                pairL[u] = v
+                pairR[v] = u
+                matchEdgeL[u] = chosen
+
+    need_hk = False
+    for u in touchedL:
+        if localDegL[u] == bound and pairL[u] == -1:
+            need_hk = True
+            break
+    if not need_hk:
+        for v in touchedR:
+            if localDegR[v] == bound and pairR[v] == -1:
+                need_hk = True
+                break
+
+    if need_hk:
+        while True:
+            queue = []
+            qpos = 0
+            for u in touchedL:
+                if pairL[u] == -1:
+                    dist[u] = 0
+                    queue.append(u)
+                else:
+                    dist[u] = -1
+
+            found = False
+            while qpos < len(queue):
+                u = queue[qpos]
+                qpos += 1
+                nd = dist[u] + 1
+                e = headL[u]
+                while e != -1:
+                    w = pairR[EV[e]]
+                    if w == -1:
+                        found = True
+                    elif dist[w] == -1:
+                        dist[w] = nd
+                        queue.append(w)
+                    e = nextL[e]
+
+            if not found:
+                break
+
+            def dfs(u):
+                e = headL[u]
+                while e != -1:
+                    v = EV[e]
+                    w = pairR[v]
+                    if w == -1 or (dist[w] == dist[u] + 1 and dfs(w)):
+                        pairL[u] = v
+                        pairR[v] = u
+                        matchEdgeL[u] = e
+                        return True
+                    e = nextL[e]
+                dist[u] = -1
+                return False
+
+            augmented = False
+            for u in touchedL:
+                if pairL[u] == -1 and dfs(u):
+                    augmented = True
+            if not augmented:
+                break
+
+    for u in touchedL:
+        e = matchEdgeL[u]
+        if e != -1:
+            selected[e] = 1
+
+    matching = []
+    remaining = []
+    for e in edges:
+        if selected[e]:
+            matching.append(e)
+            selected[e] = 0
+        else:
+            remaining.append(e)
+
+    for u in touchedL:
+        headL[u] = -1
+    for v in touchedR:
+        headR[v] = -1
+
+    return matching, remaining
+
+
+def equitable_split(edges):
+    touchedL = []
+    touchedR = []
+
+    for e in edges:
+        linkL[e] = -1
+        linkR[e] = -1
+        seen[e] = 0
+
+        u = EU[e]
+        v = EV[e]
+
+        if headL[u] == -1:
+            touchedL.append(u)
+        nextL[e] = headL[u]
+        headL[u] = e
+
+        if headR[v] == -1:
+            touchedR.append(v)
+        nextR[e] = headR[v]
+        headR[v] = e
+
+    for u in touchedL:
+        e = headL[u]
+        while e != -1:
+            f = nextL[e]
+            if f == -1:
+                break
+            linkL[e] = f
+            linkL[f] = e
+            e = nextL[f]
+
+    for v in touchedR:
+        e = headR[v]
+        while e != -1:
+            f = nextR[e]
+            if f == -1:
+                break
+            linkR[e] = f
+            linkR[f] = e
+            e = nextR[f]
+
+    first = []
+    second = []
+
+    def walk(start):
+        prev = -1
+        cur = start
+        color = 0
+        while cur != -1 and not seen[cur]:
+            seen[cur] = 1
+            if color == 0:
+                first.append(cur)
+            else:
+                second.append(cur)
+
+            a = linkL[cur]
+            b = linkR[cur]
+            if a != -1 and a != prev:
+                nxt = a
+            elif b != -1 and b != prev:
+                nxt = b
+            else:
+                nxt = -1
+
+            prev, cur = cur, nxt
+            color ^= 1
+
+    for e in edges:
+        degree = (1 if linkL[e] != -1 else 0) + (1 if linkR[e] != -1 else 0)
+        if degree <= 1 and not seen[e]:
+            walk(e)
+
+    for e in edges:
+        if not seen[e]:
+            walk(e)
+
+    for u in touchedL:
+        headL[u] = -1
+    for v in touchedR:
+        headR[v] = -1
+
+    return first, second
+
+
+tasks = [(list(range(M)), D, 1)]
+
+while tasks:
+    edges, capacity, offset = tasks.pop()
+
+    if not edges:
+        continue
+
+    if capacity == 1:
+        for e in edges:
+            answer[e] = offset
+        continue
+
+    half = capacity // 2
+
+    if capacity & 1:
+        matching, remaining = extract_matching(edges, capacity)
+        for e in matching:
+            answer[e] = offset
+
+        if remaining:
+            left, right = equitable_split(remaining)
+            if left:
+                tasks.append((left, half, offset + 1))
+            if right:
+                tasks.append((right, half, offset + 1 + half))
+    else:
+        left, right = equitable_split(edges)
+        if left:
+            tasks.append((left, half, offset))
+        if right:
+            tasks.append((right, half, offset + half))
+
+sys.stdout.write("YES\n")
+sys.stdout.write(" ".join(map(str, answer)))
+sys.stdout.write("\n")
+```

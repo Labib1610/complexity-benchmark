@@ -1,0 +1,82 @@
+from collections import defaultdict
+
+def solve():
+    k, t = map(int, input().split())
+    
+    if t < k:
+        print("NO")
+        return
+        
+    configs = []
+    for _ in range(t):
+        x, y, z = map(int, input().split())
+        configs.append((x, y, z))
+    
+    # Build a graph for matching: specialists -> machinery -> shifts
+    # This is essentially a 3D matching problem
+    
+    # We'll use backtracking with pruning
+    # For each specialist, try to assign a valid configuration
+    
+    # Preprocess: for each specialist, store valid configs
+    spec_configs = defaultdict(list)
+    mach_configs = defaultdict(list)
+    shift_configs = defaultdict(list)
+    
+    for i, (x, y, z) in enumerate(configs):
+        spec_configs[x].append(i)
+        mach_configs[y].append(i)
+        shift_configs[z].append(i)
+    
+    # Try to find a perfect matching
+    used_configs = [False] * t
+    used_spec = [False] * (k + 1)
+    used_mach = [False] * (k + 1)
+    used_shift = [False] * (k + 1)
+    result = []
+    
+    def backtrack(spec_idx):
+        if spec_idx > k:
+            return True  # All specialists assigned
+            
+        # Try each configuration for this specialist
+        for config_idx in spec_configs[spec_idx]:
+            if used_configs[config_idx]:
+                continue
+                
+            x, y, z = configs[config_idx]
+            
+            # Check if machinery and shift are available
+            if used_mach[y] or used_shift[z]:
+                continue
+                
+            # Use this configuration
+            used_configs[config_idx] = True
+            used_spec[x] = True
+            used_mach[y] = True
+            used_shift[z] = True
+            result.append((x, y, z))
+            
+            # Recurse
+            if backtrack(spec_idx + 1):
+                return True
+                
+            # Backtrack
+            used_configs[config_idx] = False
+            used_spec[x] = False
+            used_mach[y] = False
+            used_shift[z] = False
+            result.pop()
+            
+        return False
+    
+    # Since we need exactly k configurations and each specialist must be used exactly once,
+    # we can model this as assigning each specialist to one of its valid configurations
+    if backtrack(1):
+        print("YES")
+        for x, y, z in result:
+            print(x, y, z)
+    else:
+        print("NO")
+
+solve()

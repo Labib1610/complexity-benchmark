@@ -1,4 +1,5 @@
 import sys
+
 sys.setrecursionlimit(10000)
 
 def solve() -> None:
@@ -8,47 +9,51 @@ def solve() -> None:
     it = iter(data)
     n = int(next(it))
     m = int(next(it))
-    adj = [[] for _ in range(n)]
+    adj = [set() for _ in range(n)]
     for _ in range(m):
         u = int(next(it)) - 1
         v = int(next(it)) - 1
-        adj[u].append(v)
-        adj[v].append(u)
+        adj[u].add(v)
+        adj[v].add(u)
 
-    colors = [0] * n          # 0 = unassigned, else 1..3
+    # order vertices by descending degree for better pruning
+    order = sorted(range(n), key=lambda x: -len(adj[x]))
+    pos_in_order = [0]*n
+    for idx, v in enumerate(order):
+        pos_in_order[v] = idx
+
+    colors = [0]*n
     found = False
 
-    def dfs(v: int):
+    def dfs(idx: int):
         nonlocal found
         if found:
             return
-        if v == n:
-            # all vertices coloured
+        if idx == n:
             found = True
             return
+        v = order[idx]
+        # try colors 1..3
         for c in (1, 2, 3):
-            ok = True
+            conflict = False
             for nb in adj[v]:
                 if colors[nb] == c:
-                    ok = False
+                    conflict = True
                     break
-            if not ok:
-                continue
-            colors[v] = c
-            dfs(v + 1)
-            if found:
-                return
-            colors[v] = 0
+            if not conflict:
+                colors[v] = c
+                dfs(idx + 1)
+                if found:
+                    return
+                colors[v] = 0
 
     dfs(0)
 
-    out = []
     if not found:
-        out.append("NO")
+        print("NO")
     else:
-        out.append("YES")
-        out.append(" ".join(str(x) for x in colors))
-    sys.stdout.write("\n".join(out))
+        print("YES")
+        print(' '.join(str(colors[i]) for i in range(n)))
 
 if __name__ == "__main__":
     solve()

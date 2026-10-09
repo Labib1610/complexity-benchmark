@@ -1,0 +1,104 @@
+ We can model this as a graph problem where we need to connect all target nodes with minimum cost, but we can also use non-target nodes as relays.  
+
+The key observation:  
+- We only need to ensure that all target nodes are in the same connected component of the chosen edges.  
+- Since differences are additive, if all targets are connected, we can deduce all pairwise differences.  
+- This becomes a **minimum Steiner tree** problem, but with a small number of targets (≤ 10), so we can solve it using **bitmask DP over subsets of targets**.
+
+We can precompute shortest paths between all pairs of nodes (Floyd–Warshall or Dijkstra from each node).  
+Then, for each subset of targets, we compute the minimum cost to connect them, possibly using non-target nodes as Steiner points.
+
+Here’s the implementation:
+
+```python
+import sys
+import heapq
+
+def solve():
+    input = sys.stdin.readline
+    n, m, t = map(int, input().split())
+    targets = list(map(int, input().split()))
+    target_set = set(targets)
+    
+    # Build graph
+    graph = [[] for _ in range(n)]
+    for _ in range(m):
+        u, v, w = map(int, input().split())
+        u -= 1
+        v -= 1
+        graph[u].append((v, w))
+        graph[v].append((u, w))
+    
+    # If t == 1, no edges needed
+    if t == 1:
+        print(0)
+        return
+    
+    # Dijkstra from each node to get all-pairs shortest paths
+    INF = 10**18
+    dist = [[INF]*n for _ in range(n)]
+    for i in range(n):
+        dist[i][i] = 0
+        pq = [(0, i)]
+        while pq:
+            d, u = heapq.heappop(pq)
+            if d != dist[i][u]:
+                continue
+            for v, w in graph[u]:
+                nd = d + w
+                if nd < dist[i][v]:
+                    dist[i][v] = nd
+                    heapq.heappush(pq, (nd, v))
+    
+    # Map target nodes to indices 0..t-1
+    target_idx = {node: idx for idx, node in enumerate(targets)}
+    
+    # dp[mask][i] = min cost to connect targets in mask, ending at node i
+    # We'll use all nodes as possible endpoints
+    full_mask = (1 << t) - 1
+    dp = [[INF]*n for _ in range(1 << t)]
+    
+    # Initialize: single target
+    for idx, node in enumerate(targets):
+        dp[1 << idx][node] = 0
+    
+    # For each mask, try to extend
+    for mask in range(1 << t):
+        # Try merging two submasks
+        sub = (mask - 1) & mask
+        while sub:
+            other = mask ^ sub
+            if sub < other:  # avoid duplicate work
+                for i in range(n):
+                    if dp[sub][i] < INF:
+                        for j in range(n):
+                            if dp[other][j] < INF:
+                                nd = dp[sub][i] + dp[other][j] + dist[i][j]
+                                if nd < dp[mask][i]:
+                                    dp[mask][i] = nd
+                                if nd < dp[mask][j]:
+                                    dp[mask][j] = nd
+            sub = (sub - 1) & mask
+        
+        # Relax via shortest paths
+        # Run Dijkstra-like relaxation for this mask
+        pq = []
+        for i in range(n):
+            if dp[mask][i] < INF:
+                heapq.heappush(pq, (dp[mask][i], i))
+        while pq:
+            d, u = heapq.heappop(pq)
+            if d != dp[mask][u]:
+                continue
+            for v in range(n):
+                nd = d + dist[u][v]
+                if nd < dp[mask][v]:
+                    dp[mask][v] = nd
+                    heapq.heappush(pq, (nd, v))
+    
+    ans = min(dp[full_mask])
+    print(ans)
+
+if __name__ == "__main__":
+    solve()
+```

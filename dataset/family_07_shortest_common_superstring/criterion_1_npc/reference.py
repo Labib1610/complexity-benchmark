@@ -6,25 +6,21 @@ def main():
     k = int(data[0])
     s = [data[1 + i].decode() for i in range(k)]
 
-    # Drop any fragment that is a substring of another; for equal fragments keep
-    # the smallest index. What remains has no fragment contained in another.
+    # Drop any fragment that is a substring of another (keep the smallest index on ties).
     remove = [False] * k
     for i in range(k):
         for j in range(k):
-            if i == j:
-                continue
-            if s[i] in s[j]:
-                if len(s[i]) < len(s[j]) or (len(s[i]) == len(s[j]) and j < i):
-                    remove[i] = True
-                    break
+            if i != j and s[i] in s[j] and (len(s[i]) < len(s[j]) or (len(s[i]) == len(s[j]) and j < i)):
+                remove[i] = True
+                break
     frags = [s[i] for i in range(k) if not remove[i]]
     m = len(frags)
 
-    if m == 1:
-        sys.stdout.write(frags[0] + "\n")
+    if m <= 1:
+        sys.stdout.write((frags[0] if frags else "") + "\n")
         return
 
-    # Max suffix-prefix overlap ov[i][j]: longest L with frags[i][-L:] == frags[j][:L].
+    # Max suffix-prefix overlap ov[i][j].
     ov = [[0] * m for _ in range(m)]
     for i in range(m):
         a = frags[i]
@@ -32,43 +28,50 @@ def main():
             if i == j:
                 continue
             b = frags[j]
-            mx = min(len(a), len(b))
-            for L in range(mx, 0, -1):
+            for L in range(min(len(a), len(b)), 0, -1):
                 if a[len(a) - L:] == b[:L]:
                     ov[i][j] = L
                     break
 
-    # Held-Karp: dp[mask][last] = (length, string) of the shortest, then
-    # lexicographically smallest, superstring of `mask` that ends with `last`.
-    dp = [[None] * m for _ in range(1 << m)]
+    # Held-Karp on LENGTHS only (memory O(2^m * m)); keep parent pointers to rebuild one order.
+    INF = float("inf")
+    dp = [[INF] * m for _ in range(1 << m)]
+    par = [[-1] * m for _ in range(1 << m)]
     for i in range(m):
-        dp[1 << i][i] = (len(frags[i]), frags[i])
-
+        dp[1 << i][i] = len(frags[i])
     for mask in range(1 << m):
-        row = dp[mask]
         for i in range(m):
-            cur = row[i]
-            if cur is None:
+            cur = dp[mask][i]
+            if cur == INF:
                 continue
-            clen, cstr = cur
             for j in range(m):
                 if mask >> j & 1:
                     continue
-                add = frags[j][ov[i][j]:]
-                cand = (clen + len(add), cstr + add)
+                nv = cur + len(frags[j]) - ov[i][j]
                 nmask = mask | (1 << j)
-                old = dp[nmask][j]
-                if old is None or cand < old:
-                    dp[nmask][j] = cand
+                if nv < dp[nmask][j]:
+                    dp[nmask][j] = nv
+                    par[nmask][j] = i
 
     full = (1 << m) - 1
-    best = None
-    for i in range(m):
-        c = dp[full][i]
-        if c is not None and (best is None or c < best):
-            best = c
+    last = min(range(m), key=lambda i: dp[full][i])
 
-    sys.stdout.write(best[1] + "\n")
+    # Reconstruct the fragment order, then stitch once using overlaps.
+    order = []
+    mask, cur = full, last
+    while cur != -1:
+        order.append(cur)
+        p = par[mask][cur]
+        mask ^= (1 << cur)
+        cur = p
+    order.reverse()
+
+    res = frags[order[0]]
+    for idx in range(1, len(order)):
+        a, b = order[idx - 1], order[idx]
+        res += frags[b][ov[a][b]:]
+
+    sys.stdout.write(res + "\n")
 
 
 main()

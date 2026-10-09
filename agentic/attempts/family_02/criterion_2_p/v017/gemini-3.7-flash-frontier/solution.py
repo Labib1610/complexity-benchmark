@@ -1,0 +1,107 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    num_nodes = 2 * n
+    adj = [[] for _ in range(num_nodes)]
+    
+    idx = 2
+    for _ in range(m):
+        l1 = int(input_data[idx])
+        l2 = int(input_data[idx+1])
+        idx += 2
+        
+        if l1 > 0:
+            u_pos = 2 * (l1 - 1)
+            u_neg = 2 * (l1 - 1) + 1
+        else:
+            u_pos = 2 * (-l1 - 1) + 1
+            u_neg = 2 * (-l1 - 1)
+            
+        if l2 > 0:
+            v_pos = 2 * (l2 - 1)
+            v_neg = 2 * (l2 - 1) + 1
+        else:
+            v_pos = 2 * (-l2 - 1) + 1
+            v_neg = 2 * (-l2 - 1)
+            
+        # clause: l1 or l2
+        # ~l1 => l2
+        adj[u_neg].append(v_pos)
+        # ~l2 => l1
+        adj[v_neg].append(u_pos)
+
+    # Tarjan's SCC (iterative)
+    dfn = [-1] * num_nodes
+    low = [-1] * num_nodes
+    scc = [-1] * num_nodes
+    in_stack = [False] * num_nodes
+    stack = []
+    
+    timer = 0
+    scc_count = 0
+    
+    for i in range(num_nodes):
+        if dfn[i] != -1:
+            continue
+        
+        call_stack = [(i, 0)]
+        dfn[i] = low[i] = timer
+        timer += 1
+        stack.append(i)
+        in_stack[i] = True
+        
+        while call_stack:
+            u, edge_idx = call_stack[-1]
+            
+            if edge_idx < len(adj[u]):
+                v = adj[u][edge_idx]
+                call_stack[-1] = (u, edge_idx + 1)
+                
+                if dfn[v] == -1:
+                    dfn[v] = low[v] = timer
+                    timer += 1
+                    stack.append(v)
+                    in_stack[v] = True
+                    call_stack.append((v, 0))
+                elif in_stack[v]:
+                    if dfn[v] < low[u]:
+                        low[u] = dfn[v]
+            else:
+                call_stack.pop()
+                if call_stack:
+                    parent = call_stack[-1][0]
+                    if low[u] < low[parent]:
+                        low[parent] = low[u]
+                
+                if dfn[u] == low[u]:
+                    while True:
+                        v = stack.pop()
+                        in_stack[v] = False
+                        scc[v] = scc_count
+                        if v == u:
+                            break
+                    scc_count += 1
+
+    ans = [0] * n
+    for i in range(n):
+        if scc[2 * i] == scc[2 * i + 1]:
+            print("NO")
+            return
+        # If scc[x] < scc[~x], x is in a later topological order component, so x is true.
+        if scc[2 * i] < scc[2 * i + 1]:
+            ans[i] = 1
+        else:
+            ans[i] = 0
+            
+    print("YES")
+    print(" ".join(map(str, ans)))
+
+if __name__ == '__main__':
+    solve()

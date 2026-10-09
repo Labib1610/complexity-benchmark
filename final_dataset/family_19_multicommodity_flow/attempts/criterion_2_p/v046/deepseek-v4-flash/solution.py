@@ -1,0 +1,92 @@
+import sys
+from collections import deque
+
+input = sys.stdin.readline
+
+class MaxFlow:
+    def __init__(self, n):
+        self.n = n
+        self.graph = [[] for _ in range(n)]
+        self.edges = []
+    
+    def add_edge(self, u, v, cap):
+        self.graph[u].append(len(self.edges))
+        self.edges.append([v, cap, len(self.graph[v])])
+        self.graph[v].append(len(self.edges))
+        self.edges.append([u, 0, len(self.graph[u]) - 1])
+    
+    def bfs(self, s, t, level):
+        for i in range(self.n):
+            level[i] = -1
+        q = deque()
+        level[s] = 0
+        q.append(s)
+        while q:
+            v = q.popleft()
+            for ei in self.graph[v]:
+                to, cap, _ = self.edges[ei]
+                if cap > 0 and level[to] < 0:
+                    level[to] = level[v] + 1
+                    q.append(to)
+        return level[t] >= 0
+    
+    def dfs(self, v, t, f, level, it):
+        if v == t:
+            return f
+        while it[v] < len(self.graph[v]):
+            ei = self.graph[v][it[v]]
+            to, cap, rev = self.edges[ei]
+            if cap > 0 and level[v] + 1 == level[to]:
+                ret = self.dfs(to, t, min(f, cap), level, it)
+                if ret > 0:
+                    self.edges[ei][1] -= ret
+                    self.edges[rev][1] += ret
+                    return ret
+            it[v] += 1
+        return 0
+    
+    def max_flow(self, s, t):
+        flow = 0
+        level = [-1] * self.n
+        INF = 10**18
+        while self.bfs(s, t, level):
+            it = [0] * self.n
+            while True:
+                f = self.dfs(s, t, INF, level, it)
+                if f == 0:
+                    break
+                flow += f
+        return flow
+
+def main():
+    n, m, _ = map(int, input().split())
+    s, t, d = map(int, input().split())
+    s -= 1
+    t -= 1
+    
+    mf = MaxFlow(n)
+    edges_input = []
+    for _ in range(m):
+        u, v, cap = map(int, input().split())
+        u -= 1
+        v -= 1
+        mf.add_edge(u, v, cap)
+        edges_input.append((u, v, cap))
+    
+    flow = mf.max_flow(s, t)
+    if flow < d:
+        print("NO")
+        return
+    
+    # Extract flow on each original edge
+    result = []
+    for i in range(m):
+        # forward edge index is 2*i
+        cap_used = edges_input[i][2] - mf.edges[2*i][1]
+        result.append(str(cap_used))
+    
+    print("YES")
+    print(" ".join(result))
+
+if __name__ == "__main__":
+    main()

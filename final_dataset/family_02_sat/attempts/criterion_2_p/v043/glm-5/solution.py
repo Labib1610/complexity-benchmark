@@ -1,0 +1,78 @@
+import sys
+
+def solve():
+    input = sys.stdin.read
+    data = input().split()
+    if not data:
+        return
+    n = int(data[0])
+    m = int(data[1])
+    
+    adj = [[] for _ in range(2 * n)]
+    
+    idx = 2
+    for _ in range(m):
+        l1 = int(data[idx])
+        l2 = int(data[idx+1])
+        idx += 2
+        
+        u = abs(l1) - 1
+        v = abs(l2) - 1
+        
+        s1 = 0 if l1 > 0 else 1
+        s2 = 0 if l2 > 0 else 1
+        
+        adj[2 * u + s1].append(2 * v + (1 - s2))
+        adj[2 * v + s2].append(2 * u + (1 - s1))
+        
+    disc = [-1] * (2 * n)
+    low = [-1] * (2 * n)
+    on_stack = [False] * (2 * n)
+    stack = []
+    timer = 0
+    comp_id = [-1] * (2 * n)
+    num_comp = 0
+    
+    sys.setrecursionlimit(1 << 25)
+    
+    def dfs(u):
+        nonlocal timer, num_comp
+        disc[u] = low[u] = timer
+        timer += 1
+        stack.append(u)
+        on_stack[u] = True
+        
+        for v in adj[u]:
+            if disc[v] == -1:
+                dfs(v)
+                low[u] = min(low[u], low[v])
+            elif on_stack[v]:
+                low[u] = min(low[u], disc[v])
+                
+        if low[u] == disc[u]:
+            while True:
+                v = stack.pop()
+                on_stack[v] = False
+                comp_id[v] = num_comp
+                if v == u:
+                    break
+            num_comp += 1
+
+    for i in range(2 * n):
+        if disc[i] == -1:
+            dfs(i)
+            
+    for i in range(n):
+        if comp_id[2 * i] == comp_id[2 * i + 1]:
+            print("NO")
+            return
+            
+    ans = [0] * n
+    for i in range(n):
+        ans[i] = 1 if comp_id[2 * i] > comp_id[2 * i + 1] else 0
+        
+    print("YES")
+    print(" ".join(map(str, ans)))
+
+if __name__ == '__main__':
+    solve()

@@ -1,32 +1,33 @@
 n, m = map(int, input().split())
-adj = [[] for _ in range(n)]
+edges = [[] for _ in range(n)]
 for _ in range(m):
     u, v = map(int, input().split())
     u -= 1
     v -= 1
-    adj[u].append(v)
-    adj[v].append(u)
+    edges[u].append(v)
+    edges[v].append(u)
 
-color = [0] * n
+colors = [0] * n
 
-def backtrack(idx):
-    if idx == n:
+def is_safe(node, color):
+    for neighbor in edges[node]:
+        if colors[neighbor] == color:
+            return False
+    return True
+
+def solve(node):
+    if node == n:
         return True
-    for c in range(1, 4):
-        ok = True
-        for nb in adj[idx]:
-            if color[nb] == c:
-                ok = False
-                break
-        if ok:
-            color[idx] = c
-            if backtrack(idx + 1):
+    for color in range(1, 4):
+        if is_safe(node, color):
+            colors[node] = color
+            if solve(node + 1):
                 return True
-            color[idx] = 0
+            colors[node] = 0
     return False
 
-if backtrack(0):
+if solve(0):
     print("YES")
-    print(" ".join(str(c) for c in color))
+    print(" ".join(map(str, colors)))
 else:
     print("NO")

@@ -1,0 +1,51 @@
+# Acoustic Levitation Arrays
+
+Time limit: 2 s   Memory limit: 256 MB
+
+You are tasked with tuning an acoustic levitation array consisting of $n$ wave emitters. For the system to function, every emitter must be assigned a phase offset. The hardware allows exactly three distinct offset modes, identified by the numeric codes 1, 2, and 3.
+
+Due to the geometry of the system, certain pairs of emitters project sound waves that converge at shared focal points. In total, there are $m$ such pairs. When a pair of emitters targets the same focal point, their acoustic outputs interfere. If the product of their two assigned numeric codes results in a perfect square, the interference becomes perfectly constructive. This causes a localized pressure spike that destroys the levitated specimen. Therefore, for the system to operate safely, the product of the codes assigned to any two emitters that share a focal point must never be a perfect square.
+
+Be aware that the evaluation data includes highly interconnected emitter arrangements. These test cases are specifically designed to maximize the number of seemingly valid partial configurations, causing naive trial-and-error assignments to exceed the time limit.
+
+You must determine whether it is possible to assign a safe phase offset code to all $n$ emitters given the list of interacting pairs.
+
+## Input
+The first line contains two integers $n$ and $m$ — the number of emitters and the number of interacting emitter pairs ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$). Emitters are indexed from $1$ to $n$.
+Each of the subsequent $m$ lines provides two integers $u$ and $v$, specifying that emitter $u$ and emitter $v$ share a focal point.
+
+## Output
+If a safe tuning is impossible, output a single line containing NO.
+If a valid tuning exists, output YES on the first line. On the second line, output $n$ space-separated integers $p_1, p_2, \dots, p_n$ (where each $p_i \in \{1, 2, 3\}$), representing the offset code assigned to emitter $i$. Any valid array configuration will be accepted.
+
+## Example 1
+Input:
+```
+4 5
+1 2
+1 3
+2 3
+1 4
+2 4
+```
+Output:
+```
+YES
+1 2 3 3
+```
+
+## Example 2
+Input:
+```
+4 6
+1 2
+1 3
+1 4
+2 3
+2 4
+3 4
+```
+Output:
+```
+NO
+```

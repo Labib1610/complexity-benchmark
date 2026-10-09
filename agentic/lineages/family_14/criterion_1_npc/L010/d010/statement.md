@@ -1,0 +1,83 @@
+# Problem A — Subspace Spanning Cost
+
+Time limit: 5 s   Memory limit: 256 MB
+
+## Description
+
+Consider the standard basis vectors $e_1, e_2, \dots, e_n$ in $\mathbb{R}^n$.
+You are given a catalog of **m** available difference vectors. Each item in the catalog is specified by a pair of indices **u** and **v**, representing the vector $e_u - e_v$, and has an associated selection cost of **w**. Because linear span is closed under scalar multiplication, the vector $e_u - e_v$ and the vector $e_v - e_u$ are equivalent for the purposes of spanning.
+
+You are also given a target set $S$ containing **t** distinct indices from $1$ to **n**.
+Your objective is to select a subset of the available vectors such that for every pair of indices $i, j \in S$, the vector $e_i - e_j$ lies within the linear span of the selected subset.
+
+Determine the absolute minimum total selection cost required to achieve this.
+
+## Input
+
+The first line contains three integers **n**, **m**, and **t** (1 ≤ t ≤ 10, 1 ≤ n ≤ 100, 0 ≤ m ≤ n·(n−1)/2).
+The second line contains **t** distinct integers representing the indices in the target set $S$.
+The next **m** lines each provide three integers **u**, **v**, and **w** (1 ≤ u, v ≤ n, u ≠ v, 1 ≤ w ≤ 1000000), indicating that the vector $e_u - e_v$ is available in the catalog for a cost of **w**.
+It is guaranteed that the full catalog is sufficient to satisfy the target condition for $S$.
+
+## Output
+
+Output a single integer representing the minimum total selection cost required.
+
+## Examples
+
+### Example 1
+
+**Input**
+```
+4 6 3
+1 2 3
+1 4 1
+2 4 1
+3 4 1
+1 2 2
+2 3 2
+1 3 2
+```
+
+**Output**
+```
+3
+```
+
+### Example 2
+
+**Input**
+```
+4 4 3
+1 2 3
+1 2 1
+2 3 1
+1 4 10
+3 4 10
+```
+
+**Output**
+```
+2
+```
+
+### Example 3
+
+**Input**
+```
+3 2 1
+1
+1 2 5
+2 3 5
+```
+
+**Output**
+```
+0
+```
+
+## Note
+
+In Example 1, selecting the vectors $e_1 - e_4$, $e_2 - e_4$, and $e_3 - e_4$ costs 1 + 1 + 1 = 3. With these three vectors, their linear span contains $e_1 - e_2$ (since $e_1 - e_2 = (e_1 - e_4) - (e_2 - e_4)$), $e_2 - e_3$, and $e_1 - e_3$. This satisfies the requirement for the target set $S = \{1, 2, 3\}$ at a lower cost than selecting vectors directly between the target indices (which would cost 2 + 2 = 4).
+
+In Example 3, with only one index in the target set, no purchased vectors are needed to satisfy the condition, so the minimum cost is 0.

@@ -1,0 +1,51 @@
+import sys
+sys.setrecursionlimit(1_000_000)
+
+def solve() -> None:
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))  # = n-1
+    t = int(next(it))
+    required = [False] * (n + 1)
+    for _ in range(t):
+        required[int(next(it))] = True
+
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(next(it)); v = int(next(it)); w = int(next(it))
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+
+    parent = [0] * (n + 1)
+    pw = [0] * (n + 1)          # weight to parent
+    order = []
+    stack = [1]
+    parent[1] = -1
+    while stack:
+        u = stack.pop()
+        order.append(u)
+        for v, w in adj[u]:
+            if v == parent[u]:
+                continue
+            parent[v] = u
+            pw[v] = w
+            stack.append(v)
+
+    has_req = [False] * (n + 1)
+    total = 0
+    for u in reversed(order):
+        cur = required[u]
+        for v, _ in adj[u]:
+            if parent[v] == u:
+                if has_req[v]:
+                    total += pw[v]
+                cur = cur or has_req[v]
+        has_req[u] = cur
+
+    print(total)
+
+if __name__ == "__main__":
+    solve()

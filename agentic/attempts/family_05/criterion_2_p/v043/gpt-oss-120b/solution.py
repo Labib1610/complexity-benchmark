@@ -1,0 +1,93 @@
+import sys
+from collections import deque
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    k = int(next(it))
+    t = int(next(it))
+
+    spec_to_machine = [0] * (k + 1)
+    machine_to_spec = [0] * (k + 1)
+    adj = [[] for _ in range(k + 1)]   # adj[x] = list of time slots z
+
+    for _ in range(t):
+        x = int(next(it)); y = int(next(it)); z = int(next(it))
+        # check consistency of specialist-machine mapping
+        if spec_to_machine[x] == 0:
+            spec_to_machine[x] = y
+        elif spec_to_machine[x] != y:
+            print("NO")
+            return
+        if machine_to_spec[y] == 0:
+            machine_to_spec[y] = x
+        elif machine_to_spec[y] != x:
+            print("NO")
+            return
+        # store edge for later matching
+        adj[x].append(z)
+
+    # every specialist and every machine must be present exactly once
+    for i in range(1, k + 1):
+        if spec_to_machine[i] == 0 or machine_to_spec[i] == 0:
+            print("NO")
+            return
+
+    # Hopcroft–Karp
+    N = k
+    pair_u = [0] * (N + 1)   # specialist -> time slot
+    pair_v = [0] * (N + 1)   # time slot -> specialist
+    dist = [0] * (N + 1)
+
+    def bfs() -> bool:
+        q = deque()
+        for u in range(1, N + 1):
+            if pair_u[u] == 0:
+                dist[u] = 0
+                q.append(u)
+            else:
+                dist[u] = -1
+        found = False
+        while q:
+            u = q.popleft()
+            for v in adj[u]:
+                pu = pair_v[v]
+                if pu == 0:
+                    found = True
+                elif dist[pu] == -1:
+                    dist[pu] = dist[u] + 1
+                    q.append(pu)
+        return found
+
+    def dfs(u: int) -> bool:
+        for v in adj[u]:
+            pu = pair_v[v]
+            if pu == 0 or (dist[pu] == dist[u] + 1 and dfs(pu)):
+                pair_u[u] = v
+                pair_v[v] = u
+                return True
+        dist[u] = -1
+        return False
+
+    matching = 0
+    while bfs():
+        for u in range(1, N + 1):
+            if pair_u[u] == 0 and dfs(u):
+                matching += 1
+
+    if matching != k:
+        print("NO")
+        return
+
+    print("YES")
+    out_lines = []
+    for x in range(1, k + 1):
+        y = spec_to_machine[x]
+        z = pair_u[x]
+        out_lines.append(f"{x} {y} {z}")
+    sys.stdout.write("\n".join(out_lines))
+
+if __name__ == "__main__":
+    solve()

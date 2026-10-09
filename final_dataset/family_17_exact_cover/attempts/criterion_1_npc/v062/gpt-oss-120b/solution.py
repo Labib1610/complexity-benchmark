@@ -1,0 +1,154 @@
+import sys
+
+sys.setrecursionlimit(10000)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    q = int(next(it))
+    t = int(next(it))
+    n = 3 * q  # number of columns
+    triples = []
+    for _ in range(t):
+        a = int(next(it)) - 1
+        b = int(next(it)) - 1
+        c = int(next(it)) - 1
+        triples.append((a, b, c))
+
+    # ---------- DLX construction ----------
+    max_nodes = t * 3 + n + 1
+    left = [0] * max_nodes
+    right = [0] * max_nodes
+    up = [0] * max_nodes
+    down = [0] * max_nodes
+    col = [0] * max_nodes
+    row_id = [0] * max_nodes
+    size = [0] * (n + 1)  # column sizes, column headers are 1..n
+
+    header = 0
+    # header links to column headers 1..n
+    for i in range(n + 1):
+        left[i] = i - 1
+        right[i] = i + 1
+        up[i] = down[i] = i
+    left[0] = n
+    right[n] = 0
+
+    node_cnt = n + 1  # next free node index
+
+    def add_row(rid, cols):
+        nonlocal node_cnt
+        first = None
+        for c in cols:
+            c += 1  # shift to 1..n
+            nd = node_cnt
+            node_cnt += 1
+            col[nd] = c
+            row_id[nd] = rid
+            # vertical links
+            up[nd] = up[c]
+            down[nd] = c
+            down[up[c]] = nd
+            up[c] = nd
+            size[c] += 1
+            # horizontal links
+            if first is None:
+                left[nd] = right[nd] = nd
+                first = nd
+            else:
+                left[nd] = left[first]
+                right[nd] = first
+                right[left[first]] = nd
+                left[first] = nd
+
+    for idx, (a, b, c) in enumerate(triples):
+        add_row(idx, (a, b, c))
+
+    # ---------- DLX algorithm ----------
+    solution_rows = []
+
+    def cover(c):
+        # remove column header
+        left[right[c]] = left[c]
+        right[left[c]] = right[c]
+        # remove rows
+        i = down[c]
+        while i != c:
+            j = right[i]
+            while j != i:
+                down[up[j]] = down[j]
+                up[down[j]] = up[j]
+                size[col[j]] -= 1
+                j = right[j]
+            i = down[i]
+
+    def uncover(c):
+        i = up[c]
+        while i != c:
+            j = left[i]
+            while j != i:
+                size[col[j]] += 1
+                down[up[j]] = j
+                up[down[j]] = j
+                j = left[j]
+            i = up[i]
+        left[right[c]] = c
+        right[left[c]] = c
+
+    found = False
+
+    def search(k):
+        nonlocal found
+        if right[header] == header:
+            # all columns covered
+            found = True
+            return
+        # choose column with minimal size
+        c = right[header]
+        min_sz = size[c]
+        cc = c
+        j = right[c]
+        while j != header:
+            if size[j] < min_sz:
+                min_sz = size[j]
+                cc = j
+                if min_sz == 0:
+                    break
+            j = right[j]
+        if min_sz == 0:
+            return
+        cover(cc)
+        r = down[cc]
+        while r != cc:
+            solution_rows.append(row_id[r])
+            j = right[r]
+            while j != r:
+                cover(col[j])
+                j = right[j]
+            search(k + 1)
+            if found:
+                return
+            # backtrack
+            j = left[r]
+            while j != r:
+                uncover(col[j])
+                j = left[j]
+            solution_rows.pop()
+            r = down[r]
+        uncover(cc)
+
+    search(0)
+
+    if not found:
+        print("NO")
+    else:
+        print("YES")
+        # output selected triples
+        for rid in solution_rows:
+            a, b, c = triples[rid]
+            print(a + 1, b + 1, c + 1)
+
+if __name__ == "__main__":
+    solve()

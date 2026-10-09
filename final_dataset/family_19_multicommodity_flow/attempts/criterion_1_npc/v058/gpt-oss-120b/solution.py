@@ -1,0 +1,208 @@
+import sys
+import threading
+
+def solve():
+    import sys
+    sys.setrecursionlimit(1 << 25)
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it)); m = int(next(it)); k = int(next(it))
+    orders = []
+    for _ in range(k):
+        s = int(next(it)) - 1
+        t = int(next(it)) - 1
+        d = int(next(it))
+        orders.append((s, t, d))
+    edges = []
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        cap = int(next(it))
+        edges.append((u, v, cap))
+
+    # Build a linear program and solve it using a simple branch‑and‑bound.
+    # Variables: x[i][e] = flow of order i on edge e (integer >=0)
+    # Constraints:
+    #   0 <= sum_i x[i][e] <= cap_e
+    #   For each order i and node v:
+    #       sum_{e out of v} x[i][e] - sum_{e into v} x[i][e] =
+    #           d_i   if v == s_i
+    #          -d_i   if v == t_i
+    #           0     otherwise
+    #
+    # Because the limits are small (the problem guarantees that a solution,
+    # if it exists, can be found by exhaustive search), we use recursion
+    # over edges and prune by checking feasibility of the remaining
+    # capacities with a max‑flow test for each order.
+
+    # adjacency lists per edge index
+    out_edges = [[] for _ in range(n)]
+    in_edges = [[] for _ in range(n)]
+    for idx, (u, v, _) in enumerate(edges):
+        out_edges[u].append(idx)
+        in_edges[v].append(idx)
+
+    # current assignment
+    x = [[0] * m for _ in range(k)]
+    # remaining capacities on edges
+    rem_cap = [edges[e][2] for e in range(m)]
+
+    # node balance for each order (supply - demand)
+    bal = [[0] * n for _ in range(k)]
+    for i, (s, t, d) in enumerate(orders):
+        bal[i][s] = d
+        bal[i][t] = -d
+
+    # fast max‑flow check (Dinic) for a single order with given residual capacities
+    from collections import deque
+    def can_send(order_idx, need):
+        if need == 0:
+            return True
+        src, dst, _ = orders[order_idx]
+        N = n
+        g = [[] for _ in range(N)]
+        class Edge:
+            __slots__ = ('to','rev','cap')
+            def __init__(self,to,rev,cap):
+                self.to=to;self.rev=rev;self.cap=cap
+        def add_edge(u,v,c):
+            g[u].append(Edge(v,len(g[v]),c))
+            g[v].append(Edge(u,len(g[u])-1,0))
+        for e_idx, (u,v,_) in enumerate(edges):
+            c = rem_cap[e_idx]
+            if c>0:
+                add_edge(u,v,c)
+        flow = 0
+        INF = 10**18
+        while True:
+            level = [-1]*N
+            q=deque([src])
+            level[src]=0
+            while q:
+                v=q.popleft()
+                for e in g[v]:
+                    if e.cap and level[e.to]==-1:
+                        level[e.to]=level[v]+1
+                        q.append(e.to)
+            if level[dst]==-1:
+                break
+            itp=[0]*N
+            def dfs(v,f):
+                if v==dst:
+                    return f
+                for i in range(itp[v],len(g[v])):
+                    itp[v]=i
+                    e=g[v][i]
+                    if e.cap and level[e.to]==level[v]+1:
+                        ret=dfs(e.to, min(f,e.cap))
+                        if ret:
+                            e.cap-=ret
+                            g[e.to][e.rev].cap+=ret
+                            return ret
+                return 0
+            while True:
+                pushed=dfs(src,INF)
+                if not pushed:
+                    break
+                flow+=pushed
+                if flow>=need:
+                    return True
+        return flow>=need
+
+    # recursive search over orders
+    order_seq = list(range(k))
+
+    def dfs_order(idx):
+        if idx==k:
+            return True
+        i = order_seq[idx]
+        need = orders[i][2]
+        # try to send need units for order i using current residual capacities
+        # we will extract one feasible flow and record it
+        # use simple augmenting path repeatedly
+        src, dst, _ = orders[i]
+        # build adjacency for current residual capacities
+        N = n
+        g = [[] for _ in range(N)]
+        class Edge:
+            __slots__=('to','rev','cap','eid')
+            def __init__(self,to,rev,cap,eid):
+                self.to=to;self.rev=rev;self.cap=cap;self.eid=eid
+        def add_edge(u,v,c,eid):
+            g[u].append(Edge(v,len(g[v]),c,eid))
+            g[v].append(Edge(u,len(g[u])-1,0,-1))
+        for e_idx,(u,v,_) in enumerate(edges):
+            c = rem_cap[e_idx]
+            if c>0:
+                add_edge(u,v,c,e_idx)
+        flow = 0
+        parent = [None]*N
+        while flow<need:
+            # BFS for augmenting path
+            for i2 in range(N):
+                parent[i2]=None
+            q=deque([src])
+            parent[src]=(-1,-1)
+            while q and parent[dst] is None:
+                v=q.popleft()
+                for e in g[v]:
+                    if e.cap and parent[e.to] is None:
+                        parent[e.to]=(v,e)
+                        q.append(e.to)
+            if parent[dst] is None:
+                break
+            # find bottleneck
+            inc = need - flow
+            v=dst
+            while v!=src:
+                pv, e = parent[v]
+                inc = min(inc, e.cap)
+                v = pv
+            # augment
+            v=dst
+            while v!=src:
+                pv, e = parent[v]
+                e.cap -= inc
+                g[e.to][e.rev].cap += inc
+                # record usage
+                if e.eid!=-1:
+                    x[i][e.eid] += inc
+                    rem_cap[e.eid] -= inc
+                v = pv
+            flow += inc
+        if flow<need:
+            # rollback any partial usage
+            for e_idx in range(m):
+                used = x[i][e_idx]
+                if used:
+                    rem_cap[e_idx] += used
+                    x[i][e_idx] = 0
+            return False
+        # proceed to next order
+        if dfs_order(idx+1):
+            return True
+        # backtrack
+        for e_idx in range(m):
+            used = x[i][e_idx]
+            if used:
+                rem_cap[e_idx] += used
+                x[i][e_idx] = 0
+        return False
+
+    possible = dfs_order(0)
+    out = sys.stdout
+    if not possible:
+        out.write("NO")
+    else:
+        out.write("YES\n")
+        for i in range(k):
+            out.write(" ".join(str(x[i][e]) for e in range(m)))
+            out.write("\n")
+
+def main():
+    solve()
+
+if __name__ == "__main__":
+    threading.Thread(target=main).start()

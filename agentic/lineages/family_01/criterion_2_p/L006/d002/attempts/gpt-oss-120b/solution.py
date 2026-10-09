@@ -8,49 +8,42 @@ def solve() -> None:
     it = iter(data)
     n = int(next(it))
     m = int(next(it))
-
-    adj = [[] for _ in range(n)]
+    adj = [[] for _ in range(n + 1)]
     for _ in range(m):
-        u = int(next(it)) - 1
-        v = int(next(it)) - 1
+        u = int(next(it)); v = int(next(it))
         adj[u].append(v)
         adj[v].append(u)
 
-    col = [-1] * n            # provisional colour 0/1
-    comp = [-1] * n           # component id
-    comp_cnt = 0
+    colour = [-1] * (n + 1)          # -1 unvisited, 0/1 two sides
+    ans = [0] * (n + 1)
 
-    # BFS for bipartiteness and colouring
-    for start in range(n):
-        if col[start] != -1:
+    for start in range(1, n + 1):
+        if colour[start] != -1:
             continue
-        dq = deque([start])
-        col[start] = 0
-        comp[start] = comp_cnt
-        while dq:
-            u = dq.popleft()
-            cu = col[u]
-            for w in adj[u]:
-                if col[w] == -1:
-                    col[w] = 1 - cu
-                    comp[w] = comp_cnt
-                    dq.append(w)
-                elif col[w] == cu:
-                    # not bipartite
+        # BFS this component
+        q = deque([start])
+        colour[start] = 0
+        comp = []
+        while q:
+            x = q.popleft()
+            comp.append(x)
+            for y in adj[x]:
+                if colour[y] == -1:
+                    colour[y] = colour[x] ^ 1
+                    q.append(y)
+                elif colour[y] == colour[x]:
                     sys.stdout.write("NO")
                     return
-        comp_cnt += 1
+        # orientation: smallest index gets value 1
+        p = min(comp)
+        if colour[p] == 0:
+            for v in comp:
+                ans[v] = 1 if colour[v] == 0 else 2
+        else:
+            for v in comp:
+                ans[v] = 1 if colour[v] == 1 else 2
 
-    orientation = [-1] * comp_cnt   # which colour (0/1) becomes pressure 1
-    ans = [0] * n
-
-    for i in range(n):
-        cid = comp[i]
-        if orientation[cid] == -1:
-            orientation[cid] = col[i]          # make this colour = 1
-        ans[i] = 1 if col[i] == orientation[cid] else 2
-
-    out = ["YES", " ".join(map(str, ans))]
+    out = ["YES", " ".join(str(ans[i]) for i in range(1, n + 1))]
     sys.stdout.write("\n".join(out))
 
 if __name__ == "__main__":

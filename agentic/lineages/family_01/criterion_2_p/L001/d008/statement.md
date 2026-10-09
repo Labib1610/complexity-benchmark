@@ -1,30 +1,26 @@
-# Problem B — Energy State Configuration
+# Problem B — Signal Pipeline Synchronization
 
-Time limit: 1 s
-Memory limit: 256 MB
+Time limit: 1 s   Memory limit: 256 MB
 
-A quantum system consists of $n$ nodes, indexed from 1 to $n$. A tuning configuration assigns each node a specific state, which must be either the integer 1 or the integer 2.
+You are configuring a data processing pipeline consisting of $n$ transformation filters. Each filter $i$ applies a linear function $f_i(x)$ to an incoming continuous signal $x$.
 
-The laboratory maintains a record of $m$ links between these nodes. These links dictate the total energy of the system. To avoid destabilization, the system must achieve a perfectly stable energy level.
-Let $r_1, r_2, \dots, r_n$ (where each $r_i \in \{1, 2\}$) be the sequence of assigned states.
-Let $D_i$ be the total number of times node $i$ appears as an endpoint in the $m$ recorded links. (Note: if a record connects a node to itself, that node appears twice in that single record).
-The total energy $E$ of the configuration is computed by the following formula:
-$$E = \sum_{i=1}^n \left( 6 \cdot D_i \cdot r_i^2 \right) - \sum_{j=1}^m \left( 14 \cdot r_{u_j} \cdot r_{v_j} \right)$$
-where $(u_j, v_j)$ represents the $j$-th recorded link.
+You must configure each filter into exactly one of two operational modes:
+* **Mode 1**: The filter passes the signal unchanged, applying $f_i(x) = x$.
+* **Mode 2**: The filter inverts the signal polarity, applying $f_i(x) = -x$.
 
-The system is perfectly stable if and only if its total energy $E$ is exactly equal to $2m$. 
+The pipeline design includes $m$ synchronization pairs. Each pair specifies two filters $u$ and $v$. To maintain signal integrity, any two filters in a synchronization pair must, when applied sequentially, produce the standard inverted signal. Specifically, their combined transformation must satisfy $f_u(f_v(x)) = -x$ for all real numbers $x$. Since the composition of these specific functions is commutative, the order of application does not matter.
 
-Your task is to determine a valid tuning configuration for all $n$ nodes that achieves this exact energy level $E = 2m$. If multiple valid configurations exist, you must output the one that produces a sequence $r_1, r_2, \dots, r_n$ that is lexicographically smaller than any other valid sequence. This means it must prioritize assigning 1 to node 1 if possible; then prioritize assigning 1 to node 2, and so on sequentially.
+If a filter is not part of any synchronization pair, the condition is vacuously satisfied, but it must still be assigned exactly one mode.
 
-If no configuration can achieve the required energy $E = 2m$, you must report the failure.
+You must determine if there is a valid configuration of modes for all $n$ filters. If there are multiple valid configurations, you must choose the one that yields the lexicographically smallest sequence of modes (where each mode is represented as $1$ or $2$) when listed in order from filter $1$ to filter $n$.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$).
-Each of the following $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$), identifying a linked pair of nodes in the record.
+The first line of the input contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$).
+Each of the next $m$ lines contains two integers $u$ and $v$ — indicating a synchronization pair between filter $u$ and filter $v$.
 
 ## Output
-If no tuning configuration can achieve the required energy, output `NO` on a single line.
-Otherwise, output `YES` on the first line. On the second line, output $n$ space-separated integers $r_1, r_2, \dots, r_n$ (where each $r_i \in \{1, 2\}$) representing the state assigned to each respective node from 1 to $n$. This sequence must be the lexicographically smallest possible valid sequence.
+If there is no valid configuration, output a single line containing `NO`.
+Otherwise, output `YES` on the first line. On the second line, output $n$ integers separated by spaces, where the $i$-th integer is the mode ($1$ or $2$) assigned to the $i$-th filter, representing the lexicographically smallest valid assignment.
 
 ## Example 1
 Input:

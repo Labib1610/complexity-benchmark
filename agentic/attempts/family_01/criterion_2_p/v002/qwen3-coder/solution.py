@@ -1,48 +1,62 @@
 import sys
 from collections import defaultdict, deque
 
-def solve():
+def main():
+    import sys
+    sys.setrecursionlimit(1 << 25)
+    
     n, m = map(int, sys.stdin.readline().split())
     
+    if m == 0:
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
+    
     # Build adjacency list
-    graph = defaultdict(list)
+    adj = defaultdict(list)
+    edges = []
     for _ in range(m):
         u, v = map(int, sys.stdin.readline().split())
-        graph[u].append(v)
-        graph[v].append(u)
+        adj[u].append(v)
+        adj[v].append(u)
+        edges.append((u, v))
     
-    # Color array: 0 = unvisited, 1 = zone 1, 2 = zone 2
-    color = [0] * (n + 1)
+    # Check if bipartite using BFS/DFS for each connected component
+    color = [-1] * (n + 1)  # -1: unvisited, 0: color 1, 1: color 2
+    visited = [False] * (n + 1)
     
-    # Check if bipartite using BFS
-    for start in range(1, n + 1):
-        if color[start] == 0:
-            # Start BFS coloring
-            queue = deque([start])
-            color[start] = 1
-            
-            while queue:
-                node = queue.popleft()
-                current_color = color[node]
-                next_color = 3 - current_color  # flips 1->2, 2->1
-                
-                for neighbor in graph[node]:
-                    if color[neighbor] == 0:
-                        color[neighbor] = next_color
-                        queue.append(neighbor)
-                    elif color[neighbor] != next_color:
-                        print("NO")
-                        return
+    def bfs(start):
+        queue = deque()
+        queue.append(start)
+        color[start] = 0
+        visited[start] = True
+        
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if not visited[v]:
+                    visited[v] = True
+                    color[v] = 1 - color[u]
+                    queue.append(v)
+                elif color[v] == color[u]:
+                    return False
+        return True
     
-    # If we get here, it's bipartite
+    # Process each connected component
+    for i in range(1, n + 1):
+        if not visited[i]:
+            if not bfs(i):
+                print("NO")
+                return
+    
     print("YES")
     result = []
     for i in range(1, n + 1):
         if color[i] == 0:
-            result.append("1")  # isolated node, assign to zone 1
+            result.append("1")
         else:
-            result.append(str(color[i]))
-    
+            result.append("2")
     print(" ".join(result))
 
-solve()
+if __name__ == "__main__":
+    main()

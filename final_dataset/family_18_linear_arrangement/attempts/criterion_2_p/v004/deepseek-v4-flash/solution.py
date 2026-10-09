@@ -1,0 +1,70 @@
+import sys
+sys.setrecursionlimit(300000)
+
+def solve():
+    input_data = sys.stdin.read().strip().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    B = int(next(it))
+    
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # Find root (any node works, but we can pick 0)
+    parent = [-1] * n
+    order = []
+    stack = [0]
+    parent[0] = 0
+    while stack:
+        u = stack.pop()
+        order.append(u)
+        for v in adj[u]:
+            if parent[v] == -1:
+                parent[v] = u
+                stack.append(v)
+    
+    # Compute subtree sizes
+    size = [1] * n
+    for u in reversed(order):
+        for v in adj[u]:
+            if v != parent[u]:
+                size[u] += size[v]
+    
+    # Minimal total length = sum over edges of min(size_child, n - size_child)
+    min_total = 0
+    for u in range(1, n):
+        # edge between u and parent[u]
+        s = size[u]
+        min_total += min(s, n - s)
+    
+    if min_total > B:
+        print("NO")
+        return
+    
+    # Generate DFS order positions
+    pos = [0] * n
+    current = 1
+    stack = [0]
+    visited = [False] * n
+    visited[0] = True
+    while stack:
+        u = stack.pop()
+        pos[u] = current
+        current += 1
+        for v in adj[u]:
+            if not visited[v]:
+                visited[v] = True
+                stack.append(v)
+    
+    print("YES")
+    print(" ".join(str(pos[i]) for i in range(n)))
+
+if __name__ == "__main__":
+    solve()

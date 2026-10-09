@@ -1,0 +1,118 @@
+```python
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    adj = [[] for _ in range(n + 1)]
+    d = [0] * (n + 1)
+    idx = 2
+    for _ in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx+1])
+        idx += 2
+        d[u] += 1
+        d[v] += 1
+        if u != v:
+            adj[u].append(v)
+            adj[v].append(u)
+            
+    # Equilibrium condition: 2 * sum(s_u * s_v) = 3 * sum(d_i * s_i) - 5m
+    # Let s_i = x_i + 1, where x_i in {0, 1}
+    # 2 * sum((x_u + 1)(x_v + 1)) = 3 * sum(d_i * (x_i + 1)) - 5m
+    # 2 * sum(x_u * x_v + x_u + x_v + 1) = 3 * sum(d_i * x_i + d_i) - 5m
+    # 2 * sum(x_u * x_v) + 2 * sum(x_u + x_v) + 2m = 3 * sum(d_i * x_i) + 3 * sum(d_i) - 5m
+    # Note: sum(x_u + x_v) = sum(d_i * x_i)
+    # 2 * sum(x_u * x_v) + 2 * sum(d_i * x_i) + 2m = 3 * sum(d_i * x_i) + 6m - 5m
+    # 2 * sum(x_u * x_v) + 2 * sum(d_i * x_i) + 2m = 3 * sum(d_i * x_i) + m
+    # 2 * sum(x_u * x_v) + m = sum(d_i * x_i)
+    # sum(d_i * x_i - 2 * x_u * x_v) = m
+    
+    # This is equivalent to: sum_{i} x_i * (d_i - 2 * (number of neighbors j such that x_j=1)) = m
+    # Let f(x) = sum_{i} x_i * (d_i - 2 * sum_{j in adj[i]} x_j)
+    # We want f(x) = m.
+    # Since we want lexicographically smallest s, we want lexicographically smallest x.
+    # Try greedy approach: for each i from 1 to n, try x_i = 0, then x_i = 1.
+    
+    x = [-1] * (n + 1)
+    
+    def get_val(i, current_x):
+        # Contribution of x_i to the sum: x_i * (d_i - 2 * sum_{j in adj[i], x_j=1} 1)
+        # But we need to be careful about the x_u * x_v term.
+        # The equation is sum_{i} x_i * d_i - 2 * sum_{edges (u,v)} x_u * x_v = m
+        count = 0
+        for neighbor in adj[i]:
+            if current_x[neighbor] == 1:
+                count += 1
+        return x[i] * (d[i] - 2 * count)
+
+    # Actually, the equation is sum_{i} x_i * d_i - 2 * sum_{edges (u,v)} x_u * x_v = m
+    # Let's use backtracking with pruning or greedy if possible.
+    # Given the constraints and the nature of the problem, it's likely a 2-SAT or similar.
+    # Wait, the equation is sum_{i} x_i * d_i - 2 * sum_{edges (u,v)} x_u * x_v = m
+    # This is exactly the Ising model energy.
+    
+    # Let's re-check: 2 * sum(s_u * s_v) = 3 * sum(d_i * s_i) - 5m
+    # If s_i = 1 for all i: 2m = 3 * (2m) - 5m = m. (False)
+    # If s_i = 2 for all i: 2 * (4m) = 3 * (4m) - 5m => 8m = 7m. (False)
+    
+    # The equation is sum_{i} x_i * (d_i - 2 * sum_{j in adj[i]} x_j) = m
+    # This is a quadratic form. For n=2*10^5, we need a linear time solution.
+    # The only way is if the graph is bipartite or has special structure.
+    # Actually, the equation simplifies to sum_{i} x_i * (d_i - 2 * deg_i_x) = m
+    # where deg_i_x is the number of neighbors j of i such that x_j = 1.
+    
+    # Let's test small values. If x_i = 0 for all i, 0 = m. Only if m=0.
+    # If m=0, YES 1 1 ... 1.
+    if m == 0:
+        print("YES")
+        print(*( [1] * n ))
+        return
+
+    # The equation is sum_{i} x_i * d_i - 2 * sum_{edges} x_u * x_v = m
+    # This is equivalent to sum_{i} x_i * d_i - sum_{edges} (x_u + x_v - (x_u - x_v)^2) = m
+    # sum_{i} x_i * d_i - sum_{i} x_i * d_i + sum_{edges} (x_u - x_v)^2 = m
+    # sum_{edges} (x_u - x_v)^2 = m
+    # Since x_i in {0, 1}, (x_u - x_v)^2 is 1 if x_u != x_v and 0 if x_u == x_v.
+    # So we need the number of edges connecting different values to be exactly m.
+    # This is only possible if the graph is bipartite and we set x_i based on the partition.
+    
+    color = [-1] * (n + 1)
+    for i in range(1, n + 1):
+        if color[i] == -1:
+            stack = [(i, 0)]
+            color[i] = 0
+            while stack:
+                u, c = stack.pop()
+                for v in adj[u]:
+                    if color[v] == -1:
+                        color[v] = 1 - c
+                        stack.append((v, 1 - c))
+                    elif color[v] == c:
+                        print("NO")
+                        return
+    
+    # If bipartite, we have two sets of vertices V0 and V1.
+    # If we set x_i = 0 for all i in V0 and x_i = 1 for all i in V1,
+    # then every edge connects a 0 and a 1, so (x_u - x_v)^2 = 1.
+    # Total sum = m. This works!
+    # We need lexicographically smallest s_i = x_i + 1.
+    # So we want x_i = 0 as much as possible.
+    # We can either set x_i = color[i] or x_i = 1 - color[i].
+    
+    res1 = [color[i] + 1 for i in range(1, n + 1)]
+    res2 = [1 - color[i] + 1 for i in range(1, n + 1)]
+    
+    if res1 < res2:
+        print("YES")
+        print(*res1)
+    else:
+        print("YES")
+        print(*res2)
+
+solve()
+```

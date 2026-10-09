@@ -1,0 +1,48 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    n = int(data[0])
+    m = int(data[1])
+    adj = [0] * n
+    idx = 2
+    for _ in range(m):
+        u = int(data[idx]) - 1
+        v = int(data[idx+1]) - 1
+        idx += 2
+        adj[u] |= (1 << v)
+        adj[v] |= (1 << u)
+    
+    color = [0] * n
+    best = None
+    
+    def dfs(i):
+        nonlocal best
+        if best is not None:
+            return
+        if i == n:
+            best = color[:]
+            return
+        mask = 0
+        for j in range(i):
+            if (adj[i] >> j) & 1:
+                mask |= (1 << color[j])
+        for c in range(3):
+            if not (mask >> c) & 1:
+                color[i] = c
+                dfs(i+1)
+                if best is not None:
+                    return
+        color[i] = 0
+    
+    dfs(0)
+    
+    if best is None:
+        print("NO")
+    else:
+        print("YES")
+        print(' '.join(str(c+1) for c in best))
+
+solve()

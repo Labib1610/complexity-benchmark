@@ -15,52 +15,28 @@ def solve():
         adj[u].append(v)
         adj[v].append(u)
     
-    # Convert to sets for fast conflict checking
-    adj_set = [set(lst) for lst in adj]
+    color = [-1] * n
     
-    assignment = [0] * n  # 0 = unassigned, 1,2,3 = colors
-    
-    # MRV ordering: choose unassigned vertex with most constraints
-    def select_unassigned():
-        best = -1
-        best_deg = -1
-        for i in range(n):
-            if assignment[i] == 0:
-                # degree = number of unassigned neighbors
-                deg = sum(1 for v in adj[i] if assignment[v] == 0)
-                if deg > best_deg:
-                    best_deg = deg
-                    best = i
-        return best
-    
-    # Backtracking search
-    def backtrack():
-        # Find next unassigned vertex
-        v = select_unassigned()
-        if v == -1:
-            return True  # all assigned
-        
-        # Try colors in order 1,2,3 for lexicographic smallest
-        for color in (1,2,3):
-            # Check if color is valid
-            conflict = False
-            for u in adj[v]:
-                if assignment[u] == color:
-                    conflict = True
+    def backtrack(node):
+        if node == n:
+            return True
+        # Try colors 1,2,3
+        for c in (1, 2, 3):
+            ok = True
+            for nb in adj[node]:
+                if color[nb] == c:
+                    ok = False
                     break
-            if conflict:
-                continue
-            
-            assignment[v] = color
-            if backtrack():
-                return True
-            assignment[v] = 0
-        
+            if ok:
+                color[node] = c
+                if backtrack(node + 1):
+                    return True
+                color[node] = -1
         return False
     
-    if backtrack():
+    if backtrack(0):
         print("YES")
-        print(" ".join(str(x) for x in assignment))
+        print(" ".join(str(color[i]) for i in range(n)))
     else:
         print("NO")
 

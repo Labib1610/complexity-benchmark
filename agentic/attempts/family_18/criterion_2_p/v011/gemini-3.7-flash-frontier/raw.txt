@@ -1,0 +1,207 @@
+```python
+import sys
+
+# Increase recursion depth for deep trees
+sys.setrecursionlimit(300000)
+
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+
+    n = int(input_data[0])
+    m = int(input_data[1])
+    B = int(input_data[2])
+
+    adj = [[] for _ in range(n + 1)]
+    idx = 3
+    for _ in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx + 1])
+        idx += 2
+        adj[u].append(v)
+        adj[v].append(u)
+
+    if n == 1:
+        if B >= 0:
+            print("YES")
+            print(1)
+        else:
+            print("NO")
+        return
+
+    # Find centroids
+    sz = [0] * (n + 1)
+
+    def get_sizes(u, p):
+        sz[u] = 1
+        for v in adj[u]:
+            if v != p:
+                get_sizes(v, u)
+                sz[u] += sz[v]
+
+    get_sizes(1, 0)
+
+    centroids = []
+
+    def find_centroids(u, p):
+        is_centroid = True
+        for v in adj[u]:
+            if v != p:
+                find_centroids(v, u)
+                if sz[v] > n // 2:
+                    is_centroid = False
+        if n - sz[u] > n // 2:
+            is_centroid = False
+        if is_centroid:
+            centroids.append(u)
+
+    find_centroids(1, 0)
+
+    # Candidate roots: centroids and their neighbors (or all if N is small)
+    candidate_roots = set(centroids)
+    for c in centroids:
+        for v in adj[c]:
+            candidate_roots.add(v)
+    if n <= 100:
+        candidate_roots = set(range(1, n + 1))
+
+    best_cost = float("inf")
+    best_order = None
+
+    for root in candidate_roots:
+        # Re-compute subtree sizes for this root
+        tree_sz = [0] * (n + 1)
+
+        def dfs_sz(u, p):
+            tree_sz[u] = 1
+            for v in adj[u]:
+                if v != p:
+                    dfs_sz(v, u)
+                    tree_sz[u] += tree_sz[v]
+
+        dfs_sz(root, 0)
+
+        # DP to partition children for each subtree
+        # For a subtree u, parent is to the right if u is a left child, or left if right child.
+        # By symmetry, internal layout cost is the same.
+        # We need to record the partition of children for reconstruction.
+        left_children = {}
+        right_children = {}
+
+        def solve_tree(u, p, is_root=False):
+            children = [v for v in adj[u] if v != p]
+            for v in children:
+                solve_tree(v, u, False)
+
+            k = len(children)
+            if k == 0:
+                left_children[u] = []
+                right_children[u] = []
+                return
+
+            # Sort children by size descending for optimal placement
+            children.sort(key=lambda v: tree_sz[v], reverse=True)
+
+            # DP over children: dp[i][p] = min cost placing i children with p on Left
+            # cost for child placed on left at index p (0-indexed from outside to inside):
+            # left child: contribution is p * tree_sz[child]
+            # right child: contribution is q * tree_sz[child] + (tree_sz[child] if not is_root else 0)
+            dp = [{} for _ in range(k + 1)]
+            parent_choice = [{} for _ in range(k + 1)]
+            dp[0][0] = 0
+
+            for i in range(k):
+                v = children[i]
+                s = tree_sz[v]
+                for p_cnt, c in dp[i].items():
+                    q_cnt = i - p_cnt
+                    # Option 1: place v on Left
+                    cost_l = c + p_cnt * s
+                    if p_cnt + 1 not in dp[i + 1] or cost_l < dp[i + 1][p_cnt + 1]:
+                        dp[i + 1][p_cnt + 1] = cost_l
+                        parent_choice[i + 1][p_cnt + 1] = (p_cnt, "L")
+
+                    # Option 2: place v on Right
+                    extra_r = s if not is_root else 0
+                    cost_r = c + q_cnt * s + extra_r
+                    if p_cnt not in dp[i + 1] or cost_r < dp[i + 1][p_cnt]:
+                        dp[i + 1][p_cnt] = cost_r
+                        parent_choice[i + 1][p_cnt] = (p_cnt, "R")
+
+            # Find best final state
+            best_p = min(dp[k], key=dp[k].get)
+
+            # Backtrack
+            curr_p = best_p
+            l_list = []
+            r_list = []
+            for i in range(k, 0, -1):
+                prev_p, choice = parent_choice[i][curr_p]
+                v = children[i - 1]
+                if choice == "L":
+                    l_list.append(v)
+                else:
+                    r_list.append(v)
+                curr_p = prev_p
+
+            left_children[u] = l_list
+            right_children[u] = r_list
+
+        solve_tree(root, 0, True)
+
+        # Build layout
+        # For a subtree:
+        # If parent is to the RIGHT (Left subtree):
+        # Layout: [Left children farthest to closest] + [u] + [Right children closest to farthest]
+        # (with subtrees recursively arranged facing u)
+        def build_layout(u, parent_on_right):
+            # Left children: their parent u is to their RIGHT
+            # Right children: their parent u is to their LEFT
+            l_nodes = []
+            for v in left_children[u]:
+                l_nodes.extend(build_layout(v, True))
+
+            r_nodes = []
+            for v in right_children[u]:
+                r_nodes.extend(build_layout(v, False))
+
+            if parent_on_right:
+                # u's parent is on the right, so u is on the right of its left children
+                return l_nodes + [u] + r_nodes
+            else:
+                # u's parent is on the left, so mirror the structure:
+                # Right children go to the right, but facing u
+                return l_nodes + [u] + r_nodes
+
+        order = build_layout(root, True)
+
+        # Compute strain energy
+        pos = [0] * (n + 1)
+        for p_idx, u in enumerate(order, 1):
+            pos[u] = p_idx
+
+        total_cost = 0
+        for u in range(1, n + 1):
+            for v in adj[u]:
+                if u < v:
+                    total_cost += abs(pos[u] - pos[v])
+
+        if total_cost < best_cost:
+            best_cost = total_cost
+            best_order = pos
+
+        if best_cost <= B:
+            break
+
+    if best_cost <= B:
+        print("YES")
+        print(*(best_order[1:]))
+    else:
+        print("NO")
+
+
+if __name__ == "__main__":
+    solve()
+```

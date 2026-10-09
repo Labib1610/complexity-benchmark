@@ -1,0 +1,124 @@
+import sys
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+
+    n, m, k = data[0], data[1], data[2]
+    adj = [0] * n
+
+    p = 3
+    for _ in range(m):
+        u = data[p] - 1
+        v = data[p + 1] - 1
+        p += 2
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+
+    if k == 1:
+        print("YES")
+        print(1)
+        return
+
+    right_size = min(23, n)
+    left_size = n - right_size
+
+    full_right = (1 << right_size) - 1
+    full_left = (1 << left_size) - 1
+
+    nonadj_right = [0] * right_size
+    for j in range(right_size):
+        original = left_size + j
+        conflicts = (adj[original] >> left_size) & full_right
+        nonadj_right[j] = full_right ^ conflicts
+
+    size = 1 << right_size
+    dp = bytearray(size)
+
+    for v in range(right_size):
+        base = 1 << v
+        allowed = nonadj_right[v]
+        for low in range(base):
+            without_v = dp[low]
+            with_v = dp[low & allowed] + 1
+            dp[base + low] = with_v if with_v > without_v else without_v
+
+    nonadj_left = [0] * left_size
+    cross_allowed = [0] * left_size
+
+    for i in range(left_size):
+        nonadj_left[i] = full_left ^ (adj[i] & full_left)
+        conflicts_right = (adj[i] >> left_size) & full_right
+        cross_allowed[i] = full_right ^ conflicts_right
+
+    answer_left = 0
+    answer_right_mask = 0
+    answer_right_need = 0
+
+    def search(candidates, allowed_right, chosen, chosen_count):
+        nonlocal answer_left, answer_right_mask, answer_right_need
+
+        best_right = dp[allowed_right]
+        need = k - chosen_count
+
+        if best_right >= need:
+            answer_left = chosen
+            answer_right_mask = allowed_right
+            answer_right_need = need
+            return True
+
+        if chosen_count + candidates.bit_count() + best_right < k:
+            return False
+
+        remaining = candidates
+        while remaining:
+            bit = remaining & -remaining
+            remaining ^= bit
+            v = bit.bit_length() - 1
+
+            new_candidates = remaining & nonadj_left[v]
+            new_allowed = allowed_right & cross_allowed[v]
+
+            if search(
+                new_candidates,
+                new_allowed,
+                chosen | bit,
+                chosen_count + 1
+            ):
+                return True
+
+        return False
+
+    if not search(full_left, full_right, 0, 0):
+        print("NO")
+        return
+
+    result = []
+
+    mask = answer_left
+    while mask:
+        bit = mask & -mask
+        result.append(bit.bit_length())
+        mask ^= bit
+
+    mask = answer_right_mask
+    need = answer_right_need
+
+    while need > 0:
+        v = mask.bit_length() - 1
+        bit = 1 << v
+        low = mask ^ bit
+
+        if dp[mask] == dp[low]:
+            mask = low
+        else:
+            result.append(left_size + v + 1)
+            need -= 1
+            mask = low & nonadj_right[v]
+
+    print("YES")
+    print(*result)
+
+if __name__ == "__main__":
+    main()

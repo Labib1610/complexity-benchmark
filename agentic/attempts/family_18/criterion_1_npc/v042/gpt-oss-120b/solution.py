@@ -1,0 +1,48 @@
+import sys, random, time
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    B = int(next(it))
+    edges = [(int(next(it)) - 1, int(next(it)) - 1) for _ in range(m)]
+
+    # compute total distance for a given permutation (pos[i] = position of vertex i, 0‑based)
+    def total_dist(pos):
+        s = 0
+        for u, v in edges:
+            s += abs(pos[u] - pos[v])
+            if s > B:   # early stop
+                return s
+        return s
+
+    # start with identity permutation
+    perm = list(range(n))
+    pos = [0] * n
+    for idx, v in enumerate(perm):
+        pos[v] = idx
+    if total_dist(pos) <= B:
+        print("YES")
+        print(' '.join(str(p + 1) for p in perm))
+        return
+
+    # try random permutations for a limited time
+    start = time.time()
+    attempts = 0
+    while time.time() - start < 4.5:
+        random.shuffle(perm)
+        for idx, v in enumerate(perm):
+            pos[v] = idx
+        if total_dist(pos) <= B:
+            print("YES")
+            print(' '.join(str(p + 1) for p in perm))
+            return
+        attempts += 1
+
+    print("NO")
+
+if __name__ == "__main__":
+    solve()

@@ -1,0 +1,36 @@
+import sys
+from collections import deque
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    n = int(data[0])
+    m = int(data[1])
+    adj = [[] for _ in range(n + 1)]
+    indeg = [0] * (n + 1)
+    idx = 2
+    for _ in range(m):
+        x = int(data[idx]); y = int(data[idx+1])
+        idx += 2
+        adj[x].append(y)
+        indeg[y] += 1
+    q = deque()
+    for i in range(1, n+1):
+        if indeg[i] == 0:
+            q.append(i)
+    order = []
+    while q:
+        u = q.popleft()
+        order.append(u)
+        for v in adj[u]:
+            indeg[v] -= 1
+            if indeg[v] == 0:
+                q.append(v)
+    if len(order) == n:
+        sys.stdout.write("YES\n")
+        sys.stdout.write(" ".join(map(str, order)) + "\n")
+    else:
+        sys.stdout.write("NO\n")
+
+solve()

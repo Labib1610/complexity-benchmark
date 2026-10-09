@@ -1,0 +1,268 @@
+**Solution Explanation**
+
+For every node `i` we have a Boolean variable  
+
+```
+xi = 1   ⇔   node i is in state 1
+xi = 0   ⇔   node i is in state 0
+```
+
+An interlock connects two *node‑states*.  
+A node‑state is a literal:
+
+* `+k`  – the literal `xk` (node *k* must be 1)
+* `-k`  – the literal `¬xk` (node *k* must be 0)
+
+The interlock is satisfied iff at least one of its two literals is true, i.e. we have a
+**2‑SAT clause**  
+
+```
+(lit1) ∨ (lit2)
+```
+
+The whole problem is exactly the classic 2‑SAT problem.
+
+--------------------------------------------------------------------
+
+#### 1.   Implication graph
+
+For a clause `(a ∨ b)` we add the two implications  
+
+```
+¬a → b
+¬b → a
+```
+
+The graph has `2·n` vertices – one for each literal (`xi` and `¬xi`).
+
+Vertex numbering (0‑based)
+
+```
+idx(i, false) = 2·(i-1)          # literal ¬xi
+idx(i, true ) = 2·(i-1) + 1      # literal  xi
+```
+
+Conversion of an input integer `l` (`|l|` is node, sign is required state)
+
+```
+if l > 0 :   lit = (node = l,   value = true )
+else      :   lit = (node = -l,  value = false)
+```
+
+`node_of(lit)` returns the vertex index, `neg(node)` returns the opposite literal
+(`node ^ 1` because we stored false/true consecutively).
+
+--------------------------------------------------------------------
+
+#### 2.   Strongly Connected Components
+
+A 2‑SAT instance is satisfiable **iff** for every variable `i` the two literals
+`xi` and `¬xi` belong to different SCCs.
+If they are in the same SCC we output `NO`.
+
+Otherwise we obtain a satisfying assignment from the topological order of the SCCs:
+the component that appears later in a reverse‑postorder (i.e. has larger SCC id
+in Kosaraju) is assigned `true`.  
+Concretely:
+
+```
+value[i] = 1   if comp[idx(i, true)]  > comp[idx(i, false)]
+value[i] = 0   otherwise
+```
+
+--------------------------------------------------------------------
+
+#### 3.   Algorithm (Kosaraju, iterative)
+
+* build adjacency list `g` and reversed list `gr` (size `2·n`)
+* first DFS on `g` (iterative stack) → order list
+* second DFS on `gr` processing vertices in reverse order → component ids
+* check for contradictions
+* produce assignment
+
+Complexities  
+
+```
+Vertices : 2·n ≤ 2·10^5
+Edges    : 2·m ≤ 4·10^5
+Time     : O(V + E)   (≈ 6·10^5)  < 1 s
+Memory   : O(V + E)
+```
+
+--------------------------------------------------------------------
+
+#### 4.   Correctness Proof  
+
+We prove that the algorithm prints `YES` and a correct configuration
+iff such a configuration exists.
+
+---
+
+##### Lemma 1  
+For every clause `(a ∨ b)` the added edges `¬a → b` and `¬b → a`
+are logically equivalent to the clause.
+
+**Proof.**  
+If `a` is true, the clause is satisfied regardless of `b`.  
+If `a` is false, then `¬a` is true, and the edge forces `b` to be true,
+so the clause is satisfied. Symmetric for `b`. ∎
+
+
+
+##### Lemma 2  
+If a variable `xi` and its negation belong to the same SCC,
+the formula is unsatisfiable.
+
+**Proof.**  
+Inside an SCC each vertex reaches the other, therefore we have both
+implications `xi → ¬xi` and `¬xi → xi`. Any assignment that makes `xi`
+true forces `¬xi` true, contradiction; similarly for `xi` false.
+Thus no assignment can satisfy all implications, and by Lemma&nbsp;1 no
+assignment can satisfy the original formula. ∎
+
+
+
+##### Lemma 3  
+If for every `i` the literals `xi` and `¬xi` are in different SCCs,
+assigning each variable the truth value of the later SCC (larger component
+number) satisfies all implications.
+
+**Proof.**  
+Consider any edge `u → v`. In the condensation DAG of SCCs there is a
+directed edge from `comp(u)` to `comp(v)`. Topological order of DAG guarantees
+`comp(u) ≤ comp(v)`. If `comp(u) = comp(v)` they are the same SCC, impossible
+by assumption for a literal and its negation. Hence `comp(u) < comp(v)`.
+Our assignment makes every vertex in a later component true and earlier
+false, therefore `u` being true implies `v` true, satisfying the edge.
+All edges are satisfied, thus all implications are satisfied. ∎
+
+
+
+##### Lemma 4  
+If all implications are satisfied, the original 2‑SAT formula is satisfied.
+
+**Proof.**  
+By Lemma&nbsp;1 each clause is equivalent to its two implications.
+If both implications hold, the clause holds. ∎
+
+
+
+##### Theorem  
+The algorithm outputs  
+
+* `NO` **iff** the instance has no satisfying configuration;
+* otherwise `YES` and a configuration that satisfies all interlocks.
+
+**Proof.**  
+
+*If the algorithm prints `NO`.*  
+That happens only when some variable and its negation share an SCC.
+By Lemma&nbsp;2 the formula is unsatisfiable, hence no configuration exists.
+
+*If the algorithm prints `YES`.*  
+Then every variable’s literals are in different SCCs.
+The algorithm builds the assignment described in Lemma&nbsp;3,
+which satisfies all implications, and by Lemma&nbsp;4 satisfies all clauses,
+i.e. all interlocks. Therefore a valid configuration is produced.
+
+*Conversely*, if a satisfying configuration exists, the formula is satisfiable,
+so by 2‑SAT theory no variable can be in the same SCC as its negation.
+The algorithm will not output `NO` and will construct an assignment as
+above, which is also satisfying. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### 5.   Reference Implementation  (Python 3)
+
+```python
+import sys
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    V = 2 * n
+    g = [[] for _ in range(V)]
+    gr = [[] for _ in range(V)]
+
+    def lit_node(l: int) -> int:
+        """return vertex index of literal represented by integer l"""
+        if l > 0:
+            # xi
+            return 2 * (l - 1) + 1
+        else:
+            # ¬xi
+            return 2 * (-l - 1)
+
+    for _ in range(m):
+        a = int(next(it))
+        b = int(next(it))
+        na = lit_node(a)
+        nb = lit_node(b)
+        na_neg = na ^ 1
+        nb_neg = nb ^ 1
+        # ¬a -> b
+        g[na_neg].append(nb)
+        gr[nb].append(na_neg)
+        # ¬b -> a
+        g[nb_neg].append(na)
+        gr[na].append(nb_neg)
+
+    # Kosaraju first pass: order
+    sys.setrecursionlimit(1 << 25)
+    visited = [False] * V
+    order = []
+
+    for v in range(V):
+        if not visited[v]:
+            stack = [(v, 0)]
+            while stack:
+                node, state = stack.pop()
+                if state == 0:
+                    if visited[node]:
+                        continue
+                    visited[node] = True
+                    stack.append((node, 1))
+                    for to in g[node]:
+                        if not visited[to]:
+                            stack.append((to, 0))
+                else:
+                    order.append(node)
+
+    # second pass: assign components
+    comp = [-1] * V
+    cur = 0
+    for v in reversed(order):
+        if comp[v] == -1:
+            stack = [v]
+            comp[v] = cur
+            while stack:
+                node = stack.pop()
+                for to in gr[node]:
+                    if comp[to] == -1:
+                        comp[to] = cur
+                        stack.append(to)
+            cur += 1
+
+    # check contradictions
+    assignment = [0] * n
+    for i in range(n):
+        if comp[2 * i] == comp[2 * i + 1]:
+            print("NO")
+            return
+        assignment[i] = 1 if comp[2 * i + 1] > comp[2 * i] else 0
+
+    print("YES")
+    print(' '.join(map(str, assignment)))
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above and conforms
+to the required input‑output format.

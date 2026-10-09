@@ -14,20 +14,19 @@ for _ in range(m):
 
 color = [-1] * n
 
-for start in range(n):
-    if color[start] != -1:
-        continue
-    color[start] = 1
-    q = deque([start])
-    while q:
-        u = q.popleft()
-        for v in adj[u]:
-            if color[v] == -1:
-                color[v] = 3 - color[u]
-                q.append(v)
-            elif color[v] == color[u]:
-                print("NO")
-                sys.exit()
+for i in range(n):
+    if color[i] == -1:
+        color[i] = 1
+        q = deque([i])
+        while q:
+            u = q.popleft()
+            for v in adj[u]:
+                if color[v] == -1:
+                    color[v] = 3 - color[u]
+                    q.append(v)
+                elif color[v] == color[u]:
+                    print("NO")
+                    sys.exit()
 
 print("YES")
-print(" ".join(str(color[i]) for i in range(n)))
+print(" ".join(str(c) for c in color))

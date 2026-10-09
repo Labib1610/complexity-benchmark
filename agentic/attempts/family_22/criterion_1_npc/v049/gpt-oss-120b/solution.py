@@ -1,0 +1,78 @@
+import sys
+
+sys.setrecursionlimit(1 << 25)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    M = int(next(it))
+    T = int(next(it))
+    m = int(next(it))
+
+    adj = [[] for _ in range(n)]
+    indeg = [0] * n
+    for _ in range(m):
+        a = int(next(it)) - 1
+        b = int(next(it)) - 1
+        adj[a].append(b)
+        indeg[b] += 1
+
+    # topological order (Kahn)
+    from collections import deque
+    q = deque([i for i in range(n) if indeg[i] == 0])
+    topo = []
+    while q:
+        v = q.popleft()
+        topo.append(v)
+        for to in adj[v]:
+            indeg[to] -= 1
+            if indeg[to] == 0:
+                q.append(to)
+    if len(topo) != n:
+        print("NO")
+        return
+
+    # DSU for next available slot with remaining capacity
+    parent = list(range(T + 2))   # 1..T, T+1 sentinel
+    cap = [M] * (T + 2)           # cap[0] unused
+
+    def find(x: int) -> int:
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    def occupy(pos: int) -> None:
+        cap[pos] -= 1
+        if cap[pos] == 0:
+            parent[pos] = find(pos + 1)
+
+    earliest = [1] * n
+    # compute earliest times using predecessors
+    for v in topo:
+        # earliest already set from predecessors
+        # assign to a slot >= earliest[v]
+        if earliest[v] > T:
+            print("NO")
+            return
+        slot = find(earliest[v])
+        if slot > T:
+            print("NO")
+            return
+        occupy(slot)
+        # store result
+        earliest[v] = slot  # reuse array to store assigned time
+        # propagate to successors
+        for to in adj[v]:
+            if earliest[to] < slot + 1:
+                earliest[to] = slot + 1
+
+    # output
+    print("YES")
+    print(' '.join(str(earliest[i]) for i in range(n)))
+
+if __name__ == "__main__":
+    solve()

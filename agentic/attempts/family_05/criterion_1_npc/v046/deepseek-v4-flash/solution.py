@@ -1,0 +1,67 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.read().strip().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    k = int(next(it))
+    t = int(next(it))
+    
+    # Store viable triads as a set of tuples for quick lookup
+    viable = set()
+    for _ in range(t):
+        x = int(next(it)) - 1
+        y = int(next(it)) - 1
+        z = int(next(it)) - 1
+        viable.add((x, y, z))
+    
+    # Precompute for each analyst and week, the list of clusters
+    # that form a viable triad
+    options = [[[] for _ in range(k)] for _ in range(k)]
+    for (x, y, z) in viable:
+        options[x][z].append(y)
+    
+    # Sort clusters for each (analyst, week) to try smaller sets first
+    for x in range(k):
+        for z in range(k):
+            options[x][z].sort()
+    
+    used_weeks = 0
+    used_clusters = 0
+    assignment = [None] * k  # assignment[x] = (y, z)
+    
+    # Backtracking
+    def dfs(analyst):
+        nonlocal used_weeks, used_clusters
+        if analyst == k:
+            return True
+        # Try each week
+        for z in range(k):
+            if used_weeks & (1 << z):
+                continue
+            # Try each cluster for this week
+            for y in options[analyst][z]:
+                if used_clusters & (1 << y):
+                    continue
+                # Assign
+                used_weeks |= (1 << z)
+                used_clusters |= (1 << y)
+                assignment[analyst] = (y, z)
+                if dfs(analyst + 1):
+                    return True
+                # Backtrack
+                used_weeks ^= (1 << z)
+                used_clusters ^= (1 << y)
+        return False
+    
+    if dfs(0):
+        print("YES")
+        for x in range(k):
+            y, z = assignment[x]
+            print(x + 1, y + 1, z + 1)
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()

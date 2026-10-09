@@ -1,0 +1,70 @@
+import sys
+
+def main():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    t = int(input_data[2])
+    
+    ptr = 3
+    marked = [False] * (n + 1)
+    for _ in range(t):
+        marked[int(input_data[ptr])] = True
+        ptr += 1
+        
+    if t <= 1:
+        print(0)
+        return
+
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(input_data[ptr])
+        v = int(input_data[ptr + 1])
+        w = int(input_data[ptr + 2])
+        ptr += 3
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+
+    # BFS/DFS to establish parent pointers and post-order traversal
+    parent = [0] * (n + 1)
+    parent_edge_weight = [0] * (n + 1)
+    order = []
+    
+    stack = [1]
+    visited = [False] * (n + 1)
+    visited[1] = True
+    
+    # We can do a BFS to get the BFS order, then process in reverse
+    queue = [1]
+    head = 0
+    while head < len(queue):
+        u = queue[head]
+        head += 1
+        for v, w in adj[u]:
+            if not visited[v]:
+                visited[v] = True
+                parent[v] = u
+                parent_edge_weight[v] = w
+                queue.append(v)
+
+    # Process in reverse BFS order (leaves up to root)
+    cnt = [0] * (n + 1)
+    for u in queue:
+        if marked[u]:
+            cnt[u] = 1
+            
+    total_weight = 0
+    for u in reversed(queue):
+        p = parent[u]
+        if p != 0:
+            cnt[p] += cnt[u]
+            if 0 < cnt[u] < t:
+                total_weight += parent_edge_weight[u]
+
+    print(total_weight)
+
+if __name__ == '__main__':
+    main()

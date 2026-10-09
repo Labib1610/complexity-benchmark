@@ -1,0 +1,148 @@
+import sys
+from collections import defaultdict
+
+def solve():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    k = int(next(it))
+    B = int(next(it))
+    
+    proprietary = set()
+    for _ in range(k):
+        proprietary.add(int(next(it)))
+    
+    edges = []
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        w = int(next(it))
+        edges.append((u, v, w))
+    
+    # DSU for Kruskal's algorithm
+    parent = list(range(n + 1))
+    rank = [0] * (n + 1)
+    
+    def find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+    
+    def union(x, y):
+        rx, ry = find(x), find(y)
+        if rx == ry:
+            return False
+        if rank[rx] < rank[ry]:
+            parent[rx] = ry
+        elif rank[rx] > rank[ry]:
+            parent[ry] = rx
+        else:
+            parent[ry] = rx
+            rank[rx] += 1
+        return True
+    
+    # Sort edges by weight (ascending for MST)
+    edges.sort(key=lambda e: e[2])
+    
+    # Build MST, tracking which edges are used
+    used = [False] * m
+    for i, (u, v, w) in enumerate(edges):
+        if union(u, v):
+            used[i] = True
+    
+    # Build adjacency list for MST
+    adj = defaultdict(list)
+    for i, (u, v, w) in enumerate(edges):
+        if used[i]:
+            adj[u].append((v, w, i))
+            adj[v].append((u, w, i))
+    
+    # For each edge in MST, find if it's on path between proprietary nodes
+    # and track the minimum weight edge on that path
+    min_edge = [float('inf')] * m  # min weight edge on path between proprietary nodes
+    visited = [False] * (n + 1)
+    
+    # DFS to find paths between proprietary nodes
+    def dfs(u, p, current_min, path_edges):
+        if u in proprietary:
+            # Found a proprietary node, update min_edge for all edges on path
+            for idx in path_edges:
+                if edges[idx][2] < min_edge[idx]:
+                    min_edge[idx] = edges[idx][2]
+        
+        visited[u] = True
+        for v, w, idx in adj[u]:
+            if v != p and not visited[v]:
+                new_min = min(current_min, w) if current_min != float('inf') else w
+                path_edges.append(idx)
+                dfs(v, u, new_min, path_edges)
+                path_edges.pop()
+        visited[u] = False
+    
+    # Start DFS from each proprietary node
+    for start in proprietary:
+        dfs(start, -1, float('inf'), [])
+    
+    # Collect edges that need to be cut (edges on paths between proprietary nodes)
+    cut_edges = []
+    for i in range(m):
+        if used[i] and min_edge[i] < float('inf'):
+            cut_edges.append((edges[i][2], i))
+    
+    # Sort by weight and greedily select
+    cut_edges.sort()
+    total = 0
+    selected = []
+    for w, idx in cut_edges:
+        if total + w <= B:
+            total += w
+            selected.append(idx)
+        else:
+            break
+    
+    # Check if we've cut all necessary paths
+    # Rebuild connectivity without selected edges
+    parent = list(range(n + 1))
+    def find2(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+    
+    def union2(x, y):
+        rx, ry = find2(x), find2(y)
+        if rx != ry:
+            parent[rx] = ry
+            return True
+        return False
+    
+    cut_set = set(selected)
+    for i, (u, v, w) in enumerate(edges):
+        if used[i] and i not in cut_set:
+            union2(u, v)
+    
+    # Check if all proprietary nodes are in different components
+    prop_list = list(proprietary)
+    valid = True
+    for i in range(len(prop_list)):
+        for j in range(i + 1, len(prop_list)):
+            if find2(prop_list[i]) == find2(prop_list[j]):
+                valid = False
+                break
+        if not valid:
+            break
+    
+    if valid and total <= B:
+        print("YES")
+        print(len(selected))
+        for idx in selected:
+            u, v, w = edges[idx]
+            print(u, v)
+    else:
+        print("NO")
+
+solve()

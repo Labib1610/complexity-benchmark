@@ -11,28 +11,28 @@ def solve():
         adj[u].append(v)
         adj[v].append(u)
 
-    color = [0] * n  # 0 = unassigned, 1,2,3 = shifts
+    colors = [0] * n
 
     def is_safe(node, c):
-        for nb in adj[node]:
-            if color[nb] == c:
+        for nei in adj[node]:
+            if colors[nei] == c:
                 return False
         return True
 
-    def backtrack(idx):
-        if idx == n:
+    def backtrack(node):
+        if node == n:
             return True
-        for c in range(1, 4):
-            if is_safe(idx, c):
-                color[idx] = c
-                if backtrack(idx + 1):
+        for c in (1, 2, 3):
+            if is_safe(node, c):
+                colors[node] = c
+                if backtrack(node + 1):
                     return True
-                color[idx] = 0
+                colors[node] = 0
         return False
 
     if backtrack(0):
         print("YES")
-        print(" ".join(map(str, color)))
+        print(" ".join(map(str, colors)))
     else:
         print("NO")
 

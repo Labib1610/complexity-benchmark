@@ -1,0 +1,156 @@
+import sys
+
+# Increase recursion depth just in case
+sys.setrecursionlimit(5000)
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    q = int(input_data[0])
+    t = int(input_data[1])
+    
+    N = 3 * q
+    if t < q:
+        print("NO")
+        return
+    
+    triples = []
+    idx = 2
+    for _ in range(t):
+        a = int(input_data[idx])
+        b = int(input_data[idx+1])
+        c = int(input_data[idx+2])
+        triples.append((a, b, c))
+        idx += 3
+        
+    # DLX arrays
+    # Max nodes = (N + 1) + 3 * t
+    max_nodes = N + 1 + 3 * t + 10
+    L = [0] * max_nodes
+    R = [0] * max_nodes
+    U = [0] * max_nodes
+    D = [0] * max_nodes
+    C = [0] * max_nodes
+    row_id = [0] * max_nodes
+    size = [0] * (N + 1)
+    
+    # Initialize column headers
+    for i in range(N + 1):
+        L[i] = (i - 1 + N + 1) % (N + 1)
+        R[i] = (i + 1) % (N + 1)
+        U[i] = i
+        D[i] = i
+        C[i] = i
+        size[i] = 0
+        
+    node_cnt = N + 1
+    
+    for k, (a, b, c) in enumerate(triples):
+        cols = [a, b, c]
+        first = node_cnt
+        for col in cols:
+            curr = node_cnt
+            node_cnt += 1
+            
+            C[curr] = col
+            row_id[curr] = k
+            size[col] += 1
+            
+            # Insert into column list (at the bottom)
+            U[curr] = U[col]
+            D[curr] = col
+            D[U[col]] = curr
+            U[col] = curr
+            
+        # Link horizontally in circular doubly linked list
+        L[first] = first + 2
+        R[first] = first + 1
+        
+        L[first + 1] = first
+        R[first + 1] = first + 2
+        
+        L[first + 2] = first + 1
+        R[first + 2] = first
+
+    def cover(c):
+        L[R[c]] = L[c]
+        R[L[c]] = R[c]
+        i = D[c]
+        while i != c:
+            j = R[i]
+            while j != i:
+                U[D[j]] = U[j]
+                D[U[j]] = D[j]
+                size[C[j]] -= 1
+                j = R[j]
+            i = D[i]
+
+    def uncover(c):
+        i = U[c]
+        while i != c:
+            j = L[i]
+            while j != i:
+                size[C[j]] += 1
+                U[D[j]] = j
+                D[U[j]] = j
+                j = L[j]
+            i = U[i]
+        L[R[c]] = c
+        R[L[c]] = c
+
+    solution = []
+
+    def search():
+        if R[0] == 0:
+            return True
+        
+        # Choose column with minimum size
+        c = R[0]
+        min_size = size[c]
+        cur = R[c]
+        while cur != 0:
+            if size[cur] < min_size:
+                min_size = size[cur]
+                c = cur
+                if min_size == 0:
+                    break
+            cur = R[cur]
+            
+        if min_size == 0:
+            return False
+        
+        cover(c)
+        r = D[c]
+        while r != c:
+            solution.append(row_id[r])
+            j = R[r]
+            while j != r:
+                cover(C[j])
+                j = R[j]
+            
+            if search():
+                return True
+            
+            solution.pop()
+            j = L[r]
+            while j != r:
+                uncover(C[j])
+                j = L[j]
+            r = D[r]
+        
+        uncover(c)
+        return False
+
+    if search():
+        out = ["YES"]
+        for r_idx in solution:
+            a, b, c = triples[r_idx]
+            out.append(f"{a} {b} {c}")
+        print("\n".join(out))
+    else:
+        print("NO")
+
+if __name__ == '__main__':
+    solve()

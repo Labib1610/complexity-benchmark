@@ -1,0 +1,115 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    N_in = int(input_data[0])
+    N_out = int(input_data[1])
+    M = int(input_data[2])
+    
+    if M == 0:
+        print("YES")
+        print()
+        return
+        
+    edges = []
+    for i in range(M):
+        u = int(input_data[3 + 2*i])
+        v = int(input_data[3 + 2*i + 1])
+        edges.append((u, v))
+        
+    deg_in = [0] * (N_in + 1)
+    deg_out = [0] * (N_out + 1)
+    
+    for u, v in edges:
+        deg_in[u] += 1
+        deg_out[v] += 1
+        
+    D = max(max(deg_in), max(deg_out))
+    
+    # We use a greedy matching approach for each phase 1 to D.
+    # For a given phase, we select a matching of edges such that no terminal
+    # is used more than once. By Hall's theorem, since the bipartite graph
+    # has maximum degree D, we can always find a matching that covers all
+    # vertices with degree exactly D. Removing this matching reduces the
+    # maximum degree by 1, so we can repeat this D times.
+    
+    # To avoid TLE, we maintain lists of edges incident to each terminal.
+    # We use a "deleted" array to lazily remove edges.
+    deleted = [False] * M
+    
+    adj_in = [[] for _ in range(N_in + 1)]
+    adj_out = [[] for _ in range(N_out + 1)]
+    
+    for i, (u, v) in enumerate(edges):
+        adj_in[u].append(i)
+        adj_out[v].append(i)
+        
+    # Pointers to the current index in the adjacency lists
+    ptr_in = [0] * (N_in + 1)
+    ptr_out = [0] * (N_out + 1)
+    
+    ans = [0] * M
+    
+    for phase in range(1, D + 1):
+        # Find a matching using a greedy DFS approach
+        match_in = [-1] * (N_in + 1)
+        match_out = [-1] * (N_out + 1)
+        
+        # We only need to match vertices that currently have degree == D - phase + 1
+        # But matching all available vertices is also fine and simpler.
+        for u in range(1, N_in + 1):
+            # Find first available edge for u
+            while ptr_in[u] < len(adj_in[u]) and deleted[adj_in[u][ptr_in[u]]]:
+                ptr_in[u] += 1
+                
+            if ptr_in[u] < len(adj_in[u]):
+                e_id = adj_in[u][ptr_in[u]]
+                v = edges[e_id][1]
+                
+                # Find first available edge for v
+                while ptr_out[v] < len(adj_out[v]) and deleted[adj_out[v][ptr_out[v]]]:
+                    ptr_out[v] += 1
+                    
+                if match_out[v] == -1:
+                    # v is unmatched, match u and v
+                    match_in[u] = v
+                    match_out[v] = u
+                    ans[e_id] = phase
+                    deleted[e_id] = True
+                else:
+                    # v is already matched to u2, try to augment
+                    u2 = match_out[v]
+                    # Find next available edge for u2
+                    p2 = ptr_in[u2] + 1
+                    while p2 < len(adj_in[u2]) and deleted[adj_in[u2][p2]]:
+                        p2 += 1
+                    
+                    if p2 < len(adj_in[u2]):
+                        # u2 can be rematched to another vertex v2
+                        e2_id = adj_in[u2][p2]
+                        v2 = edges[e2_id][1]
+                        
+                        match_in[u2] = v2
+                        match_out[v2] = u2
+                        match_out[v] = u
+                        match_in[u] = v
+                        
+                        ans[e_id] = phase
+                        deleted[e_id] = True
+                        ans[e2_id] = phase
+                        deleted[e2_id] = True
+                        
+                        ptr_in[u2] = p2
+                    else:
+                        # u2 cannot be rematched, so we don't match u to v.
+                        # We just leave u unmatched for this phase.
+                        pass
+
+    print("YES")
+    print(" ".join(map(str, ans)))
+
+if __name__ == '__main__':
+    solve()

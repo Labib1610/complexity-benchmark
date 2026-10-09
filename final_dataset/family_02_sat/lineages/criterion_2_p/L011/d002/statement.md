@@ -1,0 +1,47 @@
+# Problem B — Paired Window Constraints
+
+Time limit: 1 s   Memory limit: 256 MB
+
+## Description
+
+Before a manufacturing run can commence, an industrial control panel with $n$ toggle switches (numbered 1 through $n$) must be configured. Every switch must be locked into either an UP or DOWN position. 
+
+The facility's safety protocol consists of $m$ operational directives. Each directive establishes a safety net between two designated switch states. A directive fails if and only if both of its designated states are simultaneously absent from the final configuration. Therefore, a directive is satisfied as long as the configuration includes the first designated state, the second designated state, or both.
+
+Your task is to determine whether it is possible to find one overarching UP/DOWN configuration for all $n$ switches that satisfies all $m$ directives at the same time. If such a configuration exists, you must provide one. If the directives contradict each other such that no valid configuration is possible, you must report this failure.
+
+## Input
+The first line contains two integers $n$ and $m$ ($1 \le n \le 10^5$, $0 \le m \le 2 \cdot 10^5$).
+The subsequent $m$ lines each contain two non-zero signed integers, $l_1$ and $l_2$, where $|l_i| \le n$. A positive value means the designated state is for the specified switch to be UP, while a negative value means the designated state is for the specified switch to be DOWN. The two integers on a single line may refer to the same switch, potentially with identical or opposite signs.
+
+## Output
+If there is no valid configuration, output a single line containing `NO`.
+If a valid configuration is possible, output `YES` on the first line. On the second line, output $n$ space-separated integers $s_1, s_2, \dots, s_n$ (each being 0 or 1) representing a valid configuration, where $s_i$ is the state of switch $i$. Here, 1 indicates UP and 0 indicates DOWN.
+
+## Example 1
+Input:
+```
+2 2
+1 2
+-1 -2
+```
+Output:
+```
+YES
+1 0
+```
+
+## Example 2
+Input:
+```
+1 2
+1 1
+-1 -1
+```
+Output:
+```
+NO
+```
+
+## Note
+Multiple valid configurations may exist; any valid one will be accepted. The same switch index can be referenced in multiple directives.

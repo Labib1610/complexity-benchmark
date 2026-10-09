@@ -1,45 +1,49 @@
 import sys
-from collections import deque
 
 def solve():
-    input_data = sys.stdin.buffer.read().split()
+    input_data = sys.stdin.read().split()
     if not input_data:
         return
-    it = iter(input_data)
-    n = int(next(it))
-    m = int(next(it))
-    adj = [[] for _ in range(n)]
+    iterator = iter(input_data)
+    try:
+        n = int(next(iterator))
+        m = int(next(iterator))
+    except StopIteration:
+        return
+
+    adj = [[] for _ in range(n + 1)]
     for _ in range(m):
-        u = int(next(it)) - 1
-        v = int(next(it)) - 1
+        u = int(next(iterator))
+        v = int(next(iterator))
         adj[u].append(v)
         adj[v].append(u)
-    
-    color = [0] * n
-    possible = True
-    
-    for i in range(n):
+
+    color = [0] * (n + 1)
+    is_bipartite = True
+
+    for i in range(1, n + 1):
         if color[i] == 0:
             color[i] = 1
-            q = deque([i])
-            while q:
-                u = q.popleft()
+            stack = [i]
+            while stack:
+                u = stack.pop()
                 for v in adj[u]:
                     if color[v] == 0:
                         color[v] = 3 - color[u]
-                        q.append(v)
+                        stack.append(v)
                     elif color[v] == color[u]:
-                        possible = False
+                        is_bipartite = False
                         break
-                if not possible:
+                if not is_bipartite:
                     break
-        if not possible:
+        if not is_bipartite:
             break
-    
-    if not possible:
+
+    if not is_bipartite:
         sys.stdout.write("NO\n")
     else:
         sys.stdout.write("YES\n")
-        sys.stdout.write(" ".join(str(x) for x in color) + "\n")
+        sys.stdout.write(' '.join(map(str, color[1:])) + '\n')
 
-solve()
+if __name__ == "__main__":
+    solve()

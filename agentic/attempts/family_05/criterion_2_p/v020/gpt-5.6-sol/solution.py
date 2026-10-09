@@ -1,0 +1,84 @@
+import sys
+from array import array
+from collections import deque
+
+def main():
+    read = sys.stdin.buffer.readline
+    k, t = map(int, read().split())
+
+    adj = [array('H') for _ in range(k + 1)]
+    tag = [0] * (k + 1)
+    match_u = [0] * (k + 1)
+    match_v = [0] * (k + 1)
+
+    for _ in range(t):
+        u, v, w = map(int, read().split())
+        tag[u] = v
+        adj[u].append(w)
+
+        if match_u[u] == 0 and match_v[w] == 0:
+            match_u[u] = w
+            match_v[w] = u
+
+    matched = sum(1 for u in range(1, k + 1) if match_u[u] != 0)
+    if matched < k:
+        sys.setrecursionlimit(10000)
+        inf = k + 1
+        dist = [inf] * (k + 1)
+
+        def bfs():
+            q = deque()
+            shortest = inf
+
+            for u in range(1, k + 1):
+                if match_u[u] == 0:
+                    dist[u] = 0
+                    q.append(u)
+                else:
+                    dist[u] = inf
+
+            while q:
+                u = q.popleft()
+                if dist[u] >= shortest:
+                    continue
+
+                next_dist = dist[u] + 1
+                for v in adj[u]:
+                    other = match_v[v]
+                    if other == 0:
+                        shortest = next_dist
+                    elif dist[other] == inf:
+                        dist[other] = next_dist
+                        q.append(other)
+
+            return shortest != inf
+
+        def dfs(u):
+            for v in adj[u]:
+                other = match_v[v]
+                if other == 0 or (dist[other] == dist[u] + 1 and dfs(other)):
+                    match_u[u] = v
+                    match_v[v] = u
+                    return True
+
+            dist[u] = inf
+            return False
+
+        while matched < k and bfs():
+            for u in range(1, k + 1):
+                if match_u[u] == 0 and dfs(u):
+                    matched += 1
+
+    if matched != k:
+        sys.stdout.write("NO\n")
+        return
+
+    output = ["YES"]
+    output.extend(
+        f"{u} {tag[u]} {match_u[u]}"
+        for u in range(1, k + 1)
+    )
+    sys.stdout.write("\n".join(output))
+
+if __name__ == "__main__":
+    main()

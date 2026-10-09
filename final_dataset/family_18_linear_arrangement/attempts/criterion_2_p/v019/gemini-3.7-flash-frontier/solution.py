@@ -1,0 +1,165 @@
+import sys
+
+# Increase recursion depth for deep trees
+sys.setrecursionlimit(300000)
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    B = int(input_data[2])
+    
+    if n == 1:
+        print("YES")
+        print("1")
+        return
+
+    adj = [[] for _ in range(n + 1)]
+    edges = []
+    idx = 3
+    for _ in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx+1])
+        adj[u].append(v)
+        adj[v].append(u)
+        edges.append((u, v))
+        idx += 2
+
+    # Find centroids
+    sz = [0] * (n + 1)
+    def get_sizes(u, p):
+        sz[u] = 1
+        for v in adj[u]:
+            if v != p:
+                get_sizes(v, u)
+                sz[u] += sz[v]
+    
+    get_sizes(1, 0)
+    
+    centroids = []
+    def get_centroids(u, p):
+        is_centroid = True
+        for v in adj[u]:
+            if v != p:
+                get_centroids(v, u)
+                if sz[v] > n // 2:
+                    is_centroid = False
+        if n - sz[u] > n // 2:
+            is_centroid = False
+        if is_centroid:
+            centroids.append(u)
+
+    get_centroids(1, 0)
+    if not centroids:
+        centroids = [1]
+
+    def build_layout(root):
+        visited = [False] * (n + 1)
+        
+        # Post-order traversal to build layouts bottom-up
+        order = []
+        stack = [(root, 0)]
+        parent = [0] * (n + 1)
+        visited[root] = True
+        
+        while stack:
+            u, p = stack.pop()
+            order.append(u)
+            parent[u] = p
+            for v in adj[u]:
+                if v != p:
+                    visited[v] = True
+                    stack.append((v, u))
+                    
+        subtree_layout = {}
+        sub_size = [1] * (n + 1)
+        
+        for u in reversed(order):
+            children = [v for v in adj[u] if v != parent[u]]
+            if not children:
+                subtree_layout[u] = ([u], 0)
+                sub_size[u] = 1
+                continue
+            
+            # Sort children by subtree size ascending
+            children.sort(key=lambda v: sub_size[v])
+            
+            left_blocks = []
+            right_blocks = []
+            
+            # Alternate placing children to left and right
+            for i, v in enumerate(children):
+                v_layout, v_pos = subtree_layout[v]
+                v_len = len(v_layout)
+                
+                if i % 2 == 0:
+                    # Place on Right: we want v to be at the LEFT of this block (closest to u)
+                    if v_pos > v_len - 1 - v_pos:
+                        v_layout.reverse()
+                        v_pos = v_len - 1 - v_pos
+                    right_blocks.append(v_layout)
+                else:
+                    # Place on Left: we want v to be at the RIGHT of this block (closest to u)
+                    if v_pos < v_len - 1 - v_pos:
+                        v_layout.reverse()
+                        v_pos = v_len - 1 - v_pos
+                    left_blocks.append(v_layout)
+            
+            # Left blocks: outer to inner towards u (so reverse left_blocks)
+            # Actually, child with larger size was added later, so it's at the end of left_blocks.
+            # We want larger size (later) to be outer (farther from u, at the beginning of left_layout).
+            # So left_blocks is already in order [smaller, ..., larger] if not reversed.
+            # Wait, to make larger outer, we should put them at the left end:
+            # left_blocks[0] has smaller size -> should be closest to u (right end of left part).
+            # left_blocks[-1] has larger size -> should be farthest from u (left end of left part).
+            left_blocks.reverse()
+            
+            res_layout = []
+            for b in left_blocks:
+                res_layout.extend(b)
+            
+            u_pos = len(res_layout)
+            res_layout.append(u)
+            
+            for b in right_blocks:
+                res_layout.extend(b)
+                
+            sub_size[u] = len(res_layout)
+            subtree_layout[u] = (res_layout, u_pos)
+            
+        return subtree_layout[root][0]
+
+    def compute_cost(perm):
+        pos = [0] * (n + 1)
+        for p, u in enumerate(perm):
+            pos[u] = p + 1
+        total = 0
+        for u, v in edges:
+            total += abs(pos[u] - pos[v])
+        return total, pos
+
+    best_cost = float('inf')
+    best_pos = None
+
+    candidates = list(set(centroids + [1, n // 2, n]))
+    for cand in candidates:
+        if 1 <= cand <= n:
+            layout = build_layout(cand)
+            cost, pos = compute_cost(layout)
+            if cost < best_cost:
+                best_cost = cost
+                best_pos = pos
+                if best_cost <= B:
+                    break
+
+    if best_cost <= B:
+        print("YES")
+        print(*(best_pos[i] for i in range(1, n + 1)))
+    else:
+        print("NO")
+
+if __name__ == '__main__':
+    solve()

@@ -1,0 +1,158 @@
+import sys
+
+# Increase recursion depth for search
+sys.setrecursionlimit(2000)
+
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+
+    q = int(input_data[0])
+    t = int(input_data[1])
+
+    if t < q:
+        print("NO")
+        return
+
+    num_cols = 3 * q
+    triads = []
+    idx = 2
+    for i in range(t):
+        a = int(input_data[idx])
+        b = int(input_data[idx + 1])
+        c = int(input_data[idx + 2])
+        idx += 3
+        triads.append((a, b, c))
+
+    # DLX structures
+    max_nodes = 1 + num_cols + 3 * t + 5
+    L = [0] * max_nodes
+    R = [0] * max_nodes
+    U = [0] * max_nodes
+    D = [0] * max_nodes
+    C = [0] * max_nodes
+    row_id = [0] * max_nodes
+    size = [0] * (num_cols + 1)
+
+    # Initialize root and column headers
+    for i in range(num_cols + 1):
+        L[i] = (i - 1) % (num_cols + 1)
+        R[i] = (i + 1) % (num_cols + 1)
+        U[i] = i
+        D[i] = i
+        C[i] = i
+        size[i] = 0
+
+    node_count = num_cols + 1
+
+    for r_idx, (a, b, c) in enumerate(triads):
+        cols = (a, b, c)
+        first = node_count
+        for k in range(3):
+            col = cols[k]
+            cur = node_count + k
+            C[cur] = col
+            row_id[cur] = r_idx
+            size[col] += 1
+
+            # Insert into vertical circular list for col
+            U[cur] = U[col]
+            D[cur] = col
+            D[U[col]] = cur
+            U[col] = cur
+
+            # Horizontal circular list
+            L[cur] = first + (k - 1) % 3
+            R[cur] = first + (k + 1) % 3
+
+        node_count += 3
+
+    # Check if any column is empty
+    for i in range(1, num_cols + 1):
+        if size[i] == 0:
+            print("NO")
+            return
+
+    def cover(c):
+        L[R[c]] = L[c]
+        R[L[c]] = R[c]
+        i = D[c]
+        while i != c:
+            j = R[i]
+            while j != i:
+                U[D[j]] = U[j]
+                D[U[j]] = D[j]
+                size[C[j]] -= 1
+                j = R[j]
+            i = D[i]
+
+    def uncover(c):
+        i = U[c]
+        while i != c:
+            j = L[i]
+            while j != i:
+                size[C[j]] += 1
+                U[D[j]] = j
+                D[U[j]] = j
+                j = L[j]
+            i = U[i]
+        L[R[c]] = c
+        R[L[c]] = c
+
+    ans = []
+
+    def search():
+        if R[0] == 0:
+            return True
+
+        # Choose column with minimum size
+        c = R[0]
+        min_size = size[c]
+        curr = R[c]
+        while curr != 0:
+            if size[curr] < min_size:
+                min_size = size[curr]
+                c = curr
+            curr = R[curr]
+
+        if min_size == 0:
+            return False
+
+        cover(c)
+
+        r = D[c]
+        while r != c:
+            ans.append(row_id[r])
+            j = R[r]
+            while j != r:
+                cover(C[j])
+                j = R[j]
+
+            if search():
+                return True
+
+            ans.pop()
+            j = L[r]
+            while j != r:
+                uncover(C[j])
+                j = L[j]
+
+            r = D[r]
+
+        uncover(c)
+        return False
+
+    if search():
+        print("YES")
+        out = []
+        for t_idx in ans:
+            out.append(f"{triads[t_idx][0]} {triads[t_idx][1]} {triads[t_idx][2]}")
+        print("\n".join(out))
+    else:
+        print("NO")
+
+
+if __name__ == "__main__":
+    solve()

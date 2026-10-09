@@ -1,0 +1,76 @@
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    B = int(next(it))
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        adj[u].append(v)
+        adj[v].append(u)
+
+    # Heuristic: place modules in BFS order from a low-degree node.
+    perm = [0] * (n + 1)
+    visited = [False] * (n + 1)
+    start = 1
+    min_deg = n + 1
+    for i in range(1, n + 1):
+        d = len(adj[i])
+        if d < min_deg:
+            min_deg = d
+            start = i
+    order = []
+    from collections import deque
+    q = deque([start])
+    visited[start] = True
+    while q:
+        u = q.popleft()
+        order.append(u)
+        for w in adj[u]:
+            if not visited[w]:
+                visited[w] = True
+                q.append(w)
+    for i, u in enumerate(order):
+        perm[u] = i + 1
+
+    total = 0
+    for u in range(1, n + 1):
+        pu = perm[u]
+        for v in adj[u]:
+            if v > u:
+                total += abs(pu - perm[v])
+    if total <= B:
+        sys.stdout.write("YES\n")
+        sys.stdout.write(" ".join(map(str, perm[1:])) + "\n")
+        return
+
+    # Fallback: try a few random permutations.
+    import random
+    rng = random.Random(12345)
+    base = list(range(1, n + 1))
+    for _ in range(200):
+        rng.shuffle(base)
+        pos = [0] * (n + 1)
+        for idx, mod in enumerate(base):
+            pos[mod] = idx + 1
+        total = 0
+        for u in range(1, n + 1):
+            pu = pos[u]
+            for v in adj[u]:
+                if v > u:
+                    total += abs(pu - pos[v])
+        if total <= B:
+            sys.stdout.write("YES\n")
+            sys.stdout.write(" ".join(map(str, pos[1:])) + "\n")
+            return
+
+    sys.stdout.write("NO\n")
+
+if __name__ == "__main__":
+    solve()

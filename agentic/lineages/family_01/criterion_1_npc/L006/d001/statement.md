@@ -1,23 +1,20 @@
-# Problem A — Clearance Protocol
+# Problem A — Protocol Allocation
 
-Time limit: 2 s
-Memory limit: 256 MB
+Time limit: 2 s   Memory limit: 256 MB
 
-A secure facility manages $n$ classified dossiers. Each dossier must be assigned a security clearance tier. There are exactly three operational tiers available, designated as Tier 1, Tier 2, and Tier 3.
+A secure facility is evaluating $n$ encrypted data shards. To successfully process the data, each shard must be assigned exactly one processing protocol from the set $\{1, 2, 3\}$.
 
-To prevent compartmentalization failures, specific pairs of dossiers are subject to cross-referencing restrictions. If two dossiers are flagged as a restricted pair, they cannot be assigned the identical clearance tier. You must assign a tier to every dossier such that all cross-referencing restrictions are respected.
+During preliminary analysis, the facility identified $m$ pairs of shards that contain cross-contaminating metadata. If any two shards from such a pair are assigned the identical processing protocol, the system will trigger a security fault and halt.
 
-The facility's automated indexing system requires a standardized assignment order. The configuration must be generated such that the sequence of tiers assigned to dossiers $1$ through $n$ is lexicographically minimized. This means the system prioritizes assigning dossier 1 to the lowest-numbered tier possible, then dossier 2 to the lowest-numbered tier possible, and so forth, while still ensuring a completely compliant arrangement for all dossiers.
-
-If it is impossible to assign tiers to all dossiers without violating the restrictions, the assignment process must be aborted.
+Your task is to determine whether it is possible to assign a protocol to each of the $n$ shards such that no security faults are triggered. If it is possible, provide a valid protocol assignment for all shards.
 
 ## Input
-The first line contains two integers $n$ and $m$ — the number of dossiers and the number of cross-referencing restrictions ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
-Each of the following $m$ lines contains two integers $u$ and $v$ — a pair of dossiers that are heavily restricted and must receive distinct clearance tiers.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$) — the number of data shards and the number of cross-contaminating pairs.
+Each of the following $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), representing that shard $u$ and shard $v$ contain cross-contaminating metadata.
 
 ## Output
-If no valid tier assignment exists, output a single line containing `NO`.
-Otherwise, output `YES` on the first line. On the second line, output $n$ integers $t_1, t_2, \dots, t_n$ (each in $\{1, 2, 3\}$), where $t_i$ is the tier assigned to dossier $i$. This sequence must be the lexicographically smallest valid assignment.
+If there is no way to assign protocols without triggering a security fault, output `NO` on a single line.
+Otherwise, output `YES` on the first line. On the second line, output $n$ integers $p_1, p_2, \dots, p_n$, where each $p_i \in \{1, 2, 3\}$ is the processing protocol assigned to shard $i$. If multiple valid assignments exist, you may output any of them.
 
 ## Example 1
 Input:

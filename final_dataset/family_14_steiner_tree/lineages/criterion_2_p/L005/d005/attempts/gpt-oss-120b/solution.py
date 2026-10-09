@@ -1,0 +1,50 @@
+import sys
+sys.setrecursionlimit(1 << 25)
+
+def solve() -> None:
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it)); m = int(next(it)); t = int(next(it))
+    terminals = set()
+    for _ in range(t):
+        terminals.add(int(next(it)) - 1)
+    adj = [[] for _ in range(n)]
+    edges = []
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        w = int(next(it))
+        adj[u].append((v, w, len(edges)))
+        adj[v].append((u, w, len(edges)))
+        edges.append((u, v, w))
+    # root at 0
+    parent = [-1] * n
+    pw = [0] * n          # weight to parent
+    order = []
+    stack = [0]
+    parent[0] = -2
+    while stack:
+        u = stack.pop()
+        order.append(u)
+        for v, w, idx in adj[u]:
+            if parent[v] == -1:
+                parent[v] = u
+                pw[v] = w
+                stack.append(v)
+    # count terminals in subtree
+    cnt = [0] * n
+    for u in range(n):
+        if u in terminals:
+            cnt[u] = 1
+    total = 0
+    for u in reversed(order):
+        if parent[u] >= 0:
+            cnt[parent[u]] += cnt[u]
+            if 0 < cnt[u] < t:
+                total += pw[u]
+    print(total)
+
+if __name__ == "__main__":
+    solve()

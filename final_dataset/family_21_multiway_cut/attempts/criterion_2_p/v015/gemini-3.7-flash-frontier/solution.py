@@ -1,0 +1,105 @@
+import sys
+from collections import deque
+
+def solve():
+    input = sys.stdin.read
+    data = input().split()
+    if not data:
+        return
+    
+    n = int(data[0])
+    m = int(data[1])
+    s = int(data[2])
+    t = int(data[3])
+    B = int(data[4])
+    
+    # Adjacency list for Dinic's
+    # Each entry in adj: (to, cap, flow, rev_index, original_edge_index)
+    head = [[] for _ in range(n + 1)]
+    edges = []
+    
+    idx = 5
+    for i in range(m):
+        u = int(data[idx])
+        v = int(data[idx+1])
+        w = int(data[idx+2])
+        idx += 3
+        edges.append((u, v, w))
+        
+        # In undirected graph, edge u-v with capacity w
+        # u -> v (cap w) and v -> u (cap w)
+        idx_u = len(head[u])
+        idx_v = len(head[v])
+        head[u].append([v, w, 0, idx_v])
+        head[v].append([u, w, 0, idx_u])
+    
+    def bfs(level):
+        for i in range(n + 1):
+            level[i] = -1
+        level[s] = 0
+        q = deque([s])
+        while q:
+            u = q.popleft()
+            for v, cap, flow, rev in head[u]:
+                if cap - flow > 0 and level[v] < 0:
+                    level[v] = level[u] + 1
+                    q.append(v)
+        return level[t] != -1
+
+    def dfs(u, pushed, ptr, level):
+        if pushed == 0 or u == t:
+            return pushed
+        for cid in range(ptr[u], len(head[u])):
+            ptr[u] = cid
+            v, cap, flow, rev = head[u][cid]
+            tr = cap - flow
+            if level[u] + 1 != level[v] or tr == 0:
+                continue
+            push = dfs(v, min(pushed, tr), ptr, level)
+            if push == 0:
+                continue
+            head[u][cid][2] += push
+            head[v][rev][2] -= push
+            return push
+        return 0
+
+    level = [-1] * (n + 1)
+    max_flow = 0
+    INF = 10**18
+    
+    while bfs(level):
+        ptr = [0] * (n + 1)
+        while True:
+            pushed = dfs(s, INF, ptr, level)
+            if pushed == 0:
+                break
+            max_flow += pushed
+
+    if max_flow > B:
+        print("NO")
+        return
+
+    # Find reachable nodes from s in the residual graph
+    visited = [False] * (n + 1)
+    q = deque([s])
+    visited[s] = True
+    while q:
+        u = q.popleft()
+        for v, cap, flow, rev in head[u]:
+            if cap - flow > 0 and not visited[v]:
+                visited[v] = True
+                q.append(v)
+
+    # Collect cut edges
+    cut_edges = []
+    for u, v, w in edges:
+        if (visited[u] and not visited[v]) or (visited[v] and not visited[u]):
+            cut_edges.append((u, v))
+
+    print("YES")
+    print(len(cut_edges))
+    for u, v in cut_edges:
+        print(f"{u} {v}")
+
+if __name__ == '__main__':
+    solve()

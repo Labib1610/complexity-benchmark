@@ -1,0 +1,138 @@
+We need to check if we can assign each node a value in {1,2,3} such that the sum of edge weights equals m, where edge weight is:
+
+- (1,1): (1+1) % 1 = 0  
+- (1,2): (1+4) % 2 = 1  
+- (1,3): (1+9) % 3 = 1  
+- (2,2): (4+4) % 4 = 0  
+- (2,3): (4+9) % 6 = 1  
+- (3,3): (9+9) % 9 = 0  
+
+So each edge contributes 1 if the two endpoints have different values, and 0 if they have the same value.
+
+Thus the problem reduces to: can we 3-color the graph (with colors 1,2,3) such that the number of edges with different colors equals exactly m?
+
+That means:  
+- Let total edges = m_total.  
+- We need exactly m edges to be "different color" edges.  
+- So we need exactly m_total - m edges to be "same color" edges.
+
+We can brute force all 3^n assignments for n ≤ 40? No, 3^40 is too large. But we can use meet-in-the-middle or backtracking with pruning.
+
+Since n ≤ 40, we can split into two halves of size ≤ 20. For each half, enumerate all 3^20 ≈ 3.5e9? That's too large.  
+But 3^20 = 3,486,784,401 — too big.
+
+We need a smarter approach.  
+Observation: The graph is small (n ≤ 40), but we can use backtracking with pruning.  
+We can assign colors one by one, and at each step we can compute the maximum possible different-color edges we can still achieve, and prune if impossible.
+
+We can also use the fact that the graph is small enough for a DFS with pruning.
+
+Let's implement a recursive backtracking:
+
+- We assign colors to nodes in order 0..n-1.
+- Maintain `diff_count` = number of edges already with different colors.
+- At each step, for the current node, try colors 1,2,3.
+- For each edge from current node to already assigned nodes, update diff_count.
+- Prune if diff_count > m (too many) or diff_count + remaining_possible < m (too few).
+
+Remaining_possible: For each unassigned node, the maximum number of different-color edges it can contribute is the number of edges to already assigned nodes (if we choose a color different from all neighbors) plus edges to other unassigned nodes (which can all be different if we color them differently).  
+But we can compute an upper bound: For each unassigned node, the maximum number of different edges it can have is its degree (all edges incident to it can be different if we color it differently from all neighbors). So the maximum total different edges we can still get is diff_count + sum of degrees of unassigned nodes. But that's too loose.
+
+Better: For each unassigned node, the maximum number of different edges it can contribute is the number of edges to already assigned nodes (if we pick a color different from all assigned neighbors) plus the number of edges to other unassigned nodes (which can all be different if we color them differently). So we can compute an upper bound:
+
+For each unassigned node v, let:
+- a_v = number of edges from v to already assigned nodes
+- b_v = number of edges from v to other unassigned nodes
+
+The maximum contribution from v is a_v + b_v (if we color v differently from all its neighbors). But we can't guarantee all b_v edges are different because two unassigned neighbors might be colored the same. However, for an upper bound, we can assume they are all different. So the upper bound is diff_count + sum_{v unassigned} (a_v + b_v). But that's just diff_count + total edges incident to unassigned nodes. That's too loose.
+
+We can do better: For each unassigned node, the maximum contribution is its degree. So upper bound = diff_count + sum of degrees of unassigned nodes. That's still loose.
+
+But we can prune with a tighter bound: For each unassigned node, the maximum number of different edges it can have is its degree. So the maximum total different edges we can achieve is diff_count + sum_{v unassigned} deg(v). If that's < m, prune.
+
+Also, if diff_count > m, prune.
+
+This might be enough for n ≤ 40 because the search space is heavily pruned.
+
+Let's implement this.
+
+We'll also precompute adjacency list.
+
+We'll assign colors in order 0..n-1.
+
+At each step, for node idx, we try colors 1,2,3. For each color, we compute new_diff = diff_count + number of edges from idx to already assigned nodes with different color. Then we check if new_diff <= m and new_diff + max_possible_remaining >= m.
+
+max_possible_remaining = sum of degrees of nodes idx+1..n-1.
+
+We can precompute suffix sums of degrees.
+
+Let's code it.
+
+```python
+import sys
+sys.setrecursionlimit(1000000)
+
+def solve():
+    input = sys.stdin.readline
+    n, m = map(int, input().split())
+    edges = []
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u, v = map(int, input().split())
+        u -= 1
+        v -= 1
+        adj[u].append(v)
+        adj[v].append(u)
+        edges.append((u, v))
+    
+    # degree of each node
+    deg = [len(adj[i]) for i in range(n)]
+    # suffix sum of degrees
+    suffix_deg = [0] * (n + 1)
+    for i in range(n-1, -1, -1):
+        suffix_deg[i] = suffix_deg[i+1] + deg[i]
+    
+    colors = [0] * n
+    found = False
+    
+    def dfs(idx, diff_count):
+        nonlocal found
+        if found:
+            return
+        if diff_count > m:
+            return
+        if diff_count + suffix_deg[idx] < m:
+            return
+        if idx == n:
+            if diff_count == m:
+                found = True
+            return
+        
+        # try colors 1,2,3
+        for c in (1,2,3):
+            new_diff = diff_count
+            for nb in adj[idx]:
+                if nb < idx:
+                    if colors[nb] != c:
+                        new_diff += 1
+            if new_diff > m:
+                continue
+            if new_diff + suffix_deg[idx+1] < m:
+                continue
+            colors[idx] = c
+            dfs(idx+1, new_diff)
+            if found:
+                return
+        colors[idx] = 0
+    
+    dfs(0, 0)
+    
+    if not found:
+        print("NO")
+    else:
+        print("YES")
+        print(" ".join(str(c) for c in colors))
+
+if __name__ == "__main__":
+    solve()
+```

@@ -1,0 +1,279 @@
+```python
+import sys
+from collections import deque
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    k = int(next(it))
+    B = int(next(it))
+    
+    terminals = [int(next(it)) - 1 for _ in range(k)]
+    
+    edges = []
+    adj = [[] for _ in range(n)]
+    for i in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        w = int(next(it))
+        edges.append((u, v, w, i))
+        adj[u].append((v, w, i))
+        adj[v].append((u, w, i))
+
+    if k <= 1:
+        print("YES")
+        print(0)
+        return
+
+    # Dinic's algorithm for min s-t cut
+    def dinic_mincut(src_nodes, dst_nodes, fixed_assignment):
+        # Build residual graph
+        # Node index: 0..n-1, src = n, dst = n+1
+        SRC = n
+        DST = n + 1
+        num_nodes = n + 2
+        
+        head = [-1] * num_nodes
+        to = []
+        cap = []
+        nxt = []
+        
+        def add_edge(u, v, c):
+            to.append(v); cap.append(c); nxt.append(head[u]); head[u] = len(to) - 1
+            to.append(u); cap.append(0); nxt.append(head[v]); head[v] = len(to) - 1
+
+        INF = 10**15
+        for s in src_nodes:
+            add_edge(SRC, s, INF)
+        for d in dst_nodes:
+            add_edge(d, DST, INF)
+            
+        for u, v, w, idx in edges:
+            au = fixed_assignment[u]
+            av = fixed_assignment[v]
+            if au != -1 and av != -1 and au == av:
+                continue
+            add_edge(u, v, w)
+            add_edge(v, u, w)
+            
+        level = [-1] * num_nodes
+        def bfs():
+            for i in range(num_nodes):
+                level[i] = -1
+            level[SRC] = 0
+            q = deque([SRC])
+            while q:
+                u = q.popleft()
+                e = head[u]
+                while e != -1:
+                    v = to[e]
+                    if cap[e] > 0 and level[v] < 0:
+                        level[v] = level[u] + 1
+                        q.append(v)
+                    e = nxt[e]
+            return level[DST] >= 0
+
+        ptr = [0] * num_nodes
+        def dfs(u, flow):
+            if u == DST or flow == 0:
+                return flow
+            e = ptr[u]
+            while e != -1:
+                v = to[e]
+                if level[v] == level[u] + 1 and cap[e] > 0:
+                    pushed = dfs(v, min(flow, cap[e]))
+                    if pushed > 0:
+                        cap[e] -= pushed
+                        cap[e ^ 1] += pushed
+                        return pushed
+                e = nxt[e]
+                ptr[u] = e
+            return 0
+
+        flow = 0
+        while bfs():
+            for i in range(num_nodes):
+                ptr[i] = head[i]
+            while True:
+                pushed = dfs(SRC, INF)
+                if pushed == 0:
+                    break
+                flow += pushed
+        return flow
+
+    # Quick check for k=2
+    if k == 2:
+        assignment = [-1] * n
+        assignment[terminals[0]] = 0
+        assignment[terminals[1]] = 1
+        
+        # Build residual graph for k=2
+        SRC = terminals[0]
+        DST = terminals[1]
+        num_nodes = n
+        head = [-1] * num_nodes
+        to, cap, nxt = [], [], []
+        
+        def add_edge2(u, v, c):
+            to.append(v); cap.append(c); nxt.append(head[u]); head[u] = len(to) - 1
+            to.append(u); cap.append(0); nxt.append(head[v]); head[v] = len(to) - 1
+
+        for u, v, w, idx in edges:
+            add_edge2(u, v, w)
+            add_edge2(v, u, w)
+            
+        level = [-1] * num_nodes
+        def bfs2():
+            for i in range(num_nodes): level[i] = -1
+            level[SRC] = 0
+            q = deque([SRC])
+            while q:
+                u = q.popleft()
+                e = head[u]
+                while e != -1:
+                    v = to[e]
+                    if cap[e] > 0 and level[v] < 0:
+                        level[v] = level[u] + 1
+                        q.append(v)
+                    e = nxt[e]
+            return level[DST] >= 0
+
+        ptr = [0] * num_nodes
+        def dfs2(u, flow):
+            if u == DST or flow == 0: return flow
+            e = ptr[u]
+            while e != -1:
+                v = to[e]
+                if level[v] == level[u] + 1 and cap[e] > 0:
+                    pushed = dfs2(v, min(flow, cap[e]))
+                    if pushed > 0:
+                        cap[e] -= pushed
+                        cap[e ^ 1] += pushed
+                        return pushed
+                e = nxt[e]
+                ptr[u] = e
+            return 0
+
+        flow = 0
+        while bfs2():
+            for i in range(num_nodes): ptr[i] = head[i]
+            while True:
+                p = dfs2(SRC, 10**15)
+                if p == 0: break
+                flow += p
+
+        if flow > B:
+            print("NO")
+            return
+        
+        # Find cut edges
+        visited = [False] * n
+        q = deque([SRC])
+        visited[SRC] = True
+        while q:
+            u = q.popleft()
+            e = head[u]
+            while e != -1:
+                v = to[e]
+                if cap[e] > 0 and not visited[v]:
+                    visited[v] = True
+                    q.append(v)
+                e = nxt[e]
+                
+        cut_edges = []
+        for u, v, w, idx in edges:
+            if visited[u] != visited[v]:
+                cut_edges.append((u + 1, v + 1))
+                
+        print("YES")
+        print(len(cut_edges))
+        for u, v in cut_edges:
+            print(f"{u} {v}")
+        return
+
+    # Branch and Bound for general k
+    assignment = [-1] * n
+    for i, t in enumerate(terminals):
+        assignment[t] = i
+        
+    best_cost = [B + 1]
+    best_assignment = [None]
+    
+    def compute_lower_bound(assign):
+        total_cut = 0
+        for i in range(k):
+            srcs = [u for u in range(n) if assign[u] == i]
+            dsts = [u for u in range(n) if assign[u] != -1 and assign[u] != i]
+            if not srcs or not dsts:
+                continue
+            c = dinic_mincut(srcs, dsts, assign)
+            total_cut += c
+        return (total_cut + 1) // 2
+
+    def search(unassigned_nodes):
+        if not unassigned_nodes:
+            # Calculate exact cost
+            cost = 0
+            for u, v, w, idx in edges:
+                if assignment[u] != assignment[v]:
+                    cost += w
+            if cost < best_cost[0]:
+                best_cost[0] = cost
+                best_assignment[0] = list(assignment)
+            return
+
+        lb = compute_lower_bound(assignment)
+        if lb >= best_cost[0]:
+            return
+
+        # Pick vertex with most connections to already assigned vertices
+        best_u = -1
+        best_score = -1
+        for u in unassigned_nodes:
+            score = 0
+            for v, w, idx in adj[u]:
+                if assignment[v] != -1:
+                    score += w
+            if score > best_score:
+                best_score = score
+                best_u = u
+
+        # Try assigning best_u to each terminal
+        # Order by edge weights to that terminal descending
+        t_weights = [0] * k
+        for v, w, idx in adj[best_u]:
+            if assignment[v] != -1:
+                t_weights[assignment[v]] += w
+        
+        branch_order = sorted(range(k), key=lambda t: t_weights[t], reverse=True)
+        
+        rem_nodes = [x for x in unassigned_nodes if x != best_u]
+        for t in branch_order:
+            assignment[best_u] = t
+            search(rem_nodes)
+            assignment[best_u] = -1
+
+    unassigned = [i for i in range(n) if assignment[i] == -1]
+    search(unassigned)
+
+    if best_cost[0] <= B and best_assignment[0] is not None:
+        final_assign = best_assignment[0]
+        cut_edges = []
+        for u, v, w, idx in edges:
+            if final_assign[u] != final_assign[v]:
+                cut_edges.append((u + 1, v + 1))
+        print("YES")
+        print(len(cut_edges))
+        for u, v in cut_edges:
+            print(f"{u} {v}")
+    else:
+        print("NO")
+
+if __name__ == '__main__':
+    solve()
+```

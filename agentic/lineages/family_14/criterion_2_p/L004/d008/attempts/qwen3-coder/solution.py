@@ -1,0 +1,176 @@
+import sys
+from collections import defaultdict
+import heapq
+
+def find(parent, x):
+    if parent[x] != x:
+        parent[x] = find(parent, parent[x])
+    return parent[x]
+
+def union(parent, rank, x, y):
+    px, py = find(parent, x), find(parent, y)
+    if px == py:
+        return False
+    if rank[px] < rank[py]:
+        px, py = py, px
+    parent[py] = px
+    if rank[px] == rank[py]:
+        rank[px] += 1
+    return True
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    idx = 0
+    n = int(data[idx]); idx += 1
+    m = int(data[idx]); idx += 1
+    t = int(data[idx]); idx += 1
+    
+    if t <= 1:
+        print(0)
+        return
+        
+    critical = set()
+    for _ in range(t):
+        critical.add(int(data[idx])); idx += 1
+    
+    edges = []
+    for _ in range(m):
+        u = int(data[idx]); idx += 1
+        v = int(data[idx]); idx += 1
+        w = int(data[idx]); idx += 1
+        edges.append((w, u, v))
+    
+    # Sort edges by weight
+    edges.sort()
+    
+    # Initialize DSU
+    parent = list(range(n + 1))
+    rank = [0] * (n + 1)
+    
+    total_cost = 0
+    connected_critical = 1  # Start with one critical node
+    
+    # Find the first critical node to start building the component
+    start_node = next(iter(critical))
+    connected_component = {start_node}
+    
+    # We need to connect all critical nodes
+    while connected_critical < t:
+        found_edge = False
+        new_edges = []
+        
+        for w, u, v in edges:
+            # Check if this edge connects our current component to a new critical node
+            u_in = u in connected_component
+            v_in = v in connected_component
+            
+            if u_in and v_in:
+                # Both nodes already in component, skip but keep for future
+                new_edges.append((w, u, v))
+                continue
+                
+            if u_in and v in critical and not v_in:
+                # Connect v to component
+                connected_component.add(v)
+                total_cost += w
+                connected_critical += 1
+                found_edge = True
+                # Update DSU
+                union(parent, rank, u, v)
+                break
+            elif v_in and u in critical and not u_in:
+                # Connect u to component
+                connected_component.add(u)
+                total_cost += w
+                connected_critical += 1
+                found_edge = True
+                # Update DSU
+                union(parent, rank, u, v)
+                break
+            elif (u_in and v not in critical) or (v_in and u not in critical):
+                # Connects component to a non-critical node
+                if u_in:
+                    connected_component.add(v)
+                else:
+                    connected_component.add(u)
+                total_cost += w
+                found_edge = True
+                # Update DSU
+                union(parent, rank, u, v)
+                break
+            else:
+                new_edges.append((w, u, v))
+        
+        if not found_edge:
+            # Need to find minimum cost edge connecting component to any remaining critical node
+            min_cost = float('inf')
+            best_edge = None
+            best_non_critical = []
+            
+            remaining_edges = new_edges
+            new_edges = []
+            
+            for w, u, v in remaining_edges:
+                u_in = u in connected_component
+                v_in = v in connected_component
+                
+                if u_in and v_in:
+                    new_edges.append((w, u, v))
+                    continue
+                    
+                if u_in and v in critical:
+                    if w < min_cost:
+                        min_cost = w
+                        best_edge = (w, u, v)
+                elif v_in and u in critical:
+                    if w < min_cost:
+                        min_cost = w
+                        best_edge = (w, u, v)
+                elif u_in and v not in critical:
+                    if w < min_cost:
+                        min_cost = w
+                        best_edge = (w, u, v)
+                        best_non_critical = [v]
+                    elif w == min_cost:
+                        best_non_critical.append(v)
+                elif v_in and u not in critical:
+                    if w < min_cost:
+                        min_cost = w
+                        best_edge = (w, u, v)
+                        best_non_critical = [u]
+                    elif w == min_cost:
+                        best_non_critical.append(u)
+                else:
+                    new_edges.append((w, u, v))
+            
+            if best_edge is None:
+                break
+                
+            w, u, v = best_edge
+            total_cost += w
+            if u in connected_component:
+                if v in critical:
+                    connected_component.add(v)
+                    connected_critical += 1
+                else:
+                    connected_component.add(v)
+            else:  # v in connected_component
+                if u in critical:
+                    connected_component.add(u)
+                    connected_critical += 1
+                else:
+                    connected_component.add(u)
+                    
+            union(parent, rank, u, v)
+            # Add back unused edges
+            edges = new_edges
+        else:
+            edges = new_edges
+    
+    print(total_cost)
+
+if __name__ == "__main__":
+    main()

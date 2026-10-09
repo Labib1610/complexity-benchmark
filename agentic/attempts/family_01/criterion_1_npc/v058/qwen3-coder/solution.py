@@ -1,34 +1,58 @@
-def solve():
+import sys
+from collections import defaultdict
+
+def main():
     import sys
-    from collections import defaultdict, deque
-    
     input = sys.stdin.read
     data = input().split()
     
-    n = int(data[0])
-    m = int(data[1])
+    idx = 0
+    n = int(data[idx])
+    idx += 1
+    m = int(data[idx])
+    idx += 1
     
     # Build adjacency list
     adj = defaultdict(list)
-    index = 2
-    edges = []
     for _ in range(m):
-        u = int(data[index]) - 1  # Convert to 0-indexed
-        v = int(data[index+1]) - 1
+        u = int(data[idx]) - 1  # Convert to 0-indexed
+        idx += 1
+        v = int(data[idx]) - 1
+        idx += 1
         adj[u].append(v)
         adj[v].append(u)
-        edges.append((u, v))
-        index += 2
     
-    # Try all 3^n combinations in lexicographical order using backtracking
-    # But since n can be up to 40, we need a more efficient approach
-    # This is a graph coloring problem with 3 colors where adjacent nodes must have different colors
-    # We can use backtracking with pruning
+    # Try all 3^n assignments (but since n<=40, we can't do that directly)
+    # Actually, since n<=40 but 3^40 is too large, we need a smarter approach.
+    # However, given the constraints and nature, let's try greedy with backtracking or BFS-like approach.
+    # But even better: model this as a graph coloring problem where adjacent nodes must have |color_diff| >=1.
+    # That means colors 1 and 3 can be adjacent, 1 and 2 cannot be adjacent, 2 and 3 cannot be adjacent.
+    # So the forbidden pairs are (1,2) and (2,3). 
+    # This is not a standard graph coloring. Let's think differently.
     
-    # Since n <= 40, and it's a graph coloring problem, let's try to model it properly
-    # We'll use backtracking with constraint propagation
+    # Let's model this properly:
+    # Each edge (u,v) requires |t[u] - t[v]| >= 1, i.e., t[u] != t[v].
+    # Wait, that's not right. It says "strict differential", so |t_u - t_v| >= 1.
+    # That just means they must be different. But wait, the example shows more.
+    # In example 1:
+    # Edges: (1,2),(1,3),(2,3),(1,4),(2,4)
+    # Output tiers: 1 2 3 3
+    # Check: |1-2|=1 >=1 OK, |1-3|=2 >=1 OK, |2-3|=1 >=1 OK, |1-3|=2 >=1 OK, |2-3|=1 >=1 OK
+    # So indeed, just make sure adjacent nodes have different tiers? No, because tier set is {1,2,3}.
+    # Hmm, let me re-read...
+    # "must maintain a strict differential" -> |t_u - t_v| >= 1. That just means t_u != t_v.
+    # So this is simply a graph 3-coloring problem where adjacent nodes must have different colors (from {1,2,3}).
     
-    color = [-1] * n  # -1 means unassigned
+    # But example 2 has K4 (complete graph on 4 nodes). Can K4 be 3-colored? No, because in K4,
+    # each node is connected to 3 others, so all must have different colors, but we only have 3 colors.
+    # Hence NO for K4. That matches.
+    
+    # So the problem reduces to: can the graph be 3-colored?
+    # We can use backtracking to attempt a 3-coloring.
+    
+    # Let's proceed with backtracking.
+    
+    color = [0] * n  # 0 means uncolored
     
     def is_safe(node, c):
         for neighbor in adj[node]:
@@ -36,62 +60,22 @@ def solve():
                 return False
         return True
     
-    def backtrack(node):
+    def solve(node):
         if node == n:
             return True
-            
         for c in [1, 2, 3]:
             if is_safe(node, c):
                 color[node] = c
-                if backtrack(node + 1):
+                if solve(node + 1):
                     return True
-                color[node] = -1
+                color[node] = 0
         return False
     
-    # For better performance, we should process nodes in a smart order
-    # Let's sort nodes by degree descending (most constrained first)
-    degrees = [(len(adj[i]), i) for i in range(n)]
-    degrees.sort(reverse=True)
-    order = [x[1] for x in degrees]
-    
-    # Reorder the search
-    color_order = [-1] * n
-    
-    def is_safe_order(pos, c):
-        node = order[pos]
-        for neighbor in adj[node]:
-            if color_order[neighbor] == c:
-                return False
-        return True
-    
-    def backtrack_order(pos):
-        if pos == n:
-            return True
-            
-        node = order[pos]
-        for c in [1, 2, 3]:
-            if is_safe_order(pos, c):
-                color_order[node] = c
-                if backtrack_order(pos + 1):
-                    return True
-                color_order[node] = -1
-        return False
-    
-    if m == 0:
-        # No constraints, all 1s
+    if solve(0):
         print("YES")
-        print(" ".join(["1"] * n))
-        return
-    
-    # Check if the graph is 3-colorable
-    if backtrack_order(0):
-        # Reorder the result to match original node indices
-        result = [0] * n
-        for i in range(n):
-            result[i] = color_order[i]
-        print("YES")
-        print(" ".join(map(str, result)))
+        print(' '.join(map(str, color)))
     else:
         print("NO")
 
-solve()
+if __name__ == "__main__":
+    main()

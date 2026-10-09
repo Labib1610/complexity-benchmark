@@ -1,0 +1,103 @@
+```python
+import sys
+sys.setrecursionlimit(10000)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    j = int(next(it))
+    m = int(next(it))
+    jobs = []
+    for _ in range(j):
+        o = int(next(it))
+        ops = []
+        for __ in range(o):
+            off = int(next(it)) - 1
+            dur = int(next(it))
+            ops.append((off, dur))
+        jobs.append(ops)
+
+    # suffix sums of remaining durations per job
+    suffix = []
+    for ops in jobs:
+        s = [0] * (len(ops) + 1)
+        for i in range(len(ops) - 1, -1, -1):
+            s[i] = s[i + 1] + ops[i][1]
+        suffix.append(s)
+
+    best = [float('inf')]
+
+    # initial states
+    job_pos = [0] * j          # next operation index for each job
+    job_finish = [0] * j       # time when last finished op of each job completed
+    machine_free = [0] * m     # when each official becomes free
+
+    # precompute total remaining per machine for quick bound
+    total_rem_per_machine = [0] * m
+    for idx, ops in enumerate(jobs):
+        for p in range(len(ops)):
+            off, dur = ops[p]
+            total_rem_per_machine[off] += dur
+
+    def dfs(cur_mach_free, cur_job_finish, cur_job_pos, cur_makespan, rem_machine):
+        # bound
+        lb = cur_makespan
+        # job based bound
+        for idx in range(j):
+            if cur_job_pos[idx] < len(jobs[idx]):
+                lb = max(lb, cur_job_finish[idx] + suffix[idx][cur_job_pos[idx]])
+        # machine based bound
+        for off in range(m):
+            if rem_machine[off]:
+                lb = max(lb, cur_mach_free[off] + rem_machine[off])
+        if lb >= best[0]:
+            return
+
+        # check completion
+        if all(p == len(jobs[i]) for i, p in enumerate(cur_job_pos)):
+            best[0] = min(best[0], cur_makespan)
+            return
+
+        # collect ready operations
+        ready = []
+        for idx in range(j):
+            p = cur_job_pos[idx]
+            if p < len(jobs[idx]):
+                off, dur = jobs[idx][p]
+                ready.append((idx, off, dur))
+
+        # simple heuristic: try operations with larger duration first
+        ready.sort(key=lambda x: -x[2])
+
+        for idx, off, dur in ready:
+            # schedule this operation
+            start = max(cur_job_finish[idx], cur_mach_free[off])
+            finish = start + dur
+
+            # update structures
+            old_mf = cur_mach_free[off]
+            old_jf = cur_job_finish[idx]
+            old_r = rem_machine[off]
+
+            cur_mach_free[off] = finish
+            cur_job_finish[idx] = finish
+            cur_job_pos[idx] += 1
+            rem_machine[off] -= dur
+
+            dfs(cur_mach_free, cur_job_finish, cur_job_pos,
+                max(cur_makespan, finish), rem_machine)
+
+            # revert
+            cur_mach_free[off] = old_mf
+            cur_job_finish[idx] = old_jf
+            cur_job_pos[idx] -= 1
+            rem_machine[off] = old_r
+
+    dfs(machine_free[:], job_finish[:], job_pos[:], 0, total_rem_per_machine[:])
+    print(best[0])
+
+if __name__ == "__main__":
+    solve()
+```

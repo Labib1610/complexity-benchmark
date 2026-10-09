@@ -1,0 +1,226 @@
+**Solution Explanation**
+
+The problem is exactly a *single‑commodity flow* problem.
+
+* vertices – character states  
+* directed edges – micro‑services, capacity = concurrency ceiling  
+* we need an integer flow of value `d` from source `s` to sink `t`  
+
+All other constraints (conservation in intermediate vertices, non‑negative integer
+assignments, not exceeding capacities) are precisely the flow constraints.
+Therefore we only have to decide whether a flow of size `d` exists and, if it does,
+output one feasible flow.
+
+The classic algorithm for this is **Dinic’s algorithm** – `O(E·√V)` in practice,
+more than fast enough for the given limits (2 s, 256 MiB).
+
+--------------------------------------------------------------------
+
+#### Algorithm
+```
+read n, m, _               # the third number is always 1, ignored
+read s, t, d
+for i = 0 … m-1
+        read u, v, cap
+        add directed edge (u‑1) → (v‑1) with capacity cap
+        remember the index of this forward edge (to output its flow later)
+
+run Dinic(s‑1, t‑1, limit = d)   # stop as soon as total flow reaches d
+if total_flow < d
+        print "NO"
+else
+        print "YES"
+        for each original edge in input order
+                output flow stored on its forward edge
+```
+
+`Dinic` works with the usual BFS level graph and a DFS that pushes flow
+while respecting the current level.  
+The implementation stops early when the required amount `d` has already been sent,
+so we never compute a larger flow than necessary.
+
+All capacities and the demanded flow are integers, therefore Dinic returns an
+integer flow – exactly what the statement asks for.
+
+--------------------------------------------------------------------
+
+#### Correctness Proof  
+
+We prove that the algorithm prints `YES` and a correct assignment iff such an
+assignment exists.
+
+---
+
+##### Lemma 1  
+For any directed graph with integer capacities, Dinic’s algorithm returns a
+maximum integer flow from `s` to `t`.
+
+**Proof.** Standard property of Dinic’s algorithm; each augmentation pushes an
+integer amount (the minimum residual capacity on the augmenting path), and the
+algorithm stops only when no `s‑t` path exists in the residual graph, i.e. when
+the flow is maximal. ∎
+
+
+
+##### Lemma 2  
+If Dinic is stopped after sending a total flow `F`, the current flow satisfies
+all capacity constraints and flow conservation at every vertex.
+
+**Proof.** Dinic only augments along residual paths, never exceeding an edge’s
+capacity, and each augmentation respects flow conservation (adds the same amount
+to the incoming and outgoing edges of every internal vertex). Hence the invariant
+holds after every augmentation, in particular after the last one. ∎
+
+
+
+##### Lemma 3  
+If the algorithm outputs `YES` and the list of numbers, those numbers constitute
+a feasible migration configuration of exactly `d` characters.
+
+**Proof.** `YES` is printed only when Dinic has sent total flow `F = d`.  
+By Lemma&nbsp;2 the flow respects capacities and conservation, therefore the
+numbers (the flow on each original edge) satisfy every requirement of the
+statement. The net flow out of `s` minus into `s` equals `d`, and the net flow
+into `t` minus out of `t` also equals `d`. ∎
+
+
+
+##### Lemma 4  
+If a feasible configuration of size `d` exists, the algorithm prints `YES`.
+
+**Proof.** Any feasible configuration is a flow of value `d`. Hence the maximum
+possible flow value is at least `d`. By Lemma&nbsp;1 Dinic computes a maximum
+flow; therefore its total flow `F_max ≥ d`. The algorithm stops as soon as the
+running total reaches `d`, so it will certainly reach `d` and output `YES`. ∎
+
+
+
+##### Lemma 5  
+If no feasible configuration of size `d` exists, the algorithm prints `NO`.
+
+**Proof.** If no flow of value `d` exists, the maximum flow value `F_max < d`.
+Dinic finishes with total flow `F_max`. Since `F_max < d`, the algorithm does
+not reach the early stop condition and finally prints `NO`. ∎
+
+
+
+##### Theorem  
+The algorithm prints `YES` followed by a correct assignment **iff** such an
+assignment exists; otherwise it prints `NO`.
+
+**Proof.**  
+*If* part: by Lemma&nbsp;4 a feasible assignment ⇒ algorithm prints `YES`.  
+By Lemma&nbsp;3 the printed numbers are a correct assignment.
+
+*Only‑if* part: if algorithm prints `YES`, Lemma&nbsp;3 guarantees the printed
+numbers form a feasible assignment, so one exists.  
+If algorithm prints `NO`, Lemma&nbsp;5 shows no feasible assignment exists. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### Complexity Analysis  
+
+`n` – number of states, `m` – number of micro‑services.
+
+Dinic’s algorithm runs in `O(E·√V)` time, here `O(m·√n)`.  
+All data structures store `O(m)` edges, thus `O(m)` memory.
+
+Both bounds easily satisfy the limits (2 seconds, 256 MiB).
+
+--------------------------------------------------------------------
+
+#### Reference Implementation  (Python 3)
+
+```python
+import sys
+sys.setrecursionlimit(1 << 25)
+
+class Dinic:
+    __slots__ = ('n', 'g', 'level', 'it')
+    def __init__(self, n):
+        self.n = n
+        self.g = [[] for _ in range(n)]
+
+    def add_edge(self, fr, to, cap):
+        # forward edge stores: to, rev index, capacity, flow
+        fwd = [to, len(self.g[to]), cap, 0]
+        rev = [fr, len(self.g[fr]), 0, 0]
+        self.g[fr].append(fwd)
+        self.g[to].append(rev)
+        return fwd  # reference to forward edge for later flow reading
+
+    def bfs(self, s, t):
+        level = [-1] * self.n
+        q = [s]
+        level[s] = 0
+        for v in q:
+            for to, rev, cap, flow in self.g[v]:
+                if cap - flow > 0 and level[to] < 0:
+                    level[to] = level[v] + 1
+                    q.append(to)
+        self.level = level
+        return level[t] >= 0
+
+    def dfs(self, v, t, f):
+        if v == t:
+            return f
+        for i in range(self.it[v], len(self.g[v])):
+            self.it[v] = i
+            to, rev, cap, flow = self.g[v][i]
+            if cap - flow > 0 and self.level[v] + 1 == self.level[to]:
+                ret = self.dfs(to, t, min(f, cap - flow))
+                if ret:
+                    # augment
+                    self.g[v][i][3] += ret
+                    self.g[to][rev][3] -= ret
+                    return ret
+        return 0
+
+    def max_flow(self, s, t, limit=None):
+        flow = 0
+        INF = 10**18
+        while self.bfs(s, t):
+            self.it = [0] * self.n
+            while True:
+                pushed = self.dfs(s, t, INF if limit is None else limit - flow)
+                if not pushed:
+                    break
+                flow += pushed
+                if limit is not None and flow >= limit:
+                    return flow
+        return flow
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it)); m = int(next(it)); _ = next(it)  # third number ignored
+    s = int(next(it)) - 1
+    t = int(next(it)) - 1
+    d = int(next(it))
+    dinic = Dinic(n)
+    edge_refs = []
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        cap = int(next(it))
+        ref = dinic.add_edge(u, v, cap)
+        edge_refs.append(ref)
+
+    flow = dinic.max_flow(s, t, limit=d)
+    if flow < d:
+        print("NO")
+        return
+    print("YES")
+    out = [str(e[3]) for e in edge_refs]   # e[3] is the flow on forward edge
+    print(' '.join(out))
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above and conforms to
+the required input‑output format.

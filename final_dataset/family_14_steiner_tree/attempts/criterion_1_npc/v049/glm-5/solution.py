@@ -1,0 +1,85 @@
+import sys
+import heapq
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    t = int(next(it))
+    
+    terminals = set()
+    for _ in range(t):
+        terminals.add(int(next(it)))
+    
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        w = int(next(it))
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+    
+    if t <= 1:
+        print(0)
+        return
+    
+    # Dijkstra from each terminal
+    dist = {}
+    for s in terminals:
+        d = [float('inf')] * (n + 1)
+        d[s] = 0
+        pq = [(0, s)]
+        while pq:
+            du, u = heapq.heappop(pq)
+            if du != d[u]:
+                continue
+            for v, w in adj[u]:
+                if d[v] > du + w:
+                    d[v] = du + w
+                    heapq.heappush(pq, (d[v], v))
+        dist[s] = d
+    
+    # Build complete graph on terminals
+    edges = []
+    term_list = list(terminals)
+    for i in range(len(term_list)):
+        s1 = term_list[i]
+        for j in range(i + 1, len(term_list)):
+            s2 = term_list[j]
+            edges.append((dist[s1][s2], s1, s2))
+    
+    # Kruskal's MST
+    edges.sort()
+    parent = {s: s for s in terminals}
+    rank = {s: 0 for s in terminals}
+    
+    def find(x):
+        if parent[x] != x:
+            parent[x] = find(parent[x])
+        return parent[x]
+    
+    def union(x, y):
+        rx, ry = find(x), find(y)
+        if rx == ry:
+            return False
+        if rank[rx] < rank[ry]:
+            parent[rx] = ry
+        elif rank[rx] > rank[ry]:
+            parent[ry] = rx
+        else:
+            parent[ry] = rx
+            rank[rx] += 1
+        return True
+    
+    total = 0
+    for w, u, v in edges:
+        if union(u, v):
+            total += w
+    
+    print(total)
+
+if __name__ == "__main__":
+    solve()

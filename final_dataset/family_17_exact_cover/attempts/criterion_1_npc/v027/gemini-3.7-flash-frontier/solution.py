@@ -1,0 +1,116 @@
+import sys
+
+# Increase recursion depth just in case
+sys.setrecursionlimit(2000)
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    q = int(input_data[0])
+    t = int(input_data[1])
+    
+    total_elements = 3 * q
+    chords = []
+    idx = 2
+    for _ in range(t):
+        a = int(input_data[idx]) - 1
+        b = int(input_data[idx+1]) - 1
+        c = int(input_data[idx+2]) - 1
+        idx += 3
+        chords.append((a, b, c))
+    
+    # Pre-check: if t < q, impossible
+    if t < q:
+        print("NO")
+        return
+
+    # elem_to_chords maps each element to the list of chord indices containing it
+    elem_to_chords = [[] for _ in range(total_elements)]
+    for c_idx, (a, b, c) in enumerate(chords):
+        elem_to_chords[a].append(c_idx)
+        elem_to_chords[b].append(c_idx)
+        elem_to_chords[c].append(c_idx)
+    
+    # If any element has 0 chords, impossible
+    for e in range(total_elements):
+        if not elem_to_chords[e]:
+            print("NO")
+            return
+
+    elem_covered = [False] * total_elements
+    chord_active = [True] * t
+    solution = []
+    
+    # Backtracking with MRV (Minimum Remaining Values) heuristic
+    def search(uncovered_count):
+        if uncovered_count == 0:
+            return True
+        
+        # Unit propagation & MRV selection
+        # Find the active element with the minimum number of active chords
+        best_elem = -1
+        min_choices = float('inf')
+        best_chord_list = []
+        
+        for e in range(total_elements):
+            if elem_covered[e]:
+                continue
+            
+            # Count active chords for element e
+            active_chords = [c for c in elem_to_chords[e] if chord_active[c]]
+            cnt = len(active_chords)
+            
+            if cnt == 0:
+                # Dead end
+                return False
+            
+            if cnt < min_choices:
+                min_choices = cnt
+                best_elem = e
+                best_chord_list = active_chords
+                if cnt == 1:
+                    # Can't get fewer than 1 choices without failing
+                    break
+        
+        for c_idx in best_chord_list:
+            u, v, w = chords[c_idx]
+            
+            # Choose this chord
+            solution.append(c_idx)
+            elem_covered[u] = True
+            elem_covered[v] = True
+            elem_covered[w] = True
+            
+            # Deactivate all chords that share elements with this chord
+            deactivated = []
+            for elem in (u, v, w):
+                for other_c in elem_to_chords[elem]:
+                    if chord_active[other_c]:
+                        chord_active[other_c] = False
+                        deactivated.append(other_c)
+            
+            if search(uncovered_count - 3):
+                return True
+            
+            # Backtrack
+            for other_c in deactivated:
+                chord_active[other_c] = True
+            elem_covered[u] = False
+            elem_covered[v] = False
+            elem_covered[w] = False
+            solution.pop()
+            
+        return False
+
+    if search(total_elements):
+        print("YES")
+        for c_idx in solution:
+            a, b, c = chords[c_idx]
+            print(f"{a+1} {b+1} {c+1}")
+    else:
+        print("NO")
+
+if __name__ == '__main__':
+    solve()

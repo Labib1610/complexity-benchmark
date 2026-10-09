@@ -1,0 +1,759 @@
+Let me analyze this problem carefully.
+
+We have a graph with n rooms, m corridors (edges with costs), two special sites s and t, and a budget B. We need to choose a set of edges to seal (remove) such that:
+1. The total cost of sealed edges is ≤ B.
+2. After removal, s and t are disconnected (no path between them).
+
+This is the classic minimum s-t cut problem. We need to find a minimum cut, and if its value is ≤ B, output the edges in the cut; otherwise output NO.
+
+Wait, but there's a subtlety: "The placement of most rooms is unconstrained" — this suggests it's a standard min cut. The minimum s-t cut separates s from t. If min cut value ≤ B, answer YES with those edges; else NO.
+
+Actually, wait — we need to be careful. The problem says "isolate two particular rooms" — s and t must be disconnected. The minimum cut is the cheapest way to do this. If min cut ≤ B, we can do it. If min cut > B, then no set of edges with total cost ≤ B can disconnect s and t (since any set that disconnects them is a cut, and its cost is at least the min cut). So the answer is YES iff min cut ≤ B.
+
+So the algorithm:
+1. Build a flow network where each edge u-v with cost w becomes two directed arcs u→v and v→u, each with capacity w (since sealing the corridor removes passage in both directions).
+2. Compute max flow from s to t.
+3. If max flow > B, output NO.
+4. Otherwise, find the min cut: compute the set S of vertices reachable from s in the residual graph. The cut edges are the original corridors (u,v) where u ∈ S and v ∉ S (or vice versa — but since the corridor is undirected, we seal it if its endpoints are on different sides). Actually, for each undirected edge, if one endpoint is in S and the other isn't, it's a cut edge.
+
+Wait, but we need to be careful: the cut edges found this way — do they form a valid cut with total cost equal to the max flow? Yes. In the residual graph, for each undirected edge (u,v) with capacity w in both directions: if u ∈ S and v ∉ S, then the arc u→v must be saturated (residual capacity 0), meaning flow of w goes u→v... hmm, let me think about undirected edges modeled as two directed arcs.
+
+Standard approach for undirected edges: replace edge {u,v} with capacity w with a single arc of capacity w in each direction (u→v and v→u, each capacity w). This is equivalent to an undirected edge. The min cut in this directed graph: for a partition (S, T) with s ∈ S, t ∈ T, the cut capacity is sum over arcs from S to T of their capacities. For an undirected edge {u,v} with u ∈ S, v ∈ T, it contributes w (the arc u→v). So the cut value equals the sum of costs of undirected edges crossing the partition. 
+
+After max flow, S = vertices reachable from s in residual graph. Cut arcs = arcs (u,v) with u ∈ S, v ∉ S and residual capacity... actually all arcs from S to T are saturated. For each undirected edge {u,v} with u ∈ S, v ∈ T: the arc u→v is saturated (flow = w). But also the arc v→u might carry flow. Hmm, actually with the two-arc model, flow conservation... Let me think.
+
+Actually, a cleaner way to handle undirected edges: use a single edge with capacity w in each direction, but track flow such that flow in one direction cancels flow in the other. In practice, for the two-arc model: if arc u→v carries flow f1 and arc v→u carries flow f2, we can cancel min(f1, f2) from both without changing net flow. So WLOG at most one direction carries flow.
+
+For the cut: after max flow, let S be reachable set in residual. For each undirected edge {u,v}, u ∈ S, v ∉ S: arc u→v has zero residual capacity (else v would be reachable), so flow on u→v = w. The arc v→u has some flow f2 ≤ w; its residual capacity is w - f2 > 0 unless f2 = w. Hmm, if f2 = w, then... wait, v ∉ S means v is not reachable. The arc v→u: from v's perspective, that doesn't help reachability from s.
+
+The cut value = sum of capacities of arcs from S to T = sum over crossing edges of w. And by max-flow min-cut, this equals the max flow. So the set of crossing undirected edges has total cost = max flow ≤ B. 
+
+So the answer: seal all undirected edges with one endpoint in S and the other not in S. Total cost = max flow ≤ B. 
+
+Edge cases:
+- s == t? Then they can never be disconnected... Hmm, if s == t, they're the same room, so they're always "connected" (trivially). The problem probably guarantees s ≠ t. But to be safe: if s == t, output NO (can't disconnect a room from itself). Actually, hmm, "isolate two particular rooms" — presumably distinct. Let me handle: if s == t, output NO.
+
+- s and t already disconnected (max flow = 0): output YES, 0 edges. That's fine — "YES\n0\n".
+
+- Multiple edges between same pair: each is a separate corridor, handle separately.
+
+- Self-loops (u == v): sealing them doesn't help disconnect; they don't affect connectivity. In the flow network, a self-loop u→u with capacity w doesn't contribute to any s-t flow. In the cut computation, u ∈ S and u ∈ S, so it's never a cut edge. Fine. But careful: self-loops in adjacency list might cause issues in BFS? No, they just add arcs u→u which never get used. Fine.
+
+- Large costs: budget B could be large. Max flow value could be large. Need to check max flow ≤ B. Since we just need to compare with B, we can cap... actually, we could stop the flow algorithm once flow exceeds B, but simpler to just compute full max flow. But how large can max flow be? m edges each with cost w. Constraints aren't given for n, m, w in the problem statement... Hmm, the problem statement doesn't specify constraints. Time limit 2s. Let me guess typical constraints: maybe n up to a few hundred or thousand, m up to a few thousand or tens of thousands.
+
+Since constraints aren't given, I should write an efficient max flow. Dinic's algorithm is a good choice. In Python, Dinic's can be slow for large inputs. Let me think about what constraints might be. This looks like a problem from some contest (Problem B — "Sealing Two Sites Apart"). Possibly from a "network flow" themed contest. Without constraints, I'll aim for a reasonably optimized Dinic's implementation.
+
+Let me think about optimizations:
+- Use adjacency lists with arrays (edge lists stored in flat arrays: to[], cap[], next[] or adjacency lists of edge indices).
+- BFS level graph, DFS with iterators (current-arc optimization).
+- Scaling? Dinic's with capacity scaling can help when capacities are large.
+
+Actually, for undirected edges, a common trick: each undirected edge becomes one "edge pair" in the flow network where both the forward and backward residual capacities are w. I.e., add edge u→v with cap w, and its reverse v→u with cap w. Then pushing flow along u→v reduces cap of u→v and increases cap of v→u (which starts at w). This correctly models an undirected edge: the residual capacity from u to v is cap(u→v) which can go up to 2w? Hmm wait.
+
+Let me reconsider. Standard modeling: undirected edge {u,v} with capacity w ↔ directed edge u→v with capacity w plus directed edge v→u with capacity w, where the reverse residual of u→v is a separate arc. But there's a neat trick: add a single edge entry u→v with cap w, and its "reverse" edge v→u also with cap w (instead of 0). Then:
+- Initial residual: u→v has w, v→u has w. Total "capacity" across in either direction is w. ✓.
+- If we push f along u→v: cap(u→v) = w - f, cap(v→u) = w + f. So residual from v to u is w + f. Hmm, is that right for an undirected edge? If we push f units "from u to v" through the undirected edge, then the remaining capacity from u to v is w - f, and from v to u it's w + f (we can cancel the f units). Yes! That's exactly the correct residual for an undirected edge. Because pushing f from u to v on an undirected edge is equivalent to reducing the net flow from v to u by f. So the trick works: undirected edge = edge with cap w whose reverse also has cap w.
+
+Great, so each undirected edge is one edge pair (e, e^1) with cap[e] = cap[e^1] = w.
+
+For the cut: after max flow, S = reachable from s in residual. Cut edges: for each original edge pair (e, e^1) with endpoints u, v: if u ∈ S and v ∉ S, then residual cap of e (u→v) is 0. But wait — with the undirected trick, could it be that residual cap of e is 0 but residual cap of e^1 (v→u) is 2w? If cap(e) = 0, then flow on e = w, meaning... hmm, with the undirected trick, cap(e) = w - f where f is net flow u→v, and f can be at most w (since cap(e) ≥ 0). Actually f could conceptually be negative (net flow v→u), in which case cap(e) = w - f > w. Anyway, cap(e) = 0 means net flow from u to v is w. Then the edge crosses the cut and contributes w to cut value. And the sum of cut values = max flow. ✓.
+
+So: cut edges = original edges {u,v} where exactly one of u,v is in S. Total cost = max flow. 
+
+Hmm wait, let me double check: cut value = sum over arcs from S to T of residual... no. Min cut: the cut (S, V\S) has capacity = sum of capacities of arcs from S to T. With the undirected trick, each undirected edge {u,v} with u ∈ S, v ∈ T contributes cap of arc u→v, which is w (original capacity). The max-flow min-cut theorem says: after max flow, for S = residual-reachable set, the flow crossing the cut equals the cut capacity, and all arcs S→T are saturated. With the undirected trick, arc u→v saturated means cap_residual(u→v) = 0, i.e., net flow u→v = w. And the flow value = sum over arcs S→T of flow - sum over arcs T→S of flow. Hmm, with the undirected trick, arcs T→S: for edge {u,v}, u ∈ S, v ∈ T, the arc v→u has residual cap w + f where f = net flow u→v = w, so residual = 2w, meaning "flow" on arc v→u is -w (negative flow, i.e., it's actually carrying w from u to v conceptually). Hmm, this negative flow business: in the trick, the arc v→u with residual capacity w + f corresponds to original cap w minus flow (-f)... Let me redo.
+
+In the standard directed formulation: arc a: u→v with capacity w, arc b: v→u with capacity w. Flow: f_a on a, f_b on b, both in [0, w]. Net flow across the edge from u to v: f_a - f_b. We can always cancel so that min(f_a, f_b) = 0.
+
+In the trick formulation: single pair (e, e^1). cap(e) = w - f, cap(e^1) = w + f where f = net flow u→v. This is equivalent to the two-arc model with f_a = max(f, 0), f_b = max(-f, 0). Residual of arc a (u→v) = w - f_a + f_b = w - f = cap(e). Residual of arc b (v→u) = w - f_b + f_a = w + f = cap(e^1). ✓ Consistent.
+
+Cut capacity of (S, T): sum over directed arcs from S to T of original capacities. For edge {u,v}, u∈S, v∈T: arc a (u→v) contributes w. Arc b goes from T to S, contributes 0. So cut capacity = w per crossing edge. ✓.
+
+After max flow with S = residual reachable: all arcs from S to T are saturated (residual 0). Arc a residual = cap(e) = 0. So flow on arc a = w, i.e., f_a = w, f_b = 0 (net f = w). Flow value = sum over arcs S→T of flow - sum over arcs T→S of flow = sum of w over crossing edges - 0 (arcs T→S carry f_b = 0 for crossing edges; other arcs between S and T... every arc between S and T corresponds to some undirected edge crossing the cut, and for each such edge, the arc from T to S carries 0). So flow value = sum of w over crossing undirected edges = cut capacity. ✓.
+
+So the crossing undirected edges have total cost = max flow. 
+
+Now, implementation of Dinic's in Python. Let me write an efficient implementation.
+
+Since constraints are unknown, let me write a solid Dinic's with:
+- Flat arrays: graph adjacency as list of lists of edge indices; edges stored as arrays `to` and `cap` (using edge pairs: edge i and i^1 are reverses).
+- BFS to build levels, DFS with iterative or recursive approach with current-arc.
+
+For Python performance, a common efficient approach is the recursive DFS Dinic's, but recursion depth could be an issue for long paths (n could be large). Iterative DFS is safer.
+
+Alternative: since we only need to compare max flow with B, we could cap capacities at B (any capacity > B can be set to B... wait, no — careful. If we cap capacities at min(w, B), the max flow changes but whether it exceeds B... Hmm. If max flow with capped capacities ≤ B... Let me think: if the true max flow F ≤ B, then capping capacities at B doesn't change the max flow? Not exactly — capping at B: since F ≤ B, there's a flow of value F where each arc carries ≤ F ≤ B... no wait, an arc carries at most its capacity, and also at most F (total flow through any arc ≤ flow value... actually flow through an arc can't exceed the flow value since all flow goes from s to t and passes... no, an arc could carry up to F). Hmm, if F ≤ B, then there exists a flow of value F where each arc carries ≤ F ≤ B, so capping capacities at B doesn't reduce max flow below F. And capping can only reduce max flow. So: capped max flow = min(F, something). If F ≤ B, capped max flow = F. If F > B, capped max flow could be... at least? Hmm, not necessarily ≥ B... Actually if F > B, is capped max flow ≥ B? Not necessarily obvious. Hmm, actually with integral capacities, if F > B then F ≥ B+1, and there's a flow of value B+1... each arc carries ≤ B+1, capping at B might reduce it. Hmm, but by integrality, if max flow ≥ B+1, then there's a flow of value exactly B+1 (decompose and reduce). In that flow, arcs carry ≤ B+1. Capping at B could break it. But is there a flow of value B with all arcs ≤ B? Hmm. Take the flow of value B+1; it decomposes into B+1 unit paths (with integral capacities, and possibly cycles). Remove one path: flow of value B, each arc carries ≤ B... wait, arcs carry at most B+1 originally; after removing one unit path, each arc carries ≤ B. Yes! Because each arc's flow decreases by at most 1 (if the path uses it). So there's a flow of value B with all arc flows ≤ B, hence capping capacities at B preserves a flow of value B. So capped max flow = min(F, B)... let me verify: capped max flow ≥ min(F, B): if F ≤ B, capped = F as argued; if F > B, capped ≥ B. And capped max flow ≤ F always. Also capped ≤ ... hmm, capped could exceed B? If F > B, capped max flow could be more than B (up to F? no — capping at B, the max flow is at most... each arc out of s carries ≤ B, but multiple arcs out of s, so total could exceed B). Hmm, so capped max flow = min(F, B) is not exactly right. Let me redo: we want to decide if F ≤ B. Compute capped max flow F'. If F ≤ B then F' = F. If F > B then F' ≥ B. So F' ≥ B always?? That means F' = B iff... no wait: if F ≤ B, F' = F which could be < B. If F > B, F' ≥ B, and F' could be > B or = B... Hmm, F' ≤ sum of capped capacities out of s. Hmm, this doesn't cleanly decide.
+
+Better: cap capacities at B+1? Hmm, or just cap at B and check if F' == B... no. Let me think again: cap at C = B. If F ≤ B: F' = F. If F > B: F' ≥ B (shown above). So F' ≥ B in the second case, but F' could equal B exactly when F > B. And in the first case F' = F ≤ B. So the test "F' < B ⟹ F ≤ B and F = F'" works when F' < B. If F' ≥ B... ambiguous? If F' = B: either F = B (F ≤ B, answer YES) or F > B (answer NO). Hmm, ambiguous. 
+
+OK here's a cleaner approach: cap capacities at B (or just don't cap). Actually, capping helps performance when capacities are huge (like 10^9) and B is small, because Dinic's complexity depends on... hmm, actually Dinic's complexity is O(V²E) regardless of capacities, but the number of phases is O(V) and each phase's DFS is O(VE). With large capacities, each phase can push a lot of flow but the work per phase is bounded the same. Actually the standard Dinic complexity bound O(V²E) doesn't depend on capacity values. But in practice, with huge capacities, the number of augmenting paths per phase... no, within a phase, blocking flow is found in O(VE) regardless. Hmm, actually the DFS-based blocking flow with current-arc: each edge is saturated at most once per phase (O(E) work) plus each augmenting path is O(V)... The number of augmenting paths per phase can be up to E (each saturates an edge). So per phase O(VE). Total O(V²E) phases... no, O(V) phases. So O(V²E) total, independent of capacities. OK so capping isn't needed for theoretical complexity. But capping at B+1 could still help practically? Eh.
+
+Hmm, but actually there's a subtlety: we don't just need max flow ≤ B, we need the actual min cut edges. If max flow ≤ B, we output the crossing edges. The crossing edges' total = max flow ≤ B. Fine.
+
+But wait — what if max flow ≤ B but we want... no, any min cut works. The problem just asks for a valid set within budget. Min cut is the best.
+
+Hmm, wait, actually, let me re-read the problem to make sure it's really min cut and not something like "budgeted cut" (maximize separation within budget or minimize... no). "Choose a set of corridors to seal whose total cost is within the budget and whose removal leaves the two sites disconnected, or report that no in-budget sealing can separate them." So: find any set with cost ≤ B that disconnects s and t; if none exists, NO. Since min cut is the minimum cost of any such set, answer is YES iff mincut ≤ B. And when YES, we can output the min cut edges. ✓.
+
+Now, about the output format: "YES", then a line with the number c of removed links, then c lines "u v". The example outputs the edges as "2 4" and "1 3" — note the order: the input edges were "2 4" (as 2 4) and "1 3". So they printed u v as given in input, presumably. The order of edges in output probably doesn't matter (any valid set). But to be safe, maybe print them in the order they appear in input, with the original (u, v) orientation. Also, is the order of the two lines important? Probably any valid answer is accepted (special judge). But since we can't be sure, let's output in input order with original orientation — that matches the example: edges in input order: (1,2), (1,3), (2,4), (3,4). Cut edges: which partition? S = reachable from s=1 in residual. Let's compute: max flow from 1 to 4. Edges: 1-2 (5), 1-3 (6), 2-4 (4), 3-4 (8). Max flow: paths 1-2-4 (min(5,4)=4) and 1-3-4 (min(6,8)=6) → total 10. Can we do better? 1-2 has cap 5, 1-3 cap 6, total out of 1 = 11. Into 4: 2-4 cap 4, 3-4 cap 8, total 12. Bottleneck: out of 1 = 11? Path 1-2-4: 4, path 1-3-4: 6, total 10; remaining: 1-2 has 1 left, 2-4 saturated. So 1-2 residual 1, but 2-4 is 0. So max flow = 10. Min cut = 10 ≤ B=10. ✓. Cut: S = {1, 2} (1-2 has residual 1, so 2 reachable; 2-4 saturated; 1-3 saturated). So S = {1,2}, T = {3,4}. Crossing edges: 1-3 and 2-4. Output: "2 4" then "1 3" — in input order, edge (2,4) is the 3rd input edge and (1,3) is the 2nd input edge. But the example outputs "2 4" first, then "1 3". Hmm, that's not input order. Input order would be "1 3" then "2 4". So the example's order is different — maybe sorted somehow? "2 4" before "1 3"... Not sorted by first vertex (1 < 2). Hmm. Maybe it's just an arbitrary valid answer and there's a special judge. Or maybe the expected output is exactly this and judged with a checker. Given it says "Output only the answer in the exact format specified", but the set of edges is presumably checked by a special judge (since any min cut or any valid within-budget cut works). Hmm, but "exact format" — the format is: YES, count, then lines "u v". I think a special judge validates. But there's risk. Let me think about whether there's a canonical answer that produces "2 4" then "1 3".
+
+Hmm, maybe the intended solution: find min cut via max flow, output edges from the S side to T side as directed arcs? For S = {1,2}: arcs from S to T: 1→3 and 2→4. Output order "2 4" then "1 3"? If iterating edges in input order and checking... input order: (1,2): both in S. (1,3): 1∈S, 3∉S → cut. (2,4): 2∈S, 4∉S → cut. (3,4): both in T. So input order gives "1 3", "2 4". The example gives "2 4", "1 3" — reversed. Maybe they iterate differently, or maybe it's from a different min cut / different algorithm. Or maybe the example output is just one of many accepted answers (special judge). 
+
+Alternatively, maybe the intended answer isn't necessarily a min cut — any cut within budget. E.g., {1-2, 3-4} costs 5+8=13 > 10. {1-2, 1-3} = 11 > 10. {2-4, 3-4} = 12 > 10. {1-3, 2-4} = 10 ✓. So the only within-budget cut here is {1-3, 2-4} (as a set). So the set is forced; only order/orientation can vary. The example prints "2 4" then "1 3". So order is not input order. Could be sorted by... "2 4" vs "1 3": sorted descending by u? Or maybe they output edges in the order found by scanning adjacency lists of the S-side vertices: vertex 2's edges before vertex 1's? If S = {1,2} and we scan... hmm.
+
+Or maybe the min cut found has S = {1,2} and they iterate over vertices in some order... Or maybe their flow algorithm found a different residual reachable set... The cut set is unique here ({1-3, 2-4}), so it's about output order. Possibly the judge is special. Given the problem statement says "Output only the answer in the exact format specified" — this is a generic instruction about formatting (YES/count/lines), not about the specific edges. Competitive problems with "output any valid set" use checkers. I'll assume a special judge accepts any valid set. But to maximize compatibility, maybe I should try to match plausible canonical orders... it's impossible to know. I'll output in input order with original orientation. Actually hmm, wait. Let me reconsider: maybe the checker requires the total cost ≤ B and disconnection, and any format-consistent answer passes. That's most likely.
+
+Hmm, actually, let me reconsider the problem source. "Problem B — Sealing Two Sites Apart". This might be from a specific contest... The phrasing "A research facility is a network of rooms joined by corridors" — this is a min-cut problem dressed up. The example output order "2 4" then "1 3"... If we look at the cut edges as (u,v) pairs where u ∈ S: (1,3) and (2,4). Printed as "2 4" then "1 3". If we consider the edges sorted by their position in... hmm, edge (2,4) is input edge #3 (index 2), edge (1,3) is input edge #2 (index 1). So not input order. Sorted by v then u? (2,4) has v=4, (1,3) has v=3: sorted by v descending? Eh. Sorted by weight? (2,4) has w=4, (1,3) has w=6: ascending by weight! Possibly. Or it's arbitrary.
+
+I'll just go with input order. If there's a special judge, it's fine.
+
+Hmm, wait, actually, let me reconsider — maybe the problem is from Codeforces or similar with a checker. The problem statement format ("Time limit: 2 s, Memory limit: 256 MB") and the generic description suggests it might be adapted. The output spec: "`YES`, then a line with the number c of removed links, then c lines "u v"; or `NO`." — no mention of "if there are multiple answers, print any". But typically such problems have checkers. Given the example's edge order doesn't match an obvious canonical order, I'll assume a checker.
+
+Now, let me also consider: what if s == t? Then no cut can separate them (they're the same vertex). Output NO. Also if s or t don't exist as vertices... they're given as vertex indices 1..n presumably.
+
+What if there's no path at all (max flow 0)? Output YES, 0, and no edge lines. That's valid: cost 0 ≤ B, and they're disconnected. ✓.
+
+Now, the algorithm details:
+
+Dinic's max flow:
+- Nodes 1..n (or 0-indexed internally).
+- Edges: for each input link (u, v, w): add undirected edge pair: edge 2i: u→v cap w; edge 2i+1: v→u cap w.
+- Self-loops: u == v. Adding edge pair u→u and u→u. These never matter for flow (a self-loop can't carry s-t flow... well, it could carry flow in a cycle but Dinic's BFS level graph won't use them since level[u] = level[u]). Actually in BFS, from u we might relax u itself — no change. In DFS, pushing flow along self-loop: level[to] must be level[u]+1, but to == u so level equal — not used. Fine. But for the cut: self-loop has both endpoints in S or both in T — never a cut edge. ✓. But careful: if u==v, edge 2i and 2i+1 are both u→u. Fine.
+
+- Also, what about w = 0 edges? Capacity 0 edges: they can't carry flow; in the cut, a crossing edge with w=0 would add 0 to the cut. Should we include it in the output? Including it is harmless (cost 0). But it might be a crossing edge with residual 0... cap 0 edge from S to T: residual 0, so v not reachable through it — it would be counted as a cut edge with cost 0. Including or excluding doesn't affect validity. I'll include all crossing edges (their total = max flow ≤ B regardless). Actually wait — is the total still = max flow if I include all crossing edges? Yes: sum over crossing edges of w = cut capacity = max flow. Including zero-weight ones adds 0. Fine.
+
+Hmm, one more consideration: what if the same corridor appears twice in input (parallel edges)? Each is separate; both might be cut edges. Fine.
+
+Now, Dinic's implementation in Python. Let me write it carefully for speed.
+
+Standard fast Python Dinic:
+
+```python
+import sys
+from collections import deque
+
+def main():
+    data = sys.stdin.buffer.read().split()
+    idx = 0
+    n = int(data[idx]); idx+=1
+    m = int(data[idx]); idx+=1
+    s = int(data[idx]); idx+=1
+    t = int(data[idx]); idx+=1
+    B = int(data[idx]); idx+=1
+    
+    # edges
+    E = 2*m
+    to = [0]*E
+    cap = [0]*E
+    graph = [[] for _ in range(n+1)]
+    eu = [0]*m
+    ev = [0]*m
+    ew = [0]*m
+    for i in range(m):
+        u = int(data[idx]); v = int(data[idx+1]); w = int(data[idx+2]); idx+=3
+        eu[i]=u; ev[i]=v; ew[i]=w
+        j = 2*i
+        to[j] = v; cap[j] = w
+        to[j+1] = u; cap[j+1] = w
+        graph[u].append(j)
+        graph[v].append(j+1)
+    
+    if s == t:
+        print("NO")
+        return
+    
+    INF = float('inf')
+    level = [0]*(n+1)
+    it = [0]*(n+1)
+    
+    def bfs():
+        for i in range(n+1): level[i] = -1
+        level[s] = 0
+        q = deque([s])
+        while q:
+            u = q.popleft()
+            lu = level[u] + 1
+            for e in graph[u]:
+                if cap[e] > 0:
+                    v = to[e]
+                    if level[v] == -1:
+                        level[v] = lu
+                        q.append(v)
+        return level[t] != -1
+    
+    def dfs(u, f):
+        if u == t:
+            return f
+        while it[u] < len(graph[u]):
+            e = graph[u][it[u]]
+            v = to[e]
+            if cap[e] > 0 and level[v] == level[u]+1:
+                d = dfs(v, min(f, cap[e]))
+                if d > 0:
+                    cap[e] -= d
+                    cap[e^1] += d
+                    return d
+            it[u] += 1
+        return 0
+    
+    flow = 0
+    while bfs():
+        for i in range(n+1): it[i] = 0
+        while True:
+            f = dfs(s, INF)
+            if f == 0: break
+            flow += f
+    
+    if flow > B:
+        print("NO")
+        return
+    
+    # find S: reachable from s in residual
+    # reuse bfs-like: level from last bfs has level[t] == -1 (since loop ended), and level = reachable set!
+    # Actually after the final bfs() returns False, level[] marks reachable vertices (level != -1).
+    # But careful: the last successful bfs was followed by augmentation which changes residual.
+    # So we need a fresh reachability computation after the final augmentation.
+```
+
+Right — after the loop ends, the last bfs() returned False, meaning t is unreachable in the current residual. And level[] from that final bfs marks exactly the reachable set S (level[v] != -1 iff v reachable). Because bfs() was called after the last augmentation. Wait: the loop structure: `while bfs(): ... augment ...`. The loop exits when bfs() returns False. At that point, level[] is from a BFS on the current residual graph (no augmentations since). So S = {v : level[v] != -1}. And t ∉ S. 
+
+But careful: bfs() as written explores only edges with cap > 0 — that's the residual reachability. ✓. So S = level[v] >= 0.
+
+Then cut edges: for i in range(m): if (level[eu[i]] != -1) != (level[ev[i]] != -1): it's a cut edge. But wait — is it guaranteed that every crossing edge has cap[2i] == 0 in the direction S→T? Yes by max-flow min-cut (all S→T arcs saturated). But let me double check with the undirected trick: crossing edge {u,v}, u ∈ S, v ∈ T. Arc u→v is edge 2i with cap[2i] = w - f_net. Since v is unreachable from u in residual, cap[2i] must be 0 (if > 0, v would be reachable). ✓. So the crossing edges are exactly those where the S-side endpoint's outgoing arc is saturated. And sum of w over crossing edges = flow. Let me just trust the theory.
+
+Hmm, but one thing: what if the edge is a self-loop (u == v)? Then both endpoints same side, never crossing. ✓.
+
+Also, what if s has no edges or t has no edges: flow = 0, S = {s} plus reachable. Cut edges = edges from s's side crossing. E.g., if t is isolated: flow 0, S = component of s, cut edges = all edges leaving s's component. Total = 0? Wait no — cut capacity = sum of w over crossing edges = max flow = 0?? That can't be right. If t is unreachable from s in the original graph, then... hmm, S = reachable set in residual = reachable set in original graph (since no flow, residual = original). Crossing edges: edges from S to V\S. But if t is unreachable, is the cut capacity 0? No! Cut capacity = sum of crossing edge weights, which is > 0 generally. But max-flow min-cut says cut capacity = flow = 0. Contradiction?
+
+Ah, I see the issue: max-flow min-cut theorem: after max flow, S = residual-reachable set from s. The cut (S, V\S) has capacity equal to the flow value ONLY IF... hmm, let me recheck. The theorem: f = capacity(S, V\S) - capacity(V\S, S) + ... no. Let me recompute. Flow value = net flow across the cut = f(S→T arcs) - f(T→S arcs). For arcs S→T: saturated, f = capacity. For arcs T→S: residual > 0 means... arcs from T to S: if such an arc has residual capacity > 0, then... it goes from T to S, doesn't make new vertices reachable. Hmm, arcs T→S can carry flow. So flow value = cap(S→T) - f(T→S). For this to equal cap(S→T), we need f(T→S) = 0 for all arcs from T to S.
+
+Is that guaranteed? Standard argument: if arc (v,u) with v ∈ T, u ∈ S carries flow f > 0, then its reverse residual (u→v direction... hmm. In the residual graph, arc (v,u) with flow f > 0 gives residual arc (u,v) with capacity f > 0. Then u ∈ S and residual arc u→v with cap f > 0 means v would be reachable — contradiction with v ∈ T. So yes, f(T→S) = 0. ✓. So flow value = cap(S→T). 
+
+But in the unreachable-t case: flow = 0, so cap(S→T) = 0, meaning all crossing edges have w = 0?? That's wrong unless... wait. If t is unreachable from s in the ORIGINAL graph, then S (residual reachable = original reachable, since no flow pushed) = original reachable set. Crossing edges from S to T: these have capacity w > 0 possibly. But then cap(S→T) > 0 = flow. Contradiction with the theorem?!
+
+Hold on. Let me recheck: if t is unreachable from s, max flow = 0. S = set reachable from s. Cut (S, T). cap(S→T) = sum of crossing edges. Hmm, but wait: if edge {u,v} has u ∈ S, v ∉ S, and w > 0, then in the residual (= original, flow 0), arc u→v has cap w > 0, so v would be reachable from u ∈ S — contradiction! So v would be in S. Therefore, if S is the reachable set, there are NO crossing edges with w > 0. All edges from S go to S. Of course! S is closed under reachability. So crossing edges with positive capacity don't exist. cap(S→T) = 0 = flow. ✓. I confused myself. If t is unreachable, S = s's entire component (via positive-capacity edges), and no positive-capacity edges leave S. Crossing edges (in the undirected sense) with w > 0: none. Edges with w = 0 crossing: possible (0-capacity edges don't create reachability). Those add 0 to cut. ✓. Great, consistent.
+
+So the cut edges to output: crossing edges (one endpoint in S, other not). Their total weight = flow ≤ B. ✓.
+
+Wait, but there's still a subtle issue: crossing edges with w = 0 — should we output them? They're harmless. But hmm, actually, do we even need to output all crossing edges? We need the removal to disconnect s from t. Removing all crossing edges disconnects S from T (s ∈ S, t ∈ T). ✓. We could also remove a subset, but removing all crossing positive-weight edges is needed... well, removing all crossing edges works. Fine.
+
+Hmm, wait, one more check: is it true that removing all crossing edges disconnects s from t? After removal, is there any path from s to t using remaining edges? All remaining edges are either within S or within T. s ∈ S, t ∈ T. No path. ✓. (Assuming t ∉ S, which holds since bfs returned False at the end.)
+
+Edge case: what if t is reachable... normal case. Fine.
+
+Now, what if s == t? I'll print NO. (Can't disconnect a vertex from itself.) The problem likely guarantees s ≠ t, but handle it.
+
+Now, about performance. Unknown constraints. Let me write the fastest reasonable Dinic in Python. Options:
+
+1. Recursive DFS Dinic — simple, but recursion overhead and depth issues (depth up to n). If n is large (like 10^5), recursion depth could blow. Python default recursion limit 1000. Could set higher, but deep recursion in Python is slow and can segfault with very deep stacks. 
+
+2. Iterative DFS Dinic — more complex but safe.
+
+3. BFS-based augmenting (Edmonds-Karp) — O(VE²), too slow for large graphs.
+
+Given unknown constraints, let me think about what's plausible. This problem seems like a standard textbook min-cut problem. Typical constraints for such: n ≤ 100-500, m ≤ 5000-20000, or maybe n ≤ 10^4, m ≤ 10^5. With a 2-second limit and Python... Hmm. Since we must write Python, let's write an optimized Dinic with iterative DFS, or recursive with sys.setrecursionlimit.
+
+Actually, let me think about the structure: it's an undirected graph. For undirected graphs, Dinic's performs well. The number of phases is O(√E) for undirected graphs? Actually, for undirected graphs, Dinic's number of phases is O(√E)? Hmm, I recall: for undirected graphs, the number of phases of Dinic is O(√E) — no wait. Let me recall: In undirected graphs, max flow can be decomposed into O(√E)... Hmm. There's a known result: for undirected graphs, the number of distinct min cuts... Actually the relevant result: in an undirected graph, the min cut... The number of phases in Dinic on undirected graphs is O(√m)? I think there's a result that on undirected graphs, blocking flow... Hmm, I recall that for undirected graphs, max flow = min cut and the number of augmenting paths in Dinic relates to the number of edges in a cut... Let me think: each phase increases the shortest path length by ≥ 1. In undirected graphs, max flow value F, and each augmenting path in a phase... Hmm, there's a classical result: the number of phases for undirected graphs is O(√F)? No...
+
+Known result (Even & Tarjan?): For undirected graphs, the number of phases of Dinic's algorithm is O(√m)? Hmm, actually I recall: "In undirected graphs, the number of phases is O(√E)" — because each phase saturates... Hmm, I remember something like: in an undirected network, max flow can be computed in O(√E) phases? No wait, I think the result is: the number of phases is bounded by O(√F) where F is max flow? Hmm no.
+
+Let me think from scratch: In an undirected graph, consider the min cut C (a set of edges). Every augmenting path must use at least one edge of the min cut... Actually every s-t path uses ≥ 1 min-cut edge. In Dinic's, within a phase, each augmenting path saturates at least one edge. Hmm.
+
+There's a classical theorem: in undirected graphs, the number of augmenting paths found by Dinic (across all phases) is O(E)? Hmm, not sure. Actually here's a cleaner known result: For undirected graphs, the max flow F can be decomposed into at most... hmm.
+
+Alternatively, known: Hopcroft-Karp-like bound. For unit capacities, phases O(√E). For undirected graphs with general capacities... I recall the bound O(√E · something)? 
+
+Actually, the relevant known result: "the number of phases in the max-flow of an undirected graph is at most O(√(m))"? Let me think about why: In an undirected graph, after k phases, the distance from s to t is ≥ k. Also, there's a lemma: in an undirected graph, the residual graph after Dinic phases... Hmm, I definitely recall that for undirected graphs, Dinic runs in O(m√m) or the number of phases is O(√m). Let me try to see: Suppose the current distance d = dist(s,t) in residual. Take a shortest path P. Hmm.
+
+Alternative known result: In undirected graphs, max flow value ≤ min over vertices... no.
+
+OK here's a cleaner one I'm fairly confident about: In an undirected graph, the number of phases of Dinic's algorithm is O(√F) where F is the max flow value? No — that's for... hmm, that's the bound for the "fattest path"/capacity scaling.
+
+Let me just recall the standard textbook facts (CLRS / Schrijver): For Dinic: O(V²E) general; unit capacities: O(E√E) (Hopcroft-Karp style, actually O(E min(√E, V^{2/3}))); undirected unit capacities: O(E√V)? And for undirected general capacities: I believe there's an O(F·something)... 
+
+Hmm, actually here's a fact I'm now recalling clearly: **In an undirected graph, each phase of Dinic's algorithm saturates at least one new edge permanently?** No...
+
+Let me think about it differently — practical performance. Python Dinic on graphs with, say, n=1000, m=10000: fine. n=10^4, m=10^5: Dinic in Python might take a few seconds... risky but this is what we can do. Let me optimize hard.
+
+Actually, you know, let me reconsider the problem source to guess constraints. "Problem B — Sealing Two Sites Apart" with "Time limit: 2 s, Memory limit: 256 MB". The description style with "A research facility..." and the meta-commentary "What is measured is solely the total sealing cost... The placement of most rooms is unconstrained; they may end up on either side of the eventual partition, which plays no part in whether the plan is accepted." — this reads like a deliberately obfuscated (LLM-rewritten?) version of a classic problem: "minimum s-t cut with budget" — basically "Police stations"? No... It's literally: given graph, two vertices, budget B; find cut ≤ B. This is like the classic problem "minimum cut" from some olympiad or from a network flow lecture (e.g., "Neumann" / "The King's Walk"?). Hmm, could be from a series where problems are restated. The original might be from Codeforces or from a SWERC/NWERC problem... 
+
+Actually, this strongly resembles a known task: "The network of a company... two servers... budget" — min cut. E.g., problem from "e-olymp" or from a Russian judge. Without constraints, I'll assume moderate: n ≤ 1000, m ≤ 10000 maybe, or up to 10^4/10^5. Let me write a well-optimized Dinic.
+
+Let me write the iterative Dinic carefully. Actually, recursive Dinic with current-arc is often faster in practice in Python than a naive iterative version, but recursion has overhead per call and depth limits. A common high-performance Python approach: recursive DFS with the "multiple augmentation" trick (dfs returns after pushing once, but we can make dfs push as much as possible — the "flow-push" style where dfs(u, f) pushes up to f and returns total pushed, continuing after saturating edges). That reduces the number of calls: each call either saturates an edge or exhausts the vertex. The standard implementation:
+
+```python
+def dfs(u, f):
+    if u == t: return f
+    pushed = 0
+    while it[u] < len(graph[u]):
+        e = graph[u][it[u]]
+        v = to[e]
+        if cap[e] > 0 and level[v] == level[u] + 1:
+            d = dfs(v, min(f - pushed, cap[e]))
+            if d:
+                cap[e] -= d
+                cap[e^1] += d
+                pushed += d
+                if pushed == f:
+                    return pushed  # note: don't advance it[u] since edge may have residual
+            else:
+                it[u] += 1
+        else:
+            it[u] += 1
+    return pushed
+```
+
+Hmm, careful with the current-arc logic: if d == 0, advance. If d > 0 and edge saturated (cap[e] == 0), the loop will advance naturally on next iteration since cap[e] > 0 fails. If d > 0 but not saturated and pushed == f, return without advancing. This is correct.
+
+This "push as much as possible per top-level call" reduces overhead. Top-level: dfs(s, INF) per phase (once, since it pushes a blocking flow in one call). 
+
+Recursion depth = length of augmenting path ≤ n. If n ≤ 10^4 or so, we need sys.setrecursionlimit(10^5+) and Python can handle ~10^4-10^5 depth with C stack... Python's recursion uses the C stack; deep recursion (like 10^5) can crash with segfault even after setting the limit, depending on the platform. Risky. Iterative DFS avoids this.
+
+Let me write an iterative Dinic DFS. The iterative blocking-flow with current-arc:
+
+```python
+def dinic():
+    flow = 0
+    while bfs():
+        # iterative dfs
+        it = [0]*(n+1)  # pointer into graph[u]
+        path = []  # stack of edges
+        u = s
+        while True:
+            if u == t:
+                # augment along path
+                f = min(cap[e] for e in path)
+                for e in path:
+                    cap[e] -= f
+                    cap[e^1] += f
+                flow += f
+                # retreat to the first saturated edge
+                # find first e in path with cap[e] == 0
+                # pop path up to and including that edge
+                k = 0
+                while cap[path[k]] > 0:  # hmm, need index of first saturated
+                    k += 1
+                # actually: find minimal index with cap==0
+                ...
+                u = to[path[k-1]] if k>0 else s  # vertex before the saturated edge
+                del path[k:]
+            else:
+                advanced = False
+                while it[u] < len(graph[u]):
+                    e = graph[u][it[u]]
+                    if cap[e] > 0 and level[to[e]] == level[u]+1:
+                        path.append(e)
+                        u = to[e]
+                        advanced = True
+                        break
+                    it[u] += 1
+                if not advanced:
+                    # dead end: retreat
+                    if u == s:
+                        break
+                    level[u] = -1  # or mark dead: remove from level graph
+                    e = path.pop()
+                    u = to[e^1]  # the vertex we came from = to[e^1]
+                    it[u] += 1
+    return flow
+```
+
+Hmm, the augment step: after augmenting along path, some edges become saturated. We need to retreat to the vertex just before the FIRST saturated edge on the path (so that the prefix remains usable). Finding the first saturated edge requires scanning the path — O(path length) per augment. Total augmentations per phase ≤ E (each saturates ≥ 1 edge... each augmentation saturates at least one edge, and edges don't get unsaturated within a phase — with the undirected trick, cap[e^1] increases but that's the reverse direction, different arc; within a phase, once cap[e] = 0 it stays 0? In Dinic within a phase, flow is only pushed along level-increasing arcs, so the reverse arc e^1 goes from level+1 to level, never used in the same phase. So yes, saturated arcs stay saturated within the phase). So per phase: #augmentations ≤ E, each costing O(V) for the scan + O(V) worst... total O(VE) per phase, matching theory. Fine.
+
+Alternative for the retreat-after-augment: instead of scanning, retreat to the deepest saturated edge's predecessor... we must retreat to before the FIRST saturated edge to keep the path prefix valid (all edges before it still have positive capacity). Actually we could also just retreat one step and continue, but then the current-arc pointer at the vertex before a saturated edge: the edge is saturated, so the inner while loop will skip it (cap[e] > 0 fails) and advance it[u]. That works too! After augmenting, just set u = to[path[-1]^1] (retreat one step, pop last edge), and continue: the loop will skip saturated edges naturally. But that could be slow: if the path is long and many edges saturate one by one... Each retreat-one-step with a saturated edge advances it[u] (since the edge fails cap>0 check, it[u] += 1). Hmm, but if we retreat one step and the last edge is NOT saturated, we'd re-push along the same path prefix — that's fine, it's a valid continuation (pushing more flow through). Actually the standard "retreat one step" approach: after augmenting at t, pop the last edge, u = its source; continue. If the last edge still has capacity, we immediately go forward along it again (it's still a valid level edge with cap > 0) — wait, but then we'd reach t again and augment again — each augmentation pushes ≥ 1 unit... but with the min over path, if the bottleneck is elsewhere, we might loop: augment, retreat one step, advance along same edge (cap > 0), reach t, augment again... each augmentation pushes the bottleneck amount, so progress is made each time (flow increases). The concern is the O(V) work per augmentation for re-traversing the path — that's the standard bound anyway (each augmentation does O(V) work traversing from the retreat point to t). Hmm, but with retreat-one-step, after augmenting, we're at the predecessor of t; we advance along the same edge if cap > 0 — but the amount pushed next is min over path which includes the previously... ugh, this could re-walk the whole path each time: augment at t (path length L), retreat 1, walk forward L-1 steps to t, augment, retreat 1, ... If the bottleneck edge is near s, each augmentation only saturates... hmm, each augmentation saturates ≥ 1 edge. If we always retreat only 1 step and the saturated edge is far back, we re-walk the suffix. Worst case: #augmentations × path length = E × V per phase — same as the scan approach's worst case. Both are O(VE) per phase. The "retreat to first saturated edge" is typically better in practice. Let me do the scan version but with an optimization: scan from the start to find first saturated edge — O(position). Alternatively, track bottleneck position during the walk: when advancing, we know caps; we could remember argmin as we build the path. Then after augmenting, the first saturated edge is at the argmin position (the minimum cap edge; if ties, the first one that hit 0 — with the min value f, all edges with cap == f before... hmm, edges with cap[e] == f become 0; the first saturated edge is the first edge with cap[e] == f). To find the FIRST, we'd need argmin-first. We can compute during the walk: maintain `bneck_idx` = index of first edge achieving the current min. When appending edge e: if cap[e] < cur_min: cur_min = cap[e]; bneck_idx = len(path). Then after augment: retreat to bneck_idx: pop path[bneck_idx:], u = source of path[bneck_idx] (or s if bneck_idx == 0). All edges before bneck_idx have cap > 0 still (they had cap > cur_min... no wait — they had cap ≥ cur_min, and after subtracting f = cur_min, edges with cap == cur_min become 0. The first edge with cap == cur_min is bneck_idx (we tracked first occurrence of min). Edges before bneck_idx had cap > cur_min at track time... but caps change only via augmentation; during the walk between augmentations, caps don't change. Hmm, but the path may include edges walked before a previous augmentation? No — after each augmentation we truncate the path at bneck_idx, so all remaining path edges have cap > 0 (they were > min). But their caps decreased by f. So the tracked min/idx must be maintained incrementally as we extend the path: when we append edge e with cap c: if c < min_so_far: min = c, idx = len(path)-1... but existing path edges' caps changed after augmentation — we'd need to recompute. Simplest: after augmentation, recompute min and argmin over the remaining path — O(remaining length). Hmm, that's O(V) per augmentation again but with a simple loop. Or: maintain min/idx lazily: after truncation, recompute by scanning the remaining path once — O(V) per augmentation. Total O(VE) per phase. Same bound. 
+
+Alternatively, simpler: after augmenting, scan path from the beginning to find first edge with cap == 0 — O(V) per augmentation. Simple and correct. Let me do that. Actually, since after truncating at the first saturated edge, the prefix has all caps > 0, and the scan starts from index 0 each time — the scan cost is O(idx_of_first_saturated). Fine.
+
+Hmm, wait, actually there's an even simpler correct approach: retreat to the first saturated edge found by scanning from the END backwards? No — we need the FIRST from the start, because the prefix before it is still usable; if we retreat to a later position, we'd skip... no wait, we need to retreat to a vertex from which the path prefix is valid. If we retreat to just before the LAST saturated edge, the prefix includes edges before it — but if an earlier edge is also saturated, the prefix is invalid (contains a saturated edge). When we then try to advance from the retreat point... hmm, actually the path stack would contain a saturated edge, and when we later augment along a path containing it, we'd push flow through a saturated edge — BUG. Unless we check: when advancing, we check cap[e] > 0, so a saturated edge in the middle would... the path stack contains it, and at augment time we compute min cap = 0 → f = 0 → infinite loop. So we must ensure the path never contains a saturated edge. Retreating to before the FIRST saturated edge guarantees this. Alternatively, when scanning from the end, keep going until... no. Scan from start for first cap==0. Or maintain argmin-first as described with recompute-after-truncation. Let me just do the simple scan from start.
+
+Hmm, wait, actually there's an even cleaner way to think: after augmentation with amount f, edges with cap == f are now 0. Scan path from start, find first index k with cap[path[k]] == 0, truncate path to k, u = (k == 0 ? s : to[path[k-1]]). ✓.
+
+Also the dead-end handling: when u has no admissible arcs left (it[u] exhausted), mark u as dead by setting level[u] = -1 (so it's never revisited — well, it could be revisited via another predecessor, but level check fails, so no). Then retreat: pop last edge e, u = to[e^1] (source of e), and it[u] += 1 (advance past e since it leads to a dead vertex). ✓.
+
+When u == s and no admissible arcs: phase ends.
+
+Also, when we advance along edge e from u: we should NOT advance it[u] — the edge might still have capacity for future pushes. The current-arc pointer stays. ✓. But careful: if we later retreat to u because v = to[e] became dead (level[v] = -1), we do it[u] += 1. ✓. If we retreat to u due to augmentation truncation at edge e (e saturated), then when we resume at u, the inner loop checks cap[e] > 0 → fails → it[u] += 1. ✓.
+
+One more subtlety: when we retreat due to dead-end and pop edge e, we set it[u] += 1 where u = to[e^1]. But what if the dead-end vertex is t? t is never a dead end (u == t triggers augment). ✓.
+
+What about vertices with level == -1 initially (unreachable)? They're never entered since advancing requires level[to[e]] == level[u]+1 and level[u] ≥ 0 along the path from s (level[s] = 0). ✓.
+
+Let me now also handle the BFS efficiently. BFS with deque, or with a list-as-queue using indices. For speed, use a list and head pointer.
+
+Let me write the code:
+
+```python
+import sys
+
+def main():
+    input_data = sys.stdin.buffer.read().split()
+    ptr = 0
+    n = int(input_data[ptr]); ptr += 1
+    m = int(input_data[ptr]); ptr += 1
+    s = int(input_data[ptr]); ptr += 1
+    t = int(input_data[ptr]); ptr += 1
+    B = int(input_data[ptr]); ptr += 1
+
+    eu = [0]*m; ev = [0]*m
+
+    # adjacency: use arrays
+    to = [0]*(2*m)
+    cap = [0]*(2*m)
+    # build adjacency via CSR for speed? Or list of lists.
+```
+
+For speed, list of lists of edge indices is OK; CSR (compressed sparse row) is faster for iteration in Python? Building CSR: count degrees, prefix sums, fill. Iterating CSR: `for i in range(start[u], start[u+1]): e = edges[i]`. Hmm, list of lists iteration `for e in graph[u]` is quite fast. But the DFS inner loop uses it[u] as index into graph[u] — with list of lists, graph[u][it[u]] involves two indexings. With CSR, adj[i] similar. List of lists is fine.
+
+Actually, a neat trick for Dinic in Python: store adjacency as list of lists of edge ids, and in the DFS, use local variable references to cap, to, graph, level for speed.
+
+Let me think about whether to use recursion or iteration. I'll go with iterative to be safe on depth. But iterative has more overhead per step... Let me write it carefully.
+
+Actually, let me reconsider: maybe recursion with increased limit is fine and simpler to get right. If n ≤ ~5000, recursion depth ≤ 5000 — fine with setrecursionlimit(10000). If n up to 10^5... depth up to 10^5, risky. Since constraints unknown, iterative is safer. Let me write the iterative version carefully.
+
+Actually, hmm, let me reconsider the problem size once more. The problem gives m lines of edges. With a 2s limit and Python expected... The original problem (whatever it is) probably has modest constraints since it's "Problem B" (usually easier). A min cut problem as B — maybe n ≤ 100, m ≤ 1000? Or it's from a contest where B is the second flow problem. I'll write a solid Dinic that handles up to ~10^4 nodes / 10^5 edges in reasonable time.
+
+Let me also add the capacity-scaling optimization? Dinic with scaling: O(E² log U)... hmm, or just cap capacities at B+1? Since we only care whether flow ≤ B, and if flow > B we output NO — we could cap all capacities at B+1 and stop early once flow > B. Wait, does capping at B+1 preserve the decision? If true flow F ≤ B: capping at B+1 ≥ B ≥ F... does capping at B+1 preserve max flow when F ≤ B? There's a flow of value F with each arc carrying ≤ F ≤ B < B+1 ≤ cap. So capped max flow = F. ✓. If F > B: capped max flow ≥ ? We showed there's a flow of value B+1 with all arcs ≤ B+1 (take flow of value F ≥ B+1, decompose into unit paths... with integrality, take a flow of value exactly B+1 — exists since we can reduce; each arc carries ≤ B+1). So capped max flow ≥ B+1 > B. So: capped max flow ≤ B ⟺ F ≤ B, and when ≤ B, capped flow = F = true flow, and the min cut from capped network... hmm, careful: if we cap capacities, the min cut in the capped network might differ from the true min cut! E.g., true min cut = F ≤ B, but capping changes capacities of edges with w > B+1... wait, if F ≤ B, the min cut edges all have w ≤ F ≤ B (each cut edge has w ≤ cut value... yes, each edge in the min cut has w ≤ total ≤ B). Hmm, but capping at B+1: edges with w > B+1 get reduced capacity. Could that create a SMALLER cut in the capped network? Cut value in capped network = sum of min(w, B+1) over crossing edges ≤ true cut value. If capped min cut < true min cut... then capped max flow < F — but we showed capped max flow = F when F ≤ B. So capped min cut = F = true min cut value. But the cut SET might differ (different cut with same value, possibly using capped edges). Hmm: a cut in the capped network with value F could include an edge with true w > B+1 capped down to B+1... then the true value of that cut > F... but we need the output cut's TRUE total cost ≤ B. If we compute the crossing edges in the capped network and sum their TRUE weights, could it exceed B? The capped-network min cut has capped value F ≤ B. Its true value = capped value + sum over crossing edges with w > B+1 of (w - (B+1)) — could exceed B! Example: B = 10, edges: s-a w=100, a-t w=100, and s-t... hmm, let me construct: true min cut must be ≤ B for YES. Suppose graph: s—a (w=5), a—t (w=5): min cut 5... capping at 11 doesn't change. To make capping cause a wrong cut: we need a cut whose capped value ≤ B but true value > B, AND it's the min cut in capped network. Capped value ≤ B means: crossing edges each ≤ B+1 after capping... e.g., B=10, cut = {one edge with w=11}: capped value = min(11, 11) = 11 > 10. Hmm, cap at B+1 = 11: an edge with w = 11 caps to 11 > B. For capped cut value ≤ B=10 with an edge of true w > 10: impossible since min(w, 11) ≥ 11 > 10 for w ≥ 11. So any cut with capped value ≤ B consists of edges each with min(w, B+1) ≤ B... hmm, sum ≤ B means each term ≤ B, so each crossing edge has min(w, B+1) ≤ B, so w ≤ B (since if w ≥ B+1, min = B+1 > B). So all crossing edges have w ≤ B, and capped value = true value ≤ B. 
+
+So capping at B+1 is SAFE: if capped max flow ≤ B, then the min cut found in the capped network has true cost ≤ B. And if capped max flow > B, then true max flow > B → NO. Wait, need: capped flow > B ⟹ true flow > B. Capped flow ≤ true flow always (capping reduces capacities). If true F ≤ B then capped = F ≤ B. Contrapositive: capped > B ⟹ F > B. ✓. And capped ≤ B ⟹ capped = F (since F ≤ B ⟹ capped = F... wait, capped ≤ B: does that imply F ≤ B? capped ≤ B < B+1... if F > B, i.e., F ≥ B+1, then capped ≥ B+1 (shown above: flow of value B+1 with arcs ≤ B+1 exists). So capped ≤ B ⟹ F ≤ B. ✓.) And then capped = F, and the cut is valid with true cost ≤ B. 
+
+So capping capacities at B+1 is safe and can hugely help when B is small but weights are huge. But if B is huge (like 10^9), capping does nothing. Also, we can early-terminate: once accumulated flow > B, print NO and exit. That's a nice optimization: stop as soon as flow exceeds B.
+
+Hmm, but also: if B ≥ sum of all weights, then any... well, still need min cut ≤ B — always true then (min cut ≤ sum of weights at s... if s has any edge; if s isolated and t unreachable, flow 0). Actually if B ≥ total weight of edges incident to s, min cut ≤ that ≤ B → always YES. Not needed as special case; the algorithm handles it.
+
+Capping at B+1: also cap the flow pushed per augmentation... the flow value itself ≤ ... whatever, it's fine.
+
+Also, early exit: after each augmentation (or each phase), if flow > B: print NO, return. This bounds work when answer is NO and B is small. But if B is huge and answer is NO... then we compute the full max flow anyway. Fine.
+
+Hmm, one more consideration: capacities could be 0. Cap at B+1: if B+1 could be... B ≥ 0 presumably. If B = 0: cap at 1. Fine. Negative B? Unlikely; if B < 0, then even empty set (cost 0) exceeds... "total must not exceed budget" — if B < 0, no valid plan (cost ≥ 0 > B)... unless s,t already disconnected and cost 0 ≤ B fails since B < 0. So NO. Edge case: B < 0 → NO always? Cost 0 is the minimum possible; if 0 > B, NO. Let me handle: if B < 0: print NO. Actually with capping at B+1 ≤ 0... that breaks. Let me just handle B < 0 → NO upfront. (Probably B ≥ 0 in inputs, but safe.)
+
+Hmm wait, also what if B ≥ 0 but s,t disconnected: flow 0 ≤ B → YES with 0 edges. ✓.
+
+Now let me also double check the "cap at B+1" with the cut extraction: after max flow on the capped network, S = residual reachable. Crossing edges (in the capped network) are saturated arcs S→T. For crossing edge with true w: capped cap = min(w, B+1). Saturated means capped cap = 0. The cut value in capped network = sum of min(w, B+1) over crossing = flow ≤ B. As argued, each crossing edge has min(w, B+1) ≤ B hence w ≤ B, so min(w, B+1) = w, and sum of true w = flow ≤ B. ✓. But CAREFUL: the crossing edges are determined by S; edges with w > B+1 could cross the partition but NOT be saturated?? If edge {u,v}, u ∈ S, v ∉ S, with capped cap c = min(w, B+1) > 0 — then v would be reachable in residual → contradiction. So ALL crossing edges have capped cap 0, i.e., are counted in the cut. And their true w sum ≤ B as shown. But wait — I claimed each crossing edge has min(w, B+1) ≤ B. Sum over crossing of min(w, B+1) = flow ≤ B. Each term min(w, B+1) is either w (if w ≤ B) or B+1 (if w > B). If any crossing edge had w > B, its term ≥ B+1 > B ≥ flow — contradiction. So all crossing edges have w ≤ B and sum of w = flow ≤ B. ✓✓. 
+
+So the plan is solid. Now, is capping at B+1 worth it? It protects against huge weights with small B. Cost: nothing. Do it. Also early-exit when flow > B.
+
+Hmm, actually also: cap at B+1 but ALSO we could just cap at B... no wait, we showed capping at B is ambiguous when capped flow == B. Capping at B+1 resolves it: capped flow ≤ B ⟺ YES. But hmm, one more check: capping at B+1, if F = B exactly (true flow = B ≤ B → YES): capped flow = F = B (since F ≤ B ⟹ capped = F). ✓. If F = B+1 (> B → NO): capped flow ≥ B+1 → we detect > B → NO. ✓.
+
+Now, the early exit: if at any point flow > B, print NO. With capping at B+1, flow ≤ (B+1) × (number of arcs out of s)... fine.
+
+Now let me write the full code.
+
+```python
+import sys
+
+def main():
+    data = sys.stdin.buffer.read().split()
+    ptr = 0
+    n = int(data[ptr]); m = int(data[ptr+1]); s = int(data[ptr+2]); t = int(data[ptr+3]); B = int(data[ptr+4])
+    ptr += 5
+
+    if s == t:
+        sys.stdout.write("NO\n")
+        return
+    if B < 0:
+        sys.stdout.write("NO\n")
+        return
+
+    CAP_LIMIT = B + 1
+
+    E = 2 * m
+    to = [0] * E
+    cap = [0] * E
+    eu = [0] * m
+    ev = [0] * m
+
+    graph = [[] for _ in range(n + 1)]
+
+    for i in range(m):
+        u = int(data[ptr]); v = int(data[ptr+1]); w = int(data[ptr+2])
+        ptr += 3
+        eu[i] = u; ev[i] = v
+        if w > CAP_LIMIT:
+            w = CAP_LIMIT
+        j = 2 * i
+        to[j] = v; cap[j] = w
+        to[j ^ 1] = u; cap[j ^ 1] = w
+        graph[u].append(j)
+        graph[v].append(j ^ 1)
+
+    # Dinic
+    level = [-1] * (n + 1)
+    it = [0] * (n + 1)
+
+    INF = float('inf')
+
+    def bfs():
+        # reset levels
+        for i in range(n + 1):
+            level[i] = -1
+        level[s] = 0
+        q = [s]
+        qi = 0
+        while qi < len(q):
+            u = q[qi]; qi += 1
+            lu = level[u] + 1
+            for e in graph[u]:
+                if cap[e] > 0:
+                    v = to[e]
+                    if level[v] < 0:
+                        level[v] = lu
+                        q.append(v)
+        return level[t] >= 0
+    ...
+```
+
+Hmm, resetting levels with a loop over n+1 each BFS — fine, O(n) per phase.
+
+Wait, there's an issue with `level[v] < 0` check when v == s: level[s] = 0, so s won't be re-added. ✓. And t: level[t] set when reached; BFS continues past t? Standard Dinic BFS can stop early once t is found, or continue — continuing is fine (and needed for the final reachability set... but for intermediate phases it doesn't matter). Actually for the FINAL bfs (the one that returns False), we need the full reachable set for the cut. For intermediate ones, full BFS is fine too. But we could early-terminate when level[t] is set for speed in intermediate phases... but then level[] wouldn't be a full BFS — that's fine for intermediate phases (Dinic just needs levels for admissible arcs; partial BFS with early stop is standard). But the final bfs must be complete for the cut computation. Hmm, but we don't know in advance which bfs is final. Simplest: always do full BFS. Or: do full BFS always (it's O(E) per phase, phases ≤ O(V)... fine).
+
+Hmm, actually, wait: for the cut, I need the reachable set in the residual graph AFTER the final augmentation. The final bfs (returning False) is called after all augmentations, so its level[] is exactly the residual reachable set. ✓ (as long as bfs explores fully, which it does).
+
+But hold on — there's a subtle issue with using level[] from the last bfs: the last bfs explores edges with cap > 0 from the residual — yes that's the residual reachable set. ✓.
+
+Now the iterative DFS blocking flow:
+
+```python
+    flow = 0
+    while bfs():
+        for i in range(n + 1):
+            it[i] = 0
+        path = []
+        u = s
+        while True:
+            if u == t:
+                # find bottleneck
+                f = cap[path[0]]
+                for e in path[1:]:
+                    c = cap[e]
+                    if c < f:
+                        f = c
+                flow += f
+                if flow > B:
+                    print NO; return
+                # apply and find first saturated
+                # apply
+                k = 0
+                kp1 = 0  # index of first saturated
+                L = len(path)
+                # We need first index with cap == 0 after subtracting f.
+                # cap[e] == f before subtracting → becomes 0.
+                first_sat = -1
+                for idx in range(L):
+                    e = path[idx]
+                    cap[e] -= f
+                    cap[e ^ 1] += f
+                    if first_sat < 0 and cap[e] == 0:
+                        first_sat = idx
+                # truncate
+                if first_sat == 0:
+                    path = []  # or del path[0:]
+                    u = s
+                else:
+                    # hmm, first_sat could be -1? No: bottleneck edge has cap == f → becomes 0. So first_sat ≥ 0. 
+                    del path[first_sat:]
+                    u = to[path[first_sat - 1]] if first_sat > 0 else s
+                # wait, if first_sat == 0 then u = s, path = [].
+                continue
+            # try to advance
+            advanced = False
+            gu = graph[u]
+            iu = it[u]
+            lu1 = level[u] + 1
+            while iu < len(gu):
+                e = gu[iu]
+                if cap[e] > 0:
+                    v = to[e]
+                    if level[v] == lu1:
+                        path.append(e)
+                        u = v
+                        advanced = True
+                        break
+                iu += 1
+            it[u] = iu
+            if advanced:
+                continue
+            # dead end
+            if u == s:
+                break
+            level[u] = -1  # dead
+            e = path.pop()
+            u = to[e ^ 1]
+            it[u] += 1
+        # end phase
+```
+
+Wait, there's a bug: `it[u] = iu` — when advanced, we break with iu pointing at the edge we used; it[u] should stay at iu (not advance past it). ✓ since we set it[u] = iu before checking advanced. When not advanced, iu == len(gu), it[u] = len(gu). ✓.
+
+Hmm, but there's a subtle issue: when we advance along edge e from u, and later retreat (dead end at v), we do it[u] += 1 — correct, skip that edge. When we retreat due to augmentation truncation at index first_sat: the edge path[first_sat] is saturated; we resume at u = source of path[first_sat] = to[path[first_sat]^1]. it[u] still points at that edge (we never advanced it when we traversed it). On resume, the inner loop checks cap[e] > 0 → fails (saturated) → iu += 1. ✓.
+
+Another subtlety: `level[u] = -1` for dead vertices — but then `level[v] == lu1` checks fail for entering u again. ✓. But careful: level[s] must never be set to -1... s is handled: if u == s and no advance, we break (before marking dead). ✓. And t: never dead-ends (augments first). ✓.
+
+Also: when we mark u dead and retreat, the edge e we popped: it[u_prev] += 1. ✓.
+
+Now, the augment step: computing bottleneck f = min cap over path, then subtracting. The loop over path does both the subtraction and finds first_sat. But note: `first_sat < 0 and cap[e] == 0` — after subtraction, cap[e] == 0 iff original cap[e] == f. The bottleneck edge(s) have cap == f. So first_sat = index of first edge with original cap == f. ✓. first_sat is always found (bottleneck exists, path non-empty since u == t ≠ s... path could be empty only if s == t, excluded). ✓.
+
+Efficiency of the augment step: O(len(path)) twice (bottleneck scan + subtract scan). Could combine: track min and first-argmin during... the subtract scan needs f first. Two scans O(L). Fine.
+
+Alternative: maintain running min as we build the path. When we append edge e: if cap[e] < cur_min: cur_min, cur_arg = cap[e], len(path)-1... but after augmentation, prefix caps change, so we'd recompute. Meh, two scans is fine.
+
+Hmm, wait: there's an issue with the retreat-after-augment and it[] pointers: after truncating path at first_sat, the vertices in the truncated suffix have it[] pointers pointing wherever they were — that's fine, they're just current-arc pointers; when revisited, we continue from there. But one problem: a vertex in the truncated suffix might have been marked dead... no, dead vertices are never on the current path... hmm, actually a vertex on the current path can't be dead (we only mark dead when retreating from it, removing it from path). But could a vertex on the path have been marked dead EARLIER in the phase (before being re-added to path)? If level[v] == -1, we never advance into it. ✓.
+
+Another subtle thing: after augmentation, we `continue` — u is set to the retreat vertex; the loop continues from the top: if u == t? Can't be (retreat vertex is before first_sat, and t is at the end... if first_sat == len(path)-1... the retreat vertex is to[path[first_sat-1]] which has level < level[t], so ≠ t... unless first_sat == 0 → u = s ≠ t). ✓.
+
+Now, the phase loop: `while bfs(): ...`. Inside, the blocking flow loop. After the loop ends (u == s with no admissible arcs), phase done. Next bfs.
+
+Early exit: after each augmentation, if flow > B: print NO, return. Also could check after each phase. Per-augmentation check is cheap.
+
+Hmm, actually with capping at B+1, can flow exceed B by a lot in one augmentation? Each augmentation pushes ≤ B+1 (bottleneck ≤ cap ≤ B+1). So flow ≤ B + (B+1) = 2B+1 at detection. Fine, no overflow issues in Python anyway.
+
+Now, after the while loop ends (bfs returned False), flow ≤ B (else we'd have exited). Output:
+
+```python
+    # S = vertices with level >= 0
+    out = []
+    cut_edges = []
+    total = 0
+    for i in range(m):
+        u = eu[i]; v = ev[i]
+        if (level[u] >= 0) != (level[v] >= 0):
+            cut_edges.append(i)
+    # output
+    res = ["YES", str(len(cut_edges))]
+    for i in cut_edges:
+        res.append(f"{eu[i]} {ev[i]}")
+    sys.stdout.write("\n".join(res) + "\n")
+```
+
+Wait — but I need to double check the total cost: sum of true w over cut edges. With capping, I argued it equals flow ≤ B. Let me re-verify with the capped network: cut value in capped network = sum over crossing edges of capped cap (original capped capacity) = flow. Crossing edges have capped cap = min(w, B+1). Since flow ≤ B, each crossing edge has min(w, B+1) ≤ B → w ≤ B → capped cap = w. So sum of true w = flow ≤ B. ✓. 
+
+But WAIT — one more check on the undirected-edge trick with capping: the edge pair (2i, 2i+1) both have cap = min(w, B+1). The cut argument: crossing edge {u,v}, u ∈ S: arc 2i (u→v) saturated: cap[2i] = 0. ✓ (else v reachable). And its contribution to cut value is its ORIGINAL capped capacity min(w, B+1). ✓. Sum = flow. ✓.
+
+Hmm, but actually hold on: is the cut value really = flow? Max-flow min-cut: flow value = cap(S→T) - cap(T→S) where these are... no. Let me redo: flow value = net flow across cut = sum of flow on arcs S→T minus sum of flow on arcs T→S. Arcs S→T saturated: flow = capacity. Arcs T→S: zero flow (else reverse residual would make S-vertex... wait, arcs T→S with flow > 0 give residual arc S→T'... let me redo: arc (v,u), v ∈ T, u ∈ S, flow f > 0 → residual arc (u,v) with capacity f > 0 → v reachable from u ∈ S → v ∈ S, contradiction). So arcs T→S carry 0 flow. Hence flow value = sum of capacities of arcs S→T = cut value. ✓. And with the undirected trick, "flow on arc" is the net flow interpretation — the trick is exactly equivalent to the two-arc model, so the theorem applies. ✓.
+
+Also, the crossing edges disconnect s from t when removed: yes, as argued.
+
+Hmm, but wait: what about crossing edges where the S-side endpoint... I'm iterating over input edges and checking side membership — that catches all crossing undirected edges. But is every crossing undirected edge's S→T arc saturated? Yes (else T endpoint would be reachable). But actually, hmm: what if BOTH arcs... the edge {u,v}, u ∈ S, v ∈ T: arc u→v saturated. The edge is crossing. ✓. What if an edge has u ∈ S, v ∈ S but arc u→v saturated? Not crossing, not output. Fine — removing only crossing edges suffices to disconnect.
+
+Wait, actually, do I even need to remove ALL crossing edges? For disconnection, yes I should remove all of them (any remaining crossing edge reconnects S and T... well, a remaining crossing edge with... any crossing edge, if not removed, connects S and T directly). So remove all crossing. ✓. Total = flow ≤ B. ✓.
+
+Now, let me also double check the BFS explores using cap > 0 — with capped capacities. ✓.
+
+Let me now also think: is it possible that after the algorithm, level[t] >= 0 but the while loop exited? No: while bfs() runs while level[t] >= 0. Exits when bfs returns False, i.e., level[t] == -1. ✓. So t ∉ S. ✓.
+
+Now, performance considerations for the Dinic in Python:
+
+1. BFS: uses `for e in graph[u]` — fine. Could speed up by storing adjacency as tuples... lists fine.
+
+2. The DFS inner loop: heavy. Let me optimize with local variables: `to_l = to; cap_l = cap; graph_l = graph; level_l = level; it_l = it`. Inside the while loop, reference locals.
+
+Actually, since everything is inside main(), local variable access is already fast. But `bfs` and the DFS loop — let me inline BFS into main (avoid function call overhead per phase — negligible, phases are few).
+
+Let me restructure: everything in main() with local vars, BFS inline in the while loop.
+
+Also, one important optimization for Dinic in Python: represent graph adjacency as list of lists of edge indices; in the advance loop, we do:
+
+```python
+while True:
+    if u == t: ... augment ...
+    gu = graph[u]
+    iu = it[u]
+    found = False
+    while iu < len(gu):
+        e = gu[iu]
+        if cap[e] > 0 and level[to[e]] == level[u] + 1:
+            found = True
+            break
+        iu += 1
+    it[u] = iu
+    if found:
+        path.append(e)
+        u = to[e]
+    else:
+        if u == s: break
+        level[u] = -1
+        e = path.pop()
+        u = to[e ^ 1]
+        it[u] += 1
+```
+
+Hmm, `level[u] + 1` recomputed each iteration — hoist: `lu1 = level[u] + 1` before the inner while. And `len(gu)` — hoist as `lg = len(gu)`... but gu doesn't change; but iu changes. `while iu < lg:`. Hmm, but graph[u] for u fixed — fine.
+
+Micro-optimization: combine `cap[e] > 0 and level[to[e]] == lu1`. We could precompute... An alternative representation: store adjacency as list of (edge) but also parallel arrays. Another common trick: store for each vertex a list of edge indices, and store `to` and `cap` as Python lists — indexing is fast.
+
+Alternative approach used in fast Python Dinic implementations: recursion with the multi-push dfs. Let me reconsider recursion depth: path length ≤ n. If n ≤ 10^4, recursion is OK with setrecursionlimit(2*10^4)... Python's C stack: default thread stack size ~8MB (Linux), each Python frame uses ~... with simple frames, ~100 bytes of C stack per recursion? Actually CPython's recursion uses heap-allocated frames for Python code, but the C stack still grows per call chain (each Python-to-Python call via the interpreter... in CPython 3.11+, calls don't grow the C stack as much due to the "zero-cost" frames... but there's still a C-level limit). In CPython 3.11, deep recursion (like 10^5) can crash. For 10^4, usually OK. But unknown n... iterative is safest. I'll do iterative.
+
+Let me also think about whether the number of phases could be large. For undirected graphs, I now recall the actual theorem: **the number of phases of Dinic's algorithm on an undirected graph is O(√E · something)?** Hmm. Let me look at it from the "min cut" angle: In an undirected graph, let C* = min cut value. Every augmenting path uses ≥ 1 edge from... no, every augmenting path in the residual — hmm. Known result (from Schrijver's book or elsewhere): for undirected graphs, the number of phases is O(√C*) where C* is the min cut? Hmm, I genuinely recall something like: "In an undirected network, Dinic's algorithm terminates in O(√m) phases"? Let me try to prove: Let d_k = distance from s to t in residual at phase k. Each phase increases d by ≥ 1. Also, there's a lemma: in an undirected graph, the residual distance... Consider the min cut at the current residual... Hmm.
+
+Alternative known result: the number of augmenting paths in Dinic on undirected graphs is O(m) total? Because each augmenting path saturates an edge, and in undirected graphs... within a phase, saturated arcs stay saturated (reverse arcs go backward in level, unused). Across phases, flow can be rerouted... In undirected graphs, actually there's a classical result that the total number of augmentations is O(m log)? I don't remember precisely.
+
+Let me just recall the practical fact: Dinic on undirected graphs is fast — the number of phases is O(√m)? I'm fairly confident there's a theorem: **for undirected graphs, the number of phases is O(√m)** — hmm, actually I think that's for unit-capacity undirected graphs (O(√m) phases, giving O(m^{1.5}) total — the Even-Tarjan result for unit-capacity undirected max flow in O(m^{1.5})). For general capacities undirected, I don't think there's a √m phase bound... Hmm, wait — actually I recall: **in undirected graphs, the number of phases is at most the number of edges in the min cut + something**? Let me think: Let C be a minimum s-t cut (edge set). Every augmenting path must cross C, using at least one edge of C... in the residual, the arcs corresponding to C edges: each augmenting path uses ≥ 1 arc from C (crossing from S-side to T-side... but with residual rerouting, paths can cross back and forth). Hmm, in an undirected graph, an augmenting path can cross the cut multiple times. Each crossing uses capacity of a cut edge. Total flow ≤ C value. Hmm.
+
+Actually here's a cleaner classical fact I'm confident about: **In an undirected graph, the number of phases of Dinic's algorithm is at most 2·|C|+1 or O(|C|)**? No...
+
+Let me think practically: worst case for Dinic phases is O(n) (distance increases each phase up to n). For undirected, there's a nice argument: Let d = current s-t distance in residual. The min cut in residual... Consider the residual graph; a min cut has value = remaining flow F_rem. Each edge on the shortest path... Hmm, here's an argument for O(√(m)) phases in undirected graphs with UNIT capacities. For general capacities, no.
+
+OK whatever — practically, Dinic on undirected graphs behaves very well. And with capping at B+1, capacities are bounded. Worst case though: B huge, adversarial graph. Can't do better than a good Dinic in Python. Let me also consider adding capacity scaling to Dinic to bound phases by O(log(U) ) × ... Scaling Dinic: O(E² log U)? Hmm, that's for the scaling variant of Ford-Fulkerson. Dinic with scaling: phases O(log U) each... no, scaling Dinic: for each threshold Δ from high to low, do Dinic phases on the Δ-restricted network; total O(E log U) augmentations? The standard "capacity scaling Dinic" has complexity O(E² log U) or O(EV log U)... For our purposes, plain Dinic is standard and typically fine.
+
+Given it's "Problem B" of what looks like a moderate contest, I'll go with plain Dinic, well-implemented.
+
+Let me now also handle potential edge cases in parsing: The input format: "Line 1: five integers n, m, s, t, B. Next m lines: three integers u v w". Straightforward.
+
+Vertices are 1..n presumably. s, t in 1..n. If s or t out of range... assume valid.
+
+What if m = 0? Then no edges; if s ≠ t, they're disconnected → flow 0 ≤ B → YES, 0 edges. Output "YES\n0\n". ✓. Need to make sure the code handles empty edge arrays: E = 0, to = [], cap = [], graph = [[] ...]. BFS from s: level[s] = 0, no edges, level[t] = -1 → bfs False → flow 0 ≤ B → YES, cut_edges empty. ✓.
+
+What if the graph has vertices beyond n mentioned? No.
+
+Now, about the output when c = 0: "YES\n0\n" — and no further lines. ✓.
+
+Let me now also double check the example:
+
+n=4, m=4, s=1, t=4, B=10. Edges: (1,2,5), (1,3,6), (2,4,4), (3,4,8). CAP_LIMIT = 11, no capping.
+
+Edges (pairs): 
+- i=0: e0: 1→2 cap 5; e1: 2→1 cap 5.
+- i=1: e2: 1→3 cap 6; e3: 3→1 cap 6.
+- i=2: e4: 2→4 cap 4; e5: 4→2 cap 4.
+- i=3: e6: 3→4 cap 8; e7: 4→3 cap 8.
+
+graph[1] = [0, 2]; graph[2] = [1, 4]; graph[3] = [3, 6]; graph[4] = [5, 7].
+
+BFS: level[1]=0, level[2]=1, level[3]=1, level[4]=2. t reachable → phase.
+
+Blocking flow: u=1, it[1]=0. Advance: e0 (cap 5 > 0, level[2] = 1 = 0+1 ✓) → path=[e0], u=2. Advance from 2: e1: cap 5 > 0, level[to=1] = 0 ≠ 2 → skip, iu=1; e4: cap 4 > 0, level[4] = 2 ✓ → path=[e0,e4], u=4 = t. Augment: f = min(5,4) = 4. flow = 4. Subtract: e0: 5-4=1; e4: 4-4=0 (first_sat: idx 0: e0 cap 1 ≠ 0; idx 1: e4 cap 0 → first_sat=1). Also e5 += 4 → 8; e1 += 4 → 9. Truncate: del path[1:] → path=[e0], u = to[e0^1] = to[e1] = 1. 
+
+Continue: u=1, it[1]=0: e0 cap 1 > 0, level[2]=1 ✓ → path=[e0], u=2. From 2: it[2]=1 (e1 skipped earlier... wait, it[2] was set to 1 when we skipped e1). e4: cap 0 → skip, iu=2 = len → dead end at 2. level[2] = -1. Pop e0, u = to[e0^1] = 1, it[1] += 1 → 1. 
+
+u=1: it[1]=1: e2: cap 6 > 0, level[3] = 1 ✓ → path=[e2], u=3. From 3: it[3]=0: e3: cap 6 > 0, level[to=1] = 0 ≠ 2 → skip; e6: cap 8 > 0, level[4] = 2 ✓ → path=[e2, e6], u=4=t. Augment: f = min(6,8) = 6. flow = 10. ≤ B ✓. Subtract: e2: 0 (first_sat=0), e6: 2; e3: 12, e7: 14. Truncate: path=[], u=1.
+
+u=1: it[1]=1: e2: cap 0 → skip, iu=2 = len(graph[1]) → dead end at s → break. Phase done. flow = 10.
+
+BFS: level[1]=0; edges from 1: e0 cap 1 > 0 → level[2] = 1; e2 cap 0. From 2: e1 cap 9 → level[1] already 0; e4 cap 0. From... queue: [1, 2]. Done. level[4] = -1 → bfs False. Loop ends.
+
+S = {1, 2} (level ≥ 0). Cut edges: (1,2): both in S — no. (1,3): 1∈S, 3∉S → cut. (2,4): cut. (3,4): both ∉ S — no. Output: YES, 2, "1 3", "2 4". Total = 6+4 = 10 ≤ 10. ✓. The example outputs "2 4" then "1 3" — different order, but presumably checker accepts. Hmm. I'm a bit nervous about this. Let me think again about whether the expected output might need to match exactly...
+
+The problem says: "Output `YES`, then a line with the number c of removed links, then c lines "u v"; or `NO`." If the judge were exact-match, then the required cut would have to be unique AND in a specific order. Here the cut set is unique but the order in the example is "2 4", "1 3". If exact match is required, I'd need to figure out the canonical order. Possible canonical orders producing "2 4" before "1 3":
+- Sorted by weight ascending: (2,4) w=4, (1,3) w=6. ✓ matches!
+- Sorted by u descending: 2, 1. ✓ also matches.
+- Sorted by v descending: 4, 3. ✓ also matches.
+- Edges output in reverse input order: input order (1,3), (2,4) → reversed: (2,4), (1,3). ✓ also matches!
+- Some traversal order.
+
+Too many possibilities. Also the orientation "u v" — as in input. Both "2 4" and "1 3" match input orientation.
+
+Hmm. Given the ambiguity, and that this type of problem (find any cut within budget) almost certainly uses a special judge (checker), I'll output in input order. Actually — wait. Let me reconsider: maybe output in reverse input order to match the example exactly? If the judge is exact-match, matching the example's order might be needed... but for other test cases, I can't know the canonical order. If it's a special judge, any order works. If it's exact match, I need the exact canonical rule, which I can't infer reliably from one example. The safest bet: it's a special judge (most likely for such problems). But hmm, let me think about which is more likely...
+
+The problem statement's phrasing "Choose a set of corridors to seal whose total cost is within the budget and whose removal leaves the two sites disconnected, or report that no in-budget sealing can separate them." — this is a decision/constructive problem where multiple answers exist (any cut ≤ B works, not even necessarily min cut!). E.g., if min cut is 5 and B is 10, any cut with cost ≤ 10 is acceptable. The example happens to have a unique acceptable set. A problem with multiple valid answers MUST use a special judge. So: special judge. Output any valid set. 
+
+I'll output in input order. Also, note: the checker probably verifies: c lines, each is an existing link (u,v), total cost ≤ B, and s-t disconnected after removal. Our answer: min cut edges, total = mincut ≤ B. ✓.
+
+One concern: does the checker maybe require c ≥ 1 or specific formatting? "then c lines" — with c = 0, zero lines. Fine.
+
+Another thought: should we output "u v" with u,v as given in input, or does orientation matter? A checker would probably accept either orientation (or match against the edge list). I'll output as given in input.
+
+Now, let me also reconsider: is it definitely true that we should seal a MIN cut? What if min cut ≤ B — yes output it. What if min cut > B — NO. Correct.
+
+Hmm wait, actually, let me reconsider the problem statement once more: "There is a fixed remediation budget that this total must not exceed." — total sealing cost ≤ B. "The placement of most rooms is unconstrained; they may end up on either side of the eventual partition, which plays no part in whether the plan is accepted." — confirms it's pure min cut (no constraints on which side vertices fall). "after the remediation, there must be no path of unsealed corridors between the two sites, in either direction" — s-t disconnection. ✓. So: min cut ≤ B?
+
+Now let me also think: could the problem intend that we must seal edges such that s and t are in DIFFERENT components — yes that's disconnection. ✓.
+
+Alright. Now let me also double-check the iterative Dinic for correctness on tricky cases:
+
+Case: parallel edges s→t: (s,t,3), (s,t,5), B=7. CAP_LIMIT=8. Edges: e0: s→t 3, e1: t→s 3, e2: s→t 5, e3: t→s 5. BFS: level[s]=0, level[t]=1. Phase: u=s: e0 cap 3, level[t]=1 ✓ → path=[e0], u=t. Augment f=3, flow=3. e0

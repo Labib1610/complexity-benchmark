@@ -1,0 +1,301 @@
+```python
+import sys
+from collections import defaultdict
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    constraints = []
+    index = 2
+    for _ in range(m):
+        c1 = int(data[index])
+        c2 = int(data[index+1])
+        index += 2
+        constraints.append((c1, c2))
+    
+    # For each constraint (c1, c2), we compute what values v1 and v2 are
+    # v1 = s[|c1|] if c1 > 0 else 1 - s[|c1|]
+    # v2 = s[|c2|] if c2 > 0 else 1 - s[|c2|]
+    #
+    # The functions are:
+    # f1(x) = x + 2*v1 - 1
+    # f2(x) = x + 2*v2 - 1
+    #
+    # Integral I = ∫[0,1] f1(x)*f2(x) dx
+    #              = ∫[0,1] (x + 2v1 - 1)(x + 2v2 - 1) dx
+    #              = ∫[0,1] x² + (2v1 - 1)x + (2v2 - 1)x + (2v1 - 1)(2v2 - 1) dx
+    #              = ∫[0,1] x² + 2(v1 + v2 - 1)x + (2v1 - 1)(2v2 - 1) dx
+    #              = [x³/3 + (v1 + v2 - 1)x² + (2v1 - 1)(2v2 - 1)x] from 0 to 1
+    #              = 1/3 + (v1 + v2 - 1) + (2v1 - 1)(2v2 - 1)
+    #              = 1/3 + v1 + v2 - 1 + 4v1v2 - 2v1 - 2v2 + 1
+    #              = 1/3 + 4v1v2 - v1 - v2
+    #
+    # We want I ≠ 1/3 => 4v1v2 - v1 - v2 ≠ 0 => v1(4v2 - 1) ≠ v2
+    # This simplifies to checking when 4v1v2 - v1 - v2 == 0
+    # That is equivalent to: v1(4v2 -1) = v2
+    # If v2 = 0 => v1*0 = 0 which holds for any v1
+    # If v2 = 1 => v1*(4-1) = 1 => 3v1 = 1 => v1 = 1/3, but v1 is integer => never holds
+    # So the only way 4v1v2 - v1 - v2 = 0 is if v2=0 and the equation becomes 0=0 always true
+    # Wait let's recheck:
+    # 4v1v2 - v1 - v2 = 0
+    # v1(4v2 -1) = v2
+    # 
+    # Case v2=0: v1*(-1) = 0 => v1 = 0
+    # Case v2=1: v1*(3) = 1 => v1 = 1/3 impossible since v1 is integer
+    # So only solution is v1=0 and v2=0
+    
+    # Thus, forbidden condition is v1 = v2 = 0
+    # But actually we need to double-check:
+    # I = 1/3 + 4v1v2 - v1 - v2
+    # Forbidden: I = 1/3 => 4v1v2 - v1 - v2 = 0
+    # Let's solve 4v1v2 - v1 - v2 = 0
+    # v1(4v2 -1) = v2
+    # If v2=0 => v1(-1)=0 => v1=0
+    # If v2=1 => v1(3)=1 => v1=1/3 impossible
+    # Only solution: v1=0, v2=0
+    
+    # So the forbidden case is when both v1=0 and v2=0
+    
+    # Now express v1 and v2 in terms of s variables:
+    # v1 = s[abs(c1)]     if c1>0 else 1-s[abs(c1)]
+    # v2 = s[abs(c2)]     if c2>0 else 1-s[abs(c2)]
+    #
+    # Forbidden: v1=0 AND v2=0
+    # v1=0 => s[abs(c1)] = 0 if c1>0 else 1-s[abs(c1)] = 0 => s[abs(c1)] = 1 if c1<0 else 0
+    # v2=0 => s[abs(c2)] = 0 if c2>0 else 1-s[abs(c2)] = 0 => s[abs(c2)] = 1 if c2<0 else 0
+    #
+    # So for each constraint (c1,c2), we get:
+    # var1 = abs(c1), val1 = 0 if c1>0 else 1
+    # var2 = abs(c2), val2 = 0 if c2>0 else 1
+    # And we forbid the assignment s[var1]=val1 AND s[var2]=val2
+    
+    # This is a 2-SAT problem where each constraint says:
+    # NOT (s[var1] == val1 AND s[var2] == val2)
+    # Which is equivalent to:
+    # (s[var1] != val1) OR (s[var2] != val2)
+    # Which translates to clauses:
+    # (s_var1_lit) OR (s_var2_lit)
+    # where literals are positive if we're setting to 1, negative if setting to 0
+    
+    # Literal definitions:
+    # For variable i:
+    # literal i+1 represents s[i]==1
+    # literal -(i+1) represents s[i]==0
+    
+    # Given constraint: NOT(s[var1] == val1 AND s[var2] == val2)
+    # This means at least one of s[var1] != val1 or s[var2] != val2
+    # 
+    # If val1==0, then s[var1]!=0 means s[var1]==1 => lit = (var1+1)
+    # If val1==1, then s[var1]!=1 means s[var1]==0 => lit = -(var1+1)
+    # Similarly for val2
+    
+    # Build 2-SAT instance
+    from collections import defaultdict
+    
+    # We'll use Implication Graph method for 2-SAT
+    # Each variable i has literals: i+1 (for s[i]==1) and -(i+1) (for s[i]==0)
+    
+    # Function to get literal
+    def lit(var, val):
+        # var is 0-based index
+        if val == 1:
+            return var + 1
+        else:
+            return -(var + 1)
+            
+    # For each constraint (c1,c2):
+    # Not allowed: s[abs(c1)] == (0 if c1>0 else 1) AND s[abs(c2)] == (0 if c2>0 else 1)
+    # Let val1 = (0 if c1>0 else 1), val2 = (0 if c2>0 else 1)
+    # Then not allowed: s[abs(c1)] == val1 AND s[abs(c2)] == val2
+    # Clause: NOT(s[abs(c1)] == val1) OR NOT(s[abs(c2)] == val2)
+    # Literals: lit(abs(c1)-1, 1-val1) OR lit(abs(c2)-1, 1-val2)
+    
+    # Build implication graph
+    adj = defaultdict(list)
+    adj_rev = defaultdict(list)
+    
+    for c1, c2 in constraints:
+        var1 = abs(c1) - 1  # Convert to 0-based
+        var2 = abs(c2) - 1
+        val1 = 0 if c1 > 0 else 1
+        val2 = 0 if c2 > 0 else 1
+        
+        # Not allowed: s[var1] == val1 AND s[var2] == val2
+        # Clause: (s[var1] != val1) OR (s[var2] != val2)
+        # Add implications:
+        # If s[var1] == val1 => s[var2] != val2
+        # If s[var2] == val2 => s[var1] != val1
+        
+        # In terms of literals:
+        # lit1 = lit(var1, val1) -> forbidden literal
+        # lit2 = lit(var2, val2) -> forbidden literal
+        # We add: NOT(lit1) OR NOT(lit2)
+        # This is equivalent to: lit1 => NOT(lit2) and lit2 => NOT(lit1)
+        
+        l1 = lit(var1, val1)  # This literal being true leads to contradiction
+        l2 = lit(var2, val2)  # This literal being true leads to contradiction
+        # So we add clauses: NOT(l1) OR NOT(l2)
+        # Which means: if l1 is true, then NOT(l2) must be true => l1 => (-l2)
+        # Similarly: l2 => (-l1)
+        
+        adj[-l1].append(l2)
+        adj[-l2].append(l1)
+        adj_rev[l2].append(-l1)
+        adj_rev[l1].append(-l2)
+    
+    # Kosaraju's algorithm for SCC
+    order = []
+    visited = set()
+    
+    def dfs1(u):
+        visited.add(u)
+        for v in adj[u]:
+            if v not in visited:
+                dfs1(v)
+        order.append(u)
+    
+    def dfs2(u, component):
+        visited.add(u)
+        component.append(u)
+        for v in adj_rev[u]:
+            if v not in visited:
+                dfs2(v, component)
+                
+    # First DFS pass
+    all_nodes = set(adj.keys()) | set(adj_rev.keys())
+    for node in all_nodes:
+        if node not in visited:
+            dfs1(node)
+    
+    # Second DFS pass on transpose graph
+    visited.clear()
+    components = []
+    assignment = {}
+    
+    while order:
+        node = order.pop()
+        if node not in visited:
+            comp = []
+            dfs2(node, comp)
+            components.append(comp)
+            # Check if both x and -x are in same component
+            literals = set()
+            for u in comp:
+                if u in literals or -u in literals:
+                    print("NO")
+                    return
+                literals.add(u)
+                if abs(u) not in assignment:
+                    # Assign false to literals in this component
+                    # Actually, in Kosaraju, the last component processed should be assigned false
+                    # But we process in reverse order of finishing time
+                    # The first component in reverse order gets true
+                    # No, let's think differently
+                    
+                    # In 2-SAT with implication graph:
+                    # If x => y, then in adj[x] we have y
+                    # If both x and -x are in same SCC, unsatisfiable
+                    # Otherwise, assign values based on topological order of SCCs
+                    
+                    # We'll assign truth values later
+                    pass
+                    
+    # Assign truth values
+    visited_comp = set()
+    comp_assign = {}
+    
+    # Process components in reverse order (last ones in topological order of DAG of SCCs)
+    for comp in reversed(components):
+        literals = set(comp)
+        rep = None
+        for u in comp:
+            if u not in visited_comp:
+                rep = u
+                break
+        if rep is None:
+            continue
+            
+        # Check if both x and -x are here (shouldn't happen due to earlier check)
+        # Assign representative
+        for u in comp:
+            visited_comp.add(u)
+            
+        # Determine if this component should be true or false
+        # If neither x nor -x is assigned yet, we can choose
+        # Prefer to make positive literals true?
+        # Actually, standard approach:
+        # Process components in topological order of condensation graph
+        # Assign false to first (in topological order), true to rest? No.
+        
+        # Better: for each component, if it doesn't contain negation of its representative,
+        # assign it accordingly
+        
+        # Simpler: just check consistency
+        consistent = True
+        for u in comp:
+            if -u in literals:
+                consistent = False
+                break
+        if not consistent:
+            print("NO")
+            return
+            
+        # Assign all literals in component
+        val = True  # Default assignment
+        # But we need to ensure consistency
+        # Actually, in Kosaraju, if we found no x,-x in same SCC, it's satisfiable
+        # Assignment: process components in reverse topological order
+        # For each unassigned variable, assign so that its SCC value is satisfied
+        
+        # Let's map each literal to its component index
+        for u in comp:
+            if abs(u) not in comp_assign:
+                # Assign based on some rule
+                # Easier: assign component as True or False
+                comp_assign[abs(u)] = (comp, True)  # Say all in component are True
+                
+    # Final assignment step
+    # Map each variable to its truth value
+    final_assignment = [None] * n
+    for i in range(n):
+        pos_lit = i + 1
+        neg_lit = -(i + 1)
+        assigned = False
+        for comp in components:
+            literals_in_comp = set(comp)
+            if pos_lit in literals_in_comp:
+                # This component says s[i] should be True
+                final_assignment[i] = 1
+                assigned = True
+                break
+            elif neg_lit in literals_in_comp:
+                # This component says s[i] should be False  
+                final_assignment[i] = 0
+                assigned = True
+                break
+        if not assigned:
+            # Can assign arbitrarily
+            final_assignment[i] = 0
+            
+    # Verify solution satisfies all constraints
+    for c1, c2 in constraints:
+        var1 = abs(c1) - 1
+        var2 = abs(c2) - 1
+        val1 = 0 if c1 > 0 else 1
+        val2 = 0 if c2 > 0 else 1
+        if final_assignment[var1] == val1 and final_assignment[var2] == val2:
+            # Constraint violated
+            print("NO")
+            return
+            
+    print("YES")
+    print(' '.join(map(str, final_assignment)))
+
+if __name__ == "__main__":
+    main()
+```

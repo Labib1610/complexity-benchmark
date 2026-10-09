@@ -1,0 +1,71 @@
+import sys
+from itertools import permutations
+
+def can_schedule(compositions, instruments, max_time):
+    # compositions: list of list of (instrument, duration)
+    n = len(compositions)
+    # state: for each composition, next segment index
+    # and for each instrument, next available time
+    next_seg = [0] * n
+    instr_free = [0] * (instruments + 1)  # 1-indexed instruments
+
+    # We'll do DFS with pruning
+    def dfs(time):
+        if time > max_time:
+            return False
+        all_done = True
+        for i in range(n):
+            if next_seg[i] < len(compositions[i]):
+                all_done = False
+                break
+        if all_done:
+            return True
+
+        # Try to schedule next segment of each composition
+        for i in range(n):
+            if next_seg[i] < len(compositions[i]):
+                inst, dur = compositions[i][next_seg[i]]
+                start = max(time, instr_free[inst])
+                if start + dur <= max_time:
+                    # save state
+                    old_next = next_seg[i]
+                    old_free = instr_free[inst]
+                    next_seg[i] += 1
+                    instr_free[inst] = start + dur
+                    if dfs(max(time, start + dur)):
+                        return True
+                    # restore
+                    next_seg[i] = old_next
+                    instr_free[inst] = old_free
+        return False
+
+    return dfs(0)
+
+def main():
+    data = sys.stdin.read().strip().split()
+    idx = 0
+    j = int(data[idx]); idx += 1
+    m = int(data[idx]); idx += 1
+    compositions = []
+    for _ in range(j):
+        o = int(data[idx]); idx += 1
+        segs = []
+        for _ in range(o):
+            inst = int(data[idx]); idx += 1
+            dur = int(data[idx]); idx += 1
+            segs.append((inst, dur))
+        compositions.append(segs)
+
+    # Binary search on answer
+    lo = 0
+    hi = sum(dur for comp in compositions for _, dur in comp)
+    while lo < hi:
+        mid = (lo + hi) // 2
+        if can_schedule(compositions, m, mid):
+            hi = mid
+        else:
+            lo = mid + 1
+    print(lo)
+
+if __name__ == "__main__":
+    main()

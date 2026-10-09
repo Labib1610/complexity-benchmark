@@ -1,25 +1,24 @@
-# Orbital Power Routing
+# Acoustic Levitation Arrays
 
-Time limit: 2 s
-Memory limit: 256 MB
+Time limit: 2 s   Memory limit: 256 MB
 
-The deployment sequence for a new orbital satellite involves a three-phase initialization process for its electronic modules. Your task is to implement the software for the second phase of this sequence.
+A complete acoustic levitation sequence consists of three stages: spatial calibration, phase assignment, and amplitude modulation. You are responsible for implementing the second stage.
 
-In Phase I (Interference Profiling), onboard diagnostics analyze electromagnetic sensitivities. This phase produces a list of module pairs that will experience severe crosstalk if they draw power from the same source. 
+During the first stage, the system scans the $n$ acoustic emitters and maps their geometry. This spatial calibration generates a list of $m$ specific pairs of emitters that have overlapping focal points.
 
-In Phase II (Tri-Band Allocation), which you must implement, the system assigns each module to one of exactly three independent power bands, designated by the identifiers 1, 2, and 3. A valid allocation must ensure that no two modules flagged during Phase I are assigned to the same power band. Because Phase III requires strict determinism, if multiple valid allocations exist, Phase II must produce the one that is lexicographically smallest. (An allocation sequence $A$ is lexicographically smaller than $B$ if, at the first module where they differ, $A$ assigns a lower band identifier than $B$.)
+Your software module must now perform the phase assignment stage. Each emitter must be programmed with exactly one of three available phase offset codes: 1, 2, or 3. If two emitters share a focal point and are assigned the exact same phase offset, their acoustic waves will perfectly synchronize. This causes a resonance spike that will shatter the levitated sample. Therefore, your module must guarantee that any two emitters with an overlapping focal point receive distinct phase offsets.
 
-In Phase III (Firmware Compilation), a downstream compiler uses the allocation from Phase II to flash the final operating parameters into each module's memory. If Phase II determines that no safe allocation is possible, the initialization sequence is aborted.
+If your module successfully assigns a safe phase sequence, the sequence is passed to the third stage, where amplitude modulation calculates the precise power levels for each emitter. If your module determines that no safe phase assignment is possible for the given geometry, the entire sequence must abort.
 
-You are provided with the output of Phase I. You must produce the exact output required by Phase III.
+Given the focal point overlap data from the first stage, determine if a safe phase assignment exists, and if so, output one valid configuration to feed into the third stage.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 40$, $0 \le m \le n \cdot (n-1)/2$), representing the number of electronic modules and the number of crosstalk-sensitive pairs identified in Phase I. The modules are numbered 1 through $n$.
-Each of the next $m$ lines contains two integers $u$ and $v$, indicating that module $u$ and module $v$ cannot be assigned to the same power band.
+The first line contains two integers $n$ and $m$ — the number of emitters and the number of overlapping focal points identified during spatial calibration ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
+Each of the next $m$ lines contains two integers $u$ and $v$, indicating that emitter $u$ and emitter $v$ share a focal point.
 
 ## Output
-If Phase II cannot find any valid allocation, output a single line containing `NO`.
-Otherwise, output `YES` on the first line. On the second line, output $n$ integers $b_1, b_2, \dots, b_n$, where $b_i \in \{1, 2, 3\}$ is the power band assigned to module $i$. This sequence must be the lexicographically smallest among all valid allocations.
+If the geometry forces an unsafe configuration, print a single line NO.
+Otherwise, print YES on the first line. On the second line print $n$ integers $p_1, p_2, \dots, p_n$ (each in $\{1, 2, 3\}$), where $p_i$ is the phase offset assigned to emitter $i$. If multiple valid phase assignments exist, any valid sequence may be passed to the next stage.
 
 ## Example 1
 Input:

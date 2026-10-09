@@ -1,47 +1,41 @@
 import sys
-from collections import deque
 
 def solve():
-    data = sys.stdin.read().split()
+    data = sys.stdin.buffer.read().split()
     if not data:
         return
     it = iter(data)
     n = int(next(it))
     m = int(next(it))
-    
-    adj = [[] for _ in range(n)]
+    adj = [[] for _ in range(n + 1)]
     for _ in range(m):
-        u = int(next(it)) - 1
-        v = int(next(it)) - 1
+        u = int(next(it))
+        v = int(next(it))
         adj[u].append(v)
         adj[v].append(u)
-    
-    color = [0] * n
-    possible = True
-    
-    for i in range(n):
-        if color[i] == 0:
-            queue = deque([i])
-            color[i] = 1
-            while queue:
-                u = queue.popleft()
-                for v in adj[u]:
-                    if color[v] == 0:
-                        color[v] = 3 - color[u]
-                        queue.append(v)
-                    elif color[v] == color[u]:
-                        possible = False
-                        break
-                if not possible:
-                    break
-        if not possible:
-            break
-    
-    if not possible:
-        print("NO")
-    else:
-        print("YES")
-        print(' '.join(map(str, color)))
 
-if __name__ == "__main__":
-    solve()
+    color = [0] * (n + 1)
+    stack = []
+
+    for start in range(1, n + 1):
+        if color[start] != 0:
+            continue
+        color[start] = 1
+        stack.append(start)
+        while stack:
+            u = stack.pop()
+            cu = color[u]
+            nv = 3 - cu
+            for v in adj[u]:
+                cv = color[v]
+                if cv == 0:
+                    color[v] = nv
+                    stack.append(v)
+                elif cv == cu:
+                    sys.stdout.write("NO\n")
+                    return
+
+    out = ["YES\n", " ".join(str(color[i]) for i in range(1, n + 1)), "\n"]
+    sys.stdout.write("".join(out))
+
+solve()

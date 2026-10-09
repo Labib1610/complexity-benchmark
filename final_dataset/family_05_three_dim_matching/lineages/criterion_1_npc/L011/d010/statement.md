@@ -1,0 +1,79 @@
+# Problem A — Calibration Matrices
+
+Time limit: 5 s   Memory limit: 256 MB
+
+## Description
+
+A satellite communications array requires the setup of a stable transmission network. The system integrates exactly **k** distinct frequency bands, **k** distinct modulation schemes, and **k** distinct encryption keys (where **k** is at most 22).
+
+The engineering team has certified exactly **t** approved configurations. Each approved configuration is given as a triplet `(x, y, z)`, representing a channel utilizing frequency band **x**, modulation scheme **y**, and encryption key **z**. All values are integers between 1 and **k**. All listed configurations are distinct.
+
+To finalize the network setup, you must select and deploy exactly **k** configurations from the approved list.
+
+The deployment must strictly adhere to the Configuration Interference protocol. Two distinct approved configurations are said to *interfere* if they share the same frequency band, the same modulation scheme, or the same encryption key. A deployed network is considered fully operational if and only if you select exactly **k** configurations such that no two selected configurations interfere with each other.
+
+*(Note: Because the network requires exactly **k** configurations and all parameter values are bounded between 1 and **k**, selecting **k** mutually non-interfering configurations is mathematically identical to the following one-to-one usage condition: every frequency band from 1 to **k** appears in exactly one selected triplet, every modulation scheme from 1 to **k** appears in exactly one selected triplet, and every encryption key from 1 to **k** appears in exactly one selected triplet. Both perspectives specify the exact same valid deployments.)*
+
+Determine whether it is possible to deploy exactly **k** approved configurations to form a fully operational network. If a valid set exists, provide it.
+
+## Input
+
+The first line contains two integers **k** and **t** (1 ≤ k ≤ 22, 0 ≤ t ≤ k·k·k): the capacity limit and the total number of approved configurations.
+Each of the following **t** lines provides three integers **x**, **y**, **z** (1 ≤ x, y, z ≤ k), representing an approved configuration utilizing frequency band **x**, modulation scheme **y**, and encryption key **z**. All listed configurations are distinct.
+
+## Output
+
+If a valid deployment of **k** configurations can be formed, print `YES` on the first line. Then, output **k** lines, each containing the three integers `x y z` of one selected configuration. Any valid deployment of **k** configurations is accepted; the chosen configurations may be printed in any order.
+
+If no such deployment is possible, print `NO`.
+
+## Examples
+
+### Example 1
+
+**Input**
+```
+2 3
+1 1 1
+1 2 2
+2 2 2
+```
+
+**Output**
+```
+YES
+1 1 1
+2 2 2
+```
+
+### Example 2
+
+**Input**
+```
+2 2
+1 1 1
+2 1 2
+```
+
+**Output**
+```
+NO
+```
+
+### Example 3
+
+**Input**
+```
+1 1
+1 1 1
+```
+
+**Output**
+```
+YES
+1 1 1
+```
+
+## Note
+
+In Example 2, if we select the only two available configurations, they both utilize the modulation scheme 1. Because they share the same modulation scheme, they interfere with each other. Alternatively, viewed through the coverage condition, selecting both means the modulation scheme 1 appears twice and the modulation scheme 2 never appears, failing the requirement that every scheme from 1 to 2 appears exactly once. Thus, a valid deployment of 2 configurations is impossible.

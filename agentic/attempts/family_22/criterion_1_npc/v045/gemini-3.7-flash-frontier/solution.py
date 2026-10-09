@@ -1,0 +1,156 @@
+import sys
+from collections import deque
+import itertools
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    M = int(input_data[1])
+    T = int(input_data[2])
+    m = int(input_data[3])
+    
+    if n > M * T:
+        print("NO")
+        return
+    
+    adj = [[] for _ in range(n + 1)]
+    rev_adj = [[] for _ in range(n + 1)]
+    in_deg = [0] * (n + 1)
+    out_deg = [0] * (n + 1)
+    
+    idx = 4
+    for _ in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx + 1])
+        idx += 2
+        adj[u].append(v)
+        rev_adj[v].append(u)
+        in_deg[v] += 1
+        out_deg[u] += 1
+        
+    # Topological sort & cycle detection
+    q = deque([i for i in range(1, n + 1) if in_deg[i] == 0])
+    topo_order = []
+    
+    # Compute ES (earliest start round, 1-indexed)
+    ES = [1] * (n + 1)
+    temp_in_deg = list(in_deg)
+    while q:
+        u = q.popleft()
+        topo_order.append(u)
+        for v in adj[u]:
+            if ES[u] + 1 > ES[v]:
+                ES[v] = ES[u] + 1
+            temp_in_deg[v] -= 1
+            if temp_in_deg[v] == 0:
+                q.append(v)
+                
+    if len(topo_order) < n:
+        print("NO")
+        return
+    
+    # Compute LS (latest start round, 1-indexed) and height
+    LS = [T] * (n + 1)
+    height = [0] * (n + 1)
+    for u in reversed(topo_order):
+        for v in adj[u]:
+            if LS[v] - 1 < LS[u]:
+                LS[u] = LS[v] - 1
+            if height[v] + 1 > height[u]:
+                height[u] = height[v] + 1
+                
+    for i in range(1, n + 1):
+        if ES[i] > LS[i] or LS[i] < 1 or ES[i] > T:
+            print("NO")
+            return
+
+    # Backtracking search
+    ans = [0] * (n + 1)
+    cur_in_deg = list(in_deg)
+    
+    # Count of descendants for tie-breaking
+    desc_count = [0] * (n + 1)
+    for u in reversed(topo_order):
+        desc_count[u] = 1 + sum(desc_count[v] for v in adj[u])
+
+    def search(round_num, available):
+        if round_num > T:
+            return all(ans[i] != 0 for i in range(1, n + 1))
+        
+        remaining_tasks = sum(1 for i in range(1, n + 1) if ans[i] == 0)
+        if remaining_tasks == 0:
+            return True
+        if remaining_tasks > (T - round_num + 1) * M:
+            return False
+            
+        req = []
+        optional = []
+        for u in available:
+            if LS[u] < round_num:
+                return False
+            elif LS[u] == round_num:
+                req.append(u)
+            else:
+                optional.append(u)
+                
+        if len(req) > M:
+            return False
+            
+        # Check if any unscheduled, unavailable task has LS < round_num + 1
+        for u in range(1, n + 1):
+            if ans[u] == 0 and u not in available:
+                if LS[u] <= round_num:
+                    return False
+        
+        slots_left = M - len(req)
+        
+        if len(optional) <= slots_left:
+            chosen_combinations = [optional]
+        else:
+            optional.sort(key=lambda x: (LS[x], -height[x], -desc_count[x]))
+            limit = min(len(optional), slots_left + 4)
+            candidate_pool = optional[:limit]
+            chosen_combinations = list(itertools.combinations(candidate_pool, slots_left))
+            chosen_combinations.sort(key=lambda combo: (
+                sum(LS[x] for x in combo),
+                -sum(height[x] for x in combo)
+            ))
+            chosen_combinations = chosen_combinations[:20]
+            
+        for chosen_opt in chosen_combinations:
+            chosen = req + list(chosen_opt)
+            
+            # Apply choice
+            for u in chosen:
+                ans[u] = round_num
+            
+            new_available = [u for u in available if u not in chosen]
+            for u in chosen:
+                for v in adj[u]:
+                    cur_in_deg[v] -= 1
+                    if cur_in_deg[v] == 0:
+                        new_available.append(v)
+                        
+            if search(round_num + 1, new_available):
+                return True
+                
+            # Revert choice
+            for u in chosen:
+                for v in adj[u]:
+                    cur_in_deg[v] += 1
+                ans[u] = 0
+                
+        return False
+
+    initial_available = [i for i in range(1, n + 1) if cur_in_deg[i] == 0]
+    if search(1, initial_available):
+        print("YES")
+        print(*(ans[i] for i in range(1, n + 1)))
+    else:
+        print("NO")
+
+if __name__ == '__main__':
+    solve()

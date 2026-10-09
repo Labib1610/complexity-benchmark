@@ -1,0 +1,185 @@
+import sys
+
+# Increase recursion depth just in case
+sys.setrecursionlimit(2000)
+
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+
+    k = int(input_data[0])
+    t = int(input_data[1])
+
+    triples = []
+    idx = 2
+    for _ in range(t):
+        x = int(input_data[idx]) - 1
+        y = int(input_data[idx + 1]) - 1
+        z = int(input_data[idx + 2]) - 1
+        idx += 3
+        triples.append((x, y, z))
+
+    # Fast checks
+    # Each resource pool must have at least one triple for each element
+    has_x = [False] * k
+    has_y = [False] * k
+    has_z = [False] * k
+    for x, y, z in triples:
+        has_x[x] = True
+        has_y[y] = True
+        has_z[z] = True
+
+    if not (all(has_x) and all(has_y) and all(has_z)):
+        print("NO")
+        return
+
+    # DLX (Dancing Links) implementation for Exact Cover
+    # Items (columns):
+    # 0 .. k-1 : Surgeon x
+    # k .. 2k-1 : Theater y
+    # 2k .. 3k-1 : Patient case z
+    num_cols = 3 * k
+
+    # DLX structures
+    # We will build standard 4-way linked list for DLX
+    L = list(range(num_cols + 1))
+    R = list(range(num_cols + 1))
+    U = list(range(num_cols + 1))
+    D = list(range(num_cols + 1))
+    col_size = [0] * (num_cols + 1)
+    col_of = list(range(num_cols + 1))
+    row_of = [0] * (num_cols + 1)
+
+    # Root is index 0
+    # Columns 1 .. num_cols
+    for i in range(num_cols + 1):
+        L[i] = i - 1
+        R[i] = i + 1
+        U[i] = i
+        D[i] = i
+    L[0] = num_cols
+    R[num_cols] = 0
+
+    node_count = num_cols
+
+    # Add rows
+    for r_idx, (x, y, z) in enumerate(triples):
+        c1 = x + 1
+        c2 = k + y + 1
+        c3 = 2 * k + z + 1
+
+        first = node_count + 1
+        cols = [c1, c2, c3]
+        for i, c in enumerate(cols):
+            node_count += 1
+            n = node_count
+
+            # Extend arrays
+            L.append(0)
+            R.append(0)
+            U.append(0)
+            D.append(0)
+            col_of.append(c)
+            row_of.append(r_idx)
+
+            col_size[c] += 1
+
+            # Insert into column c list vertically
+            U[n] = U[c]
+            D[n] = c
+            D[U[c]] = n
+            U[c] = n
+
+            # Link horizontally
+            if i == 0:
+                L[n] = n
+                R[n] = n
+            else:
+                L[n] = node_count - 1
+                R[n] = first
+                R[node_count - 1] = n
+                L[first] = n
+
+    def cover(c):
+        L[R[c]] = L[c]
+        R[L[c]] = R[c]
+        i = D[c]
+        while i != c:
+            j = R[i]
+            while j != i:
+                U[D[j]] = U[j]
+                D[U[j]] = D[j]
+                col_size[col_of[j]] -= 1
+                j = R[j]
+            i = D[i]
+
+    def uncover(c):
+        i = U[c]
+        while i != c:
+            j = L[i]
+            while j != i:
+                col_size[col_of[j]] += 1
+                U[D[j]] = j
+                D[U[j]] = j
+                j = L[j]
+            i = U[i]
+        L[R[c]] = c
+        R[L[c]] = c
+
+    solution = []
+
+    def search():
+        if R[0] == 0:
+            return True
+
+        # Choose column with minimum size
+        min_size = 10**9
+        c = 0
+        cur = R[0]
+        while cur != 0:
+            if col_size[cur] < min_size:
+                min_size = col_size[cur]
+                c = cur
+                if min_size == 0:
+                    break
+            cur = R[cur]
+
+        if min_size == 0:
+            return False
+
+        cover(c)
+        r = D[c]
+        while r != c:
+            solution.append(row_of[r])
+            j = R[r]
+            while j != r:
+                cover(col_of[j])
+                j = R[j]
+
+            if search():
+                return True
+
+            j = L[r]
+            while j != r:
+                uncover(col_of[j])
+                j = L[j]
+            solution.pop()
+
+            r = D[r]
+
+        uncover(c)
+        return False
+
+    if search():
+        print("YES")
+        for r_idx in solution:
+            x, y, z = triples[r_idx]
+            print(f"{x + 1} {y + 1} {z + 1}")
+    else:
+        print("NO")
+
+
+if __name__ == "__main__":
+    solve()

@@ -1,0 +1,39 @@
+import sys
+from collections import deque
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if len(data) < 2:
+        return
+
+    n, m = data[0], data[1]
+    graph = [[] for _ in range(n)]
+    indegree = [0] * n
+
+    pos = 2
+    for _ in range(m):
+        a = data[pos] - 1
+        b = data[pos + 1] - 1
+        pos += 2
+        graph[a].append(b)
+        indegree[b] += 1
+
+    queue = deque(i for i in range(n) if indegree[i] == 0)
+    order = []
+
+    while queue:
+        node = queue.popleft()
+        order.append(node + 1)
+        for neighbor in graph[node]:
+            indegree[neighbor] -= 1
+            if indegree[neighbor] == 0:
+                queue.append(neighbor)
+
+    if len(order) != n:
+        print("NO")
+    else:
+        print("YES")
+        print(*order)
+
+if __name__ == "__main__":
+    main()

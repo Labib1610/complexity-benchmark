@@ -1,0 +1,175 @@
+import sys
+from collections import defaultdict, deque
+
+def solve():
+    n, m = map(int, sys.stdin.readline().split())
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(["0"] * n))
+        return
+    
+    # For each clause (audit), we have three literals
+    # Literal: +i means variable i should be 1, -i means variable i should be 0
+    clauses = []
+    for _ in range(m):
+        clause = list(map(int, sys.stdin.readline().split()))
+        clauses.append(clause)
+    
+    # We'll use a graph-based approach for 2-SAT style reasoning where possible,
+    # but since each clause has 3 literals, we need to consider all implications.
+    # However, the key insight is: if two literals in a clause are false, 
+    # then the third must be true.
+    
+    # Let's model this as a directed graph for implication reasoning.
+    # But actually, let's think differently. For each clause (a OR b OR c),
+    # the only forbidden assignment is (NOT a AND NOT b AND NOT c).
+    # So for each clause, we can derive that at least one of a,b,c must be true.
+    # This is a 3-SAT constraint, but we can try to propagate constraints.
+    
+    # Let's use a different approach: try all possible assignments for small n,
+    # but that's not feasible for n=90.
+    
+    # Better idea: Use the fact that if two literals in a clause are determined
+    # to be false, then the third must be true. This allows for constraint propagation.
+    
+    # Let's represent the state of each variable:
+    # 0: unset, 1: set to 1, -1: set to 0, 2: contradiction
+    state = [0] * (n + 1)  # 1-indexed
+    
+    # Queue for propagation
+    queue = deque()
+    
+    def set_state(var, val):
+        if state[var] == 0:
+            state[var] = 1 if val == 1 else -1
+            queue.append(var)
+            return True
+        elif (state[var] == 1 and val == 0) or (state[var] == -1 and val == 1):
+            state[var] = 2  # contradiction
+            return False
+        return True  # already set correctly
+    
+    def get_literal_value(lit):
+        var = abs(lit)
+        if lit > 0:
+            return state[var] == 1
+        else:
+            return state[var] == -1
+    
+    def is_clause_satisfied(clause):
+        for lit in clause:
+            var = abs(lit)
+            if lit > 0:
+                if state[var] == 1:
+                    return True
+            else:
+                if state[var] == -1:
+                    return True
+        return False
+    
+    changed = True
+    while changed:
+        changed = False
+        # Process all clauses to see if we can deduce any variables
+        for clause in clauses:
+            # Count how many literals are false
+            false_count = 0
+            unknown_literals = []
+            
+            for lit in clause:
+                var = abs(lit)
+                if get_literal_value(lit) == True:
+                    # Clause is already satisfied
+                    false_count = -1
+                    break
+                elif get_literal_value(lit) == False:
+                    false_count += 1
+                else:
+                    unknown_literals.append(lit)
+            
+            # If two literals are false, the remaining one must be true
+            if false_count == 2 and len(unknown_literals) == 1:
+                lit = unknown_literals[0]
+                var = abs(lit)
+                if lit > 0:
+                    if not set_state(var, 1):
+                        print("NO")
+                        return
+                else:
+                    if not set_state(var, 0):
+                        print("NO")
+                        return
+                changed = True
+            elif false_count == 3:
+                # All three literals are false - contradiction
+                print("NO")
+                return
+    
+    # Now do BFS/DFS propagation
+    while queue:
+        var = queue.popleft()
+        # Check all clauses containing this variable
+        for clause in clauses:
+            # Same logic as above
+            false_count = 0
+            unknown_literals = []
+            
+            for lit in clause:
+                var_in_lit = abs(lit)
+                if get_literal_value(lit) == True:
+                    false_count = -1
+                    break
+                elif get_literal_value(lit) == False:
+                    false_count += 1
+                else:
+                    unknown_literals.append(lit)
+            
+            if false_count == 2 and len(unknown_literals) == 1:
+                lit = unknown_literals[0]
+                var_in_lit = abs(lit)
+                if state[var_in_lit] == 0:  # Only if not already set
+                    if lit > 0:
+                        if not set_state(var_in_lit, 1):
+                            print("NO")
+                            return
+                    else:
+                        if not set_state(var_in_lit, 0):
+                            print("NO")
+                            return
+            elif false_count == 3:
+                print("NO")
+                return
+    
+    # After propagation, check if all clauses are satisfied
+    for clause in clauses:
+        if not is_clause_satisfied(clause):
+            # Try to satisfy it by setting one of the unknown literals
+            satisfied = False
+            for lit in clause:
+                var = abs(lit)
+                if state[var] == 0:  # Unset variable
+                    # Set it to satisfy the clause
+                    if lit > 0:
+                        state[var] = 1
+                    else:
+                        state[var] = -1
+                    satisfied = True
+                    break
+            if not satisfied:
+                print("NO")
+                return
+    
+    # If we're here, we have a partial assignment that can be completed
+    # Fill in remaining variables with default values (e.g., 0)
+    result = []
+    for i in range(1, n + 1):
+        if state[i] == 1:
+            result.append("1")
+        else:
+            result.append("0")
+    
+    print("YES")
+    print(" ".join(result))
+
+solve()

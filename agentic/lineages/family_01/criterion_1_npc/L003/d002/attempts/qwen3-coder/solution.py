@@ -1,68 +1,64 @@
 import sys
 from itertools import product
 
-def main():
-    import sys
-    input = sys.stdin.read
-    data = input().split()
+def is_perfect_square(n):
+    if n < 0:
+        return False
+    root = int(n**0.5)
+    return root * root == n
+
+def solve():
+    n, m = map(int, sys.stdin.readline().split())
     
-    n = int(data[0])
-    m = int(data[1])
+    if m == 0:
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
     
-    conflicts = []
-    idx = 2
+    edges = []
     for _ in range(m):
-        u = int(data[idx]) - 1
-        v = int(data[idx+1]) - 1
-        conflicts.append((u, v))
-        idx += 2
+        u, v = map(int, sys.stdin.readline().split())
+        edges.append((u-1, v-1))  # Convert to 0-indexed
     
-    # We need to find a valid 3-coloring of the graph
-    # Since n <= 40, we can't brute force all 3^n possibilities
-    # But we can use backtracking with pruning, prioritizing earlier workers
-    # to minimize the objective function
+    # For each pair of codes, check if their product is a perfect square
+    forbidden = set()
+    for i, j in product([1, 2, 3], repeat=2):
+        if is_perfect_square(i * j):
+            forbidden.add((i, j))
+            forbidden.add((j, i))
     
     # Build adjacency list
     adj = [[] for _ in range(n)]
-    for u, v in conflicts:
+    for u, v in edges:
         adj[u].append(v)
         adj[v].append(u)
     
-    # Try all assignments in lexicographical order (which corresponds to minimizing the objective)
-    # We'll generate assignments in order: 111...1, 111...2, ..., 333...3
-    # But since n can be up to 40, even iterating through all assignments is infeasible
-    # However, we can do a smart backtracking
+    # Try all possible colorings with backtracking
+    color = [0] * n  # 0 means uncolored
     
-    # Let's try a different approach: since we want the lexicographically smallest assignment,
-    # we can do backtracking where we try colors 1, 2, 3 in order for each node
-    # This will naturally give us the minimum according to the objective function
-    
-    assignment = [0] * n  # 0 means unassigned
-    
-    def is_valid(worker, color):
-        for neighbor in adj[worker]:
-            if assignment[neighbor] == color:
+    def is_valid(v, c):
+        for neighbor in adj[v]:
+            if color[neighbor] != 0 and (c, color[neighbor]) in forbidden:
                 return False
         return True
     
-    def backtrack(worker):
-        if worker == n:
+    def backtrack(v):
+        if v == n:
             return True
-            
-        for color in [1, 2, 3]:
-            if is_valid(worker, color):
-                assignment[worker] = color
-                if backtrack(worker + 1):
+        
+        for c in [1, 2, 3]:
+            if is_valid(v, c):
+                color[v] = c
+                if backtrack(v + 1):
                     return True
-                assignment[worker] = 0  # backtrack
-                
+                color[v] = 0
+        
         return False
     
     if backtrack(0):
         print("YES")
-        print(' '.join(map(str, assignment)))
+        print(" ".join(map(str, color)))
     else:
         print("NO")
 
-if __name__ == "__main__":
-    main()
+solve()

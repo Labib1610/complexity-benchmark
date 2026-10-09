@@ -1,0 +1,174 @@
+import sys
+import random
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    clauses = []
+    idx = 2
+    for _ in range(m):
+        c = [int(input_data[idx]), int(input_data[idx+1]), int(input_data[idx+2])]
+        idx += 3
+        # remove duplicate literals in clause
+        c = list(set(c))
+        # check if tautology (x and -x in same clause)
+        if any(-x in c for x in c):
+            continue
+        clauses.append(c)
+
+    # WalkSAT / SLS attempt first
+    def walksat(max_flips=20000, p=0.4):
+        assignment = [random.choice([-1, 1]) for _ in range(n + 1)]
+        assignment[0] = 0
+        
+        for _ in range(max_flips):
+            unsat = []
+            for i, c in enumerate(clauses):
+                sat = False
+                for lit in c:
+                    var = abs(lit)
+                    val = 1 if lit > 0 else -1
+                    if assignment[var] == val:
+                        sat = True
+                        break
+                if not sat:
+                    unsat.append(i)
+            
+            if not unsat:
+                return assignment
+            
+            c_idx = random.choice(unsat)
+            c = clauses[c_idx]
+            
+            if random.random() < p:
+                flip_var = abs(random.choice(c))
+            else:
+                best_var = abs(c[0])
+                best_unsat_count = float('inf')
+                for lit in c:
+                    var = abs(lit)
+                    assignment[var] = -assignment[var]
+                    
+                    cnt = 0
+                    for c_check in clauses:
+                        sat = False
+                        for l in c_check:
+                            v = abs(l)
+                            val = 1 if l > 0 else -1
+                            if assignment[v] == val:
+                                sat = True
+                                break
+                        if not sat:
+                            cnt += 1
+                    
+                    if cnt < best_unsat_count:
+                        best_unsat_count = cnt
+                        best_var = var
+                    
+                    assignment[var] = -assignment[var]
+                
+                flip_var = best_var
+            
+            assignment[flip_var] = -assignment[flip_var]
+            
+        return None
+
+    for _ in range(15):
+        sol = walksat(max_flips=1500)
+        if sol is not None:
+            print("YES")
+            res = [1 if sol[i] == 1 else 0 for i in range(1, n + 1)]
+            print(*(res))
+            return
+
+    # If WalkSAT didn't find a solution, run DPLL to confirm/find
+    # DPLL Implementation
+    def unit_propagate(clauses_list, assignment):
+        while True:
+            unit_found = False
+            for c in clauses_list:
+                # evaluate clause
+                val_count = 0
+                unassigned_lit = None
+                satisfied = False
+                for lit in c:
+                    var = abs(lit)
+                    if var in assignment:
+                        if (lit > 0 and assignment[var] == 1) or (lit < 0 and assignment[var] == 0):
+                            satisfied = True
+                            break
+                    else:
+                        val_count += 1
+                        unassigned_lit = lit
+                if satisfied:
+                    continue
+                if val_count == 0:
+                    return None, False  # Conflict
+                if val_count == 1:
+                    var = abs(unassigned_lit)
+                    val = 1 if unassigned_lit > 0 else 0
+                    assignment[var] = val
+                    unit_found = True
+                    break
+            if not unit_found:
+                break
+        return assignment, True
+
+    def dpll(assignment):
+        assignment, success = unit_propagate(clauses, assignment.copy())
+        if not success:
+            return None
+        
+        # Check if all satisfied or find next variable
+        unassigned_vars = [i for i in range(1, n + 1) if i not in assignment]
+        if not unassigned_vars:
+            # Check all clauses
+            for c in clauses:
+                if not any((lit > 0 and assignment[abs(lit)] == 1) or (lit < 0 and assignment[abs(lit)] == 0) for lit in c):
+                    return None
+            return assignment
+        
+        # Choose most frequent variable in unsatisfied clauses
+        counts = {}
+        for c in clauses:
+            sat = any((lit > 0 and assignment.get(abs(lit)) == 1) or (lit < 0 and assignment.get(abs(lit)) == 0) for lit in c)
+            if not sat:
+                for lit in c:
+                    if abs(lit) not in assignment:
+                        counts[lit] = counts.get(lit, 0) + 1
+        
+        if not counts:
+            for v in unassigned_vars:
+                assignment[v] = 1
+            return assignment
+        
+        best_lit = max(counts, key=counts.get)
+        best_var = abs(best_lit)
+        val = 1 if best_lit > 0 else 0
+        
+        # Try best value first
+        a1 = assignment.copy()
+        a1[best_var] = val
+        res = dpll(a1)
+        if res is not None:
+            return res
+        
+        a2 = assignment.copy()
+        a2[best_var] = 1 - val
+        return dpll(a2)
+
+    sol_dpll = dpll({})
+    if sol_dpll is not None:
+        print("YES")
+        res = [sol_dpll.get(i, 0) for i in range(1, n + 1)]
+        print(*(res))
+    else:
+        print("NO")
+
+if __name__ == '__main__':
+    solve()

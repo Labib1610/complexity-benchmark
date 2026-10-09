@@ -1,0 +1,270 @@
+```python
+import sys
+from collections import deque
+
+sys.setrecursionlimit(1_000_000)
+
+
+class Dinic:
+    def __init__(self, n):
+        self.n = n
+        self.g = [[] for _ in range(n)]
+
+    def add_edge(self, u, v, cap):
+        if u == v or cap <= 0:
+            return None
+        ui = len(self.g[u])
+        vi = len(self.g[v])
+        self.g[u].append([v, cap, vi])
+        self.g[v].append([u, 0, ui])
+        return u, ui, cap
+
+    def max_flow(self, s, t, limit):
+        if s == t:
+            return limit
+        flow = 0
+        n = self.n
+        g = self.g
+
+        while flow < limit:
+            level = [-1] * n
+            level[s] = 0
+            q = deque([s])
+
+            while q:
+                u = q.popleft()
+                for v, cap, rev in g[u]:
+                    if cap > 0 and level[v] < 0:
+                        level[v] = level[u] + 1
+                        q.append(v)
+
+            if level[t] < 0:
+                break
+
+            it = [0] * n
+
+            def send(u, pushed):
+                if u == t:
+                    return pushed
+                while it[u] < len(g[u]):
+                    idx = it[u]
+                    v, cap, rev = g[u][idx]
+                    if cap > 0 and level[v] == level[u] + 1:
+                        got = send(v, min(pushed, cap))
+                        if got:
+                            g[u][idx][1] -= got
+                            g[v][rev][1] += got
+                            return got
+                    it[u] += 1
+                return 0
+
+            while flow < limit:
+                pushed = send(s, limit - flow)
+                if not pushed:
+                    break
+                flow += pushed
+
+        return flow
+
+
+def solve():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+
+    p = 0
+    n, m, k = data[p], data[p + 1], data[p + 2]
+    p += 3
+
+    sources = [0] * k
+    targets = [0] * k
+    demands = [0] * k
+
+    for i in range(k):
+        sources[i] = data[p] - 1
+        targets[i] = data[p + 1] - 1
+        demands[i] = data[p + 2]
+        p += 3
+
+    edges = []
+    capacities = [0] * m
+    outgoing = [[] for _ in range(n)]
+    reverse_edges = [[] for _ in range(n)]
+
+    for e in range(m):
+        u, v, c = data[p] - 1, data[p + 1] - 1, data[p + 2]
+        p += 3
+        edges.append((u, v))
+        capacities[e] = c
+        if u != v and c > 0:
+            outgoing[u].append(e)
+            reverse_edges[v].append(e)
+
+    answer = [[0] * m for _ in range(k)]
+    remaining = demands[:]
+
+    for i in range(k):
+        if sources[i] == targets[i]:
+            remaining[i] = 0
+
+    residual = capacities[:]
+    failed = set()
+
+    def run_maxflow(s, t, need, extract=False):
+        if need <= 0:
+            return (0, [0] * m) if extract else 0
+        if s == t:
+            return (need, [0] * m) if extract else need
+
+        dinic = Dinic(n)
+        refs = [None] * m if extract else None
+
+        for e, (u, v) in enumerate(edges):
+            c = residual[e]
+            if c > 0 and u != v:
+                ref = dinic.add_edge(u, v, c)
+                if extract:
+                    refs[e] = ref
+
+        value = dinic.max_flow(s, t, need)
+
+        if not extract:
+            return value
+
+        used = [0] * m
+        for e, ref in enumerate(refs):
+            if ref is not None:
+                u, idx, initial = ref
+                used[e] = initial - dinic.g[u][idx][1]
+        return value, used
+
+    def path_generator(s, t, lower):
+        reachable_distance = [-1] * n
+        reachable_distance[t] = 0
+        q = deque([t])
+
+        while q:
+            v = q.popleft()
+            for e in reverse_edges[v]:
+                if residual[e] <= 0:
+                    continue
+                u, _ = edges[e]
+                if reachable_distance[u] < 0:
+                    reachable_distance[u] = reachable_distance[v] + 1
+                    q.append(u)
+
+        if reachable_distance[s] < 0:
+            return
+
+        visited = [False] * n
+        visited[s] = True
+        path = []
+
+        def walk(u):
+            if u == t:
+                key = tuple(path)
+                if lower is None or key > lower:
+                    yield key
+                return
+
+            candidates = []
+            for e in outgoing[u]:
+                if residual[e] <= 0:
+                    continue
+                _, v = edges[e]
+                if not visited[v] and reachable_distance[v] >= 0:
+                    candidates.append(e)
+
+            candidates.sort(key=lambda e: (reachable_distance[edges[e][1]], e))
+
+            for e in candidates:
+                _, v = edges[e]
+                visited[v] = True
+                path.append(e)
+                yield from walk(v)
+                path.pop()
+                visited[v] = False
+
+        yield from walk(s)
+
+    def dfs(active=-1, lower=None):
+        unfinished = [i for i in range(k) if remaining[i] > 0]
+        if not unfinished:
+            return True
+
+        state = (tuple(residual), tuple(remaining), active, lower)
+        if state in failed:
+            return False
+
+        if len(unfinished) == 1:
+            i = unfinished[0]
+            value, used = run_maxflow(
+                sources[i], targets[i], remaining[i], extract=True
+            )
+            if value == remaining[i]:
+                for e, x in enumerate(used):
+                    if x:
+                        answer[i][e] += x
+                        residual[e] -= x
+                remaining[i] = 0
+                return True
+            failed.add(state)
+            return False
+
+        flow_values = {}
+        for i in unfinished:
+            value = run_maxflow(sources[i], targets[i], remaining[i])
+            if value < remaining[i]:
+                failed.add(state)
+                return False
+            flow_values[i] = value
+
+        if active < 0 or remaining[active] == 0:
+            active = min(
+                unfinished,
+                key=lambda i: (
+                    flow_values[i] - remaining[i],
+                    flow_values[i],
+                    -remaining[i],
+                ),
+            )
+            lower = None
+
+        i = active
+        need = remaining[i]
+
+        for path in path_generator(sources[i], targets[i], lower):
+            bottleneck = need
+            for e in path:
+                if residual[e] < bottleneck:
+                    bottleneck = residual[e]
+
+            for amount in range(bottleneck, 0, -1):
+                for e in path:
+                    residual[e] -= amount
+                    answer[i][e] += amount
+                remaining[i] -= amount
+
+                if dfs(i if remaining[i] > 0 else -1,
+                       path if remaining[i] > 0 else None):
+                    return True
+
+                remaining[i] += amount
+                for e in path:
+                    residual[e] += amount
+                    answer[i][e] -= amount
+
+        failed.add(state)
+        return False
+
+    if dfs():
+        out = ["YES"]
+        out.extend(" ".join(map(str, row)) for row in answer)
+        sys.stdout.write("\n".join(out))
+    else:
+        sys.stdout.write("NO")
+
+
+if __name__ == "__main__":
+    solve()
+```

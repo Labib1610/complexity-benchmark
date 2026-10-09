@@ -1,4 +1,5 @@
 import sys
+sys.setrecursionlimit(10000)
 
 def solve():
     input = sys.stdin.readline
@@ -10,31 +11,29 @@ def solve():
         v -= 1
         adj[u].append(v)
         adj[v].append(u)
-
-    colors = [0] * n  # 0 = unassigned, 1,2,3 = colors
-
-    # Check if we can color the graph with 3 colors using backtracking
-    # We try colors in order 1,2,3 to get lexicographically smallest
+    
+    color = [-1] * n
+    
     def backtrack(idx):
         if idx == n:
             return True
+        # Try colors 1,2,3
         for c in (1, 2, 3):
-            # check if any neighbor has same color
             ok = True
-            for nb in adj[idx]:
-                if colors[nb] == c:
+            for nei in adj[idx]:
+                if color[nei] == c:
                     ok = False
                     break
             if ok:
-                colors[idx] = c
+                color[idx] = c
                 if backtrack(idx + 1):
                     return True
-                colors[idx] = 0
+                color[idx] = -1
         return False
-
+    
     if backtrack(0):
         print("YES")
-        print(" ".join(map(str, colors)))
+        print(" ".join(str(c) for c in color))
     else:
         print("NO")
 

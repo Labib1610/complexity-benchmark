@@ -1,0 +1,44 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    j = int(next(it))
+    orders = []
+    for _ in range(j):
+        p1 = int(next(it))
+        p2 = int(next(it))
+        orders.append((p1, p2))
+    
+    # Sort by Johnson's rule:
+    # Group 1: p1 <= p2, sort by p1 ascending
+    # Group 2: p1 > p2, sort by p2 descending
+    # Concatenate Group 1 then Group 2
+    
+    group1 = []
+    group2 = []
+    for p1, p2 in orders:
+        if p1 <= p2:
+            group1.append((p1, p2))
+        else:
+            group2.append((p1, p2))
+    
+    group1.sort(key=lambda x: x[0])
+    group2.sort(key=lambda x: x[1], reverse=True)
+    
+    sorted_orders = group1 + group2
+    
+    # Simulate the process
+    X_i = 0  # Time oven finishes current order
+    Y_i = 0  # Time icing station finishes current order
+    
+    for p1, p2 in sorted_orders:
+        X_i += p1
+        Y_i = max(X_i, Y_i) + p2
+    
+    print(Y_i)
+
+if __name__ == "__main__":
+    solve()

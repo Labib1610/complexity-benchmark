@@ -1,0 +1,99 @@
+import sys
+
+sys.setrecursionlimit(5000)
+
+def solve():
+    input_line = sys.stdin.read().split()
+    if not input_line:
+        return
+    it = iter(input_line)
+    try:
+        n = int(next(it))
+        m = int(next(it))
+    except StopIteration:
+        return
+
+    clauses = []
+    max_var = n
+    
+    for _ in range(m):
+        lits = []
+        for _ in range(3):
+            val = int(next(it))
+            if val > 0:
+                lits.append(2 * (val - 1))
+            else:
+                lits.append(2 * ((-val) - 1) + 1)
+        clauses.append(tuple(lits))
+
+    total_vars = 2 * n
+    adj = [[] for _ in range(total_vars)]
+    for a, b, c in clauses:
+        adj[a ^ 1].append(b)
+        adj[b ^ 1].append(a)
+        adj[a ^ 1].append(c)
+        adj[c ^ 1].append(a)
+        adj[b ^ 1].append(c)
+        adj[c ^ 1].append(b)
+
+    order = []
+    visited = [False] * total_vars
+    
+    def dfs(u):
+        stack = [(u, 0)]
+        while stack:
+            node, idx = stack.pop()
+            if idx == 0:
+                if visited[node]:
+                    continue
+                visited[node] = True
+            if idx < len(adj[node]):
+                stack.append((node, idx + 1))
+                v = adj[node][idx]
+                if not visited[v]:
+                    stack.append((v, 0))
+                continue
+            order.append(node)
+
+    for i in range(total_vars):
+        if not visited[i]:
+            dfs(i)
+
+    visited = [False] * total_vars
+    comp_id = [-1] * total_vars
+    current_id = 0
+
+    rev_adj = [[] for _ in range(total_vars)]
+    for u in range(total_vars):
+        for v in adj[u]:
+            rev_adj[v].append(u)
+
+    for u in reversed(order):
+        if visited[u]:
+            continue
+        stack = [u]
+        visited[u] = True
+        comp_nodes = []
+        while stack:
+            node = stack.pop()
+            comp_nodes.append(node)
+            for v in rev_adj[node]:
+                if not visited[v]:
+                    visited[v] = True
+                    stack.append(v)
+        for node in comp_nodes:
+            comp_id[node] = current_id
+        current_id += 1
+
+    assignment = [0] * n
+    for i in range(n):
+        if comp_id[2 * i] == comp_id[2 * i + 1]:
+            print("NO")
+            return
+        assignment[i] = 1 if comp_id[2 * i] > comp_id[2 * i + 1] else 0
+
+    print("YES")
+    print(*(assignment))
+
+if __name__ == "__main__":
+    solve()

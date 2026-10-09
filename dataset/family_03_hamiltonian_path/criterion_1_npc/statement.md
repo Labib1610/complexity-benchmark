@@ -4,12 +4,7 @@ Time limit: 5 s   Memory limit: 256 MB
 
 ## Description
 
-A delivery company operates across **n** locations numbered 1 to n, connected by **m** bidirectional roads. A valid delivery route is a sequence of locations such that:
-
-- every location appears exactly once, and
-- each pair of consecutive locations in the sequence is connected by a direct road.
-
-Determine whether a valid delivery route exists. If one exists, output the lexicographically smallest such route.
+A courier must plan a single sweep across **n** depots joined by **m** two-way service roads. The sweep is a sequence of depots in which **every depot is visited exactly once** and each consecutive pair in the sequence is joined by a direct road — the vehicle never revisits a depot and never jumps between unconnected ones. Fuel, distances, and road quality are outside this plan; only which depots share a direct road matters. Some road maps admit such a one-pass sweep and many do not, and having many roads is no guarantee — a single unavoidable dead-end can make a full single-visit sweep impossible. Decide whether a sweep visiting all depots exactly once exists, and if so report one ordering; otherwise report that no single-pass sweep covers every depot.
 
 ## Input
 
@@ -19,7 +14,7 @@ No road appears more than once. No self-loops.
 
 ## Output
 
-If a valid delivery route exists, print `YES` on the first line, then on the second line print the n location numbers separated by spaces, forming the lexicographically smallest valid route.  
+If a valid delivery route exists, print `YES` on the first line, then on the second line print the n location numbers separated by spaces, forming a valid route (any valid route is accepted).  
 If no valid route exists, print `NO`.
 
 ## Examples

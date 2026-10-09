@@ -1,0 +1,18 @@
+j = int(input())
+effects = []
+for _ in range(j):
+    p1, p2 = map(int, input().split())
+    effects.append((p1, p2))
+
+# Sort by p1 ascending, then by p2 descending
+effects.sort(key=lambda x: (x[0], -x[1]))
+
+# Calculate the minimum finish time
+solver_time = 0
+tracer_time = 0
+
+for p1, p2 in effects:
+    solver_time += p1
+    tracer_time = max(tracer_time, solver_time) + p2
+
+print(tracer_time)

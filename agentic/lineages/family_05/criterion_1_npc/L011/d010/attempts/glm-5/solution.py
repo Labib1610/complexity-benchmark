@@ -1,0 +1,204 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    k = int(input_data[0])
+    t = int(input_data[1])
+    triples = []
+    idx = 2
+    for _ in range(t):
+        x = int(input_data[idx]); y = int(input_data[idx+1]); z = int(input_data[idx+2])
+        idx += 3
+        triples.append((x, y, z))
+    
+    # We need to select k triples such that:
+    # - all x values are distinct (cover 1..k)
+    # - all y values are distinct (cover 1..k)
+    # - all z values are distinct (cover 1..k)
+    # This is a 3-dimensional matching problem.
+    # k <= 22, so we can use DP over subsets.
+    
+    # Group triples by x value
+    by_x = [[] for _ in range(k+1)]
+    for i, (x, y, z) in enumerate(triples):
+        by_x[x].append(i)
+    
+    # DP over subsets of y and z
+    # State: (used_y_mask, used_z_mask) -> list of selected triple indices
+    # Since k <= 22, 2^22 = 4M, too large for 2D. But we can do DP over x one by one.
+    # For each x from 1 to k, we try to assign one triple with this x.
+    # State: (used_y_mask, used_z_mask) after processing x values 1..i
+    # But 2^22 * 2^22 is too large.
+    
+    # Alternative: Since we process x one by one, and for each x we pick a triple,
+    # the state is (used_y_mask, used_z_mask). But this is 2^22 * 2^22 which is too large.
+    
+    # Better approach: meet-in-the-middle or use the fact that we can do DP over one dimension
+    # and use a map for the other.
+    
+    # Actually, let's think differently. We can do DP over x values 1..k.
+    # For each x, we pick a triple (x, y, z) where y and z are not used yet.
+    # State: used_y_mask (2^k), and for each used_y_mask, we store the set of possible used_z_masks.
+    # But this is still 2^22 * (number of z masks per y mask), which could be large.
+    
+    # Let's try a different approach: since k <= 22, we can use recursive backtracking with pruning.
+    # But worst case could be exponential.
+    
+    # Let's try DP with a dictionary: dp[used_y_mask] = set of used_z_masks
+    # For each x from 1 to k, we update the dp.
+    # But the set of z masks could be large.
+    
+    # Actually, let's think about it more carefully. For each x, we pick a triple (x, y, z).
+    # The y and z must be distinct from previously picked y and z.
+    # So after processing x values 1..i, we have a set of (used_y_mask, used_z_mask) pairs.
+    # The number of such pairs could be large, but let's try.
+    
+    # Let's use a dictionary: dp[used_y_mask] = set of used_z_masks
+    # Initially, dp[0] = {0}
+    # For each x from 1 to k:
+    #   new_dp = {}
+    #   For each (used_y_mask, used_z_masks) in dp:
+    #     For each triple (x, y, z) with this x:
+    #       if y not in used_y_mask and z not in used_z_mask:
+    #         new_y_mask = used_y_mask | (1 << (y-1))
+    #         new_z_mask = used_z_mask | (1 << (z-1))
+    #         add new_z_mask to new_dp[new_y_mask]
+    #   dp = new_dp
+    
+    # The issue is that the set of z masks could grow exponentially.
+    # But in practice, with k <= 22, and the constraints, it might work.
+    
+    # Let's try a different approach: use a single dictionary mapping (used_y_mask, used_z_mask) -> list of selected triples
+    # But this could be too large.
+    
+    # Let's try the DP with dictionary approach and see if it works for k <= 22.
+    
+    # Actually, let's think about the problem size. t <= k^3 = 22^3 = 10648.
+    # The number of triples per x is at most k^2 = 484.
+    # The DP state is (used_y_mask, used_z_mask), and there are 2^k * 2^k = 2^44 possible states, which is too large.
+    
+    # But we can use the fact that we process x one by one, and the number of reachable states is limited.
+    # Let's try.
+    
+    # We'll use a dictionary: dp[(used_y_mask, used_z_mask)] = list of selected triple indices
+    # But storing the list for each state is expensive. Instead, we can store the last triple index and a pointer to the previous state.
+    
+    # Let's use a different representation: dp is a dict mapping (used_y_mask, used_z_mask) -> (triple_index, prev_state)
+    # where prev_state is the previous (used_y_mask, used_z_mask).
+    
+    # Initially, dp[(0, 0)] = (None, None)
+    # For each x from 1 to k:
+    #   new_dp = {}
+    #   For each state in dp:
+    #     For each triple with this x:
+    #       if y and z are not used:
+    #         new_state = (used_y_mask | (1<<(y-1)), used_z_mask | (1<<(z-1)))
+    #         if new_state not in new_dp:
+    #           new_dp[new_state] = (triple_index, state)
+    #   dp = new_dp
+    #   if not dp:
+    #     break
+    
+    # At the end, if dp is not empty, we can reconstruct the solution.
+    
+    # The issue is that the number of states could be large. Let's try and see.
+    
+    # Actually, the number of states after processing i x-values is at most C(k, i)^2, which for i=k/2 is C(22, 11)^2 ~ 6e5^2 = 3.6e11, which is too large.
+    
+    # So this approach won't work for k=22.
+    
+    # Let's think of a better approach.
+    
+    # Since k <= 22, we can use the fact that the problem is equivalent to finding a perfect matching in a 3-partite 3-uniform hypergraph.
+    # This is NP-hard in general, but for k <= 22, we can use a more clever approach.
+    
+    # One approach is to use inclusion-exclusion or a more clever DP.
+    
+    # Another approach: since we need to cover all x, y, z from 1 to k, we can think of this as a 3D assignment problem.
+    # We can reduce it to a 2D assignment problem by fixing one dimension.
+    
+    # Actually, let's think about it as follows: we need to select k triples such that the x's are a permutation of 1..k, the y's are a permutation of 1..k, and the z's are a permutation of 1..k.
+    # So we can think of it as: for each x, we pick a y and a z, such that the y's are all distinct and the z's are all distinct.
+    # This is equivalent to finding a permutation y of 1..k and a permutation z of 1..k such that for each x, the triple (x, y[x], z[x]) is in the approved list.
+    
+    # So we can think of it as: we need to find a permutation y and a permutation z such that for all x, (x, y[x], z[x]) is approved.
+    
+    # This is still a 2D problem. We can use DP over subsets of x and y, and for each (x_subset, y_subset), we store the set of possible z_subsets.
+    # But this is 2^k * 2^k states, which is 2^44, too large.
+    
+    # Let's try a different approach: use DP over subsets of x, and for each x_subset, store the set of (y_mask, z_mask) pairs.
+    # But this is the same as before.
+    
+    # Given the constraints (k <= 22, t <= k^3), let's try a backtracking approach with good pruning.
+    
+    # We'll try to assign triples for x = 1, 2, ..., k in order.
+    # For each x, we try all triples with this x, and check if y and z are not used yet.
+    # We use bitmasks for used y and z.
+    
+    # To make this efficient, we can sort the triples for each x by the number of available options (most constrained first).
+    # But since we process x in order, we can't easily do this.
+    
+    # Let's try the backtracking approach and see if it's fast enough for k <= 22.
+    
+    # Actually, let's think about the structure of the problem. The number of triples per x is at most k^2 = 484.
+    # The backtracking tree has depth k, and at each level, we have at most k^2 choices.
+    # So the worst case is (k^2)^k = k^(2k), which for k=22 is 22^44, way too large.
+    
+    # But with pruning (checking if y and z are available), the actual number of nodes is much smaller.
+    # Let's try and see.
+    
+    # Actually, let's think about a smarter DP. We can use the fact that the problem is symmetric in x, y, z.
+    # We can choose to process the dimension with the fewest options first.
+    
+    # But let's try a different approach: use a SAT solver or a reduction to 2-SAT or something.
+    
+    # Actually, given the time limit of 5 seconds, let's try the backtracking approach with some optimizations.
+    
+    # We'll use bitmasks for used y and z, and process x in order.
+    # We'll also precompute the list of triples for each x.
+    
+    # Let's try.
+    
+    # Precompute triples for each x
+    triples_by_x = [[] for _ in range(k+1)]
+    for i, (x, y, z) in enumerate(triples):
+        triples_by_x[x].append((y-1, z-1, i))  # 0-indexed y and z
+    
+    # Check if any x has no triples
+    for x in range(1, k+1):
+        if not triples_by_x[x]:
+            print("NO")
+            return
+    
+    # Backtracking
+    selected = [-1] * (k+1)  # selected[x] = triple index
+    used_y = 0
+    used_z = 0
+    
+    # We'll use iterative deepening or simple recursion
+    # Let's use recursion with bitmasks
+    
+    import sys
+    sys.setrecursionlimit(10000)
+    
+    def backtrack(x, used_y, used_z):
+        if x > k:
+            return True
+        for (y, z, idx) in triples_by_x[x]:
+            if not (used_y & (1 << y)) and not (used_z & (1 << z)):
+                selected[x] = idx
+                if backtrack(x+1, used_y | (1 << y), used_z | (1 << z)):
+                    return True
+        return False
+    
+    if backtrack(1, 0, 0):
+        print("YES")
+        for x in range(1, k+1):
+            idx = selected[x]
+            print(f"{triples[idx][0]} {triples[idx][1]} {triples[idx][2]}")
+    else:
+        print("NO")
+
+solve()

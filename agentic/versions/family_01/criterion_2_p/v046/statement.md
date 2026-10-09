@@ -1,18 +1,16 @@
-# Problem B — Network Migration
+# Problem B — Day and Night
 
 Time limit: 1 s   Memory limit: 256 MB
 
-You are migrating $n$ legacy microservices, numbered 1 through $n$, into a new infrastructure. The infrastructure provides exactly two isolated networks, designated Network 1 and Network 2. Certain pairs of microservices compete for the same hardcoded port and must be placed in different networks to operate successfully. You are given a list of $m$ such interfering pairs.
-
-Your task is to determine if all $n$ services can be deployed without any port conflicts, and if so, assign each service to a network.
+A factory administration is scheduling its $n$ workers into two shifts, labeled 1 and 2. HR has identified specific pairs of workers who have personality conflicts. To maintain a productive environment, any two workers in a conflicting pair must be assigned to different shifts. Because Shift 1 includes a preferred pay differential, the final assignment must prioritize placing workers with lower ID numbers into Shift 1, meaning the overall sequence of shift assignments must be lexicographically smallest. If no valid schedule is possible under these conflict constraints, the system must report this.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$).
-Each of the next $m$ lines contains two integers $u$ and $v$ — an interfering pair of microservices.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$), representing the number of workers and the number of conflicting pairs, respectively. Workers are identified by integers from $1$ to $n$.
+Each of the following $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$), indicating a conflicting pair of workers.
 
 ## Output
-If no valid deployment plan exists, print a single line `NO`.
-Otherwise print `YES`, then a second line with $n$ integers $s_1 \dots s_n$ (each in $\{1,2\}$), representing the lexicographically smallest valid network assignment.
+If it is impossible to assign the workers to the two shifts without violating the conflict constraints, print a single line containing `NO`.
+Otherwise, print `YES` on the first line. On the second line, print $n$ integers $s_1, s_2, \ldots, s_n$ (where each $s_i \in \{1, 2\}$), representing the lexicographically smallest valid assignment of workers to shifts.
 
 ## Example 1
 Input:

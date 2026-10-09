@@ -1,0 +1,58 @@
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        adj[u].append(v)
+        adj[v].append(u)
+
+    color = [0] * (n + 1)
+    parent = [0] * (n + 1)
+    order = []
+    visited = [False] * (n + 1)
+
+    for s in range(1, n + 1):
+        if visited[s]:
+            continue
+        visited[s] = True
+        color[s] = 1
+        stack = [s]
+        while stack:
+            u = stack.pop()
+            order.append(u)
+            for v in adj[u]:
+                if not visited[v]:
+                    visited[v] = True
+                    parent[v] = u
+                    color[v] = 3 - color[u]
+                    stack.append(v)
+
+    for u in range(1, n + 1):
+        cu = color[u]
+        for v in adj[u]:
+            if (cu ^ color[v]) != 3:
+                print("NO")
+                return
+
+    for u in reversed(order):
+        if color[u] == 2:
+            can = True
+            for v in adj[u]:
+                if color[v] == 2:
+                    can = False
+                    break
+            if can:
+                color[u] = 1
+
+    print("YES")
+    print(' '.join(map(str, color[1:])))
+
+solve()

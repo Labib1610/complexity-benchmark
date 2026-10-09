@@ -1,0 +1,98 @@
+import sys
+from collections import defaultdict
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    t = int(next(it))
+    
+    critical = [int(next(it)) for _ in range(t)]
+    
+    # If t <= 1, condition is vacuously satisfied
+    if t <= 1:
+        print(0)
+        return
+    
+    # Read functionals
+    edges = []
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        w = int(next(it))
+        edges.append((u, v, w))
+    
+    # We need to ensure that for all pairs (a, b) of critical indices,
+    # the joint kernel is a subspace of ker(x_a - x_b).
+    # This is equivalent to: for all a, b in critical, a != b,
+    # a and b must be in the same connected component in the graph of activated functionals.
+    
+    # We need to find minimum cost to connect all critical indices.
+    # This is a Steiner tree problem on a general graph with t terminals.
+    # t <= 10, so we can use DP with bitmask.
+    
+    # Build adjacency list
+    adj = defaultdict(list)
+    for u, v, w in edges:
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+    
+    # Map critical indices to 0..t-1
+    crit_id = {val: idx for idx, val in enumerate(critical)}
+    
+    # Dreyfus-Wagner algorithm for Steiner tree
+    # dp[mask][v] = minimum cost to connect terminals in mask, ending at vertex v
+    # mask is a bitmask of terminals (0..t-1)
+    
+    INF = float('inf')
+    dp = [[INF] * (n + 1) for _ in range(1 << t)]
+    
+    # Initialize: single terminal
+    for i, c in enumerate(critical):
+        dp[1 << i][c] = 0
+    
+    # For each mask, compute dp[mask][v] for all v
+    for mask in range(1, 1 << t):
+        # Skip single terminal masks (already initialized)
+        if mask & (mask - 1) == 0:
+            continue
+        
+        # First, combine submasks
+        sub = (mask - 1) & mask
+        while sub:
+            other = mask ^ sub
+            if sub < other:
+                sub = (sub - 1) & mask
+                continue
+            for v in range(1, n + 1):
+                if dp[sub][v] < INF and dp[other][v] < INF:
+                    dp[mask][v] = min(dp[mask][v], dp[sub][v] + dp[other][v])
+            sub = (sub - 1) & mask
+        
+        # Then, run Dijkstra to propagate dp[mask][v] through edges
+        # Use a priority queue
+        import heapq
+        pq = []
+        in_pq = [False] * (n + 1)
+        for v in range(1, n + 1):
+            if dp[mask][v] < INF:
+                heapq.heappush(pq, (dp[mask][v], v))
+                in_pq[v] = True
+        
+        while pq:
+            d, u = heapq.heappop(pq)
+            if d != dp[mask][u]:
+                continue
+            for v, w in adj[u]:
+                if dp[mask][v] > d + w:
+                    dp[mask][v] = d + w
+                    heapq.heappush(pq, (dp[mask][v], v))
+    
+    full_mask = (1 << t) - 1
+    result = min(dp[full_mask])
+    print(result)
+
+solve()

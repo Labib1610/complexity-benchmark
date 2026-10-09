@@ -1,0 +1,201 @@
+**Solution Explanation**
+
+For the given tree we have to activate a set of edges of minimum total weight that
+makes all *special* vertices (the telemetry servers) mutually reachable.
+Because the graph is a tree there is exactly one simple path between any two
+vertices.  
+The optimal set of edges is therefore the union of all those paths – the
+*minimal Steiner tree* of the special vertices in a tree.
+
+An edge belongs to this Steiner tree **iff** after removing the edge the special
+vertices are split into two non‑empty groups, i.e. there is at least one special
+vertex on each side of the edge.
+
+So we only have to know, for every edge, how many special vertices lie in the
+subtree below it (with respect to an arbitrary root).
+
+--------------------------------------------------------------------
+
+#### Algorithm
+```
+read n, m, t
+read list S of t special vertices
+build adjacency list of the tree, each entry = (neighbor, weight)
+
+root = 1
+parent[1] = 0
+weight_to_parent[1] = 0
+order = []                     # vertices in DFS order (preorder)
+stack = [1]
+
+# ----- iterative DFS to obtain parent relations and order -----
+while stack not empty:
+    v = stack.pop()
+    order.append(v)
+    for (to, w) in adj[v]:
+        if to == parent[v]: continue
+        parent[to] = v
+        weight_to_parent[to] = w
+        stack.append(to)
+
+# ----- post‑order processing: count specials in each subtree -----
+sub_special = [0] * (n+1)
+for v in reversed(order):
+    cnt = 1 if v in S else 0
+    for (to, _) in adj[v]:
+        if parent[to] == v:          # child
+            cnt += sub_special[to]
+    sub_special[v] = cnt
+
+# ----- answer: sum weights of edges that separate specials -----
+ans = 0
+for v = 2 .. n:                     # every vertex except the root
+    if 0 < sub_special[v] < t:      # specials on both sides of the edge
+        ans += weight_to_parent[v]
+
+print ans
+```
+
+--------------------------------------------------------------------
+
+#### Correctness Proof  
+
+We prove that the algorithm outputs the minimum possible total activation cost.
+
+---
+
+##### Lemma 1  
+For any edge `e = (p, c)` where `p` is the parent of `c` in the rooted tree,
+let `k = sub_special[c]` be the number of special vertices in the subtree of
+`c`.  
+Edge `e` belongs to the minimal Steiner tree **iff** `0 < k < t`.
+
+**Proof.**  
+Removing `e` separates the tree into two components:
+* the subtree of `c` (contains exactly `k` specials),
+* the rest of the tree (contains `t‑k` specials).
+
+*If* `0 < k < t`, both components contain at least one special vertex, therefore
+any connection of all specials must use `e`.  
+*If* `k = 0` or `k = t`, all specials lie on the same side, so a connection
+does not need `e`. ∎
+
+
+
+##### Lemma 2  
+The set of edges selected by the algorithm (those with `0 < sub_special < t`)
+connects all special vertices.
+
+**Proof.**  
+Take any two special vertices `a` and `b`.  
+Consider the unique path `P` between them in the original tree.
+For every edge `e` of `P`, the removal of `e` would separate `a` and `b`,
+hence each side of `e` contains at least one special vertex.
+Thus `e` satisfies `0 < sub_special < t` and is selected.
+Consequently the whole path `P` is kept, so `a` and `b` stay connected. ∎
+
+
+
+##### Lemma 3  
+No proper subset of the selected edges can still connect all special vertices.
+
+**Proof.**  
+Assume we remove a selected edge `e`. By Lemma&nbsp;1 we have `0 < k < t`,
+so after removal the specials are split into two non‑empty groups.
+Any remaining edges lie completely inside one of the groups, therefore the
+two groups become disconnected. Hence the remaining edges cannot connect all
+specials. ∎
+
+
+
+##### Theorem  
+The algorithm outputs the minimum possible total activation cost.
+
+**Proof.**  
+By Lemma&nbsp;2 the algorithm’s edge set connects all specials, so its total
+weight `Ans` is a feasible cost.  
+By Lemma&nbsp;3 every feasible solution must contain **all** edges selected by
+the algorithm; otherwise some special vertices would be disconnected.
+Therefore any feasible solution has total weight at least `Ans`.  
+Thus `Ans` is the minimum possible cost. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### Complexity Analysis  
+
+*Building the adjacency list*: `O(n)`  
+*DFS traversal* (both passes): `O(n)`  
+*Memory*: adjacency list `2·(n‑1)` entries, plus several `O(n)` arrays → `O(n)`.
+
+Both limits satisfy the constraints (`n ≤ 200 000`).
+
+--------------------------------------------------------------------
+
+#### Reference Implementation  (Python 3)
+
+```python
+import sys
+
+def solve() -> None:
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    it = iter(data)
+    n = next(it)
+    m = next(it)          # equals n-1, not used separately
+    t = next(it)
+
+    specials = [False] * (n + 1)
+    for _ in range(t):
+        v = next(it)
+        specials[v] = True
+
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = next(it)
+        v = next(it)
+        w = next(it)
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+
+    # iterative DFS to get parent, weight to parent and order
+    parent = [0] * (n + 1)
+    wpar = [0] * (n + 1)
+    order = []
+    stack = [1]
+    parent[1] = -1  # mark root
+
+    while stack:
+        v = stack.pop()
+        order.append(v)
+        for to, w in adj[v]:
+            if to == parent[v]:
+                continue
+            parent[to] = v
+            wpar[to] = w
+            stack.append(to)
+
+    # post-order count of specials in each subtree
+    sub = [0] * (n + 1)
+    for v in reversed(order):
+        cnt = 1 if specials[v] else 0
+        for to, _ in adj[v]:
+            if parent[to] == v:   # child
+                cnt += sub[to]
+        sub[v] = cnt
+
+    # sum weights of edges that separate specials
+    ans = 0
+    if t > 1:   # otherwise answer is 0 automatically
+        for v in range(2, n + 1):
+            if 0 < sub[v] < t:
+                ans += wpar[v]
+
+    sys.stdout.write(str(ans))
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above and conforms to
+the required input‑output format.

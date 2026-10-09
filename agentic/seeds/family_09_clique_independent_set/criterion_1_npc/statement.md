@@ -1,4 +1,4 @@
-# Problem A — Tight-Knit Group
+# Problem A — All-Strangers Group
 
 Time limit: 5 s   Memory limit: 256 MB
 
@@ -6,9 +6,9 @@ Time limit: 5 s   Memory limit: 256 MB
 
 A social network has **n** users (numbered 1..n) and **m** friendship connections. Each connection joins two users who are friends.
 
-A group of users is **tight-knit** if every two users in the group are directly connected by a friendship.
+A group of users is **all-strangers** if no two users in the group are friends (there is no connection between any pair of them).
 
-Given a target size **k**, decide whether a tight-knit group of exactly **k** users exists, and if so report one.
+Given a target size **k**, decide whether an all-strangers group of exactly **k** users exists, and if so report one.
 
 ## Input
 
@@ -17,7 +17,7 @@ Each of the next **m** lines contains two integers **u** and **v** (1 ≤ u, v �
 
 ## Output
 
-If a tight-knit group of **k** users exists, print `YES` on the first line, then on the second line print **k** distinct user numbers forming such a group, separated by spaces. Any group in which all pairs are directly connected is accepted.
+If an all-strangers group of **k** users exists, print `YES` on the first line, then on the second line print **k** distinct user numbers forming such a group, separated by spaces. Any group in which no two users are connected is accepted.
 
 If no such group exists, print `NO`.
 
@@ -36,30 +36,32 @@ If no such group exists, print `NO`.
 
 **Output**
 ```
-YES
-1 2 3
+NO
 ```
 
 ### Example 2
 
 **Input**
 ```
-4 3 3
+5 2 3
 1 2
-2 3
 3 4
 ```
 
 **Output**
 ```
-NO
+YES
+1 3 5
 ```
 
 ### Example 3
 
 **Input**
 ```
-3 0 1
+3 3 1
+1 2
+2 3
+1 3
 ```
 
 **Output**
@@ -70,4 +72,4 @@ YES
 
 ## Note
 
-In Example 1, users 1, 2, and 3 are all pairwise friends. In Example 2 there is no set of three users who are all mutually connected.
+An all-strangers group is an *independent set*: no two chosen users may be connected. In Example 2, users 1, 3 and 5 have no friendships among them. In Example 1 no three of the four users are mutually unconnected.

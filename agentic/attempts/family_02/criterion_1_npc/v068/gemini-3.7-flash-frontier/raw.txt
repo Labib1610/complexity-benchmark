@@ -1,0 +1,251 @@
+```python
+import sys
+import random
+
+def solve_sat():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    clauses = []
+    idx = 2
+    for _ in range(m):
+        c = [int(input_data[idx]), int(input_data[idx+1]), int(input_data[idx+2])]
+        idx += 3
+        # Simplify clause: remove duplicate literals, check for tautology
+        # A clause with x and -x is always true (tautology)
+        lits = set(c)
+        tautology = False
+        for lit in lits:
+            if -lit in lits:
+                tautology = True
+                break
+        if not tautology:
+            clauses.append(list(lits))
+            
+    # Check for empty clause
+    for c in clauses:
+        if len(c) == 0:
+            print("NO")
+            return
+
+    # CDCL Solver
+    class CDCL:
+        def __init__(self, n, clauses):
+            self.n = n
+            self.clauses = [list(c) for c in clauses]
+            self.assignment = [None] * (n + 1)  # None, True, False
+            self.decision_level = [0] * (n + 1)
+            self.reason = [None] * (n + 1)
+            self.level = 0
+            self.trail = []
+            
+            # Activity for VSIDS
+            self.activity = [0.0] * (n + 1)
+            self.var_inc = 1.0
+            self.var_decay = 0.95
+            
+            # Watched literals: watch[lit] = list of clause indices
+            # lit can be from -n to n (excluding 0)
+            self.watches = {lit: [] for lit in range(-n, n + 1) if lit != 0}
+            
+            for ci, c in enumerate(self.clauses):
+                if len(c) >= 2:
+                    self.watches[c[0]].append(ci)
+                    self.watches[c[1]].append(ci)
+                elif len(c) == 1:
+                    self.watches[c[0]].append(ci)
+                for lit in c:
+                    self.activity[abs(lit)] += 1.0
+
+        def lit_val(self, lit):
+            var = abs(lit)
+            val = self.assignment[var]
+            if val is None:
+                return None
+            return val if lit > 0 else not val
+
+        def assign(self, lit, reason=None):
+            var = abs(lit)
+            val = (lit > 0)
+            self.assignment[var] = val
+            self.decision_level[var] = self.level
+            self.reason[var] = reason
+            self.trail.append(var)
+
+        def unassign(self, var):
+            self.assignment[var] = None
+            self.decision_level[var] = 0
+            self.reason[var] = None
+
+        def bcp(self):
+            # Unit propagation using 2-watched literals
+            # We process assignments from trail
+            i = len(self.trail) - 1
+            # We can keep a propagation pointer
+            pass
+
+        def solve(self):
+            prop_head = 0
+            
+            # First, enqueue unit clauses
+            for ci, c in enumerate(self.clauses):
+                if len(c) == 1:
+                    lit = c[0]
+                    val = self.lit_val(lit)
+                    if val is False:
+                        return None
+                    elif val is None:
+                        self.assign(lit, reason=ci)
+                elif len(c) == 0:
+                    return None
+
+            while True:
+                # Propagate
+                confl = None
+                while prop_head < len(self.trail):
+                    p_var = self.trail[prop_head]
+                    prop_head += 1
+                    # Literal that became FALSE
+                    p_val = self.assignment[p_var]
+                    false_lit = -p_var if p_val else p_var
+                    
+                    # Inspect clauses watching false_lit
+                    watch_list = self.watches[false_lit]
+                    new_watch_list = []
+                    
+                    for k, ci in enumerate(watch_list):
+                        c = self.clauses[ci]
+                        
+                        # Make sure false_lit is at c[1]
+                        if c[0] == false_lit:
+                            c[0], c[1] = c[1], c[0]
+                        
+                        # If first watcher is true, clause is already satisfied
+                        if self.lit_val(c[0]) is True:
+                            new_watch_list.append(ci)
+                            continue
+                        
+                        # Look for a new watcher
+                        found = False
+                        for j in range(2, len(c)):
+                            if self.lit_val(c[j]) is not False:
+                                c[1], c[j] = c[j], c[1]
+                                self.watches[c[1]].append(ci)
+                                found = True
+                                break
+                        
+                        if found:
+                            continue
+                        
+                        # No replacement found; c[0] must be satisfied or unit/conflict
+                        new_watch_list.append(ci)
+                        first_val = self.lit_val(c[0])
+                        if first_val is False:
+                            # Conflict!
+                            confl = ci
+                            # Copy remaining watches
+                            new_watch_list.extend(watch_list[k+1:])
+                            break
+                        elif first_val is None:
+                            # Unit propagation
+                            self.assign(c[0], reason=ci)
+                    
+                    self.watches[false_lit] = new_watch_list
+                    if confl is not None:
+                        break
+                
+                if confl is not None:
+                    if self.level == 0:
+                        return None # UNSAT
+                    
+                    # Conflict analysis
+                    learnt = []
+                    seen = [False] * (self.n + 1)
+                    counter = 0
+                    confl_clause = self.clauses[confl]
+                    backtrack_level = 0
+                    
+                    curr_clause = confl_clause
+                    p = None
+                    t_idx = len(self.trail) - 1
+                    
+                    while True:
+                        for lit in curr_clause:
+                            var = abs(lit)
+                            if not seen[var]:
+                                seen[var] = True
+                                self.activity[var] += self.var_inc
+                                if self.decision_level[var] == self.level:
+                                    counter += 1
+                                else:
+                                    learnt.append(lit)
+                                    if self.decision_level[var] > backtrack_level:
+                                        backtrack_level = self.decision_level[var]
+                        
+                        while not seen[self.trail[t_idx]]:
+                            t_idx -= 1
+                        p = self.trail[t_idx]
+                        t_idx -= 1
+                        seen[p] = False
+                        counter -= 1
+                        if counter == 0:
+                            break
+                        curr_clause = self.clauses[self.reason[p]]
+                    
+                    unit_lit = -p if self.assignment[p] else p
+                    learnt.insert(0, unit_lit)
+                    
+                    # Decay activities
+                    self.var_inc /= self.var_decay
+                    
+                    # Backtrack to backtrack_level
+                    while len(self.trail) > 0 and self.decision_level[self.trail[-1]] > backtrack_level:
+                        var = self.trail.pop()
+                        self.unassign(var)
+                    prop_head = len(self.trail)
+                    self.level = backtrack_level
+                    
+                    # Add learnt clause
+                    ci = len(self.clauses)
+                    self.clauses.append(learnt)
+                    if len(learnt) >= 2:
+                        self.watches[learnt[0]].append(ci)
+                        self.watches[learnt[1]].append(ci)
+                        self.assign(learnt[0], reason=ci)
+                    elif len(learnt) == 1:
+                        self.watches[learnt[0]].append(ci)
+                        self.assign(learnt[0], reason=ci)
+                    else:
+                        return None
+                else:
+                    # Pick next variable to branch
+                    next_var = None
+                    max_act = -1.0
+                    for var in range(1, self.n + 1):
+                        if self.assignment[var] is None:
+                            if self.activity[var] > max_act:
+                                max_act = self.activity[var]
+                                next_var = var
+                    
+                    if next_var is None:
+                        # All assigned! SAT!
+                        return [1 if self.assignment[i] else 0 for i in range(1, self.n + 1)]
+                    
+                    self.level += 1
+                    self.assign(next_var, reason=None)
+
+    solver = CDCL(n, clauses)
+    res = solver.solve()
+    if res is None:
+        print("NO")
+    else:
+        print("YES")
+        print(*(res))
+
+if __name__ == '__main__':
+    solve_sat()
+```

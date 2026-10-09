@@ -1,0 +1,51 @@
+import sys
+from collections import defaultdict, deque
+
+def solve():
+    q, t = map(int, sys.stdin.readline().split())
+    
+    # Build adjacency list for bipartite graph
+    # Controllers: 1 to q
+    # Platforms: q+1 to 2*q
+    graph = defaultdict(list)
+    edges = []
+    
+    for _ in range(t):
+        a, b = map(int, sys.stdin.readline().split())
+        graph[a].append(b)
+        edges.append((a, b))
+    
+    # Try to find a perfect matching using Hopcroft-Karp algorithm approach
+    # But we'll use a simpler approach with DFS-based augmenting paths
+    
+    # partner[b] = a means controller a is matched with platform b
+    # partner[a] = b means platform b is matched with controller a
+    partner = {}
+    
+    def dfs(u, visited):
+        for v in graph[u]:
+            if v in visited:
+                continue
+            visited.add(v)
+            
+            # If v is unmatched or we can find an augmenting path from v's match
+            if v not in partner or dfs(partner[v], visited):
+                partner[u] = v
+                partner[v] = u
+                return True
+        return False
+    
+    # Try to match all controllers
+    matched = 0
+    for u in range(1, q + 1):
+        if dfs(u, set()):
+            matched += 1
+    
+    if matched == q:
+        print("YES")
+        for u in range(1, q + 1):
+            print(u, partner[u])
+    else:
+        print("NO")
+
+solve()

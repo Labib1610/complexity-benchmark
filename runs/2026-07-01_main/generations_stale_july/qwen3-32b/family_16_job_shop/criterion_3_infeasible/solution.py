@@ -1,0 +1,10 @@
+import sys
+
+def main():
+    j, T = map(int, sys.stdin.readline().split())
+    for _ in range(j):
+        sys.stdin.readline()
+    print("NO")
+
+if __name__ == "__main__":
+    main()

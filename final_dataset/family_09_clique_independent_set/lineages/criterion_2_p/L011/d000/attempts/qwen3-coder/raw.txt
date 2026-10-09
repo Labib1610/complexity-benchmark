@@ -1,0 +1,163 @@
+```python
+import sys
+from collections import defaultdict, deque
+
+def read_input():
+    n, m, k = map(int, sys.stdin.readline().split())
+    edges = []
+    for _ in range(m):
+        u, v = map(int, sys.stdin.readline().split())
+        edges.append((u, v))
+    return n, m, k, edges
+
+def solve():
+    n, m, k, edges = read_input()
+    
+    # Build adjacency list
+    adj = defaultdict(list)
+    for u, v in edges:
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # Since the graph is bipartite (interference only between different channels),
+    # we can color it with 2 colors. Nodes with the same color don't interfere.
+    color = [-1] * (n + 1)  # -1: unvisited, 0: color A, 1: color B
+    
+    def bfs(start):
+        queue = deque([start])
+        color[start] = 0
+        count_a = 1
+        count_b = 0
+        
+        while queue:
+            node = queue.popleft()
+            current_color = color[node]
+            next_color = 1 - current_color
+            
+            for neighbor in adj[node]:
+                if color[neighbor] == -1:
+                    color[neighbor] = next_color
+                    if next_color == 0:
+                        count_a += 1
+                    else:
+                        count_b += 1
+                    queue.append(neighbor)
+                elif color[neighbor] == current_color:
+                    # This should not happen in a bipartite graph
+                    return -1, -1
+        
+        return count_a, count_b
+    
+    # Find all connected components and their bipartition
+    components = []
+    for i in range(1, n + 1):
+        if color[i] == -1:
+            count_a, count_b = bfs(i)
+            if count_a == -1:  # Not bipartite - shouldn't happen per problem statement
+                # But let's handle it gracefully
+                print("NO")
+                return
+            components.append((count_a, count_b, i))  # Also store a starting node for reconstruction
+    
+    # Now we have components, each with two independent sets (color 0 and color 1)
+    # We need to select exactly k nodes such that no two are connected by an edge
+    # This means we can select nodes of the same color from each component
+    
+    # Use dynamic programming approach to see if we can get exactly k nodes
+    # But since we only need to find one solution, we can use a greedy approach:
+    # For each component, take the larger color class if it helps us get closer to k
+    
+    # Actually, let's think differently. We want exactly k.
+    # For each component we can take either all nodes of color 0 or all nodes of color 1.
+    
+    # Let's collect all nodes by color for each component
+    component_nodes = []
+    for count_a, count_b, start_node in components:
+        # Re-traverse component to collect nodes by color
+        nodes_a = []
+        nodes_b = []
+        queue = deque([start_node])
+        temp_color = [-1] * (n + 1)
+        temp_color[start_node] = 0
+        if color[start_node] == 0:
+            nodes_a.append(start_node)
+        else:
+            nodes_b.append(start_node)
+            
+        while queue:
+            node = queue.popleft()
+            current_color = temp_color[node]
+            next_color = 1 - current_color
+            
+            for neighbor in adj[node]:
+                if temp_color[neighbor] == -1:
+                    temp_color[neighbor] = next_color
+                    if next_color == 0:
+                        nodes_a.append(neighbor)
+                    else:
+                        nodes_b.append(neighbor)
+                    queue.append(neighbor)
+        
+        component_nodes.append((nodes_a, nodes_b))
+    
+    # Now for each component we can choose either nodes_a or nodes_b
+    # We want to select exactly k nodes in total
+    
+    # This is a subset sum problem variant. We want to select one set from each pair
+    # such that the sum of sizes equals k.
+    
+    # Use dynamic programming
+    # dp[i] = whether we can make exactly i nodes using first components
+    dp = [False] * (k + 1)
+    dp[0] = True
+    parent = [-1] * (k + 1)  # To reconstruct solution
+    
+    # For reconstruction, we also need to know which choice (0 or 1) was made for each component
+    choice = [-1] * (k + 1)  # -1: not reachable, 0: took first set, 1: took second set
+    
+    choices_made = [None] * (k + 1)  # Store the choice for reconstruction
+    
+    for nodes_a, nodes_b in component_nodes:
+        size_a = len(nodes_a)
+        size_b = len(nodes_b)
+        
+        # Process in reverse order to avoid using updated values
+        new_dp = dp[:]
+        new_choices = choices_made[:]
+        
+        for i in range(k + 1):
+            if dp[i]:
+                # Try taking nodes_a
+                if i + size_a <= k:
+                    new_dp[i + size_a] = True
+                    new_choices[i + size_a] = (0, nodes_a)
+                
+                # Try taking nodes_b
+                if i + size_b <= k:
+                    new_dp[i + size_b] = True
+                    new_choices[i + size_b] = (1, nodes_b)
+        
+        dp = new_dp
+        choices_made = new_choices
+    
+    if not dp[k]:
+        print("NO")
+        return
+    
+    # Reconstruct solution
+    result = []
+    current = k
+    while current > 0:
+        choice_info = choices_made[current]
+        if choice_info is None:
+            print("NO")
+            return
+        _, nodes = choice_info
+        result.extend(nodes)
+        current -= len(nodes)
+    
+    print("YES")
+    print(" ".join(map(str, result)))
+
+solve()
+```

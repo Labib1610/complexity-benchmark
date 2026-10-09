@@ -1,0 +1,248 @@
+**Solution Explanation**
+
+For every valve `i` we introduce a Boolean variable  
+
+```
+xi = 1   ⇔   valve i is in the primary position
+xi = 0   ⇔   valve i is in the secondary position
+```
+
+A guideline contains two *target positions* `l1 , l2`.
+
+* `l > 0` means “valve `l` is primary” → literal `xl`
+* `l < 0` means “valve `|l|` is secondary” → literal `¬x|l|`
+
+The guideline is satisfied iff at least one of its two literals is true, i.e.
+
+```
+(l1)  OR  (l2)
+```
+
+Thus the whole problem is exactly a **2‑SAT** instance.
+
+--------------------------------------------------------------------
+
+#### 1.   Implication graph
+
+For a clause `(a ∨ b)` we add the two implications  
+
+```
+¬a → b
+¬b → a
+```
+
+If a literal is `xi` we use node `2*i` (true), for `¬xi` node `2*i+1`.  
+Negation is just `node ^ 1`.
+
+The graph has `2·n` vertices and `2·m` directed edges.
+
+--------------------------------------------------------------------
+
+#### 2.   Solving 2‑SAT with Kosaraju
+
+Kosaraju’s algorithm finds strongly connected components (SCC) in linear time.
+
+* First DFS on the original graph → vertices ordered by finishing time.
+* Second DFS on the reversed graph, processing vertices in *reverse* finishing order → each DFS tree is one SCC.
+
+If a variable and its negation belong to the same SCC the instance is unsatisfiable.
+
+Otherwise the SCC‑graph is a DAG.  
+When we process SCCs in the order they were discovered in the second pass,
+later SCCs are “higher” in the topological order.  
+A standard rule gives a satisfying assignment:
+
+```
+xi = true   if   comp[xi] > comp[¬xi]
+xi = false  otherwise
+```
+
+--------------------------------------------------------------------
+
+#### 3.   Correctness Proof  
+
+We prove that the algorithm prints “YES” and a correct configuration
+iff such a configuration exists.
+
+---
+
+##### Lemma 1  
+For every clause `(a ∨ b)` the added implications `¬a → b` and `¬b → a`
+are logically equivalent to the clause.
+
+**Proof.**  
+`¬a → b` is equivalent to `a ∨ b`.  
+Similarly `¬b → a` is also equivalent to `a ∨ b`.  
+Both together enforce exactly the same truth assignments as the clause. ∎
+
+
+
+##### Lemma 2  
+If a variable `xi` and its negation belong to the same SCC,
+the 2‑SAT instance is unsatisfiable.
+
+**Proof.**  
+Inside an SCC every vertex reaches every other, therefore
+`xi → ¬xi` and `¬xi → xi`.  
+If `xi` were true, the first implication forces `¬xi` true, a contradiction;
+if `xi` were false, the second implication forces `xi` true, also a contradiction.
+Hence no assignment can satisfy all implications, and by Lemma&nbsp;1 no assignment
+can satisfy all original clauses. ∎
+
+
+
+##### Lemma 3  
+If for every `i` the vertices `xi` and `¬xi` lie in different SCCs,
+the assignment defined by  
+
+```
+xi = true  ⇔  comp[xi] > comp[¬xi]
+```
+
+satisfies all implications, therefore all clauses.
+
+**Proof.**  
+Consider any implication `p → q`.  
+In the SCC‑DAG there is a path from `comp[p]` to `comp[q]`.  
+Topological order guarantees `comp[p] ≤ comp[q]`.  
+If `p` is assigned true, then `comp[p] > comp[¬p]`.  
+Because `comp[p] ≤ comp[q]`, we have `comp[q] > comp[¬p]`.  
+Since `¬p` and `q` are in different SCCs, `comp[¬p]` and `comp[¬q]` are also different,
+and `comp[q] > comp[¬q]` holds, i.e. `q` is true.  
+Thus every true premise forces a true conclusion, so all implications hold.
+By Lemma&nbsp;1 the original clauses hold as well. ∎
+
+
+
+##### Lemma 4  
+If the algorithm outputs “YES”, the printed configuration satisfies all guidelines.
+
+**Proof.**  
+“YES” is printed only when no variable shares an SCC with its negation,
+so Lemma&nbsp;3 applies and the constructed assignment satisfies all clauses,
+hence all guidelines. ∎
+
+
+
+##### Lemma 5  
+If a satisfying configuration exists, the algorithm outputs “YES”.
+
+**Proof.**  
+Assume a satisfying assignment exists.
+If some variable and its negation were in the same SCC,
+by Lemma&nbsp;2 the instance would be unsatisfiable – contradiction.
+Therefore all pairs lie in different SCCs, the algorithm will not reject
+and will output “YES”. ∎
+
+
+
+##### Theorem  
+The algorithm prints “YES” and a valid configuration **iff**
+such a configuration exists; otherwise it prints “NO”.
+
+**Proof.**  
+*If* part: by Lemma&nbsp;5 a satisfiable instance leads to “YES”.
+*Only‑if* part: by Lemma&nbsp;4 “YES” yields a configuration that satisfies all
+guidelines. The remaining case is “NO”, which by Lemma&nbsp;2 means no
+configuration can satisfy all guidelines. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### 4.   Complexity Analysis  
+
+*Vertices*: `2·n`  
+*Edges*: `2·m`
+
+Kosaraju runs in `O(V + E) = O(n + m)` time and the same memory
+for adjacency lists and auxiliary arrays.
+
+Both limits satisfy the problem constraints (`n ≤ 10⁵, m ≤ 2·10⁵`).
+
+--------------------------------------------------------------------
+
+#### 5.   Reference Implementation  (Python 3)
+
+```python
+import sys
+
+sys.setrecursionlimit(1 << 25)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+
+    N = 2 * n
+    g = [[] for _ in range(N)]
+    rg = [[] for _ in range(N)]
+
+    def lit(v: int) -> int:
+        """return node index for literal v (v>0 -> x, v<0 -> ¬x)"""
+        if v > 0:
+            return 2 * (v - 1)          # true
+        else:
+            return 2 * (abs(v) - 1) + 1  # false
+
+    for _ in range(m):
+        a = int(next(it))
+        b = int(next(it))
+        A = lit(a)
+        B = lit(b)
+        NA = A ^ 1
+        NB = B ^ 1
+        # ¬A -> B
+        g[NA].append(B)
+        rg[B].append(NA)
+        # ¬B -> A
+        g[NB].append(A)
+        rg[A].append(NB)
+
+    visited = [False] * N
+    order = []
+
+    def dfs(v: int):
+        visited[v] = True
+        for to in g[v]:
+            if not visited[to]:
+                dfs(to)
+        order.append(v)
+
+    for v in range(N):
+        if not visited[v]:
+            dfs(v)
+
+    comp = [-1] * N
+    cur = 0
+
+    def rdfs(v: int, label: int):
+        comp[v] = label
+        for to in rg[v]:
+            if comp[to] == -1:
+                rdfs(to, label)
+
+    for v in reversed(order):
+        if comp[v] == -1:
+            rdfs(v, cur)
+            cur += 1
+
+    assignment = [0] * n
+    for i in range(n):
+        if comp[2 * i] == comp[2 * i + 1]:
+            print("NO")
+            return
+        assignment[i] = 1 if comp[2 * i] > comp[2 * i + 1] else 0
+
+    print("YES")
+    print(' '.join(map(str, assignment)))
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above
+and conforms to the required input‑output format.

@@ -1,0 +1,37 @@
+import sys
+
+def solve() -> None:
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [set() for _ in range(n + 1)]
+    
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        adj[u].add(v)
+        adj[v].add(u)
+    
+    # Iterate to find the lexicographically smallest triad
+    # A triad (a, b, c) with a < b < c is fractured if
+    # b in adj[a], c in adj[a], and c in adj[b].
+    # We iterate a from 1 to n, b from a+1 to n, c from b+1 to n.
+    # This ensures the first valid triad found is the lexicographically smallest.
+    
+    for a in range(1, n + 1):
+        # To optimize, we can iterate over neighbors of a that are > a
+        # but simple iteration is cleaner and sufficient given constraints.
+        # However, checking adj[a] membership is O(1).
+        for b in range(a + 1, n + 1):
+            if b in adj[a]:
+                for c in range(b + 1, n + 1):
+                    if c in adj[a] and c in adj[b]:
+                        print(a, b, c)
+                        return
+
+if __name__ == "__main__":
+    solve()

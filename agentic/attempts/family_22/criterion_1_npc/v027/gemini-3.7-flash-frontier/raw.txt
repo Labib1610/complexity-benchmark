@@ -1,0 +1,202 @@
+```python
+import sys
+from collections import deque, defaultdict
+import heapq
+import random
+
+# Increase recursion depth just in case
+sys.setrecursionlimit(300000)
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    M = int(input_data[1])
+    T = int(input_data[2])
+    m = int(input_data[3])
+    
+    adj = [[] for _ in range(n + 1)]
+    rev_adj = [[] for _ in range(n + 1)]
+    in_degree = [0] * (n + 1)
+    
+    idx = 4
+    for _ in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx+1])
+        idx += 2
+        adj[u].append(v)
+        rev_adj[v].append(u)
+        in_degree[v] += 1
+        
+    # Check for cycles and compute topological order
+    q = deque([i for i in range(1, n + 1) if in_degree[i] == 0])
+    topo = []
+    in_deg_copy = list(in_degree)
+    
+    while q:
+        u = q.popleft()
+        topo.append(u)
+        for v in adj[u]:
+            in_deg_copy[v] -= 1
+            if in_deg_copy[v] == 0:
+                q.append(v)
+                
+    if len(topo) < n:
+        print("NO")
+        return
+
+    # Compute Earliest Day E[u]
+    E = [1] * (n + 1)
+    for u in topo:
+        for v in adj[u]:
+            if E[u] + 1 > E[v]:
+                E[v] = E[u] + 1
+
+    # Compute Latest Day L[u]
+    L = [T] * (n + 1)
+    for u in reversed(topo):
+        for v in adj[u]:
+            if L[v] - 1 < L[u]:
+                L[u] = L[v] - 1
+
+    for i in range(1, n + 1):
+        if E[i] > L[i] or E[i] > T or L[i] < 1:
+            print("NO")
+            return
+
+    # Total capacity check
+    if n > M * T:
+        print("NO")
+        return
+
+    # Height / depth in DAG for tie-breaking
+    height = [0] * (n + 1)
+    for u in reversed(topo):
+        h = 0
+        for v in adj[u]:
+            if height[v] + 1 > h:
+                h = height[v] + 1
+        height[u] = h
+
+    # Priority function for a task: (L[u], -height[u], -len(adj[u]), u)
+    
+    # Backtracking search with List Scheduling
+    # On each day d = 1..T, we have a set of ready tasks.
+    # We pick up to M tasks to execute on day d.
+    
+    assignment = [0] * (n + 1)
+    cur_in_deg = list(in_degree)
+    
+    # If M >= n, the earliest deadline / longest path assignment is trivial
+    # Otherwise, search:
+    
+    def search(day, ready_set):
+        if day > T:
+            return True if all(assignment[i] > 0 for i in range(1, n + 1)) else False
+        
+        # Pruning: count of unscheduled tasks
+        remaining = [i for i in range(1, n + 1) if assignment[i] == 0]
+        if not remaining:
+            return True
+        if len(remaining) > (T - day + 1) * M:
+            return False
+            
+        # Check if any unscheduled task has L[u] < day
+        for u in remaining:
+            if L[u] < day:
+                return False
+                
+        # If ready tasks is empty but there are remaining tasks, cannot proceed
+        if not ready_set and remaining:
+            return False
+
+        # Sort ready tasks by priority
+        sorted_ready = sorted(ready_set, key=lambda x: (L[x], -height[x], -len(adj[x])))
+        
+        # If number of ready tasks <= M, we should just take all of them
+        if len(sorted_ready) <= M:
+            chosen = sorted_ready
+            new_ready = set()
+            for u in chosen:
+                assignment[u] = day
+                for v in adj[u]:
+                    cur_in_deg[v] -= 1
+                    if cur_in_deg[v] == 0:
+                        new_ready.add(v)
+            
+            if search(day + 1, new_ready):
+                return True
+                
+            # Backtrack
+            for u in chosen:
+                assignment[u] = 0
+                for v in adj[u]:
+                    cur_in_deg[v] += 1
+            return False
+        else:
+            # We must choose a subset of size M from sorted_ready
+            # The standard greedy choice is the top M tasks
+            # Try top M first
+            chosen = sorted_ready[:M]
+            new_ready = set(sorted_ready[M:])
+            for u in chosen:
+                assignment[u] = day
+                for v in adj[u]:
+                    cur_in_deg[v] -= 1
+                    if cur_in_deg[v] == 0:
+                        new_ready.add(v)
+                        
+            if search(day + 1, new_ready):
+                return True
+                
+            # Backtrack
+            for u in chosen:
+                assignment[u] = 0
+                for v in adj[u]:
+                    cur_in_deg[v] += 1
+                    
+            return False
+
+    initial_ready = set(i for i in range(1, n + 1) if cur_in_deg[i] == 0)
+    
+    if search(1, initial_ready):
+        print("YES")
+        print(*(assignment[1:]))
+    else:
+        # If deterministic failed, try randomized restarts if small chance it helps
+        success = False
+        for _ in range(50):
+            cur_in_deg = list(in_degree)
+            assignment = [0] * (n + 1)
+            ready_list = [i for i in range(1, n + 1) if cur_in_deg[i] == 0]
+            valid = True
+            for d in range(1, T + 1):
+                if not ready_list:
+                    if any(assignment[i] == 0 for i in range(1, n + 1)):
+                        valid = False
+                    break
+                # Sort with a bit of noise on ties
+                ready_list.sort(key=lambda x: (L[x] + random.uniform(-0.1, 0.1), -height[x] + random.uniform(-0.1, 0.1)))
+                chosen = ready_list[:M]
+                ready_list = ready_list[M:]
+                for u in chosen:
+                    assignment[u] = d
+                    for v in adj[u]:
+                        cur_in_deg[v] -= 1
+                        if cur_in_deg[v] == 0:
+                            ready_list.append(v)
+            if valid and all(assignment[i] > 0 for i in range(1, n + 1)):
+                success = True
+                break
+                
+        if success:
+            print("YES")
+            print(*(assignment[1:]))
+        else:
+            print("NO")
+
+if __name__ == '__main__':
+    solve()
+```

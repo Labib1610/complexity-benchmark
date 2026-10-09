@@ -2,14 +2,14 @@ import sys
 from collections import defaultdict, deque
 
 def solve():
-    n, m = map(int, sys.stdin.readline().split())
+    n, m = map(int, input().split())
     
     # Build adjacency list
-    graph = defaultdict(list)
+    adj = defaultdict(list)
     for _ in range(m):
-        u, v = map(int, sys.stdin.readline().split())
-        graph[u].append(v)
-        graph[v].append(u)
+        u, v = map(int, input().split())
+        adj[u].append(v)
+        adj[v].append(u)
     
     # Color array: 0 = unvisited, 1 = color 1, 2 = color 2
     color = [0] * (n + 1)
@@ -23,7 +23,7 @@ def solve():
             while queue:
                 node = queue.popleft()
                 
-                for neighbor in graph[node]:
+                for neighbor in adj[node]:
                     if color[neighbor] == 0:
                         color[neighbor] = 3 - color[node]  # Flip color (1->2, 2->1)
                         queue.append(neighbor)
@@ -35,11 +35,10 @@ def solve():
     print("YES")
     result = []
     for i in range(1, n + 1):
-        if color[i] == 0:  # Isolated vertex, assign color 1
+        if color[i] == 0:
             result.append("1")
         else:
             result.append(str(color[i]))
-    
     print(" ".join(result))
 
 solve()

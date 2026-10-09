@@ -1,0 +1,277 @@
+```python
+import sys
+
+# Increase recursion depth just in case
+sys.setrecursionlimit(2000)
+
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+
+    n = int(input_data[0])
+    m = int(input_data[1])
+
+    adj = [0] * n
+    idx = 2
+    for _ in range(m):
+        u = int(input_data[idx]) - 1
+        v = int(input_data[idx + 1]) - 1
+        idx += 2
+        if u != v:
+            adj[u] |= 1 << v
+            adj[v] |= 1 << u
+
+    # Check for self-loops (should not occur per problem statement, but safe to check)
+    # We will color connected components independently.
+    visited_comp = [False] * n
+    final_colors = [0] * n
+
+    for comp_root in range(n):
+        if visited_comp[comp_root]:
+            continue
+
+        # Extract component vertices
+        comp = []
+        queue = [comp_root]
+        visited_comp[comp_root] = True
+        for u in queue:
+            comp.append(u)
+            nbrs = adj[u]
+            for v in range(n):
+                if (nbrs & (1 << v)) and not visited_comp[v]:
+                    visited_comp[v] = True
+                    queue.append(v)
+
+        k = len(comp)
+        v_to_id = {comp[i]: i for i in range(k)}
+        comp_adj = [0] * k
+        for i in range(k):
+            u = comp[i]
+            nbrs = adj[u]
+            mask = 0
+            for j in range(k):
+                if nbrs & (1 << comp[j]):
+                    mask |= 1 << j
+            comp_adj[i] = mask
+
+        comp_colors = solve_component(k, comp_adj)
+        if comp_colors is None:
+            print("NO")
+            return
+
+        for i in range(k):
+            final_colors[comp[i]] = comp_colors[i]
+
+    print("YES")
+    print(*(final_colors[i] for i in range(n)))
+
+
+def solve_component(k, adj):
+    # Solves 3-coloring for a connected component of size k.
+    # Returns a list of colors (1, 2, or 3) for each vertex 0..k-1, or None if impossible.
+    if k == 1:
+        return [1]
+
+    # Domain of each vertex: bitmask where bit 0 is color 1, bit 1 is color 2, bit 2 is color 3.
+    # Initial domains: 7 (binary 111) for all.
+    domains = [7] * k
+
+    # Symmetry breaking:
+    # Set vertex 0 to color 1 (bitmask 1)
+    # Find a neighbor of 0, set it to color 2 (bitmask 2)
+    domains[0] = 1
+
+    # Find first neighbor of 0
+    first_nbr = -1
+    for j in range(k):
+        if adj[0] & (1 << j):
+            first_nbr = j
+            break
+
+    if first_nbr != -1:
+        domains[first_nbr] = 2
+
+    # Forward check initial domains
+    for u in range(k):
+        if domains[u] in (1, 2, 4):
+            c = domains[u]
+            for v in range(k):
+                if (adj[u] & (1 << v)) and u != v:
+                    domains[v] &= ~c
+                    if domains[v] == 0:
+                        return None
+
+    assigned = [0] * k
+
+    def solve_2sat(curr_domains):
+        # curr_domains has popcount <= 2 for all unassigned/assigned vertices
+        # Variables for 2-SAT: for each vertex i with domain of size 2,
+        # let domain be {c0, c1} (c0 < c1).
+        # x_i = 1 means color c0, x_i = 0 means color c1.
+        # If domain size is 1, it's fixed.
+        # 2-SAT variables: 2 * k literals (2*i for True, 2*i+1 for False).
+
+        # First, propagate size-1 domains
+        dom = list(curr_domains)
+        changed = True
+        while changed:
+            changed = False
+            for u in range(k):
+                d = dom[u]
+                if d == 0:
+                    return None
+                if d in (1, 2, 4):
+                    for v in range(k):
+                        if (adj[u] & (1 << v)) and (dom[v] & d):
+                            dom[v] &= ~d
+                            if dom[v] == 0:
+                                return None
+                            changed = True
+
+        # Now build 2-SAT implication graph
+        # For each vertex, map domain to (c0, c1)
+        # Var i: True means c0, False means c1
+        # Literal for True: 2*i, False: 2*i + 1
+        adj_2sat = [[] for _ in range(2 * k)]
+
+        def add_clause(l1, l2):
+            # l1 or l2  <=>  (not l1 -> l2) and (not l2 -> l1)
+            adj_2sat[l1 ^ 1].append(l2)
+            adj_2sat[l2 ^ 1].append(l1)
+
+        for u in range(k):
+            d = dom[u]
+            if d in (1, 2, 4):
+                # Fixed to c0. We can just say x_u is True (if c0 is the only choice)
+                # i.e., clause (x_u or x_u)
+                add_clause(2 * u, 2 * u)
+            else:
+                # Size 2: options are c0, c1
+                pass
+
+        for u in range(k):
+            du = dom[u]
+            cu = [1 << b for b in range(3) if du & (1 << b)]
+            for v in range(u + 1, k):
+                if not (adj[u] & (1 << v)):
+                    continue
+                dv = dom[v]
+                cv = [1 << b for b in range(3) if dv & (1 << b)]
+
+                # For any shared color c, they cannot both have color c
+                for iu, c_u in enumerate(cu):
+                    for iv, c_v in enumerate(cv):
+                        if c_u == c_v:
+                            # Not (u has c_u and v has c_v)
+                            # u has c_u corresponds to: iu == 0 -> 2*u, iu == 1 -> 2*u + 1
+                            lit_u = 2 * u if iu == 0 else 2 * u + 1
+                            lit_v = 2 * v if iv == 0 else 2 * v + 1
+                            # ~(lit_u and lit_v) = ~lit_u or ~lit_v
+                            add_clause(lit_u ^ 1, lit_v ^ 1)
+
+        # Solve 2-SAT using SCC (Kosaraju or Tarjan)
+        n_vars = 2 * k
+        visited = [False] * n_vars
+        order = []
+
+        def dfs1(v):
+            visited[v] = True
+            for nxt in adj_2sat[v]:
+                if not visited[nxt]:
+                    dfs1(nxt)
+            order.append(v)
+
+        for i in range(n_vars):
+            if not visited[i]:
+                dfs1(i)
+
+        # Transpose graph
+        radj = [[] for _ in range(n_vars)]
+        for u in range(n_vars):
+            for v in adj_2sat[u]:
+                radj[v].append(u)
+
+        scc = [-1] * n_vars
+        comp_id = 0
+        for u in reversed(order):
+            if scc[u] == -1:
+                q = [u]
+                scc[u] = comp_id
+                for x in q:
+                    for nxt in radj[x]:
+                        if scc[nxt] == -1:
+                            scc[nxt] = comp_id
+                            q.append(nxt)
+                comp_id += 1
+
+        res_colors = [0] * k
+        for i in range(k):
+            if scc[2 * i] == scc[2 * i + 1]:
+                return None
+            val = scc[2 * i] > scc[2 * i + 1]  # True if var is True
+            du = dom[i]
+            cu = [b + 1 for b in range(3) if du & (1 << b)]
+            if len(cu) == 1:
+                res_colors[i] = cu[0]
+            else:
+                res_colors[i] = cu[0] if val else cu[1]
+
+        return res_colors
+
+    def search(curr_domains):
+        # Pick unassigned vertex with minimum domain size
+        # If any domain is empty -> failure
+        # If all domain sizes <= 2 -> solve with 2-SAT!
+        has_size_3 = False
+        min_size = 4
+        best_u = -1
+
+        for u in range(k):
+            sz = (
+                (curr_domains[u] & 1)
+                + ((curr_domains[u] >> 1) & 1)
+                + ((curr_domains[u] >> 2) & 1)
+            )
+            if sz == 0:
+                return None
+            if sz == 3:
+                has_size_3 = True
+                best_u = u
+                min_size = 3
+            elif sz == 2 and min_size > 2:
+                # If we have size 2 and size 3 in the graph, we might want to branch on size 3
+                # Actually branching on size 3 or using 2-SAT when all <= 2
+                pass
+
+        if not has_size_3:
+            # All remaining vertices have domain size <= 2
+            return solve_2sat(curr_domains)
+
+        # Branch on best_u (which has size 3)
+        u = best_u
+        for c in (1, 2, 4):
+            new_domains = list(curr_domains)
+            new_domains[u] = c
+            # Propagate to neighbors
+            valid = True
+            for v in range(k):
+                if adj[u] & (1 << v):
+                    new_domains[v] &= ~c
+                    if new_domains[v] == 0:
+                        valid = False
+                        break
+            if valid:
+                res = search(new_domains)
+                if res is not None:
+                    return res
+
+        return None
+
+    return search(domains)
+
+
+if __name__ == "__main__":
+    solve()
+```

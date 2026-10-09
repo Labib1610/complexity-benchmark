@@ -1,83 +1,68 @@
+import sys
+from collections import defaultdict
+
 def solve():
-    import sys
-    input = sys.stdin.read
-    data = input().split()
+    n, m = map(int, input().split())
     
-    n = int(data[0])
-    m = int(data[1])
+    if m == 0:
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
     
     # Build adjacency list
-    adj = [[] for _ in range(n + 1)]
-    index = 2
+    adj = defaultdict(list)
+    edges = []
     for _ in range(m):
-        u = int(data[index])
-        v = int(data[index + 1])
+        u, v = map(int, input().split())
         adj[u].append(v)
         adj[v].append(u)
-        index += 2
+        edges.append((u, v))
     
-    # Color array (0 means uncolored)
-    color = [0] * (n + 1)
+    # Try all possible colorings (1, 2, 3) for each node
+    # Use backtracking with constraint checking
+    coloring = [0] * (n + 1)  # 1-indexed
     
-    # Check if bipartite for each component
-    for start in range(1, n + 1):
-        if color[start] == 0:
-            # BFS to color the component
-            queue = [start]
-            color[start] = 1
-            
-            while queue:
-                node = queue.pop(0)
-                current_color = color[node]
-                
-                for neighbor in adj[node]:
-                    if color[neighbor] == 0:
-                        # Assign the next available color (1, 2, or 3) that's different from current
-                        # In a tripartite graph, we can use any of 1,2,3 as long as it's different
-                        # But since we're checking for 3-colorability, we need to be careful
-                        # We'll try colors 1,2,3 in order and pick the first one that works
-                        # Actually, this is a constraint satisfaction problem - each edge connects nodes that must have different colors
-                        # This is a graph 3-coloring problem
-                        
-                        # For neighbor, it can't have the same color as node
-                        color[neighbor] = (current_color % 3) + 1
-                        queue.append(neighbor)
-                    elif color[neighbor] == current_color:
-                        # Conflict found
-                        print("NO")
-                        return
-    
-    # Now we need to find a valid 3-coloring that is lexicographically smallest
-    # Let's do this with backtracking
-    
-    def is_valid(node, c):
+    def is_valid(node, color):
         for neighbor in adj[node]:
-            if color[neighbor] == c:
+            if coloring[neighbor] == color:
                 return False
         return True
-    
-    # Reset color array for backtracking
-    color = [0] * (n + 1)
     
     def backtrack(node):
         if node > n:
             return True
             
-        for c in [1, 2, 3]:
-            if is_valid(node, c):
-                color[node] = c
+        for color in [1, 2, 3]:
+            if is_valid(node, color):
+                coloring[node] = color
                 if backtrack(node + 1):
                     return True
-                # No need to explicitly backtrack as we overwrite
-        
-        # If no color works, this path is invalid
+                coloring[node] = 0
         return False
     
-    if not backtrack(1):
+    # For better performance, sort nodes by degree (descending)
+    degrees = [(len(adj[i]), i) for i in range(1, n + 1)]
+    degrees.sort(reverse=True)
+    node_order = [x[1] for x in degrees]
+    
+    # Re-index for backtracking
+    def backtrack_optimized(index):
+        if index == n:
+            return True
+            
+        node = node_order[index]
+        for color in [1, 2, 3]:
+            if is_valid(node, color):
+                coloring[node] = color
+                if backtrack_optimized(index + 1):
+                    return True
+                coloring[node] = 0
+        return False
+    
+    if backtrack_optimized(0):
+        print("YES")
+        print(" ".join(str(coloring[i]) for i in range(1, n + 1)))
+    else:
         print("NO")
-        return
-        
-    print("YES")
-    print(' '.join(map(str, color[1:])))
 
 solve()

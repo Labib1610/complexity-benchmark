@@ -1,0 +1,157 @@
+We are given a 3‑regular graph (each vertex has degree 3) and need to 3‑edge‑color it.  
+By the **Parity Lemma** / Petersen’s theorem, every bridgeless cubic graph has a **perfect matching** (a 1‑factor), and every connected cubic graph with no bridges can be 3‑edge‑colored.  
+
+But here, the graph might have bridges, in which case a proper 3‑edge‑coloring may not exist.  
+So the task is:  
+
+1. Check if the graph has a bridge. If yes → `NO`.
+2. If no bridges → find a 3‑edge‑coloring.
+
+A standard approach:
+- Find a perfect matching using **Kőnig's theorem** for bipartite double cover or use general matching for 3‑regular graphs.  
+- Remove that matching, the remaining graph is 2‑regular (disjoint even cycles), color those alternately with the two remaining colors.
+
+**Implementation plan:**
+- Build adjacency list.
+- Detect bridges using Tarjan’s algorithm (O(n+m)).  
+- If any bridge → print `NO`.
+- Else find a perfect matching:  
+  - Since n ≤ 2000, we can use a simple augmenting path matching algorithm on the original graph.  
+- Color matching edges with color 3.  
+- Remaining graph: every vertex has degree 2 → collect cycles, color edges alternately with colors 1 and 2.
+
+Below is the Python implementation.
+
+```python
+import sys
+sys.setrecursionlimit(1000000)
+
+def solve():
+    input = sys.stdin.readline
+    n, m = map(int, input().split())
+    edges = []
+    adj = [[] for _ in range(n)]
+    for idx in range(m):
+        u, v = map(int, input().split())
+        u -= 1
+        v -= 1
+        edges.append((u, v))
+        adj[u].append((v, idx))
+        adj[v].append((u, idx))
+    
+    # Tarjan to find bridges
+    tin = [-1]*n
+    low = [-1]*n
+    timer = 0
+    is_bridge = [False]*m
+    
+    def dfs(v, p_edge):
+        nonlocal timer
+        tin[v] = low[v] = timer
+        timer += 1
+        for to, eid in adj[v]:
+            if eid == p_edge:
+                continue
+            if tin[to] != -1:
+                low[v] = min(low[v], tin[to])
+            else:
+                dfs(to, eid)
+                low[v] = min(low[v], low[to])
+                if low[to] > tin[v]:
+                    is_bridge[eid] = True
+    
+    for i in range(n):
+        if tin[i] == -1:
+            dfs(i, -1)
+    
+    if any(is_bridge):
+        print("NO")
+        return
+    
+    # Find perfect matching
+    match_u = [-1]*n
+    match_v = [-1]*n
+    
+    def try_kuhn(v, used):
+        for to, eid in adj[v]:
+            if match_u[to] == -1:
+                match_u[to] = v
+                match_v[v] = to
+                return True
+        for to, eid in adj[v]:
+            if not used[to]:
+                used[to] = True
+                if match_u[to] != -1 and try_kuhn(match_u[to], used):
+                    match_u[to] = v
+                    match_v[v] = to
+                    return True
+        return False
+    
+    # Since the graph is cubic and bridgeless, perfect matching exists.
+    # Simple augmenting path algorithm on general graph (not bipartite).
+    # Use simple DFS-based matching for undirected graph.
+    def augment(v, visited):
+        visited[v] = True
+        for to, eid in adj[v]:
+            if match_v[to] == -1:
+                match_v[v] = to
+                match_v[to] = v
+                return True
+            if not visited[to]:
+                if augment(to, visited):
+                    match_v[v] = to
+                    match_v[to] = v
+                    return True
+        return False
+    
+    for i in range(n):
+        if match_v[i] == -1:
+            visited = [False]*n
+            augment(i, visited)
+    
+    # After matching, match_v contains the matched partner
+    color = [0]*m
+    # color matching edges with 3
+    for i in range(n):
+        j = match_v[i]
+        if j > i:
+            for to, eid in adj[i]:
+                if to == j:
+                    color[eid] = 3
+                    break
+    
+    # remaining edges form cycles
+    visited_edge = [False]*m
+    for i in range(n):
+        for to, eid in adj[i]:
+            if color[eid] != 0:
+                continue
+            # start new cycle
+            if not visited_edge[eid]:
+                # traverse cycle
+                cur_v = i
+                prev_e = -1
+                col = 1
+                while True:
+                    for nxt, eid2 in adj[cur_v]:
+                        if eid2 == prev_e:
+                            continue
+                        if color[eid2] == 0:
+                            color[eid2] = col
+                            visited_edge[eid2] = True
+                            prev_e = eid2
+                            col = 3 - col  # switch between 1 and 2
+                            cur_v = nxt
+                            break
+                    else:
+                        break
+                    if cur_v == i and prev_e == eid:
+                        break
+    
+    # output
+    print("YES")
+    print(' '.join(str(color[i]) for i in range(m)))
+
+if __name__ == "__main__":
+    solve()
+```

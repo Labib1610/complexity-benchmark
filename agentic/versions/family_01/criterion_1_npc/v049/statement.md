@@ -1,23 +1,23 @@
-# Problem A — Operational Blocks
+# Problem A — Deep-Sea Containment
 
 Time limit: 2 s   Memory limit: 256 MB
 
-In a manufacturing facility, a workforce of $n$ employees needs to be distributed across the day's schedule. The human resources department maintains a list of specific employee pairs who have a history of workplace friction. Whenever two employees are on this list, they are strictly prohibited from being grouped together in the same operational block to avoid any potential disruption on the floor.
+Deep-sea research operations have recovered $n$ anomalous artifacts from the ocean floor. Extensive testing on these objects has identified $m$ specific pairs that emit interfering energy fields. The primary safety protocol dictates that if two artifacts are known to interfere with each other, they cannot be confined within the same physical space, as their combined resonance will critically overload any shielding.
 
-The daily schedule is divided into exactly three distinct operational blocks, labeled with integers 1, 2, and 3. Every single employee must be allocated to exactly one of these three blocks.
+The facility is equipped with exactly three reinforced containment modules, which are designated by the numbers 1, 2, and 3. 
 
-Your task is to establish whether it is possible to allocate all employees to the operational blocks without violating any of the HR restrictions. If such an allocation is achievable, you must identify the one that prioritizes lower-numbered blocks for lower-indexed employees (i.e., the allocation sequence must be lexicographically smallest when reading the block numbers of employee 1, employee 2, and so on up to $n$).
+Subject to the safety protocol, your task is to formulate a storage plan that assigns every single artifact to exactly one of the three available modules. If no such arrangement can be made without causing an overload, you must report this failure.
 
 ## Input
-The first line contains two integers $n$ and $m$ — the number of employees and the total number of recorded friction pairs ($1 \le n \le 40$, $0 \le m \le n \cdot (n-1)/2$).
-Each of the next $m$ lines contains two integers $u$ and $v$ — denoting a pair of employees who cannot share an operational block.
+The first line provides two integers $n$ and $m$ — the total number of artifacts and the number of interfering pairs ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
+Each of the following $m$ lines contains two integers $u$ and $v$ — a pair of interfering artifacts. Artifacts are numbered from 1 to $n$.
 
 ## Output
-If no valid allocation can be formed, print a single line containing `NO`.
-Otherwise, print `YES` on the first line. On the second line, print $n$ integers $s_1, s_2, \dots, s_n$ (each an integer from 1 to 3), where $s_i$ is the operational block assigned to employee $i$. If there are multiple valid allocations, output the sequence that is lexicographically smallest.
+If no safe storage plan exists, print a single line with the word NO.
+If a valid plan is possible, print YES on the first line. On the second line, print $n$ integers $m_1, m_2, \dots, m_n$ (each in \{1, 2, 3\}), where $m_i$ is the module chosen for artifact $i$. Any configuration that satisfies all safety conditions is acceptable.
 
 ## Example 1
-**Input:**
+Input:
 ```
 4 5
 1 2
@@ -26,14 +26,14 @@ Otherwise, print `YES` on the first line. On the second line, print $n$ integers
 1 4
 2 4
 ```
-**Output:**
+Output:
 ```
 YES
 1 2 3 3
 ```
 
 ## Example 2
-**Input:**
+Input:
 ```
 4 6
 1 2
@@ -43,7 +43,7 @@ YES
 2 4
 3 4
 ```
-**Output:**
+Output:
 ```
 NO
 ```

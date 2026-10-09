@@ -2,14 +2,9 @@
 
 Time limit: 2 s   Memory limit: 256 MB
 
-A project has n tasks. Each task can be either active (1) or inactive (0). The
-project has m compatibility requirements. Each requirement lists three task-state
-conditions and demands that at least one of them holds. A condition is either
-"task i is active" (written as the positive integer i) or "task i is inactive"
-(written as the negative integer −i).
+## Description
 
-Decide whether it is possible to assign every task a state so that all requirements
-are satisfied. If yes, output the lexicographically smallest valid assignment.
+A control system exposes **n** binary switches, each of which the operator must set firmly to ON or OFF before the run — no switch may be left floating, and there is no third state. Commissioning has produced **m** acceptance rules gathered from separate subsystem audits; every rule names three switch-references and passes precisely when **at least one** of the three named conditions is met (a condition names a switch together with the polarity — ON or OFF — that satisfies it). A rule with a met condition imposes nothing further; a rule with none of its three conditions met is violated. The same switch typically appears across many rules, sometimes demanded ON by one and OFF by another, and the rules may overlap heavily or barely at all — none of that matters except through the exact conditions each rule lists. Decide whether there is a single global ON/OFF setting of all n switches that satisfies **every** rule simultaneously, and if so report one such setting; otherwise the rule set is over-constrained. Satisfying the rules one at a time is trivial — the difficulty is one assignment consistent with all of them at once.
 
 ## Input
 The first line contains two integers n and m (1 ≤ n ≤ 90, 0 ≤ m ≤ 400).
@@ -19,9 +14,8 @@ with |li| ≤ n. At least one of the three stated conditions must hold.
 ## Output
 If no valid assignment exists, print a single line NO.
 Otherwise print YES on the first line. On the second line print n integers
-s1 s2 … sn (each in {0, 1}), where si is the state of task i. Among all valid
-assignments output the lexicographically smallest sequence (compare s1 first,
-then s2, and so on).
+s1 s2 … sn (each in {0, 1}), where si is the state of task i. Any valid
+assignment is accepted.
 
 ## Example 1
 Input:

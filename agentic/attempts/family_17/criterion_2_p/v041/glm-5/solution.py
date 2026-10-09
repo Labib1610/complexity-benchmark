@@ -1,0 +1,76 @@
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    q = int(data[0])
+    t = int(data[1])
+    edges = []
+    idx = 2
+    for _ in range(t):
+        a = int(data[idx]); b = int(data[idx+1])
+        idx += 2
+        edges.append((a, b))
+
+    # Bipartite matching: left side 1..q, right side q+1..2q
+    # We'll use Hopcroft-Karp
+    # Adjacency list for left nodes
+    adj = [[] for _ in range(q+1)]
+    for a, b in edges:
+        adj[a].append(b)
+
+    # pairU[u] = v matched to u (left), pairV[v] = u matched to v (right)
+    pairU = [0]*(q+1)
+    pairV = [0]*(2*q+1)
+    dist = [0]*(q+1)
+    INF = 10**9
+
+    from collections import deque
+
+    def bfs():
+        dq = deque()
+        found = False
+        for u in range(1, q+1):
+            if pairU[u] == 0:
+                dist[u] = 0
+                dq.append(u)
+            else:
+                dist[u] = INF
+        while dq:
+            u = dq.popleft()
+            for v in adj[u]:
+                pu = pairV[v]
+                if pu == 0:
+                    found = True
+                elif dist[pu] == INF:
+                    dist[pu] = dist[u] + 1
+                    dq.append(pu)
+        return found
+
+    def dfs(u):
+        for v in adj[u]:
+            pu = pairV[v]
+            if pu == 0 or (dist[pu] == dist[u] + 1 and dfs(pu)):
+                pairU[u] = v
+                pairV[v] = u
+                return True
+        dist[u] = INF
+        return False
+
+    matching = 0
+    while bfs():
+        for u in range(1, q+1):
+            if pairU[u] == 0:
+                if dfs(u):
+                    matching += 1
+
+    if matching == q:
+        out = ["YES"]
+        for u in range(1, q+1):
+            out.append(f"{u} {pairU[u]}")
+        sys.stdout.write("\n".join(out) + "\n")
+    else:
+        sys.stdout.write("NO\n")
+
+solve()

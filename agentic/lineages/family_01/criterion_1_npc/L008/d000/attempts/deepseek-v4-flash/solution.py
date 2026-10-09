@@ -1,41 +1,46 @@
-n, m = map(int, input().split())
-edges = [tuple(map(int, input().split())) for _ in range(m)]
+import sys
 
-# Build adjacency list
-adj = [[] for _ in range(n)]
-for u, v in edges:
-    adj[u-1].append(v-1)
-    adj[v-1].append(u-1)
-
-assignment = [0] * n
-found = False
-
-def backtrack(idx):
-    global found
-    if found:
+def solve():
+    input_data = sys.stdin.read().strip().split()
+    if not input_data:
         return
-    if idx == n:
-        found = True
-        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
     
-    for color in range(1, 4):
-        # Check if any neighbor already has this color
-        ok = True
-        for nb in adj[idx]:
-            if assignment[nb] == color:
-                ok = False
-                break
-        if ok:
-            assignment[idx] = color
-            backtrack(idx + 1)
-            if found:
-                return
-            assignment[idx] = 0
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    color = [-1] * n
+    
+    # Sort vertices by degree descending for better pruning
+    order = sorted(range(n), key=lambda x: len(adj[x]), reverse=True)
+    
+    def backtrack(idx):
+        if idx == n:
+            return True
+        v = order[idx]
+        used = [False] * 4
+        for u in adj[v]:
+            if color[u] != -1:
+                used[color[u]] = True
+        for c in range(1, 4):
+            if not used[c]:
+                color[v] = c
+                if backtrack(idx + 1):
+                    return True
+                color[v] = -1
+        return False
+    
+    if backtrack(0):
+        print("YES")
+        print(" ".join(str(color[i]) for i in range(n)))
+    else:
+        print("NO")
 
-backtrack(0)
-
-if found:
-    print("YES")
-    print(" ".join(map(str, assignment)))
-else:
-    print("NO")
+if __name__ == "__main__":
+    solve()

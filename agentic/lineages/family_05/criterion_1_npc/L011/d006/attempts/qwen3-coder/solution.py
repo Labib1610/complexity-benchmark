@@ -1,0 +1,72 @@
+def solve():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    k = int(data[0])
+    t = int(data[1])
+    
+    configs = []
+    index = 2
+    for _ in range(t):
+        x = int(data[index])
+        y = int(data[index+1])
+        z = int(data[index+2])
+        configs.append((x, y, z))
+        index += 3
+    
+    # We need to find k configurations such that every pair is perfectly isolated
+    # This means for any two configs (x1,y1,z1) and (x2,y2,z2):
+    # x1 != x2 and y1 != y2 and z1 != z2
+    
+    # This is equivalent to finding a clique of size k in a graph where each node is a configuration
+    # and there's an edge between two nodes if they are perfectly isolated
+    
+    # Build adjacency list
+    adj = [[] for _ in range(t)]
+    for i in range(t):
+        for j in range(i+1, t):
+            x1, y1, z1 = configs[i]
+            x2, y2, z2 = configs[j]
+            if x1 != x2 and y1 != y2 and z1 != z2:
+                adj[i].append(j)
+                adj[j].append(i)
+    
+    # Try to find a clique of size k using backtracking
+    def backtrack(current_clique, candidates):
+        if len(current_clique) == k:
+            return current_clique
+        
+        if not candidates:
+            return None
+            
+        for v in candidates:
+            # Check if v is connected to all nodes in current_clique
+            is_connected = True
+            for u in current_clique:
+                if v not in adj[u]:
+                    is_connected = False
+                    break
+            
+            if is_connected:
+                # Create new candidates: intersection of current candidates and neighbors of v
+                new_candidates = [w for w in candidates if w > v and w in adj[v]]
+                result = backtrack(current_clique + [v], new_candidates)
+                if result is not None:
+                    return result
+        
+        return None
+    
+    # Start with empty clique and all vertices as candidates
+    candidates = list(range(t))
+    result_clique = backtrack([], candidates)
+    
+    if result_clique is not None:
+        print("YES")
+        for i in result_clique:
+            x, y, z = configs[i]
+            print(x, y, z)
+    else:
+        print("NO")
+
+solve()

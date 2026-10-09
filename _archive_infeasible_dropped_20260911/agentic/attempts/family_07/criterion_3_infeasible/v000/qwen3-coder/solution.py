@@ -1,0 +1,10 @@
+k = int(input())
+fragments = []
+for _ in range(k):
+    fragments.append(input().strip())
+F = input().strip()
+
+for i in range(k):
+    if F in fragments[i]:
+        print(i + 1)
+        break

@@ -1,0 +1,1 @@
+pc = np.arange(2^a, dtype=np.uint64)  # hmm, 2^23 * 8 bytes = 67MB

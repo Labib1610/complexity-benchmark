@@ -1,23 +1,22 @@
-# Problem A — Shift Allocation Protocol
+# Problem A — Production Cycle Allocation
 
-Time limit: 2 s
-Memory limit: 256 MB
+Time limit: 2 s   Memory limit: 256 MB
 
-A manufacturing facility operates continuously across three sequential time periods: Shift 1, Shift 2, and Shift 3. The facility employs $n$ machinists, and management must assign each machinist to exactly one of these three shifts. 
+The factory operates continuously, dividing its workforce of $n$ personnel across 3 daily production cycles (labeled 1, 2, and 3). Having three distinct cycles provides significant scheduling flexibility—far more than a standard day-night rotation.
 
-Safety incident logs indicate that certain pairs of machinists have interpersonal disputes. The conflict data is provided as a list of simple pairwise restrictions. There are no complex group constraints; every rule simply states that two specific machinists cannot be assigned to the same shift. Because there are exactly three shifts available, assigning a machinist to one shift mathematically leaves exactly two valid shift options for any conflicting colleague. 
+A preliminary collision detection system has already analyzed the localized work zones on the factory floor. It has identified $m$ pairs of personnel who require the same specialized machinery simultaneously. To maintain safety, these flagged pairs cannot be scheduled in the same cycle.
 
-Management needs to determine if a completely safe allocation is possible, where no two machinists with a documented dispute share the same shift. 
+Many scheduling conflicts can be resolved by simply alternating workers between cycle 1 and cycle 2. The addition of cycle 3 is intended to provide a fallback to easily resolve any remaining overlaps. Your program must read the list of $m$ collisions and assign each worker a cycle $c_i \in \{1, 2, 3\}$ such that for every collision between worker $u$ and worker $v$, $c_u \neq c_v$.
 
-Furthermore, the payroll system requires the final schedule to be submitted as a sequence of $n$ shift numbers, corresponding to machinists 1 through $n$. To standardize reporting, the system mandates selecting the sequence of shift numbers that is lexicographically smallest. This means that among all valid schedules, you must choose the one that places machinist 1 in the earliest possible shift; in the event of ties, it must place machinist 2 in the earliest possible shift, and so forth.
+You must evaluate whether the three available cycles provide enough flexibility to safely separate all colliding pairs. If a valid allocation exists, you must output it.
 
 ## Input
-The first line provides two integers $n$ and $m$ — the total number of machinists and the number of documented disputes ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
-The following $m$ lines each contain two integers $u$ and $v$, representing a pair of machinists who have a dispute.
+The first line contains two integers $n$ and $m$ — the number of personnel and the number of operational collisions ($1 \le n \le 40$, $0 \le m \le n \cdot (n-1)/2$).
+Each of the following $m$ lines contains two integers $u$ and $v$ — a pair of personnel with an operational collision.
 
 ## Output
-If there is no way to allocate the machinists safely across the three shifts, output a single line containing `NO`.
-If a safe allocation is possible, output `YES` on the first line. On the second line, output $n$ integers separated by spaces, where the $i$-th integer (which must be 1, 2, or 3) represents the shift assigned to machinist $i$. This sequence must be the lexicographically smallest among all valid safe allocations.
+If no valid allocation exists even with all three cycles, print a single line `NO`.
+Otherwise print `YES` on the first line. On the second line print $n$ integers $c_1, c_2, \dots, c_n$ (each in $\{1, 2, 3\}$), where $c_i$ is the cycle assigned to person $i$. Any valid allocation is accepted.
 
 ## Example 1
 Input:

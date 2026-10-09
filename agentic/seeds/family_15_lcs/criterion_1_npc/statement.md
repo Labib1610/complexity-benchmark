@@ -4,13 +4,11 @@ Time limit: 5 s   Memory limit: 256 MB
 
 ## Description
 
-You are given **k** genetic sequences, each a string of lowercase letters. A **shared motif** is a string that appears in every one of the sequences as a subsequence — that is, its letters occur in that same order within each sequence, though not necessarily consecutively.
-
-Find a longest shared motif: report its length and one motif of that length.
+An archivist compares **k** transcripts, each a string of lowercase letters, and must find the longest sequence of letters that appears — in the same relative order, though not necessarily contiguously — inside **every** transcript. A common ordered thread of length L must be embeddable as a subsequence of all k transcripts at once. Formatting and letter frequencies are irrelevant; only the ordered content shared across all transcripts matters. Aligning any two transcripts is easy, but a thread common to all k at once is the hard part, since extending it to satisfy one transcript can break another. Report a longest such common ordered thread (or its length, per the output format).
 
 ## Input
 
-The first line contains a single integer **k** (2 ≤ k ≤ 5).
+The first line contains a single integer **k** (3 ≤ k ≤ 5).
 Each of the next **k** lines contains one sequence: a non-empty string of lowercase English letters, length at most 20.
 
 ## Output

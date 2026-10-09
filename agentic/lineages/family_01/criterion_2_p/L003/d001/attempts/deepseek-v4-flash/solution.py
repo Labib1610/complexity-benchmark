@@ -17,13 +17,13 @@ possible = True
 
 for i in range(n):
     if color[i] == -1:
-        color[i] = 0
+        color[i] = 1
         q = deque([i])
         while q:
             u = q.popleft()
             for v in adj[u]:
                 if color[v] == -1:
-                    color[v] = 1 - color[u]
+                    color[v] = 3 - color[u]
                     q.append(v)
                 elif color[v] == color[u]:
                     possible = False
@@ -37,6 +37,4 @@ if not possible:
     print("NO")
 else:
     print("YES")
-    # color 0 -> factor 1, color 1 -> factor 2
-    res = [1 if c == 0 else 2 for c in color]
-    print(" ".join(map(str, res)))
+    print(" ".join(str(color[i]) for i in range(n)))

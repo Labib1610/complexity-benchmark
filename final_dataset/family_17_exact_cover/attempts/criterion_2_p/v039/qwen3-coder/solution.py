@@ -1,0 +1,86 @@
+from collections import defaultdict, deque
+
+def solve():
+    q, t = map(int, input().split())
+    
+    # Build adjacency list for bipartite graph
+    # Controllers: 1 to q
+    # Platforms: q+1 to 2*q
+    graph = defaultdict(list)
+    edges = []
+    
+    for _ in range(t):
+        a, b = map(int, input().split())
+        graph[a].append(b)
+        edges.append((a, b))
+    
+    # Try to find a maximum matching using BFS-based approach (Hopcroft-Karp like)
+    # But we'll use a simpler approach: try to find augmenting paths
+    
+    # partner[b] = a means platform b is paired with controller a
+    partner = {}
+    # matched[a] = b means controller a is paired with platform b
+    matched = {}
+    
+    def bfs():
+        # Find shortest augmenting paths
+        queue = deque()
+        dist = {}
+        
+        for a in range(1, q + 1):
+            if a not in matched:
+                dist[a] = 0
+                queue.append(a)
+            else:
+                dist[a] = float('inf')
+        dist[None] = float('inf')
+        
+        while queue:
+            a = queue.popleft()
+            if dist[a] < dist[None]:
+                for b in graph[a]:
+                    # b is a neighbor of a
+                    # Who is b currently matched to?
+                    a_prime = partner.get(b)
+                    if a_prime is None:
+                        # b is free, so we found an augmenting path
+                        dist[None] = dist[a] + 1
+                    else:
+                        if dist.get(a_prime, float('inf')) == float('inf'):
+                            dist[a_prime] = dist[a] + 1
+                            queue.append(a_prime)
+        return dist[None] != float('inf')
+    
+    def dfs(a):
+        # Try to find an augmenting path starting from free controller a
+        if a is not None:
+            for b in graph[a]:
+                a_prime = partner.get(b)
+                if a_prime is None or dist.get(a_prime, float('inf')) == dist[a] + 1:
+                    if a_prime is None or dfs(a_prime):
+                        partner[b] = a
+                        matched[a] = b
+                        return True
+            dist[a] = float('inf')
+            return False
+        return True
+    
+    # Main matching algorithm
+    while bfs():
+        dist = {}
+        for a in range(1, q + 1):
+            if a not in matched:
+                dist[a] = 0
+        for a in range(1, q + 1):
+            if a not in matched:
+                dfs(a)
+    
+    # Check if we have a perfect matching
+    if len(matched) == q:
+        print("YES")
+        for a in range(1, q + 1):
+            print(a, matched[a])
+    else:
+        print("NO")
+
+solve()

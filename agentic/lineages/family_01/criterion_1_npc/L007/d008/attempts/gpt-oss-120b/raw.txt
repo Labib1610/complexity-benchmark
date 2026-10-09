@@ -1,213 +1,5 @@
-**Solution Explanation**
-
-For every node we have to choose a channel `c ∈ {1,2,3}`.
-The three channels have the fixed 3‑bit signatures  
-
-```
-1 → 011   (decimal 3)
-2 → 101   (decimal 5)
-3 → 110   (decimal 6)
-```
-
-For an edge `{u,v}` the hardware computes  
-
-```
-xor = signature(cu) XOR signature(cv)
-score = popcount(xor)
-```
-
-The table of popcounts is
-
-| cu | cv | xor | popcount |
-|----|----|-----|----------|
-| 1  | 1  | 0   | 0 |
-| 1  | 2  | 6   | 2 |
-| 1  | 3  | 5   | 2 |
-| 2  | 2  | 0   | 0 |
-| 2  | 3  | 3   | 2 |
-| 3  | 3  | 0   | 0 |
-
-*If the two endpoints have the **same** channel the contribution is `0`,
-otherwise it is exactly `2`.*
-
-The required total sum is `2·m`.  
-Therefore **every edge must connect two different channels**.
-The problem is exactly:
-
-> *Is the given graph 3‑colourable?  
->  If yes, output the lexicographically smallest proper 3‑colouring.*
-
-`n ≤ 40`, so an exponential backtracking with good pruning easily fits
-into the limits.
-
-
-
---------------------------------------------------------------------
-
-#### 1.   Data structures
-
-* `adj[i]` – list of neighbours of vertex `i` (0‑based).
-* `col[i]` – current colour of vertex `i` (`-1` = not coloured yet).
-* `allowed[i]` – bitmask of colours still possible for vertex `i`.  
-  Bit `0` → colour 1, bit `1` → colour 2, bit `2` → colour 3.  
-  Initially `allowed[i] = 0b111`.
-
---------------------------------------------------------------------
-
-#### 2.   Backtracking (depth‑first search)
-
-Vertices are processed **in the natural order `0 … n‑1`**.
-Because we try colours `1,2,3` in this order,
-the first complete colouring we find is the lexicographically smallest one.
-
-```
-dfs(v):
-    if v == n:               # all vertices coloured
-        return True
-    for colour c = 1 .. 3:
-        if c not allowed for v:   continue
-        assign c to v
-        remember all changes of allowed[·] caused by this assignment
-        if no neighbour becomes impossible and dfs(v+1) succeeds:
-                return True
-        undo all remembered changes
-        unassign v
-    return False
-```
-
-*When we colour a vertex `v` with colour `c`*  
-
-* every still uncoloured neighbour `u` loses colour `c` from its `allowed` set.
-* if a neighbour already has colour `c` we backtrack immediately.
-* if after the removal a neighbour’s `allowed` becomes `0` we also backtrack.
-
-All modifications are stored on a local list `changes`
-(`(vertex, old_mask)`) and restored when the recursion returns.
-
-The algorithm explores at most `3^n` states, but the forward checking
-(`allowed` masks) cuts the search tree dramatically.
-For `n = 40` it runs far below the 2 seconds limit on all test data.
-
---------------------------------------------------------------------
-
-#### 3.   Correctness Proof  
-
-We prove that the algorithm prints `YES` and the lexicographically smallest
-proper 3‑colouring iff such a colouring exists.
-
----
-
-##### Lemma 1  
-During the execution of `dfs(v)` the invariant holds:
-
-*For every already coloured vertex `x` and every uncoloured vertex `y`,
-`allowed[y]` does **not** contain the colour of `x` if `{x,y}` is an edge.*
-
-**Proof.**  
-When a vertex `x` gets a colour `c`, the algorithm iterates over all neighbours
-`y`. If `y` is still uncoloured, the bit of colour `c` is removed from
-`allowed[y]`. No later step ever adds bits again, because colours are never
-re‑added when backtracking – the old mask is restored. ∎
-
-
-
-##### Lemma 2  
-If `dfs(v)` returns `True`, the colours stored in `col[0…n‑1]` form a proper
-3‑colouring of the whole graph.
-
-**Proof.**  
-`dfs` returns `True` only after reaching `v == n`, i.e. every vertex is coloured.
-Consider any edge `{x,y}`.  
-Assume w.l.o.g. `x < y`. When `x` was coloured, Lemma&nbsp;1 removed the colour
-of `x` from `allowed[y]`. Therefore later `y` cannot be assigned the same colour.
-Thus adjacent vertices have different colours – the colouring is proper. ∎
-
-
-
-##### Lemma 3  
-If a proper 3‑colouring exists, `dfs(0)` eventually returns `True`.
-
-**Proof.**  
-Take any proper colouring `C`.  
-We show by induction on `v` that the recursive search can follow the
-choices of `C`.
-
-*Base `v = 0`*: `allowed[0]` initially contains all three colours, therefore
-the colour `C(0)` is tried.
-
-*Induction step*: assume the recursion has already coloured vertices
-`0 … v‑1` exactly as in `C`.  
-Because `C` is proper, for every neighbour `u ≥ v` the colour `C(v)` is not
-present in `allowed[u]` (Lemma&nbsp;1). Consequently `C(v)` is still present in
-`allowed[v]`. The loop in `dfs(v)` tries colours in order `1,2,3`; when it
-reaches `C(v)` the algorithm makes the same assignments to all neighbours as
-in `C`, keeping the invariant true for the next level. Hence the branch that
-follows `C` is never pruned and finally reaches `v = n`. ∎
-
-
-
-##### Lemma 4  
-The first complete colouring found by the algorithm is the lexicographically
-smallest proper 3‑colouring.
-
-**Proof.**  
-Vertices are processed in increasing index order.
-For each vertex the algorithm tries colours `1,2,3` in this order.
-Therefore the search explores colour sequences in exactly lexicographic order.
-When the first complete colouring is reached, no earlier sequence can be a
-proper colouring (otherwise the search would have stopped there). ∎
-
-
-
-##### Theorem  
-The program outputs  
-
-* `NO` iff the input graph is not 3‑colourable;  
-* `YES` and a sequence `c₁ … cₙ` iff the graph is 3‑colourable, and this
-  sequence is the lexicographically smallest proper 3‑colouring.
-
-**Proof.**  
-
-*If the program prints `YES`*: by Lemma&nbsp;2 the produced sequence is a
-proper 3‑colouring, hence the graph is 3‑colourable.
-
-*If the graph is 3‑colourable*: Lemma&nbsp;3 guarantees that `dfs(0)` finds a
-solution, therefore the program prints `YES`. By Lemma&nbsp;4 this solution is
-lexicographically minimal.
-
-*If the graph is not 3‑colourable*: Lemma&nbsp;3 tells us that no branch can
-reach `v = n`; consequently `dfs(0)` returns `False` and the program prints
-`NO`. ∎
-
-
-
---------------------------------------------------------------------
-
-#### 4.   Complexity Analysis  
-
-*`n ≤ 40`, `m ≤ n·(n‑1)/2 ≤ 780`.*
-
-* Each recursive call touches all neighbours of the current vertex  
-  → `O(deg(v))` work.
-* Over the whole search tree the total work is bounded by  
-  `O(number_of_visited_states × average_degree)`.  
-  In the worst case `3^n` states, but forward checking eliminates the vast
-  majority; for the given limits the running time is far below 2 seconds.
-* Memory consumption:  
-
-  * adjacency lists – `O(n + m)`  
-  * arrays `col`, `allowed` – `O(n)`  
-  * recursion stack – depth `n ≤ 40`.
-
-  Overall `O(n + m)` ≤ a few kilobytes, well inside the 256 MB limit.
-
---------------------------------------------------------------------
-
-#### 5.   Reference Implementation  (Python 3)
-
 ```python
 import sys
-
 sys.setrecursionlimit(10000)
 
 def solve() -> None:
@@ -217,71 +9,56 @@ def solve() -> None:
     it = iter(data)
     n = int(next(it))
     m = int(next(it))
-
-    adj = [[] for _ in range(n)]
+    adj = [set() for _ in range(n)]
+    edges = []
     for _ in range(m):
         u = int(next(it)) - 1
         v = int(next(it)) - 1
-        if u == v:
-            continue
-        adj[u].append(v)
-        adj[v].append(u)
+        adj[u].add(v)
+        adj[v].add(u)
+        edges.append((u, v))
 
-    # bit 0 -> colour 1, bit 1 -> colour 2, bit 2 -> colour 3
-    allowed = [0b111] * n
-    col = [-1] * n
+    # order vertices by degree descending for better pruning
+    order = sorted(range(n), key=lambda x: -len(adj[x]))
+    pos_in_order = [0]*n
+    for idx, v in enumerate(order):
+        pos_in_order[v] = idx
 
-    # depth‑first search in natural order, trying colours 1,2,3
-    def dfs(v: int) -> bool:
-        if v == n:
-            return True
-        mask = allowed[v]
-        for c in range(1, 4):          # colours 1..3
-            bit = 1 << (c - 1)
-            if not (mask & bit):
-                continue
-            # assign colour c to vertex v
-            col[v] = c
-            changes = []                # (vertex, old_mask)
-            ok = True
+    colors = [-1]*n
+    found = False
 
+    def dfs(idx):
+        nonlocal found
+        if found:
+            return
+        if idx == n:
+            found = True
+            return
+        v = order[idx]
+        # try colors 0,1,2
+        for c in range(3):
+            conflict = False
             for nb in adj[v]:
-                if col[nb] == -1:       # neighbour not coloured yet
-                    if allowed[nb] & bit:
-                        old = allowed[nb]
-                        new = old & ~bit
-                        if new == 0:
-                            ok = False
-                        changes.append((nb, old))
-                        allowed[nb] = new
-                else:                   # neighbour already coloured
-                    if col[nb] == c:
-                        ok = False
-                if not ok:
+                if colors[nb] == c:
+                    conflict = True
                     break
+            if not conflict:
+                colors[v] = c
+                dfs(idx+1)
+                if found:
+                    return
+                colors[v] = -1
 
-            if ok and dfs(v + 1):
-                return True
+    dfs(0)
 
-            # backtrack: restore masks and colour
-            for nb, old in reversed(changes):
-                allowed[nb] = old
-            col[v] = -1
-        return False
-
-    possible = dfs(0)
-
-    out = []
-    if not possible:
-        out.append("NO")
+    if not found:
+        print("NO")
     else:
-        out.append("YES")
-        out.append(" ".join(str(c) for c in col))
-    sys.stdout.write("\n".join(out))
+        # map colors 0,1,2 to 1,2,3
+        res = [str(c+1) for c in colors]
+        print("YES")
+        print(' '.join(res))
 
 if __name__ == "__main__":
     solve()
 ```
-
-The program follows exactly the algorithm proven correct above and conforms
-to the required input‑output format.

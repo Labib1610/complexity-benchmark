@@ -1,0 +1,51 @@
+import sys
+sys.setrecursionlimit(100000)
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [[] for _ in range(n)]
+    
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    color = [0] * n
+    possible = True
+    
+    def dfs(u):
+        nonlocal possible
+        if not possible:
+            return
+        for v in adj[u]:
+            if color[v] == 0:
+                color[v] = 6 - color[u]
+                dfs(v)
+                if not possible:
+                    return
+            elif color[v] == color[u]:
+                possible = False
+                return
+    
+    for i in range(n):
+        if color[i] == 0:
+            color[i] = 1
+            dfs(i)
+            if not possible:
+                break
+    
+    if not possible:
+        print("NO")
+    else:
+        print("YES")
+        print(" ".join(map(str, color)))
+
+if __name__ == "__main__":
+    solve()

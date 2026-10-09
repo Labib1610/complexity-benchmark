@@ -1,0 +1,202 @@
+import sys
+from collections import defaultdict, deque
+
+def main():
+    import sys
+    sys.setrecursionlimit(1 << 25)
+    
+    n, m, k = map(int, sys.stdin.readline().split())
+    
+    # Build adjacency list
+    adj = defaultdict(list)
+    edges = []
+    for _ in range(m):
+        u, v = map(int, sys.stdin.readline().split())
+        adj[u].append(v)
+        adj[v].append(u)
+        edges.append((u, v))
+    
+    # Since the graph is bipartite (as per the tier condition), we can color it with 2 colors
+    color = [-1] * (n + 1)
+    visited = [False] * (n + 1)
+    
+    def bfs(start):
+        queue = deque()
+        queue.append(start)
+        color[start] = 0
+        visited[start] = True
+        c0 = 1
+        c1 = 0
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if not visited[v]:
+                    visited[v] = True
+                    color[v] = 1 - color[u]
+                    if color[v] == 0:
+                        c0 += 1
+                    else:
+                        c1 += 1
+                    queue.append(v)
+                elif color[v] == color[u]:
+                    # This should not happen as per problem statement
+                    return -1, -1
+        return c0, c1
+    
+    # Find all connected components and their bipartition
+    components = []
+    for i in range(1, n + 1):
+        if not visited[i]:
+            c0, c1 = bfs(i)
+            if c0 == -1:
+                # Should not happen
+                print("NO")
+                return
+            components.append((c0, c1))
+    
+    # For each component, we can choose either side of the bipartition
+    # We want to select exactly k nodes with no edges between them
+    # This is equivalent to selecting a subset of components such that 
+    # we pick from one side of each selected component and total = k
+    
+    # Let's use DP or greedy approach
+    # Actually, since we can pick from either side of each component,
+    # we can model this as: for each component (a,b), we can pick either a or b nodes
+    # We want to pick exactly k nodes
+    
+    # This is a subset sum problem variant
+    # But since we want exactly k, and we can pick one of two values per component,
+    # we can do this with a greedy or DP approach
+    
+    # Let's collect all possible choices
+    choices = []
+    for a, b in components:
+        choices.append((a, b))
+    
+    # We can use a recursive approach with memoization or iterative DP
+    # But since we also need to reconstruct the solution, let's use a DP that tracks parent
+    
+    # DP approach: dp[i][s] = whether we can get sum s using first i components
+    # But this might be too much memory
+    # Since sum can be up to n, and n up to 100000, we need a better way
+    
+    # Actually, let's think differently:
+    # For each component, we can choose either side
+    # We want total = k
+    # This is exactly the subset sum problem where for each item, we can pick one of two values
+    
+    # Let's use a set of possible sums
+    # But we also need to track which components contribute to which side
+    
+    # Let's use a different approach:
+    # Try all combinations of picking from each component
+    # But with up to n components, that's infeasible
+    
+    # Key insight: we can model this as a knapsack where for each component,
+    # we can pick either 'a' or 'b' items
+    
+    # Let's use a DP that tracks possible sums
+    # But we also need to reconstruct the solution
+    
+    # Let's use a DP with backtracking
+    max_sum = sum(a + b for a, b in choices)
+    if k > max_sum:
+        print("NO")
+        return
+    
+    # DP with reconstruction
+    # dp[s] = whether sum s is achievable
+    # But we need to track how we got there
+    
+    # Let's use a different approach:
+    # Since we want exactly k, and we can choose for each component to take from side 0 or side 1,
+    # we can try all possibilities with a meet-in-the-middle or other optimization,
+    # but that's complex.
+    
+    # Simpler approach:
+    # For small number of components, we can enumerate
+    # For large number, most components are small, so we can use greedy
+    
+    # Actually, let's think of it this way:
+    # We have components, each with two choices (a,b)
+    # We want to select exactly k elements by choosing for each component either a or b
+    
+    # This is exactly solvable with a DP that tracks possible sums
+    # Let's do it iteratively
+    
+    # possible_sums[s] = True if sum s is achievable
+    # But we also need to track the selection
+    
+    # Let's use a dict: sum -> list of choices (0 or 1 for each component)
+    from collections import defaultdict
+    
+    # Initialize: sum 0 with empty selection
+    prev_dp = {0: []}
+    
+    for a, b in choices:
+        curr_dp = {}
+        for s, selection in prev_dp.items():
+            # Choose a
+            s1 = s + a
+            if s1 not in curr_dp:
+                curr_dp[s1] = selection + [0]
+            # Choose b
+            s2 = s + b
+            if s2 not in curr_dp:
+                curr_dp[s2] = selection + [1]
+        prev_dp = curr_dp
+    
+    if k not in prev_dp:
+        print("NO")
+        return
+    
+    print("YES")
+    
+    # Reconstruct the solution
+    selection = prev_dp[k]
+    
+    # Now, for each component, we know whether to pick from side 0 or side 1
+    # We need to do BFS again to get the actual nodes in each side
+    
+    # Reset color and visited for reconstruction
+    color = [-1] * (n + 1)
+    visited = [False] * (n + 1)
+    
+    result = []
+    comp_idx = 0
+    
+    def bfs_reconstruct(start):
+        queue = deque()
+        queue.append(start)
+        color[start] = 0
+        visited[start] = True
+        nodes_0 = [start] if color[start] == 0 else []
+        nodes_1 = [start] if color[start] == 1 else []
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if not visited[v]:
+                    visited[v] = True
+                    color[v] = 1 - color[u]
+                    if color[v] == 0:
+                        nodes_0.append(v)
+                    else:
+                        nodes_1.append(v)
+                    queue.append(v)
+        return nodes_0, nodes_1
+    
+    for i in range(1, n + 1):
+        if not visited[i]:
+            nodes_0, nodes_1 = bfs_reconstruct(i)
+            choice = selection[comp_idx]
+            if choice == 0:
+                result.extend(nodes_0)
+            else:
+                result.extend(nodes_1)
+            comp_idx += 1
+    
+    # Print first k elements (there might be more due to how we constructed)
+    print(' '.join(map(str, result[:k])))
+
+if __name__ == "__main__":
+    main()

@@ -1,5 +1,7 @@
 import sys
 
+sys.setrecursionlimit(10000)
+
 def solve() -> None:
     data = sys.stdin.read().strip().split()
     if not data:
@@ -7,56 +9,48 @@ def solve() -> None:
     it = iter(data)
     n = int(next(it))
     m = int(next(it))
-
-    adj = [[] for _ in range(n)]
+    adj = [set() for _ in range(n)]
     for _ in range(m):
         u = int(next(it)) - 1
         v = int(next(it)) - 1
-        adj[u].append(v)
-        adj[v].append(u)
+        adj[u].add(v)
+        adj[v].add(u)
 
-    col = [0] * n               # 0 = uncoloured, else 1..3
-    forb = [0] * n              # bitmask of forbidden colours
-    stack = []                  # (vertex, old_forb)
+    # order vertices by descending degree for better pruning
+    order = sorted(range(n), key=lambda x: -len(adj[x]))
+    pos_in_order = [0]*n
+    for idx, v in enumerate(order):
+        pos_in_order[v] = idx
 
-    sys.setrecursionlimit(10000)
+    colors = [-1]*n
+    found = False
 
-    def dfs(v: int) -> bool:
-        if v == n:
+    def dfs(idx: int) -> bool:
+        nonlocal found
+        if idx == n:
             return True
-        allowed = 0b111 ^ forb[v]
-        for c in (1, 2, 3):
-            if not (allowed & (1 << (c - 1))):
-                continue
-            col[v] = c
-            sz = len(stack)
+        v = order[idx]
+        # try colors 0,1,2
+        for c in range(3):
             conflict = False
-            mask = 1 << (c - 1)
-            for u in adj[v]:
-                if col[u] == 0:
-                    old = forb[u]
-                    new = old | mask
-                    if new != old:
-                        stack.append((u, old))
-                        forb[u] = new
-                        if new == 0b111:
-                            conflict = True
-                            break
+            for nb in adj[v]:
+                if colors[nb] == c:
+                    conflict = True
+                    break
             if not conflict:
-                if dfs(v + 1):
+                colors[v] = c
+                if dfs(idx+1):
                     return True
-            # undo changes of this assignment
-            while len(stack) > sz:
-                u, old = stack.pop()
-                forb[u] = old
-            col[v] = 0
+                colors[v] = -1
         return False
 
     if dfs(0):
-        out = ['YES', ' '.join(str(c) for c in col)]
+        print("YES")
+        # convert to 1..3 in original order
+        out = [str(colors[i]+1) for i in range(n)]
+        print(' '.join(out))
     else:
-        out = ['NO']
-    sys.stdout.write('\n'.join(out))
+        print("NO")
 
 if __name__ == "__main__":
     solve()

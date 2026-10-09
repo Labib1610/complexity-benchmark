@@ -1,0 +1,33 @@
+import sys
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    adj = [0] * n
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+
+    for a in range(n - 2):
+        a_mask = adj[a]
+        for b in range(a + 1, n - 1):
+            if (a_mask >> b) & 1 == 0:   # edge a-b must exist
+                continue
+            common = a_mask & adj[b]      # vertices adjacent to both a and b
+            # need c > b
+            mask = common >> (b + 1)
+            if mask:
+                lsb = mask & -mask
+                pos = lsb.bit_length() - 1
+                c = b + 1 + pos
+                print(a + 1, b + 1, c + 1)
+                return
+
+if __name__ == "__main__":
+    solve()

@@ -1,0 +1,266 @@
+**Solution Explanation**
+
+For every pilot `p` all allowed triples  
+
+```
+(p , a , r)
+```
+
+contain the same aircraft `a`.  
+Different pilots have different aircraft, therefore the pilot–aircraft
+pairing is already known:
+
+```
+aircraft[p] = the (unique) a that appears together with p
+```
+
+What is still unknown is the route `r` for every pilot.
+Exactly one pilot must use each route, therefore we have to choose a
+bijection
+
+```
+pilot  →  route
+```
+
+that uses only allowed triples.
+That is a *perfect matching* in a bipartite graph:
+
+* left side – pilots   (1 … k)
+* right side – routes  (1 … k)
+* edge (p , r) exists iff the triple (p , aircraft[p] , r) is allowed.
+
+The task is reduced to:
+*does the graph contain a perfect matching?*  
+If yes, output the matching together with the already known aircrafts.
+
+The classic Hopcroft‑Karp algorithm finds a maximum matching in  
+`O(E·√V)` time, here `V = 2·k ≤ 2400` and `E ≤ k·k ≤ 1.44·10⁶`,
+well inside the limits.
+
+
+
+--------------------------------------------------------------------
+
+#### Algorithm
+```
+read k, t
+adj[p] = empty list for p = 1 … k
+aircraft[p] = 0
+
+for each of the t triples (x, y, z):
+        if aircraft[x] == 0: aircraft[x] = y      # first occurrence
+        adj[x].append(z)                         # edge pilot → route
+
+run Hopcroft‑Karp on the bipartite graph (pilots, routes, adj)
+    pairU[p] = matched route or 0
+    pairV[r] = matched pilot or 0
+    returns size of maximum matching
+
+if size == k:
+        print "YES"
+        for p = 1 … k:
+                print p, aircraft[p], pairU[p]
+else:
+        print "NO"
+```
+
+--------------------------------------------------------------------
+
+#### Correctness Proof  
+
+We prove that the algorithm prints a correct answer.
+
+---
+
+##### Lemma 1  
+For every pilot `p` all allowed triples containing `p` have the same
+aircraft, and different pilots have different aircraft.
+Therefore the algorithm stores the correct aircraft for each pilot.
+
+**Proof.**  
+The statement is given in the problem statement.
+The algorithm stores the first aircraft seen together with `p` in
+`aircraft[p]`. Because all later triples with the same pilot contain the
+same aircraft, `aircraft[p]` stays correct. ∎
+
+
+
+##### Lemma 2  
+An edge `(p , r)` is present in the constructed bipartite graph
+*iff* the triple `(p , aircraft[p] , r)` is allowed.
+
+**Proof.**  
+During input processing every allowed triple `(x , y , z)` is read.
+By Lemma&nbsp;1 `aircraft[x]` equals `y`. The algorithm appends `z` to
+`adj[x]`, i.e. creates the edge `(x , z)`. No other edges are added.
+Thus the edge set is exactly the set of allowed triples after fixing the
+aircraft. ∎
+
+
+
+##### Lemma 3  
+A set `M` of `k` edges that forms a perfect matching in this graph
+corresponds to a valid selection of `k` missions.
+
+**Proof.**  
+A perfect matching contains exactly one edge incident to each pilot and
+each route.  
+For an edge `(p , r) ∈ M` we output the mission  
+`(p , aircraft[p] , r)`. By Lemma&nbsp;2 this mission is allowed.
+All pilots, all aircrafts (one per pilot) and all routes appear exactly
+once, therefore the `k` missions satisfy the required conditions. ∎
+
+
+
+##### Lemma 4  
+If the algorithm outputs “YES” and the list of missions,
+then the missions are valid.
+
+**Proof.**  
+“YES” is printed only when Hopcroft‑Karp found a matching of size `k`,
+i.e. a perfect matching.
+By Lemma&nbsp;3 the printed missions obtained from that matching are a
+valid selection. ∎
+
+
+
+##### Lemma 5  
+If a valid selection of `k` missions exists, the algorithm outputs “YES”.
+
+**Proof.**  
+A valid selection contains exactly one mission for each pilot and each
+route and all missions are allowed.
+Replace each mission `(p , a , r)` by the edge `(p , r)`.
+Because the aircrafts are fixed, the set of edges is a perfect matching
+in the constructed graph (Lemma&nbsp;2).  
+Hopcroft‑Karp always finds a maximum matching, therefore its size is at
+least `k`. Since at most `k` edges can be matched, the algorithm obtains
+size exactly `k` and prints “YES”. ∎
+
+
+
+##### Theorem  
+The algorithm prints “YES” with a correct list of missions
+iff such a list exists; otherwise it prints “NO”.
+
+**Proof.**  
+*If* part – Lemma&nbsp;4.  
+*Only‑if* part – Lemma&nbsp;5. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### Complexity Analysis  
+
+*Reading input* – `O(t)`  
+*Adjacency lists* – `O(t)` memory.
+
+Hopcroft‑Karp:
+
+```
+V = 2k ≤ 2400
+E = t ≤ k·k ≤ 1.44·10⁶
+time = O(E·√V) ≤ 1.44·10⁶ · 50  ≈ 7·10⁷   (< 2 s in CPython)
+memory = O(V + E)  ≤ a few MB
+```
+
+Overall:
+
+```
+Time   O(t·√k)      ( ≤ 7·10⁷ operations )
+Memory O(k + t)     ( ≤ 1.5 ·10⁶ integers )
+```
+
+Both satisfy the limits.
+
+--------------------------------------------------------------------
+
+#### Reference Implementation  (Python 3)
+
+```python
+import sys
+from collections import deque
+
+def solve() -> None:
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+    it = iter(data)
+    k = next(it)
+    t = next(it)
+
+    # adjacency from pilot (1..k) to routes (1..k)
+    adj = [[] for _ in range(k + 1)]
+    aircraft = [0] * (k + 1)          # aircraft[p] will be fixed aircraft of pilot p
+
+    for _ in range(t):
+        x = next(it)   # pilot
+        y = next(it)   # aircraft
+        z = next(it)   # route
+        if aircraft[x] == 0:
+            aircraft[x] = y
+        # else: by problem guarantee aircraft[x] == y
+        adj[x].append(z)
+
+    n = k          # left side size
+    m = k          # right side size
+
+    pair_u = [0] * (n + 1)   # pilot -> route
+    pair_v = [0] * (m + 1)   # route -> pilot
+    dist = [0] * (n + 1)
+    INF = 10 ** 9
+
+    def bfs() -> bool:
+        q = deque()
+        for u in range(1, n + 1):
+            if pair_u[u] == 0:
+                dist[u] = 0
+                q.append(u)
+            else:
+                dist[u] = INF
+        d = INF
+        while q:
+            u = q.popleft()
+            if dist[u] < d:
+                for v in adj[u]:
+                    pu = pair_v[v]
+                    if pu == 0:
+                        d = dist[u] + 1
+                    elif dist[pu] == INF:
+                        dist[pu] = dist[u] + 1
+                        q.append(pu)
+        return d != INF
+
+    sys.setrecursionlimit(10000000)
+
+    def dfs(u: int) -> bool:
+        for v in adj[u]:
+            pu = pair_v[v]
+            if pu == 0 or (dist[pu] == dist[u] + 1 and dfs(pu)):
+                pair_u[u] = v
+                pair_v[v] = u
+                return True
+        dist[u] = INF
+        return False
+
+    matching = 0
+    while bfs():
+        for u in range(1, n + 1):
+            if pair_u[u] == 0 and dfs(u):
+                matching += 1
+
+    if matching == k:
+        out = ["YES"]
+        for p in range(1, k + 1):
+            out.append(f"{p} {aircraft[p]} {pair_u[p]}")
+        sys.stdout.write("\n".join(out))
+    else:
+        sys.stdout.write("NO")
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above
+and conforms to the required input‑output format.

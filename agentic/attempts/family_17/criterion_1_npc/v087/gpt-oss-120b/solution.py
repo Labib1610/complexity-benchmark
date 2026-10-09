@@ -1,0 +1,159 @@
+import sys
+sys.setrecursionlimit(1000000)
+
+def solve():
+    import sys
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    q = int(next(it))
+    t = int(next(it))
+    triples = []
+    for _ in range(t):
+        a = int(next(it)); b = int(next(it)); c = int(next(it))
+        triples.append((a,b,c))
+    n = 3*q
+    # Build bipartite graph: left side triples, right side elements
+    # We need select q triples covering each element exactly once.
+    # This is exact cover -> use DLX (Algorithm X)
+    # Implement dancing links for up to 20000 rows and 600 columns.
+    max_nodes = 1 + t*3 + n + 1
+    U = max_nodes
+    L = [0]*U
+    R = [0]*U
+    Upar = [0]*U
+    D = [0]*U
+    C = [0]*U
+    S = [0]*(n+1)
+    header = 0
+    # init header links
+    for i in range(n+1):
+        L[i] = i-1
+        R[i] = i+1
+        Upar[i] = i
+        D[i] = i
+    R[n] = header
+    L[header] = n
+    # add rows
+    node_id = n+1
+    row_head = [0]*t
+    for r, (a,b,c) in enumerate(triples):
+        cols = [a,b,c]
+        first = None
+        for col in cols:
+            nid = node_id
+            node_id += 1
+            C[nid] = col
+            # vertical links
+            U[nid] = Upar[col]
+            D[nid] = col
+            D[Upar[col]] = nid
+            U[col] = nid
+            S[col] += 1
+            # horizontal links
+            if first is None:
+                first = nid
+                L[nid] = R[nid] = nid
+            else:
+                L[nid] = L[first]
+                R[nid] = first
+                R[L[first]] = nid
+                L[first] = nid
+        row_head[r] = first
+    solution = []
+    ans_rows = []
+
+    def cover(col):
+        # remove column header
+        L[R[col]] = L[col]
+        R[L[col]] = R[col]
+        i = D[col]
+        while i != col:
+            j = R[i]
+            while j != i:
+                U[D[j]] = U[j]
+                D[U[j]] = D[j]
+                S[C[j]] -= 1
+                j = R[j]
+            i = D[i]
+
+    def uncover(col):
+        i = U[col]
+        while i != col:
+            j = L[i]
+            while j != i:
+                S[C[j]] += 1
+                U[D[j]] = j
+                D[U[j]] = j
+                j = L[j]
+            i = U[i]
+        L[R[col]] = col
+        R[L[col]] = col
+
+    def heuristic():
+        # simple lower bound: count remaining columns
+        cnt = 0
+        c = R[header]
+        while c != header:
+            cnt += 1
+            c = R[c]
+        return (cnt + 2)//3
+
+    def search(k):
+        if R[header] == header:
+            return True
+        # choose column with minimal size
+        c = R[header]
+        min_s = S[c]
+        col = c
+        cc = R[c]
+        while cc != header:
+            if S[cc] < min_s:
+                min_s = S[cc]
+                col = cc
+                if min_s == 0:
+                    break
+            cc = R[cc]
+        if min_s == 0:
+            return False
+        cover(col)
+        r = D[col]
+        while r != col:
+            ans_rows.append(r)
+            j = R[r]
+            while j != r:
+                cover(C[j])
+                j = R[j]
+            if search(k+1):
+                return True
+            # backtrack
+            j = L[r]
+            while j != r:
+                uncover(C[j])
+                j = L[j]
+            ans_rows.pop()
+            r = D[r]
+        uncover(col)
+        return False
+
+    if search(0):
+        print("YES")
+        # retrieve triples from rows
+        used = set()
+        for node in ans_rows:
+            # node belongs to a row, collect its three columns
+            cols = []
+            x = node
+            while True:
+                cols.append(C[x])
+                x = R[x]
+                if x == node:
+                    break
+            cols.sort()
+            print(*cols)
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()

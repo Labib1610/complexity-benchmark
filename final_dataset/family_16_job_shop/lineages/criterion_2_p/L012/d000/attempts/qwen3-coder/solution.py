@@ -1,0 +1,48 @@
+import sys
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    j = int(data[0])
+    documents = []
+    index = 1
+    for _ in range(j):
+        p1 = int(data[index])
+        p2 = int(data[index+1])
+        documents.append((p1, p2))
+        index += 2
+    
+    # Sort documents using Johnson's rule
+    # Partition into two groups:
+    # Group1: p1 <= p2
+    # Group2: p1 > p2
+    group1 = []  # (p1, p2, index) - sort by p1 ascending
+    group2 = []  # (p1, p2, index) - sort by p2 descending
+    
+    for i in range(j):
+        p1, p2 = documents[i]
+        if p1 <= p2:
+            group1.append((p1, p2, i))
+        else:
+            group2.append((p1, p2, i))
+    
+    group1.sort(key=lambda x: x[0])
+    group2.sort(key=lambda x: x[1], reverse=True)
+    
+    # Final order: group1 followed by group2
+    order = group1 + group2
+    
+    # Simulate the process
+    time_translator = 0
+    time_proofreader = 0
+    
+    for p1, p2, _ in order:
+        time_translator += p1
+        time_proofreader = max(time_proofreader, time_translator) + p2
+    
+    print(time_proofreader)
+
+if __name__ == "__main__":
+    main()

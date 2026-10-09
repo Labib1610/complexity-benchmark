@@ -1,49 +1,41 @@
-import sys
-from collections import defaultdict
-
 def solve():
-    n, m = map(int, sys.stdin.readline().split())
+    n, m = map(int, input().split())
     
     # Build adjacency list
-    adj = defaultdict(set)
+    adj = [[] for _ in range(n + 1)]
     for _ in range(m):
-        u, v = map(int, sys.stdin.readline().split())
-        adj[u].add(v)
-        adj[v].add(u)
+        u, v = map(int, input().split())
+        adj[u].append(v)
+        adj[v].append(u)
     
-    # Try to color the graph with 3 colors
-    # Colors: 1, 2, 3. 0 means uncolored
-    color = [0] * (n + 1)
+    # Try all possible colorings (1, 2, 3)
+    # This is essentially a 3-coloring problem
+    colors = [0] * (n + 1)  # 0 means uncolored
     
-    # For each node, try colors 1, 2, 3 in order
-    def is_valid(node, c):
-        # Check if any neighbor has the same color
+    def is_valid_color(node, color):
         for neighbor in adj[node]:
-            if color[neighbor] == c:
+            if colors[neighbor] == color:
                 return False
         return True
     
-    # We'll use a backtracking approach to find the lexicographically smallest valid coloring
     def backtrack(node):
         if node > n:
             return True
             
-        # Try colors 1, 2, 3 in order for lexicographically smallest result
-        for c in [1, 2, 3]:
-            if is_valid(node, c):
-                color[node] = c
+        for color in [1, 2, 3]:
+            if is_valid_color(node, color):
+                colors[node] = color
                 if backtrack(node + 1):
                     return True
-                # No need to undo since we return immediately when found
-                
-        # If no color works
+                colors[node] = 0
+        
         return False
     
-    # Start backtracking from node 1
-    if not backtrack(1):
-        print("NO")
-    else:
+    # Check if graph is 3-colorable
+    if backtrack(1):
         print("YES")
-        print(*color[1:])
+        print(*colors[1:])
+    else:
+        print("NO")
 
 solve()

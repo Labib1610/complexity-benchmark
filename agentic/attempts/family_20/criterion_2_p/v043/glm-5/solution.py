@@ -1,0 +1,51 @@
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    it = iter(data)
+    Nin = int(next(it))
+    Nout = int(next(it))
+    M = int(next(it))
+    
+    edges = []
+    deg_in = [0] * (Nin + 1)
+    deg_out = [0] * (Nout + 1)
+    
+    for _ in range(M):
+        u = int(next(it))
+        v = int(next(it))
+        edges.append((u, v))
+        deg_in[u] += 1
+        deg_out[v] += 1
+    
+    D = 0
+    if Nin > 0:
+        D = max(D, max(deg_in[1:]))
+    if Nout > 0:
+        D = max(D, max(deg_out[1:]))
+    
+    # Position pointers for each input terminal (1-based)
+    pos_in = [0] * (Nin + 1)
+    # Position pointers for each output terminal (1-based)
+    pos_out = [0] * (Nout + 1)
+    
+    ans = [0] * M
+    
+    # Process edges in reverse order so that earlier edges get smaller channels
+    for i in range(M - 1, -1, -1):
+        u, v = edges[i]
+        pu = pos_in[u]
+        pv = pos_out[v]
+        c = pu if pu > pv else pv
+        ans[i] = c + 1
+        pos_in[u] = c + 1
+        pos_out[v] = c + 1
+    
+    out = []
+    out.append("YES")
+    out.append(" ".join(map(str, ans)))
+    sys.stdout.write("\n".join(out))
+
+solve()

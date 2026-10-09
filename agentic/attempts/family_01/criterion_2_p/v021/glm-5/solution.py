@@ -2,46 +2,33 @@ import sys
 from collections import deque
 
 def solve():
-    input_data = sys.stdin.read().split()
-    if not input_data:
+    data = sys.stdin.read().split()
+    if not data:
         return
-    iterator = iter(input_data)
-    try:
-        n = int(next(iterator))
-        m = int(next(iterator))
-    except StopIteration:
-        return
-
-    adj = [[] for _ in range(n)]
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [[] for _ in range(n + 1)]
     for _ in range(m):
-        u = int(next(iterator)) - 1
-        v = int(next(iterator)) - 1
+        u = int(next(it))
+        v = int(next(it))
         adj[u].append(v)
         adj[v].append(u)
-
-    # We want the lexicographically smallest configuration.
-    # Greedy strategy: iterate fields from 1 to n.
-    # For each field u, if not assigned, assign it to 1.
-    # Then, all unassigned neighbors v must be assigned to 2.
-    # This propagation is done using a queue.
-    # If we encounter a conflict (neighbor already assigned same value), it's impossible.
     
-    color = [0] * n
+    color = [0] * (n + 1)
     possible = True
     
-    for i in range(n):
+    for i in range(1, n + 1):
         if color[i] == 0:
-            # Start BFS for this component
-            queue = deque([i])
             color[i] = 1
-            
-            while queue:
-                u = queue.popleft()
-                
+            q = deque([i])
+            while q:
+                u = q.popleft()
                 for v in adj[u]:
                     if color[v] == 0:
                         color[v] = 3 - color[u]
-                        queue.append(v)
+                        q.append(v)
                     elif color[v] == color[u]:
                         possible = False
                         break
@@ -54,7 +41,7 @@ def solve():
         print("NO")
     else:
         print("YES")
-        print(*(color))
+        print(' '.join(map(str, color[1:])))
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     solve()

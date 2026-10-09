@@ -1,0 +1,366 @@
+**Solution Explanation**
+
+For every briefing we have to choose a time‑slot (a colour).  
+The graph is bipartite:
+
+* left side – the `nL` morning presenters,
+* right side – the `nR` afternoon reviewers,
+* an edge – one briefing.
+
+For a vertex `x` let `deg(x)` be its degree.  
+`Δ = max_x deg(x)` is the largest number of briefings of a single participant.
+Obviously at least `Δ` different slots are necessary and, for bipartite graphs,
+`Δ` slots are always sufficient (Kőnig’s line‑colouring theorem).
+
+So we have to **edge‑colour** a bipartite (simple) graph with exactly `Δ`
+colours.
+
+
+
+--------------------------------------------------------------------
+
+#### 1.   Data structures
+
+```
+adjL[u] : list of (v, edge_id)   – edges incident to left vertex u
+adjR[v] : list of (u, edge_id)   – edges incident to right vertex v
+col[e]  : colour of edge e   (0 = not coloured yet)
+
+usedL[u] : set of colours already used on vertex u
+usedR[v] : set of colours already used on vertex v
+```
+
+`usedL` / `usedR` are Python `set`s – all operations are `O(1)` on average.
+
+
+
+--------------------------------------------------------------------
+
+#### 2.   Greedy step
+
+Edges are processed in the input order.
+
+For the current edge `(u , v)` we look for a colour `c` that is **free**
+both at `u` and at `v`.
+
+```
+c = first colour (1 … Δ) not in usedL[u] and not in usedR[v]
+```
+
+If it exists we colour the edge and continue – this is the usual greedy
+colouring.
+
+
+
+--------------------------------------------------------------------
+
+#### 3.   When greedy fails – recolouring with an alternating path  
+
+Now every colour is present either at `u` or at `v`.
+
+* `a` – a colour missing at `u`   (`a ∉ usedL[u]`)
+* `b` – a colour missing at `v`   (`b ∉ usedR[v]`)
+
+`a` and `b` are different (otherwise the greedy step would have succeeded).
+
+Consider the subgraph that contains **only** edges coloured `a` or `b`.
+In this subgraph every vertex has degree at most `1` for each colour,
+therefore each connected component is a simple path or an even cycle.
+
+Starting from `u` we walk along this subgraph, always alternating the
+colours `a , b`.  
+Because `u` does not have an incident edge of colour `a`,
+the walk can only leave `u` by an edge of colour `b` (if such an edge
+exists).  
+The walk stops as soon as we reach a vertex where the colour we would
+need next is missing.  
+That vertex is guaranteed to exist – otherwise the walk would be an
+infinite alternating cycle, which is impossible in a finite graph.
+
+When the walk ends we **flip** the colours on every traversed edge
+(`a ↔ b`). After the flip the colour `b` becomes free at the start vertex
+`u`, therefore we can colour the original edge `(u , v)` with `b`.
+
+The walk is found by a simple BFS that follows only edges of colour
+`a` or `b`.  
+During BFS we store for every visited vertex
+
+* the predecessor vertex,
+* the edge id that was used to reach it,
+* the colour of that edge.
+
+The length of the walk is at most the number of vertices, i.e. `O(n)`,
+and each edge is examined only a constant number of times during the
+whole algorithm, giving an overall linear complexity.
+
+
+
+--------------------------------------------------------------------
+
+#### 4.   Correctness Proof  
+
+We prove that the algorithm outputs a proper edge‑colouring using exactly
+`Δ` colours.
+
+---
+
+##### Lemma 1  
+When processing an edge `(u , v)` the algorithm always finds a colour
+`c` (either directly or after the recolouring step) that is free at both
+endpoints.
+
+**Proof.**  
+If a colour free at both ends exists, the greedy step chooses it.  
+Otherwise every colour `1 … Δ` is present at `u` **or** at `v`.  
+Because `deg(u) ≤ Δ` there is at least one colour `a` missing at `u`;
+similarly there is a colour `b` missing at `v`.  
+`a ≠ b` (otherwise that colour would be free at both ends).  
+The recolouring step builds the alternating `a/b` subgraph, starts a BFS
+from `u` and follows only edges coloured `a` or `b`.  
+All vertices reached by the BFS have the same parity of distance from `u`
+as the colour they are missing:
+
+* vertices at even distance miss colour `a`,
+* vertices at odd distance miss colour `b`.
+
+If the BFS ever reaches a vertex where the needed colour is missing,
+the walk can be flipped and colour `b` becomes free at `u`.  
+If the BFS finishes without such a vertex, every vertex of the component
+has both colours present, which is impossible because `u` itself misses
+`a`.  Hence the BFS must find the required vertex. ∎
+
+
+
+##### Lemma 2  
+Flipping the colours along the found alternating walk makes colour `b`
+free at vertex `u` and does not create a colour conflict at any vertex.
+
+**Proof.**  
+Along the walk colours are `a , b , a , b , …`.  
+After swapping, each edge that previously had colour `a` gets colour `b`
+and vice‑versa.  
+Consequently every vertex on the walk loses one incident edge of colour
+`a` and gains one of colour `b`, or the opposite, preserving the set
+size of used colours.  
+Because the walk starts at `u` which missed `a`, after the swap `u`
+misses `b` instead of `a`; all other vertices keep the property that
+no colour appears twice. ∎
+
+
+
+##### Lemma 3  
+After processing an edge, the invariant *“no vertex has two incident
+edges of the same colour”* holds.
+
+**Proof.**  
+Induction over the processed edges.
+
+*Base.* Before any edge is coloured the invariant is trivially true.
+
+*Step.* Assume it holds before processing edge `e = (u , v)`.  
+If the greedy step is used, the chosen colour is free at both ends,
+so the invariant stays true.  
+If the recolouring step is used, by Lemma&nbsp;2 the flip does not create
+any conflict and afterwards colour `b` is assigned to `e`, which is free
+at both ends. Hence the invariant also holds. ∎
+
+
+
+##### Lemma 4  
+All colours used are in the range `1 … Δ`.
+
+**Proof.**  
+The algorithm never creates a new colour; it only uses colours that are
+missing at some vertex.  Because every vertex degree is at most `Δ`,
+at most `Δ` different colours can be missing, therefore all used colours
+are ≤ `Δ`. ∎
+
+
+
+##### Theorem  
+The algorithm outputs “YES” and a sequence of `m` integers, each between
+`1` and `Δ`, such that any two edges sharing a vertex have different
+integers. Hence it is a correct schedule using the minimum possible
+number of time slots.
+
+**Proof.**  
+By Lemma&nbsp;1 every edge receives a colour.  
+By Lemma&nbsp;3 the resulting colouring is proper.  
+By Lemma&nbsp;4 all colours are ≤ `Δ`.  
+Since at least `Δ` slots are necessary, the schedule uses exactly the
+minimum number. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### 5.   Complexity Analysis  
+
+*`Δ`* – maximum degree, `Δ ≤ m ≤ 4·10⁵`.
+
+* Greedy step:   `O(Δ)` to find a free colour, but we stop at the first
+  free one, therefore `O(1)` amortised (the sets are small on average).
+
+* Recolouring step: each BFS visits each vertex at most once and each
+  edge of colour `a` or `b` at most once.  
+  An edge can be examined only when its colour participates in a BFS,
+  i.e. at most twice during the whole algorithm (once for each of its two
+  colours).  
+  Hence the total work of all BFS runs is `O(m)`.
+
+Overall time   `O(n + m)`   ( ≤ 5·10⁵ ), well inside the limits.  
+
+Memory consumption: adjacency lists, colour array and the two
+`used*` sets – `O(n + m)`.
+
+
+
+--------------------------------------------------------------------
+
+#### 6.   Reference Implementation  (Python 3)
+
+```python
+import sys
+from collections import deque
+
+def solve() -> None:
+    it = iter(sys.stdin.read().strip().split())
+    try:
+        nL = int(next(it))
+    except StopIteration:
+        return
+    nR = int(next(it))
+    m = int(next(it))
+
+    edges = []
+    adjL = [[] for _ in range(nL)]
+    adjR = [[] for _ in range(nR)]
+    for idx in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        edges.append((u, v))
+        adjL[u].append((v, idx))
+        adjR[v].append((u, idx))
+
+    # maximum degree Δ
+    degL = [len(lst) for lst in adjL]
+    degR = [len(lst) for lst in adjR]
+    Delta = max(degL + degR) if m else 0
+
+    col = [0] * m                     # colour of each edge (0 = uncoloured)
+    usedL = [set() for _ in range(nL)]
+    usedR = [set() for _ in range(nR)]
+
+    # helper to find first missing colour (1..Delta)
+    def first_missing(used_set):
+        for c in range(1, Delta + 1):
+            if c not in used_set:
+                return c
+        return None  # should never happen
+
+    for eid, (u, v) in enumerate(edges):
+        # try greedy colour
+        cu = usedL[u]
+        cv = usedR[v]
+        found = None
+        for c in range(1, Delta + 1):
+            if c not in cu and c not in cv:
+                found = c
+                break
+        if found is not None:
+            col[eid] = found
+            cu.add(found)
+            cv.add(found)
+            continue
+
+        # need recolouring
+        a = first_missing(cu)          # missing at u
+        b = first_missing(cv)          # missing at v
+        # BFS in the subgraph of colours a and b
+        # vertices are numbered 0..nL-1 for left, nL..nL+nR-1 for right
+        N = nL + nR
+        parent = [-1] * N
+        parent_edge = [-1] * N
+        parent_colour = [0] * N
+        q = deque()
+        start = u
+        q.append(start)
+        parent[start] = start  # mark visited
+        target = -1
+
+        while q and target == -1:
+            cur = q.popleft()
+            if cur < nL:          # left side
+                for nb, eidx in adjL[cur]:
+                    c = col[eidx]
+                    if c not in (a, b):
+                        continue
+                    nxt = nL + nb
+                    if parent[nxt] != -1:
+                        continue
+                    parent[nxt] = cur
+                    parent_edge[nxt] = eidx
+                    parent_colour[nxt] = c
+                    # check if colour we would need next is missing
+                    if c == a:
+                        # we would need b at nxt (right vertex)
+                        if b not in usedR[nb]:
+                            target = nxt
+                            break
+                    else:  # c == b
+                        if a not in usedR[nb]:
+                            target = nxt
+                            break
+                    q.append(nxt)
+            else:                 # right side
+                r = cur - nL
+                for nb, eidx in adjR[r]:
+                    c = col[eidx]
+                    if c not in (a, b):
+                        continue
+                    nxt = nb
+                    if parent[nxt] != -1:
+                        continue
+                    parent[nxt] = cur
+                    parent_edge[nxt] = eidx
+                    parent_colour[nxt] = c
+                    if c == a:
+                        if b not in usedL[nb]:
+                            target = nxt
+                            break
+                    else:
+                        if a not in usedL[nb]:
+                            target = nxt
+                            break
+                    q.append(nxt)
+
+        # flip colours along the found path
+        vtx = target
+        while vtx != start:
+            eidx = parent_edge[vtx]
+            oldc = col[eidx]
+            newc = b if oldc == a else a
+            # update structures
+            col[eidx] = newc
+            uu, vv = edges[eidx]
+            usedL[uu].remove(oldc)
+            usedL[uu].add(newc)
+            usedR[vv].remove(oldc)
+            usedR[vv].add(newc)
+            vtx = parent[vtx]
+
+        # now colour the original edge with b (which is free at u)
+        col[eid] = b
+        usedL[u].add(b)
+        usedR[v].add(b)
+
+    # output
+    out = ['YES', ' '.join(str(c) for c in col)]
+    sys.stdout.write('\n'.join(out))
+
+if __name__ == '__main__':
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above and
+conforms to the required input‑output format.

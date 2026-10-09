@@ -1,0 +1,72 @@
+import sys
+from collections import deque
+
+def hopcroft_karp(n, m, adj):
+    INF = 10**9
+    pair_u = [-1] * n
+    pair_v = [-1] * m
+    dist = [0] * n
+
+    def bfs():
+        dq = deque()
+        for u in range(n):
+            if pair_u[u] == -1:
+                dist[u] = 0
+                dq.append(u)
+            else:
+                dist[u] = INF
+        found = False
+        while dq:
+            u = dq.popleft()
+            for v in adj[u]:
+                pu = pair_v[v]
+                if pu == -1:
+                    found = True
+                elif dist[pu] == INF:
+                    dist[pu] = dist[u] + 1
+                    dq.append(pu)
+        return found
+
+    def dfs(u):
+        for v in adj[u]:
+            pu = pair_v[v]
+            if pu == -1 or (dist[pu] == dist[u] + 1 and dfs(pu)):
+                pair_u[u] = v
+                pair_v[v] = u
+                return True
+        dist[u] = INF
+        return False
+
+    matching = 0
+    while bfs():
+        for u in range(n):
+            if pair_u[u] == -1:
+                if dfs(u):
+                    matching += 1
+    return matching, pair_u
+
+def main():
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    it = iter(data)
+    q = int(next(it))
+    t = int(next(it))
+    adj = [[] for _ in range(q)]
+    for _ in range(t):
+        a = int(next(it)) - 1
+        b = int(next(it)) - q - 1
+        adj[a].append(b)
+
+    matching, pair_u = hopcroft_karp(q, q, adj)
+    if matching != q:
+        sys.stdout.write("NO\n")
+    else:
+        out = ["YES\n"]
+        for u in range(q):
+            v = pair_u[u]
+            out.append(f"{u+1} {v+q+1}\n")
+        sys.stdout.write(''.join(out))
+
+if __name__ == "__main__":
+    main()

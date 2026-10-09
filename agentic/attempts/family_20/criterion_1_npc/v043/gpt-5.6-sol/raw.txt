@@ -1,0 +1,338 @@
+```python
+import sys
+from collections import deque
+
+sys.setrecursionlimit(100000)
+
+data = list(map(int, sys.stdin.buffer.read().split()))
+if not data:
+    sys.exit()
+
+it = iter(data)
+n = next(it)
+m = next(it)
+
+edges = []
+adj = [[] for _ in range(n)]
+
+for eid in range(m):
+    u = next(it) - 1
+    v = next(it) - 1
+    edges.append((u, v))
+    adj[u].append(eid)
+    adj[v].append(eid)
+
+if m != 3 * n // 2 or any(len(adj[v]) != 3 for v in range(n)):
+    print("NO")
+    sys.exit()
+
+# A cubic graph with a bridge cannot be 3-edge-colored.
+tin = [-1] * n
+low = [0] * n
+timer = 0
+has_bridge = False
+
+def bridge_dfs(v, parent_eid):
+    global timer, has_bridge
+    tin[v] = low[v] = timer
+    timer += 1
+
+    for eid in adj[v]:
+        if eid == parent_eid:
+            continue
+        a, b = edges[eid]
+        to = b if a == v else a
+
+        if tin[to] == -1:
+            bridge_dfs(to, eid)
+            low[v] = min(low[v], low[to])
+            if low[to] > tin[v]:
+                has_bridge = True
+        else:
+            low[v] = min(low[v], tin[to])
+
+for start in range(n):
+    if tin[start] == -1:
+        bridge_dfs(start, -1)
+
+if has_bridge:
+    print("NO")
+    sys.exit()
+
+# Find connected components and test bipartiteness.
+components = []
+seen = [False] * n
+side = [-1] * n
+
+for start in range(n):
+    if seen[start]:
+        continue
+
+    q = deque([start])
+    seen[start] = True
+    side[start] = 0
+    vertices = []
+    edge_set = set()
+    bipartite = True
+
+    while q:
+        v = q.popleft()
+        vertices.append(v)
+
+        for eid in adj[v]:
+            edge_set.add(eid)
+            a, b = edges[eid]
+            to = b if a == v else a
+
+            if not seen[to]:
+                seen[to] = True
+                side[to] = side[v] ^ 1
+                q.append(to)
+            elif side[to] == side[v]:
+                bipartite = False
+
+    components.append((vertices, list(edge_set), bipartite))
+
+answer = [0] * m
+
+def color_bipartite_component(vertices, comp_edges):
+    left = [v for v in vertices if side[v] == 0]
+    available = [False] * m
+    for eid in comp_edges:
+        available[eid] = True
+
+    def perfect_matching():
+        match_left = [-1] * n
+        match_right = [-1] * n
+        match_edge = [-1] * n
+        dist = [-1] * n
+
+        def bfs():
+            q = deque()
+            found = False
+
+            for u in left:
+                if match_left[u] == -1:
+                    dist[u] = 0
+                    q.append(u)
+                else:
+                    dist[u] = -1
+
+            while q:
+                u = q.popleft()
+                for eid in adj[u]:
+                    if not available[eid]:
+                        continue
+                    a, b = edges[eid]
+                    v = b if a == u else a
+                    previous = match_right[v]
+                    if previous == -1:
+                        found = True
+                    elif dist[previous] == -1:
+                        dist[previous] = dist[u] + 1
+                        q.append(previous)
+
+            return found
+
+        def dfs(u):
+            for eid in adj[u]:
+                if not available[eid]:
+                    continue
+                a, b = edges[eid]
+                v = b if a == u else a
+                previous = match_right[v]
+
+                if previous == -1 or (
+                    dist[previous] == dist[u] + 1 and dfs(previous)
+                ):
+                    match_left[u] = v
+                    match_right[v] = u
+                    match_edge[u] = eid
+                    return True
+
+            dist[u] = -1
+            return False
+
+        matched = 0
+        while bfs():
+            for u in left:
+                if match_left[u] == -1 and dfs(u):
+                    matched += 1
+
+        if matched != len(left):
+            return None
+        return [match_edge[u] for u in left]
+
+    for color in (1, 2):
+        matching = perfect_matching()
+        if matching is None:
+            return False
+        for eid in matching:
+            answer[eid] = color
+            available[eid] = False
+
+    for eid in comp_edges:
+        if available[eid]:
+            answer[eid] = 3
+
+    return True
+
+PERMUTATIONS = (
+    (1, 2, 4),
+    (1, 4, 2),
+    (2, 1, 4),
+    (2, 4, 1),
+    (4, 1, 2),
+    (4, 2, 1),
+)
+
+def color_nonbipartite_component(vertices, comp_edges):
+    domains = [7] * m
+    trail = []
+
+    def propagate(initial_vertices):
+        q = deque()
+        in_queue = set()
+
+        for v in initial_vertices:
+            if v not in in_queue:
+                in_queue.add(v)
+                q.append(v)
+
+        while q:
+            v = q.popleft()
+            in_queue.remove(v)
+            e0, e1, e2 = adj[v]
+            d0, d1, d2 = domains[e0], domains[e1], domains[e2]
+
+            a0 = a1 = a2 = 0
+            valid = False
+
+            for p0, p1, p2 in PERMUTATIONS:
+                if (d0 & p0) and (d1 & p1) and (d2 & p2):
+                    valid = True
+                    a0 |= p0
+                    a1 |= p1
+                    a2 |= p2
+
+            if not valid:
+                return False
+
+            for eid, allowed in ((e0, a0), (e1, a1), (e2, a2)):
+                new_domain = domains[eid] & allowed
+                if new_domain == 0:
+                    return False
+
+                if new_domain != domains[eid]:
+                    trail.append((eid, domains[eid]))
+                    domains[eid] = new_domain
+                    x, y = edges[eid]
+
+                    if x not in in_queue:
+                        in_queue.add(x)
+                        q.append(x)
+                    if y not in in_queue:
+                        in_queue.add(y)
+                        q.append(y)
+
+        return True
+
+    def assign(eid, bit):
+        if not (domains[eid] & bit):
+            return False
+
+        if domains[eid] != bit:
+            trail.append((eid, domains[eid]))
+            domains[eid] = bit
+
+        u, v = edges[eid]
+        return propagate((u, v))
+
+    # Remove global color-permutation symmetry.
+    root = vertices[0]
+    root_edges = adj[root]
+    mark = len(trail)
+
+    for eid, bit in zip(root_edges, (1, 2, 4)):
+        if domains[eid] != bit:
+            trail.append((eid, domains[eid]))
+            domains[eid] = bit
+
+    if not propagate((root,)):
+        while len(trail) > mark:
+            eid, old = trail.pop()
+            domains[eid] = old
+        return False
+
+    def search():
+        chosen = -1
+        best_key = (4, 100)
+
+        for eid in comp_edges:
+            d = domains[eid]
+            count = d.bit_count()
+            if count == 1:
+                continue
+
+            u, v = edges[eid]
+            impact = 0
+            for x in adj[u]:
+                if x != eid:
+                    impact += domains[x].bit_count()
+            for x in adj[v]:
+                if x != eid:
+                    impact += domains[x].bit_count()
+
+            key = (count, impact)
+            if key < best_key:
+                best_key = key
+                chosen = eid
+                if key == (2, 4):
+                    break
+
+        if chosen == -1:
+            return True
+
+        choices = domains[chosen]
+        bit = 1
+        while bit <= 4:
+            if choices & bit:
+                checkpoint = len(trail)
+                if assign(chosen, bit) and search():
+                    return True
+                while len(trail) > checkpoint:
+                    eid, old = trail.pop()
+                    domains[eid] = old
+            bit <<= 1
+
+        return False
+
+    if not search():
+        return False
+
+    for eid in comp_edges:
+        d = domains[eid]
+        if d == 1:
+            answer[eid] = 1
+        elif d == 2:
+            answer[eid] = 2
+        elif d == 4:
+            answer[eid] = 3
+        else:
+            return False
+
+    return True
+
+for vertices, comp_edges, bipartite in components:
+    if bipartite:
+        ok = color_bipartite_component(vertices, comp_edges)
+    else:
+        ok = color_nonbipartite_component(vertices, comp_edges)
+
+    if not ok:
+        print("NO")
+        sys.exit()
+
+print("YES")
+print(*answer)
+```

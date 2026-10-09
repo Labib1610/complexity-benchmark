@@ -1,0 +1,117 @@
+import sys
+from collections import deque
+
+def solve():
+    input = sys.stdin.readline
+    nL, nR, m = map(int, input().split())
+    edges = []
+    degL = [0] * (nL + 1)
+    degR = [0] * (nR + 1)
+    for _ in range(m):
+        u, v = map(int, input().split())
+        edges.append((u, v))
+        degL[u] += 1
+        degR[v] += 1
+
+    delta = max(max(degL), max(degR))
+    if delta == 0:
+        print("YES")
+        print()
+        return
+
+    # Build adjacency lists with edge indices
+    adjL = [[] for _ in range(nL + 1)]
+    adjR = [[] for _ in range(nR + 1)]
+    for idx, (u, v) in enumerate(edges):
+        adjL[u].append((v, idx))
+        adjR[v].append((u, idx))
+
+    # Color assignment
+    color = [0] * m
+
+    # For each left vertex, we will try to color its incident edges
+    # using a matching-based approach (Kőnig's line coloring)
+    # We'll use the standard algorithm: for each edge, find free color
+    # at both endpoints, if conflict, recolor along alternating path.
+
+    usedL = [[False] * (delta + 1) for _ in range(nL + 1)]
+    usedR = [[False] * (delta + 1) for _ in range(nR + 1)]
+
+    for u in range(1, nL + 1):
+        for v, idx in adjL[u]:
+            # find free color at u
+            c = 1
+            while usedL[u][c]:
+                c += 1
+            # find free color at v
+            d = 1
+            while usedR[v][d]:
+                d += 1
+            if c == d:
+                color[idx] = c
+                usedL[u][c] = True
+                usedR[v][c] = True
+            else:
+                # Need to recolor along alternating path
+                # We'll implement the standard "shifting" method
+                # Find path starting from v with color c, then d, etc.
+                # We'll do iterative approach
+                path_edges = []
+                path_colors = []
+                cur_side = 1  # 0 = left, 1 = right
+                cur_vertex = v
+                cur_color = c
+                # We'll build path: start at right vertex v, looking for edge of color c
+                while True:
+                    if cur_side == 1:  # right side
+                        # find edge with color c incident to cur_vertex
+                        found = False
+                        for uu, eidx in adjR[cur_vertex]:
+                            if color[eidx] == cur_color:
+                                path_edges.append(eidx)
+                                path_colors.append(cur_color)
+                                cur_vertex = uu
+                                cur_side = 0
+                                found = True
+                                break
+                        if not found:
+                            break
+                    else:  # left side
+                        found = False
+                        for vv, eidx in adjL[cur_vertex]:
+                            if color[eidx] == cur_color:
+                                path_edges.append(eidx)
+                                path_colors.append(cur_color)
+                                cur_vertex = vv
+                                cur_side = 1
+                                found = True
+                                break
+                        if not found:
+                            break
+                    # switch color
+                    cur_color = d if cur_color == c else c
+
+                # Now shift colors along path
+                # The path starts with color c at first edge, then alternates c,d,c,d...
+                # We'll shift: first edge gets d, second gets c, etc.
+                for i, eidx in enumerate(path_edges):
+                    old = color[eidx]
+                    new = d if i % 2 == 0 else c
+                    # update used flags
+                    uu, vv = edges[eidx]
+                    usedL[uu][old] = False
+                    usedR[vv][old] = False
+                    color[eidx] = new
+                    usedL[uu][new] = True
+                    usedR[vv][new] = True
+
+                # Now assign the original edge
+                color[idx] = c
+                usedL[u][c] = True
+                usedR[v][c] = True
+
+    print("YES")
+    print(" ".join(map(str, color)))
+
+if __name__ == "__main__":
+    solve()

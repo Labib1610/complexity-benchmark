@@ -1,0 +1,222 @@
+import sys
+import heapq
+from collections import defaultdict
+import math
+
+def read_input():
+    n, m, s, t, B = map(int, sys.stdin.readline().split())
+    edges = []
+    for _ in range(m):
+        u, v, w = map(int, sys.stdin.readline().split())
+        edges.append((u, v, w))
+    return n, m, s, t, B, edges
+
+def dijkstra(graph, start, end, n):
+    dist = [float('inf')] * (n + 1)
+    dist[start] = 0
+    pq = [(0, start)]
+    
+    while pq:
+        d, u = heapq.heappop(pq)
+        if d > dist[u]:
+            continue
+        if u == end:
+            return dist[end]
+        for v, w in graph[u]:
+            if dist[u] + w < dist[v]:
+                dist[v] = dist[u] + w
+                heapq.heappush(pq, (dist[v], v))
+    return dist[end]
+
+def solve():
+    n, m, s, t, B, edges = read_input()
+    
+    # Build graph for Dijkstra
+    graph = defaultdict(list)
+    for u, v, w in edges:
+        graph[u].append((v, w))
+        graph[v].append((u, w))
+    
+    # Find minimum cut between s and t
+    # We use the fact that min-cut = max-flow in undirected graphs
+    # But we'll model this as shortest path in a graph where edge weights represent capacities
+    # Actually, let's think differently - we want to find the minimum weight set of edges
+    # whose removal disconnects s from t. This is the minimum cut problem.
+    
+    # For small graphs, we can use a flow-based approach or enumeration
+    # Since n <= 500, we should be more careful
+    
+    # Let's use a max flow algorithm with capacities being the weights
+    # Min cut = Max flow for s-t flow
+    
+    # Implementing Ford-Fulkerson or Edmonds-Karp would work
+    # But let's try to model this properly
+    
+    # Actually, let's use Stoer-Wagner algorithm concept or just implement a flow network
+    
+    # Create adjacency list with edge indices
+    adj = [[] for _ in range(n + 1)]
+    edge_list = []
+    
+    for i, (u, v, w) in enumerate(edges):
+        # For undirected graph, we need to handle both directions
+        adj[u].append((v, w, i))
+        adj[v].append((u, w, i))
+        edge_list.append((u, v, w))
+    
+    # Use a max-flow approach to find min-cut
+    # But we need to be careful about the implementation
+    
+    # Let's implement a simple version of Dinic's or use the fact that we can
+    # find the minimum cut by finding the maximum flow
+    
+    def bfs_flow(capacity, source, sink, n):
+        # BFS to find a path from source to sink
+        parent = [-1] * (n + 1)
+        visited = [False] * (n + 1)
+        queue = [source]
+        visited[source] = True
+        
+        while queue:
+            u = queue.pop(0)
+            if u == sink:
+                return parent
+            
+            for v in range(1, n + 1):
+                if not visited[v] and capacity[u][v] > 0:
+                    visited[v] = True
+                    parent[v] = u
+                    queue.append(v)
+        
+        return None
+    
+    def max_flow(edges, n, source, sink):
+        # Initialize capacity matrix
+        capacity = [[0] * (n + 1) for _ in range(n + 1)]
+        for u, v, w in edges:
+            capacity[u][v] += w
+            capacity[v][u] += w  # Undirected graph
+        
+        total_flow = 0
+        while True:
+            parent = bfs_flow(capacity, source, sink, n)
+            if parent is None:
+                break
+                
+            # Find minimum capacity along the path
+            path_flow = float('inf')
+            s = sink
+            while s != source:
+                path_flow = min(path_flow, capacity[parent[s]][s])
+                s = parent[s]
+            
+            # Update capacities
+            v = sink
+            while v != source:
+                u = parent[v]
+                capacity[u][v] -= path_flow
+                capacity[v][u] += path_flow
+                v = parent[v]
+            
+            total_flow += path_flow
+        
+        return total_flow
+    
+    # Check if we can disconnect s and t within budget B
+    min_cut_value = max_flow(edges, n, s, t)
+    
+    if min_cut_value > B:
+        print("NO")
+        return
+    
+    # Now we need to find which edges to remove
+    # This is more complex; let's use a different approach
+    
+    # Let's find the actual min-cut edges
+    # We can do this by finding the reachable set from s in the residual graph
+    
+    def find_min_cut_edges(edges, n, source, sink):
+        # Initialize capacity matrix
+        capacity = [[0] * (n + 1) for _ in range(n + 1)]
+        original_capacity = [[0] * (n + 1) for _ in range(n + 1)]
+        for u, v, w in edges:
+            capacity[u][v] += w
+            capacity[v][u] += w
+            original_capacity[u][v] += w
+            original_capacity[v][u] += w
+        
+        # Run Ford-Fulkerson to get residual graph
+        parent = [None] * (n + 1)
+        
+        def bfs():
+            visited = [False] * (n + 1)
+            queue = [source]
+            visited[source] = True
+            parent[source] = None
+            
+            while queue:
+                u = queue.pop(0)
+                for v in range(1, n + 1):
+                    if not visited[v] and capacity[u][v] > 0:
+                        visited[v] = True
+                        parent[v] = u
+                        queue.append(v)
+                        if v == sink:
+                            return True
+            return False
+        
+        while bfs():
+            path_flow = float('inf')
+            s = sink
+            while s != source:
+                path_flow = min(path_flow, capacity[parent[s]][s])
+                s = parent[s]
+            
+            v = sink
+            while v != source:
+                u = parent[v]
+                capacity[u][v] -= path_flow
+                capacity[v][u] += path_flow
+                v = parent[v]
+        
+        # Find min-cut edges
+        # Nodes reachable from source in residual graph
+        visited = [False] * (n + 1)
+        stack = [source]
+        visited[source] = True
+        
+        while stack:
+            u = stack.pop()
+            for v in range(1, n + 1):
+                if not visited[v] and capacity[u][v] > 0:
+                    visited[v] = True
+                    stack.append(v)
+        
+        # Edges from visited to unvisited nodes form the min-cut
+        cut_edges = []
+        for u, v, w in edges:
+            # Check if this edge crosses the cut
+            if visited[u] and not visited[v]:
+                cut_edges.append((u, v))
+            elif visited[v] and not visited[u]:
+                cut_edges.append((v, u))
+                
+        # Remove duplicates and ensure consistent representation
+        unique_edges = set()
+        for u, v in cut_edges:
+            if u > v:
+                u, v = v, u
+            unique_edges.add((u, v))
+            
+        return list(unique_edges)
+    
+    if min_cut_value <= B:
+        cut_edges = find_min_cut_edges(edges, n, s, t)
+        print("YES")
+        print(len(cut_edges))
+        for u, v in cut_edges:
+            print(u, v)
+    else:
+        print("NO")
+
+solve()

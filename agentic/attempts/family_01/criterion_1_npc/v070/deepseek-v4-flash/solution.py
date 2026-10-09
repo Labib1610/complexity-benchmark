@@ -1,39 +1,33 @@
 import sys
 
 def solve():
-    input_data = sys.stdin.read().strip().split()
-    if not input_data:
-        return
-    it = iter(input_data)
-    n = int(next(it))
-    m = int(next(it))
-    
+    input = sys.stdin.readline
+    n, m = map(int, input().split())
     adj = [[] for _ in range(n)]
     for _ in range(m):
-        u = int(next(it)) - 1
-        v = int(next(it)) - 1
+        u, v = map(int, input().split())
+        u -= 1
+        v -= 1
         adj[u].append(v)
         adj[v].append(u)
-    
+
     colors = [0] * n
-    
-    def is_safe(vertex, color):
-        for neighbor in adj[vertex]:
-            if colors[neighbor] == color:
-                return False
-        return True
-    
-    def backtrack(vertex):
-        if vertex == n:
+
+    def backtrack(node):
+        if node == n:
             return True
-        for color in range(1, 4):
-            if is_safe(vertex, color):
-                colors[vertex] = color
-                if backtrack(vertex + 1):
+        used = [False] * 4
+        for nei in adj[node]:
+            if colors[nei] != 0:
+                used[colors[nei]] = True
+        for c in range(1, 4):
+            if not used[c]:
+                colors[node] = c
+                if backtrack(node + 1):
                     return True
-                colors[vertex] = 0
+                colors[node] = 0
         return False
-    
+
     if backtrack(0):
         print("YES")
         print(" ".join(map(str, colors)))

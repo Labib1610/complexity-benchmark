@@ -1,0 +1,96 @@
+import sys
+from collections import defaultdict, deque
+
+def solve():
+    n, m, k = map(int, input().split())
+    
+    # Build adjacency list
+    adj = defaultdict(list)
+    for _ in range(m):
+        u, v = map(int, input().split())
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # Bipartite graph coloring
+    color = [-1] * (n + 1)  # -1: unvisited, 0: color A, 1: color B
+    tier_a = []  # Jobs in tier A (data-ingestion)
+    tier_b = []  # Jobs in tier B (report-generation)
+    
+    # Check if the graph is bipartite and get the two tiers
+    for i in range(1, n + 1):
+        if color[i] == -1:  # Unvisited node
+            queue = deque([i])
+            color[i] = 0
+            tier_a.append(i)
+            
+            while queue:
+                node = queue.popleft()
+                current_color = color[node]
+                
+                for neighbor in adj[node]:
+                    if color[neighbor] == -1:
+                        color[neighbor] = 1 - current_color
+                        if color[neighbor] == 0:
+                            tier_a.append(neighbor)
+                        else:
+                            tier_b.append(neighbor)
+                        queue.append(neighbor)
+                    elif color[neighbor] == current_color:
+                        # Not bipartite - but problem guarantees it is
+                        pass
+    
+    # Try to select k jobs
+    # Since this is a bipartite graph, we can select all nodes from one side
+    # as long as that side has at least k nodes
+    
+    if len(tier_a) >= k:
+        print("YES")
+        print(*tier_a[:k])
+    elif len(tier_b) >= k:
+        print("YES")
+        print(*tier_b[:k])
+    else:
+        # We need to take some from both tiers, but we must ensure no conflicts
+        # In a bipartite graph, we can take nodes from different partitions without conflicts
+        # But we can only take nodes that are not connected by an edge
+        # Since the graph is bipartite, nodes within the same partition don't have edges between them
+        
+        # Actually, in a bipartite graph, we can take ALL nodes from one side
+        # The maximum independent set in a bipartite graph is the larger of the two partitions
+        # But we want exactly k nodes
+        
+        total_available = len(tier_a) + len(tier_b)
+        if k > total_available:
+            print("NO")
+            return
+            
+        # We can take up to min(k, len(tier_a)) from tier_a and up to min(k, len(tier_b)) from tier_b
+        # But we need exactly k in total, and no two can be conflicting (i.e., from different tiers)
+        
+        # Wait, that's not right. Nodes from different tiers CAN conflict if there's an edge between them
+        # The key insight: in a bipartite graph, a maximum independent set can be found
+        # It's the larger of the two partitions
+        
+        # But we want exactly k nodes, not maximum
+        # We can take all nodes from one partition as long as that partition has >= k nodes
+        # If neither partition has >= k nodes, we can take all nodes from both partitions
+        # But that would only give us len(tier_a) + len(tier_b) nodes
+        # And we need exactly k
+        
+        # Actually, let's reframe: in a bipartite graph, to select nodes with no edges between them,
+        # we can only select nodes from the same partition (same color)
+        # So we can select at most max(len(tier_a), len(tier_b)) nodes
+        
+        max_selectable = max(len(tier_a), len(tier_b))
+        if k > max_selectable:
+            print("NO")
+            return
+            
+        if len(tier_a) >= k:
+            print("YES")
+            print(*tier_a[:k])
+        else:  # len(tier_b) >= k
+            print("YES")
+            print(*tier_b[:k])
+
+solve()

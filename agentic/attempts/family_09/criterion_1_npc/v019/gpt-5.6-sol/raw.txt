@@ -1,0 +1,196 @@
+```python
+import sys
+
+def output_solution(vertices):
+    print("YES")
+    print(" ".join(str(v + 1) for v in vertices))
+    sys.exit(0)
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+
+    n, m, k = data[0], data[1], data[2]
+    adj = [0] * n
+
+    p = 3
+    for _ in range(m):
+        u = data[p] - 1
+        v = data[p + 1] - 1
+        p += 2
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+
+    degrees = [x.bit_count() for x in adj]
+
+    # Fast greedy attempts.
+    orders = [
+        sorted(range(n), key=lambda v: degrees[v]),
+        list(range(n)),
+        sorted(range(n), key=lambda v: degrees[v], reverse=True),
+    ]
+
+    for order in orders:
+        chosen = []
+        chosen_mask = 0
+        for v in order:
+            if adj[v] & chosen_mask == 0:
+                chosen.append(v)
+                chosen_mask |= 1 << v
+                if len(chosen) == k:
+                    output_solution(chosen)
+
+    # Dynamic minimum-degree greedy.
+    remaining = (1 << n) - 1
+    chosen = []
+    while remaining:
+        bits = remaining
+        best_v = -1
+        best_degree = n + 1
+        while bits:
+            bit = bits & -bits
+            bits ^= bit
+            v = bit.bit_length() - 1
+            d = (adj[v] & remaining).bit_count()
+            if d < best_degree:
+                best_degree = d
+                best_v = v
+        chosen.append(best_v)
+        if len(chosen) == k:
+            output_solution(chosen)
+        remaining &= ~(adj[best_v] | (1 << best_v))
+
+    # Build a conflict-dense left half to reduce the number of its
+    # independent subsets explored by the DFS.
+    left_size = (n + 1) // 2
+    selected_mask = 0
+    unused = set(range(n))
+    left_vertices = []
+
+    for _ in range(left_size):
+        v = max(
+            unused,
+            key=lambda x: ((adj[x] & selected_mask).bit_count(), degrees[x])
+        )
+        unused.remove(v)
+        left_vertices.append(v)
+        selected_mask |= 1 << v
+
+    left_set = set(left_vertices)
+    right_vertices = [v for v in range(n) if v not in left_set]
+
+    # Put vertices with more internal conflicts earlier in the left DFS.
+    left_vertices.sort(
+        key=lambda v: ((adj[v] & selected_mask).bit_count(), degrees[v]),
+        reverse=True
+    )
+
+    l = len(left_vertices)
+    r = len(right_vertices)
+
+    left_index = [-1] * n
+    right_index = [-1] * n
+    for i, v in enumerate(left_vertices):
+        left_index[v] = i
+    for i, v in enumerate(right_vertices):
+        right_index[v] = i
+
+    adj_left = [0] * l
+    cross = [0] * l
+    for i, v in enumerate(left_vertices):
+        lm = 0
+        rm = 0
+        neighbors = adj[v]
+        for j, u in enumerate(left_vertices):
+            if neighbors >> u & 1:
+                lm |= 1 << j
+        for j, u in enumerate(right_vertices):
+            if neighbors >> u & 1:
+                rm |= 1 << j
+        adj_left[i] = lm
+        cross[i] = rm
+
+    adj_right = [0] * r
+    for i, v in enumerate(right_vertices):
+        mask = 0
+        neighbors = adj[v]
+        for j, u in enumerate(right_vertices):
+            if neighbors >> u & 1:
+                mask |= 1 << j
+        adj_right[i] = mask
+
+    # dp[mask] = maximum independent-set size in the right-half subgraph
+    # induced by mask.
+    right_states = 1 << r
+    dp = bytearray(right_states)
+
+    for v in range(r):
+        base = 1 << v
+        allowed_without_neighbors = (right_states - 1) ^ adj_right[v]
+        d = dp
+        for rest in range(base):
+            without_v = d[rest]
+            with_v = d[rest & allowed_without_neighbors] + 1
+            d[base + rest] = with_v if with_v > without_v else without_v
+
+    full_right = right_states - 1
+
+    def extract_right(mask, need):
+        result = []
+        while need:
+            v = mask.bit_length() - 1
+            bit = 1 << v
+            rest = mask ^ bit
+            if dp[mask] == dp[rest]:
+                mask = rest
+            else:
+                result.append(right_vertices[v])
+                need -= 1
+                mask = rest & ~adj_right[v]
+        return result
+
+    if dp[full_right] >= k:
+        output_solution(extract_right(full_right, k))
+
+    sys.setrecursionlimit(1000)
+    selected = []
+    answer = None
+
+    def dfs(candidates, right_mask, count):
+        nonlocal answer
+
+        right_best = dp[right_mask]
+        if count + right_best >= k:
+            answer = selected.copy()
+            answer.extend(extract_right(right_mask, k - count))
+            return True
+
+        if count + candidates.bit_count() + right_best < k:
+            return False
+
+        remaining_candidates = candidates
+        while remaining_candidates:
+            bit = remaining_candidates & -remaining_candidates
+            remaining_candidates ^= bit
+            v = bit.bit_length() - 1
+
+            selected.append(left_vertices[v])
+            if dfs(
+                remaining_candidates & ~adj_left[v],
+                right_mask & ~cross[v],
+                count + 1
+            ):
+                return True
+            selected.pop()
+
+        return False
+
+    if dfs((1 << l) - 1, full_right, 0):
+        output_solution(answer)
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    main()
+```

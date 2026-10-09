@@ -1,0 +1,195 @@
+```python
+import sys
+
+# Increase recursion depth for deep search trees
+sys.setrecursionlimit(5000)
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    q = int(input_data[0])
+    t = int(input_data[1])
+    n = 3 * q
+    
+    trios = []
+    idx = 2
+    seen = set()
+    for _ in range(t):
+        a = int(input_data[idx])
+        b = int(input_data[idx+1])
+        c = int(input_data[idx+2])
+        idx += 3
+        # Normalize trio
+        trio = tuple(sorted((a, b, c)))
+        if trio not in seen:
+            seen.add(trio)
+            trios.append(trio)
+            
+    t = len(trios)
+    if t < q:
+        print("NO")
+        return
+
+    # item_trios[u] holds the list of trio indices covering element u
+    item_trios = [[] for _ in range(n + 1)]
+    for ti, (a, b, c) in enumerate(trios):
+        item_trios[a].append(ti)
+        item_trios[b].append(ti)
+        item_trios[c].append(ti)
+        
+    for u in range(1, n + 1):
+        if not item_trios[u]:
+            print("NO")
+            return
+
+    trio_active = [True] * t
+    item_active = [True] * (n + 1)
+    
+    # Store position of trio in item_trios for fast removal
+    pos = [{} for _ in range(t)]
+    for u in range(1, n + 1):
+        for p, ti in enumerate(item_trios[u]):
+            pos[ti][u] = p
+            
+    deg = [len(item_trios[u]) for u in range(n + 1)]
+    
+    def remove_trio(ti, undo_stack):
+        trio_active[ti] = False
+        undo_stack.append((1, ti))
+        for u in trios[ti]:
+            if item_active[u]:
+                p = pos[ti][u]
+                last_idx = deg[u] - 1
+                last_ti = item_trios[u][last_idx]
+                
+                # Swap ti with last_ti in item_trios[u]
+                item_trios[u][p] = last_ti
+                item_trios[u][last_idx] = ti
+                pos[last_ti][u] = p
+                pos[ti][u] = last_idx
+                
+                deg[u] -= 1
+                undo_stack.append((2, u, ti, p, last_ti, last_idx))
+
+    def choose_trio(ti, undo_stack):
+        # Cover all 3 items of this trio
+        for u in trios[ti]:
+            item_active[u] = False
+            undo_stack.append((3, u))
+            # Remove all other trios covering u
+            # Note: deg[u] might decrease as we remove trios
+            while deg[u] > 0:
+                other_ti = item_trios[u][deg[u] - 1]
+                remove_trio(other_ti, undo_stack)
+
+    solution = []
+
+    def backtrack(rem_items):
+        if rem_items == 0:
+            return True
+            
+        # Unit propagation & consistency check loop
+        forced_stack = []
+        while True:
+            # Check for empty domain or find item with minimum degree
+            best_u = -1
+            min_deg = float('inf')
+            
+            for u in range(1, n + 1):
+                if item_active[u]:
+                    d = deg[u]
+                    if d == 0:
+                        # Conflict: item u cannot be covered
+                        # Undo unit propagations done in this step
+                        while forced_stack:
+                            entry = forced_stack.pop()
+                            if entry[0] == 0:
+                                solution.pop()
+                            elif entry[0] == 1:
+                                trio_active[entry[1]] = True
+                            elif entry[0] == 2:
+                                _, u_elem, ti, p, last_ti, last_idx = entry
+                                deg[u_elem] += 1
+                                item_trios[u_elem][p] = ti
+                                item_trios[u_elem][last_idx] = last_ti
+                                pos[ti][u_elem] = p
+                                pos[last_ti][u_elem] = last_idx
+                            elif entry[0] == 3:
+                                item_active[entry[1]] = True
+                        return False
+                    if d < min_deg:
+                        min_deg = d
+                        best_u = u
+                        
+            if min_deg == 1:
+                # Force choice of this trio
+                forced_ti = item_trios[best_u][0]
+                solution.append(forced_ti)
+                forced_stack.append((0, forced_ti))
+                choose_trio(forced_ti, forced_stack)
+                rem_items -= 3
+                if rem_items == 0:
+                    return True
+            else:
+                break
+                
+        # Branch on best_u (MRV heuristic)
+        candidates = [item_trios[best_u][i] for i in range(deg[best_u])]
+        
+        for ti in candidates:
+            undo_stack = []
+            solution.append(ti)
+            undo_stack.append((0, ti))
+            choose_trio(ti, undo_stack)
+            
+            if backtrack(rem_items - 3):
+                return True
+                
+            # Undo
+            while undo_stack:
+                entry = undo_stack.pop()
+                if entry[0] == 0:
+                    solution.pop()
+                elif entry[0] == 1:
+                    trio_active[entry[1]] = True
+                elif entry[0] == 2:
+                    _, u_elem, t_idx, p, last_ti, last_idx = entry
+                    deg[u_elem] += 1
+                    item_trios[u_elem][p] = t_idx
+                    item_trios[u_elem][last_idx] = last_ti
+                    pos[t_idx][u_elem] = p
+                    pos[last_ti][u_elem] = last_idx
+                elif entry[0] == 3:
+                    item_active[entry[1]] = True
+                    
+        # Undo forced choices made at this level
+        while forced_stack:
+            entry = forced_stack.pop()
+            if entry[0] == 0:
+                solution.pop()
+            elif entry[0] == 1:
+                trio_active[entry[1]] = True
+            elif entry[0] == 2:
+                _, u_elem, ti, p, last_ti, last_idx = entry
+                deg[u_elem] += 1
+                item_trios[u_elem][p] = ti
+                item_trios[u_elem][last_idx] = last_ti
+                pos[ti][u_elem] = p
+                pos[last_ti][u_elem] = last_idx
+            elif entry[0] == 3:
+                item_active[entry[1]] = True
+                
+        return False
+
+    if backtrack(n):
+        print("YES")
+        for ti in solution:
+            print(f"{trios[ti][0]} {trios[ti][1]} {trios[ti][2]}")
+    else:
+        print("NO")
+
+if __name__ == '__main__':
+    solve()
+```

@@ -1,0 +1,26 @@
+import sys
+
+def solve():
+    input = sys.stdin.readline
+    j = int(input())
+    vessels = []
+    for _ in range(j):
+        t1, t2 = map(int, input().split())
+        vessels.append((t1, t2))
+    
+    # Sort by Beta time descending
+    vessels.sort(key=lambda x: x[1], reverse=True)
+    
+    prefix_alpha = 0
+    suffix_beta = sum(t2 for _, t2 in vessels)
+    max_chain = 0
+    
+    for i, (t1, t2) in enumerate(vessels):
+        prefix_alpha += t1
+        max_chain = max(max_chain, prefix_alpha + suffix_beta)
+        suffix_beta -= t2
+    
+    print(max_chain)
+
+if __name__ == "__main__":
+    solve()

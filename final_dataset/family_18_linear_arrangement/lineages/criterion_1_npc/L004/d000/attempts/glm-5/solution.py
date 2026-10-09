@@ -1,0 +1,69 @@
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    B = int(next(it))
+    edges = []
+    deg = [0] * (n + 1)
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        edges.append((u, v))
+        deg[u] += 1
+        deg[v] += 1
+
+    # Sort modules by degree descending; ties broken by module id.
+    order = sorted(range(1, n + 1), key=lambda x: (-deg[x], x))
+
+    # Assign bays: highest-degree module gets the middle bay.
+    pos = [0] * (n + 1)
+    if n % 2 == 1:
+        mid = (n + 1) // 2
+        pos[order[0]] = mid
+        left = mid - 1
+        right = mid + 1
+        idx = 1
+        while idx < n:
+            if right <= n:
+                pos[order[idx]] = right
+                right += 1
+                idx += 1
+            if idx < n and left >= 1:
+                pos[order[idx]] = left
+                left -= 1
+                idx += 1
+    else:
+        mid = n // 2
+        pos[order[0]] = mid
+        pos[order[1]] = mid + 1
+        left = mid - 1
+        right = mid + 2
+        idx = 2
+        while idx < n:
+            if right <= n:
+                pos[order[idx]] = right
+                right += 1
+                idx += 1
+            if idx < n and left >= 1:
+                pos[order[idx]] = left
+                left -= 1
+                idx += 1
+
+    total = 0
+    for u, v in edges:
+        total += abs(pos[u] - pos[v])
+
+    if total <= B:
+        out = ["YES"]
+        out.append(" ".join(str(pos[i]) for i in range(1, n + 1)))
+        sys.stdout.write("\n".join(out) + "\n")
+    else:
+        sys.stdout.write("NO\n")
+
+if __name__ == "__main__":
+    solve()

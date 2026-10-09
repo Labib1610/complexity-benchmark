@@ -1,40 +1,62 @@
 import sys
-from collections import deque
 
 def solve():
-    input_data = sys.stdin.buffer.read().split()
+    input_data = sys.stdin.read().split()
     if not input_data:
         return
-    it = iter(input_data)
-    n = int(next(it))
-    m = int(next(it))
+    
+    iterator = iter(input_data)
+    try:
+        n_str = next(iterator)
+        m_str = next(iterator)
+    except StopIteration:
+        return
+        
+    n = int(n_str)
+    m = int(m_str)
     
     adj = [[] for _ in range(n + 1)]
     for _ in range(m):
-        u = int(next(it))
-        v = int(next(it))
-        adj[u].append(v)
-        adj[v].append(u)
-    
+        try:
+            u_str = next(iterator)
+            v_str = next(iterator)
+            u = int(u_str)
+            v = int(v_str)
+            adj[u].append(v)
+            adj[v].append(u)
+        except StopIteration:
+            break
+            
+    # color[r] will store the color assigned to node r in the BFS
+    # initialized to 0 (unvisited)
     color = [0] * (n + 1)
     
-    for start in range(1, n + 1):
-        if color[start] != 0:
-            continue
-        color[start] = 1
-        queue = deque([start])
-        while queue:
-            u = queue.popleft()
-            cu = color[u]
-            for v in adj[u]:
-                if color[v] == 0:
-                    color[v] = 3 - cu
-                    queue.append(v)
-                elif color[v] == cu:
-                    print("NO")
-                    return
+    # Process components in increasing order of node index
+    # to ensure lexicographically smallest assignment sequence
+    for i in range(1, n + 1):
+        if color[i] == 0:
+            # Start BFS with node i assigned to color 1
+            q = [i]
+            color[i] = 1
+            
+            head = 0
+            while head < len(q):
+                u = q[head]
+                head += 1
+                
+                for v in adj[u]:
+                    if color[v] == 0:
+                        color[v] = 3 - color[u]
+                        q.append(v)
+                    elif color[v] == color[u]:
+                        # Conflict found: adjacent nodes have same color
+                        print("NO")
+                        return
     
     print("YES")
-    print(' '.join(str(color[i]) for i in range(1, n + 1)))
+    # The color array (1-indexed) matches the lexicographically smallest valid assignment
+    output_str = " ".join(map(str, color[1:]))
+    print(output_str)
 
-solve()
+if __name__ == '__main__':
+    solve()

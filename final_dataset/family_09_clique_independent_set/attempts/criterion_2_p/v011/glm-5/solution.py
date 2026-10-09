@@ -1,0 +1,82 @@
+import sys
+from collections import deque
+
+def solve():
+    input_data = sys.stdin.buffer.read().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    k = int(next(it))
+    
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    color = [0] * (n + 1)
+    components = []
+    
+    for start in range(1, n + 1):
+        if color[start] == 0:
+            comp = [[], []]
+            color[start] = 1
+            comp[0].append(start)
+            q = deque([start])
+            while q:
+                u = q.popleft()
+                for v in adj[u]:
+                    if color[v] == 0:
+                        color[v] = 3 - color[u]
+                        comp[color[v] - 1].append(v)
+                        q.append(v)
+            components.append(comp)
+    
+    total = n + 1
+    dp = [False] * (total)
+    dp[0] = True
+    parent = [-1] * (total)
+    choice = [0] * (total)
+    
+    for idx, comp in enumerate(components):
+        size0 = len(comp[0])
+        size1 = len(comp[1])
+        for s in range(total - 1, -1, -1):
+            if dp[s]:
+                if s + size0 < total and not dp[s + size0]:
+                    dp[s + size0] = True
+                    parent[s + size0] = s
+                    choice[s + size0] = idx
+                if s + size1 < total and not dp[s + size1]:
+                    dp[s + size1] = True
+                    parent[s + size1] = s
+                    choice[s + size1] = idx
+    
+    if not dp[k]:
+        sys.stdout.write("NO\n")
+        return
+    
+    selected = [0] * len(components)
+    cur = k
+    while cur > 0:
+        idx = choice[cur]
+        prev = parent[cur]
+        diff = cur - prev
+        if diff == len(components[idx][0]):
+            selected[idx] = 0
+        else:
+            selected[idx] = 1
+        cur = prev
+    
+    result = []
+    for idx in range(len(components)):
+        side = selected[idx]
+        result.extend(components[idx][side])
+    
+    sys.stdout.write("YES\n")
+    sys.stdout.write(' '.join(map(str, result)) + '\n')
+
+solve()

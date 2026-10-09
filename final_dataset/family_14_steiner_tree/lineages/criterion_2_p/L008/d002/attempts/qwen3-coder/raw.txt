@@ -1,0 +1,139 @@
+```python
+import sys
+from collections import defaultdict, deque
+
+def main():
+    import sys
+    sys.setrecursionlimit(1 << 25)
+    
+    R, S, P = map(int, sys.stdin.readline().split())
+    priority_rooms = set(map(int, sys.stdin.readline().split()))
+    
+    # If there's only one priority room, cost is 0
+    if P <= 1:
+        print(0)
+        return
+    
+    # Build the tree
+    adj = [[] for _ in range(R + 1)]
+    edges = []
+    for _ in range(S):
+        u, v, w = map(int, sys.stdin.readline().split())
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+        edges.append((u, v, w))
+    
+    # Find the induced subtree that connects all priority nodes
+    # We can do this by finding the minimal subtree (Steiner tree) in a tree,
+    # which is equivalent to finding the union of paths between all pairs
+    # but more efficiently, we find the minimal connected subgraph containing all priority nodes.
+    
+    # A simpler approach for a tree:
+    # 1. Mark all priority nodes
+    # 2. Do a DFS from any priority node to compute distances and parents
+    # 3. Find all nodes that are on paths between priority nodes
+    
+    # However, even simpler: since it's a tree, the minimal subtree connecting
+    # all priority nodes will include exactly those edges that lie on paths
+    # between any two priority nodes.
+    
+    # Efficient way:
+    # 1. Root the tree arbitrarily (say at node 1)
+    # 2. Compute for each node whether its subtree contains any priority node
+    # 3. An edge is included if both its endpoints' subtrees contain priority nodes
+    
+    # Let's root the tree at node 1
+    parent = [-1] * (R + 1)
+    depth = [0] * (R + 1)
+    subtree_has_priority = [False] * (R + 1)
+    visited = [False] * (R + 1)
+    
+    # First DFS to set up parent and depth
+    stack = [1]
+    visited[1] = True
+    while stack:
+        u = stack.pop()
+        for v, w in adj[u]:
+            if not visited[v]:
+                visited[v] = True
+                parent[v] = u
+                depth[v] = depth[u] + 1
+                stack.append(v)
+    
+    # Now mark which nodes are priority
+    for u in priority_rooms:
+        subtree_has_priority[u] = True
+    
+    # Second pass: propagate subtree_has_priority upwards
+    # Process nodes in reverse topological order (by decreasing depth)
+    order = list(range(1, R + 1))
+    order.sort(key=lambda x: -depth[x])
+    for u in order:
+        if parent[u] != -1 and subtree_has_priority[u]:
+            subtree_has_priority[parent[u]] = True
+    
+    # Now count edges where both endpoints have subtree_has_priority
+    total_cost = 0
+    for u, v, w in edges:
+        # Determine the parent-child relationship
+        if parent[u] == v:
+            child, par = u, v
+        elif parent[v] == u:
+            child, par = v, u
+        else:
+            continue  # Should not happen in tree
+        
+        # The edge from 'par' to 'child' is included if child's subtree has priority
+        # and the overall subtree (which includes par) also has priority
+        # But actually, in a tree, if child's subtree has priority and we're including
+        # the minimal subtree connecting all priorities, then we include the edge
+        # iff the child's subtree contains at least one priority node
+        # AND removing the edge separates the tree into two parts, each containing at least one priority node.
+        
+        # Simpler logic:
+        # An edge (u,v) where v is child of u is in the Steiner tree if:
+        # 1. v's subtree contains at least one priority node
+        # 2. The rest of the tree (including u) also contains at least one priority node
+        
+        # Since we propagated up, subtree_has_priority[u] means u's subtree has priority
+        # So for edge (parent[child], child), it's included if:
+        # subtree_has_priority[child] AND there exists a priority node outside child's subtree
+        # The latter is true if total priority nodes > number in child's subtree
+        # But we don't track counts, so let's reframe:
+        
+        # Actually, let's recount properly:
+        # subtree_count[i] = number of priority nodes in subtree of i
+        # Then edge (parent[v], v) is included if subtree_count[v] > 0 and subtree_count[v] < P
+        
+        # Recompute with counts
+        subtree_count = [0] * (R + 1)
+        for u in priority_rooms:
+            subtree_count[u] = 1
+            
+        # Propagate counts upward
+        for u in order:
+            if parent[u] != -1:
+                subtree_count[parent[u]] += subtree_count[u]
+                
+        # Now check each edge
+        total_cost = 0
+        for u, v, w in edges:
+            # Determine child
+            if parent[u] == v:
+                child = u
+            elif parent[v] == u:
+                child = v
+            else:
+                continue
+                
+            # Edge is included if child's subtree has at least one but not all priority nodes
+            cnt = subtree_count[child]
+            if cnt > 0 and cnt < P:
+                total_cost += w
+                
+        print(total_cost)
+        return
+
+if __name__ == "__main__":
+    main()
+```

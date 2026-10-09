@@ -1,0 +1,142 @@
+```python
+import sys
+
+# Increase recursion depth just in case
+sys.setrecursionlimit(2000)
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    idx = 2
+    raw_clauses = []
+    for _ in range(m):
+        c = [int(input_data[idx]), int(input_data[idx+1]), int(input_data[idx+2])]
+        idx += 3
+        # Remove duplicates within clause
+        c_set = set(c)
+        # If clause contains both x and -x, it's trivially satisfied, skip it
+        tautology = False
+        for lit in list(c_set):
+            if -lit in c_set:
+                tautology = True
+                break
+        if not tautology:
+            raw_clauses.append(list(c_set))
+            
+    # DPLL solver
+    # assignment: array of size n+1, 0: unassigned, 1: True, -1: False
+    assignment = [0] * (n + 1)
+    
+    def get_jw_scores(clauses):
+        scores = {}
+        for c in clauses:
+            w = 2.0 ** (-len(c))
+            for lit in c:
+                scores[lit] = scores.get(lit, 0.0) + w
+        return scores
+
+    def dpll(clauses):
+        # Unit propagation
+        units = []
+        assigned_in_this_step = []
+        
+        # Check current clauses
+        current_clauses = clauses
+        while True:
+            # Find unit clauses
+            unit = None
+            for c in current_clauses:
+                if len(c) == 0:
+                    # Conflict
+                    for var in assigned_in_this_step:
+                        assignment[var] = 0
+                    return False
+                if len(c) == 1:
+                    unit = c[0]
+                    break
+            
+            if unit is None:
+                break
+                
+            var = abs(unit)
+            val = 1 if unit > 0 else -1
+            if assignment[var] != 0:
+                if assignment[var] != val:
+                    for v in assigned_in_this_step:
+                        assignment[v] = 0
+                    return False
+                # Already assigned correctly, just filter out clauses containing this unit
+            else:
+                assignment[var] = val
+                assigned_in_this_step.append(var)
+                
+            # Simplify clauses
+            new_clauses = []
+            for c in current_clauses:
+                if unit in c:
+                    continue  # satisfied
+                if -unit in c:
+                    new_c = [l for l in c if l != -unit]
+                    new_clauses.append(new_c)
+                else:
+                    new_clauses.append(c)
+            current_clauses = new_clauses
+
+        if not current_clauses:
+            return True
+
+        # Choose branching variable using Jeroslow-Wang heuristic
+        jw = get_jw_scores(current_clauses)
+        best_lit = max(jw.keys(), key=lambda l: jw[l] + jw.get(-l, 0.0))
+        var = abs(best_lit)
+        
+        # Try best_lit first, then -best_lit
+        val_order = [best_lit, -best_lit]
+        if jw.get(-best_lit, 0.0) > jw.get(best_lit, 0.0):
+            val_order = [-best_lit, best_lit]
+            
+        for branch_lit in val_order:
+            b_var = abs(branch_lit)
+            b_val = 1 if branch_lit > 0 else -1
+            
+            assignment[b_var] = b_val
+            
+            # Simplify
+            next_clauses = []
+            for c in current_clauses:
+                if branch_lit in c:
+                    continue
+                if -branch_lit in c:
+                    next_clauses.append([l for l in c if l != -branch_lit])
+                else:
+                    next_clauses.append(c)
+                    
+            if dpll(next_clauses):
+                return True
+                
+            assignment[b_var] = 0
+
+        for v in assigned_in_this_step:
+            assignment[v] = 0
+        return False
+
+    if dpll(raw_clauses):
+        print("YES")
+        res = []
+        for i in range(1, n + 1):
+            if assignment[i] == 1:
+                res.append("1")
+            else:
+                res.append("0")
+        print(*(res))
+    else:
+        print("NO")
+
+if __name__ == '__main__':
+    solve()
+```

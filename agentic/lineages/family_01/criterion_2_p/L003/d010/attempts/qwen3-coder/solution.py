@@ -1,0 +1,54 @@
+import sys
+from collections import defaultdict, deque
+
+def solve():
+    n, m = map(int, sys.stdin.readline().split())
+    
+    if m == 0:
+        # No constraints, all can be tier 1
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
+    
+    # Build adjacency list
+    adj = defaultdict(list)
+    for _ in range(m):
+        u, v = map(int, sys.stdin.readline().split())
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # Color nodes with BFS (2-coloring)
+    color = [-1] * (n + 1)  # -1 means unvisited, 0 and 1 are colors
+    queue = deque()
+    
+    # Process all components
+    for start in range(1, n + 1):
+        if color[start] == -1:  # Unvisited component
+            queue.append(start)
+            color[start] = 0  # Start with color 0
+            
+            while queue:
+                node = queue.popleft()
+                
+                for neighbor in adj[node]:
+                    if color[neighbor] == -1:
+                        color[neighbor] = 1 - color[node]
+                        queue.append(neighbor)
+                    elif color[neighbor] == color[node]:
+                        print("NO")
+                        return
+    
+    # If we reach here, a valid 2-coloring exists
+    # We want lexicographically smallest assignment
+    # Color 0 -> Tier 1, Color 1 -> Tier 2
+    result = []
+    for i in range(1, n + 1):
+        if color[i] == 0:
+            result.append("1")
+        else:
+            result.append("2")
+    
+    print("YES")
+    print(" ".join(result))
+
+solve()

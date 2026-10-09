@@ -1,0 +1,196 @@
+**Solution Explanation**
+
+For every coil we store the set of coils that resonate with it.
+A *triple‑core* is a triangle – three vertices `x < y < z` such that all three
+edges `(x,y) , (x,z) , (y,z)` are present.
+
+The required answer is the lexicographically smallest triangle.
+We enumerate the first two vertices `x , y` in increasing order.
+For a fixed pair we have to know whether there exists a common neighbour
+`z > y`.  
+With a bitset this can be answered in *O(1)* :
+
+```
+common = neighbours[x]  AND  neighbours[y]          # vertices adjacent to both
+mask   = common shifted right by y                 # keep only vertices > y
+if mask != 0:
+        the least significant 1‑bit of mask gives the smallest possible z
+```
+
+Because `n ≤ 2000` a 2000‑bit integer easily fits into a Python `int`.
+All operations (`&`, `>>`, finding the lowest set bit) are constant time.
+
+The algorithm
+
+```
+read n , m
+for each edge (u,v):
+        set the bit (v-1) in neighbours[u]
+        set the bit (u-1) in neighbours[v]
+
+for x = 1 … n-2:
+        bx = neighbours[x]
+        for y = x+1 … n-1:
+                if edge (x,y) is absent: continue
+                common = bx & neighbours[y]
+                mask   = common >> y                # keep vertices > y
+                if mask:
+                        tz = (mask & -mask).bit_length() - 1   # index of lowest 1‑bit
+                        z = y + tz + 1
+                        output x y z and finish
+```
+
+The first found triangle is automatically the lexicographically smallest,
+because the outer loops enumerate `(x,y)` in increasing order and we always
+pick the smallest possible `z`.
+
+`m ≤ 2·10⁵`, therefore the inner loop runs at most `m` times.
+All operations inside are O(1), so the total running time is `O(m)`,
+well below the limits.  
+Memory consumption is `O(n)` – one integer per vertex (≈ 250 bytes each).
+
+--------------------------------------------------------------------
+
+#### Correctness Proof  
+
+We prove that the algorithm outputs exactly the lexicographically smallest
+triangle.
+
+---
+
+**Lemma 1**  
+For any vertices `x < y` the expression  
+
+```
+mask = (neighbours[x] & neighbours[y]) >> y
+```
+
+has a set bit at position `t` (0‑based) **iff** vertex `z = y + t + 1`
+is a common neighbour of `x` and `y` and `z > y`.
+
+*Proof.*  
+`neighbours[x] & neighbours[y]` contains exactly the vertices adjacent to both
+`x` and `y`. Shifting right by `y` discards bits for vertices `1 … y`.
+Thus bit `t` of `mask` corresponds to vertex `y + t + 1`. ∎
+
+
+
+**Lemma 2**  
+If `mask ≠ 0` then  
+
+```
+tz = (mask & -mask).bit_length() - 1
+```
+
+is the smallest index `t` with a set bit in `mask`.
+
+*Proof.*  
+`mask & -mask` isolates the lowest set bit of `mask`. Its binary length is
+`tz+1`, therefore `tz` is exactly the position of that bit. ∎
+
+
+
+**Lemma 3**  
+When the algorithm reaches a pair `(x,y)` with an edge between them,
+if a triangle containing `x` and `y` exists, the algorithm outputs the
+triangle `(x, y, z)` where `z` is the smallest possible third vertex.
+
+*Proof.*  
+By Lemma&nbsp;1, `mask` is non‑zero exactly when such a `z` exists.
+Lemma&nbsp;2 gives the smallest index `t` of a set bit, i.e. the smallest
+`z = y + t + 1`. The algorithm outputs this `z`. ∎
+
+
+
+**Lemma 4**  
+The first triangle printed by the algorithm is the lexicographically smallest
+triangle in the whole graph.
+
+*Proof.*  
+The outer loops enumerate all ordered pairs `(x,y)` with `x<y` in increasing
+lexicographic order.  
+Consider the first pair for which the algorithm finds a triangle.
+All earlier pairs either are not edges or have no common neighbour,
+hence cannot be part of any triangle.
+For this pair Lemma&nbsp;3 guarantees that the smallest possible `z` is chosen.
+Therefore no triangle `(x',y',z')` with `(x',y')` lexicographically smaller
+than `(x,y)` exists, and for the same `(x,y)` no triangle with a smaller `z`
+exists. Hence the printed triangle is the global lexicographically minimum. ∎
+
+
+
+**Theorem**  
+The algorithm always terminates and outputs three integers `x<y<z`
+forming a triangle, and this triple is the lexicographically smallest among
+all triangles of the given graph.
+
+*Proof.*  
+The input guarantees at least one triangle, so some pair `(x,y)` with an
+edge has a common neighbour. When that pair is processed, `mask ≠ 0`,
+the algorithm prints a triangle and terminates.  
+By Lemma&nbsp;4 the printed triangle is the lexicographically smallest one.
+∎
+
+
+
+--------------------------------------------------------------------
+
+#### Complexity Analysis  
+
+*Building adjacency bitsets* : `O(m)` time, `O(n)` memory.  
+
+*Main loops* : each edge `(x,y)` is examined once.
+For each edge we perform a constant number of bit operations,
+hence `O(m)` time.
+
+Overall  
+
+- **Time** `O(m) ≤ 2·10⁵` operations (well under 2 seconds).  
+- **Memory** `O(n)` integers (`n ≤ 2000`), far below 256 MB.
+
+--------------------------------------------------------------------
+
+#### Reference Implementation  (Python 3)
+
+```python
+import sys
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+
+    # neighbours[i] : bitset of vertices adjacent to i (bits 0..n-1)
+    neighbours = [0] * (n + 1)
+
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        # set bits (v-1) and (u-1)
+        neighbours[u] |= 1 << (v - 1)
+        neighbours[v] |= 1 << (u - 1)
+
+    for x in range(1, n - 1):
+        bx = neighbours[x]
+        for y in range(x + 1, n):
+            # check edge (x, y)
+            if not ((bx >> (y - 1)) & 1):
+                continue
+            common = bx & neighbours[y]
+            mask = common >> y          # keep only vertices > y
+            if mask:
+                # position of lowest set bit
+                tz = (mask & -mask).bit_length() - 1
+                z = y + tz + 1
+                sys.stdout.write(f"{x} {y} {z}")
+                return
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above
+and conforms to the required input‑output format.

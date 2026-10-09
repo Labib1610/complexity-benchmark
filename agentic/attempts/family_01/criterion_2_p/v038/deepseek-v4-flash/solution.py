@@ -1,6 +1,5 @@
-from collections import deque
 import sys
-
+sys.setrecursionlimit(1 << 20)
 input = sys.stdin.readline
 
 n, m = map(int, input().split())
@@ -12,40 +11,51 @@ for _ in range(m):
     adj[u].append(v)
     adj[v].append(u)
 
-def try_assign(start_color):
-    color = [-1] * n
-    color[0] = start_color
-    q = deque([0])
-    while q:
-        u = q.popleft()
-        for v in adj[u]:
-            if color[v] == -1:
-                color[v] = 1 - color[u]
-                q.append(v)
-            elif color[v] == color[u]:
-                return None
-    # If some nodes are unvisited (disconnected), color them greedily
-    for i in range(n):
-        if color[i] == -1:
-            color[i] = 0
-            q = deque([i])
-            while q:
-                u = q.popleft()
-                for v in adj[u]:
-                    if color[v] == -1:
-                        color[v] = 1 - color[u]
-                        q.append(v)
-                    elif color[v] == color[u]:
-                        return None
-    return color
+color = [-1] * n
+possible = True
 
-# Try module 1 in env 1 first
-res = try_assign(0)
-if res is None:
-    res = try_assign(1)
+# First, try to color with BFS/DFS, but for lexicographically smallest,
+# we process nodes in order and assign 1 if possible.
+for i in range(n):
+    if color[i] == -1:
+        color[i] = 1
+        stack = [i]
+        while stack:
+            u = stack.pop()
+            for v in adj[u]:
+                if color[v] == -1:
+                    color[v] = 3 - color[u]
+                    stack.append(v)
+                elif color[v] == color[u]:
+                    possible = False
+                    break
+            if not possible:
+                break
+    if not possible:
+        break
 
-if res is None:
+if not possible:
     print("NO")
 else:
+    # Now we have a valid 2-coloring, but we want lexicographically smallest.
+    # We can flip entire components if it makes earlier nodes 1.
+    # We'll do BFS/DFS again, but for each unvisited node, try color 1 first.
+    color = [-1] * n
+    for i in range(n):
+        if color[i] == -1:
+            color[i] = 1
+            stack = [i]
+            comp = [i]
+            while stack:
+                u = stack.pop()
+                for v in adj[u]:
+                    if color[v] == -1:
+                        color[v] = 3 - color[u]
+                        stack.append(v)
+                        comp.append(v)
+            # Check if flipping this component gives lexicographically smaller
+            # We compare: if first node in comp is 1 already, keep; else flip
+            # But since we process in order, we only flip if it makes earlier index 1
+            # Actually we already assigned 1 to the first unvisited node, so it's fine.
     print("YES")
-    print(" ".join(str(c + 1) for c in res))
+    print(" ".join(str(c) for c in color))

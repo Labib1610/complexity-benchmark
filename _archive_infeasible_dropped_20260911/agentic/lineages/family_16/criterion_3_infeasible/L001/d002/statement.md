@@ -1,0 +1,66 @@
+# Problem C — Impossibility Certificate
+
+Time limit: 2 s   Memory limit: 256 MB
+
+## Description
+
+A manufacturing facility processes **j** orders. Every order must go through exactly **two** departments in a strict sequence: it is first processed in department 1, and only after that is fully completed can it be processed in department 2. For each order, you are given its required processing duration in department 1 and its required processing duration in department 2. Each department can process only one order at a time.
+
+There is a strict facility deadline **T**: every order must be completely finished in both departments by time **T**.
+
+For every input in this problem, it is **guaranteed that the deadline cannot be met**, regardless of how the orders are scheduled. Your goal is not to search for a schedule; rather, you must **prove** that the deadline is impossible by providing a short certificate that can be verified directly against the input.
+
+It is guaranteed that exactly one of the following two categories of bottlenecks applies to the input. You must output a valid certificate of the applicable category. If multiple valid certificates of that category exist, you may output any one of them.
+
+- **Sequential bottleneck:** An individual order **i** has a minimum required span (the sum of its durations in the two departments) that is strictly greater than the deadline **T**.
+  Print: `JOB i` — where **i** (1-based) is the index of such an order.
+
+- **Resource bottleneck:** An individual department **c** (**c** $\in \{1, 2\}$) has a total committed active time (the sum of durations for all **j** orders in this department) that is strictly greater than the deadline **T**.
+  Print: `LOAD c` — where **c** is the department number (1 or 2).
+
+## Input
+
+The first line contains two integers **j** and **T** (1 ≤ j ≤ 200000, 1 ≤ T ≤ 1000000000).
+Each of the next **j** lines contains two integers **p1** and **p2** (1 ≤ p1, p2 ≤ 1000000): the processing durations of an order in department 1 and department 2, respectively.
+
+## Output
+
+Print a single line containing a valid certificate of the applicable category: either `JOB i` (for a sequential bottleneck) or `LOAD c` (for a resource bottleneck).
+
+## Examples
+
+### Example 1
+
+**Input**
+```
+3 100
+70 60
+2 2
+3 4
+```
+
+**Output**
+```
+JOB 1
+```
+
+### Example 2
+
+**Input**
+```
+4 150
+50 1
+50 1
+50 1
+50 1
+```
+
+**Output**
+```
+LOAD 1
+```
+
+## Note
+
+In Example 1, order 1 requires 70 units of time in department 1 and 60 units in department 2. Because it must be processed sequentially, its minimum required span is 130, which exceeds the 100 time limit even if it runs alone, so `JOB 1` proves the deadline is impossible. 
+In Example 2, no single order exceeds 150 on its own, but department 1 must process 200 units of work in total (50 for each of the 4 orders). This total committed active time exceeds the 150 time limit, making it impossible for department 1 to finish, so `LOAD 1` is a valid certificate.

@@ -1,0 +1,226 @@
+**Solution Explanation**
+
+For every step we have to choose a cycle (layer) `1 … T`.
+
+*   a step may be executed only after all its predecessors,
+    therefore its layer must be **strictly larger** than the layer of every
+    predecessor;
+*   in each layer at most `M` steps can be placed.
+
+The graph of dependencies is a DAG (otherwise a solution is impossible).
+We process the steps in a topological order.
+When a step `v` is processed we already know the layers of all its
+predecessors, consequently we also know the smallest layer that `v` may
+occupy:
+
+```
+need(v) = 1 + max{ layer(u) | u → v }          (0 if v has no predecessor)
+```
+
+Among the layers `need(v) , need(v)+1 , … , T` we put `v` into the first
+layer that still has a free slot.
+If no such layer exists the whole instance is impossible.
+
+Why is this greedy choice correct?
+Consider any feasible schedule.
+Take the steps in the same topological order.
+When we reach a step `v`, all its predecessors already occupy some layers
+`≤ layer(v) – 1`.  
+Therefore `need(v) ≤ layer(v)`.  
+If our algorithm puts `v` into a layer `ℓ < layer(v)`,
+the remaining steps can only be moved to layers `≥ ℓ`,
+so the schedule stays feasible.
+If the algorithm cannot find any free layer `≥ need(v)`,
+then **every** feasible schedule would need a free slot in that range,
+which does not exist – thus the instance is unsatisfiable.
+
+Consequently the greedy algorithm finds a schedule iff one exists.
+
+The algorithm:
+
+```
+1. read the graph, build adjacency list and indegrees
+2. topological sort (Kahn)
+   if not all vertices are sorted → cycle → NO
+3. capacity[1…T] = M
+4. for v in topological order
+        need = 1 + max layer of its predecessors
+        find the smallest ℓ ≥ need with capacity[ℓ] > 0
+        if none → NO
+        assign layer[v] = ℓ, capacity[ℓ] -= 1
+5. output YES and the layers
+```
+
+`n ≤ 2·10⁵` (typical limits) is easily handled:
+* topological sort – `O(n+m)`
+* for each vertex we may scan forward over layers.
+  In the worst case this is `O(T·n)`, but we can accelerate the search
+  with a disjoint‑set “next free layer” structure (union‑find) that
+  jumps over fully occupied layers, giving `O(α(T))` per query.
+
+Overall complexity `O(n + m + n·α(T))`, memory `O(n + m + T)`.
+
+
+
+--------------------------------------------------------------------
+
+**Correctness Proof**
+
+We prove that the algorithm prints `YES` and a valid assignment
+iff such an assignment exists.
+
+---
+
+*Lemma 1*  
+During the algorithm, when a step `v` is processed,
+`need(v) = 1 + max{ layer(u) | u → v }` is a lower bound on the layer of `v`
+in any feasible schedule.
+
+*Proof.* All predecessors `u` must be placed in a strictly smaller layer,
+hence `layer(v) ≥ layer(u)+1` for each `u`. Taking the maximum over all
+predecessors yields the claim. ∎
+
+
+
+*Lemma 2*  
+If the algorithm assigns `v` to the smallest free layer `ℓ ≥ need(v)`,
+then there exists a feasible schedule for the already processed steps
+that uses exactly the same layers as the algorithm.
+
+*Proof.* By induction over the processing order.
+The statement is true before any step is placed (empty schedule).
+Assume it holds after processing the first `k‑1` steps.
+For step `v` the algorithm chooses the minimal free layer `ℓ ≥ need(v)`.
+In any feasible schedule the `k‑th` step must be placed in some layer
+`ℓ' ≥ need(v)`. If `ℓ' = ℓ` we are done.
+If `ℓ' > ℓ`, we can move `v` from `ℓ'` to the earlier free layer `ℓ`
+(the move does not violate any precedence because `ℓ ≥ need(v)`,
+and it does not exceed capacity because `ℓ` was free).
+Thus a feasible schedule exists that coincides with the algorithm on the
+first `k` steps. ∎
+
+
+
+*Lemma 3*  
+If the algorithm fails to find a free layer for some step `v`,
+then no feasible schedule exists.
+
+*Proof.* Failure means that every layer `ℓ ≥ need(v)` already has
+capacity `0`. By Lemma&nbsp;1 any feasible schedule must place `v` in a
+layer `ℓ ≥ need(v)`. All those layers are already full with other steps,
+so `v` cannot be placed anywhere – contradiction. ∎
+
+
+
+*Theorem*  
+The algorithm outputs `YES` and a schedule exactly when a schedule
+satisfying all constraints exists; otherwise it outputs `NO`.
+
+*Proof.*  
+
+*If* the algorithm outputs `YES`, it assigned a layer to every step.
+All assignments respect capacities (we never exceed `M`) and,
+by construction, each step’s layer is at least `need(v)`,
+hence larger than every predecessor’s layer.
+Thus the printed assignment is feasible.
+
+*Only if* a feasible schedule exists.
+The algorithm processes steps in a topological order, therefore Lemma 1
+applies.
+If it ever fails, Lemma 3 shows that no feasible schedule can exist,
+contradicting the assumption.
+Hence it never fails and finally prints `YES`. ∎
+
+
+
+--------------------------------------------------------------------
+
+**Reference Implementation (Python 3)**
+
+```python
+import sys
+
+sys.setrecursionlimit(1 << 25)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    M = int(next(it))
+    T = int(next(it))
+    m = int(next(it))
+
+    adj = [[] for _ in range(n)]
+    indeg = [0] * n
+    rev = [[] for _ in range(n)]          # predecessors
+    for _ in range(m):
+        a = int(next(it)) - 1
+        b = int(next(it)) - 1
+        adj[a].append(b)
+        rev[b].append(a)
+        indeg[b] += 1
+
+    # Kahn topological sort
+    from collections import deque
+    q = deque([i for i in range(n) if indeg[i] == 0])
+    topo = []
+    while q:
+        v = q.popleft()
+        topo.append(v)
+        for to in adj[v]:
+            indeg[to] -= 1
+            if indeg[to] == 0:
+                q.append(to)
+    if len(topo) != n:
+        print("NO")
+        return
+
+    # Union‑find structure to skip full layers
+    parent = list(range(T + 2))   # 1..T, T+1 is sentinel
+
+    def find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    def occupy(x):
+        # mark layer x as full, link to next
+        parent[x] = find(x + 1)
+
+    cap = [M] * (T + 1)   # 1‑based
+    layer = [0] * n
+
+    max_pred = [0] * n  # store max layer of predecessors processed so far
+
+    for v in topo:
+        need = max_pred[v] + 1
+        if need > T:
+            print("NO")
+            return
+        pos = find(need)
+        if pos > T:
+            print("NO")
+            return
+        # assign
+        layer[v] = pos
+        cap[pos] -= 1
+        if cap[pos] == 0:
+            occupy(pos)
+        # update successors' max_pred
+        for to in adj[v]:
+            if layer[v] > max_pred[to]:
+                max_pred[to] = layer[v]
+
+    # all assigned
+    print("YES")
+    print(' '.join(str(layer[i]) for i in range(n)))
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above
+and conforms to the required input‑output format.

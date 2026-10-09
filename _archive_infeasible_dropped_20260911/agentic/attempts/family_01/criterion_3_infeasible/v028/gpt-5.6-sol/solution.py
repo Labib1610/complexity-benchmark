@@ -1,0 +1,35 @@
+import sys
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    n, m = data[0], data[1]
+
+    adj = [0] * n
+    idx = 2
+    for _ in range(m):
+        u = data[idx] - 1
+        v = data[idx + 1] - 1
+        idx += 2
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+
+    all_bits = (1 << n) - 1
+    upper = [all_bits ^ ((1 << (i + 1)) - 1) for i in range(n)]
+
+    for a in range(n):
+        candidates_b = adj[a] & upper[a]
+        while candidates_b:
+            bit_b = candidates_b & -candidates_b
+            b = bit_b.bit_length() - 1
+
+            common = adj[a] & adj[b] & upper[b]
+            if common:
+                bit_c = common & -common
+                c = bit_c.bit_length() - 1
+                print(a + 1, b + 1, c + 1)
+                return
+
+            candidates_b ^= bit_b
+
+if __name__ == "__main__":
+    main()

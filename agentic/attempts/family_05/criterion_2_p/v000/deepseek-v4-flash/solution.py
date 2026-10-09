@@ -1,0 +1,193 @@
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    it = iter(data)
+    k = int(next(it))
+    t = int(next(it))
+    
+    # For each specialist x, we know its fixed machine y.
+    # We need to assign a time slot z to each specialist such that:
+    # - (x, y, z) is in the allowed list
+    # - all z are distinct (1..k each used once)
+    
+    # Since each specialist has a unique machine, we can just store for each specialist
+    # the set of allowed time slots.
+
+    allowed = [set() for _ in range(k + 1)]
+    for _ in range(t):
+        x = int(next(it))
+        y = int(next(it))
+        z = int(next(it))
+        allowed[x].add(z)
+    
+    # We need a perfect matching between specialists and time slots.
+
+    # Use greedy with sorting by degree (smallest number of choices first)
+    # This works for this problem because the graph is bipartite and we can use
+    # standard bipartite matching (Hopcroft-Karp) for safety.
+ k <= 1200, t <= k*k, so O(k^2) is fine.
+
+    
+    # Build adjacency list: specialist -> list of slots
+    adj = [list(allowed[i]) for i in range(k + 1)]
+    
+    # Hopcroft-Karp for maximum bipartite matching
+    # Left side: specialists 1..k, Right side: slots 1..k
+    
+    INF = 10**9
+    pairU = [0] * (k + 1)   # pairU[u] = v matched to u, 0 if none
+    pairV = [0] * (k + 1)   # pairV[v] = u matched to v, 0 if none
+    dist = [0] * (k + 1)
+    
+    def bfs():
+        from collections import deque
+        q = deque()
+        for u in range(1, k + 1):
+            if pairU[u] == 0:
+                dist[u] = 0
+                q.append(u)
+            else:
+                dist[u] = INF
+        dist[0] = INF
+        while q:
+            u = q.popleft()
+            if dist[u] < dist[0]:
+                for v in adj[u]:
+                    if dist[pairV[v]] == INF:
+                        dist[pairV[v]] = dist[u] + 1
+                        q.append(pairV[v])
+        return dist[0] != INF
+    
+    def dfs(u):
+        if u != 0:
+            for v in adj[u]:
+                if dist[pairV[v]] == dist[u] + 1 and dfs(pairV[v]):
+                    pairV[v] = u
+                    pairU[u] = v
+                    return True
+            dist[u] = INF
+            return False
+        return True
+    
+    matching = 0
+    while bfs():
+        for u in range(1, k + 1):
+            if pairU[u] == 0 and dfs(u):
+                matching += 
+    
+    if matching != k:
+        print("NO")
+        return
+    
+    # Output
+    print("YES")
+    # We need to output x y z for each chosen crew.
+
+    # We have pairU[x] = z, and we know the machine y for each x.
+
+    # But we need to know y for each x. We stored allowed[x] as set of z, but we lost y.
+    # We can reconstruct y: since each specialist has exactly one machine, and all listed combinations for x have same y.
+    # We can store machine[x] while reading.
+
+    
+    # Oops, we didn't store machine. Let's re-read? We can't. But we can infer from allowed? No.
+    # We need to store machine[x]. Let's modify: we'll store machine array.
+
+    
+    # Since we already read input, we can't go back. But we can store machine in the first pass.
+
+    # Let's redo: we'll store machine[x] as we read. We'll also store allowed[x].
+    
+    # But we already wrote code above without storing machine. Let's fix by storing machine in a list.
+
+    
+    # Actually we can just store machine[x] = y when reading. We'll do that now.
+
+    
+    # But we already consumed input. We need to restructure. Let's rewrite the whole solve function properly.
+    
+    # I'll rewrite from scratch here.
+    
+    pass
+
+# The above is messy. Let's write clean solution.
+
+def solve():
+    import sys
+    from collections import deque
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    it = iter(data)
+    k = int(next(it))
+    t = int(next(it))
+    
+    machine = [0] * (k + 1)
+    allowed = [set() for _ in range(k + 1)]
+    
+    for _ in range(t):
+        x = int(next(it))
+        y = int(next(it))
+        z = int(next(it))
+        machine[x] = y
+        allowed[x].add(z)
+    
+    # Build adjacency
+    adj = [list(allowed[i]) for i in range(k + 1)]
+    
+    # Hopcroft-Karp
+    INF = 10**9
+    pairU = [0] * (k + 1)
+    pairV = [0] * (k + 1)
+    dist = [0] * (k + 1)
+    
+    def bfs():
+        q = deque()
+        for u in range(1, k + 1):
+            if pairU[u] == 0:
+                dist[u] = 0
+                q.append(u)
+            else:
+                dist[u] = INF
+        dist[0] = INF
+        while q:
+            u = q.popleft()
+            if dist[u] < dist[0]:
+                for v in adj[u]:
+                    if dist[pairV[v]] == INF:
+                        dist[pairV[v]] = dist[u] + 1
+                        q.append(pairV[v])
+        return dist[0] != INF
+    
+    def dfs(u):
+        if u != 0:
+            for v in adj[u]:
+                if dist[pairV[v]] == dist[u] + 1 and dfs(pairV[v]):
+                    pairV[v] = u
+                    pairU[u] = v
+                    return True
+            dist[u] = INF
+            return False
+        return True
+    
+    matching = 0
+    while bfs():
+        for u in range(1, k + 1):
+            if pairU[u] == 0 and dfs(u):
+                matching += 
+    
+    if matching != k:
+        print("NO")
+        return
+    
+    print("YES")
+    for x in range(1, k + 1):
+        z = pairU[x]
+        y = machine[x]
+        print(x, y, z)
+
+if __name__ == "__main__":
+    solve()

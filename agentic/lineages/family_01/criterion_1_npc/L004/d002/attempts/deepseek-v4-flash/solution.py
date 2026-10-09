@@ -1,4 +1,5 @@
 import sys
+from collections import deque
 
 def solve():
     input = sys.stdin.readline
@@ -11,30 +12,38 @@ def solve():
         adj[u].append(v)
         adj[v].append(u)
 
-    assignment = [0] * n
-    used = [False] * n
+    # Try all 6 permutations of colors
+    import itertools
+    for perm in itertools.permutations([1, 2, 3]):
+        color = [0] * n
+        possible = True
+        for start in range(n):
+            if color[start] == 0:
+                color[start] = perm[0]
+                q = deque([start])
+                while q:
+                    u = q.popleft()
+                    for v in adj[u]:
+                        if color[v] == 0:
+                            # assign a color different from color[u]
+                            for c in perm:
+                                if c != color[u]:
+                                    color[v] = c
+                                    break
+                            q.append(v)
+                        elif color[v] == color[u]:
+                            possible = False
+                            break
+                    if not possible:
+                        break
+            if not possible:
+                break
+        if possible:
+            print("YES")
+            print(' '.join(map(str, color)))
+            return
 
-    def backtrack(idx):
-        if idx == n:
-            return True
-        for bus in (1, 2, 3):
-            ok = True
-            for nb in adj[idx]:
-                if assignment[nb] == bus:
-                    ok = False
-                    break
-            if ok:
-                assignment[idx] = bus
-                if backtrack(idx + 1):
-                    return True
-                assignment[idx] = -1
-        return False
-
-    if backtrack(0):
-        print("YES")
-        print(" ".join(map(str, assignment)))
-    else:
-        print("NO")
+    print("NO")
 
 if __name__ == "__main__":
     solve()

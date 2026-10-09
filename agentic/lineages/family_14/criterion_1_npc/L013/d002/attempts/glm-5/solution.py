@@ -1,0 +1,97 @@
+import sys
+import heapq
+
+def solve():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    t = int(next(it))
+    
+    primary = set()
+    for _ in range(t):
+        primary.add(int(next(it)))
+    
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        w = int(next(it))
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+    
+    if t <= 1:
+        print(0)
+        return
+    
+    # Compute pairwise shortest paths between primary nodes
+    primary_list = list(primary)
+    p_idx = {node: i for i, node in enumerate(primary_list)}
+    num_p = len(primary_list)
+    
+    # dist_primary[i][j] = shortest path between primary_list[i] and primary_list[j]
+    dist_primary = [[float('inf')] * num_p for _ in range(num_p)]
+    
+    for i, start in enumerate(primary_list):
+        # Dijkstra from start
+        dist = [float('inf')] * (n + 1)
+        dist[start] = 0
+        pq = [(0, start)]
+        while pq:
+            d, u = heapq.heappop(pq)
+            if d > dist[u]:
+                continue
+            for v, w in adj[u]:
+                nd = d + w
+                if nd < dist[v]:
+                    dist[v] = nd
+                    heapq.heappush(pq, (nd, v))
+        
+        for j, node in enumerate(primary_list):
+            dist_primary[i][j] = dist[node]
+    
+    # MST on primary nodes using Kruskal
+    edges = []
+    for i in range(num_p):
+        for j in range(i + 1, num_p):
+            edges.append((dist_primary[i][j], i, j))
+    
+    edges.sort()
+    
+    parent = list(range(num_p))
+    rank = [0] * num_p
+    
+    def find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+    
+    def union(x, y):
+        rx, ry = find(x), find(y)
+        if rx == ry:
+            return False
+        if rank[rx] < rank[ry]:
+            parent[rx] = ry
+        elif rank[rx] > rank[ry]:
+            parent[ry] = rx
+        else:
+            parent[ry] = rx
+            rank[rx] += 1
+        return True
+    
+    total = 0
+    edges_used = 0
+    for w, u, v in edges:
+        if union(u, v):
+            total += w
+            edges_used += 1
+            if edges_used == num_p - 1:
+                break
+    
+    print(total)
+
+if __name__ == "__main__":
+    solve()

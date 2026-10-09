@@ -1,0 +1,108 @@
+import sys
+
+def main():
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    q = int(data[0])
+    t = int(data[1])
+    idx = 2
+    trios = []
+    for _ in range(t):
+        a = int(data[idx]); b = int(data[idx+1]); c = int(data[idx+2])
+        idx += 3
+        trios.append((a, b, c))
+
+    n = 3 * q
+    # Map each operator to list of trio indices
+    op_to_trios = [[] for _ in range(n + 1)]
+    for i, (a, b, c) in enumerate(trios):
+        op_to_trios[a].append(i)
+        op_to_trios[b].append(i)
+        op_to_trios[c].append(i)
+
+    used_trio = [False] * t
+    assigned = [False] * (n + 1)
+    chosen = []
+
+    # Greedy: repeatedly pick the operator with fewest available trios
+    # Use a simple approach: find unassigned operator with minimum available trios
+    # Since n <= 600 and t <= 20000, this should be fast enough
+
+    # We'll maintain a count of available trios for each operator
+    # An available trio is one not used and all 3 operators unassigned
+
+    def is_available(ti):
+        if used_trio[ti]:
+            return False
+        a, b, c = trios[ti]
+        return not (assigned[a] or assigned[b] or assigned[c])
+
+    # Precompute current available trio count per operator
+    avail_count = [0] * (n + 1)
+    for i in range(t):
+        a, b, c = trios[i]
+        avail_count[a] += 1
+        avail_count[b] += 1
+        avail_count[c] += 1
+
+    # For efficiency, maintain a set of unassigned operators
+    # and for each, their available trios
+    # But let's try a simpler approach with periodic recomputation
+
+    success = True
+    cells_formed = 0
+
+    while cells_formed < q:
+        # Find unassigned operator with minimum available trios
+        best_op = -1
+        best_count = float('inf')
+        for op in range(1, n + 1):
+            if assigned[op]:
+                continue
+            # Count available trios for this op
+            cnt = 0
+            for ti in op_to_trios[op]:
+                if is_available(ti):
+                    cnt += 1
+            if cnt == 0:
+                success = False
+                break
+            if cnt < best_count:
+                best_count = cnt
+                best_op = op
+                if cnt == 1:
+                    break
+
+        if not success or best_op == -1:
+            success = False
+            break
+
+        # Pick the first available trio for best_op
+        chosen_trio = -1
+        for ti in op_to_trios[best_op]:
+            if is_available(ti):
+                chosen_trio = ti
+                break
+
+        if chosen_trio == -1:
+            success = False
+            break
+
+        a, b, c = trios[chosen_trio]
+        used_trio[chosen_trio] = True
+        assigned[a] = True
+        assigned[b] = True
+        assigned[c] = True
+        chosen.append((a, b, c))
+        cells_formed += 1
+
+    if success and cells_formed == q:
+        out = ["YES"]
+        for a, b, c in chosen:
+            out.append(f"{a} {b} {c}")
+        sys.stdout.write("\n".join(out) + "\n")
+    else:
+        sys.stdout.write("NO\n")
+
+main()

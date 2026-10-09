@@ -1,0 +1,45 @@
+def solve():
+    n, m = map(int, input().split())
+    requirements = []
+    for _ in range(m):
+        requirements.append(list(map(int, input().split())))
+    
+    def is_valid(assignment):
+        for req in requirements:
+            satisfied = False
+            for condition in req:
+                task_index = abs(condition) - 1
+                if condition > 0:
+                    if assignment[task_index] == 1:
+                        satisfied = True
+                        break
+                else:
+                    if assignment[task_index] == 0:
+                        satisfied = True
+                        break
+            if not satisfied:
+                return False
+        return True
+    
+    def find_lexicographically_smallest_assignment():
+        for i in range(1 << n):
+            assignment = []
+            for j in range(n):
+                if (i >> j) & 1:
+                    assignment.append(1)
+                else:
+                    assignment.append(0)
+            
+            if is_valid(assignment):
+                return assignment
+        return None
+    
+    assignment = find_lexicographically_smallest_assignment()
+    
+    if assignment is None:
+        print("NO")
+    else:
+        print("YES")
+        print(*assignment)
+
+solve()

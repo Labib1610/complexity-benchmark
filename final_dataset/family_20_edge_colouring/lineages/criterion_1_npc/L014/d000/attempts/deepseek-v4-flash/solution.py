@@ -1,0 +1,130 @@
+import sys
+sys.setrecursionlimit(1000000)
+
+def find_bridges(n, adj, edges):
+    visited = [False] * (n + 1)
+    tin = [-1] * (n + 1)
+    low = [-1] * (n + 1)
+    timer = 0
+    bridges = set()
+
+    def dfs(v, p_edge):
+        nonlocal timer
+        visited[v] = True
+        tin[v] = low[v] = timer
+        timer += 1
+        for to, eid in adj[v]:
+            if eid == p_edge:
+                continue
+            if visited[to]:
+                low[v] = min(low[v], tin[to])
+            else:
+                dfs(to, eid)
+                low[v] = min(low[v], low[to])
+                if low[to] > tin[v]:
+                    bridges.add(eid)
+    dfs(1, -1)
+    return bridges
+
+def edge_color_cubic(n, adj, edges):
+    # We'll use a known constructive algorithm for bridgeless cubic graphs.
+    # Approach: find a perfect matching, remove it, remaining graph is 2-regular (cycles),
+    # color cycles alternately with 2 colors, and matching edges with the third color.
+    # Finding perfect matching in cubic graph: use Tutte / simple greedy with augmenting paths.
+    # For n <= 2000, we can use a simple augmenting path algorithm.
+
+    # Build adjacency for matching
+    match_to = [-1] * (n + 1)
+    adj_list = [[] for _ in range(n + 1)]
+    for idx, (u, v) in enumerate(edges):
+        adj_list[u].append(v)
+        adj_list[v].append(u)
+
+    # Greedy + augmenting path for perfect matching
+    def augment(u, visited):
+        for v in adj_list[u]:
+            if visited[v]:
+                continue
+            visited[v] = True
+            if match_to[v] == -1 or augment(match_to[v], visited):
+                match_to[v] = u
+                match_to[u] = v
+                return True
+        return False
+
+    for u in range(1, n + 1):
+        if match_to[u] == -1:
+            visited = [False] * (n + 1)
+            visited[u] = True
+            augment(u, visited)
+
+    # Now match_to has perfect matching
+    color = [0] * len(edges)
+    edge_id = {}
+    for idx, (u, v) in enumerate(edges):
+        edge_id[(u, v)] = idx
+        edge_id[(v, u)] = idx
+
+    # Color matching edges with color 3
+    for u in range(1, n + 1):
+        v = match_to[u]
+        if u < v:
+            eid = edge_id[(u, v)]
+            color[eid] = 3
+
+    # Remaining edges form disjoint even cycles
+    # Build graph without matching edges
+    rem_adj = [[] for _ in range(n + 1)]
+    for idx, (u, v) in enumerate(edges):
+        if color[idx] == 0:
+            rem_adj[u].append((v, idx))
+            rem_adj[v].append((u, idx))
+
+    visited = [False] * (n + 1)
+    for start in range(1, n + 1):
+        if not visited[start] and rem_adj[start]:
+            # traverse cycle
+            cycle_edges = []
+            prev = -1
+            cur = start
+            while True:
+                visited[cur] = True
+                nxt, eid = rem_adj[cur][0] if rem_adj[cur][0][0] != prev else rem_adj[cur][1]
+                cycle_edges.append(eid)
+                prev = cur
+                cur = nxt
+                if cur == start:
+                    break
+            # color alternately 1 and 2
+            for i, eid in enumerate(cycle_edges):
+                color[eid] = 1 if i % 2 == 0 else 2
+
+    return color
+
+def main():
+    input_data = sys.stdin.read().strip().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    edges = []
+    adj = [[] for _ in range(n + 1)]
+    for eid in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        edges.append((u, v))
+        adj[u].append((v, eid))
+        adj[v].append((u, eid))
+
+    bridges = find_bridges(n, adj, edges)
+    if bridges:
+        print("NO")
+        return
+
+    color = edge_color_cubic(n, adj, edges)
+    print("YES")
+    print(" ".join(map(str, color)))
+
+if __name__ == "__main__":
+    main()

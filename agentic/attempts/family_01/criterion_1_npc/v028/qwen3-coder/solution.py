@@ -1,81 +1,51 @@
 def solve():
     import sys
-    from itertools import product
+    from collections import defaultdict
     
-    input = sys.stdin.read
-    data = input().split()
+    n, m = map(int, sys.stdin.readline().split())
     
-    idx = 0
-    n = int(data[idx])
-    idx += 1
-    m = int(data[idx])
-    idx += 1
-    
-    conflicts = []
-    for _ in range(m):
-        u = int(data[idx]) - 1  # Convert to 0-based indexing
-        idx += 1
-        v = int(data[idx]) - 1
-        idx += 1
-        conflicts.append((u, v))
-    
-    # We need to try all possible assignments of tiers (1, 2, 3) to n microservices
-    # But we want the lexicographically smallest assignment according to our criteria.
-    # So we generate assignments in lexicographical order and check validity.
-    
-    # Since n <= 40 and each tier can be 1,2,3, total combinations would be too large.
-    # However, since tiers are only 3 options, and we're looking for a graph coloring with 3 colors,
-    # This is essentially a 3-coloring problem.
-    
-    # Let's model this as a graph where each microservice is a node and each conflict is an edge.
-    # We need to color the graph with 3 colors such that no adjacent nodes have the same color.
-    # And among all valid colorings, we want the lexicographically smallest one (based on node order).
-    
-    # For small n (up to 40), and since we only have 3 colors, let's use backtracking with pruning.
-    
-    # But even better approach: since we want the lex smallest solution, we can do backtracking 
-    # trying colors 1,2,3 in order for each node.
-    
-    if n == 0:
+    if m == 0:
         print("YES")
+        print(" ".join(["1"] * n))
         return
     
-    # Build adjacency list representation of the graph
-    adj = [[] for _ in range(n)]
-    for u, v in conflicts:
+    # Build adjacency list
+    adj = defaultdict(list)
+    for _ in range(m):
+        u, v = map(int, sys.stdin.readline().split())
         adj[u].append(v)
         adj[v].append(u)
     
-    # Try to color the graph using backtracking
-    # Color array: 0 means unassigned, 1,2,3 are the actual colors
-    color = [0] * n
+    # Try to 3-color the graph
+    color = [0] * (n + 1)  # 0 means uncolored, 1, 2, 3 are the colors
     
-    def is_valid(node, c):
-        # Check if assigning color c to node is valid
+    def is_safe(node, c):
         for neighbor in adj[node]:
             if color[neighbor] == c:
                 return False
         return True
     
     def backtrack(node):
-        if node == n:
-            return True  # All nodes colored successfully
-        
-        # Try colors 1, 2, 3 in order to ensure lexicographically smallest result
+        if node > n:
+            return True
+            
+        if color[node] != 0:
+            return backtrack(node + 1)
+            
         for c in range(1, 4):
-            if is_valid(node, c):
+            if is_safe(node, c):
                 color[node] = c
                 if backtrack(node + 1):
                     return True
-                # No need to explicitly backtrack as we overwrite color[node] in next iteration
-        color[node] = 0  # Reset color
+                color[node] = 0
+                
         return False
     
-    # Start backtracking from node 0
-    if not backtrack(0):
-        print("NO")
-    else:
+    # Check if graph is 3-colorable
+    if backtrack(1):
         print("YES")
-        print(' '.join(map(str, color)))
+        print(" ".join(map(str, color[1:])))
+    else:
+        print("NO")
 
 solve()

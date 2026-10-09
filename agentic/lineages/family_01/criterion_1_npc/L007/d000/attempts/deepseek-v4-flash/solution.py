@@ -1,40 +1,33 @@
-import sys
+n, m = map(int, input().split())
+graph = [[] for _ in range(n)]
+for _ in range(m):
+    u, v = map(int, input().split())
+    u -= 1
+    v -= 1
+    graph[u].append(v)
+    graph[v].append(u)
 
-def solve():
-    input = sys.stdin.readline
-    n, m = map(int, input().split())
-    adj = [[] for _ in range(n)]
-    for _ in range(m):
-        u, v = map(int, input().split())
-        u -= 1
-        v -= 1
-        adj[u].append(v)
-        adj[v].append(u)
+colors = [-1] * n
 
-    colors = [0] * n
+def is_safe(node, color):
+    for neighbor in graph[node]:
+        if colors[neighbor] == color:
+            return False
+    return True
 
-    def is_safe(idx, c):
-        for nb in adj[idx]:
-            if colors[nb] == c:
-                return False
+def solve(node):
+    if node == n:
         return True
+    for color in range(3):
+        if is_safe(node, color):
+            colors[node] = color
+            if solve(node + 1):
+                return True
+            colors[node] = -1
+    return False
 
-    def backtrack(idx):
-        if idx == n:
-            return True
-        for c in range(1, 4):
-            if is_safe(idx, c):
-                colors[idx] = c
-                if backtrack(idx + 1):
-                    return True
-                colors[idx] = 0
-        return False
-
-    if backtrack(0):
-        print("YES")
-        print(" ".join(map(str, colors)))
-    else:
-        print("NO")
-
-if __name__ == "__main__":
-    solve()
+if solve(0):
+    print("YES")
+    print(" ".join(str(c + 1) for c in colors))
+else:
+    print("NO")

@@ -1,21 +1,27 @@
 ```python
 import sys
 
-# The stability condition: trace(A_{s_u} * A_{s_v}) = 6
-# A1 = [[1, 2], [0, 1]], A2 = [[1, 0], [2, 1]]
-# A1*A1 = [[1, 4], [0, 1]], trace = 2 != 6
-# A2*A2 = [[1, 0], [4, 1]], trace = 2 != 6
-# A1*A2 = [[5, 2], [2, 1]], trace = 6
-# A2*A1 = [[1, 2], [2, 5]], trace = 6
-# Thus, s_u != s_v for every edge (u, v).
-# This means the graph must be bipartite.
-# The harmonic buildup condition: in every simple cycle, count(1) == count(2).
-# In a bipartite graph, every cycle has an even length.
-# If we color the graph with 1 and 2, any cycle will have equal numbers of 1s and 2s.
-# So the condition is satisfied if and only if the graph is bipartite.
-# To minimize sum(s_i * 3^{n-i}), we want s_i = 1 whenever possible.
-# For each connected component, we have two choices for the bipartition (swap 1s and 2s).
-# We choose the one that makes the first node in the component 1 if possible.
+# The problem asks for an assignment c_i in {1, 2} such that for each lens i:
+# c_i * sum_{j in neighbors(i)} c_j = 2 * d_i
+# Let c_i = 1 + x_i, where x_i in {0, 1}.
+# (1 + x_i) * sum_{j in N(i)} (1 + x_j) = 2 * d_i
+# (1 + x_i) * (d_i + sum_{j in N(i)} x_j) = 2 * d_i
+# d_i + sum x_j + x_i * d_i + x_i * sum x_j = 2 * d_i
+# sum_{j in N(i)} x_j + x_i * d_i + x_i * sum_{j in N(i)} x_j = d_i
+# If x_i = 0: sum_{j in N(i)} x_j = d_i
+# If x_i = 1: sum_{j in N(i)} x_j + d_i + sum_{j in N(i)} x_j = d_i => 2 * sum_{j in N(i)} x_j = 0 => sum_{j in N(i)} x_j = 0
+# So:
+# If c_i = 1 (x_i = 0), then sum_{j in N(i)} c_j = 2 * d_i
+# If c_i = 2 (x_i = 1), then sum_{j in N(i)} c_j = d_i
+# This is equivalent to: sum_{j in N(i)} (c_j - 1.5) = 0
+# Let y_i = c_i - 1.5. Then y_i in {-0.5, 0.5}.
+# The condition is sum_{j in N(i)} y_j = 0.
+# This is a system of linear equations over the reals.
+# Since y_i = +/- 0.5, this is equivalent to sum_{j in N(i)} s_j = 0 where s_j in {-1, 1}.
+# This is only possible if each connected component is bipartite and the two sets have equal size,
+# or more generally, if the graph is bipartite, we can set s_j = 1 for one partition and s_j = -1 for the other.
+# If the graph is not bipartite, it's impossible.
+# For lexicographical smallest c_i, we want c_i = 1 as much as possible.
 
 def solve():
     input_data = sys.stdin.read().split()
@@ -26,38 +32,67 @@ def solve():
     idx = 2
     for _ in range(m):
         u, v = int(input_data[idx]), int(input_data[idx+1])
-        adj[u].append(v)
-        adj[v].append(u)
+        if u != v:
+            adj[u].append(v)
+            adj[v].append(u)
         idx += 2
     
-    color = [0] * (n + 1)
+    color = [-1] * (n + 1)
     res = [0] * (n + 1)
     
     for i in range(1, n + 1):
-        if color[i] == 0:
+        if color[i] == -1:
             component = []
-            stack = [(i, 1)]
-            color[i] = 1
+            stack = [(i, 0)]
+            color[i] = 0
             while stack:
                 u, c = stack.pop()
                 component.append((u, c))
                 for v in adj[u]:
-                    if color[v] == 0:
-                        color[v] = 3 - c
-                        stack.append((v, 3 - c))
+                    if color[v] == -1:
+                        color[v] = 1 - c
+                        stack.append((v, 1 - c))
                     elif color[v] == c:
                         print("NO")
                         return
             
-            # To minimize sum(s_i * 3^{n-i}), we want s_i=1 for the smallest i.
-            # Find the smallest index in this component.
-            comp_nodes = sorted([node for node, c in component])
-            first_node = comp_nodes[0]
-            # If color[first_node] is 2, we can flip all colors in this component.
-            flip = (color[first_node] == 2)
-            for node, c in component:
-                res[node] = (3 - c) if flip else c
-                
+            # For each component, we have two choices:
+            # Choice 1: c_i = 1 if color[i] == 0, c_i = 2 if color[i] == 1
+            # Choice 2: c_i = 2 if color[i] == 0, c_i = 1 if color[i] == 1
+            # Check if Choice 1 works:
+            def check(c_map):
+                for u in range(1, n + 1):
+                    if not adj[u]:
+                        if 0 != 0: return False # Should not happen
+                        continue
+                    s = sum(c_map[v] for v in adj[u])
+                    if c_map[u] == 1:
+                        if s != 2 * len(adj[u]): return False
+                    else:
+                        if s != len(adj[u]): return False
+                return True
+
+            c1 = [0] * (n + 1)
+            c2 = [0] * (n + 1)
+            for u, c in component:
+                c1[u] = 1 if c == 0 else 2
+                c2[u] = 2 if c == 0 else 1
+            
+            valid1 = check(c1)
+            valid2 = check(c2)
+            
+            if not valid1 and not valid2:
+                print("NO")
+                return
+            
+            for u, c in component:
+                if valid1 and valid2:
+                    res[u] = min(c1[u], c2[u])
+                elif valid1:
+                    res[u] = c1[u]
+                else:
+                    res[u] = c2[u]
+                    
     print("YES")
     print(*(res[1:]))
 

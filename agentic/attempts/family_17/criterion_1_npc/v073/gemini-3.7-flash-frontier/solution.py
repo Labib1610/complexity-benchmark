@@ -1,0 +1,121 @@
+import sys
+
+# Increase recursion depth just in case
+sys.setrecursionlimit(2000)
+
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+
+    q = int(input_data[0])
+    t = int(input_data[1])
+
+    sets = []
+    seen = set()
+    idx = 2
+    for _ in range(t):
+        a = int(input_data[idx]) - 1
+        b = int(input_data[idx + 1]) - 1
+        c = int(input_data[idx + 2]) - 1
+        idx += 3
+        if a > b:
+            a, b = b, a
+        if b > c:
+            b, c = c, b
+        if a > b:
+            a, b = b, a
+        triple = (a, b, c)
+        if triple not in seen:
+            seen.add(triple)
+            mask = (1 << a) | (1 << b) | (1 << c)
+            sets.append((mask, a, b, c))
+
+    n = 3 * q
+    target_mask = (1 << n) - 1
+
+    cand = [[] for _ in range(n)]
+    for s_idx, (mask, a, b, c) in enumerate(sets):
+        cand[a].append(s_idx)
+        cand[b].append(s_idx)
+        cand[c].append(s_idx)
+
+    for i in range(n):
+        if not cand[i]:
+            print("NO")
+            return
+
+    chosen_sets = []
+
+    def search(used_mask):
+        if used_mask == target_mask:
+            return True
+
+        forced = []
+        cur_mask = used_mask
+
+        while True:
+            best_elem = -1
+            best_count = 1000000
+            best_choices = []
+
+            rem = target_mask ^ cur_mask
+            while rem:
+                lsb = rem & -rem
+                i = lsb.bit_length() - 1
+                rem ^= lsb
+
+                valid = []
+                for s_idx in cand[i]:
+                    s_mask = sets[s_idx][0]
+                    if (s_mask & cur_mask) == 0:
+                        valid.append(s_idx)
+
+                c = len(valid)
+                if c == 0:
+                    for _ in forced:
+                        chosen_sets.pop()
+                    return False
+                if c < best_count:
+                    best_count = c
+                    best_elem = i
+                    best_choices = valid
+                    if c == 1:
+                        break
+
+            if best_count == 1:
+                s_idx = best_choices[0]
+                s_mask = sets[s_idx][0]
+                cur_mask |= s_mask
+                chosen_sets.append(s_idx)
+                forced.append(s_idx)
+                if cur_mask == target_mask:
+                    return True
+            else:
+                break
+
+        for s_idx in best_choices:
+            s_mask = sets[s_idx][0]
+            chosen_sets.append(s_idx)
+            if search(cur_mask | s_mask):
+                return True
+            chosen_sets.pop()
+
+        for _ in forced:
+            chosen_sets.pop()
+        return False
+
+    if search(0):
+        print("YES")
+        out = []
+        for s_idx in chosen_sets:
+            _, a, b, c = sets[s_idx]
+            out.append(f"{a+1} {b+1} {c+1}")
+        print("\n".join(out))
+    else:
+        print("NO")
+
+
+if __name__ == "__main__":
+    solve()

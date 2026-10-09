@@ -1,0 +1,64 @@
+import sys
+sys.setrecursionlimit(300000)
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    t = int(input_data[2])
+    
+    required = [0] * (n + 1)
+    idx = 3
+    for _ in range(t):
+        node = int(input_data[idx])
+        idx += 1
+        required[node] = 1
+        
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx+1])
+        w = int(input_data[idx+2])
+        idx += 3
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+        
+    parent = [0] * (n + 1)
+    parent_weight = [0] * (n + 1)
+    order = []
+    stack = [1]
+    parent[1] = -1
+    
+    # Iterative DFS to avoid recursion depth issues
+    while stack:
+        u = stack.pop()
+        order.append(u)
+        for v, w in adj[u]:
+            if v != parent[u]:
+                parent[v] = u
+                parent_weight[v] = w
+                stack.append(v)
+                
+    # Process in reverse order of DFS (bottom-up)
+    cnt = [0] * (n + 1)
+    total_cost = 0
+    
+    for u in order[::-1]:
+        cnt[u] = required[u]
+        for v, w in adj[u]:
+            if v == parent[u]:
+                continue
+            cnt[u] += cnt[v]
+            
+        # If the subtree rooted at u has some required nodes, 
+        # but not all of them, the edge connecting u to its parent must be used.
+        if u != 1 and 0 < cnt[u] < t:
+            total_cost += parent_weight[u]
+            
+    print(total_cost)
+
+if __name__ == '__main__':
+    solve()

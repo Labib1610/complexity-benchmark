@@ -1,0 +1,273 @@
+**Solution Explanation**
+
+The problem is a classic *2‑SAT* instance.
+
+* variables : `x₁ … xₙ` – module `i` is **Standard** (`1`) ⇔ `xᵢ = true`,
+  **Auxiliary** (`0`) ⇔ `xᵢ = false`.
+* each interlock gives a clause `(a ∨ b)` where a literal `a` is either
+  `xᵢ` (positive integer) or `¬xᵢ` (negative integer).
+
+We have to decide whether all clauses can be satisfied and, if yes,
+output one satisfying assignment.
+
+
+
+--------------------------------------------------------------------
+
+#### 1.   Implication graph
+
+For a clause `(a ∨ b)` we add the two implications  
+
+```
+¬a → b
+¬b → a
+```
+
+If we can reach both a literal and its negation from each other,
+they belong to the same *strongly connected component* (SCC) – the
+formula is unsatisfiable.
+
+The graph has `2·n` vertices, one for each literal.
+We encode them as
+
+```
+idx(xᵢ true )  = 2*i + 1
+idx(xᵢ false)  = 2*i
+negation(idx)  = idx ^ 1          # flips the last bit
+```
+
+--------------------------------------------------------------------
+
+#### 2.   Finding SCCs – Kosaraju (iterative)
+
+Kosaraju works in two depth‑first passes.
+
+*first pass* – DFS on the original graph, store vertices in order of
+completion (`order` list).
+
+*second pass* – DFS on the reversed graph, processing vertices in
+reverse `order`. All vertices visited in one DFS belong to the same SCC;
+we give them the same component number `comp[v]`.
+
+Both DFS are written iteratively (explicit stack) to avoid recursion limits
+(`n ≤ 10⁵`).
+
+--------------------------------------------------------------------
+
+#### 3.   Checking satisfiability & building an assignment
+
+For every variable `i`
+
+```
+if comp[2*i] == comp[2*i+1] → unsatisfiable
+```
+
+Otherwise the SCC‑DAG is a DAG. In Kosaraju the component numbers are assigned
+in *reverse topological order*: the first component found is a sink,
+the last component is a source.  
+Therefore a literal that belongs to a **later** component (larger `comp`
+value) cannot reach a literal of an earlier component, i.e. it is
+“more true”. The standard rule is
+
+```
+xᵢ = true  iff  comp[2*i+1] > comp[2*i]
+```
+
+(Any order consistent with the topological order works.)
+
+--------------------------------------------------------------------
+
+#### 4.   Correctness Proof  
+
+We prove that the algorithm prints `YES` and a correct assignment
+iff such an assignment exists.
+
+---
+
+##### Lemma 1  
+For every clause `(a ∨ b)` the added edges `¬a → b` and `¬b → a`
+are logically equivalent to the clause.
+
+**Proof.**  
+If `a` is true, the clause is satisfied, and the edge `¬b → a` is
+irrelevant. If `a` is false, then `¬a` is true, so the edge forces `b`
+to be true, satisfying the clause. Symmetric for `b`. ∎
+
+
+
+##### Lemma 2  
+If a variable and its negation belong to the same SCC, the formula is
+unsatisfiable.
+
+**Proof.**  
+Inside an SCC each vertex reaches every other.
+Thus `xᵢ → ¬xᵢ` and `¬xᵢ → xᵢ`. Any assignment that makes `xᵢ` true forces
+`¬xᵢ` true, contradiction; similarly for false. Hence no assignment can
+satisfy all implications, and by Lemma&nbsp;1 no assignment can satisfy
+the original formula. ∎
+
+
+
+##### Lemma 3  
+If for every `i` the two literals are in different SCCs, the assignment
+`xᵢ = true` iff `comp[true] > comp[false]` satisfies all implications.
+
+**Proof.**  
+Consider any implication `p → q`. In the SCC‑DAG there is a directed edge
+from `comp[p]` to `comp[q]`. Topological order guarantees
+`comp[p] ≤ comp[q]`.  
+If `p` is assigned true, then `comp[p] > comp[¬p]`. Because `comp[p] ≤ comp[q]`,
+we also have `comp[q] > comp[¬p]`. Since `¬q` lies in the opposite parity
+of `q`, `comp[q] > comp[¬q]` holds, i.e. `q` is assigned true. Hence the
+implication is respected. ∎
+
+
+
+##### Lemma 4  
+If all implications are satisfied, the original clauses are satisfied.
+
+**Proof.**  
+By Lemma&nbsp;1 each clause is equivalent to its two implications.
+If both implications hold, the clause holds. ∎
+
+
+
+##### Theorem  
+The algorithm outputs  
+
+* `NO`  **iff** the 2‑SAT instance is unsatisfiable;  
+* `YES` and a sequence `s₁ … sₙ` **iff** it is satisfiable, and the
+  printed sequence satisfies every interlock.
+
+**Proof.**  
+
+*If the algorithm prints `NO`.*  
+That happens exactly when some variable and its negation share an SCC.
+By Lemma&nbsp;2 the instance is unsatisfiable.
+
+*If the instance is unsatisfiable.*  
+Any unsatisfiable 2‑SAT formula must contain a variable whose literals are
+mutually reachable (standard property of implication graphs), therefore
+the algorithm will detect equal components and print `NO`.
+
+*If the algorithm prints `YES`.*  
+All literals are in distinct SCCs, and the assignment is built as
+described. By Lemma&nbsp;3 all implications hold, and by Lemma&nbsp;4 all
+original clauses hold, i.e. the printed `sᵢ` is a valid assignment.
+
+*If a satisfying assignment exists.*  
+Then no variable can have its literals in the same SCC (otherwise Lemma 2
+would contradict existence). The algorithm therefore reaches the
+assignment step and, by Lemma 3, produces a satisfying assignment, printing
+`YES`. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### 5.   Complexity Analysis  
+
+*Vertices* : `2·n`  
+*Edges*    : `2·m` (two per clause)
+
+Both DFS passes run in `O(V + E) = O(n + m)` time.
+Memory consumption: adjacency lists for the graph and its reverse,
+`O(V + E)` integers → ≤ ~ 1.2 · 10⁶, well inside the limits.
+
+--------------------------------------------------------------------
+
+#### 6.   Reference Implementation  (Python 3)
+
+```python
+import sys
+
+def solve() -> None:
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+
+    N = 2 * n
+    g = [[] for _ in range(N)]
+    rg = [[] for _ in range(N)]
+
+    def lit_idx(x: int) -> int:
+        """return vertex index for literal x (positive -> true, negative -> false)"""
+        if x > 0:
+            v = x - 1
+            return 2 * v + 1          # true
+        else:
+            v = -x - 1
+            return 2 * v              # false
+
+    for _ in range(m):
+        a = int(next(it))
+        b = int(next(it))
+        ia = lit_idx(a)
+        ib = lit_idx(b)
+        na = ia ^ 1          # negation
+        nb = ib ^ 1
+        # ¬a -> b
+        g[na].append(ib)
+        rg[ib].append(na)
+        # ¬b -> a
+        g[nb].append(ia)
+        rg[ia].append(nb)
+
+    sys.setrecursionlimit(1 << 25)
+
+    # first pass: order
+    visited = [False] * N
+    order = []
+
+    for v in range(N):
+        if not visited[v]:
+            stack = [(v, 0)]  # (node, next_child_index), 0 means entry
+            while stack:
+                node, state = stack.pop()
+                if state == 0:
+                    if visited[node]:
+                        continue
+                    visited[node] = True
+                    stack.append((node, 1))  # exit later
+                    for to in g[node]:
+                        if not visited[to]:
+                            stack.append((to, 0))
+                else:
+                    order.append(node)
+
+    # second pass: assign components
+    comp = [-1] * N
+    cur = 0
+    for v in reversed(order):
+        if comp[v] == -1:
+            stack = [v]
+            comp[v] = cur
+            while stack:
+                node = stack.pop()
+                for to in rg[node]:
+                    if comp[to] == -1:
+                        comp[to] = cur
+                        stack.append(to)
+            cur += 1
+
+    # check satisfiability
+    assignment = [0] * n
+    for i in range(n):
+        if comp[2 * i] == comp[2 * i + 1]:
+            print("NO")
+            return
+        # true if component of true literal > component of false literal
+        assignment[i] = 1 if comp[2 * i + 1] > comp[2 * i] else 0
+
+    print("YES")
+    print(' '.join(map(str, assignment)))
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above
+and conforms to the required input‑output format.

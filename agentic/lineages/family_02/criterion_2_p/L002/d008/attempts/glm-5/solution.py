@@ -1,0 +1,101 @@
+import sys
+from collections import deque
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [[] for _ in range(2 * n)]
+    
+    for _ in range(m):
+        c1 = int(next(it))
+        c2 = int(next(it))
+        
+        u = abs(c1) - 1
+        v = abs(c2) - 1
+        
+        # Determine node indices for the condition "both linkages become rigid"
+        # Linkage c1 is rigid if (c1 > 0 and mode=0) or (c1 < 0 and mode=1)
+        # Let x be the mode of machine u. We want to avoid the condition where both are rigid.
+        # If c1 > 0, rigid when x=0. Let's map x=0 to node 2u, x=1 to node 2u+1.
+        # So if c1 > 0, the "rigid" state is node 2u.
+        # If c1 < 0, rigid when x=1. The "rigid" state is node 2u+1.
+        node_u = 2 * u if c1 > 0 else 2 * u + 1
+        node_v = 2 * v if c2 > 0 else 2 * v + 1
+        
+        # To prevent both from being rigid simultaneously, we add implications:
+        # If u is in rigid state, v must NOT be in rigid state.
+        # If v is in rigid state, u must NOT be in rigid state.
+        # "Not rigid" for u corresponds to the other node for machine u.
+        
+        adj[node_u].append(node_v ^ 1)
+        adj[node_v].append(node_u ^ 1)
+    
+    # Kosararu's algorithm for SCC
+    stack = []
+    visited = [False] * (2 * n)
+    
+    def dfs1(u):
+        visited[u] = True
+        for v in adj[u]:
+            if not visited[v]:
+                dfs1(v)
+        stack.append(u)
+    
+    for i in range(2 * n):
+        if not visited[i]:
+            dfs1(i)
+    
+    rev_adj = [[] for _ in range(2 * n)]
+    for u in range(2 * n):
+        for v in adj[u]:
+            rev_adj[v].append(u)
+            
+    comp_id = [-1] * (2 * n)
+    cid = 0
+    
+    while stack:
+        u = stack.pop()
+        if comp_id[u] != -1:
+            continue
+        # DFS on reversed graph
+        q = [u]
+        comp_id[u] = cid
+        while q:
+            curr = q.pop()
+            for v in rev_adj[curr]:
+                if comp_id[v] == -1:
+                    comp_id[v] = cid
+                    q.append(v)
+        cid += 1
+        
+    # Check for contradictions
+    for i in range(n):
+        if comp_id[2 * i] == comp_id[2 * i + 1]:
+            print("NO")
+            return
+    
+    # Construct assignment
+    # We want s_i = 1 if comp_id[2*i+1] > comp_id[2*i], else 0
+    # This heuristic works because in reverse topological order of SCCs,
+    # if the "True" node appears later, it belongs to a component that can reach the "False" one,
+    # so we must pick True to satisfy implications.
+    # Actually, standard Kosaraju gives components in topological order of the component graph.
+    # So if comp_id[True] > comp_id[False], True is "later" in topological sort, meaning it does not imply False.
+    # We pick the one with larger component ID.
+    ans = []
+    for i in range(n):
+        if comp_id[2 * i + 1] > comp_id[2 * i]:
+            ans.append(1)
+        else:
+            ans.append(0)
+            
+    print("YES")
+    print(' '.join(map(str, ans)))
+
+if __name__ == '__main__':
+    solve()

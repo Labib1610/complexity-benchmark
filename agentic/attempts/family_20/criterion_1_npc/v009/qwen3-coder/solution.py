@@ -1,0 +1,105 @@
+import sys
+from collections import defaultdict
+
+def solve():
+    n, m = map(int, input().split())
+    
+    # Read edges
+    edges = []
+    adj = defaultdict(list)
+    
+    for i in range(m):
+        u, v = map(int, input().split())
+        edges.append((u, v))
+        adj[u].append(i)
+        adj[v].append(i)
+    
+    # Try to 3-color the edges (assign to windows 1,2,3)
+    # This is equivalent to edge-coloring the graph with 3 colors
+    # since each vertex has degree 3, this is possible iff the graph is 3-edge-colorable
+    
+    # For a 3-regular graph, it's 3-edge-colorable iff it doesn't contain a bridge
+    # But even if it doesn't contain a bridge, we need to actually find a coloring
+    
+    # We'll use a greedy approach with backtracking if needed
+    # But let's try a more systematic approach
+    
+    # Since each vertex has exactly degree 3, and we have exactly 3 colors,
+    # at each vertex, the three edges must have three different colors
+    
+    # This is essentially finding a proper edge coloring with 3 colors
+    
+    color = [0] * m  # 0 means uncolored, 1,2,3 are the colors
+    
+    # Try to color edges one by one
+    def can_color(edge_idx, c):
+        u, v = edges[edge_idx]
+        # Check if any adjacent edge at u or v already has color c
+        for edge_at_u in adj[u]:
+            if color[edge_at_u] == c:
+                return False
+        for edge_at_v in adj[v]:
+            if color[edge_at_v] == c:
+                return False
+        return True
+    
+    def backtrack(edge_idx):
+        if edge_idx == m:
+            return True
+            
+        u, v = edges[edge_idx]
+        # Try colors 1, 2, 3
+        for c in range(1, 4):
+            if can_color(edge_idx, c):
+                color[edge_idx] = c
+                if backtrack(edge_idx + 1):
+                    return True
+                color[edge_idx] = 0
+        
+        return False
+    
+    # But this might be too slow. Let's think of a better approach.
+    # Since the graph is 3-regular, we can try a different strategy.
+    
+    # Let's try a greedy approach with a specific ordering
+    # Order vertices and process their edges
+    
+    # Actually, let's just try the backtracking with a better ordering
+    # Process edges in order of vertices to catch conflicts early
+    
+    # Try a greedy approach first
+    success = True
+    for i in range(m):
+        u, v = edges[i]
+        # Find a color that's not used by adjacent edges
+        used_colors = set()
+        for edge_at_u in adj[u]:
+            if color[edge_at_u] != 0 and edge_at_u < i:
+                used_colors.add(color[edge_at_u])
+        for edge_at_v in adj[v]:
+            if color[edge_at_v] != 0 and edge_at_v < i:
+                used_colors.add(color[edge_at_v])
+        
+        # Try to find an available color
+        found_color = False
+        for c in range(1, 4):
+            if c not in used_colors:
+                color[i] = c
+                found_color = True
+                break
+        
+        if not found_color:
+            success = False
+            break
+    
+    if not success:
+        # Try backtracking
+        color = [0] * m
+        if not backtrack(0):
+            print("NO")
+            return
+    
+    print("YES")
+    print(' '.join(map(str, color)))
+
+solve()

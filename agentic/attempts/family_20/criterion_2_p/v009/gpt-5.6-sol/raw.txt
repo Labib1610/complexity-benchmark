@@ -1,0 +1,288 @@
+```python
+import sys
+from array import array
+from collections import deque
+
+sys.setrecursionlimit(1_000_000)
+
+
+def ints_from_bytes(data):
+    num = 0
+    in_num = False
+    for c in data:
+        if 48 <= c <= 57:
+            num = num * 10 + c - 48
+            in_num = True
+        elif in_num:
+            yield num
+            num = 0
+            in_num = False
+    if in_num:
+        yield num
+
+
+it = iter(ints_from_bytes(sys.stdin.buffer.read()))
+n_left = next(it)
+n_right = next(it)
+m = next(it)
+
+if m == 0:
+    sys.stdout.write("YES\n\n")
+    raise SystemExit
+
+orig_u = array('i')
+orig_v = array('i')
+deg_left = array('i', [0]) * n_left
+deg_right = array('i', [0]) * n_right
+
+for _ in range(m):
+    u = next(it) - 1
+    v = next(it) - 1
+    orig_u.append(u)
+    orig_v.append(v)
+    deg_left[u] += 1
+    deg_right[v] += 1
+
+delta = max(max(deg_left), max(deg_right))
+
+
+def pack_vertices(degrees, capacity):
+    mapping = array('i', [-1]) * len(degrees)
+    bin_degrees = []
+    current_bin = -1
+    current_sum = 0
+
+    for vertex, degree in enumerate(degrees):
+        if degree == 0:
+            continue
+        if current_bin == -1 or current_sum + degree > capacity:
+            if current_bin != -1:
+                bin_degrees.append(current_sum)
+            current_bin += 1
+            current_sum = 0
+        mapping[vertex] = current_bin
+        current_sum += degree
+
+    if current_bin != -1:
+        bin_degrees.append(current_sum)
+
+    return mapping, bin_degrees
+
+
+left_map, left_bin_deg = pack_vertices(deg_left, delta)
+right_map, right_bin_deg = pack_vertices(deg_right, delta)
+
+bin_count = max(len(left_bin_deg), len(right_bin_deg))
+left_bin_deg.extend([0] * (bin_count - len(left_bin_deg)))
+right_bin_deg.extend([0] * (bin_count - len(right_bin_deg)))
+
+edge_u = array('i', (left_map[u] for u in orig_u))
+edge_v = array('i', (right_map[v] for v in orig_v))
+
+del orig_u, orig_v, left_map, right_map, deg_left, deg_right
+
+left_deficit = [delta - d for d in left_bin_deg]
+right_deficit = [delta - d for d in right_bin_deg]
+
+li = 0
+ri = 0
+while li < bin_count and ri < bin_count:
+    while li < bin_count and left_deficit[li] == 0:
+        li += 1
+    while ri < bin_count and right_deficit[ri] == 0:
+        ri += 1
+    if li == bin_count or ri == bin_count:
+        break
+
+    count = min(left_deficit[li], right_deficit[ri])
+    edge_u.extend(array('i', [li]) * count)
+    edge_v.extend(array('i', [ri]) * count)
+    left_deficit[li] -= count
+    right_deficit[ri] -= count
+
+del left_bin_deg, right_bin_deg, left_deficit, right_deficit
+
+total_edges = len(edge_u)
+answers = array('i', [0]) * m
+seen = array('i', [0]) * total_edges
+matched_mark = bytearray(total_edges)
+seen_token = 0
+
+
+def split_even(edges):
+    global seen_token
+    seen_token += 1
+    token = seen_token
+
+    adjacency = [[] for _ in range(2 * bin_count)]
+    offset = bin_count
+
+    for eid in edges:
+        adjacency[edge_u[eid]].append(eid)
+        adjacency[offset + edge_v[eid]].append(eid)
+
+    first = []
+    second = []
+
+    for start in range(2 * bin_count):
+        adj_start = adjacency[start]
+        while adj_start and seen[adj_start[-1]] == token:
+            adj_start.pop()
+        if not adj_start:
+            continue
+
+        vertex_stack = [start]
+        edge_stack = []
+        tour = []
+
+        while vertex_stack:
+            vertex = vertex_stack[-1]
+            adj = adjacency[vertex]
+
+            while adj and seen[adj[-1]] == token:
+                adj.pop()
+
+            if adj:
+                eid = adj.pop()
+                seen[eid] = token
+                if vertex < offset:
+                    nxt = offset + edge_v[eid]
+                else:
+                    nxt = edge_u[eid]
+                vertex_stack.append(nxt)
+                edge_stack.append(eid)
+            else:
+                vertex_stack.pop()
+                if edge_stack:
+                    tour.append(edge_stack.pop())
+
+        first.extend(tour[0::2])
+        second.extend(tour[1::2])
+
+    return first, second
+
+
+def perfect_matching(edges):
+    adjacency = [[] for _ in range(bin_count)]
+    for eid in edges:
+        adjacency[edge_u[eid]].append(eid)
+
+    pair_left = array('i', [-1]) * bin_count
+    pair_right = array('i', [-1]) * bin_count
+    pair_edge = array('i', [-1]) * bin_count
+
+    matched = 0
+
+    # A greedy initial matching substantially reduces later searches.
+    for u in range(bin_count):
+        for eid in adjacency[u]:
+            v = edge_v[eid]
+            if pair_right[v] == -1:
+                pair_left[u] = v
+                pair_right[v] = u
+                pair_edge[u] = eid
+                matched += 1
+                break
+
+    inf = bin_count + 1
+    dist = array('i', [inf]) * bin_count
+    cursor = array('i', [0]) * bin_count
+
+    while matched < bin_count:
+        queue = deque()
+        shortest = inf
+
+        for u in range(bin_count):
+            if pair_left[u] == -1:
+                dist[u] = 0
+                queue.append(u)
+            else:
+                dist[u] = inf
+
+        while queue:
+            u = queue.popleft()
+            if dist[u] >= shortest:
+                continue
+            next_dist = dist[u] + 1
+            for eid in adjacency[u]:
+                v = edge_v[eid]
+                other = pair_right[v]
+                if other == -1:
+                    shortest = next_dist
+                elif dist[other] == inf:
+                    dist[other] = next_dist
+                    queue.append(other)
+
+        for i in range(bin_count):
+            cursor[i] = 0
+
+        def dfs(u):
+            adj = adjacency[u]
+            while cursor[u] < len(adj):
+                eid = adj[cursor[u]]
+                cursor[u] += 1
+                v = edge_v[eid]
+                other = pair_right[v]
+
+                if other == -1:
+                    if dist[u] + 1 != shortest:
+                        continue
+                elif dist[other] != dist[u] + 1 or not dfs(other):
+                    continue
+
+                pair_left[u] = v
+                pair_right[v] = u
+                pair_edge[u] = eid
+                return True
+
+            dist[u] = inf
+            return False
+
+        augmented = 0
+        for u in range(bin_count):
+            if pair_left[u] == -1 and dfs(u):
+                augmented += 1
+
+        matched += augmented
+
+    return list(pair_edge)
+
+
+def color_regular(edges, degree, first_color):
+    if degree == 1:
+        for eid in edges:
+            if eid < m:
+                answers[eid] = first_color
+        return
+
+    if degree & 1:
+        matching = perfect_matching(edges)
+
+        for eid in matching:
+            matched_mark[eid] = 1
+            if eid < m:
+                answers[eid] = first_color
+
+        remaining = [eid for eid in edges if not matched_mark[eid]]
+
+        for eid in matching:
+            matched_mark[eid] = 0
+
+        edges = None
+        matching = None
+        color_regular(remaining, degree - 1, first_color + 1)
+    else:
+        half = degree // 2
+        part_a, part_b = split_even(edges)
+        edges = None
+        color_regular(part_a, half, first_color)
+        part_a = None
+        color_regular(part_b, half, first_color + half)
+
+
+color_regular(list(range(total_edges)), delta, 1)
+
+sys.stdout.write("YES\n")
+sys.stdout.write(" ".join(map(str, answers)))
+sys.stdout.write("\n")
+```

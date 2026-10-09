@@ -2,9 +2,9 @@
 
 Time limit: 1 s   Memory limit: 256 MB
 
-The same project now has requirements that each list exactly two task-state
-conditions instead of three. Decide whether all tasks can be assigned states
-satisfying every requirement, and if so, output any valid assignment.
+## Description
+
+A control panel has **n** binary switches, each set ON or OFF before the run. Commissioning supplies **m** acceptance rules, but here **every** rule names exactly **two** switch-conditions and passes when at least one of the two is met (each condition being a switch plus the polarity that satisfies it). Because each rule couples only a pair of switches, a failing condition on one side forces the other side's condition to hold — the rules propagate as chains of forced consequences. Engineers sometimes fear this needs exhaustive search, but the pairwise structure makes the consequences fully deducible. Decide whether a single global ON/OFF setting of all n switches satisfies every two-condition rule at once, and if so report one; otherwise report that the pairwise rules are mutually contradictory.
 
 ## Input
 The first line contains two integers n and m (1 ≤ n ≤ 10^5, 0 ≤ m ≤ 2·10^5).

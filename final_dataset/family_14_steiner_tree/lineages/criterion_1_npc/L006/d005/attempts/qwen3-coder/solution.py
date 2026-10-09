@@ -1,0 +1,87 @@
+import sys
+from collections import defaultdict
+import heapq
+
+def find_min_cost_to_span_critical_pairs(n, m, t, critical_params, observations):
+    if t <= 1:
+        return 0
+
+    # Convert critical_params to a set for fast lookup
+    critical_set = set(critical_params)
+    
+    # We need to ensure that for every pair (a,b) of critical params,
+    # the vector e_a - e_b is in the span of selected observations.
+    # This is equivalent to ensuring that all critical params are
+    # connected in the graph formed by selected observations.
+    
+    # Use a modified Kruskal's or Prim's algorithm to find the minimum
+    # cost to connect all critical nodes.
+    
+    # We'll use a greedy approach: find the minimum cost to connect
+    # all critical parameters using Union-Find (DSU)
+    
+    # Union-Find data structure
+    class UnionFind:
+        def __init__(self, size):
+            self.parent = list(range(size))
+            self.rank = [0] * size
+            
+        def find(self, x):
+            if self.parent[x] != x:
+                self.parent[x] = self.find(self.parent[x])
+            return self.parent[x]
+            
+        def union(self, x, y):
+            px, py = self.find(x), self.find(y)
+            if px == py:
+                return False
+            if self.rank[px] < self.rank[py]:
+                px, py = py, px
+            self.parent[py] = px
+            if self.rank[px] == self.rank[py]:
+                self.rank[px] += 1
+            return True
+    
+    # Sort observations by weight
+    observations.sort(key=lambda x: x[2])
+    
+    uf = UnionFind(n + 1)  # 1-indexed
+    total_cost = 0
+    connected_critical = 1  # Start with one critical parameter
+    
+    # Create a set of critical parameters for tracking
+    remaining_critical = set(critical_params)
+    first_critical = critical_params[0]
+    remaining_critical.remove(first_critical)
+    
+    for u, v, w in observations:
+        # If this edge connects two different components
+        if uf.union(u, v):
+            # Check if this edge connects to a new critical parameter
+            if u in critical_set and u in remaining_critical:
+                remaining_critical.remove(u)
+                connected_critical += 1
+            if v in critical_set and v in remaining_critical:
+                remaining_critical.remove(v)
+                connected_critical += 1
+                
+            total_cost += w
+            
+            # If all critical parameters are connected, we're done
+            if connected_critical == t:
+                break
+    
+    return total_cost
+
+# Read input
+n, m, t = map(int, sys.stdin.readline().split())
+critical_params = list(map(int, sys.stdin.readline().split()))
+
+observations = []
+for _ in range(m):
+    u, v, w = map(int, sys.stdin.readline().split())
+    observations.append((u, v, w))
+
+# Solve and print result
+result = find_min_cost_to_span_critical_pairs(n, m, t, critical_params, observations)
+print(result)

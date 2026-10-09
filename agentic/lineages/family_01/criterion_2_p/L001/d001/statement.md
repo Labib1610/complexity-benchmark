@@ -1,20 +1,20 @@
-# Problem B — Operational Windows
+# Problem B — Power Bus Redundancy
 
 Time limit: 1 s   Memory limit: 256 MB
 
-A manufacturing facility employs a workforce of $n$ individuals, identified by integers starting from 1 up to $n$. A roster configuration assigns each worker an operational window, which is an integer value of either 1 or 2.
+An orbital station contains $n$ life-support modules. The automated diagnostic system must configure the backup network by assigning a redundancy tier to each module. This tier must be an integer value of either $1$ or $2$.
 
-The safety system maintains a log of $m$ incompatible pairs. To prevent hazards, the system enforces a strict separation rule for any pair of workers listed in the log: when the assigned window values of the two workers in a logged pair are added together, the resulting sum must be exactly 3.
+The safety protocol includes $m$ critical links. Each link identifies two modules that serve as mutual backups. To guarantee operational stability, the configuration must satisfy a strict numerical condition: for any two modules $u$ and $v$ connected by a critical link, the product of their assigned tier values must equal exactly $2$.
 
-Your task is to determine a valid roster configuration for all $n$ workers. If multiple valid configurations exist, you must provide the one that is lexicographically smallest. If it is impossible to satisfy the separation rule for all logged pairs simultaneously, you must report the failure.
+You must determine whether a valid tier assignment exists for all modules. When multiple valid assignments are possible, the diagnostic system mandates selecting the configuration that produces the lexicographically smallest sequence of tier values, ordered by module number from $1$ to $n$.
 
 ## Input
-The first line provides two integers $n$ and $m$. The facility requires a minimum headcount $n$ of $1$ and has a maximum capacity of $2 \cdot 10^5$ personnel. The safety log can contain as few as $0$ entries or up to a maximum of $2 \cdot 10^5$ entries, represented by $m$.
-Each of the following $m$ lines contains two integers $u$ and $v$, identifying a pair of workers in the log. Both worker identifiers $u$ and $v$ are at least $1$ and at most $n$.
+The first line of the input contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$).
+Each of the next $m$ lines contains two integers $u$ and $v$ — a redundancy link between module $u$ and module $v$.
 
 ## Output
-If no valid roster configuration exists, output `NO` on a single line.
-Otherwise, output `YES` on the first line. On the second line, output $n$ space-separated integers $s_1, s_2, \dots, s_n$ (where each $s_i \in \{1, 2\}$) representing the operational window assigned to each respective worker from 1 to $n$. This sequence must be the lexicographically smallest possible valid sequence.
+If there is no way to assign the tier values without violating the safety protocol, output a single line containing `NO`.
+Otherwise, output `YES` on the first line. On the second line, output $n$ integers separated by spaces, where the $i$-th integer is the tier value ($1$ or $2$) assigned to the $i$-th module, representing the lexicographically smallest valid configuration.
 
 ## Example 1
 Input:

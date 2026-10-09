@@ -1,0 +1,237 @@
+import sys
+from collections import deque
+
+def find_perfect_matching(n, adj):
+    # Use simple augmenting path algorithm for general graph (Edmonds' Blossom) is complex.
+    # But since graph is cubic and bridgeless, we can use a simpler approach:
+    # Use BFS-based approach for bipartite? Not necessarily bipartite.
+    # We'll implement a simple greedy + augmenting path for general graph using Edmonds' Blossom.
+    # But for n <= 2000, we can use networkx? Not allowed.
+    # We'll implement a known simpler method: use BFS to find alternating paths in a matching.
+    # For cubic bridgeless graphs, a perfect matching exists; we can find it via:
+    # - Take any edge, add to matching, remove its endpoints, repeat? That may fail.
+    # Better: Use a known algorithm: find a 2-factor first, then take alternating edges.
+    # But we can also use a simple approach: since graph is cubic, we can find a perfect matching
+    # by using a DFS-based approach for general graph matching (Edmonds' Blossom).
+    # We'll implement a simplified version of Edmonds' Blossom for this size.
+    
+    # For simplicity, we'll use a known library-free approach:
+    # Use BFS to find augmenting paths in general graph (with blossom contraction).
+    # But that's long. Instead, we can use a simpler constructive method:
+    # Since graph is cubic and bridgeless, we can find a perfect matching by:
+    # 1. Find a cycle cover (2-factor) using DFS.
+    # 2. Take alternating edges from each cycle.
+    # This works because each cycle has even length? Not necessarily.
+    # Actually, in a cubic bridgeless graph, every 2-factor has even cycles? Not guaranteed.
+    # But we can use a known theorem: every bridgeless cubic graph has a perfect matching.
+    # We'll implement a simple algorithm: repeatedly pick an unmatched vertex, BFS to find an augmenting path.
+    # For general graph, we need blossom, but we can try a simpler heuristic that works for cubic graphs.
+    
+    # Let's implement a simple greedy + local search:
+    match = [-1] * (n+1)
+    # Try to match greedily
+    for u in range(1, n+1):
+        if match[u] == -1:
+            for v in adj[u]:
+                if match[v] == -1:
+                    match[u] = v
+                    match[v] = u
+                    break
+    # Now try to improve with BFS augmenting paths (simple version, may fail on odd cycles)
+    # But for cubic bridgeless, this greedy often works? Not guaranteed.
+    # We'll implement a proper Edmonds' Blossom algorithm.
+    
+    # Edmonds' Blossom implementation (simplified for n<=2000)
+    # We'll use the standard algorithm with BFS and blossom contraction.
+    # This is a known implementation.
+    
+    # We'll implement a standard version:
+    parent = [0]*(n+1)
+    base = list(range(n+1))
+    in_queue = [False]*(n+1)
+    in_blossom = [False]*(n+1)
+    q = deque()
+    
+    def lca(a, b):
+        used = [False]*(n+1)
+        while True:
+            a = base[a]
+            used[a] = True
+            if match[a] == -1:
+                break
+            a = parent[match[a]]
+        while True:
+            b = base[b]
+            if used[b]:
+                return b
+            b = parent[match[b]]
+    
+    def mark_path(v, b, children):
+        while base[v] != b:
+            in_blossom[base[v]] = in_blossom[base[match[v]]] = True
+            parent[v] = children
+            children = match[v]
+            v = parent[match[v]]
+    
+    def find_path(root):
+        nonlocal parent, base, in_queue, in_blossom
+        parent = [0]*(n+1)
+        base = list(range(n+1))
+        in_queue = [False]*(n+1)
+        in_blossom = [False]*(n+1)
+        q = deque([root])
+        in_queue[root] = True
+        while q:
+            v = q.popleft()
+            for u in adj[v]:
+                if base[v] == base[u] or match[v] == u:
+                    continue
+                if u == root or (match[u] != -1 and parent[match[u]] != 0):
+                    curbase = lca(v, u)
+                    in_blossom = [False]*(n+1)
+                    mark_path(v, curbase, u)
+                    mark_path(u, curbase, v)
+                    for i in range(1, n+1):
+                        if in_blossom[base[i]]:
+                            base[i] = curbase
+                            if not in_queue[i]:
+                                in_queue[i] = True
+                                q.append(i)
+                elif parent[u] == 0:
+                    parent[u] = v
+                    if match[u] == -1:
+                        # augment
+                        while u != 0:
+                            pv = parent[u]
+                            nxt = match[pv]
+                            match[u] = pv
+                            match[pv] = u
+                            u = nxt
+                        return True
+                    else:
+                        in_queue[match[u]] = True
+                        q.append(match[u])
+        return False
+    
+    for i in range(1, n+1):
+        if match[i] == -1:
+            find_path(i)
+    
+    # Check if perfect
+    for i in range(1, n+1):
+        if match[i] == -1:
+            return None
+    return match
+
+def solve():
+    input_data = sys.stdin.read().strip().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    edges = []
+    adj = [[] for _ in range(n+1)]
+    for idx in range(m):
+        u = int(next(it)); v = int(next(it))
+        edges.append((u, v))
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # Check if graph is connected? Not required but if not, each component must be bridgeless.
+    # Check bridges using DFS
+    visited = [False]*(n+1)
+    tin = [-1]*(n+1)
+    low = [-1]*(n+1)
+    timer = 0
+    has_bridge = False
+    
+    def dfs(v, p):
+        nonlocal timer, has_bridge
+        visited[v] = True
+        tin[v] = low[v] = timer
+        timer += 1
+        for to in adj[v]:
+            if to == p:
+                continue
+            if visited[to]:
+                low[v] = min(low[v], tin[to])
+            else:
+                dfs(to, v)
+                low[v] = min(low[v], low[to])
+                if low[to] > tin[v]:
+                    has_bridge = True
+    
+    for i in range(1, n+1):
+        if not visited[i]:
+            dfs(i, -1)
+    
+    if has_bridge:
+        print("NO")
+        return
+    
+    # Find perfect matching
+    match = find_perfect_matching(n, adj)
+    if match is None:
+        print("NO")
+        return
+    
+    # Color matching edges with 1
+    color = [0]*m
+    for idx, (u, v) in enumerate(edges):
+        if match[u] == v:
+            color[idx] = 1
+    
+    # Build graph without matching edges
+    adj2 = [[] for _ in range(n+1)]
+    edge_id = {}
+    for idx, (u, v) in enumerate(edges):
+        if color[idx] == 0:
+            adj2[u].append((v, idx))
+            adj2[v].append((u, idx))
+        edge_id[(u, v)] = idx
+        edge_id[(v, u)] = idx
+    
+    # Now remaining graph is 2-regular (cycles). Color cycles alternately 2 and 3.
+    visited_edge = [False]*m
+    for start in range(1, n+1):
+        for v, eid in adj2[start]:
+            if not visited_edge[eid]:
+                # traverse cycle
+                cur = start
+                prev = -1
+                c = 2
+                while True:
+                    # find next edge from cur not prev
+                    nxt_edge = None
+                    nxt_node = None
+                    for (to, eid2) in adj2[cur]:
+                        if eid2 != prev:
+                            nxt_edge = eid2
+                            nxt_node = to
+                            break
+                    if nxt_edge is None:
+                        break
+                    visited_edge[nxt_edge] = True
+                    color[nxt_edge] = c
+                    c = 3 if c == 2 else 2
+                    prev = nxt_edge
+                    cur = nxt_node
+                    if cur == start:
+                        break
+    
+    # Verify
+    for u in range(1, n+1):
+        cols = set()
+        for v in adj[u]:
+            eid = edge_id[(u, v)]
+            cols.add(color[eid])
+        if len(cols) != 3:
+            print("NO")
+            return
+    
+    print("YES")
+    print(" ".join(map(str, color)))
+
+if __name__ == "__main__":
+    solve()

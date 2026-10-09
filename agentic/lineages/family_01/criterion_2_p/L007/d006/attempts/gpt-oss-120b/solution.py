@@ -8,46 +8,58 @@ def solve() -> None:
     it = iter(data)
     n = int(next(it))
     m = int(next(it))
-
-    adj = [[] for _ in range(n + 1)]
+    g = [[] for _ in range(n)]
     for _ in range(m):
-        u = int(next(it)); v = int(next(it))
-        adj[u].append(v)
-        adj[v].append(u)
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        g[u].append(v)
+        g[v].append(u)
 
-    side = [-1] * (n + 1)          # temporary bipartition side 0/1
-    color = [0] * (n + 1)          # final grades 1/2
-    q = deque()
+    color = [-1] * n          # 0 / 1 during BFS
+    ans = [0] * n             # final protocols (1 or 2)
+    visited = [False] * n
 
-    for start in range(1, n + 1):
-        if side[start] != -1:
+    # components will be processed in order of their minimal vertex
+    for start in range(n):
+        if color[start] != -1:
             continue
-        # start new component
-        comp = []
-        side[start] = 0
-        q.append(start)
-        bip = True
+        # BFS this component
+        q = deque([start])
+        color[start] = 0
+        comp = [start]
+        ok = True
         while q:
             v = q.popleft()
-            comp.append(v)
-            for to in adj[v]:
-                if side[to] == -1:
-                    side[to] = side[v] ^ 1
+            for to in g[v]:
+                if color[to] == -1:
+                    color[to] = color[v] ^ 1
                     q.append(to)
-                elif side[to] == side[v]:
-                    # not bipartite
+                    comp.append(to)
+                elif color[to] == color[v]:
                     print("NO")
                     return
-        # choose orientation to make smallest index vertex colour 1
-        min_idx = min(comp)
-        s = side[min_idx]          # side (0 or 1) of that vertex
-        # mapping: side == s -> 1, else -> 2
+        # decide which coloring to use
+        comp.sort()
+        # candidate 1: color 0 -> protocol 1, color 1 -> 2
+        # candidate 2: swapped
+        better = 0  # 0 means cand1, 1 means cand2
         for v in comp:
-            color[v] = 1 if side[v] == s else 2
+            c = color[v]
+            p1 = 1 if c == 0 else 2
+            p2 = 2 if c == 0 else 1
+            if p1 < p2:
+                better = 0
+                break
+            if p2 < p1:
+                better = 1
+                break
+        # apply chosen candidate
+        for v in comp:
+            c = color[v]
+            ans[v] = 1 if (c == 0) ^ better else 2
 
-    # all components processed, graph bipartite
     print("YES")
-    print(' '.join(str(color[i]) for i in range(1, n + 1)))
+    print(' '.join(map(str, ans)))
 
 if __name__ == "__main__":
     solve()

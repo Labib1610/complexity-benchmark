@@ -1,0 +1,197 @@
+from collections import defaultdict
+import sys
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(["0"] * n))
+        return
+    
+    clauses = []
+    index = 2
+    for _ in range(m):
+        clause = []
+        for _ in range(3):
+            lit = int(data[index])
+            index += 1
+            clause.append(lit)
+        clauses.append(clause)
+    
+    # We will solve this as a 3-SAT problem using brute force since n <= 90 but in practice,
+    # for small n we could do brute force, but given constraints, we should use a more efficient approach.
+    # However, since n can be up to 90, brute force is not feasible (2^90 is too large).
+    # We'll implement a randomized local search or use the fact that this might have structure.
+    # But let's try a systematic backtracking with pruning or use the fact that it's a classic 3-SAT.
+    
+    # Let's model this as a 3-SAT problem and use a known algorithm approach.
+    # For each variable, we'll try both values and see if we can satisfy all clauses.
+    # Since n can be up to 90, full enumeration is impossible.
+    # We need a smarter way. Let's try to implement a simple DPLL-style backtracking solver.
+    
+    # First, let's build the formula
+    # Variables are 1-indexed from 1 to n. We'll map them to 0-indexed internally.
+    
+    # Let's use a SAT solving approach with backtracking and unit propagation.
+    
+    def solve_3sat(n, clauses):
+        # We'll use a recursive backtracking algorithm
+        # assignment[i] will be True (expressed), False (suppressed), or None (unassigned)
+        assignment = [None] * (n + 1)  # 1-indexed
+        
+        # Convert clauses to a list of sets for easier manipulation
+        # Also keep original form for checking
+        clause_list = clauses[:]
+        
+        def is_clause_satisfied(clause, assignment):
+            for lit in clause:
+                var = abs(lit)
+                if lit > 0:
+                    if assignment[var] is True:
+                        return True
+                else:
+                    if assignment[var] is False:
+                        return True
+            return False
+        
+        def find_unit_clause(clauses, assignment):
+            # A unit clause is a clause where all literals are false except one unassigned
+            for clause in clauses:
+                num_unassigned = 0
+                unassigned_lit = 0
+                satisfied = False
+                for lit in clause:
+                    var = abs(lit)
+                    if lit > 0:
+                        if assignment[var] is True:
+                            satisfied = True
+                            break
+                        elif assignment[var] is None:
+                            num_unassigned += 1
+                            unassigned_lit = lit
+                        # else it's False, continue
+                    else:
+                        if assignment[var] is False:
+                            satisfied = True
+                            break
+                        elif assignment[var] is None:
+                            num_unassigned += 1
+                            unassigned_lit = lit
+                        # else it's True, continue
+                if satisfied:
+                    continue
+                if num_unassigned == 1:
+                    return unassigned_lit
+            return None
+        
+        def find_pure_literal(clauses, assignment):
+            # A pure literal is one that appears with only one polarity in all clauses
+            # and is not yet assigned
+            lit_count = defaultdict(int)
+            for clause in clauses:
+                for lit in clause:
+                    var = abs(lit)
+                    if assignment[var] is None:  # Only count unassigned variables
+                        lit_count[lit] += 1
+            
+            for lit, count in lit_count.items():
+                neg_lit = -lit
+                if lit_count[neg_lit] == 0:
+                    return lit
+            return None
+        
+        def propagate(clauses, assignment):
+            # Apply unit propagation and pure literal rule until no more changes
+            changed = True
+            while changed:
+                changed = False
+                # Unit propagation
+                unit_lit = find_unit_clause(clauses, assignment)
+                while unit_lit is not None:
+                    var = abs(unit_lit)
+                    if unit_lit > 0:
+                        if assignment[var] is False:
+                            return False  # Conflict
+                        assignment[var] = True
+                    else:
+                        if assignment[var] is True:
+                            return False  # Conflict
+                        assignment[var] = False
+                    changed = True
+                    unit_lit = find_unit_clause(clauses, assignment)
+                
+                # Pure literal rule
+                pure_lit = find_pure_literal(clauses, assignment)
+                if pure_lit is not None:
+                    var = abs(pure_lit)
+                    if pure_lit > 0:
+                        assignment[var] = True
+                    else:
+                        assignment[var] = False
+                    changed = True
+            return True
+        
+        def dpll(clauses, assignment):
+            # First propagate
+            if not propagate(clauses, assignment):
+                return False
+            
+            # Check if all clauses are satisfied
+            all_satisfied = True
+            for clause in clauses:
+                if not is_clause_satisfied(clause, assignment):
+                    all_satisfied = False
+                    break
+            if all_satisfied:
+                return True
+            
+            # Choose the first unassigned variable
+            var = 1
+            while var <= n and assignment[var] is not None:
+                var += 1
+            if var > n:
+                return False  # All variables assigned but not all clauses satisfied
+            
+            # Try setting var to True
+            old_assignment = assignment[:]
+            assignment[var] = True
+            if dpll(clauses, assignment):
+                return True
+            
+            # Backtrack and try False
+            assignment[:] = old_assignment[:]
+            assignment[var] = False
+            if dpll(clauses, assignment):
+                return True
+            
+            # Backtrack
+            assignment[var] = None
+            return False
+        
+        if dpll(clause_list, assignment):
+            # Found a solution
+            result = []
+            for i in range(1, n + 1):
+                if assignment[i] is True:
+                    result.append('1')
+                else:
+                    result.append('0')
+            return ' '.join(result)
+        else:
+            return None
+    
+    result = solve_3sat(n, clauses)
+    if result is None:
+        print("NO")
+    else:
+        print("YES")
+        print(result)
+
+if __name__ == "__main__":
+    main()

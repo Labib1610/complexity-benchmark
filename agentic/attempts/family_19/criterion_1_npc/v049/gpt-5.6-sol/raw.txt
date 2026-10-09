@@ -1,0 +1,489 @@
+```python
+import sys
+import math
+import random
+from collections import deque
+
+EPS = 1e-8
+INF = float("inf")
+
+
+class DinicEdge:
+    __slots__ = ("to", "rev", "cap", "initial")
+
+    def __init__(self, to, rev, cap):
+        self.to = to
+        self.rev = rev
+        self.cap = cap
+        self.initial = cap
+
+
+class Dinic:
+    def __init__(self, n):
+        self.n = n
+        self.g = [[] for _ in range(n)]
+
+    def add_edge(self, u, v, cap):
+        a = DinicEdge(v, len(self.g[v]), cap)
+        b = DinicEdge(u, len(self.g[u]), 0)
+        self.g[u].append(a)
+        self.g[v].append(b)
+        return a
+
+    def max_flow(self, s, t, limit):
+        if s == t:
+            return limit
+
+        flow = 0
+        n = self.n
+
+        while flow < limit:
+            level = [-1] * n
+            level[s] = 0
+            q = deque([s])
+
+            while q:
+                u = q.popleft()
+                for e in self.g[u]:
+                    if e.cap > 0 and level[e.to] < 0:
+                        level[e.to] = level[u] + 1
+                        q.append(e.to)
+
+            if level[t] < 0:
+                break
+
+            it = [0] * n
+
+            def dfs(u, pushed):
+                if u == t:
+                    return pushed
+                while it[u] < len(self.g[u]):
+                    e = self.g[u][it[u]]
+                    if e.cap > 0 and level[e.to] == level[u] + 1:
+                        got = dfs(e.to, min(pushed, e.cap))
+                        if got:
+                            e.cap -= got
+                            self.g[e.to][e.rev].cap += got
+                            return got
+                    it[u] += 1
+                return 0
+
+            while flow < limit:
+                pushed = dfs(s, limit - flow)
+                if not pushed:
+                    break
+                flow += pushed
+
+        return flow
+
+
+def greedy_solution(n, m, commodities, edges, order):
+    remaining = [e[2] for e in edges]
+    answer = [[0] * m for _ in commodities]
+
+    for ci in order:
+        s, t, demand = commodities[ci]
+        if demand == 0 or s == t:
+            continue
+
+        dinic = Dinic(n)
+        refs = [None] * m
+
+        for j, (u, v, _) in enumerate(edges):
+            if remaining[j] > 0:
+                refs[j] = dinic.add_edge(u, v, remaining[j])
+
+        if dinic.max_flow(s, t, demand) != demand:
+            return None
+
+        for j, ref in enumerate(refs):
+            if ref is not None:
+                used = ref.initial - ref.cap
+                if used:
+                    answer[ci][j] = used
+                    remaining[j] -= used
+
+    return answer
+
+
+class LPSolver:
+    def __init__(self, A, b, c):
+        self.m = len(b)
+        self.n = len(c)
+        m, n = self.m, self.n
+
+        self.B = [0] * m
+        self.N = [0] * (n + 1)
+        self.D = [[0.0] * (n + 2) for _ in range(m + 2)]
+
+        for i in range(m):
+            row = self.D[i]
+            ai = A[i]
+            for j in range(n):
+                row[j] = float(ai[j])
+
+        for i in range(m):
+            self.B[i] = n + i
+            self.D[i][n] = -1.0
+            self.D[i][n + 1] = float(b[i])
+
+        for j in range(n):
+            self.N[j] = j
+            self.D[m][j] = -float(c[j])
+
+        self.N[n] = -1
+        self.D[m + 1][n] = 1.0
+
+    def pivot(self, r, s):
+        D = self.D
+        m, n = self.m, self.n
+        inv = 1.0 / D[r][s]
+
+        for i in range(m + 2):
+            if i == r:
+                continue
+            dis = D[i][s]
+            if abs(dis) <= EPS:
+                continue
+            factor = dis * inv
+            row_i = D[i]
+            row_r = D[r]
+            for j in range(n + 2):
+                if j != s:
+                    row_i[j] -= row_r[j] * factor
+
+        row_r = D[r]
+        for j in range(n + 2):
+            if j != s:
+                row_r[j] *= inv
+
+        for i in range(m + 2):
+            if i != r:
+                D[i][s] *= -inv
+
+        D[r][s] = inv
+        self.B[r], self.N[s] = self.N[s], self.B[r]
+
+    def simplex(self, phase):
+        m, n = self.m, self.n
+        x = m + 1 if phase == 1 else m
+
+        while True:
+            s = -1
+            for j in range(n + 1):
+                if phase == 2 and self.N[j] == -1:
+                    continue
+                if s == -1:
+                    s = j
+                else:
+                    a = self.D[x][j]
+                    b = self.D[x][s]
+                    if a < b - EPS or (abs(a - b) <= EPS and self.N[j] < self.N[s]):
+                        s = j
+
+            if s == -1 or self.D[x][s] >= -EPS:
+                return True
+
+            r = -1
+            for i in range(m):
+                if self.D[i][s] <= EPS:
+                    continue
+                if r == -1:
+                    r = i
+                else:
+                    lhs = self.D[i][n + 1] / self.D[i][s]
+                    rhs = self.D[r][n + 1] / self.D[r][s]
+                    if lhs < rhs - EPS or (
+                        abs(lhs - rhs) <= EPS and self.B[i] < self.B[r]
+                    ):
+                        r = i
+
+            if r == -1:
+                return False
+
+            self.pivot(r, s)
+
+    def solve(self):
+        m, n = self.m, self.n
+
+        if m:
+            r = min(range(m), key=lambda i: self.D[i][n + 1])
+            if self.D[r][n + 1] < -EPS:
+                self.pivot(r, n)
+
+                if not self.simplex(1) or self.D[m + 1][n + 1] < -EPS:
+                    return None
+
+                if abs(self.D[m + 1][n + 1]) > 1e-7:
+                    return None
+
+                for i in range(m):
+                    if self.B[i] == -1:
+                        s = -1
+                        for j in range(n + 1):
+                            if s == -1:
+                                s = j
+                            else:
+                                a = self.D[i][j]
+                                b = self.D[i][s]
+                                if abs(a) > abs(b) + EPS or (
+                                    abs(abs(a) - abs(b)) <= EPS
+                                    and self.N[j] < self.N[s]
+                                ):
+                                    s = j
+                        if s != -1 and abs(self.D[i][s]) > EPS:
+                            self.pivot(i, s)
+
+        if not self.simplex(2):
+            return None
+
+        x = [0.0] * n
+        for i in range(m):
+            if 0 <= self.B[i] < n:
+                x[self.B[i]] = self.D[i][n + 1]
+        return x
+
+
+def exact_milp(n, m, commodities, edges):
+    active_commodities = [
+        i for i, (s, t, d) in enumerate(commodities) if d > 0 and s != t
+    ]
+    active_edges = [j for j, (_, _, cap) in enumerate(edges) if cap > 0]
+
+    if not active_commodities:
+        return [[0] * m for _ in commodities]
+
+    if not active_edges:
+        return None
+
+    q = len(active_commodities)
+    r = len(active_edges)
+    variables = q * r
+
+    edge_position = {ej: p for p, ej in enumerate(active_edges)}
+    outgoing = [[] for _ in range(n)]
+    incoming = [[] for _ in range(n)]
+
+    for ej in active_edges:
+        u, v, _ = edges[ej]
+        p = edge_position[ej]
+        outgoing[u].append(p)
+        incoming[v].append(p)
+
+    base_A = []
+    base_b = []
+
+    # Flow conservation. One equation (the sink's) is redundant.
+    for ap, ci in enumerate(active_commodities):
+        s, t, demand = commodities[ci]
+        offset = ap * r
+
+        for node in range(n):
+            if node == t:
+                continue
+
+            balance = demand if node == s else 0
+            row = [0.0] * variables
+
+            for ep in outgoing[node]:
+                row[offset + ep] += 1.0
+            for ep in incoming[node]:
+                row[offset + ep] -= 1.0
+
+            base_A.append(row)
+            base_b.append(float(balance))
+            base_A.append([-x for x in row])
+            base_b.append(float(-balance))
+
+    # Shared edge capacities.
+    for ep, ej in enumerate(active_edges):
+        row = [0.0] * variables
+        for ap in range(q):
+            row[ap * r + ep] = 1.0
+        base_A.append(row)
+        base_b.append(float(edges[ej][2]))
+
+    # Minimize a slightly perturbed total flow.
+    c = [0.0] * variables
+    for idx in range(variables):
+        h = (idx * 1103515245 + 12345) & 0xFFFF
+        c[idx] = -(1.0 + h * 1e-8)
+
+    stack = [({}, {})]
+
+    while stack:
+        lower, upper = stack.pop()
+        A = list(base_A)
+        b = list(base_b)
+
+        for idx, value in upper.items():
+            row = [0.0] * variables
+            row[idx] = 1.0
+            A.append(row)
+            b.append(float(value))
+
+        for idx, value in lower.items():
+            row = [0.0] * variables
+            row[idx] = -1.0
+            A.append(row)
+            b.append(float(-value))
+
+        solution = LPSolver(A, b, c).solve()
+        if solution is None:
+            continue
+
+        branch_idx = -1
+        branch_fraction = -1.0
+
+        for idx, value in enumerate(solution):
+            nearest = round(value)
+            fraction = abs(value - nearest)
+            if fraction > 1e-6:
+                score = min(value - math.floor(value), math.ceil(value) - value)
+                if score > branch_fraction:
+                    branch_fraction = score
+                    branch_idx = idx
+
+        if branch_idx == -1:
+            values = [int(round(max(0.0, x))) for x in solution]
+            answer = [[0] * m for _ in commodities]
+
+            for ap, ci in enumerate(active_commodities):
+                offset = ap * r
+                for ep, ej in enumerate(active_edges):
+                    answer[ci][ej] = values[offset + ep]
+
+            valid = True
+
+            for j, (_, _, cap) in enumerate(edges):
+                if sum(answer[i][j] for i in range(len(commodities))) > cap:
+                    valid = False
+                    break
+
+            if valid:
+                for i, (s, t, demand) in enumerate(commodities):
+                    balance = [0] * n
+                    for j, (u, v, _) in enumerate(edges):
+                        f = answer[i][j]
+                        if f < 0:
+                            valid = False
+                            break
+                        balance[u] += f
+                        balance[v] -= f
+                    if not valid:
+                        break
+
+                    for node in range(n):
+                        required = (demand if node == s else 0) - (
+                            demand if node == t else 0
+                        )
+                        if balance[node] != required:
+                            valid = False
+                            break
+                    if not valid:
+                        break
+
+            if valid:
+                return answer
+            continue
+
+        value = solution[branch_idx]
+        floor_value = math.floor(value)
+        ceil_value = floor_value + 1
+
+        current_lo = lower.get(branch_idx, 0)
+        current_hi = upper.get(branch_idx, 10**30)
+
+        children = []
+
+        if floor_value >= current_lo:
+            new_upper = dict(upper)
+            new_upper[branch_idx] = min(current_hi, floor_value)
+            children.append((dict(lower), new_upper))
+
+        if ceil_value <= current_hi:
+            new_lower = dict(lower)
+            new_lower[branch_idx] = max(current_lo, ceil_value)
+            children.append((new_lower, dict(upper)))
+
+        # Explore the closer branch first.
+        if value - floor_value <= ceil_value - value:
+            for child in reversed(children):
+                stack.append(child)
+        else:
+            for child in children:
+                stack.append(child)
+
+    return None
+
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+
+    it = iter(data)
+    n = next(it)
+    m = next(it)
+    k = next(it)
+
+    commodities = []
+    for _ in range(k):
+        s = next(it) - 1
+        t = next(it) - 1
+        d = next(it)
+        commodities.append((s, t, d))
+
+    edges = []
+    for _ in range(m):
+        u = next(it) - 1
+        v = next(it) - 1
+        cap = next(it)
+        edges.append((u, v, cap))
+
+    if any(d < 0 for _, _, d in commodities) or any(cap < 0 for _, _, cap in edges):
+        print("NO")
+        return
+
+    orders = []
+    base = list(range(k))
+    orders.append(base)
+    orders.append(sorted(base, key=lambda i: -commodities[i][2]))
+    orders.append(sorted(base, key=lambda i: commodities[i][2]))
+    orders.append(list(reversed(base)))
+
+    rng = random.Random(712367821)
+    trials = min(24, max(4, k * 2))
+    for _ in range(trials):
+        order = base[:]
+        rng.shuffle(order)
+        orders.append(order)
+
+    seen = set()
+    answer = None
+
+    for order in orders:
+        key = tuple(order)
+        if key in seen:
+            continue
+        seen.add(key)
+        answer = greedy_solution(n, m, commodities, edges, order)
+        if answer is not None:
+            break
+
+    if answer is None:
+        answer = exact_milp(n, m, commodities, edges)
+
+    if answer is None:
+        print("NO")
+        return
+
+    out = ["YES"]
+    for row in answer:
+        out.append(" ".join(map(str, row)))
+    sys.stdout.write("\n".join(out))
+
+
+if __name__ == "__main__":
+    main()
+```

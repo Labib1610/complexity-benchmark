@@ -1,0 +1,102 @@
+# Problem A — Subspace Basis Selection
+
+Time limit: 5 s
+Memory limit: 256 MB
+
+## Description
+
+You are analyzing a vector space $\mathbb{R}^n$ defined over a standard basis $B = \{b_1, b_2, \dots, b_n\}$. 
+
+You are provided with a specific target set $T$ containing $t$ distinct basis indices. Additionally, there is a pool of $m$ available candidate vectors. Each candidate vector has the form $b_u - b_v$ and incurs a specific computational cost $w$ if selected.
+
+Your objective is to select a subset $C$ from the pool of candidate vectors to form a valid system. 
+
+For any chosen subset $C$, we define its *active index set* $S$ as the union of the target set $T$ and the set of all indices $i$ such that $b_i$ has a non-zero coefficient in at least one vector in $C$.
+
+Your selection $C$ is considered valid if and only if it satisfies all of the following algebraic conditions:
+1. **Dimension Requirement:** The vectors in $C$ must span a subspace of dimension exactly $|S| - 1$.
+2. **Cardinality Requirement:** The number of vectors in $C$ must be exactly $|S| - 1$ (i.e., $|C| = |S| - 1$).
+3. **Non-Target Participation:** For every index $k \in S$ that is not in $T$, the basis vector $b_k$ must have a non-zero coefficient in at least two vectors in $C$.
+
+Your task is to find a valid selection $C$ that minimizes the total sum of the costs of the selected vectors.
+
+## Input
+
+The first line provides three integers **n**, **m**, and **t** (1 ≤ **t** ≤ 10, 1 ≤ **n** ≤ 100, 0 ≤ **m** ≤ **n**·(**n**−1)/2).  
+The second line lists **t** distinct integers representing the indices in the target set $T$.  
+Following this, there are **m** lines. Each line provides three integers **u**, **v**, and **w** (1 ≤ **u**, **v** ≤ **n**, **u** ≠ **v**, 1 ≤ **w** ≤ 1000000), indicating that a candidate vector $b_u - b_v$ is available for a cost of **w**.  
+It is guaranteed that the available vectors provide at least one valid way to satisfy the conditions.
+
+## Output
+
+Output a single integer representing the minimum possible total cost of a valid selection $C$.
+
+## Examples
+
+### Example 1
+
+**Input**
+```
+4 6 3
+1 2 3
+1 4 1
+2 4 1
+3 4 1
+1 2 2
+2 3 2
+1 3 2
+```
+
+**Output**
+```
+3
+```
+
+### Example 2
+
+**Input**
+```
+4 4 3
+1 2 3
+1 2 1
+2 3 1
+1 4 10
+3 4 10
+```
+
+**Output**
+```
+2
+```
+
+### Example 3
+
+**Input**
+```
+3 2 1
+1
+1 2 5
+2 3 5
+```
+
+**Output**
+```
+0
+```
+
+## Note
+
+In Example 1, we can select $C$ consisting of the vectors $b_1 - b_4$, $b_2 - b_4$, and $b_3 - b_4$, which incurs a total cost of 1 + 1 + 1 = 3. 
+- The target set is $T = \{1, 2, 3\}$.
+- The vectors in $C$ involve the basis indices 1, 2, 3, and 4. Thus, the active index set is $S = \{1, 2, 3, 4\}$.
+- **Dimension Requirement:** The 3 vectors in $C$ are linearly independent and thus span a subspace of dimension 3, which equals $|S| - 1$ (4 - 1).
+- **Cardinality Requirement:** The number of vectors in $C$ is 3, which equals $|S| - 1$.
+- **Non-Target Participation:** The only index in $S$ not in $T$ is 4. The basis vector $b_4$ has a non-zero coefficient in all 3 selected vectors, satisfying the requirement of appearing in at least 2.
+This selection is valid and optimal. Selecting vectors only among the target indices would incur a cost of at least 4.
+
+In Example 3, the target set $T = \{1\}$ has only one index. We can select $C$ as an empty set of vectors.
+- The active index set is $S = \{1\} \cup \emptyset = \{1\}$.
+- **Dimension Requirement:** An empty set spans a subspace of dimension 0, which equals $|S| - 1$ (1 - 1).
+- **Cardinality Requirement:** The number of vectors in $C$ is 0, which equals $|S| - 1$.
+- **Non-Target Participation:** There are no indices in $S$ outside of $T$, so this requirement is vacuously satisfied.
+Thus, zero vectors need to be selected, resulting in a cost of 0.

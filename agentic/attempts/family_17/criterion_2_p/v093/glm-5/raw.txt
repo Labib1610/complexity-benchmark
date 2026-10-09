@@ -1,0 +1,615 @@
+This is a bipartite matching problem: q flowers on one side, q moths on the other side, t edges. We need a perfect matching (of size q). q up to 100000, t up to 400000.
+
+We need an efficient bipartite matching algorithm in Python. Hopcroft-Karp is the standard choice. With q up to 1e5 and t up to 4e5, Hopcroft-Karp should run in O(E * sqrt(V)) which is about 4e5 * ~450 ≈ 1.8e8 operations worst case... That might be too slow in pure Python. But Hopcroft-Karp typically converges much faster in practice. Let's think about how to implement it efficiently in Python.
+
+Alternative: Use a Dinic's algorithm implementation with adjacency lists, which for bipartite matching is Hopcroft-Karp equivalent. Or implement Hopcroft-Karp with BFS/DFS using arrays and iterative DFS.
+
+Let me think about the implementation carefully.
+
+Hopcroft-Karp:
+- Left nodes: flowers 1..q
+- Right nodes: moths q+1..2q, mapped to 1..q (b - q)
+- adjacency list for left nodes.
+
+Standard implementation:
+
+```python
+import sys
+from collections import deque
+
+def hopcroft_karp(n, adj):
+    # n = number of left nodes (1-indexed), right nodes also 1..n
+    INF = float('inf')
+    match_l = [0]*(n+1)  # 0 = unmatched (NIL)
+    match_r = [0]*(n+1)
+    dist = [0]*(n+1)
+    
+    def bfs():
+        queue = deque()
+        for u in range(1, n+1):
+            if match_l[u] == 0:
+                dist[u] = 0
+                queue.append(u)
+            else:
+                dist[u] = INF
+        found = False
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                w = match_r[v]
+                if w == 0:
+                    found = True
+                elif dist[w] == INF:
+                    dist[w] = dist[u] + 1
+                    queue.append(w)
+        return found
+    
+    def dfs(u):
+        for v in adj[u]:
+            w = match_r[v]
+            if w == 0 or (dist[w] == dist[u] + 1 and dfs(w)):
+                match_l[u] = v
+                match_r[v] = u
+                return True
+        dist[u] = INF
+        return False
+    
+    matching = 0
+    while bfs():
+        for u in range(1, n+1):
+            if match_l[u] == 0:
+                if dfs(u):
+                    matching += 1
+    return matching, match_l
+```
+
+The recursive DFS could hit recursion limits (paths can be long, up to O(sqrt(V)) phases but path length within a phase can be up to... actually augmenting path length in phase k is at most 2k+1 or so, but DFS explores longer paths too. Actually in Hopcroft-Karp, DFS only follows edges where dist[w] == dist[u]+1, so path lengths are bounded by the BFS layering depth, which is bounded by... hmm, the BFS finds shortest augmenting paths; DFS follows the layered graph, so depth is bounded by the shortest augmenting path length. In phase k, shortest augmenting path length is at least 2k+1... wait no, it increases each phase. The DFS depth is bounded by the length of the shortest augmenting path in that phase, which is at most... well, it can be up to O(V) in the last phases? Actually the number of phases is O(sqrt(E)) or O(sqrt(V)), and path lengths grow. In the worst case, path length could be O(V) = 1e5, which exceeds Python's default recursion limit of 1000. We can set recursion limit higher, but deep recursion in Python risks stack overflow (Python's actual C stack). With 1e5 depth recursion, each frame is small; Python's default C stack might handle it with sys.setrecursionlimit(300000), but it's risky. Better to implement iterative DFS.
+
+Let me write an iterative DFS for Hopcroft-Karp.
+
+Iterative DFS approach: maintain a stack of (u, iterator index into adj[u]). We need to track for each node in the stack the current position in its adjacency list.
+
+```python
+def dfs_iterative(root):
+    # returns True if augmenting path found starting from unmatched left node root
+    stack = [root]
+    it = [0]*(n+1)  # iterator positions, need reset per phase or per dfs
+    ...
+```
+
+Actually, a common trick: use a "ptr" array reset each phase, and a stack of nodes. When we visit a left node u, we try edges from ptr[u] onward. For each edge (u, v):
+- if match_r[v] == 0: found augmenting path — we need to trace back the path. We can maintain a "parent" structure: for each left node u in the stack, record the edge (u, v) used. Actually the path alternates: left u -> right v -> left w=match_r[v] -> ...
+
+Let me think: the stack contains left nodes. When we push left node w (matched partner of v), we can record parent_edge[w] = v (the right node through which we reached w), and also we need to know which left node preceded. Actually the augmenting path is: root = u0, v0, u1=match_r[v0], v1, u2=match_r[v1], ..., vk (unmatched right). To augment, we set match_l[ui] = vi and match_r[vi] = ui for all i along the path.
+
+So if we record for each left node u (except root) the right node v through which it was reached (i.e., v such that match_r[v] == u and we came from some left node), then when we find an unmatched right node vk from left node uk (top of stack), we can walk back: current left node = uk, edge (uk, vk): set match. Then move to the previous left node in the stack... Hmm, but the stack contains the path of left nodes. Actually the stack of left nodes IS the current alternating path's left nodes. So when we find augmenting edge from stack top u_top to unmatched v, we can augment along the stack: for i from top down to bottom: let u = stack[i], v = the right node matched... hmm.
+
+Let me define: stack = [u0, u1, ..., uk] where u0 = root, and ui (i>=1) was pushed because we found edge (u_{i-1}, v_{i-1}) with match_r[v_{i-1}] == ui, and dist[ui] == dist[u_{i-1}]+1. Also we record right_used[i-1] = v_{i-1}.
+
+When at uk we find edge (uk, vk) with match_r[vk] == 0, we augment: for i = k down to 0: match_l[stack[i]] = v_i where v_k = vk and for i<k, v_i = right_used[i]... wait let me recheck: right_used[i] is the right node used to go from stack[i] to stack[i+1]. So the path is u0 -v0- u1 -v1- ... -u_{k-1} -v_{k-1}- uk -vk- (free). Augmenting: match u0 with v0, u1 with v1, ..., u_{k-1} with v_{k-1}, uk with vk. Yes.
+
+So augment: for i in range(k+1): v = vk if i == k else right_used[i]; match_r[v] = stack[i]; match_l[stack[i]] = v. Wait, careful: match_l[u_i] = v_i and match_r[v_i] = u_i. For i from 0 to k: v_i as defined. Yes.
+
+But wait — there's a subtlety: when we pop a left node u from the stack because all its edges failed, we set dist[u] = INF (mark as dead). Also, when we advance ptr[u], we need to persist it so we don't re-examine edges. In Hopcroft-Karp DFS, each left node is visited at most once per phase (since dist gets set to INF when it fails, and nodes on successful paths... hmm, actually in the standard implementation, once a node is part of a successful augmenting path, it becomes matched and won't be visited again in this phase because BFS only enqueues unmatched left nodes at dist 0, and DFS follows dist increments... Actually a node whose dist is finite could be visited again? In standard Hopcroft-Karp, after a successful augment through node w, w is matched to a different partner, but dist[w] remains. Could another DFS path reach w again? In the standard implementation, yes it's possible in theory but the algorithm remains correct because... hmm, actually in the standard implementation, after augmenting, the nodes on the path have their matches changed. A subsequent DFS from another root could reach w via a different right node v' with match_r[v'] == w. Then it would try to re-augment through w. But w's match changed... The standard Hopcroft-Karp handles this: the DFS checks dist[w] == dist[u]+1 and recurses. If the recursion from w succeeds, fine. The correctness is maintained because the layered graph structure ensures vertex-disjoint augmenting paths... Hmm, actually the standard argument is that within a phase, DFS finds a maximal set of vertex-disjoint shortest augmenting paths. The dist values don't change during the phase. When a path is augmented, the matched edges flip. Could a second augmenting path in the same phase reuse a vertex? 
+
+In the classic implementation (e.g., from Wikipedia):
+
+```
+function dfs(u)
+    for each v in Adj[u]
+        if dist[ pair_V[v] ] == dist[u] + 1 and dfs(pair_V[v]) then
+            pair_V[v] = u
+            pair_U[u] = v
+            return true
+    dist[u] = ∞
+    return false
+```
+
+Note: it doesn't check whether v is free in the loop condition — wait, actually the Wikipedia version:
+
+```
+function DFS(u)
+    if u ≠ NIL then
+        for each v in Adj[u]
+            if dist[ pair_V[v] ] == dist[u] + 1 then
+                if DFS( pair_V[v] ) then
+                    pair_V[v] = u
+                    pair_U[u] = v
+                    return true
+        dist[u] = ∞
+        return false
+    return true
+```
+
+Here NIL is 0, and pair_V[v] == NIL means v is free, and DFS(NIL) returns true. So the check "dist[pair_V[v]] == dist[u]+1" with pair_V[v] == NIL works because dist[NIL] is set appropriately in BFS (dist[NIL] = dist of free vertices... in BFS, when we find a free v, we set found = true and dist[NIL] = dist[u]+1 conceptually).
+
+Regarding vertex reuse: after augmenting along a path, the left nodes on the path are matched (they were matched before too, except the root). Hmm, the root was free. Other nodes on the path were matched and remain matched (to different partners). Could a second DFS reach them? For DFS to reach left node w, we need an edge (u, v) with match_r[v] == w and dist[w] == dist[u]+1. After the first augmentation, w's partner changed. If v is a right node with match_r[v] == w (the new partner), then... the new partner v is on the augmenting path. Hmm, in the classic analysis, within a phase, each left node is examined at most once because when DFS(u) fails, dist[u] = ∞ prevents revisits; when DFS(u) succeeds, u is matched and... hmm, but dist[u] stays finite.
+
+Actually, let me think again. The key invariant: in a phase, the DFS finds a maximal set of vertex-disjoint shortest augmenting paths. The claim is that once a node is used in an augmenting path, it can't be used in another one in the same phase. Why? Suppose left node w was on augmenting path P1, matched now to right node v_w (its partner from P1). For another DFS to reach w, it needs edge (u, v) with match_r[v] == w, i.e., v = v_w, and dist[w] == dist[u]+1. But v_w is matched to w now; before the phase, v_w was matched to the previous node w' on P1 (or was free if w was the root... no wait). Hmm, let me re-examine: in path P1: u0 (free) - v0 - u1 - v1 - ... - uk - vk (free). Before augmentation: match_r[v_i] = u_{i+1} for i < k, match_r[v_k] = NIL, match_l[u_0] = NIL, match_l[u_i] = v_{i-1} for i >= 1. After: match_r[v_i] = u_i, match_l[u_i] = v_i.
+
+For a later DFS in the same phase to reach u_i (i >= 1), it needs a right node v with match_r[v] == u_i and dist[u_i] == dist[u]+1 where u is the previous left node. The only right node matched to u_i now is v_i. So it needs edge (u, v_i) with dist[u_i] == dist[u] + 1. Before augmentation, v_i was matched to u_{i+1}, and dist[u_{i+1}] == dist[u_i] + 1 (since P1 followed the layered graph). Now u has dist[u] == dist[u_i] - 1. Is there such a u with an edge to v_i? Possibly! For example, u could be a different left node at the same layer as u_i - 1... wait, dist[u] = dist[u_i] - 1. Hmm, but also, could u = u_{i-1}? u_{i-1} has an edge to v_i? Not necessarily. Hmm.
+
+Wait, but actually there's a subtle point: after augmentation, when a later DFS reaches u_i via v_i and tries to continue from u_i, it would look for edges from u_i to right nodes v with dist[match_r[v]] == dist[u_i]+1. This could find another augmenting path... but that would mean the second path shares vertex u_i with the first, violating vertex-disjointness. But does the classic algorithm prevent this? 
+
+Hmm, I recall that the classic Hopcroft-Karp implementation is correct and finds a maximal set of vertex-disjoint shortest augmenting paths per phase. Let me think about why revisits can't happen.
+
+Claim: after u_i is matched to v_i in phase, for a DFS to reach u_i, we need edge (u, v_i) with dist[u] == dist[u_i] - 1 and the DFS at u chose edge to v_i. But note: in the DFS, when we're at u and consider edge (u, v), we check dist[match_r[v]] == dist[u]+1. For v = v_i, match_r[v_i] = u_i, dist[u_i] == dist[u]+1. So yes, DFS at u could go to v_i and then to u_i. Then from u_i, DFS continues. If it eventually finds a free right node, it augments, and u_i gets rematched. Is this a problem for correctness? The algorithm would still be correct (it's still a valid augmenting path — the path is alternating and augments matching size by 1). The issue is only the complexity guarantee: the O(sqrt(V)) phase bound relies on each phase finding a maximal set of vertex-disjoint shortest augmenting paths.
+
+Hmm wait, but actually can this happen? Let's see: dist[u_i] == dist[u] + 1, and u has an edge to v_i. Before the phase, v_i was matched to u_{i+1} with dist[u_{i+1}] == dist[u_i] + 1. Hmm, that doesn't immediately forbid u.
+
+Hmm, let me think about whether the classic implementation can revisit. Actually, I recall that in the classic implementation, when DFS(u) succeeds, u is now matched to a new partner. For u to be revisited, we need... Let me look at it from the perspective of right nodes: right node v_i is now matched to u_i. For DFS to traverse edge (u, v_i), it needs match_r[v_i] == u_i and dist[u_i] == dist[u]+1. 
+
+Hmm, I found discussions that the standard Hopcroft-Karp implementation is correct and maintains the phase bound. The argument: the DFS in a phase only visits nodes in the layered graph. When an augmenting path is found and applied, all vertices on the path become "used" in the sense that... hmm.
+
+Actually, let me think about it more carefully. I recall the key lemma: in the layered graph (BFS from free left nodes), after augmenting along a shortest path, the matched edges on the path connect (u_i, v_i) pairs where dist[u_i] values... The new matched edge (u_i, v_i): what's the "layer" relationship? u_i is at layer d_i = dist[u_i], and v_i was reached from u_i via a non-matched edge... wait no. In the path, edge (u_i, v_i) is a non-matched edge (before augmentation, u_i was matched to v_{i-1} and v_i was matched to u_{i+1}). After augmentation, (u_i, v_i) becomes matched. In the layered graph, dist[u_{i+1}] = dist[u_i] + 1, and v_i is a right node between them. So the new matched edge (u_i, v_i) goes "backward" in layers: from layer d_i to a right node adjacent to layer d_i + 1... Hmm, right nodes don't have explicit dist in this implementation; they're implicit.
+
+For a later DFS to traverse (u, v_i) → u_i, we need dist[u] = d_i - 1. Then from u_i, DFS continues to right nodes v with dist[match_r[v]] = d_i + 1. Note match_r[v_i] = u_i now, so if DFS at some u' with dist[u'] = d_i - 1 traverses edge to v_i, it reaches u_i. This is possible if such u' exists with an edge to v_i.
+
+Hmm, so it seems possible in principle. But wait — would that break the complexity? Let me think... Actually, I remember now: the standard Hopcroft-Karp does NOT guarantee vertex-disjointness trivially; the correctness of the O(sqrt(E)) bound comes from the fact that each phase at least doubles the shortest augmenting path length. The maximal set of vertex-disjoint shortest paths argument: if after a phase there still exists a shortest augmenting path of the same length, then... The standard proof: Let P be the set of vertex-disjoint shortest augmenting paths found in the phase. If the phase's DFS is not maximal (i.e., there remains a shortest augmenting path P* vertex-disjoint from all used... hmm).
+
+OK here's the thing: I recall that the standard implementation, where failed DFS sets dist[u] = INF and successful DFS leaves dist[u] finite, is the accepted correct implementation of Hopcroft-Karp with the O(sqrt(V)) bound. Let me just trust it — it's the Wikipedia implementation used everywhere. Actually, let me reconsider the revisit question: 
+
+After augmenting path u0-v0-u1-v1-...-uk-vk, consider left node u_i (i≥1). It's now matched to v_i. For a later DFS to reach u_i, it must traverse right node v_i from some left node u with dist[u] = d_i - 1 and edge (u, v_i). Then DFS continues from u_i. For the DFS from u_i to succeed, it must reach a free right node v at "layer" d_k... The path from u_i would be u_i → v → u' → ... → free. All with increasing dist. This would be an augmenting path from... wait, but the overall path starts at a free left root, goes ... → u → v_i → u_i → ... → free right. This is a valid alternating path? Let's check: root is free left. Edges alternate non-matched, matched. Edge (u, v_i): non-matched (v_i matched to u_i ≠ u). Edge (v_i, u_i): matched. Then from u_i, next edge (u_i, v): must be non-matched: v ≠ v_i, and match_r[v] = u' with dist[u'] = d_i + 1... yes alternating. Ends at free right node. So it's a valid augmenting path. The matching increases by 1. Correctness holds.
+
+But does the phase bound hold? The concern: within one phase, could DFS do more than O(E) work? Each DFS visit to left node u either fails (dist[u] = INF, never revisited in this phase) or succeeds (u gets rematched). If u can be revisited after success, then... u could be visited multiple times per phase. Hmm, each successful visit rematches u. Could u be visited many times? Each visit to u scans adj[u] from ptr... in the recursive implementation, there's no ptr; each DFS(u) call scans adj[u] from the beginning. If u is visited k times, that's k * deg(u) work. Hmm.
+
+Wait, but actually, can u be revisited after a successful DFS through it? Let's think: after u_i is rematched to v_i (from the augmentation), for a later DFS to reach u_i, it must go through v_i (its only matched edge). To traverse v_i, some left node u with edge (u, v_i) and dist[u] = d_i - 1 must be at the top of the stack and choose v_i. But hold on — when the first augmenting path went through v_i, it was via edge (u_i, v_i) — wait no! The first path traversed v_i how? Path: ... u_i - v_i - u_{i+1} ... So it traversed edge (u_i, v_i) [non-matched] then matched edge (v_i, u_{i+1}). After augmentation, v_i is matched to u_i.
+
+For a second DFS to reach u_i, it traverses (u, v_i) then (v_i, u_i). Requires edge (u, v_i) with dist[u] = d_i - 1. Note dist[u_i] = d_i. In the first path, dist[u_{i+1}] = d_i + 1 and edge (u_i, v_i) exists. Also edge (u, v_i) exists with dist[u] = d_i - 1.
+
+Hmm, is this possible? Sure, seems possible in some graph. But then the second path through u_i: u_i → v (non-matched, match_r[v] = u'', dist[u''] = d_i + 1) → ... continues. For this to happen, DFS from u_i must find such v. But wait — when the first DFS visited u_i, it scanned adj[u_i] and chose v_i (the first edge leading to success... actually DFS tries edges in order; it chose the edge that led to a successful recursion). After the first augmentation, u_i's match changed from v_{i-1} to v_i. The edges of u_i are unchanged. A second DFS at u_i would rescan adj[u_i] from the beginning. Edges (u_i, v) where match_r[v] = u'' with dist[u''] = d_i + 1: these include v_{i-1}? No wait, match_r[v_{i-1}] was u_i before, but after augmentation match_r[v_{i-1}] = u_{i-1}. Hmm.
+
+OK regardless of the theoretical subtleties, the standard implementation is well-known and widely used, and its complexity is accepted as O(E sqrt(V)). Let me just recall the standard proof: In each phase, the DFS finds a maximal set of vertex-disjoint shortest augmenting paths. The maximality argument: suppose after the phase, there's still a shortest augmenting path P* (of the current shortest length). Since DFS from every free left vertex was attempted, and... hmm, if DFS from the root of P* failed, then some vertex on P* had dist set to INF, meaning that vertex is "blocked". If DFS from the root succeeded, it found some path, and the vertices... 
+
+I think the actual invariant maintained is: within a phase, once a left vertex is visited by DFS (whether success or failure), it is never visited again. For failure, dist = INF ensures this. For success... hmm, why can't it be revisited?
+
+Let me think about the success case more carefully. After the first path is augmented, consider any left node u_i on the path with dist[u_i] = d_i. For a second DFS to reach u_i, it must come via its matched edge, i.e., via right node v_i (new match), from a left node u with edge (u, v_i), dist[u] = d_i - 1. 
+
+Now, in the BFS layered graph, dist values were computed at the start of the phase. dist[u] = d_i - 1 means u is at layer d_i - 1. Edge (u, v_i) exists. Before augmentation, match_r[v_i] = u_{i+1}, dist[u_{i+1}] = d_i + 1. So in the layered graph, edge (u, v_i) → (v_i, u_{i+1}) is a valid layered path segment from layer d_i - 1 to layer d_i + 1. Fine, that's consistent — v_i is adjacent to both u (layer d_i - 1) and u_{i+1} (layer d_i + 1)... wait, but also u_i (layer d_i). Right nodes can be adjacent to many left nodes at various layers.
+
+Hmm OK here's a cleaner way to think: the second DFS reaching u_i via (u, v_i): but wait, when the first DFS was exploring, did it visit u? If DFS visited u and traversed edge (u, v_i), it would have gone to u_{i+1} (the old match of v_i) — and if that subtree failed, dist[u_{i+1}] = INF... but the first path went through u_{i+1} successfully. Hmm, confusing.
+
+Let me just consider: is it actually possible for the standard implementation to visit a left vertex twice in one phase with success both times? I believe the answer is no, and here's the argument: When DFS(u_i) succeeds and u_i is rematched to v_i, consider the right node v_i. For another DFS to reach u_i, it must traverse v_i. But note: after the first augmentation, for the DFS at some u (layer d_i - 1) to traverse edge (u, v_i), it checks dist[match_r[v_i]] == dist[u] + 1, i.e., dist[u_i] == dist[u] + 1. That's satisfiable. Hmm, so the check passes. Then DFS(u_i) is called again. It scans adj[u_i] for v with dist[match_r[v]] == dist[u_i] + 1. 
+
+Hmm wait, but actually — here's a thought — in the first DFS, when DFS(u_i) was called and succeeded via v_i, after return, u_i was rematched. But actually, hold on. Let me re-read the Wikipedia implementation:
+
+```
+function DFS(u)
+    if u ≠ NIL then
+        for each v in Adj[u]:
+            if Dist[ Pair_V[v] ] == Dist[u] + 1:
+                if DFS( Pair_V[v] ) == true:
+                    Pair_V[v] = u
+                    Pair_U[u] = v
+                    return true
+        Dist[u] = ∞
+        return false
+    return true
+```
+
+So when DFS(u_i) succeeds via v_i, the assignment Pair_V[v_i] = u_i happens on the way back up. So after the first path, match_r[v_i] = u_i.
+
+Second DFS reaching u_i: needs u with edge (u, v_i), dist[u] = d_i - 1, and DFS(u) currently exploring. Then DFS(u_i) is called: scans adj[u_i] for v with dist[match_r[v]] == d_i + 1. Note: v_{i-1} now has match_r[v_{i-1}] = u_{i-1} with dist[u_{i-1}] = d_i - 1 ≠ d_i + 1. Other edges... could find some v leading to success. If it succeeds, u_i is rematched again, and the second path is augmented. Both paths are valid augmenting paths (matching size +2 total). The matching remains valid. So correctness is fine.
+
+For complexity: hmm. Each successful DFS(u_i) call scans adj[u_i] but only until it finds a success. The concern is repeated visits. I recall that in Hopcroft-Karp, within a phase, each vertex is on at most one augmenting path in the found set — this is the "vertex-disjoint" property. Let me look for the argument...
+
+Actually, you know what — I recall now. The key insight: in the second DFS reaching u_i via v_i, for DFS(u) to traverse edge (u, v_i), u must be currently on the DFS stack (being explored). And dist[u] = d_i - 1. But here's the thing: when was u visited? If u was visited before the first augmentation and its DFS(u) call is still in progress (on the stack), then... the first augmenting path was found in a different branch. Hmm, DFS is depth-first, so only one path is "active" at a time. The first augmenting path completed (returned true all the way). So DFS(u) with u on the current stack is a different, currently-active exploration.
+
+Scenario: DFS(root2) is exploring, currently at u (layer d_i - 1), tries edge (u, v_i), match_r[v_i] = u_i, dist[u_i] = d_i = dist[u] + 1 ✓. Calls DFS(u_i). u_i scans its edges... For DFS(u_i) to succeed, it needs to reach a free right node through the layered graph. 
+
+Is this scenario actually possible? Let me try to construct a small example... Actually, this is a known subtlety. Let me search my memory: "Hopcroft-Karp implementation vertex disjoint" — I believe the standard implementation does guarantee vertex-disjointness because of this argument: 
+
+Claim: If left vertex w is visited by DFS in a phase and the visit succeeds (w is on an augmented path), then any later DFS attempt to reach w will fail. Why? To reach w, DFS must traverse right node v = match_r[w] (w's current match). Suppose the first path through w was: ... → x → v' → w → v'' → ... where before augmentation match_r[v''] = w'' (next on path) and match_r[v'] = w. After: match_r[v'] = x, match_r[v''] = w. To reach w again, traverse v'' from some y with dist[y] = dist[w] - 1. Then DFS(w) is called. w scans adj[w]: it needs v with dist[match_r[v]] = dist[w] + 1. Hmm, and this could succeed in principle...
+
+Hmm, wait. Let me think about whether it can succeed. If DFS(w) succeeds the second time, we get augmenting path P2: root2 → ... → y → v'' → w → v''' → ... → free. And P1 (first path): root1 → ... → x → v' → w → v'' → w'' → ... → free. Both use w and v''. After P1, v'' is matched to w. P2 traverses y → v'' (non-matched edge, since match_r[v''] = w ≠ y) → w (matched) → ... So P2 is a valid alternating path from free root2 to free right node. Both are valid augmenting paths applied sequentially. Matching validity preserved. 
+
+So the only question is complexity. Known result: the standard implementation of Hopcroft-Karp runs in O(E√V). This is a well-established fact (it's in CLRS as "Hopcroft-Karp algorithm" though CLRS presents it differently). The Wikipedia pseudocode is the standard. Many competitive programmers use it. I'll trust it. Actually hold on, let me reconsider — maybe the revisit can't happen due to the dist layering. Let me try to construct a concrete counterexample or convince myself.
+
+Layers: free left vertices at dist 0. Edge from layer d left vertex to right vertex v; v leads to left vertex match_r[v] which must be at layer d+1 for the edge to be traversable. Free right vertices are at "layer" ∞ conceptually (dist[NIL]).
+
+First path P1: root1 (0) → v0 → u1 (1) → v1 → u2 (2) → ... → uk (k) → vk (free). So dist[u_j] = j.
+
+After P1: match_r[v_j] = u_j for all j, match_r[v_k] = u_k (was free).
+
+Second DFS reaching u_j (j ≥ 1): via right node v_j from left y with edge (y, v_j), dist[y] = j - 1. Then DFS(u_j) scans for v with dist[match_r[v]] = j + 1. Candidates: right nodes v where match_r[v] is at layer j+1. Note v_{j+1} has match_r[v_{j+1}] = u_{j+1}, dist[u_{j+1}] = j + 1 ✓. So if edge (u_j, v_{j+1}) exists — wait, it does! P1 used edge (u_j, v_{j+1})? No wait: P1 is root1 → v0 → u1 → v1 → u2 → ... The edges used: (root1, v0) non-matched, (v0, u1) matched [old match], (u1, v1) non-matched, (v1, u2) matched, ..., (u_j, v_j) non-matched, (v_j, u_{j+1}) matched, ..., (u_k, v_k) non-matched, v_k free.
+
+So edge (u_j, v_j) exists (non-matched edge used by P1), and old match of v_j was u_{j+1}. After P1, match_r[v_j] = u_j.
+
+Second DFS at u_j: scans adj[u_j]. Edge (u_j, v_j): match_r[v_j] = u_j, dist[u_j] = j ≠ j+1, skip. Edge (u_j, v_{j+1}): exists? P1 used edge (u_j, v_j)... wait I need to recount. P1: u_0 = root1. Edges: (u_0, v_0), then matched (v_0, u_1), then (u_1, v_1), matched (v_1, u_2), ..., (u_j, v_j), matched (v_j, u_{j+1}), ..., (u_k, v_k) free. So non-matched edges used: (u_i, v_i) for i = 0..k. Matched edges used: (v_i, u_{i+1}) for i = 0..k-1.
+
+So u_j's edges include v_j (used as non-matched in P1). After P1, match_r[v_j] = u_j. For second DFS at u_j: edge (u_j, v_j) → match_r[v_j] = u_j, dist check fails. Other edges of u_j: any v with match_r[v] at layer j+1. E.g., v_{j+1}: match_r[v_{j+1}] = u_{j+1} (after P1), dist[u_{j+1}] = j+1 ✓ if edge (u_j, v_{j+1}) exists. But wait — did P1 use edge (u_j, v_{j+1})? No, P1 used (u_j, v_j) and (u_{j+1}, v_{j+1}). Hmm, so edge (u_j, v_{j+1}) may or may not exist. If it exists, second DFS at u_j traverses to u_{j+1}, which was also on P1... and this could cascade. If eventually it reaches a free right node, second augmentation succeeds, reusing vertices of P1.
+
+But hold on — for the second DFS to reach u_j in the first place, it needed y with edge (y, v_j), dist[y] = j-1. Hmm, and note dist[y] = j - 1 means y is at layer j-1. But also, y ≠ u_{j-1}? Could be u_{j-1} itself? match_r[v_{j-1}] = u_{j-1} after P1... but edge (u_{j-1}, v_j): if it exists, then second DFS at u_{j-1}... wait, but u_{j-1} would need to be visited by the second DFS too. Hmm, wait — actually here's a thought: after P1, is there even a second free left root? Yes, if there are multiple free left vertices.
+
+Hmm, let me try to actually construct this. Layers: I need free left vertices r1, r2. Shortest augmenting path length: say 3 edges (r → v → u → v_free), i.e., k = 1: P1: r1 → v0 → u1 → v1(free). dist[r1] = 0, dist[u1] = 1. For a second DFS to revisit u1: need y with edge (y, v1), dist[y] = 0, y free (dist 0 = free left... well, dist[y] = 0 means y is a free left vertex, since BFS sets dist 0 only for free left vertices). So y = r2 (another free left vertex) with edge (r2, v1). After P1, match_r[v1] = u1. Second DFS from r2: edge (r2, v1): match_r[v1] = u1, dist[u1] = 1 = dist[r2] + 1 ✓. So DFS(u1) called. u1 scans adj: needs v with match_r[v] at dist 2, or free v. Free v: any free right node → success immediately! So if u1 has another edge to a free right node v2, then P2: r2 → v1 → u1 → v2. Valid! Both P1 and P2 are valid augmenting paths. But wait — P1 was r1 → v0 → u1 → v1, meaning u1's shortest augmenting path... but if u1 also has edge to free v2, then r1 → ... hmm, but then the path r2 → v1 → u1 → v2 has length 3, same as P1. And BFS dist: dist[u1] = 1 means shortest path from a free left vertex to u1 through matched edge... The BFS: r1 (0), r2 (0). r1's edges: v0 (match_r[v0] = u1 → dist[u1] = 1). r2's edges: v1 — at BFS time, match_r[v1] = NIL (free), so found = true, dist[NIL] set... In BFS, when we encounter a free right vertex, we set found = true but don't enqueue anything (dist[NIL] = dist[u]+1 effectively). Also u1's edges: v1 (free at BFS time), v2 (free at BFS time).
+
+So the graph: left: r1, r2, u1 (u1 matched to v0 initially). Right: v0 (matched to u1), v1, v2 (free). Edges: r1-v0, r1-... wait P1 is r1 → v0 → u1 → v1: edge (r1, v0), matched (v0, u1), edge (u1, v1). Also edge (r2, v1), edge (u1, v2).
+
+Initial matching: {(u1, v0)}. Free left: r1, r2. Free right: v1, v2.
+
+BFS: dist[r1] = dist[r2] = 0. Process r1: edges: v0 → match_r[v0] = u1, dist[u1] = 1, enqueue u1. Process r2: edges: v1 → free → found = true. Process u1: edges: v1 → free (found already true), v2 → free. Done. dist[u1] = 1.
+
+DFS phase: for each free left vertex (r1, r2):
+- DFS(r1): adj[r1] = [v0]. match_r[v0] = u1, dist[u1] = 1 = 0+1 ✓. DFS(u1): adj[u1] = [v1, v2]. v1: free → DFS(NIL) = true → match: match_r[v1] = u1, match_l[u1] = v1. Return true. Back in DFS(r1): match_r[v0] = r1, match_l[r1] = v0. P1 done: matching = {(u1, v1), (r1, v0)}.
+- DFS(r2): adj[r2] = [v1]. match_r[v1] = u1, dist[u1] = 1 = 0+1 ✓. DFS(u1): adj[u1] = [v1, v2]. v1: match_r[v1] = u1, dist[u1] = 1 ≠ 2, skip. v2: free → true. match_r[v2] = u1, match_l[u1] = v2. Return true. match_r[v1] = r2, match_l[r2] = v1. P2 done: matching = {(u1, v2), (r1, v0), (r2, v1)}.
+
+So u1 was visited twice in one phase, both successfully! And the final matching is valid (perfect even). So revisits DO happen in the standard implementation. But the result is still correct. The complexity: u1 was visited twice, scanning adj[u1] twice. In the worst case, how many times can a vertex be visited per phase? Each successful visit... hmm. In this example, u1's match changed twice. 
+
+The complexity analysis of Hopcroft-Karp: the standard bound is O(E√V) with the assumption of vertex-disjoint paths per phase. But as shown, revisits happen. Yet the implementation is standard and accepted... Let me think about whether the complexity bound still holds.
+
+Hmm, actually, I recall the correct complexity analysis: In each phase, the total work of DFS is O(E) amortized? No... Each DFS(u) call scans adj[u] up to deg(u) edges (on failure, full scan; on success, partial). If u can be visited multiple times per phase, total work could exceed O(E) per phase. But how many times? Each successful visit to u corresponds to u being on an augmenting path found in this phase. The number of augmenting paths per phase is at most... the number of free left vertices, and each augmenting path has length ≤ current shortest + something? No — paths found in a phase can be longer than the shortest? In the example, both paths had length 3 = shortest. In general, DFS only follows layered edges (dist increments by 1), so all paths found have length exactly = the BFS layer depth... wait, no: DFS follows edges with dist[match_r[v]] == dist[u]+1, so the path through left vertices has strictly increasing dist. The path ends at a free right node. The BFS depth D = max dist over reachable left vertices... The free right node can be found from any layer. Hmm, so paths found in a phase can have various lengths, but all ≤ 2D+1 where D is the BFS depth? Hmm, not exactly — the DFS from a left vertex at layer d can find a free right node adjacent to it directly. So path lengths vary.
+
+The key question for complexity: total DFS work per phase. Worst case: each left vertex visited O(?) times. Hmm. Let me think about the standard proof again. Actually, the standard proof of Hopcroft-Karp O(E√V):
+
+1. After √V phases, the matching is maximal-ish: shortest augmenting path length > √V... The number of phases is O(√V) because after k phases, shortest augmenting path length ≥ k+1 (it increases by at least... hmm, actually it at least doubles? No — it increases by at least 2 each phase? The standard claim: after a phase, the shortest augmenting path length strictly increases... Actually the claim is: the length of shortest augmenting paths found in phase k is at least... Let me recall: "After the first √V phases, the number of remaining augmenting paths needed is at most √V, and each subsequent phase finds at least one (if any exist), so at most √V more phases." Total O(√V) phases.
+
+2. Per phase, work is O(E): BFS is O(E). DFS: "each vertex is visited at most once per phase" — this is the claim I'm doubting. But my example shows u1 visited twice... Let me recheck my example against the claim. Hmm wait, maybe I misremember the implementation. Let me re-read the Wikipedia Hopcroft-Karp pseudocode:
+
+```
+function BFS():
+    for each u in U:
+        if Pair_U[u] == NIL:
+            Dist[u] = 0
+            Enqueue(Q, u)
+        else:
+            Dist[u] = ∞
+    Dist[NIL] = ∞
+    while Q is not empty:
+        u = Dequeue(Q)
+        if Dist[u] < Dist[NIL]:
+            for each v in Adj[u]:
+                if Dist[ Pair_V[v] ] == ∞:
+                    Dist[ Pair_V[v] ] = Dist[u] + 1
+                    Enqueue(Q, Pair_V[v])
+    return Dist[NIL] != ∞
+
+function DFS(u):
+    if u != NIL:
+        for each v in Adj[u]:
+            if Dist[ Pair_V[v] ] == Dist[u] + 1:
+                if DFS( Pair_V[v] ) == true:
+                    Pair_V[v] = u
+                    Pair_U[u] = v
+                    return true
+        Dist[u] = ∞
+        return false
+    return true
+```
+
+Note: `Dist[NIL] = ∞` initially, and when we find a free v (Pair_V[v] == NIL), we set Dist[NIL] = Dist[u]+1 (the first time), and enqueue NIL? "Enqueue(Q, Pair_V[v])" — enqueues NIL! And then when NIL is dequeued, `if Dist[u] < Dist[NIL]` — Dist[NIL] < Dist[NIL] is false, so NIL is skipped. OK so effectively Dist[NIL] = length of shortest augmenting path (in left-vertex count), and BFS stops expanding beyond that depth due to `if Dist[u] < Dist[NIL]`.
+
+Ah, this is important! The condition `if Dist[u] < Dist[NIL]` in BFS limits the layered graph depth to the shortest augmenting path length. So the layered graph only contains left vertices with dist < Dist[NIL], i.e., dist ≤ D where D = Dist[NIL] - 1... wait, left vertices with Dist[u] < Dist[NIL] are expanded. So max useful layer is Dist[NIL] - 1... hmm, and free right vertices are found from left vertices at layer Dist[NIL] - 1. So ALL augmenting paths found in a phase have exactly the same length: 2*Dist[NIL] - 1 edges. 
+
+In my example: BFS: dist[r1] = dist[r2] = 0, dist[u1] = 1, Dist[NIL]: processing r1: v0 → Pair_V[v0] = u1, dist[u1] = 1, enqueue. Processing r2: v1 → Pair_V[v1] = NIL, Dist[NIL] == ∞ → set Dist[NIL] = dist[r2] + 1 = 1, enqueue NIL. Processing u1: dist[u1] = 1 < Dist[NIL] = 1? No, 1 < 1 is false. So u1 is NOT expanded! Processing NIL: Dist[NIL] < Dist[NIL] false. Done. So dist[u1] = 1, Dist[NIL] = 1.
+
+DFS(r1): adj[r1] = [v0]: Pair_V[v0] = u1, dist[u1] = 1 = dist[r1] + 1 = 1 ✓. DFS(u1): adj[u1] = [v1, v2]: v1: Pair_V[v1] = NIL, dist[NIL] = 1 = dist[u1] + 1 = 2? NO! dist[NIL] = 1 ≠ 2. Skip! v2: same, skip. So DFS(u1) fails, dist[u1] = ∞. DFS(r1) fails.
+
+Hmm interesting — so with the Dist[NIL] mechanism, my example doesn't produce double success. The path r1 → v0 → u1 → v1 has length 3 edges = 2*Dist[NIL] - 1 = 1? No: Dist[NIL] = 1 means shortest augmenting path has 1 left-vertex hop... wait. Dist[NIL] = 1 was set from r2 → v1 (free). So the shortest augmenting path is r2 → v1: 1 edge. But r1 → v0 → u1 → v1 is 3 edges. So the shortest augmenting path length is 1 (edge), and the phase only looks for length-1 paths. DFS(r2): adj[r2] = [v1]: Pair_V[v1] = NIL, dist[NIL] = 1 = dist[r2] + 1 = 1 ✓. DFS(NIL) = true. Match r2-v1. 
+
+So the phase finds only the length-1 path. The length-3 path r1 → v0 → u1 → v1 would be found in a later phase. OK so with the Dist[NIL] mechanism, all augmenting paths found in a phase have the same length, and the layered graph is truncated at that depth.
+
+Now, does this prevent revisits? In my example, the revisit scenario needed dist[u1] = 1 and a second path r2 → v1 → u1 → v2 of length 3, but the phase only accepts paths of length 1 (Dist[NIL] = 1), so DFS(u1) requires edges to v with dist[match_r[v]] = 2, but Dist[NIL] = 1 means no left vertex has dist 2 (BFS stopped), and free right vertices have dist[NIL] = 1 ≠ 2. So DFS(u1) fails. Good.
+
+So with the Dist[NIL] truncation, can a left vertex be visited twice successfully in one phase? Let's think: all augmenting paths found have length exactly L = 2*Dist[NIL] - 1 edges, i.e., Dist[NIL] left vertices... path: u_0 (dist 0) → v_0 → u_1 (dist 1) → ... → u_{D-1} (dist D-1) → v_{D-1} (free), where D = Dist[NIL]. All left vertices on any found path have distinct dist values 0, 1, ..., D-1.
+
+First path P1 through u_i (dist i). After P1, match_r[v_i] = u_i. Second DFS reaching u_i: via v_i from y with dist[y] = i - 1, edge (y, v_i). Then DFS(u_i) looks for v with dist[match_r[v]] = i + 1 ≤ D - 1 (needed to eventually reach free right at layer D-1... wait, free right nodes are reachable from left vertices at layer D-1: dist[NIL] = D = dist[u_{D-1}] + 1). So DFS(u_i) needs to continue through layers i+1, ..., D-1 and then a free right node. This is possible in principle if the edges exist. Hmm, so can I construct a counterexample with the truncation?
+
+Let me try: D = 2 (paths of length 3 edges): u_0 (free, dist 0) → v_0 → u_1 (dist 1) → v_1 (free). Need two free left vertices r1, r2, both with length-3 augmenting paths, and a shared structure allowing revisit.
+
+Setup: left vertices: r1, r2 (free), a (matched), b (matched). Right: x1 (matched to a), x2 (matched to b), f1, f2 (free). Edges needed:
+- P1: r1 → x1 → a → f1. So edges (r1, x1), (a, f1). dist[r1] = 0, dist[a] = 1.
+- Revisit of a via x1 from r2: edge (r2, x1). After P1, match_r[x1] = a. DFS(r2) at dist 0: edge (r2, x1) → match_r[x1] = a, dist[a] = 1 = 0+1 ✓ → DFS(a). a scans for v with dist[match_r[v]] = 2 = D... but D = Dist[NIL] = 2, and free right nodes have dist[NIL] = 2 = dist[a]+1 = 2 ✓!! So a needs an edge to a free right node: (a, f2). Then P2: r2 → x1 → a → f2. Length 3 ✓.
+
+So the graph: edges: (r1, x1), (a, f1), (r2, x1), (a, f2). Initial matching: a-x1. Also need b? Not needed. Free left: r1, r2. Free right: f1, f2. Wait, but also need BFS to give dist[a] = 1 and Dist[NIL] = 2. BFS: dist[r1] = dist[r2] = 0. Process r1: edge (r1, x1): match_r[x1] = a, dist[a] = 1, enqueue a. Process r2: edge (r2, x1): match_r[x1] = a, dist[a] already 1. Process a: dist[a] = 1 < Dist[NIL] = ∞ ✓: edges (a, f1): f1 free → Dist[NIL] = 2, enqueue NIL. (a, f2): Dist[NIL] already 2. Process NIL: skip. Done. dist[a] = 1, Dist[NIL] = 2.
+
+Phase DFS: 
+- DFS(r1): adj[r1] = [x1]: match_r[x1] = a, dist[a] = 1 = 0+1 ✓. DFS(a): adj[a] = [f1, f2]: f1: free, dist[NIL] = 2 = dist[a]+1 = 2 ✓. DFS(NIL) = true. Match: match_r[f1] = a, match_l[a] = f1. Return true. Match: match_r[x1] = r1, match_l[r1] = x1. P1: r1-x1, a-f1. Matching size 2.
+- DFS(r2): adj[r2] = [x1]: match_r[x1] = a, dist[a] = 1 = 0+1 ✓. DFS(a): adj[a] = [f1, f2]: f1: match_r[f1] = a, dist[a] = 1 ≠ 2, skip. f2: free, dist[NIL] = 2 = 2 ✓. DFS(NIL) = true. Match: match_r[f2] = a, match_l[a] = f2. Return true. Match: match_r[x1] = r2, match_l[r2] = x1. P2: r2-x1, a-f2. Matching size 3.
+
+Final matching: r1-x1? No wait: after P2, match_r[x1] = r2. So matching: {r2-x1, a-f2, r1-?}. Hmm wait, P1 set match_r[x1] = r1, then P2 set match_r[x1] = r2. And match_l[r1] = x1 still?? Let me recheck: P2's DFS(r2) → edge (r2, x1) → DFS(a) succeeds → match_r[f2] = a, match_l[a] = f2 → back in DFS(r2): match_r[x1] = r2, match_l[r2] = x1. But match_l[r1] = x1 was set in P1 and never cleared! So now match_l[r1] = x1 and match_l[r2] = x1 — INVALID! The matching is corrupted!
+
+Wait, that can't be right. The standard implementation must handle this. Let me recheck... In P2, the path is r2 → x1 → a → f2. Augmenting along this path: the matched edge (x1, a) becomes unmatched... wait no. The path r2 → x1 (non-matched) → a (matched edge x1-a) → f2 (non-matched). Augmenting flips: (r2, x1) becomes matched, (x1, a) becomes UNMATCHED, (a, f2) becomes matched. But the implementation only sets Pair_V[v] = u and Pair_U[u] = v along the DFS return path — it sets match_r[x1] = r2, match_l[r2] = x1, match_r[f2] = a, match_l[a] = f2. But it does NOT clear match_l[r1]... wait, match_l[r1] should be x1 from P1. After P2, match_r[x1] = r2, so the edge (r1, x1) is no longer a matched edge, but match_l[r1] still says x1. That's a corruption — match_l[r1] = x1 but match_r[x1] = r2 ≠ r1. 
+
+Hold on, this would be a bug in the standard implementation, which can't be right. Let me re-examine. Oh wait — I think I see: in P2, the DFS at r2 traverses edge (r2, x1) where match_r[x1] = a. The path continues a → f2. When augmenting, the flip should be: (r2, x1) matched, (a, f2) matched, and (x1, a) unmatched. The implementation sets Pair_V[x1] = r2 (so x1's match is now r2 ✓) and Pair_U[r2] = x1 ✓, Pair_V[f2] = a ✓, Pair_U[a] = f2 ✓. What about Pair_U[r1]? It was x1. Now x1 is matched to r2. So Pair_U[r1] = x1 is stale — r1 has no partner now but Pair_U[r1] says x1. 
+
+Hmm, but wait — is that actually a problem? Pair_U[r1] = x1 but Pair_V[x1] = r2. The matching data structure is inconsistent. In subsequent phases, BFS checks Pair_U[u] == NIL to find free left vertices: r1 would appear matched (Pair_U[r1] = x1 ≠ NIL), so r1 would never be a root again — but r1 IS free (x1 is matched to r2). This would lose r1 permanently, breaking correctness!
+
+So either my scenario is impossible, or the standard implementation has a bug (it doesn't). Let me recheck my scenario very carefully.
+
+Graph: Left: r1, r2, a. Right: x1, f1, f2. Initial matching: a-x1. Edges: (r1, x1), (r2, x1), (a, f1), (a, f2).
+
+Hmm wait, but is the initial state consistent? Matching = {a-x1}. Free left: r1, r2. Free right: f1, f2.
+
+BFS: dist[r1] = 0, dist[r2] = 0, dist[a] = ∞ initially (a is matched). Dist[NIL] = ∞.
+Queue: [r1, r2].
+Process r1: dist[r1] = 0 < ∞. Edges of r1: x1. Pair_V[x1] = a. dist[a] == ∞ → dist[a] = 1, enqueue a.
+Process r2: edges: x1. Pair_V[x1] = a, dist[a] = 1 ≠ ∞, skip.
+Process a: dist[a] = 1 < Dist[NIL] = ∞. Edges of a: f1, f2. Pair_V[f1] = NIL: dist[NIL] == ∞ → dist[NIL] = 2, enqueue NIL. Pair_V[f2] = NIL: dist[NIL] = 2 ≠ ∞, skip.
+Process NIL: dist[NIL] = 2 < dist[NIL] = 2? No. Skip.
+BFS returns true (dist[NIL] = 2 ≠ ∞).
+
+DFS phase: for each u with Pair_U[u] == NIL: r1, r2.
+DFS(r1): adj[r1] = [x1]. Pair_V[x1] = a. dist[a] = 1 == dist[r1] + 1 = 1 ✓. DFS(a): adj[a] = [f1, f2]. f1: Pair_V[f1] = NIL, dist[NIL] = 2 == dist[a] + 1 = 2 ✓. DFS(NIL) → true. So Pair_V[f1] = a, Pair_U[a] = f1. Return true. Back: Pair_V[x1] = r1, Pair_U[r1] = x1. Return true. Matching: {a-f1, r1-x1}. Size 2. ✓ Valid.
+
+DFS(r2): adj[r2] = [x1]. Pair_V[x1] = r1 now! dist[r1] = 0. Check: dist[Pair_V[x1]] == dist[r2] + 1 → dist[r1] = 0 == 1? NO. Skip. No more edges. dist[r2] = ∞. Return false.
+
+AH, I made an error before! After P1, match_r[x1] = r1, NOT a! The path P1 was r1 → x1 → a → f1, which rematches x1 to r1 and a to f1. So x1's match is r1 (dist 0), and DFS(r2) checking edge (r2, x1) finds Pair_V[x1] = r1 with dist[r1] = 0 ≠ 1, so it fails. 
+
+So the revisit of `a` via x1 requires match_r[x1] = a, but after P1, x1 is matched to r1. For the second DFS to reach `a`, it needs a right node currently matched to `a`, which is f1 (after P1). Edge (y, f1) with dist[y] = dist[a] - 1 = 0, y free. So if there's an edge (r3, f1) with r3 free... then DFS(r3): edge (r3, f1): Pair_V[f1] = a, dist[a] = 1 = 0+1 ✓ → DFS(a): adj[a] = [f1, f2]: f1: Pair_V[f1] = a, dist[a] = 1 ≠ 2, skip. f2: free, dist[NIL] = 2 = 2 ✓ → DFS(NIL) true → match: Pair_V[f2] = a, Pair_U[a] = f2. Return true. Back in DFS(r3): Pair_V[f1] = r3, Pair_U[r3] = f1. 
+
+So P2: r3 → f1 → a → f2. After: matching = {r1-x1, r3-f1, a-f2}. Size 3. Valid! And `a` was visited twice, both successfully. But the result is still a valid matching — no corruption! Because the flip is consistent: f1 moves from a to r3, a moves from f1 to f2, f2 becomes matched.
+
+Interesting. So revisits CAN happen (a visited twice), but the matching stays consistent. The corruption I feared doesn't happen because the DFS path flip is always consistent along the actual DFS path.
+
+Wait, but in my earlier analysis I worried about match_l[r1] becoming stale. In the correct scenario, P2's path was r3 → f1 → a → f2, and the flips: (r3, f1) matched, (f1, a) unmatched, (a, f2) matched. Pair_V[f1] = r3 ✓, Pair_U[r3] = f1 ✓, Pair_V[f2] = a ✓, Pair_U[a] = f2 ✓. Pair_U[a] was f1, now f2 — updated ✓. No staleness. The DFS always updates both Pair_U and Pair_V for each consecutive (u, v) on the path. So consistency is maintained. 
+
+So the implementation is correct. Now, complexity: can a left vertex be visited many times per phase? Each successful visit to u means u is on an augmenting path found in this phase. The augmenting paths found in a phase: are they vertex-disjoint? In my example, P1 = r1-x1-a-f1 and P2 = r3-f1-a-f2 share vertices f1 and a! So NOT vertex-disjoint. Hmm. But both are valid augmenting paths of the same length L = 3.
+
+Hmm wait, but P2 as found: r3 → f1 → a → f2. Before P2, matching was {r1-x1, a-f1}. Path r3 → f1 (non-matched) → a (matched) → f2 (non-matched, free). Valid augmenting path ✓. After: {r1-x1, r3-f1, a-f2} ✓.
+
+So within a phase, paths are not necessarily vertex-disjoint. Then the standard complexity proof... Hmm. But wait — the standard proof says the phase finds a "maximal set of vertex-disjoint shortest augmenting paths". If the found paths aren't vertex-disjoint, does the phase bound (shortest augmenting path length increases after each phase) still hold?
+
+Hmm, let me reconsider. After the phase, is the shortest augmenting path length > L? In my example after the phase: matching {r1-x1, r3-f1, a-f2}, free left: none (r1, r2, r3 all matched — wait, r2 failed, so r2 is free!). Let me recount: left vertices r1, r2, r3, a. After phase: r1-x1, r3-f1, a-f2. r2 is free. Right: x1, f1, f2 all matched. So no augmenting path exists at all (no free right vertices). Matching is maximum. Fine.
+
+The phase bound argument: after each phase, the shortest augmenting path length increases by at least... Let me recall the actual lemma: "If a phase finds a maximal set of vertex-disjoint shortest augmenting paths, then after the phase, the shortest augmenting path length is at least L+2." If the found paths aren't vertex-disjoint, hmm.
+
+But actually, maybe I should reconsider: is the set found by the implementation maximal in the vertex-disjoint sense? The standard implementation is used everywhere and claimed O(E√V). Let me look at this from a different angle: maybe the correct claim is about the DFS implementation: within a phase, the DFS explores the layered graph, and each left vertex, once its DFS fails, is dead (dist = ∞). Once its DFS succeeds... it can be revisited as shown. Hmm.
+
+Hmm, wait. Let me reconsider my example. Is it really consistent with the BFS dist values? dist[r1] = dist[r2] = dist[r3] = 0, dist[a] = 1, dist[NIL] = 2. P1: r1 (0) → x1 → a (1) → f1 (free, dist[NIL] = 2 = 1+1 ✓). P2: r3 (0) → f1 → a (1) → f2 (free ✓). Both paths have left-dist sequences (0, 1) ✓. Both length 3 ✓. Yes, consistent.
+
+So the implementation can find non-vertex-disjoint paths in a phase. Does the O(√V) phase bound still hold? Let me think about the standard proof more carefully. The proof (from Hopcroft-Karp's paper and textbooks): 
+
+Lemma: After phase k, the length of the shortest augmenting path is at least k+1... hmm, actually: "Let P1, P2, ... be the sets of vertex-disjoint shortest augmenting paths found in phases 1, 2, .... Then the length of paths in phase k is at least the length in phase k-1 plus 2." The proof relies on vertex-disjointness and maximality.
+
+If the implementation doesn't guarantee vertex-disjointness, the bound might fail... but empirically, the implementation is fast. Hmm, hold on. Let me reconsider whether the DFS can really revisit a successfully-augmented vertex. In my example, `a` was visited twice. Let me double check the second visit is really possible in the algorithm's order:
+
+Phase: for each free left vertex u (in some order, say r1, r2, r3):
+1. DFS(r1): succeeds via x1 → a → f1. Matching: {r1-x1, a-f1}.
+2. DFS(r2): adj[r2] = [x1]. Pair_V[x1] = r1, dist[r1] = 0 ≠ 1. Fail. dist[r2] = ∞.
+3. DFS(r3): adj[r3] = [f1]. Pair_V[f1] = a, dist[a] = 1 = 0+1 ✓. DFS(a): adj[a] = [f1, f2]. f1: Pair_V[f1] = a, dist[a] = 1 ≠ 2. Skip. f2: Pair_V[f2] = NIL, dist[NIL] = 2 = 1+1 ✓. DFS(NIL) = true. Pair_V[f2] = a, Pair_U[a] = f2. Return true. Pair_V[f1] = r3, Pair_U[r3] = f1. Matching: {r1-x1, a-f2, r3-f1}. Size 3.
+
+Yes, `a` visited twice, both successful. The final matching is valid and maximum (size 3; can't do better: 4 left, 3 right... wait, left = {r1, r2, r3, a}, right = {x1, f1, f2}: max matching ≤ 3 ✓).
+
+OK so the implementation is correct (always maintains a valid matching, augmenting one at a time — each DFS success is a genuine augmenting path). The complexity question remains, but honestly, this implementation is THE standard one used in competitive programming for decades, with q up to 1e5 and t up to 4e5 it should be fine in practice. Actually, hmm, wait. Let me reconsider the complexity issue once more, because if the phase bound fails, worst-case could be bad.
+
+Actually, I recall now: there IS a known subtlety, and the standard implementation is still O(E√V). Let me think about why. 
+
+Alternative view: the standard implementation is equivalent to Dinic's algorithm on the unit-capacity bipartite graph. Dinic's on unit-capacity graphs is O(E√V) for bipartite matching (Hopcroft-Karp = Dinic). In Dinic's, within a phase, each vertex... in Dinic's with unit capacities, blocking flow via DFS with current-arc optimization: each vertex's excess... hmm, in the standard Dinic's blocking flow, once a vertex is "saturated" (all its capacity used), it's not revisited. The correspondence: in the Hopcroft-Karp-as-Dinic view, left vertices have... hmm, actually the mapping isn't exact because Hopcroft-Karp's DFS doesn't use current-arc (ptr) optimization in the recursive form — it rescans adj[u] from the start each visit.
+
+Hmm, hmm. Let me look at this from the perspective of: what's the actual worst-case behavior of the standard implementation? I recall reading analyses that the standard implementation is O(E√V). Let me try to reconstruct:
+
+Claim: In a phase, consider the DFS calls. For left vertex u, DFS(u) is called possibly multiple times. Each call either fails (→ dist[u] = ∞, no more calls) or succeeds (u gets rematched). How many successful calls can u have? Each successful call puts u on an augmenting path. Hmm.
+
+Alternative: maybe I should just use a different, provably-efficient approach. Options:
+
+1. Dinic's algorithm on the bipartite graph (source → flowers → moths → sink, unit capacities). Dinic's with unit capacities is O(E√V) provably, and with proper implementation (current-arc, scaling not needed), it's efficient. In the Dinic's blocking flow, the work per phase is O(V + E) amortized due to current-arc: each edge is examined O(1) times per phase... Actually with current-arc in Dinic's: each edge is saturated at most once per phase (unit capacity → after use, it's saturated and skipped), and retreating advances the pointer. Total work per phase: O(E). And phases: O(√V) for unit-capacity bipartite. So Dinic's is provably O(E√V) with current-arc. 
+
+2. Hopcroft-Karp with current-arc (ptr) per phase: similar guarantee? With ptr, each left vertex's adjacency is scanned once per phase total (pointer only advances). But then, if DFS(u) fails partway and later... hmm, with ptr, if DFS(u) is in the middle of scanning and the path through it fails, ptr[u] stays at the failed position, so edges before ptr[u] are never retried. Is that correct? In Dinic's current-arc, the invariant is: edges before ptr[u] are saturated or lead to dead ends (proven dead in this phase). In Hopcroft-Karp, "dead" means the subtree exploration failed. But with the revisit phenomenon (successful vertices being revisited), an edge (u, v) that failed earlier (because match_r[v]'s subtree failed at that time) might succeed later (after rematching changes things)? Hmm, wait: edge (u, v) fails in DFS(u) if DFS(match_r[v]) fails (setting dist[match_r[v]] = ∞) or dist check fails. dist values only change to ∞ (never back). match_r[v] can change though! Edge (u, v): first exploration: match_r[v] = w, dist[w] = dist[u]+1, DFS(w) fails, dist[w] = ∞. Later, w gets... no wait, if dist[w] = ∞, w is never revisited. But match_r[v] could change: v gets rematched to some other w' (if w' has edge (w', v) and... hmm, for v to be rematched, some DFS must traverse edge (x, v) with match_r[v] = w at that time and dist[w] = dist[x]+1 — but dist[w] = ∞ now, so no. OR v is free and gets matched. Hmm, if match_r[v] = w ≠ NIL, v can only be rematched via an augmenting path through it, which requires traversing (x, v) with dist[match_r[v]] = dist[x] + 1, i.e., dist[w] = dist[x]+1, but dist[w] = ∞ → impossible. So once DFS(w) fails (dist[w] = ∞), the edge (u, v) with match_r[v] = w can never be traversed again in this phase. But could match_r[v] change from w to something else? Only via a path through v, which requires the dist check on match_r[v] = w → ∞. So no. Hence: if edge (u, v) is explored and fails, then in this phase, match_r[v] stays w and dist[w] = ∞, so the edge always fails. ✓. So current-arc (ptr) is safe for failed edges.
+
+What about edges (u, v) explored successfully (u matched to v via an augmenting path)? Then match_r[v] = u now. Later, could edge (u', v) be traversed (u' ≠ u)? Requires dist[u] = dist[u'] + 1. Possible (as in my example: edge (r3, f1) traversed after f1 was matched to a... wait, in my example, edge (r3, f1): first exploration was in DFS(r3), and before that, f1 was matched to a via P1 — the edge (r3, f1) was never explored before. Hmm.) Let me think: edge (u, v) explored successfully in DFS(u) → u matched to v. Later DFS(u') explores edge (u', v): check dist[match_r[v]] = dist[u] == dist[u'] + 1. If true, traverse to u, DFS(u) again. So u can be revisited. With ptr: when DFS(u) is re-entered, it continues from ptr[u] (edges after the last explored). Is that OK? The edges before ptr[u]: they either failed (permanently dead, as argued) or succeeded (u matched via them — but u's match changed since... hmm). Wait, if edge (u, v1) succeeded earlier (u matched to v1), and later u is revisited via v (match_r[v] = u now), then in the new DFS(u), edges before ptr[u] include (u, v1). Could (u, v1) lead to success now? match_r[v1] = u currently (u matched to v1)... wait no — u was revisited via edge (u', v) with match_r[v] = u, meaning u's current match is v, not v1. So v1 was rematched in between: some path went through v1, rematching it from u to someone else. Hmm, wait: for u to be revisited via v, we need match_r[v] = u. u's match: after P1 (through v1), match_r[v1] = u. For match_r[v] = u with v ≠ v1, another augmenting path must have rematched u from v1 to v: that path traversed edge (u, v) — wait, or the path went ... → x → v1 → u → v → ... : traversing matched edge (v1, u) then non-matched (u, v), flipping so that u matches v and v1 matches x. In that path, DFS(u) was called (second visit) and it explored edge (u, v) — with ptr, ptr[u] had advanced past v1 (explored in first visit). So (u, v) is after ptr[u]... fine. Then in the third visit (via v'), DFS(u) continues from ptr[u] (now past v). Edges before ptr[u]: (u, v1) [succeeded first time], (u, v) [succeeded second time]. Could (u, v1) succeed now? match_r[v1] = x now (x ≠ u). dist[x] == dist[u] + 1? If yes, traversing (u, v1) → DFS(x)... possible? Hmm. If we skip it due to ptr, do we lose augmenting paths? In Dinic's current-arc, the invariant is that skipped edges are saturated. Here, "saturated" for edge (u, v1) in the matching-flip sense: hmm, the edge (u, v1) isn't saturated — u could potentially rematch v1 again. 
+
+Hmm wait, but actually, hold on. In Dinic's algorithm on the flow network: source → u → v → sink. Edge (u, v) has unit capacity. Once flow is pushed through (u, v), it's saturated. In the matching view, once u is matched to v via an augmenting path, edge (u, v) carries flow. For u to rematch v1 again, the flow on (u, v1) would need to be... it was pushed, then canceled (when v1 got rematched to x — that corresponds to flow cancellation via augmenting in the residual network: the path ... x → v1 → u ... pushes flow on (x, v1) and cancels (u, v1)? No wait: in the residual network, augmenting along x → v1 (forward, since (x, v1) has no flow) then v1 → u is the REVERSE of edge (u, v1) which has flow — so it cancels the flow on (u, v1), and then u → v forward. So in flow terms, edge (u, v1) had flow, then got canceled. In Dinic's with current-arc: after pushing flow on (u, v1), the edge is saturated and ptr[u] moves past it. Later, if u is revisited in the same phase, ptr[u] doesn't go back to (u, v1) — even though it's now un-saturated (flow canceled). Is that a problem in Dinic's? The standard Dinic's current-arc invariant: edges before ptr[u] are saturated OR lead to vertices that are dead (their subtree failed). Hmm, but canceled edges are not saturated...
+
+Hmm wait, in standard Dinic's, can this situation arise? In standard Dinic's blocking flow with unit capacities: vertex u pushes flow to v1 (edge saturated). Later in the same phase, an augmenting path arrives AT u from behind (through the reverse edge (v1, u))... For that, the path uses reverse edge v1 → u, meaning it cancels flow (u, v1), then continues u → v. In Dinic's, when we're at u having arrived via reverse edge, we look at ptr[u] to find an outgoing edge with capacity. ptr[u] is past (u, v1). But (u, v1) now has residual capacity (flow canceled)! Could pushing flow on (u, v1) again be needed? Hmm, in Dinic's, the blocking flow just needs to saturate... the current-arc optimization's correctness: it's known that in Dinic's, once ptr[u] passes an edge, that edge never needs to be reconsidered IN THIS PHASE. The proof: if edge (u, v) was saturated, and later flow on it is canceled by another augmenting path in the same phase, then... hmm, actually I recall that in Dinic's, within a phase, once an edge is saturated it can be "unsaturated" only by a path that... hmm.
+
+OK you know what, I'm going down a rabbit hole. Let me step back and think practically.
+
+Practical considerations: q ≤ 1e5, t ≤ 4e5. This is a bipartite perfect matching existence problem. Standard approach: Hopcroft-Karp. In Python, we need it fast. Known Python solutions for HK with these sizes exist (this problem looks like it's from a specific contest — "2q species, t pairings, flowers and moths" — this is likely a bipartite matching problem where the intended solution is Hopcroft-Karp or even Hungarian-style Kuhn's with heuristics).
+
+Hmm wait, actually, let me reconsider. Kuhn's algorithm (simple augmenting path DFS) is O(V*E) = 1e5 * 4e5 = way too slow in the worst case for Python. Hopcroft-Karp is the way.
+
+For Python performance with HK on 1e5+4e5: the BFS and DFS need to be fast. Using arrays (lists) and avoiding function call overhead. The recursive DFS is problematic (recursion depth up to ~1e5+). Iterative DFS with explicit stack.
+
+Alternatively: implement Dinic's iteratively. Dinic's for bipartite matching = HK. Let me think about which is easier to implement efficiently in Python.
+
+Actually, let me reconsider the problem constraints: q ≤ 100000, t ≤ 400000. Time limit 2s. Python HK implementations with adjacency lists as lists-of-lists typically handle ~1e5 vertices and ~4e5 edges in maybe 3-10 seconds... risky. Need a well-optimized implementation.
+
+Optimization ideas:
+- Store adjacency in flat arrays (CSR format): adj_start[u], adj_list flattened. This avoids list-of-lists overhead.
+- BFS using a list as queue with index pointer.
+- DFS iterative with explicit stack, using ptr array.
+- Use local variable caching inside the main loop.
+
+Alternatively, use PyPy-style optimizations... but we must assume CPython. Hmm.
+
+Wait, maybe there's something special about this problem. "Symbiotic Habitat Allocation" — 2q species, q flowers, q moths, t pairings, find perfect matching. Hmm, is there any structure? The pairings are arbitrary (a in [1,q], b in [q+1,2q]). So it's general bipartite perfect matching. q up to 1e5, t up to 4e5. So average degree 4. With average degree 4, HK should be quite fast: the matching structure is sparse. Hmm, but worst cases exist (e.g., all edges concentrated).
+
+Hmm, wait, actually let me reconsider: is this problem maybe asking for something where a perfect matching always relates to Hall's theorem... no, we just need to find it.
+
+Let me think about the expected difficulty: this seems like a standard "bipartite matching" problem. The time limit 2s suggests C++ with HK or even Kuhn with heuristics. For Python, we need to be clever.
+
+Let me design an optimized HK in Python:
+
+```python
+import sys
+
+def main():
+    input_data = sys.stdin.buffer.read().split()
+    q = int(input_data[0]); t = int(input_data[1])
+    # edges
+    # build CSR adjacency for left nodes 0..q-1 (flowers), right nodes 0..q-1 (moths b-q-1... or b-q)
+    ...
+```
+
+Let me use 0-indexed internally: flowers 0..q-1, moths 0..q-1 (b - q - 1 if b in [q+1, 2q]... b - q - 1 gives 0..q-1 for b in [q+1, 2q]). Or b - q gives 1..q. Let me use 0-indexed: moth = b - q - 1.
+
+CSR: deg array, then prefix sums, then fill flat edge array.
+
+HK implementation details:
+
+- match_l[u] for u in 0..q-1: -1 if unmatched, else moth index.
+- match_r[v] for v in 0..q-1: -1 if unmatched, else flower index.
+- dist[u]: BFS layer.
+- ptr[u]: current-arc pointer into CSR for DFS.
+
+BFS from all free left vertices:
+```
+dist = [-1]*q  (or INF)
+queue = [free left vertices]
+for each u in queue:
+    for v in adj[u]:
+        w = match_r[v]
+        if w == -1: found_free = True (record dist_free = dist[u]+1)
+        elif dist[w] == -1: dist[w] = dist[u]+1; queue.append(w)
+```
+With the Dist[NIL] truncation: we can track `found` and the layer at which a free right vertex was found. To implement truncation: process queue in order; when we first find a free right vertex at layer d_free = dist[u]+1, we can stop expanding left vertices with dist >= d_free. Since BFS processes in non-decreasing dist order, we can just check `if dist[u] < d_free` before expanding... but d_free is discovered during processing. Simplest: process the queue; when found becomes true at layer L, all subsequently processed u with dist[u] >= L are skipped. Since queue is in order of dist, once we find a free vertex at layer L, any u with dist[u] >= L doesn't need expansion (edges from them lead to layers > L, which are beyond the shortest augmenting path). Actually the standard: `if dist[u] < dist[NIL]: expand`. We can implement: after the BFS loop, or during: maintain `nil_dist = INF`; when finding free v from u: nil_dist = min(nil_dist, dist[u]+1). When processing u: if dist[u] >= nil_dist: skip (continue). Since queue is monotonic in dist, this works: we process u only if dist[u] < nil_dist. But nil_dist might be set by a later-processed... no: nil_dist is set when processing some u' with dist[u'] = nil_dist - 1. Any u processed after u' in the queue has dist >= dist[u']. If dist[u] >= nil_dist = dist[u']+1 > dist[u'], skip. Correct.
+
+Hmm, but do we even need the truncation for correctness? Without truncation (my first version), the DFS could find longer paths within the phase, which is still correct (valid augmenting paths) but might affect the phase-count bound. With truncation, we get the classic HK. The truncation also bounds DFS depth. I'll include it.
+
+DFS (iterative) per free left vertex root:
+```
+if not bfs(): break
+for each free left u: 
+    if dfs_iterative(u): matching += 1
+```
+
+Iterative DFS with stack of left vertices, and for each, ptr into adjacency:
+
+```
+def try_augment(root):
+    # stack of left vertices; also need to remember, for each left vertex on stack except root, the right vertex via which we reached it
+    stack = [root]
+    via = [-1]  # via[i] = right vertex through which stack[i] was reached from stack[i-1] (for i>=1); for root, unused
+    while stack:
+        u = stack[-1]
+        if u == -1: ... # hmm, need special handling for free right vertex
+```
+
+Alternative cleaner iterative DFS: I'll simulate the recursion. State: stack contains frames (u, edge index). Actually, let me think of the standard iterative HK DFS used in fast implementations:
+
+```
+def dfs(root):
+    stack = [root]
+    path_v = []  # right vertices chosen... 
+```
+
+Hmm, let me think again with the structure: the DFS path alternates left vertices (on stack) and right vertices (edges chosen). Let me maintain:
+- `lst`: list of left vertices on current path, lst[0] = root.
+- `rv`: list of right vertices chosen, where rv[i] is the right vertex connecting lst[i] to lst[i+1]... wait no. Let me define: at each left vertex lst[i], we are scanning adj[lst[i]] from ptr[lst[i]]. When we pick an edge (lst[i], v):
+  - if match_r[v] == -1 (free): augmenting path found: path is lst[0] -rv[0]- lst[1] -rv[1]- ... - lst[k] -v- (free). Augment: for i in 0..k-1: match_r[rv[i]] = lst[i]; match_l[lst[i]] = rv[i]. And match_r[v] = lst[k]; match_l[lst[k]] = v. Wait, careful: rv[i] connects lst[i] and lst[i+1]: before augmentation, match_r[rv[i]] == lst[i+1]; after, match_r[rv[i]] = lst[i]. And the final edge (lst[k], v): match_r[v] = lst[k]. So: for i in range(k): match_l[lst[i]] = rv[i]; match_r[rv[i]] = lst[i]; then match_l[lst[k]] = v; match_r[v] = lst[k]. Yes.
+  - else w = match_r[v]; if dist[w] == dist[lst[i]] + 1 (and w not dead): push w onto lst, push v onto rv, continue scanning from w.
+  - else advance ptr.
+
+When ptr[lst[i]] exhausts adj[lst[i]]: mark dist[lst[i]] = INF (dead), pop lst (and rv), continue with new top (its ptr continues).
+
+Wait, but there's a subtlety with ptr and the "revisit" phenomenon: if lst[i] was successfully augmented earlier in this phase and is revisited, ptr[lst[i]] continues from where it left off. As discussed, this might skip edges that could now succeed (edges (u, v1) that succeeded before but got canceled). Hmm, is that a correctness issue or just a completeness issue within the phase? It's not a correctness issue (we only augment along genuinely valid paths). It could make the phase's path set not maximal, potentially weakening the phase-count bound. Hmm.
+
+Alternatively, don't use ptr across visits; reset ptr[u] = 0 at the start of each DFS(u) call? Then each DFS(u) call rescans from the start — worst case a vertex with high degree visited many times per phase → O(deg * visits). Hmm.
+
+Hmm, let me think about whether the "revisit after success" can even happen with the Dist[NIL] truncation... In my example above (r1, r2, r3, a), the truncation was in effect (dist[NIL] = 2, and BFS didn't expand beyond layer 1 — well, there was nothing beyond). And revisit happened: `a` visited twice successfully. So yes, it happens with truncation.
+
+With ptr: first visit of `a` (via x1 from r1): scans adj[a] = [f1, f2], picks f1 (free) → success. ptr[a] = 1 (pointing at f2). Second visit of `a` (via f1 from r3): continues from ptr[a] = 1: edge (a, f2): free → success. Works fine here.
+
+Could ptr skip a needed edge? Scenario: first visit of u: edge (u, v1) at position 0 succeeds (u matched to v1). ptr[u] = 1. Later, u is revisited via some edge; u's match is now v (someone rematched u from v1 to v via a path ... x → v1 → u → v ...). Wait — for u to be rematched from v1 to v, a path traversed (u, v) — that path's DFS(u) call explored edge (u, v), so ptr[u] advanced past (u, v) at that point... hmm, wait: in that path, DFS(u) was called (second visit), scanned from ptr[u] = 1, found (u, v) at some position p ≥ 1, succeeded. ptr[u] = p+1. Then third visit via v' (u's match now v... wait, u's match after second visit is v). Third visit: DFS(u) continues from ptr[u] = p+1. Edges before: (u, v1) [pos 0, succeeded visit 1, then canceled], (u, v) [pos p, succeeded visit 2, current match]. Could the third augmenting path need edge (u, v1)? match_r[v1] = x now (from the second path). dist[x] == dist[u]+1? If so, edge (u, v1) is traversable and might lead to success. With ptr, we skip it. Without ptr (rescan), we'd try it. Does skipping break the algorithm's correctness? No — we just might miss some augmenting paths in this phase, making the phase less effective. The algorithm remains correct overall (each phase still finds at least... hmm, does each phase still find at least one augmenting path if one exists? If BFS finds a shortest augmenting path exists (nil_dist finite), does the DFS phase find at least one? Hmm, with ptr skipping, could ALL DFS attempts fail even though an augmenting path exists? 
+
+Let's see: the very first DFS from the first free root: it explores the layered graph with ptr fresh (all ptr = 0 at phase start). Hmm, wait — ptr is reset at the start of each phase. Within a phase, DFS from root1: explores, either succeeds or fails. If it fails, it's because it hit dead ends — and dead ends are permanent (dist = INF). If it succeeds, some path is augmented. Subsequent DFS calls: ptrs are mid-advance. Could a later DFS fail due to ptr skipping, when a valid path exists through a skipped edge? The skipped edges are: (a) edges that failed (permanently dead — argued above: once edge (u,v) exploration fails because DFS(w) failed with w = match_r[v], dist[w] = INF forever in this phase, and match_r[v] can't change... wait, CAN match_r[v] change if dist[w] = INF? For match_r[v] to change from w, an augmenting path must traverse v, requiring dist[match_r[v]] = dist[x]+1 for the traversing left vertex x — dist[w] = INF → no. Also if v is free (match_r[v] = -1) and edge (u, v) was... hmm, if v is free, edge (u, v) leads to immediate success, never "fails". OK so failed edges are permanently dead ✓. (b) edges that succeeded (u matched via them) but later canceled. Edge (u, v1): succeeded (flow pushed), later canceled (u rematched away from v1, v1 rematched to x). Now match_r[v1] = x. For edge (u, v1) to be useful again: need dist[x] == dist[u] + 1 and DFS(x) to succeed. Hmm. Is that possible? x was matched to v1 via a path in this phase: path ... → y → v0 → ... hmm wait, how did v1 get matched to x? Some augmenting path P2: ... → x → v1 → u → v → ... So P2 traversed edge (x, v1) (non-matched at the time: match_r[v1] = u) and matched edge (v1, u), then edge (u, v), etc. For P2 to traverse (x, v1): dist[u] == dist[x] + 1 (u was match_r[v1] at that time). So dist[x] = dist[u] - 1. For edge (u, v1) to be traversable later: need dist[match_r[v1]] = dist[x] == dist[u] + 1. But dist[x] = dist[u] - 1 ≠ dist[u] + 1. So NO — edge (u, v1) can never be traversed again in this phase! 
+
+So the invariant: once ptr[u] passes edge (u, v), that edge is permanently useless in this phase:
+- If it failed: dist[match_r[v]] = INF permanently, and match_r[v] can't change (any traversal of v requires finite dist of its match... wait, hmm: match_r[v] = w with dist[w] = INF. For match_r[v] to change, a path must traverse edge (x, v) for some x, requiring dist[w] = dist[x]+1 — impossible. But ALSO: what if v gets... no, that's the only way. ✓).
+- If it succeeded (u matched to v via it): then either u is still matched to v (edge is "used", match_r[v] = u; traversing (x, v) requires dist[u] = dist[x]+1 — possible! Hmm wait: if u is STILL matched to v, could another DFS traverse edge (x, v) → u? That's the revisit phenomenon: yes! E.g., my example: edge (r3, f1) traversed when match_r[f1] = a. But that edge (r3, f1) hadn't been passed by ptr[r3] before — it was fresh. The question is about edges ALREADY passed by ptr. If ptr[u'] passed edge (u', v) earlier... hmm wait, I need to be careful about WHICH ptr. ptr[u] advancing past edge (u, v) means DFS(u) explored edge (u, v). The concern: later, another DFS(u) (revisit of u) skips edge (u, v) due to ptr[u]. Case: edge (u, v) succeeded in visit 1 (u matched to v). Later u rematched away from v (v now matched to x, dist[x] = dist[u] - 1 as shown). Edge (u, v) traversable again requires dist[match_r[v]] = dist[x] = dist[u]+1 — impossible since dist[x] = dist[u]-1. ✓. Case: edge (u, v) succeeded in visit 1 and u is still matched to v: then a revisit of u comes via edge (u'', v) — wait, no: a revisit of u comes via u's CURRENT match v (the DFS traverses (u'', v) where match_r[v] = u). If u's current match is v (the succeeded edge), the revisit enters u through v, and then DFS(u) continues from ptr[u] (past v). Edge (u, v) itself: traversing it would go to match_r[v] = u — self-loop-ish, dist check dist[u] == dist[u]+1 fails anyway. ✓.
+
+So: with ptr, within a phase, each left vertex's adjacency is scanned at most once total (ptr only advances). Total DFS work per phase: O(E) for scanning + O(path lengths) for stack operations. Each successful augmenting path has length ≤ 2*nil_dist - 1... and the number of augmenting paths per phase ≤ number of free roots... Total per phase: O(E + V). 
+
+But the phase-count bound: does the "shortest augmenting path length increases each phase" still hold with ptr-based DFS that might miss some paths (due to the subtle skipping)? Hmm, we showed skipped edges are permanently useless within the phase, so actually the ptr-based DFS doesn't miss anything that the non-ptr DFS would find! Because the non-ptr DFS would also skip... wait, no: the non-ptr (rescan) DFS would rescan edges like (u, v1) (canceled ones), but we showed they're permanently untraversable (dist check fails). And failed edges: dist check fails. So rescan finds nothing new. Hence ptr-based DFS ≡ non-ptr DFS in terms of paths found. 
+
+So the ptr-based iterative DFS finds exactly the same augmenting paths as the classic recursive one. And the classic one is standard HK. So complexity is the standard HK bound... modulo my earlier concern about vertex-disjointness of paths within a phase (my r1/r2/r3/a example showed non-disjoint paths found in one phase). Does the phase bound hold for the classic implementation? 
+
+Hmm, let me reconsider. The classic HK proof: phase finds a MAXIMAL set of vertex-disjoint shortest augmenting paths. My example found paths P1 = r1-x1-a-f1 and P2 = r3-f1-a-f2, which share f1 and a. So the found set is not vertex-disjoint. But is the set {P1, P2} "maximal" in some sense... The phase bound proof: after the phase, shortest augmenting path length ≥ previous + 2. Hmm, in my example, after the phase, no augmenting path exists, so trivially fine.
+
+Let me think about whether the classic implementation satisfies "after each phase, the shortest augmenting path length increases by ≥ 2" (or at least the O(√V) phase count). 
+
+Alternative known result: the classic implementation is equivalent to Dinic's algorithm on the matching network. Dinic's on unit-capacity networks: O(E√V) for bipartite matching — this is a theorem (Hopcroft-Karp IS Dinic's on the matching network, and the O(√V) phase bound for Dinic's on unit-capacity bipartite graphs is proven). The subtlety: is the classic HK implementation exactly Dinic's with blocking flow? Dinic's blocking flow: finds a flow such that no augmenting path exists in the layered residual graph. The classic HK phase: DFS finds augmenting paths until no more found. Is the result a blocking flow? A blocking flow means: in the layered residual graph (layers from BFS), there's no augmenting path from source to sink. After the HK phase (with ptr or rescan), is there no augmenting path left in the layered graph? 
+
+Hmm: an augmenting path in the layered residual graph corresponds to an alternating path from a free left vertex to a free right vertex with strictly increasing dist layers. After the phase, DFS from every free left vertex was attempted. If DFS(root) failed, it's because all reachable layered paths led to dead ends... but with the ptr/revisit subtleties, could a path exist that DFS missed? We argued skipped edges are permanently untraversable. But what about edges NOT skipped, in vertices never visited? If DFS(root) failed, then the exploration from root covered all layered paths from root... hmm, DFS with ptr: when DFS(root) fails, every edge from root was tried (ptr exhausted) — wait, no: DFS(root) fails when ptr[root] exhausts adj[root]. But if root is revisited... roots are free left vertices; after a successful augmentation, root is matched, so roots aren't revisited as roots. But could root be revisited as an intermediate vertex? Root has dist 0; intermediate vertices on paths have dist ≥ 1 (reached via matched edges from layer dist-1 ≥ 0)... a vertex at dist 0 is a free left vertex; can a free left vertex be an intermediate? Intermediate vertices are reached via matched edges (match_r[v] = u means u is matched), so intermediates are matched vertices, dist ≥ 1 (BFS: dist 0 only for free). So roots are never intermediates ✓. So each root's DFS runs to completion (success or failure with full scan... well, success = partial scan, but then root is matched and done).
+
+Hmm, so after the phase: for the blocking flow property, we need: no augmenting path in the layered graph remains. Suppose one remains: P = u_0 (free, dist 0) → v_0 → u_1 (dist 1) → ... → u_{D-1} (dist D-1) → v_{D-1} (free). DFS(u_0) was called. Case 1: it failed → dist[u_0] = INF... but wait, u_0 is free with dist 0; if DFS(u_0) failed, then all paths from u_0 in the layered graph are dead, contradiction with P existing... unless P uses edges that were skipped by ptr. We argued skipped edges are permanently untraversable — but "untraversable" was argued based on dist/match states. Let me re-verify: P exists in the CURRENT state (after phase augmentations). Edges of P: (u_i, v_i) non-matched with match_r[v_i] = u_{i+1}, dist[u_{i+1}] = dist[u_i]+1; final (u_{D-1}, v_{D-1}) with v_{D-1} free. For DFS(u_0) to have failed while P exists: some edge on P was skipped or some vertex on P was dead. Vertices on P: u_i for i ≥ 1 are matched (match_r[v_{i-1}]... wait, in current state, u_i is matched to v_{i-1}? P: u_0 -v_0- u_1 -v_1- ... : non-matched edges (u_i, v_i), matched edges (v_i, u_{i+1}). So match_r[v_i] = u_{i+1} currently. If dist[u_i] = INF for some i (dead), then... but P requires dist[u_i] = i (finite). Dead vertices have dist = INF, so P doesn't use dead vertices ✓. So all vertices of P are alive, all edges satisfy the dist checks in the current state. For DFS(u_0) to fail: it must be that during DFS(u_0)'s exploration, some edge (u_i, v_i) of P was not traversed — either ptr-skipped or the dist check failed AT THE TIME. Dist checks: dist values only go finite → INF. match_r[v_i] can change over the phase. Hmm: at the time DFS(u_0) explored u_i's edges, edge (u_i, v_i): if match_r[v_i] was some w ≠ u_{i+1} at that time with dist[w] ≠ dist[u_i]+1, the check failed and ptr[u_i] advanced past it. Later, match_r[v_i] changed to u_{i+1} (via some augmentation in this phase). Then edge (u_i, v_i) becomes traversable — but ptr skipped it! 
+
+Wait, but earlier I argued: if edge (u, v) is explored and the check fails (either match_r[v] = w with dist[w] ≠ dist[u]+1, or... hmm), can match_r[v] later change to make the edge traversable? match_r[v] changes only when an augmenting path traverses v. Traversal of v happens via edge (x, v) with dist[match_r[v]] = dist[x]+1 at that time. So match_r[v] can change from w to x if dist[w] = dist[x]+1. Hmm! So edge (u, v) skipped because dist[w] ≠ dist[u]+1 (w = old match), then w... for the edge to become traversable, new match w' = match_r[v] must satisfy dist[w'] = dist[u]+1. w' = x (the traversing vertex) with dist[x] = dist[w] + 1. So need dist[w]+1 = dist[u]+1, i.e., dist[w] = dist[u]. But the check failed means dist[w] ≠ dist[u]+1 — could be dist[w] = dist[u]! So YES: edge (u, v) with match_r[v] = w, dist[w] = dist[u] (check fails, ptr skips), then a path traverses (x, v) with dist[x] = dist[w]+1 = dist[u]+1, rematching v to x. Now edge (u, v): match_r[v] = x, dist[x] = dist[u]+1 ✓ — traversable! But ptr[u] already skipped it. Hmm!! So the ptr-based DFS CAN miss traversable edges?!
+
+Wait, wait. Let me re-derive. Hmm, but hold on: for the DFS at u to even be scanning, u must be on the current DFS path. Let me construct a concrete scenario:
+
+Left vertices: u (dist d), w (dist d), x (dist d+1). Right: v with match_r[v] = w initially. Edges: (u, v), (x, v). Also u is on a DFS path (being explored), and edge (u, v) is scanned: match_r[v] = w, dist[w] = d ≠ d+1 → skip, ptr[u] advances. Later, an augmenting path traverses (x, v): requires dist[match_r[v]] = dist[w] = d == dist[x]+1 = d+1? No! dist[x] = d+1, so need dist[w] = d+2. Contradiction. Hmm wait: traversal of edge (x, v) requires dist[match_r[v]] == dist[x] + 1, i.e., dist[w] == (d+1)+1 = d+2. But dist[w] = d. So the traversal can't happen. Let me redo: for match_r[v] to change from w to x via traversal of (x, v): need dist[w] = dist[x] + 1. Edge (u, v) skipped because dist[w] ≠ dist[u] + 1. For (u, v) to become traversable with new match x: need dist[x] = dist[u] + 1. Combined: dist[w] = dist[x]+1 = dist[u]+2. And the skip condition: dist[w] ≠ dist[u]+1 — satisfied (it's dist[u]+2). So: dist[w] = dist[u]+2, dist[x] = dist[u]+1. Scenario: u at layer d, x at layer d+1, w at layer d+2, match_r[v] = w. Edge (u, v): check dist[w] = d+2 ≠ d+1 → skip. Later, path traverses (x, v): check dist[w] = d+2 == dist[x]+1 = d+2 ✓ → traverses, matches v to x (path continues: ... → x → v → w → ...). After: match_r[v] = x, dist[x] = d+1 = dist[u]+1 ✓ → edge (u, v) now traversable, but ptr[u] skipped it. 
+
+BUT: for this to matter, u must be revisited by DFS later (to retry edge (u, v)) — with ptr, u's revisit continues from ptr[u] (past v). Without ptr (rescan), u's revisit would rescan and find (u, v) traversable now. So ptr and rescan DIFFER! Hmm. But wait — does the revisit of u happen? u is revisited via its current match. Hmm, this is getting complicated. But the key question: does the ptr-based version remain CORRECT (finds a perfect matching iff exists) and EFFICIENT (O(√V) phases)?
+
+Correctness: ptr-based DFS only augments along valid paths; it never corrupts the matching. Each phase, if BFS finds that an augmenting path exists (nil_dist finite), does the ptr-based DFS find at least one? Hmm — the first DFS call: all ptrs are fresh (reset at phase start)... wait, are they? If ptr is reset at phase start, then the first DFS(root1) explores with fresh ptrs. If BFS says an augmenting path exists, then there's a layered path from some free root. DFS(root1): explores root1's subtree... if root1's exploration fails, everything reachable is dead. Then DFS(root2), etc. Eventually some root has a live path (the one BFS found a path from — hmm, BFS found nil_dist finite means SOME free root has a path to a free right vertex). When DFS is called on that root: it explores; does it find a path? With ptr-skips as analyzed... the skips require prior augmentations in this phase that changed match_r. Before the FIRST successful augmentation in the phase, no match_r changes happened (only dist → INF deaths). Deaths: if a vertex is dead, no live path uses it. So the first DFS that has any live path available will find an augmentation? Hmm, roughly: before any augmentation in the phase, the state matches BFS's snapshot except deaths. DFS from a root with a live path: it explores the layered graph; skipped edges are only dead ones (dist check failures due to INF... wait, no: dist check failures can also be due to dist[w] ≠ dist[u]+1 with finite dist[w] — as in the scenario above, but that scenario needed a match_r change to matter, and before the first augmentation, match_r changes don't happen... hmm, but the skip itself: edge (u, v) with match_r[v] = w, dist[w] = dist[u]+2: skipped. Without any augmentation, match_r[v] stays w, so the edge stays untraversable ✓. So before the first augmentation, ptr-skips are all "permanently dead" edges ✓. So the first DFS with a live path finds an augmentation ✓ (standard argument: DFS explores all layered paths from the root, skipping only dead edges/vertices; a live path exists → found). 
+
+After the first augmentation, subsequent DFS calls might miss paths due to the subtle skip scenario. But each phase still finds ≥ 1 augmentation if any exists? Hmm, not necessarily — the subtle scenario could cause a later DFS to miss a path that exists. But that only affects the phase's yield, not correctness. The phase count bound: HK's O(√V) phases relies on "each phase finds a maximal set of vertex-disjoint shortest paths" → "shortest path length grows by ≥ 2 per phase" → hmm, actually the bound is: after √V phases, remaining augmentations ≤ √V, and each phase finds at least one if any exist → total phases ≤ 2√V. The "each phase finds at least one if any exists" — hmm, with the subtle skip, a phase might find fewer than the maximal set, but does it find at least one if the phase's BFS found nil_dist finite? The BFS at the start of the phase finds nil_dist finite iff an augmenting path exists in the CURRENT matching. Then the phase's DFS: the first DFS call with a live path... as argued, before the first augmentation in the phase, no match_r changes; the first DFS(root) — hmm, but the first DFS(root) might be a root with NO live path (fails, kills its subtree), then second root, etc. The first root WITH a live path: its DFS finds an augmentation (since no match_r changes yet, all ptr-skips are genuinely dead edges... wait, ptr-skips within this DFS: as this DFS explores, it doesn't change match_r until it succeeds at the very end. So during a single failing DFS, all skips are dead-edge skips ✓. And a successful DFS: finds a path before any changes ✓). So: each phase with nil_dist finite performs ≥ 1 augmentation ✓. 
+
+Phase count: the concern is whether "shortest augmenting path length increases per phase" holds. If a phase finds a non-maximal set, the shortest path length might not increase, leading to more phases. Worst case: how bad? Hmm. Each phase performs ≥ 1 augmentation (if any exists), and there are ≤ q augmentations total, so ≤ q phases worst case → O(qE) — too slow in theory. But in practice, HK behaves like O(√V) phases. Hmm, but I want worst-case guarantees for a competitive programming problem with adversarial tests...
+
+Hmm, wait. Let me reconsider. Actually, let me revisit the claim "skipped edges are permanently untraversable" for the ptr version, considering the subtle scenario more carefully. The scenario: edge (u, v) skipped when match_r[v] = w, dist[w] = dist[u] + 2. Later, match_r[v] changes to x (dist[x] = dist[u]+1) via a path through (x, v). Now (u, v) is traversable. For the ptr version to miss an augmenting path due to this, we'd need a later DFS to reach u and need edge (u, v). Hmm, but ALSO: in the rescan (classic) version, the later DFS at u would rescan (u, v) and traverse it. So classic HK also has this "resurrection" phenomenon. And classic HK is... hmm, is classic HK provably O(E√V)? It's THE textbook algorithm. Let me just trust the textbook: Hopcroft-Karp as commonly implemented (Wikipedia version) is O(E√V). There must be a proof handling these cases. 
+
+Actually, you know, I recall the proper analysis: HK phases find maximal sets of vertex-disjoint shortest augmenting paths, and the proof of maximality/disjointness uses the dist-structure... but my example showed non-disjoint paths (P1 = r1-x1-a-f1, P2 = r3-f1-a-f2 share f1, a). Hmm wait, let me recheck that example — maybe I made an error. 
+
+Example: left {r1, r2, r3, a}, right {x1, f1, f2}. Initial matching: a–x1. Edges: (r1, x1), (r2, x1), (r3, f1), (a, f1), (a, f2).
+
+BFS: free left: r1, r2, r3 (dist 0). a: matched, dist INF.
+Process r1: edge (r1, x1): match_r[x1] = a → dist[a] = 1, enqueue.
+Process r2: edge (r2, x1): match_r[x1] = a, dist[a] = 1 already.
+Process r3: edge (r3, f1): match_r[f1] = -1 (free) → nil_dist = dist[r3]+1 = 1. Hmm! nil_dist = 1. Enqueue nothing.
+Process a: dist[a] = 1 < nil_dist = 1? No → skip. 
+So nil_dist = 1, dist[a] = 1.
+
+DFS phase:
+- DFS(r1): edge (r1, x1): match_r[x1] = a, dist[a] = 1 = dist[r1]+1 = 1 ✓ → DFS(a): adj[a] = [f1, f2]: f1: free, dist[NIL] = 1 == dist[a]+1 = 2? NO (1 ≠ 2) → skip. f2: same → skip. Fail: dist[a] = INF. Return false. DFS(r1) fails, dist[r1] = INF.
+- DFS(r2): edge (r2, x1): match_r[x1] = a, dist[a] = INF → skip. Fail.
+- DFS(r3): edge (r3, f1): free, dist[NIL] = 1 = dist[r3]+1 = 1 ✓ → success: match r3–f1.
+
+Phase 1 result: matching {a–x1, r3–f1}, size 2. Only ONE augmenting path found (the length-1 one). The length-3 paths (r1-x1-a-f1 etc.) are left for the next phase. 
+
+I previously forgot the edge (r3, f1) — in my earlier example I had r3's edge to f1 but BFS would find nil_dist = 1 via r3, truncating the layered graph so that `a` can't reach free vertices at layer 2. Let me redo the earlier "revisit" example properly:
+
+Earlier example: left {r1, r2, a}, right {x1, f1, f2}, matching {a–x1}, edges (r1, x1), (r2, x1), (a, f1), (a, f2). 
+
+BFS: free left r1, r2 (dist 0). Process r1: (r1, x1) → match_r[x1] = a → dist[a] = 1, enqueue. Process r2: (r2, x1) → a already dist 1. Process a: dist[a] = 1 < nil_dist = INF ✓: edges (a, f1): f1 free → nil_dist = 2. (a, f2): nil_dist already 2. Done. nil_dist = 2, dist[a] = 1.
+
+DFS:
+- DFS(r1): (r1, x1): match_r[x1] = a, dist[a] = 1 = 0+1 ✓ → DFS(a): (a, f1): free, dist[NIL] = 2 = 1+1 ✓ → success. Augment: a–f1, r1–x1. Matching: {a–f1, r1–x1}.
+- DFS(r2): (r2, x1): match_r[x1] = r1, dist[r1] = 0 ≠ 0+1 → skip. Fail.
+
+Phase 1: matching size 2. Free left: r2. Free right: f2. Next BFS: r2: (r2, x1): match_r[x1] = r1, dist[r1] = 1, enqueue. Process r1: dist[r1] = 1 < INF: edges of r1: (r1, x1): match_r[x1] = r1... wait match_r[x1] = r1, dist[r1] = 1 already set. Hmm, r1's edges: only (r1, x1). match_r[x1] = r1, dist[r1] already 1. No new. nil_dist stays INF → BFS returns false. Done. Final matching size 2. But maximum matching: r1–x1... can we do 3? Left {r1, r2, a}, right {x1, f1, f2}: r1–x1, a–f1, r2–? r2 only connects to x1 (taken). So max = 2 ✓. OK.
+
+So in this example, no revisit happened. My earlier "revisit" example (with r3) was flawed because I forgot BFS truncation. Let me recheck: with r3 and edge (r3, f1): BFS finds nil_dist = 1 via r3 (before processing a), so dist[a] = 1 but a is not expanded (1 < 1 false), and DFS(a) requires edges to v with dist[match_r[v]] = 2 — free vertices have dist[NIL] = 1 ≠ 2 → fail. So the revisit of `a` via (r3, f1) → hmm wait, DFS(r3) succeeds directly via f1 (free). Then DFS(r1): (r1, x1) → match_r[x1] = a, dist[a] = 1 = 0+1 ✓ → DFS(a): (a, f1): match_r[f1] = r3 now, dist[r3] = 0 ≠ 2 → skip. (a, f2): free, dist[NIL] = 1 ≠ 2 → skip. Fail. So no revisit-with-success. 
+
+Interesting! So maybe with the nil_dist truncation, successful revisits are impossible? Let me reconsider. The truncation ensures: all augmenting paths found in the phase have length exactly 2*nil_dist - 1, and the layered graph has depth nil_dist (left vertices at layers 0..nil_dist-1 are expandable; free right vertices are adjacent to layer nil_dist-1).
+
+Hmm, let me reconsider the revisit scenario with truncation. Revisit of u (dist d) via its current match v (match_r[v] = u) from y (dist d-1) with edge (y, v). For u's first visit: u was on path P1: ... → p (dist d-1) → v' → u (dist d) → v'' → ... where at first-visit time, match_r[v'] = u (u's old match) — wait, no: u is reached via its matched edge: the DFS traverses edge (p, v') where match_r[v'] = u. So u's old match is v'. After P1: match_r[v''] = u (u's new match is v'', the edge u explored). For revisit: y with edge (y, v''), dist[y] = d-1, match_r[v''] = u, dist[u] = d = dist[y]+1 ✓. So DFS(u) called again. u scans from ptr[u] (or from start): needs edge (u, z) with dist[match_r[z]] = d+1 or z free (dist[NIL] = nil_dist = d+1 → requires d = nil_dist - 1). 
+
+For the revisit to succeed, u must reach a free right vertex: either u is at layer nil_dist - 1 and has an edge to a free right vertex, or continue deeper. Possible in principle. Let me try to construct: nil_dist = 2 (paths of 3 edges). Left: r1, r2 (free), u (dist 1, matched). Right: m (matched to u), f1, f2 (free). Edges: (r1, m) [r1 reaches u via matched edge m–u], (u, f1) [P1: r1–m–u–f1], (r2, f1)?? wait, revisit needs y = r2 with edge (r2, f1) — but f1 free means BFS would find nil_dist = 1 via r2! Truncation: nil_dist = 1, and then P1 (length 3) wouldn't be found in this phase. Hmm! Right: for u (dist 1) to be revisited via its new match f1 from y (dist 0), y must have an edge to f1 — but f1 was free at BFS time... wait, no: at BFS time, f1's match: BFS happens before the phase. At BFS time, matching = {u–m}. f1, f2 free. y = r2 with edge (r2, f1): BFS: process r2: (r2, f1): free → nil_dist = 1. Then u at dist 1 is not expanded (1 < 1 false)... wait, was u even given dist 1? Process r1: (r1, m): match_r[m] = u → dist[u] = 1, enqueue. Process r2: (r2, f1): free → nil_dist = 1. Process u: dist[u] = 1 < nil_dist = 1? False → skip. So layered graph: r1, r2 (0), u (1), nil_dist = 1. DFS: r1: (r1, m): match_r[m] = u, dist[u] = 1 = 0+1 ✓ → DFS(u): needs z with dist[match_r[z]] = 2 or free z with dist[NIL] = 1 = 1+1? 1 ≠ 2 → free z fails! So DFS(u) fails. r2: (r2, f1): free, dist[NIL] = 1 = 0+1 ✓ → success: r2–f1. So the phase finds only r2–f1. The path r1–m–u–f1 (length 3) is not found this phase (nil_dist = 1). Next phase: matching {u–m, r2–f1}. BFS: free left r1. Process r1: (r1, m): match_r[m] = u → dist[u] = 1. Process u: (u, f1): match_r[f1] = r2 → dist[r2] = 2. (u, f2): free → nil_dist = 2. Process r2: dist[r2] = 2 < nil_dist = 2? No → skip. nil_dist = 2. DFS(r1): (r1, m): match_r[m] = u, dist[u] = 1 ✓ → DFS(u): (u, f1): match_r[f1] = r2, dist[r2] = 2 = 1+1 ✓ → DFS(r2): adj[r2] = [f1]: match_r[f1] = r2, dist[r2] = 2 ≠ 3 → skip. Fail, dist[r2] = INF. Back in DFS(u): next edge (u, f2): free, dist[NIL] = 2 = 1+1 ✓ → success. Augment: u–f2, r1–m... wait: path r1 → m → u → f2: flips: r1–m matched, m–u unmatched, u–f2 matched. Matching: {r1–m, r2–f1, u–f2} size 3 ✓.
+
+OK so in that attempt, the revisit didn't happen because BFS truncation prevented it. Let me think about whether revisit-after-success is possible AT ALL with truncation...
+
+For u (dist d ≥ 1) to be revisited, we need y (dist d-1) with edge (y, v'') where v'' = u's match after P1, and dist[u] = d. At BFS time, v'' was matched to u's successor on P1 (some w with dist[w] = d+1) — because P1 traversed (u, v'') as a non-matched edge with match_r[v''] = w, dist[w] = d+1 ≤ nil_dist - 1 (since P1 continues to layer nil_dist - 1... wait, P1: u at layer d, then w at layer d+1, ..., up to layer nil_dist - 1, then free right. So d+1 ≤ nil_dist - 1, i.e., d ≤ nil_dist - 2.
+
+Now y (dist d-1) with edge (y, v''): at BFS time, match_r[v''] = w, dist[w] = d+1. BFS processes y at layer d-1: edge (y, v''): match_r[v''] = w, dist[w] would be set to (d-1)+1 = d if not already set. But dist[w] = d+1 already? BFS processes layers in order: y at layer d-1 processed before... hmm, w got dist d+1 from u (layer d) — u processed at layer d, after y (layer d-1). So when y is processed (layer d-1), edge (y, v''): match_r[v''] = w, dist[w] not yet set (w gets d+1 later from u) → BFS sets dist[w] = d and enqueues w!! Then later u processed (layer d): edge (u, v''): match_r[v''] = w, dist[w] = d already set — hmm, so w's dist = d, not d+1! Then P1 couldn't traverse (u, v'') (needs dist[w] = d+1). Contradiction!
+
+Wait, unless dist[w] was set to d+1 even earlier by another vertex at layer d... BFS sets dist[w] the FIRST time it's reached. If y (layer d-1) has edge (y, v'') with match_r[v''] = w, then w gets dist ≤ d. For P1 to traverse (u, v'') with dist[u] = d, need dist[w] = d+1 > d. Contradiction! So: if y (dist d-1) has an edge to v'' (whose BFS-time match is w with dist[w] = d+1), then BFS would have set dist[w] = d, not d+1. Hence the revisit scenario is IMPOSSIBLE?! 
+
+Let me double check with the general revisit requirement: revisit of u (dist d) after P1 requires y with edge (y, v'') where v'' is u's post-P1 match, dist[y] = d-1, and the dist check dist[u] = dist[y]+1 = d ✓ (always true). The question is whether DFS(y) traverses edge (y, v''): check dist[match_r[v'']] = dist[u] = d == dist[y]+1 = d ✓ — the check passes NOW (post-P1, match_r[v''] = u). But at BFS time, match_r[v''] = w (P1's successor). For the check to pass now, we need... it does pass now. But the BFS-time analysis: y (layer d-1) has edge (y, v''), match_r[v''] = w → BFS sets dist[w] ≤ d. But P1 needs dist[w] = d+1. CONTRADICTION. Unless... w = u? No, w is P1's successor, distinct from u. Unless dist[w] was set to d+1 BEFORE y is processed? BFS processes vertices in layer order: all layer d-1 vertices are processed before layer d vertices (queue is FIFO, layers enqueued in order). y is at layer d-1, processed before any layer-d vertex. When y is processed, edges (y, z) with match_r[z] = w: if dist[w] unset, set to d. Could dist[w] be set before y is processed? Only by a layer ≤ d-2 vertex... wait, dist[w] = d+1 requires being set from a layer-d vertex. Layer-d vertices are processed after y. So when y is processed, dist[w] is either unset (→ set to d) or set to something ≤ d-1... hmm, could be set by an earlier layer-d-1 vertex to d. Either way, dist[w] ≤ d < d+1. So P1 can't traverse (u, v'') requiring dist[w] = d+1. CONTRADICTION. 
+
+Wait, but hold on — this argument shows: if y (layer d-1) has an edge to v'' (u's post-P1 match), then P1 couldn't have used (u, v''). But the revisit needs exactly that. Hmm, but wait — I need to double check the direction: the revisit enters u via v'' — the DFS at y traverses edge (y, v'') and goes to match_r[v''] = u. For P1, u traversed edge (u, v'') to reach w = match_r[v''] (pre-P1). So v'' is a right vertex adjacent to both u and y. Pre-P1 match of v'': w. The BFS argument: y at layer d-1, edge (y, v''): BFS sets dist[w] ≤ d (if y processed before w's dist is set). But P1 requires dist[w] = d+1. For dist[w] = d+1 to hold, w's dist must be set from a layer-d vertex BEFORE y's processing sets it... but y (layer d-1) is processed before ALL layer-d vertices (FIFO). Hmm, wait: is that right? BFS queue: vertices enqueued in layer order? Yes: layer 0 vertices enqueued first, then layer 1 (discovered by layer 0), etc. FIFO processing → all layer k vertices processed before layer k+1... hmm, actually all layer-k vertices are enqueued before any layer-(k+1) vertex (since layer k+1 vertices are discovered only during layer-k processing). So processing order: all layer 0, then all layer 1, etc. So y (layer d-1) processed before u (layer d). When y is processed: edge (y, v''): match_r[v''] = w: if dist[w] unset → dist[w] = d. Could dist[w] have been set before y's processing? By layers < d-1... wait, dist[w] = d+1 needs a layer-d processor. Layers ≤ d-2 processors: they'd set dist[w] ≤ d-1. Layer d-1 processors (including y): set dist[w] = d. So before/during layer d-1 processing, dist[w] ≤ d. u (layer d) processed later: edge (u, v''): match_r[v''] = w, dist[w] ≤ d already set → u does NOT set dist[w] = d+1, and more importantly, P1's DFS at u checks dist[match_r[v'']] = dist[w] ≤ d ≠ d+1 → edge (u, v'') NOT traversable by P1. So P1 can't use edge (u, v''). But P1 DID use it (v'' is u's post-P1 match). CONTRADICTION → revisit impossible!!
+
+Hmm wait, but this argument seems to prove that successful revisits are impossible with the truncation... but wait, I should double-check the case where the revisit enters u via u's OLD match v' (pre-P1 match) rather than the new one. Post-P1, u's match is v''. To enter u, DFS traverses (y, z) with match_r[z] = u → z = v''. So yes, only via v''. And the argument shows: any y with an edge to v'' has dist[y] ≥ d... wait, let me redo: the argument shows that if y has an edge to v'' and dist[y] = d-1, then P1 can't traverse (u, v''). But actually the argument shows something stronger: any left vertex y with edge (y, v'') where match_r[v''] = w (pre-P1): BFS sets dist[w] from the earliest such y. For P1 to traverse (u, v''), need dist[w] = dist[u]+1 = d+1, meaning NO vertex y' with dist[y'] ≤ d has an edge to v''. In particular, no layer-(d-1) vertex has an edge to v''. But the revisit needs exactly a layer-(d-1) vertex with an edge to v''. Contradiction ✓.
+
+Hmm, but wait: the revisit DFS at y checks dist[match_r[v'']] = dist[u] = d = dist[y]+1 ✓ — the check passes POST-P1 (match changed from w to u). But BFS-time, y's edge to v'' would have set dist[w] = d, breaking P1. So such y cannot exist if P1 happened. But hold on — what if dist[w] was ALREADY set to d+1 before y was processed? I argued layer-d vertices are processed after layer-(d-1) vertices. But what if w got dist d+1 not from u but from another layer-d vertex u₂ processed... no, ALL layer-d vertices are processed after ALL layer-(d-1) vertices. So no. What if y is not at layer d-1? The dist check for the revisit: dist[match_r[v'']] = dist[u] = d must equal dist[y]+1 → dist[y] = d-1 exactly. ✓.
+
+Hmm, so this proves: with BFS truncation... wait, did I even use truncation? Let me see: the argument used: (1) BFS layer ordering (FIFO), (2) P1 traverses (u, v'') requiring dist[w] = dist[u]+1 where w = pre-P1 match of v''. Truncation wasn't directly used... but truncation matters for the "free right vertex" case: if v'' was FREE at BFS time (P1's last edge (u, v'') with v'' free), then post-P1 match_r[v''] = u, and revisit via y with edge (y, v''): check dist[u] = d = dist[y]+1 → dist[y] = d-1. BFS-time: y (layer d-1) processed, edge (y, v''): v'' free → nil_dist = min(nil_dist, d). But P1 requires v'' free at BFS with nil_dist... P1 traverses (u, v'') as the FINAL edge to a free vertex: requires dist[NIL] = dist[u]+1 = d+1 → nil_dist = d+1. But y's edge to free v'' sets nil_dist ≤ d < d+1. Contradiction ✓ (this uses truncation: nil_dist = d means the phase only finds length-(2d-1) paths, and P1 (length 2(d+1)-1) can't be found... wait, hmm, actually P1's DFS check for the final edge: dist[NIL] == dist[u]+1. If nil_dist = d < d+1, the check fails, so P1 can't end at v''. ✓).
+
+So: with the standard implementation (BFS with nil_dist truncation, DFS with dist checks), successful revisits are IMPOSSIBLE. Each left vertex is visited at most once per phase (failed visits kill it; successful visits can't be revisited). Wait, but what about the earlier example where I thought revisit happened? That was without truncation (my first version). With truncation, it doesn't. 
+
+Hmm wait, but I should double-check the "failed then revisited" case: if DFS(u) fails, dist[u] = INF → any later traversal attempt checks dist[u] == dist[y]+1 → INF ≠ finite → fail. So no revisit after failure ✓.
+
+And "visited successfully as intermediate, then... " — proven impossible to revisit. And "visited successfully as ROOT": root is free; after success, root is matched; roots aren't revisited (each free root gets exactly one DFS call per phase). ✓.
+
+GREAT. So the standard HK implementation (with truncation) visits each left vertex at most once per phase, giving O(E) per phase, and the classic theory gives O(√V) phases. 
+
+Hmm, wait, one more check on the "impossible to revisit" proof: I assumed the revisit enters u via u's matched edge (y, v'') → match_r[v''] = u. But could the DFS at y traverse edge (y, v'') when match_r[v''] = u — yes that's the only way to "enter" u. ✓. And I showed such y can't exist when v'' is u's post-P1 match... wait, I showed: if y (dist d-1) has edge to v'', then P1 can't traverse (u, v''). But P1 DID traverse (u, v'') (that's how v'' became u's match). So no such y exists. But hmm — what if u's post-P1 match v'' came not from P1's own traversal but... no: augmenting along P1 sets match_r[v''] = u exactly for the edge (u, v'') that P1 traversed. ✓.
+
+Also, subtle: what if u is on TWO paths P1 and P2 in the same phase (the thing I'm trying to rule out)? The proof: for P2 to enter u, P2 needs y with edge (y, v'') where v'' = u's match after P1, dist[y] = d-1. Proof says such y can't exist. But wait — the proof used BFS-time state: "match_r[v''] = w (pre-P1) with dist[w] = d+1, and y (layer d-1) with edge (y, v'') would have set dist[w] = d at BFS time". Hmm, but what if v'''s pre-P1 match w... the BFS sets dist[w] the first time w is reached. y is at layer d-1, processed before u (layer d). If y has edge (y, v''), then during y's processing, dist[w] gets set to d (if unset). Then when u is processed, edge (u, v''): match_r[v''] = w, dist[w] = d — but hold on, u's DFS check is dist[match_r[v'']] == dist[u]+1: dist[w] = d ≠ d+1 → P1 can't traverse (u, v''). ✓. But WAIT: what if dist[w] was set to d+1 by u's BFS processing... no, u is processed after y, and dist[w] would already be d. What if w is reached first from u... no, y first. Hmm, what if y's edge (y, v'') is processed but dist[w] was ALREADY set to d+1 by some other layer-d vertex processed BEFORE y? Impossible: all layer-d vertices are processed after all layer-(d-1) vertices. ✓. What if dist[w] was set by a layer-(d-1) vertex y' processed before y: dist[w] = d. Same conclusion. ✓.
+
+Wait, actually hmm, one more: what if w = y?? I.e., v'''s pre-P1 match is y itself (dist d-1)? Then P1 traverses (u, v'') with match_r[v''] = y, requiring dist[y] = d+1. But dist[y] = d-1. Contradiction, so no. ✓. What if v'' is adjacent to y where y is at layer d-1, and v'''s pre-P1 match w has dist[w] = d+1 — the BFS: when y processed, edge (y, v''): match_r[v''] = w: dist[w] unset → set dist[w] = d. But we need dist[w] = d+1 for P1. Contradiction ✓. 
+
+Hmm, but hold on, what if dist[w] was set to d+1 BEFORE y was processed — I keep saying it's impossible because layer d is processed after layer d-1. But actually, wait: could dist[w] = d+1 be set during layer-d processing, and y is at layer d-1... y is processed BEFORE layer-d vertices. When y is processed, if dist[w] is unset, it gets set to d. So dist[w] ≠ d+1 ever... unless y's edge (y, v'') — hmm, what if match_r[v''] ≠ w at y's processing time? match_r doesn't change during BFS. ✓.
+
+OK so I'm now fairly confident: the standard HK with truncation visits each left vertex ≤ once per phase. This is the classic result. (My

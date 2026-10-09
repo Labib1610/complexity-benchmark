@@ -1,0 +1,122 @@
+import sys
+sys.setrecursionlimit(1000000)
+
+def solve():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    # For each variable x_i, we have two nodes: 2*i (DORMANT) and 2*i+1 (ACTIVE)
+    # For literal k: if k > 0, node is 2*k+1 (ACTIVE); if k < 0, node is 2*(-k) (DORMANT)
+    
+    # Build implication graph for 2-SAT
+    # Each variable x_i has two nodes: 2*i (DORMANT=0) and 2*i+1 (ACTIVE=1)
+    
+    adj = [[] for _ in range(2 * (n + 1))]
+    adj_rev = [[] for _ in range(2 * (n + 1))]
+    
+    idx = 2
+    for i in range(m):
+        l1 = int(data[idx])
+        l2 = int(data[idx + 1])
+        idx += 2
+        
+        # Convert literals to node indices
+        # l1 OR l2 is equivalent to NOT(l1) -> l2 and NOT(l2) -> l1
+        if l1 > 0:
+            node_l1_false = 2 * l1      # x_{l1} is DORMANT
+            node_l1_true = 2 * l1 + 1    # x_{l1} is ACTIVE
+        else:
+            node_l1_false = 2 * (-l1) + 1  # x_{-l1} is ACTIVE (i.e., NOT(x_{-l1}) is DORMANT)
+            node_l1_true = 2 * (-l1)       # x_{-l1} is DORMANT (i.e., NOT(x_{-l1}) is ACTIVE)
+            
+        if l2 > 0:
+            node_l2_false = 2 * l2      # x_{l2} is DORMANT
+            node_l2_true = 2 * l2 + 1    # x_{l2} is ACTIVE
+        else:
+            node_l2_false = 2 * (-l2) + 1  # x_{-l2} is ACTIVE
+            node_l2_true = 2 * (-l2)       # x_{-l2} is DORMANT
+            
+        # Add implications: NOT(l1) -> l2 and NOT(l2) -> l1
+        adj[node_l1_false].append(node_l2_true)
+        adj[node_l2_false].append(node_l1_true)
+        
+        adj_rev[node_l2_true].append(node_l1_false)
+        adj_rev[node_l1_true].append(node_l2_false)
+    
+    # Kosaraju's algorithm for SCC
+    visited = [False] * (2 * (n + 1))
+    order = []
+    
+    def dfs1(u):
+        visited[u] = True
+        for v in adj[u]:
+            if not visited[v]:
+                dfs1(v)
+        order.append(u)
+    
+    for i in range(2 * (n + 1)):
+        if not visited[i]:
+            dfs1(i)
+    
+    visited = [False] * (2 * (n + 1))
+    components = [-1] * (2 * (n + 1))
+    component_id = 0
+    
+    def dfs2(u):
+        visited[u] = True
+        components[u] = component_id
+        for v in adj_rev[u]:
+            if not visited[v]:
+                dfs2(v)
+    
+    while order:
+        u = order.pop()
+        if not visited[u]:
+            dfs2(u)
+            component_id += 1
+    
+    # Check if satisfiable
+    for i in range(1, n + 1):
+        if components[2 * i] == components[2 * i + 1]:
+            print("NO")
+            return
+    
+    # Extract solution
+    assignment = [0] * (n + 1)
+    # Process components in reverse topological order
+    comp_order = list(range(component_id))
+    comp_to_vars = [[] for _ in range(component_id)]
+    
+    for i in range(2 * (n + 1)):
+        if i == 0:
+            continue
+        comp_to_vars[components[i]].append(i)
+    
+    assigned = [False] * (n + 1)
+    
+    for cid in sorted(range(component_id), key=lambda x: -max(components.index(c) for c in range(2*(n+1)) if components[c] == x) if any(components[c] == x for c in range(2*(n+1))) else -1):
+        for node in range(2 * (n + 1)):
+            if components[node] == cid:
+                if node == 0:
+                    continue
+                var = (node // 2)
+                if var == 0:
+                    continue
+                if not assigned[var]:
+                    if node % 2 == 0:  # DORMANT
+                        assignment[var] = 0
+                    else:  # ACTIVE
+                        assignment[var] = 1
+                    assigned[var] = True
+    
+    print("YES")
+    result = []
+    for i in range(1, n + 1):
+        result.append(str(assignment[i]))
+    print(' '.join(result))
+
+solve()

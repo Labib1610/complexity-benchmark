@@ -1,0 +1,265 @@
+Looking at this problem, I need to understand the relay constraint:
+
+- If config adopts opposite of mode 1, then config must adopt mode 2
+- If config adopts opposite of mode 2, then config must adopt mode 1
+
+Let me denote mode `l` being adopted as variable `x_l = true`. The opposite of mode `l` is `¬l` (flip sign).
+
+The constraint says: if `¬l1` is adopted, then `l2` must be adopted. That is: `x_{¬l1} → x_{l2}`.
+
+Note that `x_{¬l1}` means "feed line |l1| has the opposite mode of l1", which is equivalent to "NOT x_{l1}".
+
+So the constraint is: `¬x_{l1} → x_{l2}`, which is equivalent to `x_{l1} ∨ x_{l2}`.
+
+Similarly the symmetric part: `¬x_{l2} → x_{l1}`, also `x_{l1} ∨ x_{l2}`.
+
+So each relay enforces: `x_{l1} ∨ x_{l2}` (at least one of the two monitored modes must be adopted).
+
+This is a 2-SAT problem. Each clause is `(l1 ∨ l2)`.
+
+For 2-SAT, I'll use the implication graph: clause `(a ∨ b)` gives implications `¬a → b` and `¬b → a`.
+
+Let me encode: variable `i` (1-indexed), value `true` = ENERGIZED. A literal `l` where `l > 0` means `x_l = true`, `l < 0` means `x_{|l|} = false`.
+
+The negation of literal `l` is `-l`.
+
+For clause `(l1 ∨ l2)`: add edges `-l1 → l2` and `-l2 → l1`.
+
+Then find SCCs and check satisfiability.
+
+```python
+import sys
+from sys import setrecursionlimit
+
+def solve():
+    input_data = sys.stdin.buffer.read().split()
+    idx = 0
+    n = int(input_data[idx]); idx += 1
+    m = int(input_data[idx]); idx += 1
+    
+    # Literal encoding: l > 0 means var l is true; l < 0 means var |l| is false
+    # Node for literal l: 2*(|l|-1) + (0 if l>0 else 1) ... let's use l>0 -> 2*l-2, l<0 -> 2*(-l)-1
+    # Actually simpler: map literal l to node id
+    # For var i (1..n): literal +i -> 2*i, literal -i -> 2*i+1 (using 0-based or 1-based)
+    # Let's use: literal l -> if l>0: 2*(l-1), if l<0: 2*(-l-1)+1
+    # Negation: flip last bit
+    
+    size = 2 * n
+    adj = [[] for _ in range(size)]
+    radj = [[] for _ in range(size)]
+    
+    def node(l):
+        if l > 0:
+            return 2 * (l - 1)
+        else:
+            return 2 * (-l - 1) + 1
+    
+    for _ in range(m):
+        l1 = int(input_data[idx]); idx += 1
+        l2 = int(input_data[idx]); idx += 1
+        # clause (l1 or l2): -l1 -> l2, -l2 -> l1
+        u = node(-l1)
+        v = node(l2)
+        adj[u].append(v)
+        radj[v].append(u)
+        u = node(-l2)
+        v = node(l1)
+        adj[u].append(v)
+        radj[v].append(u)
+    
+    # Kosaraju's SCC
+    visited = [False] * size
+    order = []
+    
+    sys.setrecursionlimit(1 << 25)
+    
+    # Iterative DFS to avoid recursion limit issues
+    for start in range(size):
+        if visited[start]:
+            continue
+        stack = [(start, 0)]
+        visited[start] = True
+        while stack:
+            v, i = stack[-1]
+            if i < len(adj[v]):
+                w = adj[v][i]
+                stack[-1] = (v, i + 1)
+                if not visited[w]:
+                    visited[w] = True
+                    stack.append((w, 0))
+            else:
+                stack.pop()
+                order.append(v)
+    
+    visited2 = [False] * size
+    comp = [-1] * size
+    
+    for start in reversed(order):
+        if visited2[start]:
+            continue
+        stack = [start]
+        visited2[start] = True
+        c = []
+        while stack:
+            v = stack.pop()
+            c.append(v)
+            for w in radj[v]:
+                if not visited2[w]:
+                    visited2[w] = True
+                    stack.append(w)
+        cid = comp[c[0]]
+        if cid == -1:
+            cid = len(c)  # just a marker, we'll reassign
+        for v in c:
+            comp[v] = start  # use start as component id
+    
+    # Reassign component ids properly
+    comp_id = {}
+    cid_counter = 0
+    comp2 = [0] * size
+    for v in range(size):
+        if comp[v] not in comp_id:
+            comp_id[comp[v]] = cid_counter
+            cid_counter += 1
+        comp2[v] = comp_id[comp[v]]
+    
+    # Check satisfiability: for each var i, literal +i and -i must be in different SCCs
+    # and comp(+i) > comp(-i) means +i is true (since we process in reverse topological order)
+    # Actually in Kosaraju, order of SCC assignment: first assigned SCC is last in topological order
+    # comp2[v] smaller = later in topological order... let me think.
+    # In Kosaraju, SCCs are found in reverse topological order. So first found = last topo.
+    # comp2 values: first found has smallest id. So smaller comp2 = later in topo order.
+    # For 2-SAT, we set literal true if its SCC comes later in topo order (smaller comp2 id).
+    
+    assignment = [0] * (n + 1)
+    for i in range(1, n + 1):
+        pos = node(i)       # literal +i
+        neg = node(-i)      # literal -i
+        if comp2[pos] == comp2[neg]:
+            print("NO")
+            return
+        # +i is true if comp2[pos] < comp2[neg] (pos in later topo order)
+        if comp2[pos] < comp2[neg]:
+            assignment[i] = 1
+        else:
+            assignment[i] = 0
+    
+    print("YES")
+    print(" ".join(str(assignment[i]) for i in range(1, n + 1)))
+
+solve()
+```
+
+Wait, I need to double check the topological order direction. In Kosaraju's algorithm:
+- First pass: DFS on original graph, record finish order
+- Second pass: process vertices in reverse finish order on transpose graph
+- SCCs are found in reverse topological order (of the condensation DAG)
+
+So the first SCC found (smallest comp2 id) is a sink in the condensation, i.e., last in topological order.
+
+For 2-SAT, a literal is set to true if its SCC comes later in topological order. Later in topo = smaller comp2 id.
+
+So `+i` is true iff `comp2[pos] < comp2[neg]`. That's what I have. Let me verify with example 1:
+
+Clauses: (1 ∨ 2), (-1 ∨ -2)
+- (1 ∨ 2): -1→2, -2→1
+- (-1 ∨ -2): 1→-2, 2→-1
+
+Nodes: +1=0, -1=1, +2=2, -2=3
+Edges: 1→2, 3→0, 0→3, 2→1
+
+So we have: 0→3, 1→2, 2→1, 3→0
+SCCs: {0,3} and {1,2}
+
+comp2[0]=comp2[3], comp2[1]=comp2[2]
+For var 1: pos=0, neg=1. If comp2[0] < comp2[1], then +1 true.
+For var 2: pos=2, neg=3. If comp2[2] < comp2[3], then +2 true.
+
+Since {0,3} and {1,2} are separate, one has smaller id. If {0,3} has smaller id: +1=true, +2=false → assignment 1,0. That matches expected output!
+
+The code looks correct. Let me clean it up.
+
+```python
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    idx = 0
+    n = int(data[idx]); idx += 1
+    m = int(data[idx]); idx += 1
+    
+    size = 2 * n
+    adj = [[] for _ in range(size)]
+    radj = [[] for _ in range(size)]
+    
+    def node(l):
+        if l > 0:
+            return 2 * (l - 1)
+        else:
+            return 2 * (-l - 1) + 1
+    
+    for _ in range(m):
+        l1 = int(data[idx]); idx += 1
+        l2 = int(data[idx]); idx += 1
+        u = node(-l1); v = node(l2)
+        adj[u].append(v); radj[v].append(u)
+        u = node(-l2); v = node(l1)
+        adj[u].append(v); radj[v].append(u)
+    
+    visited = [False] * size
+    order = []
+    
+    for start in range(size):
+        if visited[start]:
+            continue
+        stack = [(start, 0)]
+        visited[start] = True
+        while stack:
+            v, i = stack[-1]
+            if i < len(adj[v]):
+                w = adj[v][i]
+                stack[-1] = (v, i + 1)
+                if not visited[w]:
+                    visited[w] = True
+                    stack.append((w, 0))
+            else:
+                stack.pop()
+                order.append(v)
+    
+    visited2 = [False] * size
+    comp = [0] * size
+    cid = 0
+    
+    for start in reversed(order):
+        if visited2[start]:
+            continue
+        stack = [start]
+        visited2[start] = True
+        while stack:
+            v = stack.pop()
+            comp[v] = cid
+            for w in radj[v]:
+                if not visited2[w]:
+                    visited2[w] = True
+                    stack.append(w)
+        cid += 1
+    
+    assignment = [0] * (n + 1)
+    for i in range(1, n + 1):
+        pos = node(i)
+        neg = node(-i)
+        if comp[pos] == comp[neg]:
+            print("NO")
+            return
+        if comp[pos] < comp[neg]:
+            assignment[i] = 1
+        else:
+            assignment[i] = 0
+    
+    print("YES")
+    print(" ".join(str(assignment[i]) for i in range(1, n + 1)))
+
+solve()
+```
+
+This should be correct and efficient enough for the constraints.

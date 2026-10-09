@@ -1,0 +1,165 @@
+We can reformulate the condition.
+
+For a monitor with channels \(c_1, c_2\), the received signals are \(v_1\) and \(v_2\).  
+Let \(p_i = 1\) if \(s_i=0\), else \(p_i=-1\).
+
+If \(c > 0\), \(v = p_{|c|}\); if \(c < 0\), \(v = -p_{|c|}\).
+
+Define \(x_i = p_i \in \{-1, 1\}\).  
+So \(v_j = \text{sign}(c_j) \cdot x_{|c_j|}\) where \(\text{sign}(c_j) = 1\) for positive, \(-1\) for negative.
+
+We need \(v_1+v_2+v_1v_2 \le 0\).
+
+Let’s analyze possible values:
+
+Since \(v_1, v_2 \in \{-1, 1\}\):
+
+- If \((v_1,v_2)=(1,1)\): \(R=1+1+1=3 >0\) → bad.
+- If \((1,-1)\): \(R=1-1-1=-1\) → ok.
+- If \((-1,1)\): same → ok.
+- If \((-1,-1)\): \(R=-1-1+1=-1\) → ok.
+
+So the only forbidden combination is when both \(v_1=1\) and \(v_2=1\).  
+
+Thus forbidden condition:  
+\(\text{sign}(c_1)x_{|c_1|} = 1\) and \(\text{sign}(c_2)x_{|c_2|} = 1\).
+
+That is:
+
+- If \(c_1>0\), then \(x_{c_1} = 1\) forbidden.
+- If \(c_1<0\), then \(-x_{|c_1|} = 1 \Rightarrow x_{|c_1|} = -1\) forbidden.
+
+Same for \(c_2\).
+
+We must avoid both being true simultaneously.
+
+Let’s define two possible “literal” values: for each emitter \(i\), \(x_i\) can be  
+- \(x_i=1\) → state 0  
+- \(x_i=-1\) → state 1.
+
+So assign Boolean variable: \(X_i = \text{True}\) means \(x_i=1\).
+
+The forbidden rule:  
+If \(c_1>0\), requirement: \(X_{c_1} = \text{False}\) to avoid \(v_1=1\).  
+If \(c_1<0\), requirement: \(X_{|c_1|} = \text{True}\) to avoid \(v_1=1\).  
+
+Same for \(c_2\).
+
+We need: NOT(condition1 AND condition2).  
+That means: condition1 and condition2 cannot both be true.  
+This is a 2-SAT clause: \((\neg A \lor \neg B)\) where  
+\(A\) = "first channel gives +1" and \(B\) = "second channel gives +1".
+
+Specifically:
+
+- If \(c_1>0\): \(A\) = \(X_{c_1}\).  
+- If \(c_1<0\): \(A\) = \(\neg X_{|c_1|}\).
+
+Similarly for \(B\).
+
+Thus clause: \((\neg A \lor \neg B)\) exactly.
+
+We have \(m\) such clauses, each is 2-CNF.  
+
+We can solve with implication graph and SCC.
+
+We'll map \(X_i\) to variable index \(i\) (0-based) and \(\neg X_i\) to \(i+n\).
+
+Implement 2-SAT with Tarjan or Kosaraju. Return assignment.
+
+Let's code it.```python
+import sys
+sys.setrecursionlimit(1_000_000)
+
+def solve():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+
+    # 2-SAT: variables 0..n-1 => X_i (x_i=1)
+    # negation: i+n => not X_i
+    N = 2 * n
+    g = [[] for _ in range(N)]
+    gr = [[] for _ in range(N)]
+
+    for _ in range(m):
+        c1 = int(next(it))
+        c2 = int(next(it))
+
+        # For first channel
+        if c1 > 0:
+            # A = X_{c1}
+            A = c1 - 1
+            notA = A + n
+        else:
+            # A = not X_{|c1|}
+            notA = (-c1) - 1
+            A = notA + n
+
+        # For second channel
+        if c2 > 0:
+            B = c2 - 1
+            notB = B + n
+        else:
+            notB = (-c2) - 1
+            B = notB + n
+
+        # Clause: not A or not B
+        # implication: A -> not B, B -> not A
+        g[A].append(notB)
+        gr[notB].append(A)
+
+        g[B].append(notA)
+        gr[notA].append(B)
+
+    # Kosaraju SCC
+    visited = [False] * N
+    order = []
+
+    def dfs1(u):
+        visited[u] = True
+        for v in g[u]:
+            if not visited[v]:
+                dfs1(v)
+        order.append(u)
+
+    for i in range(N):
+        if not visited[i]:
+            dfs1(i)
+
+    comp = [-1] * N
+    def dfs2(u, cid):
+        comp[u] = cid
+        for v in gr[u]:
+            if comp[v] == -1:
+                dfs2(v, cid)
+
+    cid = 0
+    for u in reversed(order):
+        if comp[u] == -1:
+            dfs2(u, cid)
+            cid += 1
+
+    for i in range(n):
+        if comp[i] == comp[i + n]:
+            print("NO")
+            return
+
+    # Build assignment
+    assignment = [False] * n
+    for i in range(n):
+        # If comp[i] > comp[i+n], X_i is true; else false
+        assignment[i] = comp[i] > comp[i + n]
+
+    # assignment[i] = True => x_i=1 => s_i=0
+    # assignment[i] = False => x_i=-1 => s_i=1
+    res = ['0' if assignment[i] else '1' for i in range(n)]
+    print("YES")
+    print(' '.join(res))
+
+if __name__ == "__main__":
+    solve()
+```

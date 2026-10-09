@@ -1,0 +1,254 @@
+import sys
+
+sys.setrecursionlimit(1_000_000)
+
+
+def solve_component(vertices, global_adj):
+    vertices.sort(key=lambda v: global_adj[v].bit_count(), reverse=True)
+    k = len(vertices)
+    full = (1 << k) - 1
+    index = {v: i for i, v in enumerate(vertices)}
+
+    adj = [0] * k
+    for i, v in enumerate(vertices):
+        mask = global_adj[v]
+        local = 0
+        while mask:
+            bit = mask & -mask
+            mask ^= bit
+            w = bit.bit_length() - 1
+            j = index.get(w)
+            if j is not None:
+                local |= 1 << j
+        adj[i] = local
+
+    def bipartite(rem):
+        left = 0
+        right = 0
+        unseen = rem
+        todo = 0
+
+        while unseen:
+            if not todo:
+                seed = unseen & -unseen
+                unseen ^= seed
+                left |= seed
+                todo |= seed
+
+            bit = todo & -todo
+            todo ^= bit
+            v = bit.bit_length() - 1
+            neighbors = adj[v] & rem
+
+            if left & bit:
+                if neighbors & left:
+                    return None
+                new = neighbors & unseen
+                unseen ^= new
+                right |= new
+                todo |= new
+            else:
+                if neighbors & right:
+                    return None
+                new = neighbors & unseen
+                unseen ^= new
+                left |= new
+                todo |= new
+
+        return left, right
+
+    bi = bipartite(full)
+    if bi is not None:
+        return 0, bi[0], bi[1]
+
+    # Bounded DSATUR search, which quickly handles most instances.
+    degree = [x.bit_count() for x in adj]
+    dsatur_answer = None
+    nodes = 0
+    aborted = False
+    node_limit = 50000
+
+    def dsatur(uncolored, c0, c1, c2, used):
+        nonlocal dsatur_answer, nodes, aborted
+
+        if aborted:
+            return False
+        nodes += 1
+        if nodes > node_limit:
+            aborted = True
+            return False
+        if uncolored == 0:
+            dsatur_answer = (c0, c1, c2)
+            return True
+
+        chosen = -1
+        best_key = (-1, -1, -1)
+        scan = uncolored
+        while scan:
+            bit = scan & -scan
+            scan ^= bit
+            v = bit.bit_length() - 1
+            av = adj[v]
+            saturation = (
+                int(bool(av & c0))
+                + int(bool(av & c1))
+                + int(bool(av & c2))
+            )
+            key = (saturation, (av & uncolored).bit_count(), degree[v])
+            if key > best_key:
+                best_key = key
+                chosen = v
+
+        bit = 1 << chosen
+        rest = uncolored ^ bit
+        limit = min(3, used + 1)
+        colors = (c0, c1, c2)
+
+        for color in range(limit):
+            if adj[chosen] & colors[color]:
+                continue
+            if color == 0:
+                found = dsatur(rest, c0 | bit, c1, c2, max(used, 1))
+            elif color == 1:
+                found = dsatur(rest, c0, c1 | bit, c2, max(used, 2))
+            else:
+                found = dsatur(rest, c0, c1, c2 | bit, 3)
+            if found:
+                return True
+            if aborted:
+                return False
+        return False
+
+    if dsatur(full, 0, 0, 0, 0):
+        return dsatur_answer
+    if not aborted:
+        return None
+
+    # Enumerate maximal independent sets as maximal cliques in the complement.
+    # If the graph is 3-colorable, a largest color class can be extended to a
+    # maximal independent set, and the remaining graph stays bipartite.
+    complement = [full ^ (1 << i) ^ adj[i] for i in range(k)]
+    minimum_size = (k + 2) // 3
+    answer = None
+
+    def bron_kerbosch(r_mask, r_size, p_mask, x_mask):
+        nonlocal answer
+        if answer is not None:
+            return
+        if r_size + p_mask.bit_count() < minimum_size:
+            return
+
+        if p_mask == 0:
+            if x_mask == 0 and r_size >= minimum_size:
+                remainder = full ^ r_mask
+                parts = bipartite(remainder)
+                if parts is not None:
+                    answer = (r_mask, parts[0], parts[1])
+            return
+
+        union = p_mask | x_mask
+        pivot = -1
+        best_count = -1
+        scan = union
+        while scan:
+            bit = scan & -scan
+            scan ^= bit
+            u = bit.bit_length() - 1
+            count = (p_mask & complement[u]).bit_count()
+            if count > best_count:
+                best_count = count
+                pivot = u
+
+        candidates = p_mask if pivot < 0 else p_mask & ~complement[pivot]
+
+        while candidates:
+            bit = candidates & -candidates
+            candidates ^= bit
+            v = bit.bit_length() - 1
+
+            bron_kerbosch(
+                r_mask | bit,
+                r_size + 1,
+                p_mask & complement[v],
+                x_mask & complement[v],
+            )
+            if answer is not None:
+                return
+
+            p_mask ^= bit
+            x_mask |= bit
+
+    bron_kerbosch(0, 0, full, 0)
+    return answer
+
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+
+    n, m = data[0], data[1]
+    adj = [0] * n
+    invalid = False
+    pos = 2
+
+    for _ in range(m):
+        u = data[pos] - 1
+        v = data[pos + 1] - 1
+        pos += 2
+        if u == v:
+            invalid = True
+        else:
+            adj[u] |= 1 << v
+            adj[v] |= 1 << u
+
+    if invalid:
+        print("NO")
+        return
+
+    phases = [0] * n
+    unseen = (1 << n) - 1
+
+    while unseen:
+        seed = unseen & -unseen
+        unseen ^= seed
+        component_mask = seed
+        frontier = seed
+
+        while frontier:
+            bit = frontier & -frontier
+            frontier ^= bit
+            v = bit.bit_length() - 1
+            new = adj[v] & unseen
+            unseen ^= new
+            frontier |= new
+            component_mask |= new
+
+        vertices = []
+        scan = component_mask
+        while scan:
+            bit = scan & -scan
+            scan ^= bit
+            vertices.append(bit.bit_length() - 1)
+
+        result = solve_component(vertices, adj)
+        if result is None:
+            print("NO")
+            return
+
+        color1, color2, color3 = result
+        for i, v in enumerate(vertices):
+            bit = 1 << i
+            if color1 & bit:
+                phases[v] = 1
+            elif color2 & bit:
+                phases[v] = 2
+            else:
+                phases[v] = 3
+
+    print("YES")
+    print(*phases)
+
+
+if __name__ == "__main__":
+    main()

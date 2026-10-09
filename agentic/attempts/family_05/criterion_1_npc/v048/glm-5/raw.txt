@@ -1,0 +1,220 @@
+Looking at this problem, we need to find k configurations such that each chassis, core, and payload is used exactly once. This is a 3-dimensional matching problem.
+
+With k ≤ 22, I'll use a bitmask DP approach. The key insight is that if we fix the order of chassis (assign chassis 1, 2, ..., k in order), we need to track which cores and payloads are used. But that's 2^22 × 2^22 which is too large.
+
+Better approach: Process chassis one at a time. For chassis i, we try all configurations with that chassis. The state tracks used cores as a bitmask. Since we process chassis in order and each configuration uses exactly one payload, if we track used cores, the payloads are determined by the choices. Wait, but we need both cores and payloads to be exact covers.
+
+Key insight: If we process chassis 1..k in order, and track used cores as a bitmask, then the number of used payloads equals the number of chassis processed. But we need payloads to be a permutation too. 
+
+Actually, we can track used cores as the state. For each chassis i (processed in order), we pick a configuration (c=i, e, g). The state is the set of used cores. When we've processed all k chassis, we need all cores used (2^k - 1) AND all payloads used exactly once. 
+
+But tracking only cores doesn't ensure payloads form a perfect cover. However, we can track used cores, and at the end check if payloads are also a perfect cover. But that doesn't work because different paths with same core mask could have different payload sets.
+
+Alternative: Track used cores as state. For each state, also track the used payloads (or just check at the end). Since we need both to be full covers, we can track the pair (used_cores, used_payloads) but that's 2^22 × 2^22.
+
+Better: Since we process chassis in order, after processing i chassis, we've used i payloads. So the payload count is determined. We need the payload set to be exactly {1..k} at the end. 
+
+Let me think differently. Track used cores as bitmask (2^22 states). For each chassis i from 1 to k, transition by picking a config with c=i. Store the payload used. At the end, if core mask is full AND the payloads collected form a full set, we win. But we need to verify payloads during DP to prune.
+
+Actually with k=22, 2^22 ≈ 4M states, and for each state we try all configs for the next chassis. This could work if we also track payload mask, but that's too much.
+
+Let me use: state = used_cores mask. For each chassis i, we pick a config. We also track used_payloads implicitly by checking at the end. To make this work, we store in DP[state] = used_payloads mask (or -1 if not reachable). But multiple payload masks could map to same core mask. We'd need to store all of them.
+
+Simplest correct approach: DP over chassis index and used_cores mask, storing used_payloads mask. Use a dict: dp[core_mask] = set of payload_masks. This could blow up but let's try with pruning.
+
+Actually, let's just do: dp is a dict mapping (core_mask, payload_mask) -> parent info. With k=22, worst case is huge but the problem constraints (t ≤ k³) and structure may help. Let me just implement it with a dict and hope it's fast enough given 5s limit.
+
+```python
+import sys
+from collections import defaultdict
+
+def solve():
+    input_data = sys.stdin.buffer.read().split()
+    idx = 0
+    k = int(input_data[idx]); idx += 1
+    t = int(input_data[idx]); idx += 1
+    
+    configs_by_chassis = defaultdict(list)
+    for _ in range(t):
+        c = int(input_data[idx]); idx += 1
+        e = int(input_data[idx]); idx += 1
+        g = int(input_data[idx]); idx += 1
+        configs_by_chassis[c].append((e, g))
+    
+    full = (1 << k) - 1
+    
+    # DP: process chassis 1..k in order
+    # state: (core_mask, payload_mask)
+    # dp maps state -> (prev_state, e, g) for backtracking
+    
+    dp = {}
+    start = (0, 0)
+    dp[start] = None
+    
+    for i in range(1, k + 1):
+        new_dp = {}
+        for (cm, pm), _ in dp.items():
+            for (e, g) in configs_by_chassis[i]:
+                eb = 1 << (e - 1)
+                gb = 1 << (g - 1)
+                if cm & eb: continue
+                if pm & gb: continue
+                ncm = cm | eb
+                npm = pm | gb
+                ns = (ncm, npm)
+                if ns not in new_dp:
+                    new_dp[ns] = (cm, pm, e, g)
+        dp = new_dp
+        if not dp:
+            break
+    
+    target = (full, full)
+    if target not in dp:
+        print("NO")
+        return
+    
+    print("YES")
+    # Backtrack
+    results = []
+    state = target
+    while dp[state] is not None:
+        pcm, ppm, e, g = dp[state]
+        i = bin(ppm).count('1')
+        results.append((i, e, g))
+        state = (pcm, ppm)
+    
+    results.sort()
+    for c, e, g in results:
+        print(f"{c} {e} {g}")
+
+solve()
+```
+
+Wait, the backtracking has an issue: dp gets overwritten each iteration. I need to keep all layers. Let me fix by storing layers.
+
+Also the chassis index during backtrack: when we're at state after processing chassis i, the payload mask has i bits set. So i = popcount(pm). Let me store layers properly.
+
+```python
+import sys
+from collections import defaultdict
+
+def solve():
+    input_data = sys.stdin.buffer.read().split()
+    idx = 0
+    k = int(input_data[idx]); idx += 1
+    t = int(input_data[idx]); idx += 1
+    
+    configs_by_chassis = defaultdict(list)
+    for _ in range(t):
+        c = int(input_data[idx]); idx += 1
+        e = int(input_data[idx]); idx += 1
+        g = int(input_data[idx]); idx += 1
+        configs_by_chassis[c].append((e, g))
+    
+    full = (1 << k) - 1
+    
+    layers = []
+    dp = {(0, 0): None}
+    layers.append(dp)
+    
+    for i in range(1, k + 1):
+        new_dp = {}
+        for (cm, pm) in dp:
+            for (e, g) in configs_by_chassis[i]:
+                eb = 1 << (e - 1)
+                gb = 1 << (g - 1)
+                if cm & eb: continue
+                if pm & gb: continue
+                ncm = cm | eb
+                npm = pm | gb
+                ns = (ncm, npm)
+                if ns not in new_dp:
+                    new_dp[ns] = (cm, pm, e, g)
+        dp = new_dp
+        layers.append(dp)
+        if not dp:
+            break
+    
+    target = (full, full)
+    if len(layers) <= k or target not in layers[k]:
+        print("NO")
+        return
+    
+    print("YES")
+    results = []
+    state = target
+    for i in range(k, 0, -1):
+        info = layers[i][state]
+        pcm, ppm, e, g = info
+        results.append((i, e, g))
+        state = (pcm, ppm)
+    
+    results.sort()
+    for c, e, g in results:
+        print(f"{c} {e} {g}")
+
+solve()
+```
+
+This should work. The state space could be large but with k≤22 and 5s limit, it should be manageable for most cases. The dict-based approach with pruning (only keeping reachable states) helps.
+
+```python
+import sys
+from collections import defaultdict
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    idx = 0
+    k = int(data[idx]); idx += 1
+    t = int(data[idx]); idx += 1
+    
+    configs_by_chassis = defaultdict(list)
+    for _ in range(t):
+        c = int(data[idx]); idx += 1
+        e = int(data[idx]); idx += 1
+        g = int(data[idx]); idx += 1
+        configs_by_chassis[c].append((e, g))
+    
+    full = (1 << k) - 1
+    
+    layers = []
+    dp = {(0, 0): None}
+    layers.append(dp)
+    
+    for i in range(1, k + 1):
+        new_dp = {}
+        for (cm, pm) in dp:
+            for (e, g) in configs_by_chassis[i]:
+                eb = 1 << (e - 1)
+                gb = 1 << (g - 1)
+                if cm & eb: continue
+                if pm & gb: continue
+                ncm = cm | eb
+                npm = pm | gb
+                ns = (ncm, npm)
+                if ns not in new_dp:
+                    new_dp[ns] = (cm, pm, e, g)
+        dp = new_dp
+        layers.append(dp)
+        if not dp:
+            break
+    
+    target = (full, full)
+    if len(layers) <= k or target not in layers[k]:
+        print("NO")
+        return
+    
+    print("YES")
+    results = []
+    state = target
+    for i in range(k, 0, -1):
+        pcm, ppm, e, g = layers[i][state]
+        results.append((i, e, g))
+        state = (pcm, ppm)
+    
+    results.sort()
+    for c, e, g in results:
+        print(f"{c} {e} {g}")
+
+solve()
+```

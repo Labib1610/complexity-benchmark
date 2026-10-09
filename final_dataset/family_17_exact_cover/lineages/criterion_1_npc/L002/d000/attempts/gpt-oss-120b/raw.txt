@@ -1,0 +1,328 @@
+**Solution Explanation**
+
+The problem asks for an *exact cover* of the set `{1,…,3q}` by triples taken from a given list.
+We have to choose `q` triples such that every number appears in exactly one chosen triple.
+
+This is the classic *exact cover* problem and can be solved with Donald Knuth’s
+**Algorithm X** together with the **Dancing Links** data structure.
+The constraints (`3q ≤ 600`, `t ≤ 20000`) are small enough for a fast DLX
+implementation.
+
+--------------------------------------------------------------------
+
+#### 1.   Modelling as an exact‑cover matrix  
+
+* columns   – one column for each element `1 … 3q` (total `3q` columns)  
+* rows      – one row for each given triple `(a,b,c)` (total `t` rows)  
+* a row contains a `1` in the three columns belonging to its three numbers.
+
+A solution of the exact‑cover problem is a set of rows that covers every column
+exactly once – exactly what we need.
+
+--------------------------------------------------------------------
+
+#### 2.   Dancing Links (DLX)
+
+The matrix is stored as a sparse doubly‑linked structure.
+Each `1` becomes a node, linked left/right inside its row and up/down inside its
+column.  
+Additional header nodes keep the list of columns; each column header stores the
+current number of nodes (`size`) in that column.
+
+Algorithm X (recursive backtracking) works as follows:
+
+```
+search():
+    if no column left → all columns covered → solution found
+    choose column c with minimal size                (heuristic)
+    cover(c)
+    for each row r in column c:
+        add r to partial solution
+        for each node j in row r (except the column node):
+            cover( column of j )
+        if search() succeeds → propagate success
+        for each node j in row r (reverse order):
+            uncover( column of j )
+        remove r from partial solution
+    uncover(c)
+    return failure
+```
+
+`cover` removes a column and all rows that contain a `1` in this column from the
+matrix; `uncover` restores them. All operations are *O(1)* per node because of
+the linked structure.
+
+The recursion depth never exceeds `q ≤ 200`.
+
+--------------------------------------------------------------------
+
+#### 3.   Correctness Proof  
+
+We prove that the algorithm prints `YES` and a correct set of triples
+iff such a set exists.
+
+---
+
+##### Lemma 1  
+During execution, the set of uncovered columns is exactly the set of elements
+that are not yet covered by the rows stored in the current partial solution.
+
+**Proof.**  
+Initially no column is covered and no row is chosen – the statement holds.
+When a column `c` is covered, we also cover (remove) every row that contains a
+`1` in `c`. Those rows would use element `c`, therefore they cannot be part of
+any extension of the current partial solution. Conversely, uncovering restores
+both the column and all rows that were removed, reinstating the possibility to
+use them later. Hence the invariant is preserved. ∎
+
+
+
+##### Lemma 2  
+When the algorithm selects a row `r` and recursively continues,
+the partial solution together with `r` covers exactly the columns that have been
+removed by the corresponding `cover` calls.
+
+**Proof.**  
+Choosing `r` means we intend to use it in the final cover.
+All three columns of `r` are already removed (the first one by the outer
+`cover(c)`, the other two by the inner `cover` calls). No other column is
+removed at this point. Therefore the columns removed so far are precisely those
+covered by the rows stored in the partial solution (including `r`). ∎
+
+
+
+##### Lemma 3  
+If the recursive call `search()` returns success, the rows stored in the
+solution list form an exact cover of all `3q` elements.
+
+**Proof.**  
+Success is reported only when the base case “no column left” is reached.
+By Lemma&nbsp;1 this means every column has been covered, i.e. every element
+appears in some chosen row. Because a column is removed only together with all
+rows that also contain it, no element can be covered twice. Hence the rows give
+a partition of the whole set – an exact cover. ∎
+
+
+
+##### Lemma 4  
+If an exact cover exists, the algorithm eventually finds one.
+
+**Proof.**  
+Consider any exact cover `S`. At the first recursion level the algorithm picks a
+column `c`. Since `S` covers all columns, there is a unique row `r∈S` that
+covers `c`. The algorithm iterates over **all** rows of column `c`; therefore it
+will eventually try `r`. When it does, all columns of `r` are covered and the
+remaining uncovered columns are exactly those covered by `S\\{r}` (Lemma 2).
+Induction on the size of the remaining cover shows that the recursive call will
+choose the rows of `S\\{r}` in some order and finally succeed. ∎
+
+
+
+##### Lemma 5  
+If the algorithm reports failure, no exact cover exists.
+
+**Proof.**  
+Assume the contrary: there is an exact cover `S` but the algorithm fails.
+Follow the execution tree: at each level the algorithm chooses a column `c`
+and tries every row containing `c`. One of those rows belongs to `S` (as in
+Lemma 4). If the algorithm ever explores that row, the recursive sub‑problem
+is exactly the exact‑cover problem for `S` without that row, which by induction
+has a solution. Hence the algorithm would succeed – contradiction. ∎
+
+
+
+##### Theorem  
+The program outputs  
+
+* `YES` followed by `q` triples that form a partition of `{1,…,3q}`  
+  **iff** such a partition exists,  
+
+* otherwise it outputs `NO`.
+
+**Proof.**  
+*If* the program prints `YES`, it did so after `search()` succeeded.
+By Lemma 3 the printed rows are an exact cover, i.e. a valid deployment plan.
+
+*Only‑if*: if a valid plan exists, Lemma 4 guarantees that `search()` will find
+it, thus the program prints `YES`. If no plan exists, Lemma 5 shows that
+`search()` cannot succeed, so the program prints `NO`. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### 4.   Complexity Analysis  
+
+*Let* `n = 3q ≤ 600` (columns) and `m = t ≤ 20000` (rows).  
+Each row contains exactly three nodes, therefore the total number of nodes is
+`3m ≤ 60000`.
+
+* Building the structure: `O(3m)` time, `O(3m + n)` memory.  
+* Each recursive step touches at most the nodes of the chosen row and the
+  columns it covers – `O(3)` per level.  
+* In the worst case the algorithm may explore many branches, but with the
+  heuristic “choose the column with the smallest size” the search space is
+  dramatically reduced; for the given limits the implementation runs well within
+  the 5 s limit.
+
+Overall memory consumption stays below a few megabytes.
+
+--------------------------------------------------------------------
+
+#### 5.   Reference Implementation  (Python 3)
+
+```python
+import sys
+
+sys.setrecursionlimit(10000)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    q = int(next(it))
+    t = int(next(it))
+    triples = []
+    for _ in range(t):
+        a = int(next(it)); b = int(next(it)); c = int(next(it))
+        triples.append((a, b, c))
+
+    n_cols = 3 * q                     # columns are 1..3q
+    # ----- DLX structures -----
+    max_nodes = 3 * t + n_cols + 1     # + header
+    U = [0] * max_nodes
+    D = [0] * max_nodes
+    L = [0] * max_nodes
+    R = [0] * max_nodes
+    C = [0] * max_nodes                # column of node
+    S = [0] * (n_cols + 1)             # size of column, 1‑based
+    row_of_node = [0] * max_nodes      # which input row a node belongs to
+
+    header = 0
+    # initialise column headers
+    for i in range(1, n_cols + 1):
+        U[i] = D[i] = i
+        L[i] = i - 1
+        R[i] = i + 1
+        C[i] = i
+    L[header] = n_cols
+    R[header] = 1
+    L[1] = header
+    R[n_cols] = header
+
+    node_cnt = n_cols
+    # add rows
+    for rid, (a, b, c) in enumerate(triples, start=1):
+        first = None
+        for col in (a, b, c):
+            node_cnt += 1
+            nd = node_cnt
+            C[nd] = col
+            row_of_node[nd] = rid
+            # vertical links (insert at bottom of column)
+            D[nd] = col
+            U[nd] = U[col]
+            D[U[col]] = nd
+            U[col] = nd
+            S[col] += 1
+            # horizontal links within the row
+            if first is None:
+                first = nd
+                L[nd] = R[nd] = nd
+            else:
+                L[nd] = L[first]
+                R[nd] = first
+                R[L[first]] = nd
+                L[first] = nd
+
+    solution_rows = []
+
+    def cover(col: int) -> None:
+        # remove column header
+        L[R[col]] = L[col]
+        R[L[col]] = R[col]
+        # remove rows
+        i = D[col]
+        while i != col:
+            j = R[i]
+            while j != i:
+                U[D[j]] = U[j]
+                D[U[j]] = D[j]
+                S[C[j]] -= 1
+                j = R[j]
+            i = D[i]
+
+    def uncover(col: int) -> None:
+        i = U[col]
+        while i != col:
+            j = L[i]
+            while j != i:
+                S[C[j]] += 1
+                U[D[j]] = j
+                D[U[j]] = j
+                j = L[j]
+            i = U[i]
+        L[R[col]] = col
+        R[L[col]] = col
+
+    found = False
+
+    def search(k: int) -> None:
+        nonlocal found
+        if R[header] == header:          # all columns covered
+            found = True
+            return
+        # choose column with minimal size
+        c = R[header]
+        min_s = S[c]
+        col = c
+        j = R[c]
+        while j != header:
+            if S[j] < min_s:
+                min_s = S[j]
+                col = j
+                if min_s == 0:
+                    break
+            j = R[j]
+        if min_s == 0:
+            return
+        cover(col)
+        r = D[col]
+        while r != col:
+            solution_rows.append(row_of_node[r])
+            j = R[r]
+            while j != r:
+                cover(C[j])
+                j = R[j]
+            search(k + 1)
+            if found:
+                return
+            # backtrack
+            j = L[r]
+            while j != r:
+                uncover(C[j])
+                j = L[j]
+            solution_rows.pop()
+            r = D[r]
+        uncover(col)
+
+    search(0)
+
+    out = []
+    if found:
+        out.append("YES")
+        # retrieve triples in the order they were stored
+        for rid in solution_rows:
+            a, b, c = triples[rid - 1]
+            out.append(f"{a} {b} {c}")
+    else:
+        out.append("NO")
+    sys.stdout.write("\n".join(out))
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above and conforms
+to the required input‑output format.

@@ -1,0 +1,151 @@
+from collections import defaultdict
+
+def solve():
+    k, t = map(int, input().split())
+    
+    if t < k:
+        print("NO")
+        return
+    
+    trials = []
+    reagent_to_vessel = {}
+    vessel_to_reagent = {}
+    
+    # Read trials and build reagent-vessel mapping
+    for _ in range(t):
+        x, y, z = map(int, input().split())
+        trials.append((x, y, z))
+        reagent_to_vessel[x] = y
+        vessel_to_reagent[y] = x
+    
+    # Check if we have exactly k reagents and k vessels
+    if len(reagent_to_vessel) != k or len(vessel_to_reagent) != k:
+        print("NO")
+        return
+    
+    # Build a mapping from pressure settings to trials
+    pressure_to_trials = defaultdict(list)
+    for x, y, z in trials:
+        pressure_to_trials[z].append((x, y, z))
+    
+    # Try to find a perfect matching
+    selected_trials = []
+    used_pressures = set()
+    
+    # For each reagent (which determines the vessel), find a unique pressure
+    reagents = list(reagent_to_vessel.keys())
+    
+    # Create bipartite graph: reagents on left, pressures on right
+    # Edge exists if there's a trial with that reagent and pressure
+    
+    # Build adjacency list for reagents to possible pressures
+    reagent_pressures = defaultdict(list)
+    for x, y, z in trials:
+        if reagent_to_vessel[x] == y:  # Consistency check
+            reagent_pressures[x].append(z)
+    
+    # Try to find maximum matching using greedy approach first
+    reagent_to_pressure = {}
+    pressure_to_reagent = {}
+    
+    # Greedy assignment
+    for reagent in reagents:
+        for pressure in reagent_pressures[reagent]:
+            if pressure not in pressure_to_reagent:
+                reagent_to_pressure[reagent] = pressure
+                pressure_to_reagent[pressure] = reagent
+                break
+    
+    # If we couldn't assign all reagents, try a more systematic approach
+    if len(reagent_to_pressure) < k:
+        # Use a backtracking approach for small k, but since k can be up to 1200,
+        # we need a more efficient algorithm like Hopcroft-Karp for maximum bipartite matching
+        # But for this problem, let's try a different approach
+        
+        # Build the bipartite graph properly
+        # Left side: reagents (1 to k)
+        # Right side: pressures (1 to k)
+        # Edge exists if there's a trial (reagent, vessel, pressure)
+        
+        from collections import deque
+        
+        # Rebuild data structures
+        adj = defaultdict(list)  # adj[reagent] = list of pressures
+        for x, y, z in trials:
+            if reagent_to_vessel[x] == y:
+                adj[x].append(z)
+        
+        # Maximum bipartite matching using Ford-Fulkerson with BFS (Edmonds-Karp)
+        def bfs_match(match_reagent, match_pressure, dist):
+            queue = deque()
+            for u in range(1, k+1):
+                if match_reagent[u] == 0:
+                    dist[u] = 0
+                    queue.append(u)
+                else:
+                    dist[u] = float('inf')
+            dist[0] = float('inf')
+            
+            while queue:
+                u = queue.popleft()
+                if dist[u] < dist[0]:
+                    for v in adj[u]:
+                        if match_pressure[v] == 0 or dist[match_pressure[v]] == float('inf'):
+                            if match_pressure[v] == 0:
+                                dist[0] = dist[u] + 1
+                            else:
+                                dist[match_pressure[v]] = dist[u] + 1
+                                queue.append(match_pressure[v])
+            return dist[0] != float('inf')
+        
+        def dfs_match(u, match_reagent, match_pressure, dist):
+            if u != 0:
+                for v in adj[u]:
+                    if match_pressure[v] == 0 or dist[match_pressure[v]] == dist[u] + 1:
+                        if match_pressure[v] == 0 or dfs_match(match_pressure[v], match_reagent, match_pressure, dist):
+                            match_pressure[v] = u
+                            match_reagent[u] = v
+                            return True
+                dist[u] = float('inf')
+                return False
+            return True
+        
+        # Initialize
+        match_reagent = [0] * (k + 1)  # match_reagent[reagent] = pressure
+        match_pressure = [0] * (k + 1)  # match_pressure[pressure] = reagent
+        dist = [0] * (k + 1)
+        
+        matching = 0
+        while bfs_match(match_reagent, match_pressure, dist):
+            for u in range(1, k+1):
+                if match_reagent[u] == 0:
+                    if dfs_match(u, match_reagent, match_pressure, dist):
+                        matching += 1
+        
+        if matching < k:
+            print("NO")
+            return
+        
+        # Reconstruct the solution
+        result = []
+        for reagent in range(1, k+1):
+            pressure = match_reagent[reagent]
+            vessel = reagent_to_vessel[reagent]
+            result.append((reagent, vessel, pressure))
+        
+        print("YES")
+        for x, y, z in result:
+            print(x, y, z)
+    else:
+        # Greedy solution worked
+        result = []
+        for reagent in reagents:
+            pressure = reagent_to_pressure[reagent]
+            vessel = reagent_to_vessel[reagent]
+            result.append((reagent, vessel, pressure))
+        
+        print("YES")
+        for x, y, z in result:
+            print(x, y, z)
+
+solve()

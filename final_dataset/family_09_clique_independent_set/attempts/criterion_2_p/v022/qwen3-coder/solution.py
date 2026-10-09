@@ -1,0 +1,90 @@
+import sys
+from collections import defaultdict, deque
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    k = int(data[2])
+    
+    edges = []
+    index = 3
+    for _ in range(m):
+        u = int(data[index])
+        v = int(data[index+1])
+        edges.append((u, v))
+        index += 2
+    
+    if m == 0:
+        print("YES")
+        print(' '.join(map(str, range(1, k+1))))
+        return
+    
+    # Build adjacency list
+    adj = defaultdict(list)
+    for u, v in edges:
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # Since the graph is bipartite (conflicts are only between two grids),
+    # we can color it with two colors.
+    # We'll use BFS to color the graph and separate into two sets.
+    color = {}
+    sets = [set(), set()]
+    
+    visited = [False] * (n + 1)
+    
+    for start in range(1, n + 1):
+        if visited[start]:
+            continue
+        queue = deque()
+        queue.append((start, 0))
+        visited[start] = True
+        color[start] = 0
+        sets[0].add(start)
+        
+        while queue:
+            node, c = queue.popleft()
+            for neighbor in adj[node]:
+                if not visited[neighbor]:
+                    visited[neighbor] = True
+                    color[neighbor] = 1 - c
+                    sets[1 - c].add(neighbor)
+                    queue.append((neighbor, 1 - c))
+                elif color[neighbor] == c:
+                    # This should not happen as per problem statement
+                    # but let's handle it just in case
+                    continue
+    
+    set0 = list(sets[0])
+    set1 = list(sets[1])
+    size0 = len(set0)
+    size1 = len(set1)
+    
+    # We want to pick exactly k nodes such that no two are adjacent.
+    # That means we can pick from set0 and set1 independently.
+    # Let's say we pick a nodes from set0 and b nodes from set1, where a + b = k
+    # We can do this if a <= size0 and b <= size1
+    
+    found = False
+    result = []
+    
+    # Try all possible combinations
+    for a in range(min(k, size0) + 1):
+        b = k - a
+        if b >= 0 and b <= size1:
+            found = True
+            result = set0[:a] + set1[:b]
+            break
+    
+    if found:
+        print("YES")
+        print(' '.join(map(str, result)))
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    main()

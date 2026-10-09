@@ -1,22 +1,20 @@
-# Problem B — Pipeline Segregation Phase
+# Problem B — Broadcast Configuration
 
 Time limit: 1 s   Memory limit: 256 MB
 
-The Aegis distributed architecture deployment pipeline processes $n$ independent service modules (indexed 1 to $n$). During the telemetry phase, the system identifies $m$ resource contentions. Each contention record lists two modules that attempt to lock the same hardware component.
+A modernized communications grid consists of $n$ broadcast stations. Each station must be configured to use either the primary band (denoted by the integer 1) or the secondary band (denoted by the integer 2). 
 
-To resolve these contentions, you must configure the execution state of every module. There are exactly two available execution states, represented as state 1 and state 2. A configuration is valid if and only if every pair of modules listed in a contention record are assigned different execution states.
+However, there are $m$ specific pairs of stations that are situated too close to each other. If both stations in such a pair are configured to broadcast on the identical band, they will cause critical interference. 
 
-The downstream distribution phase requires strictly deterministic routing. If multiple valid configurations exist, you must provide the one that favors state 1 for the lowest-indexed modules. Formally, when comparing two different valid configurations, the preferred one is the one that has a smaller state value (i.e., 1 rather than 2) at the lowest module index where the two configurations assign different states.
-
-If the contention records form a contradictory set where no valid configuration is possible, your phase must reject the pipeline.
+You must find a band assignment for every station that completely avoids critical interference, or determine that no such assignment can be made.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$), the number of modules and the number of contention records.
-Each of the following $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$), indicating that module $u$ and module $v$ cannot share the same execution state.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$).
+Each of the next $m$ lines contains two integers $u$ and $v$ — a pair of stations that will interfere if assigned the same band.
 
 ## Output
-If no valid configuration can be established, output a single line containing `NO`.
-Otherwise, output `YES` on the first line. On the second line, output $n$ integers (each either 1 or 2) representing the assigned execution state for each module from 1 to $n$, strictly following the tie-breaking rule.
+If no valid assignment exists, print a single line `NO`.
+Otherwise, print `YES` on the first line. On the second line, print $n$ integers $f_1, f_2, \dots, f_n$ (each in $\{1, 2\}$), representing the band assigned to each station. If there are multiple valid assignments, output the sequence that is lexicographically smallest.
 
 ## Example 1
 Input:

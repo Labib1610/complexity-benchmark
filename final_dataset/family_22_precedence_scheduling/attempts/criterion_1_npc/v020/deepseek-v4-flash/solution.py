@@ -1,0 +1,69 @@
+from collections import deque, defaultdict
+import sys
+
+def solve():
+    input_data = sys.stdin.read().strip().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    M = int(next(it))
+    T = int(next(it))
+    m = int(next(it))
+    
+    adj = [[] for _ in range(n)]
+    indeg = [0] * n
+    for _ in range(m):
+        a = int(next(it)) - 1
+        b = int(next(it)) - 1
+        adj[a].append(b)
+        indeg[b] += 1
+    
+    # Topological sort
+    q = deque([i for i in range(n) if indeg[i] == 0])
+    topo = []
+    while q:
+        u = q.popleft()
+        topo.append(u)
+        for v in adj[u]:
+            indeg[v] -= 1
+            if indeg[v] == 0:
+                q.append(v)
+    
+    if len(topo) != n:
+        print("NO")
+        return
+    
+    # Assign rooms greedily: earliest possible room respecting dependencies
+    room = [0] * n
+    # We'll process in topological order
+    # room[u] = max(room[pred] + 1) for all preds
+    # Then we need to fit capacities
+    # We'll assign in topological order, keeping counts per room
+    room_count = [0] * (T + 1)
+    
+    # First compute minimal room for each node
+    min_room = [1] * n
+    for u in topo:
+        for v in adj[u]:
+            if min_room[v] < min_room[u] + 1:
+                min_room[v] = min_room[u] + 1
+    
+    # Now assign rooms, respecting capacity
+    # We'll try to place each node in the smallest possible room >= min_room[u]
+    # that has capacity left
+    for u in topo:
+        r = min_room[u]
+        while r <= T and room_count[r] >= M:
+            r += 1
+        if r > T:
+            print("NO")
+            return
+        room[u] = r
+        room_count[r] += 1
+    
+    print("YES")
+    print(" ".join(str(room[i]) for i in range(n)))
+
+if __name__ == "__main__":
+    solve()

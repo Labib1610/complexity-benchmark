@@ -1,0 +1,186 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    k = int(data[0])
+    t = int(data[1])
+    triples = []
+    idx = 2
+    for _ in range(t):
+        x = int(data[idx]) - 1
+        y = int(data[idx+1]) - 1
+        z = int(data[idx+2]) - 1
+        triples.append((x, y, z))
+        idx += 3
+
+    # Build bipartite graph between X (surgeons) and YZ pairs (room, time)
+    # YZ pair index = y * k + z
+    yz_count = k * k
+    adj = [[] for _ in range(k)]
+    yz_to_x = {}
+    for x, y, z in triples:
+        yz = y * k + z
+        adj[x].append(yz)
+        yz_to_x[yz] = x
+
+    # Hopcroft-Karp to find matching of size k between X and YZ
+    pair_u = [-1] * k
+    pair_v = [-1] * yz_count
+    dist = [0] * k
+    INF = 10**9
+    from collections import deque
+
+    def bfs():
+        queue = deque()
+        for u in range(k):
+            if pair_u[u] == -1:
+                dist[u] = 0
+                queue.append(u)
+            else:
+                dist[u] = INF
+        found = False
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                u2 = pair_v[v]
+                if u2 == -1:
+                    found = True
+                elif dist[u2] == INF:
+                    dist[u2] = dist[u] + 1
+                    queue.append(u2)
+        return found
+
+    def dfs(u):
+        for v in adj[u]:
+            u2 = pair_v[v]
+            if u2 == -1 or (dist[u2] == dist[u] + 1 and dfs(u2)):
+                pair_u[u] = v
+                pair_v[v] = u
+                return True
+        dist[u] = INF
+        return False
+
+    matching = 0
+    while bfs():
+        for u in range(k):
+            if pair_u[u] == -1:
+                if dfs(u):
+                    matching += 1
+
+    if matching < k:
+        print("NO")
+        return
+
+    # Now we have a perfect matching between X and YZ.
+    # We need to select k triples such that each Y and each Z used exactly once.
+    # The matching gives us k triples (x, y, z). We need to permute them so that
+    # the Y's are all distinct and Z's are all distinct.
+    # This is equivalent to finding a permutation of the k matched triples such that
+    # the Y values form a permutation and Z values form a permutation.
+    # Actually, we can think of it as: we have k triples, we need to assign each X to a Y and Z.
+    # The matching already assigns each X to a (Y,Z) pair. We need the Y's to be all distinct and Z's all distinct.
+    # This is a Latin rectangle completion / bipartite matching problem on Y and Z.
+    # Let's build a bipartite graph between Y and Z using the matched triples.
+    # Each matched triple gives an edge between its Y and its Z.
+    # We need a perfect matching in this Y-Z graph. But we also need each X used once,
+    # which is already satisfied by the matching. However, the Y-Z matching might not
+    # align with the X-YZ matching. Wait, we need to select exactly one (Y,Z) per X,
+    # and the selected (Y,Z) pairs must have distinct Y and distinct Z.
+    # The X-YZ matching gives us one (Y,Z) per X. If these (Y,Z) pairs already have
+    # distinct Y and distinct Z, we are done. Otherwise, we need to find a different
+    # set of (Y,Z) pairs, one per X, with distinct Y and Z.
+    # This is a 3-dimensional matching problem. But k <= 22, so we can use DP with bitmask.
+    # Let's use DP over X (or Y) with bitmask for Z.
+    # Actually, we can do DP over X with bitmask of used Y and used Z? That's 2^22 * 2^22 too large.
+    # But we can do DP over X with bitmask of Z, and for each X choose a Y that is not used yet.
+    # Wait, we need both Y and Z distinct. So state needs to track used Y and used Z.
+    # 2^22 * 2^22 is too large. But we can do DP over X with bitmask of Z, and for Y we can
+    # use a matching approach. Actually, we can iterate over X and use bitmask of Z,
+    # and for each X, we try all allowed (Y,Z) and check if Y is available via a separate matching.
+    # Hmm, let's think differently.
+    # We can use DP with bitmask of Z (size 2^22 = 4M) and for each state, track which Y's are used.
+    # But tracking Y's used is another 2^22. Too large.
+    # Alternative: Since k <= 22, we can use inclusion-exclusion or backtracking with pruning.
+    # Or we can reduce to bipartite matching: we need to select k triples with distinct X, Y, Z.
+    # This is 3D matching, NP-hard in general, but k <= 22 is small enough for DP with bitmask
+    # if we are careful.
+    # Let's do DP over X with bitmask of Z. For Y, we can use a bipartite matching check.
+    # Actually, we can do DP over X with bitmask of Z, and for each state, we also need to know
+    # which Y's are used. But we can represent used Y's as a bitmask too, making state (maskZ, maskY).
+    # That's 2^44, too large.
+    # Better: DP over X with bitmask of Z. For each X, we try all (Y,Z) in its allowed list.
+    # We need to ensure Y is not used. We can track used Y's in a separate structure.
+    # But we can't afford 2^22 for Y. However, we can use the fact that we only need to check
+    # if a perfect matching exists in the remaining graph. This is complex.
+    # Let's try a different approach: backtracking with bitmask for Z and a set for Y.
+    # Since k <= 22, and the graph might be sparse, backtracking with pruning could work.
+    # We can order X by increasing degree (most constrained first).
+    # Use bitmask for Z (int), and a bitmask for Y (int). State is (x_index, maskY, maskZ).
+    # But 2^22 * 2^22 is too large for memoization. However, with backtracking and pruning,
+    # it might be fast enough for k=22 if the graph is not too dense.
+    # Let's implement backtracking with bitmasks for Y and Z.
+    # To speed up, we can precompute for each X the list of (Y,Z) pairs.
+    # And use bit operations.
+    # Let's try.
+
+    # Build adjacency for each X: list of (y, z)
+    adj_xyz = [[] for _ in range(k)]
+    for x, y, z in triples:
+        adj_xyz[x].append((y, z))
+
+    # Order X by increasing degree
+    order = sorted(range(k), key=lambda x: len(adj_xyz[x]))
+
+    # Backtracking
+    used_y = 0
+    used_z = 0
+    assignment = [-1] * k  # assignment[x] = (y, z)
+
+    # Precompute for each X in order the list of (y, z)
+    # We'll use recursion with bitmasks
+    # To speed up, we can use iterative deepening or just recursion with pruning.
+    # Let's use recursion with memoization on (index, used_y, used_z)? Too many states.
+    # Let's just do backtracking with pruning. For k=22, worst case might be slow, but
+    # with good ordering and pruning, it should be okay for the problem constraints.
+    # We can also add a check: if remaining X's can't cover remaining Y's or Z's, prune.
+    # But let's first try simple backtracking.
+
+    # We'll use a stack for iterative backtracking to avoid recursion limit issues.
+    # Actually, let's use recursion with sys.setrecursionlimit.
+    sys.setrecursionlimit(10000)
+
+    found = [False]
+    result = [None]
+
+    # Precompute for each position in order, the list of (y, z) pairs
+    order_adj = [adj_xyz[order[i]] for i in range(k)]
+
+    def backtrack(i, used_y, used_z):
+        if found[0]:
+            return
+        if i == k:
+            found[0] = True
+            result[0] = assignment[:]
+            return
+        x = order[i]
+        for y, z in order_adj[i]:
+            if not (used_y & (1 << y)) and not (used_z & (1 << z)):
+                assignment[x] = (y, z)
+                backtrack(i + 1, used_y | (1 << y), used_z | (1 << z))
+                if found[0]:
+                    return
+                assignment[x] = -1
+
+    backtrack(0, 0, 0)
+
+    if found[0]:
+        print("YES")
+        for x in range(k):
+            y, z = result[0][x]
+            print(f"{x+1} {y+1} {z+1}")
+    else:
+        print("NO")
+
+solve()

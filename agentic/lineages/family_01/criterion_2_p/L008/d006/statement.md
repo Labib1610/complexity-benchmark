@@ -1,25 +1,29 @@
-# Problem B — Harmonic Resonance
+# Problem B — Anti-Glare Arrays
 
-Time limit: 1 s   Memory limit: 256 MB
+Time limit: 1 s
+Memory limit: 256 MB
 
-A factory employs $n$ workers, with $m$ synchronization links established among them. You must assign a shift code $s_i \in \{1, 2\}$ to each worker $i$. 
+An optical instrument contains $n$ crystal lenses. Each lens must be assigned a polarization axis, which must be an integer value of either $1$ or $2$.
 
-To maintain proper timing, the machines of connected workers must resonate at compatible frequencies. We define two resonance matrices:
-$$A_1 = \begin{pmatrix} 1 & 2 \\ 0 & 1 \end{pmatrix} \quad \text{and} \quad A_2 = \begin{pmatrix} 1 & 0 \\ 2 & 1 \end{pmatrix}$$
+The instrument is equipped with $m$ calibration tubes, each routing light directly between a pair of lenses. The instrument's diagnostic system validates the configuration by checking the local neighborhood of each lens. 
 
-A synchronization link between two workers $u$ and $v$ is stable if and only if the trace of the matrix product $A_{s_u} A_{s_v}$ is exactly $6$. 
+For each lens $i$, the system compiles a list of all tube connections to it. Specifically, each of the $m$ tubes connecting lenses $u$ and $v$ provides one connection to $u$ (originating from $v$) and one connection to $v$ (originating from $u$). Let $d_i$ be the total number of connections to lens $i$. 
 
-Additionally, to prevent harmonic buildup, any valid assignment must ensure that in every simple cycle within the factory's synchronization network, the number of workers assigned shift code 1 is exactly equal to the number of workers assigned shift code 2.
+The system then computes $S_i$, which is the sum of the assigned axes of the lenses at the other end of these $d_i$ connections. (If a tube connects a lens to itself, it provides two connections to that lens, and the lens's own axis is added to $S_i$ twice).
 
-Determine if there is a valid assignment of shift codes for all workers such that every synchronization link is stable and the harmonic buildup condition is satisfied.
+To successfully filter out glare, every lens $i$ (from $1$ to $n$) must satisfy the condition:
+$S_i + d_i \cdot c_i = 3 d_i$
+where $c_i$ is the assigned axis of lens $i$.
+
+Determine an assignment of polarization axes for all $n$ lenses that satisfies this requirement, or report that the hardware configuration is flawed.
 
 ## Input
 The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$).
-Each of the next $m$ lines contains two integers $u$ and $v$ — a pair of workers connected by a synchronization link.
+Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$) — the two lenses connected by that calibration tube.
 
 ## Output
-If no valid assignment exists, print a single line `NO`.
-Otherwise, print `YES` on the first line. On the second line, print $n$ integers $s_1, s_2, \ldots, s_n$ (each in $\{1,2\}$) representing the valid assignment. If there are multiple valid assignments, output the one that minimizes the structural weight of the sequence, defined as $\sum_{i=1}^n s_i \cdot 3^{n-i}$. Print this assignment as a full sequence of $n$ integers.
+If no valid assignment exists, print a single line containing `NO`.
+Otherwise, print `YES`, followed by a second line with $n$ integers $c_1 \dots c_n$ (each in $\{1,2\}$). This sequence must represent the valid calibration assignment. If multiple valid assignments exist, output the lexicographically smallest sequence.
 
 ## Example 1
 Input:

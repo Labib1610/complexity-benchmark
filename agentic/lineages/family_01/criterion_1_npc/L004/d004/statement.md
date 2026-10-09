@@ -1,24 +1,28 @@
-# Signal Separation Protocols
+# Protocol Synchronization
 
-**Time limit:** 2 s  
-**Memory limit:** 256 MB  
+Time limit: 2 s   Memory limit: 256 MB
 
-You manage an array of $n$ signal emitters, numbered from $1$ to $n$. Each emitter must operate on a single frequency mode. There are exactly three available frequency modes, denoted by the integers $1$, $2$, and $3$.
+You are configuring the synchronization protocols for a distributed network of $n$ server nodes. Each node $i$ must be assigned a protocol version $b_i$, which must be an integer chosen from the set $\{1, 2, 3\}$.
 
-Interference occurs if certain emitters share the same mode. You are provided with a list of $m$ critical pairs of emitters. For each critical pair $(u, v)$, their respective frequency modes $f_u$ and $f_v$ must be separated by at least one unit, meaning $|f_u - f_v| \ge 1$. The critical pairs can link any subsets of emitters in arbitrary arrangements, and all $m$ separation requirements must be simultaneously fulfilled.
+Each protocol version activates a specific pair of frequency channels from the available pool {X, Y, Z}:
+- Version 1 activates channels X and Y.
+- Version 2 activates channels Y and Z.
+- Version 3 activates channels Z and X.
 
-Your task is to determine if a complete, valid mode configuration can be established for all $n$ emitters such that no critical pair violates the separation rule.
+You are given a list of $m$ communication links between pairs of nodes. For each link $(u, v)$, the protocol versions assigned to node $u$ and node $v$ must share exactly one active channel. If they share two active channels, they cause full signal interference and the link fails. 
+
+Your objective is to determine if there exists an assignment of protocol versions for all $n$ nodes such that every communication link successfully operates without interference. If a valid assignment exists, output it.
 
 ## Input
-The first line consists of two integers $n$ and $m$ ($1 \le n \le 40$, $0 \le m \le n \cdot (n-1)/2$), which represent the total number of emitters and the total number of critical pairs.
-Each of the following $m$ lines provides two integers $u$ and $v$ (indices from $1$ to $n$), identifying a pair of emitters that are subject to the separation rule.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$) — the number of server nodes and the number of communication links.
+Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \ne v$), representing a communication link between node $u$ and node $v$.
 
 ## Output
-If there is no way to configure the emitters without violating the rules, output `NO` on a single line.
-If a valid assignment is achievable, output `YES` on the first line. On the second line, provide a sequence of $n$ integers $f_1, f_2, \dots, f_n$ (where each $f_i \in \{1, 2, 3\}$) representing the frequency mode for each emitter $i$. If more than one valid sequence exists, you must output the lexicographically smallest sequence (comparing the mode for emitter $1$ first, then emitter $2$, and so on up to emitter $n$).
+If there is no valid protocol assignment, print a single line containing `NO`.
+Otherwise, print `YES` on the first line. On the second line, print $n$ integers $b_1, b_2, \dots, b_n$ (each in $\{1, 2, 3\}$), where $b_i$ is the protocol version assigned to node $i$. If there are multiple valid assignments, any valid assignment is accepted.
 
 ## Example 1
-**Input:**
+Input:
 ```
 4 5
 1 2
@@ -27,14 +31,14 @@ If a valid assignment is achievable, output `YES` on the first line. On the seco
 1 4
 2 4
 ```
-**Output:**
+Output:
 ```
 YES
 1 2 3 3
 ```
 
 ## Example 2
-**Input:**
+Input:
 ```
 4 6
 1 2
@@ -44,7 +48,7 @@ YES
 2 4
 3 4
 ```
-**Output:**
+Output:
 ```
 NO
 ```

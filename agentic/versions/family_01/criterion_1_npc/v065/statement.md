@@ -1,29 +1,24 @@
-# Personnel Deployment Tiers
+# Problem A — Ecological Zone Allocation
 
-Time limit: 2 s   Memory limit: 256 MB
+Time limit: 2 s
+Memory limit: 256 MB
 
-A corporation is restructuring its workforce of $n$ personnel, who are assigned numerical identifiers from 1 to $n$. The daily operational protocol mandates that each individual is assigned to exactly one deployment tier. The available tier designations are 1, 2, and 3.
+A wildlife conservation center needs to relocate $n$ rescued specimens into exactly three distinct ecological zones, which are designated by the codes 1, 2, and 3. Certain specimens are antagonistic towards each other and will engage in conflicts if placed in the same zone. You are provided with a list of all antagonistic pairs.
 
-During field tests, it was discovered that certain pairs of personnel interfere with each other if operating in the same tier. You are given a compatibility registry. Each entry in the registry specifies two personnel who must not share a tier.
+Your task is to assign each of the $n$ specimens to one of the three zones such that no two antagonistic specimens share the same zone. If it is impossible to safely distribute all specimens under these conditions, you must report this.
 
-A valid deployment must satisfy the following condition: for every entry in the compatibility registry, the tier designation assigned to the first person and the tier designation assigned to the second person must be strictly unequal.
-
-To ensure computational predictability, the registry is guaranteed to exhibit the following administrative bounds:
-- For any single entry in the registry, the absolute difference between the numerical identifiers of the two personnel is strictly less than $n$.
-- The total sum of all personnel numerical identifiers evaluated across every entry in the entire registry is strictly less than $n^3 + 1$.
-
-You must determine whether a valid deployment exists for all $n$ personnel. If multiple valid deployments are possible, you must resolve the ambiguity using a sequential prioritization process:
-1. From the set of all valid deployments, filter down to those that assign the smallest possible tier designation to person 1.
-2. If multiple deployments remain, filter those to minimize the tier designation for person 2.
-3. Continue this sequential filtering for person 3, person 4, and so on, until exactly one deployment remains.
+To facilitate your analysis, the input data is guaranteed to satisfy the following structural properties:
+- The absolute difference between the numerical identifiers of the two specimens in any antagonistic pair is strictly less than $n$.
+- The sum of the numerical identifiers for any antagonistic pair is at most $2n$.
 
 ## Input
-The first line contains two integers $n$ and $m$ — the number of personnel and the number of registry entries ($1 \le n \le 40$, $0 \le m \le n \cdot (n-1)/2$).
-Each of the next $m$ lines contains two integers $u$ and $v$ — the numerical identifiers of the personnel in a registry entry.
+The first line of the input contains two integers $n$ and $m$ — the number of specimens and the number of antagonistic pairs ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
+The specimens are identified by integers from 1 to $n$.
+Each of the subsequent $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$), representing an antagonistic pair of specimens that cannot be assigned to the same ecological zone.
 
 ## Output
-If no deployment can satisfy all conditions, output a single line containing `NO`.
-Otherwise, output `YES` on the first line. On the second line, output $n$ integers $s_1, s_2, \dots, s_n$ (where each $s_i \in \{1, 2, 3\}$), representing the tier designation assigned to person $i$. If there are multiple valid deployments, output the single deployment determined by the sequential prioritization process.
+If there is no valid allocation of specimens to the three zones, output `NO` on a single line.
+Otherwise, output `YES` on the first line. On the second line, output $n$ integers $z_1, z_2, \dots, z_n$ (where each $z_i \in \{1, 2, 3\}$), representing the zone assigned to specimen $i$. If multiple valid allocations exist, you may output any of them.
 
 ## Example 1
 Input:

@@ -1,0 +1,87 @@
+import sys
+from itertools import combinations
+
+def find(parent, x):
+    if parent[x] != x:
+        parent[x] = find(parent, parent[x])
+    return parent[x]
+
+def union(parent, rank, x, y):
+    px, py = find(parent, x), find(parent, y)
+    if px == py:
+        return False
+    if rank[px] < rank[py]:
+        px, py = py, px
+    parent[py] = px
+    if rank[px] == rank[py]:
+        rank[px] += 1
+    return True
+
+def kruskal(n, edges):
+    parent = list(range(n))
+    rank = [0] * n
+    edges.sort(key=lambda x: x[2])
+    cost = 0
+    for u, v, w in edges:
+        if union(parent, rank, u, v):
+            cost += w
+    return cost
+
+def solve():
+    n, m, t = map(int, sys.stdin.readline().split())
+    cores = list(map(int, sys.stdin.readline().split()))
+    
+    if t <= 1:
+        print(0)
+        return
+    
+    edges = []
+    for _ in range(m):
+        u, v, w = map(int, sys.stdin.readline().split())
+        edges.append((u-1, v-1, w))  # Convert to 0-indexed
+    
+    # Create a mapping for core departments
+    core_indices = {core: i for i, core in enumerate(cores)}
+    
+    min_cost = float('inf')
+    
+    # Try all 2^t subsets of core departments as terminals
+    for mask in range(1, 1 << t):
+        terminals = [cores[i] - 1 for i in range(t) if mask & (1 << i)]  # Convert to 0-indexed
+        
+        # For each pair of terminals, compute shortest path
+        # We'll create a complete graph on terminals with edge weights as shortest paths
+        terminal_edges = []
+        
+        # Floyd-Warshall to get all-pairs shortest paths
+        INF = float('inf')
+        dist = [[INF] * n for _ in range(n)]
+        for i in range(n):
+            dist[i][i] = 0
+            
+        for u, v, w in edges:
+            dist[u][v] = min(dist[u][v], w)
+            dist[v][u] = min(dist[v][u], w)
+            
+        # Floyd-Warshall algorithm
+        for k in range(n):
+            for i in range(n):
+                for j in range(n):
+                    if dist[i][k] + dist[k][j] < dist[i][j]:
+                        dist[i][j] = dist[i][k] + dist[k][j]
+        
+        # Build complete graph on terminals
+        steiner_edges = []
+        for i in range(len(terminals)):
+            for j in range(i+1, len(terminals)):
+                u, v = terminals[i], terminals[j]
+                if dist[u][v] < INF:
+                    steiner_edges.append((u, v, dist[u][v]))
+        
+        # Find MST of this complete graph
+        cost = kruskal(n, steiner_edges)
+        min_cost = min(min_cost, cost)
+    
+    print(min_cost)
+
+solve()

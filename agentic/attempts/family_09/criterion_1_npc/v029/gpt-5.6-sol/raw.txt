@@ -1,0 +1,272 @@
+```python
+import sys
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+
+    n, m, k = data[0], data[1], data[2]
+    adj = [0] * n
+    p = 3
+    for _ in range(m):
+        u = data[p] - 1
+        v = data[p + 1] - 1
+        p += 2
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+
+    if k == 1:
+        print("YES")
+        print(1)
+        return
+
+    degrees = [x.bit_count() for x in adj]
+
+    def try_order(order):
+        chosen_mask = 0
+        chosen = []
+        for v in order:
+            if not (adj[v] & chosen_mask):
+                chosen_mask |= 1 << v
+                chosen.append(v)
+                if len(chosen) == k:
+                    return chosen
+        return None
+
+    orders = [
+        sorted(range(n), key=lambda v: degrees[v]),
+        sorted(range(n), key=lambda v: degrees[v], reverse=True),
+        list(range(n))
+    ]
+    for order in orders:
+        answer = try_order(order)
+        if answer is not None:
+            print("YES")
+            print(" ".join(str(v + 1) for v in answer))
+            return
+
+    remaining = (1 << n) - 1
+    dynamic_chosen = []
+    while remaining:
+        x = remaining
+        best_v = -1
+        best_deg = n + 1
+        while x:
+            bit = x & -x
+            v = bit.bit_length() - 1
+            d = (adj[v] & remaining).bit_count()
+            if d < best_deg:
+                best_deg = d
+                best_v = v
+            x ^= bit
+        dynamic_chosen.append(best_v)
+        if len(dynamic_chosen) == k:
+            print("YES")
+            print(" ".join(str(v + 1) for v in dynamic_chosen))
+            return
+        remaining &= ~(adj[best_v] | (1 << best_v))
+
+    right_size = n // 2
+    left_size = n - right_size
+
+    vertices = sorted(range(n), key=lambda v: degrees[v], reverse=True)
+    left_vertices = vertices[:left_size]
+    right_vertices = vertices[left_size:]
+
+    right_pos = [-1] * n
+    for i, v in enumerate(right_vertices):
+        right_pos[v] = i
+
+    left_pos = [-1] * n
+    for i, v in enumerate(left_vertices):
+        left_pos[v] = i
+
+    full_right = (1 << right_size) - 1
+    full_left = (1 << left_size) - 1
+
+    adj_right = [0] * right_size
+    right_edges_twice = 0
+    for i, v in enumerate(right_vertices):
+        mask = 0
+        x = adj[v]
+        while x:
+            bit = x & -x
+            u = bit.bit_length() - 1
+            j = right_pos[u]
+            if j >= 0:
+                mask |= 1 << j
+            x ^= bit
+        adj_right[i] = mask
+        right_edges_twice += mask.bit_count()
+
+    adj_left = [0] * left_size
+    noncross = [full_right] * left_size
+    for i, v in enumerate(left_vertices):
+        lm = 0
+        rm = 0
+        x = adj[v]
+        while x:
+            bit = x & -x
+            u = bit.bit_length() - 1
+            li = left_pos[u]
+            if li >= 0:
+                lm |= 1 << li
+            else:
+                ri = right_pos[u]
+                if ri >= 0:
+                    rm |= 1 << ri
+            x ^= bit
+        adj_left[i] = lm
+        noncross[i] = full_right ^ rm
+
+    right_edge_count = right_edges_twice // 2
+    max_right_edges = right_size * (right_size - 1) // 2
+
+    if right_edge_count == 0:
+        mode = 0
+        dp = None
+
+        def right_value(mask):
+            return mask.bit_count()
+
+    elif right_edge_count == max_right_edges:
+        mode = 1
+        dp = None
+
+        def right_value(mask):
+            return 1 if mask else 0
+
+    else:
+        mode = 2
+        size = 1 << right_size
+        dp = bytearray(size)
+        nonadj_right = [full_right ^ adj_right[i] for i in range(right_size)]
+        dp_local = dp
+        nonadj_local = nonadj_right
+        for mask in range(1, size):
+            bit = mask & -mask
+            i = bit.bit_length() - 1
+            rest = mask ^ bit
+            without = dp_local[rest]
+            with_v = 1 + dp_local[rest & nonadj_local[i]]
+            dp_local[mask] = with_v if with_v > without else without
+
+        def right_value(mask):
+            return dp[mask]
+
+    def reconstruct_right(mask, need):
+        result = []
+        if need == 0:
+            return result
+
+        if mode == 0:
+            while need:
+                bit = mask & -mask
+                result.append(bit.bit_length() - 1)
+                mask ^= bit
+                need -= 1
+            return result
+
+        if mode == 1:
+            bit = mask & -mask
+            result.append(bit.bit_length() - 1)
+            return result
+
+        while need:
+            bit = mask & -mask
+            i = bit.bit_length() - 1
+            rest = mask ^ bit
+            if dp[rest] >= need:
+                mask = rest
+            else:
+                result.append(i)
+                need -= 1
+                mask = rest & (full_right ^ adj_right[i])
+        return result
+
+    if right_value(full_right) >= k:
+        rr = reconstruct_right(full_right, k)
+        answer = [right_vertices[i] + 1 for i in rr]
+        print("YES")
+        print(" ".join(map(str, answer)))
+        return
+
+    def clique_cover_bound(mask):
+        groups = 0
+        remaining_mask = mask
+        while remaining_mask:
+            groups += 1
+            available = remaining_mask
+            while available:
+                bit = available & -available
+                v = bit.bit_length() - 1
+                remaining_mask ^= bit
+                available = (available ^ bit) & adj_left[v]
+        return groups
+
+    found_left = 0
+    found_allowed = 0
+    found_count = 0
+
+    sys.setrecursionlimit(1000000)
+
+    def search(candidates, allowed_right, selected_mask, count):
+        nonlocal found_left, found_allowed, found_count
+
+        right_max = right_value(allowed_right)
+        if count + right_max >= k:
+            found_left = selected_mask
+            found_allowed = allowed_right
+            found_count = count
+            return True
+
+        if not candidates:
+            return False
+
+        candidate_count = candidates.bit_count()
+        if count + candidate_count + right_max < k:
+            return False
+
+        if candidate_count >= 8:
+            if count + clique_cover_bound(candidates) + right_max < k:
+                return False
+
+        bit = candidates & -candidates
+        v = bit.bit_length() - 1
+        rest = candidates ^ bit
+
+        include_candidates = rest & (full_left ^ adj_left[v])
+        include_allowed = allowed_right & noncross[v]
+        if search(
+            include_candidates,
+            include_allowed,
+            selected_mask | bit,
+            count + 1
+        ):
+            return True
+
+        return search(rest, allowed_right, selected_mask, count)
+
+    if not search(full_left, full_right, 0, 0):
+        print("NO")
+        return
+
+    answer = []
+    x = found_left
+    while x:
+        bit = x & -x
+        i = bit.bit_length() - 1
+        answer.append(left_vertices[i] + 1)
+        x ^= bit
+
+    need_right = k - found_count
+    rr = reconstruct_right(found_allowed, need_right)
+    answer.extend(right_vertices[i] + 1 for i in rr)
+
+    print("YES")
+    print(" ".join(map(str, answer[:k])))
+
+if __name__ == "__main__":
+    main()
+```

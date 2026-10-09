@@ -1,0 +1,56 @@
+# Problem C — Shift Assignment Pipeline: Stage 2
+
+Time limit: 2 s   Memory limit: 256 MB
+
+You are developing an automated scheduling pipeline for a manufacturing plant that operates exclusively on two daily shifts. The pipeline executes in three distinct stages:
+
+**Stage 1: Data Ingestion.** The system aggregates employee records to produce a list of shift-separation requirements. A requirement between two employees dictates they must not work the same shift.
+
+**Stage 2: Feasibility Analysis (Your Task).** The system must immediately flag configurations that guarantee the failure of a two-shift system. Specifically, if a set of three distinct employees exists such that every pair among them is bound by a shift-separation requirement, they cannot be distributed across only two shifts. 
+
+**Stage 3: HR Escalation.** Upon detecting this condition, the pipeline halts and forwards the three employee identifiers to Human Resources.
+
+You must process the output from Stage 1. The data is mathematically guaranteed to contain at least one such set of three employees. You must output exactly one set of three employees. To maintain deterministic escalation logs, present the three identifiers sorted from lowest to highest ($a < b < c$). In the event of multiple valid sets, resolve ties by selecting the set with the smallest $a$; if still tied, the smallest $b$; and if still tied, the smallest $c$.
+
+## Input
+The first line provides two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n \cdot (n-1)/2, 2 \cdot 10^5)$), representing the number of employees and the total number of shift-separation requirements. Employees are identified by integers from $1$ to $n$.
+
+Each of the ensuing $m$ lines contains two integers $u$ and $v$, indicating that employee $u$ and employee $v$ must be placed on different shifts. 
+
+It is guaranteed that at least one such set of three employees exists.
+
+## Output
+Output a single line containing three integers $a$, $b$, and $c$ ($a < b < c$), representing the identifiers of three employees who all require separation from one another. 
+
+If there are multiple such sets, output the one that minimizes $a$. If there is a tie, minimize $b$. If there is still a tie, minimize $c$.
+
+## Example 1
+Input:
+```
+4 5
+1 2
+1 3
+2 3
+2 4
+3 4
+```
+Output:
+```
+1 2 3
+```
+
+## Example 2
+Input:
+```
+5 6
+1 2
+1 4
+2 4
+3 4
+3 5
+4 5
+```
+Output:
+```
+1 2 4
+```

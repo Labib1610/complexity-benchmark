@@ -1,0 +1,261 @@
+```python
+import sys
+from collections import deque
+
+sys.setrecursionlimit(1_000_000)
+
+data = list(map(int, sys.stdin.buffer.read().split()))
+if not data:
+    sys.exit()
+
+it = iter(data)
+n = next(it)
+m = next(it)
+
+adj = [0] * n
+for _ in range(m):
+    u = next(it) - 1
+    v = next(it) - 1
+    if u != v:
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+
+colors = [-1] * n
+all_vertices = (1 << n) - 1
+
+
+def extract_components():
+    remaining = all_vertices
+    components = []
+
+    while remaining:
+        start = remaining & -remaining
+        remaining ^= start
+        component = start
+        frontier = start
+
+        while frontier:
+            neighbors = 0
+            x = frontier
+            while x:
+                b = x & -x
+                x ^= b
+                v = b.bit_length() - 1
+                neighbors |= adj[v]
+
+            frontier = neighbors & remaining
+            remaining ^= frontier
+            component |= frontier
+
+        components.append(component)
+
+    return components
+
+
+def try_bipartite(component):
+    side = [-1] * n
+    start = (component & -component).bit_length() - 1
+    side[start] = 0
+    queue = deque([start])
+
+    while queue:
+        v = queue.popleft()
+        neighbors = adj[v] & component
+        while neighbors:
+            b = neighbors & -neighbors
+            neighbors ^= b
+            u = b.bit_length() - 1
+
+            if side[u] == -1:
+                side[u] = side[v] ^ 1
+                queue.append(u)
+            elif side[u] == side[v]:
+                return False
+
+    x = component
+    while x:
+        b = x & -x
+        x ^= b
+        v = b.bit_length() - 1
+        colors[v] = side[v]
+
+    return True
+
+
+def solve_component(component):
+    if try_bipartite(component):
+        return True
+
+    vertices = []
+    x = component
+    while x:
+        b = x & -x
+        x ^= b
+        vertices.append(b.bit_length() - 1)
+
+    degrees = {v: (adj[v] & component).bit_count() for v in vertices}
+
+    best_triangle = None
+    best_triangle_score = -1
+
+    for u in vertices:
+        candidates_v = adj[u] & component & ~((1 << (u + 1)) - 1)
+        while candidates_v:
+            bv = candidates_v & -candidates_v
+            candidates_v ^= bv
+            v = bv.bit_length() - 1
+
+            common = adj[u] & adj[v] & component & ~((1 << (v + 1)) - 1)
+            while common:
+                bw = common & -common
+                common ^= bw
+                w = bw.bit_length() - 1
+                score = degrees[u] + degrees[v] + degrees[w]
+                if score > best_triangle_score:
+                    best_triangle_score = score
+                    best_triangle = (u, v, w)
+
+    if best_triangle is not None:
+        seed = best_triangle
+        used = 0b111
+        for c, v in enumerate(seed):
+            colors[v] = c
+    else:
+        best_edge = None
+        best_edge_score = -1
+        for u in vertices:
+            neighbors = adj[u] & component & ~((1 << (u + 1)) - 1)
+            while neighbors:
+                bv = neighbors & -neighbors
+                neighbors ^= bv
+                v = bv.bit_length() - 1
+                score = degrees[u] + degrees[v]
+                if score > best_edge_score:
+                    best_edge_score = score
+                    best_edge = (u, v)
+
+        if best_edge is None:
+            for v in vertices:
+                colors[v] = 0
+            return True
+
+        seed = best_edge
+        colors[seed[0]] = 0
+        colors[seed[1]] = 1
+        used = 0b011
+
+    seed_mask = 0
+    for v in seed:
+        seed_mask |= 1 << v
+
+    uncolored = component & ~seed_mask
+    forbidden = [0, 0, 0]
+
+    for v in seed:
+        forbidden[colors[v]] |= adj[v] & uncolored
+
+    failed = set()
+    memo_limit = 350_000
+
+    def dfs(uncolored_mask, f0, f1, f2, used_mask):
+        if not uncolored_mask:
+            return True
+
+        if f0 & f1 & f2 & uncolored_mask:
+            return False
+
+        key = (uncolored_mask, f0, f1, f2, used_mask)
+        if key in failed:
+            return False
+
+        best_v = -1
+        best_key = (-1, -1, -1)
+
+        x = uncolored_mask
+        while x:
+            b = x & -x
+            x ^= b
+            v = b.bit_length() - 1
+
+            saturation = (
+                ((f0 >> v) & 1)
+                + ((f1 >> v) & 1)
+                + ((f2 >> v) & 1)
+            )
+            dynamic_degree = (adj[v] & uncolored_mask).bit_count()
+            selection_key = (saturation, dynamic_degree, degrees[v])
+
+            if selection_key > best_key:
+                best_key = selection_key
+                best_v = v
+
+        bit_v = 1 << best_v
+        new_uncolored = uncolored_mask ^ bit_v
+
+        blocked = (
+            (((f0 >> best_v) & 1) << 0)
+            | (((f1 >> best_v) & 1) << 1)
+            | (((f2 >> best_v) & 1) << 2)
+        )
+
+        if used_mask != 0b111:
+            next_color = 1 << used_mask.bit_count()
+            available = (~blocked) & (used_mask | next_color) & 0b111
+        else:
+            available = (~blocked) & 0b111
+
+        candidates = []
+        c_bits = available
+        fs = (f0, f1, f2)
+        neighbors = adj[best_v] & new_uncolored
+
+        while c_bits:
+            cb = c_bits & -c_bits
+            c_bits ^= cb
+            c = cb.bit_length() - 1
+            impact = (neighbors & ~fs[c]).bit_count()
+            candidates.append((impact, c))
+
+        candidates.sort()
+
+        base0 = f0 & new_uncolored
+        base1 = f1 & new_uncolored
+        base2 = f2 & new_uncolored
+
+        for _, c in candidates:
+            nf0, nf1, nf2 = base0, base1, base2
+            if c == 0:
+                nf0 |= neighbors
+            elif c == 1:
+                nf1 |= neighbors
+            else:
+                nf2 |= neighbors
+
+            if nf0 & nf1 & nf2:
+                continue
+
+            colors[best_v] = c
+            if dfs(new_uncolored, nf0, nf1, nf2, used_mask | (1 << c)):
+                return True
+            colors[best_v] = -1
+
+        if len(failed) < memo_limit:
+            failed.add(key)
+        return False
+
+    if dfs(uncolored, forbidden[0], forbidden[1], forbidden[2], used):
+        return True
+
+    for v in vertices:
+        colors[v] = -1
+    return False
+
+
+for component in extract_components():
+    if not solve_component(component):
+        print("NO")
+        sys.exit()
+
+print("YES")
+print(*(c + 1 for c in colors))
+```

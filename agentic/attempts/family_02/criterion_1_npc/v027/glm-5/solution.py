@@ -1,0 +1,123 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    clauses = []
+    for _ in range(m):
+        l1 = int(next(it))
+        l2 = int(next(it))
+        l3 = int(next(it))
+        clauses.append((l1, l2, l3))
+    
+    # 2-SAT with 3-SAT clauses (each clause is an OR of 3 literals)
+    # We use implication graph: for each clause (a OR b OR c), add edges:
+    # not a -> b, not a -> c, not b -> a, not b -> c, not c -> a, not c -> b
+    
+    # Node indexing: 0 to 2n-1
+    # For valve i (1-indexed): primary = 2*(i-1), secondary = 2*(i-1)+1
+    
+    def lit_to_node(lit):
+        # lit is signed integer, |lit| is 1-indexed valve number
+        idx = abs(lit) - 1
+        if lit > 0:
+            return 2 * idx  # primary
+        else:
+            return 2 * idx + 1  # secondary
+    
+    def negate_node(node):
+        return node ^ 1
+    
+    N = 2 * n
+    adj = [[] for _ in range(N)]
+    adj_rev = [[] for _ in range(N)]
+    
+    for a, b, c in clauses:
+        na, nb, nc = lit_to_node(a), lit_to_node(b), lit_to_node(c)
+        # not a -> b, not a -> c
+        adj[negate_node(na)].append(nb)
+        adj[negate_node(na)].append(nc)
+        adj_rev[nb].append(negate_node(na))
+        adj_rev[nc].append(negate_node(na))
+        # not b -> a, not b -> c
+        adj[negate_node(nb)].append(na)
+        adj[negate_node(nb)].append(nc)
+        adj_rev[na].append(negate_node(nb))
+        adj_rev[nc].append(negate_node(nb))
+        # not c -> a, not c -> b
+        adj[negate_node(nc)].append(na)
+        adj[negate_node(nc)].append(nb)
+        adj_rev[na].append(negate_node(nc))
+        adj_rev[nb].append(negate_node(nc))
+    
+    # Kosaraju's algorithm for SCC
+    visited = [False] * N
+    order = []
+    
+    def dfs1(v):
+        stack = [v]
+        while stack:
+            node = stack[-1]
+            if visited[node]:
+                stack.pop()
+                continue
+            visited[node] = True
+            pushed = False
+            for nei in adj[node]:
+                if not visited[nei]:
+                    stack.append(nei)
+                    pushed = True
+            if not pushed:
+                order.append(node)
+                stack.pop()
+    
+    for i in range(N):
+        if not visited[i]:
+            dfs1(i)
+    
+    visited = [False] * N
+    comp = [-1] * N
+    comp_id = 0
+    
+    def dfs2(v, cid):
+        stack = [v]
+        while stack:
+            node = stack[-1]
+            if visited[node]:
+                stack.pop()
+                continue
+            visited[node] = True
+            comp[node] = cid
+            for nei in adj_rev[node]:
+                if not visited[nei]:
+                    stack.append(nei)
+    
+    for v in reversed(order):
+        if not visited[v]:
+            dfs2(v, comp_id)
+            comp_id += 1
+    
+    # Check if any valve has both primary and secondary in same SCC
+    for i in range(n):
+        if comp[2*i] == comp[2*i+1]:
+            print("NO")
+            return
+    
+    # Assign values: higher SCC number means earlier in topological order
+    # So we assign True to the one with higher comp_id
+    assignment = [0] * n
+    for i in range(n):
+        if comp[2*i] > comp[2*i+1]:
+            assignment[i] = 1
+        else:
+            assignment[i] = 0
+    
+    print("YES")
+    print(' '.join(map(str, assignment)))
+
+solve()

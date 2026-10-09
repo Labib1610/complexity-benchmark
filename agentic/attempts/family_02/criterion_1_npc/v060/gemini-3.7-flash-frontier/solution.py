@@ -1,0 +1,143 @@
+import sys
+
+# Increase recursion depth just in case
+sys.setrecursionlimit(2000)
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    n = int(input_data[0])
+    m = int(input_data[1])
+
+    clauses = []
+    idx = 2
+    for _ in range(m):
+        c = [int(input_data[idx]), int(input_data[idx + 1]), int(input_data[idx + 2])]
+        idx += 3
+        # Remove duplicate literals
+        c = list(set(c))
+        # Check for tautology
+        if any(-lit in c for lit in c):
+            continue
+        clauses.append(c)
+
+    val = [0] * (n + 1)  # 1: True, -1: False, 0: unassigned
+
+    def get_lit_val(lit):
+        if lit > 0:
+            return val[lit]
+        else:
+            return -val[-lit]
+
+    def unit_propagate():
+        trail = []
+        while True:
+            unit_found = False
+            for c in clauses:
+                sat = False
+                unassigned_lit = 0
+                unassigned_count = 0
+                for lit in c:
+                    lv = get_lit_val(lit)
+                    if lv == 1:
+                        sat = True
+                        break
+                    elif lv == 0:
+                        unassigned_count += 1
+                        unassigned_lit = lit
+                
+                if sat:
+                    continue
+                if unassigned_count == 0:
+                    # Conflict
+                    return False, trail
+                if unassigned_count == 1:
+                    # Unit clause
+                    var = abs(unassigned_lit)
+                    assigned_val = 1 if unassigned_lit > 0 else -1
+                    val[var] = assigned_val
+                    trail.append(var)
+                    unit_found = True
+                    break
+            if not unit_found:
+                break
+        return True, trail
+
+    def undo(trail):
+        for var in trail:
+            val[var] = 0
+
+    def dpll():
+        ok, trail = unit_propagate()
+        if not ok:
+            undo(trail)
+            return False
+
+        # Check if all clauses are satisfied
+        all_sat = True
+        for c in clauses:
+            if not any(get_lit_val(lit) == 1 for lit in c):
+                all_sat = False
+                break
+        if all_sat:
+            return True
+
+        # Choose branching variable using Jeroslow-Wang heuristic
+        jw_pos = [0.0] * (n + 1)
+        jw_neg = [0.0] * (n + 1)
+        
+        for c in clauses:
+            sat = False
+            unresolved = []
+            for lit in c:
+                lv = get_lit_val(lit)
+                if lv == 1:
+                    sat = True
+                    break
+                elif lv == 0:
+                    unresolved.append(lit)
+            if not sat:
+                weight = 2.0 ** (-len(unresolved))
+                for lit in unresolved:
+                    if lit > 0:
+                        jw_pos[lit] += weight
+                    else:
+                        jw_neg[-lit] += weight
+
+        best_var = 0
+        best_score = -1.0
+        for v in range(1, n + 1):
+            if val[v] == 0:
+                score = jw_pos[v] + jw_neg[v]
+                if score > best_score:
+                    best_score = score
+                    best_var = v
+
+        if best_var == 0:
+            # All assigned and satisfied
+            return True
+
+        # Decide branch order
+        branch_order = [1, -1] if jw_pos[best_var] >= jw_neg[best_var] else [-1, 1]
+
+        for branch_val in branch_order:
+            val[best_var] = branch_val
+            if dpll():
+                return True
+            val[best_var] = 0
+
+        undo(trail)
+        return False
+
+    if dpll():
+        print("YES")
+        res = []
+        for i in range(1, n + 1):
+            res.append(1 if val[i] == 1 else 0)
+        print(*(res))
+    else:
+        print("NO")
+
+if __name__ == '__main__':
+    solve()

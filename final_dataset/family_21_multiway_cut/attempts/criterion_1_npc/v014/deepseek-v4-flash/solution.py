@@ -1,0 +1,190 @@
+import sys
+import heapq
+
+input = sys.stdin.readline
+
+def solve():
+    n, m, k, B = map(int, input().split())
+    terminals = list(map(int, input().split()))
+    terminal_set = set(terminals)
+    
+    edges = []
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u, v, w = map(int, input().split())
+        u -= 1
+        v -= 1
+        edges.append((w, u, v))
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+    
+    # If k <= 1, no need to block anything
+    if k <= 1:
+        print("YES")
+        print(0)
+        return
+    
+    # Build Gomory-Hu tree using min-cut (Dinic's algorithm)
+    # We'll implement Dinic for max flow / min cut
+    
+    class Dinic:
+        def __init__(self, n):
+            self.n = n
+            self.graph = [[] for _ in range(n)]
+        
+        def add_edge(self, fr, to, cap):
+            self.graph[fr].append([to, cap, len(self.graph[to])])
+            self.graph[to].append([fr, 0, len(self.graph[fr]) - 1])
+        
+        def bfs(self, s, t):
+            self.level = [-1] * self.n
+            q = [s]
+            self.level[s] = 0
+            for v in q:
+                for to, cap, rev in self.graph[v]:
+                    if cap > 0 and self.level[to] < 0:
+                        self.level[to] = self.level[v] + 1
+                        q.append(to)
+            return self.level[t] >= 0
+        
+        def dfs(self, v, t, f):
+            if v == t:
+                return f
+            for i in range(self.it[v], len(self.graph[v])):
+                self.it[v] = i
+                to, cap, rev = self.graph[v][i]
+                if cap > 0 and self.level[v] < self.level[to]:
+                    d = self.dfs(to, t, min(f, cap))
+                    if d > 0:
+                        self.graph[v][i][1] -= d
+                        self.graph[to][rev][1] += d
+                        return d
+            return 0
+        
+        def max_flow(self, s, t):
+            flow = 0
+            INF = 10**18
+            while self.bfs(s, t):
+                self.it = [0] * self.n
+                while True:
+                    f = self.dfs(s, t, INF)
+                    if f == 0:
+                        break
+                    flow += f
+            return flow
+    
+    # Build Gomory-Hu tree
+    parent = [0] * n
+    gomory_hu_edges = []
+    for i in range(1, n):
+        dinic = Dinic(n)
+        for u, v, w in edges:
+            dinic.add_edge(u, v, w)
+            dinic.add_edge(v, u, w)
+        flow = dinic.max_flow(i, parent[i])
+        # find reachable set from i in residual graph
+        visited = [False] * n
+        stack = [i]
+        visited[i] = True
+        while stack:
+            v = stack.pop()
+            for to, cap, rev in dinic.graph[v]:
+                if cap > 0 and not visited[to]:
+                    visited[to] = True
+                    stack.append(to)
+        for j in range(i+1, n):
+            if visited[j] and parent[j] == parent[i]:
+                parent[j] = i
+        if flow < B:
+            gomory_hu_edges.append((flow, i, parent[i]))
+    
+    # Now we have a Gomory-Hu tree. We need to cut edges to separate terminals.
+    # Build tree adjacency
+    tree_adj = [[] for _ in range(n)]
+    for w, u, v in gomory_hu_edges:
+        tree_adj[u].append((v, w))
+        tree_adj[v].append((u, w))
+    
+    # Find minimal cut separating all terminals: 
+    # We can do a multiway cut on the tree: remove edges so that each component has at most one terminal.
+    # On a tree, the optimal is to remove the minimum weight edge on paths between terminals.
+    
+    # Build a new graph only with terminals and their pairwise min-cut values from Gomory-Hu tree
+    # Actually, we can directly cut the tree edges: 
+    # For each edge in the Gomory-Hu tree, if removing it separates terminals into two groups both containing terminals, we must cut it.
+    # The cost is the edge weight.
+    
+    # We'll do DFS to find for each tree edge if it separates terminals.
+    # Build tree with adjacency list including edge index
+    tree_adj_idx = [[] for _ in range(n)]
+    for idx, (w, u, v) in enumerate(gomory_hu_edges):
+        tree_adj_idx[u].append((v, w, idx))
+        tree_adj_idx[v].append((u, w, idx))
+    
+    # Count terminals in subtree
+    term_count = [0]*n
+    for t in terminals:
+        term_count[t] = 1
+    
+    cut_edges = []
+    total_cost = 0
+    
+    def dfs(v, p):
+        cnt = term_count[v]
+        for to, w, idx in tree_adj_idx[v]:
+            if to == p:
+                continue
+            sub = dfs(to, v)
+            if sub > 0 and sub < k:
+                # this edge separates terminals
+                cut_edges.append((v, to, w))
+                nonlocal total_cost
+                total_cost += w
+            cnt += sub
+        return cnt
+    
+    # Need to handle nonlocal in nested function
+    total_cost = 0
+    cut_edges = []
+    
+    def dfs2(v, p):
+        cnt = term_count[v]
+        for to, w, idx in tree_adj_idx[v]:
+            if to == p:
+                continue
+            sub = dfs2(to, v)
+            if sub > 0 and sub < k:
+                cut_edges.append((v, to, w))
+                nonlocal total_cost
+                total_cost += w
+            cnt += sub
+        return cnt
+    
+    # But nonlocal doesn't work at top-level function? We'll use a list.
+    total_cost = [0]
+    cut_edges = []
+    
+    def dfs3(v, p):
+        cnt = term_count[v]
+        for to, w, idx in tree_adj_idx[v]:
+            if to == p:
+                continue
+            sub = dfs3(to, v)
+            if sub > 0 and sub < k:
+                cut_edges.append((v, to, w))
+                total_cost[0] += w
+            cnt += sub
+        return cnt
+    
+    dfs3(terminals[0], -1)
+    
+    if total_cost[0] <= B:
+        print("YES")
+        print(len(cut_edges))
+        for u, v, w in cut_edges:
+            print(u+1, v+1)
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()

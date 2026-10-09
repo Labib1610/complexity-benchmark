@@ -2,41 +2,40 @@ import sys
 from collections import defaultdict
 
 def solve():
-    n, m = map(int, sys.stdin.readline().split())
+    n, m = map(int, input().split())
     
     # Build adjacency list for conflicts
     adj = defaultdict(list)
     for _ in range(m):
-        u, v = map(int, sys.stdin.readline().split())
+        u, v = map(int, input().split())
+        u -= 1  # Convert to 0-indexed
+        v -= 1
         adj[u].append(v)
         adj[v].append(u)
     
-    # Try all possible assignments in lexicographical order
-    assignment = [0] * (n + 1)  # 1-indexed
+    # Try to 3-color the graph
+    colors = [-1] * n  # -1 means uncolored
     
-    def is_valid(vehicle, block):
-        for neighbor in adj[vehicle]:
-            if assignment[neighbor] == block:
+    def dfs(node, color):
+        colors[node] = color
+        for neighbor in adj[node]:
+            if colors[neighbor] == -1:
+                if not dfs(neighbor, 1 - color if color < 2 else 2 - color if color > 0 else 1):
+                    return False
+            elif colors[neighbor] == color:
                 return False
         return True
     
-    def backtrack(vehicle):
-        if vehicle > n:
-            return True
-            
-        for block in [1, 2, 3]:
-            if is_valid(vehicle, block):
-                assignment[vehicle] = block
-                if backtrack(vehicle + 1):
-                    return True
-                assignment[vehicle] = 0
-        
-        return False
+    # Check each connected component
+    for i in range(n):
+        if colors[i] == -1:
+            if not dfs(i, 0):
+                print("NO")
+                return
     
-    if backtrack(1):
-        print("YES")
-        print(' '.join(map(str, assignment[1:])))
-    else:
-        print("NO")
+    print("YES")
+    # Convert colors from {0,1,2} to {1,2,3}
+    result = [str(c + 1) for c in colors]
+    print(" ".join(result))
 
 solve()

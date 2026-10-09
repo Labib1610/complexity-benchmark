@@ -1,0 +1,35 @@
+import sys
+
+def main():
+    import sys
+    input = sys.stdin.readline
+    j = int(input())
+    jobs = []
+    for _ in range(j):
+        p1, p2 = map(int, input().split())
+        jobs.append((p1, p2))
+    
+    group1 = []
+    group2 = []
+    for p1, p2 in jobs:
+        if p1 <= p2:
+            group1.append((p1, p2))
+        else:
+            group2.append((p1, p2))
+    
+    group1.sort(key=lambda x: x[0])
+    group2.sort(key=lambda x: -x[1])
+    
+    sorted_jobs = group1 + group2
+    
+    time_m1 = 0
+    time_m2 = 0
+    for p1, p2 in sorted_jobs:
+        time_m1 += p1
+        start_m2 = max(time_m2, time_m1)
+        time_m2 = start_m2 + p2
+    
+    print(time_m2)
+
+if __name__ == "__main__":
+    main()

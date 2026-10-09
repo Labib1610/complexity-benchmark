@@ -4,57 +4,40 @@ from collections import deque
 input = sys.stdin.readline
 
 n, m = map(int, input().split())
-adj = [[] for _ in range(n)]
+adj = [[] for _ in range(n + 1)]
+
 for _ in range(m):
     u, v = map(int, input().split())
-    u -= 1
-    v -= 1
     adj[u].append(v)
     adj[v].append(u)
 
-color = [-1] * n
-possible = True
+color = [0] * (n + 1)  # 0 = uncolored, 1 or 2 = crew
 
-for start in range(n):
-    if color[start] != -1:
-        continue
-    # try to color start with 1
-    color[start] = 0  # 0 means code 1, 1 means code 2
+def bfs(start):
     q = deque([start])
-    ok = True
+    color[start] = 1
     while q:
         u = q.popleft()
         for v in adj[u]:
-            if color[v] == -1:
-                color[v] = 1 - color[u]
+            if color[v] == 0:
+                # assign opposite color, but choose smallest possible
+                color[v] = 3 - color[u]
                 q.append(v)
             elif color[v] == color[u]:
-                ok = False
-                break
-        if not ok:
-            break
-    if not ok:
-        # try starting with 2
-        color[start] = 1
-        q = deque([start])
-        ok = True
-        while q:
-            u = q.popleft()
-            for v in adj[u]:
-                if color[v] == -1:
-                    color[v] = 1 - color[u]
-                    q.append(v)
-                elif color[v] == color[u]:
-                    ok = False
-                    break
-            if not ok:
-                break
-        if not ok:
-            possible = False
-            break
+                return False
+    return True
 
-if not possible:
-    print("NO")
-else:
-    print("YES")
-    print(" ".join(str(c + 1) for c in color))
+for i in range(1, n + 1):
+    if color[i] == 0:
+        # Try to assign 1 if possible, else 2
+        color[i] = 1
+        if not bfs(i):
+            # If conflict, try starting with 2
+            color = [0] * (n + 1)
+            color[i] = 2
+            if not bfs(i):
+                print("NO")
+                sys.exit()
+
+print("YES")
+print(" ".join(str(color[i]) for i in range(1, n + 1)))

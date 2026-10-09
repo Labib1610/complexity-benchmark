@@ -1,57 +1,45 @@
 from itertools import product
 
 def solve():
-    import sys
-    input = sys.stdin.read
-    data = input().split()
+    n, m = map(int, input().split())
     
-    n = int(data[0])
-    m = int(data[1])
+    # Read edges
+    edges = []
+    for _ in range(m):
+        u, v = map(int, input().split())
+        edges.append((u-1, v-1))  # Convert to 0-indexed
     
+    # If no edges, any assignment works
     if m == 0:
         print("YES")
         print(" ".join(["1"] * n))
         return
     
-    edges = []
-    index = 2
-    for _ in range(m):
-        u = int(data[index]) - 1
-        v = int(data[index+1]) - 1
-        edges.append((u, v))
-        index += 2
-    
-    # Collaborative load table
-    load = {
-        (1,1): 10, (2,2): 16, (3,3): 26,
-        (1,2): 5, (2,1): 5,
-        (1,3): 10, (3,1): 10,
-        (2,3): 13, (3,2): 13
-    }
-    
-    # Try all 3^n assignments in lexicographical order
-    for assignment in product([1,2,3], repeat=n):
-        # Calculate total system risk
-        # Count degree of each node
-        degree = [0] * n
+    # Try all possible assignments of clock speeds (1, 2, 3)
+    for assignment in product([1, 2, 3], repeat=n):
+        valid = True
+        
+        # Check each edge
         for u, v in edges:
-            degree[u] += 1
-            degree[v] += 1
+            x = assignment[u]  # Clock speed of node u
+            y = assignment[v]  # Clock speed of node v
+            
+            # Calculate V_u and V_w
+            V_u = x**2 * (v * x + u * y) + y**2 * (x**2 + y)
+            V_w = y**2 * (u * y + v * x) + x**2 * (y**2 + x)
+            
+            # If they are equal, this assignment is invalid
+            if V_u == V_w:
+                valid = False
+                break
         
-        total_risk = 0
-        for i in range(n):
-            total_risk += assignment[i] ** 2 * degree[i]
-        
-        # Calculate total collaborative load
-        total_load = 0
-        for u, v in edges:
-            total_load += load[(assignment[u], assignment[v])]
-        
-        if total_load == total_risk:
+        # If this assignment is valid, output it
+        if valid:
             print("YES")
             print(" ".join(map(str, assignment)))
             return
     
+    # If no valid assignment found
     print("NO")
 
 solve()

@@ -1,0 +1,359 @@
+import sys
+from array import array
+from collections import deque
+
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if len(data) < 3:
+        return
+
+    n, m, budget = data[0], data[1], data[2]
+    if budget < 0:
+        print("NO")
+        return
+
+    parent_dsu = list(range(n))
+    size_dsu = [1] * n
+
+    def find(x):
+        while parent_dsu[x] != x:
+            parent_dsu[x] = parent_dsu[parent_dsu[x]]
+            x = parent_dsu[x]
+        return x
+
+    def union(a, b):
+        a = find(a)
+        b = find(b)
+        if a == b:
+            return
+        if size_dsu[a] < size_dsu[b]:
+            a, b = b, a
+        parent_dsu[b] = a
+        size_dsu[a] += size_dsu[b]
+
+    global_adj = [dict() for _ in range(n)]
+    edge_weight_total = 0
+
+    p = 3
+    for _ in range(m):
+        u = data[p] - 1
+        v = data[p + 1] - 1
+        p += 2
+        if u == v:
+            continue
+        global_adj[u][v] = global_adj[u].get(v, 0) + 1
+        global_adj[v][u] = global_adj[v].get(u, 0) + 1
+        edge_weight_total += 1
+        union(u, v)
+
+    if edge_weight_total > budget:
+        print("NO")
+        return
+
+    groups = {}
+    for v in range(n):
+        r = find(v)
+        groups.setdefault(r, []).append(v)
+
+    components = []
+
+    for vertices in groups.values():
+        k = len(vertices)
+        index = {v: i for i, v in enumerate(vertices)}
+        adj = [[] for _ in range(k)]
+        edges = []
+        edge_sum = 0
+
+        for i, u in enumerate(vertices):
+            for v, w in global_adj[u].items():
+                j = index.get(v)
+                if j is not None:
+                    adj[i].append((j, w))
+                    if i < j:
+                        edges.append((i, j, w))
+                        edge_sum += w
+
+        components.append((vertices, adj, edges, edge_sum))
+
+    def order_cost(order, edges):
+        pos = [0] * len(order)
+        for i, v in enumerate(order):
+            pos[v] = i
+        total = 0
+        for u, v, w in edges:
+            total += abs(pos[u] - pos[v]) * w
+        return total
+
+    def local_improve(order, adj, max_passes=12):
+        k = len(order)
+        if k <= 2:
+            return order[:]
+
+        order = order[:]
+        pos = [0] * k
+        for i, v in enumerate(order):
+            pos[v] = i
+
+        for _ in range(max_passes):
+            changed = False
+            for i in range(k - 1):
+                a = order[i]
+                b = order[i + 1]
+                delta = 0
+
+                for x, w in adj[a]:
+                    if x != b:
+                        delta += (abs(i + 1 - pos[x]) - abs(i - pos[x])) * w
+                for x, w in adj[b]:
+                    if x != a:
+                        delta += (abs(i - pos[x]) - abs(i + 1 - pos[x])) * w
+
+                if delta < 0:
+                    order[i], order[i + 1] = b, a
+                    pos[a], pos[b] = i + 1, i
+                    changed = True
+
+            if not changed:
+                break
+
+        return order
+
+    def heuristic_order(adj, edges):
+        k = len(adj)
+        if k <= 1:
+            return list(range(k))
+
+        degree = [sum(w for _, w in adj[v]) for v in range(k)]
+        candidates = [
+            list(range(k)),
+            sorted(range(k), key=lambda v: (degree[v], v)),
+            sorted(range(k), key=lambda v: (-degree[v], v)),
+        ]
+
+        seen = [False] * k
+        cm = []
+        while len(cm) < k:
+            start = min((v for v in range(k) if not seen[v]),
+                        key=lambda v: (degree[v], v))
+            seen[start] = True
+            q = deque([start])
+            while q:
+                v = q.popleft()
+                cm.append(v)
+                nxt = [u for u, _ in adj[v] if not seen[u]]
+                nxt.sort(key=lambda u: (degree[u], u))
+                for u in nxt:
+                    if not seen[u]:
+                        seen[u] = True
+                        q.append(u)
+        candidates.append(cm)
+
+        best = None
+        best_cost = None
+        for candidate in candidates:
+            candidate = local_improve(candidate, adj)
+            cost = order_cost(candidate, edges)
+            if best_cost is None or cost < best_cost:
+                best_cost = cost
+                best = candidate
+
+        return best
+
+    heuristic_orders = []
+    heuristic_total = 0
+    for vertices, adj, edges, edge_sum in components:
+        order = heuristic_order(adj, edges)
+        heuristic_orders.append(order)
+        heuristic_total += order_cost(order, edges)
+
+    if heuristic_total <= budget:
+        global_order = []
+        for component, local_order in zip(components, heuristic_orders):
+            vertices = component[0]
+            global_order.extend(vertices[i] for i in local_order)
+
+        answer = [0] * n
+        for position, vertex in enumerate(global_order, 1):
+            answer[vertex] = position
+
+        print("YES")
+        print(*answer)
+        return
+
+    def exact_array(adj, cap):
+        k = len(adj)
+        if k <= 1:
+            return [0]
+
+        degree = [sum(w for _, w in adj[v]) for v in range(k)]
+        total_states = 1 << k
+        inf = cap + 1
+
+        cuts = array('Q', [0]) * total_states
+        dp = array('Q', [inf]) * total_states
+        dp[0] = 0
+
+        for mask in range(1, total_states):
+            bit = mask & -mask
+            v = bit.bit_length() - 1
+            prev = mask ^ bit
+
+            cut = cuts[prev] + degree[v]
+            for u, w in adj[v]:
+                if prev & (1 << u):
+                    cut -= 2 * w
+            cuts[mask] = cut
+
+            best = inf
+            bits = mask
+            while bits:
+                b = bits & -bits
+                value = dp[mask ^ b]
+                if value < best:
+                    best = value
+                bits ^= b
+
+            value = best + cut
+            if value > inf:
+                value = inf
+            dp[mask] = value
+
+        full = total_states - 1
+        if dp[full] > cap:
+            return None
+
+        reverse_order = []
+        mask = full
+        while mask:
+            target = dp[mask] - cuts[mask]
+            bits = mask
+            chosen = -1
+            while bits:
+                b = bits & -bits
+                if dp[mask ^ b] == target:
+                    chosen = b.bit_length() - 1
+                    break
+                bits ^= b
+            if chosen < 0:
+                return None
+            reverse_order.append(chosen)
+            mask ^= 1 << chosen
+
+        reverse_order.reverse()
+        return reverse_order
+
+    def exact_sparse(adj, cap):
+        k = len(adj)
+        if k <= 1:
+            return [0]
+
+        degree = [sum(w for _, w in adj[v]) for v in range(k)]
+        full = (1 << k) - 1
+        current = {0: (0, 0)}
+        chosen_parent = {}
+
+        for level in range(k):
+            nxt = {}
+            for mask, (cost, cut) in current.items():
+                remaining = full ^ mask
+                bits = remaining
+
+                while bits:
+                    bit = bits & -bits
+                    v = bit.bit_length() - 1
+
+                    new_cut = cut + degree[v]
+                    for u, w in adj[v]:
+                        if mask & (1 << u):
+                            new_cut -= 2 * w
+
+                    new_mask = mask | bit
+                    new_cost = cost + new_cut
+                    new_size = level + 1
+
+                    if new_cost <= cap:
+                        unavoidable = k - 1 - new_size
+                        if new_cost + unavoidable <= cap:
+                            old = nxt.get(new_mask)
+                            if old is None or new_cost < old[0]:
+                                nxt[new_mask] = (new_cost, new_cut)
+                                chosen_parent[new_mask] = v
+
+                    bits ^= bit
+
+            current = nxt
+            if not current:
+                return None
+
+        if full not in current:
+            return None
+
+        reverse_order = []
+        mask = full
+        while mask:
+            v = chosen_parent[mask]
+            reverse_order.append(v)
+            mask ^= 1 << v
+        reverse_order.reverse()
+        return reverse_order
+
+    indexed_components = list(enumerate(components))
+    indexed_components.sort(key=lambda x: len(x[1][0]), reverse=True)
+
+    remaining_lower = sum(component[3] for _, component in indexed_components)
+    exact_orders = [None] * len(components)
+    used = 0
+
+    for original_index, component in indexed_components:
+        vertices, adj, edges, edge_sum = component
+        remaining_lower -= edge_sum
+        cap = budget - used - remaining_lower
+
+        if cap < edge_sum:
+            print("NO")
+            return
+
+        heuristic = heuristic_orders[original_index]
+        upper = order_cost(heuristic, edges)
+        search_cap = min(cap, upper)
+
+        k = len(vertices)
+        try:
+            if k <= 22 and search_cap < (1 << 64) - 1:
+                order = exact_array(adj, search_cap)
+            else:
+                order = exact_sparse(adj, search_cap)
+        except (MemoryError, OverflowError):
+            order = exact_sparse(adj, search_cap)
+
+        if order is None:
+            print("NO")
+            return
+
+        cost = order_cost(order, edges)
+        used += cost
+        if used + remaining_lower > budget:
+            print("NO")
+            return
+        exact_orders[original_index] = order
+
+    if used > budget:
+        print("NO")
+        return
+
+    global_order = []
+    for component, local_order in zip(components, exact_orders):
+        vertices = component[0]
+        global_order.extend(vertices[i] for i in local_order)
+
+    answer = [0] * n
+    for position, vertex in enumerate(global_order, 1):
+        answer[vertex] = position
+
+    print("YES")
+    print(*answer)
+
+
+if __name__ == "__main__":
+    main()

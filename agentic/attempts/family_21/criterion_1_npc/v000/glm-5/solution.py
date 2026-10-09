@@ -1,0 +1,112 @@
+import sys
+from heapq import heappush, heappop
+
+def solve():
+    input_data = sys.stdin.buffer.read().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    k = int(next(it))
+    B = int(next(it))
+    hubs = [int(next(it)) for _ in range(k)]
+    hub_set = set(hubs)
+
+    adj = [[] for _ in range(n + 1)]
+    edges = []
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        w = int(next(it))
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+        edges.append((u, v, w))
+
+    INF = float('inf')
+    dist = [[INF] * (n + 1) for _ in range(k)]
+    par = [[-1] * (n + 1) for _ in range(k)]
+    for i in range(k):
+        s = hubs[i]
+        dist[i][s] = 0
+        pq = [(0, s)]
+        while pq:
+            d, u = heappop(pq)
+            if d > dist[i][u]:
+                continue
+            for v, w in adj[u]:
+                nd = d + w
+                if nd < dist[i][v]:
+                    dist[i][v] = nd
+                    par[i][v] = u
+                    heappush(pq, (nd, v))
+
+    # Build auxiliary graph among hubs
+    aux_nodes = list(range(k))
+    aux_adj = [[] for _ in range(k)]
+    aux_edges = []
+    for i in range(k):
+        for j in range(i + 1, k):
+            d = dist[i][hubs[j]]
+            if d < INF:
+                aux_adj[i].append((j, d))
+                aux_adj[j].append((i, d))
+                aux_edges.append((d, i, j))
+
+    # Kruskal-like MST with DSU
+    parent = list(range(k))
+    def find(x):
+        root = x
+        while parent[root] != root:
+            root = parent[root]
+        while parent[x] != root:
+            parent[x], x = root, parent[x]
+        return root
+
+    aux_edges.sort()
+    mst_edges = []
+    mst_cost = 0
+    for w, i, j in aux_edges:
+        ri, rj = find(i), find(j)
+        if ri != rj:
+            parent[ri] = rj
+            mst_edges.append((i, j, w))
+            mst_cost += w
+
+    # Check connectivity among hubs
+    root0 = find(0)
+    connected = all(find(i) == root0 for i in range(k))
+
+    if not connected or mst_cost > B:
+        sys.stdout.write("NO\n")
+        return
+
+    # Recover cut edges from MST paths
+    cut_edges = set()
+    for i, j, _ in mst_edges:
+        u = hubs[i]
+        v = hubs[j]
+        while u != v:
+            du = dist[i][u]
+            dv = dist[i][v]
+            if du <= dv:
+                p = par[i][u]
+                if u < p:
+                    cut_edges.add((u, p))
+                else:
+                    cut_edges.add((p, u))
+                u = p
+            else:
+                p = par[i][v]
+                if v < p:
+                    cut_edges.add((v, p))
+                else:
+                    cut_edges.add((p, v))
+                v = p
+
+    out = ["YES", str(len(cut_edges))]
+    for u, v in cut_edges:
+        out.append(f"{u} {v}")
+    sys.stdout.write("\n".join(out) + "\n")
+
+solve()

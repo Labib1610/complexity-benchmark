@@ -1,0 +1,194 @@
+import sys
+from collections import defaultdict
+import heapq
+
+def find_mst_modified(n, edges, quarantine_zones):
+    # We want to find a forest where each tree contains exactly one quarantine zone
+    # This is similar to a multi-way cut problem, but we can model it as MST with modifications
+    
+    # Create a "super node" for each quarantine zone
+    # But actually, we'll solve this by finding components that contain exactly one quarantine zone
+    
+    # Strategy:
+    # 1. For each component in the final solution, it should contain at most one quarantine zone
+    # 2. So we want to disconnect all quarantine zones from each other with minimum cost
+    # 3. This is essentially a multi-terminal cut problem
+    
+    # However, let's think differently:
+    # We want to partition the graph such that each part contains exactly one quarantine zone
+    # And we minimize the total weight of edges crossing partitions
+    
+    # Let's use a greedy approach:
+    # Build a MST of the whole graph, then remove edges to create the required partition
+    
+    # Actually, let's think of it as: 
+    # Connect all quarantine zones to a virtual node, then find a way to separate them
+    
+    # Simpler approach:
+    # Model this as a flow problem or use the fact that we need to make sure 
+    # no two quarantine zones are connected
+    
+    # Best approach:
+    # Use Kruskal's algorithm but modify it to ensure that we never connect two quarantine zones
+    # That means when considering an edge (u,v), if u and v belong to components 
+    # that already contain quarantine zones, we skip this edge
+    
+    # Let's implement this modified Kruskal's
+    
+    parent = list(range(n))
+    
+    def find(x):
+        if parent[x] != x:
+            parent[x] = find(parent[x])
+        return parent[x]
+    
+    def union(x, y):
+        px, py = find(x), find(y)
+        if px == py:
+            return False
+        parent[px] = py
+        return True
+    
+    # Mark which components contain quarantine zones
+    quarantine_set = set(quarantine_zones)
+    
+    # Sort edges by weight
+    edges.sort(key=lambda x: x[2])
+    
+    blocked_edges = []
+    total_cost = 0
+    
+    # Keep track of which components contain quarantine zones
+    component_quarantines = {}  # root -> set of quarantine zones in component
+    
+    # Initialize component_quarantines
+    for i in range(n):
+        if i in quarantine_set:
+            component_quarantines[i] = {i}
+        else:
+            component_quarantines[i] = set()
+    
+    for u, v, w in edges:
+        pu = find(u)
+        pv = find(v)
+        
+        if pu == pv:
+            # Already in same component, skip
+            continue
+            
+        # Check if connecting these components would merge two components with quarantine zones
+        quarantines_in_pu = component_quarantines.get(pu, set())
+        quarantines_in_pv = component_quarantines.get(pv, set())
+        
+        if quarantines_in_pu and quarantines_in_pv:
+            # Both components have quarantine zones, so we must block this edge
+            blocked_edges.append((u, v))
+            total_cost += w
+        else:
+            # It's safe to connect these components
+            # Union them
+            union(u, v)
+            
+            # Update the new root's quarantine zones
+            new_root = find(u)  # After union, both u and v should have same root
+            component_quarantines[new_root] = quarantines_in_pu | quarantines_in_pv
+            
+            # Clear the old entry
+            if new_root != pu:
+                component_quarantines.pop(pu, None)
+            if new_root != pv:
+                component_quarantines.pop(pv, None)
+    
+    return blocked_edges, total_cost
+
+def solve():
+    line = sys.stdin.readline().strip()
+    if not line:
+        return
+    n, m, k, B = map(int, line.split())
+    
+    if k <= 1:
+        # If there's 0 or 1 quarantine zone, no segregation needed
+        print("YES")
+        print(0)
+        return
+    
+    quarantine_zones = list(map(int, sys.stdin.readline().split()))
+    # Convert to 0-indexed
+    quarantine_zones = [z - 1 for z in quarantine_zones]
+    
+    edges = []
+    for _ in range(m):
+        u, v, w = map(int, sys.stdin.readline().split())
+        edges.append((u - 1, v - 1, w))  # Convert to 0-indexed
+    
+    # We need to find minimum cut to separate all quarantine zones from each other
+    # This is equivalent to: make sure no two quarantine zones are in the same component
+    
+    # Approach: Modified Kruskal's algorithm
+    # When we consider an edge, if it connects two components that both contain 
+    # quarantine zones, we must block it (add it to our solution)
+    # Otherwise, we can safely connect them
+    
+    parent = list(range(n))
+    
+    def find(x):
+        if parent[x] != x:
+            parent[x] = find(parent[x])
+        return parent[x]
+    
+    def union(x, y):
+        px, py = find(x), find(y)
+        if px == py:
+            return
+        parent[px] = py
+    
+    # Map each node to its quarantine zones (initially only direct matches)
+    quarantine_set = set(quarantine_zones)
+    component_quarantines = {}
+    for i in range(n):
+        component_quarantines[find(i)] = {i} if i in quarantine_set else set()
+    
+    # Sort edges by weight for greedy approach
+    edges.sort(key=lambda x: x[2])
+    
+    blocked_edges = []
+    total_cost = 0
+    
+    for u, v, w in edges:
+        pu = find(u)
+        pv = find(v)
+        
+        if pu == pv:
+            continue  # Already connected
+            
+        # Get quarantine zones in each component
+        qu_pu = component_quarantines.get(pu, set())
+        qu_pv = component_quarantines.get(pv, set())
+        
+        if qu_pu and qu_pv:
+            # Both components contain quarantine zones, must block this edge
+            blocked_edges.append((u+1, v+1))  # Convert back to 1-indexed
+            total_cost += w
+        else:
+            # Safe to connect
+            union(u, v)
+            new_root = find(u)
+            # Merge quarantine zones
+            merged_quarantines = qu_pu | qu_pv
+            component_quarantines[new_root] = merged_quarantines
+            # Clean up old entries
+            if new_root != pu:
+                component_quarantines.pop(pu, None)
+            if new_root != pv:
+                component_quarantines.pop(pv, None)
+    
+    if total_cost <= B:
+        print("YES")
+        print(len(blocked_edges))
+        for u, v in blocked_edges:
+            print(u, v)
+    else:
+        print("NO")
+
+solve()

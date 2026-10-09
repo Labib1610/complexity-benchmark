@@ -1,0 +1,113 @@
+import sys
+
+sys.setrecursionlimit(10000)
+
+def parse_input():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return 0, 0, []
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    clauses = []
+    for _ in range(m):
+        clause = [int(next(it)), int(next(it)), int(next(it))]
+        clauses.append(clause)
+    return n, m, clauses
+
+def simplify(clauses, assign):
+    """Apply current partial assignment.
+    Returns (new_clauses, conflict) where conflict is True if a clause becomes empty."""
+    new_clauses = []
+    for clause in clauses:
+        satisfied = False
+        new_clause = []
+        for lit in clause:
+            var = abs(lit)
+            val = assign.get(var)
+            if val is None:
+                new_clause.append(lit)
+            else:
+                lit_val = (val == 1) if lit > 0 else (val == 0)
+                if lit_val:
+                    satisfied = True
+                    break
+        if satisfied:
+            continue
+        if not new_clause:   # empty clause -> conflict
+            return None, True
+        new_clauses.append(new_clause)
+    return new_clauses, False
+
+def unit_propagate(clauses, assign):
+    """Repeatedly apply unit clause rule."""
+    while True:
+        unit = None
+        for clause in clauses:
+            if len(clause) == 1:
+                unit = clause[0]
+                break
+        if unit is None:
+            break
+        var = abs(unit)
+        val = 1 if unit > 0 else 0
+        if var in assign:
+            if assign[var] != val:
+                return None, True
+        else:
+            assign[var] = val
+        clauses, conflict = simplify(clauses, assign)
+        if conflict:
+            return None, True
+    return clauses, False
+
+def choose_var(clauses, assign, n):
+    """Heuristic: first unassigned variable appearing."""
+    for clause in clauses:
+        for lit in clause:
+            v = abs(lit)
+            if v not in assign:
+                return v
+    # all variables assigned (or no clauses)
+    for v in range(1, n+1):
+        if v not in assign:
+            return v
+    return None
+
+def dpll(clauses, assign, n):
+    clauses, conflict = unit_propagate(clauses, assign)
+    if conflict:
+        return None
+    if not clauses:  # all satisfied
+        # fill remaining vars arbitrarily with 0
+        for v in range(1, n+1):
+            if v not in assign:
+                assign[v] = 0
+        return assign
+    var = choose_var(clauses, assign, n)
+    for val in (1, 0):  # try true (OPEN) then false (CLOSED)
+        new_assign = assign.copy()
+        new_assign[var] = val
+        new_clauses, conflict = simplify(clauses, new_assign)
+        if conflict:
+            continue
+        res = dpll(new_clauses, new_assign, n)
+        if res is not None:
+            return res
+    return None
+
+def main():
+    n, m, clauses = parse_input()
+    if m == 0:
+        print("YES")
+        print(" ".join("0" for _ in range(n)))
+        return
+    result = dpll(clauses, {}, n)
+    if result is None:
+        print("NO")
+    else:
+        print("YES")
+        print(" ".join(str(result[i]) for i in range(1, n+1)))
+
+if __name__ == "__main__":
+    main()

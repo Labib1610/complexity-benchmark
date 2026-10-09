@@ -1,24 +1,25 @@
-# Orbital Power Routing
+# Assembly Sequencing
 
-**Time limit:** 2 s  
-**Memory limit:** 256 MB  
+Time limit: 2 s   Memory limit: 256 MB
 
-An orbital satellite relies on $n$ electronic modules, which are identified by integers from 1 to $n$. The satellite's power distribution system consists of exactly three isolated power buses: Bus 1, Bus 2, and Bus 3. Each module must be completely powered by exactly one of these three buses.
+You are configuring the production schedule for a high-precision manufacturing plant. The daily production cycle is divided into exactly three sequential operational blocks (labeled 1, 2, and 3, in chronological order). 
 
-Because of electromagnetic interference, specific pairs of modules will suffer from critical crosstalk if they are connected to the identical bus. You will receive a complete log of these interfering module pairs. You must figure out if there is a valid configuration that assigns each module to a bus without placing any interfering pair on the same bus.
+There are $n$ distinct manufacturing tasks that must be executed. You must assign each task to exactly one of the three operational blocks. 
 
-The modules are numbered in a way that scatters deeply interconnected components across the numerical sequence. As a result, indirect structural conflicts frequently span across widely separated indices, meaning that a sequence of assignments might seem perfectly viable until distant connections are exposed.
+You are given a list of $m$ resource conflicts. Each conflict indicates that two specific tasks require the same critical robotic arm. Because a robotic arm lacks the capacity to process tasks concurrently, any two tasks that share an arm must be temporally separated. Specifically, for every given pair of tasks that share an arm, one task in the pair must be assigned to a strictly earlier operational block than the other.
+
+Your objective is to determine if all $n$ tasks can be scheduled into the three operational blocks without violating any resource conflicts. If a valid schedule exists, output it.
 
 ## Input
-The first line provides two integers $n$ and $m$ — the total number of modules and the total number of interfering pairs ($1 \le n \le 40$, $0 \le m \le n \cdot (n-1)/2$).
-The following $m$ lines each contain two integers $u$ and $v$ representing a pair of modules that are forbidden from sharing a bus.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$) — the number of manufacturing tasks and the number of resource conflicts.
+Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \ne v$), representing a pair of tasks that share a robotic arm.
 
 ## Output
-If it is impossible to route the power safely, output a single line containing `NO`.
-If a safe configuration is possible, output `YES` on the first line. On the second line, output $n$ integers $b_1, b_2, \dots, b_n$ (each chosen from $\{1,2,3\}$), where $b_i$ represents the bus chosen for module $i$. If there are multiple valid configurations, you must output the sequence that is lexicographically smallest (comparing the choice for module 1 first, then module 2, and so forth).
+If there is no valid way to schedule the tasks, print a single line containing `NO`.
+Otherwise, print `YES` on the first line. On the second line, print $n$ integers $b_1, b_2, \dots, b_n$ (each in {1, 2, 3}), where $b_i$ is the operational block assigned to task $i$. If there are multiple valid schedules, any valid schedule is accepted.
 
 ## Example 1
-**Input:**
+Input:
 ```
 4 5
 1 2
@@ -27,14 +28,14 @@ If a safe configuration is possible, output `YES` on the first line. On the seco
 1 4
 2 4
 ```
-**Output:**
+Output:
 ```
 YES
 1 2 3 3
 ```
 
 ## Example 2
-**Input:**
+Input:
 ```
 4 6
 1 2
@@ -44,7 +45,7 @@ YES
 2 4
 3 4
 ```
-**Output:**
+Output:
 ```
 NO
 ```

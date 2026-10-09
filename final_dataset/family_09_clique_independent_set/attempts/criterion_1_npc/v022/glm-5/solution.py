@@ -1,0 +1,68 @@
+import sys
+from collections import defaultdict
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    try:
+        n = int(next(it))
+        m = int(next(it))
+        k = int(next(it))
+    except StopIteration:
+        return
+    
+    adj = defaultdict(set)
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        adj[u].add(v)
+        adj[v].add(u)
+    
+    order = sorted(range(1, n+1), key=lambda x: len(adj[x]))
+    
+    solution = []
+
+    def dfs(start_idx, current_set):
+        nonlocal solution
+        if solution:
+            return
+        
+        size = len(current_set)
+        if size == k:
+            solution = list(current_set)
+            return
+        
+        if start_idx >= n:
+            return
+        
+        remaining = n - start_idx
+        if size + remaining < k:
+            return
+        
+        for i in range(start_idx, n):
+            v = order[i]
+            # Check if v is compatible with all nodes in current_set
+            compatible = True
+            for u in current_set:
+                if u in adj[v]:
+                    compatible = False
+                    break
+            
+            if compatible:
+                current_set.append(v)
+                dfs(i + 1, current_set)
+                if solution:
+                    return
+                current_set.pop()
+    
+    dfs(0, [])
+    
+    if solution:
+        print("YES")
+        print(" ".join(map(str, solution)))
+    else:
+        print("NO")
+
+solve()

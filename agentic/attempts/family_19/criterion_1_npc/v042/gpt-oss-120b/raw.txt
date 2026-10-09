@@ -1,0 +1,167 @@
+```python
+import sys
+from collections import deque
+
+def main():
+    data = list(map(int, sys.stdin.read().split()))
+    it = iter(data)
+    n, m, k = next(it), next(it), next(it)
+    swarms = [(next(it)-1, next(it)-1, next(it)) for _ in range(k)]
+    edges = []
+    adj = [[] for _ in range(n)]
+    for idx in range(m):
+        u, v, cap = next(it)-1, next(it)-1, next(it)
+        edges.append([u, v, cap])
+        adj[u].append((v, idx))
+
+    # Build a big flow network with a super source and super sink.
+    # Node ordering: original nodes 0..n-1, then super source S=n, super sink T=n+1.
+    N = n + 2
+    S, T = n, n+1
+    g = [[] for _ in range(N)]
+
+    class Edge:
+        __slots__ = ('to','rev','cap')
+        def __init__(self, to, rev, cap):
+            self.to = to
+            self.rev = rev
+            self.cap = cap
+
+    def add_edge(fr, to, cap):
+        g[fr].append(Edge(to, len(g[to]), cap))
+        g[to].append(Edge(fr, len(g[fr])-1, 0))
+
+    # original edges
+    for u, v, cap in edges:
+        add_edge(u, v, cap)
+
+    # connect super source/sink
+    for i, (s, t, d) in enumerate(swarms):
+        add_edge(S, s, d)
+        add_edge(t, T, d)
+
+    # max flow (Dinic)
+    level = [0]*N
+    itp = [0]*N
+    INF = 10**18
+
+    def bfs():
+        for i in range(N):
+            level[i] = -1
+        q = deque([S])
+        level[S] = 0
+        while q:
+            v = q.popleft()
+            for e in g[v]:
+                if e.cap and level[e.to] < 0:
+                    level[e.to] = level[v] + 1
+                    q.append(e.to)
+        return level[T] >= 0
+
+    def dfs(v, f):
+        if v == T:
+            return f
+        for i in range(itp[v], len(g[v])):
+            e = g[v][i]
+            if e.cap and level[v] < level[e.to]:
+                ret = dfs(e.to, min(f, e.cap))
+                if ret:
+                    e.cap -= ret
+                    g[e.to][e.rev].cap += ret
+                    return ret
+            itp[v] += 1
+        return 0
+
+    flow = 0
+    while bfs():
+        itp = [0]*N
+        while True:
+            f = dfs(S, INF)
+            if not f:
+                break
+            flow += f
+
+    total_d = sum(d for _,_,d in swarms)
+    if flow != total_d:
+        print("NO")
+        return
+
+    # At this point we have a feasible circulation.
+    # Extract per-swarm flows by repeatedly finding augmenting paths
+    # from each swarm source to its sink in the residual graph.
+    # Since capacities are integral and total flow matches demands,
+    # this will succeed.
+
+    # Build residual adjacency for original edges only
+    res = [[0]*m for _ in range(k)]
+
+    # store current flow on original edges
+    orig_flow = [[0]*m for _ in range(k)]
+
+    # Build a map from (u,v) to edge index list (could be multiple)
+    edge_map = {}
+    for idx, (u, v, _) in enumerate(edges):
+        edge_map.setdefault((u, v), []).append(idx)
+
+    # Recover total flow on each original edge from residual capacities
+    total_used = [0]*m
+    for u in range(n):
+        for e in g[u]:
+            v = e.to
+            # edge from u to v that is original if there is a reverse edge with zero capacity initially
+            # we can identify by checking if (u,v) is in edge_map and the reverse edge corresponds to that.
+            if (u, v) in edge_map:
+                # find one index not yet accounted
+                for idx in edge_map[(u, v)]:
+                    if total_used[idx] == 0:
+                        # original capacity
+                        cap = edges[idx][2]
+                        used = cap - e.cap
+                        total_used[idx] = used
+                        break
+
+    # Now we need to split total_used among swarms.
+    # Simple greedy: for each swarm, run a DFS on the original graph using remaining capacities.
+    remaining = total_used[:]
+
+    def dfs_assign(u, need, swarm_id, visited):
+        if u == swarms[swarm_id][1]:
+            return need
+        visited.add(u)
+        for v, idx in adj[u]:
+            if remaining[idx] > 0 and v not in visited:
+                take = min(need, remaining[idx])
+                got = dfs_assign(v, take, swarm_id, visited)
+                if got:
+                    remaining[idx] -= got
+                    orig_flow[swarm_id][idx] += got
+                    need -= got
+                    if need == 0:
+                        break
+        visited.remove(u)
+        return need
+
+    possible = True
+    for i in range(k):
+        s, t, d = swarms[i]
+        need = d
+        while need > 0:
+            before = need
+            need = dfs_assign(s, need, i, set())
+            if need == before:  # no progress
+                possible = False
+                break
+        if not possible:
+            break
+
+    if not possible:
+        print("NO")
+        return
+
+    print("YES")
+    for i in range(k):
+        print(' '.join(str(orig_flow[i][j]) for j in range(m))
+
+if __name__ == "__main__":
+    main()
+```

@@ -1,0 +1,186 @@
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+
+    # 2-SAT graph: 2*n nodes, node 2*i is "microservice i is 0", node 2*i+1 is "microservice i is 1"
+    # For each protocol (l1, l2):
+    #   if l1 is contradicted, l2 must hold: add edge (not l1 -> l2)
+    #   if l2 is contradicted, l1 must hold: add edge (not l2 -> l1)
+    # Contradicting l means flipping its required value.
+    # If l > 0 (requires 1), not l means value 0, which is node 2*(l-1).
+    # If l < 0 (requires 0), not l means value 1, which is node 2*(-l-1)+1.
+
+    size = 2 * n
+    head = [-1] * size
+    to = []
+    nxt = []
+
+    def add_edge(u, v):
+        to.append(v)
+        nxt.append(head[u])
+        head[u] = len(to) - 1
+
+    for _ in range(m):
+        a = int(next(it))
+        b = int(next(it))
+        # not a -> b
+        if a > 0:
+            ua = 2 * (a - 1)      # a requires 1, not a is 0
+        else:
+            ua = 2 * (-a - 1) + 1 # a requires 0, not a is 1
+        if b > 0:
+            vb = 2 * (b - 1) + 1  # b requires 1
+        else:
+            vb = 2 * (-b - 1)     # b requires 0
+        add_edge(ua, vb)
+
+        # not b -> a
+        if b > 0:
+            ub = 2 * (b - 1)
+        else:
+            ub = 2 * (-b - 1) + 1
+        if a > 0:
+            va = 2 * (a - 1) + 1
+        else:
+            va = 2 * (-a - 1)
+        add_edge(ub, va)
+
+    # Tarjan's SCC
+    index = [-1] * size
+    low = [0] * size
+    on_stack = [False] * size
+    stack = []
+    idx = 0
+    comp = [-1] * size
+    comp_cnt = 0
+
+    sys.setrecursionlimit(1 << 25)
+
+    # Iterative Tarjan to avoid recursion depth issues
+    for start in range(size):
+        if index[start] != -1:
+            continue
+        call_stack = [(start, head[start], False)]
+        while call_stack:
+            v, e, processed = call_stack.pop()
+            if processed:
+                # after processing children
+                if v >= 0:
+                    low[v] = min(low[v], low_child)
+                    if low[v] == index[v]:
+                        while True:
+                            w = stack.pop()
+                            on_stack[w] = False
+                            comp[w] = comp_cnt
+                            if w == v:
+                                break
+                        comp_cnt += 1
+            else:
+                if index[v] == -1:
+                    index[v] = idx
+                    low[v] = idx
+                    idx += 1
+                    stack.append(v)
+                    on_stack[v] = True
+                    call_stack.append((v, e, True))
+                    # push children
+                    # We need to process children and update low[v]
+                    # Use a special marker to handle child updates
+                    child_iter = e
+                    while child_iter != -1:
+                        w = to[child_iter]
+                        if index[w] == -1:
+                            call_stack.append((~v, 0, False))  # marker to update low[v] after child
+                            call_stack.append((w, head[w], False))
+                        elif on_stack[w]:
+                            low[v] = min(low[v], index[w])
+                        child_iter = nxt[child_iter]
+                # If already visited, nothing to do (handled in parent)
+            # Handle marker: update parent's low with child's low
+            if v < 0:
+                parent = ~v
+                # find the child that was just processed (top of call_stack before this marker)
+                # Actually we need the low of the child we just finished.
+                # The child is the node processed just before this marker.
+                # We can store it differently. Let's restructure.
+
+    # The above iterative approach is tricky; let's use a cleaner iterative Tarjan.
+
+    # Reset and redo with cleaner iterative Tarjan
+    index = [-1] * size
+    low = [0] * size
+    on_stack = [False] * size
+    stack = []
+    idx = 0
+    comp = [-1] * size
+    comp_cnt = 0
+
+    for start in range(size):
+        if index[start] != -1:
+            continue
+        # Each stack frame: (node, next_edge_index)
+        work = [(start, head[start])]
+        while work:
+            v, e = work[-1]
+            if e == head[v] and index[v] == -1:
+                # first time visiting v
+                index[v] = idx
+                low[v] = idx
+                idx += 1
+                stack.append(v)
+                on_stack[v] = True
+            # process edges
+            advanced = False
+            while e != -1:
+                w = to[e]
+                if index[w] == -1:
+                    # update frame's edge pointer and push child
+                    work[-1] = (v, nxt[e])
+                    work.append((w, head[w]))
+                    advanced = True
+                    break
+                elif on_stack[w]:
+                    low[v] = min(low[v], index[w])
+                e = nxt[e]
+            if not advanced:
+                # done with v
+                if low[v] == index[v]:
+                    while True:
+                        w = stack.pop()
+                        on_stack[w] = False
+                        comp[w] = comp_cnt
+                        if w == v:
+                            break
+                    comp_cnt += 1
+                work.pop()
+                if work:
+                    parent = work[-1][0]
+                    low[parent] = min(low[parent], low[v])
+
+    # Check satisfiability
+    for i in range(n):
+        if comp[2 * i] == comp[2 * i + 1]:
+            print("NO")
+            return
+
+    # Build assignment
+    assignment = [0] * n
+    for i in range(n):
+        # In Tarjan, SCCs are numbered in reverse topological order.
+        # So comp with larger number comes first topologically.
+        # We pick the literal whose SCC appears later (larger comp number).
+        if comp[2 * i + 1] > comp[2 * i]:
+            assignment[i] = 1
+        else:
+            assignment[i] = 0
+
+    print("YES")
+    print(' '.join(map(str, assignment)))
+
+solve()

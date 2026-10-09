@@ -15,89 +15,54 @@ def main():
         return
     
     edges = []
-    adj = [[] for _ in range(n+1)]
-    edge_indices = defaultdict(list)
-    
-    idx = 2
-    for i in range(m):
-        u = int(data[idx])
-        v = int(data[idx+1])
-        idx += 2
+    adj = [[] for _ in range(n + 1)]
+    index = 2
+    for _ in range(m):
+        u = int(data[index])
+        v = int(data[index + 1])
         edges.append((u, v))
-        adj[u].append((v, i))
-        adj[v].append((u, i))
-        edge_indices[(u,v)].append(i)
-        edge_indices[(v,u)].append(i)
+        adj[u].append(v)
+        adj[v].append(u)
+        index += 2
     
-    # The complex numbers:
-    c1 = 1 + 1j
-    c2 = 1 - 1j
-    vals = [None, c1, c2]
-    
-    # For each edge (u,v), we compute Im(signature[u] * signature[v])
-    # We want the sum of squares of these imaginary parts to be 0.
-    # Since all terms are non-negative reals, this happens iff each term is 0.
-    # So for every edge, Im(sig_u * sig_v) = 0.
-    
-    # Let's compute what Im(c_i * c_j) is for all i,j in {1,2}:
-    # c1*c1 = (1+i)(1+i) = 1 + 2i -1 = 2i --> Im = 2
-    # c1*c2 = (1+i)(1-i) = 1 -i +i +1 = 2 --> Im = 0
-    # c2*c1 = (1-i)(1+i) = 1 +i -i +1 = 2 --> Im = 0
-    # c2*c2 = (1-i)(1-i) = 1 -2i -1 = -2i --> Im = -2
-    
-    # So Im(c_i * c_j) = 0 iff (i,j) = (1,2) or (2,1)
-    # This means for every edge (u,v), s_u != s_v is required for validity.
-    # Hence, the graph must be bipartite and we must 2-color it.
-    
-    color = [0] * (n+1)  # 0: unvisited, 1 and 2: colors
+    # The local stability index is 3c_u + 3c_v - 2c_u c_v
+    # Let's compute this for all combinations:
+    # c_u=1, c_v=1: 3+3-2 = 4
+    # c_u=1, c_v=2: 3+6-4 = 5
+    # c_u=2, c_v=1: 6+3-4 = 5
+    # c_u=2, c_v=2: 6+6-8 = 4
+    # So we want edges to contribute 5 each, meaning c_u != c_v for all edges.
+    # This is equivalent to checking if the graph is bipartite.
     
     # Check if the graph is bipartite
-    visited = [False] * (n+1)
+    color = [-1] * (n + 1)
     
-    for start in range(1, n+1):
-        if not visited[start]:
+    for i in range(1, n + 1):
+        if color[i] == -1:
             queue = deque()
-            queue.append(start)
-            color[start] = 1
-            visited[start] = True
-            
+            queue.append(i)
+            color[i] = 0
             while queue:
                 u = queue.popleft()
-                c = color[u]
-                for v, e_idx in adj[u]:
-                    if not visited[v]:
-                        visited[v] = True
-                        color[v] = 3 - c  # flips color between 1 and 2
+                for v in adj[u]:
+                    if color[v] == -1:
+                        color[v] = 1 - color[u]
                         queue.append(v)
-                    elif color[v] == c:
+                    elif color[v] == color[u]:
                         print("NO")
                         return
     
-    # If bipartite, assign colors as states
-    # But we need lexicographically smallest assignment
-    # That means we should try color 1 for earlier nodes first
-    # Since we did BFS from low to high, and always started with color 1,
-    # the coloring already gives us a lex-min solution under the constraint.
-    
-    # But actually, we can just assign color 1 and 2 directly as states
-    # because the bipartition itself ensures the constraint.
-    # And our BFS ensures that among valid colorings respecting the bipartition,
-    # starting node gets color 1, which leads to lex-min.
-    
-    # Just double-checking: for each edge, s_u != s_v => Im=0 => valid
-    # So any proper 2-coloring works.
-    
-    # Our algorithm produces a valid 2-coloring if possible.
-    # Now produce the result:
-    res = []
-    for i in range(1, n+1):
+    # If bipartite, assign colors. We want lexicographically smallest.
+    # color 0 -> 1, color 1 -> 2
+    result = []
+    for i in range(1, n + 1):
         if color[i] == 0:
-            res.append(1)  # isolated node, assign 1
+            result.append("1")
         else:
-            res.append(color[i])
+            result.append("2")
     
     print("YES")
-    print(" ".join(map(str, res)))
+    print(" ".join(result))
 
 if __name__ == "__main__":
     main()

@@ -13,21 +13,21 @@ for _ in range(m):
     adj[v].append(u)
 
 color = [-1] * n
-color[0] = 1  # 1 means z=1, 0 means z=2
 
 for start in range(n):
-    if color[start] == -1:
-        color[start] = 1
-        q = deque([start])
-        while q:
-            u = q.popleft()
-            for v in adj[u]:
-                if color[v] == -1:
-                    color[v] = 1 - color[u]
-                    q.append(v)
-                elif color[v] == color[u]:
-                    print("NO")
-                    sys.exit()
+    if color[start] != -1:
+        continue
+    color[start] = 0  # 0 means value 1, 1 means value 2
+    q = deque([start])
+    while q:
+        u = q.popleft()
+        for v in adj[u]:
+            if color[v] == -1:
+                color[v] = 1 - color[u]
+                q.append(v)
+            elif color[v] == color[u]:
+                print("NO")
+                sys.exit()
 
 print("YES")
-print(" ".join(str(c) for c in color))
+print(" ".join(str(c + 1) for c in color))

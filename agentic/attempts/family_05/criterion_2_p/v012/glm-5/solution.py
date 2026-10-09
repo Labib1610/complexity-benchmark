@@ -1,0 +1,99 @@
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    it = iter(data)
+    k = int(next(it))
+    t = int(next(it))
+    
+    # agent -> vehicle
+    av = {}
+    # agent -> set of sectors
+    aset = {}
+    # vehicle -> agent
+    va = {}
+    
+    for _ in range(t):
+        x = int(next(it))
+        y = int(next(it))
+        z = int(next(it))
+        av[x] = y
+        va[y] = x
+        if x not in aset:
+            aset[x] = []
+        aset[x].append(z)
+    
+    # Build bipartite graph: agents (left) -> sectors (right)
+    # We need a perfect matching of size k
+    # Since each agent maps to exactly one vehicle, and each vehicle to one agent,
+    # matching agents to sectors gives us the deployment.
+    
+    # If some agent has no entries, impossible
+    for a in range(1, k+1):
+        if a not in aset:
+            print("NO")
+            return
+    
+    # Build adjacency list
+    adj = [[] for _ in range(k+1)]
+    for a in range(1, k+1):
+        adj[a] = aset[a]
+    
+    # Hopcroft-Karp
+    pair_u = [0] * (k+1)  # agent -> sector
+    pair_v = [0] * (k+1)  # sector -> agent
+    dist = [0] * (k+1)
+    INF = float('inf')
+    
+    from collections import deque
+    
+    def bfs():
+        queue = deque()
+        for u in range(1, k+1):
+            if pair_u[u] == 0:
+                dist[u] = 0
+                queue.append(u)
+            else:
+                dist[u] = INF
+        dist[0] = INF
+        while queue:
+            u = queue.popleft()
+            if dist[u] < dist[0]:
+                for v in adj[u]:
+                    if dist[pair_v[v]] == INF:
+                        dist[pair_v[v]] = dist[u] + 1
+                        queue.append(pair_v[v])
+        return dist[0] != INF
+    
+    def dfs(u):
+        if u != 0:
+            for v in adj[u]:
+                if dist[pair_v[v]] == dist[u] + 1:
+                    if dfs(pair_v[v]):
+                        pair_u[u] = v
+                        pair_v[v] = u
+                        return True
+            dist[u] = INF
+            return False
+        return True
+    
+    matching = 0
+    while bfs():
+        for u in range(1, k+1):
+            if pair_u[u] == 0:
+                if dfs(u):
+                    matching += 1
+    
+    if matching != k:
+        print("NO")
+        return
+    
+    print("YES")
+    out = []
+    for a in range(1, k+1):
+        out.append(f"{a} {av[a]} {pair_u[a]}")
+    sys.stdout.write("\n".join(out) + "\n")
+
+solve()

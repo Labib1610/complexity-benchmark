@@ -1,0 +1,60 @@
+import sys
+from collections import defaultdict, deque
+
+def solve():
+    n, m = map(int, sys.stdin.readline().split())
+    
+    if m == 0:
+        # No constraints, assign all to 1 for lexicographically smallest
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
+    
+    # Build adjacency list
+    adj = defaultdict(list)
+    for _ in range(m):
+        u, v = map(int, sys.stdin.readline().split())
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # Color nodes with BFS/DFS, each node can be 1 or 2
+    # This is essentially a 2-coloring problem (checking bipartiteness)
+    color = [-1] * (n + 1)  # -1 means unvisited, 0 means color 1, 1 means color 2
+    
+    # Process each connected component
+    for start in range(1, n + 1):
+        if color[start] == -1:  # Unvisited node
+            queue = deque()
+            queue.append(start)
+            color[start] = 0  # Start with color 1 (0 in our 0-indexed system)
+            
+            while queue:
+                node = queue.popleft()
+                current_color = color[node]
+                
+                # Check all neighbors
+                for neighbor in adj[node]:
+                    if color[neighbor] == -1:
+                        # Assign opposite color
+                        color[neighbor] = 1 - current_color
+                        queue.append(neighbor)
+                    elif color[neighbor] == current_color:
+                        # Conflict: same color but should be different
+                        print("NO")
+                        return
+    
+    # If we reach here, a valid coloring exists
+    # Convert our 0/1 colors back to 1/2 stability tiers
+    result = []
+    for i in range(1, n + 1):
+        if color[i] == 0:
+            result.append("1")
+        elif color[i] == 1:
+            result.append("2")
+        else:  # This shouldn't happen if all nodes were processed
+            result.append("1")  # Default fallback
+    
+    print("YES")
+    print(" ".join(result))
+
+solve()

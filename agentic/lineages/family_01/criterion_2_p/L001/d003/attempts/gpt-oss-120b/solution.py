@@ -1,5 +1,5 @@
 import sys
-sys.setrecursionlimit(1 << 25)
+from collections import deque
 
 def solve() -> None:
     data = sys.stdin.read().strip().split()
@@ -14,43 +14,40 @@ def solve() -> None:
         adj[u].append(v)
         adj[v].append(u)
 
-    color = [-1] * (n + 1)          # provisional 0/1
-    result = [0] * (n + 1)          # final 1/2
-    from collections import deque
+    parity = [-1] * (n + 1)          # 0/1 colors
+    answer = [0] * (n + 1)           # final multipliers (1 or 2)
 
     for start in range(1, n + 1):
-        if color[start] != -1:
+        if parity[start] != -1:
             continue
         # BFS this component
         q = deque([start])
-        color[start] = 0
-        comp_nodes = [start]
+        parity[start] = 0
+        comp = [start]
         ok = True
         while q:
             u = q.popleft()
             for v in adj[u]:
-                if color[v] == -1:
-                    color[v] = color[u] ^ 1
+                if parity[v] == -1:
+                    parity[v] = parity[u] ^ 1
                     q.append(v)
-                    comp_nodes.append(v)
-                elif color[v] == color[u]:
-                    ok = False
-                    break
-            if not ok:
-                break
-        if not ok:
-            print("NO")
-            return
-
-        # decide orientation: smallest index node must get resonance 1
-        min_node = min(comp_nodes)
-        flip = (color[min_node] == 1)   # if its provisional color is 1, flip
-        for v in comp_nodes:
-            final_color = color[v] ^ flip   # 0 -> 0, 1 -> 1 after possible flip
-            result[v] = 1 if final_color == 0 else 2
+                    comp.append(v)
+                elif parity[v] == parity[u]:
+                    print("NO")
+                    return
+        # decide orientation: smallest index gets multiplier 1
+        min_node = min(comp)
+        min_par = parity[min_node]
+        # if min_par == 0 -> parity 0 -> 1, else parity 0 -> 2
+        if min_par == 0:
+            map0, map1 = 1, 2
+        else:
+            map0, map1 = 2, 1
+        for v in comp:
+            answer[v] = map0 if parity[v] == 0 else map1
 
     print("YES")
-    print(' '.join(str(result[i]) for i in range(1, n + 1)))
+    print(' '.join(str(answer[i]) for i in range(1, n + 1)))
 
 if __name__ == "__main__":
     solve()

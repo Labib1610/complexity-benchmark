@@ -1,0 +1,235 @@
+```python
+import sys
+sys.setrecursionlimit(100000)
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    k = int(next(it))
+    
+    conflicts = [set() for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        conflicts[u].add(v)
+        conflicts[v].add(u)
+    
+    adj = [frozenset(s) for s in conflicts]
+    S = [adj[i] for i in range(n)]
+    
+    while True:
+        changed = False
+        for u in range(n):
+            if S[u] is None:
+                continue
+            if len(S[u]) >= n - k + 1:
+                S[u] = None
+                changed = True
+        if not changed:
+            break
+    
+    # Iterative peel remaining vertices
+    loop = True
+    while loop:
+        loop = False
+        for u in range(n):
+            if S[u] is None:
+                continue
+            # Check if any neighbor in S[u] was removed (S[v] is None)
+            for v in list(S[u]):
+                if S[v] is None:
+                    S[u] = S[u] - {v}
+                    loop = True
+            # Check degree constraint again after removals
+            if S[u] is not None and len(S[u]) >= n - k + 1:
+                S[u] = None
+                loop = True
+    
+    surviving = [u for u in range(n) if S[u] is not None]
+    deg = {u: len(S[u]) for u in surviving}
+    
+    try_limit = 2000
+    
+    if len(surviving) >= k:
+        # Check if surviving vertices form a valid independent set (or near-clique structure)
+        # In reality, surviving vertices may still have conflicts among themselves
+        # We need to find k vertices that are pairwise non-conflicting
+        
+        # Use brute force with optimization for small component sizes
+        survivors_set = set(surviving)
+        remaining_graph = {u: survivors_set.intersection(adj[u]) for u in surviving}
+        
+        # Greedy attempt: take vertices with smallest degree first
+        sorted_survivors = sorted(surviving, key=lambda u: deg[u])
+        best_result = None
+        
+        # Try greedy multiple times with different orderings
+        for attempt in range(min(try_limit, 50)):
+            import random
+            if attempt > 0:
+                random.shuffle(sorted_survivors)
+            
+            result = []
+            used = set()
+            for u in sorted_survivors:
+                if u not in used:
+                    can_add = True
+                    for v in result:
+                        if u in adj[v]:
+                            can_add = False
+                            break
+                    if can_add:
+                        result.append(u)
+                        used.add(u)
+                        used.update(adj[u])
+                        if len(result) == k:
+                            break
+            if len(result) == k:
+                best_result = result
+                break
+        
+        if best_result is not None:
+            result_sorted = sorted([x + 1 for x in best_result])
+            print("YES")
+            print(' '.join(map(str, result_sorted)))
+            return
+    
+    # Phase 2: Use the survivors as a partial solution and try to expand from removed vertices
+    # The survivors form a clique (or near-clique) in the complement graph
+    # We can take at most 1 vertex from a clique, plus expand
+    
+    # Since survivors passed the degree test, if it's a valid independent set, we can use it
+    # Otherwise, we need to find other combinations
+    
+    # Reset and try different approach: local search / random restart
+    best_result = None
+    
+    # First, check if there's a large enough component in the complement graph
+    # that forms an independent set
+    
+    from itertools import combinations
+    
+    # Group into small components for brute force
+    visited_global = [False] * n
+    components = []
+    
+    for start in range(n):
+        if not visited_global[start]:
+            stack = [start]
+            comp = []
+            visited_global[start] = True
+            while stack:
+                u = stack.pop()
+                comp.append(u)
+                for v in adj[u]:
+                    if not visited_global[v]:
+                        visited_global[v] = True
+                        stack.append(v)
+            components.append(comp)
+    
+    # Process components and look for independent set
+    total_found = 0
+    combined_result = []
+    
+    # Check each component for independent set contribution
+    for comp in components:
+        if len(comp) == 1:
+            total_found += 1
+            combined_result.append(comp[0])
+        else:
+            # Try to find maximum independent set in this component
+            # and add as many as possible that don't conflict with combined_result
+            
+            # For small components, use brute force
+            max_contrib = 0
+            best_contrib = []
+            
+            # Non-conflicting vertices with current combined_result
+            avail_comp = []
+            for u in comp:
+                conflict = False
+                for v in combined_result:
+                    if u in adj[v]:
+                        conflict = True
+                        break
+                if not conflict:
+                    avail_comp.append(u)
+            
+            if len(avail_comp) > 0:
+                if len(avv_comp) <= 20:
+                    # Brute force on available vertices in this component
+                    for size in range(min(len(avail_comp), k - total_found), 0, -1):
+                        found = False
+                        for combo in combinations(avail_comp, size):
+                            valid = True
+                            for i in range(len(combo)):
+                                for j in range(i + 1, len(combo)):
+                                    if combo[j] in adj[combo[i]]:
+                                        valid = False
+                                        break
+                                if not valid:
+                                    break
+                            if valid:
+                                max_contrib = size
+                                best_contrib = list(combo)
+                                found = True
+                                break
+                        if found:
+                            break
+                else:
+                    # Greedy for larger
+                    sorted_avail = sorted(avail_comp, key=lambda u: len([v for v in adj[u] if v in set(avail_comp)]))
+                    for u in sorted_avail:
+                        can_add = True
+                        for v in best_contrib:
+                            if u in adj[v]:
+                                can_add = False
+                                break
+                        if can_add:
+                            best_contrib.append(u)
+            
+            total_found += len(best_contrib)
+            combined_result.extend(best_contrib)
+            
+            if total_found >= k:
+                break
+    
+    if total_found >= k:
+        result = sorted([x + 1 for x in combined_result[:k]])
+        print("YES")
+        print(' '.join(map(str, result)))
+        return
+    
+    # Last resort: comprehensive random search
+    for attempt in range(try_limit):
+        result = []
+        available = list(range(n))
+        import random
+        random.shuffle(available)
+        
+        for u in available:
+            can_add = True
+            for v in result:
+                if u in adj[v]:
+                    can_add = False
+                    break
+            if can_add:
+                result.append(u)
+                if len(result) == k:
+                    break
+        
+        if len(result) == k:
+            result_sorted = sorted([x + 1 for x in result])
+            print("YES")
+            print(' '.join(map(str, result_sorted)))
+            return
+    
+    print("NO")
+
+if __name__ == "__main__":
+    solve()
+```

@@ -1,0 +1,104 @@
+import sys
+
+def main():
+    input_buffer = sys.stdin.buffer
+    first = input_buffer.readline().split()
+    if not first:
+        return
+
+    k, t = map(int, first)
+    adjacency = [[] for _ in range(k + 1)]
+    mech = [0] * (k + 1)
+
+    pilot_match = [0] * (k + 1)
+    phase_match = [0] * (k + 1)
+    matched = 0
+
+    for _ in range(t):
+        x, y, z = map(int, input_buffer.readline().split())
+        mech[x] = y
+        adjacency[x].append(z)
+
+        if pilot_match[x] == 0 and phase_match[z] == 0:
+            pilot_match[x] = z
+            phase_match[z] = x
+            matched += 1
+
+    if matched < k:
+        sys.setrecursionlimit(10000)
+
+        while True:
+            dist = [-1] * (k + 1)
+            queue = []
+
+            for x in range(1, k + 1):
+                if pilot_match[x] == 0:
+                    dist[x] = 0
+                    queue.append(x)
+
+            shortest = k + 1
+            head = 0
+
+            while head < len(queue):
+                x = queue[head]
+                head += 1
+                dx = dist[x]
+
+                if dx >= shortest:
+                    continue
+
+                for z in adjacency[x]:
+                    next_x = phase_match[z]
+                    if next_x == 0:
+                        shortest = dx + 1
+                    elif dist[next_x] == -1:
+                        dist[next_x] = dx + 1
+                        queue.append(next_x)
+
+            if shortest == k + 1:
+                break
+
+            edge_index = [0] * (k + 1)
+
+            def dfs(x):
+                dx = dist[x]
+                edges = adjacency[x]
+
+                while edge_index[x] < len(edges):
+                    z = edges[edge_index[x]]
+                    edge_index[x] += 1
+                    next_x = phase_match[z]
+
+                    if next_x == 0:
+                        if dx + 1 != shortest:
+                            continue
+                    elif dist[next_x] != dx + 1 or not dfs(next_x):
+                        continue
+
+                    pilot_match[x] = z
+                    phase_match[z] = x
+                    return True
+
+                dist[x] = -1
+                return False
+
+            augmented = 0
+            for x in range(1, k + 1):
+                if pilot_match[x] == 0 and dfs(x):
+                    augmented += 1
+
+            if augmented == 0:
+                break
+            matched += augmented
+
+    if matched != k:
+        sys.stdout.write("NO\n")
+        return
+
+    output = ["YES"]
+    for x in range(1, k + 1):
+        output.append(f"{x} {mech[x]} {pilot_match[x]}")
+    sys.stdout.write("\n".join(output))
+
+if __name__ == "__main__":
+    main()

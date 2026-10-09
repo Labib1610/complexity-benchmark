@@ -1,0 +1,248 @@
+import sys
+from array import array
+
+def exact_subset_dp(n, edges, budget):
+    total = 1 << n
+    neighbor_mask = [0] * n
+    degree = [0] * n
+
+    for u, v in edges:
+        neighbor_mask[u] |= 1 << v
+        neighbor_mask[v] |= 1 << u
+        degree[u] += 1
+        degree[v] += 1
+
+    cuts = array('b', [0]) * total
+    inf = (1 << 63) - 1
+    dp = array('q', [inf]) * total
+    choice = array('b', [0]) * total
+    dp[0] = 0
+
+    for mask in range(1, total):
+        bit = mask & -mask
+        v = bit.bit_length() - 1
+        rest = mask ^ bit
+        cuts[mask] = cuts[rest] + degree[v] - 2 * ((neighbor_mask[v] & rest).bit_count())
+
+        best = inf
+        best_v = 0
+        x = mask
+        while x:
+            b = x & -x
+            u = b.bit_length() - 1
+            candidate = dp[mask ^ b]
+            if candidate < best:
+                best = candidate
+                best_v = u
+            x ^= b
+
+        value = best + cuts[mask]
+        dp[mask] = value
+        choice[mask] = best_v
+
+    full = total - 1
+    if dp[full] > budget:
+        return None
+
+    positions = [0] * n
+    mask = full
+    position = n
+    while mask:
+        v = choice[mask]
+        positions[v] = position
+        mask ^= 1 << v
+        position -= 1
+
+    return positions
+
+
+def planar_tree_arrangement(n, edges):
+    adjacency = [[] for _ in range(n)]
+    arc_to = []
+    arc_from = []
+
+    for u, v in edges:
+        a = len(arc_to)
+        arc_from.append(u)
+        arc_to.append(v)
+        arc_from.append(v)
+        arc_to.append(u)
+        adjacency[u].append(a)
+        adjacency[v].append(a ^ 1)
+
+    parent = [-1] * n
+    parent_arc = [-1] * n
+    order = [0]
+    parent[0] = 0
+
+    for v in order:
+        for arc in adjacency[v]:
+            u = arc_to[arc]
+            if parent[u] == -1:
+                parent[u] = v
+                parent_arc[u] = arc ^ 1  # u -> v
+                order.append(u)
+
+    subtree = [1] * n
+    arc_size = [0] * (2 * len(edges))
+    arc_value = [0] * (2 * len(edges))
+
+    for v in reversed(order[1:]):
+        items = []
+        value_sum = 0
+        for arc in adjacency[v]:
+            u = arc_to[arc]
+            if parent[u] == v:
+                incoming = arc ^ 1
+                items.append(arc_size[incoming])
+                value_sum += arc_value[incoming]
+
+        items.sort(reverse=True)
+        weighted = 0
+        for i, size in enumerate(items):
+            weighted += size * ((i + 1) // 2)
+
+        out = parent_arc[v]
+        arc_size[out] = subtree[v]
+        arc_value[out] = 1 + value_sum + weighted
+        subtree[parent[v]] += subtree[v]
+
+    best_root = 0
+    best_cost = None
+
+    for v in order:
+        incoming_arcs = []
+        for outgoing in adjacency[v]:
+            incoming = outgoing ^ 1
+            incoming_arcs.append(incoming)
+
+        incoming_arcs.sort(key=lambda a: arc_size[a], reverse=True)
+        d = len(incoming_arcs)
+
+        total_values = 0
+        anchored_all = 0
+        sizes = [0] * d
+        for i, arc in enumerate(incoming_arcs):
+            s = arc_size[arc]
+            sizes[i] = s
+            total_values += arc_value[arc]
+            anchored_all += s * ((i + 1) // 2)
+
+        suffix_odd = [0] * (d + 1)
+        for i in range(d - 1, -1, -1):
+            suffix_odd[i] = suffix_odd[i + 1]
+            if i & 1:
+                suffix_odd[i] += sizes[i]
+
+        unanchored = total_values
+        for i, s in enumerate(sizes):
+            unanchored += s * (i // 2)
+
+        if best_cost is None or unanchored < best_cost:
+            best_cost = unanchored
+            best_root = v
+
+        for i, incoming in enumerate(incoming_arcs):
+            outgoing = incoming ^ 1
+            arc_size[outgoing] = n - arc_size[incoming]
+            excluded_weight = (
+                anchored_all
+                - sizes[i] * ((i + 1) // 2)
+                - suffix_odd[i + 1]
+            )
+            arc_value[outgoing] = (
+                1 + total_values - arc_value[incoming] + excluded_weight
+            )
+
+    def split_children(v, p, anchored):
+        children = []
+        for arc in adjacency[v]:
+            u = arc_to[arc]
+            if u != p:
+                incoming = arc ^ 1
+                children.append((arc_size[incoming], u))
+        children.sort(key=lambda item: (-item[0], item[1]))
+
+        left = []
+        right = []
+        left_count = 1 if anchored else 0
+        right_count = 0
+
+        for _, u in children:
+            if left_count <= right_count:
+                left.append(u)
+                left_count += 1
+            else:
+                right.append(u)
+                right_count += 1
+        return left, right
+
+    sequence = []
+
+    def emit(v, p, reversed_orientation):
+        left, right = split_children(v, p, True)
+
+        if not reversed_orientation:
+            for u in left:
+                emit(u, v, True)
+            sequence.append(v)
+            for u in reversed(right):
+                emit(u, v, False)
+        else:
+            for u in right:
+                emit(u, v, True)
+            sequence.append(v)
+            for u in reversed(left):
+                emit(u, v, False)
+
+    root_left, root_right = split_children(best_root, -1, False)
+    for u in root_left:
+        emit(u, best_root, True)
+    sequence.append(best_root)
+    for u in reversed(root_right):
+        emit(u, best_root, False)
+
+    positions = [0] * n
+    for i, v in enumerate(sequence, 1):
+        positions[v] = i
+
+    actual_cost = 0
+    for u, v in edges:
+        actual_cost += abs(positions[u] - positions[v])
+
+    return positions, actual_cost
+
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+
+    n, m, budget = data[0], data[1], data[2]
+    edges = []
+    index = 3
+    for _ in range(m):
+        u = data[index] - 1
+        v = data[index + 1] - 1
+        index += 2
+        edges.append((u, v))
+
+    if n <= 20:
+        positions = exact_subset_dp(n, edges, budget)
+        if positions is None:
+            print("NO")
+        else:
+            print("YES")
+            print(*positions)
+        return
+
+    positions, cost = planar_tree_arrangement(n, edges)
+    if cost <= budget:
+        print("YES")
+        print(*positions)
+    else:
+        print("NO")
+
+
+if __name__ == "__main__":
+    main()

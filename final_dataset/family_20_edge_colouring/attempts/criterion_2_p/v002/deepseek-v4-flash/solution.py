@@ -1,0 +1,108 @@
+import sys
+from collections import deque
+
+input = sys.stdin.readline
+
+def solve():
+    nL, nR, m = map(int, input().split())
+    edges = []
+    degL = [0] * (nL + 1)
+    degR = [0] * (nR + 1)
+    for _ in range(m):
+        u, v = map(int, input().split())
+        edges.append((u, v))
+        degL[u] += 1
+        degR[v] += 1
+    
+    delta = max(max(degL), max(degR)) if m > 0 else 0
+    if delta == 0:
+        print("YES")
+        print()
+        return
+    
+    # adjacency list for left and right
+    adjL = [[] for _ in range(nL + 1)]
+    adjR = [[] for _ in range(nR + 1)]
+    for idx, (u, v) in enumerate(edges):
+        adjL[u].append((v, idx))
+        adjR[v].append((u, idx))
+    
+    color = [0] * m
+    
+    # For each left vertex, we try to color its incident edges
+    for u in range(1, nL + 1):
+        # find used colors on left and right
+        usedL = [False] * (delta + 1)
+        usedR = [False] * (delta + 1)
+        for v, idx in adjL[u]:
+            if color[idx] != 0:
+                usedL[color[idx]] = True
+        for v, idx in adjR[u]:
+            if color[idx] != 0:
+                usedR[color[idx]] = True
+        
+        for v, idx in adjL[u]:
+            if color[idx] != 0:
+                continue
+            # find smallest free color for left
+            cL = 1
+            while usedL[cL]:
+                cL += 1
+            # find smallest free color for right
+            cR = 1
+            while usedR[cR]:
+                cR += 1
+            
+            if cL == cR:
+                color[idx] = cL
+                usedL[cL] = True
+                usedR[cL] = True
+            else:
+                # need to recolor path
+                # start from right vertex v with color cL
+                # find alternating path
+                path_edges = []
+                current_side = 'R'
+                current_vertex = v
+                current_color = cL
+                while True:
+                    # find edge from current_vertex with color current_color
+                    found = False
+                    if current_side == 'R':
+                        for uu, eidx in adjR[current_vertex]:
+                            if color[eidx] == current_color:
+                                path_edges.append(eidx)
+                                current_vertex = uu
+                                current_side = 'L'
+                                found = True
+                                break
+                    else:
+                        for vv, eidx in adjL[current_vertex]:
+                            if color[eidx] == current_color:
+                                path_edges.append(eidx)
+                                current_vertex = vv
+                                current_side = 'R'
+                                found = True
+                                break
+                    if not found:
+                        break
+                    # switch color
+                    current_color = cR if current_color == cL else cL
+                
+                # flip colors along path
+                for eidx in path_edges:
+                    if color[eidx] == cL:
+                        color[eidx] = cR
+                    else:
+                        color[eidx] = cL
+                
+                # now assign cL to current edge
+                color[idx] = cL
+                usedL[cL] = True
+                usedR[cL] = True
+    
+    print("YES")
+    print(" ".join(map(str, color)))
+
+if __name__ == "__main__":
+    solve()

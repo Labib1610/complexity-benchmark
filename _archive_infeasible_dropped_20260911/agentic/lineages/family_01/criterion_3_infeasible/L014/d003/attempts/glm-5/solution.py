@@ -1,0 +1,52 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [set() for _ in range(n + 1)]
+    edges = []
+    
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        if u > v:
+            u, v = v, u
+        edges.append((u, v))
+        adj[u].add(v)
+        adj[v].add(u)
+    
+    # Sort edges to process in order (u, v) with u < v
+    edges.sort()
+    
+    for u, v in edges:
+        # Find common neighbors w where w > v to ensure u < v < w
+        # This guarantees we find the lexicographically smallest triangle
+        common = adj[u] & adj[v]
+        for w in common:
+            if w > v:
+                print(u, v, w)
+                return
+    
+    # Fallback: if no triangle found with w > v, search all
+    # This handles cases where the triangle might be (u, w, v) with u < w < v
+    for u in range(1, n + 1):
+        neighbors = sorted(adj[u])
+        for i in range(len(neighbors)):
+            v = neighbors[i]
+            if v <= u:
+                continue
+            for j in range(i + 1, len(neighbors)):
+                w = neighbors[j]
+                if w <= v:
+                    continue
+                if w in adj[v]:
+                    print(u, v, w)
+                    return
+
+if __name__ == "__main__":
+    solve()

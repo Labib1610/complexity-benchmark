@@ -1,0 +1,172 @@
+```python
+import sys
+
+def solve():
+    input = sys.stdin.read
+    data = input().split()
+    if not data:
+        return
+    n = int(data[0])
+    m = int(data[1])
+    
+    adj = [[] for _ in range(n)]
+    
+    idx = 2
+    for _ in range(m):
+        l1 = int(data[idx])
+        l2 = int(data[idx+1])
+        idx += 2
+        
+        u = abs(l1) - 1
+        v = abs(l2) - 1
+        
+        # E = l1 * (2s_u - 1) + l2 * (2s_v - 1)
+        # C = -(|l1| + |l2|)
+        # We need E > C, which means E - C > 0
+        # E - C = (|l1| + l1)(2s_u - 1) + (|l2| + l2)(2s_v - 1)
+        # For E - C > 0, we need at least one of the terms to be positive.
+        # A term is positive iff the sign of the coefficient matches the sign of (2s - 1).
+        # This gives us a 2-SAT implication.
+        
+        if l1 > 0:
+            # (|l1| + l1) > 0, so we need 2s_u - 1 > 0 => s_u = 1
+            # If s_u = 0, we must have s_v = 1 (if l2 > 0) or s_v = 0 (if l2 < 0)
+            if l2 > 0:
+                adj[u].append((v, 1))
+            else:
+                adj[u].append((v, 0))
+        else:
+            # (|l1| + l1) = 0, so the first term is 0.
+            # We must have the second term > 0.
+            # (|l2| + l2) > 0 => l2 > 0, so we need 2s_v - 1 > 0 => s_v = 1
+            # This means if s_v = 0, we have a contradiction (must imply s_v = 1).
+            # We can represent this as s_v = 0 => s_v = 1.
+            if l2 > 0:
+                adj[v].append((v, 1))
+            else:
+                # l2 < 0 => (|l2| + l2) = 0, both terms are 0, E - C = 0, not > 0.
+                # Impossible to satisfy, equivalent to s_u = 0 => s_u = 1 and s_v = 1 => s_v = 0
+                adj[u].append((u, 1))
+                adj[v].append((v, 0))
+                
+    # Find SCCs using Kosaraju's algorithm
+    order = []
+    visited = [False] * n
+    
+    for i in range(n):
+        if not visited[i]:
+            stack = [(i, 0)]
+            while stack:
+                node, state = stack.pop()
+                if state == 0:
+                    if visited[node]:
+                        continue
+                    visited[node] = True
+                    stack.append((node, 1))
+                    for neighbor, _ in adj[node]:
+                        if not visited[neighbor]:
+                            stack.append((neighbor, 0))
+                else:
+                    order.append(node)
+                    
+    rev_adj = [[] for _ in range(n)]
+    for u in range(n):
+        for v, w in adj[u]:
+            rev_adj[v].append((u, w))
+            
+    scc_id = [-1] * n
+    curr_id = 0
+    
+    for u in reversed(order):
+        if scc_id[u] == -1:
+            stack = [u]
+            scc_id[u] = curr_id
+            while stack:
+                node = stack.pop()
+                for neighbor, _ in rev_adj[node]:
+                    if scc_id[neighbor] == -1:
+                        scc_id[neighbor] = curr_id
+                        stack.append(neighbor)
+            curr_id += 1
+            
+    # Check for contradictions and assign values
+    ans = [0] * n
+    for i in range(n):
+        # If s_i = 0 and s_i = 1 are in the same SCC, it's impossible
+        # Since we don't explicitly have s_i=0 and s_i=1 as separate nodes,
+        # a contradiction happens if there's a path from i to i with value 1,
+        # or a path from i to i with value 0.
+        # In our SCC, if i is in an SCC, all nodes in that SCC must take the same value.
+        # If there's an edge (u, v, 1) and scc_id[u] == scc_id[v], they must be 1.
+        # If there's an edge (u, v, 0) and scc_id[u] == scc_id[v], they must be 0.
+        # If both exist within the same SCC, it's a contradiction.
+        pass
+        
+    # A better way to check and assign:
+    # We process SCCs in reverse topological order.
+    # For each SCC, if it contains a node that is forced to be 1, all nodes in it are 1.
+    # If it contains a node forced to be 0, all nodes in it are 0.
+    # If both, contradiction.
+    forced = [-1] * curr_id
+    # Topological order of SCCs is curr_id - 1 down to 0
+    
+    for scc in range(curr_id - 1, -1, -1):
+        if forced[scc] != -1:
+            continue
+            
+        # Check if there is any edge within this SCC that forces a value
+        must_be = -1
+        for u in range(n):
+            if scc_id[u] == scc:
+                for v, w in adj[u]:
+                    if scc_id[v] == scc:
+                        if must_be == -1:
+                            must_be = w
+                        elif must_be != w:
+                            print("NO")
+                            return
+        if must_be != -1:
+            forced[scc] = must_be
+        else:
+            forced[scc] = 0 # default to 0
+            
+    # Propagate values and check for contradictions
+    for scc in range(curr_id):
+        for u in range(n):
+            if scc_id[u] == scc:
+                for v, w in adj[u]:
+                    if scc_id[v] != scc:
+                        if forced[scc_id[v]] == -1:
+                            forced[scc_id[v]] = w
+                        elif forced[scc_id[v]] != w:
+                            # If the target SCC is forced to a different value, 
+                            # we must check if the current SCC can adapt.
+                            # Actually, if forced[scc_id[v]] != w, it means the target is already fixed.
+                            # If the current SCC is also fixed and conflicts, it's a contradiction.
+                            # But wait, if forced[scc_id[u]] is fixed, and it implies w for v, 
+                            # and v is fixed to 1-w, then it's a contradiction.
+                            if forced[scc] == -1:
+                                # We can just set forced[scc] such that it doesn't imply this?
+                                # No, the implication is unconditional.
+                                # If u -> v (w), it means if u takes its assigned value, v must be w.
+                                # Wait, the implication is: if u is ANY value, v must be w.
+                                # So if v is 1-w, it's a contradiction regardless of u's value!
+                                # Let's re-verify this.
+                                # The edge u -> v (w) means: to satisfy the interlock, v MUST be w.
+                                # It does not depend on u's value!
+                                # Because the condition was: if the first term is 0, the second MUST be >0.
+                                # So the implication is unconditional.
+                                print("NO")
+                                return
+                            # If forced[scc] is already set, the implication just means v must be w.
+                            # If v is already 1-w, it's a contradiction.
+                            # We already checked this above.
+
+    for i in range(n):
+        ans[i] = forced[scc_id[i]]
+        
+    print("YES")
+    print(*ans)
+
+solve()
+```

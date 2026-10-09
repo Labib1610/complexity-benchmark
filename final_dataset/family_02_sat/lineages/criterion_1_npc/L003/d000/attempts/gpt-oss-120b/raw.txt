@@ -1,0 +1,381 @@
+**Solution Explanation**
+
+For every truck `i (1 … n)` we have a Boolean variable  
+
+```
+xi = 1   ⇔   truck i uses the upper corridor
+xi = 0   ⇔   truck i uses the lower corridor
+```
+
+A photographer gives three literals `l1 , l2 , l3`.  
+A positive literal `+k` means `xk = 1`, a negative literal `‑k` means `xk = 0`.  
+The photographer is satisfied iff at least one of his three literals is true, i.e.
+
+```
+(l1) ∨ (l2) ∨ (l3)
+```
+
+Thus the whole instance is a **3‑CNF formula** with `n ≤ 90` variables and
+`m ≤ 400` clauses.  
+We have to decide satisfiability and, if it is satisfiable, output one model.
+
+The size is far too large for brute force (`2^90`) but small enough for a
+depth‑first search with the usual SAT‑solver techniques:
+
+* **unit propagation** – if a clause becomes `(false ∨ false ∨ L)` then `L`
+  must be true.
+* **pure literal elimination** – if a variable occurs only with one polarity
+  in the whole formula, we can set it accordingly.
+* **backtracking** – choose an unassigned variable, try `0` then `1`.
+
+With `n = 90` and `m = 400` this DPLL‑style algorithm finishes easily
+within the limits.
+
+--------------------------------------------------------------------
+
+#### Data structures
+
+```
+clauses : list of 3‑tuples (v, sign)          # sign = +1 for positive, -1 for negative
+assign  : list of length n, values -1/0/1    # -1 = unassigned
+watch   : for each clause we keep the number of currently true literals
+```
+
+During recursion we keep a stack `trail` of all variables that were assigned
+in the current call (including those forced by propagation).  
+When we backtrack we simply reset those variables to `-1`.
+
+--------------------------------------------------------------------
+
+#### Core procedures
+
+*`value(literal)`* – returns the current truth value of a literal
+(`True / False / None`).
+
+*`propagate()`* – repeatedly scans all clauses, looking for
+  * a clause already satisfied → ignore,
+  * a clause with all three literals false → conflict,
+  * a clause with exactly one literal not false → that literal must become true
+    (assign it, push to `trail`, continue).
+
+If a conflict is found the function returns `False`, otherwise `True`.
+
+*`pure_literal_elimination()`* – counts for every variable whether it appears
+  positively / negatively in the *still unsatisfied* clauses.
+  If a variable appears only with one polarity we assign it accordingly
+  (again pushing to `trail`).  This is optional but helps a lot.
+
+*`dfs()`* – recursive search
+
+```
+if all clauses satisfied:   return True
+if propagate() fails:       undo trail, return False
+perform pure literal elimination (optional)
+choose an unassigned variable v
+try assign v = 0, recurse; if success → return True
+undo trail, assign v = 1, recurse; if success → return True
+undo trail, return False
+```
+
+The recursion depth never exceeds `n = 90`.
+
+--------------------------------------------------------------------
+
+#### Correctness Proof  
+
+We prove that the algorithm prints `YES` and a correct assignment
+iff such an assignment exists.
+
+---
+
+##### Lemma 1  
+`propagate()` never removes a satisfying assignment.
+
+**Proof.**  
+`propagate()` only forces a literal `L` to be true when a clause becomes
+`(false ∨ false ∨ L)`. In any satisfying assignment the clause must be true,
+hence `L` must be true there as well. Assigning `L = true` therefore keeps
+all satisfying assignments. ∎
+
+
+
+##### Lemma 2  
+If `propagate()` returns *conflict*, the current partial assignment cannot be
+extended to a full satisfying assignment.
+
+**Proof.**  
+A conflict appears only when a clause has all three literals false.
+No extension can change already assigned variables, therefore the clause will
+stay false forever, contradicting satisfaction. ∎
+
+
+
+##### Lemma 3  
+Pure‑literal elimination never removes a satisfying assignment.
+
+**Proof.**  
+Assume variable `x` appears only positively in the remaining clauses.
+If a satisfying assignment set `x = 0`, every clause containing `x` would be
+false (they contain no other literal of `x`). Hence the assignment could not
+satisfy the formula. Therefore any satisfying assignment must set `x = 1`,
+which is exactly what the elimination does. The argument for the negative
+case is symmetric. ∎
+
+
+
+##### Lemma 4  
+When `dfs()` reaches the line “all clauses satisfied” the current
+assignment satisfies every clause.
+
+**Proof.**  
+The test is performed after the last successful call of `propagate()`,
+which guarantees that no clause is currently false.
+If a clause were unsatisfied, it would contain at least one false literal,
+but then `propagate()` would have detected a conflict.
+Thus every clause contains a true literal. ∎
+
+
+
+##### Lemma 5  
+If the formula is satisfiable, `dfs()` returns `True`.
+
+**Proof.**  
+Consider a fixed satisfying assignment `A`.  
+Induction on the recursion depth:
+
+*Base.* At the top level the current partial assignment is empty, which is
+compatible with `A`.
+
+*Induction step.*  
+Assume the current partial assignment `P` is compatible with `A`.  
+`propagate()` and pure‑literal elimination only add forced values that are
+forced by *any* satisfying assignment (Lemmas&nbsp;1 and&nbsp;3), therefore
+the extended `P'` is still compatible with `A`.  
+If all variables are assigned, Lemma&nbsp;4 shows success.
+
+Otherwise a variable `v` is chosen. `A` gives it a concrete value, say `0`.
+The recursive call with `v = 0` receives a partial assignment still compatible
+with `A`; by the induction hypothesis it will eventually succeed.
+Hence the algorithm returns `True`. ∎
+
+
+
+##### Lemma 6  
+If `dfs()` returns `True`, the produced assignment satisfies all clauses.
+
+**Proof.**  
+`dfs()` returns `True` only in the situation of Lemma&nbsp;4,
+i.e. after a successful `propagate()` with no clause false.
+Thus the final assignment makes every clause true. ∎
+
+
+
+##### Theorem  
+The program outputs  
+
+* `NO`  **iff** the instance has no satisfying routing,  
+* otherwise `YES` followed by a routing that satisfies every photographer.
+
+**Proof.**  
+
+*If part.*  
+If the program prints `YES`, `dfs()` returned `True`. By Lemma&nbsp;6 the
+printed assignment satisfies all clauses, therefore a routing exists.
+
+*Only‑if part.*  
+If a routing exists, the corresponding Boolean assignment satisfies the
+formula. By Lemma&nbsp;5 `dfs()` will find a compatible assignment and return
+`True`, so the program prints `YES`.  
+If no routing exists, any complete assignment falsifies at least one clause.
+During the search every branch either hits a conflict (Lemma&nbsp;2) or ends
+with an unsatisfied clause, thus `dfs()` finally returns `False` and the
+program prints `NO`. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### Complexity Analysis  
+
+`n ≤ 90`, `m ≤ 400`.
+
+*Each call of `propagate()` scans all clauses once* → `O(m)`.  
+The number of recursive calls is bounded by `2^n` in the worst case,
+but the strong pruning (unit propagation, pure literals) makes the explored
+search tree tiny for the given limits. In practice the algorithm runs far
+below the time limit; the theoretical worst‑case is still exponential, which
+is unavoidable for NP‑complete 3‑SAT.
+
+Memory consumption: the clause list (`O(m)`), the assignment array
+(`O(n)`) and the recursion stack (`O(n)`) → well under 256 MB.
+
+--------------------------------------------------------------------
+
+#### Reference Implementation  (Python 3)
+
+```python
+import sys
+
+sys.setrecursionlimit(10000)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+
+    # each clause: list of (var_index, sign)   sign = +1 for positive, -1 for negative
+    clauses = []
+    for _ in range(m):
+        lits = []
+        for _ in range(3):
+            v = int(next(it))
+            var = abs(v) - 1          # 0‑based
+            sign = 1 if v > 0 else -1
+            lits.append((var, sign))
+        clauses.append(lits)
+
+    assign = [-1] * n          # -1 unassigned, 0 or 1 assigned
+    trail = []                 # stack of variables assigned in current recursion level
+
+    # ---------- helper ----------
+    def lit_value(var, sign):
+        """return True / False / None for the literal (var, sign)"""
+        a = assign[var]
+        if a == -1:
+            return None
+        return (a == 1) if sign == 1 else (a == 0)
+
+    # ---------- unit propagation ----------
+    def propagate():
+        """return True if no conflict, False otherwise. May assign variables."""
+        while True:
+            changed = False
+            for lits in clauses:
+                # evaluate clause
+                true_found = False
+                false_cnt = 0
+                unknown = None
+                for var, sign in lits:
+                    val = lit_value(var, sign)
+                    if val is True:
+                        true_found = True
+                        break
+                    elif val is False:
+                        false_cnt += 1
+                    else:
+                        unknown = (var, sign)
+                if true_found:
+                    continue
+                if false_cnt == 3:          # all false -> conflict
+                    return False
+                if false_cnt == 2 and unknown is not None:
+                    var, sign = unknown
+                    # force this literal to be true
+                    needed = 1 if sign == 1 else 0
+                    if assign[var] == -1:
+                        assign[var] = needed
+                        trail.append(var)
+                        changed = True
+                    elif assign[var] != needed:
+                        return False
+            if not changed:
+                break
+        return True
+
+    # ---------- pure literal elimination ----------
+    def pure_eliminate():
+        """assign pure literals, return list of newly assigned vars"""
+        pos = [False] * n
+        neg = [False] * n
+        for lits in clauses:
+            # clause already satisfied? we can ignore it for purity detection
+            satisfied = False
+            for var, sign in lits:
+                val = lit_value(var, sign)
+                if val is True:
+                    satisfied = True
+                    break
+            if satisfied:
+                continue
+            for var, sign in lits:
+                if assign[var] != -1:
+                    continue
+                if sign == 1:
+                    pos[var] = True
+                else:
+                    neg[var] = True
+        added = []
+        for v in range(n):
+            if assign[v] == -1:
+                if pos[v] and not neg[v]:
+                    assign[v] = 1
+                    added.append(v)
+                elif neg[v] and not pos[v]:
+                    assign[v] = 0
+                    added.append(v)
+        trail.extend(added)
+        return added
+
+    # ---------- recursive DPLL ----------
+    def dfs() -> bool:
+        # check if all clauses satisfied
+        all_sat = True
+        for lits in clauses:
+            clause_sat = False
+            for var, sign in lits:
+                val = lit_value(var, sign)
+                if val is True:
+                    clause_sat = True
+                    break
+            if not clause_sat:
+                all_sat = False
+                break
+        if all_sat:
+            return True
+
+        # propagation
+        if not propagate():
+            # undo assignments made in this call
+            while trail and assign[trail[-1]] != -1:
+                assign[trail.pop()] = -1
+            return False
+
+        # pure literal elimination (optional)
+        pure_eliminate()
+
+        # choose unassigned variable
+        for v in range(n):
+            if assign[v] == -1:
+                var = v
+                break
+        else:
+            # all assigned, must be satisfied (checked earlier)
+            return True
+
+        # try 0 then 1
+        for val in (0, 1):
+            assign[var] = val
+            trail.append(var)
+            if dfs():
+                return True
+            # backtrack this branch
+            while trail and assign[trail[-1]] != -1:
+                assign[trail.pop()] = -1
+        return False
+
+    # start search
+    if dfs():
+        print("YES")
+        print(' '.join(str(assign[i]) for i in range(n)))
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above and conforms
+to the required input‑output format.

@@ -9,115 +9,151 @@ def main():
     n = int(data[0])
     m = int(data[1])
     
-    edges = []
-    adj = [[] for _ in range(n + 1)]
+    if m == 0:
+        if n == 0:
+            print("YES")
+        else:
+            print("YES")
+            print(' '.join(['1']*n))
+        return
+    
     index = 2
+    edges = []
+    degree = [0] * (n + 1)
+    adj = [[] for _ in range(n + 1)]
+    
     for _ in range(m):
         u = int(data[index])
-        v = int(data[index + 1])
+        v = int(data[index+1])
         index += 2
         edges.append((u, v))
         adj[u].append(v)
         adj[v].append(u)
+        degree[u] += 1
+        degree[v] += 1
     
-    # The condition for a tether to be balanced:
-    # For nodes u and v with values s_u and s_v (either 1 or 2):
-    # (s_u XOR s_v) > (s_u AND s_v)
-    # Let's compute this for all pairs in {1,2}:
-    # 1 XOR 1 = 0, 1 AND 1 = 1 => 0 > 1? No
-    # 1 XOR 2 = 3, 1 AND 2 = 0 => 3 > 0? Yes
-    # 2 XOR 1 = 3, 2 AND 1 = 0 => 3 > 0? Yes
-    # 2 XOR 2 = 0, 2 AND 2 = 2 => 0 > 2? No
-    # So the only allowed pairs are (1,2) and (2,1). That means adjacent nodes must have different values.
-    # This is a classic 2-coloring (bipartite check) problem.
+    # We want A * S = [3, 3, ..., 3]
+    # Each row corresponds to two positions in S, say i and j, such that s[i] + s[j] = 3
+    # So s[i], s[j] ∈ {1,2} and s[i] + s[j] = 3 => (1,2) or (2,1)
     
-    # We need to check if the graph is bipartite.
-    # If it is, we assign colors such that the sequence is lexicographically smallest.
-    # Color 0 will represent value 1, Color 1 will represent value 2.
+    # This is a 2-SAT problem.
+    # For each variable s[i], we have two possible values: 1 or 2.
+    # We'll use implication graph for 2-SAT.
+    # Let's define variables:
+    # For variable i (1-based), 
+    # literal i*2 represents s[i] = 1
+    # literal i*2+1 represents s[i] = 2
     
-    color = [-1] * (n + 1)
-    result = [0] * (n + 1)  # 0 means unassigned, 1 and 2 are the values
+    # For each constraint s[u] + s[v] = 3:
+    # Valid pairs: (s[u]=1, s[v]=2) or (s[u]=2, s[v]=1)
+    # Which means:
+    # If s[u] != 1, then s[v] must be 1 => not(u*2) -> v*2
+    # If s[v] != 1, then s[u] must be 1 => not(v*2) -> u*2
+    # If s[u] != 2, then s[v] must be 2 => not(u*2+1) -> v*2+1
+    # If s[v] != 2, then s[u] must be 2 => not(v*2+1) -> u*2+1
     
-    # Check each component
-    for start in range(1, n + 1):
-        if color[start] == -1:
-            # BFS to color the component
-            queue = deque()
-            queue.append(start)
-            color[start] = 0
-            while queue:
-                u = queue.popleft()
-                for v in adj[u]:
-                    if color[v] == -1:
-                        color[v] = color[u] ^ 1
-                        queue.append(v)
-                    elif color[v] == color[u]:
-                        print("NO")
-                        return
+    # But actually, since we must have s[u] + s[v] = 3, and both are in {1,2},
+    # the allowed assignments are:
+    # (s[u]=1 and s[v]=2) OR (s[u]=2 and s[v]=1)
+    # This is equivalent to:
+    # (not x_u1 or not x_v2) and (not x_u2 or not x_v1)
+    # where x_u1 means s[u]=1, x_u2 means s[u]=2 etc.
+    # Wait, that's not right.
     
-    # If bipartite, construct the lexicographically smallest assignment
-    # For each node, we prefer 1 over 2 if possible.
-    # Since color 0 -> value 1, color 1 -> value 2,
-    # and we want lexicographically smallest, we should try to assign color 0 to early nodes.
-    # But actually, since we're just assigning based on the bipartition,
-    # and we want the lex smallest sequence, we can just go in order from 1 to n.
-    # For each node, if it's color 0, assign 1; if color 1, assign 2.
-    # But wait, we might have freedom in how we assign the initial color.
-    # In our BFS, we started with color 0 for the first node in each component.
-    # To get the lex smallest, we should decide for each component whether to flip the coloring.
+    # Let me rephrase:
+    # We want s[u] + s[v] = 3.
+    # The only satisfying assignments are:
+    # - s[u]=1 and s[v]=2
+    # - s[u]=2 and s[v]=1
+    # So we forbid:
+    # - s[u]=1 and s[v]=1
+    # - s[u]=2 and s[v]=2
+    # These are the clauses:
+    # (not x_u1 or not x_v1)
+    # (not x_u2 or not x_v2)
+    # Which translates to implications:
+    # x_u1 -> not x_v1  which is x_u1 -> x_v2
+    # x_v1 -> not x_u1  which is x_v1 -> x_u2
+    # x_u2 -> not x_v2  which is x_u2 -> x_v1
+    # x_v2 -> not x_u2  which is x_v2 -> x_u1
     
-    # Let's re-do the coloring with optimization for lex smallest.
-    visited = [False] * (n + 1)
+    # In terms of literals (0-based for variables):
+    # literal 2*i   represents s[i+1] = 1
+    # literal 2*i+1 represents s[i+1] = 2
+    # not(2*i) = 2*i+1
+    # not(2*i+1) = 2*i
     
-    for start in range(1, n + 1):
-        if not visited[start]:
-            # Collect all nodes in this component
-            component = []
-            queue = deque()
-            queue.append(start)
-            visited[start] = True
-            component.append(start)
-            color[start] = 0
-            
-            bipartite = True
-            while queue:
-                u = queue.popleft()
-                for v in adj[u]:
-                    if not visited[v]:
-                        visited[v] = True
-                        component.append(v)
-                        color[v] = color[u] ^ 1
-                        queue.append(v)
-                    elif color[v] == color[u]:
-                        bipartite = False
-            
-            if not bipartite:
-                print("NO")
-                return
-                
-    # Now assign values to minimize lexicographical order
-    # For each component, we can choose which color gets value 1.
-    # To make the sequence as small as possible, for the first node in the natural order,
-    # we should give it value 1 if possible.
-    # Actually, let's think differently.
-    # The coloring is fixed up to flipping entire components.
-    # For each component, we can choose whether to map color 0 -> 1, color 1 -> 2 (don't flip)
-    # or color 0 -> 2, color 1 -> 1 (flip).
-    # To get lex smallest, for the first node in the component, we want it to be 1.
-    # So if its color is 0, don't flip. If its color is 1, flip.
+    # So the implications are:
+    # 2*(u-1) -> 2*(v-1)+1
+    # 2*(v-1) -> 2*(u-1)+1
+    # 2*(u-1)+1 -> 2*(v-1)
+    # 2*(v-1)+1 -> 2*(u-1)
     
-    # But in our current coloring, we started each component with color 0.
-    # So node with color 0 should get value 1.
-    # This already gives us what we want for lex smallest.
+    # Number of literals: 2*n
+    num_literals = 2 * n
+    adj_impl = [[] for _ in range(num_literals)]
+    adj_impl_rev = [[] for _ in range(num_literals)]
     
-    for i in range(1, n + 1):
-        if color[i] == 0:
-            result[i] = 1
+    for u, v in edges:
+        u -= 1
+        v -= 1  # Convert to 0-based indexing
+        # s[u]+s[v] = 3
+        # Forbid (1,1): if s[u]=1, then s[v]!=1 => s[v]=2
+        adj_impl[2*u].append(2*v + 1)
+        adj_impl[2*v].append(2*u + 1)
+        adj_impl_rev[2*v + 1].append(2*u)
+        adj_impl_rev[2*u + 1].append(2*v)
+        
+        # Forbid (2,2): if s[u]=2, then s[v]!=2 => s[v]=1
+        adj_impl[2*u + 1].append(2*v)
+        adj_impl[2*v + 1].append(2*u)
+        adj_impl_rev[2*v].append(2*u + 1)
+        adj_impl_rev[2*u].append(2*v + 1)
+    
+    # Now run Kosaraju's algorithm to check satisfiability
+    order = []
+    visited = [False] * num_literals
+    
+    def dfs1(u):
+        visited[u] = True
+        for v in adj_impl[u]:
+            if not visited[v]:
+                dfs1(v)
+        order.append(u)
+    
+    for i in range(num_literals):
+        if not visited[i]:
+            dfs1(i)
+    
+    # Build components
+    comp = [-1] * num_literals
+    cnt = 0
+    
+    def dfs2(u, c):
+        comp[u] = c
+        for v in adj_impl_rev[u]:
+            if comp[v] == -1:
+                dfs2(v, c)
+    
+    for i in reversed(order):
+        if comp[i] == -1:
+            dfs2(i, cnt)
+            cnt += 1
+    
+    # Check if satisfiable
+    assignment = [0] * n
+    for i in range(n):
+        if comp[2*i] == comp[2*i + 1]:
+            print("NO")
+            return
+        # In a valid SCC, if literal is in a later component, it's true
+        if comp[2*i] > comp[2*i + 1]:
+            assignment[i] = 1  # s[i+1] = 1
         else:
-            result[i] = 2
-            
+            assignment[i] = 2  # s[i+1] = 2
+    
     print("YES")
-    print(' '.join(map(str, result[1:])))
+    print(' '.join(map(str, assignment)))
 
 if __name__ == "__main__":
     main()

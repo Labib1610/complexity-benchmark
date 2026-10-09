@@ -1,44 +1,51 @@
 import sys
 
 def solve():
-    input_data = sys.stdin.read().strip().split()
-    if not input_data:
-        return
-    it = iter(input_data)
-    n = int(next(it))
-    m = int(next(it))
-    
-    adj = [0] * n
+    input = sys.stdin.readline
+    n, m = map(int, input().split())
+    adj = [[] for _ in range(n)]
     for _ in range(m):
-        u = int(next(it)) - 1
-        v = int(next(it)) - 1
-        adj[u] |= (1 << v)
-        adj[v] |= (1 << u)
-    
-    colors = [0] * n
-    
+        u, v = map(int, input().split())
+        u -= 1
+        v -= 1
+        adj[u].append(v)
+        adj[v].append(u)
+
+    color = [0] * n  # 0 = uncolored, 1,2,3 = rings
+
+    # Sort vertices by degree (largest first) for better pruning
+    order = sorted(range(n), key=lambda x: -len(adj[x]))
+    pos = [0] * n
+    for i, v in enumerate(order):
+        pos[v] = i
+
+    # Build adjacency in new order
+    adj_ordered = [[] for _ in range(n)]
+    for u in range(n):
+        for v in adj[u]:
+            adj_ordered[pos[u]].append(pos[v])
+
     def backtrack(idx):
         if idx == n:
             return True
+        used = [False] * 4
+        for nb in adj_ordered[idx]:
+            if color[nb] != 0:
+                used[color[nb]] = True
         for c in range(1, 4):
-            ok = True
-            # check neighbors
-            mask = adj[idx]
-            for v in range(n):
-                if (mask >> v) & 1:
-                    if colors[v] == c:
-                        ok = False
-                        break
-            if ok:
-                colors[idx] = c
+            if not used[c]:
+                color[idx] = c
                 if backtrack(idx + 1):
                     return True
-                colors[idx] = 0
+                color[idx] = 0
         return False
-    
+
     if backtrack(0):
+        res = [0] * n
+        for i in range(n):
+            res[order[i]] = color[i]
         print("YES")
-        print(" ".join(map(str, colors)))
+        print(" ".join(map(str, res)))
     else:
         print("NO")
 

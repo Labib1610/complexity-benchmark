@@ -1,0 +1,121 @@
+import sys
+sys.setrecursionlimit(1000000)
+
+def solve():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    color = [0] * n
+    
+    def is_safe(u, c):
+        for v in adj[u]:
+            if color[v] == c:
+                return False
+        return True
+    
+    # Find connected components
+    visited = [False] * n
+    components = []
+    
+    for i in range(n):
+        if not visited[i]:
+            comp = []
+            stack = [i]
+            visited[i] = True
+            while stack:
+                u = stack.pop()
+                comp.append(u)
+                for v in adj[u]:
+                    if not visited[v]:
+                        visited[v] = True
+                        stack.append(v)
+            components.append(comp)
+    
+    # Sort components by minimum vertex to process in order
+    components.sort(key=lambda x: min(x))
+    
+    # Process components in order
+    for comp in components:
+        # Find the first uncolored vertex in this component
+        start = -1
+        for u in comp:
+            if color[u] == 0:
+                start = u
+                break
+        
+        if start == -1:
+            continue
+        
+        # Try to color this component starting from 'start'
+        # Use backtracking with constraint propagation
+        
+        # Get vertices in this component that need coloring, in order
+        uncolored = [u for u in comp if color[u] == 0]
+        uncolored.sort()  # Process in vertex order for lexicographic minimality
+        
+        # For each vertex, compute allowed colors
+        allowed = [set([1, 2, 3]) for _ in range(n)]
+        for u in comp:
+            if color[u] != 0:
+                for v in adj[u]:
+                    allowed[v].discard(color[u])
+        
+        # Backtracking with forward checking
+        def backtrack(idx):
+            if idx == len(uncolored):
+                return True
+            
+            u = uncolored[idx]
+            
+            # Try colors in order 1, 2, 3 for lexicographic minimality
+            for c in [1, 2, 3]:
+                if c in allowed[u]:
+                    # Check constraint
+                    if not is_safe(u, c):
+                        continue
+                    
+                    color[u] = c
+                    
+                    # Propagate constraints
+                    removed = []
+                    for v in adj[u]:
+                        if color[v] == 0 and c in allowed[v]:
+                            allowed[v].discard(c)
+                            removed.append(v)
+                    
+                    # Check for empty domains
+                    valid = True
+                    for v in removed:
+                        if len(allowed[v]) == 0:
+                            valid = False
+                            break
+                    
+                    if valid and backtrack(idx + 1):
+                        return True
+                    
+                    # Restore
+                    for v in removed:
+                        allowed[v].add(c)
+                    color[u] = 0
+            
+            return False
+        
+        if not backtrack(0):
+            print("NO")
+            return
+    
+    print("YES")
+    print(' '.join(map(str, color)))
+
+solve()

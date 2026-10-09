@@ -1,0 +1,66 @@
+import sys
+from functools import cmp_to_key
+
+def compare(vessel1, vessel2):
+    # vessel = (t1, t2)
+    # Compare t2 of vessel1 with t1 of vessel2
+    if vessel1[1] < vessel2[0]:
+        return -1
+    elif vessel1[0] > vessel2[1]:
+        return 1
+    else:
+        # If neither condition helps decide, we can use t1+t2 as tiebreaker
+        # This is based on Johnson's rule for 2-machine flow shop scheduling
+        if vessel1[0] + vessel1[1] < vessel2[0] + vessel2[1]:
+            return -1
+        elif vessel1[0] + vessel1[1] > vessel2[0] + vessel2[1]:
+            return 1
+        else:
+            return 0
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    j = int(data[0])
+    vessels = []
+    idx = 1
+    for _ in range(j):
+        t1 = int(data[idx])
+        t2 = int(data[idx+1])
+        vessels.append((t1, t2))
+        idx += 2
+    
+    # Apply Johnson's Rule for optimal sequencing in 2-machine flow shop
+    # Split vessels into two groups:
+    # Group1: t1 <= t2 
+    # Group2: t1 > t2
+    group1 = []  # t1 <= t2, sort by t1 ascending
+    group2 = []  # t1 > t2, sort by t2 descending
+    
+    for i in range(j):
+        t1, t2 = vessels[i]
+        if t1 <= t2:
+            group1.append((t1, t2, i))
+        else:
+            group2.append((t1, t2, i))
+            
+    group1.sort(key=lambda x: x[0])  # Sort by t1 ascending
+    group2.sort(key=lambda x: x[1], reverse=True)  # Sort by t2 descending
+    
+    # Final sequence: group1 followed by group2
+    sequence = group1 + group2
+    
+    # Calculate the total time
+    time_alpha = 0
+    time_beta = 0
+    
+    for t1, t2, orig_idx in sequence:
+        time_alpha += t1
+        time_beta = max(time_beta, time_alpha) + t2
+        
+    print(time_beta)
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,123 @@
+import sys
+from collections import defaultdict
+
+def solve():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    # Build implication graph
+    # Variables: x_i represents artwork i gets spotlight (1) or ambient (0)
+    # For each clause (a OR b), we add edges (!a -> b) and (!b -> a)
+    # Node IDs: 2*i for x_i, 2*i+1 for !x_i
+    
+    adj = defaultdict(list)
+    rev_adj = defaultdict(list)
+    
+    idx = 2
+    for i in range(m):
+        l1 = int(data[idx])
+        l2 = int(data[idx+1])
+        idx += 2
+        
+        # Convert to variable indices
+        # Positive value v means artwork v gets spotlight (variable v-1)
+        # Negative value -v means artwork v gets ambient (variable v-1)
+        
+        # l1 represents (artwork |l1| gets spotlight if l1>0 else ambient)
+        # l2 represents (artwork |l2| gets spotlight if l2>0 else ambient)
+        
+        # Clause: (l1 OR l2)
+        # This translates to (!l1 -> l2) AND (!l2 -> l1)
+        
+        # Map to variable nodes:
+        # For artwork k (1-based):
+        #   node 2*(k-1) represents x_k (spotlight)
+        #   node 2*(k-1)+1 represents !x_k (ambient)
+        
+        def get_node(artwork_id):
+            if artwork_id > 0:
+                return 2*(artwork_id-1)     # x_k (spotlight)
+            else:
+                return 2*(abs(artwork_id)-1)+1  # !x_k (ambient)
+                
+        def get_neg_node(artwork_id):
+            if artwork_id > 0:
+                return 2*(artwork_id-1)+1   # !x_k (ambient)
+            else:
+                return 2*(abs(artwork_id)-1)    # x_k (spotlight)
+        
+        a = get_node(l1)
+        b = get_node(l2)
+        not_a = get_neg_node(l1)
+        not_b = get_neg_node(l2)
+        
+        # Add implications: (!a -> b) and (!b -> a)
+        adj[not_a].append(b)
+        adj[not_b].append(a)
+        rev_adj[b].append(not_a)
+        rev_adj[a].append(not_b)
+    
+    # Kosaraju's algorithm for finding strongly connected components
+    visited = [False] * (2*n)
+    order = []
+    
+    def dfs1(node):
+        if visited[node]:
+            return
+        visited[node] = True
+        for neighbor in adj[node]:
+            dfs1(neighbor)
+        order.append(node)
+    
+    # First DFS pass
+    for i in range(2*n):
+        if not visited[i]:
+            dfs1(i)
+    
+    # Second DFS pass on reversed graph
+    visited = [False] * (2*n)
+    components = [-1] * (2*n)
+    component_id = 0
+    
+    def dfs2(node):
+        if visited[node]:
+            return
+        visited[node] = True
+        components[node] = component_id
+        for neighbor in rev_adj[node]:
+            dfs2(neighbor)
+    
+    # Process in reverse order
+    for node in reversed(order):
+        if not visited[node]:
+            dfs2(node)
+            component_id += 1
+    
+    # Check if satisfiable
+    for i in range(n):
+        # Variable i corresponds to nodes 2*i and 2*i+1
+        node_x = 2*i      # x_i (spotlight)
+        node_not_x = 2*i+1 # !x_i (ambient)
+        if components[node_x] == components[node_not_x]:
+            print("NO")
+            return
+    
+    # Assign values based on component numbers
+    assignment = [0] * n
+    for i in range(n):
+        node_x = 2*i      # x_i (spotlight)
+        node_not_x = 2*i+1 # !x_i (ambient)
+        # If node_x is in a later component than node_not_x, then x_i is true
+        if components[node_x] > components[node_not_x]:
+            assignment[i] = 1
+        else:
+            assignment[i] = 0
+    
+    print("YES")
+    print(' '.join(map(str, assignment)))
+
+solve()

@@ -1,0 +1,77 @@
+import heapq
+import sys
+
+def main():
+    data = sys.stdin.read().split()
+    ptr = 0
+    j = int(data[ptr])
+    ptr += 1
+    m = int(data[ptr])
+    ptr += 1
+    jobs = []
+    for _ in range(j):
+        o = int(data[ptr])
+        ptr += 1
+        op_list = []
+        for _ in range(o):
+            machine = int(data[ptr])
+            ptr += 1
+            duration = int(data[ptr])
+            ptr += 1
+            op_list.append((machine, duration))
+        jobs.append(op_list)
+    
+    initial_progress = tuple([0] * j)
+    initial_job_end = tuple([0] * j)
+    initial_machine_end = tuple([0] * m)
+    heap = []
+    heapq.heappush(heap, (0, initial_progress, initial_job_end, initial_machine_end))
+    visited = set()
+    
+    while heap:
+        current_max, progress, job_end, machine_end = heapq.heappop(heap)
+        state = (progress, job_end, machine_end)
+        if state in visited:
+            continue
+        visited.add(state)
+        
+        # Check if all jobs are done
+        all_done = True
+        for i in range(j):
+            if progress[i] != len(jobs[i]):
+                all_done = False
+                break
+        if all_done:
+            print(current_max)
+            return
+        
+        # Generate next states
+        for job_idx in range(j):
+            if progress[job_idx] < len(jobs[job_idx]):
+                op_idx = progress[job_idx]
+                machine, duration = jobs[job_idx][op_idx]
+                m_idx = machine - 1
+                start_time = max(job_end[job_idx], machine_end[m_idx])
+                end_time = start_time + duration
+                new_max_val = max(current_max, end_time)
+                
+                new_progress = list(progress)
+                new_progress[job_idx] += 1
+                new_progress_t = tuple(new_progress)
+                
+                new_job_end = list(job_end)
+                new_job_end[job_idx] = end_time
+                new_job_end_t = tuple(new_job_end)
+                
+                new_machine_end = list(machine_end)
+                new_machine_end[m_idx] = end_time
+                new_machine_end_t = tuple(new_machine_end)
+                
+                new_state = (new_progress_t, new_job_end_t, new_machine_end_t)
+                if new_state not in visited:
+                    heapq.heappush(heap, (new_max_val, new_progress_t, new_job_end_t, new_machine_end_t))
+    
+    print(-1)
+
+if __name__ == "__main__":
+    main()

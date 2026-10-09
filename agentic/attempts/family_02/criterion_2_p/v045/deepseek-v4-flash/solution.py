@@ -1,0 +1,76 @@
+import sys
+sys.setrecursionlimit(300000)
+
+def main():
+    input = sys.stdin.readline
+    n, m = map(int, input().split())
+    N = 2 * n  # variables: 0..n-1 for x_i, n..2n-1 for not x_i
+
+    def var(i):
+        # i is 1-based lever index, positive means active, negative means standby
+        if i > 0:
+            return (i - 1) * 2      # x_i
+        else:
+            return (-i - 1) * 2 + 1 # not x_i
+
+    def neg(v):
+        return v ^ 1
+
+    g = [[] for _ in range(N)]
+    gr = [[] for _ in range(N)]
+
+    for _ in range(m):
+        a, b = map(int, input().split())
+        va = var(a)
+        vb = var(b)
+        # (not a -> b) and (not b -> a)
+        g[neg(va)].append(vb)
+        g[neg(vb)].append(va)
+        gr[vb].append(neg(va))
+        gr[va].append(neg(vb))
+
+    # Kosaraju's SCC
+    visited = [False] * N
+    order = []
+
+    def dfs1(u):
+        visited[u] = True
+        for w in g[u]:
+            if not visited[w]:
+                dfs1(w)
+        order.append(u)
+
+    for i in range(N):
+        if not visited[i]:
+            dfs1(i)
+
+    comp = [-1] * N
+    def dfs2(u, cid):
+        comp[u] = cid
+        for w in gr[u]:
+            if comp[w] == -1:
+                dfs2(w, cid)
+
+    cid = 0
+    for u in reversed(order):
+        if comp[u] == -1:
+            dfs2(u, cid)
+            cid += 1
+
+    # Check contradiction
+    for i in range(n):
+        if comp[2*i] == comp[2*i+1]:
+            print("NO")
+            return
+
+    # Assign values
+    assignment = [False] * n
+    for i in range(n):
+        # If comp[x_i] > comp[not x_i], set true
+        assignment[i] = comp[2*i] > comp[2*i+1]
+
+    print("YES")
+    print(" ".join("1" if assignment[i] else "0" for i in range(n)))
+
+if __name__ == "__main__":
+    main()

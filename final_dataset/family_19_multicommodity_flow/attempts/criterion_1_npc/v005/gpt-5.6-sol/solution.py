@@ -1,0 +1,312 @@
+import sys
+from collections import deque
+
+sys.setrecursionlimit(1_000_000)
+
+
+class Dinic:
+    __slots__ = ("n", "g", "level", "it")
+
+    def __init__(self, n):
+        self.n = n
+        self.g = [[] for _ in range(n)]
+        self.level = [-1] * n
+        self.it = [0] * n
+
+    def add_edge(self, u, v, c):
+        if c <= 0:
+            return
+        a = [v, c, None]
+        b = [u, 0, a]
+        a[2] = b
+        self.g[u].append(a)
+        self.g[v].append(b)
+
+    def max_flow(self, s, t, limit):
+        if s == t:
+            return limit
+        flow = 0
+        n = self.n
+        while flow < limit:
+            level = [-1] * n
+            level[s] = 0
+            q = deque([s])
+            while q and level[t] < 0:
+                u = q.popleft()
+                nl = level[u] + 1
+                for e in self.g[u]:
+                    if e[1] > 0 and level[e[0]] < 0:
+                        level[e[0]] = nl
+                        q.append(e[0])
+            if level[t] < 0:
+                break
+
+            self.level = level
+            self.it = [0] * n
+
+            def dfs(u, pushed):
+                if u == t:
+                    return pushed
+                gu = self.g[u]
+                i = self.it[u]
+                while i < len(gu):
+                    self.it[u] = i
+                    e = gu[i]
+                    if e[1] > 0 and level[e[0]] == level[u] + 1:
+                        got = dfs(e[0], min(pushed, e[1]))
+                        if got:
+                            e[1] -= got
+                            e[2][1] += got
+                            return got
+                    i += 1
+                    self.it[u] = i
+                return 0
+
+            while flow < limit:
+                pushed = dfs(s, limit - flow)
+                if not pushed:
+                    break
+                flow += pushed
+        return flow
+
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+
+    p = 0
+    n, m, k = data[p], data[p + 1], data[p + 2]
+    p += 3
+
+    commodities = []
+    for _ in range(k):
+        s, t, d = data[p] - 1, data[p + 1] - 1, data[p + 2]
+        p += 3
+        commodities.append((s, t, d))
+
+    edges = []
+    original_caps = []
+    for _ in range(m):
+        u, v, c = data[p] - 1, data[p + 1] - 1, data[p + 2]
+        p += 3
+        edges.append((u, v))
+        original_caps.append(c)
+
+    total_demand = sum(d for s, t, d in commodities if s != t and d > 0)
+    caps = [min(c, total_demand) for c in original_caps]
+
+    outgoing = [[] for _ in range(n)]
+    incoming = [[] for _ in range(n)]
+    for eid, (u, v) in enumerate(edges):
+        if caps[eid] > 0 and u != v:
+            outgoing[u].append(eid)
+            incoming[v].append(eid)
+
+    group_map = {}
+    groups = []
+    for idx, (s, t, d) in enumerate(commodities):
+        if d <= 0 or s == t:
+            continue
+        key = (s, t)
+        gid = group_map.get(key)
+        if gid is None:
+            gid = len(groups)
+            group_map[key] = gid
+            groups.append([s, t, d, [idx]])
+        else:
+            groups[gid][2] += d
+            groups[gid][3].append(idx)
+
+    gcount = len(groups)
+    remaining = [g[2] for g in groups]
+    routes = [[] for _ in range(gcount)]
+
+    def ordinary_maxflow(s, t, limit):
+        din = Dinic(n)
+        for eid, (u, v) in enumerate(edges):
+            c = caps[eid]
+            if c > 0 and u != v:
+                din.add_edge(u, v, c)
+        return din.max_flow(s, t, limit)
+
+    def aggregate_possible():
+        total = sum(remaining)
+        if total == 0:
+            return True
+        ss, tt = n, n + 1
+        din = Dinic(n + 2)
+        for eid, (u, v) in enumerate(edges):
+            c = caps[eid]
+            if c > 0 and u != v:
+                din.add_edge(u, v, c)
+        for gid, r in enumerate(remaining):
+            if r:
+                s, t = groups[gid][0], groups[gid][1]
+                din.add_edge(ss, s, r)
+                din.add_edge(t, tt, r)
+        return din.max_flow(ss, tt, total) == total
+
+    def reverse_dist(t):
+        dist = [-1] * n
+        dist[t] = 0
+        q = deque([t])
+        while q:
+            v = q.popleft()
+            nd = dist[v] + 1
+            for eid in incoming[v]:
+                if caps[eid] <= 0:
+                    continue
+                u = edges[eid][0]
+                if dist[u] < 0:
+                    dist[u] = nd
+                    q.append(u)
+        return dist
+
+    def path_generator(s, t, dist):
+        visited = [False] * n
+        visited[s] = True
+        path = []
+
+        def dfs(u):
+            if u == t:
+                yield tuple(path)
+                return
+
+            choices = []
+            for eid in outgoing[u]:
+                if caps[eid] <= 0:
+                    continue
+                v = edges[eid][1]
+                if not visited[v] and dist[v] >= 0:
+                    choices.append(eid)
+
+            choices.sort(key=lambda e: (dist[edges[e][1]], -caps[e], e))
+
+            for eid in choices:
+                v = edges[eid][1]
+                visited[v] = True
+                path.append(eid)
+                yield from dfs(v)
+                path.pop()
+                visited[v] = False
+
+        yield from dfs(s)
+
+    failed = set()
+    memo_limit = 150_000
+
+    def search():
+        if not any(remaining):
+            return True
+
+        key = (tuple(remaining), tuple(caps))
+        if key in failed:
+            return False
+
+        chosen = -1
+        chosen_dist = None
+        chosen_score = None
+        active_count = 0
+
+        for gid, need in enumerate(remaining):
+            if need <= 0:
+                continue
+            active_count += 1
+            s, t = groups[gid][0], groups[gid][1]
+
+            out_cap = sum(caps[eid] for eid in outgoing[s])
+            in_cap = sum(caps[eid] for eid in incoming[t])
+            if min(out_cap, in_cap) < need:
+                if len(failed) < memo_limit:
+                    failed.add(key)
+                return False
+
+            dist = reverse_dist(t)
+            if dist[s] < 0:
+                if len(failed) < memo_limit:
+                    failed.add(key)
+                return False
+
+            if ordinary_maxflow(s, t, need) < need:
+                if len(failed) < memo_limit:
+                    failed.add(key)
+                return False
+
+            score = (min(out_cap, in_cap) - need, dist[s], -need)
+            if chosen < 0 or score < chosen_score:
+                chosen = gid
+                chosen_dist = dist
+                chosen_score = score
+
+        if active_count > 1 and not aggregate_possible():
+            if len(failed) < memo_limit:
+                failed.add(key)
+            return False
+
+        need = remaining[chosen]
+        s, t = groups[chosen][0], groups[chosen][1]
+
+        for path in path_generator(s, t, chosen_dist):
+            if not path:
+                continue
+            bottleneck = need
+            for eid in path:
+                if caps[eid] < bottleneck:
+                    bottleneck = caps[eid]
+            if bottleneck <= 0:
+                continue
+
+            amount = bottleneck
+            while amount >= 1:
+                for eid in path:
+                    caps[eid] -= amount
+                remaining[chosen] -= amount
+                routes[chosen].append((path, amount))
+
+                if search():
+                    return True
+
+                routes[chosen].pop()
+                remaining[chosen] += amount
+                for eid in path:
+                    caps[eid] += amount
+                amount -= 1
+
+        if len(failed) < memo_limit:
+            failed.add(key)
+        return False
+
+    if not search():
+        print("NO")
+        return
+
+    answer = [[0] * m for _ in range(k)]
+
+    for gid, group in enumerate(groups):
+        members = group[3]
+        route_list = routes[gid]
+        route_index = 0
+        route_left = route_list[0][1] if route_list else 0
+
+        for commodity_index in members:
+            need = commodities[commodity_index][2]
+            while need > 0:
+                path, _ = route_list[route_index]
+                take = min(need, route_left)
+                for eid in path:
+                    answer[commodity_index][eid] += take
+                need -= take
+                route_left -= take
+                if route_left == 0:
+                    route_index += 1
+                    if route_index < len(route_list):
+                        route_left = route_list[route_index][1]
+
+    out = ["YES"]
+    out.extend(" ".join(map(str, row)) for row in answer)
+    sys.stdout.write("\n".join(out))
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,247 @@
+import sys
+
+sys.setrecursionlimit(10000)
+
+data = list(map(int, sys.stdin.buffer.read().split()))
+if not data:
+    sys.exit()
+
+n, m = data[0], data[1]
+adj = [0] * n
+edges = []
+p = 2
+for _ in range(m):
+    u = data[p] - 1
+    v = data[p + 1] - 1
+    p += 2
+    if u != v and not ((adj[u] >> v) & 1):
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+        edges.append((u, v))
+
+# Find vertex-biconnected components.
+disc = [-1] * n
+low = [0] * n
+timer = 0
+edge_stack = []
+blocks = []
+
+def dfs(u, parent):
+    global timer
+    disc[u] = low[u] = timer
+    timer += 1
+
+    neighbors = adj[u]
+    while neighbors:
+        vb = neighbors & -neighbors
+        neighbors ^= vb
+        v = vb.bit_length() - 1
+
+        if disc[v] == -1:
+            edge_stack.append((u, v))
+            dfs(v, u)
+            low[u] = min(low[u], low[v])
+
+            if low[v] >= disc[u]:
+                mask = 0
+                while True:
+                    a, b = edge_stack.pop()
+                    mask |= (1 << a) | (1 << b)
+                    if a == u and b == v:
+                        break
+                blocks.append(mask)
+
+        elif v != parent and disc[v] < disc[u]:
+            edge_stack.append((u, v))
+            low[u] = min(low[u], disc[v])
+
+for i in range(n):
+    if disc[i] == -1:
+        dfs(i, -1)
+
+def bipartite(mask):
+    unseen = mask
+    side_a = 0
+    side_b = 0
+
+    while unseen:
+        root = unseen & -unseen
+        unseen ^= root
+        side_a |= root
+        queue = root
+
+        while queue:
+            vb = queue & -queue
+            queue ^= vb
+            v = vb.bit_length() - 1
+            neighbors = adj[v] & mask
+
+            if side_a & vb:
+                if neighbors & side_a:
+                    return None
+                new_vertices = neighbors & unseen
+                unseen &= ~new_vertices
+                side_b |= new_vertices
+                queue |= new_vertices
+            else:
+                if neighbors & side_b:
+                    return None
+                new_vertices = neighbors & unseen
+                unseen &= ~new_vertices
+                side_a |= new_vertices
+                queue |= new_vertices
+
+    return side_a, side_b
+
+def color_block(mask):
+    bi = bipartite(mask)
+    if bi is not None:
+        return 0, bi[0], bi[1]
+
+    comp = [0] * n
+    vertices = mask
+    while vertices:
+        vb = vertices & -vertices
+        vertices ^= vb
+        v = vb.bit_length() - 1
+        comp[v] = mask & ~adj[v] & ~vb
+
+    answer = None
+
+    def bron_kerbosch(independent, candidates, excluded):
+        nonlocal answer
+
+        if not candidates and not excluded:
+            remainder = mask & ~independent
+            parts = bipartite(remainder)
+            if parts is not None:
+                answer = (independent, parts[0], parts[1])
+                return True
+            return False
+
+        possible_pivots = candidates | excluded
+        pivot = -1
+        best = -1
+        temp = possible_pivots
+
+        while temp:
+            ub = temp & -temp
+            temp ^= ub
+            u = ub.bit_length() - 1
+            score = (candidates & comp[u]).bit_count()
+            if score > best:
+                best = score
+                pivot = u
+
+        if pivot == -1:
+            branch = candidates
+        else:
+            branch = candidates & ~comp[pivot]
+
+        while branch:
+            vb = branch & -branch
+            branch ^= vb
+            v = vb.bit_length() - 1
+
+            if bron_kerbosch(
+                independent | vb,
+                candidates & comp[v],
+                excluded & comp[v]
+            ):
+                return True
+
+            candidates ^= vb
+            excluded |= vb
+
+        return False
+
+    bron_kerbosch(0, mask, 0)
+    return answer
+
+vertex_blocks = [[] for _ in range(n)]
+for index, mask in enumerate(blocks):
+    temp = mask
+    while temp:
+        vb = temp & -temp
+        temp ^= vb
+        vertex_blocks[vb.bit_length() - 1].append(index)
+
+colors = [0] * n
+processed = [False] * len(blocks)
+
+for start in range(len(blocks)):
+    if processed[start]:
+        continue
+
+    queue = [start]
+    processed[start] = True
+    head = 0
+
+    while head < len(queue):
+        block_index = queue[head]
+        head += 1
+        mask = blocks[block_index]
+
+        local = color_block(mask)
+        if local is None:
+            print("NO")
+            sys.exit()
+
+        local_colors = {}
+        for c, part in enumerate(local, 1):
+            temp = part
+            while temp:
+                vb = temp & -temp
+                temp ^= vb
+                local_colors[vb.bit_length() - 1] = c
+
+        anchor = -1
+        temp = mask
+        while temp:
+            vb = temp & -temp
+            temp ^= vb
+            v = vb.bit_length() - 1
+            if colors[v] != 0:
+                anchor = v
+                break
+
+        if anchor == -1:
+            mapping = [0, 1, 2, 3]
+        else:
+            local_anchor = local_colors[anchor]
+            global_anchor = colors[anchor]
+            mapping = [0, 0, 0, 0]
+            mapping[local_anchor] = global_anchor
+
+            remaining_local = [c for c in (1, 2, 3) if c != local_anchor]
+            remaining_global = [c for c in (1, 2, 3) if c != global_anchor]
+            mapping[remaining_local[0]] = remaining_global[0]
+            mapping[remaining_local[1]] = remaining_global[1]
+
+        temp = mask
+        while temp:
+            vb = temp & -temp
+            temp ^= vb
+            v = vb.bit_length() - 1
+            assigned = mapping[local_colors[v]]
+            if colors[v] != 0 and colors[v] != assigned:
+                print("NO")
+                sys.exit()
+            colors[v] = assigned
+
+        temp = mask
+        while temp:
+            vb = temp & -temp
+            temp ^= vb
+            v = vb.bit_length() - 1
+            for next_block in vertex_blocks[v]:
+                if not processed[next_block]:
+                    processed[next_block] = True
+                    queue.append(next_block)
+
+for i in range(n):
+    if colors[i] == 0:
+        colors[i] = 1
+
+print("YES")
+print(*colors)

@@ -11,74 +11,233 @@ def main():
     
     if m == 0:
         print("YES")
-        print(" ".join(["1"] * n))
+        print(' '.join(['1']*n))
         return
     
     edges = []
     adj = [[] for _ in range(n+1)]
     edge_indices = defaultdict(list)
     
-    index = 2
+    idx = 2
     for i in range(m):
-        u = int(data[index])
-        v = int(data[index+1])
+        u = int(data[idx])
+        v = int(data[idx+1])
+        idx += 2
         edges.append((u, v))
         adj[u].append((v, i))
         adj[v].append((u, i))
-        edge_indices[(min(u,v), max(u,v))].append(i)
-        index += 2
+        edge_indices[(u,v)].append(i)
+        edge_indices[(v,u)].append(i)
     
-    # For each edge, the thermal footprint must be 5
-    # 2^{s_u} + 2^{s_v} - 1 = 5
-    # 2^{s_u} + 2^{s_v} = 6
-    # Possible pairs: (1,2) and (2,1) since 2^1 + 2^2 = 2 + 4 = 6
-    # So for every edge, one endpoint must be 1 and the other must be 2
+    # For each edge (u,v), the sum must be 3 Alpha and 3 Beta
+    # If u=1 (1A,2B) and v=2 (2A,1B) => total 3A,3B
+    # If u=2 (2A,1B) and v=1 (1A,2B) => total 3A,3B
+    # So, for each edge, u and v must have different mixtures
+    # Mixture 1: Alpha=1
+    # Mixture 2: Alpha=2
+    # So each edge connects a node with value 1 to a node with value 2
+    # This is a bipartite graph constraint
     
-    # This is equivalent to a 2-coloring problem where each edge must connect nodes of different colors
-    # Color 1 represents s=1, Color 2 represents s=2
+    # We model this as a 2-SAT problem:
+    # Each node can be assigned value 1 or 2
+    # For each edge (u,v): (u==1 XOR v==1) must hold (since they must be different)
+    # Equivalently: (u==1 and v==2) or (u==2 and v==1)
     
-    color = [0] * (n+1)  # 0 means unvisited, 1 and 2 are the two colors
+    # Build implication graph for 2-SAT
+    # Variables: for each node i, var_i represents x_i = 1
+    # not var_i represents x_i = 2
+    # For each edge (u,v), we need (x_u != x_v)
+    # That means (x_u=1 OR x_v=1) AND (not x_u=1 OR not x_v=1)
+    # Which translates to implications:
+    # not x_u -> x_v
+    # not x_v -> x_u
+    # x_u -> not x_v
+    # x_v -> not x_u
     
-    # Check if the graph is bipartite
-    visited = [False] * (n+1)
+    # But since we want x_u != x_v, it's simpler:
+    # if x_u then not x_v
+    # if not x_u then x_v
+    # if x_v then not x_u
+    # if not x_v then x_u
     
-    for start in range(1, n+1):
-        if not visited[start]:
-            queue = deque()
-            queue.append(start)
-            visited[start] = True
-            color[start] = 1
+    # Let's use a graph coloring approach instead
+    # Since adjacent nodes must have different values (1 or 2)
+    # This is a bipartite check
+    
+    color = [0] * (n+1)  # 0: unvisited, 1: color 1, 2: color 2
+    
+    def bfs(start):
+        queue = deque()
+        queue.append(start)
+        color[start] = 1
+        
+        while queue:
+            u = queue.popleft()
+            c = color[u]
             
-            while queue:
-                node = queue.popleft()
-                current_color = color[node]
-                next_color = 3 - current_color  # flips 1->2 and 2->1
-                
-                for neighbor, edge_idx in adj[node]:
-                    if not visited[neighbor]:
-                        visited[neighbor] = True
-                        color[neighbor] = next_color
-                        queue.append(neighbor)
-                    else:
-                        # Check if the edge constraint is satisfied
-                        if color[neighbor] != next_color:
-                            print("NO")
-                            return
+            for v, e_idx in adj[u]:
+                if color[v] == 0:
+                    color[v] = 3 - c  # flips 1->2, 2->1
+                    queue.append(v)
+                elif color[v] == c:
+                    return False
+        return True
     
-    # If we reach here, a valid coloring exists
-    # We need the lexicographically smallest sequence
-    # That means we prefer s_i = 1 over s_i = 2 when possible
-    # In our coloring, we used 1 and 2. We can map 1 -> 1 and 2 -> 2
-    
-    result = []
     for i in range(1, n+1):
-        if color[i] == 0:  # Isolated vertex, choose 1 for lex smallest
-            result.append("1")
-        else:
-            result.append(str(color[i]))
+        if color[i] == 0:
+            if not bfs(i):
+                print("NO")
+                return
+    
+    # Now we have a valid 2-coloring
+    # To get lexicographically smallest sequence:
+    # For each connected component, we can choose which color is 1 or 2
+    # We want the sequence to be lex smallest
+    # So for each component, we try both assignments and pick the better one
+    # Actually, since we fixed the starting node to color 1, we might not get the lex smallest
+    # Let's re-think...
+    
+    # Let's build components and for each component decide whether to flip colors
+    visited = [False] * (n+1)
+    components = []
+    
+    for i in range(1, n+1):
+        if not visited[i]:
+            comp_nodes = []
+            queue = deque([i])
+            visited[i] = True
+            while queue:
+                u = queue.popleft()
+                comp_nodes.append(u)
+                for v, _ in adj[u]:
+                    if not visited[v]:
+                        visited[v] = True
+                        queue.append(v)
+            components.append(comp_nodes)
+    
+    # For each component, we can assign the two colors to 1 and 2 in two ways
+    # We want the lexicographically smallest overall sequence
+    # So for each component, we see what happens when we assign color[component_root] = 1 vs 2
+    # and choose the one that gives lex smaller result
+    
+    final_color = [0] * (n+1)
+    
+    for comp_nodes in components:
+        root = comp_nodes[0]
+        # Try assigning color[root] = 1
+        # Re-color the component accordingly
+        temp_color = [0] * (n+1)
+        queue = deque([root])
+        temp_color[root] = 1
+        while queue:
+            u = queue.popleft()
+            c = temp_color[u]
+            for v, _ in adj[u]:
+                if temp_color[v] == 0:
+                    temp_color[v] = 3 - c
+                    queue.append(v)
+                elif temp_color[v] == c:
+                    print("NO")
+                    return
+        
+        # Check if this is valid
+        valid = True
+        for u, v_list in enumerate(adj):
+            if u == 0: continue
+            for v, _ in v_list:
+                if temp_color[u] == temp_color[v]:
+                    valid = False
+                    break
+            if not valid:
+                break
+                
+        if not valid:
+            print("NO")
+            return
+            
+        # Now we have a valid coloring
+        # Assign to final_color
+        for u in range(1, n+1):
+            if temp_color[u] != 0:
+                final_color[u] = temp_color[u]
+    
+    # But we still need to make sure it's lexicographically smallest
+    # For each component, we can flip the colors
+    # We should process components in order of their smallest node index
+    # and for each, decide whether to flip to minimize lex order
+    
+    visited_check = [False] * (n+1)
+    result = [0] * (n+1)
+    
+    for i in range(1, n+1):
+        if not visited_check[i]:
+            # BFS to get component
+            component = []
+            queue = deque([i])
+            visited_check[i] = True
+            while queue:
+                u = queue.popleft()
+                component.append(u)
+                for v, _ in adj[u]:
+                    if not visited_check[v]:
+                        visited_check[v] = True
+                        queue.append(v)
+            
+            # Get the current coloring
+            c1 = []
+            c2 = []
+            for u in component:
+                c1.append(color[u])
+            
+            # Create alternative coloring by flipping
+            mapping = {1: 2, 2: 1}
+            for u in component:
+                c2.append(mapping[color[u]])
+            
+            # Compare sequences
+            seq1 = [c1[component.index(u)] for u in sorted(component)]
+            seq2 = [c2[component.index(u)] for u in sorted(component)]
+            
+            use_seq = seq1
+            if seq2 < seq1:
+                use_seq = seq2
+                mapping_used = mapping
+            else:
+                mapping_used = {1:1, 2:2}
+                
+            # Assign to result
+            for u in component:
+                idx_in_comp = component.index(u)
+                result[u] = use_seq[idx_in_comp]
+    
+    # But this is getting complex. Let's simplify:
+    # Just do BFS from node 1, and always assign the first node in each component as 1
+    # Then propagate
+    
+    final_assignment = [0] * (n+1)
+    visited_final = [False] * (n+1)
+    
+    for start_node in range(1, n+1):
+        if not visited_final[start_node]:
+            # Assign start_node as 1 (to get lex smallest)
+            queue = deque([start_node])
+            final_assignment[start_node] = 1
+            visited_final[start_node] = True
+            while queue:
+                u = queue.popleft()
+                val_u = final_assignment[u]
+                target_v = 3 - val_u  # Must be different
+                for v, _ in adj[u]:
+                    if not visited_final[v]:
+                        final_assignment[v] = target_v
+                        visited_final[v] = True
+                        queue.append(v)
+                    elif final_assignment[v] != target_v:
+                        print("NO")
+                        return
     
     print("YES")
-    print(" ".join(result))
+    print(' '.join(str(final_assignment[i]) for i in range(1, n+1)))
 
 if __name__ == "__main__":
     main()

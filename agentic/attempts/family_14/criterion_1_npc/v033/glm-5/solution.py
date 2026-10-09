@@ -1,0 +1,95 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    t = int(input_data[2])
+    
+    core_ids = [int(x) for x in input_data[3:3+t]]
+    is_core = [0] * (n + 1)
+    for cid in core_ids:
+        is_core[cid] = 1
+        
+    INF = float('inf')
+    dist = [[INF] * (n + 1) for _ in range(n + 1)]
+    for i in range(n + 1):
+        dist[i][i] = 0
+        
+    idx = 3 + t
+    for _ in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx+1])
+        w = int(input_data[idx+2])
+        idx += 3
+        if w < dist[u][v]:
+            dist[u][v] = w
+            dist[v][u] = w
+            
+    # Floyd-Warshall
+    for k in range(1, n + 1):
+        dk = dist[k]
+        for i in range(1, n + 1):
+            di = dist[i]
+            dik = di[k]
+            if dik == INF:
+                continue
+            for j in range(1, n + 1):
+                nd = dik + dk[j]
+                if nd < di[j]:
+                    di[j] = nd
+                    
+    # Steiner Tree DP
+    # dp[mask][v] = min cost to connect core endpoints in 'mask' ending at vertex v
+    dp = [[INF] * (n + 1) for _ in range(1 << t)]
+    
+    for i in range(t):
+        dp[1 << i][core_ids[i]] = 0
+        
+    for mask in range(1, 1 << t):
+        # Merge submasks
+        submask = (mask - 1) & mask
+        while submask > 0:
+            inv_submask = mask ^ submask
+            for v in range(1, n + 1):
+                val = dp[submask][v] + dp[inv_submask][v]
+                if val < dp[mask][v]:
+                    dp[mask][v] = val
+            submask = (submask - 1) & mask
+            
+        # Dijkstra to relax edges and propagate shortest paths
+        pq = []
+        for v in range(1, n + 1):
+            if dp[mask][v] < INF:
+                pq.append((dp[mask][v], v))
+                
+        pq.sort()
+        
+        head = 0
+        visited = [False] * (n + 1)
+        while head < len(pq):
+            d, u = pq[head]
+            head += 1
+            
+            if visited[u]:
+                continue
+            visited[u] = True
+            
+            for v in range(1, n + 1):
+                w = dist[u][v]
+                if w == INF:
+                    continue
+                nd = d + w
+                if nd < dp[mask][v]:
+                    dp[mask][v] = nd
+                    pq.append((nd, v))
+                    
+    full_mask = (1 << t) - 1
+    ans = min(dp[full_mask][v] for v in range(1, n + 1))
+    print(ans)
+
+if __name__ == '__main__':
+    solve()

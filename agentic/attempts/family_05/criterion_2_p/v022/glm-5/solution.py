@@ -1,0 +1,100 @@
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    it = iter(data)
+    k = int(next(it))
+    t = int(next(it))
+    
+    # emitter -> filter
+    ef = [0] * (k + 1)
+    # filter -> emitter
+    fe = [0] * (k + 1)
+    
+    # For each emitter, store list of detectors
+    em_detectors = [[] for _ in range(k + 1)]
+    
+    for _ in range(t):
+        x = int(next(it))
+        y = int(next(it))
+        z = int(next(it))
+        if ef[x] == 0:
+            ef[x] = y
+            fe[y] = x
+        em_detectors[x].append(z)
+    
+    # Check hardware consistency: each emitter has exactly one filter, filters unique
+    # Also every emitter 1..k must appear (since we need all k emitters)
+    for x in range(1, k + 1):
+        if ef[x] == 0:
+            print("NO")
+            return
+    
+    # Now we need to select for each emitter x a detector z such that all z are distinct.
+    # This is bipartite matching: emitters on left, detectors on right.
+    # Edge x -> z exists if (x, ef[x], z) is a verified triplet.
+    
+    # Build adjacency for emitters 1..k to detectors 1..k
+    # Use arrays for speed
+    adj = [[] for _ in range(k + 1)]
+    for x in range(1, k + 1):
+        adj[x] = em_detectors[x]
+    
+    # Hopcroft-Karp
+    pair_u = [0] * (k + 1)  # emitter -> detector
+    pair_v = [0] * (k + 1)  # detector -> emitter
+    dist = [0] * (k + 1)
+    INF = 10**9
+    NIL = 0
+    
+    from collections import deque
+    
+    def bfs():
+        dq = deque()
+        for u in range(1, k + 1):
+            if pair_u[u] == 0:
+                dist[u] = 0
+                dq.append(u)
+            else:
+                dist[u] = INF
+        dist[0] = INF
+        while dq:
+            u = dq.popleft()
+            if dist[u] < dist[0]:
+                for v in adj[u]:
+                    pu = pair_v[v]
+                    if dist[pu] == INF:
+                        dist[pu] = dist[u] + 1
+                        dq.append(pu)
+        return dist[0] != INF
+    
+    def dfs(u):
+        if u != 0:
+            for v in adj[u]:
+                pu = pair_v[v]
+                if dist[pu] == dist[u] + 1:
+                    if dfs(pu):
+                        pair_v[v] = u
+                        pair_u[u] = v
+                        return True
+            dist[u] = INF
+            return False
+        return True
+    
+    matching = 0
+    while bfs():
+        for u in range(1, k + 1):
+            if pair_u[u] == 0:
+                if dfs(u):
+                    matching += 1
+    
+    if matching == k:
+        print("YES")
+        for x in range(1, k + 1):
+            print(f"{x} {ef[x]} {pair_u[x]}")
+    else:
+        print("NO")
+
+solve()

@@ -1,0 +1,137 @@
+import sys
+import heapq
+from collections import defaultdict
+
+def find(parent, x):
+    if parent[x] != x:
+        parent[x] = find(parent, parent[x])
+    return parent[x]
+
+def union(parent, rank, x, y):
+    px, py = find(parent, x), find(parent, y)
+    if px == py:
+        return
+    if rank[px] < rank[py]:
+        px, py = py, px
+    parent[py] = px
+    if rank[px] == rank[py]:
+        rank[px] += 1
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    idx = 0
+    n = int(data[idx])
+    idx += 1
+    m = int(data[idx])
+    idx += 1
+    t = int(data[idx])
+    idx += 1
+    
+    targets = []
+    for _ in range(t):
+        targets.append(int(data[idx]) - 1)  # 0-indexed
+        idx += 1
+    
+    edges = []
+    for _ in range(m):
+        u = int(data[idx]) - 1  # 0-indexed
+        idx += 1
+        v = int(data[idx]) - 1  # 0-indexed
+        idx += 1
+        w = int(data[idx])
+        idx += 1
+        edges.append((w, u, v))
+    
+    if t <= 1:
+        print(0)
+        return
+    
+    # Sort edges by weight
+    edges.sort()
+    
+    # We need to connect all target nodes in the same component
+    # We'll use a greedy approach: for each possible way to connect targets,
+    # we compute the MST of the subgraph that connects them.
+    # But since t is small (<=10), we can try all possible ways to make targets connected.
+    # Actually, the optimal is just to find the minimum cost to make all targets in same component.
+    # This is exactly the MST problem where we want to connect all target nodes.
+    # We can use a modified Kruskal: we only care about connecting the target nodes.
+    
+    # Let's use Kruskal's algorithm to find the minimum cost to connect all targets
+    parent = list(range(n))
+    rank = [0] * n
+    cost = 0
+    components = set(targets)
+    target_set = set(targets)
+    
+    # Initially, each target is its own component
+    target_parents = {find(parent, c): True for c in targets}
+    
+    for w, u, v in edges:
+        pu = find(parent, u)
+        pv = find(parent, v)
+        if pu != pv:
+            union(parent, rank, u, v)
+            # Check if we just connected two components that contain targets
+            new_p = find(parent, u)
+            # Update target_parents
+            target_parents = {}
+            for c in targets:
+                target_parents[find(parent, c)] = True
+            if len(target_parents) == 1:
+                cost += w
+                break
+            cost += w
+    
+    # Actually, let's think differently.
+    # We want the minimum cost to make all targets in the same component.
+    # This is the MST of the graph where we only care about connecting targets.
+    # We can use Kruskal and stop when all targets are connected.
+    
+    parent = list(range(n))
+    rank = [0] * n
+    cost = 0
+    num_target_components = len(targets)
+    
+    # Map each node to its component regarding targets
+    target_component = {}
+    for i, c in enumerate(targets):
+        target_component[c] = i
+    
+    for w, u, v in edges:
+        pu = find(parent, u)
+        pv = find(parent, v)
+        if pu != pv:
+            # Check how many target components we're merging
+            target_comps_involved = set()
+            nodes_to_check = [u, v]
+            for node in nodes_to_check:
+                if node in target_component:
+                    target_comps_involved.add(target_component[node])
+                # Also check all nodes in the component if we maintain a mapping
+                # This is getting complex. Let's just check the targets' components.
+                # Better approach: track for each component, which targets it contains.
+                
+            # Simpler: just track the root of each target
+            roots = set()
+            for c in targets:
+                roots.add(find(parent, c))
+            
+            union(parent, rank, u, v)
+            
+            new_roots = set()
+            for c in targets:
+                new_roots.add(find(parent, c))
+            
+            if len(new_roots) < len(roots):
+                cost += w
+                if len(new_roots) == 1:
+                    break
+    
+    print(cost)
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,173 @@
+```python
+import sys
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    n = int(data[0])
+    m = int(data[1])
+    adj = [0] * n
+    idx = 2
+    for _ in range(m):
+        u = int(data[idx]) - 1
+        v = int(data[idx+1]) - 1
+        idx += 2
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+
+    # Find connected components
+    seen = [False] * n
+    components = []
+    for i in range(n):
+        if not seen[i]:
+            comp = []
+            stack = [i]
+            seen[i] = True
+            while stack:
+                u = stack.pop()
+                comp.append(u)
+                for v in range(n):
+                    if (adj[u] >> v) & 1 and not seen[v]:
+                        seen[v] = True
+                        stack.append(v)
+            components.append(comp)
+
+    color = [0] * n
+
+    for comp in components:
+        # Build induced subgraph bitmasks
+        k = len(comp)
+        if k == 1:
+            color[comp[0]] = 1
+            continue
+
+        idx_map = {v: j for j, v in enumerate(comp)}
+        sub_adj = [0] * k
+        for j, v in enumerate(comp):
+            mask = 0
+            for u in comp:
+                if (adj[v] >> u) & 1:
+                    mask |= 1 << idx_map[u]
+            sub_adj[j] = mask
+
+        # Check bipartiteness
+        side = [-1] * k
+        is_bip = True
+        for s in range(k):
+            if side[s] == -1:
+                side[s] = 0
+                stack = [s]
+                while stack:
+                    u = stack.pop()
+                    for v in range(k):
+                        if (sub_adj[u] >> v) & 1:
+                            if side[v] == -1:
+                                side[v] = side[u] ^ 1
+                                stack.append(v)
+                            elif side[v] == side[u]:
+                                is_bip = False
+                                break
+                    if not is_bip:
+                        break
+            if not is_bip:
+                break
+
+        if is_bip:
+            for j, v in enumerate(comp):
+                color[v] = side[j] + 1
+            continue
+
+        # Not bipartite: need 3-coloring
+        # Find a triangle (guaranteed to exist in non-bipartite component)
+        tri = None
+        for a in range(k):
+            for b in range(a+1, k):
+                if (sub_adj[a] >> b) & 1:
+                    common = sub_adj[a] & sub_adj[b]
+                    if common:
+                        c = (common & -common).bit_length() - 1
+                        if c > b:
+                            tri = (a, b, c)
+                            break
+            if tri:
+                break
+
+        if tri is None:
+            print("NO")
+            return
+
+        a, b, c = tri
+        color[comp[a]] = 1
+        color[comp[b]] = 2
+        color[comp[c]] = 3
+
+        # Try to extend coloring via BFS
+        ok = True
+        queue = [a, b, c]
+        head = 0
+        local_color = [0] * k
+        local_color[a] = 1
+        local_color[b] = 2
+        local_color[c] = 3
+
+        while head < len(queue) and ok:
+            u = queue[head]
+            head += 1
+            cu = local_color[u]
+            for v in range(k):
+                if (sub_adj[u] >> v) & 1:
+                    if local_color[v] == 0:
+                        used = 0
+                        for w in range(k):
+                            if (sub_adj[v] >> w) & 1 and local_color[w]:
+                                used |= 1 << local_color[w]
+                        avail = []
+                        for col in (1, 2, 3):
+                            if not (used >> col) & 1:
+                                avail.append(col)
+                        if not avail:
+                            ok = False
+                            break
+                        local_color[v] = avail[0]
+                        queue.append(v)
+                    elif local_color[v] == cu:
+                        ok = False
+                        break
+            if not ok:
+                break
+
+        if ok:
+            for j, v in enumerate(comp):
+                color[v] = local_color[j]
+            continue
+
+        # Fallback: brute force with pruning
+        local_color = [0] * k
+        def dfs(pos):
+            if pos == k:
+                return True
+            used = 0
+            for v in range(k):
+                if (sub_adj[pos] >> v) & 1 and local_color[v]:
+                    used |= 1 << local_color[v]
+            for col in (1, 2, 3):
+                if not (used >> col) & 1:
+                    local_color[pos] = col
+                    if dfs(pos + 1):
+                        return True
+            local_color[pos] = 0
+            return False
+
+        if dfs(0):
+            for j, v in enumerate(comp):
+                color[v] = local_color[j]
+        else:
+            print("NO")
+            return
+
+    print("YES")
+    print(' '.join(map(str, color)))
+
+solve()
+```

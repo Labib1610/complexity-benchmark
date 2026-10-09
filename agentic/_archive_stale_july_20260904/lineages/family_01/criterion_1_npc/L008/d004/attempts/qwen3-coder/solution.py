@@ -1,0 +1,54 @@
+import sys
+from collections import defaultdict
+
+def solve():
+    n, m = map(int, input().split())
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
+    
+    # Build adjacency list
+    adj = defaultdict(list)
+    edges = []
+    for _ in range(m):
+        u, v = map(int, input().split())
+        u -= 1
+        v -= 1
+        adj[u].append(v)
+        adj[v].append(u)
+        edges.append((u, v))
+    
+    # Try all possible colorings with backtracking
+    # We want to minimize the structural signature, which means
+    # we want lexicographically smallest sequence when read from left to right
+    coloring = [0] * n
+    
+    def is_valid(node, color):
+        for neighbor in adj[node]:
+            if coloring[neighbor] == color:
+                return False
+        return True
+    
+    def backtrack(node):
+        if node == n:
+            return True
+            
+        for color in [1, 2, 3]:
+            if is_valid(node, color):
+                coloring[node] = color
+                if backtrack(node + 1):
+                    return True
+                coloring[node] = 0
+        return False
+    
+    # Check if graph is 3-colorable
+    if not backtrack(0):
+        print("NO")
+        return
+    
+    print("YES")
+    print(" ".join(map(str, coloring)))
+
+solve()

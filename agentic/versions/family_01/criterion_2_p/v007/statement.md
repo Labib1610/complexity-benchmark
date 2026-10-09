@@ -4,7 +4,7 @@ Time limit: 1 s   Memory limit: 256 MB
 
 The same factory now runs only two shifts, labeled 1 and 2. With n workers and m
 conflict pairs, assign each worker a shift so that no conflicting pair shares a
-shift, or report impossibility. You may assume that the sum of the number of conflicts per worker over all n workers is at most 400,000.
+shift, or report impossibility. It is guaranteed that the sum of n and m is at most 400,000, and no worker appears in more than m conflict pairs.
 
 ## Input
 The first line contains two integers n and m (1 ≤ n ≤ 2·10⁵, 0 ≤ m ≤ 2·10⁵).

@@ -1,0 +1,73 @@
+import sys
+from sys import stdin
+
+def solve():
+    input_data = stdin.buffer.read().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    color = [0] * (n + 1)
+    is_bipartite = True
+    
+    for i in range(1, n + 1):
+        if color[i] == 0:
+            color[i] = 1
+            stack = [i]
+            while stack:
+                u = stack.pop()
+                for v in adj[u]:
+                    if color[v] == 0:
+                        color[v] = 3 - color[u]
+                        stack.append(v)
+                    elif color[v] == color[u]:
+                        is_bipartite = False
+                        break
+                if not is_bipartite:
+                    break
+        if not is_bipartite:
+            break
+    
+    if not is_bipartite:
+        sys.stdout.write("NO\n")
+        return
+    
+    # Check if graph is connected
+    visited = [False] * (n + 1)
+    visited[1] = True
+    stack = [1]
+    while stack:
+        u = stack.pop()
+        for v in adj[u]:
+            if not visited[v]:
+                visited[v] = True
+                stack.append(v)
+    
+    for i in range(1, n + 1):
+        if not visited[i]:
+            sys.stdout.write("NO\n")
+            return
+    
+    # Lexicographically smallest: try to assign 1 to each vertex
+    # if it doesn't conflict with already assigned neighbors
+    result = [0] * (n + 1)
+    for u in range(1, n + 1):
+        result[u] = 1
+        for v in adj[u]:
+            if v < u and result[v] == 1:
+                result[u] = 2
+                break
+    
+    sys.stdout.write("YES\n")
+    sys.stdout.write(' '.join(str(result[i]) for i in range(1, n + 1)) + '\n')
+
+solve()

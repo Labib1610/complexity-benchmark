@@ -1,22 +1,24 @@
-# Problem B — Cabling Every Site
+# Problem B — Cabling the Required Sites (Tree Layout)
 
 Time limit: 2 s   Memory limit: 256 MB
 
 ## Description
 
-A campus has **n** sites (numbered 1..n). Certain pairs of sites can be joined by a cabling option at a given cost. **Every** site must end up connected to every other site through the cabling you install (directly or through intermediate sites).
+A campus has **n** sites (numbered 1..n). Certain pairs of sites can be joined by a cabling option at a given cost. Among the sites, **t** are **required** and must all end up connected to each other through the cabling you install (directly or through intermediate relay sites).
 
-Install a set of cabling options of minimum total cost so that all sites are connected. Report that minimum total cost.
+In this campus the available cabling options form a **tree**: they connect all sites, there are exactly **n − 1** options, and between any two sites there is exactly one possible cabling route.
+
+Install a set of cabling options of minimum total cost so that all required sites are connected. Report that minimum total cost.
 
 ## Input
 
-The first line contains two integers **n** and **m** (1 ≤ n ≤ 200000, 0 ≤ m ≤ 200000).
-Each of the next **m** lines contains three integers **u**, **v**, and **w** (1 ≤ u, v ≤ n, u ≠ v, 1 ≤ w ≤ 1000000): a cabling option joining sites u and v at cost w.
-The cabling options are enough to connect all sites.
+The first line contains three integers **n**, **m**, and **t** (1 ≤ t ≤ n, 1 ≤ n ≤ 200000, m = n − 1).
+The second line contains **t** distinct integers: the ids of the required sites.
+Each of the next **m** lines contains three integers **u**, **v**, and **w** (1 ≤ u, v ≤ n, u ≠ v, 1 ≤ w ≤ 1000000): a cabling option joining sites u and v at cost w. The options form the tree described above.
 
 ## Output
 
-Print a single integer: the minimum total cost to connect all sites.
+Print a single integer: the minimum total cost to connect all required sites.
 
 ## Examples
 
@@ -24,47 +26,50 @@ Print a single integer: the minimum total cost to connect all sites.
 
 **Input**
 ```
-3 3
-1 2 1
-2 3 2
-1 3 3
+4 3 2
+1 4
+1 2 5
+2 3 1
+3 4 2
 ```
 
 **Output**
 ```
-3
+8
 ```
 
 ### Example 2
 
 **Input**
 ```
-4 3
-1 2 1
-2 3 1
-3 4 1
+5 4 1
+3
+1 2 4
+2 3 6
+3 4 2
+4 5 9
 ```
 
 **Output**
 ```
-3
+0
 ```
 
 ### Example 3
 
 **Input**
 ```
-3 3
-1 2 2
-2 3 2
-1 3 2
+3 2 3
+1 2 3
+1 2 4
+2 3 5
 ```
 
 **Output**
 ```
-4
+9
 ```
 
 ## Note
 
-In Example 1, using the two cheapest options (costs 1 and 2) already connects all three sites, for a total of 3.
+This is the same minimum-cabling problem as Problem A. The only difference is that the cabling options form a tree, which makes an efficient exact solution possible. In Example 1 the required sites 1 and 4 are joined only through 2 and 3, so all three edges (5+1+2 = 8) are needed. In Example 2 there is one required site, so no cabling is needed.

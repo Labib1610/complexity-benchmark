@@ -1,0 +1,39 @@
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    j = int(data[0])
+    T = int(data[1])
+    q1 = [0] * (j + 1)
+    q2 = [0] * (j + 1)
+    idx = 2
+    for i in range(1, j + 1):
+        q1[i] = int(data[idx])
+        q2[i] = int(data[idx + 1])
+        idx += 2
+
+    for i in range(1, j + 1):
+        if q1[i] + q2[i] > 2 * T - q1[i] - q2[i]:
+            sys.stdout.write(f"JOB {i}\n")
+            return
+
+    s1 = 0
+    s2 = 0
+    for i in range(1, j + 1):
+        s1 += q1[i]
+        s2 += q2[i]
+
+    if 2 * s1 > 2 * T:
+        sys.stdout.write("LOAD 1\n")
+        return
+
+    if 2 * s2 > 2 * T:
+        sys.stdout.write("LOAD 2\n")
+        return
+
+    sys.stdout.write("LOAD 1\n")
+
+if __name__ == "__main__":
+    solve()

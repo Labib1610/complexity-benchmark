@@ -1,0 +1,289 @@
+```python
+import sys
+
+sys.setrecursionlimit(1000000)
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if len(data) < 2:
+        return
+
+    n, m = data[0], data[1]
+    edges = []
+    adj = [[] for _ in range(n)]
+
+    p = 2
+    for eid in range(m):
+        u = data[p] - 1
+        v = data[p + 1] - 1
+        p += 2
+        edges.append((u, v))
+        adj[u].append(eid)
+        adj[v].append(eid)
+
+    if any(len(adj[v]) != 3 for v in range(n)):
+        print("NO")
+        return
+
+    # A 3-edge-colourable cubic graph cannot contain a bridge.
+    tin = [-1] * n
+    low = [0] * n
+    timer = 0
+    has_bridge = False
+
+    def bridge_dfs(v, parent_edge):
+        nonlocal timer, has_bridge
+        tin[v] = low[v] = timer
+        timer += 1
+        for eid in adj[v]:
+            if eid == parent_edge:
+                continue
+            a, b = edges[eid]
+            to = b if a == v else a
+            if tin[to] == -1:
+                bridge_dfs(to, eid)
+                low[v] = min(low[v], low[to])
+                if low[to] > tin[v]:
+                    has_bridge = True
+            else:
+                low[v] = min(low[v], tin[to])
+
+    for s in range(n):
+        if tin[s] == -1:
+            bridge_dfs(s, -1)
+
+    if has_bridge:
+        print("NO")
+        return
+
+    # Find connected components and their bipartitions.
+    side = [-1] * n
+    components = []
+    bipartite = []
+
+    for s in range(n):
+        if side[s] != -1:
+            continue
+        side[s] = 0
+        stack = [s]
+        vertices = []
+        ok = True
+
+        while stack:
+            v = stack.pop()
+            vertices.append(v)
+            for eid in adj[v]:
+                a, b = edges[eid]
+                to = b if a == v else a
+                if side[to] == -1:
+                    side[to] = side[v] ^ 1
+                    stack.append(to)
+                elif side[to] == side[v]:
+                    ok = False
+
+        components.append(vertices)
+        bipartite.append(ok)
+
+    answer = [0] * m
+    non_bip_vertices = []
+    non_bip_edges = set()
+    roots = []
+
+    # Cubic bipartite components are coloured using one perfect matching;
+    # the remaining edges form even cycles.
+    for ci, vertices in enumerate(components):
+        if not bipartite[ci]:
+            roots.append(vertices[0])
+            non_bip_vertices.extend(vertices)
+            for v in vertices:
+                non_bip_edges.update(adj[v])
+            continue
+
+        left = [v for v in vertices if side[v] == 0]
+        match_right = {}
+        seen = {}
+        iteration = 0
+
+        def augment(v):
+            nonlocal iteration
+            for eid in adj[v]:
+                a, b = edges[eid]
+                r = b if a == v else a
+                if seen.get(r, 0) == iteration:
+                    continue
+                seen[r] = iteration
+                old = match_right.get(r, -1)
+                if old == -1:
+                    match_right[r] = eid
+                    return True
+                x, y = edges[old]
+                old_left = x if side[x] == 0 else y
+                if augment(old_left):
+                    match_right[r] = eid
+                    return True
+            return False
+
+        for v in left:
+            iteration += 1
+            if not augment(v):
+                print("NO")
+                return
+
+        for eid in match_right.values():
+            answer[eid] = 1
+
+        residual = [[] for _ in range(n)]
+        component_edges = set()
+        for v in vertices:
+            for eid in adj[v]:
+                component_edges.add(eid)
+        for eid in component_edges:
+            if answer[eid] == 0:
+                u, v = edges[eid]
+                residual[u].append(eid)
+                residual[v].append(eid)
+
+        for start_e in component_edges:
+            if answer[start_e] != 0:
+                continue
+            answer[start_e] = 2
+            queue = [start_e]
+            head = 0
+            while head < len(queue):
+                eid = queue[head]
+                head += 1
+                c = answer[eid]
+                u, v = edges[eid]
+                other_color = 5 - c
+                for x in (u, v):
+                    for ne in residual[x]:
+                        if ne == eid:
+                            continue
+                        if answer[ne] == 0:
+                            answer[ne] = other_color
+                            queue.append(ne)
+                        elif answer[ne] != other_color:
+                            print("NO")
+                            return
+
+    if not non_bip_edges:
+        print("YES")
+        print(*answer)
+        return
+
+    # Domains use bits 1, 2, 4 for colours 1, 2, 3.
+    domains = [7] * m
+    active_edge = [False] * m
+    for eid in non_bip_edges:
+        active_edge[eid] = True
+
+    # Break colour symmetry independently in every non-bipartite component.
+    for root in roots:
+        for bit, eid in zip((1, 2, 4), adj[root]):
+            domains[eid] = bit
+
+    permutations = (
+        (1, 2, 4), (1, 4, 2),
+        (2, 1, 4), (2, 4, 1),
+        (4, 1, 2), (4, 2, 1)
+    )
+
+    trail = []
+
+    def propagate(initial_vertices):
+        queue = list(initial_vertices)
+        head = 0
+
+        while head < len(queue):
+            v = queue[head]
+            head += 1
+            e0, e1, e2 = adj[v]
+            d0, d1, d2 = domains[e0], domains[e1], domains[e2]
+
+            s0 = s1 = s2 = 0
+            for c0, c1, c2 in permutations:
+                if (d0 & c0) and (d1 & c1) and (d2 & c2):
+                    s0 |= c0
+                    s1 |= c1
+                    s2 |= c2
+
+            if s0 == 0:
+                return False
+
+            for eid, support in ((e0, s0), (e1, s1), (e2, s2)):
+                nd = domains[eid] & support
+                if nd == 0:
+                    return False
+                if nd != domains[eid]:
+                    trail.append((eid, domains[eid]))
+                    domains[eid] = nd
+                    a, b = edges[eid]
+                    queue.append(a)
+                    queue.append(b)
+
+        return True
+
+    if not propagate(non_bip_vertices):
+        print("NO")
+        return
+
+    def undo(mark):
+        while len(trail) > mark:
+            eid, old = trail.pop()
+            domains[eid] = old
+
+    def search():
+        chosen = -1
+        chosen_size = 4
+
+        for eid in non_bip_edges:
+            d = domains[eid]
+            bc = d.bit_count()
+            if 1 < bc < chosen_size:
+                chosen = eid
+                chosen_size = bc
+                if bc == 2:
+                    break
+
+        if chosen == -1:
+            return True
+
+        d = domains[chosen]
+        u, v = edges[chosen]
+
+        while d:
+            bit = d & -d
+            d -= bit
+            mark = len(trail)
+            trail.append((chosen, domains[chosen]))
+            domains[chosen] = bit
+
+            if propagate((u, v)) and search():
+                return True
+
+            undo(mark)
+
+        return False
+
+    if not search():
+        print("NO")
+        return
+
+    for eid in non_bip_edges:
+        d = domains[eid]
+        if d == 1:
+            answer[eid] = 1
+        elif d == 2:
+            answer[eid] = 2
+        elif d == 4:
+            answer[eid] = 3
+        else:
+            print("NO")
+            return
+
+    print("YES")
+    print(*answer)
+
+if __name__ == "__main__":
+    main()
+```

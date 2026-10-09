@@ -1,0 +1,94 @@
+import sys
+from array import array
+from collections import deque
+
+def main():
+    lines = sys.stdin.buffer.read().splitlines()
+    if not lines:
+        return
+
+    k, t = map(int, lines[0].split())
+    adj = [array('H') for _ in range(k)]
+    shard = [0] * k
+
+    for line in lines[1:t + 1]:
+        e, d, ip = map(int, line.split())
+        e -= 1
+        ip -= 1
+        shard[e] = d
+        adj[e].append(ip)
+
+    if any(not choices for choices in adj):
+        print("NO")
+        return
+
+    match_e = [-1] * k
+    match_ip = [-1] * k
+    dist = [0] * k
+    inf = k + 1
+
+    sys.setrecursionlimit(k + 100)
+
+    def bfs():
+        q = deque()
+        for e in range(k):
+            if match_e[e] == -1:
+                dist[e] = 0
+                q.append(e)
+            else:
+                dist[e] = inf
+
+        shortest = inf
+        while q:
+            e = q.popleft()
+            if dist[e] >= shortest:
+                continue
+            next_dist = dist[e] + 1
+            for ip in adj[e]:
+                other = match_ip[ip]
+                if other == -1:
+                    shortest = next_dist
+                elif dist[other] == inf:
+                    dist[other] = next_dist
+                    q.append(other)
+        return shortest
+
+    def dfs(e, shortest):
+        next_dist = dist[e] + 1
+        for ip in adj[e]:
+            other = match_ip[ip]
+            if other == -1:
+                if next_dist != shortest:
+                    continue
+            elif dist[other] != next_dist or not dfs(other, shortest):
+                continue
+
+            match_e[e] = ip
+            match_ip[ip] = e
+            return True
+
+        dist[e] = inf
+        return False
+
+    matched = 0
+    while matched < k:
+        shortest = bfs()
+        if shortest == inf:
+            break
+        for e in range(k):
+            if match_e[e] == -1 and dfs(e, shortest):
+                matched += 1
+
+    if matched != k:
+        print("NO")
+        return
+
+    output = ["YES"]
+    output.extend(
+        f"{e + 1} {shard[e]} {match_e[e] + 1}"
+        for e in range(k)
+    )
+    sys.stdout.write("\n".join(output))
+
+if __name__ == "__main__":
+    main()

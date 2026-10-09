@@ -1,0 +1,78 @@
+import sys
+input = sys.stdin.readline
+
+def solve():
+    q, t = map(int, input().split())
+    n = 3 * q
+    triples = []
+    for _ in range(t):
+        a, b, c = map(int, input().split())
+        triples.append((a - 1, b - 1, c - 1))
+
+    # Build adjacency list: for each node, list of triple indices containing it
+    adj = [[] for _ in range(n)]
+    for i, (u, v, w) in enumerate(triples):
+        adj[u].append(i)
+        adj[v].append(i)
+        adj[w].append(i)
+
+    match_triple = [-1] * t  # which triple is selected
+    match_node = [-1] * n    # which triple covers this node
+
+    def augment(u, visited):
+        for ti in adj[u]:
+            if visited[ti]:
+                continue
+            visited[ti] = True
+            v1, v2, v3 = triples[ti]
+            # Try to reassign this triple
+            # Find an unmatched node in this triple to swap
+            for v in (v1, v2, v3):
+                if match_node[v] == -1:
+                    # Found free node, can reassign
+                    # Remove old assignments
+                    old_match = match_triple[ti]
+                    if old_match != -1:
+                        for x in triples[old_match]:
+                            match_node[x] = -1
+                    # Assign new
+                    match_triple[ti] = ti
+                    for x in (v1, v2, v3):
+                        match_node[x] = ti
+                    return True
+            # All nodes in this triple are matched, try to reassign one
+            for v in (v1, v2, v3):
+                old_t = match_node[v]
+                # Remove old triple's assignment
+                for x in triples[old_t]:
+                    match_node[x] = -1
+                match_triple[old_t] = -1
+                # Temporarily assign this triple
+                match_triple[ti] = ti
+                for x in (v1, v2, v3):
+                    match_node[x] = ti
+                if augment(v, visited):
+                    return True
+                # Backtrack
+                match_triple[ti] = -1
+                for x in (v1, v2, v3):
+                    match_node[x] = -1
+                # Restore old triple
+                match_triple[old_t] = old_t
+                for x in triples[old_t]:
+                    match_node[x] = old_t
+        return False
+
+    for u in range(n):
+        if match_node[u] == -1:
+            visited = [False] * t
+            if not augment(u, visited):
+                print("NO")
+                return
+
+    print("YES")
+    selected = [triples[i] for i in range(t) if match_triple[i] == i]
+    for a, b, c in selected:
+        print(a + 1, b + 1, c + 1)
+
+solve()

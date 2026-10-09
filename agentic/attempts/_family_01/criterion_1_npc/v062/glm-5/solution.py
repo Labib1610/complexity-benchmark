@@ -1,0 +1,44 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    n = int(data[0])
+    m = int(data[1])
+    adj = [0] * (n + 1)
+    idx = 2
+    for _ in range(m):
+        u = int(data[idx]); v = int(data[idx+1]); idx += 2
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+
+    color = [0] * (n + 1)
+
+    def dfs(u, c):
+        color[u] = c
+        for v in range(1, n + 1):
+            if adj[u] & (1 << v):
+                if color[v] == c:
+                    return False
+                if color[v] == 0 and not dfs(v, 3 - c):
+                    return False
+        return True
+
+    for i in range(1, n + 1):
+        if color[i] == 0:
+            if not dfs(i, 1):
+                print("NO")
+                return
+
+    for i in range(1, n + 1):
+        if color[i] == 1:
+            for j in range(i + 1, n + 1):
+                if color[j] == 1 and (adj[i] & (1 << j)):
+                    print("NO")
+                    return
+
+    print("YES")
+    print(" ".join(str(color[i]) if color[i] == 1 else 3 for i in range(1, n + 1)))
+
+solve()

@@ -1,0 +1,200 @@
+```python
+import sys
+import time
+import random
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    B = int(input_data[2])
+    
+    if n <= 1:
+        if B >= 0:
+            print("YES")
+            print("1")
+        else:
+            print("NO")
+        return
+
+    adj = [[] for _ in range(n + 1)]
+    edges = []
+    idx = 3
+    for _ in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx+1])
+        idx += 2
+        adj[u].append(v)
+        adj[v].append(u)
+        edges.append((u, v))
+
+    start_time = time.time()
+
+    def compute_cost(pos):
+        return sum(abs(pos[u] - pos[v]) for u, v in edges)
+
+    def success(pos):
+        ans = [pos[i] for i in range(1, n + 1)]
+        print("YES")
+        print(*(ans))
+        sys.exit(0)
+
+    # Centroid finder
+    sz = [0] * (n + 1)
+    def get_centroids():
+        def dfs_sz(u, p):
+            sz[u] = 1
+            for v in adj[u]:
+                if v != p:
+                    dfs_sz(v, u)
+                    sz[u] += sz[v]
+        dfs_sz(1, 0)
+        centroids = []
+        def dfs_c(u, p):
+            is_c = True
+            for v in adj[u]:
+                if v != p:
+                    dfs_c(v, u)
+                    if sz[v] > n // 2:
+                        is_c = False
+            if is_c and (n - sz[u]) <= n // 2:
+                centroids.append(u)
+        dfs_c(1, 0)
+        return centroids if centroids else [1]
+
+    centroids = get_centroids()
+
+    # Balanced tree layout heuristic
+    def balanced_tree_order(root):
+        def dfs(u, p):
+            child_orders = []
+            for v in adj[u]:
+                if v != p:
+                    child_orders.append(dfs(v, u))
+            # Sort child orders by length
+            child_orders.sort(key=len, reverse=True)
+            left_part = []
+            right_part = []
+            l_len, r_len = 0, 0
+            for seq in child_orders:
+                if l_len <= r_len:
+                    left_part.extend(seq)
+                    l_len += len(seq)
+                else:
+                    right_part.extend(seq)
+                    r_len += len(seq)
+            return left_part + [u] + right_part
+        return dfs(root, 0)
+
+    def local_search(p):
+        # p is a permutation of vertices 1..n (0-indexed array)
+        pos = [0] * (n + 1)
+        for i, u in enumerate(p):
+            pos[u] = i + 1
+
+        improved = True
+        while improved:
+            if time.time() - start_time > 4.5:
+                break
+            improved = False
+            for i in range(n - 1):
+                u = p[i]
+                v = p[i + 1]
+                delta = 0
+                for w in adj[u]:
+                    if w == v:
+                        continue
+                    if pos[w] < i + 1:
+                        delta += 1
+                    else:
+                        delta -= 1
+                for w in adj[v]:
+                    if w == u:
+                        continue
+                    if pos[w] > i + 2:
+                        delta += 1
+                    else:
+                        delta -= 1
+                
+                if delta < 0:
+                    p[i], p[i + 1] = v, u
+                    pos[v] = i + 1
+                    pos[u] = i + 2
+                    improved = True
+
+        return p, pos
+
+    def median_smoothing(p, iters=3):
+        pos = [0] * (n + 1)
+        for i, u in enumerate(p):
+            pos[u] = i + 1
+        for _ in range(iters):
+            scores = []
+            for u in range(1, n + 1):
+                nbr_pos = sorted(pos[v] for v in adj[u])
+                mid = len(nbr_pos) // 2
+                med = nbr_pos[mid] if len(nbr_pos) % 2 == 1 else (nbr_pos[mid-1] + nbr_pos[mid]) / 2.0
+                scores.append((med + random.random() * 1e-6, u))
+            scores.sort()
+            p = [u for _, u in scores]
+            for i, u in enumerate(p):
+                pos[u] = i + 1
+        return p
+
+    candidates = []
+    for c in centroids:
+        candidates.append(balanced_tree_order(c))
+
+    # Add random roots
+    sample_roots = list(range(1, n + 1))
+    random.shuffle(sample_roots)
+    for r in sample_roots[:min(10, n)]:
+        candidates.append(balanced_tree_order(r))
+
+    best_cost = float('inf')
+
+    for cand in candidates:
+        if time.time() - start_time > 4.5:
+            break
+        p = list(cand)
+        p, pos = local_search(p)
+        cost = compute_cost(pos)
+        if cost <= B:
+            success(pos)
+        if cost < best_cost:
+            best_cost = cost
+
+        # Try median smoothing + local search
+        p_smooth = median_smoothing(p, iters=3)
+        p_smooth, pos_smooth = local_search(p_smooth)
+        cost_smooth = compute_cost(pos_smooth)
+        if cost_smooth <= B:
+            success(pos_smooth)
+        if cost_smooth < best_cost:
+            best_cost = cost_smooth
+
+    # If still not met, try random restarts / perturbations
+    while time.time() - start_time < 4.2:
+        r = random.randint(1, n)
+        p = balanced_tree_order(r)
+        # Add random swaps
+        for _ in range(n // 10 + 1):
+            i = random.randint(0, n - 1)
+            j = random.randint(0, n - 1)
+            p[i], p[j] = p[j], p[i]
+        p = median_smoothing(p, iters=2)
+        p, pos = local_search(p)
+        cost = compute_cost(pos)
+        if cost <= B:
+            success(pos)
+        if cost < best_cost:
+            best_cost = cost
+
+    print("NO")
+
+if __name__ == '__main__':
+    solve()
+```

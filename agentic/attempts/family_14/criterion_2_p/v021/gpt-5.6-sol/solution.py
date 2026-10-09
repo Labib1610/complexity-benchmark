@@ -1,0 +1,47 @@
+import sys
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    it = iter(data)
+
+    n = next(it)
+    m = next(it)
+    t = next(it)
+
+    marked = [False] * (n + 1)
+    for _ in range(t):
+        marked[next(it)] = True
+
+    graph = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = next(it)
+        v = next(it)
+        w = next(it)
+        graph[u].append((v, w))
+        graph[v].append((u, w))
+
+    parent = [0] * (n + 1)
+    parent_weight = [0] * (n + 1)
+    order = [1]
+
+    for u in order:
+        for v, w in graph[u]:
+            if v != parent[u]:
+                parent[v] = u
+                parent_weight[v] = w
+                order.append(v)
+
+    count = [0] * (n + 1)
+    answer = 0
+
+    for u in reversed(order):
+        count[u] += marked[u]
+        if parent[u]:
+            if 0 < count[u] < t:
+                answer += parent_weight[u]
+            count[parent[u]] += count[u]
+
+    print(answer)
+
+if __name__ == "__main__":
+    main()

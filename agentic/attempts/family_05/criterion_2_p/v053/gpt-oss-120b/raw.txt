@@ -1,0 +1,273 @@
+**Solution Explanation**
+
+For every container `u`
+
+* the RFID tag is fixed – all cleared entries with this container have the same tag
+* different containers have different tags  
+
+so the tag of a container is uniquely determined by its number.
+If we choose an entry `(u , v , w)` we automatically use the tag `v` that belongs to `u`.
+
+Therefore a set of `k` entries uses every container and every tag exactly once
+**iff** it contains one entry for every container.
+The only remaining condition is that the chosen vessels `w` are all different.
+Consequently the problem is reduced to:
+
+*left side* – containers `1 … k`  
+*right side* – vessels `1 … k`  
+
+There is an edge `u – w` iff the cleared list contains an entry `(u , v(u) , w)`.
+We have to pick a *perfect matching* in this bipartite graph.
+
+So we only have to
+
+1. build the bipartite graph,
+2. find a maximum matching,
+3. check whether its size is `k`.
+
+`k ≤ 1200`, `t ≤ k² ≤ 1 440 000`.
+Hopcroft‑Karp runs in `O(E·√V)` and easily fits into the limits.
+
+
+
+--------------------------------------------------------------------
+
+#### Algorithm
+```
+read k , t
+tag[u] = 0 for all u
+adj[u] = []                # adjacency list of vessels reachable from container u
+
+for each of the t triples (u , v , w):
+        if tag[u] == 0: tag[u] = v
+        else:                # consistency check (guaranteed by the statement)
+                assert tag[u] == v
+        adj[u].append(w)
+
+# every container must have at least one incident edge
+if any(tag[u] == 0 or not adj[u] for u = 1 .. k):
+        output "NO" and stop
+
+run Hopcroft‑Karp on the bipartite graph (left = containers, right = vessels)
+let matchU[u] = matched vessel of container u   (0 = unmatched)
+
+if number_of_matched_edges == k:
+        output "YES"
+        for u = 1 .. k:
+                w = matchU[u]
+                output u , tag[u] , w
+else:
+        output "NO"
+```
+
+--------------------------------------------------------------------
+
+#### Correctness Proof  
+
+We prove that the algorithm prints `YES` and a correct set of entries
+iff such a set exists.
+
+---
+
+##### Lemma 1  
+For any container `u` all cleared entries containing `u` have the same tag,
+denoted `tag[u]`. Different containers have different tags.
+
+*Proof.* Given in the statement. ∎
+
+
+
+##### Lemma 2  
+A set `S` of `k` cleared entries uses every container, every tag and every
+vessel exactly once **iff**  
+
+* (i) `S` contains exactly one entry for each container `u`,  
+* (ii) the vessels appearing in `S` are pairwise different.
+
+*Proof.*  
+Because of Lemma&nbsp;1, the tag of an entry is completely determined by its
+container.  
+If (i) holds, each container appears once, therefore each tag appears once as
+well (bijection container ↔ tag).  
+Condition (ii) guarantees that each vessel appears once.
+Conversely, if every container, tag and vessel appears once, condition (i)
+must hold (otherwise a container would be missing) and (ii) must hold
+(otherwise a vessel would repeat). ∎
+
+
+
+##### Lemma 3  
+Let `G` be the bipartite graph defined by the algorithm
+(`u`–`w` edge ⇔ cleared entry `(u , tag[u] , w)` exists).
+A set `S` of cleared entries satisfies Lemma&nbsp;2  
+**iff** the edges corresponding to `S` form a perfect matching in `G`.
+
+*Proof.*  
+By construction each entry in `S` corresponds to exactly one edge `u–w` of `G`
+and vice‑versa.  
+Condition (i) of Lemma&nbsp;2 says every container occurs once → every left
+vertex is incident to exactly one edge of the set.
+Condition (ii) says vessels are all different → every right vertex is incident
+to at most one edge.
+Because the set size equals `k`, the right side also has exactly one incident
+edge per vertex. Hence the edges are a perfect matching. The converse
+direction follows by reversing the reasoning. ∎
+
+
+
+##### Lemma 4  
+The Hopcroft‑Karp part of the algorithm returns a matching of size `k`
+**iff** `G` contains a perfect matching.
+
+*Proof.* Hopcroft‑Karp is a known algorithm that computes a maximum
+cardinality matching in any bipartite graph. ∎
+
+
+
+##### Theorem  
+The algorithm outputs  
+
+* `YES` and a list of `k` cleared entries that satisfy the required coverage,
+  **iff** such a list exists;
+* otherwise it outputs `NO`.
+
+*Proof.*  
+
+*If the algorithm prints `YES`.*  
+It obtained a matching of size `k` (Lemma&nbsp;4), i.e. a perfect matching in `G`.
+By Lemma&nbsp;3 the corresponding `k` cleared entries satisfy Lemma&nbsp;2,
+hence meet all problem constraints.  
+
+*If a feasible list `S` exists.*  
+By Lemma&nbsp;3 its edges form a perfect matching in `G`.  
+Therefore `G` has a perfect matching, so Hopcroft‑Karp finds a matching of size
+`k` (Lemma&nbsp;4) and the algorithm prints `YES` with the corresponding
+entries.  
+
+If any container lacks incident edges, the algorithm stops with `NO`;
+obviously no feasible list can exist then. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### Complexity Analysis  
+
+```
+building the graph      : O(t)
+Hopcroft‑Karp           : O(E·√V) = O(t·√k)   (V = 2k, E = t)
+output                  : O(k)
+```
+
+With the maximal limits `k = 1200`, `t ≤ 1 440 000`
+
+```
+t·√k ≤ 1.44·10^6 · 35 ≈ 5·10^7   operations
+```
+
+well below the 2 seconds limit in CP‑Python.  
+Memory consumption: adjacency lists store `t` integers → ≤ 12 MB, plus a few
+arrays of size `k` → negligible, far under 256 MB.
+
+
+
+--------------------------------------------------------------------
+
+#### Reference Implementation  (Python 3)
+
+```python
+import sys
+from collections import deque
+
+def hopcroft_karp(adj, n_left, n_right):
+    """adj[u] = list of right vertices (1‑based). Returns pairU, pairV, matching size."""
+    pairU = [0] * (n_left + 1)
+    pairV = [0] * (n_right + 1)
+    dist = [0] * (n_left + 1)
+
+    INF = 10 ** 9
+
+    def bfs():
+        q = deque()
+        for u in range(1, n_left + 1):
+            if pairU[u] == 0:
+                dist[u] = 0
+                q.append(u)
+            else:
+                dist[u] = INF
+        dist[0] = INF
+        while q:
+            u = q.popleft()
+            if dist[u] < dist[0]:
+                for v in adj[u]:
+                    if pairV[v] == 0:
+                        if dist[0] == INF:
+                            dist[0] = dist[u] + 1
+                    elif dist[pairV[v]] == INF:
+                        dist[pairV[v]] = dist[u] + 1
+                        q.append(pairV[v])
+        return dist[0] != INF
+
+    def dfs(u):
+        if u == 0:
+            return True
+        for v in adj[u]:
+            if pairV[v] == 0 or (dist[pairV[v]] == dist[u] + 1 and dfs(pairV[v])):
+                pairU[u] = v
+                pairV[v] = u
+                return True
+        dist[u] = INF
+        return False
+
+    matching = 0
+    while bfs():
+        for u in range(1, n_left + 1):
+            if pairU[u] == 0 and dfs(u):
+                matching += 1
+    return pairU, pairV, matching
+
+
+def solve() -> None:
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+    it = iter(data)
+    k = next(it)
+    t = next(it)
+
+    tag = [0] * (k + 1)
+    adj = [[] for _ in range(k + 1)]
+
+    for _ in range(t):
+        u = next(it)
+        v = next(it)
+        w = next(it)
+        if tag[u] == 0:
+            tag[u] = v
+        # consistency guaranteed, no need to check
+        adj[u].append(w)
+
+    # every container must have at least one possible vessel
+    for u in range(1, k + 1):
+        if tag[u] == 0 or not adj[u]:
+            print("NO")
+            return
+
+    pairU, _, size = hopcroft_karp(adj, k, k)
+
+    if size == k:
+        out_lines = ["YES"]
+        for u in range(1, k + 1):
+            w = pairU[u]
+            out_lines.append(f"{u} {tag[u]} {w}")
+        sys.stdout.write("\n".join(out_lines))
+    else:
+        print("NO")
+
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above
+and conforms to the required input‑output format.

@@ -1,0 +1,288 @@
+**Solution Explanation**
+
+For a set `S` of variables the definition of *strictly unified* means:
+
+*for every partition `S = X ∪ Y , X≠∅ , Y≠∅` there is at least one enforced
+constraint with one endpoint in `X` and the other in `Y`.*
+
+That is exactly the definition of a **connected** subgraph:
+a graph is connected iff every cut separates at least one edge.
+Therefore we have to enforce a set of edges whose total weight is minimum
+and which makes all *essential* variables belong to the same connected
+component.  
+Other (non‑essential) vertices may be used – this is the classic **Steiner
+tree** problem.
+
+`n ≤ 100 , t ≤ 10`.  
+For such a small number of terminals the exact DP of Dreyfus‑Wagner
+solves the problem in `O( 3^t + 2^t·(n log n + m) )`, easily fast enough.
+
+
+
+--------------------------------------------------------------------
+
+#### 1.   Graph representation
+Undirected weighted adjacency list `g[u] = [(v,w), …]`.
+
+--------------------------------------------------------------------
+
+#### 2.   DP state  
+
+```
+dp[mask][v] = minimal total weight of a tree
+              that connects all terminals whose bits are set in mask
+              and whose *root* (any vertex of the tree) is v
+```
+
+`mask` – bitmask of size `t` (`0 … (1<<t)-1`),  
+`v` – vertex `1 … n`.
+
+--------------------------------------------------------------------
+
+#### 3.   Initialization  
+
+For each terminal `i` (its vertex = `term[i]`)
+
+```
+dp[1<<i][v] = 0   if v == term[i]
+dp[1<<i][v] = INF otherwise
+```
+
+--------------------------------------------------------------------
+
+#### 4.   DP transition – merging two smaller subsets  
+
+For a fixed `mask` (size ≥ 2) and a vertex `v`
+
+```
+dp[mask][v] = min over non‑empty proper submask s of mask
+              ( dp[s][v] + dp[mask ^ s][v] )
+```
+
+Both sub‑trees end in the same vertex `v`; joining them at `v` yields a
+tree for the whole `mask`.
+
+The enumeration of submasks is done only for `s` that are proper
+non‑empty subsets, and we only need to consider `s` up to `mask/2`
+to avoid duplicate work.
+
+--------------------------------------------------------------------
+
+#### 5.   Shortest‑path relaxation  
+
+After the merging step `dp[mask][*]` contains the best cost of a tree
+*ending* at each vertex, but edges may still be added to move the root.
+Running Dijkstra (or SPFA) with initial distances `dp[mask][v]` propagates
+the possibility of extending the tree by one edge:
+
+```
+while priority queue not empty:
+    (dist, u) = pop
+    if dist != dp[mask][u]: continue
+    for (v, w) in g[u]:
+        if dp[mask][v] > dist + w:
+            dp[mask][v] = dist + w
+            push (dp[mask][v], v)
+```
+
+After Dijkstra finishes, `dp[mask][v]` is the optimum cost of a Steiner
+tree for `mask` whose root can be any vertex (the root may have moved).
+
+--------------------------------------------------------------------
+
+#### 6.   Whole algorithm  
+
+```
+full = (1<<t) - 1
+for mask from 1 to full:
+    if mask is power of two:   # already initialized
+        run Dijkstra(mask)          # to spread the zero cost
+        continue
+
+    # 1) combine smaller subsets
+    for each proper non‑empty submask s of mask:
+        other = mask ^ s
+        for v in 1..n:
+            dp[mask][v] = min(dp[mask][v], dp[s][v] + dp[other][v])
+
+    # 2) run Dijkstra to allow moving the root
+    run Dijkstra(mask)
+```
+
+The answer is `min_v dp[full][v]`.
+
+Complexities  
+
+*Number of masks*: `2^t ≤ 1024`.  
+*Submask enumeration*: total `O(3^t)`.  
+*Dijkstra per mask*: `O((n+m) log n)`.  
+Overall well below the limits.
+
+--------------------------------------------------------------------
+
+#### 7.   Correctness Proof  
+
+We prove that the algorithm returns the minimum possible total cost.
+
+---
+
+##### Lemma 1  
+For any mask and vertex `v`, after the Dijkstra step finishes,
+`dp[mask][v]` equals the minimum cost of a tree that
+
+* connects exactly the terminals of `mask`,
+* contains vertex `v`,
+* and whose total edge weight is the sum of the enforced constraints.
+
+**Proof.**  
+Induction on the order the masks are processed.
+
+*Base*: `mask` is a single terminal `i`.  
+Initialisation sets `dp[mask][term[i]] = 0` and `INF` elsewhere.
+Running Dijkstra computes the shortest paths from `term[i]` to every
+vertex, i.e. the cheapest single‑edge tree that contains the terminal and
+the destination vertex – exactly the definition.
+
+*Induction step*: assume the statement holds for all proper submasks of
+`mask`.  
+First we combine two sub‑trees that already end at the same vertex `v`
+(using the induction hypothesis) – the cost `dp[s][v] + dp[mask\ s][v]`
+is the cheapest tree for `mask` that is forced to contain `v` as a
+junction point. Taking the minimum over all splits yields the cheapest
+tree for `mask` that *must* contain `v`.  
+Now Dijkstra allows adding extra edges to move the root away from `v`.
+Because Dijkstra computes all‑pairs shortest paths from the set of
+starting vertices with their current distances, the resulting distance to
+any vertex `x` is exactly the cheapest way to take a previously optimal
+tree (containing some vertex `v`) and extend it by a shortest path
+`v … x`. The total cost is therefore the optimum among all trees for
+`mask` that contain `x`. ∎
+
+
+
+##### Lemma 2  
+For every mask, after processing it, `dp[mask][v]` is the optimum cost of
+a **Steiner tree** for the terminals of `mask` whose vertex set may be any
+subset of `{1…n}` and that contains `v`.
+
+**Proof.** Directly from Lemma&nbsp;1, because a tree that connects the
+terminals and contains `v` is precisely a Steiner tree with root `v`. ∎
+
+
+
+##### Lemma 3  
+Let `full` be the mask of all essential terminals.
+`ans = min_v dp[full][v]` equals the minimum possible total cost of a set
+of enforced constraints that makes all essential variables belong to the
+same connected component.
+
+**Proof.**  
+Any feasible set of constraints induces a connected subgraph containing
+all essential vertices. Choose any vertex `r` of this subgraph as root.
+The subgraph is a Steiner tree for the full terminal set, therefore its
+cost is at least `dp[full][r]`. Consequently the optimum cost is at least
+`min_v dp[full][v]`.
+
+Conversely, Lemma&nbsp;2 guarantees that for the vertex `v*` attaining the
+minimum, there exists a Steiner tree of cost `dp[full][v*]` connecting all
+essential vertices. Enforcing exactly the edges of this tree satisfies
+the policy, so the optimum cost is at most this value. ∎
+
+
+
+##### Theorem  
+The algorithm outputs the minimum total computational cost required to
+enforce constraints so that all essential variables belong to a strictly
+unified subset.
+
+**Proof.**  
+By Lemma&nbsp;3 the value printed by the algorithm equals the optimum
+cost. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### 8.   Reference Implementation  (Python 3)
+
+```python
+import sys
+import heapq
+
+INF = 10**18
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    t = int(next(it))
+    terminals = [int(next(it)) - 1 for _ in range(t)]
+
+    g = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        w = int(next(it))
+        g[u].append((v, w))
+        g[v].append((u, w))
+
+    if t == 1:
+        print(0)
+        return
+
+    full = (1 << t) - 1
+    dp = [[INF] * n for _ in range(1 << t)]
+
+    # initialise singletons
+    for i, node in enumerate(terminals):
+        mask = 1 << i
+        dp[mask][node] = 0
+
+    # Dijkstra helper
+    def dijkstra(mask: int):
+        dist = dp[mask]
+        pq = [(dist[v], v) for v in range(n) if dist[v] < INF]
+        heapq.heapify(pq)
+        while pq:
+            d, u = heapq.heappop(pq)
+            if d != dist[u]:
+                continue
+            for v, w in g[u]:
+                nd = d + w
+                if nd < dist[v]:
+                    dist[v] = nd
+                    heapq.heappush(pq, (nd, v))
+
+    # run Dijkstra for singletons first
+    for i in range(t):
+        dijkstra(1 << i)
+
+    # process all other masks
+    for mask in range(1, full + 1):
+        if mask & (mask - 1) == 0:   # power of two, already done
+            continue
+        # combine submasks
+        sub = (mask - 1) & mask
+        while sub:
+            other = mask ^ sub
+            # to avoid duplicate work we can enforce sub < other, but not needed
+            for v in range(n):
+                val = dp[sub][v] + dp[other][v]
+                if val < dp[mask][v]:
+                    dp[mask][v] = val
+            sub = (sub - 1) & mask
+        # shortest path relaxation
+        dijkstra(mask)
+
+    answer = min(dp[full])
+    print(answer)
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above and
+conforms to the required input‑output format.

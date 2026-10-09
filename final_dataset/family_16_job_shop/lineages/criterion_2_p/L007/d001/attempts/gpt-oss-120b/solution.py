@@ -1,0 +1,30 @@
+import sys
+
+def solve() -> None:
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    early = []   # p1 <= p2
+    late = []    # p1 > p2
+    for _ in range(n):
+        p1 = int(next(it))
+        p2 = int(next(it))
+        if p1 <= p2:
+            early.append((p1, p2))
+        else:
+            late.append((p1, p2))
+    early.sort(key=lambda x: x[0])          # increasing p1
+    late.sort(key=lambda x: x[1], reverse=True)  # decreasing p2
+    order = early + late
+
+    t1 = 0  # finish time on calligrapher
+    t2 = 0  # finish time on bookbinder
+    for p1, p2 in order:
+        t1 += p1
+        t2 = max(t2, t1) + p2
+    print(t2)
+
+if __name__ == "__main__":
+    solve()

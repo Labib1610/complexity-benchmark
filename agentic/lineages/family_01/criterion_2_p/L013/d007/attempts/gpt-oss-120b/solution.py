@@ -1,5 +1,5 @@
 import sys
-from collections import deque
+sys.setrecursionlimit(1 << 25)
 
 def solve() -> None:
     data = sys.stdin.read().strip().split()
@@ -8,44 +8,62 @@ def solve() -> None:
     it = iter(data)
     n = int(next(it))
     m = int(next(it))
-    adj = [[] for _ in range(n + 1)]
+    g = [[] for _ in range(n + 1)]
     for _ in range(m):
         u = int(next(it)); v = int(next(it))
-        adj[u].append(v)
-        adj[v].append(u)
+        g[u].append(v)
+        g[v].append(u)
 
-    colour = [-1] * (n + 1)          # temporary 0/1
-    answer = [0] * (n + 1)           # final 1/2
+    color = [ -1 ] * (n + 1)          # 0 / 1 bipartite colors
+    comp_nodes = []                  # list of lists of nodes per component
+    comp_colors = []                 # parallel list of colors per node
+    ok = True
 
+    from collections import deque
     for start in range(1, n + 1):
-        if colour[start] != -1:
+        if color[start] != -1:
             continue
-        # BFS this component
         q = deque([start])
-        colour[start] = 0
-        comp = []
+        color[start] = 0
+        nodes = []
+        cols = []
         while q:
-            x = q.popleft()
-            comp.append(x)
-            for y in adj[x]:
-                if colour[y] == -1:
-                    colour[y] = colour[x] ^ 1
-                    q.append(y)
-                elif colour[y] == colour[x]:
-                    print("NO")
-                    return
-        # decide orientation: smallest index gets colour 1
-        vmin = min(comp)
-        if colour[vmin] == 0:
-            for v in comp:
-                answer[v] = 1 if colour[v] == 0 else 2
-        else:
-            for v in comp:
-                answer[v] = 2 if colour[v] == 0 else 1
+            v = q.popleft()
+            nodes.append(v)
+            cols.append(color[v])
+            for to in g[v]:
+                if color[to] == -1:
+                    color[to] = color[v] ^ 1
+                    q.append(to)
+                elif color[to] == color[v]:
+                    ok = False
+                    break
+            if not ok:
+                break
+        if not ok:
+            break
+        comp_nodes.append(nodes)
+        comp_colors.append(cols)
 
-    # all good
+    if not ok:
+        print("NO")
+        return
+
+    # decide which color becomes price 1 in each component
+    price = [2] * (n + 1)   # default 2
+    for nodes, cols in zip(comp_nodes, comp_colors):
+        # find minimal index node in this component
+        min_node = min(nodes)
+        min_color = color[min_node]
+        # assign price 1 to all nodes with this color
+        for v, c in zip(nodes, cols):
+            if c == min_color:
+                price[v] = 1
+            else:
+                price[v] = 2
+
     print("YES")
-    sys.stdout.write(' '.join(str(answer[i]) for i in range(1, n + 1)))
+    print(' '.join(str(price[i]) for i in range(1, n + 1)))
 
 if __name__ == "__main__":
     solve()

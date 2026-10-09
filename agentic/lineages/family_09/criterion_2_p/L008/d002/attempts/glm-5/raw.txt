@@ -1,0 +1,1059 @@
+Let me analyze this problem carefully.
+
+We have a graph with n nodes and m edges. The graph satisfies a special structural property: it's possible to orient each edge such that every node is either a pure source (all edges directed away) or a pure sink (all edges directed toward it). This means the graph is bipartite! Indeed, if we can orient edges so each node is a transmitter or receiver, then partitioning nodes into transmitters and receivers gives a bipartition — every edge goes between a transmitter and a receiver. Conversely, if the graph is bipartite, orient all edges from one side to the other.
+
+So the graph is bipartite. We need to find an independent set of exactly size k, or determine that the maximum independent set is smaller than k.
+
+For a bipartite graph, the maximum independent set size = n - maximum matching size (König's theorem). But we need to find an actual independent set of size k, not just the maximum.
+
+Hmm, but n up to 100000 and m up to 400000. Maximum matching in bipartite graph via Hopcroft-Karp is O(E√V) which is about 400000 * 316 ≈ 1.3×10^8 — might be too slow in Python... Actually Hopcroft-Karp in Python with m=400000 could be around a few seconds. Time limit is 2s. Hmm, that's risky but let me think.
+
+Wait, but actually there's more structure. The graph is bipartite, but is there additional structure? Let me think again. The property says: it is possible to orient each edge so every node is exclusively transmitter or exclusively receiver. That's exactly bipartiteness. So the graph is bipartite (and the bipartition is unique per connected component, up to swapping).
+
+So the problem: given a bipartite graph, find an independent set of size exactly k, or report NO if max independent set < k.
+
+By König's theorem, max independent set = n - max matching. So if k > n - max_matching, answer is NO. Otherwise, we need to construct an independent set of size exactly k.
+
+Constructing a maximum independent set: Given a maximum matching M, the standard construction: Let U = unmatched vertices on the left side. Let Z be the set of vertices reachable from U by alternating paths (starting with non-matching edges from left, then matching edges, etc.). Then the minimum vertex cover is (L \ Z) ∪ (R ∩ Z), and the maximum independent set is (L ∩ Z) ∪ (R \ Z).
+
+But we need an independent set of size exactly k, where k might be less than the maximum. Hmm.
+
+Alternative approach: Actually, we can think of it differently. We want an independent set of size exactly k. Since the graph is bipartite with parts A and B (from the bipartition), note that A itself is an independent set and B itself is an independent set. So if k ≤ max(|A|, |B|), we can just take k nodes from the larger part. 
+
+If k > max(|A|, |B|), then we need a larger independent set, which requires mixing. Hmm.
+
+Wait, but actually, is that right? The maximum independent set could be larger than max(|A|, |B|). For example, a path of 3 nodes: parts are {1,3} and {2}, max part size 2, but max independent set is {1,3} = 2. Hmm, same. Path of 4 nodes: parts {1,3} and {2,4}, max part 2, max independent set {1,4} or {1,3}? {1,3}: 1-2 edge, 3-2 edge, 3-4 edge. {1,3} — 1 and 3 not adjacent, so it's independent, size 2. {1,4} size 2. Max independent set of P4 is 2. OK.
+
+Star graph K_{1,4}: parts {center} and {4 leaves}, max part 4, max independent set 4 (the leaves). Same.
+
+Cycle C4: parts {1,3},{2,4}, max independent set 2 = max part. C6: parts {1,3,5},{2,4,6}, max IS = 3. Hmm.
+
+Actually for bipartite graphs, when is max IS > max(|A|, |B|)? Consider a graph where A = {a1, a2}, B = {b1, b2}, edges a1-b1, a2-b2. Max part = 2. Max IS = 2 ({a1, b2} or {a2, b1}). Hmm still 2.
+
+Consider A = {a1, a2}, B = {b1}, edges a1-b1, a2-b1. Max part = 2 (A). Max IS = 2 ({a1, a2} or {a2, b1}... wait {a1,a2} is independent since both in A). Yes 2.
+
+Hmm, when can max IS exceed max part size? Max IS = n - max matching. Max matching ≤ min(|A|, |B|). So max IS ≥ n - min(|A|,|B|) = max(|A|,|B|). Equality holds iff max matching = min(|A|,|B|), i.e., the smaller side is fully matched. If the smaller side cannot be fully matched (e.g., due to Hall's violation), then max IS > max part size.
+
+Example: A = {a1, a2, a3}, B = {b1}, edges a1-b1. Max matching = 1, max IS = 4 - 1 = 3 > max part = 3? Wait n = 4, max IS = 4 - 1 = 3, max part = 3. Equal. Hmm.
+
+Let me redo: max IS = n - max matching. If max matching < min(|A|,|B|), then max IS > n - min(|A|,|B|) = max(|A|,|B|). Example: A = {a1, a2}, B = {b1, b2}, edge a1-b1 only. Max matching = 1 < min(2,2)=2. Max IS = 4-1 = 3: {a2, b2, a1} — check: a1-b1 edge not in set since b1 excluded. a2 has no edges. b2 has no edges. Yes, IS of size 3 > max part 2.
+
+So in general we need to handle the case where k > max(|A|, |B|).
+
+Approach: compute maximum matching, get maximum independent set S_max of size n - matching. If k ≤ |S_max|, we need to find an independent set of size exactly k. 
+
+Hmm, but finding an independent set of size exactly k when k < max: can we just remove nodes from the maximum independent set? Yes! Any subset of an independent set is independent. So if k ≤ max IS size, take any k nodes from the maximum independent set. 
+
+So the algorithm:
+1. Check bipartiteness (guaranteed, but we need the bipartition). Actually the problem guarantees the property, so the graph is bipartite. We compute the bipartition via BFS/DFS.
+2. Compute maximum matching (Hopcroft-Karp).
+3. Compute maximum independent set via König's theorem construction.
+4. If |max IS| ≥ k, output any k nodes from it. Else NO.
+
+The main challenge is performance: Hopcroft-Karp in Python with n=100000, m=400000. Let me think about how to implement this efficiently.
+
+Actually wait — maybe there's a simpler characterization. Let me think about whether the problem has more structure. "it is possible to configure each cable with a one-way signal direction such that every node acts either exclusively as transmitter or exclusively receiver" — yes, this is exactly bipartite. No more structure.
+
+Hmm, but wait. Let me reconsider. Maybe the intended solution is different. Let me think about the structure of maximum independent sets in bipartite graphs more.
+
+Actually, here's a thought: In a bipartite graph, consider the bipartition (A, B). The maximum independent set is (A ∩ Z) ∪ (B \ Z) where Z is the set reachable via alternating paths from unmatched A-vertices. 
+
+Alternatively, there's a classical result: in a bipartite graph, we can find independent sets of every size between... hmm, actually is it true that independent sets exist of all sizes from 0 up to max IS? Yes trivially since subsets of a maximum independent set are independent. So the answer is YES iff k ≤ α(G) = n - μ(G) where μ is max matching.
+
+So the core algorithmic task is maximum bipartite matching. With n=100000, m=400000, Hopcroft-Karp should run in O(E√V) ≈ 400000 × 316 ≈ 1.26×10^8 operations worst case. In Python that's way too slow if implemented naively. But Hopcroft-Karp's worst case is rarely achieved; typical performance is much better. Still, Python is slow.
+
+Hmm, let me think about optimizations:
+- Use adjacency lists as arrays (CSR format) for speed.
+- Implement Hopcroft-Karp with BFS/DFS using iterative code.
+- Possibly use PyPy-style optimizations... but we must write Python 3.
+
+Alternative: maybe there's a smarter way given the problem structure. Let me re-read the problem.
+
+"A communications network consists of n nodes and m bidirectional cables... The network's architecture guarantees a structural property: it is possible to configure each cable with a one-way signal direction such that every node in the network acts either exclusively as a transmitter or exclusively as a receiver."
+
+Yes, bipartite. Hmm.
+
+Wait, actually, maybe I should reconsider: maybe the problem intends something simpler and the answer is just: take the larger side of the bipartition? Let me check example 3: n=4, edges 1-3, 1-4, 2-3, 2-4. This is K_{2,2}. Bipartition: {1,2} and {3,4}. Max part = 2. Max matching = 2. Max IS = 4 - 2 = 2. k=3 > 2, so NO. Correct.
+
+Example 1: same graph, k=2. Output {1,2} which is exactly the larger side (either side, both size 2). Correct.
+
+Example 2: no edges, k=5, all nodes. Correct.
+
+Hmm, so in these examples, taking the larger side works. But as I showed, there are bipartite graphs where max IS > max part size. E.g., A={a1,a2}, B={b1,b2}, single edge a1-b1. n=4. If k=3, the larger side has only 2 nodes, but max IS = 3. So we'd need the matching-based approach. Does the problem include such cases? The problem says "determine whether a completely isolated subset of exactly k nodes can be chosen" — it's a general decision problem, so presumably yes, such cases exist.
+
+Hmm wait, but actually let me reconsider. Is it possible that the problem's structural property is stronger than bipartiteness? Let me re-read once more.
+
+"it is possible to configure each cable with a one-way signal direction such that every node in the network acts either exclusively as a transmitter (all its connected cables send signals away from it) or exclusively as a receiver (all its connected cables bring signals toward it)"
+
+So each node is either a source or a sink in the orientation. This means the orientation has all vertices being sources or sinks — no intermediate vertices. This is exactly equivalent to bipartiteness: sources form one part, sinks form the other. Conversely, given a bipartition, orient all edges from part A to part B. So yes, exactly bipartite.
+
+OK so we need max bipartite matching. Let me think about how to make Hopcroft-Karp fast in Python.
+
+Actually, wait. Let me think about the problem size again: n ≤ 100000, m ≤ 400000. Hopcroft-Karp complexity O(E√V). In the worst case for HK, the number of phases is O(√V), and each phase is O(E). But in practice, the number of phases is usually small (like O(log V) or so for random graphs). The worst case for number of phases requires special constructions.
+
+But there's a subtlety: the "O(E√V)" bound counts each phase as O(E) for BFS + DFS augmenting. The DFS in each phase can visit many dead ends. Hmm.
+
+Alternative approach: use scipy's `maximum_bipartite_matching`? scipy.sparse.csgraph.maximum_bipartite_matching implements Hopcroft-Karp in C! That would be fast. Let me think: scipy.sparse.csgraph.maximum_bipartite_matching(graph, perm_type='row_minimum' or ...). It takes a sparse matrix (csr) representing the bipartite graph where rows are one side and columns the other. It returns for each row the matched column (or -1).
+
+But wait — is scipy available in the judge? The problem says "Python 3". Typically competitive programming judges have numpy/scipy available... but not always. Hmm, risky. Let me think about whether to rely on scipy.
+
+Actually, many judges (Codeforces, etc.) do have numpy but scipy's maximum_bipartite_matching was added in scipy 1.4.0 (2019). It's likely available. But to be safe, maybe I should implement Hopcroft-Karp manually with optimizations, possibly with a fallback.
+
+Hmm, let me think about the structure more. Maybe there's a way to avoid full matching.
+
+Key insight attempt: We need max IS = n - μ. We need to compare k with n - μ, i.e., compare n - k with μ. So we need to know whether there's a matching of size n - k... Hmm, that's a decision problem: is max matching ≥ n - k? Equivalently, can we cover... hmm.
+
+Alternatively: min vertex cover = μ. We need: does there exist a vertex cover of size ≤ n - k? Equivalently, is there an independent set of size ≥ k?
+
+Hmm, that doesn't obviously simplify.
+
+Another thought: maybe we can decompose the graph into connected components. For each connected component (which is bipartite with parts A_i, B_i), the max IS of the component is |A_i| + |B_i| - μ_i. And the total max IS is the sum over components. Also, for each component, the achievable independent set sizes... any value from 0 to α_i? Yes, subsets. And combining components: we can pick any sizes s_i ≤ α_i for each component with sum = k. Since each component can contribute any amount from 0 to α_i, the total achievable is any k ≤ Σα_i. So the answer is YES iff k ≤ Σ_i α_i = n - μ.
+
+So no simplification from components; we still need μ.
+
+Hmm, but wait: within a component, is it easier? For a connected bipartite component, μ ≥ ... hmm. Actually, here's a thought: for each connected component, if the component is "balanced-ish"... Let me think about when α_i > max(|A_i|, |B_i|). That happens iff μ_i < min(|A_i|, |B_i|), i.e., the smaller side is not fully matchable.
+
+Hmm, here's another angle: maybe most components will have a perfect matching on the smaller side, in which case α_i = max(|A_i|, |B_i|) and we can just take the bigger side. Only components with Hall violations need the matching computation. But worst case, all components could have Hall violations.
+
+Hmm, but actually, even detecting whether the smaller side is fully matchable requires matching computation.
+
+Let me think about the worst-case for Hopcroft-Karp in Python more concretely. n = 100000, m = 400000. The number of BFS phases in HK is O(√μ) where μ is the matching size. μ ≤ 50000 (since μ ≤ min(|A|,|B|) ≤ n/2). So √μ ≤ ~224. Each phase costs O(m) = 400000 for BFS plus DFS work. Worst case total ~ 224 × 400000×(small constant) ≈ 10^8 basic operations. In Python, that's maybe 100+ seconds. Too slow in the worst case.
+
+But is the worst case realistic for this problem? The problem setters presumably designed it so that the intended solution (probably C++ Hopcroft-Karp) passes in 2s. For Python, we need to be clever.
+
+Options:
+1. Use scipy.sparse.csgraph.maximum_bipartite_matching (C implementation of Hopcroft-Karp). Very fast: O(E√V) in C, ~10^8 simple ops → well under 2s.
+2. Implement HK in Python with heavy optimization (arrays, avoiding function call overhead). Risky.
+3. Find a different algorithmic insight that avoids matching.
+
+Let me think about option 3 more. Is there something special about this problem?
+
+Hmm wait, actually, let me reconsider the problem. Maybe the intended solution is NOT matching. Let me think about what the maximum independent set in a bipartite graph looks like and whether there's a simpler formula...
+
+Actually hold on. Let me reconsider. Maybe the problem is from a specific contest and the "structural property" is meant to hint at bipartiteness, and then the intended solution is: the answer is YES iff k ≤ max(|A|, |B|)?? No wait, that's wrong as I showed with the counterexample. Unless... hmm, let me re-examine my counterexample against the problem constraints. A = {a1, a2}, B = {b1, b2}, edge a1-b1. n=4, m=1. Bipartite. k=3: independent set {a2, b2, a1}? a1-b1 is the only edge; b1 not in set. So {a1, a2, b2} is independent, size 3. So answer should be YES with k=3, but max part size is 2. So the "larger side" approach fails. So the intended solution must handle this.
+
+Unless the problem guarantees something like the graph being connected or having some regularity... No, m can be 0.
+
+OK here's another thought: maybe the intended solution is indeed König/matching, and the constraints (n ≤ 1e5, m ≤ 4e5) are set for C++ HK. For Python, we need scipy or a very optimized implementation.
+
+Let me think about how to write a fast Hopcroft-Karp in pure Python.
+
+Actually, first, let me reconsider: maybe there's a smarter combinatorial approach for finding max independent set in bipartite graphs that's simpler than matching... 
+
+Hmm, actually here's a classical fact: In a bipartite graph, the maximum independent set can be found via maximum matching. There's no known simpler method in general.
+
+But wait — maybe we don't need the maximum independent set exactly. We need to decide if α ≥ k and construct. Hmm.
+
+Alternative: think of it as a flow problem. Max IS ≥ k iff min vertex cover ≤ n - k iff max matching ≤ n - k... no wait, we need max matching μ, and check k ≤ n - μ, i.e., μ ≤ n - k. So we need to determine whether μ ≤ n - k. If we could find a vertex cover of size n - k, that would prove μ ≤ n - k (since μ = min cover... no wait, μ = min cover, so finding a cover of size n-k shows min cover ≤ n-k, hence μ ≤ n-k, hence α = n - μ ≥ n - (n-k) = k). And conversely if μ > n - k then no cover of size n - k exists and α < k.
+
+So the decision problem "α ≥ k?" is equivalent to "is there a vertex cover of size ≤ n - k?", which is NP-hard in general graphs but polynomial in bipartite (via matching). Hmm, still needs matching.
+
+OK here's yet another thought. Let's think about what independent sets in bipartite graphs look like and whether a greedy/exchange argument works.
+
+Claim attempt: In a bipartite graph with parts A, B, consider any independent set S. Hmm.
+
+Alternative idea: reduce to finding maximum antichain or something? No.
+
+Let me think about the problem from the perspective of "which bipartite graphs arise" — no, it's arbitrary bipartite graphs.
+
+OK so let's commit to maximum bipartite matching. Now, how to compute it fast in Python?
+
+Plan A: scipy.sparse.csgraph.maximum_bipartite_matching.
+
+```python
+import numpy as np
+from scipy.sparse import csr_matrix
+from scipy.sparse.csgraph import maximum_bipartite_matching
+```
+
+This function: `maximum_bipartite_matching(graph, perm_type='column')` where graph is a sparse matrix with shape (n_left, n_right), and it returns an array `match` of length n_left where match[i] = matched column index or -1. The graph must be in CSR format (it requires CSR; actually it accepts csr or other? The docs say the input must be a CSR or CSC matrix... let me recall: "graph : sparse matrix — Input sparse in CSR format"). Actually I recall it requires CSR format specifically. We can build with csr_matrix((data, (rows, cols)), shape=(nl, nr)).
+
+Then the matching size = number of i with match[i] >= 0.
+
+Then to construct the max independent set, I need the König construction, which needs alternating-path reachability from unmatched left vertices. That's a BFS/DFS over the directed graph: from left vertex u (unmatched), traverse non-matching edges to right vertices, then matching edge back to left. This is O(m) BFS in Python — fine, 400000 edges, one BFS. 
+
+Wait, but actually, I realize the König construction gives a minimum vertex cover, and the complement is a maximum independent set. Let me get the details right:
+
+Given bipartite graph G = (A ∪ B, E) and a maximum matching M. Let U = set of unmatched vertices in A. Let Z = set of vertices reachable from U by alternating paths (paths that alternate between edges not in M and edges in M). Since vertices in U are unmatched, alternating paths start with a non-matching edge.
+
+Z is computed via BFS in the "directed" graph: from a ∈ A, follow any edge (a,b) ∉ M to b ∈ B; from b ∈ B, if b is matched (b matched to a' ∈ A via M), follow (b, a') ∈ M to a'. Note: if b is unmatched, the path stops (can't continue), but b is still in Z.
+
+Then minimum vertex cover C = (A \ Z) ∪ (B ∩ Z). Maximum independent set = complement = (A ∩ Z) ∪ (B \ Z).
+
+Let me verify with a simple example: single edge a1-b1, A={a1,a2}, B={b1,b2}. Max matching: a1-b1. Unmatched in A: {a2}. Z: from a2, edges not in M: a2 has no edges. So Z = {a2}. Cover C = (A \ Z) ∪ (B ∩ Z) = {a1} ∪ {} = {a1}. Max IS = {a2, b1, b2}, size 3. Correct!
+
+Another example: K_{2,2}, A={a1,a2}, B={b1,b2}, perfect matching a1-b1, a2-b2. Unmatched in A: none. Z = {}. Cover = A = {a1,a2}, size 2 = μ. Max IS = B = {b1,b2}, size 2. Correct.
+
+Great. So the plan:
+1. Read graph, check bipartition via BFS (guaranteed bipartite, but we need the parts).
+2. Build parts A and B.
+3. Compute max matching (scipy or manual HK).
+4. If n - μ ≥ k: construct max IS via König, take first k nodes, print YES and them.
+5. Else print NO.
+
+Wait, but actually, hold on. Let me double check the claim that any k ≤ α is achievable: yes, subsets of independent sets are independent. And α = n - μ. So answer YES iff k ≤ n - μ.
+
+Hmm wait, one more consideration: the problem says "exactly k nodes". Since we can always take subsets, "exactly k" is achievable iff "at least k" is achievable. Good.
+
+Now, about the bipartition: the graph is guaranteed bipartite, so BFS 2-coloring works. But note: the bipartition within each connected component can be flipped. For the matching, it doesn't matter which global assignment we use (we can flip components independently; matching size is unaffected). For the König construction, we need A = "left side" and B = "right side" of the matching. The construction works with any assignment of components to sides. Actually wait, does it? The König construction: U = unmatched vertices in A. Hmm, if we flip a component, then A and B swap for that component, and the matching is the same. The construction should still work: it's a standard theorem that doesn't depend on which side is "left". Let me double check: the theorem states C = (A \ Z) ∪ (B ∩ Z) is a min vertex cover where Z is reachable from unmatched A-vertices via alternating paths. If we swap A and B for a component, we get U' = unmatched B-vertices of that component, Z' computed accordingly, C' = (B \ Z') ∪ (A ∩ Z'). Is C' also a min cover? Yes — the theorem is symmetric (it's usually stated with "unmatched vertices on one side" and the construction gives a cover of size μ; by König's theorem any cover of size μ is minimum). Let me just make sure the construction is correct regardless: 
+
+Standard proof: (1) C is a vertex cover: suppose edge (a,b) with a ∈ A ∩ Z and b ∈ B \ Z. Then... a ∈ Z means reachable via alternating path. Edge (a,b) ∉ M (since b ∉ Z... hmm wait). Let me redo: if a ∈ Z and edge (a,b) not in M, then b would be reachable (via the alternating path to a, then edge (a,b)), so b ∈ Z. Contradiction. So if a ∈ Z and b ∉ Z, then (a,b) ∈ M. But if (a,b) ∈ M and a ∈ Z, then a was reached via... hmm, a ∈ Z and a is matched to b. How was a reached? Either a ∈ U (unmatched — but a is matched, contradiction) or a was reached via a matching edge from b, meaning b ∈ Z. Contradiction. So every edge has a ∈ A\Z or b ∈ B∩Z, i.e., is covered. (2) |C| = μ: matching edges... each vertex in C covers at most one matching edge (since matching edges are disjoint), and every matching edge must be covered (it's an edge), and there are μ matching edges, so |C| ≥ μ; and one can show |C| ≤ μ by an injection argument. Anyway, it's standard.
+
+The construction is valid for any choice of left/right orientation per component. Good.
+
+Now, performance concerns for the pure-Python parts:
+- Reading input: n up to 1e5, m up to 4e5. Use sys.stdin.buffer.read().split() — fast.
+- BFS 2-coloring: O(n + m) with adjacency in CSR arrays. 400000 edges → fine.
+- Building the bipartite adjacency for scipy: we need a sparse matrix of shape (|A|, |B|). Edges up to 4e5. Building csr_matrix from COO with numpy is fast.
+- scipy maximum_bipartite_matching: fast (C).
+- König BFS: O(n + m) in Python — fine, maybe 1-2 seconds? Hmm, 400000 edges with Python BFS... should be OK, maybe 0.5s with careful implementation.
+
+But the big question: is scipy available? If this is a generic "solve in Python 3" task, I think using scipy is a gamble. Let me think about whether I can implement Hopcroft-Karp efficiently in pure Python as a fallback, or even as the primary solution.
+
+Actually, you know what, let me think about implementing Hopcroft-Karp in pure Python with all the tricks:
+
+- Represent adjacency in CSR: `adj_start` (array of length n+1), `adj_list` (array of length 2m) containing neighbors.
+- For HK, we work with left vertices A and right vertices B. Map A vertices to indices 0..|A|-1, B to 0..|B|-1.
+- dist array for left vertices.
+- matchL (size |A|, -1 initially), matchR (size |B|, -1).
+- BFS phase: compute layers via alternating BFS from free left vertices.
+- DFS phase: find vertex-disjoint augmenting paths, augment.
+
+The DFS in HK is recursive but can be made iterative. In Python, recursion depth could be up to O(√V) per path... actually path lengths in phase d are O(d), and recursion depth O(path length) — with sys.setrecursionlimit it might be fine, but recursion in Python is slow. Iterative DFS is better.
+
+Hmm, honestly, pure-Python HK on 4e5 edges... Let me estimate: HK phases count is typically small. The worst case number of phases is O(√μ) ≈ 224 for μ = 50000. But constructing a graph that forces 224 phases AND has 4e5 edges is possible (there are known worst-case constructions). If the test data includes such adversarial cases, pure Python HK would TLE. If tests are random-ish, HK converges in few phases and each phase is O(m) with small constants → maybe 10-20 phases × 4e5 × ~5 ops = 4×10^7 → ~20-40 seconds in Python. Hmm, that's still too slow!
+
+Wait, that estimate seems off. Let me redo: each phase: BFS over all edges: 4e5 edge traversals, each maybe 5-10 Python operations → 2-4×10^6 ops per phase → ~0.5-1 second per phase?? No wait, 4e5 edge traversals × ~10 ops = 4×10^6 basic ops per BFS, and Python does ~3×10^7-10^8 simple ops/sec (with array indexing, it's more like 2-5×10^7 for interpreted loops with list indexing). So one BFS phase ≈ 0.1-0.2s. With 20 phases: 2-4 seconds. Plus DFS phases similar. Hmm, borderline-to-too-slow.
+
+Actually, in practice, HK on random graphs: the number of phases is O(log n) or so? No — for random graphs, HK finishes in O(1)?? Hmm, I recall that for random graphs, HK terminates in a very small number of phases. But adversarial tests...
+
+Given the problem is "Problem B" from some contest with 2s limit, and it's asking for Python 3 solution... The person asking wants a Python solution that passes. Let me think about what's most robust.
+
+Option 1: scipy-based. If scipy is available, it's fast and safe. 
+Option 2: Pure Python HK, heavily optimized.
+Option 3: Hybrid: try scipy, fall back to pure Python.
+
+Actually, let me reconsider the problem constraints: n ≤ 1e5, m ≤ 4e5. Hmm, m ≤ 400000. For HK worst case: O(E√V) = 4e5 × 316 = 1.26e8. In C++ that's ~0.5s. So the problem is designed for C++ HK. For Python... the judge presumably has some leniency or the tests aren't fully adversarial.
+
+Hmm, wait. Let me reconsider whether there's additional structure I'm missing that makes this easier than general bipartite matching.
+
+Re-reading the problem statement once more... "The network's architecture guarantees a structural property: it is possible to configure each cable with a one-way signal direction such that every node in the network acts either exclusively as a transmitter... or exclusively as a receiver..."
+
+Yeah, bipartite. Hmm.
+
+Hmm, wait, actually — maybe I should think about this differently. What if the problem is actually about something else, like the graph being a "cluster graph" or having no odd cycles... no, it's bipartite.
+
+Let me think about the maximum independent set in bipartite graphs again. α = n - μ. To decide α ≥ k, we need μ ≤ n - k. 
+
+Special cases:
+- If k ≤ max(|A|, |B|): YES trivially (take k from bigger side). 
+- If k > max(|A|, |B|): we need μ < min(|A|, |B|) - (k - max(|A|,|B|))... let me define: we need n - μ ≥ k, i.e., μ ≤ n - k. Note n - k < n - max(|A|,|B|) = min(|A|,|B|). So we need a matching that is NOT too big — specifically μ ≤ n - k. Hmm interesting, so when k is large, we need to verify that the max matching is small.
+
+Hmm, so the hard case is when k is large (close to n). Then n - k is small. We need μ ≤ n - k. Equivalently, we need to find a vertex cover of size n - k... 
+
+Hmm wait, here's a thought: when k is large, n - k is small. Finding a vertex cover of size ≤ n-k or proving none exists... Vertex cover of size t in bipartite graph — can we do this with a bounded search? For small t, maybe branching? No, t can be up to n/2.
+
+Alternatively: μ ≤ n - k iff there's no matching of size n - k + 1. Hmm.
+
+OK here's another angle: think about each connected component separately. For component i with parts (A_i, B_i), α_i = |A_i| + |B_i| - μ_i. Total α = Σ α_i. For the decision, we need Σ μ_i ≤ n - k.
+
+For a connected component, when is μ_i < min(|A_i|, |B_i|)? By Hall's theorem... hmm.
+
+Alternatively, maybe there's a simpler formula for α in terms of the structure? For connected bipartite graphs... no, α depends on matching in general.
+
+Hmm OK, let me think about whether the tests could be adversarial for HK. The problem gives m ≤ 400000 and n ≤ 100000. If tests are adversarial for HK, pure Python will TLE. I think the safest bet is scipy if available. Let me also think: maybe I can write a solution that uses scipy's maximum_bipartite_matching, and if scipy is unavailable, falls back to a pure-Python HK. That's the most robust. But the fallback might TLE on adversarial tests anyway — but it's better than crashing.
+
+Actually, wait. Let me reconsider. Maybe I'm overcomplicating. Let me look at the problem source. "Problem B — Isolated Subsystems" — this smells like an ICPC-style problem or from a specific contest. The property described (transmitter/receiver) is a "bipartite graph" in disguise. The task: independent set of size k in bipartite graph. The standard solution: max independent set via König. Constraints n ≤ 1e5, m ≤ 4e5 suggest HK in C++.
+
+For a Python solution, I'll go with scipy with a pure-Python fallback. Actually, hmm, let me think about whether I can write a pure-Python HK that's fast enough with clever optimizations, and just use that (no scipy dependency). Or use scipy as primary.
+
+Let me think about the pure-Python HK implementation in detail, optimizing hard:
+
+Key optimizations for Python:
+1. Use flat arrays (lists) for everything.
+2. CSR adjacency for left side only (HK only needs adjacency of left vertices... wait, BFS in HK needs to go from left to right via any edge, and right to left via matching edges. The matching edges from right to left: matchR[b] gives the left vertex. So we only need left-side adjacency: for each left vertex, list of right neighbors. Good — CSR over left vertices, size m entries.
+3. BFS: compute dist for left vertices. Use a deque or list as queue.
+4. DFS: iterative with explicit stack, or recursive with memo... The standard HK DFS:
+
+```
+def dfs(u):
+    for v in adj[u]:
+        if matchR[v] == -1 or (dist[matchR[v]] == dist[u] + 1 and dfs(matchR[v])):
+            matchL[u] = v
+            matchR[v] = u
+            return True
+    dist[u] = INF  # mark dead
+    return False
+```
+
+Wait, the standard HK DFS uses dist on left vertices: BFS assigns dist to left vertices (dist of free left = 0, etc.). Actually let me recall the standard formulation:
+
+BFS from all free left vertices: dist[free left] = 0. For left u with dist d, for each neighbor v (right), let w = matchR[v]; if w is not visited (dist[w] unset), dist[w] = d + 1... Hmm, but we also need to track when we reach a free right vertex to know the phase's max layer. Standard HK:
+
+```
+BFS:
+  queue = free left vertices, dist = 0 for them
+  found = False
+  while queue:
+    u = pop
+    for v in adj[u]:
+      w = matchR[v]
+      if w == -1: found = True (augmenting path exists at layer dist[u]+1... )
+      elif dist[w] == INF: dist[w] = dist[u] + 1; push w
+  ...
+```
+
+Hmm, there are different formulations. A common one tracks dist for both sides. Let me use the formulation where dist is only for left vertices:
+
+Actually the cleanest common implementation (e.g., from e-maxx or competitive programming references):
+
+```
+def hopcroft_karp:
+  matchL = [-1]*n, matchR = [-1]*m
+  result = 0
+  while True:
+    # BFS: layer distances for left vertices
+    dist = [INF]*nL
+    q = []
+    for u in range(nL):
+      if matchL[u] == -1:
+        dist[u] = 0
+        q.append(u)
+    foundAugmenting = False
+    head = 0
+    while head < len(q):
+      u = q[head]; head += 1
+      for v in adj[u]:
+        w = matchR[v]
+        if w == -1:
+          foundAugmenting = True   # can augment at this layer
+        elif dist[w] == INF:
+          dist[w] = dist[u] + 1
+          q.append(w)
+    if not foundAugmenting: break
+    # DFS: find vertex-disjoint shortest augmenting paths
+    for u in range(nL):
+      if matchL[u] == -1:
+        if try_kuhn_dfs(u): result += 1
+```
+
+Hmm wait, but this BFS doesn't correctly limit the DFS to shortest paths unless we also handle the "layer" of free right vertices. Let me think again. The standard HK: BFS computes dist for left vertices where dist[u] = length of shortest augmenting path from a free left vertex to u (in terms of left-vertex count). Then DFS only follows edges that increase dist by exactly 1, and stops when reaching a free right vertex. But we need to know the target layer: the shortest augmenting path length. In the BFS above, when we find w == -1 (free right vertex) at left vertex u with dist[u] = d, the augmenting path has length 2d+1 edges. We should record the phase's shortest augmenting path length and stop BFS beyond it... Actually the common trick: continue BFS fully but in DFS, only accept reaching a free right vertex when dist[u] equals the minimal layer at which free right vertices were found. Hmm, but actually if we do DFS following dist-increasing-by-1 edges and stop at the first free right vertex found, the paths found are shortest? Not necessarily — a DFS might wander to deeper layers and find a free right vertex at a deeper layer, which would be a longer augmenting path, breaking the "shortest" invariant and the O(√V) guarantee... Actually no: if DFS only moves to left vertices with dist exactly dist[u]+1, and free right vertices can be adjacent to left vertices at various layers, then a path could end at a free right vertex from a left vertex at layer deeper than the minimum. That would be an augmenting path but not shortest. Hmm, does that break HK's complexity? 
+
+The standard fix: in BFS, compute dist for right vertices too, or record `distFreeRight` = min over discovered free right vertices of dist[u]+1, and in DFS only allow ending at a free right vertex v if... hmm.
+
+Let me look at a canonical implementation. From a well-known Python HK implementation:
+
+```python
+def hopcroft_karp(graph, n, m):  # graph: adjacency of left
+    matchL = [-1] * n
+    matchR = [-1] * m
+    dist = [0] * n  # hmm
+    ...
+```
+
+Let me just recall the e-maxx implementation (C++):
+
+```cpp
+vector<int> adj[N]; // left adjacency
+int matchL[N], matchR[N], dist[N];
+
+bool bfs() {
+  queue<int> q;
+  for (int u = 0; u < n; u++) {
+    if (matchL[u] == -1) { dist[u] = 0; q.push(u); }
+    else dist[u] = INF;
+  }
+  bool found = false;
+  while (!q.empty()) {
+    int u = q.front(); q.pop();
+    for (int v : adj[u]) {
+      int w = matchR[v];
+      if (w == -1) found = true;
+      else if (dist[w] == INF) { dist[w] = dist[u] + 1; q.push(w); }
+    }
+  }
+  return found;
+}
+
+bool dfs(int u) {
+  for (int v : adj[u]) {
+    int w = matchR[v];
+    if (w == -1 || (dist[w] == dist[u] + 1 && dfs(w))) {
+      matchL[u] = v; matchR[v] = u;
+      return true;
+    }
+  }
+  dist[u] = INF;
+  return false;
+}
+```
+
+Interesting — in this e-maxx-style implementation, the DFS allows ending at any free right vertex regardless of layer. Hmm, is that correct for HK's complexity? Let me think... In this version, BFS computes dist[u] for left vertices = shortest alternating distance from free left set. The DFS explores along dist-increasing edges and can end at any free right vertex. 
+
+Hmm, wait, there's a subtle issue: a free right vertex v adjacent to left u at dist[u] = d — the augmenting path through u to v has length 2d+1. But if the minimum layer with a free right neighbor is d_min < d, then paths ending at layer d are longer than shortest. Does the e-maxx version still have O(E√V)? 
+
+Hmm, actually I recall the e-maxx implementation is a correct HK with the O(E√V) bound. Let me think about why. In the DFS, when we're at left vertex u with dist[u] = d, and we go to free right vertex v — but wait, could we have reached u at all if there were a shorter augmenting path? The BFS marks dist[w] for all left vertices reachable. The DFS from a free left vertex u0 (dist 0) goes to u1 with dist 1, etc. If at u with dist d there's a free right neighbor, the DFS takes it and the path has length 2d+1. But the phase's shortest augmenting path might be shorter (2*d_min+1). Hmm.
+
+Actually hold on — I think the key point is: in the BFS, `found` is set when any free right vertex is reachable. The DFS then finds a maximal set of vertex-disjoint augmenting paths, but they might not all be shortest. Hmm, but actually, I recall that in this formulation, since BFS computes exact shortest distances and DFS only moves forward in layers, any augmenting path found by DFS... hmm, let me think about whether a DFS path can end "too late".
+
+Path: u0 (free, dist 0) → v1 (right, matched to u1) → u1 (dist 1) → v2 (matched to u2) → u2 (dist 2) → ... → u_d (dist d) → v (free). For this to happen, DFS at u_d chose a free right neighbor. But note: DFS at u_i tries neighbors in order; it might skip free right neighbors? No — if u_i has a free right neighbor, `w == -1` and it immediately matches (returns true). So DFS greedily takes the first free right neighbor. So a path ends at the first left vertex along the layered path that has a free right neighbor. But different branches... The path found has length 2d+1 where d = dist of the last left vertex. Is 2d+1 the shortest augmenting path length? Not necessarily! Example: free left u0 has two neighbors: v1 (matched to u1) and v2 (free). DFS tries v1 first: w = u1, dist[u1] = 1 = dist[u0]+1, recurse dfs(u1). Suppose u1 has a free neighbor v3. Then path u0-v1-u1-v3 found, length 3. But shortest augmenting path is u0-v2, length 1. So the DFS found a non-shortest augmenting path. Does this break HK?
+
+Hmm, in this case, after augmenting along u0-v1-u1-v3, the matching size increases by 1, but we "wasted" the opportunity to augment along u0-v2 and u1-? separately... wait no, u0 and u1 are both... u0 was free, u1 was matched. After this augmentation, u0 and u1 are both matched, v1 and v3 matched. The free right vertex v2 remains unmatched, and its matchL... hmm. In proper HK, phase 1 would find two vertex-disjoint shortest augmenting paths: u0-v2 (length 1) and... u1 is not free, so no path from u1. Hmm wait, in phase 1, augmenting paths start at free left vertices. u0 is the only free one. Shortest augmenting path from u0 is u0-v2 (length 1). Proper HK phase 1 finds just this one path (maximal set of vertex-disjoint shortest paths — only one exists since only one free left vertex... well, other free left vertices might exist).
+
+The e-maxx version might instead augment along the length-3 path. This makes the algorithm not strictly HK, but I believe e-maxx's version is still correct (finds maximum matching) — the complexity bound might degrade in theory? Hmm, actually I recall that the e-maxx implementation is the standard HK and does have the O(E√V) bound... Let me think more carefully.
+
+Hmm wait, actually I misremembered. Let me reconsider: in the e-maxx dfs, when at u0 with neighbor v1 (matched to u1, dist[u1] = 1) and neighbor v2 (free): the loop `for v in adj[u]` tries v1 first: w = u1 ≠ -1, check dist[u1] == dist[u0]+1 → yes, recurse dfs(u1). If dfs(u1) succeeds, match u0-v1. So yes, it could take the longer path. Hmm, but wait — actually, does it matter for correctness of the algorithm (max matching)? No, any augmenting path works for correctness. For complexity: the standard HK proof requires each phase to augment along a maximal set of vertex-disjoint *shortest* paths, which ensures the shortest augmenting path length increases by ≥2 each phase, giving O(√V) phases. If a phase uses a non-shortest path, the bound could break.
+
+Hmm, but actually, hold on: in the scenario above, after BFS, `found = true` because v2 is free and adjacent to u0. The DFS from u0: tries v1 first (adjacency order), recurses to u1, u1 finds free v3, matches. Path length 3. But the phase's shortest is 1. After this phase, matching grew by 1. Next phase: free left vertices: whoever is now free... u0 is matched now. Hmm, other free left vertices. The free right vertex v2 — for the next phase, we need augmenting paths from free left vertices. This could go on. In the worst case, does the e-maxx version degrade to O(V·E) like plain Kuhn's? Possibly, in adversarial cases? Hmm, I'm not sure. I've seen claims that the e-maxx implementation is correct HK with the right complexity. Let me look at it more carefully...
+
+Actually, you know, I recall the actual e-maxx Hopcroft-Karp: Let me recall it precisely. From e-maxx.ru/algo/kuhn_matching... hmm, e-maxx has "Matching in bipartite graph" (Kuhn) — I don't think e-maxx has HK. The implementation I wrote above is a common "competitive programming" HK variant found in various sources. Let me think about its correctness/complexity myself.
+
+Claim: In the BFS, dist[u] for left u = minimum number of "left-to-left" steps... Let me define: an alternating path from a free left vertex: u0 →(non-match) v1 →(match) u1 →(non-match) v2 →(match) u2 ... dist[u_i] = i. BFS computes exactly this (shortest). A free right vertex v adjacent to some left u with dist[u] = d gives augmenting path length 2d+1. Let d* = min over all (u, v free) adjacent pairs of dist[u]. The phase's shortest augmenting paths have length 2d*+1.
+
+In the DFS, a path found ends at left vertex u_d with a free right neighbor, where the path visits left vertices u0, u1, ..., u_d with dist[u_i] = i (DFS enforces dist increases by 1). But d could be > d*. So the found path has length 2d+1 > 2d*+1. So the DFS can find non-shortest augmenting paths. Hmm.
+
+But wait — can it? If u_d has a free right neighbor v, then during BFS, when we processed u_{d-1}... hmm, no. Let me re-examine: if left vertex u has dist[u] = d and u has a free right neighbor, that's fine — BFS just sets found=true when it encounters such. The DFS path passes through u_0, u_1, ..., u_d. At u_i for i < d, DFS chose a neighbor v_{i+1} matched to u_{i+1} rather than a free neighbor (if u_i had a free neighbor, DFS would have stopped there — since `w == -1` returns true immediately). So along the path, u_0..u_{d-1} have no free right neighbors (in the order tried — well, DFS tries neighbors in adjacency order; it takes the first one that leads to success; if u_i had a free neighbor earlier in adjacency order, it would take it; so the found path has the property that each u_i's chosen neighbor was the first that leads to a successful recursion, and free neighbors come before... no wait, DFS tries neighbors in order; for each neighbor v: if free → match and return; else if dist[match] == dist[u]+1 → recurse; if recursion fails, try next. So the found path: at each u_i, all neighbors before the chosen one either are matched with dist mismatch or led to failed recursion. In particular, if u_i (i<d) had any free neighbor, DFS would have matched with it immediately when reached in the loop — but only if it's reached before the chosen neighbor... no: DFS tries neighbors in order; the first free neighbor encountered causes immediate match. So if u_i has a free neighbor anywhere in its list, and all earlier neighbors fail, it takes the free one. So on the found path, u_i for i < d has NO free right neighbor at all? No wait — it could have a free neighbor AFTER the chosen matched neighbor in the list, if the chosen matched neighbor's recursion succeeded first. Yes! So u_i can have free neighbors but DFS took a matched neighbor earlier in the list that succeeded.
+
+OK so indeed the e-maxx-style DFS can find longer-than-shortest augmenting paths. Hmm, so is the complexity bound O(E√V) still valid for this variant? 
+
+I recall discussions that this variant is still O(E√V)... Hmm, actually, I now recall that the "correct" HK DFS should only allow ending at a free right vertex when dist[u] == d*, i.e., only shortest paths. Some implementations add a check. Let me think about whether the variant without the check can be slow.
+
+Hmm, actually, let me think about it differently: the variant where DFS can end at any free right vertex — each phase still finds a maximal set of vertex-disjoint augmenting paths (not necessarily shortest). The number of phases could exceed √V... 
+
+You know what, let me just think about what's needed practically. Actually, let me reconsider the whole approach. Since this is Python and performance is the main risk, let me strongly consider scipy. And write the fallback carefully.
+
+Actually — wait. Let me reconsider the problem once more. Is it possible that the intended solution avoids matching entirely?? Let me think about the structure of the maximum independent set in a bipartite graph again...
+
+Hmm, here's a classical alternative: In a bipartite graph, the maximum independent set can be found via... hmm, only matching-based methods come to mind.
+
+But wait — maybe the problem's tests are weak? E.g., maybe all tests have the property that max IS = max(|A|, |B|)? That would be the case if every connected component has the smaller side fully matchable. Hmm, can't rely on that.
+
+Hmm, hold on, wait. Let me reconsider. Actually, let me reconsider the problem statement once more. "it is possible to configure each cable with a one-way signal direction such that every node in the network acts either exclusively as a transmitter or exclusively as a receiver". 
+
+Hmm what if the intended reading is stronger: the configuration must exist, but maybe they intend that the graph is bipartite AND the problem wants us to find the bipartition and take the larger side? And the answer would be YES iff k ≤ max(|A|,|B|)? But as shown, that's mathematically wrong for general bipartite graphs. But maybe the problem setters believe it's right? Or maybe the tests don't include Hall-violating components? Risky to assume.
+
+Hmm, but wait: example 3: K_{2,2}, k=3 → NO. With the "larger side" approach: max part = 2 < 3 → NO. Consistent. With matching approach: μ=2, α=2 < 3 → NO. Consistent. Both approaches agree on all examples. 
+
+Let me think about which is more likely to be the intended solution. The problem explicitly says "determine whether a completely isolated subset of exactly k nodes can be chosen" — the mathematically correct answer requires matching. A well-set problem would require matching. The constraints (m up to 4e5) suggest they expect a matching algorithm (HK). If the intended solution were just "take the larger side", m could be anything and the problem would be trivial (just BFS 2-coloring). The fact that they set m ≤ 400000 and n ≤ 100000 with a 2s time limit strongly suggests Hopcroft-Karp is intended. Also "Problem B" with these constraints... yeah, matching.
+
+Hmm, although — wait. Let me reconsider: maybe the problem is from a contest where the intended solution is indeed just bipartition + larger side, and the constraints are just generic. The examples given are consistent with both. Ugh.
+
+Let me think about the math once more to be 100% sure that "larger side" is insufficient:
+
+Graph: nodes 1,2,3,4. Edge 1-2 only. Bipartition: A={1,3,4}, B={2} (or A={1},B={2,3,4}... wait, 3 and 4 are isolated, they can go either side). Max part: we can put isolated vertices anywhere, so max(|A|,|B|) can be 3 (e.g., A={1,3,4}, B={2}) or even... n=4, so parts could be {1,3} and {2,4}: max 2. Hmm, the bipartition isn't unique when there are isolated vertices or multiple components. With A={1,3,4}, B={2}: max part = 3. Max IS: {3,4} plus one of {1,2} = 3. So α = 3 = max part here. 
+
+Let me construct a cleaner counterexample: connected graph. A path 1-2-3-4-5 (5 nodes). Bipartition: A={1,3,5}, B={2,4}. Max part 3. Max IS of P5: {1,3,5}? 1-2, 2-3, 3-4, 4-5 edges. {1,3,5}: 1&3 not adjacent, 3&5 not adjacent. Size 3. α(P5) = 3 = max part. Hmm.
+
+Path P4: 1-2-3-4. A={1,3}, B={2,4}. α = 2 ({1,4} or {1,3} or {2,4}). Max part 2. Equal.
+
+Hmm, for paths α = ceil(n/2) = max part. For trees? Star: α = #leaves = max part. Hmm, for trees, is α = max part always? No! Consider a tree: A={a1,a2,a3}, B={b1,b2}, edges: b1-a1, b1-a2, b2-a3. Bipartition unique (connected). Max part = 3 (A). Max matching: b1-a1, b2-a3 → size 2 = min(3,2). So α = 5-2 = 3 = max part. Hmm. For α > max part, need μ < min(|A|,|B|), i.e., Hall violation on the smaller side. Smaller side B = {b1, b2}: N(b1) = {a1,a2}, N(b2) = {a3}. Hall holds for B (each single has neighbors; both together have all). So μ = 2. 
+
+Tree with Hall violation: B = {b1, b2}, both adjacent only to a1. A = {a1, a2}. Edges: a1-b1, a1-b2, and to make it connected and a tree... a2 needs to be connected: edge a2-a1? No, must be bipartite: a2-b1? Then N(b1)={a1,a2}, N(b2)={a1}. Hall for B: {b2} → N={a1} ok; {b1,b2} → {a1,a2} ok. Hmm. Let me do: edges a1-b1, a1-b2 only, a2 isolated... then not connected. Fine, disconnected: components: {a1,b1,b2} (star) and {a2}. Bipartition: A={a1,a2}, B={b1,b2}. Max part 2. μ: star center a1 can match only one of b1,b2 → μ=1. α = 4-1 = 3 > 2. And indeed IS {a2, b1, b2} wait b1-b2 not adjacent (both in B), a2 isolated: {a2, b1, b2} size 3. Yes! So with n=4, m=2, k=3: correct answer YES, but "larger side" gives NO. 
+
+So if the tests include such a case, the "larger side" approach fails. Given the problem seems carefully designed (König's theorem disguised), I'll go with the matching approach. It's strictly more correct.
+
+Hmm, but hold on, wait. Let me reconsider — with the matching approach, in the case above: bipartition A={a1,a2}, B={b1,b2} (component 1: a1 with b1,b2; component 2: a2 alone). Matching: a1-b1 say. Unmatched left: a2. Z from a2: a2 has no neighbors → Z={a2}. Max IS = (A∩Z) ∪ (B\Z) = {a2} ∪ {b1,b2} = {a2,b1,b2}, size 3. 
+
+Now, implementation plan:
+
+Step 1: Read input fast.
+```python
+import sys
+data = sys.stdin.buffer.read().split()
+n = int(data[0]); m = int(data[1]); k = int(data[2])
+```
+Then m pairs. Total tokens: 3 + 2m ≤ 800003. Fine.
+
+Step 2: Build adjacency (CSR) for BFS 2-coloring. With m up to 4e5, edges stored twice → 8e5 entries. Building CSR in Python: 
+
+```python
+deg = [0]*(n+1)
+us = data[3:3+2*m:2]  # hmm, need ints
+```
+
+Let me parse: edges as list of ints. Actually, converting 8e5 tokens to int: `list(map(int, data[3:]))` — 8e5 conversions, fine (~0.1-0.2s).
+
+Build CSR:
+```python
+eu = [0]*m; ev = [0]*m
+idx = 3
+for i in range(m):
+    eu[i] = int(data[idx]); ev[i] = int(data[idx+1]); idx += 2
+```
+Better: 
+```python
+vals = list(map(int, data[3:3+2*m]))
+eu = vals[0::2]; ev = vals[1::2]
+```
+
+Then degrees:
+```python
+deg = [0]*(n+1)
+for u in eu: deg[u] += 1
+for v in ev: deg[v] += 1
+```
+Hmm, 8e5 increments — fine. Or use numpy: np.bincount. Let me consider numpy for speed. Actually, let me think about using numpy throughout for the graph building, then Python loops only for BFS/matching.
+
+Actually, let me now seriously decide: scipy or pure Python?
+
+Given the requirement "write correct, efficient Python 3 solutions", and the judge is unknown, I think the most robust approach is:
+
+1. Try to import scipy and use `scipy.sparse.csgraph.maximum_bipartite_matching`. 
+2. If that fails (ImportError), fall back to a pure-Python Hopcroft-Karp.
+
+This gives best of both worlds. The fallback might TLE on adversarial tests but works correctly otherwise.
+
+Hmm, but actually, wait. Let me reconsider the pure-Python HK performance more carefully, because if I can make it fast enough, I could skip scipy entirely (simpler, more portable). 
+
+Let me think about the actual work: HK phases. For the O(√V) bound to be tight, you need adversarial graphs. For "typical" graphs (random, structured), HK finishes in O(few) phases. But contest tests for a matching problem often include adversarial cases for naive Kuhn, and HK handles them in O(√V) phases. With μ up to 5e4, √μ ≈ 224 phases worst case. Each phase: BFS over left-adjacency (m entries = 4e5) + DFS work (up to m per phase). So worst case ~224 × 8e5 = 1.8e8 edge operations. Pure Python: ~100+ seconds. Definitely TLE on worst case.
+
+But will the tests actually contain such worst cases? The problem is "Problem B" — maybe from a regional contest. Tests probably include: random bipartite graphs, stars, paths, complete bipartite-ish, Hall-violation gadgets, worst-case-for-Kuhn graphs (which HK handles in few phases? no — graphs adversarial for Kuhn like "chain gadgets" force many augmentations but HK does them in few phases). Hmm, graphs adversarial for HK specifically are exotic. I'd guess tests are adversarial for Kuhn but not specifically for HK. In that case, HK phases ≈ O(√μ) still could be hit by... hmm.
+
+Actually, hmm, wait: there's a classical fact: for ANY graph, the number of HK phases is O(√μ). And there are graphs achieving Ω(√μ) phases. Whether the testers included such graphs... For a problem where the intended solution is HK in C++, testers often include HK-worst-case graphs to verify complexity. Risky.
+
+Let me estimate pure-Python HK on a "moderately bad" case: say 50 phases × (BFS 4e5 + DFS ~4e5) edge ops = 4e7 edge operations, each ~5-10 Python bytecode ops → 2-4×10^8 → 30-60s. Too slow. Even 20 phases → too slow. Hmm. Even 10 phases: 8e6 edge ops → ~5-10s. Hmm, still too slow for 2s limit!
+
+Wait, am I overestimating Python slowness? A tight loop like:
+
+```python
+for i in range(start, end):
+    v = adjlist[i]
+    ...
+```
+
+Each iteration with a few operations: ~50-100ns per simple op in CPython... realistically, a loop iteration doing ~5 list indexings and comparisons takes ~200-400ns. So 4e5 edge traversals ≈ 0.1-0.15s per BFS. 10 phases ≈ 1.5-3s (BFS+DFS). Borderline. 20+ phases: TLE.
+
+Hmm. So pure Python HK is risky even for moderate cases. Unless... I use bit tricks or numpy-vectorized BFS/DFS? That's hard for HK's DFS.
+
+Alternative: use scipy — the C implementation handles 1.26e8 ops in ~0.5-1s. 
+
+Alternatively: implement HK with adjacency as bytes/array and use... no.
+
+OK here's my decision: primary = scipy's maximum_bipartite_matching; fallback = pure Python HK (best effort). Actually, hmm, wait — should I also consider `scipy.sparse.csgraph` availability... `maximum_bipartite_matching` requires scipy ≥ 1.4 (Dec 2019). Most judges with scipy have newer. Also numpy needed for building csr_matrix. Alternatively build csr_matrix from plain Python (csr_matrix((data, indices, indptr))) without numpy arrays? scipy will accept lists and convert. Actually I can construct csr_matrix directly with indptr/indices lists — that avoids needing numpy explicitly (scipy depends on numpy anyway).
+
+Hmm, one concern with scipy's maximum_bipartite_matching: it requires the graph as a CSR sparse matrix where rows = one side, columns = other side. The matrix shape (n_A, n_B). It returns an int32 array `result` of length n_A: result[i] = j if row i matched to column j, else -1. 
+
+Wait, I need to double check the semantics: `scipy.sparse.csgraph.maximum_bipartite_matching(graph, perm_type='column')`: "Returns an array of length equal to the number of rows, where element i gives the row... " hmm. Let me recall the docs:
+
+```
+scipy.sparse.csgraph.maximum_bipartite_matching(graph, perm_type='row')
+```
+"perm_type : str, {'row', 'column'} — Which side of the matrix to return the matching in terms of: If 'row', the result represents the matching in terms of rows: result[i] gives the column matched to row i. If 'column', the result represents... result[j] gives the row matched to column j? Hmm.
+
+From scipy docs: "Returns: perm : array — It is an array of length equal to the number of vertices in the partition corresponding to perm_type ('row' by default), giving the row or column index of the matched vertex in the other partition, or -1 if unmatched."
+
+Hmm, actually I recall: "maximum_bipartite_matching(graph, perm_type='row')" returns "a matching of the rows to the columns" — perm[i] = the column matched to row i? Or the permutation... Let me think. The doc example:
+
+```
+>>> from scipy.sparse import csr_matrix
+>>> from scipy.sparse.csgraph import maximum_bipartite_matching
+>>> graph = csr_matrix([[1,0,0],[0,1,0],[0,0,1]])  # hmm
+```
+
+Actually the doc example:
+```
+>>> graph = csr_matrix(
+... [[0, 1, 0, 1],
+...  [1, 0, 1, 0],
+...  [0, 0, 1, 0]])
+>>> maximum_bipartite_matching(graph, perm_type='row')
+array([ 1, -1, 2])  # hmm not sure
+```
+
+I don't remember exactly. But it doesn't matter much: I can compute the matching size as the count of non-(-1) entries, and I need the actual matching pairs for the König construction. Let me handle both perm_types or just verify semantics logically: The function computes a maximum matching of the bipartite graph represented by the sparse matrix (rows ∪ columns as vertices, nonzero entries as edges). With perm_type='row', the returned array has length = #rows, and perm[i] = j means row i is matched to column j (or -1 if row i unmatched). I'm fairly confident that's the semantics: "perm_type='row'" means "return the permutation from the row side". Let me double-check with the actual scipy doc which I remember reasonably well:
+
+"maximum_bipartite_matching(graph, perm_type='row'): Returns an array of length equal to the number of rows... hmm.
+
+Actual scipy documentation (1.4+):
+
+```
+scipy.sparse.csgraph.maximum_bipartite_matching(graph, perm_type='row')
+...
+Parameters:
+graph : sparse matrix — Input sparse in CSR format whose rows represent one partition of a graph and whose columns represent the other.
+perm_type : str, {'row', 'column'} — Which side to represent the matching in terms of.
+Returns:
+perm : ndarray — Array of length equal to the number of rows (if perm_type='row') or columns (if perm_type='column'), giving the matched index in the other partition, or -1 for unmatched.
+```
+
+Something like that. Also important: "The input graph must be in CSR format" — I recall the docs say "Input sparse in CSR format" and there's a note that CSC is also accepted? To be safe, convert: `graph = graph.tocsr()`.
+
+Also note: scipy's implementation is based on Hopcroft-Karp ("This function uses the Hopcroft-Karp algorithm" — yes, I believe the scipy implementation is HK). 
+
+Edge case: scipy's maximum_bipartite_matching with empty matrix (0 rows or 0 columns)? If |A| = 0 (all vertices in B — possible when m=0 and we color all isolated vertices... well, we control the coloring; with m=0, we can put all in A). Actually with m=0, we can just output YES if k ≤ n (always true since k ≤ n) and print 1..k. Special-case m=0 early. But also components: isolated vertices can be assigned to either side; I'll assign them all to A (or handle generally). If |A|=0 or |B|=0, matching is empty; handle without scipy. Actually if m=0, no edges: answer always YES (k ≤ n). Let me special-case: if m == 0: print YES and 1..k. 
+
+Also, if k ≤ max(|A|, |B|), we don't even need the matching! Just take k vertices from the larger side. This is a huge shortcut: only when k > max(|A|,|B|) do we need matching. Hmm, but that doesn't reduce worst-case complexity since tests could have k large.
+
+Wait, actually, hmm, that's a nice optimization though. Let me think: if k ≤ max(|A|, |B|), answer YES immediately with k nodes from the bigger side. This handles many easy cases without any matching. For the hard cases (k > max part), we need α = n - μ ≥ k, i.e., μ ≤ n - k < min(|A|,|B|). So we need to compute μ exactly (or at least determine if μ ≤ n-k and construct). 
+
+Hmm, can we exploit k > max(|A|,|B|) somehow? n - k < n - max(|A|,|B|) = min(|A|,|B|). So we need μ ≤ n - k where n - k < min(|A|,|B|). Hmm, so we need to prove a matching upper bound of n-k and find a cover of size n-k... 
+
+Alternatively: think per component. For component i: α_i = n_i - μ_i. We need Σ(n_i - μ_i) ≥ k. For components where the smaller side is fully matchable, α_i = max part. Hmm.
+
+Alternatively, maybe there's a way to compute the max IS via a different formulation that's easier to vectorize... Hmm.
+
+What about computing max matching via a different algorithm that's numpy-friendly? There's no obvious numpy-friendly matching algorithm. scipy is the way.
+
+Alternatively — networkx? `nx.bipartite.hopcroft_karp_matching` or `nx.max_weight_matching` — networkx is pure Python, slow. No.
+
+OK let me also think: maybe I should just write the pure-Python HK really well and hope tests aren't adversarial, OR write scipy-primary with pure-Python fallback. I'll do the latter. Actually, let me reconsider once more...
+
+Hmm, actually, wait. Let me reconsider the problem constraints: n ≤ 100000, m ≤ 400000. Time limit 2s. If the intended solution is HK in C++, fine. But this is "Problem B" — in many contests, problem B is easier. A bipartite matching problem as B? With n=1e5? That's a heavy B. Unless... the intended solution is NOT matching!
+
+Let me re-read the problem statement once more, very carefully, to look for a different interpretation.
+
+"A communications network consists of n nodes (numbered 1 to n) and m bidirectional cables. Each cable directly joins two nodes.
+
+The network's architecture guarantees a structural property: it is possible to configure each cable with a one-way signal direction such that every node in the network acts either exclusively as a transmitter (all its connected cables send signals away from it) or exclusively as a receiver (all its connected cables bring signals toward it). Note that these signal directions are theoretical and are not provided in the input.
+
+A subset of nodes is considered completely isolated if no two nodes in the subset are joined by a cable.
+
+Given a target size k, determine whether a completely isolated subset of exactly k nodes can be chosen, and if so, output one such subset."
+
+Hmm OK so it's: given a bipartite graph (the property = bipartite), find an independent set of size exactly k. 
+
+Hmm wait, wait. Hmm, is the property really equivalent to bipartite? "every node acts either exclusively as a transmitter or exclusively as a receiver" — each node is incident only to out-edges (transmitter) or only to in-edges (receiver). So the orientation partitions V into sources and sinks. Every edge goes from a source to a sink (an edge between two sources would mean... an edge u-v oriented u→v makes v have an in-edge, so v is not a pure transmitter; if both are transmitters, the edge must be out of both — impossible; so every edge has one endpoint transmitter, other receiver). Yes: sources and sinks partition vertices, edges cross. Exactly bipartite. Conversely bipartite → orient all edges A→B. Yes, equivalent.
+
+So the problem is: bipartite graph, independent set of size exactly k. And the correct solution needs max matching (König). I'm confident.
+
+Hmm, unless the problem intends "at least one valid orientation is given"... no, "not provided in the input".
+
+OK so, decision: implement with scipy primary + pure-Python HK fallback. Let me also add the k ≤ max(|A|,|B|) shortcut before matching (helps performance a lot for easy tests, and provides a safety net: if scipy and fallback both fail... no, fallback always runs).
+
+Hmm, actually, wait. Let me reconsider: maybe I should think about whether the pure-Python fallback can be made fast enough to be the primary, using clever tricks. Let me think about vectorizing HK with numpy... The BFS can be vectorized per "layer" using numpy operations on adjacency segments? The layered BFS: frontier of left vertices; for each, iterate neighbors... With CSR, for a frontier set F (array of left vertices), gather all their neighbor lists: need variable-length expansion — numpy can do with repeat/cumsum tricks: 
+- lengths = indptr[F+1] - indptr[F]
+- total = sum(lengths); create index array via np.repeat(indptr[F], lengths) + (arange(total) - np.repeat(cumsum(lengths)-lengths, lengths)) → gives concatenated neighbor indices.
+Then v = indices[those]; w = matchR[v]; filter w != -1 and dist[w] unset; new frontier = unique(w)... This is vectorizable! Each BFS layer is a few numpy ops over O(m) data. Number of layers per phase could be up to O(√V)... total O(m√V) numpy work but with tiny constant (numpy ops ~1e8-1e9 elements/sec). Hmm, 224 phases × ~50 layers/phase × numpy overhead... the per-op overhead (~µs) × many ops... Each layer involves ~10 numpy calls; if a phase has L layers, that's 10L numpy calls each processing up to 4e5 elements. Worst case total elements processed: phases × layers × m... could be 224 × 50 × 4e5 = huge. No good in the true worst case, but the true worst case is unlikely...
+
+The DFS part is harder to vectorize (it's inherently sequential with path augmentation). Hmm, there's a way: the DFS phase can be replaced by... hmm, complicated.
+
+OK, scipy it is, with pure-Python fallback. Actually, you know what — let me ALSO think about whether I trust scipy's maximum_bipartite_matching semantics and correctness. It's a well-tested function. One caveat: it requires the matrix in CSR format; if given CSC it might misinterpret? The docs: "graph : sparse matrix — Input sparse in CSR format". I'll explicitly construct CSR.
+
+Another caveat: duplicate entries in the COO→CSR conversion are summed; with data=1 they'd become 2 — but the problem says no duplicate cables, so fine. Also self-loops impossible (u≠v).
+
+Another caveat: scipy's function might have issues with explicit zeros or... we'll use data=1s. Also, if the matrix has shape (nA, nB) with nA or nB = 0 — scipy might error? Let me handle: if nA == 0 or nB == 0, matching is empty (μ=0), α = n. Then if k ≤ n (always), YES. But we need to output an independent set of size k: any k vertices (no edges... wait, if nA==0 or nB==0 then m=0 since every edge crosses). Actually if m>0, both sides nonempty. If m=0, special-cased earlier. But also: my coloring might put all vertices in A when m=0 — fine, special case handles it.
+
+Hmm wait, actually also: even when m > 0, it's possible that... no, if m>0, each edge has endpoints in different sides, so both sides nonempty. OK.
+
+Now, the König construction after scipy matching:
+
+- matchL[i] = j (left i matched to right j) or -1. From scipy with perm_type='row': perm[i] = matched column for row i, -1 if unmatched. (I'll double check by also computing matchR from perm: for i where perm[i] >= 0: matchR[perm[i]] = i.)
+
+- U = free left vertices (perm[i] == -1).
+- Z: BFS/DFS from U over: left u → right v for v in adj[u] (all edges) → if v free (matchR[v] == -1), v ∈ Z (dead end); else w = matchR[v], w ∈ Z, continue from w.
+- Max IS = (A ∩ Z) ∪ (B \ Z).
+
+Wait, I should double-check this construction's validity once more with an example where it matters. Example: A={a1,a2}, B={b1,b2}, edges a1-b1, a1-b2 (star centered at a1... wait a1 is in A). Matching: a1-b1 (μ=1). Free left: a2. Z: from a2: no neighbors → Z={a2}. IS = (A∩Z) ∪ (B\Z) = {a2} ∪ {b1,b2} = {a2,b1,b2}, size 3 = n - μ = 3. ✓. And it's independent: a2 isolated, b1,b2 both in B, no edges among them. ✓.
+
+Another: path a1-b1-a2 (A={a1,a2}, B={b1}). Matching: a1-b1 (μ=1). Free left: a2. Z: from a2: neighbor b1; matchR[b1]=a1 → a1 ∈ Z; from a1: neighbors b1 (already seen). Z = {a2, a1, b1}. IS = (A∩Z) ∪ (B\Z) = {a1,a2} ∪ {} = {a1,a2}, size 2 = 3-1 ✓. Independent ✓.
+
+Another: path a1-b1-a2-b2 (A={a1,a2}, B={b1,b2}). Matching: a1-b1, a2-b2 (μ=2). Free left: none. Z={}. IS = A = {a1,a2}, size 2 = 4-2 ✓.
+
+Another: A={a1,a2,a3}, B={b1}, edges a1-b1, a2-b1, a3-b1. μ=1, say a1-b1. Free left: a2,a3. Z: from a2: neighbor b1, matched → a1 ∈ Z; from a3: b1 seen; from a1: b1 seen. Z = {a2,a3,a1,b1}. IS = (A∩Z) ∪ (B\Z) = {a1,a2,a3} ∪ {} = A, size 3 = 4-1 ✓.
+
+Great, construction works.
+
+Now, the BFS for Z: I need adjacency of left vertices (A-side) — I have that from the bipartite graph construction. Implementation: 
+
+```
+ZL = [False]*nA  # left in Z
+ZR = [False]*nB
+stack = [free left vertices]
+for each: ZL[u]=True
+while stack:
+  u = pop
+  for v in adjA[u]:
+    if not ZR[v]:
+      ZR[v] = True
+      w = matchR[v]
+      if w != -1 and not ZL[w]:
+        ZL[w] = True
+        push w
+```
+
+O(m). Fine in Python: 4e5 edge traversals ≈ 0.2-0.4s. Acceptable.
+
+Then IS = [A[i] for i in ZL] + [B[j] for not ZR[j]]. Take first k, sort? "print k distinct node numbers" — any order presumably fine. I'll print them (maybe sorted for aesthetics, but sorting 1e5 numbers is fine; actually not needed — but let me sort to be safe? The problem says "print k distinct node numbers that form such a subset, separated by spaces" — any order accepted. I'll just print in any order; maybe sort for determinism. Sorting 1e5 ints is ~0.05s. Fine, I'll sort.)
+
+Wait, one more check: is the IS from König guaranteed to have size exactly n - μ? Yes (it's a max IS). And we need size ≥ k; take any k subset. ✓.
+
+Edge cases:
+- k ≤ max(|A|,|B|): shortcut, output k from bigger side. (No matching needed.) — Actually, should I still do this shortcut? It's an optimization; but careful: the shortcut is only valid for the YES direction. If k ≤ max part, answer is definitely YES. So yes, valid. But hmm — one subtlety: the bipartition I compute assigns each component's two color classes to A and B globally. |A| and |B| are determined by my coloring (with arbitrary flips per component). max(|A|,|B|) depends on flips! E.g., m=0: all isolated vertices — my BFS coloring would put them all in... depends. If I put all isolated in A, then |A| could be n, |B| = 0, and k ≤ n always → shortcut always triggers for m=0. Fine. In general, the shortcut triggers iff k ≤ max(|A|,|B|) for MY coloring; if it doesn't trigger, we do matching. Correctness doesn't depend on the coloring choice. ✓.
+
+Hmm wait, actually, hold on: is it true that for ANY bipartition (any flips), each side is an independent set? Yes — each side is a union of color classes across components; edges only go between the two colors within a component, so within a side (fixed color per component), no edges. ✓.
+
+- Graph guaranteed bipartite — but what if input violates (shouldn't happen)? I'll assume it holds; if BFS finds conflict, undefined behavior (maybe just proceed... I could ignore).
+
+Now, the pure-Python HK fallback. Let me write a solid HK. Actually, let me write the fallback as a correct HK with the "shortest paths only" refinement to guarantee O(E√V) phases:
+
+To ensure shortest augmenting paths only: during BFS, compute dist for left vertices; also compute the phase's shortest augmenting path length in terms of left-layer: d* = min dist[u] over left u having a free right neighbor... but careful: BFS explores layer by layer; we should stop expanding beyond layer d*. Standard approach: BFS assigns dist; when we pop u at dist d and find a free right neighbor, we record foundDist = min(foundDist, d) and we don't expand further from... hmm, actually the standard HK BFS stops at the layer where free right vertices are found: process queue; for u with dist[u] < d*, expand; vertices with dist == d* are not expanded (their neighbors' matches would be at dist d*+1 > d*, not on shortest paths). Implementation: 
+
+```
+INF = large
+dist = [INF]*nA
+q = free left vertices; dist=0
+found = False; 
+# BFS layer by layer; once we discover a free right vertex at layer d, we set found and stop adding new left vertices beyond layer d... 
+```
+
+Simplest correct approach: run BFS fully (computing dist for all reachable left vertices), compute d* = min{dist[u] : u has a free right neighbor} (INF if none → done). Then in DFS, only allow ending at free right neighbor v from u if dist[u] == d*. And only traverse matched continuation if dist[w] == dist[u]+1 and dist[u]+1 <= d*. Hmm, actually if dist[u] < d*, then any neighbor v of u: if v free — not allowed to end (since dist[u] < d*); if v matched to w with dist[w] = dist[u]+1 ≤ d*... fine. If dist[u] == d*: only free neighbors end the path; matched neighbors w would have dist[w] = d*+1 > d* — not allowed (and indeed BFS wouldn't have... well BFS might have set dist[w] = d*+1 if run fully; we just don't traverse).
+
+Hmm, but actually, is the refinement even necessary for correctness? No — without it, the algorithm still finds a maximum matching (any augmenting path works; the phases just might not double the path length). It's only the complexity bound that needs shortest paths. And with the refinement, the O(√V) phases bound holds. Let me include the refinement — it's cheap.
+
+Hmm, wait, actually, let me reconsider: with the refinement, is it still true that each phase finds a maximal set of vertex-disjoint shortest augmenting paths? The DFS marks failures with dist[u] = INF, ensuring no repeated exploration within a phase. Yes, standard.
+
+Actually, hmm, let me simplify: I recall a cleaner standard HK formulation where BFS computes dist over BOTH sides:
+
+- distR[v] for right, distL[u] for left.
+- Phase BFS: from free left (distL=0). For left u: for each right v: if distR[v] unset: distR[v] = distL[u]+1; if v free → record reachable-free; else distL[matchR[v]] = distR[v]+1... 
+
+This is getting complicated. Let me just carefully write the left-only-dist version with d*:
+
+BFS:
+```
+dist = [INF]*nA
+q = []
+for u in free_left: dist[u]=0; q.append(u)
+dstar = INF
+head = 0
+# process in FIFO order; since dist increases by 1 per layer, FIFO gives layer order.
+while head < len(q):
+    u = q[head]; head += 1
+    if dist[u] >= dstar: continue  # don't expand beyond/at dstar layer... 
+```
+Hmm wait — vertices at layer == dstar: they have a free neighbor (that's how dstar got set... no — dstar is the MIN layer with a free neighbor; a vertex at layer dstar might or might not have a free neighbor; but we shouldn't expand from layer ≥ dstar since shortest paths end at layer dstar). But careful: when we pop u at layer d and it has a free neighbor, we set dstar = min(dstar, d). We should not expand u's matched neighbors (they'd be layer d+1 > dstar). But other vertices at layer d might be popped after dstar is set — skip expanding them (their expansion would only create layer d+1 vertices, useless). But wait — vertices at layer d < dstar must be expanded. Since FIFO processes in layer order, when we pop u, all vertices of layer ≤ dist[u] have been processed... hmm, actually we might pop u at layer d while dstar is still INF, then during processing u we set dstar = d. Then subsequent pops at layer d get skipped. But vertices at layers < d were all popped before (FIFO) — good. But hmm, there's an ordering subtlety: we pop u (layer d), iterate neighbors; we set dstar=d upon finding free neighbor; but we continue iterating u's neighbors and might add layer d+1 vertices to the queue — harmless (they'll be skipped when popped since dist = d+1 > dstar... wait, condition `dist[u] >= dstar` → skip: d+1 ≥ d → skip ✓). But also, we might add a layer d+1 vertex before setting dstar? No: dstar is set when we encounter a free neighbor; matched neighbors encountered before that (in iteration order) would add layer d+1 vertices — harmless as shown. OK but one more subtlety: could dstar be set to d by a vertex popped EARLIER at the same layer d, causing u (layer d, popped later, no free neighbor... wait if u at layer d has no free neighbor, skipping its expansion is fine since shortest paths end at layer dstar=d and u contributes no ending). Hmm, but wait: what if u at layer d has a free neighbor but dstar was already set to d by an earlier vertex — then u is skipped for expansion but that's fine (no expansion needed at layer d). But u's free neighbor is still usable in DFS (DFS checks dist[u] == dstar and v free). ✓.
+
+Hmm, but actually there's still a subtle issue: vertices at layer d where d < dstar: all get expanded. Vertices at layer exactly dstar: not expanded (fine). But what if dstar is set while processing layer d, but some layer-d vertices were popped BEFORE dstar was set and expanded (adding layer d+1)? Those expansions are useless but harmless. ✓.
+
+Wait, nother subtlety: what if a left vertex w gets dist assigned as d+1 via one path, but it should also be reachable at layer... no, BFS assigns the shortest dist. Fine.
+
+Hmm, but actually, hmm: is it possible that a left vertex u has dist[u] = d but u is only reachable... all fine, BFS is BFS.
+
+But actually wait, I realize the condition for expansion should be: expand u only if dist[u] < dstar. When we pop u with dist[u] == dstar (dstar set by an earlier pop in the same layer), skip. When dist[u] > dstar, skip. So `if dist[u] >= dstar: continue`. But careful: dstar might be set to a value SMALLER than dist[u] by... no, FIFO: dstar is set when popping layer-d vertex, finding free neighbor → dstar = d. Later pops have dist ≥ d. So dist[u] ≥ dstar → skip. But could a later pop have dist[u] < dstar? Only if dstar was set at a layer > dist[u] — impossible with FIFO (layers processed in order). Wait: pops are in non-decreasing dist order? Queue: we append w with dist[w] = dist[u]+1. Since we process u in FIFO order and dist[u] non-decreasing over pops... initially all free have dist 0. Pops: 0,0,...,0, then appended 1s, etc. Yes non-decreasing. ✓. So when dstar gets set to d (by a pop at layer d), all subsequent pops have dist ≥ d = dstar → skipped. And pops at layer d before dstar was set: expanded (correct, since dstar wasn't known yet — but their expansion adds layer d+1 which will be skipped; and their free neighbors set dstar = d). ✓.
+
+Hmm, but there's still an issue: a pop at layer d < final dstar gets expanded, fine. A pop at layer d where during ITS OWN processing we find free neighbor → dstar = d, but we continue processing its remaining neighbors: should we still expand matched neighbors (adding layer d+1)? Harmless (skipped later). But should we continue looking for more free neighbors? Doesn't matter. OK.
+
+Then DFS with dstar:
+
+```
+def try_augment(u):  # iterative or recursive
+    for v in adj[u]:
+        w = matchR[v]
+        if w == -1:
+            if dist[u] == dstar:
+                match: matchL[u]=v; matchR[v]=u; return True
+            else:
+                continue  # not allowed to end early... 
+```
+
+Hmm wait — if dist[u] < dstar and v free: we can't end here (path too short? no wait — path ending at layer dist[u] < dstar would be an augmenting path SHORTER than dstar?? But dstar is the MINIMUM layer with a free neighbor — contradiction!). Right: if v is free and adjacent to u, then dstar ≤ dist[u]. So if dist[u] < dstar, u has NO free neighbors. So the case "v free and dist[u] < dstar" never happens. Good, so:
+
+```
+for v in adj[u]:
+    w = matchR[v]
+    if w == -1:
+        # dist[u] == dstar guaranteed
+        match and return True
+    elif dist[w] == dist[u] + 1 and dist[u] < dstar and dfs(w):
+        match and return True
+dist[u] = INF  # dead
+return False
+```
+
+Wait, but if dist[u] == dstar and v is matched to w with dist[w] = dstar+1: not allowed (dist[w] != dist[u]+1? it IS dist[u]+1 = dstar+1 — hmm!). If BFS ran fully, dist[w] could be dstar+1 and the check `dist[w] == dist[u]+1` would pass, leading DFS down a longer path that might end at another free vertex at layer dstar+1... but wait, can it? If w at layer dstar+1 has a free neighbor v', then dstar would have been ≤ dstar+1... consistent, but the path would end at layer dstar+1 > dstar — a longer augmenting path. To prevent: require dist[u] < dstar for matched traversal. Since if dist[u] == dstar, we only accept free neighbors. ✓. So condition: `if w == -1: (dist[u]==dstar) match; elif dist[u] < dstar and dist[w] == dist[u]+1: recurse`.
+
+Hmm, wait, but also: if dist[u] < dstar and v free — impossible as argued. But what if dist[u] < dstar and v free anyway due to a bug in my reasoning? Let me re-verify: dstar = min over all (u', v') with v' free adjacent to u' of dist[u']. If v free adjacent to u, then dstar ≤ dist[u]. So dist[u] < dstar impossible. ✓. (Given BFS fully processes all layers < dstar and sets dstar correctly — note BFS must examine ALL neighbors of ALL vertices at layers < dstar... it does: all pops at layers < dstar happen before dstar is set? Hmm — no! dstar could be set at layer d, and there might be OTHER layer-d vertices with free neighbors — but they're at the same layer d, so dstar = d regardless. And vertices at layers < d: all popped and expanded before any layer-d pop (FIFO). So when the first free neighbor is found at layer d, all vertices at layers < d have been fully expanded. Hence dstar = min layer with free neighbor. ✓.)
+
+Hmm, wait, one more: vertices at layer d that get popped after dstar=d is set are skipped — but they might have free neighbors, which is fine (dstar already = d). But they might also need... no. ✓.
+
+And DFS: for the phase, iterate over all free left vertices u0 (dist 0), run try_augment; count successes. Repeat phases until BFS finds no free right neighbor reachable (dstar == INF).
+
+Also, standard HK: after the phase, reset. Each phase: BFS O(m) + DFS total O(m) (with dead-marking ensuring each left vertex's adjacency is scanned at most... hmm, actually with dist[u] = INF marking, each left vertex is "failed" at most once per phase, and successful vertices are on paths. Total DFS work per phase: each left vertex's adjacency scanned at most once (if it fails) or... a successful vertex might have scanned part of its adjacency before finding the successful branch; failed branches within get marked. Total per phase O(m + paths×len). Fine, O(m) amortized-ish. Actually the standard bound: each phase O(m) because each edge is examined at most a constant number of times... roughly. OK.)
+
+Now, recursion depth: path length ≤ 2·dstar+1 ≤ O(√V) in later phases... but in EARLY phases, dstar could be large? No — early phases have SHORT augmenting paths. dstar is non-decreasing across phases (that's the HK invariant: shortest augmenting path length at least doubles every two phases... actually increases by ≥2 each phase... hmm, the invariant is: after a phase of maximal shortest paths, the shortest augmenting path length increases by at least 2? The classical result: after √V phases, path length > √V, and then ≤ √V more augmentations finish. Anyway, path lengths ≤ O(√V) for the first √V phases, then remaining augmentations ≤ √V each with path length ≤ O(V)... hmm, path length can be up to O(V) in the tail phases. Recursion depth O(V) = 1e5 → Python recursion limit issues! Default limit 1000. I'd need sys.setrecursionlimit(300000) — risky but doable (each frame ~ small; 1e5 frames OK memory-wise? ~1e5 × ~100 bytes... fine). But recursion is slow. Better: iterative DFS.
+
+Hmm, iterative DFS for augmenting path search is a bit tricky but doable: maintain explicit stack of (u, iterator index). Let me write it:
+
+```
+# iterative DFS from free left u0
+stack = [(u0, start_index[u0])]
+path... 
+```
+
+Hmm, let me think. The recursive structure: try(u): iterate v in adj[u] from current pointer; for each v: if free → augment along the current path stack; else if valid → push (w, pointer) and continue; if exhausted → mark dist[u]=INF, pop. Augmentation: when we find free v at the top, we need to rematch all edges along the stack: the stack is u0 → v1 → u1 → v2 → ... → u_t → v(free). Rematching: matchL[u_i] = v_{i+1}, matchR[v_{i+1}] = u_i for all i, plus matchL[u_t] = v_free, matchR[v_free] = u_t. But wait — the stack only stores left vertices and their adjacency pointers; the right vertices chosen are adj[u_i][ptr_i - 1]... Let me store for each stack frame (u, ptr) where ptr is the next index to try; when we move deeper, the chosen right vertex is adj[u][ptr-1] after incrementing. So the path's right vertices can be recovered. On success at top frame (u_t, ptr_t): v_free = adj[u_t][ptr_t] (before increment) — let me define carefully:
+
+```
+frame: (u, i) meaning we're trying adj[u][i] next.
+loop:
+  u, i = stack[-1]
+  if i >= len: dist[u] = INF; stack.pop(); if stack empty: fail; else: continue (parent will try next)
+  v = adj[u][i]
+  stack[-1] = (u, i+1)
+  w = matchR[v]
+  if w == -1:
+      if dist[u] == dstar:  # success
+          # augment: walk stack, rematch
+          for each frame (uu, ii) in stack: vv = adj[uu][ii-1]; matchL[uu] = vv; matchR[vv] = uu
+          return True
+      else: continue  # shouldn't happen per argument above, but safe
+  else:
+      if dist[u] < dstar and dist[w] == dist[u] + 1:
+          stack.append((w, start_ptr[w]))
+          continue
+      # else try next i
+```
+
+Hmm wait, but there's a problem: when we pop a frame (mark dist[u]=INF), the parent frame continues from its saved pointer. But the "start_ptr" for a vertex: each left vertex's adjacency pointer should persist across the phase? In standard HK DFS, when dfs(w) fails, dist[w] = INF, so w won't be re-entered. When dfs(w) succeeds... it's on the path. But a vertex u could be entered, partially scanned, and then... in the recursive version, each call to dfs(u) scans from the beginning of adj[u]! If u is entered twice in a phase (first time fails → marked INF → never re-entered; or first time succeeds → it's matched, on a path — could it be re-entered? In the same phase, after augmentation, could another DFS path pass through u? u is now matched via the augmenting path; another path could try to traverse through u? In standard HK, vertices on found augmenting paths are "used" — hmm, actually the standard HK DFS: after a successful augmentation, the vertices on the path are matched differently; can a subsequent DFS in the same phase pass through them? The dist values: vertices on the path keep their dist. A subsequent DFS could reach u via dist-consistent edges and try to continue through u — but u's matching edge changed... Hmm, in the standard implementation, after augmenting, the DFS from the next free vertex might traverse through u again. Is that a problem for the "vertex-disjoint" property? The classical HK guarantees the found paths are vertex-disjoint... Let me think: after augmenting along path P, the matching edges along P flipped. A later DFS in the same phase following dist layers: to enter u (on P) from some right vertex v', we need... hmm, u's match is now different. The dist-layering was computed w.r.t. the OLD matching. Hmm, the classical HK handles this: the standard implementation (like the one in many references) does allow re-traversal? Let me recall the classical pseudocode (from Wikipedia-ish):
+
+```
+function DFS(u):
+    for each v in Adj[u]:
+        if PairR[v] == NIL or (Dist[PairR[v]] == Dist[u] + 1 and DFS(PairR[v])):
+            PairL[u] = v; PairR[v] = u; return true
+    Dist[u] = ∞; return false
+
+for each u in L:
+    if PairL[u] == NIL:
+        if DFS(u): matching++
+```
+
+Note: `Dist[PairR[v]] == Dist[u]+1` — after augmentations within the phase, PairR changes, so the dist check uses the NEW match. Hmm. And vertices with Dist=∞ are skipped (dead). Vertices on successful paths keep finite dist and could be re-traversed... but would that create non-disjoint paths? Classical HK theory says the phase finds a maximal set of vertex-disjoint shortest augmenting paths. The implementation detail: when a path is augmented, its vertices become matched; a subsequent DFS could pass through them, but since their dist is unchanged and the matching flipped... Hmm, I recall that in the correct implementation, once a vertex is used in an augmenting path in this phase, it should not be reused. But the standard pseudocode above doesn't explicitly prevent it — the claim is it can't happen or doesn't harm? Hmm.
+
+Let me think: after augmenting along P = u0-v1-u1-...-u_t-v_{t+1} (v_{t+1} free), the matching edges flipped: now u_i matched to v_{i+1}. A later DFS from free u0' at dist 0: reaches some right v, w = matchR[v]; if w = u_i (on P) with dist[u_i] = i: check dist[u_i] == dist[prev]+1 — possible. Then DFS(u_i): iterate adj[u_i]: v_{i+1} is now matched to u_i (w = u_i itself? no — matchR[v_{i+1}] = u_i, so w = u_i — checking dist[u_i] == dist[u_i]+1 false). Other neighbors v: if free → but wait, dist[u_i] = i < dstar? If i < dstar, u_i has no free neighbors (as argued). Hmm, but that argument was w.r.t. the ORIGINAL matching of the phase. After augmentation, some right vertices became matched (v_{t+1}) — that only removes free vertices. And some right vertices became... no right vertex becomes free during a phase (augmenting along a path: all vertices on the path were matched except endpoints; after: all matched). So free right vertices only shrink. So "u_i (i<dstar) has no free neighbor" remains true. So DFS(u_i) would try matched neighbors w' with dist[w'] == i+1 — could succeed, extending through P's vertices... but then the new path would share vertices with P — NOT vertex-disjoint! But wait — is that actually possible in the standard HK? Hmm, if it happens, the new "augmenting path" would... hmm, wait: an augmenting path must start and end at free vertices. u0' is free. The path goes u0' → v → u_i → ... → free right vertex. But hold on — for this to be an augmenting path in the CURRENT matching, the edges must alternate non-matching/matching w.r.t. the CURRENT matching. The path u0'-v-...: edge u0'-v: is it non-matching? u0' is free, so yes. v-u_i: must be a matching edge: matchR[v] = u_i — yes by construction (w = matchR[v]). Then from u_i, we take a non-matching edge to v', then matching edge, etc. The dist-layering ensures... hmm, but the current matching has changed. The path found alternates correctly by construction (each step from left u uses a right v whose match w = matchR[v] — the current match — and the DFS checks dist[w] == dist[u]+1). So the found path IS a valid augmenting path in the current matching (starts free, alternates, ends free). It might share vertices with previously found paths in this phase — but that's OK for CORRECTNESS (it's still a valid augmenting path, matching size +1). It only matters for the complexity theory (maximal disjoint set). Hmm, but the classical HK theory requires disjointness for the "shortest path length doubles" argument... 
+
+Ugh, OK. I recall that in the standard HK, within a phase, after a vertex is used in an augmenting path, subsequent DFS's cannot reuse it — because of the dist structure. Let me verify: could a later DFS pass through u_i (on previous path P)? To enter u_i, need right v with matchR[v] = u_i and dist[u_i] = dist[prev]+1. After augmentation, u_i is matched to v_{i+1}. So v = v_{i+1}, entered from left u_{i-1}... wait no: to enter u_i via matching edge, we come from a left vertex u' adjacent to v_{i+1} with matchR[v_{i+1}] = u_i and dist[u_i] = dist[u']+1. u' could be u_i's predecessor on P (u_{i-1}, dist i-1 ✓) or another left vertex u'' adjacent to v_{i+1} with dist[u''] = i-1. So yes, a later DFS could enter u_i via v_{i+1} from some u'' ≠ u_{i-1} with dist[u''] = i-1. Then continue from u_i deeper. So reuse IS possible in the naive implementation?! Hmm, but wait — would that produce a valid augmenting path? The path: u0'' (free) → ... → u'' → v_{i+1} → u_i → v'' → ... → free. Edge u''-v_{i+1}: non-matching (matchR[v_{i+1}] = u_i ≠ u'') ✓. Edge v_{i+1}-u_i: matching ✓. Then u_i → v'': non-matching, etc. Valid alternating path from free u0'' to a free right vertex → valid augmenting path. It shares u_i, v_{i+1} with P. So the phase's paths are not necessarily vertex-disjoint in this implementation!
+
+Hmm, so is the standard implementation wrong?? No — I think I'm misremembering the standard implementation. Let me recall the actual classical HK (from the original paper / standard references):
+
+The classical HK phase: BFS builds layers; then a DFS-like search finds a MAXIMAL SET of vertex-disjoint shortest augmenting paths. The implementation trick: when DFS succeeds through a vertex, that vertex is marked as "used" for the phase... OR the implementation relies on: after a successful augmentation, dist of path vertices... Hmm.
+
+Actually, you know what — let me look at this from a different angle: many widely-used HK implementations (e-maxx-style, KACTL, etc.) do:
+
+KACTL's hopcroftKarp (from KACTL handbook):
+
+```cpp
+bool dfs(int i) {
+  for each c in adj[i] ... 
+}
+```
+
+Hmm, I don't remember exactly. Let me think about what's needed for MY implementation to be CORRECT (not necessarily optimally bounded):
+
+Correctness requirement: each augmentation must be along a valid augmenting path in the current matching. The naive DFS (with dist checks against current matching) ensures that. Termination: each phase either augments or not; if BFS finds no free right reachable → no augmenting path exists → matching is maximum (by Berge). So the algorithm is CORRECT regardless of disjointness. Complexity: without disjointness guarantee, worst case could degrade... but each phase still does bounded work? Hmm, within a phase, DFS from each free left vertex; failed vertices marked dist=INF (not re-scanned); successful vertices: scanned partially... could a successful vertex be re-scanned? If u_i on path P is later re-entered and re-scanned (its dist still finite), its adjacency scan restarts from index 0 (in recursive version) — could lead to repeated scanning within a phase → phase cost > O(m). Hmm. To bound: maintain per-vertex pointer within the phase (don't restart adjacency scan). Then each left vertex's adjacency is scanned at most once per phase → phase cost O(m + n). And the paths found are valid augmenting paths (correctness holds). The number of phases: hmm, without disjointness, does the shortest-path-length-still-increases argument hold? 
+
+The classical argument: after a phase with a maximal set of vertex-disjoint shortest augmenting paths, the shortest augmenting path length increases. If paths aren't disjoint... the argument may fail, and phases could be many. Worst case: could it degrade to O(V) phases (like Kuhn)? Possibly, in theory.
+
+Hmm OK, but practically: let me just make the DFS not restart adjacency pointers (per-phase pointers), mark failures, and ALSO mark successes as used (dist = INF after success? No wait — marking success vertices as INF would prevent... hmm, actually, can I just mark vertices on successful paths as "used" (dist=INF) after augmentation? Then they can't be re-entered this phase → paths are vertex-disjoint (in left vertices; right vertices: a right vertex on a successful path is matched to a path left vertex; to be reused, it'd be entered via its match — but its match is marked used → dist INF → check `dist[w] == dist[u]+1` fails since INF ≠ anything... wait the check is on the LEFT vertex w = matchR[v]: if w is marked INF, we skip → right vertex not traversed into. But could a right vertex on path P be used by another path as its ENDPOINT (free right)? No — after augmentation it's matched, not free. Could it be used as an intermediate? Only via its match (marked) → no. So marking all path left vertices as INF after success ensures vertex-disjointness (both sides). 
+
+But wait — is marking success vertices as INF safe for the phase's completeness (maximal set)? The classical HK allows exactly this: vertices used in augmenting paths are removed from consideration for the rest of the phase. The resulting path set is maximal vertex-disjoint... well, "maximal" in the sense that no more shortest augmenting paths exist among unused vertices. That's the classical behavior. ✓.
+
+So per-phase: pointers persist (each left vertex scanned once), successes marked INF (disjointness), failures marked INF. Phase cost O(m). And the classical theory gives O(√V) phases. 
+
+Hmm wait, but one more check on the classical theory with this implementation: the DFS only follows dist[u]+1 layers and ends at dist == dstar with free right. After the phase, all left vertices with finite dist are either used or... The classical proof that shortest path length increases: Let me just trust classical HK. The key requirements: (1) BFS computes exact shortest alternating distances from free left vertices (w.r.t. current matching at phase start); (2) DFS finds maximal vertex-disjoint set of shortest augmenting paths (length 2·dstar+1); (3) after phase, no augmenting path of length ≤ 2·dstar+1 remains. For (3): any augmenting path of length ≤ 2d+1 remaining after the phase... the classical lemma. I'll trust it — this is the standard algorithm.
+
+Hmm, hold on, but with matchings changing mid-phase (due to augmentations), the "dist" values correspond to the phase-start matching. The classical HK does exactly this and the theory holds. OK.
+
+Actually hmm, wait, I realize I should double check the classical HK more carefully because the mid-phase matching changes could allow the DFS to find paths that are NOT alternating w.r.t. the phase-start matching but alternating w.r.t. the current matching — and the dist check uses current matching (matchR[v] at DFS time). The path found is a valid augmenting path for the current matching. Its length: 2·(layers traversed)+1 where layers traversed = dist values along the path... but dist values were computed w.r.t. phase-start matching; the path alternates w.r.t. current matching. Hmm, the path visits left vertices with dist 0, 1, 2, ..., dstar (increasing by 1 each step) — enforced by the dist[w] == dist[u]+1 checks. And ends at free right from left at dist dstar. So the path has 2·dstar+1 edges. It's a valid augmenting path (current matching). Fine. Disjointness enforced by INF marking. The classical proof of "shortest augmenting path length strictly increases after each phase" — I'll trust it; this is literally the textbook algorithm (e.g., the one on Wikipedia):
+
+Wikipedia's HK pseudocode:
+
+```
+function BFS():
+    for each u in L:
+        if PairL[u] == NIL: Dist[u] = 0; Enqueue(Q, u)
+        else: Dist[u] = ∞
+    Dist[NIL] = ∞
+    while Q not empty:
+        u = Dequeue(Q)
+        if Dist[u] < Dist[NIL]:
+            for each v in Adj[u]:
+                if Dist[PairR[v]] == ∞:
+                    Dist[PairR[v]] = Dist[u] + 1
+                    Enqueue(Q, PairR[v])
+    return Dist[NIL] != ∞
+
+function DFS(u):
+    for each v in Adj[u]:
+        if Dist[PairR[v]] == Dist[u] + 1:
+            if DFS(PairR[v]) == true:
+                PairL[u] = v; PairR[v] = u; return true
+    Dist[u] = ∞; return false
+```
+
+Interesting — Wikipedia's version uses a NIL sentinel: Dist[NIL] = ∞ initially; when v is free (PairR[v] = NIL), Dist[NIL] gets set to dist[u]+1 (first time a free right is reached at layer dist[u]+1... wait, hmm: "if Dist[PairR[v]] == ∞: Dist[PairR[v]] = Dist[u]+1" — for free v, PairR[v] = NIL, so Dist[NIL] = min over discovered of dist[u]+1. And BFS continues while Dist[u] < Dist[NIL] — so BFS stops expanding at the layer where free right vertices are found. So Dist[NIL] - 1 = dstar (in my terms: the layer of left vertices that can reach free right... hmm, Dist[NIL] = dstar+1). And DFS: "if Dist[PairR[v]] == Dist[u]+1: if DFS(PairR[v])" — for free v: Dist[NIL] == Dist[u]+1 means dist[u] == dstar → recurse into NIL which returns... DFS(NIL) — the NIL case returns true (base case: "if u == NIL: return true" — I think Wikipedia's DFS has that base case). So the Wikipedia version enforces ending only at layer dstar. ✓ matches my refinement.
+
+And note Wikipedia's DFS does NOT mark successful path vertices as INF — hmm, so the disjointness concern... In Wikipedia's version, after a successful augmentation, could a later DFS reuse path vertices? Entering left u_i on a previous path: via v with PairR[v] = u_i and Dist[u_i] == Dist[u']+1. Possible as I discussed. Then DFS(u_i) re-scans adj[u_i] from the start. Hmm. So Wikipedia's version might produce non-disjoint paths?! But it's the classical algorithm... Let me think about whether reuse can actually happen given the BFS layering + the Dist[NIL] cutoff.
+
+Hmm, let me construct: Phase-start matching M. BFS layers w.r.t. M. Suppose DFS from free u0 finds path P: u0 → v1 → u1 → v2 → u2 → v3(free), with dist: u0=0, u1=1, u2=2, dstar=2. After augmenting: u0-v1? wait, augmenting flips: now u0 matched to v1, u1 to v2, u2 to v3. Now another free left u0' with dist 0, adjacent to v2 (matched to u1, dist[u1] = 1 = dist[u0']+1 ✓). DFS(u0') → enters u1. u1's adjacency: v1 (matched to u0 now — Dist[u0] = 0 ≠ Dist[u1]+1 = 2, skip), v2 (matched to u1 itself — Dist[u1] ≠ Dist[u1]+1, skip), maybe v4 free? dist[u1] = 1 < dstar = 2 → u1 had no free neighbors at BFS time... but wait, v4 free at BFS time adjacent to u1 would have set Dist[NIL] ≤ 2 = dstar... consistent, but then dstar would be... Dist[NIL] = min over all discoveries; if u1 (dist 1) had free neighbor, Dist[NIL] = 2, dstar = 1, not 2. Contradiction. So u1 has no free neighbors (at phase start; and free set only shrinks). So DFS(u1) explores matched neighbors w with Dist[w] == 2: e.g., v4 matched to u3 (dist 2). Enter u3: u3 has free neighbor v5 (dist[u3] = 2 = dstar ✓) → augment: u0'-v2-u1-v4-u3-v5. This path shares u1, v2 with P? Wait, P was u0-v1-u1-v2-u2-v3. New path: u0'-v2-u1-v4-u3-v5. Shares v2 and u1 with P! Both are valid augmenting paths (each +1 to matching). But NOT vertex-disjoint. So Wikipedia's implementation can find non-disjoint paths within a phase?!
+
+Hmm wait, but hold on: is the new path really valid? After first augmentation: matching = {u0-v1, u1-v2, u2-v3} ∪ rest. New path: u0' (free) -v2 (non-matching? matchR[v2] = u1 ≠ u0' ✓) -u1 (matching ✓) -v4 (non-matching: matchR[v4] = u3 ≠ u1 ✓) -u3 (matching ✓) -v5 (free ✓). Valid augmenting path, length 5 = 2·dstar+1. So yes, Wikipedia's HK can augment along non-disjoint paths within a phase. Interesting! Does this break the O(√V) bound? 
+
+Hmm, I recall there IS a known subtlety here. Let me think about the classical proof... The classical proof that "after each phase, shortest augmenting path length increases by ≥ 2" relies on: the phase finds a MAXIMAL set of vertex-disjoint shortest augmenting paths. If paths share vertices, the argument... Let me think: after the phase above, is there still an augmenting path of length ≤ 5? The two augmentations used u1, v2 twice "virtually"... After both augmentations: matching = {u0-v1, u1-v4, u2-v3, u3-v5, ...} wait let me redo: first augmentation: u0-v1, u1-v2, u2-v3. Second: u0'-v2, u1-v4, u3-v5. Final: u0-v1, u1-v4, u2-v3, u0'-v2, u3-v5. Free left: whoever. Free right: v1? No v1 matched to u0. Hmm. Is there a short augmenting path remaining? Depends on the rest of the graph. The classical bound might still hold via a different argument, or the implementation might be subtly non-classical. 
+
+Honestly, for my purposes: correctness is what matters most; complexity-wise, I'll add the "mark success as INF" refinement to enforce disjointness (this matches the classical algorithm's requirement). With that, the classical O(√V) phases bound holds (this is the textbook behavior). 
+
+Hmm, wait, but actually with "mark success as INF", is the phase's path set still such that no shortest augmenting path remains afterward? The classical lemma: after removing a maximal vertex-disjoint set of shortest augmenting paths and augmenting, the shortest augmenting path length increases. Yes, that's the classical HK. ✓.
+
+Hmm, hmm, but one concern with marking success vertices INF: the DFS from a free left u0 might FAIL even though a shortest path exists through vertices... no — if DFS fails, it's because all branches dead-ended, and dead vertices are marked; classical HK handles this: the phase finds a maximal set; some free left vertices may fail. Fine.
+
+Wait, actually, hmm, there's one more classical subtlety: the DFS must find paths of length EXACTLY 2·dstar+1 (shortest). With the dist checks and ending only at dist == dstar, yes. ✓.
+
+OK so my pure-Python HK fallback design:
+
+```
+nA, nB; adjacency CSR for left: indptrA (nA+1), indicesA (m) [right vertex ids]
+matchL = [-1]*nA; matchR = [-1]*nB
+INF = large (e.g., nA + 10 or a big int)
+matching = 0
+while True:
+    # BFS
+    dist = [INF]*nA
+    queue = []
+    for u in range(nA):
+        if matchL[u] == -1: dist[u] = 0; queue.append(u)
+    dstar = INF
+    head = 0
+    while head < len(queue):
+        u = queue[head]; head += 1
+        du = dist[u]
+        if du >= dstar: continue
+        for i in range(indptrA[u], indptrA[u+1]):
+            v = indicesA[i]
+            w = matchR[v]
+            if w == -1:
+                if du + 1 < dstar_check... hmm
+```
+
+Wait, careful: dstar is the LAYER of left vertices that have free neighbors. When we find free v from u at layer du: dstar = min(dstar, du). Then expansion condition for u: du < dstar (before processing u's neighbors? or after?). Hmm: if u itself has a free neighbor, then u is at layer dstar (if dstar = du) — should we expand u's matched neighbors? No (they'd be layer du+1 > dstar, useless). But we process u's neighbors in one loop; we might set dstar = du mid-loop and then continue expanding matched neighbors — harmless (added to queue, skipped later due to `du >= dstar` check... wait, their dist = du+1 > dstar → skipped ✓).
+
+But the check `if du >= dstar: continue` at pop time: for u popped when dstar already ≤ du → skip. ✓. But note: u might BE a vertex with a free neighbor at layer du == dstar (set by an earlier same-layer pop) — skipping is fine.
+
+Hmm wait, but there's a bug risk: the check happens at pop; but vertices are pushed with dist set at push time. A vertex pushed at layer d+1 before dstar was set to d: popped later, dist = d+1 ≥ dstar = d → skipped ✓.
+
+After BFS: if dstar == INF: break (no augmenting path).
+
+DFS phase:
+```
+ptr = list(indptrA[:nA])  # per-vertex pointer, copy
+# Actually ptr[u] starts at indptrA[u].
+for u0 in free left vertices:
+    if dist[u0] == INF: continue  # hmm, free left always dist 0... but could be marked INF by a failed DFS earlier in this phase? Free left u0 that failed → dist INF → skip. Also free left marked INF from success? A free left that succeeded is matched now, not in free list... we iterate over the ORIGINAL free list; check matchL[u0] == -1 still? After success it's matched. Let me just check dist[u0] != 0 → skip? Hmm, dist[u0] could be 0 (unfailed, untried) or INF (failed this phase). Success → matched, but dist stays 0! So checking dist alone insufficient. Check matchL[u0] == -1 and dist[u0] == 0.
+    # iterative DFS
+    stack = [(u0, ptr[u0])]  # hmm, store as two parallel stacks for speed
+    ...
+```
+
+Let me write the iterative DFS carefully with parallel stacks:
+
+```
+su = [u0]; si = [ptr[u0]]
+found = False
+while su:
+    u = su[-1]; i = si[-1]
+    if i >= indptrA[u+1]:
+        # exhausted: dead
+        dist[u] = INF
+        ptr[u] = i  # save
+        su.pop(); si.pop()
+        continue
+    si[-1] = i+1
+    v = indicesA[i]
+    w = matchR[v]
+    if w == -1:
+        # dist[u] must == dstar (guaranteed); success
+        found = True
+        break
+    if dist[u] < dstar and dist[w] == dist[u] + 1:
+        su.append(w); si.append(ptr[w])
+        # hmm, ptr[w] — but ptr[w] should be loaded... ptr[w] was initialized to indptrA[w]; if w was partially scanned before... can w be on the stack already? If w is on the current path stack, entering again = cycle? dist strictly increases along stack, so w can't already be on stack (dist[w] = dist[u]+1 > all dist on stack... wait, dist values on stack are 0,1,...,strictly increasing? u0 has dist 0? Hmm — u0 free has dist 0; each step +1. So stack dists strictly increase → no repeats ✓. Could w have been scanned earlier and failed? Then dist[w] = INF → check fails ✓. Could w have been scanned earlier and succeeded? Then dist[w] = INF (we mark success INF) → check fails ✓. Could w be partially scanned (on a previous failed... no — partial scan only happens while on stack; when popped, marked INF. When success, marked INF. So any vertex with finite dist has ptr = indptrA[w] (unscanned) — EXCEPT the current stack vertices. And w not on stack (dist argument). So ptr[w] = indptrA[w]. Good — so I don't even need a separate ptr array; si values for fresh entries = indptrA[w]. But the CURRENT vertex's pointer needs saving across... it's in si[-1], updated in place. When we pop u (dead), ptr[u] = i (final) — but since dist[u] = INF, never re-entered, so no need to store ptr[u]. When success: all stack vertices marked INF (used), so their ptrs irrelevant. So NO ptr array needed at all! Each stack frame's pointer lives in si. Fresh entry: si.append(indptrA[w]). 
+```
+
+Wait, but hold on: when we pop u (exhausted, dead), we set dist[u] = INF. Fine. When success at top: augment along stack: for each stack frame j: u_j = su[j], the right vertex chosen = indicesA[si[j]-1] (since si[j] was incremented past it). Wait — for the TOP frame, si[-1] was incremented to i+1 and v = indicesA[i] = indicesA[si[-1]-1] ✓. For lower frames: when we descended from u_j to w, we had incremented si (frame j) past the chosen v: frame j: i_j → si[j] = i_j+1, v_{j+1} = indicesA[i_j] = indicesA[si[j]-1] ✓. So all frames: chosen right = indicesA[si[j]-1]. ✓.
+
+Augment:
+```
+for j in range(len(su)):
+    uj = su[j]; vj = indicesA[si[j]-1]
+    matchL[uj] = vj; matchR[vj] = uj
+    dist[uj] = INF  # mark used
+matching += 1
+```
+
+Wait — but careful: matchR[vj] for the intermediate right vertices: they were matched to the NEXT left on the path (v_{j+1} was matched to u_{j+1}); after augmentation, v_{j+1} matched to u_j. ✓ that's what we set. And the last v (free) matched to u_t ✓. And u0 (free) matched to v1 ✓. 
+
+Also, after success, mark all stack vertices dist = INF (used) — done in the loop above. ✓.
+
+Then continue the phase: next free u0.
+
+Hmm, wait: but there's an issue with marking stack vertices INF: the check `dist[u] < dstar and dist[w] == dist[u]+1` — for u on the current stack, dist[u] is its BFS dist (finite) ✓ (we only mark INF at pop/success). ✓.
+
+And the free-right check: `if w == -1: success` — but we should verify dist[u] == dstar. As argued, if dist[u] < dstar, u has no free neighbors — but that was w.r.t. phase-start free set; free set only shrinks during the phase (augmentations match free right vertices; never unmatch... wait, augmenting along a path: does any right vertex become FREE? The path: u0 free, v1 matched, u1 matched, ..., v_t matched, v_{t+1} free. After: all matched. No right becomes free. ✓. And left vertices: u0 becomes matched; others stay matched. So free right set only shrinks ✓, free left set only shrinks ✓.) So if dist[u] < dstar, no free neighbor exists → the `w == -1` branch implies dist[u] == dstar. I can add an assert-free trust. Actually, to be extra safe, I could add `if dist[u] == dstar:` check — cheap. Hmm, but per the argument it's guaranteed. I'll include the check anyway for safety? It costs one comparison per free-vertex encounter (rare). Eh, I'll include it — no, wait: if I include `if w == -1 and dist[u] == dstar: success` — and if w == -1 but dist[u] < dstar (impossible), we'd skip and continue scanning — safe fallback. OK include.
+
+Hmm, actually there's another subtle issue: `dist[u] < dstar` condition for descending. If dist[u] == dstar and w matched: skip (can't descend to layer dstar+1) ✓. If dist[u] > dstar: u shouldn't be on stack at all (we never push w with dist[w] > dstar: pushed only when dist[w] == dist[u]+1 and dist[u] < dstar → dist[w] ≤ dstar ✓; u0 has dist 0 ≤ dstar ✓).
+
+OK. Now the phase loop: after processing all free left vertices, repeat BFS. Termination: each phase either increases matching (≥1) or BFS finds dstar == INF → break. Since matching ≤ min(nA,nB), phases ≤ matching+1... but that's the weak bound; classical gives O(√V). Fine.
+
+Complexity per phase: BFS O(nA + m); DFS: each left vertex scanned at most once (once on stack, its pointer advances monotonically; when popped → INF; when success → INF) — wait, can a vertex be pushed twice? Pushed only if dist[w] finite and == dist[u]+1; after first push, either popped (INF) or success (INF) — but while ON STACK, could it be pushed again? Distinct stack dists argument: stack dists strictly increase 0,1,2,...; w's dist = top's +1 > all on stack → not on stack ✓. So each left vertex pushed ≤ 1 time per phase → total DFS work per phase O(nA + m). ✓.
+
+Total: O(√V) phases × O(m) = OK in theory. In Python: as discussed, risky for adversarial tests but correct.
+
+Now — the primary scipy path. Let me detail:
+
+```python
+import numpy as np
+from scipy.sparse import csr_matrix
+from scipy.sparse.csgraph import maximum_bipartite_matching
+```
+
+Build: left = A vertices (list of original node ids), right = B. Map: for each edge (u,v) with color[u]=0 (A) and color[v]=1 (B): row = idxA[u], col = idxB[v]. If color[u]=1, color[v]=0: row = idxA[v], col = idxB[u].
+
+rows array, cols array (numpy int32). data = ones. csr_matrix((data, (rows, cols)), shape=(nA, nB)) — this does a COO→CSR conversion (sorting, O(m log m) in C — fast). Or build CSR directly: compute indptr via bincount/cumsum of row-degrees, indices sorted by row — need argsort or counting sort. `csr_matrix((data, (rows, cols)))` is simplest; scipy handles it. For m=4e5, trivial.
+
+Then `perm = maximum_bipartite_matching(csr_graph, perm_type='row')` → array length nA; perm[i] = matched column or -1. Hmm — wait, I want to double-check the semantics of perm_type. From scipy docs (I'm fairly confident):
+
+"maximum_bipartite_matching(graph, perm_type='row'): ... Returns: perm : ndarray — A matching of the rows to the columns... if perm_type is 'row', the result is a minimum... " hmm. Let me think about the doc example that I've seen:
+
+```
+>>> from scipy.sparse.csgraph import maximum_bipartite_matching
+>>> from scipy.sparse import csr_matrix
+>>> graph = csr_matrix([[0, 1, 0, 1], [1, 0, 1, 0], [1, 1, 0, 0]])
+>>> maximum_bipartite_matching(graph, perm_type='row')
+array([0, 2, 1], dtype=int32)  # ??? 
+```
+
+Hmm I really don't remember. Let me reason about what makes sense: the function name "maximum_bipartite_matching" with "perm_type" — I believe it returns a "maximum cardinality matching represented as a permutation-like array". The docs say something like: "perm : array — An array of length equal to the number of rows (if perm_type='row') or columns (if perm_type='column'), where perm[i] gives the index of the matched vertex in the other partition, or -1 if unmatched." 
+
+Hmm, actually now I genuinely recall the docstring: 
+
+```
+Returns
+-------
+perm : array like, dtype=int32
+    An array of length equal to the number of rows or columns...
+```
+
+Hmm. Alternatively I recall: "If perm_type='row', then perm[i] is the column matched to row i" — hmm, or is it "perm[i] is the row matched to column i"?? The safest: compute both interpretations? No — better: verify consistency: a valid matching has each matched value distinct and ≥ -1... Both interpretations would satisfy that. Hmm.
+
+OK let me think harder. I'm quite sure about this from scipy docs:
+
+```
+scipy.sparse.csgraph.maximum_bipartite_matching(graph, perm_type='row')
+
+Compute a maximum bipartite matching of a graph.
+
+...
+Parameters
+----------
+graph : sparse matrix
+    Input sparse in CSR format whose rows represent one partition of a graph and whose columns represent the other.
+perm_type : str, {'row', 'column'}
+    Which side to return the matching in terms of: If 'row', the result represents the row index that each column is matched to... 
+```
+
+Argh. OK, alternative plan: sidestep the ambiguity — I can determine the semantics at runtime! Compute perm with perm_type='row' (length nA). Then check: the number of non-negative entries = μ. For the König construction, I need matchL (left→right) and matchR (right→left). If perm is "for each row i, matched column perm[i]" → matchL = perm. If perm is actually "for each column j, matched row perm[j]" — but then its length would be nB, not nA! So: if len(perm) == nA, it's row-indexed (each row → column); if len(perm) == nB, column-indexed. But wait — if nA == nB, ambiguous by length. Hmm. But actually, if perm_type='row' and the doc says "the result represents the matching in terms of rows", then len = nA and perm[i] = column matched to row i. I'm now fairly confident that's it: perm_type selects which partition the output array is indexed by. So perm_type='row' → output length = #rows, perm[i] = matched column for row i (or -1). 
+
+Hmm, wait, actually, hmm. Let me reconsider — I have a vague memory of the docstring saying: "perm : ndarray — Array of length equal to the number of columns (rows) if perm_type is 'row' ('column')..." — i.e., possibly INVERTED?! Ugh.
+
+OK, runtime disambiguation plan: get perm = maximum_bipartite_matching(G, perm_type='row'). Let L = len(perm). Case 1: L == nA and L != nB → perm is indexed by rows: matchL[i] = perm[i]. Case 2: L == nB and L != nA → perm indexed by columns: matchR[j] = perm[j]. Case 3: nA == nB → ambiguous by length. Then use validity: if perm is row-indexed (matchL), then for the matching to be valid, each entry ∈ [-1, nB), all non-negative entries distinct, AND (crucially) for each i with perm[i] = j ≥ 0, the edge (i, j) must EXIST in the graph. If column-indexed, each perm[j] ∈ [-1, nA) and edges (perm[j], j) must exist. Both could be valid if the graph is complete-ish... For complete bipartite K_{n,n}, both interpretations give valid matchings — but either way, ANY valid matching works for König! So ambiguity is harmless when both are valid. The danger is only when one interpretation is INVALID (entries out of range or edges missing) — then we use the other. So: check validity of interpretation 1 (row-indexed): all(0 ≤ perm[i] < nB or perm[i] == -1) and edges exist and distinct. If valid → use as matchL. Else check interpretation 2 → use as matchR. If both valid → pick either (both are valid matchings, König works with any maximum matching... wait — is perm guaranteed MAXIMUM in either interpretation? The function computes a maximum matching; whichever way it's represented, the represented matching is maximum. If both interpretations happen to be valid matchings, interpretation 1 might not be maximum! E.g., complete bipartite: perm = [0,1,2,...] — as row-indexed it's a perfect matching (maximum ✓); as column-indexed also perfect ✓. Could there be a case where interpretation 1 is valid but NOT maximum while interpretation 2 is the real one? If the function returns a maximum matching represented one way, and I misinterpret it as the other way and it happens to be valid — it might be non-maximum → wrong answer! Hmm. E.g., nA = nB = 3, edges: (0,0),(1,1),(2,2) only (a perfect matching, μ=3). Function (row-indexed) returns [0,1,2]. Column-interpretation: matchR[j]=perm[j] → also [0,1,2] → same matching, also perfect ✓. Both max. Hmm, when could misinterpretation yield a valid but smaller matching? perm (row-indexed, maximum): say nA=nB=3, matching = {(0,1),(1,2)} → perm=[1,2,-1]. Column-interp: matchR[1]=0, matchR[2]=1, i.e., matching {(0,1),(1,2)} — same set! Interesting — if the matching is a set of pairs, row-indexed and column-indexed arrays represent the same set when read the other way?? Row-indexed perm[i]=j means pair (i,j). Column-indexed perm[j]=i means pair (i,j). If I take a row-indexed array and read it as column-indexed, I get pairs (perm[j], j) for each j with perm[j] ≥ 0 — that's the "transpose" matching: pair (i,j) in original becomes... original pairs: {(i, perm[i])}. Misread as column-indexed: pairs {(perm[j], j) : perm[j] ≥ 0} = {(i,j) : ∃j, perm[j]=i... } hmm, this is the matching "reflected across the diagonal" — pairs (perm[j], j). Original pairs (i, perm[i]). The misread matching = {(perm[j], j)} — for the diagonal example [0,1,2]: misread = {(0,0),(1,1),(2,2)} = same. For perm=[1,2,-1] (pairs (0,1),(1,2)): misread = {(1,0),(2,1)} = pairs (1,0),(2,1) — requires edges (1,0),(2,1) to exist. If the graph has those edges (e.g., complete bipartite), misread is a valid matching of the same size (2) — still maximum? In complete K3,3, μ=3, but perm=[1,2,-1] wouldn't be the returned maximum (function returns maximum, size 3, e.g., [0,1,2]). Hmm, so if the function returns a MAXIMUM matching as row-indexed, and I misread as column-indexed: the misread matching has the same NUMBER of pairs (count of non-negative entries), and if all those pairs exist as edges and are distinct... wait, are they distinct? Pairs (perm[j], j) for distinct j — distinct because j differs ✓. Edges exist? Not guaranteed. If they exist, the misread matching has size = μ (same count!) — so it's ALSO maximum! Oh nice — the count of non-negative entries is the same either way, so if the misread interpretation is VALID (all edges exist), it's a maximum matching too. So: disambiguation by validity is SAFE: whichever interpretation is valid gives a maximum matching (same cardinality). If both valid, either is fine. 
+
+So the plan: perm = f(G, 'row'); if perm is valid as row-indexed (matchL) → use; elif valid as column-indexed (matchR) → use; else — shouldn't happen. Validity check: entries in range and pairs exist in edge set and... distinctness: row-indexed: pairs (i, perm[i]) distinct automatically (i distinct) ✓; in-range: -1 ≤ perm[i] < nB; edge existence: (i, perm[i]) ∈ E. Checking edge existence for up to nA pairs: use a set of (i,j) or a bitmap — with numpy: build a set... For speed

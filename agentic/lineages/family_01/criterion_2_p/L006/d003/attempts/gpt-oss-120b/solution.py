@@ -1,5 +1,5 @@
 import sys
-from collections import deque
+sys.setrecursionlimit(1 << 25)
 
 def solve() -> None:
     data = sys.stdin.read().strip().split()
@@ -14,38 +14,43 @@ def solve() -> None:
         adj[u].append(v)
         adj[v].append(u)
 
-    color = [-1] * (n + 1)          # 0 or 1
-    answer = [0] * (n + 1)
+    color = [0] * (n + 1)          # final answer 1/2, 0 = unassigned
+    parity = [-1] * (n + 1)        # temporary 0/1 during BFS
+    from collections import deque
 
     for start in range(1, n + 1):
-        if color[start] != -1:
+        if parity[start] != -1:
             continue
         # BFS this component
         q = deque([start])
-        color[start] = 0
+        parity[start] = 0
         comp = [start]
         ok = True
         while q:
             u = q.popleft()
+            pu = parity[u]
             for v in adj[u]:
-                if color[v] == -1:
-                    color[v] = color[u] ^ 1
+                if parity[v] == -1:
+                    parity[v] = pu ^ 1
                     q.append(v)
                     comp.append(v)
-                elif color[v] == color[u]:
+                elif parity[v] == pu:
                     print("NO")
                     return
-        # decide orientation: make smallest index vertex have value 1 (color 0)
-        min_node = min(comp)
-        if color[min_node] == 1:          # currently would be value 2, flip whole component
+        # decide orientation: smallest vertex gets colour 1
+        vmin = min(comp)
+        if parity[vmin] == 0:
+            # parity 0 -> 1, parity 1 -> 2
             for v in comp:
-                color[v] ^= 1
-        # set final values
-        for v in comp:
-            answer[v] = 1 if color[v] == 0 else 2
+                color[v] = 1 if parity[v] == 0 else 2
+        else:
+            # swap
+            for v in comp:
+                color[v] = 1 if parity[v] == 1 else 2
 
+    # all vertices assigned
     print("YES")
-    print(' '.join(str(answer[i]) for i in range(1, n + 1)))
+    print(' '.join(str(color[i]) for i in range(1, n + 1)))
 
 if __name__ == "__main__":
     solve()

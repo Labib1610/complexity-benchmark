@@ -1,0 +1,16 @@
+import sys
+
+def solve() -> None:
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    n = int(data[0])
+    C = int(data[1])
+    weights = map(int, data[2:2 + n])
+    for idx, w in enumerate(weights, start=1):
+        if w > C:
+            sys.stdout.write(str(idx))
+            return
+
+if __name__ == "__main__":
+    solve()

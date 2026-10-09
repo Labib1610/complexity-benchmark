@@ -1,0 +1,219 @@
+**Solution Explanation**
+
+For a set `S ⊆ {1 … n}` let  
+
+* `|S|` – number of vertices in `S`  
+* `E(S)` – set of tree edges whose both ends belong to `S`
+
+For a 0/1 vector `X` we have  
+
+```
+Xᵀ A X = Σ_{(u,v) edge} 2·X_u·X_v = 2·|E(S)|
+Xᵀ X   = Σ_i X_i = |S|
+```
+
+The required equation  
+
+```
+Xᵀ A X = 2·Xᵀ X – 2
+```
+
+becomes  
+
+```
+2·|E(S)| = 2·|S| – 2   →   |E(S)| = |S| – 1                (1)
+```
+
+In a tree any vertex set induces at most `|S|-1` edges, and equality holds
+**iff** the induced subgraph is *connected* (a tree itself).
+Therefore condition (1) is equivalent to  
+
+> **`S` must be a non‑empty connected set of vertices.**
+
+The mandatory vertices `c₁ … c_t` have to belong to `S`.
+Consequently we have to choose a *connected* vertex set containing all
+mandatory vertices and minimise the total weight of edges inside it,
+i.e. the weight of the induced tree.
+
+For a tree the cheapest connected superset of given vertices is exactly
+the **Steiner tree** consisting of all edges that lie on a path between
+any two mandatory vertices.  
+An edge is part of this tree **iff** after removing it the tree is split
+into two components, each containing at least one mandatory vertex.
+
+So the answer is the sum of weights of all edges whose removal separates
+the mandatory vertices.
+
+--------------------------------------------------------------------
+
+#### Algorithm
+```
+read n, m (= n-1), t
+read list mandatory[1…t]
+build adjacency list with (neighbor, weight)
+
+root the tree at 1 (or any vertex)
+store parent[ ], weight_to_parent[ ], order of DFS (preorder)
+
+cnt[v] = number of mandatory vertices in the subtree of v
+initially 0, then for each mandatory vertex cnt[vertex] = 1
+
+process vertices in reverse DFS order (postorder):
+    for v (excluding root):
+        p = parent[v]
+        cnt[p] += cnt[v]
+        # edge (p, v) is needed iff 0 < cnt[v] < t
+        if 0 < cnt[v] < t:
+            answer += weight_to_parent[v]
+
+output answer
+```
+
+--------------------------------------------------------------------
+
+#### Correctness Proof  
+
+We prove that the algorithm outputs the minimum possible total penalty.
+
+---
+
+**Lemma 1**  
+For any vertex set `S` in a tree, `|E(S)| = |S|‑1`  ⇔  `S` is connected
+(and non‑empty).
+
+*Proof.*  
+If `S` is connected, the induced subgraph is a tree, thus has exactly
+`|S|-1` edges.  
+Conversely, a forest with `k` connected components on `|S|` vertices has
+at most `|S|-k` edges; equality `|S|-1` forces `k=1`, i.e. connectivity. ∎
+
+
+
+**Lemma 2**  
+A set `S` satisfies the original algebraic condition  
+`Xᵀ A X = 2 Xᵀ X – 2`  ⇔  `S` is a non‑empty connected set of vertices.
+
+*Proof.*  
+Rewrite the condition as in (1): `|E(S)| = |S|-1`.  
+Apply Lemma&nbsp;1. ∎
+
+
+
+**Lemma 3**  
+Let `T*` be the set of edges whose removal separates the mandatory
+vertices (i.e. both sides contain at least one mandatory vertex).  
+Then the vertex set `S*` consisting of all vertices incident to `T*`
+is the unique smallest connected superset of the mandatory vertices.
+
+*Proof.*  
+Every path between two mandatory vertices must contain all edges on that
+path; all those edges belong to `T*`. Hence `S*` (the union of those
+paths) is connected and contains all mandatory vertices.  
+If a connected superset `S` omitted some edge `e∈T*`, the two sides of
+`e` would be disconnected inside `S`, contradicting connectivity.
+Thus any connected superset must contain all edges of `T*`, so `S*` is
+minimal. ∎
+
+
+
+**Lemma 4**  
+The algorithm adds exactly the weights of the edges in `T*`.
+
+*Proof.*  
+During the post‑order traversal `cnt[v]` equals the number of mandatory
+vertices in the subtree of `v`.  
+For the edge `(parent[v], v)` the two components after removal are
+the subtree of `v` and the rest of the tree.  
+Both contain a mandatory vertex **iff** `0 < cnt[v] < t`.  
+The algorithm adds the weight precisely in this case, therefore sums
+the weights of all edges in `T*` and none else. ∎
+
+
+
+**Theorem**  
+The algorithm outputs the minimum possible total maintenance penalty.
+
+*Proof.*  
+By Lemma&nbsp;2 any feasible configuration corresponds to a connected
+vertex set `S` containing all mandatory vertices.
+By Lemma&nbsp;3 the induced edge set of any such `S` must contain `T*`,
+hence its total weight is at least `weight(T*)`.
+The algorithm constructs exactly `T*` (Lemma&nbsp;4), therefore achieves
+this lower bound. Consequently the produced weight is optimal. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### Complexity Analysis  
+
+* Building adjacency list: `O(n)`  
+* DFS to obtain order and parents: `O(n)`  
+* Post‑order accumulation: `O(n)`  
+
+Memory usage: adjacency list (`2·(n-1)` edges) + a few integer arrays,
+`O(n)`.
+
+Both limits satisfy the constraints (`n ≤ 2·10⁵`).
+
+--------------------------------------------------------------------
+
+#### Reference Implementation  (Python 3)
+
+```python
+import sys
+sys.setrecursionlimit(1 << 25)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))          # = n-1
+    t = int(next(it))
+    mandatory = [int(next(it)) - 1 for _ in range(t)]
+
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        w = int(next(it))
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+
+    parent = [-1] * n
+    pw = [0] * n          # weight to parent
+    order = []
+    stack = [0]
+    parent[0] = 0
+    while stack:
+        v = stack.pop()
+        order.append(v)
+        for to, w in adj[v]:
+            if parent[to] == -1:
+                parent[to] = v
+                pw[to] = w
+                stack.append(to)
+
+    cnt = [0] * n
+    for v in mandatory:
+        cnt[v] = 1
+
+    ans = 0
+    for v in reversed(order):
+        if v == 0:
+            continue
+        p = parent[v]
+        if 0 < cnt[v] < t:
+            ans += pw[v]
+        cnt[p] += cnt[v]
+
+    print(ans)
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above and
+conforms to the required input‑output format.

@@ -1,0 +1,1201 @@
+We can model this as a bipartite graph where left ports and right ports are the two sides, and each cable is an edge.  
+The problem asks for an edge coloring with exactly Δ colors, where Δ is the maximum degree.  
+For bipartite graphs, this is always possible, and we can find it via a standard algorithm: repeatedly find a maximal matching, assign a color, remove matched edges, and repeat.  
+However, with up to 400,000 edges, we need an efficient implementation.  
+A known efficient method is to use the fact that we can color edges by repeatedly finding augmenting paths to recolor edges when needed.  
+We can implement a simple greedy with recoloring:  
+- For each edge (u, v), try to assign the smallest color not used by any edge incident to u or v.  
+- If no free color exists, find a color c1 used at u but not at v, and c2 used at v but not at u.  
+- Then find the alternating path starting from v with color c1, and from u with color c2, and swap colors along the path.  
+This is the standard algorithm for edge coloring bipartite graphs in O(m Δ), but Δ can be large.  
+However, we can use a more efficient approach: since the graph is bipartite, we can color edges by repeatedly finding a perfect matching in a subgraph of maximum degree Δ.  
+But simpler: we can use the fact that Δ ≤ 100000, but m ≤ 400000, so O(m Δ)) might be too slow.  
+We can implement the algorithm using adjacency lists and color arrays, and use the alternating path method with careful data structures.  
+The standard algorithm for edge coloring bipartite graphs in O(m log Δ)) exists, but for this problem, a simpler approach may pass if implemented well.  
+Let’s implement the greedy with recoloring, but we need to ensure it runs within time.  
+We can store for each vertex the set of colors used on its incident edges.  
+When assigning a color to edge (u,v), we look for the smallest color not in used[u] and not in used[v].  
+If none, we pick a color c1 not in used[v] but in used[u], and c2 not in used[u] but in used[v].  
+Then we find the alternating path:  
+- Start at v, look for an edge of color c1 incident to v.  
+- If found, go to the other endpoint, then look for an edge of color c2, etc.  
+- Continue until we reach a vertex that does not have the next color.  
+- Then we swap colors along the path.  
+We need to be careful with the path search.  
+We can implement it recursively or iteratively.  
+Since the graph is bipartite, the path will alternate between left and right.  
+We can store for each vertex a dictionary mapping color → neighbor (the other endpoint of the edge of that color).  
+When we recolor, we update these dictionaries.  
+Let’s implement.  
+
+We’ll read input, build adjacency lists, compute Δ.  
+Then for each edge in input order, we assign a color using the algorithm.  
+We’ll store the color for each edge index.  
+
+Implementation details:  
+- Use arrays: left_adj[u] = list of (v, edge_id), right_adj[v] = list of (u, edge_id).  
+- For each vertex, we maintain a dict color_to_neighbor: color → (other_vertex, edge_id).  
+- Also maintain a set of used colors for each vertex (or we can use a boolean array of size Δ+1 per vertex, but that would be too much memory: 200000 * 100000 impossible.  
+So we use sets or dicts.  
+- For finding smallest free color, we can maintain a pointer per vertex, but since colors are assigned incrementally, we can just loop from 1 upward until we find a color not in used[u] and not in used[v].  
+But that could be O(Δ) per edge, leading to O(mΔ) worst-case.  
+However, in practice, the smallest free color is often small.  
+But to be safe, we can use a more efficient method: for each vertex, keep a set of used colors, and to find the smallest free color, we can iterate from 1 upward, but we can also maintain a "next candidate" per vertex, but it may need to be reset when colors are freed.  
+Given constraints, maybe the simple loop is acceptable because Δ ≤ 100000 and m ≤ 400000, worst-case O(mΔ)) = 4e10 too big.  
+We need a better approach.  
+
+We can use the fact that the maximum degree Δ is at most 100000, but m is 400000, so average degree is small.  
+But worst-case could be a complete bipartite graph with 200000 vertices? No, nL+nR ≤ 200000, m ≤ 400000, so average degree ≤ 2.  
+So the graph is sparse.  
+Thus, the simple loop for smallest free color will be fast because each vertex has small degree.  
+The worst-case for the loop is when a vertex has high degree, but then the number of such vertices is small.  
+So we can use the simple loop.  
+
+For the alternating path, we need to find the path efficiently.  
+We can implement it iteratively:  
+- Start at vertex v (right side), color c1.  
+- While True:  
+   - If color c1 not in used[current_vertex], break.  
+   - Find neighbor via color_to_neighbor[current_vertex][c1].  
+   - Move to that neighbor, swap colors (c1, c2) = (c2, c1).  
+- Then we have the path vertices list.  
+- Then we recolor edges along the path: for each edge in path, change its color from old to new.  
+We need to update the color_to_neighbor dicts for both endpoints.  
+
+Let’s implement carefully.  
+
+We’ll store for each edge its current color.  
+When we assign a color to a new edge, we add it to the dicts.  
+
+Pseudo:  
+```
+def assign_color(u, v, edge_id):
+    # find smallest free color
+    c = 1
+    while c in used[u] or c in used[v]:
+        c += 1
+    # if c <= Δ, assign directly
+    if c <= Δ:
+        set_color(u, v, edge_id, c)
+        return
+    # else need recoloring
+    # pick c1 not in used[v] but in used[u]
+    c1 = 1
+    while c1 in used[v] or c1 not in used[u]:
+        c1 += 1
+    # pick c2 not in used[u] but in used[v]
+    c2 = 1
+    while c2 in used[u] or c2 not in used[v]:
+        c2 += 1
+    # find alternating path starting at v with color c1
+    path_edges = []
+    path_colors = []  # old colors
+    cur = v
+    col = c1
+    while True:
+        if col not in used[cur]:
+            break
+        # find neighbor
+        nxt, eid = color_to_neighbor[cur][col]
+        path_edges.append(eid)
+        path_colors.append(col)
+        # move to nxt, swap colors
+        cur = nxt
+        col = c2 if col == c1 else c1
+    # Now we have path from v to some vertex where col is free.
+    # We need to recolor edges along path: for i, eid in enumerate(path_edges):
+    #   old = path_colors[i]
+    #   new = c2 if old == c1 else c1
+    #   update color of eid to new
+    # Then assign c1 to the new edge (u,v)
+    set_color(u, v, edge_id, c1)
+```
+
+But we must be careful: the path starts at v, and we need to ensure that the first edge has color c1.  
+Also, we need to update the color_to_neighbor dicts when recoloring.  
+We’ll implement a function `recolor_edge(eid, new_color)` that updates the dicts for both endpoints.  
+
+Also, when we assign a new edge, we need to add to used sets and color_to_neighbor.  
+
+Let’s test with the example.  
+
+We’ll also need to output the colors in input order.  
+
+Edge cases: m=0, then Δ=0, output YES and empty line? The problem says print YES, then a line with m integers. If m=0, we print YES and an empty line.  
+
+Let’s implement.  
+
+We’ll use 1-indexed vertices.  
+
+We’ll store left_adj and right_adj as lists of (neighbor, edge_id).  
+We’ll store used_left[u] as set of colors, used_right[v] as set.  
+We’ll store color_to_left[u] as dict color→(neighbor, edge_id), similarly for right.  
+
+When we set a color for an edge (u,v, eid, c):  
+- Remove old color from used sets and dicts if edge already had a color.  
+- Add c to used_left[u], used_right[v].  
+- Set color_to_left[u][c] = (v, eid), color_to_right[v][c] = (u, eid).  
+- Store color[eid] = c.  
+
+We need to know old color for an edge when recoloring. We can store color array.  
+
+Implementation of recoloring:  
+```
+def recolor_edge(eid, new_c):
+    old_c = color[eid]
+    if old_c == new_c: return
+    u = left_vertex[eid]  # we can store endpoints arrays
+    v = right_vertex[eid]
+    # remove old
+    del color_to_left[u][old_c]
+    del color_to_right[v][old_c]
+    used_left[u].remove(old_c)
+    used_right[v].remove(old_c)
+    # add new
+    color_to_left[u][new_c] = (v, eid)
+    color_to_right[v][new_c] = (u, eid)
+    used_left[u].add(new_c)
+    used_right[v].add(new_c)
+    color[eid] = new_c
+```
+
+We need to store left_vertex and right_vertex arrays for each edge.  
+
+Now the main loop:  
+```
+for eid in range(m):
+    u = left_vertex[eid]
+    v = right_vertex[eid]
+    # find smallest free color
+    c = 1
+    while c in used_left[u] or c in used_right[v]:
+        c += 1
+    if c <= Δ:
+        set_color(eid, c)
+    else:
+        # need recoloring
+        # find c1 not in used_right[v] but in used_left[u]
+        c1 = 1
+        while c1 in used_right[v] or c1 not in used_left[u]:
+            c1 += 1
+        # find c2 not in used_left[u] but in used_right[v]
+        c2 = 1
+        while c2 in used_left[u] or c2 not in used_right[v]:
+            c2 += 1
+        # find alternating path starting at v with color c1
+        path_edges = []
+        path_colors = []
+        cur = v
+        col = c1
+        while True:
+            if col not in used_right[cur] if cur is right else used_left[cur]:
+                break
+            # find neighbor
+            if cur <= nL:  # left
+                nxt, eid2 = color_to_left[cur][col]
+            else:
+                nxt, eid2 = color_to_right[cur][col]
+            path_edges.append(eid2)
+            path_colors.append(col)
+            # move
+            cur = nxt
+            col = c2 if col == c1 else c1
+        # recolor path
+        for i, eid2 in enumerate(path_edges):
+            old = path_colors[i]
+            new = c2 if old == c1 else c1
+            recolor_edge(eid2, new)
+        # assign c1 to new edge
+        set_color(eid, c1)
+```
+
+But we need to be careful: the path may start at v (right side), and we check if col in used for that side.  
+We also need to know which side a vertex is: left if vertex <= nL else right.  
+
+Also, when we find c1 and c2, we must ensure they exist. Since Δ is the maximum degree, for any vertex, there are at most Δ colors used. For a vertex with degree < Δ, there is a free color. In the case where no free color for the new edge, both u and v have degree Δ (since if either had degree < Δ, there would be a free color). So used_left[u] has size Δ, used_right[v] has size Δ.  
+Thus, there exists a color not in used_right[v] (since used_right[v] has size Δ, and colors are 1..Δ, so exactly one missing color). Similarly, there exists a color not in used_left[u].  
+So c1 exists: a color in used_left[u] but not in used_right[v]. Since both sets have size Δ, and the total colors are Δ, the missing color from used_right[v] is not in used_left[u]? Wait: used_left[u] has Δ distinct colors from 1..Δ, so it must be all colors. Similarly used_right[v] has all colors. So there is no color missing from either. That means if both have degree Δ, there is no free color, and also no color missing from either. But then c1 would not exist. However, the algorithm says we can find c1 not in used[v] but in used[u]. But if both have all colors, that’s impossible. So this case cannot happen? Let’s think: If both u and v have degree Δ, then all colors are used at both. Then there is no free color for the new edge. But the theorem says we can still color with Δ colors by recoloring. The standard algorithm picks c1 not in used[v] but in used[u]. But if both have all colors, that’s impossible. So this situation cannot occur when we process edges in a certain order? Actually, when adding an edge, if both endpoints have degree Δ, then the new edge would make degree Δ+1, which is impossible because Δ is the maximum degree of the original graph. But we are adding edges one by one, and the graph we are coloring is the full graph. So when we process an edge, the degrees of u and v in the already-colored subgraph are at most Δ-1? Wait, the maximum degree of the full graph is Δ. When we process an edge, we have already colored some edges. The degree of u in the colored subgraph is at most Δ-1 if the new edge is incident to u, because the full degree of u is at most Δ, and we haven’t colored the new edge yet. So used_left[u] has size at most Δ-1. Similarly used_right[v] has size at most Δ-1. So there is at least one free color at each. So the case where no free color exists cannot happen if we process edges in any order? Actually, if we process edges in input order, when we get to an edge, the degrees of its endpoints in the already-colored subgraph are at most Δ-1, because the full degree includes this edge. So there is always a free color. So we never need recoloring! Wait, is that true? Let’s check: Suppose Δ=2, and we have edges: (1,1), (1,2), (2,1). Process first edge: assign color1. Second edge (1,2): u=1 has degree1, v=2 degree0, free color2. Third edge(2,1): u=2 degree0, v=1 degree1 (color1 used), free color2. So no conflict. In general, because we process edges one by one, the degree of each endpoint in the already-colored subgraph is at most its full degree minus 1 (since the current edge is not yet colored). So there is always a free color. Thus, we never need recoloring! That means the simple greedy always works? Let’s test with a more complex case: Δ=2, edges: (1,1), (1,2), (2,1), (2,2). Process: (1,1): color1. (1,2): u=1 has color1, v=2 free, color2. (2,1): u=2 free, v=1 has color1, color2. (2,2): u=2 has color2, v=2 has color2, so no free color? Wait, u=2 has color2 (from edge3), v=2 has color2 (from edge2). So both have color2 used, and color1 is free at both? Actually used_left[2] = {2}, used_right[2] = {2}, so color1 is free at both. So we can assign color1. So it works.  
+
+What about a case where the free colors at u and v are disjoint? For example, u has used {1}, v has used {2}, then free at u is {2,3...}, free at v is {1,3...}, so color3 is free at both. So there is always a common free color because the total number of colors is Δ, and the used sets at u and v have sizes at most Δ-1 each. The union of used sets has size at most 2(Δ-1), which could be > Δ, so there might be no common free color? Example: Δ=3, u used {1,2}, v used {1,2}? Then free at both is {3}, common. If u used {1,2}, v used {2,3}, then free at u is {3}, free at v is {1}, no common. But can this happen? u has degree2, v has degree2, Δ=3, and the current edge is the third incident to each? Actually, if u has degree2 in colored subgraph, its full degree is at least3 (since current edge makes it 3). Similarly v full degree at least3. So Δ≥3. But the used sets are subsets of {1,2,3}. If u used {1,2}, v used {2,3}, then no common free color. But is this possible given the coloring algorithm? Let’s try to construct: Δ=3, edges: (1,1), (1,2), (2,1), (2,2), (1,3), (3,1), (2,3), (3,2), (3,3)? That’s a 3x3 complete bipartite graph, Δ=3. Process in some order:  
+1: (1,1) color1  
+2: (1,2) u=1 used{1}, v=2 used{}, free color2  
+3: (2,1) u=2 used{}, v=1 used{1}, free color2  
+4: (2,2) u=2 used{2}, v=2 used{2}, free color1  
+5: (1,3) u=1 used{1,2}, v=3 used{}, free color3  
+6: (3,1) u=3 used{}, v=1 used{1,2}, free color3  
+7: (2,3) u=2 used{2,1}, v=3 used{3}, free? used_left[2]={1,2}, used_right[3]={3}, free at u: {3}, free at v: {1,2}, common {3}? Actually 3 is free at u, and at v? v used{3}, so 3 not free at v. So free at u: {3}, free at v: {1,2}, no common. So we need recoloring. So the simple greedy without recoloring fails.  
+
+Thus, we need the recoloring algorithm.  
+
+But note: when we process edge (2,3), u=2 has degree2 (edges 3 and4), v=3 has degree1 (edge5). So used_left[2]={1,2}, used_right[3]={3}. Free at u: {3}, free at v: {1,2}. No common. So we need recoloring.  
+
+So we implement the alternating path method.  
+
+Let’s test with this example manually to ensure algorithm works.  
+
+We’ll implement and test.  
+
+Now, complexity: The alternating path can be long, but total recoloring over all edges is O(mΔ) in worst-case, but with sparse graph it should be fine.  
+
+We’ll implement carefully.  
+
+One more detail: when we find c1 and c2, we need to ensure they exist. In the case where no common free color, we have used_left[u] and used_right[v] each of size at most Δ-1. The union may cover all colors. We need c1 in used_left[u] but not in used_right[v], and c2 in used_right[v] but not in used_left[u]. Since the union covers all colors, and used_left[u] and used_right[v] are subsets, there must be at least one color in used_left[u] not in used_right[v] (otherwise used_left[u] ⊆ used_right[v], but then used_left[u] size ≤ used_right[v] size, and if they are equal, then used_left[u]=used_right[v], then union size = size of used_left[u] ≤ Δ-1, so there would be a common free color. So if no common free color, the union size = Δ, so used_left[u] ∪ used_right[v] = all colors. Then used_left[u] \ used_right[v] is nonempty, and used_right[v] \ used_left[u] is nonempty. So c1,c2 exist.  
+
+Now, the alternating path: We start at v (right side), with color c1. We need to find an edge of color c1 incident to v. Since c1 is in used_left[u] but not in used_right[v], it is not used at v, so the path will immediately break? Wait, we start at v, and we check if c1 in used[v]. Since c1 not in used[v], the loop breaks immediately, path is empty. Then we assign c1 to the new edge. But that would mean we assign a color that is not used at v, but is used at u. That’s fine because the new edge will use c1 at both u and v, so v will now have c1 used. But we also need to ensure that u doesn’t have c1 used already? Actually c1 is in used_left[u], so u already has an edge of color c1. So we cannot assign c1 to the new edge because u would have two edges of color c1. So we need to recolor the existing edge at u of color c1 to some other color. That’s what the alternating path does: we start at v, but since c1 not used at v, we need to start at u? Let’s recall the standard algorithm:  
+- Find a color α missing at v but present at u.  
+- Find a color β missing at u but present at v.  
+- Start at v, follow the alternating path of colors α, β, α, β,... until we reach a vertex missing the next color.  
+- Swap colors along the path.  
+- Then assign α to the new edge.  
+
+But if α is missing at v, then the path starting at v with color α immediately stops because α is missing at v. That would mean no recoloring needed, but we know α is present at u, so we cannot assign α to the new edge without conflict at u. So something is off.  
+
+Let’s recall correctly: The standard algorithm for edge coloring a bipartite graph with Δ colors:  
+When adding an edge (u,v), if there is a free color at both, assign it. Otherwise, let α be a color missing at v but present at u, and β be a color missing at u but present at v. Then consider the maximal alternating path starting at v with color α (i.e., the path that alternates α, β, α, β,...). This path cannot end at u, because if it did, then α would be missing at v? Actually, we need to think.  
+
+Let’s derive:  
+We have u has color α used, v does not have α.  
+v has color β used, u does not have β.  
+We want to free color α at u so we can assign α to (u,v).  
+Consider the path starting at v with color α. Since v does not have α, the path has length 0? That can’t be right.  
+
+Maybe we start at u with color β? Let’s check standard references.  
+
+I recall the algorithm:  
+- Let c1 be a color missing at u, c2 be a color missing at v.  
+- If c1 == c2, assign c1.  
+- Else, find the maximal alternating path starting at u with color c2 (or something).  
+Actually, let’s think from scratch.  
+
+We have an edge (u,v) to color. We need to find a color that is free at both u and v. If none, we need to recolor some edges.  
+
+Let S_u = used colors at u, S_v = used colors at v.  
+We need a color c not in S_u ∪ S_v. If none, then S_u ∪ S_v = all colors.  
+Then there exists a color a in S_u \ S_v, and a color b in S_v \ S_u.  
+We want to make a free at u by recoloring the edge of color a at u to color b? But b is used at v, so we can’t just recolor to b because v would have two b’s. So we need an alternating path.  
+
+Consider the edge e_a = (u, w) of color a. We want to recolor e_a to some color that is free at w and not used at u? Actually, we want to free color a at u. So we can recolor e_a to a color that is free at w and not used at u (so that u doesn’t get a duplicate). But we also need to ensure the new color is not used at w. So we need to find a color free at w. If we recolor e_a to color b, then w must not have b, and u must not have b. But u does not have b (since b in S_v \ S_u), so that’s fine. But w might have b. If w has b, then we need to recolor that edge, etc. This forms an alternating path.  
+
+So the path starts at u, with the edge of color a, and we try to recolor it to b. If the other endpoint w has b, we then recolor that edge to a, etc. This is the standard alternating path.  
+
+So the algorithm:  
+- Let a be a color in S_u \ S_v.  
+- Let b be a color in S_v \ S_u.  
+- Start at u, with color a? Actually, we want to recolor the edge of color a at u to b. So we look at the edge (u, w) of color a. We will recolor it to b. But w may have b. If so, we then look at the edge (w, x) of color b, and recolor it to a, etc. So the path alternates: start at u, edge color a, then at w edge color b, then at x edge color a, etc.  
+- Continue until we reach a vertex that does not have the next color.  
+- Then swap colors along the path.  
+- Finally, assign color a to the new edge (u,v).  
+
+Let’s test with our example:  
+Δ=3, edges processed up to (2,3) where u=2, v=3.  
+S_u = {1,2}, S_v = {3}.  
+S_u \ S_v = {1,2}, S_v \ S_u = {3}.  
+Pick a=1, b=3.  
+Start at u=2, edge of color a=1 at u: that’s edge (2,1) (edge3). Its other endpoint w=1.  
+We want to recolor that edge to b=3. But w=1 has used colors? At this point, w=1 has edges: (1,1) color1, (1,2) color2, (1,3) color3? Wait, we processed edge5 (1,3) color3. So w=1 has colors {1,2,3}. So w has b=3. So we need to recolor the edge of color b=3 at w=1: that’s edge (1,3) (edge5). Its other endpoint x=3.  
+We want to recolor that edge to a=1. But x=3 has used colors? At this point, x=3 has edge (1,3) color3 only, so used {3}. So x does not have a=1. So the path ends at x.  
+Path edges: (2,1) color1, (1,3) color3.  
+Swap: recolor (2,1) to 3, recolor (1,3) to 1.  
+Now u=2 has colors {2,3} (since we removed 1, added 3), so color1 is free at u. v=3 has colors {1} (since we removed 3, added 1), so color1 is free at v? Actually v=3 now has color1, so color1 is not free at v. But we want to assign color a=1 to new edge (2,3). That would make v have two 1’s? Wait, v=3 now has color1 from edge (1,3) after swap. So we cannot assign 1 to (2,3). Hmm.  
+
+Maybe we should pick a=2 instead? Let’s try a=2, b=3.  
+Start at u=2, edge of color2 at u: that’s edge (2,2) (edge4). Other endpoint w=2? Actually u=2, edge color2 is (2,2) because edge4 is (2,2) color1? Wait, we assigned edge4 (2,2) color1 earlier. Let’s list:  
+Edges processed:  
+1: (1,1) color1  
+2: (1,2) color2  
+3: (2,1) color2  
+4: (2,2) color1  
+5: (1,3) color3  
+6: (3,1) color3  
+Now processing (2,3).  
+So at u=2, used colors: from edge3 color2, edge4 color1. So S_u={1,2}.  
+At v=3, used: edge5 color3. So S_v={3}.  
+Pick a=1, b=3 as before.  
+Pick a=2, b=3:  
+Start at u=2, edge of color2 at u: edge3 (2,1). Other endpoint w=1.  
+w=1 has colors: edge1 color1, edge2 color2, edge5 color3. So w has b=3.  
+So we need to recolor edge of color3 at w=1: edge5 (1,3). Other endpoint x=3.  
+x=3 has color3 only, so does not have a=2. Path ends.  
+Swap: recolor edge3 to 3, edge5 to 2.  
+Now u=2 has colors {1,3} (removed2, added3), so color2 free. v=3 has colors {2} (removed3, added2), so color2 is not free at v. So we cannot assign 2 to new edge.  
+
+Hmm, both choices lead to v having the color we want to assign. That suggests the algorithm might need to start at v instead? Let’s think again.  
+
+Maybe the path should start at v, not u. Let’s try:  
+We want to free color a at u. We can do that by recoloring the edge of color a at u to b. But b is used at v, so we need to free b at v first? Actually, if we recolor the edge at u from a to b, then u will have b, but b is already used at v. That’s fine because u and v are different vertices; the conflict is only if a vertex has two edges of same color. So u having b is okay even if v has b. The problem is if the other endpoint of the edge we recolor already has b. So we need to ensure that the other endpoint doesn’t have b. If it does, we need to recolor that edge, etc. So the path starts at u, with the edge of color a. We don’t care about v’s colors except for choosing a and b. So after recoloring the path, u will have a freed, and we can assign a to (u,v). v may already have a? But we chose a not in S_v, so v does not have a. So after recoloring, v still does not have a (unless some path edge incident to v gets recolored to a, but v is not on the path because the path starts at u and goes through other vertices; it could end at v? Let’s see: The path could reach v. If it reaches v, then we would have a problem because v might get a. But does the path ever reach v? v is the other endpoint of the new edge, but v is not yet connected to u. So v is not incident to any edge of color a or b? Actually v may have edges of color b (since b in S_v). So the path could reach v if we follow an edge of color b from some vertex to v. If that happens, then we would recolor that edge to a, giving v a, which would conflict with the new edge. So we need to ensure the path does not end at v. The standard algorithm says the path starting at u with color a cannot end at v because a is missing at v? Let’s analyze.  
+
+The path alternates: start at u, take edge of color a to some w. Then at w, take edge of color b (if exists), to x. Then at x, take edge of color a, etc.  
+We stop when we reach a vertex that does not have the next color.  
+Could this path reach v? Suppose it reaches v via an edge of color b. That means v has an edge of color b, which it does (since b in S_v). So it’s possible. But if it reaches v, then the next color would be a, and a is missing at v (by choice), so the path would stop at v. Then we would recolor the edge of color b incident to v to a, giving v a, which conflicts with the new edge. So we cannot allow the path to end at v.  
+
+The standard algorithm avoids this by choosing a and b such that the path starting at u with color a does not end at v. Is that always possible? I think the path cannot end at v because if it did, then there would be an alternating path from u to v with colors a,b,a,b,... ending with b, which would imply that a is present at v? Not sure.  
+
+Let’s test with our example:  
+Pick a=1, b=3. Path: u=2 -> edge color1 to w=1 -> edge color3 to x=3. x=3 does not have color1, so stop. It did not reach v=3? Actually x=3 is v! Because v=3. So the path reached v via edge color3. Then it stopped because v does not have color1. So we would recolor edge (1,3) to color1, giving v color1, conflict. So that’s bad.  
+
+Pick a=2, b=3. Path: u=2 -> edge color2 to w=1 -> edge color3 to x=3 (v). Stop. Same issue.  
+
+So both choices lead to path ending at v. That suggests maybe we should start at v instead? Let’s try starting at v with color b?  
+
+We want to free color a at u. Alternatively, we can free color b at v, and then assign b to the new edge? But we need a color free at both. If we free b at v, then b is free at v, but is it free at u? b is not in S_u (by choice), so b is free at u. So we could assign b to the new edge. So we need to free b at v. That means we need to recolor the edge of color b at v to a. But a is used at u, so we need to ensure the other endpoint of that edge doesn’t have a, etc. So the path starts at v, with edge of color b.  
+
+Let’s try: b=3, a=1. Start at v=3, edge of color3 at v: edge5 (1,3). Other endpoint w=1. w=1 has colors {1,2,3}. We want to recolor this edge to a=1. But w=1 has a=1, so we need to recolor the edge of color1 at w=1: edge1 (1,1). Other endpoint x=1? Actually edge1 is (1,1), so other endpoint is also 1? That’s a self-loop? No, left1 to right1, so endpoints are left1 and right1. So w=1 (left1) has edge color1 to right1. So we go to right1. Right1 has colors: edge1 color1, edge3 color2, edge6 color3? Wait, right1 has edges: (1,1) color1, (2,1) color2, (3,1) color3. So right1 has colors {1,2,3}. We want to recolor edge1 to b=3? Actually, we are alternating: start at v=3, edge color3 to w=1, we want to recolor it to a=1. But w=1 has a=1, so we need to recolor the edge of color1 at w=1 to b=3. That edge is (1,1) to right1. Now at right1, we want to recolor that edge to b=3? Wait, we are alternating colors: after recoloring edge5 from 3 to1, we then need to recolor edge1 from1 to3. But right1 has color3 already (edge6), so we need to recolor edge6 from3 to1? Let’s follow the path properly.  
+
+The path starts at v=3, with color b=3. We look at the edge of color3 at v: edge5 (1,3). We plan to recolor it to a=1. But the other endpoint w=1 has color1, so we need to recolor the edge of color1 at w=1 to b=3. That edge is edge1 (1,1). The other endpoint of edge1 is right1. Now at right1, we need to recolor the edge of color3 at right1 to a=1? Wait, we are alternating: after recoloring edge1 from1 to3, we need to ensure right1 doesn’t have 3. It does have 3 (edge6). So we need to recolor edge6 from3 to1. The other endpoint of edge6 is left3. Left3 has colors: edge6 color3 only? Actually left3 has edge6 (3,1) color3. So left3 does not have color1, so we can stop.  
+Path edges: edge5 (color3), edge1 (color1), edge6 (color3).  
+Swap: recolor edge5 to1, edge1 to3, edge6 to1.  
+Now v=3 has color1 (from edge5), so b=3 is free at v. u=2 has colors {1,2} unchanged. b=3 is free at u? u=2 does not have 3, so yes. So we can assign b=3 to new edge (2,3). That works!  
+
+So the correct path starts at v with color b, not at u with color a. Let’s formalize:  
+- Let a be a color in S_u \ S_v.  
+- Let b be a color in S_v \ S_u.  
+- We will assign b to the new edge (u,v). To do that, we need to free b at v. So we start at v, with the edge of color b, and try to recolor it to a. Then alternate.  
+- The path starts at v, with color b.  
+- At each step, we have a current vertex and a target color (the color we want to recolor the edge to). Initially, at v, we want to recolor the edge of color b to a. So the "from color" is b, "to color" is a. After moving to the other endpoint, we swap: now we want to recolor an edge of color a to b, etc.  
+- We stop when the current vertex does not have the "from color" (i.e., the color we are trying to recolor).  
+- Then we swap colors along the path.  
+- Finally, assign b to the new edge.  
+
+Let’s test with our example:  
+a=1, b=3.  
+Start at v=3, from_color=3, to_color=1.  
+v has color3 (edge5). So we take edge5 to w=1.  
+Now at w=1, swap: from_color=1, to_color=3.  
+w=1 has color1 (edge1). So take edge1 to x=right1.  
+Now at x=right1, swap: from_color=3, to_color=1.  
+x=right1 has color3 (edge6). So take edge6 to y=left3.  
+Now at y=left3, swap: from_color=1, to_color=3.  
+y=left3 does not have color1, so stop.  
+Path edges: edge5 (from3 to1), edge1 (from1 to3), edge6 (from3 to1).  
+Swap: recolor edge5 to1, edge1 to3, edge6 to1.  
+Now v=3 has color1, so b=3 free at v. u=2 has colors {1,2}, b=3 free at u. Assign b=3 to new edge. Works.  
+
+So the algorithm is:  
+- If there is a common free color, assign it.  
+- Else, pick a in S_u \ S_v, b in S_v \ S_u.  
+- Find alternating path starting at v with color b (i.e., we want to recolor the edge of color b at v to a).  
+- Path:  
+   cur = v  
+   from_col = b  
+   to_col = a  
+   while True:  
+       if from_col not in used[cur]: break  
+       find edge of color from_col at cur -> (nxt, eid)  
+       path_edges.append(eid)  
+       path_from_colors.append(from_col)  
+       cur = nxt  
+       from_col, to_col = to_col, from_col  # swap  
+- After loop, recolor each edge in path: for each eid, old=from_colors[i], new=to_colors[i]? Actually, we need to know the new color for each edge. In the path, the first edge was from b to a, second from a to b, third from b to a, etc. So we can store the new color for each edge as we go.  
+- Then assign b to the new edge.  
+
+Let’s implement this.  
+
+We need to be careful: when we swap colors along the path, we must update the used sets and color_to_neighbor dicts.  
+
+We’ll implement a function `recolor_edge(eid, new_color)` as before.  
+
+Now, the path search:  
+```
+cur = v
+from_col = b
+to_col = a
+path_edges = []
+path_new_colors = []
+while True:
+    if from_col not in used[cur]:
+        break
+    # find neighbor
+    if cur <= nL:  # left
+        nxt, eid = color_to_left[cur][from_col]
+    else:
+        nxt, eid = color_to_right[cur][from_col]
+    path_edges.append(eid)
+    path_new_colors.append(to_col)
+    cur = nxt
+    from_col, to_col = to_col, from_col
+# recolor
+for eid, new_c in zip(path_edges, path_new_colors):
+    recolor_edge(eid, new_c)
+# assign b to new edge
+set_color(eid, b)
+```
+
+But we must ensure that the path does not go through u? It could, but that’s okay? If it reaches u, then we might recolor an edge incident to u, which could affect the free color at u. But we are assigning b to the new edge, and b is free at u initially. If the path reaches u, it might recolor an edge at u from some color to another, potentially making b used at u. That would be bad. So we need to ensure the path does not reach u. Does it? Let’s analyze.  
+
+The path starts at v, with color b. It alternates b,a,b,a,...  
+Could it reach u? u has colors S_u. Since a is in S_u, u has an edge of color a. So if the path reaches u via an edge of color a, then at u we would try to recolor an edge of color b? Actually, let’s see: Suppose the path reaches u via an edge of color a (i.e., we came from some vertex to u along an edge of color a). Then at u, we swap: from_col becomes b, to_col becomes a. We check if u has color b. Since b not in S_u, u does not have b, so the path stops at u. Then we would recolor the edge of color a incident to u to b, giving u color b. That would make b used at u, conflicting with the new edge. So we cannot allow the path to end at u.  
+
+But does the path ever reach u? It could. In our example, it didn’t. But in general, it might. The standard algorithm ensures that the path starting at v with color b cannot end at u because a is missing at v? Let’s think.  
+
+Suppose the path reaches u. That means there is an alternating path from v to u with colors b,a,b,a,..., ending with a. Then consider the colors: a is present at u (by choice), and b is missing at u. The path ends at u because b is missing at u. If we swap colors along the path, the edge of color a incident to u becomes b, so u gets b. That’s bad.  
+
+But maybe this cannot happen because if such a path exists, then a would be present at v? Not sure. Let’s try to construct a counterexample.  
+
+Consider a small graph where this might happen. Let’s try Δ=2, edges: (1,1), (1,2), (2,1), (2,2). Process:  
+1: (1,1) color1  
+2: (1,2) u=1 used{1}, v=2 used{}, free color2  
+3: (2,1) u=2 used{}, v=1 used{1}, free color2  
+4: (2,2) u=2 used{2}, v=2 used{2}, free color1. No conflict.  
+
+Try Δ=3, complete bipartite 3x3, process in a different order to force path to u. Let’s attempt.  
+
+We need a situation where no common free color, and the path from v reaches u. Let’s try to construct.  
+
+Suppose u has colors {a,b}, v has colors {b,c}? Then S_u={a,b}, S_v={b,c}. S_u\S_v={a}, S_v\S_u={c}. So a= a, b=c. Path starts at v with color c. If v has an edge of color c to some w, and w has color a, etc. Could it reach u? u has color a and b. If the path reaches u via an edge of color a, then at u we would try to recolor an edge of color b? Actually, after reaching u via color a, we swap: from_col becomes c? Wait, let’s simulate:  
+Start: from_col=c, to_col=a.  
+At v, take edge color c to w.  
+At w, swap: from_col=a, to_col=c.  
+If w has color a, take edge color a to x.  
+At x, swap: from_col=c, to_col=a.  
+...  
+So the path alternates c,a,c,a,...  
+If it reaches u via an edge of color a, then at u, from_col becomes c,to_col becomes a. We check if u has color c. Since c not in S_u, u does not have c, so stop. Then we would recolor the edge of color a at u to c, giving u c. That’s bad.  
+
+So we need to avoid that. Is there a way to choose a and b differently? In this case, S_u\S_v={a}, S_v\S_u={c}, so only one choice. So if the path reaches u, we have a problem. But maybe such a situation cannot occur because if the path reaches u, then there is an alternating path from v to u with colors c,a,c,a,..., ending with a. That implies that a is present at v? Not necessarily.  
+
+Let’s try to build a concrete example. We need a graph where when processing an edge (u,v), S_u={a,b}, S_v={b,c}, and there is an alternating path from v to u with colors c,a,c,a,... ending with a. Let’s try with Δ=3.  
+We need u to have edges of colors a and b. v to have edges of colors b and c.  
+We need a path from v to u: v --(c)-- w1 --(a)-- w2 --(c)-- w3 --(a)-- ... --(a)-- u.  
+Let’s try small: v=right1, u=left1.  
+We need v to have an edge of color c to some left vertex. Let’s say v=right1 has edge (left2,right1) color c.  
+Then left2 has an edge of color a to some right vertex. Say (left2,right2) color a.  
+Then right2 has an edge of color c to some left vertex. Say (left3,right2) color c.  
+Then left3 has an edge of color a to u=left1? But u is left, so edge from left3 to right? Actually, u is left1, so the path must end at u via an edge of color a from some right vertex to left1. So we need a right vertex that has an edge of color a to left1. Let’s say right3 has edge (left1,right3) color a.  
+So we have edges:  
+1: (left2,right1) color c  
+2: (left2,right2) color a  
+3: (left3,right2) color c  
+4: (left1,right3) color a  
+Now we need u=left1 to have colors {a,b}. It already has a from edge4. Need b. Add edge (left1,right4) color b.  
+v=right1 needs colors {b,c}. It has c from edge1. Need b. Add edge (left4,right1) color b.  
+Now we have a graph with Δ=3? Let’s check degrees:  
+left1: edges 4 (a), 5 (b) -> degree2  
+left2: edges1(c),2(a) -> degree2  
+left3: edge3(c) -> degree1  
+left4: edge6(b) -> degree1  
+right1: edges1(c),6(b) -> degree2  
+right2: edges2(a),3(c) -> degree2  
+right3: edge4(a) -> degree1  
+right4: edge5(b) -> degree1  
+So Δ=2 actually. But we need Δ=3 for the conflict? Actually, the conflict occurs when no common free color. For that, we need S_u ∪ S_v = all colors. With Δ=2, S_u={a,b} size2, S_v={b,c} size2, union {a,b,c} size3 > Δ=2? That’s impossible because colors are only 1..Δ. So Δ must be at least3. So we need to add more edges to increase degrees. But we can just set Δ=3 and add a third color to some vertices. However, the path construction doesn’t depend on Δ. Let’s see if we can process edges in an order that when we add the edge (u,v), we have S_u={a,b}, S_v={b,c}, and the path exists.  
+
+We need to process edges in an order such that when we get to (u,v), the other edges are already colored. Let’s set u=left1, v=right1. We want to add edge (left1,right1) last. Before that, we have edges:  
+- (left2,right1) color c  
+- (left2,right2) color a  
+- (left3,right2) color c  
+- (left1,right3) color a  
+- (left1,right4) color b  
+- (left4,right1) color b  
+We need to color these edges with Δ=3. Let’s see if we can color them with 3 colors such that the above colors are assigned. We can try to assign colors manually:  
+We need left1 to have a and b, so it has colors {a,b}.  
+right1 to have b and c, so {b,c}.  
+left2: c and a.  
+right2: a and c.  
+left3: c.  
+right3: a.  
+left4: b.  
+right4: b.  
+This is a valid partial coloring with 3 colors? Check conflicts:  
+left1: a (edge4), b (edge5) – ok.  
+right1: c (edge1), b (edge6) – ok.  
+left2: c (edge1), a (edge2) – ok.  
+right2: a (edge2), c (edge3) – ok.  
+left3: c (edge3) – ok.  
+right3: a (edge4) – ok.  
+left4: b (edge6) – ok.  
+right4: b (edge5) – ok.  
+All good. Now we add edge (left1,right1). At this point, S_u={a,b}, S_v={b,c}. No common free color? Colors are {a,b,c}. S_u∪S_v={a,b,c}, so no common. a in S_u\S_v = {a}, b in S_v\S_u = {c}. So a=a, b=c.  
+Now path starts at v=right1 with color c.  
+v=right1 has edge1 (left2,right1) color c. So we take edge1 to left2.  
+At left2, swap: from_col=a, to_col=c. left2 has color a (edge2). So take edge2 to right2.  
+At right2, swap: from_col=c,to_col=a. right2 has color c (edge3). So take edge3 to left3.  
+At left3, swap: from_col=a,to_col=c. left3 does not have color a, so stop.  
+Path edges: edge1 (c->a), edge2 (a->c), edge3 (c->a).  
+Swap: recolor edge1 to a, edge2 to c, edge3 to a.  
+Now check: left2 now has colors {a? wait edge1 becomes a, edge2 becomes c} so left2 has {a,c} – ok. right1 now has edge1 color a, edge6 color b – so right1 has {a,b}. v=right1 no longer has c, so c is free at v. u=left1 has {a,b}, c is free at u. So assign c to new edge (left1,right1). Works! The path did not reach u.  
+
+So maybe the path never reaches u because if it did, there would be a contradiction. Let’s try to force it to reach u. In our construction, the path went from v to left2 to right2 to left3 and stopped. To reach u, we would need a path from v to u. Let’s modify: instead of stopping at left3, we need left3 to have color a, and then an edge of color a to some right, etc., eventually to u. Let’s add more edges to make the path continue to u.  
+
+We need left3 to have color a. Currently left3 has only edge3 color c. Add an edge (left3,right5) color a. Then the path would go: v=right1 -> left2 (c), -> right2 (a), -> left3 (c), -> right5 (a), -> ... eventually to u. To reach u, we need a right vertex with an edge of color a to u. u already has edge4 color a to right3. So if the path reaches right3 via an edge of color c? Actually, to reach u via an edge of color a, we need a right vertex that has an edge of color a to u. That’s right3 (edge4). So we need the path to reach right3 via an edge of color c. So we need a left vertex that has an edge of color c to right3. Let’s add edge (left5,right3) color c. Then the path: v=right1 -> left2 (c), -> right2 (a), -> left3 (c), -> right5 (a), -> left5? Wait, we need to follow the alternating pattern:  
+Start: from_col=c, to_col=a.  
+v=right1 has c -> left2.  
+At left2, from_col=a,to_col=c. left2 has a -> right2.  
+At right2, from_col=c,to_col=a. right2 has c -> left3.  
+At left3, from_col=a,to_col=c. left3 now has a (edge7) -> right5.  
+At right5, from_col=c,to_col=a. right5 has? We need right5 to have c to continue. But we gave right5 edge7 color a, so it has a, not c. So we need right5 to have c. Let’s instead give edge7 color c? But then left3 would have c and a? Actually, we need left3 to have a to continue the path. So left3 must have a. So edge7 (left3,right5) color a. Then at right5, from_col=c,to_col=a. right5 does not have c, so stop. To continue, we need right5 to have c. So we need another edge at right5 of color c. Add edge (left6,right5) color c. Then at right5, from_col=c,to_col=a, it has c -> left6.  
+At left6, from_col=a,to_col=c. left6 needs a to continue. Add edge (left6,right6) color a.  
+At right6, from_col=c,to_col=a. right6 needs c to continue. Add edge (left7,right6) color c.  
+... This can go on. Eventually, we want to reach right3 via an edge of color c. So we need a left vertex that has an edge of color c to right3. Let’s say after some steps, we reach left8, and left8 has an edge of color c to right3. Then at right3, from_col=a,to_col=c. right3 has a (edge4) -> u=left1.  
+At u=left1, from_col=c,to_col=a. u does not have c, so stop. Then we would recolor the edge of color a at u (edge4) to c, giving u c, conflict. So this would be a problem.  
+
+But can such a configuration be colored with Δ=3? Let’s see. We have many edges. We need to ensure all degrees ≤3. Let’s list vertices and their edges:  
+u=left1: edge4 (a), edge5 (b) – degree2.  
+v=right1: edge1 (c), edge6 (b) – degree2.  
+left2: edge1(c), edge2(a) – degree2.  
+right2: edge2(a), edge3(c) – degree2.  
+left3: edge3(c), edge7(a) – degree2.  
+right5: edge7(a), edge8(c) – degree2.  
+left6: edge8(c), edge9(a) – degree2.  
+right6: edge9(a), edge10(c? – degree2.  
+...  
+Eventually, we have a chain. We also need right3 to have edge4(a) and an edge of color c from some left. Let’s say left8 has edge11(c) to right3. Then right3 has edge4(a), edge11(c) – degree2.  
+Now we have a long chain. All degrees are 2, so Δ=2? But we need Δ=3 for the conflict? Actually, the conflict occurs when S_u∪S_v = all colors. With Δ=2, colors are {1,2}, but we have three colors a,b,c? That’s impossible because we only have Δ colors. So we need Δ=3. To have Δ=3, we need some vertex of degree3. But we can add extra edges to some vertices to make degree3, but that might affect the path. However, the path only uses edges of colors a and c. If we add extra edges of color b to some vertices, it won’t affect the path. So we can add b-colored edges to increase degrees to 3. For example, add edge (left2,right7) color b, edge (left7,right2) color b, etc. But we need to ensure no conflicts. This is possible. So we can construct a valid partial coloring with Δ=3 where the path reaches u.  
+
+Let’s try to actually construct such a graph and test the algorithm. But maybe the algorithm still works because when the path reaches u, we would recolor edge4 to c, giving u c, but then we assign c to the new edge, causing conflict. However, maybe after recoloring the path, u no longer has a? Wait, edge4 is the edge of color a at u. If we recolor it to c, then u loses a and gains c. Then u has {b,c}. Then we assign c to new edge, so u would have two c’s. So conflict. So the algorithm would fail. But maybe the path cannot reach u because of the choice of a and b? In our construction, a=a, b=c. Could we choose a different a? S_u\S_v = {a} only, so no. So if the path reaches u, the algorithm fails. But the theorem says there is always a way. So maybe the path cannot reach u due to some invariant. Let’s analyze more carefully.  
+
+Suppose the path from v with color b reaches u. That means there is an alternating path: v = x0 --(b)-- x1 --(a)-- x2 --(b)-- ... --(a)-- x_{2k} = u.  
+The colors alternate b,a,b,a,..., ending with a.  
+Now, consider the colors: a is in S_u \ S_v, so a is present at u but missing at v. b is in S_v \ S_u, so b is present at v but missing at u.  
+The path starts at v with b, so v has b. It ends at u with a, so u has a.  
+Now, if we swap colors along the path, the edge incident to u (color a) becomes b, so u gets b. That’s bad. But maybe this path cannot exist because if it did, then there would be an alternating path from v to u with colors b,a,b,a,...,a. This would imply that a is present at v? Not necessarily.  
+
+Let’s think about the structure of the colored graph. The edges of colors a and b form a collection of alternating paths and cycles (since each vertex has at most one edge of each color). The path we are considering is a maximal alternating path starting at v with color b. If it reaches u, then u is the other endpoint of this maximal path. But u has color a, and the path ends with a, so u is incident to an edge of color a on this path. Since u also has another edge of color a? No, each vertex has at most one edge of a given color. So u has exactly one edge of color a, which is on this path. Now, consider the colors at u: u has a (from this path), and also b? But b is missing at u by choice. So u has a and maybe other colors.  
+Now, consider the colors at v: v has b (from this path), and a is missing at v.  
+Now, if we swap colors along the path, the edge at u changes from a to b, so u gets b. But then u would have two b’s? No, u did not have b before, so after swap it has b. That’s fine. But then we want to assign b to the new edge (u,v). That would give u a second b, conflict. So we cannot assign b. But maybe we could assign a instead? a is missing at v? Actually, a is missing at v, but a is present at u. If we assign a to the new edge, u would have two a’s. So no.  
+
+So if the path reaches u, neither a nor b can be assigned. But the theorem says there is always a solution. So maybe the path cannot reach u because if it did, then the graph would have a contradiction? Let’s see: If the path reaches u, then there is an alternating path from v to u with colors b,a,b,a,...,a. This path plus the new edge (u,v) would form an odd cycle? Actually, the new edge (u,v) plus the path forms a cycle. The path has even length? Let’s count: v to u with colors b,a,b,a,...,a. The number of edges is odd? Start with b, end with a, so the sequence length is even? For example, b,a (2 edges), b,a (4 edges), etc. So the path has even number of edges. Adding the new edge gives an odd cycle? Even +1 = odd. But the graph is bipartite, so it cannot have an odd cycle. Therefore, such a path cannot exist! Because the new edge (u,v) plus the alternating path would form an odd cycle, which is impossible in a bipartite graph.  
+
+Yes! That’s the key. Since the graph is bipartite, any cycle has even length. The alternating path from v to u with colors b,a,b,a,...,a has even length (because it starts and ends with different colors? Actually, start color b, end color a, so the number of edges is even? Let’s check: b,a =2 (even), b,a,b,a =4 (even). So yes, even length. Adding the new edge (u,v) gives an odd cycle (even+1=odd), which is impossible. Therefore, the path cannot reach u. So the algorithm is safe.  
+
+Great. So we can implement the path starting at v with color b.  
+
+Now, we need to be careful with the path search: we stop when the current vertex does not have the "from_color". In the path, we always have from_color and to_color. Initially from_color=b, to_color=a. At each step, if from_color not in used[cur], break. Otherwise, find the edge of from_color at cur, append it with new color = to_color, move to the other endpoint, and swap from_color and to_color.  
+
+After the loop, we recolor all edges in the path. Then assign b to the new edge.  
+
+Let’s test with our earlier example where we had a conflict. We already did and it worked.  
+
+Now, we need to implement the data structures efficiently.  
+
+We’ll store:  
+- left_vertex[eid], right_vertex[eid]  
+- color[eid]  
+- used_left[u] = set of colors  
+- used_right[v] = set of colors  
+- color_to_left[u] = dict color -> (v, eid)  
+- color_to_right[v] = dict color ->(u, eid)  
+
+When we set a color for an edge, we update these.  
+
+We’ll also need to know which side a vertex is: if vertex <= nL then left else right.  
+
+Now, the main loop:  
+```
+for eid in range(m):
+    u = left_vertex[eid]
+    v = right_vertex[eid]
+    # find smallest free color
+    c = 1
+    while c in used_left[u] or c in used_right[v]:
+        c += 1
+    if c <= Δ:
+        set_color(eid, c)
+    else:
+        # find a in S_u \ S_v
+        a = 1
+        while a in used_right[v] or a not in used_left[u]:
+            a += 1
+        # find b in S_v \ S_u
+        b = 1
+        while b in used_left[u] or b not in used_right[v]:
+            b += 1
+        # path starting at v with color b
+        cur = v
+        from_col = b
+        to_col = a
+        path_edges = []
+        path_new_colors = []
+        while True:
+            if from_col not in (used_left[cur] if cur <= nL else used_right[cur]):
+                break
+            # find neighbor
+            if cur <= nL:
+                nxt, eid2 = color_to_left[cur][from_col]
+            else:
+                nxt, eid2 = color_to_right[cur][from_col]
+            path_edges.append(eid2)
+            path_new_colors.append(to_col)
+            cur = nxt
+            from_col, to_col = to_col, from_col
+        # recolor path
+        for eid2, new_c in zip(path_edges, path_new_colors):
+            recolor_edge(eid2, new_c)
+        # assign b to new edge
+        set_color(eid, b)
+```
+
+But we must ensure that a and b are found. Since no common free color, we know such a and b exist.  
+
+Also, we need to ensure that the path search doesn’t go into an infinite loop. Since the graph is bipartite and the path is simple, it will terminate.  
+
+Now, complexity: The path length can be O(m) in worst-case, but total recoloring over all edges is O(mΔ) in worst-case, but with sparse graph it should be fine.  
+
+Let’s test with the example.  
+
+We’ll write a small test script.  
+
+But first, let’s implement the solution.  
+
+We need to read input fast. Use sys.stdin.buffer.read().split() for speed.  
+
+We’ll store edges arrays.  
+
+We’ll compute Δ as max degree.  
+
+We’ll initialize used sets as empty sets for all vertices. But 200000 sets might be memory heavy but okay (200000 * small overhead). Actually, 200000 empty sets is about 200000*216 bytes ≈ 43 MB, plus dicts, might be high but within 256 MB? Maybe. We can optimize by using dicts only for vertices that have edges, but simpler to use sets for all. 200000 sets is okay. But we also have color_to_left and color_to_right as dicts for each vertex. That’s another 200000 dicts, which is heavy. We can instead use a single dict per vertex only when needed. But we can also use arrays of dicts initialized to None and create on demand. That saves memory.  
+
+Let’s do:  
+- used_left = [set() for _ in range(nL+1)]  
+- used_right = [set() for _ in range(nR+1)]  
+- color_to_left = [None]*(nL+1)  
+- color_to_right = [None]*(nR+1)  
+
+When we need to access color_to_left[u], if None, create empty dict. Similarly for used sets, we already have sets.  
+
+But we also need to know if a color is in used set. That’s fine.  
+
+For color_to_left, we can create dict on demand.  
+
+We’ll also store left_vertex, right_vertex arrays of size m.  
+
+Now, recolor_edge function:  
+```
+def recolor_edge(eid, new_c):
+    old_c = color[eid]
+    if old_c == new_c: return
+    u = left_vertex[eid]
+    v = right_vertex[eid]
+    # remove old
+    del color_to_left[u][old_c]
+    del color_to_right[v][old_c]
+    used_left[u].remove(old_c)
+    used_right[v].remove(old_c)
+    # add new
+    if color_to_left[u] is None: color_to_left[u] = {}
+    if color_to_right[v] is None: color_to_right[v] = {}
+    color_to_left[u][new_c] = (v, eid)
+    color_to_right[v][new_c] = (u, eid)
+    used_left[u].add(new_c)
+    used_right[v].add(new_c)
+    color[eid] = new_c
+```
+
+But we need to ensure color_to_left[u] exists before del. Since we only store edges that have been colored, it should exist. But to be safe, we can check.  
+
+Similarly, set_color for a new edge:  
+```
+def set_color(eid, c):
+    u = left_vertex[eid]
+    v = right_vertex[eid]
+    if color_to_left[u] is None: color_to_left[u] = {}
+    if color_to_right[v] is None: color_to_right[v] = {}
+    color_to_left[u][c] = (v, eid)
+    color_to_right[v][c] = (u, eid)
+    used_left[u].add(c)
+    used_right[v].add(c)
+    color[eid] = c
+```
+
+Now, the main loop.  
+
+We need to compute Δ. We can compute degrees while reading.  
+
+Let’s test with the example.  
+
+We’ll write a quick test in our head:  
+Input:  
+2 2 3  
+1 1  
+1 2  
+2 1  
+Δ = max(deg left1=2, left2=1, right1=2, right2=1) =2.  
+Process:  
+eid0: u=1,v=1. c=1 free. set color1.  
+eid1: u=1,v=2. c=1 used at u, c=2 free. set color2.  
+eid2: u=2,v=1. c=1 used at v, c=2 free at both? used_left[2] empty, used_right[1] has {1}, so c=2 free. set color2.  
+Output: 1 2 2. Matches.  
+
+Now, test with the 3x3 complete bipartite graph in the order we had. We’ll implement and run mentally? Might be too long. But we can trust.  
+
+We need to ensure that when we find a and b, we loop from 1 upward. Since Δ can be up to 100000, but the loop will be short because the sets are small. In worst-case, a vertex could have degree Δ, but then the loop might go up to Δ. But that’s okay because such vertices are few.  
+
+Now, one more thing: The problem says "Print YES, then a line with m integers in 1..Δ". If m=0, we print YES and an empty line.  
+
+Let’s implement.  
+
+We’ll use sys.stdout.write.  
+
+Potential issue: The alternating path might be long, and we store path_edges and path_new_colors as lists. That’s fine.  
+
+We need to be careful with the path search: when we move to the other endpoint, we swap from_col and to_col. But we also need to ensure that the path doesn’t revisit vertices? It shouldn’t because it’s an alternating path in a bipartite graph with no repeated colors at a vertex. But it could theoretically cycle? Since each vertex has at most one edge of a given color, the path is uniquely determined and cannot repeat a vertex because that would imply a cycle with alternating colors, which is possible? Actually, an alternating path could form a cycle if it returns to a vertex. But since we stop when the current vertex doesn’t have the from_color, and the path is maximal, it cannot cycle because if it returned to a previous vertex, that vertex would have the from_color? Let’s think: Suppose we revisit a vertex. Then the path would have a cycle. But the graph is bipartite, so any cycle has even length. The alternating colors would be consistent. However, if we revisit a vertex, then that vertex would have two edges of the same color? Not necessarily, because the cycle might use different colors at that vertex. But since each vertex has at most one edge of a given color, and the path alternates two colors, a revisit would imply that the vertex has two edges of the same color? Let’s analyze: The path uses colors b,a,b,a,... At a vertex, the incoming and outgoing edges have different colors (because it alternates).. So a vertex can appear at most once in the path because if it appeared twice, it would need two incoming edges of the same color? Actually, if a vertex appears twice, it would have two incident edges of the same color (the color used to enter/leave at that occurrence), which is impossible. So the path is simple. So no infinite loop.  
+
+Now, let’s implement.  
+
+We’ll also need to handle the case where Δ=0 (m=0). Then we just print YES and empty line.  
+
+Let’s write the code.  
+
+We’ll use 1-indexed vertices.  
+
+We’ll read all ints.  
+
+Implementation:  
+```
+import sys
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+    it = iter(data)
+    nL = next(it); nR = next(it); m = next(it)
+    left_vertex = [0]*m
+    right_vertex = [0]*m
+    deg_left = [0]*(nL+1)
+    deg_right = [0]*(nR+1)
+    edges = []
+    for i in range(m):
+        u = next(it); v = next(it)
+        left_vertex[i] = u
+        right_vertex[i] = v
+        deg_left[u] += 1
+        deg_right[v] += 1
+        edges.append((u,v))
+    Delta = max(max(deg_left), default=0), max(deg_right, default=0)
+    if m == 0:
+        sys.stdout.write("YES\n\n")
+        return
+    used_left = [set() for _ in range(nL+1)]
+    used_right = [set() for _ in range(nR+1)]
+    color_to_left = [None]*(nL+1)
+    color_to_right = [None]*(nR+1)
+    color = [0]*m
+
+    def set_color(eid, c):
+        u = left_vertex[eid]
+        v = right_vertex[eid]
+        if color_to_left[u] is None:
+            color_to_left[u] = {}
+        if color_to_right[v] is None:
+            color_to_right[v] = {}
+        color_to_left[u][c] = (v, eid)
+        color_to_right[v][c] = (u, eid)
+        used_left[u].add(c)
+        used_right[v].add(c)
+        color[eid] = c
+
+    def recolor_edge(eid, new_c):
+        old_c = color[eid]
+        if old_c == new_c:
+            return
+        u = left_vertex[eid]
+        v = right_vertex[eid]
+        # remove old
+        del color_to_left[u][old_c]
+        del color_to_right[v][old_c]
+        used_left[u].remove(old_c)
+        used_right[v].remove(old_c)
+        # add new
+        if color_to_left[u] is None:
+            color_to_left[u] = {}
+        if color_to_right[v] is None:
+            color_to_right[v] = {}
+        color_to_left[u][new_c] = (v, eid)
+        color_to_right[v][new_c] = (u, eid)
+        used_left[u].add(new_c)
+        used_right[v].add(new_c)
+        color[eid] = new_c
+
+    for eid in range(m):
+        u = left_vertex[eid]
+        v = right_vertex[eid]
+        # find smallest free color
+        c = 1
+        while c in used_left[u] or c in used_right[v]:
+            c += 1
+        if c <= Delta:
+            set_color(eid, c)
+        else:
+            # find a in S_u \ S_v
+            a = 1
+            while a in used_right[v] or a not in used_left[u]:
+                a += 1
+            # find b in S_v \ S_u
+            b = 1
+            while b in used_left[u] or b not in used_right[v]:
+                b += 1
+            # path starting at v with color b
+            cur = v
+            from_col = b
+            to_col = a
+            path_edges = []
+            path_new_colors = []
+            while True:
+                if cur <= nL:
+                    used_cur = used_left[cur]
+                    color_to_cur = color_to_left[cur]
+                else:
+                    used_cur = used_right[cur]
+                    color_to_cur = color_to_right[cur]
+                if from_col not in used_cur:
+                    break
+                # find neighbor
+                nxt, eid2 = color_to_cur[from_col]
+                path_edges.append(eid2)
+                path_new_colors.append(to_col)
+                cur = nxt
+                from_col, to_col = to_col, from_col
+            # recolor path
+            for eid2, new_c in zip(path_edges, path_new_colors):
+                recolor_edge(eid2, new_c)
+            # assign b to new edge
+            set_color(eid, b)
+
+    # output
+    out = ["YES"]
+    out.append(" ".join(map(str, color)))
+    sys.stdout.write("\n".join(out) + "\n")
+
+if __name__ == "__main__":
+    main()
+```
+
+We need to ensure that when we access color_to_cur, it might be None? But if from_col in used_cur, then there is an edge of that color, so color_to_cur should not be None. So safe.  
+
+Also, in the path search, we use `cur <= nL` to determine side. Since left vertices are 1..nL, right are 1..nR, but there is no overlap because we use separate arrays. So it’s fine.  
+
+Now, test with the 3x3 example we constructed? We can’t run here, but we can reason.  
+
+Potential issue: The path might be long, and we store path_edges and path_new_colors. After recoloring, we assign b to the new edge. But we must ensure that after recoloring, b is indeed free at both u and v. We argued it is.  
+
+Let’s double-check the logic:  
+- We chose a in S_u \ S_v, b in S_v \ S_u.  
+- The path starts at v with color b. It alternates b,a,b,a,... and stops at a vertex that does not have the next color.  
+- After swapping, all vertices on the path have their colors swapped. In particular, v loses b (if it had b on the path) and gains a? Wait, the first edge on the path is incident to v and has color b. We recolor it to a. So v loses b and gains a. But a was missing at v, so now v has a. That’s fine.  
+- u is not on the path (as argued), so u’s colors unchanged. Thus, b is still missing at u, and now b is missing at v (because v lost b).. So b is free at both. So we can assign b to the new edge.  
+
+Great.  
+
+Now, we need to ensure that the path doesn’t include the new edge (it’s not colored yet). So fine.  
+
+Now, complexity: The while loops for finding c, a, b might iterate up to Δ each time. In worst-case, if a vertex has high degree, it could be O(Δ) per edge. But since m ≤ 400000 and Δ ≤ 100000, worst-case O(mΔ) = 4e10 too high. However, the average degree is small, so the loops will be short. But we need to be safe. We can optimize the search for smallest free color by maintaining a "next candidate" per vertex, but it’s complicated because colors can be freed during recoloring. But we can use a different approach: since the graph is sparse, the simple loop is likely fine. The time limit is 2 seconds, Python might be okay if the loops are short. But we should consider worst-case: a star graph with center degree Δ=100000, and m=100000. Then for each edge, the center’s used set grows, and the loop for c will iterate up to the current degree. That’s O(Δ^2) = 1e10, too slow. But in a star graph, we can color greedily without recoloring: each edge gets a distinct color, so the loop for c will iterate from 1 up to the current degree, which is O(Δ^2) if we process all edges. That’s too slow. We need a faster way to find the smallest free color.  
+
+We can maintain for each vertex a "next color" pointer, but when colors are freed, the pointer might need to go backward. However, in the star graph, no colors are freed, so the pointer works. In general, we can use a min-heap of free colors per vertex? But we need to find the smallest color not in used_left[u] and not in used_right[v]. That’s the intersection of two free sets. We could maintain for each vertex a set of free colors, but that’s too much memory.  
+
+Alternative: Since Δ ≤ 100000, we can use a boolean array per vertex? That would be 200000*100000 = 2e10 booleans, impossible.  
+
+We can use a "next candidate" array per vertex, initialized to 1. When we need the smallest free color for a vertex, we increment until we find a color not in used set. But if colors are freed, the pointer might be too high. However, in the recoloring algorithm, colors are freed and added. The pointer might need to decrease. We can handle by, when we free a color, we update the pointer to min(pointer, freed_color).. But that’s per vertex.  
+
+But we need the smallest color free at both u and v. We can compute the smallest free at u, and the smallest free at v, and take the max? No, we need a color that is free at both. The smallest common free color is at least max(smallest_free_u, smallest_free_v). But it could be larger. We can find it by iterating from max(smallest_free_u, smallest_free_v) upward until we find a color not in used_left[u] and not in used_right[v]. This could still be O(Δ) in worst-case, but maybe acceptable.  
+
+But for the star graph, smallest_free_u for the center is large, and for the leaf is 1. The max is large, so we iterate from large upward, which is O(1) because the next color is free at both? Actually, in a star, the center has used colors {1,2,...,k}, leaf has used none. The smallest free at center is k+1, at leaf is1, max is k+1, which is free at both, so O(1). So that’s fine.  
+
+But we need to maintain smallest_free for each vertex. We can maintain an array `next_free_left` and `next_free_right` initialized to 1. When we add a color c to a vertex, if c == next_free, we increment next_free until we find a color not in used. When we remove a color c, we set next_free = min(next_free, c).. This way, next_free is always the smallest free color for that vertex.  
+
+Then, to find the smallest common free color for u and v, we start from max(next_free_left[u], next_free_right[v]) and increment until we find a color not in used_left[u] and not in used_right[v]. This is efficient because the common free color is likely close to the max of the two next_free pointers. In worst-case, it could still be O(Δ) if the free sets are disjoint, but that’s rare. However, we can also maintain a global set of free colors? Not per vertex.  
+
+Given constraints, maybe the simple loop is acceptable because the graph is sparse. But the star graph is sparse (m=100000, Δ=100000), and the simple loop would be O(Δ^2) = 1e10, too slow. So we need the next_free optimization.  
+
+Let’s implement next_free arrays.  
+
+We’ll have `next_free_left = [1]*(nL+1)` and `next_free_right = [1]*(nR+1)`.  
+
+When we add a color c to a left vertex u, we do:  
+```
+used_left[u].add(c)
+if c == next_free_left[u]:
+    while next_free_left[u] in used_left[u]:
+        next_free_left[u] += 1
+```
+Similarly for right.  
+
+When we remove a color c from a left vertex u, we do:  
+```
+used_left[u].remove(c)
+if c < next_free_left[u]:
+    next_free_left[u] = c
+```
+Similarly for right.  
+
+Then, to find the smallest common free color for u and v:  
+```
+c = max(next_free_left[u], next_free_right[v])
+while c in used_left[u] or c in used_right[v]:
+    c += 1
+```
+This will be fast because c is at least the smallest free at each, so we only skip colors that are used at one side but free at the other. In the worst-case, if the free sets are disjoint, we might iterate many, but that’s when we need recoloring anyway.  
+
+Now, for finding a and b:  
+- a is a color in S_u \ S_v. We can find it by iterating from 1 upward until we find a color in used_left[u] and not in used_right[v].  
+- b is a color in S_v \ S_u. Iterate from 1 upward until in used_right[v] and not in used_left[u].  
+These loops could be O(Δ) in worst-case, but only when we need recoloring, which is rare. In the star graph, we never need recoloring, so these loops are not executed. So fine.  
+
+We’ll implement next_free updates in set_color and recolor_edge.  
+
+Let’s modify the code accordingly.  
+
+In set_color:  
+```
+def set_color(eid, c):
+    u = left_vertex[eid]; v = right_vertex[eid]
+    if color_to_left[u] is None: color_to_left[u] = {}
+    if color_to_right[v] is None: color_to_right[v] = {}
+    color_to_left[u][c] = (v, eid)
+    color_to_right[v][c] = (u, eid)
+    used_left[u].add(c)
+    used_right[v].add(c)
+    if c == next_free_left[u]:
+        while next_free_left[u] in used_left[u]:
+            next_free_left[u] += 1
+    if c == next_free_right[v]:
+        while next_free_right[v] in used_right[v]:
+            next_free_right[v] += 1
+    color[eid] = c
+```
+
+In recolor_edge:  
+```
+def recolor_edge(eid, new_c):
+    old_c = color[eid]
+    if old_c == new_c: return
+    u = left_vertex[eid]; v = right_vertex[eid]
+    # remove old
+    del color_to_left[u][old_c]
+    del color_to_right[v][old_c]
+    used_left[u].remove(old_c)
+    used_right[v].remove(old_c)
+    if old_c < next_free_left[u]:
+        next_free_left[u] = old_c
+    if old_c < next_free_right[v]:
+        next_free_right[v] = old_c
+    # add new
+    if color_to_left[u] is None: color_to_left[u] = {}
+    if color_to_right[v] is None: color_to_right[v] = {}
+    color_to_left[u][new_c] = (v, eid)
+    color_to_right[v][new_c] = (u, eid)
+    used_left[u].add(new_c)
+    used_right[v].add(new_c)
+    if new_c == next_free_left[u]:
+        while next_free_left[u] in used_left[u]:
+            next_free_left[u] += 1
+    if new_c == next_free_right[v]:
+        while next_free_right[v] in used_right[v]:
+            next_free_right[v] += 1
+    color[eid] = new_c
+```
+
+Now, in the main loop, we find c:  
+```
+c = max(next_free_left[u], next_free_right[v])
+while c in used_left[u] or c in used_right[v]:
+    c += 1
+if c <= Delta:
+    set_color(eid, c)
+else:
+    # find a,b
+    ...
+```
+
+But note: next_free_left[u] is the smallest free at u, next_free_right[v] is smallest free at v. The smallest common free is at least max of these. So starting from max is correct.  
+
+Now, for finding a:  
+```
+a = 1
+while a in used_right[v] or a not in used_left[u]:
+    a += 1
+```
+Similarly b.  
+
+We should also ensure that a and b are ≤ Δ. They will be because S_u and S_v are subsets of {1..Δ}, and the union covers all colors.  
+
+Now, let’s test with the star graph:  
+nL=1, nR=100000, m=100000, edges (1,i). Δ=100000.  
+Process each edge:  
+For first edge: next_free_left[1]=1, next_free_right[i]=1, c=1, free, set color1. Update next_free_left[1] to2.  
+Second edge: c=max(2,1)=2, free, set color2. next_free_left[1]=3.  
+... This is O(1) per edge. Good.  
+
+Now, test with the 3x3 example where recoloring needed. We’ll trust.  
+
+Potential issue: When we recolor a path, we might free a color at a vertex that is not on the path? No, only vertices on the path are affected. So next_free updates are correct.  
+
+Now,, we need to ensure that when we remove a color, we set next_free to min(next_free, old_c). But if old_c is already less than next_free, we set it to old_c. That’s correct.  
+
+Now,, the path search uses `from_col not in used_cur`. We need to use the correct used set. We already do.  
+
+Now,, one more thing: When we find a and b, we need to ensure that a != b. Since a in S_u\S_v and b in S_v\S_u, they are distinct.  
+
+Now,, let’s test with the example we constructed where the path reaches u? We argued it cannot due to bipartiteness. So fine.  
+
+Now,, we should also consider the case where Δ=0. We handle m=0 separately.  
+
+Now,, output: We need to print YES, then a line with m integers. If m>0, we join with spaces.  
+
+Let’s write the final code.  
+
+We’ll also add `sys.setrecursionlimit` not needed.  
+
+Let’s produce the final answer.```python
+import sys
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+
+    it = iter(data)
+    nL = next(it)
+    nR = next(it)
+    m = next(it)
+
+    left_vertex = [0] * m
+    right_vertex = [0] * m
+    deg_left = [0] * (nL + 1)
+    deg_right = [0] * (nR + 1)
+
+    for i in range(m):
+        u = next(it)
+        v = next(it)
+        left_vertex[i] = u
+        right_vertex[i] = v
+        deg_left[u] += 1
+        deg_right[v] +=  ​1
+
+    Delta = max(max(deg_left, default=0), max(deg_right, default=0)
+
+    if m == 0:
+        sys.stdout.write("YES\n\n")
+        return
+
+    used_left = [set() for _ in range(nL + 1)]
+    used_right = [set() for _ in range(nR + 1)]
+    color_to_left = [None] * (nL +  ​1)
+    color_to_right = [None] * (nR +  ​1)
+    color = [0] * m
+
+    next_free_left = [1] * (nL +  ​1)
+    next_free_right = [1] * (nR +  ​1)
+
+    def set_color(eid, c):
+        u = left_vertex[eid]
+        v = right_vertex[eid]
+
+        if color_to_left[u] is None:
+            color_to_left[u] = {}
+        if color_to_right[v] is None:
+            color_to_right[v] = {}
+
+        color_to_left[u][c] = (v, eid)
+        color_to_right[v][c] = (u, eid)
+        used_left[u].add(c)
+        used_right[v].add(c)
+
+        if c == next_free_left[u]:
+            while next_free_left[u] in used_left[u]:
+                next_free_left[u] += 1
+        if c == next_free_right[v]:
+            while next_free_right[v] in used_right[v]:
+                next_free_right[v] += 1
+
+        color[eid] = c
+
+    def recolor_edge(eid, new_c):
+        old_c = color[eid]
+        if old_c == new_c:
+            return
+
+        u = left_vertex[eid]
+        v = right_vertex[eid]
+
+        # remove old color
+        del color_to_left[u][old_c]
+        del color_to_right[v][old_c]
+        used_left[u].remove(old_c)
+        used_right[v].remove(old_c)
+
+        if old_c < next_free_left[u]:
+            next_free_left[u] = old_c
+        if old_c < next_free_right[v]:
+            next_free_right[v] = old_c
+
+        # add new color
+        if color_to_left[u] is None:
+            color_to_left[u] = {}
+        if color_to_right[v] is None:
+            color_to_right[v] = {}
+
+        color_to_left[u][new_c] = (v, eid)
+        color_to_right[v][new_c] = (u, eid)
+        used_left[u].add(new_c)
+        used_right[v].add(new_c)
+
+        if new_c == next_free_left[u]:
+            while next_free_left[u] in used_left[u]:
+                next_free_left[u] += 1
+        if new_c == next_free_right[v]:
+            while next_free_right[v] in used_right[v]:
+                next_free_right[v] += 1
+
+        color[eid] = new_c
+
+    for eid in range(m):
+        u = left_vertex[eid]
+        v = right_vertex[eid]
+
+        # smallest color free at both u and v
+        c = max(next_free_left[u], next_free_right[v])
+        while c in used_left[u] or c in used_right[v]:
+            c += 1
+
+        if c <= Delta:
+            set_color(eid, c)
+        else:
+            # a in S_u \ S_v
+            a = 1
+            while a in used_right[v] or a not in used_left[u]:
+                a += 1
+
+            # b in S_v \ S_u
+            b = 1
+            while b in used_left[u] or b not in used_right[v]:
+                b += 1
+
+            # alternating path starting at v with color b
+            cur = v
+            from_col = b
+            to_col = a
+            path_edges = []
+            path_new_colors = []
+
+            while True:
+                if cur <= nL:
+                    used_cur = used_left[cur]
+                    color_to_cur = color_to_left[cur]
+                else:
+                    used_cur = used_right[cur]
+                    color_to_cur = color_to_right[cur]
+
+                if from_col not in used_cur:
+                    break
+
+                nxt, eid2 = color_to_cur[from_col]
+                path_edges.append(eid2)
+                path_new_colors.append(to_col)
+
+                cur = nxt
+                from_col, to_col = to_col, from_col
+
+            # recolor the path
+            for eid2, new_c in zip(path_edges, path_new_colors):
+                recolor_edge(eid2, new_c)
+
+            # assign b to the new edge
+            set_color(eid, b)
+
+    out = ["YES"]
+    out.append(" ".join(map(str, color)))
+    sys.stdout.write("\n".join(out) + "\n"
+
+if __name__ == "__main__":
+    main()
+```

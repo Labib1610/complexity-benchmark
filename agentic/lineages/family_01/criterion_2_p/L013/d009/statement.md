@@ -1,56 +1,39 @@
-# Operator Network
+# Problem B — Grid Phase Configuration
 
-Time limit: 1 s
-Memory limit: 256 MB
+Time limit: 1 s   Memory limit: 256 MB
 
-A network consists of $n$ nodes. Each node must be assigned exactly one of two linear operators on $\mathbb{R}^2$:
-- Operator 1: $T_1(\mathbf{x}) = A \mathbf{x}$, where $A = \begin{pmatrix} 1 & 4 \\ 2 & 5 \end{pmatrix}$
-- Operator 2: $T_2(\mathbf{x}) = B \mathbf{x}$, where $B = \begin{pmatrix} 5 & -4 \\ -2 & 1 \end{pmatrix}$
+You are configuring the properties of an $n \times n$ grid. To do this, you must assign a single phase array $p$ of length $n$, where each element $p_i \in \{1, 2\}$ for $1 \le i \le n$.
+This array simultaneously dictates the phases of the grid's rows and columns: the phase of row $i$ is defined as $p_i$, and the phase of column $i$ is also defined as $p_i$.
 
-There are $m$ links in the network. Each link connects two specific nodes $u$ and $v$. A link is considered stable if and only if the composed operator $T_{u,v} = T_u \circ T_v$ (applied in either order, as they commute) is self-adjoint with respect to the standard inner product.
+You are given a list of $m$ conflict cells within the grid. The $k$-th conflict cell is located at row $u_k$ and column $v_k$.
+A phase configuration is valid if, for every conflict cell, the phase of its row is different from the phase of its column.
 
-Specifically, the combined operator $T_{u,v}$ must satisfy the following equation for all vectors $\mathbf{x}, \mathbf{y} \in \mathbb{R}^2$:
-
-$$ \mathbf{y}^\mathsf{T} T_{u,v}(\mathbf{x}) = T_{u,v}(\mathbf{y})^\mathsf{T} \mathbf{x} $$
-
-where $^\mathsf{T}$ denotes the vector transpose.
-
-If there exists even one pair of vectors $\mathbf{x}, \mathbf{y}$ where this equality fails, the link is unstable and the entire configuration is invalid.
-
-Your task is to determine whether there is an assignment of operators (either 1 or 2) to all $n$ nodes such that every link in the network is stable. If multiple valid assignments exist, you must output the one that minimizes the sequence of assigned operator numbers $s_1, s_2, \dots, s_n$ lexicographically.
+Your objective is to determine if there exists a valid phase configuration. If there are multiple valid configurations, you must output the one whose sequence $p_1, p_2, \dots, p_n$ is lexicographically smallest.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$).
-Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$), indicating that a link connects node $u$ and node $v$.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$), representing the size of the phase array and the number of conflict cells.
+The following $m$ lines each contain two integers $u$ and $v$ ($1 \le u, v \le n$), specifying the 1-based row and column indices of a conflict cell.
 
 ## Output
-If no stable assignment exists, print a single line containing `NO`.
-Otherwise, print `YES` on the first line. On the second line, print $n$ integers $s_1, \ldots, s_n$ (each being 1 or 2) representing the lexicographically smallest valid assignment.
+If no valid phase configuration is possible, print a single line containing `NO`.
+Otherwise, print `YES` on the first line. On the second line, output $n$ integers $p_1, p_2, \dots, p_n$ (where each $p_i \in \{1, 2\}$) denoting the phase array. Among all valid assignments, you must output the lexicographically smallest sequence.
 
 ## Example 1
 Input:
-```
 4 4
 1 2
 2 3
 3 4
 1 4
-```
 Output:
-```
 YES
 1 2 1 2
-```
 
 ## Example 2
 Input:
-```
 3 3
 1 2
 1 3
 2 3
-```
 Output:
-```
 NO
-```

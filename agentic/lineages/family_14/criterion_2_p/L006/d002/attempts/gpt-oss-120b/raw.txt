@@ -1,0 +1,223 @@
+**Solution Explanation**
+
+For every pair of sensors we can know the offset only if the two sensors are
+connected by a sequence of performed tests.
+The given `m = n‑1` tests form a **tree** – there is exactly one path between any
+two vertices.
+
+For a set `S` of `t` priority sensors we have to choose a set of edges of the
+tree such that all vertices of `S` become connected.
+All edge costs are positive, therefore the cheapest possible set is the
+*minimal subtree* that contains all vertices of `S` :
+
+* take the union of all tree‑paths between vertices of `S`;
+* delete every leaf that is not a priority vertex – the remaining edges are
+  unavoidable, otherwise some priority vertices would become disconnected.
+
+So the answer is simply the sum of the costs of the edges that belong to this
+minimal subtree.
+
+
+
+--------------------------------------------------------------------
+
+#### 1.   When is an edge necessary ?
+
+Root the tree arbitrarily (vertex 1).  
+For each vertex `v` let  
+
+```
+cnt[v] = number of priority vertices in the subtree of v (including v)
+```
+
+Consider the edge `parent(v) – v` (weight `w`).  
+If we cut this edge, the tree is split into two components:
+
+* the subtree of `v` (contains `cnt[v]` priority vertices)
+* the rest of the tree (contains `t - cnt[v]` priority vertices)
+
+The edge is needed **iff** both components contain at least one priority vertex,
+i.e.
+
+```
+cnt[v] > 0   and   cnt[v] < t
+```
+
+Summing `w` over all such edges gives the required minimum total cost.
+
+
+
+--------------------------------------------------------------------
+
+#### 2.   Computing `cnt[v]`
+
+A single DFS (or BFS) is enough.
+
+* First DFS (iterative, to avoid recursion depth) records the parent of each
+  vertex and the weight of the edge to its parent, and stores the visiting
+  order.
+* Process the vertices in reverse order (post‑order) and accumulate the counts:
+
+```
+cnt[v] = (v is priority ? 1 : 0) + Σ cnt[child]
+```
+
+While processing a vertex (except the root) we already know `cnt[v]`,
+so we can immediately decide whether the edge to its parent is necessary and
+add its weight to the answer.
+
+
+
+--------------------------------------------------------------------
+
+#### 3.   Correctness Proof  
+
+We prove that the algorithm outputs the minimum possible total cost.
+
+---
+
+##### Lemma 1  
+For an edge `e = (p, v)` (where `p` is the parent of `v`) the edge belongs to the
+minimal subtree connecting all priority vertices **iff**
+`cnt[v] > 0` and `cnt[v] < t`.
+
+**Proof.**  
+Removing `e` separates the tree into the two components described above.
+If both components contain at least one priority vertex, any set of edges that
+connects all priority vertices must contain a path between those two components,
+hence must contain `e`.  
+Conversely, if one component contains no priority vertex, the priority vertices
+are already connected without using `e`; therefore `e` is not required. ∎
+
+
+
+##### Lemma 2  
+The algorithm adds exactly the weights of all edges that belong to the minimal
+subtree.
+
+**Proof.**  
+During the post‑order processing the algorithm knows `cnt[v]` for every vertex
+`v`. For the edge to its parent it checks the condition of Lemma&nbsp;1 and
+adds the weight precisely when the condition holds. By Lemma&nbsp;1 this is
+exactly the set of necessary edges. ∎
+
+
+
+##### Lemma 3  
+The set of edges selected by the algorithm connects all priority vertices.
+
+**Proof.**  
+Take any two priority vertices `a` and `b`. Their unique tree path consists of
+edges. For each edge on that path, cutting it would separate `a` from `b`,
+hence both sides of the cut contain at least one priority vertex.
+Thus the condition of Lemma&nbsp;1 holds for every edge on the path, and the
+algorithm includes all of them. Consequently a path between `a` and `b` exists in
+the selected edge set. ∎
+
+
+
+##### Lemma 4  
+No proper subset of the edges selected by the algorithm can still connect all
+priority vertices.
+
+**Proof.**  
+Assume we remove an edge `e` that the algorithm selected.
+By Lemma&nbsp;1, both sides of `e` contain a priority vertex.
+After removing `e` those vertices lie in different components, so the remaining
+edges cannot connect all priority vertices – contradiction. ∎
+
+
+
+##### Theorem  
+The total cost output by the algorithm is the minimum possible cost of a set
+of tests that makes the offsets between every pair of priority sensors
+determinable.
+
+**Proof.**  
+By Lemma&nbsp;3 the algorithm’s edge set is feasible.
+By Lemma&nbsp;4 it is inclusion‑minimal, i.e. every feasible set must contain
+all its edges. Therefore any feasible set has total cost at least the sum of
+the algorithm’s edges. The algorithm’s cost is thus optimal. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### 4.   Complexity Analysis  
+
+*Building adjacency list* : `O(n)`  
+*Iterative DFS* : `O(n)`  
+*Post‑order accumulation* : `O(n)`  
+
+Memory consumption: adjacency list (`2·(n‑1)` entries) + a few integer arrays,
+all `O(n)`.
+
+Both limits satisfy the constraints (`n ≤ 200 000`).
+
+--------------------------------------------------------------------
+
+#### 5.   Reference Implementation  (Python 3)
+
+```python
+import sys
+
+def solve() -> None:
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+    it = iter(data)
+    n = next(it)
+    m = next(it)          # = n-1
+    t = next(it)
+
+    specials = [0] * (n + 1)
+    for _ in range(t):
+        v = next(it)
+        specials[v] = 1
+
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = next(it)
+        v = next(it)
+        w = next(it)
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+
+    parent = [0] * (n + 1)
+    pw = [0] * (n + 1)          # weight of edge to parent
+    order = []                  # traversal order
+    stack = [1]
+    parent[1] = -1              # mark root
+
+    while stack:
+        v = stack.pop()
+        order.append(v)
+        for to, w in adj[v]:
+            if parent[to] == 0:
+                parent[to] = v
+                pw[to] = w
+                stack.append(to)
+
+    cnt = [0] * (n + 1)
+    ans = 0
+    total_special = t
+
+    for v in reversed(order):
+        cur = specials[v]
+        # add children's counts (already accumulated)
+        for to, _ in adj[v]:
+            if parent[to] == v:          # to is a child
+                cur += cnt[to]
+        cnt[v] = cur
+        if v != 1:                       # not root, consider edge to parent
+            if 0 < cnt[v] < total_special:
+                ans += pw[v]
+
+    print(ans)
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above and conforms to
+the required input‑output format.

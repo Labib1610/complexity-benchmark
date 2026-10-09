@@ -1,0 +1,159 @@
+from collections import defaultdict
+import sys
+
+def find_matching(q, t, schematics):
+    # Create adjacency list for the tripartite graph
+    # We'll model this as a matching problem
+    # Each schematic is a hyperedge connecting 3 nodes
+    
+    if t == 0:
+        if q == 0:
+            return []
+        else:
+            return None
+    
+    # Try to find a perfect matching using backtracking
+    gears = list(range(1, 3*q + 1))
+    used_gears = [False] * (3*q + 1)
+    selected_schematics = []
+    
+    def backtrack(schematic_index):
+        # If we've selected q schematics, we're done
+        if len(selected_schematics) == q:
+            return True
+            
+        # If we've considered all schematics, but haven't found enough
+        if schematic_index >= t:
+            return False
+            
+        # Try including this schematic
+        a, b, c = schematics[schematic_index]
+        if not used_gears[a] and not used_gears[b] and not used_gears[c]:
+            # Use this schematic
+            used_gears[a] = used_gears[b] = used_gears[c] = True
+            selected_schematics.append((a, b, c))
+            
+            if backtrack(schematic_index + 1):
+                return True
+                
+            # Backtrack
+            used_gears[a] = used_gears[b] = used_gears[c] = False
+            selected_schematics.pop()
+        
+        # Try skipping this schematic
+        if backtrack(schematic_index + 1):
+            return True
+            
+        return False
+    
+    # Also try a more systematic approach with better ordering
+    def solve_systematic():
+        selected = []
+        used = [False] * (3*q + 1)
+        
+        def can_select(a, b, c):
+            return not used[a] and not used[b] and not used[c]
+        
+        def select_schematic(a, b, c):
+            used[a] = used[b] = used[c] = True
+            selected.append((a, b, c))
+        
+        def unselect_schematic(a, b, c):
+            used[a] = used[b] = used[c] = False
+            selected.pop()
+        
+        def dfs(index):
+            if len(selected) == q:
+                return True
+            if index >= t:
+                return False
+                
+            # Pruning: if remaining schematics can't cover remaining gears, return False
+            remaining_schematics = t - index
+            needed_schematics = q - len(selected)
+            if remaining_schematics < needed_schematics:
+                return False
+            
+            a, b, c = schematics[index]
+            # Try selecting current schematic
+            if can_select(a, b, c):
+                select_schematic(a, b, c)
+                if dfs(index + 1):
+                    return True
+                unselect_schematic(a, b, c)
+            
+            # Try not selecting current schematic
+            if dfs(index + 1):
+                return True
+                
+            return False
+        
+        if dfs(0):
+            return selected
+        return None
+    
+    # Even better: use a greedy approach first to speed up
+    result = solve_systematic()
+    return result
+
+def main():
+    input_lines = []
+    for line in sys.stdin:
+        input_lines.append(line.strip())
+    
+    q, t = map(int, input_lines[0].split())
+    schematics = []
+    
+    for i in range(1, t + 1):
+        a, b, c = map(int, input_lines[i].split())
+        schematics.append((a, b, c))
+    
+    # Special case
+    if q == 0:
+        print("YES")
+        return
+    
+    if t == 0:
+        print("NO")
+        return
+    
+    # Model as an exact cover problem and solve with backtracking
+    # Each gear must be covered exactly once
+    # Each schematic covers 3 gears
+    
+    used = [False] * (3*q + 1)
+    selected = []
+    
+    def search(schematic_idx):
+        if len(selected) == q:
+            return True
+        if schematic_idx >= t:
+            return False
+            
+        # Prune if impossible to reach q schematics
+        if len(selected) + (t - schematic_idx) < q:
+            return False
+            
+        a, b, c = schematics[schematic_idx]
+        
+        # Try including this schematic
+        if not used[a] and not used[b] and not used[c]:
+            used[a] = used[b] = used[c] = True
+            selected.append((a, b, c))
+            if search(schematic_idx + 1):
+                return True
+            selected.pop()
+            used[a] = used[b] = used[c] = False
+        
+        # Try not including this schematic
+        return search(schematic_idx + 1)
+    
+    if search(0):
+        print("YES")
+        for schematic in selected:
+            print(*sorted(schematic))
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    main()

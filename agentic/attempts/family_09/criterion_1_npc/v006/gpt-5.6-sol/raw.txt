@@ -1,0 +1,139 @@
+```python
+import sys
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+
+    n, m, k = data[0], data[1], data[2]
+
+    if k == 1:
+        print("YES")
+        print(1)
+        return
+
+    full = (1 << n) - 1
+    conflict = [0] * n
+
+    p = 3
+    for _ in range(m):
+        u = data[p] - 1
+        v = data[p + 1] - 1
+        p += 2
+        conflict[u] |= 1 << v
+        conflict[v] |= 1 << u
+
+    compatible = [0] * n
+    for v in range(n):
+        compatible[v] = full & ~(conflict[v] | (1 << v))
+
+    # Relabel vertices by increasing compatibility degree so that reverse
+    # branching tends to consider high-degree vertices first.
+    permutation = sorted(range(n), key=lambda v: compatible[v].bit_count())
+    new_index = [0] * n
+    for i, v in enumerate(permutation):
+        new_index[v] = i
+
+    adjacency = [0] * n
+    for i, old_v in enumerate(permutation):
+        mask = compatible[old_v]
+        new_mask = 0
+        while mask:
+            bit = mask & -mask
+            old_u = bit.bit_length() - 1
+            new_mask |= 1 << new_index[old_u]
+            mask ^= bit
+        adjacency[i] = new_mask
+
+    all_vertices = (1 << n) - 1
+
+    # Fast greedy attempts.
+    for choose_high_degree in (True, False):
+        candidates = all_vertices
+        clique = []
+        while candidates and len(clique) < k:
+            bits = candidates
+            best_v = -1
+            best_degree = -1 if choose_high_degree else n + 1
+            while bits:
+                bit = bits & -bits
+                v = bit.bit_length() - 1
+                degree = (candidates & adjacency[v]).bit_count()
+                if ((choose_high_degree and degree > best_degree) or
+                        (not choose_high_degree and degree < best_degree)):
+                    best_degree = degree
+                    best_v = v
+                bits ^= bit
+            clique.append(best_v)
+            candidates &= adjacency[best_v]
+
+        if len(clique) >= k:
+            answer = [permutation[v] + 1 for v in clique[:k]]
+            print("YES")
+            print(*answer)
+            return
+
+    current = []
+    answer = None
+
+    def color_sort(vertices):
+        order = []
+        bounds = []
+        uncolored = vertices
+        color = 0
+
+        while uncolored:
+            color += 1
+            available = uncolored
+            while available:
+                bit = available & -available
+                v = bit.bit_length() - 1
+                order.append(v)
+                bounds.append(color)
+                uncolored ^= bit
+                available &= uncolored & ~adjacency[v]
+
+        return order, bounds
+
+    def expand(vertices):
+        nonlocal answer
+
+        current_size = len(current)
+        if current_size + vertices.bit_count() < k:
+            return False
+
+        order, bounds = color_sort(vertices)
+
+        for i in range(len(order) - 1, -1, -1):
+            if current_size + bounds[i] < k:
+                return False
+
+            v = order[i]
+            bit = 1 << v
+            next_vertices = vertices & adjacency[v]
+
+            current.append(v)
+            if len(current) == k:
+                answer = current.copy()
+                return True
+
+            if len(current) + next_vertices.bit_count() >= k:
+                if expand(next_vertices):
+                    return True
+
+            current.pop()
+            vertices ^= bit
+
+        return False
+
+    if expand(all_vertices):
+        result = [permutation[v] + 1 for v in answer]
+        print("YES")
+        print(*result)
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    main()
+```

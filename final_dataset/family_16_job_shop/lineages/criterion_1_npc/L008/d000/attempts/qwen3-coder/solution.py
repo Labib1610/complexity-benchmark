@@ -1,0 +1,61 @@
+from collections import defaultdict
+import heapq
+
+def solve():
+    j, m = map(int, input().split())
+    
+    elixirs = []
+    for _ in range(j):
+        line = list(map(int, input().split()))
+        o = line[0]
+        phases = []
+        for i in range(o):
+            app = line[1 + 2*i]
+            dur = line[1 + 2*i + 1]
+            phases.append((app, dur))
+        elixirs.append(phases)
+    
+    # Try all possible permutations of elixir processing orders
+    # Since j <= 10, we can enumerate all permutations
+    
+    from itertools import permutations
+    
+    min_time = float('inf')
+    
+    # For each permutation of elixir indices
+    for perm in permutations(range(j)):
+        # For each apparatus, we'll track when it becomes free
+        apparatus_free_time = [0] * (m + 1)  # 1-indexed
+        
+        # Track completion time for each elixir
+        elixir_completion = [0] * j
+        
+        # Process elixirs in the order given by the permutation
+        for elixir_idx in perm:
+            phases = elixirs[elixir_idx]
+            current_time = 0
+            
+            # Process each phase of this elixir
+            for app, dur in phases:
+                # This phase can start only after:
+                # 1. The previous phase of this elixir is done (current_time)
+                # 2. The apparatus is free (apparatus_free_time[app])
+                start_time = max(current_time, apparatus_free_time[app])
+                end_time = start_time + dur
+                
+                # Update when this apparatus will be free next
+                apparatus_free_time[app] = end_time
+                
+                # Update current time for next phase of this elixir
+                current_time = end_time
+            
+            # Record when this elixir is completed
+            elixir_completion[elixir_idx] = current_time
+        
+        # The finish time for this permutation is the maximum completion time
+        finish_time = max(elixir_completion)
+        min_time = min(min_time, finish_time)
+    
+    print(min_time)
+
+solve()

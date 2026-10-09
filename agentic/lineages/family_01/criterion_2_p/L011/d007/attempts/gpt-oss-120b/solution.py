@@ -1,68 +1,60 @@
 import sys
-from collections import deque
+sys.setrecursionlimit(1 << 25)
 
 def solve() -> None:
-    data = sys.stdin.read().strip().split()
+    data = sys.stdin.buffer.read().split()
     if not data:
         return
     it = iter(data)
     n = int(next(it))
     m = int(next(it))
-    adj = [[] for _ in range(n)]
+    adj = [[] for _ in range(n + 1)]
     for _ in range(m):
-        u = int(next(it)) - 1
-        v = int(next(it)) - 1
+        u = int(next(it)); v = int(next(it))
         adj[u].append(v)
         adj[v].append(u)
 
-    color = [-1] * n          # 0 or 1
-    comp_nodes = []           # list of lists of nodes per component
-    ok = True
+    colour = [-1] * (n + 1)          # 0 / 1
+    answer = [0] * (n + 1)
+    from collections import deque
 
-    for i in range(n):
-        if color[i] != -1:
+    for start in range(1, n + 1):
+        if colour[start] != -1:
             continue
         # BFS this component
-        q = deque([i])
-        color[i] = 0
-        nodes = [i]
+        q = deque([start])
+        colour[start] = 0
+        comp_vertices = [start]
+        ok = True
         while q:
             u = q.popleft()
+            cu = colour[u]
             for v in adj[u]:
-                if color[v] == -1:
-                    color[v] = color[u] ^ 1
+                if colour[v] == -1:
+                    colour[v] = cu ^ 1
                     q.append(v)
-                    nodes.append(v)
-                elif color[v] == color[u]:
+                    comp_vertices.append(v)
+                elif colour[v] == cu:
                     ok = False
                     break
             if not ok:
                 break
         if not ok:
-            break
-        comp_nodes.append(nodes)
+            print("NO")
+            return
 
-    if not ok:
-        print("NO")
-        return
-
-    # Build answer with lexicographically smallest assignment
-    ans = [0] * n
-    for nodes in comp_nodes:
-        # find smallest index in this component
-        min_node = min(nodes)
-        # orientation: make min_node have value 1
-        if color[min_node] == 0:
-            # map 0 -> 1, 1 -> 2
-            for v in nodes:
-                ans[v] = 1 if color[v] == 0 else 2
+        # decide orientation: make start (the smallest vertex) have value 1
+        if colour[start] == 0:
+            # colour 0 -> 1, colour 1 -> 2
+            for v in comp_vertices:
+                answer[v] = 1 if colour[v] == 0 else 2
         else:
-            # map 1 -> 1, 0 -> 2
-            for v in nodes:
-                ans[v] = 1 if color[v] == 1 else 2
+            # colour 1 -> 1, colour 0 -> 2
+            for v in comp_vertices:
+                answer[v] = 1 if colour[v] == 1 else 2
 
     print("YES")
-    print(' '.join(map(str, ans)))
+    print(' '.join(str(answer[i]) for i in range(1, n + 1)))
 
 if __name__ == "__main__":
     solve()

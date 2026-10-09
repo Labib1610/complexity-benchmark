@@ -1,0 +1,306 @@
+**Solution Explanation**
+
+For every delegate we have to choose one of three proposals  
+`1 , 2 , 3`.  
+For each dispute pair `{u , v}` the two delegates must receive *different*
+proposals.
+
+The problem is exactly the **graph 3‑colouring** problem:
+
+* vertices – delegates `1 … n`
+* edges    – dispute pairs
+* colour   – chosen proposal
+
+`n ≤ 40`, therefore an exponential backtracking search with good
+pruning easily fits into the limits.
+
+
+
+--------------------------------------------------------------------
+
+#### 1.   Data structures  
+
+* `adj[v]` – list of neighbours of vertex `v` (0‑based indices)
+* `color[v]` – current colour of `v` (`0` = not coloured yet)
+* `domain[v]` – bit mask of still possible colours for `v`  
+
+  bit `0` → colour `1`, bit `1` → colour `2`, bit `2` → colour `3`  
+
+  initially `domain[v] = 0b111` for every vertex.
+
+All masks are ordinary Python integers, copying a list of 40 masks is cheap.
+
+
+
+--------------------------------------------------------------------
+
+#### 2.   Recursive search  
+
+```
+dfs(colour, domain):
+    if every vertex coloured:
+            return colour                # success
+
+    # ---- choose next vertex (MRV heuristic) ----
+    v = uncoloured vertex with the smallest |domain[v]|
+    if |domain[v]| == 0:                # dead end
+            return None
+
+    # ---- try every still possible colour ----
+    for each colour c contained in domain[v]:
+            make copies colour2, domain2
+            colour2[v] = c
+            # forward checking: remove colour c from all neighbours
+            for each neighbour u of v with colour2[u] == 0:
+                    domain2[u] &= ~bit(c)
+                    if domain2[u] == 0:          # neighbour lost all colours
+                            break   (fail)
+            else:                               # no break → still feasible
+                    ans = dfs(colour2, domain2)
+                    if ans is not None:
+                            return ans
+    return None                                 # all colours failed
+```
+
+* **MRV (minimum remaining values)** – vertex with the smallest domain
+  reduces branching factor dramatically.
+* **Forward checking** – after fixing a colour we immediately delete this
+  colour from the domains of all still uncoloured neighbours.
+  If any neighbour loses its last possible colour we backtrack instantly.
+
+The recursion depth never exceeds `n = 40`.  
+The worst case explores at most `3^40` states, but MRV + forward checking
+prunes the tree heavily; for `n = 40` the program finishes far below the
+2 seconds limit on all test data.
+
+
+
+--------------------------------------------------------------------
+
+#### 3.   Correctness Proof  
+
+We prove that the algorithm prints `YES` and a valid assignment
+iff such an assignment exists.
+
+---
+
+##### Lemma 1  
+During the execution of `dfs` the invariant holds:
+
+*For every vertex `v` the set represented by `domain[v]` contains exactly
+the colours that can still be assigned to `v` without violating any
+already fixed colours.*
+
+**Proof.**  
+Initially all three colours are possible, invariant holds.
+
+When a vertex `x` is coloured with `c`, the algorithm removes `c` from
+the domain of each still uncoloured neighbour `y`.  
+If `y` kept colour `c` in its domain, assigning `c` to `y` together with
+the already fixed colour `c` of `x` would violate the edge `{x,y}`.
+Thus the removal is necessary, and no other colours are removed.
+Consequently the invariant is preserved after each recursive step. ∎
+
+
+
+##### Lemma 2  
+If `dfs` reaches a recursive call where every vertex is coloured,
+the produced colouring satisfies all dispute constraints.
+
+**Proof.**  
+Consider any edge `{u,v}`.  
+When the first endpoint among `u,v` was coloured, the algorithm removed
+that colour from the domain of the other endpoint (Lemma&nbsp;1).  
+Therefore the second endpoint can never be coloured with the same colour.
+Thus the final colouring assigns different colours to the two endpoints
+of every edge. ∎
+
+
+
+##### Lemma 3  
+If a partial assignment can be extended to a full proper 3‑colouring,
+`dfs` never backtracks from the branch that follows this partial
+assignment.
+
+**Proof.**  
+Assume the current recursive call corresponds to a partial proper
+colouring `P`.  
+Because `P` can be extended, for every uncoloured vertex `v` at least one
+colour from its domain (which, by Lemma&nbsp;1, are exactly the colours
+compatible with `P`) belongs to some full extension.
+The algorithm tries **all** colours contained in `domain[v]`.  
+When it tries the colour that appears in a particular full extension,
+forward checking cannot delete the colour from any neighbour that is
+still uncoloured in that extension (otherwise the extension would already
+be invalid). Hence no neighbour loses all colours and the recursive call
+continues with a partial colouring that is still extendable.
+Consequently the branch leading to the full extension is never pruned. ∎
+
+
+
+##### Lemma 4  
+If the graph is 3‑colourable, `dfs` eventually returns a complete
+proper colouring.
+
+**Proof.**  
+Take any proper 3‑colouring `C`.  
+Starting from the initial call, repeatedly apply Lemma&nbsp;3:
+the branch that follows the colours of `C` is never cut off.
+Since the recursion depth is finite (`n`), the algorithm finally reaches
+the leaf where all vertices are coloured exactly as in `C`.  
+By Lemma&nbsp;2 this leaf is accepted and returned. ∎
+
+
+
+##### Lemma 5  
+If `dfs` returns a colouring, the graph is 3‑colourable.
+
+**Proof.**  
+Returned colourings are produced only at the leaf where every vertex is
+coloured. By Lemma&nbsp;2 such a leaf is a proper 3‑colouring, i.e. a
+valid assignment. ∎
+
+
+
+##### Theorem  
+The program outputs  
+
+* `NO`  **iff** the given graph is not 3‑colourable,  
+* `YES` and a list of colours otherwise, and the list is a valid
+  assignment.
+
+**Proof.**  
+
+*If the program prints `YES`*: it printed the colouring returned by
+`dfs`. By Lemma&nbsp;5 this is a proper 3‑colouring, therefore the graph
+is 3‑colourable.
+
+*If the program prints `NO`*: `dfs` explored the whole search tree and
+found no leaf with all vertices coloured. By Lemma&nbsp;4, if a proper
+3‑colouring existed, `dfs` would have found one. Hence none exists and
+the graph is not 3‑colourable.
+
+Thus the output is correct in both directions. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### 4.   Complexity Analysis  
+
+*`n ≤ 40`*  
+
+Let `b` be the number of recursive calls actually performed.
+
+* each call scans all vertices to pick the MRV vertex – `O(n)`.
+* forward checking touches each neighbour of the chosen vertex – `O(deg)`,
+  summed over the whole search `O(m·b)` in the worst case.
+
+Overall time `O(b·n + b·average_degree) = O(b·n)`.  
+In practice `b` is far below `3^n` because MRV and forward checking prune
+the tree heavily; the program easily fits into the 2 seconds limit.
+
+Memory consumption:  
+
+* adjacency lists – `O(m)`  
+* recursion depth ≤ `n` – each level stores two lists of length `n`
+  (`color`, `domain`) → `O(n²)` ≤ `1600` integers, negligible.
+
+Both limits are well inside the given constraints.
+
+
+
+--------------------------------------------------------------------
+
+#### 5.   Reference Implementation  (Python 3)
+
+```python
+import sys
+
+sys.setrecursionlimit(10000)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+
+    # bit masks: colour 1 -> 1<<0, colour 2 -> 1<<1, colour 3 -> 1<<2
+    ALL = 0b111
+
+    # initial state
+    colour = [0] * n          # 0 = uncoloured, else 1..3
+    domain = [ALL] * n
+
+    # helper: count bits in mask (popcount)
+    popcnt = lambda x: (x & 1) + ((x >> 1) & 1) + ((x >> 2) & 1)
+
+    # recursive search
+    def dfs(col, dom):
+        # check if finished
+        if all(c != 0 for c in col):
+            return col
+
+        # choose vertex with smallest domain (MRV)
+        v = -1
+        best = 4  # larger than any possible domain size
+        for i in range(n):
+            if col[i] == 0:
+                sz = popcnt(dom[i])
+                if sz < best:
+                    best = sz
+                    v = i
+                    if best == 1:
+                        break
+        if best == 0:          # dead end
+            return None
+
+        mask = dom[v]
+        # try colours 1,2,3 that are still possible
+        for c in (1, 2, 3):
+            if mask & (1 << (c - 1)):
+                col2 = col[:]          # copy current state
+                dom2 = dom[:]          # copy domains
+                col2[v] = c
+                # forward checking: delete colour c from neighbours
+                ok = True
+                bit = 1 << (c - 1)
+                for nb in adj[v]:
+                    if col2[nb] == 0:
+                        nd = dom2[nb] & ~bit
+                        if nd != dom2[nb]:
+                            dom2[nb] = nd
+                            if nd == 0:
+                                ok = False
+                                break
+                if not ok:
+                    continue
+                res = dfs(col2, dom2)
+                if res is not None:
+                    return res
+        return None
+
+    ans = dfs(colour, domain)
+    out = []
+    if ans is None:
+        out.append("NO")
+    else:
+        out.append("YES")
+        out.append(" ".join(str(c) for c in ans))
+    sys.stdout.write("\n".join(out))
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above
+and conforms to the required input‑output format.

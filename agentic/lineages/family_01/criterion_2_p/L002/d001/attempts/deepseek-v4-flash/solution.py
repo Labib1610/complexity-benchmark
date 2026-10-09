@@ -1,5 +1,5 @@
-import sys
 from collections import deque
+import sys
 
 input = sys.stdin.readline
 
@@ -14,20 +14,30 @@ for _ in range(m):
 
 color = [-1] * n
 
+def bfs(start, first_color):
+    q = deque([start])
+    color[start] = first_color
+    while q:
+        u = q.popleft()
+        for v in adj[u]:
+            if color[v] == -1:
+                color[v] = 1 - color[u]
+                q.append(v)
+            elif color[v] == color[u]:
+                return False
+    return True
+
 for i in range(n):
     if color[i] == -1:
-        color[i] = 0
-        q = deque([i])
-        while q:
-            u = q.popleft()
-            for v in adj[u]:
-                if color[v] == -1:
-                    color[v] = 1 - color[u]
-                    q.append(v)
-                elif color[v] == color[u]:
-                    print("NO")
-                    sys.exit()
+        # try starting with 1
+        temp_color = color[:]
+        if bfs(i, 0):
+            continue
+        # if failed, reset and try starting with 2
+        color = temp_color
+        if not bfs(i, 1):
+            print("NO")
+            sys.exit()
 
-# color 0 -> band 1, color 1 -> band 2
 print("YES")
-print(' '.join(str(c + 1) for c in color))
+print(" ".join(str(c + 1) for c in color))

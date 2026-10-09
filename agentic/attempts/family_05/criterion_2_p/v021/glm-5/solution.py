@@ -1,0 +1,108 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    k = int(next(it))
+    t = int(next(it))
+    
+    # Map: catalyst -> (reagent, list of solvents)
+    cat_to_reag = {}
+    cat_to_solvents = {}
+    
+    for _ in range(t):
+        x = int(next(it))
+        y = int(next(it))
+        z = int(next(it))
+        if x not in cat_to_reag:
+            cat_to_reag[x] = y
+            cat_to_solvents[x] = []
+        cat_to_solvents[x].append(z)
+    
+    # Check if we have all catalysts 1..k
+    for c in range(1, k + 1):
+        if c not in cat_to_reag:
+            print("NO")
+            return
+    
+    # Check if reagents form a permutation of 1..k
+    reagents_used = set()
+    for c in cat_to_reag:
+        r = cat_to_reag[c]
+        reagents_used.add(r)
+    
+    if len(reagents_used) != k:
+        print("NO")
+        return
+    
+    # Build bipartite graph: catalysts on left, solvents on right
+    # Edge exists if there's a configuration with that catalyst and solvent
+    adj = [[] for _ in range(k + 1)]
+    for c in cat_to_solvents:
+        for s in cat_to_solvents[c]:
+            adj[c].append(s)
+    
+    # Find maximum matching using Hopcroft-Karp
+    match_r = [0] * (k + 1)  # match_r[s] = catalyst matched to solvent s
+    
+    def bfs():
+        dist = [-1] * (k + 1)
+        queue = []
+        for u in range(1, k + 1):
+            if match_l[u] == 0:
+                dist[u] = 0
+                queue.append(u)
+            else:
+                dist[u] = -1
+        
+        found = False
+        qi = 0
+        while qi < len(queue):
+            u = queue[qi]
+            qi += 1
+            for v in adj[u]:
+                m = match_r[v]
+                if m != 0 and dist[m] == -1:
+                    dist[m] = dist[u] + 1
+                    queue.append(m)
+                elif m == 0:
+                    found = True
+        return dist, found
+    
+    def dfs(u, dist):
+        for v in adj[u]:
+            m = match_r[v]
+            if m == 0 or (dist[m] == dist[u] + 1 and dfs(m, dist)):
+                match_l[u] = v
+                match_r[v] = u
+                return True
+        dist[u] = -1
+        return False
+    
+    match_l = [0] * (k + 1)
+    matching_size = 0
+    
+    while True:
+        dist, found = bfs()
+        if not found:
+            break
+        for u in range(1, k + 1):
+            if match_l[u] == 0:
+                if dfs(u, dist):
+                    matching_size += 1
+    
+    if matching_size != k:
+        print("NO")
+        return
+    
+    # Output the result
+    print("YES")
+    for c in range(1, k + 1):
+        s = match_l[c]
+        r = cat_to_reag[c]
+        print(c, r, s)
+
+if __name__ == "__main__":
+    solve()

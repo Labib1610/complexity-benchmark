@@ -4,9 +4,7 @@ Time limit: 5 s   Memory limit: 256 MB
 
 ## Description
 
-A facility has **n** locations (numbered 1..n) connected by **m** direct links. If you install a sensor at a location, that sensor **monitors** its own location and every location directly linked to it.
-
-A location is **covered** if it has a sensor or is directly linked to a location that has one. Using a budget of **k** sensors, decide whether every location can be covered, and if so report where to place the sensors.
+A facility of **n** sites and **m** links must be brought under monitoring. A sensor placed at a site observes that site and every site directly linked to it; a site is covered if it holds a sensor or is adjacent to one. With a budget of **k** sensors, decide whether every site can be covered, and if so report the placements. Link lengths and site functions are irrelevant; only adjacency matters. Because one sensor covers a whole neighbourhood, greedy placement often overlaps or leaves gaps, and finding a placement of only k that leaves nothing uncovered is the hard part.
 
 ## Input
 

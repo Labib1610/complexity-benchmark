@@ -1,42 +1,46 @@
+import sys
+from collections import defaultdict
+
 def solve():
-    import sys
-    from collections import defaultdict
-    
-    n, m = map(int, sys.stdin.readline().split())
+    n, m = map(int, input().split())
     
     # Build adjacency list
-    adj = defaultdict(set)
+    adj = defaultdict(list)
     for _ in range(m):
-        u, v = map(int, sys.stdin.readline().split())
-        adj[u].add(v)
-        adj[v].add(u)
+        u, v = map(int, input().split())
+        adj[u].append(v)
+        adj[v].append(u)
     
-    # Try all possible assignments with backtracking
-    # We want the lexicographically smallest one
-    assignment = [0] * (n + 1)
+    # Colors: 0 = uncolored, 1, 2, 3 = colors
+    color = [0] * (n + 1)
     
-    def is_valid(person, schedule):
-        for neighbor in adj[person]:
-            if assignment[neighbor] == schedule:
+    # Check if graph is 3-colorable using backtracking
+    def is_safe(node, c):
+        for neighbor in adj[node]:
+            if color[neighbor] == c:
                 return False
         return True
     
-    def backtrack(person):
-        if person > n:
+    def backtrack(node):
+        if node > n:
             return True
             
-        for schedule in [1, 2, 3]:
-            if is_valid(person, schedule):
-                assignment[person] = schedule
-                if backtrack(person + 1):
+        if color[node] != 0:
+            return backtrack(node + 1)
+            
+        for c in [1, 2, 3]:
+            if is_safe(node, c):
+                color[node] = c
+                if backtrack(node + 1):
                     return True
-                assignment[person] = 0
+                color[node] = 0
                 
         return False
     
+    # Try to color all components
     if backtrack(1):
         print("YES")
-        print(*assignment[1:])
+        print(*color[1:])
     else:
         print("NO")
 

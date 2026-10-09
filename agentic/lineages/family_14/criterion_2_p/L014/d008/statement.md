@@ -1,0 +1,90 @@
+# Corporate Consolidation
+
+Time limit: 2 s   Memory limit: 256 MB
+
+## Description
+
+In a regulated market, there are $n$ independent corporations (numbered 1 through $n$) and a set of $m$ proposed bilateral merger agreements. Each agreement involves two specific corporations and requires a defined legal fee to finalize.
+
+Within this market, a particular group of $t$ corporations are identified as key patent holders. 
+
+To maintain market equilibrium, the antitrust regulatory board has issued a certificate that enforces strict structural limits on the proposed agreements. The certificate guarantees that the market is fully integrated, meaning any two corporations can be linked by some valid sequence of proposed agreements (a sequence where consecutive agreements share a corporation). Furthermore, the certificate guarantees that the market structure is minimally sufficient: there are absolutely no redundant agreements, meaning the removal of any single agreement from the market would immediately compromise this full integration. As a mathematical consequence of these two regulations, the total count of proposed agreements, $m$, is always exactly one fewer than the number of corporations.
+
+We classify a proposed agreement as *critical* if its removal from the set of all $m$ proposed agreements would divide the market's corporations into two isolated segments, such that each segment contains at least one key patent holder. (Two corporations are considered to be in the same segment if they can still be linked by a sequence of the remaining proposed agreements).
+
+Your goal is to choose a subset of the proposed agreements to finalize. A chosen subset is considered valid if and only if it includes every *critical* agreement. 
+
+You must find the minimum total legal fee of a valid subset of finalized agreements.
+
+## Input
+
+The first line contains three integers $n$, $m$, and $t$ ($1 \le t \le n$, $1 \le n \le 200000$).
+The second line contains $t$ distinct integers: the identifiers of the key patent holders.
+Each of the next $m$ lines contains three integers $u$, $v$, and $w$ ($1 \le u, v \le n$, $u \neq v$, $1 \le w \le 1000000$), representing a proposed agreement between corporation $u$ and corporation $v$ with a legal fee of $w$.
+
+## Output
+
+Print a single integer: the minimum total legal fee of a valid subset of finalized agreements.
+
+## Examples
+
+### Example 1
+
+**Input**
+```
+4 3 2
+1 4
+1 2 5
+2 3 1
+3 4 2
+```
+
+**Output**
+```
+8
+```
+
+### Example 2
+
+**Input**
+```
+5 4 1
+3
+1 2 4
+2 3 6
+3 4 2
+4 5 9
+```
+
+**Output**
+```
+0
+```
+
+### Example 3
+
+**Input**
+```
+3 2 3
+1 2 3
+1 2 4
+2 3 5
+```
+
+**Output**
+```
+9
+```
+
+## Note
+
+In Example 1, the key patent holders are 1 and 4. 
+Removing the agreement between 1 and 2 separates the market into an isolated segment containing corporation 1 and another containing 2, 3, and 4. Since corporation 1 is in the first segment and corporation 4 is in the second, both segments contain at least one key patent holder. Thus, this agreement is critical.
+Similarly, removing the agreement between 2 and 3, or the agreement between 3 and 4, also separates the key patent holders 1 and 4 into different isolated segments. All three agreements are critical. To form a valid subset, all three must be included. The minimum total legal fee is 5 + 1 + 2 = 8. 
+
+In Example 2, there is only one key patent holder (corporation 3). Removing any agreement will leave corporation 3 in one segment, while the other segment will contain zero key patent holders. Thus, no agreements are critical. The condition is vacuously satisfied by choosing an empty subset, resulting in a minimum total legal fee of 0.
+
+In Example 3, the key patent holders are 1, 2, and 3.
+Removing the agreement between 1 and 2 leaves corporation 1 in one segment and corporations 2 and 3 in the other. Both segments contain key patent holders, so this agreement is critical.
+Removing the agreement between 2 and 3 leaves corporations 1 and 2 in one segment and corporation 3 in the other. Both segments contain key patent holders, so this agreement is also critical.
+Both agreements are critical and must be included in any valid subset. The minimum total legal fee is 4 + 5 = 9.

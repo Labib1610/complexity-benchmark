@@ -1,25 +1,22 @@
-# Problem B — Day and Night
+# Problem B — Anti-Glare Arrays
 
 Time limit: 1 s   Memory limit: 256 MB
 
-A factory employs $n$ workers, with $m$ synchronization links established among them. You must assign a shift code $s_i \in \{1, 2\}$ to each worker $i$. 
+An optical instrument contains $n$ crystal lenses. Each lens must be assigned a polarization axis, which must be an integer value of either 1 or 2.
 
-To maintain proper timing, each worker's machine is configured with two gears: a primary gear and a secondary gear. The sizes of these gears are entirely determined by the assigned shift code:
-- If a worker is assigned shift code 1, their primary gear has 5 teeth and their secondary gear has 10 teeth.
-- If a worker is assigned shift code 2, their primary gear has 10 teeth and their secondary gear has 5 teeth.
+The instrument is equipped with $m$ calibration tubes, each routing light directly between a pair of lenses. The instrument's diagnostic system validates the configuration by computing a global calibration product. For each tube connecting a pair of lenses, the system computes the sum of the polarization axes assigned to those two lenses. It then multiplies these sums together across all $m$ tubes. 
 
-A synchronization link between two workers $u$ and $v$ is only stable if their machines are compatible. Specifically, the primary gear of worker $u$ must have the exact same number of teeth as the secondary gear of worker $v$. 
-(Note: Due to the gear sizes for the two shifts, if $u$'s primary gear matches $v$'s secondary gear, then $v$'s primary gear will automatically match $u$'s secondary gear. Therefore, this compatibility condition is symmetric and does not depend on the order of the two connected workers.)
+To successfully filter out glare, this final calibration product must evaluate to exactly $3^m$.
 
-Determine if there is a valid assignment of shift codes for all workers such that every synchronization link in the factory is stable.
+Determine an assignment of polarization axes for all $n$ lenses that satisfies this requirement, or report that the hardware configuration is flawed.
 
 ## Input
 The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$).
-Each of the next $m$ lines contains two integers $u$ and $v$ — a pair of workers connected by a synchronization link.
+Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$) — the two lenses connected by that calibration tube.
 
 ## Output
-If no valid assignment exists, print a single line `NO`.
-Otherwise, print `YES` on the first line. On the second line, print $n$ integers $s_1, s_2, \ldots, s_n$ (each in $\{1,2\}$) representing the valid assignment. If there are multiple valid assignments, output the one that is lexicographically smallest as a full sequence of $n$ integers.
+If no valid assignment exists, print a single line containing `NO`.
+Otherwise, print `YES`, followed by a second line with $n$ integers $c_1 \dots c_n$ (each in $\{1,2\}$). This sequence must represent the valid calibration assignment. If multiple valid assignments exist, output the lexicographically smallest sequence.
 
 ## Example 1
 Input:

@@ -20,12 +20,12 @@ def solve():
         adj[v].append(u)
 
     color = [0] * (n + 1)
-    
+    possible = True
+
     for i in range(1, n + 1):
         if color[i] == 0:
             queue = deque([i])
             color[i] = 1
-            
             while queue:
                 u = queue.popleft()
                 for v in adj[u]:
@@ -33,11 +33,18 @@ def solve():
                         color[v] = 3 - color[u]
                         queue.append(v)
                     elif color[v] == color[u]:
-                        sys.stdout.write("NO\n")
-                        return
-    
-    sys.stdout.write("YES\n")
-    sys.stdout.write(' '.join(map(str, color[1:])) + '\n')
+                        possible = False
+                        break
+                if not possible:
+                    break
+        if not possible:
+            break
+
+    if not possible:
+        print("NO")
+    else:
+        print("YES")
+        print(' '.join(map(str, color[1:])))
 
 if __name__ == '__main__':
     solve()

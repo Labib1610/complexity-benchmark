@@ -1,0 +1,56 @@
+import sys
+from collections import defaultdict
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    edges = []
+    adj = [set() for _ in range(n + 1)]
+    
+    index = 2
+    for _ in range(m):
+        u = int(data[index])
+        v = int(data[index + 1])
+        edges.append((u, v))
+        adj[u].add(v)
+        adj[v].add(u)
+        index += 2
+    
+    # For each node, we'll look at its neighbors to find triangles
+    # To optimize, we process nodes in increasing order and only consider neighbors > current node
+    # This avoids duplicate checks and ensures lexicographical order
+    
+    best = None
+    
+    for a in range(1, n + 1):
+        neighbors_a = list(adj[a])
+        # Only consider neighbors greater than a to maintain order and avoid duplicates
+        candidates = [x for x in neighbors_a if x > a]
+        candidates.sort()
+        
+        # Check all pairs among these candidates
+        for i in range(len(candidates)):
+            b = candidates[i]
+            for j in range(i + 1, len(candidates)):
+                c = candidates[j]
+                # Check if b and c are connected
+                if c in adj[b]:
+                    triplet = (a, b, c)
+                    if best is None or triplet < best:
+                        best = triplet
+                        # Since we're iterating in sorted order, the first found is the lex smallest
+                        break
+            if best is not None:
+                break
+        if best is not None:
+            break
+    
+    print(best[0], best[1], best[2])
+
+if __name__ == "__main__":
+    main()

@@ -1,8 +1,7 @@
 import sys
-sys.setrecursionlimit(1000000)
 
 def solve():
-    data = sys.stdin.read().split()
+    data = sys.stdin.read().strip().split()
     if not data:
         return
     it = iter(data)
@@ -18,105 +17,58 @@ def solve():
     
     color = [0] * n
     
-    def dfs(u):
-        for v in adj[u]:
-            if color[v] == 0:
-                color[v] = 3 - color[u]
-                if not dfs(v):
-                    return False
-            elif color[v] == color[u]:
-                return False
-        return True
-    
+    # Check if graph is bipartite and assign colors 1 or 2
+    is_bipartite = True
     for i in range(n):
         if color[i] == 0:
             color[i] = 1
-            if not dfs(i):
-                print("NO")
-                return
-    
-    # Build bipartite graph of components
-    comp_id = [-1] * n
-    comp_sizes = []
-    current_comp = 0
-    for i in range(n):
-        if comp_id[i] == -1:
             stack = [i]
-            comp_id[i] = current_comp
-            size = 0
             while stack:
                 u = stack.pop()
-                size += 1
                 for v in adj[u]:
-                    if comp_id[v] == -1:
-                        comp_id[v] = current_comp
+                    if color[v] == 0:
+                        color[v] = 3 - color[u]
                         stack.append(v)
-            comp_sizes.append(size)
-            current_comp += 1
+                    elif color[v] == color[u]:
+                        is_bipartite = False
+                        break
+                if not is_bipartite:
+                    break
+        if not is_bipartite:
+            break
     
-    num_comp = current_comp
-    # comp_type: 0 for color 1, 1 for color 2
-    comp_type = [[0, 0] for _ in range(num_comp)]
-    for i in range(n):
-        t = color[i] - 1
-        comp_type[comp_id[i]][t] += 1
-    
-    # DP to find subset of components with total size n//3
-    target = n // 3
-    dp = [-1] * (target + 1)
-    dp[0] = 0
-    choice = [0] * (target + 1)
-    
-    for c in range(num_comp):
-        new_dp = list(dp)
-        for s in range(target + 1):
-            if dp[s] != -1:
-                for t in range(2):
-                    ns = s + comp_type[c][t]
-                    if ns <= target:
-                        if new_dp[ns] == -1:
-                            new_dp[ns] = c
-                            choice[ns] = t
-        dp = new_dp
-    
-    if dp[target] == -1:
-        print("NO")
+    if is_bipartite:
+        print("YES")
+        print(' '.join(map(str, color)))
         return
     
-    # Backtrack to find which type each component takes
-    comp_take = [0] * num_comp
-    s = target
-    while s > 0:
-        c = dp[s]
-        t = choice[s]
-        comp_take[c] = t
-        s -= comp_type[c][t]
+    # Graph is not bipartite, need to check if 3-colorable
+    # Use backtracking with pruning
+    color = [0] * n
     
-    # Assign colors: type 0 -> color 1, type 1 -> color 2
-    final_color = [0] * n
-    for i in range(n):
-        c = comp_id[i]
-        if comp_take[c] == 0:
-            final_color[i] = 1
-        else:
-            final_color[i] = 2
+    # Order vertices by degree (descending) for better pruning
+    order = sorted(range(n), key=lambda x: -len(adj[x]))
     
-    # Greedy assignment of color 3
-    result = [0] * n
-    for i in range(n):
-        if final_color[i] == 1:
-            result[i] = 1
-        else:
-            result[i] = 2
+    def backtrack(idx):
+        if idx == n:
+            return True
+        u = order[idx]
+        used = 0
+        for v in adj[u]:
+            if color[v] != 0:
+                used |= (1 << (color[v] - 1))
+        for c in range(1, 4):
+            if not (used & (1 << (c - 1))):
+                color[u] = c
+                if backtrack(idx + 1):
+                    return True
+                color[u] = 0
+        return False
     
-    count1 = result.count(1)
-    need3 = target - count1
-    for i in range(n):
-        if need3 > 0 and result[i] == 2:
-            result[i] = 3
-            need3 -= 1
-    
-    print("YES")
-    print(' '.join(map(str, result)))
+    if backtrack(0):
+        print("YES")
+        print(' '.join(map(str, color)))
+    else:
+        print("NO")
 
 solve()

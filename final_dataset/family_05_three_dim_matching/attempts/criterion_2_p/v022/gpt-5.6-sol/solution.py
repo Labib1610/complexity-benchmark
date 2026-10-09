@@ -1,0 +1,112 @@
+import sys
+from collections import deque
+
+def main():
+    input_buffer = sys.stdin.buffer
+    first = input_buffer.readline().split()
+    if not first:
+        return
+
+    k, t = map(int, first)
+    adjacency = [[] for _ in range(k)]
+    filter_for = [-1] * k
+    filter_owner = [-1] * k
+    valid = True
+
+    for _ in range(t):
+        x, y, z = map(int, input_buffer.readline().split())
+        x -= 1
+        y -= 1
+        z -= 1
+
+        if filter_for[x] == -1:
+            filter_for[x] = y
+            if filter_owner[y] not in (-1, x):
+                valid = False
+            else:
+                filter_owner[y] = x
+        elif filter_for[x] != y:
+            valid = False
+
+        adjacency[x].append(z)
+
+    if not valid or any(not edges for edges in adjacency):
+        print("NO")
+        return
+
+    pair_left = [-1] * k
+    pair_right = [-1] * k
+    dist = [0] * k
+    pointer = [0] * k
+    sys.setrecursionlimit(10000)
+
+    def bfs():
+        queue = deque()
+        inf = k + 1
+
+        for u in range(k):
+            if pair_left[u] == -1:
+                dist[u] = 0
+                queue.append(u)
+            else:
+                dist[u] = inf
+
+        shortest = inf
+        while queue:
+            u = queue.popleft()
+            if dist[u] >= shortest:
+                continue
+
+            next_distance = dist[u] + 1
+            for v in adjacency[u]:
+                matched_u = pair_right[v]
+                if matched_u == -1:
+                    shortest = next_distance
+                elif dist[matched_u] == inf:
+                    dist[matched_u] = next_distance
+                    queue.append(matched_u)
+
+        return shortest
+
+    def dfs(u, shortest):
+        edges = adjacency[u]
+        while pointer[u] < len(edges):
+            v = edges[pointer[u]]
+            pointer[u] += 1
+            matched_u = pair_right[v]
+
+            if matched_u == -1:
+                if dist[u] + 1 != shortest:
+                    continue
+            elif dist[matched_u] != dist[u] + 1 or not dfs(matched_u, shortest):
+                continue
+
+            pair_left[u] = v
+            pair_right[v] = u
+            return True
+
+        dist[u] = k + 1
+        return False
+
+    matching_size = 0
+    while True:
+        shortest = bfs()
+        if shortest == k + 1:
+            break
+
+        pointer[:] = [0] * k
+        for u in range(k):
+            if pair_left[u] == -1 and dfs(u, shortest):
+                matching_size += 1
+
+    if matching_size != k:
+        print("NO")
+        return
+
+    output = ["YES"]
+    for x in range(k):
+        output.append(f"{x + 1} {filter_for[x] + 1} {pair_left[x] + 1}")
+    sys.stdout.write("\n".join(output))
+
+if __name__ == "__main__":
+    main()

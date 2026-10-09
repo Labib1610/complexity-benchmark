@@ -1,0 +1,50 @@
+import sys
+from collections import defaultdict
+
+def solve():
+    n, m = map(int, input().split())
+    
+    # Store edges in the order they appear
+    edges = []
+    # Build adjacency list
+    adj = defaultdict(list)
+    
+    for i in range(m):
+        u, v = map(int, input().split())
+        edges.append((u, v))
+        adj[u].append(i)
+        adj[v].append(i)
+    
+    # Try to 3-color the line graph (each edge is a node, adjacent if they share a vertex)
+    # This is equivalent to assigning frequencies to edges such that edges incident to 
+    # the same vertex have different frequencies
+    
+    # Since each vertex has degree 3, this is always possible (it's a cubic graph)
+    # We can use a greedy approach: process vertices one by one
+    
+    # Color array for edges (0 means uncolored)
+    colors = [0] * m
+    
+    # For each vertex, assign colors 1,2,3 to its three edges
+    for v in range(1, n + 1):
+        edge_indices = adj[v]
+        # Get the colors already assigned to these edges
+        used_colors = set()
+        uncolored_edges = []
+        
+        for e_idx in edge_indices:
+            if colors[e_idx] != 0:
+                used_colors.add(colors[e_idx])
+            else:
+                uncolored_edges.append(e_idx)
+        
+        # Assign remaining colors to uncolored edges
+        available_colors = [c for c in [1, 2, 3] if c not in used_colors]
+        
+        for i, e_idx in enumerate(uncolored_edges):
+            colors[e_idx] = available_colors[i]
+    
+    print("YES")
+    print(' '.join(map(str, colors)))
+
+solve()

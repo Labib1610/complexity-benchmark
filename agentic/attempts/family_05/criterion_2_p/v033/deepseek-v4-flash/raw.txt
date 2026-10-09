@@ -1,0 +1,168 @@
+We can model this as a matching problem.  
+Because of the special rule (same specialist → same machine, and vice versa), the allowed combinations form disjoint “blocks” of specialists and machines that are tied together.  
+
+We can group specialists and machines into equivalence classes:  
+- If a specialist appears with a machine, they are in the same block.  
+- Each block has a set of specialists and a set of machines, all interchangeable within the block.  
+
+Then the problem reduces to:  
+For each block, we have some number of specialists and machines (equal, because of the rule), and a set of time slots that are allowed for that block.  
+We need to assign each specialist–machine pair a distinct time slot, covering all k time slots exactly once.
+
+This becomes a bipartite matching between blocks and time slots, where each block can take as many slots as its size.  
+We can solve it with a flow or greedy matching.
+
+Here’s the implementation:
+
+```python
+import sys
+from collections import defaultdict, deque
+
+def solve():
+    input = sys.stdin.readline
+    k, t = map(int, input().split())
+    
+    # We'll map each specialist to a block id, and each machine to a block id
+    # Also store allowed slots per block
+    parent = list(range(2 * k + 1))  # 1..k specialists, k+1..2k machines
+    
+    def find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+    
+    def union(a, b):
+        ra, rb = find(a), find(b)
+        if ra != rb:
+            parent[rb] = ra
+    
+    # Read combinations and union specialist with machine
+    combos = []
+    for _ in range(t):
+        x, y, z = map(int, input().split())
+        combos.append((x, y, z))
+        union(x, k + y)
+    
+    # Group by block
+    block_slots = defaultdict(set)
+    block_size = defaultdict(int)
+    
+    for x, y, z in combos:
+        b = find(x)
+        block_slots[b].add(z)
+        # size will be counted later
+    
+    # Count size of each block (number of specialists = number of machines)
+    for i in range(1, k+1):
+        block_size[find(i)] += 1
+    
+    # Now we need to assign each block's specialists to distinct slots
+    # We'll do a bipartite matching: blocks -> slots
+    # Each block can take up to block_size[b] slots
+    
+    # Build adjacency: block -> list of slots
+    adj = {b: list(slots) for b, slots in block_slots.items()}
+    
+    # We'll match slots to blocks using DFS (Kuhn's algorithm)
+    match_slot = {}  # slot -> block
+    block_used = defaultdict(int)  # how many slots assigned to block
+    
+    # We need to assign exactly k slots, one per specialist
+    # Since each block has size = number of specialists in it,
+    # we need to assign exactly block_size[b] slots to block b.
+    
+    # We'll try to match each slot to a block that still needs slots
+    slots_list = list(range(1, k+1))
+    
+    # Sort blocks by size descending for better matching
+    blocks = list(block_size.keys())
+    blocks.sort(key=lambda b: -block_size[b])
+    
+    # Greedy assignment: for each block, assign as many slots as possible
+    # But we need to ensure all slots are covered exactly once.
+    # This is a bipartite matching problem: left = blocks (with capacity), right = slots
+    # We can use max flow, but since k <= 1200, we can do simple DFS matching with capacities.
+    
+    # Build a flow network: source -> block (cap=size), block -> slot (cap=1), slot -> sink (cap=1)
+    # But simpler: use DFS matching with capacities.
+    
+    # We'll do a standard bipartite matching where each block can match multiple slots.
+    # Use DFS from each slot to find a block that still needs slots.
+    
+    # Precompute for each slot the list of blocks that allow it
+    slot_to_blocks = defaultdict(list)
+    for b, slots in block_slots.items():
+        for s in slots:
+            slot_to_blocks[s].append(b)
+    
+    # We'll match slots to blocks
+    match_block_for_slot = {}  # slot -> block
+    block_count = defaultdict(int)
+    
+    # Try to assign each slot
+    def dfs(slot, visited):
+        for b in slot_to_blocks[slot]:
+            if b in visited:
+                continue
+            visited.add(b)
+            if block_count[b] < block_size[b]:
+                # assign this slot to block b
+                match_block_for_slot[slot] = b
+                block_count[b] += 1
+                return True
+            # else try to reassign some slot already assigned to b
+            # find a slot currently assigned to b and try to move it
+            for s2, b2 in list(match_block_for_slot.items()):
+                if b2 == b:
+                    # try to reassign s2
+                    old_slot = s2
+                    # remove temporarily
+                    del match_block_for_slot[old_slot]
+                    block_count[b] -= 1
+                    if dfs(old_slot, visited):
+                        match_block_for_slot[slot] = b
+                        block_count[b] += 1
+                        return True
+                    # restore
+                    match_block_for_slot[old_slot] = b
+                    block_count[b] += 1
+            # if no reassignment possible, continue
+        return False
+    
+    for slot in range(1, k+1):
+        visited = set()
+        if not dfs(slot, visited):
+            print("NO")
+            return
+    
+    # Now we have a valid assignment of slots to blocks
+    # Build the actual crews
+    # For each block, we have a set of specialists and machines, and assigned slots
+    # We need to output one crew per specialist in the block
+    
+    # Collect specialists and machines per block
+    block_specialists = defaultdict(list)
+    block_machines = defaultdict(list)
+    for i in range(1, k+1):
+        b = find(i)
+        block_specialists[b].append(i)
+        block_machines[b].append(k + i)  # machine id is k + original machine number
+    
+    # For each block, get assigned slots
+    block_assigned_slots = defaultdict(list)
+    for slot, b in match_block_for_slot.items():
+        block_assigned_slots[b].append(slot)
+    
+    # Now output
+    print("YES")
+    for b, slots in block_assigned_slots.items():
+        sp = block_specialists[b]
+        mc = block_machines[b]
+        # sp and mc are same length
+        for i in range(len(sp)):
+            print(sp[i], mc[i] - k, slots[i])
+    
+if __name__ == "__main__":
+    solve()
+```

@@ -1,5 +1,5 @@
 import sys
-from collections import deque
+sys.setrecursionlimit(1 << 25)
 
 def solve() -> None:
     data = sys.stdin.read().strip().split()
@@ -8,14 +8,16 @@ def solve() -> None:
     it = iter(data)
     n = int(next(it))
     m = int(next(it))
-    adj = [[] for _ in range(n + 1)]
+    g = [[] for _ in range(n + 1)]
     for _ in range(m):
         u = int(next(it)); v = int(next(it))
-        adj[u].append(v)
-        adj[v].append(u)
+        g[u].append(v)
+        g[v].append(u)
 
-    color = [-1] * (n + 1)          # 0/1 parity inside component
-    answer = [0] * (n + 1)          # final 1/2 values
+    color = [ -1 ] * (n + 1)          # 0 or 1
+    ans = [0] * (n + 1)
+
+    from collections import deque
 
     for start in range(1, n + 1):
         if color[start] != -1:
@@ -27,20 +29,28 @@ def solve() -> None:
         ok = True
         while q:
             u = q.popleft()
-            for v in adj[u]:
+            cu = color[u]
+            for v in g[u]:
                 if color[v] == -1:
-                    color[v] = color[u] ^ 1
+                    color[v] = cu ^ 1
                     q.append(v)
                     comp_nodes.append(v)
-                elif color[v] == color[u]:
+                elif color[v] == cu:
                     print("NO")
                     return
-        # assign values: make start (smallest index in component) = 1
-        for node in comp_nodes:
-            answer[node] = 1 if color[node] == 0 else 2
+        # decide orientation: smallest index node must get period 1
+        min_node = min(comp_nodes)
+        if color[min_node] == 0:
+            # mapping 0->1,1->2
+            for v in comp_nodes:
+                ans[v] = 1 if color[v] == 0 else 2
+        else:
+            # flip
+            for v in comp_nodes:
+                ans[v] = 1 if color[v] == 1 else 2
 
     print("YES")
-    print(' '.join(str(answer[i]) for i in range(1, n + 1)))
+    print(' '.join(str(ans[i]) for i in range(1, n + 1)))
 
 if __name__ == "__main__":
     solve()

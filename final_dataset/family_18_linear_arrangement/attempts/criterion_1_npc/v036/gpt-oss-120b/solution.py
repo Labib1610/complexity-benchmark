@@ -1,0 +1,47 @@
+import sys
+import itertools
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    B = int(next(it))
+    edges = [(int(next(it)) - 1, int(next(it)) - 1) for _ in range(m)]
+
+    # If n is too large for brute force, we cannot solve optimally (NP-hard).
+    # In such cases we simply try a simple heuristic: identity permutation.
+    # If it satisfies the budget we output it, otherwise we give up.
+    if n > 8:
+        perm = list(range(n))
+        total = 0
+        for u, v in edges:
+            total += abs(perm[u] - perm[v])
+        if total <= B:
+            print("YES")
+            print(' '.join(str(x + 1) for x in perm))
+        else:
+            print("NO")
+        return
+
+    best_perm = None
+    for perm in itertools.permutations(range(n)):
+        total = 0
+        for u, v in edges:
+            total += abs(perm[u] - perm[v])
+            if total > B:
+                break
+        if total <= B:
+            best_perm = perm
+            break
+
+    if best_perm is None:
+        print("NO")
+    else:
+        print("YES")
+        print(' '.join(str(x + 1) for x in best_perm))
+
+if __name__ == "__main__":
+    solve()

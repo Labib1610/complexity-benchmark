@@ -5,52 +5,35 @@ def solve():
     input_data = sys.stdin.read().split()
     if not input_data:
         return
-    iterator = iter(input_data)
-    try:
-        n = int(next(iterator))
-        m = int(next(iterator))
-    except StopIteration:
-        return
-
-    adj = [[] for _ in range(n + 1)]
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [[] for _ in range(n)]
     for _ in range(m):
-        u = int(next(iterator))
-        v = int(next(iterator))
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
         adj[u].append(v)
         adj[v].append(u)
-
-    # Values: 0 = unassigned, 1 = assigned 1, 2 = assigned 2
-    val = [0] * (n + 1)
-    possible = True
-
-    for i in range(1, n + 1):
-        if val[i] == 0:
-            # BFS for connected component
-            # We want to assign 1 to the start node to achieve lexicographically smallest
-            val[i] = 1
+    
+    color = [0] * n
+    
+    for i in range(n):
+        if color[i] == 0:
             queue = deque([i])
-            
+            color[i] = 1
             while queue:
                 u = queue.popleft()
                 for v in adj[u]:
-                    # Constraint: val[u] + val[v] = 3
-                    required_v = 3 - val[u]
-                    if val[v] == 0:
-                        val[v] = required_v
+                    if color[v] == 0:
+                        color[v] = 3 - color[u]
                         queue.append(v)
-                    elif val[v] != required_v:
-                        possible = False
-                        break
-                if not possible:
-                    break
-        if not possible:
-            break
+                    elif color[v] == color[u]:
+                        print("NO")
+                        return
+    
+    print("YES")
+    print(' '.join(map(str, color)))
 
-    if not possible:
-        print("NO")
-    else:
-        print("YES")
-        print(*(val[1:]))
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     solve()

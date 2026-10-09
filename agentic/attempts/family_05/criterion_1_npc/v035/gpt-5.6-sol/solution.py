@@ -1,0 +1,205 @@
+import sys
+
+sys.setrecursionlimit(1000000)
+
+data = list(map(int, sys.stdin.buffer.read().split()))
+if not data:
+    sys.exit()
+
+k, t = data[0], data[1]
+edges = []
+incidence = [[] for _ in range(3 * k)]
+
+p = 2
+for eid in range(t):
+    x = data[p] - 1
+    y = data[p + 1] - 1
+    z = data[p + 2] - 1
+    p += 3
+
+    bx = 1 << x
+    by = 1 << y
+    bz = 1 << z
+    vector = bx | (by << k) | (bz << (2 * k))
+    edges.append((x, y, z, bx, by, bz, vector))
+    incidence[x].append(eid)
+    incidence[k + y].append(eid)
+    incidence[2 * k + z].append(eid)
+
+full = (1 << k) - 1
+failed = set()
+CACHE_LIMIT = 500000
+answer = []
+
+
+def has_perfect_matching(adj, left_mask, right_mask):
+    order = []
+    m = left_mask
+    while m:
+        bit = m & -m
+        u = bit.bit_length() - 1
+        options = adj[u] & right_mask
+        if options == 0:
+            return False
+        order.append((options.bit_count(), u))
+        m ^= bit
+
+    order.sort()
+    match_right = [-1] * k
+    seen = [0] * k
+    token = 0
+
+    def augment(u):
+        options = adj[u] & right_mask
+        while options:
+            bit = options & -options
+            v = bit.bit_length() - 1
+            options ^= bit
+            if seen[v] == token:
+                continue
+            seen[v] = token
+            old = match_right[v]
+            if old == -1 or augment(old):
+                match_right[v] = u
+                return True
+        return False
+
+    for _, u in order:
+        token += 1
+        if not augment(u):
+            return False
+    return True
+
+
+def search(mx, my, mz):
+    if mx == 0:
+        return True
+
+    key = mx | (my << k) | (mz << (2 * k))
+    if key in failed:
+        return False
+
+    dx = [0] * k
+    dy = [0] * k
+    dz = [0] * k
+
+    adj_xy = [0] * k
+    adj_xz = [0] * k
+    adj_yz = [0] * k
+
+    basis = [0] * (3 * k)
+
+    for x, y, z, bx, by, bz, vector in edges:
+        if not (mx & bx and my & by and mz & bz):
+            continue
+
+        dx[x] += 1
+        dy[y] += 1
+        dz[z] += 1
+        adj_xy[x] |= by
+        adj_xz[x] |= bz
+        adj_yz[y] |= bz
+
+        v = vector
+        while v:
+            i = v.bit_length() - 1
+            if basis[i]:
+                v ^= basis[i]
+            else:
+                basis[i] = v
+                break
+
+    target = key
+    while target:
+        i = target.bit_length() - 1
+        if basis[i] == 0:
+            if len(failed) < CACHE_LIMIT:
+                failed.add(key)
+            return False
+        target ^= basis[i]
+
+    best_col = -1
+    best_degree = t + 1
+
+    m = mx
+    while m:
+        bit = m & -m
+        i = bit.bit_length() - 1
+        d = dx[i]
+        if d == 0:
+            if len(failed) < CACHE_LIMIT:
+                failed.add(key)
+            return False
+        if d < best_degree:
+            best_degree = d
+            best_col = i
+        m ^= bit
+
+    m = my
+    while m:
+        bit = m & -m
+        i = bit.bit_length() - 1
+        d = dy[i]
+        if d == 0:
+            if len(failed) < CACHE_LIMIT:
+                failed.add(key)
+            return False
+        if d < best_degree:
+            best_degree = d
+            best_col = k + i
+        m ^= bit
+
+    m = mz
+    while m:
+        bit = m & -m
+        i = bit.bit_length() - 1
+        d = dz[i]
+        if d == 0:
+            if len(failed) < CACHE_LIMIT:
+                failed.add(key)
+            return False
+        if d < best_degree:
+            best_degree = d
+            best_col = 2 * k + i
+        m ^= bit
+
+    if not has_perfect_matching(adj_xy, mx, my):
+        if len(failed) < CACHE_LIMIT:
+            failed.add(key)
+        return False
+    if not has_perfect_matching(adj_xz, mx, mz):
+        if len(failed) < CACHE_LIMIT:
+            failed.add(key)
+        return False
+    if not has_perfect_matching(adj_yz, my, mz):
+        if len(failed) < CACHE_LIMIT:
+            failed.add(key)
+        return False
+
+    candidates = []
+    for eid in incidence[best_col]:
+        x, y, z, bx, by, bz, _ = edges[eid]
+        if mx & bx and my & by and mz & bz:
+            score = dx[x] + dy[y] + dz[z]
+            candidates.append((score, eid))
+
+    candidates.sort()
+
+    for _, eid in candidates:
+        x, y, z, bx, by, bz, _ = edges[eid]
+        answer.append((x + 1, y + 1, z + 1))
+        if search(mx ^ bx, my ^ by, mz ^ bz):
+            return True
+        answer.pop()
+
+    if len(failed) < CACHE_LIMIT:
+        failed.add(key)
+    return False
+
+
+if search(full, full, full):
+    out = ["YES"]
+    out.extend(f"{x} {y} {z}" for x, y, z in answer)
+    sys.stdout.write("\n".join(out))
+else:
+    sys.stdout.write("NO")

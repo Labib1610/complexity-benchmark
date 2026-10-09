@@ -1,0 +1,162 @@
+import sys
+sys.setrecursionlimit(200000)
+
+def solve():
+    n, m = map(int, input().split())
+    
+    # Build implication graph
+    # Each variable x has two nodes: x (positive) and ~x (negative)
+    # We'll use indices 0 to 2*n-1 where:
+    # - node 2*i represents variable i+1 being true (position 1)
+    # - node 2*i+1 represents variable i+1 being false (position 0)
+    
+    adj = [[] for _ in range(2 * n)]
+    rev_adj = [[] for _ in range(2 * n)]
+    
+    # For each clause (a OR b), we add implications (~a -> b) and (~b -> a)
+    for _ in range(m):
+        l1, l2 = map(int, input().split())
+        
+        # Convert to 0-based indexing
+        # Positive literal i means variable i-1 is true
+        # Negative literal -i means variable i-1 is false
+        
+        # For clause (l1 OR l2):
+        # Add implication (~l1 -> l2) and (~l2 -> l1)
+        
+        # Node mappings:
+        # For variable v (0-indexed):
+        #   node 2*v: v is true
+        #   node 2*v+1: v is false
+        
+        def get_node(lit):
+            var = abs(lit) - 1  # Convert to 0-indexed variable
+            if lit > 0:
+                return 2 * var      # Variable is true
+            else:
+                return 2 * var + 1  # Variable is false
+                
+        def get_neg_node(lit):
+            var = abs(lit) - 1  # Convert to 0-indexed variable
+            if lit > 0:
+                return 2 * var + 1  # Negation: variable is false
+            else:
+                return 2 * var      # Negation: variable is true
+        
+        # Add edges for (~l1 -> l2) and (~l2 -> l1)
+        adj[get_neg_node(l1)].append(get_node(l2))
+        adj[get_neg_node(l2)].append(get_node(l1))
+        
+        rev_adj[get_node(l2)].append(get_neg_node(l1))
+        rev_adj[get_node(l1)].append(get_neg_node(l2))
+    
+    # Kosaraju's algorithm for finding SCCs
+    visited = [False] * (2 * n)
+    order = []
+    
+    def dfs1(u):
+        visited[u] = True
+        for v in adj[u]:
+            if not visited[v]:
+                dfs1(v)
+        order.append(u)
+    
+    # First DFS to determine finishing order
+    for i in range(2 * n):
+        if not visited[i]:
+            dfs1(i)
+    
+    # Reset visited for second DFS
+    visited = [False] * (2 * n)
+    scc_id = [-1] * (2 * n)
+    scc_count = 0
+    
+    def dfs2(u):
+        visited[u] = True
+        scc_id[u] = scc_count
+        for v in rev_adj[u]:
+            if not visited[v]:
+                dfs2(v)
+    
+    # Second DFS in reverse order
+    for i in reversed(order):
+        if not visited[i]:
+            dfs2(i)
+            scc_count += 1
+    
+    # Check if any variable and its negation are in the same SCC
+    for i in range(n):
+        if scc_id[2*i] == scc_id[2*i + 1]:
+            print("NO")
+            return
+    
+    # Assign values based on SCC topological order
+    # Variables in later SCCs should be assigned TRUE
+    result = [0] * n
+    
+    # Create SCC DAG
+    scc_graph = [set() for _ in range(scc_count)]
+    for u in range(2 * n):
+        for v in adj[u]:
+            if scc_id[u] != scc_id[v]:
+                scc_graph[scc_id[u]].add(scc_id[v])
+    
+    # Topological sort of SCCs
+    scc_visited = [False] * scc_count
+    scc_order = []
+    
+    def scc_dfs(u):
+        scc_visited[u] = True
+        for v in scc_graph[u]:
+            if not scc_visited[v]:
+                scc_dfs(v)
+        scc_order.append(u)
+    
+    for i in range(scc_count):
+        if not scc_visited[i]:
+            scc_dfs(i)
+    
+    # Assign truth values
+    assignment = [-1] * scc_count
+    for scc in reversed(scc_order):
+        if assignment[scc] == -1:
+            assignment[scc] = 0  # False
+            # Also set the complement appropriately
+            # But we need to be more careful here
+            
+    # Better approach: process in topological order and assign values
+    scc_value = [-1] * scc_count
+    for scc in reversed(scc_order):
+        if scc_value[scc] == -1:
+            scc_value[scc] = 0
+    
+    # Actually, let's think differently:
+    # In the SCC graph, if there's a path from SCC A to SCC B,
+    # then B should be processed before A in topological order.
+    # So when we process SCCs in topological order, 
+    # we assign FALSE to unassigned SCCs.
+    
+    # But actually, we want to assign TRUE to variables in "later" SCCs.
+    # Let's just check for each variable what should be its value.
+    
+    for i in range(n):
+        # Node 2*i corresponds to variable i being TRUE
+        # Node 2*i+1 corresponds to variable i being FALSE
+        scc_true = scc_id[2*i]
+        scc_false = scc_id[2*i+1]
+        
+        # In the topological ordering, find which comes first
+        # scc_order is in finishing order, so reverse gives topological order
+        pos_true = scc_order[::-1].index(scc_true)
+        pos_false = scc_order[::-1].index(scc_false)
+        
+        # The one with higher index in topological order should be TRUE
+        if pos_true > pos_false:
+            result[i] = 1
+        else:
+            result[i] = 0
+    
+    print("YES")
+    print(" ".join(map(str, result)))
+
+solve()

@@ -1,0 +1,81 @@
+import sys
+from collections import defaultdict
+import heapq
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    idx = 0
+    nL = int(data[idx])
+    idx += 1
+    nR = int(data[idx])
+    idx += 1
+    m = int(data[idx])
+    idx += 1
+    
+    tests = []
+    lock_deg = [0] * (nL + 1)
+    key_deg = [0] * (nR + 1)
+    
+    for _ in range(m):
+        u = int(data[idx])
+        v = int(data[idx+1])
+        idx += 2
+        tests.append((u, v))
+        lock_deg[u] += 1
+        key_deg[v] += 1
+        
+    delta = max(max(lock_deg), max(key_deg)) if m > 0 else 0
+    
+    # For each lock, maintain a min-heap of available rounds
+    lock_rounds = [list(range(1, delta+1))[::-1] for _ in range(nL + 1)]
+    key_rounds = [list(range(1, delta+1))[::-1] for _ in range(nR + 1)]
+    
+    # To efficiently assign rounds, we'll use a greedy approach:
+    # For each test (u,v), pick a round that's available for both u and v.
+    # We can model this as a graph coloring problem on a bipartite graph.
+    # Since the graph is bipartite and max degree is Δ, Δ colors suffice.
+    
+    # We'll use a greedy list-based method:
+    # For each lock, keep track of next available round index
+    lock_next = [0] * (nL + 1)
+    key_next = [0] * (nR + 1)
+    
+    result = []
+    
+    # We'll simulate assigning rounds by tracking used rounds per item
+    lock_used = [set() for _ in range(nL + 1)]
+    key_used = [set() for _ in range(nR + 1)]
+    
+    # Available rounds for each item (we'll rebuild as needed)
+    lock_avail = [list(range(1, delta+1)) for _ in range(nL + 1)]
+    key_avail = [list(range(1, delta+1)) for _ in range(nR + 1)]
+    
+    for u, v in tests:
+        # Find a round that's free for both u and v
+        # Intersect available rounds
+        avail_u = set(lock_avail[u])
+        avail_v = set(key_avail[v])
+        common = sorted(list(avail_u & avail_v))
+        
+        if common:
+            r = common[0]
+        else:
+            # This shouldn't happen due to the theoretical guarantee
+            r = 1
+            
+        result.append(str(r))
+        
+        # Remove this round from available lists
+        if r in lock_avail[u]:
+            lock_avail[u].remove(r)
+        if r in key_avail[v]:
+            key_avail[v].remove(r)
+            
+    print("YES")
+    print(' '.join(result))
+
+if __name__ == "__main__":
+    main()

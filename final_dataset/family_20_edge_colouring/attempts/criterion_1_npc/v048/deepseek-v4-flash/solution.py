@@ -1,0 +1,126 @@
+import sys
+sys.setrecursionlimit(1000000)
+
+def find_bridges(n, edges):
+    adj = [[] for _ in range(n)]
+    for idx, (u, v) in enumerate(edges):
+        adj[u].append((v, idx))
+        adj[v].append((u, idx))
+    
+    visited = [False] * n
+    tin = [-1] * n
+    low = [-1] * n
+    timer = 0
+    bridges = set()
+    
+    def dfs(v, p_edge):
+        nonlocal timer
+        visited[v] = True
+        tin[v] = low[v] = timer
+        timer += 1
+        for to, eid in adj[v]:
+            if eid == p_edge:
+                continue
+            if visited[to]:
+                low[v] = min(low[v], tin[to])
+            else:
+                dfs(to, eid)
+                low[v] = min(low[v], low[to])
+                if low[to] > tin[v]:
+                    bridges.add(eid)
+    
+    for i in range(n):
+        if not visited[i]:
+            dfs(i, -1)
+    return bridges
+
+def edge_color_3_regular(n, edges):
+    m = len(edges)
+    adj = [[] for _ in range(n)]
+    for idx, (u, v) in enumerate(edges):
+        adj[u].append((v, idx))
+        adj[v].append((u, idx))
+    
+    color = [-1] * m
+    
+    # Find a perfect matching using greedy + augmenting path (Kőnig's algorithm for 3-regular)
+    # We'll use a simple approach: repeatedly find a perfect matching and remove it.
+    
+    def find_perfect_matching(adj, active_edges):
+        # active_edges: set of edge indices still available
+        match_to = [-1] * n
+        # Build adjacency for active edges only
+        adj_active = [[] for _ in range(n)]
+        for eid in active_edges:
+            u, v = edges[eid]
+            adj_active[u].append((v, eid))
+            adj_active[v].append((u, eid))
+        
+        def augment(u, visited):
+            for v, eid in adj_active[u]:
+                if visited[v]:
+                    continue
+                visited[v] = True
+                if match_to[v] == -1 or augment(match_to[v], visited):
+                    match_to[v] = u
+                    return True
+            return False
+        
+        for u in range(n):
+            visited = [False] * n
+            augment(u, visited)
+        
+        matching = []
+        for v in range(n):
+            if match_to[v] != -1:
+                u = match_to[v]
+                # find edge id
+                for eid in active_edges:
+                    a, b = edges[eid]
+                    if (a == u and b == v) or (a == v and b == u):
+                        matching.append(eid)
+                        break
+        return matching
+    
+    active = set(range(m))
+    for color_val in range(1, 4):
+        matching = find_perfect_matching(adj, active)
+        if len(matching) != n // 2:
+            return None
+        for eid in matching:
+            color[eid] = color_val
+            active.remove(eid)
+    
+    if any(c == -1 for c in color):
+        return None
+    return color
+
+def main():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    edges = []
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        edges.append((u, v))
+    
+    # Check if graph is bridgeless
+    bridges = find_bridges(n, edges)
+    if bridges:
+        print("NO")
+        return
+    
+    # Try to 3-edge-color
+    colors = edge_color_3_regular(n, edges)
+    if colors is None:
+        print("NO")
+    else:
+        print("YES")
+        print(" ".join(str(c) for c in colors))
+
+if __name__ == "__main__":
+    main()

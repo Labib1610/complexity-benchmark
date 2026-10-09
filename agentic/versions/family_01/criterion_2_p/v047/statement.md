@@ -1,27 +1,23 @@
-# Problem B — Habitat Allocation
+# Shift Allocation
 
-Time limit: 1 s
-Memory limit: 256 MB
+Time limit: 1 s   Memory limit: 256 MB
 
-A space station is dividing its $n$ astronauts into two separate living quarters: Habitat 1 and Habitat 2. 
+A manufacturing facility employs $n$ staff members and maintains a list of $m$ operational incompatibilities. The facility runs two distinct operational periods, designated as period 1 and period 2.
 
-There are $m$ pairs of astronauts who require access to the same life-support calibration console. To ensure the console is always monitored but never overcrowded, any two astronauts who share a console must be placed in different habitats.
+Your task is to allocate each staff member to exactly one of the two periods. To maintain safety standards, the allocation must satisfy all of the following conditions:
+- For every incompatibility between staff member $u$ and staff member $v$, $u$ and $v$ cannot be allocated to the same period.
+- Let $c_i$ denote the total number of incompatibilities involving staff member $i$. If $P_1$ and $P_2$ are the sets of staff members allocated to period 1 and period 2 respectively, the allocation must guarantee that $\sum_{x \in P_1} c_x + \sum_{y \in P_2} c_y = 2m$.
+- Let $k$ be the number of incompatibilities where the two involved staff members are allocated to different periods. The allocation must ensure $k = m$.
 
-To comply with station safety protocols, the following capacity conditions are strictly enforced and guaranteed to hold for all scenarios:
-- The total number of astronauts $n$ will not exceed $200,000$.
-- The total number of console-sharing pairs $m$ will not exceed $200,000$.
-- The sum, over all astronauts, of the number of console-sharing pairs they belong to, will never exceed $400,000$.
-- No single astronaut belongs to more than $200,000$ console-sharing pairs.
-
-Your task is to determine an allocation of each astronaut to either Habitat 1 or Habitat 2 that respects all console-sharing restrictions, or conclude that no such allocation is possible.
+If there are multiple safe allocations, you must provide the one that is lexicographically smallest when represented as a sequence of period designations (1 or 2) for staff members 1 through $n$. If no safe allocation is possible, you must report this.
 
 ## Input
-The first line provides two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$).
-The following $m$ lines each contain two integers $u$ and $v$, representing a pair of astronauts who share a console.
+The first line provides $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$).
+The subsequent $m$ lines each contain two integers $u$ and $v$ ($1 \le u, v \le n$), indicating an incompatibility between staff member $u$ and staff member $v$.
 
 ## Output
-If it is impossible to satisfy all habitat restrictions, output a single line with `NO`.
-Otherwise, output `YES` on the first line. On the second line, output $n$ integers $h_1, \dots, h_n$ (where each $h_i \in \{1, 2\}$) representing the habitat assigned to astronaut $i$. If multiple valid allocations exist, provide the one that is lexicographically smallest.
+If a safe allocation cannot be found, output `NO` on a single line.
+Otherwise, output `YES` on the first line. On the second line, output $n$ space-separated integers, each being either 1 or 2, representing the lexicographically smallest safe allocation.
 
 ## Example 1
 Input:

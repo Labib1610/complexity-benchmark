@@ -1,0 +1,74 @@
+# Problem B — Two-Stage Baking
+
+Time limit: 1 s
+Memory limit: 256 MB
+
+## Description
+
+A bakery must process **j** custom cake orders. Each order requires **p1** minutes of mixing followed by **p2** minutes of frosting. 
+You must arrange all **j** orders into a single initial queue.
+
+The kitchen operates with one mixer and one froster, following these rules:
+- Whenever the mixer is unoccupied and the initial queue is not empty, the mixer immediately removes the order at the front of the queue. It spends **p1** minutes preparing this order, after which the order is placed onto a pending counter.
+- Whenever the froster is unoccupied and there is at least one order on the pending counter, the froster immediately takes the order that has been on the counter for the longest time. It spends **p2** minutes finishing this order, after which the order is complete.
+- Once either the mixer or the froster begins working on an order, they work continuously until that specific task is finished.
+
+Your task is to determine the optimal arrangement of the initial queue that minimizes the time at which the final order is completely finished by the froster. Report this minimum possible completion time.
+
+## Input
+
+The first line contains a single integer **j** (1 ≤ j ≤ 200000).
+Each of the next **j** lines contains two integers **p1** and **p2** (1 ≤ p1, p2 ≤ 1000000): the mixing time and the frosting time of an order.
+
+## Output
+
+Print a single integer: the smallest possible time at which all orders are complete.
+
+## Examples
+
+### Example 1
+
+**Input**
+```
+3
+3 2
+2 4
+1 3
+```
+
+**Output**
+```
+10
+```
+
+### Example 2
+
+**Input**
+```
+1
+5 3
+```
+
+**Output**
+```
+8
+```
+
+### Example 3
+
+**Input**
+```
+3
+2 2
+2 2
+2 2
+```
+
+**Output**
+```
+8
+```
+
+## Note
+
+In Example 2, there is only one order. The mixer takes it at time 0 and finishes at time 5, placing it on the pending counter. The froster immediately takes it and finishes at time 5 + 3 = 8.

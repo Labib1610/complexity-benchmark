@@ -1,0 +1,168 @@
+```python
+import sys
+
+# Increase recursion depth just in case
+sys.setrecursionlimit(20000)
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    edges = []
+    adj_v = [[] for _ in range(n + 1)]
+    
+    idx = 2
+    for i in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx+1])
+        idx += 2
+        edges.append((u, v))
+        adj_v[u].append(i)
+        adj_v[v].append(i)
+        
+    # Build edge adjacency
+    adj_e = [[] for _ in range(m)]
+    for u in range(1, n + 1):
+        inc = adj_v[u]
+        for i in range(len(inc)):
+            for j in range(i + 1, len(inc)):
+                e1, e2 = inc[i], inc[j]
+                adj_e[e1].append(e2)
+                adj_e[e2].append(e1)
+                
+    # Remove duplicates in edge adjacency (each edge has at most 4 neighbors in a cubic graph)
+    for i in range(m):
+        adj_e[i] = list(set(adj_e[i]))
+
+    # Quick bridge check: if graph has a bridge, it cannot be 3-edge-colored.
+    # Tarjan's bridge-finding algorithm
+    tin = [0] * (n + 1)
+    low = [0] * (n + 1)
+    timer = 0
+    has_bridge = False
+    
+    def dfs_bridge(v, p_edge):
+        nonlocal timer, has_bridge
+        timer += 1
+        tin[v] = low[v] = timer
+        for e_idx in adj_v[v]:
+            if e_idx == p_edge:
+                continue
+            u = edges[e_idx][0] if edges[e_idx][1] == v else edges[e_idx][1]
+            if tin[u]:
+                low[v] = min(low[v], tin[u])
+            else:
+                dfs_bridge(u, e_idx)
+                low[v] = min(low[v], low[u])
+                if low[u] > tin[v]:
+                    has_bridge = True
+
+    for i in range(1, n + 1):
+        if not tin[i]:
+            dfs_bridge(i, -1)
+            
+    if has_bridge:
+        print("NO")
+        return
+
+    # Backtracking with MRV (Minimum Remaining Values)
+    # Edge colors: 0 (uncolored), 1, 2, 3
+    color = [0] * m
+    # mask of available colors: bit 0 -> color 1, bit 1 -> color 2, bit 2 -> color 3
+    # blocked_count[e][c] = number of neighbors of e colored with c (0, 1, 2)
+    blocked = [[0, 0, 0] for _ in range(m)]
+    
+    # Pre-calculate degree of edges (number of neighbors)
+    # We want to pick edge with min available colors, tie-break by max uncolored neighbors
+    
+    # We can run a randomized restart or simple MRV
+    import random
+    random.seed(42)
+
+    # For faster MRV, we can maintain uncolored edges in a set or list
+    uncolored = set(range(m))
+    
+    nodes_visited = 0
+    max_nodes = 300000
+
+    def backtrack():
+        nonlocal nodes_visited
+        nodes_visited += 1
+        if nodes_visited > max_nodes:
+            return False
+        
+        if not uncolored:
+            return True
+        
+        # Find MRV edge
+        best_e = -1
+        best_avail_count = 4
+        best_uncolored_deg = -1
+        
+        for e in uncolored:
+            avail_cnt = 0
+            b = blocked[e]
+            if b[0] == 0: avail_cnt += 1
+            if b[1] == 0: avail_cnt += 1
+            if b[2] == 0: avail_cnt += 1
+            
+            if avail_cnt == 0:
+                return False # Dead end
+            
+            if avail_cnt < best_avail_count:
+                best_avail_count = avail_cnt
+                best_e = e
+                best_uncolored_deg = sum(1 for nb in adj_e[e] if color[nb] == 0)
+                if avail_cnt == 1:
+                    break
+            elif avail_cnt == best_avail_count:
+                u_deg = sum(1 for nb in adj_e[e] if color[nb] == 0)
+                if u_deg > best_uncolored_deg:
+                    best_e = e
+                    best_uncolored_deg = u_deg
+
+        e = best_e
+        uncolored.remove(e)
+        
+        # Colors to try
+        b = blocked[e]
+        avail_colors = [c for c in range(3) if b[c] == 0]
+        
+        # Heuristic: try color that is least constraining on neighbors
+        def count_conflicts(c):
+            cnt = 0
+            for nb in adj_e[e]:
+                if color[nb] == 0 and blocked[nb][c] == 0:
+                    cnt += 1
+            return cnt
+
+        avail_colors.sort(key=count_conflicts)
+        
+        for c in avail_colors:
+            color[e] = c + 1
+            for nb in adj_e[e]:
+                blocked[nb][c] += 1
+                
+            if backtrack():
+                return True
+                
+            for nb in adj_e[e]:
+                blocked[nb][c] -= 1
+            color[e] = 0
+            
+        uncolored.add(e)
+        return False
+
+    if backtrack():
+        print("YES")
+        print(*(color[i] for i in range(m)))
+    else:
+        print("NO")
+
+if __name__ == '__main__':
+    solve()
+```

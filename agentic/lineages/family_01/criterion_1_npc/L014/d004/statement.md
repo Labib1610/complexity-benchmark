@@ -1,30 +1,24 @@
-# Problem A — Independent Audits
+# Problem A — Circuit Voltage Levels
 
-Time limit: 2 s   Memory limit: 256 MB
+Time limit: 2 s
+Memory limit: 256 MB
 
-You are coordinating the annual compliance review for $n$ corporate departments. Each department must be assigned to exactly one of three external auditing firms, which are identified by the integers 1, 2, and 3.
+An integrated circuit is being designed with $n$ logic components, labeled 1 through $n$. Your task is to assign each component a discrete operating voltage. The available voltage options for any component are 1, 2, and 3.
 
-To prevent conflicts of interest, the review must account for internal dependencies. There are $m$ known joint ventures, each involving a specific pair of departments. 
+Certain pairs of components communicate via bidirectional data links. In order for communication to be successful across a link, the voltages assigned to the two connected components must form a permitted configuration. Specifically, the set of the two assigned voltages must be exactly one of the following:
+- $\{1, 2\}$
+- $\{1, 3\}$
+- $\{2, 3\}$
 
-For every joint venture, the compliance board runs a simulated adversarial audit between the two departments involved. This simulation is modeled as a token game:
-- Two simulated auditors take turns.
-- There are two independent pools of audit tokens. The two pools start with token counts exactly equal to the firm identifiers assigned to the two participating departments.
-- On their turn, an auditor must choose exactly one of the two pools and remove any positive number of tokens from it. They may not remove tokens from both pools in the same turn.
-- The auditor who removes the very last token from the simulation wins.
-
-A joint venture is considered 'compliant' if and only if the FIRST auditor to move has a guaranteed winning strategy, assuming perfect play from both sides. All $m$ joint ventures must be compliant simultaneously.
-
-Be aware that the test suite contains arbitrary, dense compliance networks, and the joint ventures may be presented in an adversarial sequence.
-
-Determine if there is a valid firm assignment for all $n$ departments that satisfies these compliance rules.
+You are provided with the number of components and the exact pairs that share a data link. You must output a fully functional voltage assignment for the circuit, or indicate if it is impossible.
 
 ## Input
-The first line contains two integers $n$ and $m$ — the number of departments and the number of joint ventures ($1 \le n \le 40$, $0 \le m \le n \cdot (n-1)/2$).
-Each of the next $m$ lines contains two integers $u$ and $v$ — a pair of departments involved in a joint venture. Departments are numbered 1 through $n$.
+The first line contains two integers $n$ and $m$ — the number of logic components and the number of data links ($1 \le n \le 40$, $0 \le m \le n \cdot (n-1)/2$).
+Each of the following $m$ lines contains two distinct integers $u$ and $w$ ($1 \le u, w \le n$, $u \neq w$), representing a pair of components connected by a data link. It is guaranteed that each unordered pair of components appears at most once in the input.
 
 ## Output
-If no valid assignment exists, print a single line `NO`.
-Otherwise print `YES` on the first line. On the second line print $n$ integers $f_1, f_2, \dots, f_n$ (each in $\{1, 2, 3\}$), where $f_i$ is the auditing firm assigned to department $i$. Among all valid assignments, output the one that is lexicographically smallest (compare $f_1$ first, then $f_2$, and so on).
+If no valid voltage assignment can be found, print a single line containing `NO`.
+Otherwise, print `YES` on the first line. On the second line, print $n$ integers $a_1, a_2, \dots, a_n$ (where each $a_i \in \{1, 2, 3\}$), representing the voltage assigned to component $i$. Any valid assignment will be accepted.
 
 ## Example 1
 Input:

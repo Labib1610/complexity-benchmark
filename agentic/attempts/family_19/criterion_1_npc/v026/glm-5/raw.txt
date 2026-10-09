@@ -1,0 +1,242 @@
+```python
+import sys
+from collections import deque
+
+def solve():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    k = int(next(it))
+    
+    compounds = []
+    total_demand = 0
+    for _ in range(k):
+        s = int(next(it))
+        t = int(next(it))
+        d = int(next(it))
+        compounds.append((s - 1, t - 1, d))
+        total_demand += d
+    
+    edges_input = []
+    total_cap = 0
+    for i in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        cap = int(next(it))
+        edges_input.append((u, v, cap))
+        total_cap += cap
+    
+    if total_demand > total_cap:
+        print("NO")
+        return
+
+    # Build flow network
+    # Nodes: source (0), sink (1), compound nodes (2 to 2+2k-1), valve nodes (2+2k to 2+2k+n-1)
+    # Compound i (0-indexed): source_node = 2 + i, sink_node = 2 + k + i
+    # Valve nodes offset = 2 + 2*k
+    
+    source = 0
+    sink = 1
+    compound_source_start = 2
+    compound_sink_start = 2 + k
+    valve_offset = 2 + 2 * k
+    
+    N = valve_offset + n
+    adj = [[] for _ in range(N)]
+    edge_list = []
+    
+    def add_edge(u, v, cap, rev_cap=0, comp_id=-1, tube_id=-1):
+        # Forward edge
+        edge_list.append([v, u, cap, len(adj[v]), comp_id, tube_id])
+        adj[u].append(len(edge_list) - 1)
+        # Reverse edge
+        edge_list.append([u, v, rev_cap, len(adj[u]) - 1, comp_id, tube_id])
+        adj[v].append(len(edge_list) - 1)
+    
+    # Edges: source -> compound_source
+    for i, (s, t, d) in enumerate(compounds):
+        add_edge(source, compound_source_start + i, d)
+    
+    # Edges: compound_sink -> sink
+    for i, (s, t, d) in enumerate(compounds):
+        add_edge(compound_sink_start + i, sink, d)
+    
+    # Edges: compound_source -> injection valve, ejection valve -> compound_sink
+    for i, (s, t, d) in enumerate(compounds):
+        add_edge(compound_source_start + i, valve_offset + s, d)
+        add_edge(valve_offset + t, compound_sink_start + i, d)
+    
+    # Tube edges with shared capacity
+    for tube_id, (u, v, cap) in enumerate(edges_input):
+        add_edge(valve_offset + u, valve_offset + v, cap, 0, -1, tube_id)
+    
+    level = [0] * N
+    
+    def bfs():
+        for i in range(N):
+            level[i] = -1
+        queue = deque([source])
+        level[source] = 0
+        while queue:
+            u = queue.popleft()
+            for idx in adj[u]:
+                edge = edge_list[idx]
+                if edge[2] > 0 and level[edge[0]] < 0:
+                    level[edge[0]] = level[u] + 1
+                    queue.append(edge[0])
+        return level[sink] >= 0
+    
+    def dfs(u, f):
+        if u == sink:
+            return f
+        for i in range(it_ptr[u], len(adj[u])):
+            it_ptr[u] = i
+            idx = adj[u][i]
+            edge = edge_list[idx]
+            if edge[2] > 0 and level[edge[0]] == level[u] + 1:
+                ret = dfs(edge[0], min(f, edge[2]))
+                if ret > 0:
+                    edge[2] -= ret
+                    edge_list[edge[3]][2] += ret
+                    return ret
+        return 0
+    
+    def dinic():
+        flow = 0
+        while bfs():
+            it_ptr[:] = [0] * N
+            while True:
+                f = dfs(source, float('inf'))
+                if f == 0:
+                    break
+                flow += f
+        return flow
+    
+    it_ptr = [0] * N
+    max_flow = dinic()
+    
+    required_flow = total_demand
+    if max_flow != required_flow:
+        print("NO")
+        return
+    
+    print("YES")
+    flow_per_tube = [[0] * m for _ in range(k)]
+    
+    # Find flow contribution by analyzing compound-source edges
+    for i in range(k):
+        # Edge: compound_source_i -> valve_s
+        # This is at index: compound_edges_start + i*2 + 1 in our added edges
+        # Let's locate it properly
+        
+        # We need to find the edge from compound_source_start + i to valve_offset + s
+        s_node = compound_source_start + i
+        for idx in adj[s_node]:
+            edge = edge_list[idx]
+            if edge[2] < compounds[i][2]:  # capacity was d, so residual cap = d - flow
+                # Flow went through, but we need the reverse edge of the valve-to-valve tube
+                # The structure: compound_source -> valve_injection -> ... -> valve_ejection -> compound_sink
+                # The flow through tubes is what we need to track
+                
+                # Better: Use DFS to trace flow for each compound
+                visited = [False] * N
+                stack = [(valve_offset + compounds[i][0], compounds[i][2])]
+                demands = [0] * N
+                demands[valve_offset + compounds[i][0]] = compounds[i][2]
+                
+                while stack:
+                    u, demand = stack.pop()
+                    if u == valve_offset + compounds[i][1]:
+                        continue
+                    for idx in adj[u]:
+                        edge = edge_list[idx]
+                        v = edge[0]
+                        # Check if this is a tube edge (has tube_id >= 0)
+                        if edge[4] == -1 and edge[5] >= 0:
+                            tube_id = edge[5]
+                            cap_used = edge_list[idx + 1][2]  # reverse edge capacity shows flow
+                            if cap_used > 0:
+                                flow_per_tube[i][tube_id] += cap_used
+                                stack.append((v, cap_used))
+                break
+    
+    # Actually, let's do a more careful trace
+    # Reset and trace properly using BFS/DFS per compound
+    
+    for comp_id in range(k):
+        s_valve = valve_offset + compounds[comp_id][0]
+        t_valve = valve_offset + compounds[comp_id][1]
+        total_d = compounds[comp_id][2]
+        
+        # BFS to find all paths and distribute flow
+        # Find incoming flow to each valve node for this compound
+        
+        # Calculate in-flow at each valve
+        in_flow = [0] * n
+        out_flow = [0] * n
+        
+        # Source contributes to s_valve, sink absorbs from t_valve
+        # We trace the residual network to find actual flow
+        
+        # Simple approach: For each tube edge, check how much of its flow could be
+        # attributed to each compound based on the flow decomposition
+        
+        # Actually, let's just do a DFS that sends flow from source to sink
+        # and decrement capacities as we go
+        
+        remaining = total_d
+        # Use the residual graph to trace flow
+        
+        while remaining > 0:
+            # Find augmenting path from s_valve to t_valve for compound comp_id
+            parent = [-1] * N
+            parent_edge = [-1] * N
+            queue = deque([s_valve])
+            parent[s_valve] = s_valve
+            
+            while queue and parent[t_valve] == -1:
+                u = queue.popleft()
+                for idx in adj[u]:
+                    edge = edge_list[idx]
+                    v = edge[0]
+                    if parent[v] == -1 and edge[2] > 0:
+                        parent[v] = u
+                        parent_edge[v] = idx
+                        queue.append(v)
+            
+            if parent[t_valve] == -1:
+                break
+            
+            # Find min flow along path
+            flow_amt = remaining
+            v = t_valve
+            path = []
+            while v != s_valve:
+                idx = parent_edge[v]
+                edge = edge_list[idx]
+                flow_amt = min(flow_amt, edge[2])
+                v = parent[v]
+            
+            # Apply flow and record tube usage
+            v = t_valve
+            while v != s_valve:
+                idx = parent_edge[v]
+                edge = edge_list[idx]
+                # Check if this is a tube edge
+                if edge[4] == -1 and edge[5] >= 0:
+                    tube_id = edge[5]
+                    flow_per_tube[comp_id][tube_id] += flow_amt
+                edge[2] -= flow_amt
+                v = parent[v]
+            
+            remaining -= flow_amt
+    
+    for i in range(k):
+        print(' '.join(map(str, flow_per_tube[i])))
+
+if __name__ == "__main__":
+    solve()
+```

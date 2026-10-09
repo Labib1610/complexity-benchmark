@@ -1,0 +1,50 @@
+import sys
+
+sys.setrecursionlimit(10000)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    adj = [set() for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u].add(v)
+        adj[v].add(u)
+
+    colors = [-1] * n
+    order = sorted(range(n), key=lambda x: len(adj[x]), reverse=True)  # static ordering
+
+    # For dynamic selection (DSATUR) we could implement, but static high-degree order works for n<=40
+    def dfs(pos: int) -> bool:
+        if pos == n:
+            return True
+        v = order[pos]
+        # try each color
+        for c in range(3):
+            conflict = False
+            for nb in adj[v]:
+                if colors[nb] == c:
+                    conflict = True
+                    break
+            if not conflict:
+                colors[v] = c
+                if dfs(pos + 1):
+                    return True
+                colors[v] = -1
+        return False
+
+    possible = dfs(0)
+    if not possible:
+        print("NO")
+    else:
+        print("YES")
+        # convert 0/1/2 to 1/2/3
+        print(' '.join(str(c + 1) for c in colors))
+
+if __name__ == "__main__":
+    solve()

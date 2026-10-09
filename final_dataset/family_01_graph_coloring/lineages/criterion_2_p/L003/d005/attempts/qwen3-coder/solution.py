@@ -1,0 +1,160 @@
+import sys
+from collections import defaultdict, deque
+
+def matrix_mult(A, B):
+    return [
+        [A[0][0]*B[0][0] + A[0][1]*B[1][0], A[0][0]*B[0][1] + A[0][1]*B[1][1]],
+        [A[1][0]*B[0][0] + A[1][1]*B[1][0], A[1][0]*B[0][1] + A[1][1]*B[1][1]]
+    ]
+
+def matrix_power(M, n):
+    if n == 0:
+        return [[1, 0], [0, 1]]
+    if n == 1:
+        return M
+    if n % 2 == 0:
+        half = matrix_power(M, n // 2)
+        return matrix_mult(half, half)
+    else:
+        return matrix_mult(M, matrix_power(M, n - 1))
+
+def matrices_equal(A, B):
+    return A[0][0] == B[0][0] and A[0][1] == B[0][1] and A[1][0] == B[1][0] and A[1][1] == B[1][1]
+
+def solve():
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
+    
+    edges = []
+    adj = defaultdict(list)
+    
+    idx = 2
+    for _ in range(m):
+        u = int(data[idx]) - 1
+        v = int(data[idx + 1]) - 1
+        idx += 2
+        edges.append((u, v))
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # Precompute matrices
+    base_matrix = [[3, -4], [2, -3]]
+    M1 = matrix_power(base_matrix, 1)
+    M2 = matrix_power(base_matrix, 2)
+    
+    identity = [[1, 0], [0, 1]]
+    
+    # Check if M1*M1, M1*M2, M2*M1, M2*M2 equal identity
+    bad = [False, False, False, False]  # 1,1  1,2  2,1  2,2
+    bad[0] = matrices_equal(matrix_mult(M1, M1), identity)
+    bad[1] = matrices_equal(matrix_mult(M1, M2), identity)
+    bad[2] = matrices_equal(matrix_mult(M2, M1), identity)
+    bad[3] = matrices_equal(matrix_mult(M2, M2), identity)
+    
+    # If all combinations are bad, impossible
+    if all(bad):
+        print("NO")
+        return
+    
+    # Build constraint graph for 2-SAT
+    # Variables: x_i represents s_i = 1 (False) or s_i = 2 (True)
+    # For each edge (u,v), if M1*M1 = I, then not (x_u=0 and x_v=0)
+    # If M1*M2 = I, then not (x_u=0 and x_v=1)
+    # If M2*M1 = I, then not (x_u=1 and x_v=0)
+    # If M2*M2 = I, then not (x_u=1 and x_v=1)
+    
+    # We'll model this as a graph coloring problem or bipartite check
+    # For each edge, we have constraints on the values of u and v
+    
+    # Let's think of this as a graph where each node can be colored 1 or 2
+    # And for each edge, certain color combinations are forbidden
+    
+    # This is essentially a 2-SAT problem or graph coloring with constraints
+    
+    # Let's build an implication graph for 2-SAT
+    # But first, let's see if we can model it as a bipartite graph with constraints
+    
+    # Actually, let's think of it this way:
+    # For each edge (u,v), we have a constraint that (s_u, s_v) cannot be:
+    # (1,1) if bad[0]
+    # (1,2) if bad[1]
+    # (2,1) if bad[2]
+    # (2,2) if bad[3]
+    
+    # This is a graph coloring problem with forbidden pairs on edges
+    
+    # Let's check which combinations are bad
+    forbidden = []
+    if bad[0]: forbidden.append((1, 1))
+    if bad[1]: forbidden.append((1, 2))
+    if bad[2]: forbidden.append((2, 1))
+    if bad[3]: forbidden.append((2, 2))
+    
+    # Build adjacency list for the constraint graph
+    # But we need to think of this as a CSP
+    
+    # Let's use a greedy approach with BFS/DFS to try to 2-color the graph
+    # with the additional constraints
+    
+    # Actually, let's model this as a graph where each node can have value 1 or 2
+    # and edges have constraints
+    
+    color = [0] * n  # 0 means uncolored, 1 and 2 are the colors
+    
+    # For each connected component, we'll try to color it
+    visited = [False] * n
+    
+    for start in range(n):
+        if visited[start]:
+            continue
+            
+        # BFS to color the component
+        queue = deque([start])
+        color[start] = 1  # Try lexicographically smallest first
+        visited[start] = True
+        
+        while queue:
+            u = queue.popleft()
+            c_u = color[u]
+            
+            # For each neighbor v
+            for v in adj[u]:
+                # Check what values v can take based on the constraint with u
+                valid_colors = []
+                for c_v in [1, 2]:
+                    if (c_u, c_v) not in forbidden:
+                        valid_colors.append(c_v)
+                
+                if not valid_colors:
+                    print("NO")
+                    return
+                
+                if not visited[v]:
+                    # Assign the smallest valid color to maintain lex order
+                    color[v] = min(valid_colors)
+                    visited[v] = True
+                    queue.append(v)
+                else:
+                    # Check if current color of v is valid with u's color
+                    if (c_u, color[v]) in forbidden:
+                        print("NO")
+                        return
+    
+    # Now we need to verify all edges satisfy constraints
+    for u, v in edges:
+        if (color[u], color[v]) in forbidden:
+            print("NO")
+            return
+            
+    print("YES")
+    print(" ".join(map(str, color)))
+
+solve()

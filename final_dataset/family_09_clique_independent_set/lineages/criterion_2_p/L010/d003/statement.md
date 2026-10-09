@@ -1,0 +1,76 @@
+# Problem B — Disconnected Assembly
+
+Time limit: 2 s   Memory limit: 256 MB
+
+## Description
+
+You are evaluating a system made up of **n** components, which are identified by integers from 1 to **n**. Within this system, there are **m** bidirectional interference links. When two components share a link, they interfere with one another and cannot operate simultaneously.
+
+The network of links possesses a specific underlying property: there exists at least one way to configure every component with a non-zero real-valued voltage such that, across every interference link, the voltages of the two connected components sum to exactly zero. You are not provided with these voltages; you only have the guarantee that such a configuration is mathematically possible.
+
+Your objective is to establish a stable operating state by designating a group of components as active. A group is considered stable if there are absolutely no interference links between any two active components.
+
+The operational requirement dictates that the active group must consist of precisely **k** components. Determine whether such an active group can be formed. If it can, output one valid selection of these **k** components.
+
+## Input
+
+The first line provides three integers: **n**, **m**, and **k** (1 ≤ n ≤ 100000, 0 ≤ m ≤ 400000, 1 ≤ k ≤ n).
+Following this are **m** lines, each containing two integers **u** and **v** (1 ≤ u, v ≤ n, u ≠ v), representing an interference link between component **u** and component **v**. It is guaranteed that no link appears more than once, and that the entire network adheres to the voltage cancellation property described.
+
+## Output
+
+If it is possible to select exactly **k** components that form a stable group, output `YES` on the first line. On the second line, output the **k** distinct component identifiers of your chosen group, separated by single spaces. If multiple stable groups of size **k** exist, any valid one will be accepted.
+
+If no such group can be formed, output `NO` on a single line.
+
+## Examples
+
+### Example 1
+
+**Input**
+```
+4 4 2
+1 3
+1 4
+2 3
+2 4
+```
+
+**Output**
+```
+YES
+1 2
+```
+
+### Example 2
+
+**Input**
+```
+5 0 5
+```
+
+**Output**
+```
+YES
+1 2 3 4 5
+```
+
+### Example 3
+
+**Input**
+```
+4 4 3
+1 3
+1 4
+2 3
+2 4
+```
+
+**Output**
+```
+NO
+```
+
+## Note
+
+In Example 1, components 1 and 2 do not share an interference link, so they can form a stable group of size 2. In Example 3, the largest possible stable group has only 2 components, making a group of size 3 impossible.

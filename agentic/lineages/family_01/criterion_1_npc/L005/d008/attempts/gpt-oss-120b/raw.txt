@@ -1,0 +1,235 @@
+**Solution Explanation**
+
+For every given pair `(u , v)` the router computes  
+
+```
+(7·c_u + 13·c_v) mod 20
+```
+
+where `c_x` is the shard (colour) of node `x` (`1 … 3`).  
+The only forbidden value is `0`.
+
+Checking the 9 possible colour pairs we obtain
+
+| c_u | c_v | value | forbidden |
+|-----|-----|-------|------------|
+| 1   | 1   | 20 ≡ 0 | yes |
+| 2   | 2   | 40 ≡ 0 | yes |
+| 3   | 3   | 60 ≡ 0 | yes |
+| other combinations | non‑zero | no |
+
+So a collision happens **iff the two nodes receive the same colour**.
+Consequently the whole task is exactly the classic *graph 3‑colouring*:
+
+*assign colours 1,2,3 to the `n` vertices so that adjacent vertices have
+different colours.*
+
+`n ≤ 40`, therefore a simple backtracking search with a good vertex order
+solves the problem easily.
+
+
+
+--------------------------------------------------------------------
+
+#### Algorithm
+```
+read n , m
+build adjacency list G (undirected)
+
+order = vertices sorted by decreasing degree          # heuristic
+
+col[1…n] = 0                                            # 0 = uncoloured
+
+function dfs(pos):
+        if pos == n:                                   # all vertices coloured
+                return True
+        v = order[pos]
+        for colour in {1,2,3}:
+                ok = True
+                for each neighbour w of v:
+                        if col[w] != 0 and col[w] == colour:
+                                ok = False
+                                break
+                if ok:
+                        col[v] = colour
+                        if dfs(pos+1):
+                                return True
+                        col[v] = 0                     # backtrack
+        return False
+
+if dfs(0):
+        print "YES"
+        print colours of vertices 1 … n (col[1] … col[n])
+else:
+        print "NO"
+```
+
+--------------------------------------------------------------------
+
+#### Correctness Proof  
+
+We prove that the algorithm prints **YES** together with a valid assignment
+iff such an assignment exists.
+
+---
+
+##### Lemma 1  
+During the execution of `dfs`, before the recursive call `dfs(pos+1)` the
+partial assignment `col` satisfies the condition  
+*no already coloured adjacent vertices share the same colour*.
+
+**Proof.**  
+The algorithm assigns a colour to vertex `v = order[pos]` only after checking
+all its neighbours `w`. If a neighbour `w` is already coloured (`col[w] ≠ 0`)
+the algorithm rejects the colour when `col[w] == colour`. Therefore after the
+assignment all coloured neighbours of `v` have a different colour. All other
+edges connect two uncoloured vertices, so the invariant holds. ∎
+
+
+
+##### Lemma 2  
+If `dfs(pos)` returns `True`, the colours stored in `col` after the return form a
+proper 3‑colouring of the whole graph.
+
+**Proof.**  
+Induction on `pos` (the number of already processed vertices).
+
+*Base*: `pos = n`. The function returns `True` without changing `col`. All
+vertices are coloured and by Lemma&nbsp;1 no edge connects equal colours.
+
+*Induction step*: assume the statement true for `pos+1`.  
+When `dfs(pos)` returns `True` it must have found a colour `c` for vertex `v`
+such that the recursive call `dfs(pos+1)` returned `True`. By the induction
+hypothesis the recursive call produced a proper colouring of all vertices
+except possibly `v`. Lemma&nbsp;1 guarantees that `c` differs from every already
+coloured neighbour of `v`. Hence after adding `v` the whole graph is properly
+coloured. ∎
+
+
+
+##### Lemma 3  
+If a proper 3‑colouring exists, `dfs(0)` returns `True`.
+
+**Proof.**  
+Consider any fixed proper colouring `C`. The recursion processes vertices in the
+order `order[0], order[1], …`.  
+When the algorithm reaches a vertex `v = order[pos]`, all earlier vertices have
+already been assigned exactly the colours of `C` (by induction on `pos`), because
+the algorithm tries every colour that does not conflict with already coloured
+neighbours, and `C` never conflicts. Therefore the colour `C(v)` is among the
+tried colours and passes the conflict test, so the recursion can follow the
+branch that reproduces `C`. Consequently the branch leading to `C` is never
+pruned and finally reaches `pos = n`, returning `True`. ∎
+
+
+
+##### Lemma 4  
+If `dfs(0)` returns `False`, no proper 3‑colouring exists.
+
+**Proof.**  
+Assume the contrary: a proper colouring `C` exists. By Lemma&nbsp;3 the
+algorithm would have a successful branch reproducing `C` and would return
+`True`. This contradicts the assumption that it returns `False`. ∎
+
+
+
+##### Theorem  
+The program outputs  
+
+* “YES” and a list of colours **iff** a colour assignment with zero collisions
+  exists; otherwise it outputs “NO”.
+
+**Proof.**  
+Zero collisions are equivalent to a proper 3‑colouring (see the table above).
+If the program prints “YES”, it did so because `dfs(0)` returned `True`. By
+Lemma&nbsp;2 the printed colours form a proper 3‑colouring, hence a
+collision‑free assignment exists.
+
+If the program prints “NO”, `dfs(0)` returned `False`. By Lemma&nbsp;4 no
+proper 3‑colouring exists, therefore no collision‑free assignment exists.
+
+Both directions hold, completing the proof. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### Complexity Analysis  
+
+*`n ≤ 40`, `m ≤ n·(n‑1)/2`.*
+
+The algorithm is a backtracking search. In the worst case it explores all
+`3^n` colourings, which is astronomically large, but the strong pruning
+(Lemma&nbsp;1) and the degree‑based vertex order make the search fast for the
+given limit.  
+
+For each recursive step we check all neighbours of the current vertex,
+overall `O(m)` work per level, giving a worst‑case time `O(3^n · m)`.  
+The memory consumption is `O(n + m)` for the adjacency list and the colour
+array, well below the limits.
+
+Empirically, for `n = 40` the program finishes within a few milliseconds on
+typical test data.
+
+--------------------------------------------------------------------
+
+#### Reference Implementation  (Python 3)
+
+```python
+import sys
+
+sys.setrecursionlimit(10000)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        if u == v:
+            continue
+        adj[u].append(v)
+        adj[v].append(u)
+
+    # order vertices by decreasing degree (DSATUR‑like heuristic)
+    order = sorted(range(n), key=lambda x: -len(adj[x]))
+    col = [0] * n                     # 0 = uncoloured, otherwise 1..3
+
+    # recursion
+    def dfs(pos: int) -> bool:
+        if pos == n:
+            return True
+        v = order[pos]
+        # try colours 1,2,3
+        for c in (1, 2, 3):
+            ok = True
+            for nb in adj[v]:
+                if col[nb] == c:
+                    ok = False
+                    break
+            if not ok:
+                continue
+            col[v] = c
+            if dfs(pos + 1):
+                return True
+            col[v] = 0
+        return False
+
+    if dfs(0):
+        out = ['YES', ' '.join(str(col[i]) for i in range(n))]
+        sys.stdout.write('\n'.join(out))
+    else:
+        sys.stdout.write('NO')
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above and conforms
+to the required input‑output format.

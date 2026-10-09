@@ -1,0 +1,318 @@
+import sys
+import math
+
+
+EPS = 1e-8
+INF = float("inf")
+
+
+class LPSolver:
+    def __init__(self, A, b, num_vars):
+        self.m = len(b)
+        self.n = num_vars
+        m, n = self.m, self.n
+
+        self.B = [n + i for i in range(m)]
+        self.N = list(range(n)) + [-1]
+        self.D = [[0.0] * (n + 2) for _ in range(m + 2)]
+
+        for i in range(m):
+            self.D[i][:n] = A[i]
+            self.D[i][n] = -1.0
+            self.D[i][n + 1] = float(b[i])
+
+        for j in range(n):
+            self.D[m][j] = 0.0
+
+        self.D[m + 1][n] = 1.0
+
+    def pivot(self, r, s):
+        D = self.D
+        m, n = self.m, self.n
+        inv = 1.0 / D[r][s]
+
+        row_r = D[r]
+        for i in range(m + 2):
+            if i == r:
+                continue
+            row_i = D[i]
+            factor = row_i[s] * inv
+            if abs(factor) > EPS:
+                for j in range(n + 2):
+                    if j != s:
+                        row_i[j] -= row_r[j] * factor
+            row_i[s] = -row_i[s] * inv
+
+        for j in range(n + 2):
+            if j != s:
+                row_r[j] *= inv
+        row_r[s] = inv
+
+        self.B[r], self.N[s] = self.N[s], self.B[r]
+
+    def simplex(self, phase):
+        D = self.D
+        m, n = self.m, self.n
+        objective_row = m + 1 if phase == 1 else m
+
+        while True:
+            s = -1
+            for j in range(n + 1):
+                if phase == 2 and self.N[j] == -1:
+                    continue
+                if s == -1:
+                    s = j
+                elif D[objective_row][j] < D[objective_row][s] - EPS:
+                    s = j
+                elif abs(D[objective_row][j] - D[objective_row][s]) <= EPS:
+                    if self.N[j] < self.N[s]:
+                        s = j
+
+            if s == -1 or D[objective_row][s] >= -EPS:
+                return True
+
+            r = -1
+            for i in range(m):
+                if D[i][s] <= EPS:
+                    continue
+                if r == -1:
+                    r = i
+                else:
+                    lhs = D[i][n + 1] / D[i][s]
+                    rhs = D[r][n + 1] / D[r][s]
+                    if lhs < rhs - EPS:
+                        r = i
+                    elif abs(lhs - rhs) <= EPS and self.B[i] < self.B[r]:
+                        r = i
+
+            if r == -1:
+                return False
+
+            self.pivot(r, s)
+
+    def solve(self):
+        m, n = self.m, self.n
+        D = self.D
+
+        if m:
+            r = min(range(m), key=lambda i: D[i][n + 1])
+            if D[r][n + 1] < -EPS:
+                self.pivot(r, n)
+                if not self.simplex(1):
+                    return None
+                if D[m + 1][n + 1] < -EPS:
+                    return None
+
+                for i in range(m):
+                    if self.B[i] == -1:
+                        s = -1
+                        for j in range(n + 1):
+                            if s == -1:
+                                s = j
+                            elif D[i][j] < D[i][s] - EPS:
+                                s = j
+                            elif abs(D[i][j] - D[i][s]) <= EPS:
+                                if self.N[j] < self.N[s]:
+                                    s = j
+                        if s != -1 and abs(D[i][s]) > EPS:
+                            self.pivot(i, s)
+
+        if not self.simplex(2):
+            return None
+
+        x = [0.0] * n
+        for i in range(m):
+            if 0 <= self.B[i] < n:
+                x[self.B[i]] = D[i][n + 1]
+
+        for i in range(n):
+            if abs(x[i]) < EPS:
+                x[i] = 0.0
+        return x
+
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+
+    it = iter(data)
+    n = next(it)
+    m = next(it)
+    k = next(it)
+
+    commodities = []
+    for _ in range(k):
+        s = next(it) - 1
+        t = next(it) - 1
+        d = next(it)
+        commodities.append((s, t, d))
+
+    edges = []
+    for _ in range(m):
+        u = next(it) - 1
+        v = next(it) - 1
+        c = next(it)
+        edges.append((u, v, c))
+
+    active_commodities = [
+        i for i, (s, t, d) in enumerate(commodities)
+        if d > 0 and s != t
+    ]
+    active_edges = [e for e, (_, _, c) in enumerate(edges) if c > 0]
+
+    q_count = len(active_commodities)
+    e_count = len(active_edges)
+    num_vars = q_count * e_count
+
+    edge_position = [-1] * m
+    for pos, e in enumerate(active_edges):
+        edge_position[e] = pos
+
+    base_A = []
+    base_b = []
+
+    for qi, commodity_index in enumerate(active_commodities):
+        s, t, d = commodities[commodity_index]
+        offset = qi * e_count
+
+        for node in range(max(0, n - 1)):
+            row = [0.0] * num_vars
+            for ep, edge_index in enumerate(active_edges):
+                u, v, _ = edges[edge_index]
+                coefficient = 0
+                if u == node:
+                    coefficient += 1
+                if v == node:
+                    coefficient -= 1
+                if coefficient:
+                    row[offset + ep] = float(coefficient)
+
+            balance = 0
+            if node == s:
+                balance += d
+            if node == t:
+                balance -= d
+
+            base_A.append(row)
+            base_b.append(float(balance))
+            base_A.append([-value for value in row])
+            base_b.append(float(-balance))
+
+    for ep, edge_index in enumerate(active_edges):
+        row = [0.0] * num_vars
+        for qi in range(q_count):
+            row[qi * e_count + ep] = 1.0
+        base_A.append(row)
+        base_b.append(float(edges[edge_index][2]))
+
+    def solve_with_branches(branches):
+        A = list(base_A)
+        b = list(base_b)
+
+        for variable, coefficient, bound in branches:
+            row = [0.0] * num_vars
+            row[variable] = coefficient
+            A.append(row)
+            b.append(float(bound))
+
+        return LPSolver(A, b, num_vars).solve()
+
+    def construct_and_validate(solution):
+        answer = [[0] * m for _ in range(k)]
+
+        for qi, commodity_index in enumerate(active_commodities):
+            offset = qi * e_count
+            for ep, edge_index in enumerate(active_edges):
+                value = int(round(solution[offset + ep]))
+                if value < 0:
+                    return None
+                answer[commodity_index][edge_index] = value
+
+        for commodity_index, (s, t, d) in enumerate(commodities):
+            balance = [0] * n
+            for edge_index, (u, v, _) in enumerate(edges):
+                value = answer[commodity_index][edge_index]
+                balance[u] += value
+                balance[v] -= value
+
+            expected = [0] * n
+            if s != t:
+                expected[s] += d
+                expected[t] -= d
+
+            if balance != expected:
+                return None
+
+        for edge_index, (_, _, capacity) in enumerate(edges):
+            used = sum(answer[commodity_index][edge_index]
+                       for commodity_index in range(k))
+            if used > capacity:
+                return None
+
+        return answer
+
+    if num_vars == 0:
+        answer = construct_and_validate([])
+        if answer is None:
+            print("NO")
+        else:
+            out = ["YES"]
+            out.extend(" ".join(map(str, row)) for row in answer)
+            print("\n".join(out))
+        return
+
+    stack = [tuple()]
+
+    while stack:
+        branches = stack.pop()
+        solution = solve_with_branches(branches)
+        if solution is None:
+            continue
+
+        fractional_variable = -1
+        best_fractionality = -1.0
+
+        for i, value in enumerate(solution):
+            nearest = round(value)
+            distance = abs(value - nearest)
+            if distance > 1e-7:
+                fractionality = min(value - math.floor(value),
+                                    math.ceil(value) - value)
+                if fractionality > best_fractionality:
+                    best_fractionality = fractionality
+                    fractional_variable = i
+
+        if fractional_variable == -1:
+            answer = construct_and_validate(solution)
+            if answer is not None:
+                out = ["YES"]
+                out.extend(" ".join(map(str, row)) for row in answer)
+                print("\n".join(out))
+                return
+
+            fractional_variable = max(
+                range(num_vars),
+                key=lambda i: abs(solution[i] - round(solution[i]))
+            )
+
+        value = solution[fractional_variable]
+        lower = math.floor(value)
+        upper = lower + 1
+        fraction = value - lower
+
+        left = branches + ((fractional_variable, 1.0, lower),)
+        right = branches + ((fractional_variable, -1.0, -upper),)
+
+        if fraction <= 0.5:
+            stack.append(right)
+            stack.append(left)
+        else:
+            stack.append(left)
+            stack.append(right)
+
+    print("NO")
+
+
+if __name__ == "__main__":
+    main()

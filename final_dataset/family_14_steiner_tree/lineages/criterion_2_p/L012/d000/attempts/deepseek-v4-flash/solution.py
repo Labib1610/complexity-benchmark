@@ -1,0 +1,62 @@
+import sys
+sys.setrecursionlimit(300000)
+
+def solve():
+    input = sys.stdin.readline
+    n, m, t = map(int, input().split())
+    critical = set(map(int, input().split()))
+    
+    adj = [[] for _ in range(n + 1)]
+    edges = []
+    for _ in range(m):
+        u, v, w = map(int, input().split())
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+        edges.append((u, v, w))
+    
+    # DFS to count critical nodes in each subtree
+    visited = [False] * (n + 1)
+    count = [0] * (n + 1)
+    
+    def dfs(u):
+        visited[u] = True
+        cnt = 1 if u in critical else 0
+        for v, w in adj[u]:
+            if not visited[v]:
+                cnt += dfs(v)
+        count[u] = cnt
+        return cnt
+    
+    # Start DFS from any critical node (or any node if t=0, but t>=1)
+    start = next(iter(critical))
+    dfs(start)
+    
+    total_cost = 0
+    for u, v, w in edges:
+        # Edge is needed if one side has at least one critical and the other side also has at least one
+        if count[u] > 0 and count[v] > 0:
+            # But careful: count[u] and count[v] are from the DFS rooted at start.
+            # If u is parent of v, then count[v] is the subtree size of v.
+            # If count[v] > 0 and t - count[v] > 0, then edge is needed.
+            # We can check: if count[v] == 0 or count[v] == t, then not needed.
+            # Since we don't know parent-child here, we can check:
+            if count[u] != 0 and count[u] != t and count[v] != 0 and count[v] != t:
+                total_cost += w
+            elif count[u] == 0 and count[v] == t:
+                total_cost += w
+            elif count[u] == t and count[v] == 0:
+                total_cost += w
+            # Actually simpler: edge is needed if one side has 0 critical and the other has all critical? No.
+            # Correct condition: edge is needed if both sides have at least one critical.
+            # Since count[u] + count[v] = t if one is parent of other? Not exactly.
+            # Let's just check: if count[u] > 0 and count[v] > 0 and (count[u] < t and count[v] < t) or (count[u] == 0 or count[v] == 0) is false.
+            # Actually, if count[u] > 0 and count[v] > 0, then edge is needed.
+            # But if u is parent of v, count[u] >= count[v]. If count[v] > 0 and count[u] > 0, then both sides have critical.
+            # So simply:
+            if count[u] > 0 and count[v] > 0:
+                total_cost += w
+    
+    print(total_cost)
+
+if __name__ == "__main__":
+    solve()

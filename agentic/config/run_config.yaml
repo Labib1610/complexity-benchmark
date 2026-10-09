@@ -1,5 +1,6 @@
 family: "01"
-criteria: [1, 2, 3]
+criteria: [1, 2]     # criterion 3 (infeasible) DROPPED 2026-09-11 -- always 100%, non-discriminating.
+                     # Archived under _archive_infeasible_dropped_20260911/. Only NPC(1) and P(2) remain.
 versions_per_criterion: 40     # target; planner fills it from sources 1-4
 max_generation: 2              # 0 = seed-derived only
 composition_enabled: true
@@ -21,15 +22,15 @@ gate:
     # burns its whole budget thinking about a 4-node graph and emits no code.
     # Use a cheap NON-reasoning model. Must not be a student, the held-out model,
     # the teacher, or the verifier.
-    enabled: true
-    model_id: gemini-3.1-flash-lite-solver
+    enabled: false
+    model_id: gemini-3.7-flash-lite-solver
     # anchor+corner: the solver must also handle the STANDARD corner cases (adversarial
     # adv_* cases are excluded), so accepted statements stay solvable on ordinary edge
     # cases -- raises the difficulty ceiling. If you swap in a weak solver, revert to anchor.
-    tests: anchor+corner
+    tests: anchor
     backend: openai_compat
     base_url: "https://generativelanguage.googleapis.com/v1beta/openai/"
-    model_string: "gemini-3.1-flash-lite"
+    model_string: "gemini-3.7-flash"
     api_key_env: GEMINI_API_KEY
     temperature: 0.0
     top_p: 1.0
@@ -38,10 +39,12 @@ gate:
 
 feedback_loop:
   seed_selection: top_k        # top_k | all | explicit
-  top_k: 10                    # base versions per criterion to harden
-  include_random: 4            # plus this many random non-top versions, for diversity
+  top_k: 14                    # CHANGED 2026-09-11: take the 14 HARDEST variants (biggest student-drop)
+  include_random: 0            # no random diversity picks -- user wants strictly the hardest seeds
+  target_lineages: 14          # normalize to a FIXED lineage count per criterion across families
+                               # (tops up with random accepted variants only if <14 hardest exist)
   explicit: []                 # version ids when seed_selection: explicit
-  lineage_workers: 4           # lineages are independent -> run this many concurrently
+  lineage_workers: 8           # lineages are independent -> run this many concurrently
 
   # generate N candidate rewrites per depth, gate all, keep the highest-composite
   # ACCEPTED one (B4 selector). This multiplies teacher + verifier + H5 calls, so
@@ -82,8 +85,9 @@ feedback_loop:
   gate_negotiation_rounds: 4   # teacher revises using the gate's actionable feedback
   negotiation_transcript: true # save every teacher attempt + gate response to negotiation.json
 
-  skip_students_failing_seed: true   # exclude a student from a problem's baseline
-                                     # if it already fails the unmodified seed
+  skip_students_failing_seed: false  # CHANGED 2026-09-11: keep ALL students, even ones that fail the
+                                     # unmodified seed (e.g. gpt-oss fails job-shop seed but is strong
+                                     # elsewhere) -- dropping them loses good discriminator feedback.
 
   # which test tier(s) decide PASS for retirement/steering (file 48):
   #   all           = anchor AND corner AND scaled must pass

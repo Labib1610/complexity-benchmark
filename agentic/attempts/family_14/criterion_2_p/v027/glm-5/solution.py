@@ -1,0 +1,72 @@
+import sys
+from collections import deque
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    t = int(next(it))
+    
+    terminals = set()
+    for _ in range(t):
+        terminals.add(int(next(it)))
+    
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        w = int(next(it))
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+    
+    if t <= 1:
+        print(0)
+        return
+    
+    degree = [0] * (n + 1)
+    for u in range(1, n + 1):
+        degree[u] = len(adj[u])
+    
+    q = deque()
+    in_q = [False] * (n + 1)
+    for u in range(1, n + 1):
+        if degree[u] == 1 and u not in terminals:
+            q.append(u)
+            in_q[u] = True
+    
+    while q:
+        u = q.popleft()
+        for v, w in adj[u]:
+            if in_q[v]:
+                continue
+            degree[v] -= 1
+            if degree[v] == 1 and v not in terminals:
+                q.append(v)
+                in_q[v] = True
+    
+    total_weight = 0
+    visited = [False] * (n + 1)
+    q = deque()
+    
+    for u in range(1, n + 1):
+        if not in_q[u] and degree[u] > 0:
+            q.append(u)
+            visited[u] = True
+            break
+    
+    while q:
+        u = q.popleft()
+        for v, w in adj[u]:
+            if in_q[v] or visited[v]:
+                continue
+            visited[v] = True
+            total_weight += w
+            q.append(v)
+    
+    print(total_weight)
+
+if __name__ == "__main__":
+    solve()

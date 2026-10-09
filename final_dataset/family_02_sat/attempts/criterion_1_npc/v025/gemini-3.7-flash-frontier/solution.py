@@ -1,0 +1,260 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    clauses = []
+    idx = 2
+    for _ in range(m):
+        c = [int(input_data[idx]), int(input_data[idx+1]), int(input_data[idx+2])]
+        idx += 3
+        # Simplify clause: remove duplicates
+        c_set = set(c)
+        # If both x and -x are in clause, it's a tautology
+        tautology = False
+        for lit in c_set:
+            if -lit in c_set:
+                tautology = True
+                break
+        if not tautology:
+            clauses.append(list(c_set))
+            
+    # CDCL Solver Implementation
+    # Variables are 1-indexed: 1..n
+    # Literals: positive i, negative -i
+    
+    assignment = {}  # var -> bool
+    trail = []       # list of assigned literals in order
+    trail_pos = []   # decision levels
+    reason = {}      # var -> clause index or None
+    level = {}       # var -> int (decision level)
+    
+    # Watched literals data structure
+    # For each literal, list of clause indices where this literal is watched
+    watches = {i: [] for i in range(-n, n + 1) if i != 0}
+    
+    # Store clauses in a list
+    all_clauses = []
+    for c in clauses:
+        all_clauses.append(list(c))
+        
+    for c_idx, c in enumerate(all_clauses):
+        if len(c) == 0:
+            print("NO")
+            return
+        if len(c) >= 1:
+            watches[c[0]].append(c_idx)
+        if len(c) >= 2:
+            watches[c[1]].append(c_idx)
+
+    # Activity scores for VSIDS
+    activity = {i: 0.0 for i in range(1, n + 1)}
+    var_inc = 1.0
+    var_decay = 0.95
+
+    # Clause activity
+    clause_activity = [0.0] * len(all_clauses)
+    clause_inc = 1.0
+    clause_decay = 0.999
+
+    def lit_val(lit):
+        var = abs(lit)
+        if var not in assignment:
+            return None
+        val = assignment[var]
+        return val if lit > 0 else (not val)
+
+    def assign(lit, r=None):
+        var = abs(lit)
+        assignment[var] = (lit > 0)
+        reason[var] = r
+        level[var] = len(trail_pos)
+        trail.append(lit)
+
+    def propagate():
+        p_idx = 0
+        while p_idx < len(trail):
+            p = trail[p_idx]
+            p_idx += 1
+            false_lit = -p
+            
+            # We iterate over watches of false_lit
+            watch_list = watches[false_lit]
+            watches[false_lit] = []
+            
+            i = 0
+            while i < len(watch_list):
+                c_idx = watch_list[i]
+                c = all_clauses[c_idx]
+                
+                # Make sure false_lit is at c[1]
+                if c[0] == false_lit:
+                    c[0], c[1] = c[1], c[0]
+                    
+                # If the first watch is true, the clause is satisfied
+                if lit_val(c[0]) is True:
+                    watches[false_lit].append(c_idx)
+                    i += 1
+                    continue
+                    
+                # Look for a new watch
+                found_new_watch = False
+                for k in range(2, len(c)):
+                    if lit_val(c[k]) is not False:
+                        c[1], c[k] = c[k], c[1]
+                        watches[c[1]].append(c_idx)
+                        found_new_watch = True
+                        break
+                        
+                if found_new_watch:
+                    i += 1
+                    continue
+                    
+                # No new watch found, c[0] must be satisfied or unit or conflict
+                watches[false_lit].append(c_idx)
+                i += 1
+                
+                val0 = lit_val(c[0])
+                if val0 is False:
+                    # Conflict! Put back remaining watches
+                    watches[false_lit].extend(watch_list[i:])
+                    return c_idx
+                elif val0 is None:
+                    assign(c[0], c_idx)
+                    
+        return None
+
+    def analyze(conflict_c_idx):
+        learnt = []
+        seen = [False] * (n + 1)
+        counter = 0
+        confl = conflict_c_idx
+        p = None
+        
+        curr_level = len(trail_pos)
+        idx_in_trail = len(trail) - 1
+        
+        while True:
+            c = all_clauses[confl]
+            for lit in c:
+                var = abs(lit)
+                if not seen[var] and level[var] > 0:
+                    seen[var] = True
+                    activity[var] += var_inc
+                    if level[var] == curr_level:
+                        counter += 1
+                    else:
+                        learnt.append(lit)
+                        
+            while True:
+                p = trail[idx_in_trail]
+                idx_in_trail -= 1
+                if seen[abs(p)]:
+                    break
+                    
+            seen[abs(p)] = False
+            counter -= 1
+            if counter <= 0:
+                break
+            confl = reason[abs(p)]
+            
+        learnt.append(-p)  # UIP literal
+        learnt_level = 0
+        if len(learnt) > 1:
+            # Find literal with highest decision level among the rest
+            max_i = 0
+            max_lvl = -1
+            for i in range(len(learnt) - 1):
+                lvl = level[abs(learnt[i])]
+                if lvl > max_lvl:
+                    max_lvl = lvl
+                    max_i = i
+            learnt_level = max_lvl
+            learnt[max_i], learnt[-2] = learnt[-2], learnt[max_i]
+            # Put UIP at index 0 and second highest at index 1
+            learnt[0], learnt[-1] = learnt[-1], learnt[0]
+        else:
+            learnt_level = 0
+
+        return learnt, learnt_level
+
+    def backtrack(target_level):
+        if len(trail_pos) <= target_level:
+            return
+        while len(trail) > trail_pos[target_level]:
+            lit = trail.pop()
+            var = abs(lit)
+            del assignment[var]
+            del level[var]
+            del reason[var]
+        del trail_pos[target_level:]
+
+    # Initial propagation (level 0)
+    # Check for unit clauses at root
+    for c_idx, c in enumerate(all_clauses):
+        if len(c) == 1:
+            val = lit_val(c[0])
+            if val is False:
+                print("NO")
+                return
+            elif val is None:
+                assign(c[0], c_idx)
+                
+    confl = propagate()
+    if confl is not None:
+        print("NO")
+        return
+
+    # Main CDCL loop
+    while len(assignment) < n:
+        # Pick branching variable (highest activity among unassigned)
+        best_var = -1
+        best_act = -1.0
+        for var in range(1, n + 1):
+            if var not in assignment:
+                if activity[var] > best_act:
+                    best_act = activity[var]
+                    best_var = var
+                    
+        # New decision level
+        trail_pos.append(len(trail))
+        assign(best_var)  # Try True (best_var > 0)
+        
+        while True:
+            confl = propagate()
+            if confl is None:
+                break
+                
+            if len(trail_pos) == 0:
+                print("NO")
+                return
+                
+            learnt_clause, backtrack_level = analyze(confl)
+            backtrack(backtrack_level)
+            
+            # Add learnt clause
+            c_idx = len(all_clauses)
+            all_clauses.append(learnt_clause)
+            clause_activity.append(0.0)
+            
+            if len(learnt_clause) == 1:
+                assign(learnt_clause[0], c_idx)
+            else:
+                watches[learnt_clause[0]].append(c_idx)
+                watches[learnt_clause[1]].append(c_idx)
+                assign(learnt_clause[0], c_idx)
+                
+            var_inc /= var_decay
+
+    # All variables assigned successfully
+    print("YES")
+    res = [1 if assignment[i] else 0 for i in range(1, n + 1)]
+    print(*(res))
+
+if __name__ == '__main__':
+    solve()

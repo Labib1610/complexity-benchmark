@@ -1,0 +1,255 @@
+import sys
+
+
+def solve_sat(n, clauses):
+    # Preprocess clauses
+    cleaned_clauses = []
+    for c in clauses:
+        c_set = set(c)
+        if any(-lit in c_set for lit in c_set):
+            continue  # Tautology
+        c_unique = list(c_set)
+        cleaned_clauses.append(c_unique)
+
+    clauses = cleaned_clauses
+
+    assigns = [None] * (n + 1)
+    levels = [0] * (n + 1)
+    reasons = [None] * (n + 1)
+    activity = [0.0] * (n + 1)
+    phase = [False] * (n + 1)
+
+    trail = []
+    trail_lim = []
+
+    # Watches: watches[lit] = list of clause indices
+    # lit can be from -n to n (excluding 0)
+    watches = {lit: [] for lit in range(-n, n + 1) if lit != 0}
+
+    # Add initial clauses
+    clause_list = []
+    for c in clauses:
+        if len(c) == 0:
+            return None
+        clause_list.append(c)
+
+    def value(lit):
+        var = abs(lit)
+        val = assigns[var]
+        if val is None:
+            return None
+        return val if lit > 0 else (not val)
+
+    def enqueue(lit, reason, level):
+        var = abs(lit)
+        val = lit > 0
+        assigns[var] = val
+        levels[var] = level
+        reasons[var] = reason
+        phase[var] = val
+        trail.append(lit)
+
+    # Initialize watches for all clauses
+    for i, c in enumerate(clause_list):
+        if len(c) == 1:
+            watches[c[0]].append(i)
+        else:
+            watches[c[0]].append(i)
+            watches[c[1]].append(i)
+
+    def propagate():
+        idx = 0
+        while idx < len(trail):
+            p = trail[idx]
+            idx += 1
+            false_lit = -p
+            w_list = watches[false_lit]
+            watches[false_lit] = []
+
+            for k, c_idx in enumerate(w_list):
+                c = clause_list[c_idx]
+
+                if len(c) == 1:
+                    watches[false_lit].extend(w_list[k:])
+                    if value(c[0]) is False:
+                        return c_idx
+                    continue
+
+                if c[0] == false_lit:
+                    c[0], c[1] = c[1], c[0]
+
+                first_lit = c[0]
+                val_first = value(first_lit)
+                if val_first is True:
+                    watches[false_lit].append(c_idx)
+                    continue
+
+                # Find replacement for c[1] (which is false_lit)
+                found = False
+                for j in range(2, len(c)):
+                    if value(c[j]) is not False:
+                        c[1], c[j] = c[j], c[1]
+                        watches[c[1]].append(c_idx)
+                        found = True
+                        break
+
+                if not found:
+                    watches[false_lit].append(c_idx)
+                    if val_first is False:
+                        # Conflict: copy rest of watches and return
+                        watches[false_lit].extend(w_list[k + 1 :])
+                        return c_idx
+                    else:
+                        enqueue(first_lit, c_idx, len(trail_lim))
+
+        return None
+
+    def analyze(conflict_c_idx):
+        learnt = []
+        path_c = 0
+        p = None
+        confl_c = clause_list[conflict_c_idx]
+
+        seen = [False] * (n + 1)
+        cur_level = len(trail_lim)
+
+        for lit in confl_c:
+            var = abs(lit)
+            if not seen[var] and levels[var] > 0:
+                seen[var] = True
+                activity[var] += 1.0
+                if levels[var] == cur_level:
+                    path_c += 1
+                else:
+                    learnt.append(lit)
+
+        t_idx = len(trail) - 1
+        while path_c > 0:
+            while not seen[abs(trail[t_idx])]:
+                t_idx -= 1
+            p = trail[t_idx]
+            var = abs(p)
+            seen[var] = False
+            path_c -= 1
+
+            if path_c > 0:
+                reason = reasons[var]
+                if reason is not None:
+                    for lit in clause_list[reason]:
+                        v = abs(lit)
+                        if not seen[v] and levels[v] > 0:
+                            seen[v] = True
+                            activity[v] += 1.0
+                            if levels[v] == cur_level:
+                                path_c += 1
+                            else:
+                                learnt.append(lit)
+            t_idx -= 1
+
+        learnt.insert(0, -p)
+
+        backtrack_level = 0
+        if len(learnt) > 1:
+            max_lvl = 0
+            max_idx = 1
+            for i in range(1, len(learnt)):
+                lvl = levels[abs(learnt[i])]
+                if lvl > max_lvl:
+                    max_lvl = lvl
+                    max_idx = i
+            learnt[1], learnt[max_idx] = learnt[max_idx], learnt[1]
+            backtrack_level = max_lvl
+
+        return learnt, backtrack_level
+
+    def cancel_until(level):
+        while len(trail_lim) > level:
+            t_lim = trail_lim.pop()
+            while len(trail) > t_lim:
+                p = trail.pop()
+                var = abs(p)
+                assigns[var] = None
+                reasons[var] = None
+
+    # Initial unit propagation at level 0
+    for i, c in enumerate(clause_list):
+        if len(c) == 1:
+            val = value(c[0])
+            if val is None:
+                enqueue(c[0], None, 0)
+            elif val is False:
+                return None
+
+    if propagate() is not None:
+        return None
+
+    # Main CDCL loop
+    decay = 0.95
+    while True:
+        confl = propagate()
+        if confl is not None:
+            if len(trail_lim) == 0:
+                return None  # UNSAT
+
+            learnt, backtrack_level = analyze(confl)
+            cancel_until(backtrack_level)
+
+            for i in range(1, n + 1):
+                activity[i] *= decay
+
+            c_idx = len(clause_list)
+            clause_list.append(learnt)
+            if len(learnt) == 1:
+                watches[learnt[0]].append(c_idx)
+            else:
+                watches[learnt[0]].append(c_idx)
+                watches[learnt[1]].append(c_idx)
+
+            enqueue(learnt[0], c_idx, backtrack_level)
+        else:
+            # Pick a variable
+            next_var = 0
+            max_act = -1.0
+            for i in range(1, n + 1):
+                if assigns[i] is None and activity[i] > max_act:
+                    max_act = activity[i]
+                    next_var = i
+
+            if next_var == 0:
+                # All assigned, SAT!
+                return [1 if assigns[i] else 0 for i in range(1, n + 1)]
+
+            trail_lim.append(len(trail))
+            dec_lit = next_var if phase[next_var] else -next_var
+            enqueue(dec_lit, None, len(trail_lim))
+
+
+def main():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    n = int(input_data[0])
+    m = int(input_data[1])
+
+    clauses = []
+    idx = 2
+    for _ in range(m):
+        clauses.append(
+            [
+                int(input_data[idx]),
+                int(input_data[idx + 1]),
+                int(input_data[idx + 2]),
+            ]
+        )
+        idx += 3
+
+    res = solve_sat(n, clauses)
+    if res is None:
+        print("NO")
+    else:
+        print("YES")
+        print(" ".join(map(str, res)))
+
+
+if __name__ == "__main__":
+    main()

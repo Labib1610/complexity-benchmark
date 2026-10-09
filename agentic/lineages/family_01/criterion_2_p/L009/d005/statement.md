@@ -1,26 +1,22 @@
-# Problem B — Harmonic Stability
+# Problem B — Factory Tuning
 
-Time limit: 1 s
-Memory limit: 256 MB
+Time limit: 1 s   Memory limit: 256 MB
 
-You are configuring $n$ resonance crystals in a laboratory. Each crystal $i$ must be tuned to a frequency multiplier $p_i$ of either 1 or 2.
+The factory requires each of its $n$ machines to be set to a power mode of either 1 or 2. There are $m$ interference links between specific pairs of machines. 
 
-The setup contains $m$ harmonic bridges. Each bridge connects exactly two specific crystals. 
+The factory calculates a link stress for each of the $m$ interference links. For a link between a machine with mode $x$ and a machine with mode $y$, the link stress is defined as the integer $x^2 + y^2$.
 
-For each crystal $i$, let $d_i$ be the number of harmonic bridges connected to it. For each of these $d_i$ bridges, consider the crystal at its other end. Let $S_i$ be the sum of the squares of the frequency multipliers of these $d_i$ crystals. (If $d_i = 0$, then $S_i = 0$.)
+The factory's overall stability score is the mathematical product of the link stresses across all $m$ links. A legacy controller accepts the configuration if and only if this overall stability score is exactly equal to $5^m$. (If $m=0$, the score is $1 = 5^0$, which is accepted).
 
-To maintain structural stability, every crystal $i$ in the setup must satisfy the following resonance equation:
-$$S_i + 3 \cdot d_i \cdot p_i = 7 \cdot d_i$$
-
-You must assign a frequency multiplier to each of the $n$ crystals so that the entire setup is perfectly stable. If no such configuration is possible, you must report it.
+You must assign a power mode to every machine such that the configuration is accepted by the controller.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$).
-Each of the next $m$ lines contains two integers $u$ and $v$ — the two crystals connected by a single harmonic bridge.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$).
+Each of the next $m$ lines contains two integers $u$ and $v$ — a linked pair of machines.
 
 ## Output
-If no valid tuning assignment exists, print a single line containing `NO`.
-Otherwise, print `YES` on the first line, followed by a second line containing $n$ integers $p_1, \dots, p_n$ (each $p_i \in \{1, 2\}$), where $p_i$ is the frequency multiplier assigned to crystal $i$. If there are multiple valid assignments, output the one that is lexicographically smallest.
+If no valid assignment of modes exists, print a single line NO.
+Otherwise print YES, then a second line with $n$ integers $s_1 \dots s_n$ (each in $\{1,2\}$), representing the lexicographically smallest valid assignment. (An assignment $s$ is lexicographically smaller than $t$ if at the first index $i$ where they differ, $s_i < t_i$.)
 
 ## Example 1
 Input:

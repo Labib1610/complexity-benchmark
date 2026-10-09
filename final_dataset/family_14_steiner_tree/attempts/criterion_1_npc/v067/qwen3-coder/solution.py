@@ -1,0 +1,78 @@
+import sys
+import heapq
+from collections import defaultdict
+import itertools
+
+def dijkstra(graph, start, nodes):
+    dist = {node: float('inf') for node in nodes}
+    dist[start] = 0
+    pq = [(0, start)]
+    
+    while pq:
+        d, u = heapq.heappop(pq)
+        if d > dist[u]:
+            continue
+            
+        for v, weight in graph[u]:
+            if v in dist and dist[u] + weight < dist[v]:
+                dist[v] = dist[u] + weight
+                heapq.heappush(pq, (dist[v], v))
+                
+    return dist
+
+def solve():
+    n, m, t = map(int, sys.stdin.readline().split())
+    command_centers = list(map(int, sys.stdin.readline().split()))
+    
+    if t <= 1:
+        print(0)
+        return
+    
+    graph = defaultdict(list)
+    
+    for _ in range(m):
+        u, v, w = map(int, sys.stdin.readline().split())
+        graph[u].append((v, w))
+        graph[v].append((u, w))
+    
+    # Compute shortest paths between all pairs of command centers
+    distances = {}
+    for center in command_centers:
+        distances[center] = dijkstra(graph, center, command_centers)
+    
+    # Create a complete graph of command centers with shortest path weights
+    # Then find MST of this complete graph
+    edges = []
+    for i in range(t):
+        for j in range(i+1, t):
+            u, v = command_centers[i], command_centers[j]
+            weight = distances[u][v]
+            edges.append((weight, u, v))
+    
+    # Sort edges by weight
+    edges.sort()
+    
+    # Union-Find for Kruskal's algorithm
+    parent = {center: center for center in command_centers}
+    
+    def find(x):
+        if parent[x] != x:
+            parent[x] = find(parent[x])
+        return parent[x]
+    
+    def union(x, y):
+        px, py = find(x), find(y)
+        if px != py:
+            parent[px] = py
+            return True
+        return False
+    
+    # Kruskal's algorithm
+    total_cost = 0
+    for weight, u, v in edges:
+        if union(u, v):
+            total_cost += weight
+    
+    print(total_cost)
+
+solve()

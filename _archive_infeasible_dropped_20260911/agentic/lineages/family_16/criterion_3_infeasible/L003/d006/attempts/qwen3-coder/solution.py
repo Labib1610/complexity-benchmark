@@ -1,0 +1,40 @@
+import sys
+import threading
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    j = int(data[0])
+    T = int(data[1])
+    
+    durations = []
+    idx = 2
+    for i in range(j):
+        p1 = int(data[idx])
+        p2 = int(data[idx+1])
+        durations.append((p1, p2))
+        idx += 2
+    
+    # Check for JOB i certificates
+    for i in range(j):
+        d1, d2 = durations[i]
+        if d1 + d2 > T:
+            print(f"JOB {i+1}")
+            return
+    
+    # Check for LOAD certificates
+    total_stage1 = sum(durations[i][0] for i in range(j))
+    total_stage2 = sum(durations[i][1] for i in range(j))
+    
+    if total_stage1 > T:
+        print("LOAD 1")
+        return
+        
+    if total_stage2 > T:
+        print("LOAD 2")
+        return
+
+if __name__ == '__main__':
+    main()

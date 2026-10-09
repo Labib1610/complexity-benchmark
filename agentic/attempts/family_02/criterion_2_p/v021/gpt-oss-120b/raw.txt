@@ -1,0 +1,282 @@
+**Solution Explanation**
+
+For every valve `i` we have a Boolean variable  
+
+```
+xi = 1   … valve i is Open
+xi = 0   … valve i is Closed
+```
+
+A conduit watches two *literals* `l1 , l2`.  
+A literal is either `i` (means `xi = 1`) or `-i` (means `xi = 0`).  
+The conduit works iff at least one of its literals is true, i.e.
+
+```
+(l1) OR (l2)
+```
+
+Thus the whole problem is exactly the classic **2‑SAT** problem.
+
+--------------------------------------------------------------------
+
+#### 1.   Implication graph
+
+For a clause `(a ∨ b)` we add two directed edges
+
+```
+¬a → b
+¬b → a
+```
+
+If we can assign truth values so that every clause is satisfied,
+the implication graph has no variable that is in the same strongly
+connected component (SCC) as its negation.
+
+We build a graph with `2·n` vertices:
+
+```
+vertex 2·(i-1)     : literal  i   (xi = 1)
+vertex 2·(i-1) + 1 : literal -i   (xi = 0)
+```
+
+`neg(v) = v ^ 1` flips between a literal and its negation.
+
+--------------------------------------------------------------------
+
+#### 2.   Finding SCCs – Kosaraju (iterative)
+
+`n ≤ 10⁵ , m ≤ 2·10⁵`, so `2·n ≤ 2·10⁵` vertices, `2·m ≤ 4·10⁵` edges –
+well inside limits.
+
+Kosaraju needs two depth‑first passes:
+
+* first pass on the original graph – store vertices in finishing order
+* second pass on the reversed graph – assign component numbers
+
+Both passes are written iteratively with an explicit stack to avoid
+Python recursion limits.
+
+--------------------------------------------------------------------
+
+#### 3.   Building a satisfying assignment
+
+After SCCs are known, for each variable `i`
+
+```
+if comp[ true_literal(i) ] == comp[ false_literal(i) ] → unsatisfiable
+else
+    xi = 1  if comp[ true_literal(i) ] > comp[ false_literal(i) ]
+    xi = 0  otherwise
+```
+
+In Kosaraju the component numbers are given in reverse topological order,
+so a larger component id means “earlier” in the topological order,
+hence the rule above yields a correct assignment.
+
+--------------------------------------------------------------------
+
+#### 4.   Correctness Proof  
+
+We prove that the algorithm prints `YES` and a correct configuration
+iff such a configuration exists.
+
+---
+
+##### Lemma 1  
+For every clause `(a ∨ b)` the added edges `¬a → b` and `¬b → a`
+are logically equivalent to the clause.
+
+**Proof.**  
+If `a` is true, the clause is satisfied, no condition on the edges.  
+If `a` is false (`¬a` true) then the edge forces `b` to be true,
+otherwise `¬a` would imply a false vertex, contradicting the semantics
+of implication. Symmetrically for `b`. Hence the clause holds exactly
+when both implications hold. ∎
+
+
+
+##### Lemma 2  
+If a variable `x` and its negation `¬x` belong to the same SCC,
+the formula is unsatisfiable.
+
+**Proof.**  
+Inside an SCC each vertex reaches the other, therefore we have both
+implications `x → ¬x` and `¬x → x`. Any assignment making `x` true forces
+`¬x` true, impossible; similarly for `x` false. Hence no assignment can
+satisfy all clauses. ∎
+
+
+
+##### Lemma 3  
+If for every variable `x` the literals `x` and `¬x` are in different SCCs,
+the assignment defined by  
+
+```
+x = 1  iff  comp[x] > comp[¬x]
+```
+
+satisfies all clauses.
+
+**Proof.**  
+Consider any edge `u → v` of the implication graph.
+Topologically, `comp[u] ≥ comp[v]`.  
+If `comp[u] > comp[v]` then `u` is assigned **false** (because its component
+is later) and the implication is vacuously true.  
+If `comp[u] = comp[v]` they are in the same SCC, which cannot happen for a
+literal and its negation by premise, and edges never connect a literal to
+its own negation directly (they connect different literals).  
+Thus every implication holds, and by Lemma&nbsp;1 each clause holds. ∎
+
+
+
+##### Lemma 4  
+The algorithm outputs `NO` exactly when the formula is unsatisfiable.
+
+**Proof.**  
+The algorithm outputs `NO` precisely when it finds a variable whose two
+literals share the same component. By Lemma&nbsp;2 this implies unsatisfiability.
+Conversely, if the formula is unsatisfiable, any assignment violates some
+clause, which by Lemma&nbsp;1 means some implication is violated, which can
+only happen if a literal reaches its negation, i.e. both lie in the same SCC.
+Thus the algorithm will detect such a variable and output `NO`. ∎
+
+
+
+##### Lemma 5  
+If the algorithm outputs `YES`, the printed assignment satisfies all
+conduits.
+
+**Proof.**  
+`YES` is printed only when no variable has both literals in the same SCC.
+The assignment is then built exactly as in Lemma&nbsp;3, therefore satisfies
+all clauses, i.e. all conduits. ∎
+
+
+
+##### Theorem  
+The program prints `YES` and a valid valve configuration
+iff such a configuration exists; otherwise it prints `NO`.
+
+**Proof.**  
+*If* the program prints `YES`, by Lemma&nbsp;5 the configuration is valid,
+so a configuration exists.  
+*Only if* a configuration exists, the formula is satisfiable.
+By Lemma&nbsp;4 the algorithm cannot output `NO`; therefore it outputs `YES`
+and, by Lemma&nbsp;5, a valid configuration. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### 5.   Complexity Analysis  
+
+*Vertices*: `2·n`  
+*Edges*: `2·m`
+
+Both DFS passes visit each vertex and edge once.
+
+```
+Time   :  O(n + m)
+Memory :  O(n + m)   (adjacency lists, reverse lists, stacks, arrays)
+```
+
+Both respect the limits (`n ≤ 10⁵ , m ≤ 2·10⁵`).
+
+--------------------------------------------------------------------
+
+#### 6.   Reference Implementation  (Python 3)
+
+```python
+import sys
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+
+    N = 2 * n                     # number of vertices
+    g = [[] for _ in range(N)]   # forward graph
+    rg = [[] for _ in range(N)]  # reversed graph
+
+    def lit_to_node(l: int) -> int:
+        v = abs(l) - 1
+        if l > 0:
+            return 2 * v          # xi
+        else:
+            return 2 * v ^ 1      # ¬xi
+
+    for _ in range(m):
+        a = int(next(it))
+        b = int(next(it))
+        A = lit_to_node(a)
+        B = lit_to_node(b)
+        NA = A ^ 1
+        NB = B ^ 1
+        # ¬a -> b
+        g[NA].append(B)
+        rg[B].append(NA)
+        # ¬b -> a
+        g[NB].append(A)
+        rg[A].append(NB)
+
+    sys.setrecursionlimit(1 << 25)
+
+    # ---------- first pass: order ----------
+    visited = [False] * N
+    order = []
+
+    for v in range(N):
+        if not visited[v]:
+            stack = [(v, 0)]  # (node, next_child_index)
+            while stack:
+                node, idx = stack[-1]
+                if not visited[node]:
+                    visited[node] = True
+                # iterate neighbours
+                if idx < len(g[node]):
+                    nxt = g[node][idx]
+                    stack[-1] = (node, idx + 1)
+                    if not visited[nxt]:
+                        stack.append((nxt, 0))
+                else:
+                    order.append(node)
+                    stack.pop()
+
+    # ---------- second pass: components ----------
+    comp = [-1] * N
+    cur_comp = 0
+    for v in reversed(order):
+        if comp[v] == -1:
+            stack = [v]
+            comp[v] = cur_comp
+            while stack:
+                node = stack.pop()
+                for nxt in rg[node]:
+                    if comp[nxt] == -1:
+                        comp[nxt] = cur_comp
+                        stack.append(nxt)
+            cur_comp += 1
+
+    # ---------- check satisfiability ----------
+    assignment = [0] * n
+    for i in range(n):
+        t = 2 * i
+        f = t ^ 1
+        if comp[t] == comp[f]:
+            print("NO")
+            return
+        assignment[i] = 1 if comp[t] > comp[f] else 0
+
+    # ---------- output ----------
+    print("YES")
+    print(' '.join(map(str, assignment)))
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above
+and conforms to the required input‑output format.

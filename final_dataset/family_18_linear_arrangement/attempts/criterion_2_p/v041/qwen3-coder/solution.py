@@ -1,0 +1,232 @@
+import sys
+from collections import defaultdict, deque
+
+def main():
+    import sys
+    sys.setrecursionlimit(1000000)
+    
+    n, m, B = map(int, sys.stdin.readline().split())
+    
+    # Build adjacency list for the tree
+    adj = defaultdict(list)
+    edges = []
+    for _ in range(m):
+        u, v = map(int, sys.stdin.readline().split())
+        adj[u].append(v)
+        adj[v].append(u)
+        edges.append((u, v))
+    
+    # Since it's a tree (n-1 edges and connected), we can root it at any node
+    # Let's root it at node 1
+    root = 1
+    
+    # Build parent relationships and children list via BFS
+    parent = {root: None}
+    children = defaultdict(list)
+    queue = deque([root])
+    visited = set([root])
+    
+    while queue:
+        u = queue.popleft()
+        for v in adj[u]:
+            if v not in visited:
+                visited.add(v)
+                parent[v] = u
+                children[u].append(v)
+                queue.append(v)
+    
+    # Try to assign positions to minimize total cost
+    # We'll use a greedy approach: try to place nodes close to their parents
+    
+    # Let's try all possible assignments by backtracking or heuristic
+    # Since n <= 100000, we need an efficient approach
+    
+    # Idea: Use a greedy placement
+    # Root can be placed anywhere, let's place it at position (n+1)//2 to have balance
+    pos = [0] * (n + 1)
+    pos[root] = (n + 1) // 2
+    
+    # BFS to assign positions
+    queue = deque([root])
+    used = set([pos[root]])
+    
+    # For each node, we try to place its children as close as possible to it
+    while queue:
+        u = queue.popleft()
+        # Get available positions near pos[u]
+        p = pos[u]
+        # Try to place children at positions p-1, p+1, p-2, p+2, ...
+        # We need to assign positions to all children
+        # Let's collect all available positions and assign optimally
+        
+        # Actually, let's do a smarter assignment
+        # We'll do a full BFS placement with optimal positioning
+        
+    # Let's try a different approach: assign optimally by doing a post-order traversal
+    # and placing children optimally
+    
+    # Or even simpler: do a BFS and for each node place its children in available spots
+    # that minimize the distance
+    
+    # Let's try a greedy assignment:
+    # Place root at middle
+    # For each node, place its children in nearest available positions
+    
+    pos = [0] * (n + 1)
+    used = [False] * (n + 1)
+    
+    # Place root at middle
+    root_pos = (n + 1) // 2
+    pos[root] = root_pos
+    used[root_pos] = True
+    
+    # BFS to assign positions
+    queue = deque([root])
+    while queue:
+        u = queue.popleft()
+        # Get children of u
+        ch = children[u]
+        # We need to assign positions to these children
+        # Try positions near pos[u]
+        p = pos[u]
+        # Generate candidate positions in order of distance from p
+        candidates = []
+        for offset in range(1, n):
+            if p - offset >= 1:
+                candidates.append(p - offset)
+            if p + offset <= n:
+                candidates.append(p + offset)
+            if len(candidates) >= len(ch):
+                break
+        
+        # Assign first available positions to children
+        idx = 0
+        for c in ch:
+            while idx < len(candidates):
+                candidate_pos = candidates[idx]
+                if not used[candidate_pos]:
+                    pos[c] = candidate_pos
+                    used[candidate_pos] = True
+                    queue.append(c)
+                    idx += 1
+                    break
+                else:
+                    idx += 1
+    
+    # Calculate total cost
+    total_cost = 0
+    for u, v in edges:
+        total_cost += abs(pos[u] - pos[v])
+    
+    if total_cost <= B:
+        print("YES")
+        print(*pos[1:])
+        return
+    
+    # If greedy didn't work, try a different approach
+    # Let's try placing nodes in a way that minimizes cost
+    # One good heuristic is to do a DFS and place children consecutively
+    
+    def dfs_assign(node, start_pos, direction):
+        # Assign position to node
+        if pos[node] == 0:  # Not assigned yet
+            pos[node] = start_pos
+            used[start_pos] = True
+        
+        next_pos = start_pos + direction
+        for child in children[node]:
+            if pos[child] == 0 and 1 <= next_pos <= n and not used[next_pos]:
+                pos[child] = next_pos
+                used[next_pos] = True
+                next_pos += direction
+            else:
+                # Need to find next available
+                temp_pos = next_pos - direction
+                while 1 <= next_pos <= n:
+                    if not used[next_pos]:
+                        pos[child] = next_pos
+                        used[next_pos] = True
+                        break
+                    next_pos += direction
+                if pos[child] == 0:  # Still not assigned
+                    return False
+                next_pos += direction
+        
+        # Recurse on children
+        for child in children[node]:
+            if not dfs_assign(child, pos[child], direction):
+                return False
+        return True
+    
+    # Try different starting positions and directions
+    for start in range(1, n+1):
+        for direction in [1, -1]:
+            pos = [0] * (n + 1)
+            used = [False] * (n + 1)
+            if dfs_assign(root, start, direction):
+                # Check cost
+                total_cost = 0
+                for u, v in edges:
+                    total_cost += abs(pos[u] - pos[v])
+                if total_cost <= B:
+                    print("YES")
+                    print(*pos[1:])
+                    return
+    
+    # Try linear arrangement
+    pos = list(range(1, n+1))
+    # Check cost
+    total_cost = 0
+    # We need to map bulbs to positions
+    # Let's try identity mapping first
+    mapping = list(range(n+1))  # mapping[i] = position of bulb i
+    for i in range(1, n+1):
+        mapping[i] = i
+    
+    pos_bulb = list(range(n+1))  # pos_bulb[p] = bulb at position p
+    
+    # Calculate cost for identity mapping
+    total_cost = 0
+    for u, v in edges:
+        total_cost += abs(mapping[u] - mapping[v])
+    
+    if total_cost <= B:
+        print("YES")
+        print(*mapping[1:])
+        return
+    
+    # Try to find a better permutation
+    # Since it's a tree, we can do a BFS layout
+    # Assign positions in BFS order
+    
+    queue = deque([root])
+    visited = set([root])
+    order = [root]
+    
+    while queue:
+        u = queue.popleft()
+        for v in sorted(children[u]):
+            if v not in visited:
+                visited.add(v)
+                queue.append(v)
+                order.append(v)
+    
+    # Assign positions 1 to n in BFS order
+    mapping = [0] * (n + 1)
+    for i in range(n):
+        mapping[order[i]] = i + 1
+    
+    # Calculate cost
+    total_cost = 0
+    for u, v in edges:
+        total_cost += abs(mapping[u] - mapping[v])
+    
+    if total_cost <= B:
+        print("YES")
+        print(*mapping[1:])
+        return
+    
+    print("NO")
+
+if __name__ == "__main__":
+    main()

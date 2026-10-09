@@ -16,12 +16,12 @@ color = [-1] * n
 
 def bfs(start):
     q = deque([start])
-    color[start] = 0
+    color[start] = 1
     while q:
         u = q.popleft()
         for v in adj[u]:
             if color[v] == -1:
-                color[v] = color[u] ^ 1
+                color[v] = 3 - color[u]
                 q.append(v)
             elif color[v] == color[u]:
                 return False
@@ -29,9 +29,40 @@ def bfs(start):
 
 for i in range(n):
     if color[i] == -1:
-        if not bfs(i):
-            print("NO")
-            sys.exit()
+        # try starting with 1
+        color[i] = 1
+        q = deque([i])
+        ok = True
+        while q:
+            u = q.popleft()
+            for v in adj[u]:
+                if color[v] == -1:
+                    color[v] = 3 - color[u]
+                    q.append(v)
+                elif color[v] == color[u]:
+                    ok = False
+                    break
+            if not ok:
+                break
+        if not ok:
+            # try starting with 2
+            color[i] = 2
+            q = deque([i])
+            ok = True
+            while q:
+                u = q.popleft()
+                for v in adj[u]:
+                    if color[v] == -1:
+                        color[v] = 3 - color[u]
+                        q.append(v)
+                    elif color[v] == color[u]:
+                        ok = False
+                        break
+                if not ok:
+                    break
+            if not ok:
+                print("NO")
+                sys.exit()
 
 print("YES")
-print(' '.join('1' if c == 0 else '2' for c in color))
+print(" ".join(str(c) for c in color))

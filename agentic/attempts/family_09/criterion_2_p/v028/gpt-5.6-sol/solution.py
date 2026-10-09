@@ -1,0 +1,191 @@
+import sys
+
+def main():
+    data = map(int, sys.stdin.buffer.read().split())
+    try:
+        n = next(data)
+    except StopIteration:
+        return
+    m = next(data)
+    k = next(data)
+
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = next(data)
+        v = next(data)
+        adj[u].append(v)
+        adj[v].append(u)
+
+    color = bytearray(n + 1)
+    left = []
+    right = []
+
+    for start in range(1, n + 1):
+        if color[start]:
+            continue
+        color[start] = 1
+        stack = [start]
+        while stack:
+            u = stack.pop()
+            if color[u] == 1:
+                left.append(u)
+                nc = 2
+            else:
+                right.append(u)
+                nc = 1
+            for v in adj[u]:
+                if color[v] == 0:
+                    color[v] = nc
+                    stack.append(v)
+
+    if len(left) >= k:
+        sys.stdout.write("YES\n" + " ".join(map(str, left[:k])))
+        return
+    if len(right) >= k:
+        sys.stdout.write("YES\n" + " ".join(map(str, right[:k])))
+        return
+
+    pair_left = [0] * (n + 1)
+    pair_right = [0] * (n + 1)
+    dist = [-1] * (n + 1)
+    ptr = [0] * (n + 1)
+    matching = 0
+    maximum_allowed_matching = n - k
+    inf = n + 1
+
+    while True:
+        queue = []
+        for u in left:
+            ptr[u] = 0
+            if pair_left[u] == 0:
+                dist[u] = 0
+                queue.append(u)
+            else:
+                dist[u] = -1
+
+        head = 0
+        shortest = inf
+        while head < len(queue):
+            u = queue[head]
+            head += 1
+            du = dist[u]
+            if du >= shortest:
+                continue
+            for v in adj[u]:
+                matched_u = pair_right[v]
+                if matched_u == 0:
+                    shortest = du + 1
+                elif dist[matched_u] == -1:
+                    dist[matched_u] = du + 1
+                    queue.append(matched_u)
+
+        if shortest == inf:
+            break
+
+        augmented = 0
+
+        for root in left:
+            if pair_left[root] != 0 or dist[root] != 0:
+                continue
+
+            stack_u = [root]
+            stack_v = []
+            found = False
+
+            while stack_u:
+                u = stack_u[-1]
+                neighbors = adj[u]
+                advanced = False
+
+                while ptr[u] < len(neighbors):
+                    v = neighbors[ptr[u]]
+                    ptr[u] += 1
+                    matched_u = pair_right[v]
+
+                    if matched_u == 0:
+                        if dist[u] + 1 != shortest:
+                            continue
+
+                        pair_left[u] = v
+                        pair_right[v] = u
+                        for i in range(len(stack_v) - 1, -1, -1):
+                            parent_u = stack_u[i]
+                            path_v = stack_v[i]
+                            pair_left[parent_u] = path_v
+                            pair_right[path_v] = parent_u
+
+                        found = True
+                        break
+
+                    if dist[matched_u] == dist[u] + 1:
+                        stack_v.append(v)
+                        stack_u.append(matched_u)
+                        advanced = True
+                        break
+
+                if found:
+                    break
+                if advanced:
+                    continue
+
+                dist[u] = -1
+                stack_u.pop()
+                if stack_v:
+                    stack_v.pop()
+
+            if found:
+                matching += 1
+                augmented += 1
+                if matching > maximum_allowed_matching:
+                    sys.stdout.write("NO")
+                    return
+
+        if augmented == 0:
+            break
+
+    if n - matching < k:
+        sys.stdout.write("NO")
+        return
+
+    reachable_left = bytearray(n + 1)
+    reachable_right = bytearray(n + 1)
+    queue = []
+
+    for u in left:
+        if pair_left[u] == 0:
+            reachable_left[u] = 1
+            queue.append(u)
+
+    head = 0
+    while head < len(queue):
+        u = queue[head]
+        head += 1
+        matched_v = pair_left[u]
+
+        for v in adj[u]:
+            if v == matched_v or reachable_right[v]:
+                continue
+            reachable_right[v] = 1
+            matched_u = pair_right[v]
+            if matched_u and not reachable_left[matched_u]:
+                reachable_left[matched_u] = 1
+                queue.append(matched_u)
+
+    answer = []
+    for u in left:
+        if reachable_left[u]:
+            answer.append(u)
+            if len(answer) == k:
+                break
+
+    if len(answer) < k:
+        for v in right:
+            if not reachable_right[v]:
+                answer.append(v)
+                if len(answer) == k:
+                    break
+
+    sys.stdout.write("YES\n" + " ".join(map(str, answer)))
+
+if __name__ == "__main__":
+    main()

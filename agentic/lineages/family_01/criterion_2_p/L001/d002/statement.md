@@ -1,20 +1,20 @@
-# Problem B — Monomer Spin States
+# Problem B — Power Bus Redundancy
 
 Time limit: 1 s   Memory limit: 256 MB
 
-A synthetic polymer consists of $n$ monomers, identified by integers from 1 up to $n$. A synthesis configuration assigns each monomer a spin state, which is an integer value of either 1 or 2.
+An orbital station contains $n$ life-support modules. The automated diagnostic system must configure the backup network by assigning a redundancy tier to each module. Each module's tier must be a positive integer that evenly divides $2$.
 
-The laboratory maintains a record of $m$ covalent bonds. To ensure molecular stability, the protocol enforces a strict parity rule for any pair of monomers listed in the record: when the assigned spin states of the two monomers in a bonded pair are added together, the resulting sum must be exactly 3.
+The safety protocol includes $m$ critical links. Each link identifies two modules that serve as mutual backups. To guarantee operational stability, the configuration must satisfy a strict numerical condition: for any two modules $u$ and $v$ connected by a critical link, the bitwise XOR of their assigned tier values must evaluate to exactly $3$.
 
-Your task is to determine a valid synthesis configuration for all $n$ monomers. If multiple valid configurations exist, you must provide the one that is lexicographically smallest. If it is impossible to satisfy the parity rule for all bonded pairs simultaneously, you must report the failure.
+You must determine whether a valid tier assignment exists for all modules. When multiple valid assignments are possible, the diagnostic system mandates selecting the configuration that produces the lexicographically smallest sequence of tier values, ordered by module number from $1$ to $n$.
 
 ## Input
-The first line provides two integers $n$ and $m$. The polymer requires a minimum of $1$ monomer and has a maximum capacity of $2 \cdot 10^5$ monomers. The bond record can contain as few as $0$ entries or up to a maximum of $2 \cdot 10^5$ entries, represented by $m$.
-Each of the following $m$ lines contains two integers $u$ and $v$, identifying a pair of monomers in the record. Both monomer identifiers $u$ and $v$ are at least $1$ and at most $n$.
+The first line of the input contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$).
+Each of the next $m$ lines contains two integers $u$ and $v$ — a redundancy link between module $u$ and module $v$.
 
 ## Output
-If no valid synthesis configuration exists, output `NO` on a single line.
-Otherwise, output `YES` on the first line. On the second line, output $n$ space-separated integers $s_1, s_2, \dots, s_n$ (where each $s_i \in \{1, 2\}$) representing the spin state assigned to each respective monomer from 1 to $n$. This sequence must be the lexicographically smallest possible valid sequence.
+If there is no way to assign the tier values without violating the safety protocol, output a single line containing `NO`.
+Otherwise, output `YES` on the first line. On the second line, output $n$ integers separated by spaces, where the $i$-th integer is the tier value ($1$ or $2$) assigned to the $i$-th module, representing the lexicographically smallest valid assignment ordered by indices from $1$ to $n$.
 
 ## Example 1
 Input:

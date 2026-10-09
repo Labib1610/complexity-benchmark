@@ -1,0 +1,170 @@
+import sys
+
+def solve():
+    input = sys.stdin.read
+    data = input().split()
+    if not data:
+        return
+    
+    n = int(data[0])
+    m = int(data[1])
+    B = int(data[2])
+    
+    if n == 1:
+        if B >= 0:
+            print("YES")
+            print("1")
+        else:
+            print("NO")
+        return
+    
+    adj = [[] for _ in range(n + 1)]
+    edges = []
+    idx = 3
+    for _ in range(m):
+        u = int(data[idx])
+        v = int(data[idx + 1])
+        idx += 2
+        adj[u].append(v)
+        adj[v].append(u)
+        edges.append((u, v))
+        
+    sys.setrecursionlimit(max(300000, n + 50))
+
+    # Find centroid(s)
+    sz = [0] * (n + 1)
+    def get_sizes(u, p):
+        s = 1
+        for v in adj[u]:
+            if v != p:
+                s += get_sizes(v, u)
+        sz[u] = s
+        return s
+
+    get_sizes(1, 0)
+    
+    centroids = []
+    def find_centroids(u, p):
+        is_centroid = True
+        for v in adj[u]:
+            if v != p:
+                if sz[v] > n // 2:
+                    is_centroid = False
+                find_centroids(v, u)
+        if is_centroid and (n - sz[u] <= n // 2):
+            centroids.append(u)
+
+    find_centroids(1, 0)
+    
+    # Order candidates: centroids first, then BFS from centroids
+    visited = [False] * (n + 1)
+    queue = []
+    for c in centroids:
+        visited[c] = True
+        queue.append(c)
+    
+    head = 0
+    while head < len(queue):
+        u = queue[head]
+        head += 1
+        for v in adj[u]:
+            if not visited[v]:
+                visited[v] = True
+                queue.append(v)
+                
+    candidates = queue
+
+    # Helper to evaluate a root
+    def evaluate(root):
+        # 1. Compute subtree sizes
+        sub_sz = [0] * (n + 1)
+        children = [[] for _ in range(n + 1)]
+        
+        # Iterative post-order to compute sizes
+        order = []
+        stack = [(root, 0)]
+        visited_dfs = [False] * (n + 1)
+        visited_dfs[root] = True
+        
+        parent = [0] * (n + 1)
+        while stack:
+            u, p = stack.pop()
+            order.append(u)
+            parent[u] = p
+            for v in adj[u]:
+                if v != p:
+                    visited_dfs[v] = True
+                    children[u].append(v)
+                    stack.append((v, u))
+                    
+        for u in reversed(order):
+            s = 1
+            for v in children[u]:
+                s += sub_sz[v]
+            sub_sz[u] = s
+            # Sort children by subtree size ascending
+            children[u].sort(key=lambda x: sub_sz[x])
+            
+        # Build arrangement
+        arr = []
+        
+        def build(u, direction):
+            st = [(u, direction, 0)] # node, direction, state (0: enter, 1: mid/post)
+            # We can also do this with a simple recursion
+            pass
+
+        # Since recursion limit is set, recursion for build is simple and fast
+        def build_rec(u, direction):
+            ch = children[u]
+            if direction == 'L':
+                for v in reversed(ch):
+                    build_rec(v, 'L')
+                arr.append(u)
+            else:
+                arr.append(u)
+                for v in ch:
+                    build_rec(v, 'R')
+
+        # Root
+        root_ch = children[root]
+        left_ch = root_ch[0::2]
+        right_ch = root_ch[1::2]
+        
+        for v in reversed(left_ch):
+            build_rec(v, 'L')
+        arr.append(root)
+        for v in right_ch:
+            build_rec(v, 'R')
+            
+        pos = [0] * (n + 1)
+        for p, node in enumerate(arr, 1):
+            pos[node] = p
+            
+        cost = 0
+        for u, v in edges:
+            cost += abs(pos[u] - pos[v])
+            
+        return cost, pos
+
+    best_cost = float('inf')
+    best_pos = None
+
+    # We test candidates; if n is large, test centroids and top candidates
+    limit_check = n if n <= 2000 else min(n, 50)
+    for i in range(limit_check):
+        r = candidates[i]
+        cost, pos = evaluate(r)
+        if cost < best_cost:
+            best_cost = cost
+            best_pos = pos
+        if best_cost <= B:
+            break
+
+    if best_cost <= B:
+        print("YES")
+        print(*(best_pos[1:]))
+    else:
+        print("NO")
+
+if __name__ == '__main__':
+    solve()

@@ -1,169 +1,5 @@
-**Solution Explanation**
-
-For every link `{u,v}` the matrix  
-
-\[
-\begin{pmatrix}
-c_u & c_v\\
-c_v & c_u
-\end{pmatrix}
-\]
-
-has determinant  
-
-\[
-c_u^2-c_v^2=(c_u-c_v)(c_u+c_v).
-\]
-
-All codes are positive (`1,2,3`), therefore `c_u+c_v>0`.  
-The determinant is non‑zero **iff** `c_u ≠ c_v`.
-
-So the whole task is exactly:
-
-* colour the given undirected graph with three colours `{1,2,3}` such that adjacent
-  vertices have different colours,
-* output the lexicographically smallest colour sequence `c_1 … c_n`
-  (lexicographic order is the usual order of integer sequences).
-
-`n ≤ 40`, therefore a simple depth‑first search with backtracking is more than
-fast enough.
-
---------------------------------------------------------------------
-
-#### Algorithm
-```
-read n, m
-build adjacency list G[1…n]
-
-col[1…n] = 0                     # 0 = not coloured yet
-found = False
-
-def dfs(v):
-    if v == n+1:                 # all vertices coloured
-        output answer, stop
-    for colour in 1,2,3:        # try colours in increasing order
-        ok = True
-        for each neighbour w of v:
-            if col[w] == colour:   # same colour as an already coloured neighbour
-                ok = False
-                break
-        if ok:
-            col[v] = colour
-            dfs(v+1)
-            if found: return
-            col[v] = 0            # backtrack
-
-start dfs(1)
-if not found: print "NO"
-```
-
-*The recursion visits vertices in the natural order `1,2,…,n`.  
-Because colours are tried `1 → 2 → 3`, the first complete colouring found is
-the lexicographically smallest one.*
-
---------------------------------------------------------------------
-
-#### Correctness Proof  
-
-We prove that the algorithm prints `YES` and the lexicographically smallest
-valid assignment iff such an assignment exists.
-
----
-
-##### Lemma 1  
-During the execution of `dfs(v)` the array `col[1…v-1]` is a proper colouring
-of the induced subgraph on vertices `{1,…,v-1}` (no edge has equal colours).
-
-**Proof.**  
-Initially `v=1` and the statement is vacuously true.  
-When the algorithm assigns a colour to vertex `v` it checks all already coloured
-neighbours (`w < v`) and rejects a colour that would equal `col[w]`.  
-Thus after a successful assignment the property holds for `{1,…,v}`.
-Backtracking restores the previous state, preserving the invariant. ∎
-
-
-
-##### Lemma 2  
-If the algorithm reaches `v = n+1`, the array `col[1…n]` is a proper
-3‑colouring of the whole graph.
-
-**Proof.**  
-By Lemma&nbsp;1 the invariant holds for `v = n+1`, i.e. for the set
-`{1,…,n}`. ∎
-
-
-
-##### Lemma 3  
-If a proper 3‑colouring exists, the depth‑first search will eventually reach
-`v = n+1`.
-
-**Proof.**  
-Consider any fixed proper colouring `C`.  
-When the algorithm processes vertex `v`, it tries colours `1,2,3` in order.
-Since `C(v)` is a colour different from all already coloured neighbours,
-the test in the loop will accept `C(v)`.  
-Therefore the branch that follows exactly the colours of `C` is never pruned,
-and recursion proceeds to `v+1`. By induction the whole sequence `C` is explored,
-hence the leaf `v=n+1` is reached. ∎
-
-
-
-##### Lemma 4  
-The first complete colouring found by the algorithm is the lexicographically
-smallest among all proper colourings.
-
-**Proof.**  
-The search tree is ordered lexicographically:
-* at depth `v` the three children correspond to colour `1`, then `2`, then `3`;
-* the leftmost leaf (first found) therefore has the smallest possible colour
-  at the first position where any proper colouring can differ.
-Thus no other proper colouring can be lexicographically smaller. ∎
-
-
-
-##### Theorem  
-The algorithm outputs  
-
-* `YES` and the lexicographically smallest proper 3‑colouring
-  iff such a colouring exists,
-* otherwise outputs `NO`.
-
-**Proof.**  
-
-*If a colouring exists*: by Lemma&nbsp;3 the DFS reaches `v=n+1`; by Lemma&nbsp;2
-the obtained `col` is a proper colouring. The algorithm stops immediately,
-printing it. By Lemma&nbsp;4 it is the lexicographically smallest.
-
-*If no colouring exists*: every leaf of the search tree violates the proper
-colouring condition, therefore the recursion backtracks from the root and
-terminates without finding a leaf `v=n+1`. The algorithm then prints `NO`. ∎
-
-
-
---------------------------------------------------------------------
-
-#### Complexity Analysis  
-
-`n ≤ 40`, each vertex has at most `n-1` neighbours.
-
-In the worst case the algorithm explores all `3^n` colourings,
-but the bound is tiny for `n=40` (≈ 1.2·10¹⁹) only theoretically;
-pruning by adjacency constraints reduces the search dramatically.
-For the given limits the backtracking finishes well within the time limit.
-
-The work per recursive call is `O(deg(v))` to check neighbours.
-Overall time is `O(3^n * average_degree)`, acceptable for the constraints.
-Memory usage: adjacency list `O(n+m)` and recursion depth `O(n)` → ≤ a few KB.
-
-
-
---------------------------------------------------------------------
-
-#### Reference Implementation  (Python 3)
-
 ```python
 import sys
-sys.setrecursionlimit(10000)
 
 def solve() -> None:
     data = sys.stdin.read().strip().split()
@@ -172,45 +8,55 @@ def solve() -> None:
     it = iter(data)
     n = int(next(it))
     m = int(next(it))
-    g = [[] for _ in range(n + 1)]
+    adj = [0] * n          # bitmask of neighbours
     for _ in range(m):
-        u = int(next(it)); v = int(next(it))
-        g[u].append(v)
-        g[v].append(u)
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
 
-    col = [0] * (n + 1)
-    found = False
+    # order vertices by descending degree for better pruning
+    order = sorted(range(n), key=lambda x: adj[x].bit_count(), reverse=True)
+    pos_in_order = [0] * n
+    for i, v in enumerate(order):
+        pos_in_order[v] = i
 
-    def dfs(v: int):
-        nonlocal found
-        if found:
-            return
-        if v == n + 1:
-            # all coloured
-            print("YES")
-            print(' '.join(str(col[i]) for i in range(1, n + 1)))
-            found = True
-            return
-        for c in (1, 2, 3):
+    colors = [-1] * n  # -1 uncolored, else 0,1,2
+
+    # precompute neighbour list for quick iteration
+    neigh = [ [j for j in range(n) if (adj[i] >> j) & 1] for i in range(n) ]
+
+    sys.setrecursionlimit(10000)
+
+    def dfs(k: int) -> bool:
+        if k == n:
+            return True
+        v = order[k]
+        # try each color
+        for c in range(3):
             ok = True
-            for nb in g[v]:
-                if col[nb] == c:
+            for nb in neigh[v]:
+                if colors[nb] == c:
                     ok = False
                     break
-            if ok:
-                col[v] = c
-                dfs(v + 1)
-                if found:
-                    return
-                col[v] = 0
+            if not ok:
+                continue
+            colors[v] = c
+            if dfs(k + 1):
+                return True
+            colors[v] = -1
+        return False
 
-    dfs(1)
-    if not found:
-        print("NO")
+    possible = dfs(0)
+    out = []
+    if possible:
+        out.append("YES")
+        # convert to 1..3
+        out.append(' '.join(str(c + 1) for c in colors))
+    else:
+        out.append("NO")
+    sys.stdout.write('\n'.join(out))
 
 if __name__ == "__main__":
     solve()
 ```
-
-The program follows exactly the algorithm proven correct above and conforms
-to the required input‑output format.

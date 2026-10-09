@@ -1,30 +1,31 @@
-# Problem B — Task Assignment
+# Problem B — Crew Assembly (Fixed Machines)
 
 Time limit: 2 s   Memory limit: 256 MB
 
 ## Description
 
-There are **k** workers (numbered 1..k) and **k** tasks (numbered 1..k). Each worker can only handle certain tasks; you are given a list of allowed `(worker, task)` pairs.
+A project must assemble **k** complete work crews. There are three groups, each with exactly **k** members:
 
-Assign to each worker exactly one task so that:
+- **k** specialists (group X), numbered 1..k,
+- **k** machines (group Y), numbered 1..k,
+- **k** time slots (group Z), numbered 1..k.
 
-- every worker is assigned an allowed task, and
-- no two workers are assigned the same task.
+A crew consists of exactly one specialist, one machine, and one time slot. You are given a list of allowed combinations `(x, y, z)`.
 
-(Because there are equally many workers and tasks, this means every task is used exactly once.)
+In this project **each specialist is qualified on exactly one machine, and no two specialists share the same machine** — so the specialist-to-machine pairing is already fixed. The only thing left to decide is the time slots.
 
-Determine whether such an assignment exists, and if so report one.
+Choose exactly **k** allowed combinations so that every specialist, every machine, and every time slot is used in **exactly one** chosen crew. Determine whether this is possible, and if so report one valid set of crews.
 
 ## Input
 
-The first line contains two integers **k** and **e** (1 ≤ k ≤ 1200, 0 ≤ e ≤ 800000): the number of workers/tasks and the number of allowed pairs.
-Each of the next **e** lines contains two integers **x** and **y** (1 ≤ x, y ≤ k), meaning worker x is allowed to do task y. No pair is listed more than once.
+The first line contains two integers **k** and **t** (1 ≤ k ≤ 1200, 0 ≤ t ≤ k·k): the group size and the number of allowed combinations.
+Each of the next **t** lines contains three integers **x**, **y**, **z** (1 ≤ x, y, z ≤ k), an allowed combination. No combination is listed more than once. For each specialist, every listed combination uses the same machine, and different specialists use different machines.
 
 ## Output
 
-If a valid assignment exists, print `YES` on the first line, then on the second line print **k** integers where the i-th integer is the task assigned to worker i. Any assignment satisfying the rules is accepted.
+If a valid selection of **k** crews exists, print `YES` on the first line, then print **k** lines, each containing the three members `x y z` of one chosen crew (in any order). Any valid selection is accepted.
 
-If no valid assignment exists, print `NO`.
+If no valid selection exists, print `NO`.
 
 ## Examples
 
@@ -32,17 +33,17 @@ If no valid assignment exists, print `NO`.
 
 **Input**
 ```
-3 4
-1 1
-1 2
-2 1
-3 3
+2 3
+1 1 1
+1 1 2
+2 2 2
 ```
 
 **Output**
 ```
 YES
-2 1 3
+1 1 1
+2 2 2
 ```
 
 ### Example 2
@@ -50,8 +51,8 @@ YES
 **Input**
 ```
 2 2
-1 1
-2 1
+1 1 1
+2 2 1
 ```
 
 **Output**
@@ -64,15 +65,15 @@ NO
 **Input**
 ```
 1 1
-1 1
+1 1 1
 ```
 
 **Output**
 ```
 YES
-1
+1 1 1
 ```
 
 ## Note
 
-In Example 2, both workers can only do task 1, so they cannot be given distinct tasks.
+This is the same crew-assembly (3-dimensional matching) problem as Problem A. The only difference is the promise that each specialist's machine is fixed and all distinct, which leaves only the time-slot choice and makes an efficient exact solution possible. In Example 2 both specialists' only allowed slot is 1, so time slot 2 can never be covered.

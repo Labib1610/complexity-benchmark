@@ -1,0 +1,324 @@
+```python
+import sys
+
+def solve():
+    input_data = sys.stdin.buffer.read().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [set() for _ in range(n + 1)]
+    deg = [0] * (n + 1)
+    
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        if u > v:
+            u, v = v, u
+        adj[u].add(v)
+        adj[v].add(u)
+        deg[u] += 1
+        deg[v] += 1
+    
+    # Sort employees by degree for the low-degree optimization
+    order = sorted(range(1, n + 1), key=lambda x: deg[x])
+    
+    # Iterate over all pairs (a, b) with a < b
+    # For each pair, check if they are connected (common task)
+    # Then look for c > b such that (a, c) and (b, c) are connected
+    # and deg[a] + deg[b] + deg[c] - 3 == |union of tasks|
+    # The union condition means exactly 3 tasks are shared among the three pairs.
+    # Since each pair has exactly one task, the three tasks are:
+    # task(a,b), task(a,c), task(b,c).
+    # The union size is deg[a] + deg[b] + deg[c] - (shared tasks counted multiple times).
+    # For the union to be deg[a] + deg[b] + deg[c] - 3, the three tasks must be distinct
+    # and there are no other shared tasks between any two of the three employees.
+    # Wait, let's re-evaluate:
+    # |A U B U C| = |A| + |B| + |C| - |A∩B| - |A∩C| - |B∩C| + |A∩B∩C|
+    # We want this to be |A| + |B| + |C| - 3.
+    # So |A∩B| + |A∩C| + |B∩C| - |A∩B∩C| = 3.
+    # Since each pair of employees shares at least 1 task (if they are connected),
+    # and tasks are between exactly 2 employees, |A∩B∩C| = 0.
+    # So we need |A∩B| + |A∩C| + |B∩C| = 3.
+    # Since each pair in the trio must be connected (share at least 1 task),
+    # we must have |A∩B| = 1, |A∩C| = 1, |B∩C| = 1.
+    # This means the three employees form a triangle in the task graph,
+    # and there are no multiple edges between any two of them (which is guaranteed).
+    # So we just need to find a triangle in the graph!
+    
+    # To find a triangle efficiently:
+    # For each edge (u, v), we check for common neighbors w.
+    # To avoid checking all pairs, we orient edges from lower degree to higher degree
+    # (or lower index if degrees are equal). This is the "forward" direction.
+    # Then for each node u, we look at its forward neighbors.
+    # For each pair of forward neighbors (v, w), we check if (v, w) is an edge.
+    # The complexity is O(m * sqrt(m)) for triangle finding.
+    
+    # But we need the lexicographically smallest triangle.
+    # So we can iterate a from 1 to n, then b from a+1 to n, then c from b+1 to n.
+    # But this is O(n^3) which is too slow for n=2000.
+    
+    # Alternative: iterate a from 1 to n.
+    # For a fixed a, we want to find b, c > a such that (a,b), (a,c), (b,c) are edges.
+    # We can iterate b from a+1 to n. If (a,b) is an edge, we look for c > b such that
+    # (a,c) and (b,c) are edges.
+    # To do this efficiently, we can precompute for each a, the set of neighbors of a
+    # that are > a. Then for each b > a with (a,b) an edge, we intersect the neighbors of b
+    # that are > b with the neighbors of a that are > b.
+    # But intersection of sets can be slow.
+    
+    # Let's use the degree orientation.
+    # For a fixed a, we want to find b, c > a.
+    # We can just iterate b from a+1 to n. If (a,b) is an edge,
+    # we iterate c from b+1 to n. If (a,c) and (b,c) are edges, we found a triangle.
+    # To make the inner loop fast, we can represent the adjacency list as a bitset
+    # or use the fact that we can check (b,c) in O(1) with a hash set.
+    # But iterating c from b+1 to n is O(n) per b, so O(n^2) per a, O(n^3) total.
+    
+    # We need a better way.
+    # Since we want the lexicographically smallest, we process a from 1 to n.
+    # For a fixed a, we want the smallest b > a such that there exists c > b with
+    # (a,b), (a,c), (b,c) edges.
+    # For a fixed a and b, we want the smallest c > b such that (a,c) and (b,c) are edges.
+    # So we can iterate a, then b, then check if there is any c > b in adj[a] ∩ adj[b].
+    # To check this quickly, we can iterate over the smaller of adj[a] and adj[b]
+    # (restricted to elements > b).
+    
+    # Let's refine:
+    # For a from 1 to n:
+    #   For b from a+1 to n:
+    #     if b in adj[a]:
+    #       # We need c > b such that c in adj[a] and c in adj[b]
+    #       # We want the smallest such c.
+    #       # So we can iterate over the smaller of adj[a] and adj[b] (for elements > b)
+    #       # and find the minimum.
+    #       # But we need to do this for all b, and we want the first b that has any such c.
+    #       # Actually, we want the lexicographically smallest (a, b, c).
+    #       # So for a fixed a, we want the smallest b, and for that b, the smallest c.
+    #       # So we can just iterate b from a+1 to n, and for the first b that is in adj[a]
+    #       # and has a common neighbor c > b with a, we take the smallest such c and return.
+    #       # But wait, what if a smaller b has no c, but a larger b has a smaller c?
+    #       # No, because we want lexicographically smallest, so (a, b1, c1) < (a, b2, c2) if b1 < b2,
+    #       # regardless of c1 and c2. So we just need the first b (smallest) that works,
+    #       # and for that b, the smallest c.
+    #       # So we can break early once we find the first valid b and its smallest c.
+    
+    # So the algorithm is:
+    # For a from 1 to n:
+    #   For b from a+1 to n:
+    #     if b in adj[a]:
+    #       # find smallest c > b in adj[a] ∩ adj[b]
+    #       # to do this efficiently, iterate over the smaller set
+    #       set_a = adj[a]
+    #       set_b = adj[b]
+    #       if len(set_a) > len(set_b):
+    #         set_a, set_b = set_b, set_a
+    #       # iterate over set_a, find elements > b and in set_b
+    #       min_c = n + 1
+    #       for c in set_a:
+    #         if c > b and c in set_b:
+    #           if c < min_c:
+    #             min_c = c
+    #       if min_c <= n:
+    #         print(a, b, min_c)
+    #         return
+    
+    # The complexity: for each a, we iterate b. For each b in adj[a], we do an intersection.
+    # The total work is sum over a of sum over b in adj[a] of min(deg(a), deg(b)).
+    # This is O(m * sqrt(m)) in the worst case if we use the degree orientation,
+    # but here we are iterating b in order, not by degree.
+    # However, since we break early, it might be fast enough.
+    # But in the worst case, if there is no triangle for small a, we might do a lot of work.
+    # Let's think about the worst case.
+    # If the graph is a complete bipartite graph plus one triangle at the end,
+    # we might have to process a lot.
+    # But the problem guarantees at least one triangle exists.
+    # Still, we need to be careful.
+    
+    # Let's optimize the intersection.
+    # Instead of iterating over the smaller set, we can iterate over the set with fewer elements > b.
+    # But that's hard to know without iterating.
+    # Alternatively, we can sort the adjacency lists and use two pointers.
+    # But sets in Python are fast for membership testing.
+    # Let's stick with the set approach but optimize the iteration.
+    
+    # Another optimization: for a fixed a, we can precompute the neighbors of a that are > a.
+    # Then for b in that list, we intersect with neighbors of b that are > b.
+    # But we still need to find the minimum c.
+    
+    # Let's try the following:
+    # For a from 1 to n:
+    #   neighbors_a = [x for x in adj[a] if x > a]
+    #   # We want to find b, c in neighbors_a with b < c and (b, c) is an edge.
+    #   # And we want the lexicographically smallest (b, c).
+    #   # So we can iterate b in neighbors_a (in sorted order),
+    #   # and for each b, find the smallest c in neighbors_a with c > b and c in adj[b].
+    #   # To do this, we can iterate b in sorted(neighbors_a):
+    #   #   for c in sorted(neighbors_a):
+    #   #     if c > b and c in adj[b]:
+    #   #       return a, b, c
+    #   # But this is O(deg(a)^2) per a, which could be O(n^2) per a, O(n^3) total.
+    #   # We need to be faster.
+    
+    #   # Instead, for each b in sorted(neighbors_a):
+    #   #   we want the smallest c in neighbors_a with c > b and c in adj[b].
+    #   #   We can iterate over the smaller of neighbors_a and adj[b] (restricted to > b).
+    #   #   But neighbors_a is sorted, so we can binary search for the first element > b,
+    #   #   then iterate from there and check if in adj[b].
+    #   #   But checking in adj[b] is O(1), so the cost is O(number of elements in neighbors_a > b).
+    #   #   In the worst case, this is O(deg(a)) per b, so O(deg(a)^2) per a.
+    #   #   If deg(a) is large, this is bad.
+    
+    #   # Alternative: for each b in neighbors_a, we iterate over adj[b] and check if in neighbors_a and > b.
+    #   # We want the minimum such c.
+    #   # So for each b in neighbors_a:
+    #   #   for c in adj[b]:
+    #   #     if c > b and c in adj[a]:
+    #   #       keep track of min c.
+    #   #   if min_c found, return.
+    #   # The cost is sum over b in neighbors_a of deg(b).
+    #   # This could be large if deg(b) is large.
+    
+    #   # We can choose the smaller of the two: for each b, either iterate over neighbors_a > b or adj[b].
+    #   # But we need to find the minimum c, so we can't just check existence.
+    
+    #   # Let's think differently: we want the lexicographically smallest triangle.
+    #   # So we process a from 1 to n. For each a, we want the smallest b > a such that
+    #   # there exists c > b with (a,b), (a,c), (b,c) edges.
+    #   # For a fixed a and b, we want the smallest c > b in adj[a] ∩ adj[b].
+    #   # So we can iterate b from a+1 to n. If b in adj[a], we compute the intersection.
+    #   # To compute the smallest c > b in adj[a] ∩ adj[b] efficiently:
+    #   # We can iterate over the smaller of adj[a] and adj[b], and filter for > b.
+    #   # But we need the minimum, so we have to check all candidates.
+    #   # However, if we find any c, we can return immediately because we are iterating b in increasing order,
+    #   # and for a fixed b, we want the smallest c. So if we find a c, we can return (a, b, c) if it's the first b.
+    #   # Wait, no: for a fixed a, we want the smallest b that has any c. So we iterate b in increasing order.
+    #   # For the first b that has any c, we want the smallest c. So we need to find the minimum c for that b.
+    #   # So we can't just return the first c we find; we need the minimum.
+    #   # But we can iterate over the smaller set and keep track of the minimum.
+    
+    #   # Let's implement this and see if it's fast enough.
+    #   # To make it faster, we can convert adj[a] to a sorted list for binary search,
+    #   # but for membership testing, set is faster.
+    #   # We can keep both: a set and a sorted list for each adjacency list.
+    #   # But that uses more memory.
+    
+    #   # Given n=2000, m=200000, the worst case is a dense graph.
+    #   # In a dense graph, deg(a) can be up to 1999.
+    #   # For a=1, we might iterate b from 2 to 2000. For each b in adj[1], we do an intersection.
+    #   # If the graph is complete, adj[1] has 1999 elements. For each b, adj[b] also has 1999 elements.
+    #   # The intersection of two sets of size 1999 takes about 1999 operations.
+    #   # So for a=1, we do 1999 * 1999 ~ 4 million operations.
+    #   # For a=2, we do 1998 * 1998 ~ 4 million, etc.
+    #   # Total is about sum_{k=1}^{2000} k^2 ~ 2000^3 / 3 ~ 2.6 billion, which is too slow.
+    
+    #   # We need a better approach.
+    
+    #   # The standard triangle finding with degree orientation is O(m^{3/2}).
+    #   # But we need the lexicographically smallest triangle.
+    #   # We can find all triangles and then pick the smallest, but that might be too many triangles.
+    
+    #   # Alternative: we can use the degree orientation to find triangles, but we need to ensure
+    #   # we find the lexicographically smallest.
+    #   # We can process a from 1 to n. For each a, we only consider edges (a, b) where b > a.
+    #   # Then we want to find c > b such that (a, c) and (b, c) are edges.
+    #   # To do this efficiently, we can use the following:
+    #   # For a fixed a, let S be the set of neighbors of a that are > a.
+    #   # We want to find b, c in S with b < c and (b, c) is an edge.
+    #   # We can iterate b in S (in increasing order). For each b, we want the smallest c in S with c > b and (b, c) is an edge.
+    #   # To find this quickly, we can precompute for each b, the set of neighbors of b that are > b.
+    #   # Then for each b in S, we intersect S with adj[b] (restricted to > b) and take the minimum.
+    #   # But again, intersection is expensive.
+    
+    #   # Another idea: for a fixed a, we can mark all neighbors of a. Then for each b in S (sorted),
+    #   # we iterate over neighbors of b that are > b, and check if they are marked (i.e., in adj[a]).
+    #   # The first one we find is the smallest c for that b.
+    #   # The cost is sum over b in S of deg(b). This could be large.
+    #   # But we can choose to iterate over the smaller of S and adj[b].
+    #   # However, we need the minimum c, so we can't just stop at the first one unless we iterate in order.
+    
+    #   # Let's think about the degree orientation again.
+    #   # We orient edges from lower degree to higher degree (or lower index if degrees are equal).
+    #   # Then for each node u, we look at its out-neighbors (forward neighbors).
+    #   # For each pair of out-neighbors (v, w), we check if (v, w) is an edge.
+    #   # The total number of such pairs is O(m * sqrt(m)).
+    #   # But we need the lexicographically smallest triangle.
+    #   # We can collect all triangles found and then pick the smallest, but there could be many.
+    #   # However, we can process a from 1 to n, and for each a, we only consider triangles where a is the smallest node.
+    #   # So we can modify the orientation: for a fixed a, we only consider edges (a, b) with b > a.
+    #   # Then we want to find c > b with (a, c) and (b, c) edges.
+    #   # We can use the marking idea: mark all neighbors of a that are > a.
+    #   # Then for each b in marked set (sorted), we iterate over neighbors of b that are > b,
+    #   # and check if they are marked. The first one we find is the smallest c for that b.
+    #   # Since we process b in increasing order, the first b that has any such c gives us the answer.
+    #   # The cost for a fixed a is: for each b in adj[a] with b > a, we iterate over adj[b] with elements > b.
+    #   # The total cost is sum over a of sum over b in adj[a], b > a of (number of elements in adj[b] > b).
+    #   # This is at most sum over all edges (a, b) with a < b of deg(b).
+    #   # In the worst case, this is O(m * max_deg) = O(m * n) = 200000 * 2000 = 400 million, which might be too slow in Python.
+    
+    #   # We can optimize by choosing to iterate over the smaller of the two sets:
+    #   # for each b in adj[a] with b > a, we want to find c > b in adj[a] ∩ adj[b].
+    #   # We can iterate over the smaller of adj[a] (restricted to > b) and adj[b] (restricted to > b).
+    #   # But we need the minimum c, so we have to check all candidates in the smaller set.
+    #   # The cost is min(deg(a), deg(b)) per edge (a, b).
+    #   # The total cost is sum over edges (a, b) of min(deg(a), deg(b)).
+    #   # This is O(m * sqrt(m)) because sum of min(deg(u), deg(v)) over edges is O(m * sqrt(m)).
+    #   # Proof: for each edge, min(deg(u), deg(v)) <= sqrt(m) if both degrees are <= sqrt(m),
+    #   # otherwise one degree is > sqrt(m), and there are at most 2*sqrt(m) such nodes,
+    #   # each with degree at most m, so total is O(m * sqrt(m)).
+    #   # So this is efficient!
+    
+    #   # So the algorithm is:
+    #   # For a from 1 to n:
+    #   #   For b in adj[a] with b > a:
+    #   #     # find smallest c > b in adj[a] ∩ adj[b]
+    #   #     # iterate over the smaller of adj[a] and adj[b] (restricted to > b)
+    #   #     if len(adj[a]) > len(adj[b]):
+    #   #       smaller = adj[b]
+    #   #       larger = adj[a]
+    #   #     else:
+    #   #       smaller = adj[a]
+    #   #       larger = adj[b]
+    #   #     min_c = n + 1
+    #   #     for c in smaller:
+    #   #       if c > b and c in larger:
+    #   #         if c < min_c:
+    #   #           min_c = c
+    #   #     if min_c <= n:
+    #   #       print(a, b, min_c)
+    #   #       return
+    
+    #   # But wait: we need to process b in increasing order to get the lexicographically smallest.
+    #   # So for a fixed a, we should iterate b from a+1 to n, and for each b in adj[a], we do the above.
+    #   # The first b that yields a valid c gives us the answer (with the smallest c for that b).
+    #   # So we can break early.
+    
+    #   # Let's implement this.
+    
+    for a in range(1, n + 1):
+        # We want to iterate b in increasing order
+        # So we get the sorted list of neighbors of a that are > a
+        neighbors_a = sorted([x for x in adj[a] if x > a])
+        for b in neighbors_a:
+            # find smallest c > b in adj[a] ∩ adj[b]
+            set_a = adj[a]
+            set_b = adj[b]
+            if len(set_a) > len(set_b):
+                smaller = set_b
+                larger = set_a
+            else:
+                smaller = set_a
+                larger = set_b
+            min_c = n + 1
+            for c in smaller:
+                if c > b and c in larger:
+                    if c < min_c:
+                        min_c = c
+            if min_c <= n:
+                print(a, b, min_c)
+                return
+
+solve()
+```

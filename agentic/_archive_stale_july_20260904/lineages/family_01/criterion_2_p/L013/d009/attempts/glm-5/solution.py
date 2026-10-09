@@ -1,0 +1,55 @@
+import sys
+from collections import deque
+
+def solve():
+    input = sys.stdin.read().split()
+    ptr = 0
+    if not input:
+        return
+    n = int(input[ptr]); ptr += 1
+    m = int(input[ptr]); ptr += 1
+    
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(input[ptr]); ptr += 1
+        v = int(input[ptr]); ptr += 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # Operators: 1 -> A, 2 -> B
+    # Constraint: (s_u, s_v) must be in {(1,1), (2,2), (1,2), (2,1)}
+    # This is a bipartite graph problem where edges require same or different partition.
+    # To get lexicographically smallest assignment, we use BFS and assign 1 when possible.
+    
+    color = [0] * (n + 1)
+    possible = True
+    
+    for i in range(1, n + 1):
+        if color[i] == 0:
+            # BFS for this component
+            queue = deque([i])
+            color[i] = 1  # Assign 1 to the starting node (lexicographically smallest choice)
+            while queue:
+                u = queue.popleft()
+                for v in adj[u]:
+                    # Constraint: color[u] and color[v] must be different
+                    # Because valid pairs are (1,2) and (2,1) only
+                    if color[v] == 0:
+                        color[v] = 3 - color[u]
+                        queue.append(v)
+                    elif color[v] == color[u]:
+                        possible = False
+                        break
+                if not possible:
+                    break
+        if not possible:
+            break
+    
+    if not possible:
+        print("NO")
+    else:
+        print("YES")
+        print(' '.join(map(str, color[1:])))
+
+if __name__ == "__main__":
+    solve()

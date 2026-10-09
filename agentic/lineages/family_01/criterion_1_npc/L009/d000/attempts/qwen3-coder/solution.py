@@ -1,37 +1,71 @@
+import sys
+from collections import defaultdict
+
 def solve():
-    import sys
-    from itertools import product
+    n, m = map(int, input().split())
     
-    n, m = map(int, sys.stdin.readline().split())
-    
-    # Create adjacency list for conflicts
-    adj = [[] for _ in range(n + 1)]
+    # Build adjacency list
+    adj = defaultdict(set)
     for _ in range(m):
-        u, v = map(int, sys.stdin.readline().split())
-        adj[u].append(v)
-        adj[v].append(u)
+        u, v = map(int, input().split())
+        adj[u].add(v)
+        adj[v].add(u)
     
-    # Try all possible assignments lexicographically
-    for assignment in product([1, 2, 3], repeat=n):
-        valid = True
-        # Check each worker's conflicts
-        for i in range(1, n + 1):
-            for neighbor in adj[i]:
-                # If neighbor has smaller index, we've already checked this pair
-                if neighbor < i:
-                    continue
-                # Check if they're assigned to the same shift
-                if assignment[i-1] == assignment[neighbor-1]:
-                    valid = False
-                    break
-            if not valid:
-                break
+    # Try to 3-color the graph
+    color = [0] * (n + 1)  # color[i] represents the shift of worker i
+    
+    def is_bipartite(start):
+        # BFS to check if component is bipartite
+        queue = [start]
+        color[start] = 1
         
-        if valid:
-            print("YES")
-            print(' '.join(map(str, assignment)))
-            return
+        while queue:
+            node = queue.pop(0)
+            for neighbor in adj[node]:
+                if color[neighbor] == 0:
+                    color[neighbor] = 3 - color[node]  # Flip between 1 and 2
+                    queue.append(neighbor)
+                elif color[neighbor] == color[node]:
+                    return False
+        return True
     
-    print("NO")
+    # Check if entire graph is bipartite
+    for i in range(1, n + 1):
+        if color[i] == 0:
+            if not is_bipartite(i):
+                print("NO")
+                return
+    
+    # If bipartite, we can assign shifts
+    # But we need to ensure no shift has conflicts within itself
+    # Since it's bipartite, we can use at most 2 colors
+    # We can always add a third color if needed
+    
+    # Actually, let's do proper 3-coloring
+    color = [0] * (n + 1)
+    
+    def can_color(node, c):
+        for neighbor in adj[node]:
+            if color[neighbor] == c:
+                return False
+        return True
+    
+    def backtrack(node):
+        if node > n:
+            return True
+            
+        for c in range(1, 4):
+            if can_color(node, c):
+                color[node] = c
+                if backtrack(node + 1):
+                    return True
+                color[node] = 0
+        return False
+    
+    if backtrack(1):
+        print("YES")
+        print(*color[1:])
+    else:
+        print("NO")
 
 solve()

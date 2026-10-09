@@ -1,0 +1,64 @@
+import sys
+sys.setrecursionlimit(1000000)
+
+def solve():
+    input = sys.stdin.readline
+    n, m = map(int, input().split())
+    edges = []
+    adj = [[] for _ in range(n)]
+    for idx in range(m):
+        u, v = map(int, input().split())
+        u -= 1
+        v -= 1
+        edges.append((u, v))
+        adj[u].append((v, idx))
+        adj[v].append((u, idx))
+    
+    # degree of each vertex
+    deg = len(adj[0])
+    # check all degrees equal
+    for i in range(n):
+        if len(adj[i]) != deg:
+            print("NO")
+            return
+    
+    # Edge coloring with deg colors
+    color = [-1] * m
+    # For each vertex, which colors are used on its incident edges
+    used = [set() for _ in range(n)]
+    
+    # Try to color edges one by one with backtracking
+    edges_order = list(range(m))
+    # sort edges by degree of endpoints (higher degree first) for better pruning
+    edges_order.sort(key=lambda e: max(len(adj[edges[e][0]]), len(adj[edges[e][1]])), reverse=True)
+    
+    def backtrack(idx):
+        if idx == m:
+            return True
+        e = edges_order[idx]
+        u, v = edges[e]
+        # available colors for this edge
+        avail = []
+        for c in range(deg):
+            if c not in used[u] and c not in used[v]:
+                avail.append(c)
+        # try colors
+        for c in avail:
+            color[e] = c
+            used[u].add(c)
+            used[v].add(c)
+            if backtrack(idx + 1):
+                return True
+            used[u].remove(c)
+            used[v].remove(c)
+            color[e] = -1
+        return False
+    
+    if backtrack(0):
+        print("YES")
+        print(" ".join(str(c + 1) for c in color))
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()

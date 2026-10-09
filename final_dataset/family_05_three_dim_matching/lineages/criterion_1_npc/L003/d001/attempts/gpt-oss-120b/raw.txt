@@ -1,0 +1,417 @@
+**Solution Explanation**
+
+For every equipment we create a column
+
+* mechanical actuators `A1 … Ak`
+* laser scanners    `S1 … Sk`
+* processing units   `P1 … Pk`
+
+A certified configuration `(x , y , z)` is a row that covers exactly the three
+columns `Ax , Sy , Pz`.
+
+The task is to choose `k` rows so that every column is covered once – an
+*exact cover* problem.
+
+`k ≤ 22`, therefore the total number of columns is at most `3·22 = 66`.
+The number of rows `t` is at most `k³ ≤ 10648`.  
+Exact cover with at most a few hundred columns can be solved efficiently by
+**Algorithm X** (Knuth’s dancing‑links).  
+The algorithm recursively
+
+1. picks a column with the smallest number of rows (best‑first heuristic),
+2. tries each row that contains this column,
+3. removes all columns covered by that row,
+4. recurses.
+
+If all columns disappear we have found a solution; if a column becomes empty
+the current branch is dead.
+
+The recursion depth never exceeds `k` (we need exactly `k` rows), therefore the
+search is very small for the given limits.
+
+
+
+--------------------------------------------------------------------
+
+#### Data structures – dancing links
+
+All nodes are stored in arrays, each node knows its four neighbours
+`U, D, L, R` and the column it belongs to (`C`).  
+For each column we store
+
+* `size` – number of rows still containing this column,
+* `head` – the column header node (also a node, its column index is itself).
+
+The header of the whole matrix (`root`) links all column headers in a circular
+doubly linked list (`root.R` … `root.L`).
+
+Adding a row `(x,y,z)` creates three nodes and links them vertically into the
+corresponding columns and horizontally into a circular list of the row.
+
+
+
+--------------------------------------------------------------------
+
+#### Algorithm X (recursive search)
+
+```
+search():
+    if root.R == root:               # no columns left → solution found
+        return True
+    choose column c with minimal size
+    if size[c] == 0: return False     # dead end
+
+    cover(c)
+    for each row r in column c (downwards):
+        answer.append(r)              # remember the row
+        for each node j in r (rightwards):
+            cover( column of j )
+        if search(): return True
+        # backtrack
+        for each node j in r (leftwards):
+            uncover( column of j )
+        answer.pop()
+    uncover(c)
+    return False
+```
+
+`cover(col)` removes the column header from the header list and removes all
+rows that contain this column from every other column they touch.
+`uncover(col)` restores everything – the operations are exact inverses,
+implemented by following the linked lists backwards.
+
+When a solution is found we have stored `k` rows (`answer`).  
+From each stored row we output the three original numbers `(x, y, z)`.
+
+
+
+--------------------------------------------------------------------
+
+#### Correctness Proof  
+
+We prove that the algorithm prints `YES` and a correct set of `k` tracks
+iff such a set exists.
+
+---
+
+##### Lemma 1  
+During execution, the set of columns that are still present in the header list
+is exactly the set of equipment pieces that are not yet covered by the rows
+chosen so far.
+
+**Proof.**  
+Initially all columns are present and no equipment is covered.  
+When a row is chosen, `cover` is called for each of its three columns.
+`cover(col)` removes `col` from the header list, therefore the column disappears
+exactly when the corresponding equipment piece becomes covered.
+No other operation removes a column. ∎
+
+
+
+##### Lemma 2  
+`cover(col)` removes **all** rows that contain `col` from every other column
+they intersect, and `uncover(col)` restores them.
+
+**Proof.**  
+`cover(col)` iterates over the rows linked vertically under `col`. For each such
+row it walks horizontally through its other nodes and removes each of those
+nodes from its column list, decreasing the column size. This eliminates the
+entire row from all columns it participates in.  
+`uncover(col)` performs the inverse steps in reverse order, re‑inserting the
+nodes and restoring the sizes. Because the linked structure is unchanged,
+the operations are exact inverses. ∎
+
+
+
+##### Lemma 3  
+At any recursive call, the set `answer` consists of pairwise disjoint rows
+(i.e. no two rows share a column) and covers exactly the columns that have been
+removed from the header list.
+
+**Proof.**  
+Induction over recursion depth.
+
+*Base.* Before the first call `answer` is empty, no column is removed – true.
+
+*Induction step.* Assume the invariant holds before choosing a new row `r`.
+`r` is taken from the column `c` that is still present, therefore `r` does not
+share any column with rows already in `answer` (otherwise that column would
+already be removed). After adding `r` we call `cover` for its other two columns.
+By Lemma&nbsp;2 all rows that intersect those columns are removed, in particular
+any row that would conflict with `r`. Hence the invariant holds for the deeper
+call. The backtrack restores everything, preserving the invariant for the
+upper level. ∎
+
+
+
+##### Lemma 4  
+If the algorithm reaches the state `root.R == root` (no columns left) then
+`answer` contains exactly `k` rows that together cover every actuator,
+scanner and processor exactly once.
+
+**Proof.**  
+When no columns remain, by Lemma&nbsp;1 every equipment piece is covered.
+Each row covers three distinct pieces, therefore the number of rows equals
+`(3k) / 3 = k`. By Lemma&nbsp;3 the rows are pairwise disjoint, so each piece
+appears in exactly one row. ∎
+
+
+
+##### Lemma 5  
+If a perfect set of `k` tracks exists, the search will eventually find it.
+
+**Proof.**  
+Consider any fixed solution `S` (a set of `k` rows). The algorithm always
+chooses a column that still exists. That column belongs to some row of `S`
+(because all columns are covered in `S`). The algorithm iterates over **all**
+rows containing this column, therefore it will eventually try the row from
+`S`. When it does, the covering steps remove exactly the columns used by that
+row, leaving the remaining columns still coverable by the remaining rows of
+`S`. By induction on the number of already selected rows, the recursive
+search can follow the whole solution `S` down to the empty matrix, where it
+accepts it. ∎
+
+
+
+##### Lemma 6  
+If the algorithm outputs `NO`, no perfect set of `k` tracks exists.
+
+**Proof.**  
+`NO` is printed only when the recursive search exhausts all possibilities
+without reaching the empty matrix. The search explores **every** possible
+choice of rows that respects the exact‑cover constraints (by Lemma&nbsp;3). If a
+solution existed, Lemma&nbsp;5 guarantees that one of the explored branches
+would reach the empty matrix, contradicting the exhaustive failure. ∎
+
+
+
+##### Theorem  
+The program prints
+
+* `YES` followed by `k` triples that form a valid allocation **iff**
+  such an allocation exists,
+* otherwise prints `NO`.
+
+**Proof.**  
+*If* part: when the algorithm finds the empty matrix it outputs `YES` and the
+rows stored in `answer`. By Lemma&nbsp;4 these rows constitute a valid allocation.
+
+*Only‑if* part: if the program prints `NO`, by Lemma&nbsp;6 no valid allocation
+exists. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### Complexity Analysis  
+
+*Let* `C = 3k ≤ 66` (columns), `R = t ≤ k³ ≤ 10648` (rows).
+
+Building the structure: `O(R·3)`.
+
+During the search each covering/uncovering of a column touches at most all
+nodes of rows containing that column, i.e. `O(R·3)` in the worst case, but
+the depth is at most `k`. The total work is bounded by the usual exponential
+search bound of Algorithm X; with the small `C` (≤66) and the strong heuristic
+(minimum column size) it runs easily within the limits.
+
+Memory consumption: one node per matrix entry → `3·R ≤ 31944` nodes,
+each storing a few integers → well below the 256 MiB limit.
+
+
+
+--------------------------------------------------------------------
+
+#### Reference Implementation  (Python 3)
+
+```python
+import sys
+
+sys.setrecursionlimit(10000)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    k = int(next(it))
+    t = int(next(it))
+
+    # column indices: 0..k-1 actuators, k..2k-1 scanners, 2k..3k-1 processors
+    ncol = 3 * k
+    # dancing links structures
+    # node 0 is the root header
+    U = [0]
+    D = [0]
+    L = [0]
+    R = [0]
+    C = [0]          # column of node
+    size = [0] * ncol   # size of each column
+    col_head = []    # header node index for each column
+
+    # create column header nodes (1..ncol)
+    for col in range(ncol):
+        idx = len(U)
+        U.append(idx)   # up points to itself initially
+        D.append(idx)
+        L.append(idx - 1 if col > 0 else 0)   # linked in header list
+        R.append(idx + 1 if col < ncol - 1 else 0)
+        C.append(col)
+        col_head.append(idx)
+        size[col] = 0
+
+    # close the header list circularly
+    # root is node 0, its right points to first column header, left to last
+    R[0] = col_head[0]
+    L[0] = col_head[-1]
+    L[col_head[0]] = 0
+    R[col_head[-1]] = 0
+
+    # store rows for output later
+    rows = []   # each element: (node_index_of_first_node, (x,y,z))
+
+    for _ in range(t):
+        x = int(next(it)) - 1
+        y = int(next(it)) - 1
+        z = int(next(it)) - 1
+        cols = [x, k + y, 2 * k + z]
+
+        first = None
+        prev = None
+        nodes = []
+        for col in cols:
+            idx = len(U)
+            U.append(0)
+            D.append(0)
+            L.append(0)
+            R.append(0)
+            C.append(col)
+            # vertical link into column
+            head = col_head[col]
+            # insert just above head (i.e. at the bottom)
+            U[idx] = U[head]
+            D[idx] = head
+            D[U[head]] = idx
+            U[head] = idx
+            size[col] += 1
+
+            nodes.append(idx)
+
+        # horizontal links (circular)
+        for i in range(3):
+            cur = nodes[i]
+            left = nodes[(i - 1) % 3]
+            right = nodes[(i + 1) % 3]
+            L[cur] = left
+            R[cur] = right
+
+        rows.append( (nodes[0], (x + 1, y + 1, z + 1)) )
+
+    # ---------- dancing links operations ----------
+    def cover(col_head_idx):
+        # remove column header
+        R[L[col_head_idx]] = R[col_head_idx]
+        L[R[col_head_idx]] = L[col_head_idx]
+        # for each row i in this column
+        i = D[col_head_idx]
+        while i != col_head_idx:
+            j = R[i]
+            while j != i:
+                # remove node j from its column
+                D[U[j]] = D[j]
+                U[D[j]] = U[j]
+                size[C[j]] -= 1
+                j = R[j]
+            i = D[i]
+
+    def uncover(col_head_idx):
+        i = U[col_head_idx]
+        while i != col_head_idx:
+            j = L[i]
+            while j != i:
+                size[C[j]] += 1
+                D[U[j]] = j
+                U[D[j]] = j
+                j = L[j]
+            i = U[i]
+        R[L[col_head_idx]] = col_head_idx
+        L[R[col_head_idx]] = col_head_idx
+
+    # map from column header node to column index
+    col_of_head = {}
+    for col in range(ncol):
+        col_of_head[col_head[col]] = col
+
+    answer_nodes = []
+
+    def search():
+        if R[0] == 0:          # no columns left
+            return True
+        # choose column with minimal size
+        c = R[0]
+        min_sz = size[col_of_head[c]]
+        col = c
+        j = R[c]
+        while j != 0:
+            sz = size[col_of_head[j]]
+            if sz < min_sz:
+                min_sz = sz
+                col = j
+                if sz == 0:
+                    break
+            j = R[j]
+        if min_sz == 0:
+            return False
+        cover(col)
+        r = D[col]
+        while r != col:
+            answer_nodes.append(r)
+            j = R[r]
+            while j != r:
+                cover(col_head[C[j]])
+                j = R[j]
+            if search():
+                return True
+            # backtrack
+            j = L[r]
+            while j != r:
+                uncover(col_head[C[j]])
+                j = L[j]
+            answer_nodes.pop()
+            r = D[r]
+        uncover(col)
+        return False
+
+    if search():
+        # translate answer_nodes to original triples
+        # each node belongs to a row; we stored rows list with a representative node
+        node_to_trip = {}
+        for rep, trip in rows:
+            node_to_trip[rep] = trip
+        # build mapping from any node in the row to its trip
+        # we can walk the row to find its representative
+        used = set()
+        output = []
+        for node in answer_nodes:
+            # find the representative (any node of the same row)
+            # walk left until we hit a node that is a key in node_to_trip
+            cur = node
+            while cur not in node_to_trip:
+                cur = L[cur]
+            trip = node_to_trip[cur]
+            if trip not in used:
+                used.add(trip)
+                output.append(trip)
+        # output
+        out_lines = ["YES"]
+        out_lines += ["{} {} {}".format(*trip) for trip in output]
+        sys.stdout.write("\n".join(out_lines))
+    else:
+        sys.stdout.write("NO")
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above and conforms
+to the required input‑output format.

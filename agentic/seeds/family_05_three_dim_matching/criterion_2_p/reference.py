@@ -3,63 +3,64 @@ from collections import deque
 
 
 def main():
-    # Hopcroft-Karp bipartite matching, O(E*sqrt(V)). Repeatedly BFS to build the
-    # layered graph of shortest augmenting paths, then DFS to augment along many
-    # vertex-disjoint shortest paths at once. A perfect assignment exists iff all k
-    # workers are matched. (The judge is custom and accepts ANY valid assignment.)
     data = sys.stdin.buffer.read().split()
     idx = 0
-    k = int(data[idx]); idx += 1
-    e = int(data[idx]); idx += 1
-    adj = [[] for _ in range(k + 1)]
-    for _ in range(e):
-        x = int(data[idx]); y = int(data[idx + 1]); idx += 2
-        adj[x].append(y)
+    k = int(data[idx]); t = int(data[idx + 1]); idx += 2
+    Y = [0] * (k + 1)           # Y[x] = the single machine specialist x works with (functional promise)
+    zopts = [[] for _ in range(k + 1)]
+    for _ in range(t):
+        x = int(data[idx]); y = int(data[idx + 1]); z = int(data[idx + 2]); idx += 3
+        Y[x] = y
+        zopts[x].append(z)
 
+    # Each specialist is tied to exactly one machine (the machines are all distinct), so the only
+    # freedom is the time slot: this is a bipartite matching between specialists (X) and slots (Z),
+    # with an edge x--z whenever crew (x, Y[x], z) is allowed. A perfect matching == a valid plan.
     INF = float("inf")
-    match_x = [0] * (k + 1)      # worker -> task
-    match_y = [0] * (k + 1)      # task -> worker
+    matchX = [0] * (k + 1)      # specialist -> slot
+    matchZ = [0] * (k + 1)      # slot -> specialist
     dist = [0] * (k + 1)
 
     def bfs():
         q = deque()
         for x in range(1, k + 1):
-            if match_x[x] == 0:
+            if matchX[x] == 0:
                 dist[x] = 0; q.append(x)
             else:
                 dist[x] = INF
-        reachable_free = False
+        found = False
         while q:
             x = q.popleft()
-            for y in adj[x]:
-                w = match_y[y]
+            for z in zopts[x]:
+                w = matchZ[z]
                 if w == 0:
-                    reachable_free = True
+                    found = True
                 elif dist[w] == INF:
-                    dist[w] = dist[x] + 1
-                    q.append(w)
-        return reachable_free
+                    dist[w] = dist[x] + 1; q.append(w)
+        return found
 
     def dfs(x):
-        for y in adj[x]:
-            w = match_y[y]
+        for z in zopts[x]:
+            w = matchZ[z]
             if w == 0 or (dist[w] == dist[x] + 1 and dfs(w)):
-                match_x[x] = y; match_y[y] = x
+                matchX[x] = z; matchZ[z] = x
                 return True
         dist[x] = INF
         return False
 
-    matched = 0
+    matching = 0
     while bfs():
         for x in range(1, k + 1):
-            if match_x[x] == 0 and dfs(x):
-                matched += 1
+            if matchX[x] == 0 and dfs(x):
+                matching += 1
 
-    if matched < k:
+    if matching != k:
         sys.stdout.write("NO\n")
         return
-    sys.stdout.write("YES\n")
-    sys.stdout.write(" ".join(str(match_x[x]) for x in range(1, k + 1)) + "\n")
+
+    out = ["YES"]
+    out.extend(f"{x} {Y[x]} {matchX[x]}" for x in range(1, k + 1))
+    sys.stdout.write("\n".join(out) + "\n")
 
 
 main()

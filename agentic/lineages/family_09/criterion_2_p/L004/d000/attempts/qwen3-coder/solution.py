@@ -1,0 +1,86 @@
+import sys
+from collections import defaultdict, deque
+
+def read_input():
+    n, m, k = map(int, sys.stdin.readline().split())
+    edges = []
+    for _ in range(m):
+        u, v = map(int, sys.stdin.readline().split())
+        edges.append((u, v))
+    return n, m, k, edges
+
+def bipartite_partition(n, edges):
+    # Create adjacency list
+    adj = defaultdict(list)
+    for u, v in edges:
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # Color array - None=unvisited, 0=left, 1=right
+    color = [None] * (n + 1)
+    
+    # Check if graph is bipartite and find partition
+    for start in range(1, n + 1):
+        if color[start] is None:
+            # BFS to color the component
+            queue = deque([start])
+            color[start] = 0
+            
+            while queue:
+                node = queue.popleft()
+                current_color = color[node]
+                
+                for neighbor in adj[node]:
+                    if color[neighbor] is None:
+                        color[neighbor] = 1 - current_color
+                        queue.append(neighbor)
+                    elif color[neighbor] == current_color:
+                        # Not bipartite - but problem guarantees it is
+                        return None, None
+    
+    # Separate nodes into two sets
+    left_set = []
+    right_set = []
+    
+    for i in range(1, n + 1):
+        if color[i] == 0:
+            left_set.append(i)
+        elif color[i] == 1:
+            right_set.append(i)
+    
+    return left_set, right_set
+
+def solve():
+    n, m, k, edges = read_input()
+    
+    if m == 0:
+        # No conflicts - can choose any k microservices
+        result = list(range(1, min(k + 1, n + 1)))
+        if len(result) >= k:
+            print("YES")
+            print(' '.join(map(str, result[:k])))
+        else:
+            print("NO")
+        return
+    
+    # Since the graph is guaranteed to be bipartite
+    left_set, right_set = bipartite_partition(n, edges)
+    
+    if left_set is None:
+        print("NO")
+        return
+    
+    # Try to take k nodes from the larger set
+    if len(left_set) >= k:
+        print("YES")
+        print(' '.join(map(str, left_set[:k])))
+    elif len(right_set) >= k:
+        print("YES")
+        print(' '.join(map(str, right_set[:k])))
+    else:
+        # Check if we can take all from one set and some from another
+        # But since conflicts only exist between tiers, we can only pick from one tier
+        print("NO")
+
+if __name__ == "__main__":
+    solve()

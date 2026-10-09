@@ -1,38 +1,34 @@
+import sys
+from collections import defaultdict
+
 def solve():
-    import sys
-    from itertools import product
+    n, m = map(int, sys.stdin.readline().split())
     
-    input = sys.stdin.read
-    data = input().split()
+    if m == 0:
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
     
-    n = int(data[0])
-    m = int(data[1])
-    
-    # Build adjacency list for incompatibilities
-    adj = [[] for _ in range(n + 1)]
-    idx = 2
+    # Build adjacency list
+    adj = defaultdict(set)
+    edges = []
     for _ in range(m):
-        u = int(data[idx])
-        v = int(data[idx + 1])
-        adj[u].append(v)
-        adj[v].append(u)
-        idx += 2
+        u, v = map(int, sys.stdin.readline().split())
+        adj[u].add(v)
+        adj[v].add(u)
+        edges.append((u, v))
     
-    # Try all 3^n assignments, but we can do better with backtracking
-    # For small n (up to 40) and only 3 colors, we need an efficient approach
+    # Try all 3-colorings
+    # Each table can be assigned to drive 1, 2, or 3
+    # This is essentially a graph 3-coloring problem
     
-    # Actually, since n <= 40 and we have 3 colors, let's try greedy with backtracking
-    # But even better - let's try all assignments in lexicographical order
+    # We'll use backtracking
+    color = [0] * (n + 1)  # color[i] represents the drive for table i
     
-    # Since 3^40 is too large, we need to be smarter
-    # This is essentially a 3-coloring problem
-    
-    # Let's use backtracking with constraint checking
-    assignment = [0] * (n + 1)
-    
-    def is_valid(node, color):
+    def is_safe(node, c):
+        # Check if assigning color c to node is safe
         for neighbor in adj[node]:
-            if assignment[neighbor] == color:
+            if color[neighbor] == c:
                 return False
         return True
     
@@ -40,24 +36,18 @@ def solve():
         if node > n:
             return True
             
-        for color in [1, 2, 3]:
-            if is_valid(node, color):
-                assignment[node] = color
+        for c in range(1, 4):
+            if is_safe(node, c):
+                color[node] = c
                 if backtrack(node + 1):
                     return True
-                assignment[node] = 0
+                color[node] = 0
         return False
     
-    # Special case: if there are no edges, just assign all to 1
-    if m == 0:
-        result = [1] * n
-        print("YES")
-        print(' '.join(map(str, result)))
-        return
-    
+    # Start backtracking from node 1
     if backtrack(1):
         print("YES")
-        print(' '.join(map(str, assignment[1:])))
+        print(" ".join(map(str, color[1:])))
     else:
         print("NO")
 

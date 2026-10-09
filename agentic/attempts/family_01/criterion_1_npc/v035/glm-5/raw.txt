@@ -2,45 +2,121 @@
 import sys
 
 def solve():
-    input_data = sys.stdin.read().split()
-    if not input_data:
+    data = sys.stdin.read().split()
+    if not data:
         return
-    n = int(input_data[0])
-    m = int(input_data[1])
-    
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
     adj = [0] * n
-    for i in range(m):
-        u = int(input_data[2 + 2 * i]) - 1
-        v = int(input_data[3 + 2 * i]) - 1
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
         adj[u] |= 1 << v
         adj[v] |= 1 << u
-        
-    assignment = [0] * n
-    
-    def dfs(u):
-        if u == n:
-            return True
-        
-        used = 0
-        for v in range(u):
-            if (adj[u] >> v) & 1:
-                used |= 1 << assignment[v]
-                
-        for color in range(3):
-            if not (used & (1 << color)):
-                assignment[u] = color
-                if dfs(u + 1):
-                    return True
-                    
-        assignment[u] = 0
-        return False
 
-    if dfs(0):
-        print("YES")
-        print(" ".join(str(x + 1) for x in assignment))
-    else:
-        print("NO")
+    # Find connected components
+    seen = [False] * n
+    components = []
+    for i in range(n):
+        if not seen[i]:
+            comp = []
+            stack = [i]
+            seen[i] = True
+            while stack:
+                u = stack.pop()
+                comp.append(u)
+                for v in range(n):
+                    if (adj[u] >> v) & 1 and not seen[v]:
+                        seen[v] = True
+                        stack.append(v)
+            components.append(comp)
 
-if __name__ == '__main__':
-    solve()
+    color = [0] * n
+
+    for comp in components:
+        # Build induced subgraph
+        idx = {v: j for j, v in enumerate(comp)}
+        k = len(comp)
+        sub_adj = [0] * k
+        for j, v in enumerate(comp):
+            mask = 0
+            for u in comp:
+                if (adj[v] >> u) & 1:
+                    mask |= 1 << idx[u]
+            sub_adj[j] = mask
+
+        # Try to 2-color; if fails, need 3-coloring
+        sub_color = [0] * k
+        is_bip = True
+        for s in range(k):
+            if sub_color[s] == 0:
+                sub_color[s] = 1
+                stack = [s]
+                while stack and is_bip:
+                    u = stack.pop()
+                    for v in range(k):
+                        if (sub_adj[u] >> v) & 1:
+                            if sub_color[v] == 0:
+                                sub_color[v] = 3 - sub_color[u]
+                                stack.append(v)
+                            elif sub_color[v] == sub_color[u]:
+                                is_bip = False
+                                break
+                    if not is_bip:
+                        break
+            if not is_bip:
+                break
+
+        if is_bip:
+            for j, v in enumerate(comp):
+                color[v] = sub_color[j]
+            continue
+
+        # Need 3-coloring; use backtracking with bitmasks
+        # forbidden[i] = bitmask of colors already used by colored neighbors
+        forbidden = [0] * k
+        order = sorted(range(k), key=lambda x: bin(sub_adj[x]).count("1"), reverse=True)
+
+        def backtrack(pos):
+            if pos == k:
+                return True
+            u = order[pos]
+            f = forbidden[u]
+            if f == 0b111:
+                return False
+            # Try colors in order 1,2,3
+            for c in range(3):
+                bit = 1 << c
+                if not (f & bit):
+                    sub_color[u] = c + 1
+                    # Update neighbors
+                    affected = []
+                    m = sub_adj[u]
+                    while m:
+                        lsb = m & -m
+                        v_bit = lsb.bit_length() - 1
+                        m ^= lsb
+                        if not (forbidden[v_bit] & bit):
+                            forbidden[v_bit] |= bit
+                            affected.append(v_bit)
+                    if backtrack(pos + 1):
+                        return True
+                    # Undo
+                    for v in affected:
+                        forbidden[v] ^= bit
+                    sub_color[u] = 0
+            return False
+
+        if not backtrack(0):
+            print("NO")
+            return
+
+        for j, v in enumerate(comp):
+            color[v] = sub_color[j]
+
+    print("YES")
+    print(" ".join(map(str, color)))
+
+solve()
 ```

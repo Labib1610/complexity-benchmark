@@ -1,0 +1,240 @@
+```python
+import sys
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if len(data) < 2:
+        return
+
+    k, t = data[0], data[1]
+    triples = []
+    all_mask = (1 << k) - 1
+
+    xy = [[0] * k for _ in range(k)]
+    xz = [[0] * k for _ in range(k)]
+    yz = [[0] * k for _ in range(k)]
+
+    p = 2
+    for _ in range(t):
+        x = data[p] - 1
+        y = data[p + 1] - 1
+        z = data[p + 2] - 1
+        p += 3
+        triples.append((x, y, z))
+        xy[x][y] |= 1 << z
+        xz[x][z] |= 1 << y
+        yz[y][z] |= 1 << x
+
+    cols = 3 * k
+
+    L = [0] * (cols + 1)
+    R = [0] * (cols + 1)
+    U = [0] * (cols + 1)
+    D = [0] * (cols + 1)
+    C = [0] * (cols + 1)
+    row_id = [-1] * (cols + 1)
+    size = [0] * (cols + 1)
+
+    for i in range(cols + 1):
+        L[i] = i - 1
+        R[i] = i + 1
+        U[i] = D[i] = i
+        C[i] = i
+    L[0] = cols
+    R[cols] = 0
+
+    for rid, (x, y, z) in enumerate(triples):
+        headers = (x + 1, k + y + 1, 2 * k + z + 1)
+        nodes = []
+        for h in headers:
+            idx = len(L)
+            L.append(0)
+            R.append(0)
+            U.append(U[h])
+            D.append(h)
+            C.append(h)
+            row_id.append(rid)
+
+            D[U[h]] = idx
+            U[h] = idx
+            size[h] += 1
+            nodes.append(idx)
+
+        for i in range(3):
+            L[nodes[i]] = nodes[(i - 1) % 3]
+            R[nodes[i]] = nodes[(i + 1) % 3]
+
+    def cover(c):
+        L[R[c]] = L[c]
+        R[L[c]] = R[c]
+        i = D[c]
+        while i != c:
+            j = R[i]
+            while j != i:
+                D[U[j]] = D[j]
+                U[D[j]] = U[j]
+                size[C[j]] -= 1
+                j = R[j]
+            i = D[i]
+
+    def uncover(c):
+        i = U[c]
+        while i != c:
+            j = L[i]
+            while j != i:
+                size[C[j]] += 1
+                D[U[j]] = j
+                U[D[j]] = j
+                j = L[j]
+            i = U[i]
+        L[R[c]] = c
+        R[L[c]] = c
+
+    def has_matching(matrix, mask_a, mask_b, mask_c):
+        adjacency = []
+        ma = mask_a
+        while ma:
+            bit_a = ma & -ma
+            a = bit_a.bit_length() - 1
+            ma -= bit_a
+
+            neighbors = 0
+            mb = mask_b
+            row = matrix[a]
+            while mb:
+                bit_b = mb & -mb
+                b = bit_b.bit_length() - 1
+                mb -= bit_b
+                if row[b] & mask_c:
+                    neighbors |= bit_b
+
+            if neighbors == 0:
+                return False
+            adjacency.append((a, neighbors))
+
+        adjacency.sort(key=lambda item: item[1].bit_count())
+        match = [-1] * k
+        seen = [0] * k
+        stamp = 0
+
+        def augment(a, neighbors_by_a):
+            nb = neighbors_by_a[a]
+            while nb:
+                bit_b = nb & -nb
+                b = bit_b.bit_length() - 1
+                nb -= bit_b
+                if seen[b] == stamp:
+                    continue
+                seen[b] = stamp
+                old = match[b]
+                if old == -1 or augment(old, neighbors_by_a):
+                    match[b] = a
+                    return True
+            return False
+
+        neighbors_by_a = [0] * k
+        for a, neighbors in adjacency:
+            neighbors_by_a[a] = neighbors
+
+        for a, _ in adjacency:
+            stamp += 1
+            if not augment(a, neighbors_by_a):
+                return False
+        return True
+
+    solution = []
+    failed = set()
+    memo_limit = 600000
+
+    sys.setrecursionlimit(1000000)
+
+    def search(mask_x, mask_y, mask_z, depth):
+        if R[0] == 0:
+            return True
+
+        key = mask_x | (mask_y << k) | (mask_z << (2 * k))
+        if key in failed:
+            return False
+
+        c = R[0]
+        best = c
+        best_size = size[c]
+        c = R[c]
+        while c != 0:
+            if size[c] < best_size:
+                best = c
+                best_size = size[c]
+                if best_size == 0:
+                    break
+            c = R[c]
+
+        if best_size == 0:
+            if len(failed) < memo_limit:
+                failed.add(key)
+            return False
+
+        if k - depth >= 3:
+            ux = all_mask ^ mask_x
+            uy = all_mask ^ mask_y
+            uz = all_mask ^ mask_z
+            if (not has_matching(xy, ux, uy, uz) or
+                not has_matching(xz, ux, uz, uy) or
+                not has_matching(yz, uy, uz, ux)):
+                if len(failed) < memo_limit:
+                    failed.add(key)
+                return False
+
+        candidates = []
+        r = D[best]
+        while r != best:
+            score = 0
+            j = R[r]
+            while j != r:
+                score += size[C[j]]
+                j = R[j]
+            candidates.append((score, r))
+            r = D[r]
+        candidates.sort(reverse=True)
+
+        cover(best)
+        for _, r in candidates:
+            rid = row_id[r]
+            x, y, z = triples[rid]
+            solution.append(rid)
+
+            j = R[r]
+            while j != r:
+                cover(C[j])
+                j = R[j]
+
+            if search(mask_x | (1 << x),
+                      mask_y | (1 << y),
+                      mask_z | (1 << z),
+                      depth + 1):
+                return True
+
+            j = L[r]
+            while j != r:
+                uncover(C[j])
+                j = L[j]
+
+            solution.pop()
+
+        uncover(best)
+
+        if len(failed) < memo_limit:
+            failed.add(key)
+        return False
+
+    if search(0, 0, 0, 0):
+        out = ["YES"]
+        for rid in solution:
+            x, y, z = triples[rid]
+            out.append(f"{x + 1} {y + 1} {z + 1}")
+        sys.stdout.write("\n".join(out))
+    else:
+        sys.stdout.write("NO")
+
+if __name__ == "__main__":
+    main()
+```

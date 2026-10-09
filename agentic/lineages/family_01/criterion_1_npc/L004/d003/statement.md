@@ -1,24 +1,25 @@
-# Signal Separation Protocols
+# Protocol Synchronization
 
-**Time limit:** 2 s  
-**Memory limit:** 256 MB  
+Time limit: 2 s   Memory limit: 256 MB
 
-An array of $n$ signal emitters, indexed from 1 to $n$, must each be configured with a specific frequency mode. The hardware supports exactly three frequency modes, represented by the integers 1, 2, and 3.
+You are configuring the synchronization protocols for a distributed network of $n$ server nodes.
+Each node $i$ must be assigned a protocol version $b_i$, which must be an integer chosen from the set $\{1, 2, 3\}$.
 
-To prevent destructive interference, certain pairs of emitters must maintain a minimum frequency distance. You are given a list of $m$ such critical pairs. For every critical pair $(u, v)$, the assigned modes $f_u$ and $f_v$ must satisfy the separation condition $|f_u - f_v| \ge 1$. If this condition fails for any of the $m$ pairs, the array cannot operate safely.
+You are given a list of $m$ communication links between pairs of nodes. For each link $(u, v)$, the two nodes exchange data. To ensure the entire network operates without packet loss, the protocol assignment must satisfy a specific global stability condition. A configuration is considered stable if and only if the network's total synchronization energy equals exactly $4m$. 
+The total synchronization energy is calculated as the sum over all $m$ communication links $(u, v)$ of the quantity $5(b_u - b_v)^2 - (b_u - b_v)^4$.
 
-Your objective is to determine whether there exists a complete mode configuration for all $n$ emitters that satisfies the separation condition for all $m$ critical pairs. The critical pairs interlock to form a rigid structural requirement, where configuring one emitter heavily restricts the available modes for others.
+Your objective is to determine if there exists a stable protocol assignment for all $n$ nodes. If a stable assignment exists, output it.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 40$, $0 \le m \le n \cdot (n-1)/2$), representing the number of emitters and the number of critical pairs.
-Each of the next $m$ lines contains two integers $u$ and $v$, indicating a critical pair of emitters that must satisfy the separation condition.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$) — the number of server nodes and the number of communication links.
+Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \ne v$), representing a communication link between node $u$ and node $v$.
 
 ## Output
-If no valid configuration exists, print `NO` on a single line.
-If a valid configuration is possible, print `YES` on the first line. On the second line, output a sequence of $n$ integers $f_1, f_2, \dots, f_n$ (where each $f_i \in \{1, 2, 3\}$) indicating the frequency mode assigned to emitter $i$. Should multiple valid configurations exist, output the one that is lexicographically first (evaluating the mode choice for emitter 1 first, then emitter 2, and so on).
+If there is no stable protocol assignment, print a single line containing `NO`.
+Otherwise, print `YES` on the first line. On the second line, print $n$ integers $b_1, b_2, \dots, b_n$ (each in $\{1, 2, 3\}$), where $b_i$ is the protocol version assigned to node $i$. If there are multiple valid assignments, any valid assignment is accepted.
 
 ## Example 1
-**Input:**
+Input:
 ```
 4 5
 1 2
@@ -27,14 +28,14 @@ If a valid configuration is possible, print `YES` on the first line. On the seco
 1 4
 2 4
 ```
-**Output:**
+Output:
 ```
 YES
 1 2 3 3
 ```
 
 ## Example 2
-**Input:**
+Input:
 ```
 4 6
 1 2
@@ -44,7 +45,7 @@ YES
 2 4
 3 4
 ```
-**Output:**
+Output:
 ```
 NO
 ```

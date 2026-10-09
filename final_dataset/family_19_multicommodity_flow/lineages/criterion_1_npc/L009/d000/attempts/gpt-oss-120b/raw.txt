@@ -1,0 +1,341 @@
+**Solution Explanation**
+
+For every category `i`
+
+* source station `s_i`
+* sink   station `t_i`
+* demand `d_i`
+
+All parcels are identical, therefore on a chute only the **total** number of parcels matters.
+The whole problem is exactly a *single* commodity flow with several sources
+(and the same amount of flow has to leave each source as enters the
+corresponding sink).
+
+--------------------------------------------------------------------
+
+#### 1.   From multi‑commodity to single commodity
+
+Create a super source `S` and a super sink `T`.
+
+```
+S ──(capacity d_i)──► s_i          for i = 1 … k
+t_i ──(capacity d_i)──► T          for i = 1 … k
+```
+
+All original chutes keep their given capacities.
+Now we have a usual **maximum flow** problem.
+If the maximum flow value equals `D = Σ d_i` then a feasible routing exists,
+otherwise it does not.
+
+--------------------------------------------------------------------
+
+#### 2.   Obtaining a routing for each category
+
+The flow found in step&nbsp;1 tells us **how many parcels in total**
+use every chute, but not how they are split among the categories.
+Because the only edges that distinguish categories are the
+`S → s_i` edges, every unit of flow that leaves `S` through `S→s_i`
+must finally reach `T` through `t_i→T`.  
+Consequently the flow that originates at `s_i` can only end at `t_i`.
+
+So we can decompose the flow **commodity by commodity**:
+
+```
+for i = 1 … k
+        repeatedly extract a path from s_i to t_i
+        (using only edges that still carry flow)
+        push as much flow as possible through that path
+        store the pushed amount for this category
+```
+
+The extraction is exactly the usual *flow decomposition* algorithm.
+Each time we push some amount `x` through a path we
+
+* add `x` to the answer matrix of category `i` for every edge of the path
+* decrease the remaining flow on those edges by `x`
+
+Every edge’s remaining flow becomes zero after at most one push,
+therefore the total work of the whole decomposition is `O(m)`.
+
+--------------------------------------------------------------------
+
+#### 3.   Correctness Proof  
+
+We prove that the algorithm prints `YES` and a correct routing
+iff such a routing exists.
+
+---
+
+##### Lemma 1  
+If the maximum flow from `S` to `T` in the constructed network equals `D`,
+then there exists a feasible routing for all categories.
+
+**Proof.**  
+Take the flow `F`.  
+For each original chute `(u,v)` let `f_uv` be the amount of flow on it.
+`0 ≤ f_uv ≤ cap_uv` because of the capacity constraints of the network.
+
+For every category `i` the only way for flow to leave `S` is the edge
+`S→s_i` (capacity `d_i`). Hence exactly `d_i` units of flow start at `s_i`.
+All those units must reach `T` through the edge `t_i→T` (capacity `d_i`),
+therefore they all end at `t_i`.  
+Consequently the sub‑flow that starts at `s_i` satisfies the
+conservation constraints of category `i` and delivers exactly `d_i`
+parcels from `s_i` to `t_i`. ∎
+
+
+
+##### Lemma 2  
+The decomposition procedure produces, for every category `i`,
+non‑negative integers `x_{i,e}` (for each chute `e`) such that  
+
+* `Σ_i x_{i,e} = f_e` (the total flow on the chute)  
+* at every station the inflow‑outflow balance holds for each category,
+  with source excess `d_i` at `s_i` and sink deficit `d_i` at `t_i`.
+
+**Proof.**  
+Consider a fixed `i`. While the remaining flow that originates at `s_i`
+has not been exhausted, the algorithm finds a directed `s_i → t_i` path
+consisting only of edges that still carry positive remaining flow.
+Let `Δ` be the minimum remaining flow on that path.
+Pushing `Δ` units along the path reduces the remaining flow on every
+edge of the path by exactly `Δ`.  
+Thus after the push the invariant “remaining flow equals original flow
+minus the sum of already recorded pushes” stays true.
+
+The push adds `Δ` to `x_{i,e}` for each edge `e` of the path,
+so the sum over all categories of the recorded amounts on an edge
+equals the original flow on that edge (induction over the pushes).
+
+Because each push reduces at least one edge’s remaining flow to zero,
+the loop terminates after at most the number of edges pushes.
+When it stops, no edge with positive remaining flow is reachable from
+`s_i`, therefore all remaining flow that started at `s_i` has already been
+sent to `t_i`. Hence the total amount recorded for category `i` equals
+`d_i`, and the per‑node balance follows from the fact that we always
+push flow along a directed path. ∎
+
+
+
+##### Lemma 3  
+If a feasible routing exists, the maximum flow value in the network is `D`.
+
+**Proof.**  
+From a feasible routing we can build a flow in the network:
+use the given numbers on each chute as flow on the corresponding edge,
+and send `d_i` units from `S` to `s_i` and from `t_i` to `T`.
+All capacities are respected, therefore this is a valid `S‑T` flow of
+value `D`. Hence the maximum flow value cannot be smaller than `D`. ∎
+
+
+
+##### Theorem  
+The algorithm outputs  
+
+* `YES` and a correct per‑category routing **iff** such a routing exists,
+* otherwise outputs `NO`.
+
+**Proof.**  
+
+*If the algorithm prints `YES`.*  
+It first computed a max flow of value `D`. By Lemma&nbsp;1 a feasible
+routing exists. The subsequent decomposition yields numbers
+`x_{i,e}` that satisfy all constraints by Lemma&nbsp;2, therefore the
+printed routing is correct.
+
+*If a feasible routing exists.*  
+By Lemma&nbsp;3 the max flow value is at least `D`. Because the total
+capacity of edges out of `S` is exactly `D`, the max flow value cannot
+exceed `D`. Hence the algorithm’s max flow equals `D` and it prints
+`YES`. The decomposition step always succeeds (Lemma&nbsp;2), so a
+routing is printed.
+
+*If the algorithm prints `NO`.*  
+Then the max flow value is `< D`. By Lemma&nbsp;3 no feasible routing
+can exist. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### 4.   Complexity Analysis  
+
+*Dinic* on a graph with `N = n + 2` vertices and `M = m + 2k` edges  
+
+```
+Time   : O( sqrt(N) * M )   (more than fast enough for the limits)
+Memory : O( N + M )
+```
+
+Decomposition  
+
+```
+Time   : O(m)          (each edge processed at most once)
+Memory : O(m)          (stores remaining flow and answer matrix)
+```
+
+Overall  
+
+```
+Time   : O( max_flow_time + m )
+Memory : O( n + m + k·m )   (the answer matrix, k·m integers)
+```
+
+The output itself needs `k·m` numbers, so the memory usage is optimal.
+
+
+
+--------------------------------------------------------------------
+
+#### 5.   Reference Implementation  (Python 3)
+
+```python
+import sys
+sys.setrecursionlimit(1 << 25)
+
+class Dinic:
+    def __init__(self, n):
+        self.n = n
+        self.adj = [[] for _ in range(n)]
+
+    def add_edge(self, u, v, cap):
+        # forward edge
+        self.adj[u].append([v, cap, len(self.adj[v])])
+        # backward edge
+        self.adj[v].append([u, 0, len(self.adj[u]) - 1])
+
+    def bfs_level(self, s, t):
+        level = [-1] * self.n
+        q = [s]
+        level[s] = 0
+        for u in q:
+            for v, cap, rev in self.adj[u]:
+                if cap and level[v] == -1:
+                    level[v] = level[u] + 1
+                    q.append(v)
+        self.level = level
+        return level[t] != -1
+
+    def dfs_flow(self, u, t, f, it):
+        if u == t:
+            return f
+        for i in range(it[u], len(self.adj[u])):
+            it[u] = i
+            v, cap, rev = self.adj[u][i]
+            if cap and self.level[v] == self.level[u] + 1:
+                ret = self.dfs_flow(v, t, min(f, cap), it)
+                if ret:
+                    self.adj[u][i][1] -= ret
+                    self.adj[v][rev][1] += ret
+                    return ret
+        return 0
+
+    def max_flow(self, s, t):
+        flow = 0
+        INF = 10 ** 18
+        while self.bfs_level(s, t):
+            it = [0] * self.n
+            while True:
+                pushed = self.dfs_flow(s, t, INF, it)
+                if not pushed:
+                    break
+                flow += pushed
+        return flow
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it)); m = int(next(it)); k = int(next(it))
+    s = [0]*k; t = [0]*k; d = [0]*k
+    for i in range(k):
+        s[i] = int(next(it))-1
+        t[i] = int(next(it))-1
+        d[i] = int(next(it))
+    edges = []
+    for _ in range(m):
+        u = int(next(it))-1
+        v = int(next(it))-1
+        cap = int(next(it))
+        edges.append((u, v, cap))
+
+    S = n
+    T = n+1
+    dinic = Dinic(n+2)
+
+    # store index of edge in original list for later reference
+    edge_idx = []          # (u, position in adj[u]) for each original edge
+    for idx, (u, v, cap) in enumerate(edges):
+        pos = len(dinic.adj[u])
+        dinic.add_edge(u, v, cap)
+        edge_idx.append((u, pos))
+
+    for i in range(k):
+        dinic.add_edge(S, s[i], d[i])
+        dinic.add_edge(t[i], T, d[i])
+
+    total_d = sum(d)
+    flow = dinic.max_flow(S, T)
+    if flow != total_d:
+        print("NO")
+        return
+
+    # retrieve flow on original edges
+    flow_on_edge = [0]*m
+    for idx, (u, pos) in enumerate(edge_idx):
+        v, cap, rev = dinic.adj[u][pos]
+        # original capacity - remaining capacity = used flow
+        used = edges[idx][2] - cap
+        flow_on_edge[idx] = used
+
+    # build adjacency for decomposition (only original edges)
+    adj = [[] for _ in range(n)]
+    for idx, (u, v, _) in enumerate(edges):
+        if flow_on_edge[idx]:
+            adj[u].append([v, flow_on_edge[idx], idx])   # store idx for answer
+
+    # answer matrix
+    ans = [[0]*m for _ in range(k)]
+
+    # decomposition per commodity
+    sys.setrecursionlimit(1 << 25)
+    def dfs(u, need, target, path):
+        if u == target:
+            return need
+        for e in adj[u]:
+            v, cap, eid = e
+            if cap == 0:
+                continue
+            pushed = dfs(v, min(need, cap), target, path)
+            if pushed:
+                e[1] -= pushed          # decrease remaining flow
+                path.append((eid, pushed))
+                return pushed
+        return 0
+
+    for i in range(k):
+        need = d[i]
+        while need:
+            path = []
+            pushed = dfs(s[i], need, t[i], path)
+            if not pushed:
+                # should not happen
+                print("NO")
+                return
+            need -= pushed
+            for eid, amt in path:
+                ans[i][eid] += amt
+
+    # output
+    out = ["YES"]
+    for i in range(k):
+        out.append(" ".join(str(x) for x in ans[i]))
+    sys.stdout.write("\n".join(out))
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above
+and conforms to the required input‑output format.

@@ -1,0 +1,84 @@
+from collections import defaultdict, deque
+
+def solve():
+    q, t = map(int, input().split())
+    
+    if t < q:
+        print("NO")
+        return
+    
+    # Build bipartite graph
+    graph = defaultdict(list)
+    edges = []
+    
+    for i in range(t):
+        a, b = map(int, input().split())
+        graph[a].append((b, i))
+        graph[b].append((a, i))
+        edges.append((a, b))
+    
+    # Try to find a perfect matching in bipartite graph
+    # Nodes 1..q on left, nodes (q+1)..2q on right
+    
+    match_left = [-1] * (q + 1)  # match_left[i] = index of edge matching node i
+    match_right = [-1] * (q + 1)  # match_right[j] = index of edge matching node j+q
+    
+    def bfs():
+        queue = deque()
+        dist = [-1] * (q + 1)
+        
+        for i in range(1, q + 1):
+            if match_left[i] == -1:
+                dist[i] = 0
+                queue.append(i)
+        
+        found = False
+        while queue:
+            u = queue.popleft()
+            
+            for v, edge_idx in graph[u]:
+                # Convert to 1-based index in right part
+                v_idx = v - q
+                
+                if match_right[v_idx] == -1:
+                    found = True
+                elif dist[match_right[v_idx]] == -1:
+                    dist[match_right[v_idx]] = dist[u] + 1
+                    queue.append(match_right[v_idx])
+        
+        return found
+    
+    def dfs(u):
+        for v, edge_idx in graph[u]:
+            v_idx = v - q
+            
+            if match_right[v_idx] == -1:
+                match_left[u] = edge_idx
+                match_right[v_idx] = u
+                return True
+            elif match_left[match_right[v_idx]] != -1 and \
+                 (u == match_right[v_idx] or \
+                  dfs(match_right[v_idx])):
+                match_left[u] = edge_idx
+                match_right[v_idx] = u
+                return True
+        
+        return False
+    
+    # Hopcroft-Karp algorithm
+    matching = 0
+    while bfs():
+        for i in range(1, q + 1):
+            if match_left[i] == -1:
+                if dfs(i):
+                    matching += 1
+    
+    if matching == q:
+        print("YES")
+        for i in range(1, q + 1):
+            edge_idx = match_left[i]
+            print(edges[edge_idx][0], edges[edge_idx][1])
+    else:
+        print("NO")
+
+solve()

@@ -1,0 +1,208 @@
+from collections import defaultdict, deque
+
+def solve():
+    # Read input
+    line1 = list(map(int, input().split()))
+    n, m, _ = line1
+    line2 = list(map(int, input().split()))
+    s, t, d = line2
+    
+    # Build graph
+    graph = defaultdict(list)
+    edges = []
+    edge_indices = {}
+    
+    for i in range(m):
+        u, v, cap = map(int, input().split())
+        edges.append((u, v, cap))
+        edge_indices[(u, v)] = i
+        graph[u].append((v, cap, len(edges)-1))
+        graph[v].append((u, 0, len(edges)-1))  # Reverse edge with 0 capacity for residual graph
+    
+    # Ford-Fulkerson with DFS to find max flow
+    def bfs_find_path():
+        parent = [-1] * (n + 1)
+        visited = [False] * (n + 1)
+        queue = deque([s])
+        visited[s] = True
+        
+        while queue:
+            u = queue.popleft()
+            
+            for v, cap, edge_idx in graph[u]:
+                if not visited[v] and cap > 0:
+                    visited[v] = True
+                    parent[v] = u
+                    queue.append(v)
+                    if v == t:
+                        return parent
+        return None
+    
+    # Find maximum flow
+    max_flow = 0
+    flows = [0] * m
+    
+    while True:
+        parent = bfs_find_path()
+        if parent is None:
+            break
+            
+        # Find minimum capacity along the path
+        path_flow = float('inf')
+        current = t
+        path_edges = []
+        
+        while current != s:
+            prev = parent[current]
+            # Find the edge from prev to current
+            for v, cap, edge_idx in graph[prev]:
+                if v == current and cap > 0:
+                    path_flow = min(path_flow, cap)
+                    path_edges.append((prev, current, edge_idx))
+                    break
+            current = prev
+        
+        # Update capacities and flows
+        current = t
+        while current != s:
+            prev = parent[current]
+            # Find and update the edge
+            for i in range(len(graph[prev])):
+                v, cap, edge_idx = graph[prev][i]
+                if v == current and cap > 0:
+                    graph[prev][i] = (v, cap - path_flow, edge_idx)
+                    break
+            
+            # Find and update reverse edge
+            for i in range(len(graph[current])):
+                v, cap, edge_idx = graph[current][i]
+                if v == prev:
+                    graph[current][i] = (v, cap + path_flow, edge_idx)
+                    break
+            else:
+                # Add reverse edge if not exists
+                graph[current].append((prev, path_flow, -1))
+            
+            current = prev
+        
+        max_flow += path_flow
+    
+    if max_flow < d:
+        print("NO")
+        return
+    
+    # Reconstruct the flow values
+    result = [0] * m
+    
+    # Run flow decomposition to get actual flow on each edge
+    # We'll do a BFS from source with the final residual graph to determine flows
+    # Reset and rebuild proper residual graph tracking
+    
+    # Build residual graph properly
+    res_graph = defaultdict(list)
+    forward_edges = {}
+    backward_edges = {}
+    
+    for i, (u, v, cap) in enumerate(edges):
+        # Forward edge
+        res_graph[u].append((v, cap, i, True))   # (to, capacity, index, is_forward)
+        forward_edges[i] = len(res_graph[u]) - 1
+        # Backward edge  
+        res_graph[v].append((u, 0, i, False))
+        backward_edges[i] = len(res_graph[v]) - 1
+    
+    # Now run the algorithm again but track actual flows
+    original_caps = [cap for _, _, cap in edges]
+    
+    # Ford-Fulkerson implementation that tracks flows
+    def edmonds_karp_with_flows():
+        flows = [0] * m
+        total_flow = 0
+        
+        while total_flow < d:
+            # BFS to find augmenting path
+            parent = [-1] * (n + 1)
+            edge_used = [None] * (n + 1)
+            visited = [False] * (n + 1)
+            queue = deque([s])
+            visited[s] = True
+            
+            found = False
+            while queue and not found:
+                u = queue.popleft()
+                
+                for v, cap, idx, is_forward in res_graph[u]:
+                    if not visited[v] and cap > 0:
+                        visited[v] = True
+                        parent[v] = u
+                        edge_used[v] = (idx, is_forward)
+                        queue.append(v)
+                        if v == t:
+                            found = True
+                            break
+            
+            if not found:
+                break
+                
+            # Find bottleneck capacity
+            path_flow = d - total_flow
+            current = t
+            while current != s:
+                prev = parent[current]
+                idx, is_forward = edge_used[current]
+                # Find the actual edge
+                for to, cap, e_idx, fwd in res_graph[prev]:
+                    if to == current and e_idx == idx and fwd == is_forward:
+                        path_flow = min(path_flow, cap)
+                        break
+                current = prev
+            
+            # Update residual capacities and flows
+            current = t
+            while current != s:
+                prev = parent[current]
+                idx, is_forward = edge_used[current]
+                
+                if is_forward:
+                    flows[idx] += path_flow
+                else:
+                    flows[idx] -= path_flow
+                
+                # Update forward edge
+                for i in range(len(res_graph[prev])):
+                    if res_graph[prev][i][2] == idx and res_graph[prev][i][3] == is_forward:
+                        to, cap, e_idx, fwd = res_graph[prev][i]
+                        res_graph[prev][i] = (to, cap - path_flow, e_idx, fwd)
+                        break
+                
+                # Update backward edge
+                reverse_is_forward = not is_forward
+                for i in range(len(res_graph[current])):
+                    if res_graph[current][i][2] == idx and res_graph[current][i][3] == reverse_is_forward:
+                        to, cap, e_idx, fwd = res_graph[current][i]
+                        res_graph[current][i] = (to, cap + path_flow, e_idx, fwd)
+                        break
+                
+                current = prev
+            
+            total_flow += path_flow
+            if total_flow >= d:
+                break
+        
+        return flows, total_flow
+    
+    # Initial setup for residual graph
+    res_graph = defaultdict(list)
+    for i, (u, v, cap) in enumerate(edges):
+        res_graph[u].append((v, cap, i, True))   # forward edge
+        res_graph[v].append((u, 0, i, False))    # backward edge
+    
+    flows, total_flow = edmonds_karp_with_flows()
+    
+    if total_flow >= d:
+        print("YES")
+        print(*flows)
+    else:
+        print("NO")
+
+solve()

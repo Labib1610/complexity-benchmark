@@ -1,67 +1,38 @@
 import sys
+from collections import deque
 
 def solve():
-    input_data = sys.stdin.read().split()
-    if not input_data:
-        return
-    iterator = iter(input_data)
-    try:
-        n = int(next(iterator))
-        m = int(next(iterator))
-    except StopIteration:
-        return
-
+    input_data = sys.stdin.buffer.read().split()
+    idx = 0
+    n = int(input_data[idx]); idx += 1
+    m = int(input_data[idx]); idx += 1
+    
     adj = [[] for _ in range(n + 1)]
     for _ in range(m):
-        u = int(next(iterator))
-        v = int(next(iterator))
+        u = int(input_data[idx]); idx += 1
+        v = int(input_data[idx]); idx += 1
         adj[u].append(v)
         adj[v].append(u)
-
-    # States: 1 or 2
-    # Balanced if paths from (0,0) to (x_u, x_v) is exactly 3.
-    # Paths = binom(x_u + x_v, x_u).
-    # binom(2, 1) = 2 (Not balanced)
-    # binom(3, 1) = 3 (Balanced) -> (1, 2) or (2, 1)
-    # binom(4, 2) = 6 (Not balanced)
-    # So edge constraint: endpoints must have different states.
     
-    color = [-1] * (n + 1)
-    possible = True
+    color = [0] * (n + 1)  # 0 = unvisited, 1 or 2 = assigned value
     
-    # We want lexicographically smallest sequence.
-    # Since valid states are 1 and 2, and 1 < 2, we prefer 1.
-    # This is equivalent to finding a valid bipartition where we maximize the number of 1s.
-    # Or simply, for each connected component, try to assign 1 to the 'left' partition.
-    # If valid, this yields the lexicographically smallest assignment.
+    for start in range(1, n + 1):
+        if color[start] != 0:
+            continue
+        color[start] = 1
+        queue = deque([start])
+        while queue:
+            u = queue.popleft()
+            cu = color[u]
+            for v in adj[u]:
+                if color[v] == 0:
+                    color[v] = 3 - cu  # opposite: 1->2, 2->1
+                    queue.append(v)
+                elif color[v] == cu:
+                    print("NO")
+                    return
     
-    for i in range(1, n + 1):
-        if color[i] == -1:
-            # Start BFS/DFS for this component
-            # We assign 1 to the starting node to prioritize lexicographical order
-            color[i] = 1
-            queue = [i]
-            head = 0
-            while head < len(queue):
-                u = queue[head]
-                head += 1
-                for v in adj[u]:
-                    if color[v] == -1:
-                        color[v] = 3 - color[u]
-                        queue.append(v)
-                    elif color[v] == color[u]:
-                        possible = False
-                        break
-                if not possible:
-                    break
-        if not possible:
-            break
+    print("YES")
+    print(' '.join(str(color[i]) for i in range(1, n + 1)))
 
-    if not possible:
-        print("NO")
-    else:
-        print("YES")
-        print(*(color[1:]))
-
-if __name__ == '__main__':
-    solve()
+solve()

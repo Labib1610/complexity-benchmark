@@ -1,5 +1,5 @@
 import sys
-from collections import deque
+sys.setrecursionlimit(1 << 25)
 
 def solve():
     data = sys.stdin.read().split()
@@ -17,31 +17,29 @@ def solve():
         adj[v].append(u)
     
     color = [0] * (n + 1)
-    possible = True
     
-    for i in range(1, n + 1):
-        if color[i] == 0:
-            queue = deque([i])
-            color[i] = 1
-            while queue:
-                u = queue.popleft()
-                for v in adj[u]:
-                    if color[v] == 0:
-                        color[v] = 3 - color[u]
-                        queue.append(v)
-                    elif color[v] == color[u]:
-                        possible = False
-                        break
-                if not possible:
-                    break
-        if not possible:
-            break
+    for start in range(1, n + 1):
+        if color[start] != 0:
+            continue
+        
+        # BFS for lexicographically smallest assignment
+        queue = [start]
+        color[start] = 1
+        head = 0
+        
+        while head < len(queue):
+            u = queue[head]
+            head += 1
+            
+            for v in adj[u]:
+                if color[v] == 0:
+                    color[v] = 3 - color[u]
+                    queue.append(v)
+                elif color[v] == color[u]:
+                    print("NO")
+                    return
     
-    if not possible:
-        print("NO")
-    else:
-        print("YES")
-        print(' '.join(map(str, color[1:])))
+    print("YES")
+    print(' '.join(str(color[i]) for i in range(1, n + 1)))
 
-if __name__ == "__main__":
-    solve()
+solve()

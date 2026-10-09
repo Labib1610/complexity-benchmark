@@ -1,21 +1,20 @@
-# Problem B — Divisible Portfolio
+# Problem B — Portfolio Selection (Small Costs)
 
-Time limit: 1 s   Memory limit: 256 MB
+Time limit: 2 s   Memory limit: 256 MB
 
 ## Description
 
-You are choosing among **n** investments. Investment **i** has a **cost** and a **value**. You have a total budget **B**. Each investment is **divisible**: you may buy any fraction of it (between 0 and 1). Buying a fraction **f** of investment **i** costs **f · cost** and returns **f · value**.
-
-Spend at most **B** in total to maximize the total value obtained.
+An allocation board weighs **n** initiatives, each with a cost and a value, against a budget **B**; each initiative is funded whole or not at all, total cost within B, maximising total value. In this round the costs (and the budget) are all small, bounded well within a modest range, so the best value at each budget level can be tabulated compactly and filled in directly. Report the maximum achievable total value within budget.
 
 ## Input
 
-The first line contains two integers **n** and **B** (1 ≤ n ≤ 200000, 0 ≤ B ≤ 1000000000).
-Each of the next **n** lines contains two integers **cost** and **value** (1 ≤ cost ≤ 1000000000, 1 ≤ value ≤ 1000000000) for one investment.
+The first line contains two integers **n** and **B** (1 ≤ n ≤ 2000, 0 ≤ B ≤ 2000).
+Each of the next **n** lines contains two integers **cost** and **value** (1 ≤ cost ≤ 100, 1 ≤ value ≤ 1000000000) for one investment.
 
 ## Output
 
-Print the maximum total value obtainable, rounded to exactly **6 digits** after the decimal point.
+On the first line print the maximum total value achievable within the budget.
+On the second line print the 1-based indices of the chosen investments, separated by spaces (any subset achieving the maximum value with total cost ≤ B is accepted). If the best choice is to take nothing (maximum value 0), leave the second line blank.
 
 ## Examples
 
@@ -23,44 +22,49 @@ Print the maximum total value obtainable, rounded to exactly **6 digits** after 
 
 **Input**
 ```
-3 50
-10 60
-20 100
-30 120
+4 10
+2 3
+3 4
+4 5
+5 6
 ```
 
 **Output**
 ```
-240.000000
+13
+1 2 4
 ```
 
 ### Example 2
 
 **Input**
 ```
-1 1
-3 10
+3 1
+5 100
+6 100
+7 100
 ```
 
 **Output**
 ```
-3.333333
+0
+
 ```
 
 ### Example 3
 
 **Input**
 ```
-2 100
-10 60
-20 100
+1 5
+3 7
 ```
 
 **Output**
 ```
-160.000000
+7
+1
 ```
 
 ## Note
 
-In Example 1, buy investments 1 and 2 whole (cost 30, value 160) and two-thirds of investment 3 (cost 20, value 80), for a total value of 240. In Example 3 the budget exceeds the total cost, so everything can be bought.
+This is the same 0/1 selection problem as Problem A. The only difference is that here the costs and the budget are small, which makes an efficient exact solution possible. In Example 1, investments 1, 2, and 4 cost 2+3+5 = 10 (within budget) and give value 3+4+6 = 13.

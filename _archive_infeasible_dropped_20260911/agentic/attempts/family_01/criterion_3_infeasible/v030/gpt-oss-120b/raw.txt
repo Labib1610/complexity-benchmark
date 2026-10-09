@@ -1,0 +1,179 @@
+**Solution Explanation**
+
+For every asset we keep the set of assets that are correlated with it.
+A triangle (a,b,c) exists iff `b` is a neighbour of `a`,
+`c` is a neighbour of `a` **and** of `b`.
+
+The lexicographically smallest triangle is obtained by the following
+enumeration order  
+
+```
+for a = 1 .. n
+    for b = a+1 .. n   (only if edge a–b exists)
+        find the smallest c > b that is adjacent to both a and b
+```
+
+The first triple that satisfies the condition is the answer,
+because we increase `a` first, then `b`, then `c`.
+
+The only remaining problem is to find the smallest common neighbour `c`
+fast enough.
+`n ≤ 2000`, therefore one vertex can be represented by a **bitset**
+stored in a Python integer: the i‑th bit is 1 iff the vertex is adjacent
+to vertex *i*.
+Intersection of two neighbour sets becomes a single `&` operation.
+
+To obtain the smallest `c > b` that belongs to the intersection:
+
+```
+common = adj_bits[a] & adj_bits[b]          # all common neighbours
+mask   = common >> (b+1)                    # erase bits ≤ b
+if mask != 0:
+        low_bit = mask & -mask              # lowest set bit
+        offset  = low_bit.bit_length() - 1  # its index inside mask
+        c = offset + b + 1                  # real vertex number
+```
+
+All operations are O(1).  
+Overall time   `O(m)` – we examine each edge once.  
+Memory consumption `O(n)` bitsets + adjacency lists, well below limits.
+
+
+
+#### Correctness Proof  
+
+We prove that the algorithm outputs exactly the lexicographically smallest
+triangle.
+
+---
+
+**Lemma 1**  
+When the outer loop is at vertex `a` (0‑based) and the inner loop at vertex
+`b` (`b>a`), the variable `c` computed as above (if any) is the smallest
+vertex `c > b` such that `{a,b,c}` is a triangle.
+
+*Proof.*  
+`common = adj[a] ∩ adj[b]` contains precisely the vertices adjacent to both
+`a` and `b`.  
+`mask = common >> (b+1)` discards all bits `≤ b`; therefore any set bit of
+`mask` corresponds to a vertex `c > b` that together with `a,b` forms a
+triangle.  
+`mask & -mask` isolates the lowest set bit of `mask`. Its position `offset`
+is the smallest index inside `mask`; adding `b+1` yields the smallest
+original vertex number `c`. ∎
+
+
+
+**Lemma 2**  
+If the algorithm prints triple `(a,b,c)` then `{a,b,c}` is a triangle and
+`a<b<c`.
+
+*Proof.*  
+The loops guarantee `a<b`.  
+By Lemma&nbsp;1 the found `c` satisfies `c>b` and belongs to both neighbour
+sets, i.e. edges `(a,c)` and `(b,c)` exist. Edge `(a,b)` is required for the
+inner loop to be executed. Hence all three edges exist, forming a triangle,
+and the ordering follows from the construction. ∎
+
+
+
+**Lemma 3**  
+Let `T* = (a*,b*,c*)` be the lexicographically smallest triangle in the
+graph. The algorithm will output `T*`.
+
+*Proof.*  
+Consider the moment when the outer loop reaches `a = a*`.  
+All vertices `< a*` have been processed already, none of them can start a
+lexicographically smaller triangle (otherwise `a*` would not be minimal).
+
+Within this outer iteration, the inner loop enumerates `b` in increasing
+order among neighbours of `a*` that are larger than `a*`.  
+When `b = b*` the algorithm examines the common neighbours of `a*` and `b*`.
+Since `(a*,b*,c*)` is a triangle, `c*` belongs to that intersection and
+`c* > b*`. By Lemma&nbsp;1 the algorithm finds the smallest such `c`,
+which must be `c*` because any smaller `c` would give a triangle
+`(a*,b*,c)` lexicographically smaller than `T*`.  
+Thus the algorithm prints `(a*,b*,c*)` and terminates before any later
+iteration could output a different triangle. ∎
+
+
+
+**Theorem**  
+The algorithm always prints the lexicographically smallest triple
+`(a,b,c)` forming a triangle in the given graph.
+
+*Proof.*  
+Existence: the statement guarantees at least one triangle, hence some
+iteration will find a common neighbour and output a triple.
+By Lemma&nbsp;2 the printed triple is indeed a triangle.
+By Lemma&nbsp;3 it is the lexicographically smallest among all triangles.
+∎
+
+
+
+#### Complexity Analysis  
+
+*Memory*  
+- `adj_bits`: `n` integers, each ≤ `2^n`.  O(n) bits ⇒ O(n) memory.  
+- adjacency lists for iteration: total size `2m`.  
+
+Overall `O(n + m)` ≤ `O(2·10⁵)`.
+
+*Time*  
+- Building structures: `O(m)`.  
+- Main loops: each edge `(a,b)` with `a<b` is examined once,
+  constant‑time work (`&`, shifts, bit operations).  
+  ⇒ `O(m)`.
+
+Both limits satisfy the constraints (`n ≤ 2000`, `m ≤ 2·10⁵`).
+
+#### Reference Implementation  (Python 3)
+
+```python
+import sys
+
+def solve() -> None:
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+
+    adj_bits = [0] * n               # bitset for each vertex
+    neigh = [[] for _ in range(n)]   # adjacency list (for enumeration)
+
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        # set bits
+        adj_bits[u] |= 1 << v
+        adj_bits[v] |= 1 << u
+        neigh[u].append(v)
+        neigh[v].append(u)
+
+    for i in range(n):
+        neigh[i].sort()
+
+    # search lexicographically smallest triangle
+    for a in range(n):
+        for b in neigh[a]:
+            if b <= a:
+                continue
+            common = adj_bits[a] & adj_bits[b]
+            # keep only vertices > b
+            mask = common >> (b + 1)
+            if mask:
+                low_bit = mask & -mask
+                offset = low_bit.bit_length() - 1
+                c = offset + b + 1
+                # output in 1‑based indexing
+                sys.stdout.write(f"{a+1} {b+1} {c+1}")
+                return
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above
+and conforms to the required input/output format.

@@ -1,0 +1,51 @@
+# Problem A — Hazardous Material Containment
+
+Time limit: 2 s   Memory limit: 256 MB
+
+A research facility is processing $n$ distinct hazardous materials, indexed from $1$ to $n$. To ensure site safety, the facility relies on three isolated containment chambers, designated as Chamber 1, Chamber 2, and Chamber 3. Every material must be deposited into exactly one of these three chambers.
+
+During initial testing, the safety team identified $m$ pairs of materials that are highly reactive with one another. If any two reactive materials are deposited into the same containment chamber, a catastrophic thermal event will occur. Consequently, such pairs must never share a chamber.
+
+The automated storage system requires a manifest sequence to proceed. A valid manifest is an ordered list of $n$ integers, where the $i$-th integer indicates the chamber (1, 2, or 3) assigned to material $i$. To maintain a deterministic audit trail, if multiple safe manifests can be formed, the system mandates the manifest that is lexicographically smallest (comparing the chamber assignment for material 1 first, then material 2, and so forth). If no safe manifest exists, the system must trigger an abort protocol.
+
+Your task is to determine the required manifest sequence or identify if the storage operation must be aborted.
+
+## Input
+The first line contains two integers $n$ and $m$ — the number of hazardous materials and the number of reactive pairs ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
+Each of the next $m$ lines contains two integers $u$ and $v$ — representing a pair of materials that are reactive and cannot share a chamber.
+
+## Output
+If the abort protocol must be triggered because no safe manifest is possible, print a single line containing `NO`.
+Otherwise, print `YES` on the first line. On the second line, print $n$ integers $c_1, c_2, \dots, c_n$ (where each $c_i \in \{1, 2, 3\}$), representing the chamber assigned to material $i$. Among all valid manifests, output the lexicographically smallest sequence.
+
+## Example 1
+Input:
+```
+4 5
+1 2
+1 3
+2 3
+1 4
+2 4
+```
+Output:
+```
+YES
+1 2 3 3
+```
+
+## Example 2
+Input:
+```
+4 6
+1 2
+1 3
+1 4
+2 3
+2 4
+3 4
+```
+Output:
+```
+NO
+```

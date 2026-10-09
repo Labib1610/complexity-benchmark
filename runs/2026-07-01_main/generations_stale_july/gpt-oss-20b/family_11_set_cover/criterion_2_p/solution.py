@@ -1,0 +1,77 @@
+import sys
+from collections import deque
+
+def hopcroft_karp(adj, n_left, n_right):
+    pair_u = [0] * (n_left + 1)  # matched right for left u
+    pair_v = [0] * (n_right + 1)  # matched left for right v
+    dist = [0] * (n_left + 1)
+
+    INF = 10**9
+
+    def bfs():
+        q = deque()
+        for u in range(1, n_left + 1):
+            if pair_u[u] == 0:
+                dist[u] = 0
+                q.append(u)
+            else:
+                dist[u] = INF
+        dist[0] = INF
+        while q:
+            u = q.popleft()
+            if dist[u] < dist[0]:
+                for v in adj[u]:
+                    if pair_v[v] == 0:
+                        if dist[0] == INF:
+                            dist[0] = dist[u] + 1
+                    else:
+                        if dist[pair_v[v]] == INF:
+                            dist[pair_v[v]] = dist[u] + 1
+                            q.append(pair_v[v])
+        return dist[0] != INF
+
+    def dfs(u):
+        if u != 0:
+            for v in adj[u]:
+                if pair_v[v] == 0:
+                    if dist[0] == dist[u] + 1:
+                        if dfs(0):
+                            pair_u[u] = v
+                            pair_v[v] = u
+                            return True
+                elif dist[pair_v[v]] == dist[u] + 1:
+                    if dfs(pair_v[v]):
+                        pair_u[u] = v
+                        pair_v[v] = u
+                        return True
+            dist[u] = INF
+            return False
+        return True
+
+    matching = 0
+    while bfs():
+        for u in range(1, n_left + 1):
+            if pair_u[u] == 0:
+                if dfs(u):
+                    matching += 1
+    return matching
+
+def solve():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    uA = int(next(it))
+    uB = int(next(it))
+    s = int(next(it))
+    adj = [[] for _ in range(uA + 1)]
+    for _ in range(s):
+        a = int(next(it))
+        b = int(next(it))
+        adj[a].append(b)
+    max_match = hopcroft_karp(adj, uA, uB)
+    result = uA + uB - max_match
+    print(result)
+
+if __name__ == "__main__":
+    solve()

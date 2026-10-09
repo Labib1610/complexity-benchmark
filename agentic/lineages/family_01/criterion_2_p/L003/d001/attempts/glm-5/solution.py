@@ -1,46 +1,68 @@
 import sys
-from sys import stdin
+
+# Increase recursion depth just in case, though we use iterative BFS/DFS
+sys.setrecursionlimit(1 << 25)
 
 def solve():
-    input_data = stdin.read().split()
+    # Read all input at once
+    input_data = sys.stdin.read().split()
+    
     if not input_data:
         return
-    it = iter(input_data)
-    n = int(next(it))
-    m = int(next(it))
+
+    iterator = iter(input_data)
     
-    adj = [[] for _ in range(n+1)]
+    try:
+        n = int(next(iterator))
+        m = int(next(iterator))
+    except StopIteration:
+        return
+
+    # Build adjacency list
+    adj = [[] for _ in range(n + 1)]
+    
     for _ in range(m):
-        u = int(next(it))
-        v = int(next(it))
+        u = int(next(iterator))
+        v = int(next(iterator))
         adj[u].append(v)
         adj[v].append(u)
+        
+    # Sort adjacency lists to process neighbors in order.
+    # This helps in finding the lexicographically smallest valid configuration.
+    for i in range(n + 1):
+        adj[i].sort()
+        
+    # Colors: 0 = uncolored, 1 = color 1, 2 = color 2
+    colors = [0] * (n + 1)
     
-    color = [0] * (n + 1)
-    possible = True
-    
-    for start in range(1, n+1):
-        if color[start] == 0:
-            color[start] = 1
-            stack = [start]
-            while stack:
-                u = stack.pop()
+    # Process nodes from 1 to n to ensure lexicographically smallest result
+    for i in range(1, n + 1):
+        if colors[i] == 0:
+            # Start a BFS for this component
+            # We assign color 1 to the starting node 'i' because we iterate
+            # nodes in increasing order and we want the smallest valid color.
+            colors[i] = 1
+            queue = [i]
+            head = 0
+            
+            while head < len(queue):
+                u = queue[head]
+                head += 1
+                
                 for v in adj[u]:
-                    if color[v] == 0:
-                        color[v] = 3 - color[u]
-                        stack.append(v)
-                    elif color[v] == color[u]:
-                        possible = False
-                        break
-                if not possible:
-                    break
-        if not possible:
-            break
-    
-    if not possible:
-        print("NO")
-    else:
-        print("YES")
-        print(' '.join(str(color[i]) for i in range(1, n+1)))
+                    if colors[v] == 0:
+                        # Constraint: s_u + s_v = 3 => s_v = 3 - s_u
+                        colors[v] = 3 - colors[u]
+                        queue.append(v)
+                    else:
+                        # Check if the constraint is satisfied
+                        if colors[u] + colors[v] != 3:
+                            sys.stdout.write("NO\n")
+                            return
 
-solve()
+    sys.stdout.write("YES\n")
+    # Output colors for nodes 1 to n
+    sys.stdout.write(' '.join(map(str, colors[1:])) + '\n')
+
+if __name__ == '__main__':
+    solve()

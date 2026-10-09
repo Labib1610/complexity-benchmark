@@ -1,0 +1,86 @@
+import sys
+
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+
+    n = int(input_data[0])
+    m = int(input_data[1])
+    k = int(input_data[2])
+
+    adj = [0] * n
+    idx = 3
+    for _ in range(m):
+        u = int(input_data[idx]) - 1
+        v = int(input_data[idx + 1]) - 1
+        idx += 2
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+
+    all_mask = (1 << n) - 1
+    non_adj = [all_mask ^ adj[i] ^ (1 << i) for i in range(n)]
+
+    found_set = None
+
+    def search(P, current):
+        nonlocal found_set
+        if found_set is not None:
+            return
+
+        if len(current) + P.bit_count() < k:
+            return
+
+        if len(current) >= k:
+            found_set = current[:k]
+            return
+
+        if P == 0:
+            return
+
+        # Choose pivot u in P that minimizes |P & adj[u]|
+        min_branches = n + 1
+        pivot = -1
+        temp = P
+        while temp:
+            lsb = temp & -temp
+            u = lsb.bit_length() - 1
+            branches = (P & adj[u]).bit_count()
+            if branches < min_branches:
+                min_branches = branches
+                pivot = u
+                if branches == 0:
+                    break
+            temp ^= lsb
+
+        branch_candidates = P & (adj[pivot] | (1 << pivot))
+
+        while branch_candidates:
+            if found_set is not None:
+                return
+            lsb = branch_candidates & -branch_candidates
+            v = lsb.bit_length() - 1
+
+            current.append(v)
+            search(P & non_adj[v], current)
+            current.pop()
+
+            P &= ~(1 << v)
+            branch_candidates ^= lsb
+
+            if len(current) + P.bit_count() < k:
+                break
+
+    initial_P = (1 << n) - 1
+    search(initial_P, [])
+
+    if found_set is not None:
+        print("YES")
+        print(*(v + 1 for v in found_set))
+    else:
+        print("NO")
+
+
+if __name__ == "__main__":
+    solve()

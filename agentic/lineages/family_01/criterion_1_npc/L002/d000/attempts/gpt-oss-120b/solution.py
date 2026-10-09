@@ -1,4 +1,5 @@
 import sys
+
 sys.setrecursionlimit(10000)
 
 def solve() -> None:
@@ -13,64 +14,77 @@ def solve() -> None:
     for _ in range(m):
         u = int(next(it)) - 1
         v = int(next(it)) - 1
+        if u == v:
+            continue
         adj[u].append(v)
         adj[v].append(u)
 
-    # bit helpers
-    def bit(col):        # col is 1,2,3
-        return 1 << (col - 1)
+    ALL = 0b111  # bits 0,1,2 -> colours 1,2,3
+    domains = [ALL] * n
+    col = [0] * n          # 0 = uncoloured, else 1..3
 
-    # domains: 3 bits, initially all colours possible
-    domain = [0b111] * n
-    col = [-1] * n      # -1 = uncoloured
+    # ---------- propagation ----------
+    def propagate(queue, dom, col):
+        while queue:
+            v = queue.pop()
+            mask = dom[v]
+            # mask is guaranteed to be a power of two
+            colour = (mask & -mask).bit_length() - 1   # 0,1,2
+            col[v] = colour + 1
+            for u in adj[v]:
+                if col[u]:
+                    continue
+                if dom[u] & (1 << colour):
+                    dom[u] &= ~(1 << colour)
+                    if dom[u] == 0:
+                        return False
+                    if dom[u].bit_count() == 1:
+                        queue.append(u)
+        return True
 
-    # forward checking after assigning vertex v with colour c
-    def propagate(v, c):
-        """remove colour c from neighbours' domains,
-        return list of (w, old_mask) for restored later,
-        and a flag `failed` if some domain becomes empty."""
-        changes = []
-        failed = False
-        mask = bit(c)
-        for w in adj[v]:
-            if col[w] == -1:
-                old = domain[w]
-                new = old & ~mask
-                if new != old:
-                    domain[w] = new
-                    changes.append((w, old))
-                if new == 0:
-                    failed = True
-        return changes, failed
+    # ---------- backtracking ----------
+    def search(dom, col):
+        # check for completion / dead end
+        unassigned = -1
+        min_sz = 4
+        for i in range(n):
+            if col[i]:
+                continue
+            sz = dom[i].bit_count()
+            if sz == 0:
+                return None
+            if sz < min_sz:
+                min_sz = sz
+                unassigned = i
+                if sz == 1:
+                    break
+        if unassigned == -1:          # all coloured
+            return col
 
-    def restore(changes):
-        for w, old in changes:
-            domain[w] = old
+        v = unassigned
+        possible = dom[v]
+        # try colours in arbitrary order
+        for c in range(3):
+            if not (possible & (1 << c)):
+                continue
+            ndom = dom[:]
+            ncol = col[:]
+            ndom[v] = 1 << c
+            queue = [v]
+            if not propagate(queue, ndom, ncol):
+                continue
+            res = search(ndom, ncol)
+            if res is not None:
+                return res
+        return None
 
-    # depth‑first search, vertices are processed in order 0..n-1
-    def dfs(pos: int) -> bool:
-        if pos == n:
-            return True
-        allowed = domain[pos]
-        for c in (1, 2, 3):
-            if allowed & bit(c):
-                col[pos] = c
-                changes, bad = propagate(pos, c)
-                if not bad and dfs(pos + 1):
-                    return True
-                restore(changes)
-                col[pos] = -1
-        return False
-
-    possible = dfs(0)
-
-    out = []
-    if possible:
-        out.append("YES")
-        out.append(" ".join(str(x) for x in col))
+    answer = search(domains, col)
+    out = sys.stdout
+    if answer is None:
+        out.write("NO\n")
     else:
-        out.append("NO")
-    sys.stdout.write("\n".join(out))
+        out.write("YES\n")
+        out.write(" ".join(str(x) for x in answer) + "\n")
 
 if __name__ == "__main__":
     solve()

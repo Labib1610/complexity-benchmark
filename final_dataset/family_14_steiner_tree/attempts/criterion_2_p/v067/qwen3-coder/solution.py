@@ -1,0 +1,170 @@
+import sys
+from collections import defaultdict, deque
+
+def main():
+    import sys
+    sys.setrecursionlimit(1000000)
+    
+    n, m, t = map(int, sys.stdin.readline().split())
+    primary = set(map(int, sys.stdin.readline().split()))
+    
+    # Since m = n-1 and there's exactly one path between any pair, it's a tree
+    adj = defaultdict(list)
+    edges = []
+    
+    for _ in range(m):
+        u, v, w = map(int, sys.stdin.readline().split())
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+        edges.append((u, v, w))
+    
+    # If there's only one primary node, cost is 0
+    if t <= 1:
+        print(0)
+        return
+    
+    # Find subtree that contains all primary nodes (Steiner tree approximation for tree)
+    # In a tree, the minimal connected subtree containing all primary nodes 
+    # is the union of paths between all pairs of primary nodes
+    # But there's a simpler way: find the "spanning tree" of primary nodes
+    # In tree: it's the union of all paths between primary nodes
+    # Which equals to the subtree formed by all nodes that lie on some path between two primary nodes
+    
+    # A simpler and correct approach:
+    # The answer is the total weight of the minimal subtree that connects all primary nodes
+    # In a tree, this is equivalent to:
+    # 1. For each edge, check if removing it separates the primary nodes into two non-empty groups
+    # 2. If not, we must include this edge in our solution
+    
+    # Even simpler: 
+    # The minimal cost is the sum of weights of edges in the subtree that spans all primary nodes
+    # Algorithm:
+    # 1. Root the tree at any node
+    # 2. For each node, compute if its subtree contains any primary node
+    # 3. An edge is needed if it connects two subtrees both containing primary nodes
+    
+    # Let's use a different approach:
+    # Find the minimal subtree containing all primary nodes
+    # This is a classic problem on trees
+    
+    # We'll use the fact that in a tree, the minimal connected subgraph containing a set of nodes
+    # is the union of paths between them. The total edge set is those edges that lie on paths
+    # between any two primary nodes.
+    
+    # Efficient approach:
+    # 1. Root the tree at node 1
+    # 2. Compute for each node whether its subtree contains a primary node
+    # 3. An edge {u, v} (where v is child of u) is needed iff both:
+    #    - subtree of v contains a primary node
+    #    - the rest of the tree (including u's parent and siblings) contains a primary node
+    
+    # Even simpler approach:
+    # An edge is in the minimal subtree iff removing it separates the primary nodes
+    # i.e., both components after removal contain primary nodes
+    
+    # Let's implement this:
+    
+    # Build adjacency list with edge indices
+    adj_list = defaultdict(list)
+    for i, (u, v, w) in enumerate(edges):
+        adj_list[u].append((v, w, i))
+        adj_list[v].append((u, w, i))
+    
+    # First, find which nodes are in the subtree of each node (assuming node 1 is root)
+    visited = [False] * (n + 1)
+    has_primary = [False] * (n + 1)
+    
+    # Mark which nodes have primary nodes in their subtree
+    def dfs1(u, parent):
+        visited[u] = True
+        if u in primary:
+            has_primary[u] = True
+        for v, w, idx in adj_list[u]:
+            if not visited[v]:
+                dfs1(v, u)
+                has_primary[u] = has_primary[u] or has_primary[v]
+    
+    dfs1(1, -1)
+    
+    # Now, for each edge, check if both sides have primary nodes
+    total_cost = 0
+    visited = [False] * (n + 1)
+    
+    def dfs2(u, parent):
+        visited[u] = True
+        for v, w, idx in adj_list[u]:
+            if not visited[v]:
+                # This is an edge from u to v
+                # Check if we need to include it
+                if has_primary[v] and (has_primary[1] and not has_primary[v] or 
+                                       sum(has_primary[x] for x in range(1,n+1)) > has_primary[v]):
+                    # Simpler check: 
+                    # The edge {u,v} is needed if:
+                    # v's subtree has a primary AND the rest of the tree also has a primary
+                    # But has_primary[1] is always True if there are primary nodes
+                    # So we need: v's subtree has primary AND complement also has primary
+                    # Complement has primary = total_primary > primary in v's subtree
+                    total_primary = sum(1 for x in primary if has_primary[x])
+                    primary_in_subtree = sum(has_primary[x] for x in range(1,n+1) if has_primary[x] and 
+                                             (x in primary or any(p for p in primary if in_subtree(p, x))))
+                    # This is getting complex. Let's re-think.
+                    
+                    # Simpler:
+                    # Root at node 1
+                    # For edge (parent -> child): 
+                    #   needed if: child's subtree has primary AND parent's other branches also have primary
+                    # But since we're doing DFS, we can't easily know parent's status
+                    pass
+                dfs2(v, u)
+    
+    # Let's use a cleaner approach:
+    # 1. Root the tree
+    # 2. For each edge (u,v) where v is child of u:
+    #    Edge is needed iff: 
+    #      (number of primary nodes in v's subtree > 0) AND 
+    #      (number of primary nodes NOT in v's subtree > 0)
+    
+    visited = [False] * (n + 1)
+    count_primary = [0] * (n + 1)  # count of primary nodes in subtree
+    
+    def dfs_count(u, parent):
+        visited[u] = True
+        if u in primary:
+            count_primary[u] = 1
+        for v, w, idx in adj_list[u]:
+            if not visited[v]:
+                dfs_count(v, u)
+                count_primary[u] += count_primary[v]
+    
+    dfs_count(1, -1)
+    
+    total_primary_nodes = len(primary)
+    result = 0
+    
+    visited = [False] * (n + 1)
+    
+    def dfs_final(u, parent):
+        nonlocal result
+        visited[u] = True
+        for v, w, idx in adj_list[u]:
+            if not visited[v]:
+                # Edge u-v where v is child
+                # Count of primary nodes in v's subtree
+                cnt_v = count_primary[v]
+                # Count of primary nodes outside v's subtree
+                cnt_outside = total_primary_nodes - cnt_v
+                
+                if cnt_v > 0 and cnt_outside > 0:
+                    result += w
+                    
+                dfs_final(v, u)
+    
+    dfs_final(1, -1)
+    print(result)
+
+def in_subtree(node, root):
+    # Placeholder - not used in final solution
+    return True
+
+if __name__ == "__main__":
+    main()

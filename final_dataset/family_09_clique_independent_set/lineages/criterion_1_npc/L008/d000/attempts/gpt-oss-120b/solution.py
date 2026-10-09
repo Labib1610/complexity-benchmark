@@ -1,0 +1,73 @@
+import sys
+sys.setrecursionlimit(1000000)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    k = int(next(it))
+    adj = [0] * n
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+
+    ALL = (1 << n) - 1
+    result = []
+
+    # order vertices by degree descending for better pruning
+    order = sorted(range(n), key=lambda x: bin(adj[x]).count('1'), reverse=True)
+    # map original index to position in ordered list
+    pos = [0] * n
+    for i, v in enumerate(order):
+        pos[v] = i
+    # rebuild adjacency in ordered space
+    adj2 = [0] * n
+    for i in range(n):
+        v = order[i]
+        mask = 0
+        for u in range(n):
+            if adj[v] >> u & 1:
+                mask |= 1 << pos[u]
+        adj2[i] = mask
+
+    target_k = k
+    found = False
+
+    def dfs(mask: int, size: int, chosen: list):
+        nonlocal found, result
+        if found:
+            return
+        if size == target_k:
+            # translate back to original numbering
+            result = [order[i] + 1 for i in chosen]
+            found = True
+            return
+        # prune if not enough vertices left
+        if size + mask.bit_count() < target_k:
+            return
+        # choose a vertex with highest degree in current mask
+        # simple heuristic: pick first bit
+        v = (mask & -mask).bit_length() - 1  # index of least set bit
+        # branch: include v
+        new_mask = mask & ~adj2[v] & ~(1 << v)
+        dfs(new_mask, size + 1, chosen + [v])
+        if found:
+            return
+        # branch: exclude v
+        dfs(mask & ~(1 << v), size, chosen)
+
+    dfs(ALL, 0, [])
+    out = sys.stdout
+    if found:
+        out.write("YES\n")
+        out.write(" ".join(map(str, result)))
+    else:
+        out.write("NO")
+
+if __name__ == "__main__":
+    solve()

@@ -1,0 +1,233 @@
+import sys
+import time
+import random
+import math
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    B = int(input_data[2])
+    
+    adj = [[] for _ in range(n + 1)]
+    edges = []
+    idx = 3
+    for _ in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx+1])
+        adj[u].append(v)
+        adj[v].append(u)
+        edges.append((u, v))
+        idx += 2
+        
+    if n == 1:
+        if B >= 0:
+            print("YES")
+            print("1")
+        else:
+            print("NO")
+        return
+
+    start_time = time.time()
+    time_limit = 4.6
+
+    def compute_cost(pos):
+        return sum(abs(pos[u] - pos[v]) for u, v in edges)
+
+    best_cost = float('inf')
+    best_pos = None
+
+    def check_solution(pos):
+        nonlocal best_cost, best_pos
+        c = compute_cost(pos)
+        if c < best_cost:
+            best_cost = c
+            best_pos = list(pos)
+        return c <= B
+
+    # Heuristic 1: Subtree Layout with Centroid / Center Rooting
+    def get_tree_layout(root):
+        # Compute subtree sizes
+        parent = [0] * (n + 1)
+        children = [[] for _ in range(n + 1)]
+        sz = [1] * (n + 1)
+        order = []
+        stack = [root]
+        visited = [False] * (n + 1)
+        visited[root] = True
+        
+        while stack:
+            u = stack.pop()
+            order.append(u)
+            for v in adj[u]:
+                if not visited[v]:
+                    visited[v] = True
+                    parent[v] = u
+                    children[u].append(v)
+                    stack.append(v)
+                    
+        for u in reversed(order):
+            for v in children[u]:
+                sz[u] += sz[v]
+                
+        # Layout recursively
+        # For each node, place half children (by weight) to left, half to right
+        seq = []
+        def layout(u):
+            ch = children[u]
+            if not ch:
+                seq.append(u)
+                return
+            # Sort children by size descending
+            ch.sort(key=lambda c: sz[c], reverse=True)
+            left_ch = []
+            right_ch = []
+            l_sum = 0
+            r_sum = 0
+            for c in ch:
+                if l_sum <= r_sum:
+                    left_ch.append(c)
+                    l_sum += sz[c]
+                else:
+                    right_ch.append(c)
+                    r_sum += sz[c]
+            
+            # Recurse left
+            for c in left_ch:
+                layout(c)
+            seq.append(u)
+            for c in right_ch:
+                layout(c)
+
+        layout(root)
+        pos = [0] * (n + 1)
+        for p, u in enumerate(seq, 1):
+            pos[u] = p
+        return pos
+
+    # Try all nodes or sample of nodes as root
+    roots = list(range(1, n + 1))
+    if n > 200:
+        roots = random.sample(roots, 100)
+        
+    for r in roots:
+        pos = get_tree_layout(r)
+        if check_solution(pos):
+            print("YES")
+            print(*(best_pos[1:]))
+            return
+
+    # Heuristic 2: Spectral Ordering (Power iteration for Fiedler vector approximation)
+    deg = [len(adj[u]) for u in range(n + 1)]
+    # Random initial vector orthogonal to 1
+    v_vec = [random.uniform(-1, 1) for _ in range(n + 1)]
+    mean = sum(v_vec[1:]) / n
+    for i in range(1, n + 1):
+        v_vec[i] -= mean
+        
+    for _ in range(50):
+        # L = D - A, to find smallest non-zero eigenvalue eigenvector, we can use inverse iteration or shift
+        # Power iteration on (2*max_deg*I - L) = (2*max_deg - D)*I + A
+        max_d = max(deg) + 1
+        new_v = [0.0] * (n + 1)
+        for u in range(1, n + 1):
+            new_v[u] = (2 * max_d - deg[u]) * v_vec[u]
+            for neighbor in adj[u]:
+                new_v[u] += v_vec[neighbor]
+        mean = sum(new_v[1:]) / n
+        norm = 0.0
+        for i in range(1, n + 1):
+            new_v[i] -= mean
+            norm += new_v[i] ** 2
+        norm = math.sqrt(norm) if norm > 1e-9 else 1.0
+        for i in range(1, n + 1):
+            v_vec[i] = new_v[i] / norm
+            
+    nodes = list(range(1, n + 1))
+    nodes.sort(key=lambda u: v_vec[u])
+    spectral_pos = [0] * (n + 1)
+    for p, u in enumerate(nodes, 1):
+        spectral_pos[u] = p
+    if check_solution(spectral_pos):
+        print("YES")
+        print(*(best_pos[1:]))
+        return
+
+    # Simulated Annealing / Local Search
+    current_pos = list(best_pos)
+    cur_nodes = [0] * (n + 1)
+    for u in range(1, n + 1):
+        cur_nodes[current_pos[u]] = u
+
+    cur_cost = best_cost
+    temp = max(1.0, cur_cost * 0.1)
+    cooling = 0.99995
+
+    iter_count = 0
+    while time.time() - start_time < time_limit:
+        iter_count += 1
+        # Pick two bays to swap
+        # Bias towards bays that are close or connected nodes
+        if random.random() < 0.6:
+            # Pick a random edge and move them closer or swap
+            u, v = random.choice(edges)
+            pu, pv = current_pos[u], current_pos[v]
+            if abs(pu - pv) > 1:
+                step = 1 if pv > pu else -1
+                p1 = pu
+                p2 = pu + step
+            else:
+                p1 = pu
+                p2 = pv
+        elif random.random() < 0.8:
+            # Adjacent bay swap
+            p1 = random.randint(1, n - 1)
+            p2 = p1 + 1
+        else:
+            p1 = random.randint(1, n)
+            p2 = random.randint(1, n)
+            if p1 == p2:
+                continue
+
+        u = cur_nodes[p1]
+        v = cur_nodes[p2]
+
+        # Calculate cost delta
+        delta = 0
+        for nbr in adj[u]:
+            if nbr != v:
+                delta += abs(p2 - current_pos[nbr]) - abs(p1 - current_pos[nbr])
+        for nbr in adj[v]:
+            if nbr != u:
+                delta += abs(p1 - current_pos[nbr]) - abs(p2 - current_pos[nbr])
+
+        if delta < 0 or (temp > 1e-6 and math.exp(-delta / temp) > random.random()):
+            cur_cost += delta
+            current_pos[u] = p2
+            current_pos[v] = p1
+            cur_nodes[p1] = v
+            cur_nodes[p2] = u
+
+            if cur_cost < best_cost:
+                best_cost = cur_cost
+                best_pos = list(current_pos)
+                if best_cost <= B:
+                    print("YES")
+                    print(*(best_pos[1:]))
+                    return
+
+        temp *= cooling
+        if temp < 0.01:
+            temp = max(1.0, cur_cost * 0.05)
+
+    if best_cost <= B:
+        print("YES")
+        print(*(best_pos[1:]))
+    else:
+        print("NO")
+
+if __name__ == '__main__':
+    solve()

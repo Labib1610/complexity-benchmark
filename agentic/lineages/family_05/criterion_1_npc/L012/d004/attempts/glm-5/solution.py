@@ -1,0 +1,62 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    k = int(next(it))
+    t = int(next(it))
+    pockets = []
+    for _ in range(t):
+        x = int(next(it))
+        y = int(next(it))
+        z = int(next(it))
+        pockets.append((x, y, z))
+    
+    # Check if we have enough pockets
+    if t < k:
+        print("NO")
+        return
+    
+    # Special case: k == 1
+    if k == 1:
+        if t >= 1:
+            print("YES")
+            print(f"{pockets[0][0]} {pockets[0][1]} {pockets[0][2]}")
+        else:
+            print("NO")
+        return
+    
+    # For k >= 2, we need to find k pockets satisfying the isolation constraints
+    # The constraint is: for any two pockets, |z1-z2| > 0
+    # This means all pockets must have distinct z-coordinates
+    
+    # Group pockets by z-coordinate
+    by_z = {}
+    for p in pockets:
+        z = p[2]
+        if z not in by_z:
+            by_z[z] = []
+        by_z[z].append(p)
+    
+    # We need exactly k distinct z-values
+    if len(by_z) < k:
+        print("NO")
+        return
+    
+    # For each z from 1 to k, we need at least one pocket
+    result = []
+    for z in range(1, k + 1):
+        if z not in by_z or len(by_z[z]) == 0:
+            print("NO")
+            return
+        # Take the first pocket with this z-coordinate
+        result.append(by_z[z][0])
+    
+    print("YES")
+    for p in result:
+        print(f"{p[0]} {p[1]} {p[2]}")
+
+if __name__ == "__main__":
+    solve()

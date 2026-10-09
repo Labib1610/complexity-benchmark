@@ -1,0 +1,380 @@
+from collections import defaultdict, deque
+
+def solve():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    idx = 0
+    n = int(data[idx])
+    idx += 1
+    m = int(data[idx])
+    idx += 1
+    coolant_type = int(data[idx])
+    idx += 1
+    
+    s = int(data[idx])
+    idx += 1
+    t = int(data[idx])
+    idx += 1
+    d = int(data[idx])
+    idx += 1
+    
+    edges = []
+    graph = defaultdict(list)
+    capacity = {}
+    
+    for i in range(m):
+        u = int(data[idx])
+        idx += 1
+        v = int(data[idx])
+        idx += 1
+        cap = int(data[idx])
+        idx += 1
+        
+        edges.append((u, v, cap))
+        graph[u].append((v, len(edges)-1))
+        graph[v].append((u, len(edges)-1)) 
+        capacity[len(edges)-1] = cap
+    
+    # We'll model this as a max flow problem
+    # Build residual graph
+    # But we need to be careful about bidirectional edges for residual graph
+    # Let's use forward and backward edges explicitly
+    
+    # Actually, let's just implement Ford-Fulkerson with adjacency list
+    # Each edge in the original graph gets a forward and backward edge in residual
+    
+    # But since we're dealing with a specific source and sink, and we want to push exactly d flow,
+    # we can run a max flow algorithm and see if we can get at least d flow.
+    
+    # But actually, we want exactly d flow. So we check if max flow >= d.
+    
+    # Let's build the residual graph properly
+    # For each original edge (u,v,cap), we add:
+    # - forward edge (u,v) with capacity cap
+    # - backward edge (v,u) with capacity 0
+    
+    # To keep track, for each original edge index i:
+    # forward edge index: 2*i
+    # backward edge index: 2*i + 1
+    
+    res_graph = defaultdict(list)  # adj list with (node, edge_id)
+    edge_list = []  # List of (from, to, cap, flow)
+    
+    for i in range(m):
+        u, v, cap = edges[i]
+        # Forward edge
+        edge_list.append((u, v, cap, 0))
+        res_graph[u].append((v, 2*i))
+        # Backward edge
+        edge_list.append((v, u, 0, 0))
+        res_graph[v].append((u, 2*i + 1))
+    
+    def bfs_find_path(res_graph, edge_list, source, sink, parent_edge):
+        visited = set()
+        queue = deque([source])
+        visited.add(source)
+        parent_edge[source] = None
+        
+        while queue:
+            u = queue.popleft()
+            if u == sink:
+                return True
+            
+            for v, edge_id in res_graph[u]:
+                if v not in visited:
+                    # Check if there's remaining capacity
+                    cap, flow = edge_list[edge_id][2], edge_list[edge_id][3]
+                    if cap > flow:
+                        visited.add(v)
+                        queue.append(v)
+                        parent_edge[v] = edge_id
+                        if v == sink:
+                            return True
+        return False
+    
+    def edmonds_karp(res_graph, edge_list, source, sink):
+        parent_edge = {}
+        total_flow = 0
+        
+        while bfs_find_path(res_graph, edge_list, source, sink, parent_edge):
+            # Find minimum capacity along the path
+            path_flow = float('inf')
+            v = sink
+            path_edges = []
+            
+            while v != source:
+                edge_id = parent_edge[v]
+                u = edge_list[edge_id][0]
+                cap, flow = edge_list[edge_id][2], edge_list[edge_id][3]
+                path_flow = min(path_flow, cap - flow)
+                path_edges.append(edge_id)
+                v = u
+            
+            # Update residual capacities
+            for edge_id in path_edges:
+                # Forward edge
+                edge_list[edge_id] = (
+                    edge_list[edge_id][0],
+                    edge_list[edge_id][1],
+                    edge_list[edge_id][2],
+                    edge_list[edge_id][3] + path_flow
+                )
+                # Backward edge (the reverse edge)
+                rev_edge_id = edge_id ^ 1  # XOR flips last bit
+                edge_list[rev_edge_id] = (
+                    edge_list[rev_edge_id][0],
+                    edge_list[rev_edge_id][1],
+                    edge_list[rev_edge_id][2],
+                    edge_list[rev_edge_id][3] - path_flow
+                )
+            
+            total_flow += path_flow
+        
+        return total_flow
+    
+    max_flow = edmonds_karp(res_graph, edge_list, s, t)
+    
+    if max_flow < d:
+        print("NO")
+        return
+    
+    # Now we need to find a feasible flow of exactly d
+    # Since max_flow >= d, we can send exactly d units.
+    # We need to adjust the flows so that the total from s is exactly d.
+    
+    # Let's rebuild the residual graph and run max flow again but stop when we reach d
+    # Actually, Edmonds-Karp already gives us a valid flow.
+    # We just need to extract the flow values from the original edges.
+    
+    # Extract the flow on original edges
+    result = []
+    for i in range(m):
+        forward_edge_id = 2 * i
+        flow = edge_list[forward_edge_id][3]
+        result.append(flow)
+    
+    # But wait, this might give us more than d if max_flow > d
+    # We need to scale down the flow to exactly d.
+    # However, scaling might not preserve integer flows.
+    
+    # Alternative approach: 
+    # Run max flow to find if we can send d units.
+    # If yes, then we have a solution.
+    # But we already did that.
+    
+    # Another issue: our implementation might not be stopping at exactly d.
+    # Let's modify to push exactly d flow.
+    
+    # Let's re-run max flow but cap the total flow at d
+    # Actually, let's think differently.
+    # We can create a super-source connected to s with capacity d
+    # and a super-sink connected from t with capacity d
+    # Then run max flow. If we get exactly d, we're good.
+    
+    # But that's overcomplicating.
+    
+    # Let's just accept that Edmonds-Karp gives a valid flow <= max_flow
+    # And if max_flow >= d, we can always find a way to send exactly d
+    # by possibly reducing some flows.
+    
+    # But how to ensure integer flows and exactly d?
+    # Our current implementation works with integers and finds max flow.
+    # If max flow >= d, then there exists a way to route d flow.
+    # The flow we found is one such routing (possibly with more than d).
+    
+    # To get exactly d, we can construct a new network:
+    # Add super-source S, super-sink T
+    # Edge (S, s) with capacity d
+    # Edge (t, T) with capacity d
+    # All original edges same capacity
+    # Run max flow from S to T. If flow = d, we're done.
+    
+    # But again, maybe overkill.
+    
+    # Simpler: Just run max flow. If it's at least d, then we can "trim" the flow
+    # to exactly d by reducing some paths.
+    # But trimming while maintaining conservation is tricky.
+    
+    # Let's stick with what we have.
+    # If max_flow >= d, then there exists a solution.
+    # Our algorithm gives one such solution (with flow = max_flow).
+    # We can just output that solution, because any valid flow is acceptable.
+    # Even if it's more than d, it still satisfies all constraints.
+    # But the problem says "exactly d".
+    
+    # Hmm, I think I misread. 
+    # "The net volume leaving s and the net volume arriving at t must both be exactly d."
+    # So the total out of s must be exactly d, and total into t must be exactly d.
+    # That means we must route exactly d units.
+    
+    # So we should find a flow of value exactly d.
+    # If max flow < d, impossible.
+    # If max flow >= d, we can find a flow of value d.
+    
+    # How? 
+    # Method 1: Binary search on flow value - complicated.
+    # Method 2: Modify the network to enforce exactly d flow.
+    # Method 3: Take the existing flow (which could be > d) and reduce it to d.
+    
+    # Method 3 seems easiest conceptually.
+    # But reducing a flow while maintaining feasibility is non-trivial.
+    
+    # Let's try method 2:
+    # Create a new source S and sink T.
+    # Connect S to s with capacity d.
+    # Connect t to T with capacity d.
+    # All original edges keep their capacities.
+    # Run max flow from S to T.
+    # If the value is d, great. Otherwise, impossible.
+    
+    # But we'd need to reimplement.
+    
+    # Let's go back to our original approach.
+    # We computed max flow.
+    # If max_flow < d, impossible.
+    # If max_flow >= d, we have a valid flow, but it might be > d.
+    
+    # What if we just output the flow as is?
+    # It satisfies all capacity constraints.
+    # It satisfies conservation at all nodes except s and t.
+    # At s, net outflow is max_flow.
+    # At t, net inflow is max_flow.
+    # The problem wants exactly d.
+    
+    # So we're producing too much flow.
+    # We need to reduce the flow by (max_flow - d).
+    
+    # To reduce flow, we can find a circulation in the residual network.
+    # Specifically, we can find a circulation of value (max_flow - d) and subtract it.
+    
+    # But finding such a circulation and subtracting it while keeping everything integral
+    # is complex.
+    
+    # Maybe there's a simpler way.
+    # Let's just assume that if max flow >= d, we can route exactly d.
+    # And our algorithm produces a valid flow configuration.
+    # Even if it's more than d, it's still a valid circulation.
+    
+    # Re-reading the problem... it says "circulating exactly d units".
+    # And "The net volume leaving s and the net volume arriving at t must both be exactly d."
+    
+    # So we really do need exactly d.
+    
+    # Let's try the super-source/super-sink approach.
+    
+    # New nodes: n+1 (super-source S), n+2 (super-sink T)
+    # Add edge (n+1, s) with capacity d
+    # Add edge (t, n+2) with capacity d
+    # Keep all original edges
+    # Run max flow from n+1 to n+2
+    # If value = d, good. Else, impossible.
+    
+    # Let's implement this.
+    
+    # Reset and rebuild with super nodes
+    N = n + 2  # 1-indexed nodes 1..n, plus n+1 (S) and n+2 (T)
+    S = n + 1
+    T = n + 2
+    
+    # Rebuild edge list
+    edge_list_new = []
+    res_graph_new = defaultdict(list)
+    
+    # Original edges
+    for i in range(m):
+        u, v, cap = edges[i]
+        edge_list_new.append((u, v, cap, 0))
+        edge_list_new.append((v, u, 0, 0))
+        eid = len(edge_list_new) - 2
+        res_graph_new[u].append((v, eid))
+        res_graph_new[v].append((u, eid + 1))
+    
+    # Super edges
+    edge_list_new.append((S, s, d, 0))  # S -> s
+    edge_list_new.append((s, S, 0, 0))
+    res_graph_new[S].append((s, len(edge_list_new) - 2))
+    res_graph_new[s].append((S, len(edge_list_new) - 1))
+    
+    edge_list_new.append((t, T, d, 0))  # t -> T
+    edge_list_new.append((T, t, 0, 0))
+    res_graph_new[t].append((T, len(edge_list_new) - 2))
+    res_graph_new[T].append((t, len(edge_list_new) - 1))
+    
+    # Run max flow from S to T
+    def bfs_find_path_v2(res_graph, edge_list, source, sink, parent_edge):
+        visited = set()
+        queue = deque([source])
+        visited.add(source)
+        parent_edge[source] = None
+        
+        while queue:
+            u = queue.popleft()
+            if u == sink:
+                return True
+            
+            for v, edge_id in res_graph[u]:
+                if v not in visited:
+                    cap, flow = edge_list[edge_id][2], edge_list[edge_id][3]
+                    if cap > flow:
+                        visited.add(v)
+                        queue.append(v)
+                        parent_edge[v] = edge_id
+                        if v == sink:
+                            return True
+        return False
+    
+    def edmonds_karp_v2(res_graph, edge_list, source, sink):
+        parent_edge = {}
+        total_flow = 0
+        
+        while bfs_find_path_v2(res_graph, edge_list, source, sink, parent_edge):
+            path_flow = float('inf')
+            v = sink
+            path_edges = []
+            
+            while v != source:
+                edge_id = parent_edge[v]
+                u = edge_list[edge_id][0]
+                cap, flow = edge_list[edge_id][2], edge_list[edge_id][3]
+                path_flow = min(path_flow, cap - flow)
+                path_edges.append(edge_id)
+                v = u
+            
+            for edge_id in path_edges:
+                edge_list[edge_id] = (
+                    edge_list[edge_id][0],
+                    edge_list[edge_id][1],
+                    edge_list[edge_id][2],
+                    edge_list[edge_id][3] + path_flow
+                )
+                rev_edge_id = edge_id ^ 1
+                edge_list[rev_edge_id] = (
+                    edge_list[rev_edge_id][0],
+                    edge_list[rev_edge_id][1],
+                    edge_list[rev_edge_id][2],
+                    edge_list[rev_edge_id][3] - path_flow
+                )
+            
+            total_flow += path_flow
+        
+        return total_flow
+    
+    flow_value = edmonds_karp_v2(res_graph_new, edge_list_new, S, T)
+    
+    if flow_value < d:
+        print("NO")
+        return
+    
+    # Extract flows on original edges
+    result = []
+    for i in range(m):
+        forward_edge_id = 2 * i  # In the original part of edge_list_new
+        flow = edge_list_new[forward_edge_id][3]
+        result.append(flow)
+    
+    print("YES")
+    print(" ".join(map(str, result)))
+
+solve()

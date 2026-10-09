@@ -1,0 +1,117 @@
+import sys
+from itertools import permutations
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    B = int(data[2])
+    
+    edges = []
+    for i in range(m):
+        u = int(data[3 + 2*i]) - 1  # Convert to 0-based index
+        v = int(data[4 + 2*i]) - 1
+        edges.append((u, v))
+    
+    # If m is small, we can try permutations
+    if m <= 10:
+        # Try all permutations
+        for perm in permutations(range(n)):
+            cost = 0
+            for u, v in edges:
+                cost += abs(perm[u] - perm[v])
+                if cost > B:
+                    break
+            if cost <= B:
+                print("YES")
+                result = [0] * n
+                for var in range(n):
+                    result[var] = perm[var] + 1  # Convert back to 1-based
+                print(' '.join(map(str, result)))
+                return
+        print("NO")
+        return
+    
+    # For larger m, use a greedy approach or heuristic
+    # Start with identity permutation and try to improve
+    best_perm = list(range(n))
+    best_cost = sum(abs(best_perm[u] - best_perm[v]) for u, v in edges)
+    
+    if best_cost <= B:
+        print("YES")
+        result = [x + 1 for x in best_perm]
+        print(' '.join(map(str, result)))
+        return
+    
+    # Try swapping to reduce cost
+    improved = True
+    current_perm = best_perm[:]
+    current_cost = best_cost
+    
+    while improved:
+        improved = False
+        for i in range(n):
+            for j in range(i+1, n):
+                # Calculate change in cost if we swap positions of elements at indices i and j
+                delta = 0
+                elem_i = current_perm[i]
+                elem_j = current_perm[j]
+                
+                for u, v in edges:
+                    old_diff = abs(current_perm[u] - current_perm[v])
+                    new_u_val = elem_j if u == i else (elem_i if u == j else current_perm[u])
+                    new_v_val = elem_j if v == i else (elem_i if v == j else current_perm[v])
+                    new_diff = abs(new_u_val - new_v_val)
+                    delta += new_diff - old_diff
+                
+                if delta < 0:
+                    current_perm[i], current_perm[j] = current_perm[j], current_perm[i]
+                    current_cost += delta
+                    improved = True
+                    
+                    if current_cost <= B:
+                        print("YES")
+                        result = [x + 1 for x in current_perm]
+                        print(' '.join(map(str, result)))
+                        return
+    
+    # If still not good enough, try random swaps or other heuristics
+    import random
+    random.seed(42)
+    
+    attempts = 0
+    max_attempts = 10000
+    
+    while attempts < max_attempts:
+        p = current_perm[:]
+        # Make a few random swaps
+        for _ in range(min(5, n//2)):
+            i = random.randint(0, n-1)
+            j = random.randint(0, n-1)
+            if i != j:
+                p[i], p[j] = p[j], p[i]
+        
+        cost = sum(abs(p[u] - p[v]) for u, v in edges)
+        if cost < current_cost:
+            current_cost = cost
+            current_perm = p
+            if current_cost <= B:
+                print("YES")
+                result = [x + 1 for x in current_perm]
+                print(' '.join(map(str, result)))
+                return
+        attempts += 1
+    
+    # Final check
+    if current_cost <= B:
+        print("YES")
+        result = [x + 1 for x in current_perm]
+        print(' '.join(map(str, result)))
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    main()

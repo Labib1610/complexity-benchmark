@@ -1,8 +1,11 @@
 import sys
 from collections import defaultdict, deque
 
-def solve():
-    n, m = map(int, input().split())
+def main():
+    import sys
+    sys.setrecursionlimit(1 << 25)
+    
+    n, m = map(int, sys.stdin.readline().split())
     
     if m == 0:
         print("YES")
@@ -10,37 +13,35 @@ def solve():
         return
     
     # Build adjacency list
-    graph = defaultdict(list)
+    adj = defaultdict(list)
     for _ in range(m):
-        u, v = map(int, input().split())
-        graph[u].append(v)
-        graph[v].append(u)
+        u, v = map(int, sys.stdin.readline().split())
+        adj[u].append(v)
+        adj[v].append(u)
     
-    # Color array: 0 = unvisited, 1 = color 1, 2 = color 2
+    # Color array: 0 = unvisited, 1 and 2 are the two colors
     color = [0] * (n + 1)
     
     # Check if bipartite using BFS
     for start in range(1, n + 1):
         if color[start] == 0:
-            queue = deque([start])
+            queue = deque()
+            queue.append(start)
             color[start] = 1
             
             while queue:
-                node = queue.popleft()
-                
-                for neighbor in graph[node]:
-                    if color[neighbor] == 0:
-                        color[neighbor] = 3 - color[node]  # Flip color (1->2, 2->1)
-                        queue.append(neighbor)
-                    elif color[neighbor] == color[node]:
+                u = queue.popleft()
+                for v in adj[u]:
+                    if color[v] == 0:
+                        color[v] = 3 - color[u]  # flips 1->2 and 2->1
+                        queue.append(v)
+                    elif color[v] == color[u]:
                         print("NO")
                         return
     
-    # If we get here, it's bipartite
+    # If we reach here, it's bipartite
     print("YES")
-    result = []
-    for i in range(1, n + 1):
-        result.append(str(color[i]))
-    print(" ".join(result))
+    print(" ".join(str(color[i]) for i in range(1, n + 1)))
 
-solve()
+if __name__ == "__main__":
+    main()

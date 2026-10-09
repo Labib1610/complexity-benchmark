@@ -1,0 +1,58 @@
+import sys
+from functools import cmp_to_key
+
+def compare_jobs(job1, job2):
+    # job1 = (p1, p2, index)
+    # Johnson's rule comparison
+    # if job1.p1 <= job1.p2 and job2.p1 <= job2.p2:
+    #   return job1.p1 - job2.p1  # both in group 1, sort by p1 ascending
+    # if job1.p1 >= job1.p2 and job2.p1 >= job2.p2:
+    #   return job2.p2 - job1.p2  # both in group 2, sort by p2 descending
+    # if job1.p1 <= job1.p2 and job2.p1 >= job2.p2:
+    #   return -1  # job1 comes first
+    # else:
+    #   return 1  # job2 comes first
+    
+    p1_1, p2_1 = job1[0], job1[1]
+    p1_2, p2_2 = job2[0], job2[1]
+    
+    if p1_1 <= p2_1 and p1_2 <= p2_2:
+        # Both are in group 1 (p1 <= p2), sort by p1 ascending
+        return p1_1 - p1_2
+    elif p1_1 >= p2_1 and p1_2 >= p2_2:
+        # Both are in group 2 (p1 >= p2), sort by p2 descending
+        return p2_2 - p2_1
+    elif p1_1 <= p2_1:
+        # job1 in group 1, job2 in group 2
+        return -1
+    else:
+        # job1 in group 2, job2 in group 1
+        return 1
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    j = int(data[0])
+    jobs = []
+    for i in range(j):
+        p1 = int(data[2*i + 1])
+        p2 = int(data[2*i + 2])
+        jobs.append((p1, p2, i))
+    
+    # Sort according to Johnson's rule
+    jobs.sort(key=cmp_to_key(compare_jobs))
+    
+    # Calculate the completion time
+    time_milling = 0
+    time_polishing = 0
+    
+    for p1, p2, _ in jobs:
+        time_milling += p1
+        time_polishing = max(time_polishing, time_milling) + p2
+    
+    print(time_polishing)
+
+if __name__ == "__main__":
+    main()

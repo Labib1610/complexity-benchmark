@@ -1,0 +1,54 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    iterator = iter(input_data)
+    n = int(next(iterator))
+    m = int(next(iterator))
+    
+    adj = [set() for _ in range(n + 1)]
+    
+    for _ in range(m):
+        u = int(next(iterator))
+        v = int(next(iterator))
+        adj[u].add(v)
+        adj[v].add(u)
+    
+    # Sort adjacency lists for lexicographical processing
+    adj_lists = [sorted(s) for s in adj]
+    
+    # Iterate over all pairs (u, v) with u < v
+    for u in range(1, n + 1):
+        for v in adj_lists[u]:
+            if v <= u:
+                continue
+            # Check for common neighbor w such that w > v
+            # Using two pointers to find intersection
+            neighbors_u = adj_lists[u]
+            neighbors_v = adj_lists[v]
+            
+            i = 0
+            j = 0
+            len_u = len(neighbors_u)
+            len_v = len(neighbors_v)
+            
+            while i < len_u and j < len_v:
+                w_u = neighbors_u[i]
+                w_v = neighbors_v[j]
+                
+                if w_u < w_v:
+                    i += 1
+                elif w_u > w_v:
+                    j += 1
+                else:
+                    w = w_u
+                    if w > v:
+                        print(u, v, w)
+                        return
+                    i += 1
+                    j += 1
+
+if __name__ == '__main__':
+    solve()

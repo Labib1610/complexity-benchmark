@@ -1,0 +1,112 @@
+import sys
+from collections import defaultdict
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    it = iter(data)
+    nL = int(next(it))
+    nR = int(next(it))
+    m = int(next(it))
+    
+    jobs = []
+    degL = defaultdict(int)
+    degR = defaultdict(int)
+    
+    for i in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        jobs.append((u, v))
+        degL[u] += 1
+        degR[v] += 1
+    
+    # Calculate Delta
+    delta = 0
+    if degL:
+        delta = max(delta, max(degL.values()))
+    if degR:
+        delta = max(delta, max(degR.values()))
+    
+    if m == 0:
+        sys.stdout.write("YES\n")
+        sys.stdout.write("\n")
+        return
+
+    # Build adjacency list for bipartite graph
+    # Left nodes: 1..nL, Right nodes: nL+1..nL+nR
+    # We only add edges for jobs that exist
+    adj = [[] for _ in range(nL + nR + 1)]
+    
+    # We need to track which edge corresponds to which job for output
+    # We'll store (neighbor, job_index) in adjacency lists
+    for i, (u, v) in enumerate(jobs):
+        adj[u].append((nL + v, i))
+        adj[nL + v].append((u, i))
+    
+    # Initialize match arrays
+    matchL = [0] * (nL + 1)
+    matchR = [0] * (nR + 1)
+    
+    # Greedy matching first
+    for u in range(1, nL + 1):
+        for (v, job_idx) in adj[u]:
+            if matchR[v - nL] == 0:
+                matchL[u] = v
+                matchR[v - nL] = u
+                break
+    
+    # DFS for augmenting paths
+    sys.setrecursionlimit(1 << 25)
+    
+    def dfs(u, visited):
+        for (v, job_idx) in adj[u]:
+            if visited[v]:
+                continue
+            visited[v] = True
+            if matchR[v - nL] == 0 or dfs(matchR[v - nL], visited):
+                matchL[u] = v
+                matchR[v - nL] = u
+                return True
+        return False
+    
+    # Find augmenting paths for unmatched left nodes
+    for u in range(1, nL + 1):
+        if matchL[u] == 0:
+            visited = [False] * (nL + nR + 1)
+            dfs(u, visited)
+    
+    # Build edge coloring using matching
+    # For each matched edge, assign color based on matched left node
+    # For unmatched edges, assign color based on matched right node
+    
+    # First, build a mapping from matched pairs to colors
+    # Color for matched edge (u, v) is u
+    # For unmatched edges involving right node v, color is matchR[v]
+    
+    # Create result array
+    res = [0] * m
+    
+    # Process matched edges first
+    for u in range(1, nL + 1):
+        if matchL[u] != 0:
+            v = matchL[u]
+            # Find the job index for this edge
+            for (nv, job_idx) in adj[u]:
+                if nv == v:
+                    res[job_idx] = u
+                    break
+    
+    # Process unmatched edges
+    for i in range(m):
+        if res[i] == 0:
+            u, v = jobs[i]
+            # This edge is unmatched
+            # Use the matched left node of v
+            res[i] = matchR[v]
+    
+    # Output
+    sys.stdout.write("YES\n")
+    sys.stdout.write(" ".join(map(str, res)) + "\n")
+
+solve()

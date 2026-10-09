@@ -1,5 +1,4 @@
 import sys
-sys.setrecursionlimit(10000)
 
 def solve() -> None:
     data = sys.stdin.read().strip().split()
@@ -8,40 +7,72 @@ def solve() -> None:
     it = iter(data)
     n = int(next(it))
     m = int(next(it))
-    adj = [[] for _ in range(n)]
+    adj = [0] * n
     for _ in range(m):
         u = int(next(it)) - 1
         v = int(next(it)) - 1
-        adj[u].append(v)
-        adj[v].append(u)
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
 
-    colour = [0] * n          # 0 = uncoloured, otherwise 1..3
-    found = False
+    ALL = 0b111  # three colors allowed
+    allowed = [ALL] * n
+    color = [-1] * n
+    unassigned = set(range(n))
 
-    def dfs(v: int) -> bool:
-        """return True if a complete colouring is found from vertex v onward"""
-        if v == n:
-            return True
-        # try colours 1,2,3
-        for c in (1, 2, 3):
-            ok = True
-            for nb in adj[v]:
-                if nb < v and colour[nb] == c:
-                    ok = False
+    # precompute neighbor lists for speed
+    neigh = [ [j for j in range(n) if (adj[i]>>j)&1] for i in range(n) ]
+
+    # MRV heuristic: vertex with fewest allowed colors
+    def select_vertex():
+        v = -1
+        best = 4
+        for u in unassigned:
+            cnt = allowed[u].bit_count()
+            if cnt < best:
+                best = cnt
+                v = u
+                if cnt == 1:
                     break
-            if not ok:
-                continue
-            colour[v] = c
-            if dfs(v + 1):
-                return True
-            colour[v] = 0
+        return v
+
+    sys.setrecursionlimit(10000)
+    def dfs():
+        if not unassigned:
+            return True
+        v = select_vertex()
+        # try each possible color
+        mask = allowed[v]
+        # order colors 0,1,2
+        for c in range(3):
+            if mask & (1 << c):
+                # assign
+                color[v] = c
+                unassigned.remove(v)
+                # record changes to allowed of neighbors
+                changed = []
+                fail = False
+                for nb in neigh[v]:
+                    if nb in unassigned:
+                        if allowed[nb] & (1 << c):
+                            allowed[nb] &= ~(1 << c)
+                            changed.append(nb)
+                            if allowed[nb] == 0:
+                                fail = True
+                                break
+                if not fail and dfs():
+                    return True
+                # revert
+                for nb in changed:
+                    allowed[nb] |= (1 << c)
+                color[v] = -1
+                unassigned.add(v)
         return False
 
-    if dfs(0):
-        sys.stdout.write("YES\n")
-        sys.stdout.write(" ".join(map(str, colour)) + "\n")
+    if dfs():
+        print("YES")
+        print(' '.join(str(c+1) for c in color))
     else:
-        sys.stdout.write("NO\n")
+        print("NO")
 
 if __name__ == "__main__":
     solve()

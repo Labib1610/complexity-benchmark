@@ -1,0 +1,268 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    clauses = []
+    idx = 2
+    for _ in range(m):
+        c = [int(input_data[idx]), int(input_data[idx+1]), int(input_data[idx+2])]
+        idx += 3
+        # Simplify clause (remove duplicates)
+        c = list(set(c))
+        # If clause contains both x and -x, it's trivially satisfied, can ignore
+        has_tautology = False
+        seen = set()
+        for lit in c:
+            if -lit in seen:
+                has_tautology = True
+                break
+            seen.add(lit)
+        if not has_tautology:
+            clauses.append(c)
+
+    # CDCL SAT Solver
+    # Literals: integers in range [-n, n] \ {0}
+    
+    # State variables
+    assignment = [None] * (n + 1)
+    decision_level = [0] * (n + 1)
+    reason = [None] * (n + 1)
+    trail = []
+    trail_lim = []
+    
+    # VSIDS activity
+    activity = [0.0] * (n + 1)
+    var_inc = 1.0
+    var_decay = 0.95
+    
+    # 2-watched literals: watch[lit] = list of clause indices
+    # Lit can be from -n to n.
+    watch = [[] for _ in range(2 * n + 1)]
+    def lit_to_idx(lit):
+        return lit + n
+
+    all_clauses = [list(c) for c in clauses]
+
+    # Pre-check empty clauses or unit clauses
+    for i, c in enumerate(all_clauses):
+        if len(c) == 0:
+            print("NO")
+            return
+        if len(c) == 1:
+            # We can still watch c[0] twice or handle it
+            watch[lit_to_idx(c[0])].append(i)
+        else:
+            watch[lit_to_idx(c[0])].append(i)
+            watch[lit_to_idx(c[1])].append(i)
+
+    def lit_val(lit):
+        v = assignment[abs(lit)]
+        if v is None:
+            return None
+        return v if lit > 0 else not v
+
+    def assign_lit(lit, r):
+        v = abs(lit)
+        assignment[v] = (lit > 0)
+        decision_level[v] = len(trail_lim)
+        reason[v] = r
+        trail.append(v)
+
+    def propagate():
+        i = propagate_head[0]
+        while i < len(trail):
+            p = trail[i]
+            i += 1
+            # Falsified literal is -lit where lit has been assigned
+            assigned_val = assignment[p]
+            falsified_lit = -p if assigned_val else p
+            
+            f_idx = lit_to_idx(falsified_lit)
+            ws = watch[f_idx]
+            new_ws = []
+            
+            for j in range(len(ws)):
+                cr = ws[j]
+                c = all_clauses[cr]
+                
+                if len(c) == 1:
+                    new_ws.append(cr)
+                    if lit_val(c[0]) is False:
+                        propagate_head[0] = i
+                        watch[f_idx] = new_ws + ws[j+1:]
+                        return cr
+                    continue
+
+                # Make sure falsified_lit is at c[1]
+                if c[0] == falsified_lit:
+                    c[0], c[1] = c[1], c[0]
+                
+                # If first watch is satisfied, clause is satisfied
+                if lit_val(c[0]) is True:
+                    new_ws.append(cr)
+                    continue
+                
+                # Look for a new watch
+                found = False
+                for k in range(2, len(c)):
+                    if lit_val(c[k]) is not False:
+                        c[1], c[k] = c[k], c[1]
+                        watch[lit_to_idx(c[1])].append(cr)
+                        found = True
+                        break
+                
+                if found:
+                    continue
+                
+                # Clause is unit or conflict
+                new_ws.append(cr)
+                if lit_val(c[0]) is False:
+                    # Conflict
+                    propagate_head[0] = i
+                    watch[f_idx] = new_ws + ws[j+1:]
+                    return cr
+                else:
+                    # Unit
+                    assign_lit(c[0], cr)
+            
+            watch[f_idx] = new_ws
+        
+        propagate_head[0] = i
+        return None
+
+    def analyze_conflict(conflict_cr):
+        # 1-UIP conflict analysis
+        c = all_clauses[conflict_cr]
+        learned = []
+        seen = [False] * (n + 1)
+        counter = 0
+        p = None
+        
+        cr = conflict_cr
+        trail_idx = len(trail) - 1
+        
+        while True:
+            clause = all_clauses[cr] if cr is not None else [p]
+            for lit in clause:
+                v = abs(lit)
+                if not seen[v] and decision_level[v] > 0:
+                    seen[v] = True
+                    activity[v] += var_inc
+                    if decision_level[v] >= len(trail_lim):
+                        counter += 1
+                    else:
+                        learned.append(lit)
+            
+            while trail_idx >= 0:
+                p_cand = trail[trail_idx]
+                trail_idx -= 1
+                if seen[p_cand]:
+                    p = p_cand
+                    break
+            
+            counter -= 1
+            if counter <= 0:
+                break
+            cr = reason[p]
+
+        # The 1-UIP literal is -p if assigned True, else p
+        uip_lit = p if not assignment[p] else -p
+        learned.insert(0, uip_lit)
+        
+        # Calculate backtrack level
+        bt_level = 0
+        for lit in learned[1:]:
+            lvl = decision_level[abs(lit)]
+            if lvl > bt_level:
+                bt_level = lvl
+                
+        return learned, bt_level
+
+    def backtrack(to_level):
+        while len(trail_lim) > to_level:
+            limit = trail_lim.pop()
+            while len(trail) > limit:
+                v = trail.pop()
+                assignment[v] = None
+                reason[v] = None
+                decision_level[v] = 0
+        propagate_head[0] = len(trail)
+
+    def pick_branch_var():
+        best_v = None
+        best_act = -1
+        for v in range(1, n + 1):
+            if assignment[v] is None:
+                if activity[v] > best_act:
+                    best_act = activity[v]
+                    best_v = v
+        return best_v
+
+    propagate_head = [0]
+
+    # Initial unit propagation
+    for i, c in enumerate(all_clauses):
+        if len(c) == 1:
+            if lit_val(c[0]) is False:
+                print("NO")
+                return
+            elif lit_val(c[0]) is None:
+                assign_lit(c[0], None)
+    
+    if propagate() is not None:
+        print("NO")
+        return
+
+    # Main loop
+    conflicts_count = 0
+    restart_limit = 100
+
+    while True:
+        confl = propagate()
+        if confl is not None:
+            conflicts_count += 1
+            if len(trail_lim) == 0:
+                print("NO")
+                return
+            
+            learned, bt_level = analyze_conflict(confl)
+            backtrack(bt_level)
+            
+            # Decay activities
+            var_inc /= var_decay
+
+            c_idx = len(all_clauses)
+            all_clauses.append(learned)
+            
+            if len(learned) == 1:
+                watch[lit_to_idx(learned[0])].append(c_idx)
+                assign_lit(learned[0], None)
+            else:
+                watch[lit_to_idx(learned[0])].append(c_idx)
+                watch[lit_to_idx(learned[1])].append(c_idx)
+                assign_lit(learned[0], c_idx)
+                
+            if conflicts_count >= restart_limit:
+                backtrack(0)
+                restart_limit = int(restart_limit * 1.5)
+        else:
+            v = pick_branch_var()
+            if v is None:
+                # All assigned!
+                print("YES")
+                res = [1 if assignment[i] else 0 for i in range(1, n + 1)]
+                print(*(res))
+                return
+            
+            trail_lim.append(len(trail))
+            # Branch false or true (heuristic: say False first or True)
+            assign_lit(v, None)
+
+if __name__ == '__main__':
+    solve()

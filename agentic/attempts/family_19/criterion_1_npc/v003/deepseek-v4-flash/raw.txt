@@ -1,0 +1,146 @@
+<think>
+.
+
+Let's code that.
+</think>
+We can model this as a **multi-commodity flow** problem.  
+Since the graph is small (unknown but likely manageable), we can solve it with a **linear programming** approach using integer flows, or more practically, with a **max-flow per product** while respecting shared capacities.
+
+A clean way is to use **integer linear programming** via `scipy.optimize.milp` or `pulp`, but since we must write pure Python without external libraries, we can implement a **feasibility check using repeated max-flow** with capacity splitting.
+
+However, a simpler and correct approach for small inputs is to use **brute-force flow decomposition** with backtracking, but that can blow up.
+
+Given the constraints are not huge, we can use **network simplex** from `networkx` if allowed, but again, we should stick to standard library.
+
+We can solve it by **formulating as a max-flow with lower bounds** for each product separately, but that doesn't handle shared capacity directly.
+
+The most straightforward correct method:  
+- Build a **super-source** and **super-sink**.
+- For each product, we need to send `d_i` units from `s_i` to `t_i`.
+- We can treat this as a **multi-commodity flow** and solve via **linear programming** using `scipy` if available, but since we can't assume that, we can implement a **feasibility check using integer programming with branch and bound** — too heavy.
+
+Given typical contest constraints (small n, m, k), we can use **max-flow with capacity scaling** and **binary search on flow assignment**? Not trivial.
+
+A practical approach:  
+- Use **Dinic's algorithm** to find a feasible flow for each product sequentially, but that may fail because earlier products can block later ones.
+
+Better: Use **linear programming relaxation** and then round? Not safe.
+
+Given the problem is from a contest, the intended solution is likely **max-flow with lower bounds** for each product combined into a single network with **super source/sink** and **capacity splitting per product** — but that's not possible directly.
+
+Actually, we can model it as a **single-commodity flow** if we treat each product as a separate commodity but with **node splitting** and **capacity constraints on edges** — that's still multi-commodity.
+
+The only robust way in pure Python is to use **integer linear programming** via `pulp` or `ortools`, but those aren't standard.
+
+Given the time limit and memory, and that this is a known problem type, I'll implement a **feasibility check using max-flow with lower bounds** for each product individually, and then combine by **iteratively adjusting** — but that's not guaranteed.
+
+Given the constraints are small (likely n ≤ 10, m ≤ 20, k ≤ 5), we can use **brute-force enumeration of paths** for each product and check capacity feasibility via backtracking.
+
+I'll implement a **backtracking search** that assigns flows to paths for each product, respecting edge capacities.
+
+We'll:
+1. Enumerate all simple paths for each product from s to t.
+2. Use DFS to assign integer flows to these paths such that total per edge ≤ cap.
+3. If we find an assignment, output the per-edge flows.
+
+This is exponential but works for small inputs```python
+import sys
+from collections import defaultdict, deque
+
+def main():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    k = int(next(it))
+
+    products = []
+    for _ in range(k):
+        s = int(next(it)) - 1
+        t = int(next(it)) - 1
+        d = int(next(it))
+        products.append((s, t, d))
+
+    edges = []
+    adj = [[] for _ in range(n)]
+    for j in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        cap = int(next(it))
+        edges.append((u, v, cap))
+        adj[u].append((v, j))
+
+    # Enumerate all simple paths for each product
+    all_paths = []
+    for s, t, d in products:
+        paths = []
+        # DFS to find all simple paths from s to t
+        stack = [(s, [s], [])]  # node, visited nodes, edge indices used
+        while stack:
+            u, visited, edge_path = stack.pop()
+            if u == t:
+                paths.append(edge_path)
+                continue
+            for v, eidx in adj[u]:
+                if v not in visited:
+                    stack.append((v, visited + [v], edge_path + [eidx]))
+        all_paths.append(paths)
+
+    # Backtracking to assign flows
+    flow_on_path = [[] for _ in range(k)]
+    edge_usage = [0] * m
+
+    def dfs(prod_idx):
+        if prod_idx == k:
+            return True
+        s, t, d = products[prod_idx]
+        paths = all_paths[prod_idx]
+        # Try to assign d units among paths
+        # We'll do recursive assignment per unit (or per path with amount)
+        # Use recursion over paths with remaining demand
+        def assign_paths(path_idx, remaining, chosen):
+            if remaining == 0:
+                # Save chosen flows
+                flow_on_path[prod_idx] = chosen[:]
+                return True
+            if path_idx == len(paths):
+                return False
+            path = paths[path_idx]
+            # Try sending x units on this path
+            max_possible = min(remaining, min(edges[e][2] - edge_usage[e] for e in path))
+            for x in range(max_possible, -1, -1):
+                # Temporarily add
+                for e in path:
+                    edge_usage[e] += x
+                chosen.append(x)
+                if assign_paths(path_idx + 1, remaining - x, chosen):
+                    return True
+                chosen.pop()
+                for e in path:
+                    edge_usage[e] -= x
+            return False
+
+        if assign_paths(0, d, []):
+            return dfs(prod_idx + 1)
+        return False
+
+    if dfs(0):
+        # Build output
+        out = ["YES"]
+        for i in range(k):
+            # flow per edge for product i
+            edge_flow = [0] * m
+            for path_idx, amount in enumerate(flow_on_path[i]):
+                if amount > 0:
+                    for e in all_paths[i][path_idx]:
+                        edge_flow[e] += amount
+            out.append(" ".join(str(x) for x in edge_flow))
+        sys.stdout.write("\n".join(out))
+    else:
+        sys.stdout.write("NO")
+
+if __name__ == "__main__":
+    main()
+```

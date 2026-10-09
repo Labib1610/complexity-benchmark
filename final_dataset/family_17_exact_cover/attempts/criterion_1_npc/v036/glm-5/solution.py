@@ -1,0 +1,59 @@
+import sys
+from collections import defaultdict
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    q = int(next(it))
+    t = int(next(it))
+    n = 3 * q
+    
+    # Read all triples
+    triples = []
+    for _ in range(t):
+        a = int(next(it))
+        b = int(next(it))
+        c = int(next(it))
+        triples.append((a, b, c))
+    
+    # Build adjacency: for each pair, which third element completes a triple
+    adj = defaultdict(list)
+    for a, b, c in triples:
+        adj[(a, b)].append(c)
+        adj[(a, c)].append(b)
+        adj[(b, c)].append(a)
+    
+    used = [False] * (n + 1)
+    result = []
+    
+    # Greedy: find triples one by one
+    for _ in range(q):
+        found = False
+        # Try to find a valid triple starting from smallest unused element
+        for a in range(1, n + 1):
+            if used[a]:
+                continue
+            for b in range(a + 1, n + 1):
+                if used[b]:
+                    continue
+                for c in adj[(a, b)]:
+                    if c > b and not used[c]:
+                        result.append((a, b, c))
+                        used[a] = used[b] = used[c] = True
+                        found = True
+                        break
+                if found:
+                    break
+            if found:
+                break
+        if not found:
+            print("NO")
+            return
+    
+    print("YES")
+    for triple in result:
+        print(triple[0], triple[1], triple[2])
+
+solve()

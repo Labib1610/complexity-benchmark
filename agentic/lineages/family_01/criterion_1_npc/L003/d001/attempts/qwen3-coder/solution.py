@@ -1,62 +1,66 @@
+import sys
+from collections import defaultdict
+
+def is_perfect_square(n):
+    if n < 0:
+        return False
+    root = int(n**0.5)
+    return root * root == n
+
 def solve():
-    import sys
-    from collections import defaultdict
+    n, m = map(int, sys.stdin.readline().split())
     
-    input = sys.stdin.read
-    data = input().split()
+    if m == 0:
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
     
-    n = int(data[0])
-    m = int(data[1])
-    
-    # Build adjacency list for conflicts
-    conflicts = defaultdict(set)
-    idx = 2
+    # Build adjacency list
+    adj = defaultdict(list)
+    edges = []
     for _ in range(m):
-        u = int(data[idx]) - 1  # Convert to 0-indexed
-        v = int(data[idx+1]) - 1
-        conflicts[u].add(v)
-        conflicts[v].add(u)
-        idx += 2
+        u, v = map(int, sys.stdin.readline().split())
+        u -= 1  # Convert to 0-indexed
+        v -= 1
+        adj[u].append(v)
+        adj[v].append(u)
+        edges.append((u, v))
     
-    # Try all 3^n assignments, but prune using backtracking for efficiency
-    # We'll generate assignments in lexicographical order and return the first valid one
+    # Check if product of two codes is perfect square
+    # Codes are 1, 2, 3
+    # Products: 1*1=1, 1*2=2, 1*3=3, 2*2=4, 2*3=6, 3*3=9
+    # Perfect squares: 1, 4, 9
+    # So forbidden pairs: (1,1), (2,2), (3,3)
     
-    def is_valid_assignment(assignment):
-        # Check if current partial assignment is valid
-        for i in range(len(assignment)):
-            for j in conflicts[i]:
-                if j < len(assignment) and assignment[j] == assignment[i]:
+    forbidden = {(1,1), (2,2), (3,3)}
+    
+    # Try all possible assignments using backtracking
+    assignment = [0] * n  # 0 means unassigned
+    
+    def is_valid(node, color):
+        for neighbor in adj[node]:
+            if assignment[neighbor] != 0:  # If neighbor is assigned
+                if (color, assignment[neighbor]) in forbidden:
                     return False
         return True
     
-    # Backtracking search for the lexicographically smallest valid assignment
-    def backtrack(assignment):
-        if len(assignment) == n:
-            return assignment[:]
+    def backtrack(node):
+        if node == n:
+            return True
+            
+        for color in [1, 2, 3]:
+            if is_valid(node, color):
+                assignment[node] = color
+                if backtrack(node + 1):
+                    return True
+                assignment[node] = 0
         
-        current_worker = len(assignment)
-        for shift in [1, 2, 3]:
-            assignment.append(shift)
-            valid = True
-            # Check conflicts with already assigned workers
-            for neighbor in conflicts[current_worker]:
-                if neighbor < current_worker:
-                    if assignment[neighbor] == shift:
-                        valid = False
-                        break
-            if valid:
-                result = backtrack(assignment)
-                if result:
-                    return result
-            assignment.pop()
-        
-        return None
+        return False
     
-    result = backtrack([])
-    if result is None:
-        print("NO")
-    else:
+    if backtrack(0):
         print("YES")
-        print(' '.join(map(str, result)))
+        print(" ".join(map(str, assignment)))
+    else:
+        print("NO")
 
 solve()

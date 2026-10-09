@@ -1,0 +1,35 @@
+def solve():
+    n, b = map(int, input().split())
+    investments = []
+    for _ in range(n):
+        cost, value = map(int, input().split())
+        investments.append((cost, value))
+    
+    max_value = 0
+    best_subset = []
+    
+    for i in range(1 << n):
+        subset = []
+        total_cost = 0
+        total_value = 0
+        
+        for j in range(n):
+            if (i >> j) & 1:
+                subset.append(j + 1)
+                total_cost += investments[j][0]
+                total_value += investments[j][1]
+        
+        if total_cost <= b:
+            if total_value > max_value:
+                max_value = total_value
+                best_subset = subset
+            elif total_value == max_value and subset and (not best_subset or sum(investments[x-1][0] for x in subset) < sum(investments[x-1][0] for x in best_subset)):
+                best_subset = subset
+    
+    print(max_value)
+    if best_subset:
+        print(*best_subset)
+    else:
+        print()
+
+solve()

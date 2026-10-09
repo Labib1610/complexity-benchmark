@@ -1,0 +1,342 @@
+```python
+import sys
+from array import array
+from collections import deque
+
+sys.setrecursionlimit(1_000_000)
+
+data = sys.stdin.buffer.read()
+p = 0
+ln = len(data)
+
+def next_int():
+    global p
+    while p < ln and data[p] <= 32:
+        p += 1
+    x = 0
+    while p < ln and data[p] > 32:
+        x = x * 10 + data[p] - 48
+        p += 1
+    return x
+
+nL = next_int()
+nR = next_int()
+m = next_int()
+
+U = array('i')
+V = array('i')
+degL0 = [0] * nL
+degR0 = [0] * nR
+
+for _ in range(m):
+    u = next_int() - 1
+    v = next_int() - 1
+    U.append(u)
+    V.append(v)
+    degL0[u] += 1
+    degR0[v] += 1
+
+Delta = 0
+if degL0:
+    Delta = max(Delta, max(degL0))
+if degR0:
+    Delta = max(Delta, max(degR0))
+
+if m == 0:
+    sys.stdout.write("YES\n\n")
+    raise SystemExit
+
+N = nL + nR
+SUPER = N
+
+head = [-1] * (N + 1)
+degree = [0] * N
+
+adjL = [None] * nL
+adjR = [None] * nR
+
+matchL = [-1] * nL
+matchR = [-1] * nR
+edgeL = [-1] * nL
+edgeR = [-1] * nR
+
+chosen = bytearray(m)
+answer = [0] * m
+
+
+def split_even(edges):
+    touched = []
+
+    ends_a = array('i')
+    ends_b = array('i')
+    original = array('i')
+    nxt = array('i')
+
+    def add_edge(a, b, eid):
+        idx = len(original)
+        ends_a.append(a)
+        ends_b.append(b)
+        original.append(eid)
+
+        nxt.append(head[a])
+        head[a] = idx
+        nxt.append(head[b])
+        head[b] = idx
+
+    for eid in edges:
+        a = U[eid]
+        b = nL + V[eid]
+
+        if degree[a] == 0:
+            touched.append(a)
+        if degree[b] == 0:
+            touched.append(b)
+
+        degree[a] += 1
+        degree[b] += 1
+        add_edge(a, b, eid)
+
+    has_super = False
+    for x in touched:
+        if degree[x] & 1:
+            add_edge(x, SUPER, -1)
+            has_super = True
+
+    used = bytearray(len(original))
+    first = []
+    second = []
+
+    def consume_component(start):
+        stack_v = [start]
+        stack_e = []
+        tour = []
+
+        while stack_v:
+            x = stack_v[-1]
+            e = head[x]
+            while e != -1 and used[e]:
+                inc = e << 1
+                if ends_b[e] == x:
+                    inc += 1
+                e = nxt[inc]
+                head[x] = e
+
+            if e == -1:
+                stack_v.pop()
+                if stack_e:
+                    tour.append(stack_e.pop())
+            else:
+                used[e] = 1
+                a = ends_a[e]
+                b = ends_b[e]
+                y = b if x == a else a
+                stack_v.append(y)
+                stack_e.append(e)
+
+        for i, e in enumerate(tour):
+            eid = original[e]
+            if eid >= 0:
+                if i & 1:
+                    second.append(eid)
+                else:
+                    first.append(eid)
+
+    if has_super:
+        consume_component(SUPER)
+
+    for x in touched:
+        if head[x] != -1:
+            consume_component(x)
+
+    for x in touched:
+        degree[x] = 0
+        head[x] = -1
+    head[SUPER] = -1
+
+    return first, second
+
+
+def extract_covering_matching(edges, D):
+    touchedL = []
+    touchedR = []
+
+    for eid in edges:
+        u = U[eid]
+        v = V[eid]
+
+        if adjL[u] is None:
+            adjL[u] = []
+            touchedL.append(u)
+        if adjR[v] is None:
+            adjR[v] = []
+            touchedR.append(v)
+
+        adjL[u].append(eid)
+        adjR[v].append(eid)
+
+    for u in touchedL:
+        matchL[u] = -1
+        edgeL[u] = -1
+    for v in touchedR:
+        matchR[v] = -1
+        edgeR[v] = -1
+
+    requiredL = [u for u in touchedL if len(adjL[u]) == D]
+    requiredR = [v for v in touchedR if len(adjR[v]) == D]
+
+    def hopcroft_karp(roots, adjacency, side_is_left):
+        if not roots:
+            return
+
+        if side_is_left:
+            size_a = nL
+            match_a = matchL
+            match_b = matchR
+            edge_a = edgeL
+            edge_b = edgeR
+
+            def neighbor(eid):
+                return V[eid]
+        else:
+            size_a = nR
+            match_a = matchR
+            match_b = matchL
+            edge_a = edgeR
+            edge_b = edgeL
+
+            def neighbor(eid):
+                return U[eid]
+
+        INF = 10 ** 9
+        dist = [INF] * size_a
+        ptr = [0] * size_a
+
+        while True:
+            q = deque()
+            for a in roots:
+                if match_a[a] == -1:
+                    dist[a] = 0
+                    q.append(a)
+                else:
+                    dist[a] = INF
+
+            nil_dist = INF
+
+            while q:
+                a = q.popleft()
+                da = dist[a]
+                if da + 1 > nil_dist:
+                    continue
+
+                for eid in adjacency[a]:
+                    b = neighbor(eid)
+                    other = match_b[b]
+                    if other == -1:
+                        if da + 1 < nil_dist:
+                            nil_dist = da + 1
+                    elif dist[other] == INF:
+                        dist[other] = da + 1
+                        q.append(other)
+
+            if nil_dist == INF:
+                break
+
+            for a in roots:
+                ptr[a] = 0
+
+            def dfs(a):
+                lst = adjacency[a]
+                i = ptr[a]
+                while i < len(lst):
+                    eid = lst[i]
+                    ptr[a] = i + 1
+                    i += 1
+                    b = neighbor(eid)
+                    other = match_b[b]
+
+                    if other == -1:
+                        if dist[a] + 1 != nil_dist:
+                            continue
+                    elif dist[other] != dist[a] + 1 or not dfs(other):
+                        continue
+
+                    match_a[a] = b
+                    match_b[b] = a
+                    edge_a[a] = eid
+                    edge_b[b] = eid
+                    return True
+
+                dist[a] = INF
+                return False
+
+            augmented = False
+            for a in roots:
+                if match_a[a] == -1 and dfs(a):
+                    augmented = True
+
+            if not augmented:
+                break
+
+    hopcroft_karp(requiredL, adjL, True)
+    hopcroft_karp(requiredR, adjR, False)
+
+    matching = []
+    for u in touchedL:
+        if edgeL[u] != -1:
+            eid = edgeL[u]
+            if not chosen[eid]:
+                chosen[eid] = 1
+                matching.append(eid)
+
+    remaining = []
+    for eid in edges:
+        if not chosen[eid]:
+            remaining.append(eid)
+
+    for eid in matching:
+        chosen[eid] = 0
+
+    for u in touchedL:
+        adjL[u] = None
+        matchL[u] = -1
+        edgeL[u] = -1
+    for v in touchedR:
+        adjR[v] = None
+        matchR[v] = -1
+        edgeR[v] = -1
+
+    return matching, remaining
+
+
+stack = [(list(range(m)), Delta, 0)]
+
+while stack:
+    edges, D, offset = stack.pop()
+    if not edges:
+        continue
+
+    if D == 1:
+        color = offset + 1
+        for eid in edges:
+            answer[eid] = color
+        continue
+
+    if D & 1:
+        matching, remaining = extract_covering_matching(edges, D)
+        color = offset + D
+        for eid in matching:
+            answer[eid] = color
+        if remaining:
+            stack.append((remaining, D - 1, offset))
+    else:
+        first, second = split_even(edges)
+        half = D // 2
+        if second:
+            stack.append((second, half, offset + half))
+        if first:
+            stack.append((first, half, offset))
+
+sys.stdout.write("YES\n")
+sys.stdout.write(" ".join(map(str, answer)))
+sys.stdout.write("\n")
+```

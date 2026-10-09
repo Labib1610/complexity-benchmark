@@ -1,0 +1,198 @@
+import sys
+sys.setrecursionlimit(10000)
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [[] for _ in range(n + 1)]
+    edges = []
+    for i in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        edges.append((u, v))
+        adj[u].append((v, i))
+        adj[v].append((u, i))
+    
+    # Check degree constraint
+    for i in range(1, n + 1):
+        if len(adj[i]) != 3:
+            print("NO")
+            return
+    
+    # Find a cycle using DFS
+    visited = [False] * (n + 1)
+    parent = [(-1, -1)] * (n + 1)  # (parent_node, edge_index)
+    cycle_edges = set()
+    cycle_nodes = []
+    
+    stack = [(1, -1, -1)]  # (node, parent, edge_index)
+    
+    while stack:
+        u, p, ei = stack.pop()
+        if visited[u]:
+            if not cycle_edges and p != -1:
+                # Found cycle
+                # Backtrack from u and p to find common ancestor
+                path_u = []
+                path_p = []
+                node = u
+                while node != -1:
+                    path_u.append(node)
+                    node = parent[node][0]
+                node = p
+                while node != -1:
+                    path_p.append(node)
+                    node = parent[node][0]
+                # Find LCA
+                path_u.reverse()
+                path_p.reverse()
+                lca = -1
+                for j in range(min(len(path_u), len(path_p))):
+                    if path_u[j] == path_p[j]:
+                        lca = path_u[j]
+                    else:
+                        break
+                # Build cycle
+                cycle = []
+                node = u
+                while node != lca:
+                    cycle.append(node)
+                    node = parent[node][0]
+                cycle.append(lca)
+                temp = []
+                node = p
+                while node != lca:
+                    temp.append(node)
+                    node = parent[node][0]
+                cycle.extend(reversed(temp))
+                
+                cycle_nodes = cycle
+                # Add cycle edges
+                for j in range(len(cycle)):
+                    a = cycle[j]
+                    b = cycle[(j + 1) % len(cycle)]
+                    # Find edge index
+                    for v, idx in adj[a]:
+                        if v == b:
+                            cycle_edges.add(idx)
+                            break
+            continue
+        
+        visited[u] = True
+        parent[u] = (p, ei)
+        
+        for v, idx in adj[u]:
+            if not visited[v]:
+                stack.append((v, u, idx))
+            elif v != p and not cycle_edges:
+                # Found back edge, build cycle
+                path_u = []
+                path_v = []
+                node = u
+                while node != -1:
+                    path_u.append(node)
+                    node = parent[node][0]
+                node = v
+                while node != -1:
+                    path_v.append(node)
+                    node = parent[node][0]
+                path_u.reverse()
+                path_v.reverse()
+                lca = -1
+                for j in range(min(len(path_u), len(path_v))):
+                    if path_u[j] == path_v[j]:
+                        lca = path_u[j]
+                    else:
+                        break
+                cycle = []
+                node = u
+                while node != lca:
+                    cycle.append(node)
+                    node = parent[node][0]
+                cycle.append(lca)
+                temp = []
+                node = v
+                while node != lca:
+                    temp.append(node)
+                    node = parent[node][0]
+                cycle.extend(reversed(temp))
+                
+                cycle_nodes = cycle
+                for j in range(len(cycle)):
+                    a = cycle[j]
+                    b = cycle[(j + 1) % len(cycle)]
+                    for vv, idx in adj[a]:
+                        if vv == b:
+                            cycle_edges.add(idx)
+                            break
+                # Add the back edge
+                for vv, idx in adj[u]:
+                    if vv == v:
+                        cycle_edges.add(idx)
+                        break
+    
+    if not cycle_edges:
+        print("NO")
+        return
+    
+    # Assign colors to cycle edges
+    ans = [0] * m
+    cycle_list = list(cycle_edges)
+    for i, idx in enumerate(cycle_list):
+        ans[idx] = i % 3 + 1
+    
+    # BFS to assign remaining edges
+    processed = [False] * (n + 1)
+    for node in cycle_nodes:
+        processed[node] = True
+    
+    queue = list(cycle_nodes)
+    head = 0
+    while head < len(queue):
+        u = queue[head]
+        head += 1
+        
+        # Find used colors at u
+        used = set()
+        for v, idx in adj[u]:
+            if ans[idx] != 0:
+                used.add(ans[idx])
+        
+        # Assign colors to unassigned edges
+        for v, idx in adj[u]:
+            if ans[idx] == 0:
+                for c in range(1, 4):
+                    if c not in used:
+                        ans[idx] = c
+                        used.add(c)
+                        break
+        
+        # Process neighbors
+        for v, idx in adj[u]:
+            if not processed[v]:
+                processed[v] = True
+                queue.append(v)
+    
+    # Verify all edges are assigned
+    if any(c == 0 for c in ans):
+        print("NO")
+        return
+    
+    # Verify constraints
+    for u in range(1, n + 1):
+        colors = set()
+        for v, idx in adj[u]:
+            colors.add(ans[idx])
+        if len(colors) != 3:
+            print("NO")
+            return
+    
+    print("YES")
+    print(" ".join(map(str, ans)))
+
+solve()

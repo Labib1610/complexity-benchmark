@@ -1,0 +1,68 @@
+import sys
+from collections import defaultdict
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    index = 2
+    edges = []
+    adj = [set() for _ in range(n + 1)]
+    
+    for _ in range(m):
+        u = int(data[index])
+        v = int(data[index + 1])
+        index += 2
+        edges.append((u, v))
+        adj[u].add(v)
+        adj[v].add(u)
+    
+    # Compute degree of each node
+    deg = [0] * (n + 1)
+    for u in range(1, n + 1):
+        deg[u] = len(adj[u])
+    
+    # Create a set of edges for O(1) lookup
+    edge_set = set()
+    for u, v in edges:
+        if u > v:
+            u, v = v, u
+        edge_set.add((u, v))
+    
+    # Iterate through all possible triplets (a, b, c) with a < b < c
+    for a in range(1, n + 1):
+        for b in range(a + 1, n + 1):
+            for c in range(b + 1, n + 1):
+                # Check if {a,b}, {a,c}, {b,c} are all edges
+                ab = (a, b) if a < b else (b, a)
+                ac = (a, c) if a < c else (c, a)
+                bc = (b, c) if b < c else (c, b)
+                
+                if ab in edge_set and ac in edge_set and bc in edge_set:
+                    # It's a triangle. Check the condition.
+                    # L_a + L_b + L_c + (number of edges not involving a,b,c) == m + 3
+                    
+                    # Number of edges not involving a, b, c
+                    # Total edges = m
+                    # Edges involving at least one of a,b,c = 
+                    # (edges incident to a) + (edges incident to b) + (edges incident to c) 
+                    # - (edges between a and b, a and c, b and c) 
+                    # - (edges between a and others counted in b or c, etc.)
+                    
+                    # Simpler approach:
+                    # Count edges that do NOT involve a, b, or c.
+                    count_not_involved = 0
+                    for x, y in edges:
+                        if x not in (a, b, c) and y not in (a, b, c):
+                            count_not_involved += 1
+                    
+                    if deg[a] + deg[b] + deg[c] + count_not_involved == m + 3:
+                        print(a, b, c)
+                        return
+
+if __name__ == "__main__":
+    main()

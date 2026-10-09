@@ -5,43 +5,75 @@ def solve():
     input_data = sys.stdin.read().split()
     if not input_data:
         return
-    n = int(input_data[0])
-    m = int(input_data[1])
+    iterator = iter(input_data)
+    try:
+        n = int(next(iterator))
+        m = int(next(iterator))
+    except StopIteration:
+        return
+
     adj = [[] for _ in range(n + 1)]
-    idx = 2
     for _ in range(m):
-        u = int(input_data[idx]); v = int(input_data[idx+1])
-        idx += 2
+        u = int(next(iterator))
+        v = int(next(iterator))
         adj[u].append(v)
         adj[v].append(u)
-    
-    color = [0] * (n + 1)
+
+    # Values: 0 = unassigned, 1 = scaling factor 1, 2 = scaling factor 2
+    val = [0] * (n + 1)
     possible = True
-    
+
     for i in range(1, n + 1):
-        if color[i] == 0:
-            # BFS to assign colors, trying to make the starting node color 1
-            # which helps lexicographical minimality since we process in order.
-            color[i] = 1
+        if val[i] == 0:
+            # Start a BFS for this component
+            # We want the lexicographically smallest valid configuration.
+            # Since 1 < 2, we prefer assigning 1 to the smallest index.
+            # If we assign 1 to the root 'i', neighbors must be 2.
+            # If we assign 2 to the root 'i', neighbors must be 1.
+            # Assigning 1 to 'i' is lexicographically smaller than assigning 2.
+            # We must check if assigning 1 to 'i' is valid.
+            
+            # Check if any neighbor is already assigned 1
+            can_be_one = True
+            for neighbor in adj[i]:
+                if val[neighbor] == 1:
+                    can_be_one = False
+                    break
+            
+            start_val = 1
+            if not can_be_one:
+                start_val = 2
+            
             q = deque([i])
-            while q and possible:
+            val[i] = start_val
+            
+            while q:
                 u = q.popleft()
+                
+                # Determine required value for neighbors
+                # product must be 2.
+                # if u is 1, neighbor must be 2.
+                # if u is 2, neighbor must be 1.
+                req_n = 2 if val[u] == 1 else 1
+                
                 for v in adj[u]:
-                    if color[v] == 0:
-                        color[v] = 3 - color[u]
+                    if val[v] == 0:
+                        val[v] = req_n
                         q.append(v)
-                    elif color[v] == color[u]:
-                        possible = False
-                        break
+                    else:
+                        if val[v] != req_n:
+                            possible = False
+                            break
                 if not possible:
                     break
         if not possible:
             break
-    
+
     if not possible:
         print("NO")
     else:
         print("YES")
-        print(' '.join(str(color[i]) for i in range(1, n + 1)))
+        print(*(val[1:]))
 
-solve()
+if __name__ == '__main__':
+    solve()

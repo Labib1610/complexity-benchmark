@@ -1,0 +1,84 @@
+import sys
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    it = iter(data)
+
+    n = next(it)
+    m = next(it)
+    t = next(it)
+    terminals = [next(it) - 1 for _ in range(t)]
+
+    if t == 1:
+        print(0)
+        return
+
+    INF = 10**30
+    dist = [[INF] * n for _ in range(n)]
+    for i in range(n):
+        dist[i][i] = 0
+
+    for _ in range(m):
+        u = next(it) - 1
+        v = next(it) - 1
+        w = next(it)
+        if w < dist[u][v]:
+            dist[u][v] = w
+            dist[v][u] = w
+
+    vertices = range(n)
+
+    # All-pairs shortest paths.
+    for k in vertices:
+        dk = dist[k]
+        for i in vertices:
+            di = dist[i]
+            dik = di[k]
+            if dik == INF:
+                continue
+            for j in vertices:
+                nd = dik + dk[j]
+                if nd < di[j]:
+                    di[j] = nd
+
+    full = (1 << t) - 1
+    dp = [None] * (full + 1)
+
+    for mask in range(1, full + 1):
+        if mask & (mask - 1) == 0:
+            bit = mask.bit_length() - 1
+            dp[mask] = dist[terminals[bit]]
+            continue
+
+        merged = [INF] * n
+        lowbit = mask & -mask
+        sub = (mask - 1) & mask
+
+        while sub:
+            if sub & lowbit:
+                other = mask ^ sub
+                a = dp[sub]
+                b = dp[other]
+                for v in vertices:
+                    value = a[v] + b[v]
+                    if value < merged[v]:
+                        merged[v] = value
+            sub = (sub - 1) & mask
+
+        relaxed = [INF] * n
+        for u in vertices:
+            base = merged[u]
+            if base == INF:
+                continue
+            du = dist[u]
+            for v in vertices:
+                value = base + du[v]
+                if value < relaxed[v]:
+                    relaxed[v] = value
+
+        dp[mask] = relaxed
+
+    print(min(dp[full]))
+
+if __name__ == "__main__":
+    main()

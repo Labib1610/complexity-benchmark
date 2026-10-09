@@ -1,0 +1,98 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    k = int(next(it))
+    t = int(next(it))
+    
+    blocks = []
+    for _ in range(t):
+        x = int(next(it))
+        y = int(next(it))
+        z = int(next(it))
+        blocks.append((x, y, z))
+    
+    # We need to select exactly k blocks such that:
+    # - Each shape 1..k appears exactly once
+    # - Each color 1..k appears exactly once
+    # - Each material 1..k appears exactly once
+    
+    # This is a 3D matching problem. With k <= 22, we can use DP with bitmask.
+    # State: dp[mask_y][mask_z] = block index that covers shape (popcount of masks)
+    #        or -1 if not reachable, -2 if multiple ways (we just need one)
+    
+    # Actually, let's track: for each (mask_y, mask_z), which block was used
+    # We process shapes one by one from 1 to k
+    
+    # Group blocks by shape
+    blocks_by_shape = [[] for _ in range(k + 1)]
+    for idx, (x, y, z) in enumerate(blocks):
+        blocks_by_shape[x].append((idx, y, z))
+    
+    # Check if any shape has no blocks
+    for shape in range(1, k + 1):
+        if not blocks_by_shape[shape]:
+            print("NO")
+            return
+    
+    # DP: dp[mask_y][mask_z] = (prev_mask_y, prev_mask_z, block_idx) or None
+    # We'll use dictionaries for sparse representation
+    
+    full_mask = (1 << k) - 1
+    
+    # dp[mask_y][mask_z] = (prev_mask_y, prev_mask_z, block_idx)
+    from collections import defaultdict
+    
+    dp = [{} for _ in range(k + 1)]
+    dp[0][0] = None  # base case: no shapes processed, empty masks
+    
+    for shape in range(1, k + 1):
+        for prev_mask_y in dp[shape - 1]:
+            for prev_mask_z in dp[shape - 1]:
+                # Try adding each block of this shape
+                for block_idx, y, z in blocks_by_shape[shape]:
+                    bit_y = 1 << (y - 1)
+                    bit_z = 1 << (z - 1)
+                    if (prev_mask_y & bit_y) == 0 and (prev_mask_z & bit_z) == 0:
+                        new_mask_y = prev_mask_y | bit_y
+                        new_mask_z = prev_mask_z | bit_z
+                        if new_mask_z not in dp[shape].get(new_mask_y, {}) and new_mask_y not in dp[shape]:
+                            if new_mask_y not in dp[shape]:
+                                dp[shape][new_mask_y] = {}
+                            dp[shape][new_mask_y][new_mask_z] = (prev_mask_y, prev_mask_z, block_idx)
+    
+    # Check if we reached full masks
+    if full_mask not in dp[k]:
+        print("NO")
+        return
+    
+    # Find any valid final state
+    final_mask_y = full_mask
+    final_mask_z = None
+    for mz in dp[k][full_mask]:
+        final_mask_z = mz
+        break
+    
+    if final_mask_z is None:
+        print("NO")
+        return
+    
+    # Backtrack to find the blocks
+    result = []
+    mask_y = final_mask_y
+    mask_z = final_mask_z
+    
+    for shape in range(k, 0, -1):
+        prev_mask_y, prev_mask_z, block_idx = dp[shape][mask_y][mask_z]
+        result.append(blocks[block_idx])
+        mask_y = prev_mask_y
+        mask_z = prev_mask_z
+    
+    print("YES")
+    for x, y, z in result:
+        print(x, y, z)
+
+solve()

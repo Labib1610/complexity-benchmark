@@ -1,0 +1,155 @@
+```python
+import sys
+from collections import defaultdict
+
+def main():
+    import sys
+    sys.setrecursionlimit(1 << 25)
+    
+    n, m = map(int, sys.stdin.readline().split())
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(["0"] * n))
+        return
+
+    # For each switch, we'll have two nodes: x and ~x (x + n)
+    # We'll build a graph for 2-SAT
+    adj = defaultdict(list)
+    rev_adj = defaultdict(list)
+    
+    # Process each clause: NOT(a AND b) which is equivalent to (NOT a OR NOT b)
+    # This means if both switches are in their forbidden state, it's invalid
+    # So we add edges: if a is forbidden, then b must not be forbidden, and vice versa
+    
+    for _ in range(m):
+        a, b = map(int, sys.stdin.readline().split())
+        # a and b are literals. Positive means ON (1), negative means OFF (0)
+        # Forbidden state: a is opposite of its safe mode AND b is opposite of its safe mode
+        # That means:
+        # If a > 0, safe is ON (1), forbidden is OFF (0). So x_a = 0 (OFF) is forbidden
+        # If a < 0, safe is OFF (0), forbidden is ON (1). So x_a = 1 (ON) is forbidden
+        # Similarly for b
+        
+        # Let's define:
+        # For switch i: variable i-1 (0-indexed) 
+        # x[i] = 1 means switch i+1 is ON
+        # x[i] = 0 means switch i+1 is OFF
+        
+        # a is literal. If a = 3, switch 3 should be ON (1) is safe, OFF (0) is forbidden
+        # a = -3, switch 3 should be OFF (0) is safe, ON (1) is forbidden
+        
+        # Forbidden combination: switch |a| is in forbidden state AND switch |b| is in forbidden state
+        # We need to prevent this. So we add clause: NOT(forbidden_a AND forbidden_b)
+        # Which is: NOT(forbidden_a) OR NOT(forbidden_b)
+        
+        # Let's define nodes:
+        # For switch i (1-indexed), variable i-1 (0-indexed)
+        # Node i-1 represents x[i-1] = 1 (switch i ON)
+        # Node (i-1)+n represents x[i-1] = 0 (switch i OFF) - this is the negation
+        
+        # But in standard 2-SAT:
+        # Variables are 0 to n-1
+        # Node i (0 to n-1) represents variable i is True
+        # Node i+n represents variable i is False (~i)
+        
+        # Let's re-encode:
+        # switch id: 1 to n. Variable index: 0 to n-1
+        # For switch |a|, if a>0, safe=ON(1), forbidden=OFF(0). 
+        #   forbidden means x[|a|-1] = 0, which is node (|a|-1)+n
+        #   so NOT forbidden is x[|a|-1] = 1, which is node |a|-1
+        # if a<0, safe=OFF(0), forbidden=ON(1).
+        #   forbidden means x[|a|-1] = 1, which is node |a|-1
+        #   so NOT forbidden is x[|a|-1] = 0, which is node (|a|-1)+n
+        
+        # Clause: NOT(forbidden_a AND forbidden_b) = NOT(forbidden_a) OR NOT(forbidden_b)
+        # So we add edges:
+        # forbidden_a -> NOT(forbidden_b)
+        # forbidden_b -> NOT(forbidden_a)
+        
+        def get_node(lit):
+            # Returns (node_id, is_positive)
+            switch = abs(lit) - 1  # 0-indexed
+            if lit > 0:
+                # Safe is ON, Forbidden is OFF
+                forbidden_node = switch + n  # x[switch] = 0
+                safe_node = switch           # x[switch] = 1
+            else:
+                # Safe is OFF, Forbidden is ON
+                forbidden_node = switch      # x[switch] = 1
+                safe_node = switch + n       # x[switch] = 0
+            return forbidden_node, safe_node
+        
+        fa, sa = get_node(a)
+        fb, sb = get_node(b)
+        
+        # Add clause: NOT(fa AND fb) = NOT(fa) OR NOT(fb)
+        # In implication graph:
+        # fa -> NOT(fb)
+        # fb -> NOT(fa)
+        
+        adj[fa].append(sb)
+        adj[fb].append(sa)
+        rev_adj[sb].append(fa)
+        rev_adj[sa].append(fb)
+    
+    # Now we have a 2-SAT problem. We need to check if there's a valid assignment.
+    # We'll use Kosaraju's algorithm to find strongly connected components.
+    
+    # Nodes are 0 to 2*n - 1
+    # 0 to n-1: x_i = True
+    # n to 2*n-1: x_i = False
+    
+    visited = [False] * (2 * n)
+    order = []
+    
+    def dfs1(u):
+        visited[u] = True
+        for v in adj[u]:
+            if not visited[v]:
+                dfs1(v)
+        order.append(u)
+    
+    for i in range(2 * n):
+        if not visited[i]:
+            dfs1(i)
+    
+    # Second DFS on transpose graph
+    visited = [False] * (2 * n)
+    scc_id = [-1] * (2 * n)
+    scc_count = 0
+    
+    def dfs2(u):
+        visited[u] = True
+        scc_id[u] = scc_count
+        for v in rev_adj[u]:
+            if not visited[v]:
+                dfs2(v)
+    
+    while order:
+        u = order.pop()
+        if not visited[u]:
+            dfs2(u)
+            scc_count += 1
+    
+    # Check if for any variable i, both i and i+n are in the same SCC
+    for i in range(n):
+        if scc_id[i] == scc_id[i + n]:
+            print("NO")
+            return
+    
+    # A solution exists. Reconstruct it.
+    # In the toposort of SCCs, if scc_id[i] > scc_id[i+n], then x_i should be True
+    assignment = [0] * n
+    for i in range(n):
+        if scc_id[i] > scc_id[i + n]:
+            assignment[i] = 1
+        else:
+            assignment[i] = 0
+    
+    print("YES")
+    print(" ".join(map(str, assignment)))
+
+if __name__ == "__main__":
+    main()
+```

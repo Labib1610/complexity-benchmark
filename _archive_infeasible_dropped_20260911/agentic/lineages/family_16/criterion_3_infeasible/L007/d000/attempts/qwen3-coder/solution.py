@@ -1,0 +1,35 @@
+import sys
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    j = int(data[0])
+    T = int(data[1])
+    
+    p1_total = 0
+    p2_total = 0
+    
+    index = 2
+    for i in range(j):
+        p1 = int(data[index])
+        p2 = int(data[index+1])
+        index += 2
+        
+        # Check if this job alone exceeds T
+        if p1 + p2 > T:
+            print(f"JOB {i+1}")
+            return
+            
+        p1_total += p1
+        p2_total += p2
+    
+    # If no job alone exceeds T, check machine loads
+    if p1_total > T:
+        print("LOAD 1")
+    elif p2_total > T:
+        print("LOAD 2")
+
+if __name__ == "__main__":
+    main()

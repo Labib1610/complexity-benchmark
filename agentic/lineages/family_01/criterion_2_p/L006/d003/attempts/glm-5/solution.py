@@ -2,47 +2,54 @@ import sys
 from collections import deque
 
 def solve():
-    data = sys.stdin.buffer.read().split()
-    if not data:
+    input = sys.stdin.read().split()
+    if not input:
         return
-    it = iter(data)
+    it = iter(input)
     n = int(next(it))
     m = int(next(it))
     
-    head = [-1] * (n + 1)
-    to = [0] * (2 * m)
-    nxt = [0] * (2 * m)
-    for i in range(m):
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
         u = int(next(it))
         v = int(next(it))
-        to[2*i] = v
-        nxt[2*i] = head[u]
-        head[u] = 2*i
-        to[2*i+1] = u
-        nxt[2*i+1] = head[v]
-        head[v] = 2*i+1
+        adj[u].append(v)
+        adj[v].append(u)
     
-    color = [0] * (n + 1)
+    # State array: 0 = unvisited, 1 = state 1, 2 = state 2
+    state = [0] * (n + 1)
     
-    for start in range(1, n + 1):
-        if color[start] != 0:
-            continue
-        color[start] = 1
-        queue = deque([start])
-        while queue:
-            u = queue.popleft()
-            e = head[u]
-            while e != -1:
-                v = to[e]
-                if color[v] == 0:
-                    color[v] = 3 - color[u]
-                    queue.append(v)
-                elif color[v] == color[u]:
-                    print("NO")
-                    return
-                e = nxt[e]
+    for i in range(1, n + 1):
+        if state[i] == 0:
+            # BFS for this component
+            # Try to assign state 1 to i (lexicographically smallest choice)
+            queue = deque([i])
+            state[i] = 1
+            possible = True
+            
+            while queue:
+                u = queue.popleft()
+                su = state[u]
+                # The neighbor must have state 3 - su
+                sv = 3 - su
+                for v in adj[u]:
+                    if state[v] == 0:
+                        state[v] = sv
+                        queue.append(v)
+                    elif state[v] != sv:
+                        possible = False
+                        # We can break early, but need to drain queue or use a flag
+                        # Setting a flag and breaking inner loop
+                        break
+                if not possible:
+                    break
+            
+            if not possible:
+                print("NO")
+                return
     
     print("YES")
-    print(' '.join(str(color[i]) for i in range(1, n + 1)))
+    print(*(state[1:]))
 
-solve()
+if __name__ == "__main__":
+    solve()

@@ -1,0 +1,76 @@
+import sys
+from collections import deque
+
+def solve():
+    input_data = sys.stdin.buffer.read().split()
+    if not input_data:
+        return
+    q = int(input_data[0])
+    t = int(input_data[1])
+    
+    head = [-1] * (2 * q + 1)
+    to = [0] * t
+    nxt = [0] * t
+    edge_id = [0] * t
+    
+    for i in range(t):
+        a = int(input_data[2 + 2 * i])
+        b = int(input_data[3 + 2 * i])
+        to[i] = b
+        nxt[i] = head[a]
+        head[a] = i
+        edge_id[i] = i
+    
+    match_l = [0] * (q + 1)
+    match_r = [0] * (q + 1)
+    label = [0] * (q + 1)
+    parent = [0] * (q + 1)
+    
+    result = 0
+    
+    for u in range(1, q + 1):
+        if match_l[u] != 0:
+            continue
+        
+        queue = deque()
+        queue.append(u)
+        label[u] = u
+        parent[u] = 0
+        found = False
+        
+        while queue and not found:
+            x = queue.popleft()
+            e = head[x]
+            while e != -1:
+                y = to[e]
+                v = y - q
+                if label[v] == 0:
+                    label[v] = u
+                    parent[v] = x
+                    if match_r[v] == 0:
+                        while v != 0:
+                            pv = parent[v]
+                            pu = match_l[pv]
+                            match_l[pv] = v
+                            match_r[v] = pv
+                            v = pu
+                        found = True
+                        break
+                    else:
+                        w = match_r[v]
+                        label[w] = u
+                        queue.append(w)
+                e = nxt[e]
+        
+        if found:
+            result += 1
+    
+    if result == q:
+        out = ['YES']
+        for i in range(1, q + 1):
+            out.append(f'{i} {match_l[i] + q}')
+        sys.stdout.write('\n'.join(out) + '\n')
+    else:
+        sys.stdout.write('NO\n')
+
+solve()

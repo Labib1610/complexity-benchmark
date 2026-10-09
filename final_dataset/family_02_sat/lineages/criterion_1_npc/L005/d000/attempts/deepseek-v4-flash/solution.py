@@ -1,0 +1,112 @@
+import sys
+
+sys.setrecursionlimit(1000000)
+
+def solve():
+    input_data = sys.stdin.read().strip().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    clauses = []
+    for _ in range(m):
+        l1 = int(next(it))
+        l2 = int(next(it))
+        l3 = int(next(it))
+        clause = []
+        for lit in (l1, l2, l3):
+            var = abs(lit) - 1
+            val = 1 if lit > 0 else 0
+            clause.append((var, val))
+        clauses.append(clause)
+    
+    assignment = [-1] * n  # -1 unassigned, 0/1 assigned
+    
+    def propagate(clauses, assignment):
+        changed = True
+        while changed:
+            changed = False
+            # Unit propagation
+            for clause in clauses:
+                unassigned = []
+                satisfied = False
+                for var, val in clause:
+                    if assignment[var] == val:
+                        satisfied = True
+                        break
+                    if assignment[var] == -1:
+                        unassigned.append((var, val))
+                if satisfied:
+                    continue
+                if len(unassigned) == 0:
+                    return False
+                if len(unassigned) == 1:
+                    var, val = unassigned[0]
+                    if assignment[var] == -1:
+                        assignment[var] = val
+                        changed = True
+                    elif assignment[var] != val:
+                        return False
+            # Pure literal elimination
+            # Count occurrences of each literal
+            pos_count = [0]*n
+            neg_count = [0]*n
+            for clause in clauses:
+                satisfied = False
+                for var, val in clause:
+                    if assignment[var] == val:
+                        satisfied = True
+                        break
+                if satisfied:
+                    continue
+                for var, val in clause:
+                    if assignment[var] == -1:
+                        if val == 1:
+                            pos_count[var] += 1
+                        else:
+                            neg_count[var] += 1
+            for i in range(n):
+                if assignment[i] == -1:
+                    if pos_count[i] > 0 and neg_count[i] == 0:
+                        assignment[i] = 1
+                        changed = True
+                    elif neg_count[i] > 0 and pos_count[i] == 0:
+                        assignment[i] = 0
+                        changed = True
+        return True
+    
+    def backtrack(clauses, assignment):
+        # Propagate
+        if not propagate(clauses, assignment):
+            return False
+        # Find unassigned variable
+        for i in range(n):
+            if assignment[i] == -1:
+                # Try both values
+                for val in (0, 1):
+                    assignment[i] = val
+                    if backtrack(clauses, assignment):
+                        return True
+                    assignment[i] = -1
+                return False
+        # All assigned, check all clauses
+        for clause in clauses:
+            ok = False
+            for var, val in clause:
+                if assignment[var] == val:
+                    ok = True
+                    break
+            if not ok:
+                return False
+        return True
+    
+    if backtrack(clauses, assignment):
+        print("YES")
+        print(" ".join(str(assignment[i]) for i in range(n)))
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()

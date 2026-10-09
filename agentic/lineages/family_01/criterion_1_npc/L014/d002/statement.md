@@ -1,22 +1,23 @@
-# Problem A — Independent Audits
+# Problem A — Circuit Voltage Levels
 
-Time limit: 2 s   Memory limit: 256 MB
+Time limit: 2 s
+Memory limit: 256 MB
 
-You are coordinating the annual compliance review for $n$ corporate departments. Each department must be assigned to exactly one of three external auditing firms, which are identified by the integers 1, 2, and 3.
+You are configuring a custom integrated circuit consisting of $n$ logic components, numbered 1 through $n$. Each component must be supplied with a discrete operating voltage level of 1, 2, or 3.
 
-To prevent conflicts of interest, the review must account for internal dependencies. There are $m$ known joint ventures, each involving a specific pair of departments. If two departments engaged in a joint venture are reviewed by the identical auditing firm, their shared financials cannot be properly cross-examined. Therefore, for every joint venture, the two participating departments must be assigned to strictly different auditing firms.
+The circuit contains data links between certain pairs of components. For a data link to function correctly, there must be a non-zero potential difference between the two components it connects. Therefore, the two components sharing a link cannot be supplied with the identical voltage level. 
 
-Be aware that the test suite contains arbitrary, dense compliance networks, and the joint ventures may be presented in an adversarial sequence.
+Note that the test data includes configurations specifically structured such that evaluation approaches which process components in numerical order, or sort them solely by their number of connections, will explore too many invalid states.
 
-Determine if there is a valid firm assignment for all $n$ departments that satisfies these compliance rules.
+You are given the total number of components and the specific pairs that are connected by data links. Determine a valid voltage assignment for all $n$ components that ensures every data link is functional, or report that no such assignment exists.
 
 ## Input
-The first line contains two integers $n$ and $m$ — the number of departments and the number of joint ventures ($1 \le n \le 40$, $0 \le m \le n \cdot (n-1)/2$).
-Each of the next $m$ lines contains two integers $u$ and $v$ — a pair of departments involved in a joint venture. Departments are numbered 1 through $n$.
+The first line contains two integers $n$ and $m$ — the number of logic components and the number of data links ($1 \le n \le 40$, $0 \le m \le n \cdot (n-1)/2$).
+Each of the following $m$ lines contains two distinct integers $u$ and $w$ ($1 \le u, w \le n$, $u \neq w$), representing a pair of components connected by a data link. It is guaranteed that each unordered pair of components appears at most once in the input.
 
 ## Output
-If no valid assignment exists, print a single line `NO`.
-Otherwise print `YES` on the first line. On the second line print $n$ integers $f_1, f_2, \dots, f_n$ (each in $\{1, 2, 3\}$), where $f_i$ is the auditing firm assigned to department $i$. Among all valid assignments, output the one that is lexicographically smallest (compare $f_1$ first, then $f_2$, and so on).
+If no valid voltage assignment can be found, print a single line containing `NO`.
+Otherwise, print `YES` on the first line. On the second line, print $n$ integers $a_1, a_2, \dots, a_n$ (where each $a_i \in \{1, 2, 3\}$), representing the voltage level assigned to component $i$. Any valid assignment will be accepted.
 
 ## Example 1
 Input:

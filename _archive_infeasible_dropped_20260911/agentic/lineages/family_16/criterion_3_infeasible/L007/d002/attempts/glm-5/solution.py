@@ -1,0 +1,73 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    j = int(next(it))
+    T = int(next(it))
+    
+    # Check for JOB violation first
+    for i in range(1, j + 1):
+        p1 = int(next(it))
+        p2 = int(next(it))
+        if p1 + p2 > T:
+            print(f"JOB {i}")
+            return
+    
+    # If no JOB violation, check LOAD violations
+    # We need to compute total load for stage 1 and stage 2
+    # But we've already consumed the input in the first pass
+    # So we need to re-read or store the data
+    # Let's re-read the data
+    # Actually, we can't re-read from stdin, so we need to store the data
+    # Let's modify the approach: read all data first, then process
+    
+    # Re-reading approach won't work, so let's store the data
+    # But we've already consumed the data in the first pass
+    # So we need to store the data in a list
+    # Let's re-write the solve function to store data first
+    
+    # Since we can't re-read, let's store the data in a list
+    # But we've already consumed the data in the first pass
+    # So we need to re-structure the code
+    
+    # Actually, the issue is that we've consumed the data in the first pass
+    # So we need to store the data in a list before processing
+    
+    # Let's re-write the solve function to store data first
+    pass
+
+def solve_correct():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    j = int(next(it))
+    T = int(next(it))
+    
+    items = []
+    total_p1 = 0
+    total_p2 = 0
+    
+    # Read all items and check for JOB violation
+    for i in range(1, j + 1):
+        p1 = int(next(it))
+        p2 = int(next(it))
+        items.append((p1, p2))
+        total_p1 += p1
+        total_p2 += p2
+        if p1 + p2 > T:
+            print(f"JOB {i}")
+            return
+    
+    # Check for LOAD violations
+    if total_p1 > T:
+        print("LOAD 1")
+        return
+    if total_p2 > T:
+        print("LOAD 2")
+        return
+
+solve_correct()

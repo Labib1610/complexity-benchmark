@@ -1,0 +1,78 @@
+# Intercellular Nutrient Allocation
+
+Time limit: 2 s   Memory limit: 256 MB
+
+## Description
+
+A fungal organism consists of **n** microscopic vesicles. These vesicles are linked by **m** biological threads. The organism is fully contiguous, meaning it is possible to navigate between any two vesicles via some sequence of threads.
+
+Among all vesicles, **t** of them contain reproductive spores. In order for the organism to reproduce successfully, all spore-containing vesicles must be able to exchange nutrients with one another. Nutrients can flow freely through any thread that has been metabolically activated. Activating the thread between vesicle **u** and vesicle **v** requires a specific metabolic cost **w**.
+
+Determine the minimum total metabolic cost required to activate a subset of threads such that every spore-containing vesicle can exchange nutrients with every other spore-containing vesicle (possibly passing through other intermediate vesicles).
+
+## Input
+
+The first line contains three integers **n**, **m**, and **t**. The physical limits of the petri dish restrict the organism to at most 200000 vesicles, so **n** is between 1 and 200000. The number of spore-bearing vesicles **t** is at least 1 and at most **n**. The structural integrity dictates that the number of threads **m** is always exactly one less than the number of vesicles (**m** = **n** − 1).
+
+The second line contains **t** distinct integers: the identifiers of the vesicles containing reproductive spores.
+
+Each of the next **m** lines contains three integers **u**, **v**, and **w** (1 ≤ **u**, **v** ≤ **n**, **u** ≠ **v**), representing a thread linking vesicle **u** and vesicle **v**. The metabolic cost **w** is at least 1 and is bounded by a strict biological cap of 1000000. The threads form the fully contiguous structure described above.
+
+## Output
+
+Print a single integer: the minimum total metabolic cost to link all spore-containing vesicles.
+
+## Examples
+
+### Example 1
+
+**Input**
+```
+4 3 2
+1 4
+1 2 5
+2 3 1
+3 4 2
+```
+
+**Output**
+```
+8
+```
+
+### Example 2
+
+**Input**
+```
+5 4 1
+3
+1 2 4
+2 3 6
+3 4 2
+4 5 9
+```
+
+**Output**
+```
+0
+```
+
+### Example 3
+
+**Input**
+```
+3 2 3
+1 2 3
+1 2 4
+2 3 5
+```
+
+**Output**
+```
+9
+```
+
+## Note
+
+In Example 1, the spore-containing vesicles 1 and 4 can only exchange nutrients via vesicles 2 and 3, so all three threads (costs 5, 1, and 2) must be activated, totaling 8.
+In Example 2, there is only one spore-containing vesicle, so no threads need to be activated.

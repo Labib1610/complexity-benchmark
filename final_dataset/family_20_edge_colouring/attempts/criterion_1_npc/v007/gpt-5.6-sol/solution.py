@@ -1,0 +1,215 @@
+import sys
+from collections import deque
+from itertools import permutations
+
+sys.setrecursionlimit(1000000)
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+
+    n, m = data[0], data[1]
+    edges = []
+    incident = [[] for _ in range(n)]
+    pos = 2
+
+    for eid in range(m):
+        u = data[pos] - 1
+        v = data[pos + 1] - 1
+        pos += 2
+        edges.append((u, v))
+        incident[u].append(eid)
+        incident[v].append(eid)
+
+    if any(len(incident[v]) != 3 for v in range(n)):
+        print("NO")
+        return
+
+    # Find connected components and bridges.
+    tin = [-1] * n
+    low = [0] * n
+    timer = 0
+    has_bridge = False
+    components = []
+
+    def dfs(v, parent_edge, vertices, component_edges):
+        nonlocal timer, has_bridge
+        tin[v] = low[v] = timer
+        timer += 1
+        vertices.append(v)
+
+        for eid in incident[v]:
+            component_edges.add(eid)
+            a, b = edges[eid]
+            to = b if a == v else a
+            if eid == parent_edge:
+                continue
+            if tin[to] == -1:
+                dfs(to, eid, vertices, component_edges)
+                low[v] = min(low[v], low[to])
+                if low[to] > tin[v]:
+                    has_bridge = True
+            else:
+                low[v] = min(low[v], tin[to])
+
+    for start in range(n):
+        if tin[start] == -1:
+            vertices = []
+            component_edges = set()
+            dfs(start, -1, vertices, component_edges)
+            components.append((vertices, list(component_edges)))
+
+    if has_bridge:
+        print("NO")
+        return
+
+    # GAC transition table for a three-variable all-different constraint.
+    colors = (1, 2, 4)
+    perms = list(permutations(colors))
+    support = [None] * 512
+
+    for a in range(1, 8):
+        for b in range(1, 8):
+            for c in range(1, 8):
+                sa = sb = sc = 0
+                for x, y, z in perms:
+                    if (a & x) and (b & y) and (c & z):
+                        sa |= x
+                        sb |= y
+                        sc |= z
+                if sa:
+                    support[(a << 6) | (b << 3) | c] = (sa, sb, sc)
+
+    domains = [7] * m
+    trail = []
+    in_queue = [False] * n
+
+    def rollback(checkpoint):
+        while len(trail) > checkpoint:
+            eid, old_domain = trail.pop()
+            domains[eid] = old_domain
+
+    def propagate(initial_vertices):
+        queue = deque()
+        for v in initial_vertices:
+            if not in_queue[v]:
+                in_queue[v] = True
+                queue.append(v)
+
+        while queue:
+            v = queue.popleft()
+            in_queue[v] = False
+
+            e0, e1, e2 = incident[v]
+            d0, d1, d2 = domains[e0], domains[e1], domains[e2]
+            revised = support[(d0 << 6) | (d1 << 3) | d2]
+
+            if revised is None:
+                while queue:
+                    in_queue[queue.popleft()] = False
+                return False
+
+            for eid, new_domain in zip((e0, e1, e2), revised):
+                if new_domain != domains[eid]:
+                    trail.append((eid, domains[eid]))
+                    domains[eid] = new_domain
+                    if new_domain == 0:
+                        while queue:
+                            in_queue[queue.popleft()] = False
+                        return False
+
+                    u, w = edges[eid]
+                    if not in_queue[u]:
+                        in_queue[u] = True
+                        queue.append(u)
+                    if not in_queue[w]:
+                        in_queue[w] = True
+                        queue.append(w)
+
+        return True
+
+    def solve_component(component_edges):
+        def search():
+            chosen = -1
+            best_size = 4
+            best_score = -1
+
+            for eid in component_edges:
+                d = domains[eid]
+                size = d.bit_count()
+                if size <= 1:
+                    continue
+
+                u, v = edges[eid]
+                score = 0
+                for x in incident[u]:
+                    score += 3 - domains[x].bit_count()
+                for x in incident[v]:
+                    score += 3 - domains[x].bit_count()
+
+                if size < best_size or (size == best_size and score > best_score):
+                    best_size = size
+                    best_score = score
+                    chosen = eid
+
+            if chosen == -1:
+                return True
+
+            possible = domains[chosen]
+            u, v = edges[chosen]
+
+            for color in colors:
+                if not (possible & color):
+                    continue
+
+                checkpoint = len(trail)
+                trail.append((chosen, domains[chosen]))
+                domains[chosen] = color
+
+                if propagate((u, v)) and search():
+                    return True
+
+                rollback(checkpoint)
+
+            return False
+
+        return search()
+
+    for vertices, component_edges in components:
+        checkpoint = len(trail)
+
+        # Remove the six global color permutations for this component.
+        root = vertices[0]
+        root_edges = incident[root]
+        initial_vertices = []
+
+        valid = True
+        for eid, color in zip(root_edges, colors):
+            if not (domains[eid] & color):
+                valid = False
+                break
+            if domains[eid] != color:
+                trail.append((eid, domains[eid]))
+                domains[eid] = color
+                u, v = edges[eid]
+                initial_vertices.append(u)
+                initial_vertices.append(v)
+
+        if not valid or not propagate(initial_vertices) or not solve_component(component_edges):
+            rollback(checkpoint)
+            print("NO")
+            return
+
+    answer = []
+    for d in domains:
+        if d == 0 or (d & (d - 1)):
+            print("NO")
+            return
+        answer.append(d.bit_length())
+
+    print("YES")
+    print(*answer)
+
+if __name__ == "__main__":
+    main()

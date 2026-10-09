@@ -1,0 +1,388 @@
+import sys
+from collections import deque
+
+sys.setrecursionlimit(1_000_000)
+
+data = list(map(int, sys.stdin.buffer.read().split()))
+if not data:
+    raise SystemExit
+
+nL, nR, m = data[0], data[1], data[2]
+U = [0] * m
+V = [0] * m
+
+deg_initial_l = [0] * nL
+deg_initial_r = [0] * nR
+
+p = 3
+for i in range(m):
+    u = data[p] - 1
+    v = data[p + 1] - 1
+    p += 2
+    U[i] = u
+    V[i] = v
+    deg_initial_l[u] += 1
+    deg_initial_r[v] += 1
+
+if m == 0:
+    sys.stdout.write("YES\n\n")
+    raise SystemExit
+
+Delta = max(max(deg_initial_l), max(deg_initial_r))
+colors = [0] * m
+
+adj_l = [None] * nL
+adj_r = [None] * nR
+inc = [None] * (nL + nR)
+
+deg_l = [0] * nL
+deg_r = [0] * nR
+match_l = [-1] * nL
+match_r = [-1] * nR
+dist = [0] * nL
+ptr = [0] * nL
+
+used_real = [0] * m
+used_token = 0
+
+
+def matching_covering_max_vertices(edge_ids, k):
+    touched_l = []
+    touched_r = []
+
+    for eid in edge_ids:
+        u = U[eid]
+        v = V[eid]
+        if deg_l[u] == 0:
+            touched_l.append(u)
+            adj_l[u] = []
+            match_l[u] = -1
+        if deg_r[v] == 0:
+            touched_r.append(v)
+            adj_r[v] = []
+            match_r[v] = -1
+        deg_l[u] += 1
+        deg_r[v] += 1
+        adj_l[u].append(eid)
+        adj_r[v].append(eid)
+
+    target_l = [u for u in touched_l if deg_l[u] == k]
+    target_r_set = {v for v in touched_r if deg_r[v] == k}
+
+    active = target_l
+
+    def bfs():
+        q = deque()
+        found = False
+        inf = 10 ** 9
+        for u in active:
+            if match_l[u] == -1:
+                dist[u] = 0
+                q.append(u)
+            else:
+                dist[u] = inf
+
+        while q:
+            u = q.popleft()
+            nd = dist[u] + 1
+            for eid in adj_l[u]:
+                v = V[eid]
+                me = match_r[v]
+                if me == -1:
+                    found = True
+                else:
+                    u2 = U[me]
+                    if dist[u2] == inf:
+                        dist[u2] = nd
+                        q.append(u2)
+        return found
+
+    def dfs(u):
+        a = adj_l[u]
+        while ptr[u] < len(a):
+            eid = a[ptr[u]]
+            ptr[u] += 1
+            v = V[eid]
+            me = match_r[v]
+            if me == -1:
+                match_l[u] = eid
+                match_r[v] = eid
+                return True
+            u2 = U[me]
+            if dist[u2] == dist[u] + 1 and dfs(u2):
+                match_l[u] = eid
+                match_r[v] = eid
+                return True
+        dist[u] = 10 ** 9
+        return False
+
+    while bfs():
+        for u in active:
+            ptr[u] = 0
+        for u in active:
+            if match_l[u] == -1:
+                dfs(u)
+
+    # Extend the matching so every maximum-degree right vertex is covered,
+    # while preserving coverage of all maximum-degree left vertices.
+    for root in list(target_r_set):
+        if match_r[root] != -1:
+            continue
+
+        q = deque([root])
+        seen_r = {root}
+        seen_l = set()
+        parent_l_r = {}
+        parent_l_edge = {}
+        parent_r_l = {}
+
+        terminal_l = -1
+        terminal_r = -1
+
+        while q and terminal_l == -1 and terminal_r == -1:
+            r = q.popleft()
+            matched_at_r = match_r[r]
+
+            for eid in adj_r[r]:
+                if eid == matched_at_r:
+                    continue
+                u = U[eid]
+                if u in seen_l:
+                    continue
+
+                seen_l.add(u)
+                parent_l_r[u] = r
+                parent_l_edge[u] = eid
+
+                me = match_l[u]
+                if me == -1:
+                    terminal_l = u
+                    break
+
+                r2 = V[me]
+                parent_r_l[r2] = u
+                if r2 not in target_r_set:
+                    terminal_r = r2
+                    break
+                if r2 not in seen_r:
+                    seen_r.add(r2)
+                    q.append(r2)
+
+        if terminal_l != -1:
+            u = terminal_l
+            while True:
+                r = parent_l_r[u]
+                new_eid = parent_l_edge[u]
+                old_eid = match_l[u]
+                if old_eid != -1:
+                    match_r[V[old_eid]] = -1
+                match_l[u] = new_eid
+                match_r[r] = new_eid
+                if r == root:
+                    break
+                u = parent_r_l[r]
+        else:
+            r_out = terminal_r
+            match_r[r_out] = -1
+            u = parent_r_l[r_out]
+            while True:
+                r = parent_l_r[u]
+                new_eid = parent_l_edge[u]
+                match_l[u] = new_eid
+                match_r[r] = new_eid
+                if r == root:
+                    break
+                u = parent_r_l[r]
+
+    selected = set()
+    for u in touched_l:
+        if match_l[u] != -1:
+            selected.add(match_l[u])
+
+    for u in touched_l:
+        deg_l[u] = 0
+        adj_l[u] = None
+        match_l[u] = -1
+    for v in touched_r:
+        deg_r[v] = 0
+        adj_r[v] = None
+        match_r[v] = -1
+
+    return selected
+
+
+def balanced_split(edge_ids):
+    global used_token
+    used_token += 1
+    token = used_token
+
+    touched = []
+    odd_vertices = []
+
+    for eid in edge_ids:
+        a = U[eid]
+        b = nL + V[eid]
+
+        if inc[a] is None:
+            inc[a] = []
+            touched.append(a)
+        if inc[b] is None:
+            inc[b] = []
+            touched.append(b)
+
+        inc[a].append(eid)
+        inc[b].append(eid)
+
+    for x in touched:
+        if len(inc[x]) & 1:
+            odd_vertices.append(x)
+
+    syn_count = len(odd_vertices)
+    syn_used = [False] * syn_count
+    dummy_adj = list(range(syn_count))
+    dummy = nL + nR
+
+    for j, x in enumerate(odd_vertices):
+        inc[x].append(m + j)
+
+    part_a = []
+    part_b = []
+
+    def take_incident(x):
+        if x == dummy:
+            while dummy_adj:
+                j = dummy_adj.pop()
+                if not syn_used[j]:
+                    return m + j
+            return -1
+
+        lst = inc[x]
+        while lst:
+            eid = lst.pop()
+            if eid < m:
+                if used_real[eid] != token:
+                    return eid
+            else:
+                j = eid - m
+                if not syn_used[j]:
+                    return eid
+        return -1
+
+    def mark_and_other(eid, x):
+        if eid < m:
+            used_real[eid] = token
+            a = U[eid]
+            b = nL + V[eid]
+            return b if x == a else a
+        j = eid - m
+        syn_used[j] = True
+        y = odd_vertices[j]
+        return y if x == dummy else dummy
+
+    def euler(start):
+        stack_v = [start]
+        stack_e = []
+        circuit = []
+
+        while stack_v:
+            x = stack_v[-1]
+            eid = take_incident(x)
+            if eid == -1:
+                stack_v.pop()
+                if stack_e:
+                    circuit.append(stack_e.pop())
+            else:
+                y = mark_and_other(eid, x)
+                stack_v.append(y)
+                stack_e.append(eid)
+
+        parity = 0
+        for eid in circuit:
+            if eid < m:
+                if parity == 0:
+                    part_a.append(eid)
+                else:
+                    part_b.append(eid)
+            parity ^= 1
+
+    if syn_count:
+        euler(dummy)
+
+    for x in touched:
+        while True:
+            eid = take_incident(x)
+            if eid == -1:
+                break
+            # Put the edge back logically by unmarking nothing; start a tour
+            # manually with this edge.
+            if eid < m:
+                y = mark_and_other(eid, x)
+            else:
+                y = mark_and_other(eid, x)
+
+            stack_v = [x, y]
+            stack_e = [eid]
+            circuit = []
+
+            while stack_v:
+                z = stack_v[-1]
+                ne = take_incident(z)
+                if ne == -1:
+                    stack_v.pop()
+                    if stack_e:
+                        circuit.append(stack_e.pop())
+                else:
+                    w = mark_and_other(ne, z)
+                    stack_v.append(w)
+                    stack_e.append(ne)
+
+            parity = 0
+            for ce in circuit:
+                if ce < m:
+                    if parity == 0:
+                        part_a.append(ce)
+                    else:
+                        part_b.append(ce)
+                parity ^= 1
+
+    for x in touched:
+        inc[x] = None
+
+    return part_a, part_b
+
+
+stack = [(list(range(m)), Delta, 1)]
+
+while stack:
+    edge_ids, k, offset = stack.pop()
+
+    if not edge_ids:
+        continue
+
+    if k == 1:
+        for eid in edge_ids:
+            colors[eid] = offset
+        continue
+
+    if k & 1:
+        selected = matching_covering_max_vertices(edge_ids, k)
+        remaining = []
+        for eid in edge_ids:
+            if eid in selected:
+                colors[eid] = offset
+            else:
+                remaining.append(eid)
+
+        h = (k - 1) // 2
+        a, b = balanced_split(remaining)
+        stack.append((b, h, offset + 1 + h))
+        stack.append((a, h, offset + 1))
+    else:
+        h = k // 2
+        a, b = balanced_split(edge_ids)
+        stack.append((b, h, offset + h))
+        stack.append((a, h, offset))
+
+sys.stdout.write("YES\n")
+sys.stdout.write(" ".join(map(str, colors)))
+sys.stdout.write("\n")

@@ -1,31 +1,28 @@
-# Problem A — Security Clearance Resolution
+# Problem A — Thermal Resonance Tuning
 
 Time limit: 2 s   Memory limit: 256 MB
 
-A secure facility is configuring the access levels for a network of $n$ interdependent modules. Each module must receive exactly one access level from the set $\{1, 2, 3\}$.
+A reactor core contains $n$ thermal modules. To maintain stability, each module must be assigned a resonance state $s_i \in \{1, 2, 3\}$.
 
-To prevent critical vulnerabilities, the facility evaluates the entire network's configuration using an energy minimization model based on $m$ separation protocols. Each protocol specifies a pair of interacting modules. 
+The diagnostic system has identified $m$ critical interactions between specific pairs of modules. The stability of the core is determined by its total system energy $W$, which consists solely of coupling energies between interacting modules.
 
-When a module $u$ is assigned an access level $c_u \in \{1, 2, 3\}$, it generates a 3-dimensional polarization vector $\mathbf{v}_u = (v_{u,1}, v_{u,2}, v_{u,3})$. The $k$-th component of this vector (for $k \in \{1, 2, 3\}$) is defined as:
-- $v_{u,k} = 2$ if $k = c_u$
-- $v_{u,k} = -1$ if $k \neq c_u$
+For each critical interaction between module $u$ and module $v$, their coupling energy is given by the following resonance formula:
+$C_{u,v} = s_u^5 + s_v^5 - 3 s_u^4 s_v - 3 s_u s_v^4 + 2 s_u^3 s_v^2 + 2 s_u^2 s_v^3 - 5 s_u^3 - 5 s_v^3 + 5 s_u^2 s_v + 5 s_u s_v^2 + 4 s_u + 4 s_v$
 
-For any two modules $u$ and $v$ linked by a separation protocol, their pairwise interference energy $\Delta E(u, v)$ is calculated as the standard dot product of their polarization vectors:
-$$ \Delta E(u, v) = \mathbf{v}_u \cdot \mathbf{v}_v $$
+The total system energy $W$ is the sum of all coupling energies for the critical interactions:
+$W = \sum_{j=1}^m C_{u_j, v_j}$
 
-The total interference energy of the network is defined as the sum of $\Delta E(u, v)$ across all $m$ separation protocols. The network is deemed completely stable if and only if its total interference energy is exactly $-3m$.
+To prevent core failure, the configuration must achieve a state of perfect resonance, which requires the total system energy to be exactly $0$. (That is, $W = 0$).
 
-The test suite contains maximum-size adversarial instances. Naive generation of all assignments will result in an astronomical number of dead ends and will exceed the time limit before a stable state is found or proven impossible.
-
-Your task is to determine if there exists a complete access assignment that makes the network completely stable. If at least one valid assignment exists, you must identify the one that is lexicographically smallest.
+Your task is to determine whether there exists a valid state assignment for all modules $1 \dots n$ such that the total system energy is exactly $0$. If such an assignment exists, you must provide one.
 
 ## Input
-The first line of the input provides two integers $n$ and $m$ ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$). These represent the total number of modules and the number of separation protocols, respectively.
-The following $m$ lines each contain two integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), indicating that module $u$ and module $v$ are linked by a separation protocol.
+The first line contains two integers $n$ and $m$ — the number of thermal modules and the number of critical interactions ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
+Each of the following $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), indicating a critical interaction between module $u$ and module $v$. Each interaction is listed at most once.
 
 ## Output
-If no completely stable assignment can be found, print `NO` on a single line.
-If a stable assignment is possible, print `YES` on the first line. On the second line, print $n$ integers $c_1, c_2, \dots, c_n$ (where each $c_i \in \{1, 2, 3\}$) representing the access level assigned to each respective module. Among all valid stable configurations, the sequence of access levels you output must be the lexicographically smallest (i.e., comparing the access level of module 1 first, then module 2, and so forth).
+If it is impossible to calibrate the modules to the required energy state, output a single line containing `NO`.
+Otherwise, output `YES` on the first line. On the second line, output $n$ integers $s_1, s_2, \dots, s_n$ (where each $s_i \in \{1, 2, 3\}$), with $s_i$ representing the resonance state assigned to module $i$. Any valid assignment is accepted.
 
 ## Example 1
 Input:
@@ -42,6 +39,15 @@ Output:
 YES
 1 2 3 3
 ```
+*Explanation for Example 1:*
+Assigning states 1, 2, 3, 3 yields the following coupling energies:
+- Interaction (1, 2) with states 1 and 2: $C_{1,2} = 1 + 32 - 6 - 48 + 8 + 16 - 5 - 40 + 10 + 20 + 4 + 8 = 0$.
+- Interaction (1, 3) with states 1 and 3: $C_{1,3} = 1 + 243 - 9 - 243 + 18 + 54 - 5 - 135 + 15 + 45 + 4 + 12 = 0$.
+- Interaction (2, 3) with states 2 and 3: $C_{2,3} = 32 + 243 - 144 - 486 + 144 + 216 - 40 - 135 + 60 + 90 + 8 + 12 = 0$.
+- Interaction (1, 4) with states 1 and 3: $C_{1,4} = 0$.
+- Interaction (2, 4) with states 2 and 3: $C_{2,4} = 0$.
+
+The total system energy $W$ is $0 + 0 + 0 + 0 + 0 = 0$. The configuration achieves the target energy, so it is stable.
 
 ## Example 2
 Input:

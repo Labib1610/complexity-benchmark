@@ -1,0 +1,66 @@
+import sys
+from collections import deque, defaultdict
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    M = int(next(it))
+    T = int(next(it))
+    m = int(next(it))
+
+    adj = [[] for _ in range(n)]
+    indeg = [0]*n
+    for _ in range(m):
+        a = int(next(it))-1
+        b = int(next(it))-1
+        adj[a].append(b)
+        indeg[b] += 1
+
+    # topological order
+    q = deque([i for i in range(n) if indeg[i]==0])
+    topo = []
+    while q:
+        v = q.popleft()
+        topo.append(v)
+        for to in adj[v]:
+            indeg[to] -= 1
+            if indeg[to]==0:
+                q.append(to)
+    if len(topo)!=n:
+        print("NO")
+        return
+
+    # assignment
+    cap = [0]*(T+1)          # 1-indexed capacities used
+    level = [0]*n            # assigned serving number
+    pred_max = [0]*n         # max level among processed predecessors
+
+    # we need reverse adjacency to compute pred_max quickly
+    rev = [[] for _ in range(n)]
+    for u in range(n):
+        for v in adj[u]:
+            rev[v].append(u)
+
+    for v in topo:
+        # compute minimal feasible level
+        min_lvl = 1
+        if rev[v]:
+            min_lvl = max(level[p] for p in rev[v]) + 1
+        # find first level >= min_lvl with free capacity
+        l = min_lvl
+        while l <= T and cap[l] >= M:
+            l += 1
+        if l > T:
+            print("NO")
+            return
+        level[v] = l
+        cap[l] += 1
+
+    print("YES")
+    print(' '.join(str(level[i]) for i in range(n)))
+
+if __name__ == "__main__":
+    solve()

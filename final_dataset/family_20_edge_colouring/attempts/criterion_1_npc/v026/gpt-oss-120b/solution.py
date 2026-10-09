@@ -1,0 +1,158 @@
+import sys
+sys.setrecursionlimit(10000)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it)); m = int(next(it))
+    edges = []
+    g = [[] for _ in range(n)]
+    for idx in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        edges.append((u, v))
+        g[u].append((v, idx))
+        g[v].append((u, idx))
+
+    # ---------- Edmonds' Blossom for maximum matching ----------
+    N = n
+    adj = [[] for _ in range(N)]
+    for u, v in edges:
+        adj[u].append(v)
+        adj[v].append(u)
+
+    match = [-1] * N
+    p = [-1] * N
+    base = list(range(N))
+    q = []
+    used = [False] * N
+    blossom = [False] * N
+
+    def lca(a, b):
+        used_path = [False] * N
+        while True:
+            a = base[a]
+            used_path[a] = True
+            if match[a] == -1:
+                break
+            a = p[match[a]]
+        while True:
+            b = base[b]
+            if used_path[b]:
+                return b
+            b = p[match[b]]
+
+    def mark_path(v, b, children):
+        while base[v] != b:
+            blossom[base[v]] = blossom[base[match[v]]] = True
+            p[v] = children
+            children = match[v]
+            v = p[match[v]]
+
+    def find_path(root):
+        nonlocal q, used, p, base, blossom
+        used = [False] * N
+        p = [-1] * N
+        base = list(range(N))
+        q = []
+        q_head = 0
+        q.append(root)
+        used[root] = True
+        while q_head < len(q):
+            v = q[q_head]; q_head += 1
+            for to in adj[v]:
+                if base[v] == base[to] or match[v] == to:
+                    continue
+                if to == root or (match[to] != -1 and p[match[to]] != -1):
+                    curbase = lca(v, to)
+                    blossom = [False] * N
+                    mark_path(v, curbase, to)
+                    mark_path(to, curbase, v)
+                    for i in range(N):
+                        if blossom[base[i]]:
+                            base[i] = curbase
+                            if not used[i]:
+                                used[i] = True
+                                q.append(i)
+                elif p[to] == -1:
+                    p[to] = v
+                    if match[to] == -1:
+                        # augmenting path found
+                        v = to
+                        while v != -1:
+                            pv = p[v]
+                            nv = match[pv] if pv != -1 else -1
+                            match[v] = pv
+                            match[pv] = v
+                            v = nv
+                        return True
+                    else:
+                        used[match[to]] = True
+                        q.append(match[to])
+        return False
+
+    for v in range(N):
+        if match[v] == -1:
+            find_path(v)
+
+    # -------------------------------------------------------------
+
+    # check perfect matching
+    if any(mch == -1 for mch in match):
+        print("NO")
+        return
+
+    # Build color array
+    color = [0] * m
+    # color matching edges with 1
+    for v in range(N):
+        u = match[v]
+        if u > v:
+            # find edge index
+            for to, idx in g[v]:
+                if to == u:
+                    color[idx] = 1
+                    break
+
+    # remaining edges form cycles, color alternately 2 and 3
+    visited_edge = [False] * m
+    for idx, c in enumerate(color):
+        if c == 1:
+            visited_edge[idx] = True
+
+    adj2 = [[] for _ in range(N)]
+    for idx, (u, v) in enumerate(edges):
+        if not visited_edge[idx]:
+            adj2[u].append((v, idx))
+            adj2[v].append((u, idx))
+
+    for start in range(N):
+        while adj2[start]:
+            # start a new cycle
+            cur = start
+            cycle_edges = []
+            while True:
+                nxt, eidx = adj2[cur].pop()
+                if visited_edge[eidx]:
+                    continue
+                visited_edge[eidx] = True
+                # remove opposite direction
+                for i, (to, id2) in enumerate(adj2[nxt]):
+                    if to == cur and id2 == eidx:
+                        adj2[nxt].pop(i)
+                        break
+                cycle_edges.append(eidx)
+                cur = nxt
+                if cur == start:
+                    break
+            # assign alternating 2,3
+            for i, eidx in enumerate(cycle_edges):
+                color[eidx] = 2 if i % 2 == 0 else 3
+
+    print("YES")
+    print(' '.join(map(str, color)))
+
+if __name__ == "__main__":
+    solve()

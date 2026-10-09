@@ -1,0 +1,93 @@
+import sys
+sys.setrecursionlimit(10000)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    clauses = []
+    for _ in range(m):
+        lits = [int(next(it)) for _ in range(3)]
+        clauses.append(lits)
+
+    # assignment: -1 unassigned, 0 false, 1 true
+    assign = [-1] * (n + 1)
+
+    # For each variable, keep clauses where it appears positively/negatively
+    pos_occ = [[] for _ in range(n + 1)]
+    neg_occ = [[] for _ in range(n + 1)]
+    for idx, cl in enumerate(clauses):
+        for lit in cl:
+            var = abs(lit)
+            if lit > 0:
+                pos_occ[var].append(idx)
+            else:
+                neg_occ[var].append(idx)
+
+    # Helper to get literal value under current assignment
+    def lit_val(lit):
+        v = assign[abs(lit)]
+        if v == -1:
+            return None
+        return v if lit > 0 else 1 - v
+
+    # Unit propagation stack
+    def propagate(stack):
+        """process stack of (var, value) assignments, return False if conflict."""
+        while stack:
+            var, val = stack.pop()
+            if assign[var] != -1:
+                if assign[var] != val:
+                    return False
+                continue
+            assign[var] = val
+            # check clauses where this literal appears positively/negatively
+            affected = pos_occ[var] if val == 1 else neg_occ[var]
+            for cid in affected:
+                # clause already satisfied? skip
+                cl = clauses[cid]
+                if any(lit_val(l) == 1 for l in cl):
+                    continue
+                # count unassigned literals
+                unassigned = [l for l in cl if lit_val(l) is None]
+                if not unassigned:
+                    # all false -> conflict
+                    return False
+                if len(unassigned) == 1:
+                    # unit clause, force it true
+                    ul = unassigned[0]
+                    uvar = abs(ul)
+                    uval = 1 if ul > 0 else 0
+                    stack.append((uvar, uval))
+        return True
+
+    # Choose variable with heuristic (most occurrences)
+    order = sorted(range(1, n + 1), key=lambda v: -(len(pos_occ[v]) + len(neg_occ[v])))
+
+    def dfs(idx):
+        if idx == n:
+            return True
+        var = order[idx]
+        if assign[var] != -1:
+            return dfs(idx + 1)
+        # try 0 then 1
+        saved = assign[:]
+        for val in (0, 1):
+            assign[:] = saved[:]
+            if propagate([(var, val)]):
+                if dfs(idx + 1):
+                    return True
+        assign[:] = saved[:]
+        return False
+
+    if dfs(0):
+        print("YES")
+        print(' '.join(str(assign[i]) for i in range(1, n + 1)))
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()

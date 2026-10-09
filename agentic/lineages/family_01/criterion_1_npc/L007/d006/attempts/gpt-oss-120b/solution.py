@@ -8,35 +8,45 @@ def solve() -> None:
     it = iter(data)
     n = int(next(it))
     m = int(next(it))
-    adj = [[] for _ in range(n)]
+    adj = [set() for _ in range(n)]
     for _ in range(m):
         u = int(next(it)) - 1
         v = int(next(it)) - 1
-        adj[u].append(v)
-        adj[v].append(u)
+        adj[u].add(v)
+        adj[v].add(u)
 
-    colors = [0] * n  # 0 = unassigned
+    # order vertices by descending degree for better pruning
+    order = sorted(range(n), key=lambda x: -len(adj[x]))
+    pos_in_order = [0]*n
+    for idx, v in enumerate(order):
+        pos_in_order[v] = idx
 
-    def backtrack(idx: int) -> bool:
+    colors = [-1]*n
+    found = False
+
+    def dfs(idx: int) -> bool:
+        nonlocal found
         if idx == n:
             return True
-        for col in (1, 2, 3):          # try colors in increasing order
+        v = order[idx]
+        for c in range(3):
             ok = True
-            for nb in adj[idx]:
-                if nb < idx and colors[nb] == col:
+            for nb in adj[v]:
+                if colors[nb] == c:
                     ok = False
                     break
             if not ok:
                 continue
-            colors[idx] = col
-            if backtrack(idx + 1):
+            colors[v] = c
+            if dfs(idx+1):
                 return True
-            colors[idx] = 0
+            colors[v] = -1
         return False
 
-    if backtrack(0):
+    if dfs(0):
         print("YES")
-        print(' '.join(map(str, colors)))
+        # output colors as 1..3 in original vertex order
+        print(' '.join(str(colors[i]+1) for i in range(n)))
     else:
         print("NO")
 

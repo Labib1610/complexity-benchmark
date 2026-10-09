@@ -1,0 +1,89 @@
+import sys
+sys.setrecursionlimit(1 << 25)
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [[] for _ in range(2 * n + 1)]
+    
+    for _ in range(m):
+        c1 = int(next(it))
+        c2 = int(next(it))
+        
+        # c1 > 0 means zone c1 is mode 1, < 0 means zone |c1| is mode 0
+        # We need to encode: NOT c1 => c2
+        # If c1 > 0: (zone c1 is 0) => c2. So node -c1 implies c2.
+        # If c1 < 0: (zone |c1| is 1) => c2. So node |c1| implies c2.
+        
+        u = -c1 if c1 > 0 else -c1  # -c1 if positive, |c1| if negative (which is -c1)
+        v = c2
+        
+        # Add edge u -> v and NOT v -> NOT u
+        adj[u + n].append(v + n)
+        adj[-v + n].append(-u + n)
+        
+    # Kosararu's algorithm for SCC
+    N = 2 * n + 1
+    order = []
+    visited = [False] * N
+    
+    stack = list(range(N - 1, 0, -1))
+    process_stack = []
+    
+    while stack:
+        u = stack.pop()
+        if u < 0: # marker for processing
+            u = -u
+            if not visited[u]:
+                visited[u] = True
+                order.append(u)
+        elif not visited[u]:
+            stack.append(-u) # marker
+            for v in adj[u]:
+                if not visited[v]:
+                    stack.append(v)
+    
+    # Reverse graph
+    rev_adj = [[] for _ in range(N)]
+    for u in range(N):
+        for v in adj[u]:
+            rev_adj[v].append(u)
+            
+    visited = [False] * N
+    comp_id = [0] * N
+    cid = 0
+    
+    for u in reversed(order):
+        if not visited[u]:
+            cid += 1
+            stack = [u]
+            visited[u] = True
+            while stack:
+                curr = stack.pop()
+                comp_id[curr] = cid
+                for v in rev_adj[curr]:
+                    if not visited[v]:
+                        visited[v] = True
+                        stack.append(v)
+    
+    # Check for contradiction
+    for i in range(1, n + 1):
+        if comp_id[i + n] == comp_id[-i + n]:
+            print("NO")
+            return
+    
+    print("YES")
+    res = []
+    for i in range(1, n + 1):
+        if comp_id[i + n] > comp_id[-i + n]:
+            res.append(1)
+        else:
+            res.append(0)
+    print(' '.join(map(str, res)))
+
+solve()

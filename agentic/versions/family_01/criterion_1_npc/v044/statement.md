@@ -1,20 +1,20 @@
-# Problem A — Shift Allocation Protocol
+# Problem A — Shift Allocation
 
 Time limit: 2 s   Memory limit: 256 MB
 
-A manufacturing plant operates three daily shifts, numbered 1, 2, and 3. There are $n$ employees, and management has compiled a list of incompatible employee pairs who cannot work the same shift.
+A manufacturing facility operates continuously using three daily shifts, designated 1, 2, and 3. You are tasked with assigning each of the $n$ employees to exactly one of these shifts.
 
-The allocation process evaluates employees in numerical order (from 1 to $n$). For each employee, the system prefers to assign shift 1, then shift 2, and finally shift 3. Your goal is to determine a sequence of shifts $s_1, s_2, \dots, s_n$ that respects these local priorities as much as possible while ensuring no incompatible employees share a shift. Formally, among all completely valid schedules, you must find and output the one that is lexicographically smallest.
+To maintain productivity, certain pairs of employees who perform redundant tasks or have personal disagreements cannot be scheduled on the same shift. In many practical scenarios, the workforce can largely be partitioned between the first two primary shifts, utilizing the third shift only when necessary to accommodate any remaining incompatibilities. Since you are not asked to balance the shift sizes, minimize the use of the third shift, or optimize any other metric, the assignment conditions are highly flexible. You only need to find a single feasible schedule.
 
-If no combination of assignments can separate all incompatible pairs across the three shifts, you must report that it is impossible.
+Your objective is to determine if there is any valid assignment of employees to the three shifts such that no two incompatible employees work at the same time, and to output one such schedule if it exists.
 
 ## Input
-The first line contains two integers $n$ and $m$ (1 ≤ $n$ ≤ 40, 0 ≤ $m$ ≤ $n(n-1)/2$) — the number of employees and the number of incompatible pairs.
-Each of the following $m$ lines contains two integers $u$ and $v$ — a pair of incompatible employees.
+The first line provides two integers $n$ and $m$ ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$), representing the number of employees and the number of incompatible pairs.
+Following this are $m$ lines, each containing two integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), indicating that employee $u$ and employee $v$ cannot be assigned to the same shift. Each incompatible pair is listed at most once.
 
 ## Output
-If a valid schedule cannot be formed, print `NO` on a single line.
-Otherwise, print `YES` on the first line. On the second line, print $n$ integers $s_1, s_2, \dots, s_n$ (where each $s_i \in \{1, 2, 3\}$), representing the shift assigned to each employee. This sequence must be the lexicographically smallest valid assignment.
+If there is no way to assign all employees to the three shifts without violating an incompatibility constraint, output a single line containing `NO`.
+Otherwise, output `YES` on the first line. On the second line, output $n$ integers $s_1, s_2, \dots, s_n$ separated by spaces, where $s_i \in \{1, 2, 3\}$ is the shift assigned to employee $i$. If multiple valid schedules exist, you may output any of them.
 
 ## Example 1
 Input:

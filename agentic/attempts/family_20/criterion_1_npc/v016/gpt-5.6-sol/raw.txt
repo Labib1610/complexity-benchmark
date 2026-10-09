@@ -1,0 +1,262 @@
+```python
+import sys
+
+sys.setrecursionlimit(10000)
+
+
+def solve():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if len(data) < 2:
+        return
+
+    n, m = data[0], data[1]
+    if m != 3 * n // 2 or len(data) != 2 + 2 * m:
+        print("NO")
+        return
+
+    edges = []
+    incident = [[] for _ in range(n)]
+    pos = 2
+
+    for eid in range(m):
+        u = data[pos] - 1
+        v = data[pos + 1] - 1
+        pos += 2
+        if not (0 <= u < n and 0 <= v < n) or u == v:
+            print("NO")
+            return
+        edges.append((u, v))
+        incident[u].append(eid)
+        incident[v].append(eid)
+
+    if any(len(lst) != 3 for lst in incident):
+        print("NO")
+        return
+
+    # A cubic graph containing a bridge cannot be 3-edge-colored.
+    tin = [-1] * n
+    low = [0] * n
+    timer = 0
+    has_bridge = False
+
+    def bridge_dfs(v, parent_eid):
+        nonlocal timer, has_bridge
+        tin[v] = low[v] = timer
+        timer += 1
+
+        for eid in incident[v]:
+            if eid == parent_eid:
+                continue
+            a, b = edges[eid]
+            to = b if a == v else a
+
+            if tin[to] == -1:
+                bridge_dfs(to, eid)
+                low[v] = min(low[v], low[to])
+                if low[to] > tin[v]:
+                    has_bridge = True
+            else:
+                low[v] = min(low[v], tin[to])
+
+    for start in range(n):
+        if tin[start] == -1:
+            bridge_dfs(start, -1)
+
+    if has_bridge:
+        print("NO")
+        return
+
+    # Search for a perfect matching whose complement is bipartite.
+    # Such a matching is one color class; every even complementary cycle
+    # can then be alternately colored with the other two colors.
+    state = [-1] * m       # -1 unknown, 0 complement, 1 matching
+    match_count = [0] * n
+    nonmatch_count = [0] * n
+    assignment_trail = []
+
+    parent = list(range(n))
+    size = [1] * n
+    parity = [0] * n
+    dsu_trail = []
+
+    def find(x):
+        p = 0
+        while parent[x] != x:
+            p ^= parity[x]
+            x = parent[x]
+        return x, p
+
+    def unite_opposite(a, b):
+        ra, pa = find(a)
+        rb, pb = find(b)
+
+        if ra == rb:
+            return (pa ^ pb) == 1
+
+        if size[ra] < size[rb]:
+            ra, rb = rb, ra
+            pa, pb = pb, pa
+
+        dsu_trail.append((rb, ra, size[ra]))
+        parent[rb] = ra
+        parity[rb] = pa ^ pb ^ 1
+        size[ra] += size[rb]
+        return True
+
+    def rollback(assign_snapshot, dsu_snapshot):
+        while len(assignment_trail) > assign_snapshot:
+            eid = assignment_trail.pop()
+            val = state[eid]
+            u, v = edges[eid]
+            if val == 1:
+                match_count[u] -= 1
+                match_count[v] -= 1
+            else:
+                nonmatch_count[u] -= 1
+                nonmatch_count[v] -= 1
+            state[eid] = -1
+
+        while len(dsu_trail) > dsu_snapshot:
+            child, root, old_size = dsu_trail.pop()
+            parent[child] = child
+            parity[child] = 0
+            size[root] = old_size
+
+    def propagate(first_eid, first_value):
+        queue = [(first_eid, first_value)]
+        head = 0
+
+        while head < len(queue):
+            eid, val = queue[head]
+            head += 1
+
+            if state[eid] != -1:
+                if state[eid] != val:
+                    return False
+                continue
+
+            state[eid] = val
+            assignment_trail.append(eid)
+            u, v = edges[eid]
+
+            if val == 1:
+                match_count[u] += 1
+                match_count[v] += 1
+            else:
+                nonmatch_count[u] += 1
+                nonmatch_count[v] += 1
+                if not unite_opposite(u, v):
+                    return False
+
+            for vertex in (u, v):
+                if match_count[vertex] > 1 or nonmatch_count[vertex] > 2:
+                    return False
+
+                unknown = []
+                for ie in incident[vertex]:
+                    if state[ie] == -1:
+                        unknown.append(ie)
+
+                if not unknown:
+                    if match_count[vertex] != 1:
+                        return False
+                elif match_count[vertex] == 1:
+                    for ie in unknown:
+                        queue.append((ie, 0))
+                elif nonmatch_count[vertex] == 2:
+                    for ie in unknown:
+                        queue.append((ie, 1))
+
+        return True
+
+    def dfs():
+        chosen_vertex = -1
+        candidates = None
+        best_count = 4
+
+        for v in range(n):
+            if match_count[v] == 0:
+                current = [eid for eid in incident[v] if state[eid] == -1]
+                if not current:
+                    return False
+                if len(current) < best_count:
+                    best_count = len(current)
+                    chosen_vertex = v
+                    candidates = current
+                    if best_count == 1:
+                        break
+
+        if chosen_vertex == -1:
+            return True
+
+        # If all three edges are unknown, this is an untouched connected
+        # component. Global color symmetry allows an arbitrary one to be
+        # chosen as the first matching edge.
+        if len(candidates) == 3 and nonmatch_count[chosen_vertex] == 0:
+            candidates = candidates[:1]
+        else:
+            def score(eid):
+                u, v = edges[eid]
+                other = v if u == chosen_vertex else u
+                return nonmatch_count[other]
+            candidates.sort(key=score, reverse=True)
+
+        for eid in candidates:
+            assign_snapshot = len(assignment_trail)
+            dsu_snapshot = len(dsu_trail)
+
+            if propagate(eid, 1) and dfs():
+                return True
+
+            rollback(assign_snapshot, dsu_snapshot)
+
+        return False
+
+    if not dfs():
+        print("NO")
+        return
+
+    answer = [0] * m
+    complement_incident = [[] for _ in range(n)]
+
+    for eid, val in enumerate(state):
+        if val == 1:
+            answer[eid] = 1
+        else:
+            u, v = edges[eid]
+            complement_incident[u].append(eid)
+            complement_incident[v].append(eid)
+
+    for eid in range(m):
+        if state[eid] != 0 or answer[eid] != 0:
+            continue
+
+        start_vertex = edges[eid][0]
+        vertex = start_vertex
+        previous_eid = -1
+        color = 2
+
+        while True:
+            next_eid = -1
+            for candidate in complement_incident[vertex]:
+                if candidate != previous_eid:
+                    next_eid = candidate
+                    break
+
+            if next_eid == -1 or answer[next_eid] != 0:
+                break
+
+            answer[next_eid] = color
+            color = 5 - color
+
+            a, b = edges[next_eid]
+            vertex = b if a == vertex else a
+            previous_eid = next_eid
+
+    print("YES")
+    print(*answer)
+
+
+if __name__ == "__main__":
+    solve()
+```

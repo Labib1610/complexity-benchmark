@@ -1,0 +1,81 @@
+import sys
+import heapq
+
+def solve():
+    input_data = sys.stdin.read().strip().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    t = int(next(it))
+    mandatory = [int(next(it)) - 1 for _ in range(t)]
+    
+    INF = 10**18
+    dist = [[INF] * n for _ in range(n)]
+    for i in range(n):
+        dist[i][i] = 0
+    
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        w = int(next(it))
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+    
+    # Dijkstra from each mandatory node to all nodes
+    mand_dist = []
+    for s in mandatory:
+        d = [INF] * n
+        d[s] = 0
+        pq = [(0, s)]
+        while pq:
+            du, u = heapq.heappop(pq)
+            if du != d[u]:
+                continue
+            for v, w in adj[u]:
+                nd = du + w
+                if nd < d[v]:
+                    d[v] = nd
+                    heapq.heappush(pq, (nd, v))
+        mand_dist.append(d)
+    
+    # DP over subsets of mandatory nodes
+    # dp[mask][i] = min cost to connect terminals in mask, ending at node i
+    dp = [[INF] * n for _ in range(1 << t)]
+    for i in range(t):
+        for v in range(n):
+            dp[1 << i][v] = mand_dist[i][v]
+    
+    for mask in range(1 << t):
+        # Combine two submasks
+        sub = (mask - 1) & mask
+        while sub:
+            other = mask ^ sub
+            if sub < other:  # avoid double work
+                for i in range(n):
+                    dp[mask][i] = min(dp[mask][i], dp[sub][i] + dp[other][i])
+            sub = (sub - 1) & mask
+        
+        # Relax via Dijkstra for this mask
+        pq = []
+        for i in range(n):
+            if dp[mask][i] < INF:
+                heapq.heappush(pq, (dp[mask][i], i))
+        while pq:
+            du, u = heapq.heappop(pq)
+            if du != dp[mask][u]:
+                continue
+            for v, w in adj[u]:
+                nd = du + w
+                if nd < dp[mask][v]:
+                    dp[mask][v] = nd
+                    heapq.heappush(pq, (nd, v))
+    
+    full_mask = (1 << t) - 1
+    ans = min(dp[full_mask][i] for i in range(n))
+    print(ans)
+
+if __name__ == "__main__":
+    solve()

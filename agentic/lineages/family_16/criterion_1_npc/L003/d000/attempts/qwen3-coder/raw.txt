@@ -1,0 +1,282 @@
+```python
+from collections import defaultdict
+import heapq
+
+def parse_input():
+    j, m = map(int, input().split())
+    jobs = []
+    for _ in range(j):
+        line = list(map(int, input().split()))
+        o = line[0]
+        ops = []
+        for i in range(o):
+            machine = line[1 + 2*i]
+            duration = line[1 + 2*i + 1]
+            ops.append((machine, duration))
+        jobs.append(ops)
+    return j, m, jobs
+
+def get_job_operation_precedence(jobs):
+    # For each job, operation index must precede the next operation index
+    precedence = []
+    for job_idx, job in enumerate(jobs):
+        for op_idx in range(len(job) - 1):
+            precedence.append(((job_idx, op_idx), (job_idx, op_idx + 1)))
+    return precedence
+
+def get_resource_conflicts(jobs):
+    # Operations using the same machine cannot overlap
+    conflicts = []
+    # Map each machine to list of operations using it
+    machine_ops = defaultdict(list)
+    for job_idx, job in enumerate(jobs):
+        for op_idx, (machine, duration) in enumerate(job):
+            machine_ops[machine].append((job_idx, op_idx))
+    
+    # For every pair of operations on the same machine, add a conflict
+    for machine, ops in machine_ops.items():
+        for i in range(len(ops)):
+            for j in range(i+1, len(ops)):
+                conflicts.append((ops[i], ops[j]))
+    return conflicts
+
+def topological_sort(jobs):
+    # Generate all operation nodes
+    nodes = set()
+    for job_idx, job in enumerate(jobs):
+        for op_idx in range(len(job)):
+            nodes.add((job_idx, op_idx))
+    
+    # Get precedence constraints
+    precedences = get_job_operation_precedence(jobs)
+    
+    # Build graph
+    in_degree = {node: 0 for node in nodes}
+    graph = {node: [] for node in nodes}
+    
+    for u, v in precedences:
+        graph[u].append(v)
+        in_degree[v] += 1
+    
+    # Kahn's algorithm
+    queue = [node for node in nodes if in_degree[node] == 0]
+    order = []
+    
+    while queue:
+        current = queue.pop(0)
+        order.append(current)
+        for neighbor in graph[current]:
+            in_degree[neighbor] -= 1
+            if in_degree[neighbor] == 0:
+                queue.append(neighbor)
+                
+    if len(order) != len(nodes):
+        raise Exception("Cycle detected")
+        
+    return order
+
+def calculate_makespan(schedule, jobs):
+    # Given a schedule (list of operations), compute the makespan
+    # We'll simulate the execution
+    
+    # Determine operation durations
+    op_durations = {}
+    for job_idx, job in enumerate(jobs):
+        for op_idx, (machine, duration) in enumerate(job):
+            op_durations[(job_idx, op_idx)] = duration
+    
+    # Machine timelines: for each machine, keep track of when it's free
+    machine_free_time = defaultdict(int)
+    
+    # Job operation completion times
+    op_finish_times = {}
+    
+    # Job last operation finish time (to enforce precedence)
+    job_last_finish = [0] * len(jobs)
+    
+    for job_idx, op_idx in schedule:
+        machine, duration = jobs[job_idx][op_idx]
+        
+        # Earliest start time is max of:
+        # 1. When the machine is free
+        # 2. When the previous operation of this job finished
+        earliest_start = max(machine_free_time[machine], job_last_finish[job_idx])
+        finish_time = earliest_start + duration
+        
+        op_finish_times[(job_idx, op_idx)] = finish_time
+        machine_free_time[machine] = finish_time
+        job_last_finish[job_idx] = finish_time
+        
+    return max(machine_free_time.values())
+
+def branch_and_bound(jobs):
+    # Get a topological order as initial feasible solution
+    try:
+        initial_order = topological_sort(jobs)
+        initial_makespan = calculate_makespan(initial_order, jobs)
+    except:
+        # Fallback if topological sort fails
+        initial_makespan = sum(sum(op[1] for op in job) for job in jobs)
+    
+    best_makespan = initial_makespan
+    
+    # Generate all operations
+    all_operations = []
+    for job_idx, job in enumerate(jobs):
+        for op_idx in range(len(job)):
+            all_operations.append((job_idx, op_idx))
+    
+    # Precompute operation durations
+    op_durations = {}
+    for job_idx, job in enumerate(jobs):
+        for op_idx, (machine, duration) in enumerate(job):
+            op_durations[(job_idx, op_idx)] = duration
+            
+    # Precompute resource conflicts
+    conflicts = get_resource_conflicts(jobs)
+    conflict_set = set()
+    for a, b in conflicts:
+        conflict_set.add((a, b))
+        conflict_set.add((b, a))
+        
+    # Precompute precedence
+    precedences = get_job_operation_precedence(jobs)
+    precedence_dict = defaultdict(list)
+    for a, b in precedences:
+        precedence_dict[a].append(b)
+
+    def is_valid_partial_sequence(partial_seq, next_op):
+        # Check if adding next_op to partial_seq maintains all constraints
+        # 1. Precedence: all predecessors of next_op must be in partial_seq
+        # We need a more efficient way, so let's precompute for each operation, 
+        # what operations must come before it
+        
+        # Let's instead do a simpler check during search
+        
+        # For now, we'll do a simple feasibility check
+        return True
+    
+    # More efficient approach: use constraint checks properly
+    # Let's build a better B&B
+    
+    # Create a mapping from operation to its predecessors (in same job)
+    op_predecessors = defaultdict(set)
+    op_successors = defaultdict(set)
+    for job_idx, job in enumerate(jobs):
+        for op_idx in range(len(job)-1):
+            pred = (job_idx, op_idx)
+            succ = (job_idx, op_idx+1)
+            op_predecessors[succ].add(pred)
+            op_successors[pred].add(succ)
+            
+    # Create mapping from operation to all operations using same machine
+    machine_to_ops = defaultdict(list)
+    for job_idx, job in enumerate(jobs):
+        for op_idx, (machine, _) in enumerate(job):
+            machine_to_ops[machine].append((job_idx, op_idx))
+            
+    op_to_machine = {}
+    for job_idx, job in enumerate(jobs):
+        for op_idx, (machine, _) in enumerate(job):
+            op_to_machine[(job_idx, op_idx)] = machine
+            
+    # Now, a better B&B with tighter bounds
+    # State: (priority, makespan_lower_bound, scheduled_ops_set, last_op_finish_times)
+    
+    # Initial state
+    unscheduled = set(all_operations)
+    scheduled = []
+    scheduled_set = set()
+    
+    # Compute initial lower bound as max of:
+    # 1. Sum of durations for any job
+    # 2. Sum of durations for any machine
+    job_totals = [sum(op[1] for op in job) for job in jobs]
+    machine_totals = defaultdict(int)
+    for job_idx, job in enumerate(jobs):
+        for machine, duration in job:
+            machine_totals[machine] += duration
+    lb = max(max(job_totals), max(machine_totals.values()) if machine_totals else 0)
+    
+    # Priority queue: (-makespan, scheduled_ops_tuple)
+    pq = [(lb, tuple())]
+    visited = set()
+    visited.add(tuple())
+    
+    best_makespan = float('inf')
+    
+    while pq:
+        _, sched_tuple = heapq.heappop(pq)
+        if -_ >= best_makespan:
+            continue
+            
+        if len(sched_tuple) == len(all_operations):
+            makespan = calculate_makespan(sched_tuple, jobs)
+            if makespan < best_makespan:
+                best_makespan = makespan
+            continue
+            
+        # Determine which operations can be scheduled next
+        sched_list = list(sched_tuple)
+        scheduled_set = set(sched_list)
+        
+        # For each unscheduled operation, check if it can be scheduled now
+        candidates = []
+        for op in all_operations:
+            if op in scheduled_set:
+                continue
+                
+            # Check job precedence
+            can_schedule = True
+            for pred in op_predecessors[op]:
+                if pred not in scheduled_set:
+                    can_schedule = False
+                    break
+                    
+            if can_schedule:
+                candidates.append(op)
+                
+        # Sort candidates to try most constrained first
+        candidates.sort()
+        
+        for op in candidates:
+            new_sched = sched_list + [op]
+            new_tuple = tuple(new_sched)
+            if new_tuple in visited:
+                continue
+            visited.add(new_tuple)
+            
+            # Calculate a simple lower bound
+            # Just use the existing calculation for now
+            if len(new_sched) == len(all_operations):
+                makespan = calculate_makespan(new_sched, jobs)
+                if makespan < best_makespan:
+                    best_makespan = makespan
+                heapq.heappush(pq, (-makespan, new_tuple))
+            else:
+                # Heuristic lower bound
+                # Take current schedule makespan and add min remaining time
+                # This is very rough
+                heapq.heappush(pq, (lb, new_tuple))  # placeholder
+                
+    return best_makespan
+
+def main():
+    j, m, jobs = parse_input()
+    if not jobs or not jobs[0]:
+        print(0)
+        return
+        
+    # For small inputs, we can try all permutations or use B&B
+    # But even for j=10 with total 50 ops, full permutation is too much
+    # Let's use a heuristic or B&B
+    
+    # Simple approach: use a greedy method or B&B
+    # Given the constraints (j,m <= 10, total ops <= 50), B&B should work
+    
+    result = branch_and_bound(jobs)
+    print(result)
+
+if __name__ == "__main__":
+    main()
+```

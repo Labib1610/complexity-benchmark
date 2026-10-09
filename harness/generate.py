@@ -7,7 +7,8 @@ Options:
   --only <model_id>   Run a single model from the registry.
   --reset             Ignore existing checkpoints and re-generate.
   --sample <n>        Limit to first n problems (smoke-test mode).
-  --seed <n>          Random seed (recorded in gen_meta; not used yet).
+  --seed <n>          Random seed (recorded in gen_meta and forwarded to backends
+                      that support deterministic sampling, e.g. Ollama).
   --dry-run           Instead of calling a backend, copy reference.py as solution.py.
                       Use with evaluate to confirm the full pipeline produces PASS.
 
@@ -104,7 +105,7 @@ def main(argv=None):
     parser.add_argument("--only", default=None, help="Restrict to one model id")
     parser.add_argument("--reset", action="store_true", help="Ignore checkpoints")
     parser.add_argument("--sample", type=int, default=None, help="Limit to first N problems")
-    parser.add_argument("--seed", type=int, default=None, help="Random seed (recorded only)")
+    parser.add_argument("--seed", type=int, default=None, help="Random seed (recorded + forwarded to supported backends)")
     parser.add_argument("--dry-run", action="store_true",
                         help="Copy reference.py instead of calling a backend (for pipeline tests)")
     args = parser.parse_args(argv)
@@ -146,6 +147,15 @@ def main(argv=None):
     seed = args.seed if args.seed is not None else config.get("seed", 0)
     study = config.get("study", "main")
 
+    # Audit B7: for the time-budget study the deadline/approximation instruction must actually
+    # reach the model. Load prompt_suffix.md and fill in the runtime limit; appended per prompt.
+    prompt_suffix = ""
+    if study == "time_budget":
+        _sfx = ROOT / "studies" / "time_budget" / "prompt_suffix.md"
+        _limit = config.get("time_budget", {}).get("runtime_limit_s", 2)
+        if _sfx.exists():
+            prompt_suffix = "\n\n" + _sfx.read_text().replace("{RUNTIME_LIMIT_S}", str(_limit))
+
     # Token-budget sweep: collect levels; other studies use a single None-level pass.
     if study == "token_budget":
         tok_levels = config.get("token_budget", {}).get("levels", [4096])
@@ -182,7 +192,7 @@ def main(argv=None):
                     continue
 
                 statement = criterion.statement_path.read_text()
-                user_msg = _USER_TMPL.replace("{STATEMENT}", statement)
+                user_msg = _USER_TMPL.replace("{STATEMENT}", statement) + prompt_suffix
 
                 t0 = time.monotonic()
 
@@ -200,6 +210,10 @@ def main(argv=None):
                         max_tokens=effective_budget,
                         temperature=temperature,
                         thinking=model.get("thinking", False),
+                        seed=seed,                       # audit B9: actually forward the seed
+                        base_url=model.get("base_url"),          # openai_compat (API) models
+                        api_key_env=model.get("api_key_env"),
+                        reasoning=model.get("reasoning"),
                     )
                     if model.get("thinking"):
                         raw_stripped = strip_thinking(raw)

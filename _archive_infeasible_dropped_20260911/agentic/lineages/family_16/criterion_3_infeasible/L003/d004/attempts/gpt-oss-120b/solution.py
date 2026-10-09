@@ -1,0 +1,29 @@
+import sys
+
+def solve() -> None:
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    it = iter(data)
+    j = int(next(it))
+    T = int(next(it))
+    p1_list = []
+    p2_list = []
+    for idx in range(1, j + 1):
+        p1 = int(next(it))
+        p2 = int(next(it))
+        if p1 + p2 > T:
+            print(f"JOB {idx}")
+            return
+        p1_list.append(p1)
+        p2_list.append(p2)
+    sum1 = sum(p1_list)
+    sum2 = sum(p2_list)
+    if sum1 > T:
+        print("LOAD 1")
+    else:
+        # by problem guarantee, one of them must hold
+        print("LOAD 2")
+
+if __name__ == "__main__":
+    solve()

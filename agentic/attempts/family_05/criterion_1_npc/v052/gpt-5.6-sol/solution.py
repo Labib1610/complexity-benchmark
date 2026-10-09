@@ -1,0 +1,164 @@
+import sys
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if len(data) < 2:
+        return
+
+    k, t = data[0], data[1]
+    if t < k:
+        print("NO")
+        return
+
+    edges = []
+    adj = [0] * (3 * k)
+
+    p = 2
+    for i in range(t):
+        x = data[p] - 1
+        y = data[p + 1] - 1
+        z = data[p + 2] - 1
+        p += 3
+        edges.append((x, y, z))
+        bit = 1 << i
+        adj[x] |= bit
+        adj[k + y] |= bit
+        adj[2 * k + z] |= bit
+
+    all_edges = (1 << t) - 1
+    conflict = [0] * t
+    for i, (x, y, z) in enumerate(edges):
+        conflict[i] = adj[x] | adj[k + y] | adj[2 * k + z]
+
+    full_pool = (1 << k) - 1
+    full_columns = (1 << (3 * k)) - 1
+    failed = set()
+    answer = []
+    sys.setrecursionlimit(1000000)
+
+    def has_matching(left_mask, right_mask, neighbors):
+        left = []
+        m = left_mask
+        while m:
+            b = m & -m
+            u = b.bit_length() - 1
+            nm = neighbors[u] & right_mask
+            if not nm:
+                return False
+            left.append((nm.bit_count(), u))
+            m ^= b
+
+        left.sort()
+        owner = [-1] * k
+
+        def augment(u, seen):
+            options = neighbors[u] & right_mask & ~seen
+            while options:
+                b = options & -options
+                options ^= b
+                v = b.bit_length() - 1
+                old = owner[v]
+                if old == -1 or augment(old, seen | b):
+                    owner[v] = u
+                    return True
+            return False
+
+        for _, u in left:
+            if not augment(u, 0):
+                return False
+        return True
+
+    def hall_check(active, rx, ry, rz):
+        xy = [0] * k
+        xz = [0] * k
+        yz = [0] * k
+
+        m = active
+        while m:
+            b = m & -m
+            i = b.bit_length() - 1
+            m ^= b
+            x, y, z = edges[i]
+            xy[x] |= 1 << y
+            xz[x] |= 1 << z
+            yz[y] |= 1 << z
+
+        return (
+            has_matching(rx, ry, xy)
+            and has_matching(rx, rz, xz)
+            and has_matching(ry, rz, yz)
+        )
+
+    def dfs(active, covered, depth):
+        if depth == k:
+            return True
+        if covered in failed:
+            return False
+
+        best_candidates = 0
+        best_count = t + 1
+        counts = [0] * (3 * k)
+
+        remaining_columns = full_columns ^ covered
+        m = remaining_columns
+        while m:
+            b = m & -m
+            c = b.bit_length() - 1
+            m ^= b
+            candidates = active & adj[c]
+            count = candidates.bit_count()
+            if count == 0:
+                failed.add(covered)
+                return False
+            counts[c] = count
+            if count < best_count:
+                best_count = count
+                best_candidates = candidates
+
+        cx = covered & full_pool
+        cy = (covered >> k) & full_pool
+        cz = (covered >> (2 * k)) & full_pool
+        rx = full_pool ^ cx
+        ry = full_pool ^ cy
+        rz = full_pool ^ cz
+
+        if best_count > 1 and (depth & 1) == 0:
+            if not hall_check(active, rx, ry, rz):
+                failed.add(covered)
+                return False
+
+        choices = []
+        m = best_candidates
+        while m:
+            b = m & -m
+            i = b.bit_length() - 1
+            m ^= b
+            x, y, z = edges[i]
+            score = counts[x] + counts[k + y] + counts[2 * k + z]
+            choices.append((score, i))
+
+        choices.sort()
+
+        for _, i in choices:
+            x, y, z = edges[i]
+            columns = (1 << x) | (1 << (k + y)) | (1 << (2 * k + z))
+            answer.append(i)
+            if dfs(active & ~conflict[i], covered | columns, depth + 1):
+                return True
+            answer.pop()
+
+        if len(failed) < 1_500_000:
+            failed.add(covered)
+        return False
+
+    if dfs(all_edges, 0, 0):
+        out = ["YES"]
+        for i in answer:
+            x, y, z = edges[i]
+            out.append(f"{x + 1} {y + 1} {z + 1}")
+        sys.stdout.write("\n".join(out))
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    main()

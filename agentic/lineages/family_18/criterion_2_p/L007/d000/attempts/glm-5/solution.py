@@ -1,0 +1,247 @@
+import sys
+sys.setrecursionlimit(1 << 25)
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    B = int(next(it))
+    
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # Find tree structure
+    parent = [0] * (n + 1)
+    children = [[] for _ in range(n + 1)]
+    order = []
+    stack = [1]
+    parent[1] = -1
+    while stack:
+        u = stack.pop()
+        order.append(u)
+        for v in adj[u]:
+            if parent[v] == 0 and v != parent[u]:
+                parent[v] = u
+                children[u].append(v)
+                stack.append(v)
+    
+    # DP: dp[u][k] = True if subtree rooted at u can be placed with offset k
+    # and total cost <= B
+    # We use a set of valid offsets for each node
+    
+    # Process in reverse order (leaves first)
+    order.reverse()
+    
+    # For each node, track valid (offset, cost) pairs
+    # offset is relative to node's position in its subtree
+    # We'll use a more efficient approach
+    
+    # Actually, let's use a simpler greedy approach based on tree structure
+    # The optimal arrangement for a tree is to place nodes in DFS order
+    # or reverse DFS order, alternating based on subtree sizes
+    
+    # Let's compute subtree sizes
+    size = [1] * (n + 1)
+    for u in order:
+        for v in children[u]:
+            size[u] += size[v]
+    
+    # Greedy: place nodes in DFS order
+    # This minimizes total edge lengths for trees
+    
+    result = [0] * (n + 1)
+    slot = [1]
+    
+    def dfs(u):
+        result[u] = slot[0]
+        slot[0] += 1
+        for v in children[u]:
+            dfs(v)
+    
+    dfs(1)
+    
+    # Calculate total cost
+    total_cost = 0
+    for u in range(1, n + 1):
+        for v in adj[u]:
+            if v > u:  # Count each edge once
+                total_cost += abs(result[u] - result[v])
+    
+    if total_cost <= B:
+        print("YES")
+        print(' '.join(map(str, result[1:])))
+        return
+    
+    # Try reverse DFS order
+    slot[0] = n
+    def dfs_rev(u):
+        result[u] = slot[0]
+        slot[0] -= 1
+        for v in children[u]:
+            dfs_rev(v)
+    
+    dfs_rev(1)
+    
+    total_cost = 0
+    for u in range(1, n + 1):
+        for v in adj[u]:
+            if v > u:
+                total_cost += abs(result[u] - result[v])
+    
+    if total_cost <= B:
+        print("YES")
+        print(' '.join(map(str, result[1:])))
+        return
+    
+    # Try BFS order
+    from collections import deque
+    queue = deque([1])
+    visited = [False] * (n + 1)
+    visited[1] = True
+    slot[0] = 1
+    while queue:
+        u = queue.popleft()
+        result[u] = slot[0]
+        slot[0] += 1
+        for v in adj[u]:
+            if not visited[v]:
+                visited[v] = True
+                queue.append(v)
+    
+    total_cost = 0
+    for u in range(1, n + 1):
+        for v in adj[u]:
+            if v > u:
+                total_cost += abs(result[u] - result[v])
+    
+    if total_cost <= B:
+        print("YES")
+        print(' '.join(map(str, result[1:])))
+        return
+    
+    # Try reverse BFS order
+    queue = deque([1])
+    visited = [False] * (n + 1)
+    visited[1] = True
+    slot[0] = n
+    while queue:
+        u = queue.popleft()
+        result[u] = slot[0]
+        slot[0] -= 1
+        for v in adj[u]:
+            if not visited[v]:
+                visited[v] = True
+                queue.append(v)
+    
+    total_cost = 0
+    for u in range(1, n + 1):
+        for v in adj[u]:
+            if v > u:
+                total_cost += abs(result[u] - result[v])
+    
+    if total_cost <= B:
+        print("YES")
+        print(' '.join(map(str, result[1:])))
+        return
+    
+    # Try centroid-based placement
+    # Find centroid
+    def find_centroid(start):
+        parent_arr = [0] * (n + 1)
+        order_arr = []
+        stack = [start]
+        parent_arr[start] = -1
+        while stack:
+            u = stack.pop()
+            order_arr.append(u)
+            for v in adj[u]:
+                if parent_arr[v] == 0 and v != parent_arr[u]:
+                    parent_arr[v] = u
+                    stack.append(v)
+        
+        size_arr = [1] * (n + 1)
+        for u in reversed(order_arr):
+            for v in adj[u]:
+                if parent_arr[v] == u:
+                    size_arr[u] += size_arr[v]
+        
+        total = size_arr[start]
+        centroid = start
+        for u in order_arr:
+            is_centroid = True
+            for v in adj[u]:
+                if parent_arr[v] == u:
+                    if size_arr[v] > total // 2:
+                        is_centroid = False
+                        break
+            if parent_arr[u] != -1 and parent_arr[u] != 0:
+                if total - size_arr[u] > total // 2:
+                    is_centroid = False
+            if is_centroid:
+                centroid = u
+                break
+        
+        return centroid
+    
+    centroid = find_centroid(1)
+    
+    # BFS from centroid
+    queue = deque([centroid])
+    visited = [False] * (n + 1)
+    visited[centroid] = True
+    slot[0] = 1
+    while queue:
+        u = queue.popleft()
+        result[u] = slot[0]
+        slot[0] += 1
+        for v in adj[u]:
+            if not visited[v]:
+                visited[v] = True
+                queue.append(v)
+    
+    total_cost = 0
+    for u in range(1, n + 1):
+        for v in adj[u]:
+            if v > u:
+                total_cost += abs(result[u] - result[v])
+    
+    if total_cost <= B:
+        print("YES")
+        print(' '.join(map(str, result[1:])))
+        return
+    
+    # Try reverse from centroid
+    queue = deque([centroid])
+    visited = [False] * (n + 1)
+    visited[centroid] = True
+    slot[0] = n
+    while queue:
+        u = queue.popleft()
+        result[u] = slot[0]
+        slot[0] -= 1
+        for v in adj[u]:
+            if not visited[v]:
+                visited[v] = True
+                queue.append(v)
+    
+    total_cost = 0
+    for u in range(1, n + 1):
+        for v in adj[u]:
+            if v > u:
+                total_cost += abs(result[u] - result[v])
+    
+    if total_cost <= B:
+        print("YES")
+        print(' '.join(map(str, result[1:])))
+        return
+    
+    print("NO")
+
+solve()

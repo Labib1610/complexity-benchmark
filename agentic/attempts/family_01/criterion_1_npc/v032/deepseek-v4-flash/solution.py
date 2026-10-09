@@ -1,51 +1,52 @@
 import sys
 
 def solve():
-    input_data = sys.stdin.read().strip().split()
-    if not input_data:
-        return
-    n, m = int(input_data[0]), int(input_data[1])
-    edges = []
-    idx = 2
-    for _ in range(m):
-        u = int(input_data[idx]) - 1
-        v = int(input_data[idx + 1]) - 1
-        idx += 2
-        edges.append((u, v))
-    
+    input = sys.stdin.readline
+    n, m = map(int, input().split())
     adj = [[] for _ in range(n)]
-    for u, v in edges:
+    for _ in range(m):
+        u, v = map(int, input().split())
+        u -= 1
+        v -= 1
         adj[u].append(v)
         adj[v].append(u)
-    
-    colors = [0] * n
-    
-    def is_safe(node, color):
-        for nei in adj[node]:
-            if colors[nei] == color:
-                return False
-        return True
-    
-    def backtrack(node):
-        if node == n:
+
+    color = [0] * n
+
+    # Precompute possible colors for each vertex based on neighbors already colored
+    def backtrack(idx):
+        if idx == n:
             return True
-        for c in range(1, 4):
-            if can_safe(node, c):
-                colors[node] = c
-                if backtrack(node + 1):
-                    return True
-                colors[node] = 0
+        # Choose vertex with most constraints (MRV heuristic)
+        best = -1
+        best_options = None
+        for i in range(n):
+            if color[i] == 0:
+                used = set()
+                for nb in adj[i]:
+                    if color[nb] != 0:
+                        used.add(color[nb])
+                options = [c for c in (1,2,3) if c not in used]
+                if best == -1 or len(options) < len(best_options):
+                    best = i
+                    best_options = options
+                    if len(options) == 0:
+                        break
+        if best == -1:
+            return True
+        if not best_options:
+            return False
+        # Try colors in order
+        for c in best_options:
+            color[best] = c
+            if backtrack(idx + 1):
+                return True
+            color[best] = 0
         return False
-    
-    def can_safe(node, c):
-        for nei in adj[node]:
-            if colors[nei] == c:
-                return False
-        return True
-    
+
     if backtrack(0):
         print("YES")
-        print(" ".join(map(str, colors)))
+        print(" ".join(map(str, color))))
     else:
         print("NO")
 

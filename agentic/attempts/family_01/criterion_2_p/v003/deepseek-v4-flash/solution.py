@@ -36,6 +36,8 @@ for i in range(n):
 if not possible:
     print("NO")
 else:
-    print("YES")
     # color 0 -> shift 1, color 1 -> shift 2
-    print(' '.join(str(c + 1) for c in color))
+    # But we want lexicographically smallest: prefer 1 when possible.
+    # Our BFS already assigns 0 first, so it's fine.
+    print("YES")
+    print(" ".join(str(c + 1) for c in color))

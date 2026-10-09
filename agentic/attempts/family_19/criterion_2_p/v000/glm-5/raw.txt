@@ -1,0 +1,1601 @@
+This is a max-flow problem. We need to find a flow of value d from s to t in a directed graph with capacities, and output the flow on each edge, or NO if max flow < d.
+
+Standard approach: Dinic's algorithm. n hubs, m lanes. We need to read input:
+
+Line 1: n m 1 (the "1" is probably number of products, which is 1).
+Next line: s t d.
+Next m lines: u v cap.
+
+Output: "YES" then m integers (flow on link j in input order), or "NO".
+
+Note: vertices are probably 1-indexed. Let me handle both — I'll assume 1-indexed since s t are given as hub numbers; safest is to check if any vertex is 0... Actually typical problems use 1-indexed. Let me just use 1-indexed arrays of size n+1. But if input uses 0-indexed, then vertex 0 would appear and n would be the count... Hmm. With 1-indexed assumption and 0-indexed input, vertex 0 would map to index 0 which is unused — that would break. Let me detect: if any u or v equals 0, then it's 0-indexed. Actually simpler: use size n+1 and if 0 appears in edges, use size n with 0-indexed. Let me just check: if min vertex seen is 0, treat as 0-indexed (nodes 0..n-1); else 1-indexed (nodes 1..n). Actually if 0-indexed, vertices range 0..n-1, so max vertex is n-1 < n. If 1-indexed, vertices range 1..n. So detection: if any vertex == 0 → 0-indexed. Otherwise 1-indexed. But careful: if 0-indexed and no edge touches vertex 0, and s,t aren't 0... then we can't distinguish, but it doesn't matter since 1-indexed interpretation with size n+1 works fine (vertex n unused... wait no, if 0-indexed with vertices 0..n-1 but none is 0, then vertices are 1..n-1, and treating them as 1-indexed labels works fine too since we just need consistent mapping). Actually the mapping just needs to be consistent: add offset. If we see a 0, we use vertices as-is with array size n (or n+1 to be safe). If no 0, we use vertices as-is with array size n+1. Either way, using array size n+1 and vertices as-is works in both cases! Because if 0-indexed, vertices are 0..n-1 ⊂ [0, n]; if 1-indexed, vertices are 1..n ⊂ [0, n]. So just use size n+1 arrays and use vertex labels directly. 
+
+Now, Dinic's algorithm in Python. Need to be efficient. m and n sizes aren't given explicitly in the problem statement... "Line 1: n m 1". Hmm, the constraints aren't specified. Time limit 2s. Let's write an efficient Dinic with adjacency lists using arrays.
+
+Since it's a single-product flow, we can also consider that the answer flow must have value exactly d (max flow ≥ d). We compute max flow; if ≥ d, we need to output a flow with value exactly d? Or can we output the max flow? The problem says "A fixed quantity ... must travel" and "At the origin the net departure equals the required quantity". So the flow value must be exactly d. If max flow > d, we need to reduce it to exactly d. Hmm, but typically in such problems d is the demand and the max flow equals what's deliverable; if max flow ≥ d we can scale down. Reducing a flow to exactly value d: we can find cycles... Actually easier: add an edge from t to s with capacity d (or infinity), and find a flow of value... hmm, that changes things.
+
+Alternative: compute max flow. If maxflow < d → NO. If maxflow ≥ d, we need a flow of value exactly d. One way: after computing max flow f ≥ d, we can reduce excess by finding flow-carrying paths from s to t and reducing along them, or find cycles in the flow decomposition. Actually, a cleaner way: set the capacity of a virtual edge... Hmm.
+
+Standard trick: To find a feasible flow of exactly value d: add edge t→s with capacity d and lower bound... no wait. Actually, the simplest: compute max flow with an additional edge from t to s with capacity d. Then a feasible circulation... no.
+
+Let me think again. We want flow of value exactly d from s to t. Approach: Add edge t→s with capacity d, and require the flow on this edge to be exactly d (circulation with lower bound d on edge t→s). Hmm, that's a lower-bound circulation problem. Alternatively:
+
+Simplest: compute max flow f. If f < d, NO. If f ≥ d, we can decompose: the flow of value f can be reduced to value d by removing f - d units. To remove flow while maintaining conservation: repeatedly find a path from s to t in the flow graph (edges with positive flow) and reduce by the min flow along the path, or find cycles and remove them. Actually, reducing along s-t paths reduces the value; reducing along cycles keeps the value. So: decompose flow into paths and cycles. Keep reducing along s→t paths until value = d. Since flow is integral, this works.
+
+But actually, maybe simpler: cap the source. Add a super source S with edge S→s of capacity d. Then max flow from S to t is min(d, original maxflow). If it's < d → NO, else the flow has value exactly d. That's clean! Add super source with capacity d edge to s. Then compute max flow from S to t. If maxflow == d, output flows on original edges.
+
+Wait, but there could be multiple edges and also possibly edges into s or out of t in the original graph — that's fine, the super source handles it: net flow out of s must be... hmm, actually with S→s of capacity d, the flow value from S to t is the flow on edge S→s, which equals net departure from s (conservation at s: inflow from S = outflow - inflow from other edges... wait, conservation at s: flow in = flow out. Flow in = flow(S→s) + flow(other edges into s). Flow out = flow(edges out of s). So net departure (out - in from non-S edges) = flow(S→s) = d. Yes! Exactly what we need: net departure from origin equals d. And at t, net arrival equals d by conservation overall (flow into t from graph = flow out of S = d, and flow out of t... conservation at t: inflow = outflow, so net arrival = d). 
+
+So: build graph with n+2 nodes, super source S = n+1 (or 0... let me use node 0 as... hmm, careful with indexing). Let me use: nodes 1..n as given, S = n+1, t as given. Edge S→s with capacity d. Then Dinic from S to t. If flow == d → YES with flows on the m original edges; else NO.
+
+Edge cases: s == t? Then d must be... if s == t, net departure = d and net arrival = d at the same node — that means flow out minus flow in = d and flow in minus flow out = d, so d = 0? Hmm, probably s ≠ t in the input. If s == t and d == 0, answer is all zeros. If s == t and d > 0, it's contradictory... Actually with the super-source formulation: S→s capacity d, and t = s. Flow from S to t=s: the flow on S→s edge itself counts as flow into t. So max flow = min(d, ...) = d trivially (just push d along S→s, done). Then net departure from s: flow(S→s) + inflow from graph edges = outflow to graph edges → net departure via graph edges = d. Hmm wait, that gives net departure = d which is what we want, and at destination t=s, net arrival = ... Let me not overthink; s == t is unlikely. But the super-source formulation handles it as: flow value d from S to t=s means flow into t is d, which is flow(S→s) = d plus other edges into s... hmm, conservation at s: in = out. In: d (from S) + other_in. Out: other_out. So other_out - other_in = d. Net departure = d. Net arrival at t=s would be other_in - other_out = -d ≠ d unless d=0. So it's "wrong" for s==t, but the problem surely has s ≠ t. I'll not worry.
+
+Also d could be 0: then answer is all zeros, YES. The super-source with capacity 0 gives flow 0 = d, YES, all edges 0. Good.
+
+Now, implementation of Dinic in Python efficiently. Since constraints are unknown, let me write a solid Dinic with:
+- Adjacency via arrays: for each edge store to, cap, and index of reverse edge. Use lists.
+- BFS level graph, DFS with blocking flow using iterative or recursive approach. Recursive DFS could hit recursion limits for large graphs; better iterative.
+
+Let me write a standard efficient Dinic:
+
+```python
+import sys
+from collections import deque
+
+def main():
+    input_data = sys.stdin.buffer.read().split()
+    idx = 0
+    n = int(input_data[idx]); idx+=1
+    m = int(input_data[idx]); idx+=1
+    _ = int(input_data[idx]); idx+=1  # number of products = 1
+    s = int(input_data[idx]); idx+=1
+    t = int(input_data[idx]); idx+=1
+    d = int(input_data[idx]); idx+=1
+    
+    # nodes: 1..n, S = n+1
+    S = n + 1
+    N = n + 2
+    graph = [[] for _ in range(N)]
+    # edge storage: to, cap, rev_index; also record edge id for original edges
+    edge_to = []
+    edge_cap = []
+    edge_rev = []
+    
+    def add_edge(u, v, cap):
+        graph[u].append(len(edge_to))
+        edge_to.append(v)
+        edge_cap.append(cap)
+        edge_rev.append(len(edge_to)+1)
+        graph[v].append(len(edge_to))
+        edge_to.append(u)
+        edge_cap.append(0)
+        edge_rev.append(len(edge_to)-1)
+    
+    orig_ids = []
+    for j in range(m):
+        u = int(input_data[idx]); idx+=1
+        v = int(input_data[idx]); idx+=1
+        cap = int(input_data[idx]); idx+=1
+        add_edge(u, v, cap)
+        orig_ids.append(len(edge_to) - 2)  # forward edge index
+    
+    add_edge(S, s, d)
+    
+    # Dinic from S to t
+    ...
+```
+
+For Dinic, I'll implement with iterative DFS or the standard "advance/retreat" pointer-based approach.
+
+A common fast Python Dinic implementation:
+
+```python
+def dinic(N, S, T, graph, edge_to, edge_cap):
+    flow = 0
+    INF = float('inf')
+    while True:
+        # BFS
+        level = [-1]*N
+        level[S] = 0
+        q = deque([S])
+        while q:
+            u = q.popleft()
+            for eid in graph[u]:
+                if edge_cap[eid] > 0:
+                    v = edge_to[eid]
+                    if level[v] == -1:
+                        level[v] = level[u]+1
+                        q.append(v)
+        if level[T] == -1:
+            break
+        # DFS blocking flow with iterators
+        it = [0]*N
+        # iterative DFS
+        # find augmenting paths
+        ...
+```
+
+For the DFS part, a well-known efficient approach in Python:
+
+```python
+        total = 0
+        while True:
+            # find augmenting path in level graph using stack
+            path = []
+            u = S
+            while True:
+                if u == T:
+                    # augment
+                    f = min(edge_cap[e] for e in path)
+                    for e in path:
+                        edge_cap[e] -= f
+                        edge_cap[e^1] += f  # if edges stored in pairs
+                    total += f
+                    # retreat to the first saturated edge
+                    ...
+```
+
+Hmm, storing edges in pairs (even index = forward, odd = backward) makes reverse edge = eid ^ 1. That's cleaner. Let me restructure: edges stored as pairs; graph[u] contains edge indices; edge_to[e], edge_cap[e]; reverse of e is e^1.
+
+Let me write the standard iterative Dinic:
+
+```python
+def max_flow(N, S, T, graph, to, cap):
+    flow = 0
+    while True:
+        level = [-1]*N
+        level[S] = 0
+        q = deque([S])
+        while q:
+            u = q.popleft()
+            lu = level[u] + 1
+            for e in graph[u]:
+                if cap[e]:
+                    v = to[e]
+                    if level[v] < 0:
+                        level[v] = lu
+                        q.append(v)
+        if level[T] < 0:
+            return flow
+        it = [0]*N
+        # iterative DFS finding blocking flow
+        stack = [S]  # path of nodes
+        path_edges = []
+        u = S
+        while True:
+            if u == T:
+                # find bottleneck
+                f = min(cap[e] for e in path_edges)
+                flow += f
+                # update and retreat
+                # find first saturated edge index in path
+                cut = 0
+                for i, e in enumerate(path_edges):
+                    cap[e] -= f
+                    cap[e^1] += f
+                    if cap[e] == 0:
+                        cut = i  # last saturated? we want to retreat to just after the first saturated
+                # retreat: truncate path at the first saturated edge
+                # Actually standard: retreat to the earliest saturated edge
+                # find min index with cap==0
+                first = len(path_edges)
+                for i, e in enumerate(path_edges):
+                    if cap[e] == 0:
+                        first = min(first, i)
+                ...
+```
+
+Hmm, this gets messy. Let me use a cleaner known implementation. A common one:
+
+```python
+def dfs():
+    stack = [(S, INF)]
+    path = []
+    while stack:
+        u, f = stack.pop()  # hmm
+```
+
+Alternative clean approach — recursive with sys.setrecursionlimit, but path lengths can be up to N which might be large (10^5?), recursion would be too slow/deep. Iterative is safer.
+
+Let me write a well-tested iterative Dinic pattern:
+
+```python
+def maxflow(graph, to, cap, s, t, n):
+    flow = 0
+    while True:
+        # BFS level
+        level = [-1] * n
+        level[s] = 0
+        q = deque([s])
+        while q:
+            u = q.popleft()
+            for e in graph[u]:
+                v = to[e]
+                if cap[e] > 0 and level[v] == -1:
+                    level[v] = level[u] + 1
+                    q.append(v)
+        if level[t] == -1:
+            return flow
+        it = [0] * n
+        # DFS
+        path = []  # list of edge ids from s to current
+        u = s
+        while True:
+            if u == t:
+                # augment along path
+                f = min(cap[e] for e in path)
+                for e in path:
+                    cap[e] -= f
+                    cap[e ^ 1] += f
+                flow += f
+                # retreat to node just after first saturated edge
+                # find the earliest index where cap became 0
+                # recompute: we need to pop back
+                i = 0
+                while cap[path[i]] > 0:
+                    i += 1
+                # path[i] is saturated; truncate
+                del path[i:]
+                # current node u = head of last edge in path, or s if empty
+                u = to[path[-1]] if path else s
+                # hmm wait, after truncating at index i, the current node is to[path[i-1]] if i>0 else s
+                continue
+            # try to advance
+            advanced = False
+            while it[u] < len(graph[u]):
+                e = graph[u][it[u]]
+                v = to[e]
+                if cap[e] > 0 and level[v] == level[u] + 1:
+                    path.append(e)
+                    u = v
+                    advanced = True
+                    break
+                it[u] += 1
+            if not advanced:
+                # retreat: dead end
+                if u == s:
+                    break
+                level[u] = -1  # hmm, or just mark
+                e = path.pop()
+                u = to[e ^ 1]  # tail of e
+                it[u] += 1
+        # end DFS phase
+```
+
+Wait, there's a subtlety: when we advance via edge e from graph[u][it[u]], we should NOT increment it[u] yet (the edge may still have capacity for more flow). When we retreat from v back to u, we increment it[u]. That's what the code above does: on dead-end retreat, pop edge e, go back to tail u' = to[e^1], increment it[u']. 
+
+But when augmenting and truncating at the first saturated edge: after truncation, the current node is the head of the last remaining edge (or s). Also, for the saturated edge at position i, we should increment it of its tail so we don't retry it. The tail of path[i] is to[path[i]^1] = (if i>0) to[path[i-1]] else s. Let me handle: after finding first saturated index i, let tail = to[path[i]^1]; it[tail] += 1 (since graph[tail][it[tail]] == path[i]... well, it should be, because we advanced through it without incrementing). Hmm, actually it[tail] points at path[i] only if we haven't incremented past it. Since we only increment on retreat or saturation, and path[i] was the edge we took from tail, it[tail] still points to path[i] (assuming no other increments happened in between for tail — but tail could appear multiple times in the path? In a level graph, levels strictly increase along the path, so each node appears at most once in the path. Good. So it[tail] points to path[i]. Incrementing it[tail] skips the saturated edge. 
+
+Actually, simpler: after truncation, set u = tail (node before the saturated edge), and increment it[u]. Then continue the loop; the advance loop will look at the next edges.
+
+Wait, but careful: after augmenting, edges before index i may still have capacity; the path from s to tail is still valid. So:
+
+```python
+            if u == t:
+                f = min(cap[e] for e in path)
+                for e in path:
+                    cap[e] -= f
+                    cap[e ^ 1] += f
+                flow += f
+                # find first saturated
+                i = 0
+                while cap[path[i]] > 0:
+                    i += 1
+                tail = to[path[i] ^ 1]
+                it[tail] += 1
+                del path[i:]
+                u = tail
+                continue
+```
+
+Hmm wait, but there's an issue: it[tail] += 1 assumes graph[tail][it[tail]] == path[i]. Is that guaranteed? When we advanced from tail via path[i], we did so at it[tail] pointing to path[i] (we break without incrementing). Then we never touch it[tail] again unless we retreat through tail — but retreating through tail would pop path[i] and increment it[tail], and then path[i] wouldn't be in the path anymore. Since path[i] is in the path, we never retreated through tail after taking path[i]. Also tail appears exactly once in the path (level graph). So yes, it[tail] points to path[i]. Incrementing is correct.
+
+Hmm, but wait: could it[tail] have been incremented before we took path[i]? The advance loop: `while it[u] < len(graph[u]): e = graph[u][it[u]]; if ok: take; break; else: it[u] += 1`. So when we take an edge, it[u] points at it. Fine.
+
+One more subtlety: after augmentation, some earlier edges in the path might also be saturated (cap == 0) — we take the FIRST saturated one, which is correct for retreat (we keep the longest valid prefix).
+
+Also, the dead-end retreat: `level[u] = -1` — marking dead node. Actually standard Dinic just increments the iterator; marking level as -1 is an optimization but careful: if we set level[u] = -1, then in the advance check `level[v] == level[u]+1` fails for it. That's fine and correct (u is a dead end in this phase since all its outgoing level-edges are exhausted... wait, no — dead end means it[u] exhausted all edges, i.e., we've tried all edges from u and none led to t. Actually when we retreat, it[u] has been incremented past the edge we came through... hmm, no: retreat happens when the advance loop fails, meaning it[u] >= len(graph[u]), all edges tried. So u is truly dead for this phase. Setting level[u] = -1 is a valid optimization. But careful: it's only dead because all outgoing edges in level graph are exhausted. Yes. But actually, I realize we don't even need to set level[u] = -1; the it pointer exhaustion handles it. Setting level[u]=-1 speeds up BFS checks... no, BFS is done per phase. It speeds up nothing within the phase except... nothing. Skip it, or keep — harmless. Actually it could matter: advance check `level[v] == level[u]+1` — if we don't mark, we still won't revisit u because to reach u we'd need an edge into u from a level[u]-1 node with capacity, and then advance from u fails again (it[u] exhausted) → immediate retreat. Minor overhead. Setting level[u] = -1 avoids re-entering u. I'll set it.
+
+Hmm wait, one issue with setting level[u] = -1: u could be... t? No, we handle u == t before. u could be s? No, if u == s and no advance, we break out of the phase. OK.
+
+Also potential issue: when augmenting, `f = min(...)` — path is non-empty since s != t (S != t as long as t != n+1, which holds since t ≤ n). Good.
+
+Edge case: what if s == t in input? Then S = n+1, t = s. Max flow from S to t: edge S→s with cap d directly gives flow d (level: S=0, t=s=1). Path: [edge S→s], augment f = d. Then flow = d ≥ d → YES, and all original edges have flow 0. Net departure from s = 0 though... but d might be > 0. Hmm. Is that a problem? The problem says origin and destination are distinct hubs presumably ("from a single origin hub to a single destination hub"). I'll assume s ≠ t. Even if s == t, arguably delivering d from s to s requires 0 movement... ambiguous. Skip.
+
+Now about output: "YES" then one line with m integers — the flow on link j (input order). So flow values on original edges. For original edge j, forward edge index is 2*j (since we add edges in order, each add_edge adds 2 entries: forward at even index, backward at odd). Flow on edge = original cap - cap[2j] = cap[2j+1] (since reverse started at 0). So flow_j = cap[2*j+1]. But careful: could the flow on an edge exceed... no. Also, could there be "backflow" issues — flow on forward edge is cap[2j+1] which is between 0 and original cap. Good. Note: with Dinic, the final flow might have flow on both forward edges... no, each edge pair is independent; flow on edge j = residual usage = original_cap - remaining_cap = cap[2j+1]. This is guaranteed in [0, orig_cap] because cap[2j] + cap[2j+1] = orig_cap always (we move f from forward to reverse). Yes.
+
+But wait — one concern: the flow we output must satisfy conservation exactly. Dinic gives a valid flow of value = total flow. With super source edge S→s of capacity d, if max flow = d, then flow on S→s = d, and conservation at s gives net departure = d. 
+
+But hold on: is it possible that max flow > d? The only edge from S is S→s with cap d, so max flow ≤ d. And if the true max flow from s to t ≥ d, then max flow here = d. If true max flow < d, then max flow here < d → NO. 
+
+Also, what if t is not reachable at all and d = 0? Then flow = 0 = d → YES with all zeros. Correct (delivering 0 containers requires nothing).
+
+Hmm, wait: what if d = 0 but... yes, all zeros works.
+
+What about edges with u == v (self-loops)? Flow on self-loop must be 0 for conservation... Actually a self-loop with flow f: at that hub, inflow += f, outflow += f — conservation still holds! Net effect zero. So self-loops with any flow are technically "conserved" but wasteful. Dinic would never push flow on a self-loop (level[v] == level[u]+1 impossible for self-loop). So flow on self-loops = 0. Fine.
+
+What about parallel edges? Handled fine — each is separate.
+
+Now, performance. Unknown constraints. Let me guess this is from some contest where n, m up to maybe 10^3–10^4, d up to 10^9? Dinic in Python with these iterative loops should handle up to ~10^4 edges with unit-ish capacities... For general capacities, Dinic is O(V²E) worst case which is bad, but in practice fine. Since the problem is phrased as "single-product" (hinting it's easy — just max flow), constraints are probably moderate.
+
+Let me optimize the Dinic implementation:
+
+1. Use flat arrays for graph adjacency: instead of list of lists of edge ids, maybe use CSR. But list of lists with edge ids is OK.
+
+2. BFS: iterate over graph[u] lists.
+
+3. The DFS: as described.
+
+Alternative: use scaling (capacity scaling) Dinic to bound augmentations to O(E log C). That helps when capacities are large. Standard Dinic without scaling does O(V E) augmentations per phase... actually per phase, blocking flow is found in O(VE) time total, and phases are O(V). So total O(V²E) regardless of capacities. With scaling: O(E log C) phases... hmm, capacity scaling Dinic is O(E² log C) or so. For safety, maybe implement standard Dinic — it's usually fine.
+
+Actually, let me think about what the real constraints might be. The problem statement format "Line 1: n m 1" with the third number being the number of products (1) suggests this is adapted from a multi-commodity flow problem where the general version is hard. The grid structure ("corridor grid") suggests maybe a grid graph. Probably n, m ≤ a few thousand. Standard Dinic in Python should be fine.
+
+Let me also consider: maybe the graph is a grid where max flow is small. Anyway.
+
+Let me write clean code:
+
+```python
+import sys
+from collections import deque
+
+def main():
+    data = sys.stdin.buffer.read().split()
+    ptr = 0
+    n = int(data[ptr]); ptr += 1
+    m = int(data[ptr]); ptr += 1
+    # third value = 1 (number of products), skip
+    ptr += 1
+    s = int(data[ptr]); ptr += 1
+    t = int(data[ptr]); ptr += 1
+    d = int(data[ptr]); ptr += 1
+    
+    N = n + 2
+    S = n + 1
+    # edges stored in pairs
+    E = m + 1  # number of add_edge calls
+    to = [0] * (2 * E)
+    cap = [0] * (2 * E)
+    graph = [[] for _ in range(N)]
+    
+    idx = 0
+    for j in range(m):
+        u = int(data[ptr]); ptr += 1
+        v = int(data[ptr]); ptr += 1
+        c = int(data[ptr]); ptr += 1
+        to[2*idx] = v
+        cap[2*idx] = c
+        to[2*idx+1] = u
+        cap[2*idx+1] = 0
+        graph[u].append(2*idx)
+        graph[v].append(2*idx+1)
+        idx += 1
+    # super source edge
+    to[2*idx] = s
+    cap[2*idx] = d
+    to[2*idx+1] = S
+    cap[2*idx+1] = 0
+    graph[S].append(2*idx)
+    graph[s].append(2*idx+1)
+    
+    # Dinic
+    flow = 0
+    while True:
+        level = [-1] * N
+        level[S] = 0
+        q = deque([S])
+        while q:
+            u = q.popleft()
+            lu = level[u] + 1
+            for e in graph[u]:
+                if cap[e] > 0:
+                    v = to[e]
+                    if level[v] == -1:
+                        level[v] = lu
+                        q.append(v)
+        if level[t] == -1:
+            break
+        it = [0] * N
+        path = []
+        u = S
+        while True:
+            if u == t:
+                f = min(cap[e] for e in path)
+                for e in path:
+                    cap[e] -= f
+                    cap[e ^ 1] += f
+                flow += f
+                i = 0
+                while cap[path[i]] > 0:
+                    i += 1
+                tail = to[path[i] ^ 1]
+                it[tail] += 1
+                del path[i:]
+                u = tail
+                continue
+            gu = graph[u]
+            iu = it[u]
+            lenu = len(gu)
+            advanced = False
+            while iu < lenu:
+                e = gu[iu]
+                v = to[e]
+                if cap[e] > 0 and level[v] == level[u] + 1:
+                    it[u] = iu
+                    path.append(e)
+                    u = v
+                    advanced = True
+                    break
+                iu += 1
+            if advanced:
+                continue
+            it[u] = iu
+            if u == S:
+                break
+            level[u] = -1
+            e = path.pop()
+            u = to[e ^ 1]
+            it[u] += 1
+        # loop again (next phase)
+    
+    if flow >= d:
+        # flow == d since capped
+        out = []
+        for j in range(m):
+            out.append(str(cap[2*j + 1]))
+        sys.stdout.write("YES\n" + " ".join(out) + "\n")
+    else:
+        sys.stdout.write("NO\n")
+
+main()
+```
+
+Wait, there's a bug in the retreat: after popping edge e and going back to u = to[e^1], I do it[u] += 1. But it[u] currently points at e (the edge we took from u). Yes, incrementing skips it. Good. But careful: I set `it[u] = iu` before... let me re-check the flow:
+
+In the advance loop, I use local iu starting from it[u]. If advance succeeds at position iu, I write it[u] = iu (unchanged effectively, since it[u] was already iu... wait no — it[u] was the starting value, and iu may have advanced past skipped edges. So I must save it[u] = iu to persist the skipping). Yes, I do `it[u] = iu` before appending. Good.
+
+If advance fails (iu reached lenu), I set it[u] = iu (exhausted). Then retreat.
+
+Hmm, but there's a subtle issue in the augment step: after `del path[i:]`, u = tail. But it[tail] was pointing at path[i] (the saturated edge), and I increment it. But wait — is it[tail] really pointing at path[i]? Let me re-verify: when we advanced from tail through path[i], we set it[tail] = iu where gu[iu] == path[i]. Then we never modified it[tail] afterwards (no retreat through tail, since path[i] is still in path; no other operation touches it[tail]). And tail appears exactly once in the path (levels strictly increase). So yes, graph[tail][it[tail]] == path[i]. Incrementing it[tail] moves past the saturated edge. 
+
+But hmm, wait: what if the same edge appears... no, each edge appears at most once in a path (since it's a simple path in the level graph — nodes distinct implies forward edges distinct; could a forward edge and its reverse both appear? Reverse edge goes from v to u with level decreasing, so no). Fine.
+
+Another subtlety: after augmenting, `while cap[path[i]] > 0: i += 1` — this finds the first saturated edge. Since f = min, at least one edge has cap 0 after subtracting f. The first such edge. Good. But note: an edge that had cap 0... can't be in path since we only advance on cap > 0. After subtracting f, cap[e] ≥ 0. Good.
+
+Also, `del path[i:]` — path is a list of edge ids; deleting the suffix. Then u = tail = to[path[i]^1]... wait, I compute tail BEFORE deleting: `tail = to[path[i] ^ 1]`. path[i] is the saturated edge; its tail is to[path[i]^1] (the reverse edge's head = original tail). Yes. Then del path[i:]. Then u = tail. Correct.
+
+Hmm, but one more check: after augmentation, the prefix path[0..i-1] edges still have cap > 0 (they weren't saturated... well, they have cap ≥ ... they had cap > f? No: cap[e] - f > 0 for e before the first saturated edge? The first saturated edge is the first with cap - f == 0, so all earlier edges have cap - f > 0. Yes, prefix is still a valid positive-capacity path from S to tail. Good.
+
+Now, the outer while True loop: after the DFS phase ends (u == S and no advance), we go back to BFS. If level[t] == -1, break. Standard Dinic.
+
+Wait, there's an issue with the phase termination: when u == S and advance fails, we break the inner while True. But what if path is non-empty at that point? If u == S, path should be empty (path edges correspond to steps from S). When we retreat back to S... let's see: retreat pops an edge and moves to its tail. If tail == S, path becomes empty, u = S, it[S] += 1. Then next iteration: u == S (not t), try advance; if fail, break. Path is empty. Good. When we augment and truncate at i=0 (first edge saturated), tail = S, path empty, u = S. Then continue: try to advance from S. Good.
+
+Now, correctness of flow value: flow accumulates f each augmentation. Since the only source edge is S→s with cap d, flow ≤ d. If the s-t max flow ≥ d, then... hmm, actually is it guaranteed that Dinic finds flow = d if s-t maxflow ≥ d? Yes: max flow from S in this augmented graph = min(d, maxflow(s,t)) = d. Dinic computes exact max flow. Good.
+
+Hmm, wait — one thing: what if t == s? Then as discussed, Dinic finds path S→s directly (level[s] = 1 = level[t]), flow = d, output all zeros. As discussed, questionable but unlikely input.
+
+What about the case where the required flow value must be exactly d but there might be edges into s or out of t in the input? The problem says "At the origin the net departure equals the required quantity" — net, so edges into s are allowed as long as net = d. Our super-source formulation: conservation at s: inflow(S→s) + inflow(other edges into s) = outflow(edges out of s). So outflow - inflow = d. Net departure = d. ✓. At t: conservation: inflow = outflow, so net arrival = inflow - outflow... wait, Dinic's flow satisfies conservation at ALL nodes except S and t. At t: total inflow - total outflow = flow value = d. Net arrival = d. ✓. 
+
+Now, output format: "YES" then one line with m integers. Or "NO". Let me double check: "Output: `YES` then one line with m integers — the flow on link j (input order); or `NO`."
+
+So:
+```
+YES
+f1 f2 ... fm
+```
+or
+```
+NO
+```
+
+I'll print flows space-separated. Should be fine.
+
+Edge case m = 0: then output "YES" followed by an empty line if d == 0 (s must equal t for that... if m=0 and s≠t and d>0 → NO; if d==0 → YES with empty line). Hmm, "one line with m integers" — with m=0, an empty line. I'll print "YES\n\n"? Or just "YES\n"? Probably print "YES" and then the join which is empty → "YES\n" + "" + "\n" = "YES\n\n". Hmm, an empty line. It's ambiguous; likely m ≥ 1 in tests. I'll handle: if m == 0, just print "YES" (or "NO"). Actually let me print the line only if m > 0... but to be safe, printing an empty line after YES shouldn't hurt. Let me do: output "YES\n" + (" ".join(flows) + "\n" if m > 0 else ""). Hmm, or just always " ".join which for m=0 gives "" then "\n". I'll do the conditional to be clean. Actually, most judges ignore trailing whitespace. I'll just always print the joined line.
+
+Now, about reading input: "Line 1: n m 1. Next line: s t d. Next m lines: u v cap." Straightforward.
+
+Wait — could the third number on line 1 be something else, like the number of products? The problem says single product, and "(Planners sometimes reach for elaborate multi-product machinery here; with only one product to move...)" — so yes, the "1" is the product count. We skip it.
+
+Hmm, but what if the input format actually has more products listed? No — it's 1, single product. The input is exactly: n m 1 / s t d / m lines of u v cap. Good.
+
+Let me also think about whether the flow needs to be exactly d or at least d. "A fixed quantity of the product, counted in whole containers, must travel from a single origin hub to a single destination hub during this one cycle." and "At the origin the net departure equals the required quantity, and at the destination the net arrival equals it." So exactly d. Our approach gives exactly d. ✓.
+
+Now let me also double check the potential issue: what if max flow > d and we output flow of value d — is a flow of value exactly d always achievable when maxflow ≥ d? Yes — flows are "downward closed": any flow of value F can be reduced to value d ≤ F by decomposing into paths/cycles and trimming. And our super-source construction directly finds it. ✓.
+
+Performance considerations: Let me think about the BFS — using deque, iterating graph[u]. For speed, I could convert graph[u] lists to... it's fine.
+
+One optimization: in BFS, `for e in graph[u]` — checking cap[e] > 0. Fine.
+
+Potential performance issue: the DFS advance loop uses `level[v] == level[u] + 1`. Fine.
+
+Let me also add a small optimization: early exit BFS when t is reached? Not necessary but can help: once level[t] is set, we can stop expanding... Actually standard Dinic BFS can stop when t is found (nodes at higher levels aren't needed). But careful: we need levels of all nodes with level < level[t]. If we stop dequeuing after t is found... nodes already in queue at the same level as t or lower should still be processed? Actually nodes at level ≥ level[t] other than t are useless. We can break out when we pop u with level[u] >= level[t]. Let me add: after computing level[t], we can break the BFS loop when level[u] >= level[t] (since any node discovered later has level > level[u] ≥ level[t], useless). Implementation: check at pop time: if level[u] >= level[t] (level[t] != -1): break. Hmm, but level[t] gets set during processing. Let me do:
+
+```python
+        q = deque([S])
+        lt = -1
+        while q:
+            u = q.popleft()
+            lu = level[u] + 1
+            if lt != -1 and lu > lt:
+                break
+            for e in graph[u]:
+                if cap[e] > 0:
+                    v = to[e]
+                    if level[v] == -1:
+                        level[v] = lu
+                        if v == t:
+                            lt = lu
+                        q.append(v)
+        if lt == -1:
+            break
+```
+
+Hmm, this breaks when we pop a node whose level exceeds lt. Nodes with level == lt (other than t) are still processed but their discoveries would be level lt+1 > lt, useless but harmless (they'd never be on a shortest path... wait, they could be intermediate? No — path to t has length lt, so nodes at level lt other than t can't be on an S-t path of length lt except as the endpoint. So processing them adds nodes at level lt+1 which are useless). It's a minor optimization; keep it simple maybe. Actually, let me keep the simple full BFS — correctness is clearer. Or use the optimization, it's safe. I'll include a mild version: stop expanding from nodes at level >= lt.
+
+Actually, simpler and safe: full BFS. The graph size is presumably manageable. But if n is like 10^5 and phases are many... Dinic phases ≤ n. Full BFS per phase is O(E) — total O(nE) worst case for BFS alone. The early termination doesn't change asymptotics. Keep it simple.
+
+Let me reconsider constraints once more. The problem is from some judge (looks like it's adapted, possibly from Codeforces or a local contest). "Time limit: 2s, Memory: 256MB". Python Dinic handles n, m ~ 5000 easily; ~10^5 with large capacities might be slow but probably OK for typical data (grid graphs have small flow decomposition... actually grid max flows can be large).
+
+Hmm, "corridor grid" — maybe the graph is a grid graph where each row is a corridor. Max flow in grid graphs: Dinic works fine typically.
+
+Let me also think about whether to use scaling. Capacity scaling Dinic: repeatedly run Dinic on the subgraph of edges with residual ≥ current threshold (threshold from high bit down). This limits the number of augmentations per phase... Actually the standard result: with scaling, total augmentations O(E log C). Implementation: for threshold in [2^30, 2^29, ..., 1]: run Dinic phases where BFS/DFS only use edges with cap[e] >= threshold. At the end, flow is max. This is a well-known technique and not too hard to add. But it complicates the code. Given unknown constraints, standard Dinic is probably fine. Most such problems have moderate constraints.
+
+Hmm, let me think about the worst case for standard Dinic in Python: O(V²E) — for V=E=1000, that's 10^9 — too slow if hit. But real test data for a "grid corridor" problem is unlikely adversarial for Dinic. Also, the problem hints it's supposed to be easy ("the shared-capacity contention that makes the general problem hard simply does not arise" — i.e., it's just max flow). I'll go with standard Dinic but write it as efficiently as possible.
+
+Actually, let me add capacity scaling anyway — it's a modest addition and guards against large-capacity pathological cases. Hmm, but it also multiplies the number of BFS passes by ~30. For each threshold, we run phases until no augmenting path in the threshold-restricted graph. The total work is bounded better asymptotically. Let me think about whether it's worth it...
+
+Standard Dinic worst case is rare in practice. The main practical risk: many augmentations each of small value (e.g., unit capacities with huge d). With unit capacities, Dinic is O(E√E) — fine. With arbitrary capacities, the number of augmenting paths is bounded by O(E) per phase times O(V) phases. In practice, Dinic is fast.
+
+I'll go with standard Dinic, carefully optimized. Let me also consider using sys.setrecursionlimit + recursive DFS — no, iterative is better.
+
+Let me now also double check the DFS blocking-flow loop for correctness more rigorously, since it's the trickiest part.
+
+State: path (list of edges from S to u), u (current node), it[] (current edge pointers), level[].
+
+Loop:
+1. If u == t: augment along path with f = min residual. Update caps. flow += f. Find first index i with cap[path[i]] == 0. tail = tail of path[i]. it[tail] += 1. Truncate path to path[0..i-1]. u = tail. Continue.
+
+   Wait — there's a subtle bug: it[tail] += 1 — but what if i == 0? Then tail = S. it[S] += 1. Fine.
+
+   Another subtlety: what if after augmentation, cap[path[i]] == 0 but it[tail] pointed to a DIFFERENT edge? I argued it can't. Let me re-verify with a scenario: We advance from S: it[S]=0, take edge e0 (graph[S][0]). Path=[e0], u=to[e0]. Later we retreat from to[e0] (dead end): pop e0, u = S, it[S] += 1 → it[S]=1. Then advance again with e1 = graph[S][1]. Path=[e1]. So when path[i] is in the path, it[tail] points at path[i]. ✓.
+
+   But here's a trickier scenario: tail appears in the path at position i, and we previously... no wait, each node appears at most once in the path because levels strictly increase along path edges. So tail's it pointer was last set when we advanced from tail via path[i]. ✓.
+
+2. Else, try to advance: scan gu from it[u]; find first edge with cap>0 and level[v] == level[u]+1. If found at position iu: it[u] = iu (persist skips), path.append(e), u = v. Continue.
+
+   Note: we do NOT increment it[u] when advancing — the edge may be reusable. ✓.
+
+3. If no edge found: it[u] = iu (= len(gu)). If u == S: phase ends (break). Else: mark level[u] = -1 (dead), pop last edge e, u = tail(e), it[u] += 1 (skip the edge that led to the dead end). Continue.
+
+Hmm wait, in step 3, when we retreat: `e = path.pop(); u = to[e^1]; it[u] += 1`. But it[u] points at e (we advanced from u via e without incrementing). ✓. But careful — what if between advancing from u via e and retreating to u, it[u] was modified? Only retreat-through-u or saturate-at-u modifies it[u], both of which would remove e from path. Since e is in path, no. ✓.
+
+Also in step 3, setting level[u] = -1: this prevents future advance INTO u (level check fails). But could that be wrong — i.e., u might still be useful in this phase? u is a dead end: all its outgoing edges have been exhausted (it[u] = len) OR fail the level check. Hmm wait — actually not exactly: it[u] = iu = len(gu) means we scanned all edges from u. Each either had cap == 0 or level mismatch. So no outgoing admissible edges. u can never be on an augmenting path in this phase. Marking level[u] = -1 is safe. ✓. (Note: cap could increase later? No — within a phase, augmentations only decrease caps along the level graph... hmm, actually augmentation increases cap of reverse edges. Reverse edges go from level[u]+1 to level[u], i.e., they point INTO u from higher level — those fail the level check anyway. Forward admissible edges from u: their caps only decrease within the phase (flow only pushes forward along level paths... wait, no: an augmentation along a path that passes through u in the forward direction decreases cap of u's outgoing edge; but could an augmentation INCREASE the cap of an outgoing edge of u? That would require the augmentation path to use the reverse of that edge, i.e., go from v to u where level[v] = level[u]+1 — but paths only go from level k to k+1, so an edge v→u in the path requires level[u] = level[v]+1 = level[u]+2. Contradiction. So no, within a phase, admissible edge caps never increase.) ✓ So marking dead is safe.
+
+Great, the algorithm is correct.
+
+One more consideration: the `while cap[path[i]] > 0: i += 1` loop after augmentation — worst case O(path length) which is fine (amortized, since each augment does O(len) work and total augment work is bounded... it's standard).
+
+Actually hold on, there's a subtle inefficiency: after augmenting, we scan from i=0 to find the first saturated edge. Path length ≤ number of levels. Each augmentation does O(L) work for the scan plus O(L) for the min/update. Total: O(augmentations × L). Standard Dinic analysis covers this (the blocking flow computation is O(VE) per phase). Fine.
+
+Alternative approach for finding first saturated: track argmin during the min computation:
+
+```python
+                f = cap[path[0]]
+                i = 0
+                for k in range(1, len(path)):
+                    if cap[path[k]] < f:
+                        f = cap[path[k]]
+                        i = k
+                # i is the LAST index achieving the min... 
+```
+
+Hmm, but I want the FIRST saturated edge. If I track the first index achieving min: `if cap[path[k]] < f: f = ...; i = k` gives the first occurrence of the minimum (since strictly less). Then after subtracting f, path[i] has cap 0, and it's the first saturated? Not necessarily — an earlier edge could have cap exactly f too but... no: if cap[path[k]] < f updates, then f is the min and i is the first index where the min is achieved. Any earlier edge has cap > f... wait, edges before i have cap ≥ f, and those with cap == f... if an earlier edge had cap == f, then when we scanned it, cap[path[k]] < f would be false (f was larger then... hmm, careful: f decreases as we scan. Let me re-think: scanning k=0..L-1, f = running min, i = first index where running min achieved. At the end, f = global min, i = first index achieving global min. Edges before i have cap > global min? If edge j < i had cap == global min, then when we scanned j, running min would have become global min at j (since running min ≥ global min and cap[j] == global min ≤ running min... if cap[j] < running min at that point, i=j; if cap[j] == running min, no update — but running min at that point > global min? Not necessarily...). Ugh, edge case: caps [5, 3, 3]. Scan: f=5,i=0; k=1: 3<5 → f=3,i=1; k=2: 3<3 false. So i=1, first index of min. ✓. caps [3,3]: f=3,i=0; k=1: 3<3 false. i=0. ✓ first index. So yes, this gives the first index achieving the global minimum. After subtracting f, edges before i have cap > 0 (since their cap > f... wait, edges before i: their cap ≥ f, and if cap == f they'd be the first index... only if they come before i. Hmm: if edge j < i has cap == f (global min), then at scan time of j, running min was ≥ f, and cap[j] = f ≤ running min. If cap[j] < running min → update i=j (contradiction with i being first). If cap[j] == running min, no update — but then running min == f already at j, meaning some earlier index achieved f, contradicting i being the first index achieving global min... wait no — running min == f at position j means the min so far is f, achieved earlier, so i would already point to an index < j with value f. But i is defined as the first index achieving the global min f. Contradiction. So indeed all edges before i have cap > f, hence cap - f > 0 after augmentation. ✓)
+
+So I can compute f and i in one pass:
+
+```python
+            if u == t:
+                f = cap[path[0]]
+                sat = 0
+                for k in range(1, len(path)):
+                    c = cap[path[k]]
+                    if c < f:
+                        f = c
+                        sat = k
+                for e in path:
+                    cap[e] -= f
+                    cap[e ^ 1] += f
+                flow += f
+                tail = to[path[sat] ^ 1]
+                it[tail] += 1
+                del path[sat:]
+                u = tail
+                continue
+```
+
+This is cleaner and one pass. 
+
+Now, another micro-optimization: `to[e ^ 1]` — I could precompute tails array: tail[e] = to[e^1]. Or just use to[e^1]. Fine.
+
+Let me also think: should I use arrays (list) for cap/to — yes.
+
+Let me now also handle potential edge case: what if d is huge and caps are huge — Python ints handle it.
+
+What if the input has extra whitespace/newlines — .split() handles it.
+
+Let me also double-check the reading: "Line 1: n m 1" — three integers. "Next line: s t d" — three integers. Then m lines of "u v cap". Total tokens: 3 + 3 + 3m. ✓.
+
+Hmm, wait. Let me reconsider — is it possible that the "1" on line 1 means something else, like the number of test cases? "n m 1" — with the problem being about a single product, and the description emphasizing "one product", the 1 is the product count (this looks like it's derived from a problem where line 1 was "n m k" with k products, and here k=1). Either way, we skip it. ✓.
+
+Now let me also think about whether the expected output flow must be integral — yes, "whole containers", and Dinic with integer capacities gives integer flows. ✓.
+
+Also, must the flow be ≤ cap on each lane — yes, by construction. ✓.
+
+Conservation at intermediate hubs — Dinic flow satisfies it. ✓.
+
+Let me now also think about whether the judge might require the flow value to be exactly d and check it, or just check feasibility. Our output satisfies exact value d. ✓.
+
+One more potential gotcha: the problem says "Produce a routing that delivers the full quantity" — so any valid flow works. Special judge presumably. ✓.
+
+Let me write the final code:
+
+```python
+import sys
+from collections import deque
+
+def main():
+    data = sys.stdin.buffer.read().split()
+    ptr = 0
+    n = int(data[ptr]); m = int(data[ptr+1])
+    ptr += 3  # skip the "1"
+    s = int(data[ptr]); t = int(data[ptr+1]); d = int(data[ptr+2])
+    ptr += 3
+    
+    N = n + 2
+    S = n + 1
+    E2 = 2 * (m + 1)
+    to = [0] * E2
+    cap = [0] * E2
+    graph = [[] for _ in range(N)]
+    
+    for j in range(m):
+        u = int(data[ptr]); v = int(data[ptr+1]); c = int(data[ptr+2])
+        ptr += 3
+        e = 2 * j
+        to[e] = v; cap[e] = c
+        to[e+1] = u; cap[e+1] = 0
+        graph[u].append(e)
+        graph[v].append(e+1)
+    
+    e = 2 * m
+    to[e] = s; cap[e] = d
+    to[e+1] = S; cap[e+1] = 0
+    graph[S].append(e)
+    graph[s].append(e+1)
+    
+    flow = 0
+    while True:
+        # BFS
+        level = [-1] * N
+        level[S] = 0
+        q = deque([S])
+        while q:
+            u = q.popleft()
+            lu = level[u] + 1
+            for ed in graph[u]:
+                if cap[ed] > 0:
+                    v = to[ed]
+                    if level[v] < 0:
+                        level[v] = lu
+                        q.append(v)
+        if level[t] < 0:
+            break
+        # blocking flow
+        it = [0] * N
+        path = []
+        u = S
+        while True:
+            if u == t:
+                # augment
+                f = cap[path[0]]
+                sat = 0
+                for k in range(1, len(path)):
+                    c = cap[path[k]]
+                    if c < f:
+                        f = c
+                        sat = k
+                for ed in path:
+                    cap[ed] -= f
+                    cap[ed ^ 1] += f
+                flow += f
+                tail = to[path[sat] ^ 1]
+                it[tail] += 1
+                del path[sat:]
+                u = tail
+                continue
+            gu = graph[u]
+            iu = it[u]
+            lng = len(gu)
+            found = -1
+            lu1 = level[u] + 1
+            while iu < lng:
+                ed = gu[iu]
+                if cap[ed] > 0 and level[to[ed]] == lu1:
+                    found = ed
+                    break
+                iu += 1
+            if found >= 0:
+                it[u] = iu
+                path.append(found)
+                u = to[found]
+                continue
+            it[u] = iu
+            if u == S:
+                break
+            level[u] = -1
+            ed = path.pop()
+            u = to[ed ^ 1]
+            it[u] += 1
+        # next phase
+    
+    if flow == d:
+        res = [str(cap[2*j+1]) for j in range(m)]
+        sys.stdout.write("YES\n" + " ".join(res) + "\n")
+    else:
+        sys.stdout.write("NO\n")
+
+main()
+```
+
+Wait — `flow == d` vs `flow >= d`: flow ≤ d always (capped by S→s edge). So flow == d iff feasible. But if d == 0: flow == 0 == d → YES with all zeros. ✓. (Even if s can't reach t — delivering 0 containers is trivially done with the zero flow. Is that the right answer? "A fixed quantity ... must travel" — if the quantity is 0, the empty routing works. YES. I think that's right. Though maybe the problem guarantees d ≥ 1.)
+
+Hmm, wait, one thing to double check: `level[to[ed]] == lu1` — but also need cap[ed] > 0 — checked. ✓.
+
+Also, in the advance scan, I should also skip... hmm, what about edges to nodes with level == -1 (unreachable or dead)? level check fails. ✓.
+
+Now, is there an issue with `del path[sat:]` when path becomes a frequently-modified list — performance is fine.
+
+Let me trace through a small example to sanity check.
+
+Example: n=2, m=1, s=1, t=2, d=5, edge 1 2 cap 3.
+Nodes: 1, 2, S=3. N=4.
+Edges: e0: 1→2 cap 3; e1: 2→1 cap 0; e2: S→1 cap 5; e3: 1→S cap 0.
+graph[1] = [0, 3], graph[2] = [1], graph[3] = [2].
+
+BFS: level[3]=0. Pop 3: edge 2 (cap 5>0), to=1, level[1]=1, q=[1]. Pop 1: edges 0 (cap 3>0, to=2, level[2]=2), 3 (cap 0, skip). q=[2]. Pop 2: edge 1 cap 0 skip. level[t=2]=2 ≥ 0.
+
+DFS: it=[0,0,0,0], path=[], u=3.
+- u=3 ≠ 2. gu=graph[3]=[2], iu=0: ed=2, cap 5>0, level[to=1]=1 == level[3]+1=1 ✓. found=2. it[3]=0, path=[2], u=1.
+- u=1 ≠ 2. gu=[0,3], iu=0: ed=0, cap 3>0, level[2]=2 == 2 ✓. path=[2,0], u=2.
+- u == 2: f = min(cap[2]=5, cap[0]=3) = 3, sat: k=1: cap[0]=3 < 5 → f=3, sat=1. Update: cap[2] -= 3 → 2; cap[3] += 3 → 3; cap[0] -= 3 → 0; cap[1] += 3 → 3. flow=3. tail = to[path[1]^1] = to[0^1]=to[1]=1. it[1] += 1 → 1. del path[1:] → path=[2]. u=1.
+- u=1 ≠ 2. gu=[0,3], iu=it[1]=1: ed=3, cap 0, skip; iu=2 = len. found=-1. it[1]=2. u≠S. level[1]=-1. ed=path.pop()=2. u=to[2^1]=to[3]=3. it[3] += 1 → 1.
+- u=3 ≠ 2. gu=[2], iu=1 = len. found=-1. it[3]=1. u==S → break.
+
+Phase 2 BFS: level[3]=0. Pop 3: edge 2 cap 2>0, to=1, level[1]=1. Pop 1: edge 0 cap 0 skip; edge 3 cap 3>0, to=3, level[3]=0 ≠ -1, skip. q empty. level[2] = -1 → break.
+
+flow = 3 ≠ 5 → NO. ✓ Correct (max deliverable is 3 < 5).
+
+Another example: d=3, same graph. Then flow=3 == d → YES, output flow on edge 0 = cap[1] = 3. ✓.
+
+Another: d=2. BFS same. DFS: augment f = min(5, 3) = 2? Wait — path = [2, 0], f = min(cap[2]=5, cap[0]=3) = 3, sat=1. Hmm, that pushes 3, but we only want 2! Oh no — wait, the S→s edge has cap d=2, so cap[2] = 2. f = min(2, 3) = 2, sat=0 (first index: k=1: cap[0]=3 < 2? No. So sat=0, f=2). Update: cap[2]=0, cap[3]=2, cap[0]=1, cap[1]=2. flow=2. tail = to[path[0]^1] = to[3] = 3 = S. it[3] += 1. path=[]. u=3.
+- u=3: gu=[2], iu=1=len → not found. it[3]=1. u==S → break.
+Phase 2: BFS: level[3]=0, edge 2 cap 0 → no. level[2]=-1 → break. flow=2==d → YES, flow on edge 0 = cap[1] = 2. ✓.
+
+The super-source cap correctly limits to d. ✓.
+
+Now, a case where maxflow > d: n=2, m=1, edge 1→2 cap 10, d=3. cap[2] (S→1) = 3. DFS: path=[2,0], f=min(3,10)=3, sat=0. flow=3. Output: flow on edge 0 = 3. ✓ Exactly d.
+
+Case with edges into s: n=3, m=3: edges: 1→2 cap 5, 3→1 cap 5, 2→3 cap 5. s=1, t=3, d=5. Hmm: net departure from 1 must be 5: out(1→2) - in(3→1) = 5. With flow: f(1→2)=5, f(3→1)=0, f(2→3)=5. Check: node 2: in 5, out 5 ✓. Node 3: in 5 (from 2), out 0 (3→1 has flow 0) → net arrival 5 ✓. Node 1: in 0, out 5 → net departure 5 ✓. Dinic: S→1 cap 5. BFS: S(0) → 1(1) → 2(2) → 3(3). Path [S→1, 1→2, 2→3], f=5. flow=5. Output: 5 0 5. ✓.
+
+What if there's a cycle through s that Dinic might use? E.g., edges 1→2 cap 5, 2→1 cap 5, 2→3 cap 5, s=1, t=3, d=3. Dinic: BFS levels: S=0, 1=1, 2=2, 3=3. Path: S→1, 1→2, 2→3, f=3. Output: 3, 0, 3. Net departure from 1: 3 - 0 = 3 ✓. Good — Dinic never creates useless cycles.
+
+OK the algorithm is solid. Now let me think about performance more and optimize the inner loops.
+
+Optimization ideas:
+1. In BFS, avoid function-call overhead — it's inline in main. ✓.
+2. Local variable references: cap, to, graph, level as locals. ✓ (inside main).
+3. The advance scan: `while iu < lng: ed = gu[iu]; if cap[ed] > 0 and level[to[ed]] == lu1: ...` — this is the hot loop. Could precompute per-node list of (edge, to) pairs? Or store graph[u] as list of edge indices and cache to[ed]... The check `level[to[ed]] == lu1` requires two list lookups. Alternative: store adjacency as list of (v, e) tuples? Then `for v, ed in gu[iu:]`... but we need index tracking for it[u]. Hmm.
+
+Alternative structure: store graph[u] as a list where entries alternate... or store two parallel structures. Let me think about a different classic Python Dinic optimization: store graph as list of lists of edge ids, and in the DFS, use `for` loops with slices.
+
+Actually, a cleaner high-performance approach: since it[u] scanning is the hot part, we can do:
+
+```python
+            gu = graph[u]
+            iu = it[u]
+            n_gu = len(gu)
+            while iu < n_gu:
+                ed = gu[iu]
+                if cap[ed] > 0:
+                    v = to[ed]
+                    if level[v] == lu1:
+                        break
+                iu += 1
+```
+
+That's what I have. It's fine.
+
+4. Another optimization: prune graph[u] during BFS to only admissible edges? That would rebuild lists each phase — O(E) per phase, same as BFS. Could help the DFS. Hmm, some implementations build a "level graph adjacency" during BFS: adjs[u] = list of edges from u to level+1 nodes with cap>0 at BFS time. But caps change during the phase (edges become saturated), so the DFS still needs cap checks. The benefit: the DFS scan skips inadmissible edges without rechecking level. But it[u] pointers would index into the new lists. This is a known optimization. Let me consider:
+
+During BFS, build `dag[u]` lists: for each edge from u with cap>0 and level[to]==level[u]+1 (when processing u in BFS, we know level[u], and we set level[v] — but v's level might already be set to level[u]+1 from another node; the edge u→v is admissible iff level[v] == level[u]+1, which we can check after BFS completes... but building during BFS: when we pop u and scan its edges, for edge u→v with cap>0: if level[v] == -1, set level[v] = level[u]+1 and append to dag[u]; elif level[v] == level[u]+1, append to dag[u]. That works — append edge to dag[u] whenever level[v] ends up == level[u]+1.
+
+Then DFS uses dag[u] instead of graph[u], with it[u] indexing dag[u]. The cap check remains. This roughly halves the per-edge work in DFS. But it doubles BFS work slightly. Net win typically.
+
+Hmm, but there's a subtlety: dag[u] built during BFS — when we pop u from the queue, all edges from u are scanned, and level[v] for neighbors... at that time, level[v] might not be set yet (then we set it to level[u]+1 and the edge is admissible) or already set. If already set to level[u]+1 (by another node at the same level... wait, nodes are popped in level order (BFS), so when u is popped, all nodes at levels ≤ level[u] have final levels; nodes at level[u]+1 may be partially set. If level[v] == level[u]+1 already or gets set now → admissible. If level[v] ≤ level[u] → not admissible. If level[v] == -1 → set to level[u]+1 → admissible. ✓. So building dag during BFS is correct.
+
+But also: dead-node marking (level[u] = -1) — with dag, we'd need... if we mark level[u] = -1, edges into u in other dag lists would still point to u, and the advance check `level[v] == lu1` would fail → skip. But if we use dag lists WITHOUT level checks, we'd lose that. Hmm. So either keep the level check in DFS (defeating some of the purpose) or handle dead marking differently.
+
+Alternative: don't mark dead nodes; instead rely on it[u] exhaustion. When we retreat from u, it[u] = len(dag[u]) already, so re-entering u leads to immediate retreat (scan finds nothing since iu starts at len). The cost: re-entering u via another admissible edge, scanning nothing, retreating. That's O(1) per re-entry. Number of re-entries could be large in theory but it's the standard behavior anyway. Actually with level checks and level[u] = -1, we avoid even entering. Without, we pay a small constant. Hmm.
+
+Actually, let me keep it simpler: use dag lists AND keep the level check but ALSO mark dead. Wait, if dag[u] only contains admissible edges (level-consistent at build time), the level check in DFS is redundant EXCEPT for dead-node marking. So: keep level check only to detect dead nodes: `if cap[ed] > 0 and level[v] >= 0` — since dag edges are guaranteed level[v] == level[u]+1, the only way level[v] changed is dead-marking (level[v] = -1). So the check becomes `level[v] >= 0`... but wait, can level[v] be something else? No — levels are fixed after BFS within the phase, except dead-marking sets -1. So in DFS with dag: check `cap[ed] > 0 and level[v] != -1`. Hmm, but actually if v is dead (it[v] exhausted), entering v means scanning from it[v] = len → immediate retreat. The level check just saves that tiny bit. Honestly, both ways are fine.
+
+Hmm, let me reconsider: is the dag optimization worth the complexity? The main hot loops are BFS edge scans and DFS advance scans. Without dag: DFS scans all edges of u (including inadmissible ones) once per u per phase (amortized, since it[u] only moves forward). So per phase, DFS scanning is O(E) total amortized (each edge skipped at most once per phase due to it pointer... wait, no: it[u] persists across augmentations within the phase, so each edge of u is skipped at most once per phase — except the current edge at it[u] which is re-checked each time we're at u. Hmm, the current edge gets re-checked every time we arrive at u. That could be many times. But each arrival at u either advances (progress) or retreats... arrivals at u happen via augment-truncation (u = tail) or advance from u's predecessor. Hmm, the standard analysis: blocking flow via this pointer method is O(VE) per phase worst case but typically much faster.
+
+With dag: same pointer logic, but scans only admissible edges. The savings: inadmissible edges (reverse edges mostly — every edge's reverse is in graph[v] and is inadmissible) are never scanned in DFS. That's roughly half the edges. Plus edges to wrong levels.
+
+I think for typical contest data, the simple version is fine. But let me include the dag optimization since it's not too complex and gives a solid 2x-ish on the DFS. Actually... let me think about whether it complicates correctness. The it[u] pointers index dag[u]. Advance: scan dag[u] from it[u]. Retreat: pop edge, u = tail, it[u] += 1 — but wait, it[u] must point at the popped edge within dag[u]. When we advanced from u via edge ed (dag[u][it[u]] == ed), fine. When we augment and truncate at sat: tail = to[path[sat]^1], it[tail] += 1 — dag[tail][it[tail]] == path[sat]? Yes, same argument (we advanced from tail via path[sat] with it[tail] pointing at it, and tail appears once in path). ✓.
+
+Dead marking: level[u] = -1, and in advance check `level[v] >= 0`... wait, but with dag, do I even need level[v] check? If v is dead, entering v: scan dag[v] from it[v] = len(dag[v]) → nothing → retreat. Cost O(1). The level check saves entering. But there's a subtle issue: if v is dead and we don't check, we append the edge to path, go to v, immediately fail, pop it back, it[u] += 1. That's fine, just a few extra ops. But actually there's a correctness concern: could we loop infinitely? No — it[u] increments each retreat. OK.
+
+Hmm, but actually there IS a subtle issue with dead marking + dag: when we mark level[u] = -1 and later an augment... no, within a phase, dead stays dead (as argued, admissible caps never increase). ✓.
+
+Let me decide: I'll implement with dag lists and keep a `level[v] >= 0` check (cheap, one list access) — wait, that's the same cost as `level[v] == lu1`. Hmm. The savings of dag is skipping the `to[ed]` lookup and the comparison... marginal.
+
+You know what, let me just do the straightforward version (no dag) — it's battle-tested and clear. Given unknown but presumably moderate constraints, it should pass. Actually, hmm, let me reconsider the constraints question once more.
+
+The problem gives no explicit constraints for n, m, d. Given it's "Problem B" with 2s TL, likely n ≤ 1000, m ≤ 10000 or so, maybe up to 10^5. Python Dinic on 10^5 edges: BFS is ~10^5 ops per phase; number of phases ≤ O(√E) for unit caps, ≤ n in general but typically small (≤ ~20-50 for random graphs... actually for general graphs Dinic phases can be up to n). Hmm.
+
+For a grid graph ("corridor grid"), the shortest path length grows, and the number of phases is bounded by the max shortest-path length used, which for a grid is O(n) worst case but practically the number of phases equals the number of distinct augmenting path lengths ≤ diameter. For a grid with side √n, diameter ~ 2√n, so phases ~ 2√n ~ 600 for n = 10^5. Each phase: BFS O(m) + blocking flow O(...). 600 × (10^5 + flow work) — could be ~10^8 — too slow for Python at 2s. Hmm. But maybe the actual test data is smaller. Without knowing, I'll optimize reasonably and hope.
+
+Alternatively, maybe I should think about what problem this actually is. "Single-Product Dispatch over a Corridor Grid" — this smells like a rephrased problem, possibly from a "local" contest or an AI-generated variant of a known problem. The mention "Line 1: n m 1" with product count suggests the original might be a multi-commodity flow problem where k=1. Possibly from Codeforces or ICPC. Hmm, could be from "Fundamentals of logistics"... Not sure. Given the phrasing, I'd guess constraints like n ≤ 100, m ≤ 1000 or n ≤ 10^4, m ≤ 10^5. 
+
+Let me just write the most optimized reasonable Dinic. I'll include the dag optimization — actually, let me think again about the biggest wins:
+
+1. BFS: iterate `for ed in graph[u]` with cap check and level check. To speed up: combine to[] lookups. Could store graph[u] as list of packed (ed, v)? Or store adjacency as pairs [v, ed] flattened? A common trick: store `graph[u]` as list of edge indices, and have `to` array. The BFS inner loop:
+
+```python
+            for ed in gu:
+                if cap[ed]:
+                    v = to[ed]
+                    if level[v] < 0:
+                        level[v] = lu
+                        q.append(v)
+```
+
+That's ~4 list ops per edge. For m=10^5 edges (2×10^5 directed entries), per BFS ~ 8×10^5 ops. With 100 phases: 8×10^7 — borderline but OK-ish in 2s... Python does ~10^7 simple ops/sec for interpreted loops... hmm, that's 8 seconds. Too slow if 100 phases with 10^5 edges. But if the graph is smaller (m ~ 5000), it's fine.
+
+Honestly, without constraints, I'll write a good implementation and accept it. Let me also add the early-termination BFS optimization (stop expanding beyond level[t]) — for grid graphs where t is far, this can help a lot? Actually no — level[t] is typically the diameter-ish; nodes beyond level[t] are few. Minor.
+
+Another big optimization for Python: use arrays of ints and avoid attribute lookups; use local vars. Also, consider using `sys.stdin` reading — done.
+
+Alternatively, implement Dinic with the "adjacency list of edge indices" but flatten into arrays and use while loops. Already doing that.
+
+Let me also consider: maybe use recursion-free "link-cut"... no, overkill.
+
+One more idea: since it's a grid corridor, maybe the max flow is small and the number of augmentations is small — standard Dinic fine.
+
+OK let me also reconsider: maybe I should implement the BFS with early exit AND build level graph, then DFS. I'll write a clean, reasonably optimized version:
+
+```python
+import sys
+from collections import deque
+
+def main():
+    data = sys.stdin.buffer.read().split()
+    pos = 0
+    n = int(data[pos]); m = int(data[pos+1]); pos += 3
+    s = int(data[pos]); t = int(data[pos+1]); d = int(data[pos+2]); pos += 3
+    
+    N = n + 2
+    S = n + 1
+    M2 = 2 * (m + 1)
+    to = [0] * M2
+    cap = [0] * M2
+    graph = [[] for _ in range(N)]
+    
+    for j in range(m):
+        u = int(data[pos]); v = int(data[pos+1]); c = int(data[pos+2]); pos += 3
+        e = j << 1
+        to[e] = v
+        to[e | 1] = u
+        cap[e] = c
+        graph[u].append(e)
+        graph[v].append(e | 1)
+    
+    e = m << 1
+    to[e] = s
+    to[e | 1] = S
+    cap[e] = d
+    graph[S].append(e)
+    graph[s].append(e | 1)
+    
+    flow = 0
+    # Dinic
+    while True:
+        level = [-1] * N
+        level[S] = 0
+        q = deque([S])
+        tq = level[t]
+        while q:
+            u = q.popleft()
+            lu = level[u] + 1
+            for ed in graph[u]:
+                if cap[ed]:
+                    v = to[ed]
+                    if level[v] < 0:
+                        level[v] = lu
+                        q.append(v)
+        if level[t] < 0:
+            break
+        # blocking flow
+        it = [0] * N
+        path = []
+        u = S
+        while True:
+            if u == t:
+                f = cap[path[0]]
+                sat = 0
+                for k in range(1, len(path)):
+                    c = cap[path[k]]
+                    if c < f:
+                        f = c
+                        sat = k
+                for ed in path:
+                    cap[ed] -= f
+                    cap[ed | 1] += f
+                flow += f
+                tail = to[path[sat] | 1]
+                it[tail] += 1
+                del path[sat:]
+                u = tail
+                continue
+            gu = graph[u]
+            iu = it[u]
+            lng = len(gu)
+            lu1 = level[u] + 1
+            ed = -1
+            while iu < lng:
+                cand = gu[iu]
+                if cap[cand] and level[to[cand]] == lu1:
+                    ed = cand
+                    break
+                iu += 1
+            if ed >= 0:
+                it[u] = iu
+                path.append(ed)
+                u = to[ed]
+            else:
+                it[u] = iu
+                if u == S:
+                    break
+                level[u] = -1
+                ed = path.pop()
+                u = to[ed | 1]
+                it[u] += 1
+    
+    if flow == d:
+        out = []
+        for j in range(m):
+            out.append(str(cap[(j << 1) | 1]))
+        print("YES")
+        print(" ".join(out))
+    else:
+        print("NO")
+
+main()
+```
+
+Wait, there's a bug: `tq = level[t]` before BFS — leftover, remove.
+
+Hmm, also in the augment step: `for ed in path: cap[ed] -= f; cap[ed|1] += f` — fine.
+
+Let me double check `tail = to[path[sat] | 1]` — path[sat] is the saturated edge (forward direction from tail to head). Its reverse is path[sat]|1, whose `to` is the tail. ✓.
+
+Now, one concern: in the advance loop, `level[to[cand]] == lu1` — but what if to[cand] is a dead node marked -1? Then check fails, iu += 1, skip. ✓ (dead nodes never re-entered).
+
+What if u itself... u is always alive when we're at it (we only advance into alive nodes; we mark u dead only when leaving it via retreat). ✓.
+
+Hmm, wait: there's one more subtle case in the augment step. After truncation, u = tail. tail is alive (it's on the path prefix). ✓. And it[tail] += 1 skips the saturated edge. But — what if the saturated edge is NOT at it[tail]? I argued it is. Let me just triple-check with a concrete tricky scenario:
+
+Path: S → a → b → t. Edges: e1 (S→a), e2 (a→b), e3 (b→t). it[S]=i1 (pointing at e1 in graph[S]), it[a]=i2, it[b]=i3.
+Augment: suppose e2 saturates (sat=1). tail = a. it[a] += 1 → i2+1. del path[1:] → path=[e1]. u=a.
+Next: advance from a: scan graph[a] from i2+1. ✓ Correct — e2 is saturated, skip it.
+
+But wait — what if e2 is a parallel edge and graph[a][i2] == e2 — yes it is, since we advanced via e2 from a. ✓.
+
+Another scenario: augment where sat = 0 (e1 saturates). tail = S. it[S] += 1. path = []. u = S. ✓.
+
+Now the retreat step: `ed = path.pop(); u = to[ed|1]; it[u] += 1`. The popped edge ed was taken from u with it[u] pointing at ed. ✓. But hold on — what if we retreated from a node v, popped ed (u→v), and now u = tail. But what if u == S? Then path is now empty and next iteration: u == S, advance scan from it[S]+1... wait, it[S] += 1 happened. Then if no more edges, `it[u] = iu; if u == S: break`. ✓.
+
+Edge case: what if t == S? Impossible (t ≤ n < S). ✓.
+
+What if s == t? Then the S→s edge leads directly to t. BFS: level[t] = 1. DFS: u=S, scan graph[S]: edge S→s with cap d, level[s] == 1 == level[S]+1 ✓ → path=[e], u=s=t. Augment: f = d, sat=0, tail=S, it[S]+=1, path=[], u=S. Next: scan from it[S]=1 → nothing → break. flow = d → YES, all original edges 0. As discussed, questionable semantics but almost surely not in tests. Actually hmm, wait: if s == t, is the correct answer YES with zero flow (if we interpret "net departure = d and net arrival = d at the same hub" — that forces d = 0)? If d > 0 and s == t, it's infeasible strictly speaking. But I'll bet s ≠ t. Actually, let me handle it: if s == t: if d == 0 → YES all zeros; else... hmm, "net departure equals d" and "net arrival equals d" at the same node: departure - arrival... net departure = out - in = d; net arrival = in - out = d → d = -d → d = 0. So if s == t and d > 0 → NO? That's a weird corner. I could add: if s == t: print YES + zeros if d == 0 else NO. Hmm, but maybe the intended semantics is different. Honestly, tests almost certainly have s ≠ t. I'll add the special case anyway for safety? If s==t and d>0, my current code outputs YES with all zeros, which claims net departure = 0 ≠ d. A checker verifying conservation would reject. If I output NO, and the intended answer is YES... Ugh. Given ambiguity, I'll go with the strict reading: s==t and d>0 → NO; s==t and d==0 → YES with zeros. Actually wait, hmm, but also with s==t, d==0: my Dinic gives flow=0=d → YES zeros. ✓ consistent. For s==t, d>0: strict reading says NO. Let me add that special case. Actually, you know, this is such an unlikely corner case. But adding two lines is cheap:
+
+```python
+    if s == t:
+        if d == 0:
+            print("YES")
+            print(" ".join(["0"] * m))
+        else:
+            print("NO")
+        return
+```
+
+Hmm, wait, but actually is that right? If s == t and d > 0... "A fixed quantity must travel from origin to destination" where origin == destination — the quantity travels zero distance, it's already there. One could argue YES with zero flow (the product is already at the destination). The conservation reading: "At the origin the net departure equals the required quantity" — with zero flow, net departure = 0 ≠ d. So NO under strict conservation. I'll go with NO for d>0. Meh — either could be intended; strict reading is more defensible given the problem explicitly states the conservation constraints. Actually hold on, let me re-read: "At every hub other than the origin and the destination the product is conserved... At the origin the net departure equals the required quantity, and at the destination the net arrival equals it." If origin == destination, both constraints apply to the same hub: net departure = d AND net arrival = d. Net departure = outflow - inflow; net arrival = inflow - outflow. Both equal d → d = 0. So for d > 0, infeasible → NO. OK, special case added.
+
+Now, another thought: should the flow on each edge be allowed to be less than cap — yes obviously.
+
+Also, "the flow on link j (input order)" — output flows for all m links including zero flows. ✓.
+
+Let me now think again about whether "YES"/"NO" casing matches — problem says output `YES` then flows, or `NO`. ✓.
+
+Now let me reconsider the possibility that the checker requires the flow to have value exactly d — ours does. ✓. And each f_j ∈ [0, cap_j] — ✓ (cap[2j] + cap[2j+1] = cap_j invariant; cap[2j+1] ≥ 0 and cap[2j] ≥ 0 since we never let caps go negative — Dinic only pushes along admissible edges with cap > 0, and f = min of path caps, so caps stay ≥ 0). ✓.
+
+Conservation: Dinic maintains skew symmetry and conservation at all nodes except S and t. At s: in(S→s) + in(graph) = out(graph) → out - in = d. ✓. At t: in - out = d. ✓. At other nodes: in = out. ✓.
+
+Wait, one more check on conservation at s: Dinic conserves flow at every node except source S and sink t. Node s is an intermediate node here, so conservation holds at s: inflow(s) = outflow(s). inflow(s) = flow(S→s) + Σ flow(edges into s). outflow(s) = Σ flow(edges out of s). So Σ out - Σ in = flow(S→s) = d (since total flow = d and it all passes through the single edge S→s... wait, is flow(S→s) necessarily = d? Total flow value = flow(S→s) since S has only that one edge (its only outgoing edge; and no incoming edges to S except the reverse of S→s which carries 0 net... hmm, the reverse edge s→S could carry flow? In Dinic, the reverse edge (s→S) has capacity = flow pushed on S→s. Could a path push flow on s→S? That would require entering S — but S is the source; paths start at S. A path S→...→s→S? No — paths are simple in the level graph and start at S; edge s→S would go to level... level[S] = 0, and admissible edges go from level k to k+1, so s→S is never admissible. ✓. So flow(S→s) = total = d.) ✓.
+
+Great.
+
+Now, let me also double check the "flow == d" condition: flow could be < d if infeasible. flow can't exceed d. So `flow == d` ⟺ feasible. But also handle d == 0: flow = 0 = d → YES. ✓ (assuming s != t; if s == t handled separately).
+
+Hmm, wait: what if d == 0 and s != t? Output YES with all zeros. Is that correct per problem? "A fixed quantity... must travel" — quantity 0. The zero flow satisfies all constraints (net departure 0 = d). YES. ✓. Though maybe the problem guarantees d ≥ 1.
+
+Now let me also think: could there be an issue where the problem wants flow value ≥ d rather than == d? "delivers the full quantity" — exactly d. If a checker computes net departure at s and requires == d, we're good. If it requires ≥ d... also good (== d implies ≥ d). Either way ✓.
+
+Now, performance polish. Let me restructure the DFS hot loop to minimize overhead. Also, one more optimization: in the augment step, `for ed in path: cap[ed] -= f; cap[ed|1] += f` — fine.
+
+Potential further optimization: represent graph[u] as tuples? Lists fine.
+
+Let me also think about using `array` module for cap/to — Python lists of ints are fine (small ints cached... capacities can be large; list is fine).
+
+Another optimization: In the BFS, we can break early once level[t] is assigned, but we must finish processing nodes at level < level[t]... Actually, nodes already in the queue need processing to complete levels up to level[t]. If we break immediately when level[t] is set, some nodes at level level[t]-1 might not be expanded, so some nodes at level level[t] (other than t) are missing — but those are useless anyway (only t matters at that level). However, nodes at levels < level[t] must all be discovered for the DFS to find paths. When level[t] is set (during expanding some node u at level level[t]-1), other nodes at level level[t]-1 might still be in the queue unexpanded — they need expansion? Their expansion discovers nodes at level level[t], which are useless. So actually, once level[t] is discovered, we can stop the BFS entirely! Because: all nodes at levels ≤ level[t]-1 have been discovered (BFS discovers level k nodes only while expanding level k-1 nodes; when we're expanding level k-1 nodes and discover t at level k, all level ≤ k-1 nodes are already discovered — hmm, are they? BFS processes nodes in level order. When expanding a level k-1 node, all level k-1 nodes are already discovered (in queue or done), and all level ≤ k-2 nodes are fully expanded. So yes: at the moment t is discovered at level k, every node with level < k is discovered, and every node with level < k-1... wait, level k-1 nodes are discovered but not all expanded. Do we need them expanded? Expansion of level k-1 nodes only discovers level k nodes — irrelevant. But the DFS needs the EDGES from level k-1 nodes to t... no wait, DFS uses graph adjacency directly, not BFS-built structures. The BFS only computes levels. So levels of all nodes at distance < k are final and correct. Nodes at distance k: only t is needed. Nodes at distance > k: irrelevant (DFS won't use them since paths to t have length k... hmm, actually the DFS only follows level+1 edges; a node v at level k (v ≠ t) could be on... no, a path to t of length k visits exactly one node per level 0..k, so the level-k node on the path is t itself. Nodes at level k other than t are useless. Nodes at level > k: DFS could wander into them? DFS follows edges u→v with level[v] == level[u]+1. Starting at S (level 0), it can reach level 1, 2, ..., up to k. It can't reach level k+1 without passing level k, and the only useful level-k node is t (DFS terminates at t). But DFS might wander into level-k nodes other than t and then to level k+1... wait, if we stop BFS early, level-k nodes other than t have level -1 (undiscovered) → DFS won't enter them. And nodes at level k+1+ also -1. So DFS is confined to the BFS-discovered subgraph — which contains all shortest paths to t. ✓ Correct!
+
+So early termination: `if v == t: level[t] = lu; break out of BFS`. Let me implement: set a flag and break both loops.
+
+```python
+        level = [-1] * N
+        level[S] = 0
+        q = deque([S])
+        found = False
+        while q and not found:
+            u = q.popleft()
+            lu = level[u] + 1
+            for ed in graph[u]:
+                if cap[ed]:
+                    v = to[ed]
+                    if level[v] < 0:
+                        level[v] = lu
+                        if v == t:
+                            found = True
+                            break
+                        q.append(v)
+        if not found:
+            break
+```
+
+Wait, but there's a subtlety: `while q and not found` — after found is set inside the for loop, we break the for, then the while condition checks not found → exits. ✓. But nodes remaining in q at level lu (same as t's level) are discovered but unexpanded — fine as argued. And nodes at level lu-1 still in queue unexpanded — hmm wait! Nodes at level lu-1 (= level[u]) still in the queue: they're discovered (level set) but not expanded. Their levels are correct. DFS can use them as intermediate nodes. ✓ Fine — levels are what matter, and they're final for all discovered nodes (BFS assigns final level at discovery time). ✓.
+
+Hmm, but one more: could stopping early cause the DFS to miss some augmenting paths in the level graph? The level graph consists of edges u→v with level[v] == level[u]+1 and cap > 0. All such edges among discovered nodes are usable by DFS (it scans full graph[u]). Undiscovered nodes have level -1 and are never entered. Shortest paths S→t of length k = level[t]: all their intermediate nodes have levels 0..k-1 < k, all discovered. ✓. So all shortest augmenting paths are available. Blocking flow on this level graph = blocking flow on the full level graph restricted to length-k paths — which is what Dinic needs. ✓.
+
+This early termination is a nice optimization, especially for grids where BFS would otherwise explore everything.
+
+Hmm wait, actually there's a subtle issue: after early termination, some nodes have level -1 but ARE reachable in the residual graph (at distance ≥ k). In the DFS, edges into them fail the level check → skipped. ✓. And it[u] pointers skip them permanently within the phase — fine, they're useless this phase. ✓.
+
+But careful with the dead-node marking interplay: level[u] = -1 for dead nodes vs undiscovered nodes — same effect (never entered). ✓.
+
+OK. Now let me also think about the DFS: is there a risk of infinite loop? Each iteration either advances (path grows — bounded by N... path length ≤ k ≤ N), augments (progress: flow increases or it[tail] advances... hmm, augment with f ≥ 1 always makes progress: flow increases by f ≥ 1, and flow ≤ d, so ≤ d augments... wait, f ≥ 1 since all path edges have cap ≥ 1 (integers, cap > 0). So the number of augmentations per phase ≤ d. Hmm, that's not a great bound if d is huge — but per phase, augmentations ≤ number of edges in the blocking flow ≤ ... standard bound: per phase, augmentations ≤ E (each augmentation saturates ≥ 1 edge... each augmentation saturates at least one edge — the sat edge — and it[tail] moves past it, so each edge is saturated at most once per phase → augmentations ≤ E per phase). ✓. Retreats: each retreat pops an edge from path and increments an it pointer → ≤ E per phase... plus dead-marking prevents re-entry. Advances: each advance either leads to augment/retreat eventually... The total work per phase is O(V + E + augmentations × path length) — standard O(VE) blocking flow bound. Fine.
+
+Termination of the whole algorithm: each phase, the blocking flow saturates all shortest paths → level[t] strictly increases next phase (or t unreachable) → ≤ N phases. ✓.
+
+Now, let me also double check the `del path[sat:]` + `u = tail` when sat == len(path)-1 etc. — all consistent.
+
+Also: after augment, `continue` goes back to `if u == t` — u = tail ≠ t (tail is at level sat < k... tail could be t? No — tail is the tail of an edge in the path, and t only appears as the head of the last edge. If sat == len(path)-1, tail = the node before t. ✓).
+
+Alright. Now, one more design question: should I use `sys.setrecursionlimit`? No recursion. ✓.
+
+Memory: graph as list of lists with 2(m+1) entries — fine for m up to ~10^6 within 256MB? Each list entry is a pointer (8 bytes) + int objects... edge indices up to 2×10^6 — ints beyond 256 are separate objects (~28 bytes each, but many shared? No — each index value is distinct). Hmm, 2×10^6 edges → graph lists hold 2×10^6 int refs; the int objects: values 0..2m+1, each ~28 bytes → ~56MB + list overhead 16MB + deque etc. Plus to/cap lists of 2×10^6 → each list 16MB + int objects for caps (values up to 10^9, distinct objects, ~28-32 bytes each → 64MB for cap). Could approach 256MB at m = 10^6. Probably m is much smaller. I'll not over-engineer.
+
+Let me also consider using `int(data[...])` conversions efficiently — for m up to 10^5-10^6, `map(int, ...)` in bulk is faster:
+
+```python
+    vals = data  # list of bytes tokens
+```
+
+I could do: `nums = list(map(int, data))` once — converts all tokens. Then index. That's cleaner and fast. Let me do that.
+
+```python
+def main():
+    nums = list(map(int, sys.stdin.buffer.read().split()))
+    n, m = nums[0], nums[1]
+    s, t, d = nums[3], nums[4], nums[5]
+    base = 6
+    ...
+    for j in range(m):
+        u = nums[base + 3*j]; v = nums[base+3*j+1]; c = nums[base+3*j+2]
+```
+
+Or use an iterator. Fine.
+
+Now, let me also handle the possibility that the third token on line 1 isn't 1 — we just skip it regardless. ✓.
+
+Let me write the final version:
+
+```python
+import sys
+from collections import deque
+
+def main():
+    data = sys.stdin.buffer.read().split()
+    nums = data  # convert lazily? Let's convert all:
+    # Actually convert all to int:
+    it_in = iter(data)
+    # simpler: 
+    n = int(data[0]); m = int(data[1])
+    s = int(data[3]); t = int(data[4]); d = int(data[5])
+    
+    if s == t:
+        if d == 0:
+            sys.stdout.write("YES\n" + " ".join(["0"]*m) + "\n")
+        else:
+            sys.stdout.write("NO\n")
+        return
+    
+    N = n + 2
+    S = n + 1
+    to = [0] * (2*(m+1))
+    cap = [0] * (2*(m+1))
+    graph = [[] for _ in range(N)]
+    
+    p = 6
+    for j in range(m):
+        u = int(data[p]); v = int(data[p+1]); c = int(data[p+2]); p += 3
+        e = 2*j
+        to[e] = v; to[e+1] = u
+        cap[e] = c
+        graph[u].append(e)
+        graph[v].append(e+1)
+    
+    e = 2*m
+    to[e] = s; to[e+1] = S
+    cap[e] = d
+    graph[S].append(e)
+    graph[s].append(e+1)
+    
+    flow = 0
+    while True:
+        level = [-1] * N
+        level[S] = 0
+        q = deque([S])
+        found = False
+        while q:
+            u = q.popleft()
+            lu = level[u] + 1
+            for ed in graph[u]:
+                if cap[ed]:
+                    v = to[ed]
+                    if level[v] < 0:
+                        level[v] = lu
+                        if v == t:
+                            found = True
+                            break
+                        q.append(v)
+            if found:
+                break
+        if not found:
+            break
+        
+        it = [0] * N
+        path = []
+        u = S
+        while True:
+            if u == t:
+                f = cap[path[0]]
+                sat = 0
+                for k in range(1, len(path)):
+                    c = cap[path[k]]
+                    if c < f:
+                        f = c
+                        sat = k
+                for ed in path:
+                    cap[ed] -= f
+                    cap[ed | 1] += f
+                flow += f
+                tail = to[path[sat] | 1]
+                it[tail] += 1
+                del path[sat:]
+                u = tail
+                continue
+            gu = graph[u]
+            iu = it[u]
+            lng = len(gu)
+            lu1 = level[u] + 1
+            nxt = -1
+            while iu < lng:
+                cand = gu[iu]
+                if cap[cand] and level[to[cand]] == lu1:
+                    nxt = cand
+                    break
+                iu += 1
+            if nxt >= 0:
+                it[u] = iu
+                path.append(nxt)
+                u = to[nxt]
+            else:
+                it[u] = iu
+                if u == S:
+                    break
+                level[u] = -1
+                ed = path.pop()
+                u = to[ed | 1]
+                it[u] += 1
+    
+    if flow == d:
+        out = [str(cap[2*j+1]) for j in range(m)]
+        sys.stdout.write("YES\n" + " ".join(out) + "\n")
+    else:
+        sys.stdout.write("NO\n")
+
+main()
+```
+
+Hmm wait, there's a subtle issue with the early BFS termination combined with the DFS: the DFS advance condition `level[to[cand]] == lu1`. With early termination, nodes beyond t's level have level -1 → correctly skipped. ✓.
+
+But WAIT — there's a deeper subtlety with early termination I should double check: the DFS retreat marks `level[u] = -1` for dead ends. Fine. But what about nodes discovered at level == level[t] other than t? With early termination, when we discover t at level lu, we break — so other nodes at level lu might be discovered just before t in the same expansion (appended to q) or not discovered at all. Those discovered at level lu (≠ t): DFS could enter them? Entering requires an edge from a level lu-1 node with level[v] == lu — yes, they'd be entered, then from them, edges to level lu+1 nodes — all level -1 (undiscovered) → dead ends → retreat. Slight wasted work but correct. Hmm, but actually — could a node w ≠ t at level lu be on a shortest path to t? A shortest path has length lu and its last node is t at level lu; intermediate nodes are at levels 0..lu-1. So w at level lu ≠ t is never on a shortest path. Entering w is wasted but harmless (immediately dead-ends since all its out-neighbors have level ≤ lu... hmm, could w have an edge to t? level[t] = lu ≠ lu+1 → not admissible. ✓ dead end). OK, harmless.
+
+Alternatively, to avoid that waste: after finding t, don't append further nodes at level lu... minor. Skip.
+
+Now — hmm, actually wait. I want to double-check the early-termination BFS more carefully regarding nodes at level lu-1 that remain unexpanded in the queue when we break. The DFS needs edges from level lu-1 nodes to level lu nodes — specifically to t. Those edges exist in graph (DFS scans graph directly). ✓. And levels of all queue nodes are already assigned correctly. ✓. 
+
+Now, another important check: the DFS `it` pointers and `graph[u]` — since we scan the full adjacency (not a BFS-built dag), all admissible edges are considered. ✓.
+
+Next: is the blocking flow complete when we break out (u == S, no advance)? The standard argument: when DFS terminates at S with exhausted iterator, no augmenting path of length level[t] remains in the residual graph restricted to the level graph. Hmm, let me verify the pointer-based DFS finds a full blocking flow:
+
+Claim: when the loop breaks (u == S and it[S] exhausted), every admissible edge out of S is either saturated or leads to a dead subtree... The standard argument: the DFS with retreat + it-pointers + dead-marking explores the level graph exhaustively: each edge is either used in an augmentation (possibly multiple times until saturated or its head is dead) or skipped via it pointer advancement. When it[u] is exhausted, all out-edges of u have been tried: each either saturated (cap 0), leads to dead node (level -1), or level-mismatch. So no admissible path from S remains → blocking flow complete. ✓.
+
+One more potential correctness trap: when we augment and truncate at `sat`, we set `it[tail] += 1` — skipping the saturated edge. But what if the saturated edge is NOT saturated... by definition cap[path[sat]] == f - f = 0? Wait: f = min, and sat is the first index achieving the min → cap[path[sat]] == f before subtraction → 0 after. ✓ Saturated.
+
+But hmm — what if MULTIPLE edges tie for min and sat is the first: earlier edges have cap > f → still positive. ✓. Later edges with cap == f also become 0 but remain in... no wait, they're deleted from the path (del path[sat:] removes sat and everything after). Their it pointers still point at them in their tails' lists — but they're saturated (cap 0), so re-scanning skips them via the cap check. ✓.
+
+Alright. Now, what about `it[tail] += 1` when the saturated edge is at position sat and tail's dag... — I've verified this multiple times. Moving on.
+
+Let me now also think about whether `level[u] = -1` on retreat could cause an issue with the augment-truncation: after truncation, u = tail (alive). ✓.
+
+Also: `path` could be empty and u == S at loop start — handled: u != t (S != t), advance scan from it[S]. ✓.
+
+Now, output: flows as `cap[2*j+1]`. Let me double check with the earlier example: edge 0: 1→2 cap 3; after pushing 3: cap[0] = 0, cap[1] = 3. Output "3". ✓.
+
+But wait — is it possible that cap[2j+1] > original cap? cap[2j] + cap[2j+1] = cap_j (invariant), cap[2j] ≥ 0 → cap[2j+1] ≤ cap_j. ✓. And ≥ 0. ✓.
+
+Hmm, one more: could Dinic push flow on the REVERSE edge of an original edge (i.e., "undo" flow)? Yes, and that's handled by the pair arithmetic — final flow = cap[2j+1] is the net flow. ✓.
+
+Now let me reconsider the input parsing edge cases: what if m lines contain vertices given as 1-indexed and n up to... we sized graph as N = n+2 with indices up to n+1. If input is 0-indexed (vertices 0..n-1), S = n+1, and vertices fit in 0..n-1 ⊆ [0, n+1]. ✓ works for both indexings. 
+
+What if s or t is out of range (e.g., 0-indexed with s=0)? Fine. What if the input is 1-indexed but includes vertex... fine.
+
+Edge case: what if n = 0? Then no hubs; s,t would be... invalid input; ignore.
+
+What if m = 0? Then output "YES\n\n" if d == 0 (s==t case handled separately; if s != t and d > 0 → flow = 0 ≠ d → NO ✓; if s != t and d == 0 → YES with empty line). `" ".join([])` = "" → output "YES\n\n". Acceptable.
+
+Now let me also think about reading performance: `data = sys.stdin.buffer.read().split()` then converting per-token with int() in the loop — for m = 10^6, that's 3×10^6 int() calls in the loop plus indexing. Better: convert all at once: `nums = list(map(int, data))` — map with int is fast (C-level). Let me do that:
+
+```python
+    nums = list(map(int, sys.stdin.buffer.read().split()))
+    n = nums[0]; m = nums[1]
+    s = nums[3]; t = nums[4]; d = nums[5]
+    p = 6
+    for j in range(m):
+        u = nums[p]; v = nums[p+1]; c = nums[p+2]; p += 3
+```
+
+✓.
+
+Now, building the graph: for m = 10^6, the loop with appends — ~10^6 iterations, each with several ops — maybe 1-2 seconds in CPython. Hmm. Could optimize with pre-allocation... Let's not over-optimize; typical m is probably ≤ 10^5.
+
+Alternative graph building optimization: build graph using sorting/CSR. Eh, keep it simple.
+
+Let me now also think about whether to use `bytes` tokens directly... no.
+
+One more algorithmic consideration: the problem says "corridor grid" — maybe the intended solution is just max flow, and constraints are small (like n ≤ 100). Our solution handles it.
+
+Let me also reconsider: is it possible that the intended answer when maxflow > d is to output the FULL max flow (value > d)? The problem says the required quantity must be delivered — "At the origin the net departure equals the required quantity". So exactly d. Our solution outputs exactly d. If the checker only verifies "delivered quantity ≥ d" plus constraints... "equals" is stated. Exactly d satisfies both "equals" and any "≥" check... wait, no: if checker requires net departure == d, exactly-d works. If checker requires ≥ d (unlikely given wording), exactly-d also works. ✓ Either way, exactly d is safe.
+
+Hmm, wait, actually — one more thought: what if the checker requires the flow to be a MAXIMUM flow (i.e., they ask "deliver the full quantity" meaning as much as possible)? No — "A fixed quantity ... must travel" — d is fixed. If d ≤ maxflow, deliver exactly d. ✓.
+
+Let me also double check the problem's output spec: "`YES` then one line with m integers — the flow on link j (input order); or `NO`." So on NO, just "NO". ✓.
+
+Now let me also stress-test the algorithm mentally on a tricky case: a graph where the first blocking flow saturates a bottleneck and later phases reroute through reverse edges.
+
+Classic example: 
+nodes: 1=S'... let me construct: s=1, t=4, d=2.
+edges: 1→2 (1), 1→3 (1), 2→3 (1), 2→4 (1), 3→4 (1). Max flow = 2.
+With super source: S=5, edge 5→1 cap 2.
+Adjacency (pairs): e0:1→2 c1, e1:2→1; e2:1→3 c1, e3:3→1; e4:2→3 c1, e5:3→2; e6:2→4 c1, e7:4→2; e8:3→4 c1, e9:4→3; e10:5→1 c2, e11:1→5.
+graph[1]=[0,2,11], graph[2]=[1,4,6], graph[3]=[3,5,8], graph[4]=[7,9], graph[5]=[10].
+
+Phase 1 BFS: level[5]=0. Expand 5: e10 cap2 → v=1, level[1]=1. Expand 1: e0 cap1 → 2: level 2; e2 cap1 → 3: level 2; e11 cap0 skip. Expand 2: e1 cap0; e4 cap1 → 3 already; e6 cap1 → 4: level 3 = t → found. Break.
+
+DFS: it all 0. u=5: scan graph[5]: e10 cap2>0, level[1]=1==1 ✓ → path=[10], u=1.
+u=1: graph[1]: e0 cap1, level[2]=2 ✓ → path=[10,0], u=2.
+u=2: graph[2]: e1 cap0 skip; e4 cap1, level[3]=2 ≠ 3 skip; e6 cap1, level[4]=3 ✓ → path=[10,0,6], u=4=t.
+Augment: f=min(2,1,1)=1, sat: k=1: cap[0]=1<2 → f=1,sat=1; k=2: cap[6]=1<1? No. So sat=1, f=1. Update: cap[10]=1, cap[11]=1, cap[0]=0, cap[1]=1, cap[6]=0, cap[7]=1. flow=1. tail = to[path[1]|1] = to[1] = 1. it[1] += 1 → 1. del path[1:] → path=[10]. u=1.
+u=1: scan from it[1]=1: e2 cap1, level[3]=2==2 ✓ → it[1]=1, path=[10,2], u=3.
+u=3: graph[3]: e3 cap0 skip; e5 cap0 skip (reverse of e4, cap 0); e8 cap1, level[4]=3 ✓ → path=[10,2,8], u=4=t.
+Augment: f=min(cap[10]=1, cap[2]=1, cap[8]=1)=1; sat: k=1: cap[2]=1<1? No; k=2: cap[8]=1<1? No → sat=0. Update: cap[10]=0, cap[11]=2, cap[2]=0, cap[3]=1, cap[8]=0, cap[9]=1. flow=2. tail = to[path[0]|1] = to[11] = 5 = S. it[5] += 1 → 1. path=[]. u=5.
+u=5: scan from it[5]=1: len(graph[5])=1 → nothing. it[5]=1. u==S → break.
+
+Phase 2 BFS: level[5]=0. Expand 5: e10 cap0 skip. q empty. found=False → break.
+
+flow=2==d → YES. Flows: edge0: cap[1]=1; edge2: cap[3]=1; edge4: cap[5]=0; edge6: cap[7]=1; edge8: cap[9]=1. Output: 1 1 0 1 1. Check: node1: out 1+1=2, in 0 → net 2 ✓. node2: in 1 (from1) + 0 (from3? e5 is 3→2 with flow cap[4]... wait e4 is 2→3, flow = cap[5] = 0 ✓), out 1 (e6) + 0 (e4) → in 1, out 1 ✓. node3: in 1 (e2), out 1 (e8) ✓. node4: in 1+1=2 ✓. 
+
+Now a case requiring reverse-edge rerouting:
+s=1, t=4, d=2. Edges: 1→2 (1), 2→4... hmm, classic: edges a: 1→2 c1, b: 1→3 c1, c: 2→3 c1, d': 2→4 c1, e: 3→4 c1 — same as before basically. Let me make one where the first path blocks: edges: 1→2 c1, 2→3 c1, 3→4 c1, 1→3 c1, 2→4 c1. Max flow 2. First BFS: levels: 1:1, 2:2, 3:2 (via 1→3), 4:3. DFS path: 5→1, 1→2 (e0), 2→3? or 2→4. Scan order: from 2: edges e1 (2→1 reverse, cap0), e4 (2→3, cap1, level[3]=2≠3 skip), e6 (2→4, cap1, level 3 ✓) → path S,1,2,4. Augment 1. Then from 1: e2 (1→3) → path S,1,3; from 3: e8 (3→4) → augment 1. flow=2. No reverse-edge pushes needed. 
+
+To force reverse push: the classic diamond with a middle edge: s=1,t=4: 1→2 c1, 1→3 c1, 2→3 c1, 2→4 c1, 3→4 c1 — same graph. Hmm, reverse pushes happen when blocking flow in phase 1 uses an edge that phase 2 needs reversed. Example: nodes 1..4, edges: 1→2 c1, 2→4 c1, 1→3 c1, 3→2 c1... Let me do: 1→2 c1, 1→3 c1, 2→4 c1, 3→2 c1, 3→4... whatever — I trust Dinic.
+
+Let me instead carefully re-verify the retreat logic once more with a dead-end scenario:
+Graph: S=5→1 (c1); 1→2 (c1); 2→3 (c1); 3→t=4? Let me make 2 a dead end branch: edges: e10: 5→1 c1; e0: 1→2 c1; e2: 1→3 c1; e4: 3→4 c1 (t=4). Node 2 has no outgoing (except reverse e1: 2→1 cap0). 
+BFS: level[5]=0, 1:1, 2:2, 3:2, 4:3 (found when expanding 3). 
+DFS: u=5 → e10 → u=1. u=1: scan graph[1] = [e0, e2, e11]: iu=0: e0 cap1, level[2]=2==2 ✓ → path=[10,0], u=2. u=2: graph[2]=[e1, e5?]. Hmm, e0=1→2 so graph[2] gets e1 (reverse). Also nothing else. Scan: e1 cap0 skip. Exhausted → retreat: it[2]=1, level[2]=-1, pop e0 → u = to[e0|1] = to[1] = 1, it[1] += 1 → 1. 
+u=1: scan from it[1]=1: e2 cap1, level[3]=2 ✓ → path=[10,2], u=3. u=3: graph[3]=[e3(reverse of e2), e4]: e3 cap0 skip; e4 cap1, level[4]=3 ✓ → path=[10,2,4], u=4=t. Augment f=1: sat=0 (cap[10]=1 is min; check k=1: cap[2]=1<1 no; k=2: cap[4]=1<1 no → sat=0). Update caps. flow=1. tail=to[11]=5, it[5]+=1, path=[], u=5. Scan: exhausted → break. Phase 2: BFS: e10 cap0 → not found → break. flow=1. ✓ Correct.
+
+The retreat worked. ✓.
+
+Now, let me also consider a scenario testing `it[tail] += 1` correctness when tail's pointer was moved by a previous retreat... Scenario: path = [e_a (S→x), e_b (x→y), e_c (y→t)]. Suppose earlier, we retreated from y once: that would pop e_b and increment it[x]. Then e_b wouldn't be in a later path. So whenever e_b IS in the path, it[x] points at e_b. ✓ Consistent.
+
+Scenario: augment truncates at sat pointing to edge e_b (x→y saturated). it[x] += 1. Later, we advance from x via e_b' (parallel edge x→y, cap > 0) — fine, independent.
+
+OK, I'm fairly confident in correctness. Let me now also add a small safety: what if the input has fewer tokens than expected (malformed)? Not our concern.
+
+Let me also think about the "1" on line 1 — what if it's actually the number of... products, and there might be per-product data? The problem statement's input section says exactly: "Line 1: n m 1. Next line: s t d. Next m lines: u v cap." So no per-product data (single product). ✓.
+
+Hmm, wait — actually, let me reconsider. What if the original problem had k products each with their own s_i, t_i, d_i, and here k=1 so "s t d" is that one product's line. Yes, that's exactly the reading. ✓.
+
+Now, let me reconsider the output when NO: just "NO". ✓.
+
+Let me also double check the YES line format: "YES" then "one line with m integers". So:
+
+```
+YES
+f1 f2 ... fm
+```
+
+✓.
+
+Should the integers be separated by spaces? "one line with m integers" — spaces are the natural choice. ✓.
+
+Now, final performance tweak considerations:
+
+1. In the DFS advance loop, `level[to[cand]] == lu1` — two indexing ops. Could precompute `head_level = level` — it's a list; fine.
+
+2. Use `while True` structure — fine.
+
+3. `del path[sat:]` — O(remaining) — fine.
+
+4. Consider converting `graph[u]` lists to tuples after building for faster iteration? Appending during build, then `graph = [tuple(g) for g in graph]`? Iteration speed similar. Skip.
+
+5. BFS: `for ed in graph[u]` — fine.
+
+Actually, one significant optimization for BFS: skip expanding nodes at level ≥ level[t]... we break immediately upon discovering t, so at most the current node's expansion finishes... we break mid-expansion actually. ✓ Already optimal-ish.
+
+Another optimization: in BFS, we don't need levels of nodes at level[t] except t — already handled.
+
+Let me also think about the number of phases for grid graphs: bounded by the length of the longest augmenting path used, ≤ number of distinct shortest path lengths ≤ diameter of residual graph. Fine.
+
+Alright, I also want to reconsider: should I add capacity scaling to be safe against pathological large-capacity cases? Let me think about what capacity scaling adds: it guarantees O(E log C) augmentations... hmm, actually the guarantee of scaling Dinic: each scaling phase's blocking flow... The standard result: Dinic with capacity scaling runs in O(E² log C) ... hmm, or O(V E log(C))? Let me recall: In scaling mode, each phase (per threshold) has at most O(E) augmentations? The number of augmentations per threshold is O(E) (since each augmentation saturates an edge with residual ≥ threshold, and residuals drop by < threshold... hmm). Total: O(E log C) augmentations, each O(V) → O(V E log C) plus BFS/DFS overhead O(E log C) phases... Each threshold requires ≥ 1 BFS. So O(E log C) for BFSs. For E = 10^5, log C = 30: 3×10^6 BFS edge ops — fine. And augmentations O(E log C)?? That's 3×10^6 × path length — too slow if hit. Hmm, actually the standard bound for scaling Dinic is O(E² log C) total... that's worse in theory than what practice gives.
+
+Honestly, standard Dinic is what everyone uses for such problems in practice. Pathological anti-Dinic tests are rare unless the problem setters specifically targeted Dinic (usually they target max-flow algorithms generically, and Dinic survives almost everything in contests). I'll go with standard Dinic.
+
+Hmm, one more consideration — maybe I should think about whether this problem could have HUGE constraints where even reading is an issue... The TL of 2s and the "B" position suggest moderate. Go.
+
+Actually, hold on. Let me reconsider the problem source. The phrasing "Problem B — Single-Product Dispatch over a Corridor Grid" and input "n m 1" ... This strongly resembles problems from the "ICPC" style where a multi-commodity flow over a grid... Hmm, "corridor grid" — maybe the graph is a grid where nodes are (i,j) cells? But input gives arbitrary u v cap edges, so it's a general graph. Fine — general max flow.
+
+Let me also double check: "Each lane carries a firm ceiling on the number of containers" — capacities. "A fixed quantity ... must travel from a single origin hub to a single destination hub during this one cycle" — demand d from s to t. "On every lane the number of containers assigned is a non-negative whole number that must not exceed that lane's ceiling" — 0 ≤ f_e ≤ cap_e. "At every hub other than the origin and the destination the product is conserved" — flow conservation. "At the origin the net departure equals the required quantity, and at the destination the net arrival equals it" — value = d. "Produce a routing that delivers the full quantity ... or report that this quantity cannot be delivered" — feasible flow of value d or NO. ✓ Exactly what we solve.
+
+Now, let me also handle potential issue: d might exceed sum of capacities obviously → NO. Fine.
+
+Let me also think: is there any requirement that the flow be acyclic or minimal? No. ✓.
+
+Let me write the final code cleanly:
+
+```python
+import sys
+from collections import deque
+
+def main():
+    data = sys.stdin.buffer.read().split()
+    nums = list(map(int, data))
+    n = nums[0]
+    m = nums[1]
+    # nums[2] == 1 (single product)
+    s = nums[3]
+    t = nums[4]
+    d = nums[5]
+    
+    out = sys.stdout
+    
+    if s == t:
+        if d == 0:
+            out.write("YES\n" + " ".join(["0"] * m) + "\n")
+        else:
+            out.write("NO\n")
+        return
+    
+    N = n + 2
+    S = n + 1
+    T = t
+    M2 = 2 * (m + 1)
+    to = [0] * M2
+    cap = [0] * M2
+    graph = [[] for _ in range(N)]
+    
+    p = 6
+    for j in range(m):
+        u = nums[p]
+        v = nums[p + 1]
+        c = nums[p + 2]
+        p += 3
+        e = j + j
+        to[e] = v
+        to[e + 1] = u
+        cap[e] = c
+        graph[u].append(e)
+        graph[v].append(e + 1)
+    
+    e = m + m
+    to[e] = s
+    to[e + 1] = S
+    cap[e] = d
+    graph[S].append(e)
+    graph[s].append(e + 1)
+    
+    flow = 0
+    while True:
+        level = [-1] * N
+        level[S] = 0
+        q = deque([S])
+        found = False
+        while q and not found:
+            u = q.popleft()
+            lu = level[u] + 1
+            for ed in graph[u]:
+                if cap[ed]:
+                    v = to[ed]
+                    if level[v] < 0:
+                        level[v] = lu
+                        if v == T:
+                            found = True
+                            break
+                        q.append(v)
+        if not found:
+            break
+        
+        it = [0] * N
+        path = []
+        u = S
+        while True:
+            if u == T:
+                f = cap[path[0]]
+                sat = 0
+                for k in range(1, len(path)):
+                    c = cap[path[k]]
+                    if c < f:
+                        f = c
+                        sat = k
+                for ed in path:
+                    cap[ed] -= f
+                    cap[ed ^ 1] += f
+                flow += f
+                tail = to[path[sat] ^ 1]
+                it[tail] += 1
+                del path[sat:]
+                u = tail
+                continue
+            gu = graph[u]
+            iu = it[u]
+            lng = len(gu)
+            lu1 = level[u] + 1
+            nxt = -1
+            while iu < lng:
+                cand = gu[iu]
+                if cap[cand] and level[to[cand]] == lu1:
+                    nxt = cand
+                    break
+                iu += 1
+            if nxt >= 0:
+                it[u] = iu
+                path.append(nxt)
+                u = to[nxt]
+            else:
+                it[u] = iu
+                if u == S:
+                    break
+                level[u] = -1
+                ed = path.pop()
+                u = to[ed ^ 1]
+                it[u] += 1
+    
+    if flow == d:
+        res = []
+        for j in range(m):
+            res.append(str(cap[j + j + 1]))
+        out.write("YES\n" + " ".join(res) + "\n")
+    else:
+        out.write("NO\n")
+
+main()
+```
+
+Wait, `while q and not found:` with `if found: break` inside — redundant but harmless. Actually the inner `break` exits the for; then the while condition `not found` exits. But I wrote `if found: break` after the for too in an earlier version — let me just use `while q:` and `if found: break` after the for loop. Or `while q and not found:` without the trailing check. Both fine. Let me use:
+
+```python
+        while q:
+            u = q.popleft()
+            lu = level[u] + 1
+            for ed in graph[u]:
+                if cap[ed]:
+                    v = to[ed]
+                    if level[v] < 0:
+                        level[v] = lu
+                        if v == T:
+                            found = True
+                            break
+                        q.append(v)
+            if found:
+                break
+```
+
+✓.
+
+Hmm, one thing: `cap[ed ^ 1]` vs `cap[ed | 1]` — since edges are stored at even indices with reverse at +1, `ed ^ 1` == `ed | 1` for even ed and `ed & ~1` for odd. Both work since we always apply to the pair. `ed ^ 1` is fine and standard.
+
+Now, potential issue: `nums = list(map(int, data))` — if the input is huge (10^6+ tokens), fine.
+
+But wait — what if there are MORE tokens than 6 + 3m (e.g., trailing garbage)? We only read what we need. ✓. What if the "1" on line 1 is absent (only "n m")? The problem explicitly says "n m 1", so nums[2] = 1 and s,t,d at indices 3,4,5. But to be robust, what if the line is "n m" only and then "s t d"? Then nums[2] = s, nums[3] = t, nums[4] = d, and my parsing would be wrong. Hmm. The problem statement is explicit: "Line 1: n m 1." I'll trust it. But could I add robustness? E.g., check if nums[2] == 1 → assume format as stated; else assume "n m" + "s t d" format? That's a heuristic... If nums[2] != 1, then likely the format is different. But the problem guarantees the format. Hmm, but what if there are multiple products... no, it's 1.
+
+Actually, you know, there's a subtle risk: what if the third number is not always 1 in the actual test data (e.g., the original problem had k products and this variant still has k in input but the statement says 1)? The statement says the input has "1" there. And the next line is "s t d" — a single product's data. I'll trust the statement exactly. But let me add a tiny robustness: if nums[2] != 1... hmm, what would I do? If k > 1, the input would presumably have k lines of "s_i t_i d_i"? But the statement says "Next line: s t d" — singular. I'll trust it fully. Actually, hmm, let me think about being adaptive: if nums[2] == 1, parse as stated. Otherwise... there's no spec. Trust the spec.
+
+Hmm, wait, actually — maybe I should reconsider: could "1" be something else entirely, like "the graph is a corridor grid" flag? Doesn't matter — we skip it either way.
+
+Let me now reconsider the s == t special case once more. Actually, hmm, wait: if s == t, my special case outputs NO for d > 0. But maybe the intended answer is YES (trivially, nothing needs to move... but then "net departure equals d" fails). Honestly, for a well-posed problem, s ≠ t. My special case is a defensible interpretation. Actually, let me reconsider — maybe I should NOT special-case and let the algorithm decide? With s == t, the algorithm (super-source) outputs YES with all-zero flows for any d (since S→s edge reaches t=s directly). That claims net departure = 0. If d > 0, that violates "net departure equals d" → wrong under strict reading. So the special case (NO for d>0) is more aligned with the stated constraints. Keep it.
+
+Hmm, although... one could also argue: with s == t, "net departure" and "net arrival" both at the same hub — the constraints are contradictory for d>0, so NO. Yes. Keep.
+
+Now let me also double check `flow == d` when d == 0 and s != t: flow = 0 → YES, all zeros (all cap[2j+1] = 0 since no augmentation happened... well, could an augmentation happen with f=0? No — f = min of path caps, all ≥ 1 on admissible edges... wait, cap > 0 required to advance, and caps are integers → f ≥ 1. But with d = 0, the S→s edge has cap 0, so BFS never leaves S → found = False immediately → flow = 0. ✓ Output all zeros. ✓.
+
+Hmm, but wait: with d = 0, is "YES + zeros" the expected answer, or would the judge expect... The problem likely guarantees d ≥ 1. Either way, our answer is logically correct.
+
+Now let me also think about integer overflow — Python ints, no issue.
+
+Let me re-examine the DFS loop once more for a subtle bug: after augment, `u = tail; continue`. Then `if u == T:` — tail ≠ T as argued. Then advance scan from tail with it[tail] (already incremented past saturated edge). ✓.
+
+After retreat: `u = to[ed ^ 1]; it[u] += 1` — then loop continues: `if u == T` — u is a tail of a path edge, ≠ T ✓. Advance scan from it[u]. ✓.
+
+After advance: `u = to[nxt]` — could be T → handled next iteration. ✓.
+
+Initial: u = S, path = [] — if S == T? Impossible. ✓.
+
+One more: `it[u] = iu` in the advance-success branch — iu is the position where we found nxt. But note: we might have skipped inadmissible edges before it; persisting iu skips them forever within the phase. ✓ (they can't become admissible: caps of admissible edges only decrease; inadmissible due to cap==0 could gain cap? Reverse edges gain cap but reverse edges go backward in level → still inadmissible. Inadmissible due to level mismatch → permanent. Dead nodes → permanent. So persisting skips is safe. ✓)
+
+Wait, careful: an edge skipped because cap == 0 — could its cap increase within the phase? cap[e] increases only when flow is pushed on e^1 (its reverse). Pushing on e^1 means e^1 is in an augmenting path; e^1 goes from level[u]+1 to level[u]... e goes u→v with level[v] == level[u]+1 for e to be admissible; e^1 goes v→u, i.e., from level k+1 to k — never admissible in the level graph (paths go k → k+1). So e^1 never carries flow within the phase → cap[e] never increases within the phase. ✓. But hold on — what about edges skipped due to cap == 0 that are NOT admissible-by-level? Same argument applies per-edge: any edge e from u: if e^1 is used in a path, then e^1 goes from to[e^1]=... hmm, let me redo: e: u→v. e^1: v→u. If a path uses e^1, the path goes ... → v → u → ..., requiring level[u] == level[v] + 1. If additionally e were admissible, level[v] == level[u] + 1 → contradiction. If e is not admissible (level mismatch), then cap[e] could increase! But we skipped e due to level mismatch OR cap==0. If we skipped e due to cap==0 but e IS level-admissible — then e^1 can't be used (contradiction above) → cap[e] stays 0. ✓. If we skipped e due to level mismatch, it stays mismatched. ✓. So persisted skips are safe within a phase. 
+
+And across phases, it[] is reset. ✓.
+
+Now, the BFS early break: `if v == T: found = True; break` — we don't append T to q. Fine, T's level is set. ✓.
+
+Also note: BFS `for ed in graph[u]` — includes reverse edges with cap possibly > 0 (from previous phases) — correctly considered residual edges. ✓.
+
+I think the solution is correct. Let me now also write a quick mental test of the whole pipeline on the sample-like input... There's no sample given in the problem. OK.
+
+Let me think about whether the output should have the flows possibly on separate lines or space-separated — "one line with m integers" → space-separated on one line. ✓.
+
+One more formatting consideration: trailing newline — fine.
+
+Let me also double check `res.append(str(cap[j + j + 1]))` — flow on original edge j = cap[2j+1]. ✓.
+
+Hmm, wait — one potential issue: what if the same original edge index... no, each j maps to unique pair. ✓.
+
+Now let me reconsider whether to worry about the checker verifying that flow value == d exactly. Our flow: value = flow on S→s edge = d. Net departure at s = d. ✓.
+
+Also — hmm, what if the checker computes delivered amount as (sum of flows into t) - (sum of flows out of t) and requires == d? Ours: == d ✓.
+
+What if the checker requires flows out of t to be 0? Not stated. Our flow might have edges out of t carrying flow? Could Dinic push flow out of t? t is the sink; paths end at t. Flow on edges out of t: only if such edges are on augmenting paths — paths end at t, so no edge out of t is on a path... but wait, edges out of t could carry flow if... no. Augmenting paths go S→...→t. An edge t→w would need to be traversed, but the path stops at t. So flow on edges out of t = 0? Hmm, not exactly — consider an edge INTO t from w: path ...→w→t. Fine. Edges out of t: never on paths → flow 0. But edges into s (other than S→s)? Could carry flow if on a path: path S→s→... wait, path starts at S, goes to s (via the super edge), then continues s→...→t. Could a path re-enter s later? s has level 1; path nodes have distinct levels; s

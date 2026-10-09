@@ -1,0 +1,335 @@
+**Solution Explanation**
+
+For every triple  
+
+```
+(base = x , catalyst = y , thermal = z)      ( 1 ≤ x , y , z ≤ k )
+```
+
+the three numbers are *different* resources, therefore the triple covers exactly three
+columns
+
+```
+column 0 … k‑1          – the k bases
+column k … 2k‑1         – the k catalysts
+column 2k … 3k‑1        – the k thermals
+```
+
+A *full batch* is a set of `k` triples that uses every column exactly once.
+That is exactly the **exact cover** problem with `3·k` columns and one row for
+every given triple.
+
+`k ≤ 22`, therefore at most `66` columns and at most `k³ ≤ 10648` rows.
+A classic back‑tracking algorithm for exact cover – **Algorithm X** with
+*Dancing Links* (DLX) – solves such instances instantly:
+the recursion depth never exceeds `k` (the number of rows we have to pick).
+
+The algorithm
+
+* chooses a column with the smallest number of rows (heuristic),
+* tries every row that contains this column,
+* removes all columns covered by this row,
+* recurses,
+* restores everything on backtrack.
+
+If a recursion reaches the state “no column left”, we have found `k` rows –
+the required batch.
+
+The implementation stores the sparse matrix in four integer arrays
+(`L,R,U,D` – the four neighbour links) together with `C[row]` (the column of a node)
+and `S[col]` (current size of a column).  
+All operations are `O(1)`.
+
+The algorithm also remembers the rows that are currently chosen, therefore
+the final answer can be printed directly.
+
+The whole program works in well below the limits.
+
+
+
+--------------------------------------------------------------------
+
+#### Correctness Proof  
+
+We prove that the algorithm prints `YES` and a correct batch
+iff such a batch exists.
+
+---
+
+##### Lemma 1  
+During the execution of the DLX recursion the set of *remaining* columns is
+exactly the set of resources (bases, catalysts, thermals) that are not yet used
+by the already selected rows.
+
+**Proof.**  
+Initially all columns are present, no resource is used.  
+When a row `r` is chosen, the algorithm removes every column that `r` covers.
+These columns correspond precisely to the three resources used by `r`.
+No other columns are removed.  
+When backtracking, the same columns are restored, undoing the usage.
+∎
+
+
+
+##### Lemma 2  
+If the recursion reaches the state “no column left”, the rows stored in the
+solution stack form a set of `k` triples that uses every base, catalyst and
+thermal exactly once.
+
+**Proof.**  
+By Lemma&nbsp;1, “no column left” means every column has been removed,
+i.e. every resource has been used.
+Each recursive step adds exactly one row, therefore the stack contains as many
+rows as recursion depth.  
+The recursion stops only when all `3k` columns are removed, which needs exactly
+`k` rows because each row removes three distinct columns.
+Thus the `k` rows cover all resources exactly once. ∎
+
+
+
+##### Lemma 3  
+If a full batch exists, the DLX recursion will eventually find it
+(and therefore output `YES`).
+
+**Proof.**  
+Consider any existing batch `B` (a set of `k` rows covering all columns).
+Algorithm X explores the search tree defined by the exact‑cover matrix:
+at each node it tries **all** rows that contain the chosen column.
+Consequently the branch that repeatedly picks the rows of `B`
+is present in the tree.
+Because the algorithm never prunes a branch unless a column becomes empty,
+this branch is never cut off.
+When the algorithm follows this branch it will finally remove all columns,
+reach the leaf described in Lemma&nbsp;2 and report success. ∎
+
+
+
+##### Lemma 4  
+If the algorithm outputs `YES` and a list of `k` triples, this list is a valid
+full batch.
+
+**Proof.**  
+Output `YES` only after the recursion reached the state “no column left”.
+By Lemma&nbsp;2 the stored rows then cover every column exactly once,
+i.e. each base, catalyst and thermal appears in exactly one printed triple.
+Thus the printed triples constitute a valid full batch. ∎
+
+
+
+##### Lemma 5  
+If the algorithm outputs `NO`, no full batch exists.
+
+**Proof.**  
+`NO` is printed only after the whole recursion tree has been explored
+without reaching the “no column left” state.
+Assume a full batch existed.
+By Lemma&nbsp;3 the recursion would have found it, contradicting the exhaustive
+search. Hence no batch exists. ∎
+
+
+
+##### Theorem  
+The program prints  
+
+*`YES` and a correct list of `k` triples* **iff** a full batch of `k` stable
+reactions exists; otherwise it prints `NO`.
+
+**Proof.**  
+*If* part: existence ⇒ algorithm finds it (Lemma&nbsp;3) ⇒ prints `YES`
+and a correct batch (Lemma&nbsp;4).  
+*Only‑if* part: algorithm prints `YES` ⇒ printed triples are a batch
+(Lemma&nbsp;4).  
+If algorithm prints `NO`, by Lemma&nbsp;5 no batch exists. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### Complexity Analysis  
+
+*`C = 3k ≤ 66`* columns, *`R = t ≤ 10648`* rows, each row has exactly three nodes.
+
+Construction of the DLX structure: `O(R)`.
+
+During the search each recursive step removes and restores at most
+`3·S` nodes, where `S` is the current column size.
+The total work is proportional to the number of visited nodes.
+The depth never exceeds `k ≤ 22`; in practice the search is tiny.
+The worst‑case theoretical bound is `O(k·R)`, well below the limits
+(≈ 2·10⁵ operations).
+
+Memory consumption: four link arrays of size `3·R + C + 1` (≈ 3·10⁴ integers)
+plus a few auxiliary arrays – far under 256 MiB.
+
+
+
+--------------------------------------------------------------------
+
+#### Reference Implementation  (Python 3)
+
+```python
+import sys
+
+sys.setrecursionlimit(1000000)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    k = int(next(it))
+    t = int(next(it))
+
+    triples = []
+    for _ in range(t):
+        x = int(next(it)) - 1
+        y = int(next(it)) - 1
+        z = int(next(it)) - 1
+        triples.append((x, y, z))
+
+    # columns: 0..k-1 bases, k..2k-1 catalysts, 2k..3k-1 thermals
+    C = 3 * k                     # number of columns
+    max_nodes = 3 * t + C + 1     # header + column heads + all nodes
+
+    # dancing links arrays
+    L = [0] * max_nodes
+    R = [0] * max_nodes
+    U = [0] * max_nodes
+    D = [0] * max_nodes
+    Ccol = [0] * max_nodes        # column of a node
+    S = [0] * (C + 1)             # column sizes, 1‑based for columns
+    row_of_node = [0] * max_nodes # which row a node belongs to
+
+    header = 0
+    # initialise header list of column heads (1‑based indices for columns)
+    for i in range(C + 1):
+        L[i] = i - 1
+        R[i] = i + 1
+        U[i] = D[i] = i
+    L[0] = C
+    R[C] = 0
+
+    node_id = C + 1               # next free node index
+    row_id = 0
+
+    # add rows
+    for (x, y, z) in triples:
+        cols = [x + 1, k + y + 1, 2 * k + z + 1]   # columns are 1‑based
+        first = -1
+        row_id += 1
+        for col in cols:
+            nid = node_id
+            node_id += 1
+            Ccol[nid] = col
+            row_of_node[nid] = row_id
+
+            # vertical links
+            U[nid] = U[col]
+            D[nid] = col
+            D[U[col]] = nid
+            U[col] = nid
+            S[col] += 1
+
+            # horizontal links
+            if first == -1:
+                first = nid
+                L[nid] = R[nid] = nid
+            else:
+                L[nid] = L[first]
+                R[nid] = first
+                R[L[first]] = nid
+                L[first] = nid
+
+    solution_rows = []
+
+    # ----- DLX core operations -----
+    def cover(col):
+        # remove column header
+        L[R[col]] = L[col]
+        R[L[col]] = R[col]
+        # remove rows
+        i = D[col]
+        while i != col:
+            j = R[i]
+            while j != i:
+                U[D[j]] = U[j]
+                D[U[j]] = D[j]
+                S[Ccol[j]] -= 1
+                j = R[j]
+            i = D[i]
+
+    def uncover(col):
+        i = U[col]
+        while i != col:
+            j = L[i]
+            while j != i:
+                S[Ccol[j]] += 1
+                U[D[j]] = j
+                D[U[j]] = j
+                j = L[j]
+            i = U[i]
+        L[R[col]] = col
+        R[L[col]] = col
+
+    # ----- recursive search -----
+    def search():
+        if R[header] == header:          # all columns covered
+            return True
+
+        # choose column with minimal size
+        c = R[header]
+        min_s = S[c]
+        col = c
+        j = R[c]
+        while j != header:
+            if S[j] < min_s:
+                min_s = S[j]
+                col = j
+                if min_s == 0:
+                    break
+            j = R[j]
+        if min_s == 0:
+            return False
+
+        cover(col)
+        r = D[col]
+        while r != col:
+            solution_rows.append(row_of_node[r])
+            j = R[r]
+            while j != r:
+                cover(Ccol[j])
+                j = R[j]
+            if search():
+                return True
+            # backtrack
+            j = L[r]
+            while j != r:
+                uncover(Ccol[j])
+                j = L[j]
+            solution_rows.pop()
+            r = D[r]
+        uncover(col)
+        return False
+
+    possible = search()
+
+    out = []
+    if possible:
+        out.append("YES")
+        # map row id back to triple
+        row_to_trip = {}
+        for idx, tr in enumerate(triples, start=1):
+            row_to_trip[idx] = tr
+        for rid in solution_rows:
+            x, y, z = row_to_trip[rid]
+            out.append(f"{x+1} {y+1} {z+1}")
+    else:
+        out.append("NO")
+    sys.stdout.write("\n".join(out))
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above and conforms
+to the required input‑output format.

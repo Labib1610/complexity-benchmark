@@ -1,0 +1,60 @@
+import sys
+
+def solve():
+    sys.setrecursionlimit(5000)
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    q = int(input_data[0])
+    t = int(input_data[1])
+    
+    n = 3 * q
+    adj = [[] for _ in range(n + 1)]
+    
+    idx = 2
+    for _ in range(t):
+        a = int(input_data[idx])
+        b = int(input_data[idx+1])
+        c = int(input_data[idx+2])
+        adj[a].append((b, c))
+        idx += 3
+        
+    used = [False] * (n + 1)
+    ans = []
+    
+    def backtrack(first_uncovered):
+        while first_uncovered <= n and used[first_uncovered]:
+            first_uncovered += 1
+            
+        if first_uncovered > n:
+            return True
+            
+        u = first_uncovered
+        used[u] = True
+        for b, c in adj[u]:
+            if not used[b] and not used[c]:
+                used[b] = True
+                used[c] = True
+                ans.append((u, b, c))
+                
+                if backtrack(u + 1):
+                    return True
+                    
+                ans.pop()
+                used[b] = False
+                used[c] = False
+                
+        used[u] = False
+        return False
+
+    if backtrack(1):
+        out = ["YES"]
+        for a, b, c in ans:
+            out.append(f"{a} {b} {c}")
+        print("\n".join(out))
+    else:
+        print("NO")
+
+if __name__ == '__main__':
+    solve()

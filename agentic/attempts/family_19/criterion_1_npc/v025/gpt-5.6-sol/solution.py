@@ -1,0 +1,321 @@
+import sys
+import random
+import itertools
+
+sys.setrecursionlimit(1_000_000)
+
+
+class Dinic:
+    __slots__ = ("n", "g", "level", "it")
+
+    def __init__(self, n):
+        self.n = n
+        self.g = [[] for _ in range(n)]
+        self.level = [-1] * n
+        self.it = [0] * n
+
+    def add_edge(self, u, v, cap):
+        forward = [v, len(self.g[v]), cap]
+        backward = [u, len(self.g[u]), 0]
+        self.g[u].append(forward)
+        self.g[v].append(backward)
+        return forward
+
+    def bfs(self, s, t):
+        level = self.level
+        for i in range(self.n):
+            level[i] = -1
+        level[s] = 0
+        q = [s]
+        head = 0
+        while head < len(q):
+            u = q[head]
+            head += 1
+            nl = level[u] + 1
+            for e in self.g[u]:
+                if e[2] > 0 and level[e[0]] < 0:
+                    level[e[0]] = nl
+                    if e[0] == t:
+                        return True
+                    q.append(e[0])
+        return level[t] >= 0
+
+    def dfs(self, u, t, pushed):
+        if u == t:
+            return pushed
+        g = self.g
+        level = self.level
+        i = self.it[u]
+        while i < len(g[u]):
+            self.it[u] = i
+            e = g[u][i]
+            if e[2] > 0 and level[e[0]] == level[u] + 1:
+                got = self.dfs(e[0], t, min(pushed, e[2]))
+                if got:
+                    e[2] -= got
+                    g[e[0]][e[1]][2] += got
+                    return got
+            i += 1
+            self.it[u] = i
+        return 0
+
+    def max_flow(self, s, t, limit):
+        if s == t:
+            return limit
+        result = 0
+        inf = 10**30
+        while result < limit and self.bfs(s, t):
+            self.it = [0] * self.n
+            while result < limit:
+                pushed = self.dfs(s, t, min(inf, limit - result))
+                if not pushed:
+                    break
+                result += pushed
+        return result
+
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+
+    p = 0
+    n, m, k = data[p], data[p + 1], data[p + 2]
+    p += 3
+
+    commodities = []
+    for _ in range(k):
+        s, t, d = data[p] - 1, data[p + 1] - 1, data[p + 2]
+        p += 3
+        commodities.append((s, t, d))
+
+    edges = []
+    base_cap = []
+    out_edges = [[] for _ in range(n)]
+    for eid in range(m):
+        u, v, c = data[p] - 1, data[p + 1] - 1, data[p + 2]
+        p += 3
+        edges.append((u, v))
+        base_cap.append(c)
+        out_edges[u].append(eid)
+
+    zero_answer = [[0] * m for _ in range(k)]
+    active = [i for i, (s, t, d) in enumerate(commodities) if d > 0 and s != t]
+
+    if not active:
+        out = ["YES"]
+        out.extend(" ".join(map(str, row)) for row in zero_answer)
+        sys.stdout.write("\n".join(out))
+        return
+
+    def one_flow(capacities, s, t, need, edge_order=None):
+        if need == 0 or s == t:
+            return [0] * m
+        din = Dinic(n)
+        refs = [None] * m
+        original = [0] * m
+        order = range(m) if edge_order is None else edge_order
+        for eid in order:
+            c = capacities[eid]
+            if c > 0:
+                u, v = edges[eid]
+                refs[eid] = din.add_edge(u, v, c)
+                original[eid] = c
+        value = din.max_flow(s, t, need)
+        if value < need:
+            return None
+        result = [0] * m
+        for eid in range(m):
+            if refs[eid] is not None:
+                result[eid] = original[eid] - refs[eid][2]
+        return result
+
+    # Necessary aggregate relaxation.
+    total_demand = sum(commodities[i][2] for i in active)
+    super_s, super_t = n, n + 1
+    relaxation = Dinic(n + 2)
+    for eid, (u, v) in enumerate(edges):
+        if base_cap[eid] > 0:
+            relaxation.add_edge(u, v, base_cap[eid])
+    for i in active:
+        s, t, d = commodities[i]
+        relaxation.add_edge(super_s, s, d)
+        relaxation.add_edge(t, super_t, d)
+    if relaxation.max_flow(super_s, super_t, total_demand) < total_demand:
+        print("NO")
+        return
+
+    def try_sequential(order, edge_order=None):
+        rem = base_cap[:]
+        ans = [[0] * m for _ in range(k)]
+        for cid in order:
+            s, t, d = commodities[cid]
+            flow = one_flow(rem, s, t, d, edge_order)
+            if flow is None:
+                return None
+            ans[cid] = flow
+            for eid, x in enumerate(flow):
+                rem[eid] -= x
+        return ans
+
+    orders = []
+    seen_orders = set()
+
+    def add_order(order):
+        order = tuple(order)
+        if order not in seen_orders:
+            seen_orders.add(order)
+            orders.append(order)
+
+    add_order(active)
+    add_order(reversed(active))
+    add_order(sorted(active, key=lambda i: -commodities[i][2]))
+    add_order(sorted(active, key=lambda i: commodities[i][2]))
+    add_order(sorted(active, key=lambda i: len(out_edges[commodities[i][0]])))
+    add_order(sorted(active, key=lambda i: (len(out_edges[commodities[i][0]]), -commodities[i][2])))
+
+    if len(active) <= 6:
+        for order in itertools.islice(itertools.permutations(active), 120):
+            add_order(order)
+
+    rng = random.Random(712367821)
+    while len(orders) < min(120, max(20, 8 * len(active))):
+        order = active[:]
+        rng.shuffle(order)
+        add_order(order)
+
+    normal_edges = list(range(m))
+    for idx, order in enumerate(orders):
+        if idx < len(orders) // 2:
+            edge_order = None
+        else:
+            edge_order = normal_edges[:]
+            rng.shuffle(edge_order)
+        ans = try_sequential(order, edge_order)
+        if ans is not None:
+            out = ["YES"]
+            out.extend(" ".join(map(str, row)) for row in ans)
+            sys.stdout.write("\n".join(out))
+            return
+
+    answer = [[0] * m for _ in range(k)]
+    residual = base_cap[:]
+
+    def generate_paths(s, t):
+        paths = []
+        visited = bytearray(n)
+        visited[s] = 1
+        path = []
+
+        def dfs(u):
+            if u == t:
+                paths.append(tuple(path))
+                return
+            for eid in out_edges[u]:
+                if residual[eid] <= 0:
+                    continue
+                v = edges[eid][1]
+                if not visited[v]:
+                    visited[v] = 1
+                    path.append(eid)
+                    dfs(v)
+                    path.pop()
+                    visited[v] = 0
+
+        dfs(s)
+        return paths
+
+    def solve(remaining):
+        if not remaining:
+            return True
+
+        candidates = []
+        for cid in remaining:
+            s, t, d = commodities[cid]
+            flow = one_flow(residual, s, t, d)
+            if flow is None:
+                return False
+            available_out = sum(1 for eid in out_edges[s] if residual[eid] > 0)
+            candidates.append((available_out, -d, cid, flow))
+
+        candidates.sort(key=lambda x: (x[0], x[1]))
+        _, _, cid, direct_flow = candidates[0]
+        next_remaining = [x for x in remaining if x != cid]
+
+        feasible_direct = True
+        for eid, x in enumerate(direct_flow):
+            if x:
+                residual[eid] -= x
+                if residual[eid] < 0:
+                    feasible_direct = False
+        if feasible_direct:
+            answer[cid] = direct_flow
+            if solve(next_remaining):
+                return True
+        for eid, x in enumerate(direct_flow):
+            if x:
+                residual[eid] += x
+        answer[cid] = [0] * m
+
+        s, t, demand = commodities[cid]
+        paths = generate_paths(s, t)
+        if not paths:
+            return False
+
+        current = [0] * m
+
+        def allocate(start, left):
+            if left == 0:
+                answer[cid] = current[:]
+                if solve(next_remaining):
+                    return True
+                answer[cid] = [0] * m
+                return False
+
+            for j in range(start, len(paths)):
+                path = paths[j]
+                max_amount = left
+                for eid in path:
+                    if residual[eid] < max_amount:
+                        max_amount = residual[eid]
+                    if max_amount == 0:
+                        break
+                if max_amount == 0:
+                    continue
+
+                values = range(max_amount, 0, -1)
+                for amount in values:
+                    for eid in path:
+                        residual[eid] -= amount
+                        current[eid] += amount
+
+                    possible = True
+                    if left > amount:
+                        check = one_flow(residual, s, t, left - amount)
+                        possible = check is not None
+
+                    if possible and allocate(j + 1, left - amount):
+                        return True
+
+                    for eid in path:
+                        residual[eid] += amount
+                        current[eid] -= amount
+            return False
+
+        return allocate(0, demand)
+
+    exact_order = sorted(
+        active,
+        key=lambda i: (len(out_edges[commodities[i][0]]), -commodities[i][2])
+    )
+
+    if solve(exact_order):
+        out = ["YES"]
+        out.extend(" ".join(map(str, row)) for row in answer)
+        sys.stdout.write("\n".join(out))
+    else:
+        print("NO")
+
+
+if __name__ == "__main__":
+    main()

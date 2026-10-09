@@ -1,0 +1,321 @@
+**Solution Explanation**
+
+For every pair of locations we know the price of building a direct link.
+Among the locations `t ≤ 10` are *mandatory*.  
+We have to build a set of links of minimum total price such that all mandatory
+locations become connected (they may use non‑mandatory locations as intermediate
+vertices).
+
+The problem is the **Steiner Tree** problem on an undirected weighted graph with
+a very small number of terminals (`t ≤ 10`).  
+The classic exact algorithm uses dynamic programming over subsets of terminals
+together with Dijkstra’s shortest‑path algorithm.
+
+--------------------------------------------------------------------
+
+#### 1.   Notation  
+
+* `n` – number of vertices (1 … n)  
+* `m` – number of edges, each edge `u‑v` has weight `w` (positive)  
+* `term[0 … t‑1]` – the mandatory vertices (terminals)  
+* `full = (1<<t)‑1` – bitmask of all terminals  
+
+`adj[v]` – list of `(to, weight)` for vertex `v` (0‑based indices inside the program).
+
+--------------------------------------------------------------------
+
+#### 2.   DP state  
+
+`dp[mask][v]` – minimal total price of a **connected** subgraph that
+
+* contains all terminals whose bits are set in `mask`
+* and whose **rightmost** (any) vertex is `v` (the subgraph is rooted at `v`)
+
+`mask` ranges from `0` to `full`.  
+`v` ranges from `0` to `n‑1`.
+
+The answer will be  
+
+```
+min_v dp[full][v]
+```
+
+--------------------------------------------------------------------
+
+#### 3.   Initialization  
+
+For every terminal `i` (bit `1<<i`) we can start a subgraph consisting only of
+that vertex, price `0`.
+
+```
+dp[1<<i][ term[i] ] = 0
+```
+
+All other entries are `INF`.
+
+--------------------------------------------------------------------
+
+#### 4.   Merging two smaller subsets  
+
+If a set `mask` can be split into two non‑empty disjoint subsets `sub` and
+`mask ^ sub`, then a subgraph for `mask` can be obtained by taking a subgraph
+for `sub` and a subgraph for `mask ^ sub` **and gluing them together at the same
+vertex `v`**.
+
+```
+dp[mask][v] = min( dp[mask][v] , dp[sub][v] + dp[mask ^ sub][v] )
+```
+
+We try **all** proper non‑empty submasks `sub` of `mask`.  
+Doing this for every vertex gives the optimal cost of a tree that already
+contains all needed terminals but possibly uses many edges inside the tree.
+After the merge step the tree may still be improved by adding ordinary edges
+outside the current vertices – that is exactly what the next step does.
+
+The total work of all merges is `O(3^t * n)`, well below the limits (`t ≤ 10`).
+
+--------------------------------------------------------------------
+
+#### 5.   Expanding through ordinary edges – Dijkstra  
+
+After the merge step `dp[mask][v]` is the best cost of a tree that ends at `v`,
+but we may still travel through ordinary graph edges to reach other vertices
+more cheaply.  
+All vertices with a finite `dp[mask][v]` are inserted into a priority queue as
+sources of a multi‑source Dijkstra run:
+
+```
+while heap not empty:
+        d, v = pop()
+        if d != dp[mask][v]: continue
+        for (to, w) in adj[v]:
+                nd = d + w
+                if nd < dp[mask][to]:
+                        dp[mask][to] = nd
+                        push(nd, to)
+```
+
+After the Dijkstra finishes, `dp[mask][*]` contains the true minimum cost of a
+connected subgraph that spans exactly the terminals of `mask`.
+
+We run this Dijkstra **once for every mask** (after its merge step).  
+Complexity per mask: `O((n+m) log n)`.  
+Overall: `O( 2^t * (n+m) log n )`, easily fast for the given limits.
+
+--------------------------------------------------------------------
+
+#### 6.   Whole algorithm  
+
+```
+read input
+build adjacency list
+dp = [[INF]*n for _ in range(1<<t)]
+for each terminal i:
+        dp[1<<i][ term[i] ] = 0
+
+for mask = 1 … full:
+        # 1) merge smaller subsets
+        sub = (mask-1) & mask
+        while sub:
+                other = mask ^ sub
+                if other:                     # both non‑empty
+                        for v in 0..n-1:
+                                nd = dp[sub][v] + dp[other][v]
+                                if nd < dp[mask][v]:
+                                        dp[mask][v] = nd
+                sub = (sub-1) & mask          # next submask
+
+        # 2) Dijkstra to propagate through graph edges
+        run multi‑source Dijkstra with initial distances dp[mask][*]
+
+answer = min( dp[full][v] for v in 0..n-1 )
+print(answer)
+```
+
+All arithmetic uses 64‑bit (`int` in Python) – the maximal possible sum is
+`(t‑1) * 1_000_000 ≤ 9·10^6`, far below overflow.
+
+--------------------------------------------------------------------
+
+#### 7.   Correctness Proof  
+
+We prove that the algorithm outputs the minimum possible total budget.
+
+---
+
+##### Lemma 1  
+For any mask and vertex `v`, after the Dijkstra step finishes,
+`dp[mask][v]` equals the minimum cost of a **connected** subgraph that
+
+* contains all terminals of `mask`
+* and whose vertex set includes `v`.
+
+**Proof.**  
+Induction over the order in which masks are processed.
+
+*Base.* `mask` is a power of two, i.e. a single terminal `ti`.  
+Before Dijkstra, `dp[mask][ti]=0`, all other vertices are `INF`.  
+Running multi‑source Dijkstra computes exactly the shortest‑path distances
+from `ti` to every vertex, which are precisely the cheapest connected subgraphs
+containing `ti` and the destination vertex.  
+
+*Induction step.* Assume the statement holds for all proper submasks of `mask`.  
+First we consider the merge step. For any split `mask = sub ∪ other` (disjoint)
+and any vertex `v` the value `dp[sub][v] + dp[other][v]` is the cost of a
+connected subgraph that
+
+* connects all terminals of `sub` and ends at `v`
+* connects all terminals of `other` and also ends at `v`
+
+The union of the two subgraphs is connected (they share `v`) and contains all
+terminals of `mask`. Its cost is exactly the sum, therefore the minimum over
+all splits gives the cheapest connected subgraph for `mask` **that is forced
+to end at `v`** *without using any extra edges outside the already built
+subgraphs*. Thus after the merge step `dp[mask][v]` is a lower bound on the
+desired optimum, and there exists a subgraph attaining it.
+
+Now Dijkstra adds arbitrary graph edges to the already built subgraph.
+Running Dijkstra from all vertices with their current costs is equivalent to
+allowing any number of additional edges after the subgraph, i.e. to finding the
+shortest paths from the set of “already built” vertices to every other vertex.
+Consequently after Dijkstra, `dp[mask][v]` is the minimum possible cost of a
+connected subgraph that contains all terminals of `mask` and also contains `v`.
+∎
+
+
+
+##### Lemma 2  
+For every mask, after its processing `dp[mask][v]` is **exactly** the optimum
+value defined in Lemma&nbsp;1.
+
+**Proof.** Lemma&nbsp;1 already shows that the algorithm never overestimates the
+optimum.  
+Conversely, take an optimal connected subgraph `S` for `mask` that contains `v`.
+Pick any vertex `x` of `S`. Remove all edges of `S` that are not on a shortest
+path from `x` to `v`; the remaining edges still connect all terminals of `mask`
+and still contain `v`. The part of `S` that lies on the shortest `x‑v` path can
+be obtained by Dijkstra starting from `x`. The rest of `S` can be decomposed
+into two connected subgraphs each covering a proper non‑empty subset of the
+terminals and both ending at `x`. Those two subgraphs correspond to some split
+`sub, other`. By the induction hypothesis their costs are exactly
+`dp[sub][x]` and `dp[other][x]`. Adding the shortest path cost from `x` to `v`
+(which Dijkstra accounts for) yields a construction whose total cost equals
+`dp[mask][v]`. Hence `dp[mask][v]` cannot be larger than the optimum. ∎
+
+
+
+##### Lemma 3  
+`min_v dp[full][v]` equals the minimum total budget of a set of links that
+connects all mandatory locations.
+
+**Proof.** By Lemma&nbsp;2, for each vertex `v` the value `dp[full][v]` is the
+minimum cost of a connected subgraph that contains all terminals and also
+contains `v`. Any feasible solution is a connected subgraph containing all
+terminals, therefore its cost is at least `dp[full][v]` for every `v` it
+contains, and consequently at least the minimum over `v`.  
+Conversely, the subgraph achieving the minimum `dp[full][v*]` is a feasible
+solution, so the minimum is attainable. ∎
+
+
+
+##### Theorem  
+The algorithm outputs the smallest possible total budget required to make all
+mandatory locations mutually reachable.
+
+**Proof.** By Lemma&nbsp;3 the algorithm’s output equals the optimum cost.
+∎
+
+
+
+--------------------------------------------------------------------
+
+#### 8.   Complexity Analysis  
+
+*Number of masks*: `2^t ≤ 1024`  
+
+*Merge step*: `O(3^t * n) ≤ 59049 * 100 ≈ 6·10^6` operations.  
+
+*Dijkstra per mask*: `O((n+m) log n)` → at most `O( (100+4950) * log 100 )`
+≈ `5·10^3 * 7`.  
+Total Dijkstra work: `2^t` times that → below `7·10^6`.
+
+Overall time well under the 5 s limit.  
+Memory: `dp` array `2^t * n ≤ 1024 * 100 = 102 400` 64‑bit integers → < 1 MB,
+plus the graph – far below 256 MB.
+
+--------------------------------------------------------------------
+
+#### 9.   Reference Implementation  (Python 3)
+
+```python
+import sys
+import heapq
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    t = int(next(it))
+    terminals = [int(next(it)) - 1 for _ in range(t)]
+
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        w = int(next(it))
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+
+    INF = 10**18
+    full = (1 << t) - 1
+    dp = [[INF] * n for _ in range(1 << t)]
+
+    for i, v in enumerate(terminals):
+        dp[1 << i][v] = 0
+
+    # process masks in increasing order
+    for mask in range(1, full + 1):
+        # merge smaller subsets
+        sub = (mask - 1) & mask
+        while sub:
+            other = mask ^ sub
+            if other:
+                dps = dp[sub]
+                dpo = dp[other]
+                dpm = dp[mask]
+                for v in range(n):
+                    nd = dps[v] + dpo[v]
+                    if nd < dpm[v]:
+                        dpm[v] = nd
+            sub = (sub - 1) & mask
+
+        # Dijkstra (multi‑source)
+        heap = []
+        dist = dp[mask]
+        for v in range(n):
+            if dist[v] < INF:
+                heap.append((dist[v], v))
+        heapq.heapify(heap)
+
+        while heap:
+            d, v = heapq.heappop(heap)
+            if d != dist[v]:
+                continue
+            for to, w in adj[v]:
+                nd = d + w
+                if nd < dist[to]:
+                    dist[to] = nd
+                    heapq.heappush(heap, (nd, to))
+
+    ans = min(dp[full])
+    print(ans)
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above and conforms
+to the required input‑output format.

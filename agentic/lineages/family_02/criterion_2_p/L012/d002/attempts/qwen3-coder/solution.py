@@ -1,0 +1,125 @@
+import sys
+import threading
+
+def main():
+    import sys
+    sys.setrecursionlimit(1 << 25)
+    
+    n, m = map(int, sys.stdin.readline().split())
+    
+    # For each literal x (1 to n), we have variables:
+    # x is True means sensor x is OPERATED
+    # x is False means sensor x is BYPASSED
+    # We'll use 2*i for variable i (True) and 2*i+1 for NOT i (False)
+    # But actually, let's think of it as a 2-SAT problem
+    # Variable i (0-based) corresponds to sensor i+1
+    # Literal (i+1) means sensor i+1 is OPERATED => variable i is True
+    # Literal -(i+1) means sensor i+1 is BYPASSED => variable i is False
+    
+    # So for a clause (a OR b):
+    # if a = k (positive), then variable (k-1) should be True
+    # if a = -k (negative), then variable (k-1) should be False
+    
+    adj = [[] for _ in range(2 * n)]
+    adj_rev = [[] for _ in range(2 * n)]
+    
+    for _ in range(m):
+        l1, l2 = map(int, sys.stdin.readline().split())
+        # Convert literals to variable indices
+        # l1 and l2 are literals like +3 or -5
+        # We want to add edge (NOT l1 -> l2) and (NOT l2 -> l1)
+        
+        def lit_to_var(lit):
+            # lit is a signed integer from -n to n, not zero
+            # returns (variable_index, is_positive)
+            if lit > 0:
+                return (lit - 1, True)
+            else:
+                return (-lit - 1, False)
+                
+        def var_to_node(var, is_pos):
+            # Convert variable and its polarity to node index
+            if is_pos:
+                return 2 * var
+            else:
+                return 2 * var + 1
+                
+        def neg_var(var, is_pos):
+            return (var, not is_pos)
+            
+        v1, p1 = lit_to_var(l1)
+        v2, p2 = lit_to_var(l2)
+        
+        # Add edges for implication (NOT l1 -> l2)
+        # NOT l1 means:
+        #   if l1 = +k, then var k-1 should be False => node 2*(k-1)+1
+        #   if l1 = -k, then var k-1 should be True => node 2*(k-1)
+        # l2 means:
+        #   if l2 = +k, then var k-1 should be True => node 2*(k-1)
+        #   if l2 = -k, then var k-1 should be False => node 2*(k-1)+1
+        
+        not_l1_node = var_to_node(v1, not p1)
+        l2_node = var_to_node(v2, p2)
+        adj[not_l1_node].append(l2_node)
+        adj_rev[l2_node].append(not_l1_node)
+        
+        not_l2_node = var_to_node(v2, not p2)
+        l1_node = var_to_node(v1, p1)
+        adj[not_l2_node].append(l1_node)
+        adj_rev[l1_node].append(not_l2_node)
+    
+    # Now we do Kosaraju's algorithm for 2-SAT
+    order = []
+    visited = [False] * (2 * n)
+    
+    def dfs1(u):
+        visited[u] = True
+        for v in adj[u]:
+            if not visited[v]:
+                dfs1(v)
+        order.append(u)
+        
+    for i in range(2 * n):
+        if not visited[i]:
+            dfs1(i)
+            
+    # Second DFS on transpose graph
+    visited = [False] * (2 * n)
+    components = [-1] * (2 * n)
+    comp_id = 0
+    
+    def dfs2(u):
+        visited[u] = True
+        components[u] = comp_id
+        for v in adj_rev[u]:
+            if not visited[v]:
+                dfs2(v)
+                
+    while order:
+        u = order.pop()
+        if not visited[u]:
+            dfs2(u)
+            comp_id += 1
+            
+    # Check if satisfiable
+    for i in range(n):
+        # Variable i corresponds to sensor i+1
+        # Node 2*i is x_i (True), Node 2*i+1 is NOT x_i (False)
+        if components[2*i] == components[2*i+1]:
+            print("NO")
+            return
+            
+    # Satisfiable, reconstruct solution
+    # In component graph, if NOT x_i has higher topological order, set x_i = False
+    # We can just check which component has higher ID
+    result = [0] * n
+    for i in range(n):
+        if components[2*i] > components[2*i+1]:
+            result[i] = 1  # OPERATED
+        else:
+            result[i] = 0  # BYPASSED
+            
+    print("YES")
+    print(' '.join(map(str, result)))
+
+threading.Thread(target=main).start()

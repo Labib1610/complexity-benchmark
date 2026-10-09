@@ -1,0 +1,41 @@
+import sys
+from collections import deque
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(next(it)); v = int(next(it))
+        adj[u].append(v)
+        adj[v].append(u)
+
+    color = [0] * (n + 1)          # 0 = uncolored, 1 or 2
+    for start in range(1, n + 1):
+        if color[start]:
+            continue
+        # start new component, force start vertex to color 1
+        q = deque([start])
+        color[start] = 1
+        while q:
+            u = q.popleft()
+            cu = color[u]
+            cv = 1 if cu == 2 else 2
+            for v in adj[u]:
+                if color[v] == 0:
+                    color[v] = cv
+                    q.append(v)
+                elif color[v] != cv:
+                    print("NO")
+                    return
+
+    # all good
+    print("YES")
+    print(' '.join(str(color[i]) for i in range(1, n + 1)))
+
+if __name__ == "__main__":
+    solve()

@@ -1,0 +1,68 @@
+from collections import defaultdict
+import sys
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    q = int(data[0])
+    t = int(data[1])
+    
+    index = 2
+    blueprints = []
+    for i in range(t):
+        a = int(data[index])
+        b = int(data[index+1])
+        c = int(data[index+2])
+        blueprints.append((a, b, c))
+        index += 3
+    
+    # Try to find a matching of size q
+    # This is a maximum matching problem in a 3-uniform hypergraph
+    # We can model this as a matching problem: each blueprint is a hyperedge connecting 3 vertices
+    # We want to find q disjoint hyperedges
+    
+    # Since q is small (<= 200), we can try a greedy approach or backtracking
+    # But let's think of it as a matching problem and use a backtracking approach
+    
+    # We'll use a recursive backtracking approach
+    # At each step, we pick an unused blueprint that doesn't conflict with already used artifacts
+    
+    used = [False] * (3*q + 1)  # Whether an artifact is already used
+    selected = []  # List of selected blueprints
+    
+    def solve():
+        if len(selected) == q:
+            return True
+            
+        for i in range(t):
+            a, b, c = blueprints[i]
+            if not used[a] and not used[b] and not used[c]:
+                # Use this blueprint
+                used[a] = used[b] = used[c] = True
+                selected.append((a, b, c))
+                
+                if solve():
+                    return True
+                    
+                # Backtrack
+                used[a] = used[b] = used[c] = False
+                selected.pop()
+        
+        return False
+    
+    # Optimization: if t < q, impossible
+    if t < q:
+        print("NO")
+        return
+    
+    if solve():
+        print("YES")
+        for blueprint in selected:
+            print(blueprint[0], blueprint[1], blueprint[2])
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    main()

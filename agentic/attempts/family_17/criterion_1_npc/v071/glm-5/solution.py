@@ -1,0 +1,65 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    q = int(next(it))
+    t = int(next(it))
+    n = 3 * q
+    
+    # Read all cells
+    cells = []
+    for _ in range(t):
+        a = int(next(it))
+        b = int(next(it))
+        c = int(next(it))
+        cells.append((a, b, c))
+    
+    # Build adjacency list: for each pair (u,v), store the third vertex
+    # We'll use a dictionary for sparse storage
+    pair_to_third = {}
+    for a, b, c in cells:
+        pairs = [(a, b, c), (a, c, b), (b, c, a)]
+        for u, v, w in pairs:
+            if u not in pair_to_third:
+                pair_to_third[u] = {}
+            pair_to_third[u][v] = w
+    
+    # We'll use a greedy approach with backtracking
+    # Process vertices in order, trying to match each unmatched vertex
+    
+    used = [False] * (n + 1)
+    result = []
+    
+    def backtrack(pos):
+        # Find next unused vertex starting from pos
+        while pos <= n and used[pos]:
+            pos += 1
+        
+        if pos > n:
+            return True
+        
+        # Try to find a valid cell containing pos
+        if pos in pair_to_third:
+            for v, w in pair_to_third[pos].items():
+                if not used[v] and not used[w]:
+                    used[pos] = used[v] = used[w] = True
+                    result.append((pos, v, w))
+                    if backtrack(pos + 1):
+                        return True
+                    # Backtrack
+                    used[pos] = used[v] = used[w] = False
+                    result.pop()
+        
+        return False
+    
+    if backtrack(1):
+        print("YES")
+        for cell in result:
+            print(cell[0], cell[1], cell[2])
+    else:
+        print("NO")
+
+solve()

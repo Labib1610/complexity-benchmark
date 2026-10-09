@@ -1,0 +1,89 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    # _ = int(input_data[2]) # commodity type, always 1
+    
+    s = int(input_data[3])
+    t = int(input_data[4])
+    d = int(input_data[5])
+    
+    edges = []
+    adj = [[] for _ in range(n + 1)]
+    
+    idx = 6
+    for i in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx+1])
+        cap = int(input_data[idx+2])
+        idx += 3
+        edges.append((u, v, cap))
+        adj[u].append((v, i))
+        adj[v].append((u, i))
+        
+    if d == 0:
+        print("YES")
+        print(" ".join(['0'] * m))
+        return
+
+    # Dinic's Max Flow Algorithm
+    level = [0] * (n + 1)
+    ptr = [0] * (n + 1)
+    
+    def bfs():
+        for i in range(1, n + 1):
+            level[i] = -1
+        queue = [s]
+        level[s] = 0
+        head = 0
+        while head < len(queue):
+            u = queue[head]
+            head += 1
+            for v, edge_idx in adj[u]:
+                if level[v] == -1 and flow[edge_idx] < edges[edge_idx][2]:
+                    level[v] = level[u] + 1
+                    queue.append(v)
+        return level[t] != -1
+
+    def dfs(u, pushed):
+        if u == t:
+            return pushed
+        while ptr[u] < len(adj[u]):
+            v, edge_idx = adj[u][ptr[u]]
+            if level[v] == level[u] + 1 and flow[edge_idx] < edges[edge_idx][2]:
+                available = edges[edge_idx][2] - flow[edge_idx]
+                tr = dfs(v, min(pushed, available))
+                if tr > 0:
+                    flow[edge_idx] += tr
+                    return tr
+            ptr[u] += 1
+        return 0
+
+    flow = [0] * m
+    total_flow = 0
+    
+    while bfs():
+        ptr = [0] * (n + 1)
+        while True:
+            pushed = dfs(s, d - total_flow)
+            if pushed == 0:
+                break
+            total_flow += pushed
+            if total_flow == d:
+                break
+        if total_flow == d:
+            break
+
+    if total_flow == d:
+        print("YES")
+        print(" ".join(map(str, flow)))
+    else:
+        print("NO")
+
+if __name__ == '__main__':
+    solve()

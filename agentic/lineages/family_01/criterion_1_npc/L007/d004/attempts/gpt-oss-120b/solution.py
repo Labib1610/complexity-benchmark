@@ -1,4 +1,5 @@
 import sys
+
 sys.setrecursionlimit(10000)
 
 def solve() -> None:
@@ -8,39 +9,63 @@ def solve() -> None:
     it = iter(data)
     n = int(next(it))
     m = int(next(it))
-    adj = [[] for _ in range(n)]
+    adj = [0] * n
     for _ in range(m):
         u = int(next(it)) - 1
         v = int(next(it)) - 1
-        adj[u].append(v)
-        adj[v].append(u)
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
 
-    colors = [0] * n
-    found = False
+    # order vertices by degree descending
+    order = sorted(range(n), key=lambda x: bin(adj[x]).count('1'), reverse=True)
+    pos_in_order = [0] * n
+    for i, v in enumerate(order):
+        pos_in_order[v] = i
 
-    def dfs(v: int) -> bool:
-        nonlocal found
-        if v == n:
+    # adjacency in order indices for fast check
+    adj_order = [0] * n
+    for i, v in enumerate(order):
+        mask = 0
+        nb = adj[v]
+        while nb:
+            lsb = nb & -nb
+            u = (lsb.bit_length() - 1)
+            mask |= 1 << pos_in_order[u]
+            nb ^= lsb
+        adj_order[i] = mask
+
+    colors = [-1] * n  # in order indices
+    # bitmask of vertices colored with each color
+    col_mask = [0, 0, 0]
+
+    def dfs(idx: int) -> bool:
+        if idx == n:
             return True
-        for c in (1, 2, 3):
-            ok = True
-            for nb in adj[v]:
-                if nb < v and colors[nb] == c:
-                    ok = False
-                    break
-            if not ok:
+        # choose vertex idx
+        neigh = adj_order[idx]
+        # try colors
+        for c in range(3):
+            if col_mask[c] & neigh:   # conflict with same color neighbor
                 continue
-            colors[v] = c
-            if dfs(v + 1):
+            colors[idx] = c
+            col_mask[c] |= 1 << idx
+            if dfs(idx + 1):
                 return True
-            colors[v] = 0
+            col_mask[c] ^= 1 << idx
+            colors[idx] = -1
         return False
 
-    if dfs(0):
-        print("YES")
-        print(' '.join(map(str, colors)))
-    else:
+    possible = dfs(0)
+    if not possible:
         print("NO")
+        return
+
+    # map back to original vertex order
+    ans = [0] * n
+    for i, v in enumerate(order):
+        ans[v] = colors[i] + 1
+    print("YES")
+    print(' '.join(map(str, ans)))
 
 if __name__ == "__main__":
     solve()

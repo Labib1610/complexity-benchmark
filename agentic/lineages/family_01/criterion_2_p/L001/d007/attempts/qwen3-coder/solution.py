@@ -3,6 +3,7 @@ from collections import defaultdict, deque
 
 def main():
     import sys
+    sys.setrecursionlimit(10**6)
     input = sys.stdin.read
     data = input().split()
     
@@ -10,133 +11,90 @@ def main():
     m = int(data[1])
     
     edges = []
-    adj = [[] for _ in range(n + 1)]
+    adj = defaultdict(list)
     
     idx = 2
     for _ in range(m):
-        u = int(data[idx])
-        v = int(data[idx + 1])
+        u = int(data[idx]) - 1
+        v = int(data[idx+1]) - 1
         idx += 2
         edges.append((u, v))
         adj[u].append(v)
         adj[v].append(u)
     
-    # 0: unassigned, 1: [0,1], 2: [1,2]
-    color = [0] * (n + 1)
+    # Type assignment: 0 -> undetermined, 1 -> type 1, 2 -> type 2
+    types = [0] * n
+    # For each node, store list of (neighbor, index_in_edges)
+    edge_indices = defaultdict(list)
     
-    # Check if bipartite (i.e., can be 2-colored)
-    # Each edge must connect a node with color 1 to a node with color 2
-    # because [0,1] and [1,2] intersect at exactly one point (1)
-    # If two nodes both have color 1 or both have color 2, their intervals overlap over a range
+    for i, (u, v) in enumerate(edges):
+        edge_indices[u].append((v, i))
+        edge_indices[v].append((u, i))
     
-    visited = [False] * (n + 1)
+    # We'll use a BFS/DFS approach to determine types
+    # The key insight is that for each edge (u,v):
+    # If T_u = 1, then D_{u,v} = -1, so T_v = (3 + (-1*D_{v,u}))/2 = (3 + (-1*-1))/2 = (3+1)/2 = 2
+    # If T_u = 2, then D_{u,v} = 1, so T_v = (3 + (-1*D_{v,u}))/2 = (3 + (-1*1))/2 = (3-1)/2 = 1
+    # So if T_u = 1, then T_v = 2, and if T_u = 2, then T_v = 1
+    # This means adjacent nodes must have different types - this is a bipartite check!
     
-    for i in range(1, n + 1):
-        if not visited[i]:
-            # BFS to 2-color the component
+    visited = [False] * n
+    color = [-1] * n  # -1: unvisited, 0: color 0, 1: color 1
+    
+    # Check if the graph is bipartite
+    def is_bipartite():
+        for start in range(n):
+            if visited[start]:
+                continue
+            # If the node has no edges, we can assign it any type (we'll choose 1 for lex smallest)
+            if not adj[start]:
+                color[start] = 0
+                visited[start] = True
+                continue
+                
             queue = deque()
-            queue.append(i)
-            color[i] = 1
-            visited[i] = True
+            queue.append(start)
+            color[start] = 0
+            visited[start] = True
             
             while queue:
                 u = queue.popleft()
-                c = color[u]
-                next_c = 3 - c  # flips 1->2, 2->1
-                
                 for v in adj[u]:
                     if not visited[v]:
                         visited[v] = True
-                        color[v] = next_c
+                        color[v] = 1 - color[u]
                         queue.append(v)
-                    else:
-                        if color[v] != next_c:
-                            print("NO")
-                            return
+                    elif color[v] == color[u]:
+                        return False
+        return True
     
-    # Now we have a valid 2-coloring. We need the lexicographically smallest one.
-    # That means we want to assign 1 to as early nodes as possible.
-    # So we should do a greedy assignment: try to assign 1 to node i, and if that causes
-    # a conflict with a neighbor already assigned 1, then we must assign 2.
+    if not is_bipartite():
+        print("NO")
+        return
     
-    # Actually, the BFS 2-coloring already gives a valid coloring.
-    # To get the lex smallest, we can do the following:
-    # For each connected component, we can choose which color is 1 and which is 2.
-    # To make it lex smallest, we should assign color 1 to node 1 if possible.
+    # Now we need to convert colors to types
+    # Type 1 corresponds to one color, Type 2 to the other
+    # For lexicographically smallest, we want earlier nodes to be 1 if possible
+    # So we check what assignment gives lex smallest result
     
-    # Let's re-do the coloring with greedy lex-min approach.
-    color = [0] * (n + 1)
-    visited = [False] * (n + 1)
+    # Let's try both assignments and pick the lex smaller one
+    def get_types(assign_0_to_1):
+        result = [0] * n
+        for i in range(n):
+            if color[i] == 0:
+                result[i] = 1 if assign_0_to_1 else 2
+            else:
+                result[i] = 2 if assign_0_to_1 else 1
+        return result
     
-    for i in range(1, n + 1):
-        if not visited[i]:
-            # Try to assign 1 to this node
-            queue = deque()
-            queue.append(i)
-            color[i] = 1
-            visited[i] = True
-            
-            while queue:
-                u = queue.popleft()
-                c = color[u]
-                next_c = 3 - c
-                
-                for v in adj[u]:
-                    if not visited[v]:
-                        visited[v] = True
-                        color[v] = next_c
-                        queue.append(v)
-                    else:
-                        if color[v] != next_c:
-                            print("NO")
-                            return
+    types1 = get_types(True)   # color 0 -> type 1, color 1 -> type 2
+    types2 = get_types(False)  # color 0 -> type 2, color 1 -> type 1
     
-    # Now we have a valid coloring. But we need the lexicographically smallest.
-    # For each component, we can flip the colors. We should choose the coloring
-    # that makes the sequence lexicographically smallest.
-    
-    # To do that, we can process nodes in order 1 to n.
-    # For each unvisited component, we do BFS starting from the first node in that component.
-    # We assign that node color 1, and propagate.
-    
-    # Actually, the above BFS already does that because we process nodes in order.
-    # But we need to make sure that for each component, the first node gets 1.
-    
-    # Let's just do a greedy assignment:
-    color = [0] * (n + 1)
-    visited = [False] * (n + 1)
-    
-    for i in range(1, n + 1):
-        if not visited[i]:
-            # Assign color 1 to node i
-            queue = deque()
-            queue.append(i)
-            color[i] = 1
-            visited[i] = True
-            
-            while queue:
-                u = queue.popleft()
-                c = color[u]
-                next_c = 3 - c
-                
-                for v in adj[u]:
-                    if not visited[v]:
-                        visited[v] = True
-                        color[v] = next_c
-                        queue.append(v)
-                    else:
-                        if color[v] != next_c:
-                            print("NO")
-                            return
-    
-    # Verify all edges
-    for u, v in edges:
-        if color[u] == color[v]:
-            print("NO")
-            return
+    # Choose lexicographically smaller
+    final_types = types1 if types1 < types2 else types2
     
     print("YES")
-    print(' '.join(str(color[i]) for i in range(1, n + 1)))
+    print(' '.join(map(str, final_types)))
 
 if __name__ == "__main__":
     main()

@@ -1,0 +1,144 @@
+import sys
+from collections import defaultdict, deque
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(["0"] * n))
+        return
+    
+    # Build implication graph
+    # Each variable x has two nodes: x (for x=True) and -x (for x=False)
+    # We'll map variable indices to graph nodes
+    # Node ids: for variable i (1-based), 
+    #           node 2*i represents x_i = True
+    #           node 2*i+1 represents x_i = False
+    # But to avoid confusion, let's use a different mapping:
+    # For variable i (1-based):
+    #   node i*2 represents x_i = True (active)
+    #   node i*2+1 represents x_i = False (inactive)
+    
+    adj = defaultdict(list)
+    rev_adj = defaultdict(list)
+    
+    idx = 2
+    clauses = []
+    for i in range(m):
+        l1 = int(data[idx])
+        l2 = int(data[idx+1])
+        idx += 2
+        clauses.append((l1, l2))
+        
+        # clause (l1 OR l2) is equivalent to (~l1 -> l2) AND (~l2 -> l1)
+        # ~l1 means NOT l1
+        # If l1 is positive (x_i), then ~l1 is x_i = False (node 2*abs(l1)+1)
+        # If l1 is negative (-x_i), then ~l1 is x_i = True (node 2*abs(l1))
+        
+        # Convert literals to node numbers
+        def lit_to_node(lit):
+            var = abs(lit)
+            if lit > 0:
+                # x_var = True is node 2*var
+                # x_var = False is node 2*var+1
+                return 2*var, 2*var+1  # (true_node, false_node)
+            else:
+                # x_var = False is node 2*var+1
+                # x_var = True is node 2*var
+                return 2*var, 2*var+1  # (true_node, false_node)
+        
+        true1, false1 = lit_to_node(l1)
+        true2, false2 = lit_to_node(l2)
+        
+        # (~l1 -> l2) : if l1 is false, then l2 must be true
+        # which means if x_{|l1|} = (l1<0), then x_{|l2|} = (l2>0)
+        # if l1 > 0, then ~l1 is false1, l2 is true2
+        # if l1 < 0, then ~l1 is true1, l2 is true2
+        
+        if l1 > 0:
+            # l1 is x_{l1} = True, so ~l1 is x_{l1} = False (false1)
+            # Implication: x_{l1} = False => x_{l2} = True
+            adj[false1].append(true2)
+            rev_adj[true2].append(false1)
+        else:
+            # l1 is x_{|l1|} = False, so ~l1 is x_{|l1|} = True (true1)
+            # Implication: x_{|l1|} = True => x_{l2} = True  
+            adj[true1].append(true2)
+            rev_adj[true2].append(true1)
+            
+        if l2 > 0:
+            # l2 is x_{l2} = True, so ~l2 is x_{l2} = False (false2)
+            # Implication: x_{l2} = False => x_{l1} = True
+            adj[false2].append(true1)
+            rev_adj[true1].append(false2)
+        else:
+            # l2 is x_{|l2|} = False, so ~l2 is x_{|l2|} = True (true2)
+            # Implication: x_{|l2|} = True => x_{l1} = True
+            adj[true2].append(true1)
+            rev_adj[true1].append(true2)
+    
+    # Now perform Kosaraju's algorithm to find strongly connected components
+    visited = [False] * (2 * (n + 1))
+    order = []
+    
+    # First DFS on original graph
+    def dfs1(u):
+        visited[u] = True
+        for v in adj[u]:
+            if not visited[v]:
+                dfs1(v)
+        order.append(u)
+    
+    for i in range(2, 2*n + 2):  # nodes start from 2 to 2*n+1
+        if not visited[i]:
+            dfs1(i)
+    
+    # Second DFS on transpose graph in reverse order
+    visited = [False] * (2 * (n + 1))
+    scc_id = [0] * (2 * (n + 1))
+    scc_count = 0
+    
+    def dfs2(u, cid):
+        visited[u] = True
+        scc_id[u] = cid
+        for v in rev_adj[u]:
+            if not visited[v]:
+                dfs2(v, cid)
+    
+    while order:
+        u = order.pop()
+        if not visited[u]:
+            scc_count += 1
+            dfs2(u, scc_count)
+    
+    # Check for contradictions: variable and its negation in same SCC
+    for i in range(1, n+1):
+        true_node = 2*i
+        false_node = 2*i + 1
+        if scc_id[true_node] == scc_id[false_node]:
+            print("NO")
+            return
+    
+    # Assign values based on SCC topological order
+    # Variables in later SCCs should be assigned True if their true node is in a later SCC
+    assignment = [0] * (n + 1)
+    
+    for i in range(1, n+1):
+        true_node = 2*i
+        false_node = 2*i + 1
+        if scc_id[true_node] > scc_id[false_node]:
+            assignment[i] = 1
+        else:
+            assignment[i] = 0
+            
+    print("YES")
+    print(" ".join(map(str, assignment[1:])))
+
+if __name__ == "__main__":
+    main()

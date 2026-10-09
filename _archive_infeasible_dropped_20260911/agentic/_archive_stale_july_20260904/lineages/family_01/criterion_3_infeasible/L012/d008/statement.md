@@ -1,0 +1,55 @@
+# Problem C — Triadic Configurations
+
+Time limit: 2 s
+Memory limit: 256 MB
+
+You are analyzing a system of $n$ elements. You are provided with a collection of $m$ unordered pairs of these elements, called *links*.
+
+For any subset of exactly three distinct elements $T = \{a, b, c\}$ and any binary mapping $M: T \to \{0, 1\}$, the *defect score* of $T$ under $M$ is defined as the number of links $\{u, v\}$ such that both $u$ and $v$ are in $T$, and $M(u) = M(v)$.
+
+A subset of three elements is considered *locked* if its defect score is strictly greater than zero for *every* possible binary mapping $M$.
+
+It is guaranteed that the provided collection of links contains at least one locked subset of three elements. The system's connections can be highly skewed: in some configurations, the elements with the smallest identifiers will have a dense web of links that never form a locked subset, while the only valid locked subset consists entirely of the largest identifiers. 
+
+Your task is to find and report the lexicographically smallest locked subset of three elements.
+
+## Input
+The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n \cdot (n-1)/2, 2 \cdot 10^5)$), representing the number of elements and the number of links. Elements are numbered from $1$ to $n$.
+
+Each of the following $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$), indicating a link between element $u$ and element $v$. It is guaranteed that at least one locked subset of three elements exists.
+
+## Output
+Print three integers $a$, $b$, and $c$ on a single line, representing the identifiers of the three elements that form the locked subset. 
+
+The identifiers must be printed in ascending order ($a < b < c$). If there are multiple valid subsets of three elements, you must output the one that is lexicographically smallest. This means you should first minimize $a$; if there are ties, minimize $b$ among those ties; and if there are still ties, minimize $c$.
+
+## Example 1
+**Input:**
+```
+4 5
+1 2
+1 3
+2 3
+2 4
+3 4
+```
+**Output:**
+```
+1 2 3
+```
+
+## Example 2
+**Input:**
+```
+5 6
+1 2
+1 4
+2 4
+3 4
+3 5
+4 5
+```
+**Output:**
+```
+1 2 4
+```

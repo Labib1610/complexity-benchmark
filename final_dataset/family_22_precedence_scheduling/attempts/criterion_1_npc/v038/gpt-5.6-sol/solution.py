@@ -1,0 +1,259 @@
+import sys
+import heapq
+from itertools import combinations
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if len(data) < 4:
+        return
+
+    n, M, T, m = data[:4]
+    if M <= 0 or T <= 0 or n > M * T:
+        print("NO")
+        return
+
+    graph = [[] for _ in range(n)]
+    reverse_graph = [[] for _ in range(n)]
+    indegree = [0] * n
+    outdegree = [0] * n
+
+    pos = 4
+    for _ in range(m):
+        a = data[pos] - 1
+        b = data[pos + 1] - 1
+        pos += 2
+        graph[a].append(b)
+        reverse_graph[b].append(a)
+        indegree[b] += 1
+        outdegree[a] += 1
+
+    queue = [i for i in range(n) if indegree[i] == 0]
+    topo = []
+    head = 0
+    deg = indegree[:]
+
+    while head < len(queue):
+        v = queue[head]
+        head += 1
+        topo.append(v)
+        for u in graph[v]:
+            deg[u] -= 1
+            if deg[u] == 0:
+                queue.append(u)
+
+    if len(topo) != n:
+        print("NO")
+        return
+
+    tail = [1] * n
+    for v in reversed(topo):
+        best = 0
+        for u in graph[v]:
+            if tail[u] > best:
+                best = tail[u]
+        tail[v] = best + 1
+
+    if max(tail, default=0) > T:
+        print("NO")
+        return
+
+    prefix = [1] * n
+    for v in topo:
+        best = 0
+        for u in reverse_graph[v]:
+            if prefix[u] > best:
+                best = prefix[u]
+        prefix[v] = best + 1
+
+    def priority(v, mode, forward):
+        critical = tail[v] if forward else prefix[v]
+        degree = outdegree[v] if forward else indegree[v]
+        if mode == 0:
+            return critical, degree, -v
+        return degree, critical, -v
+
+    def forward_schedule(mode):
+        rem = indegree[:]
+        heap = []
+        for v in range(n):
+            if rem[v] == 0:
+                p = priority(v, mode, True)
+                heapq.heappush(heap, (-p[0], -p[1], -p[2], v))
+
+        answer = [0] * n
+        done = 0
+        phase = 1
+
+        while heap and phase <= T:
+            selected = []
+            for _ in range(min(M, len(heap))):
+                selected.append(heapq.heappop(heap)[3])
+
+            newly_ready = []
+            for v in selected:
+                answer[v] = phase
+                done += 1
+                for u in graph[v]:
+                    rem[u] -= 1
+                    if rem[u] == 0:
+                        newly_ready.append(u)
+
+            for u in newly_ready:
+                p = priority(u, mode, True)
+                heapq.heappush(heap, (-p[0], -p[1], -p[2], u))
+            phase += 1
+
+        return answer if done == n else None
+
+    def backward_schedule(mode):
+        rem = outdegree[:]
+        heap = []
+        for v in range(n):
+            if rem[v] == 0:
+                p = priority(v, mode, False)
+                heapq.heappush(heap, (-p[0], -p[1], -p[2], v))
+
+        answer = [0] * n
+        done = 0
+        phase = T
+
+        while heap and phase >= 1:
+            selected = []
+            for _ in range(min(M, len(heap))):
+                selected.append(heapq.heappop(heap)[3])
+
+            newly_ready = []
+            for v in selected:
+                answer[v] = phase
+                done += 1
+                for u in reverse_graph[v]:
+                    rem[u] -= 1
+                    if rem[u] == 0:
+                        newly_ready.append(u)
+
+            for u in newly_ready:
+                p = priority(u, mode, False)
+                heapq.heappush(heap, (-p[0], -p[1], -p[2], u))
+            phase -= 1
+
+        return answer if done == n else None
+
+    for mode in (0, 1):
+        answer = forward_schedule(mode)
+        if answer is not None:
+            print("YES")
+            print(*answer)
+            return
+
+    for mode in (0, 1):
+        answer = backward_schedule(mode)
+        if answer is not None:
+            print("YES")
+            print(*answer)
+            return
+
+    if n <= 26:
+        all_mask = (1 << n) - 1
+        pred_mask = [0] * n
+        for v in range(n):
+            mask = 0
+            for u in reverse_graph[v]:
+                mask |= 1 << u
+            pred_mask[v] = mask
+
+        failed = set()
+        chosen_batches = {}
+
+        def dfs(done, phase):
+            if done == all_mask:
+                return True
+
+            remaining_phases = T - phase + 1
+            remaining_count = n - done.bit_count()
+            if remaining_phases <= 0 or remaining_count > remaining_phases * M:
+                return False
+
+            state = (done, phase)
+            if state in failed:
+                return False
+
+            available = []
+            mandatory = []
+            deadline_counts = [0] * (remaining_phases + 1)
+
+            for v in range(n):
+                if (done >> v) & 1:
+                    continue
+
+                if tail[v] > remaining_phases:
+                    failed.add(state)
+                    return False
+
+                latest_offset = remaining_phases - tail[v] + 1
+                deadline_counts[latest_offset] += 1
+
+                if pred_mask[v] & ~done == 0:
+                    available.append(v)
+                    if tail[v] == remaining_phases:
+                        mandatory.append(v)
+                elif tail[v] == remaining_phases:
+                    failed.add(state)
+                    return False
+
+            cumulative = 0
+            for k in range(1, remaining_phases + 1):
+                cumulative += deadline_counts[k]
+                if cumulative > k * M:
+                    failed.add(state)
+                    return False
+
+            if not available or len(mandatory) > M:
+                failed.add(state)
+                return False
+
+            if len(available) <= M:
+                batches = [tuple(available)]
+            else:
+                mandatory_set = set(mandatory)
+                optional = [v for v in available if v not in mandatory_set]
+                optional.sort(key=lambda v: (tail[v], outdegree[v]), reverse=True)
+                need = M - len(mandatory)
+
+                if need < 0 or need > len(optional):
+                    failed.add(state)
+                    return False
+
+                batches = (
+                    tuple(mandatory) + comb
+                    for comb in combinations(optional, need)
+                )
+
+            for batch in batches:
+                new_done = done
+                for v in batch:
+                    new_done |= 1 << v
+                if dfs(new_done, phase + 1):
+                    chosen_batches[state] = batch
+                    return True
+
+            failed.add(state)
+            return False
+
+        if dfs(0, 1):
+            answer = [0] * n
+            done = 0
+            phase = 1
+            while done != all_mask:
+                batch = chosen_batches[(done, phase)]
+                for v in batch:
+                    answer[v] = phase
+                    done |= 1 << v
+                phase += 1
+            print("YES")
+            print(*answer)
+            return
+
+    print("NO")
+
+if __name__ == "__main__":
+    main()

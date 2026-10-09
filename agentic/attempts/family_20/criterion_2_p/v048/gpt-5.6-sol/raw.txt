@@ -1,0 +1,240 @@
+```python
+import sys
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+
+    nL, nR, m = data[0], data[1], data[2]
+    U = [0] * m
+    V = [0] * m
+    deg = [0] * (nL + nR)
+
+    pos = 3
+    for i in range(m):
+        u = data[pos] - 1
+        v = nL + data[pos + 1] - 1
+        pos += 2
+        U[i] = u
+        V[i] = v
+        deg[u] += 1
+        deg[v] += 1
+
+    if m == 0:
+        sys.stdout.write("YES\n\n")
+        return
+
+    delta = max(deg)
+    K = 1
+    while K < delta:
+        K <<= 1
+
+    colors = [0] * m
+    work = [(list(range(m)), K, 1)]
+
+    while work:
+        edges, width, base = work.pop()
+        if not edges:
+            continue
+        if width == 1:
+            for e in edges:
+                colors[e] = base
+            continue
+
+        s = len(edges)
+        adj = {}
+
+        for j, e in enumerate(edges):
+            u = U[e]
+            v = V[e]
+            lst = adj.get(u)
+            if lst is None:
+                adj[u] = [j]
+            else:
+                lst.append(j)
+            lst = adj.get(v)
+            if lst is None:
+                adj[v] = [j]
+            else:
+                lst.append(j)
+
+        odd_vertices = [v for v, lst in adj.items() if len(lst) & 1]
+        dummy_count = len(odd_vertices)
+        if dummy_count:
+            super_vertex = -1
+            super_list = []
+            for k, v in enumerate(odd_vertices):
+                j = s + k
+                adj[v].append(j)
+                super_list.append(j)
+            adj[super_vertex] = super_list
+
+        total = s + dummy_count
+        used = bytearray(total)
+        left = []
+        right = []
+
+        def traverse(start):
+            vertex_stack = [start]
+            edge_stack = []
+            circuit = []
+
+            while vertex_stack:
+                x = vertex_stack[-1]
+                lst = adj[x]
+                while lst and used[lst[-1]]:
+                    lst.pop()
+
+                if not lst:
+                    vertex_stack.pop()
+                    if edge_stack:
+                        circuit.append(edge_stack.pop())
+                    continue
+
+                j = lst.pop()
+                if used[j]:
+                    continue
+                used[j] = 1
+
+                if j < s:
+                    e = edges[j]
+                    a = U[e]
+                    b = V[e]
+                    y = b if x == a else a
+                else:
+                    y0 = odd_vertices[j - s]
+                    y = y0 if x == -1 else -1
+
+                vertex_stack.append(y)
+                edge_stack.append(j)
+
+            circuit.reverse()
+            side = 0
+            for j in circuit:
+                if j < s:
+                    if side == 0:
+                        left.append(edges[j])
+                    else:
+                        right.append(edges[j])
+                side ^= 1
+
+        if dummy_count:
+            traverse(-1)
+
+        for v, lst in adj.items():
+            if v == -1:
+                continue
+            while lst:
+                while lst and used[lst[-1]]:
+                    lst.pop()
+                if not lst:
+                    break
+                traverse(v)
+
+        half = width >> 1
+        work.append((right, half, base + half))
+        work.append((left, half, base))
+
+    if K > delta:
+        vertex_count = nL + nR
+        incidence = {}
+        multiplier = K + 1
+
+        for e in range(m):
+            c = colors[e]
+            incidence[U[e] * multiplier + c] = e
+            incidence[V[e] * multiplier + c] = e
+
+        scan = [1] * vertex_count
+        missing_cache = {}
+
+        def missing_color(v):
+            cache = missing_cache.get(v)
+            if cache:
+                while cache:
+                    c = cache.pop()
+                    if v * multiplier + c not in incidence:
+                        return c
+
+            c = scan[v]
+            start = c
+            base_key = v * multiplier
+            while True:
+                if base_key + c not in incidence:
+                    scan[v] = c + 1 if c < delta else 1
+                    return c
+                c += 1
+                if c > delta:
+                    c = 1
+                if c == start:
+                    raise RuntimeError("No missing color")
+
+        def cache_missing(v, c):
+            lst = missing_cache.get(v)
+            if lst is None:
+                missing_cache[v] = [c]
+            else:
+                lst.append(c)
+
+        for extra in range(K, delta, -1):
+            extra_edges = [e for e in range(m) if colors[e] == extra]
+            for e in extra_edges:
+                u = U[e]
+                v = V[e]
+
+                del incidence[u * multiplier + extra]
+                del incidence[v * multiplier + extra]
+                colors[e] = 0
+
+                a = missing_color(u)
+                b = missing_color(v)
+
+                if a != b:
+                    path = []
+                    cur = v
+                    wanted = a
+
+                    while True:
+                        key = cur * multiplier + wanted
+                        pe = incidence.get(key)
+                        if pe is None:
+                            break
+                        old_color = wanted
+                        path.append((pe, old_color))
+                        x = U[pe]
+                        y = V[pe]
+                        cur = y if cur == x else x
+                        wanted = b if wanted == a else a
+
+                    if path:
+                        terminal = cur
+                        last_old = path[-1][1]
+
+                        for pe, old_color in path:
+                            x = U[pe]
+                            y = V[pe]
+                            del incidence[x * multiplier + old_color]
+                            del incidence[y * multiplier + old_color]
+
+                        for pe, old_color in path:
+                            new_color = b if old_color == a else a
+                            colors[pe] = new_color
+                            x = U[pe]
+                            y = V[pe]
+                            incidence[x * multiplier + new_color] = pe
+                            incidence[y * multiplier + new_color] = pe
+
+                        cache_missing(terminal, last_old)
+
+                colors[e] = a
+                incidence[u * multiplier + a] = e
+                incidence[v * multiplier + a] = e
+
+    sys.stdout.write("YES\n")
+    sys.stdout.write(" ".join(map(str, colors)))
+    sys.stdout.write("\n")
+
+if __name__ == "__main__":
+    main()
+```

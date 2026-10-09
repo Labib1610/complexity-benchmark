@@ -1,0 +1,101 @@
+```python
+import sys
+sys.setrecursionlimit(10000)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    j = int(next(it))
+    m = int(next(it))
+    jobs = []
+    total_ops = 0
+    for _ in range(j):
+        o = int(next(it))
+        ops = []
+        for __ in range(o):
+            unit = int(next(it)) - 1
+            dur = int(next(it))
+            ops.append((unit, dur))
+        jobs.append(ops)
+        total_ops += o
+
+    # precompute remaining processing times per job and per machine
+    rem_job = [ [0]*(len(jobs[i])+1) for i in range(j) ]  # suffix sums
+    for idx in range(j):
+        s = 0
+        for p in range(len(jobs[idx])-1, -1, -1):
+            s += jobs[idx][p][1]
+            rem_job[idx][p] = s
+        rem_job[idx][len(jobs[idx])] = 0
+
+    rem_machine = [0]*m
+    for ops in jobs:
+        for unit, dur in ops:
+            rem_machine[unit] += dur
+
+    best = [float('inf')]
+
+    # current state
+    job_pos = [0]*j          # next op index per job
+    job_time = [0]*j         # completion time of last done op per job
+    machine_time = [0]*m     # when each machine becomes free
+
+    def dfs(done_ops: int, cur_max: int):
+        # prune by current best
+        if cur_max >= best[0]:
+            return
+        if done_ops == total_ops:
+            best[0] = cur_max
+            return
+
+        # lower bound: max of current times plus remaining work
+        lb = cur_max
+        # job based lower bound
+        for idx in range(j):
+            if job_pos[idx] < len(jobs[idx]):
+                lb = max(lb, job_time[idx] + rem_job[idx][job_pos[idx]])
+        # machine based lower bound
+        for mach in range(m):
+            if rem_machine[mach]:
+                lb = max(lb, machine_time[mach] + rem_machine[mach])
+        if lb >= best[0]:
+            return
+
+        # generate candidates: jobs whose next op is ready (precedence always satisfied)
+        # we can schedule any next op; its start time is max(job_time, machine_time)
+        candidates = []
+        for idx in range(j):
+            pos = job_pos[idx]
+            if pos < len(jobs[idx]):
+                unit, dur = jobs[idx][pos]
+                start = max(job_time[idx], machine_time[unit])
+                candidates.append((start, idx, unit, dur))
+        # sort to try earlier starts first
+        candidates.sort()
+        for start, idx, unit, dur in candidates:
+            # schedule this operation
+            old_job_time = job_time[idx]
+            old_mach_time = machine_time[unit]
+            old_rem_mach = rem_machine[unit]
+
+            job_time[idx] = start + dur
+            machine_time[unit] = start + dur
+            job_pos[idx] += 1
+            rem_machine[unit] -= dur
+
+            dfs(done_ops + 1, max(cur_max, start + dur))
+
+            # backtrack
+            job_pos[idx] -= 1
+            job_time[idx] = old_job_time
+            machine_time[unit] = old_mach_time
+            rem_machine[unit] = old_rem_mach
+
+    dfs(0, 0)
+    print(best[0])
+
+if __name__ == "__main__":
+    solve()
+```

@@ -1,7 +1,10 @@
 import sys
 from collections import defaultdict, deque
 
-def solve():
+def main():
+    import sys
+    sys.setrecursionlimit(1 << 25)
+    
     n, m = map(int, sys.stdin.readline().split())
     
     if m == 0:
@@ -9,63 +12,65 @@ def solve():
         print(" ".join(["1"] * n))
         return
     
-    # Build adjacency list
+    # Build graph
     adj = defaultdict(list)
     edges = []
-    
     for _ in range(m):
         u, v = map(int, sys.stdin.readline().split())
         adj[u].append(v)
         adj[v].append(u)
         edges.append((u, v))
     
-    # Try to 2-color the graph with constraints
-    # Each component must be bipartite
-    # Color 0 means s=1, Color 1 means s=2
-    color = [-1] * (n + 1)
-    result = [0] * (n + 1)  # 0 means s=1, 1 means s=2
+    # For each edge (u,v), we must have s[u] * s[v] = 2
+    # So the pair (s[u], s[v]) must be one of: (1,2) or (2,1)
+    # This is equivalent to a 2-coloring problem where:
+    # - if s[u] = 1, then s[v] = 2
+    # - if s[u] = 2, then s[v] = 1
+    # This is a bipartite check.
     
+    # Color array: 0 = unvisited, 1 and 2 are the two colors
+    color = [0] * (n + 1)
+    
+    # Check all components
     for start in range(1, n + 1):
-        if color[start] == -1:
-            # BFS to color this component
-            queue = deque([start])
-            color[start] = 0
-            result[start] = 0  # s=1
+        if color[start] != 0:
+            continue
+        # BFS from start
+        queue = deque()
+        queue.append(start)
+        color[start] = 1  # Assign color 1 to start
+        
+        while queue:
+            u = queue.popleft()
+            current_color = color[u]
+            next_color = 3 - current_color  # flips 1->2 and 2->1
             
-            while queue:
-                node = queue.popleft()
-                
-                for neighbor in adj[node]:
-                    if color[neighbor] == -1:
-                        # Assign the opposite value (1->2 or 2->1)
-                        # If current node has value 1, neighbor must have 2
-                        # If current node has value 2, neighbor must have 1
-                        if result[node] == 0:  # node=1
-                            result[neighbor] = 1  # neighbor=2
-                        else:  # node=2
-                            result[neighbor] = 0  # neighbor=1
-                        color[neighbor] = 1 - color[node]
-                        queue.append(neighbor)
-                    else:
-                        # Check consistency
-                        # One must be 1, other must be 2
-                        if (result[node] == 0 and result[neighbor] == 0) or \
-                           (result[node] == 1 and result[neighbor] == 1):
-                            print("NO")
-                            return
+            for v in adj[u]:
+                if color[v] == 0:
+                    color[v] = next_color
+                    queue.append(v)
+                elif color[v] != next_color:
+                    print("NO")
+                    return
     
-    # Verify all edges satisfy the constraint
-    for u, v in edges:
-        s_u = 1 if result[u] == 0 else 2
-        s_v = 1 if result[v] == 0 else 2
-        if not ((s_u == 1 and s_v == 2) or (s_u == 2 and s_v == 1)):
-            print("NO")
-            return
+    # If we reach here, a valid assignment exists.
+    # We want the lexicographically smallest one.
+    # That means we prefer s[i] = 1 over s[i] = 2 wherever possible.
+    # In our coloring, color 1 corresponds to s[i] = 1 and color 2 to s[i] = 2.
+    # So if color[1] = 1, we keep as is. If color[1] = 2, we flip all colors.
     
+    if color[1] == 2:
+        # Flip all colors
+        for i in range(1, n + 1):
+            if color[i] == 1:
+                color[i] = 2
+            else:
+                color[i] = 1
+    
+    # Now color[i] directly gives s[i]
+    result = [str(color[i]) for i in range(1, n + 1)]
     print("YES")
-    answer = []
-    for i in range(1, n + 1):
-        answer.append("1" if result[i] == 0 else "2")
-    print(" ".join(answer))
+    print(" ".join(result))
 
-solve()
+if __name__ == "__main__":
+    main()

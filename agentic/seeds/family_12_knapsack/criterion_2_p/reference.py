@@ -1,7 +1,4 @@
 import sys
-import functools
-from decimal import Decimal, ROUND_HALF_UP
-from fractions import Fraction
 
 
 def main():
@@ -13,35 +10,36 @@ def main():
         c = int(data[idx]); v = int(data[idx + 1]); idx += 2
         items.append((c, v))
 
-    # Best value per unit of cost first. Take investments whole while the budget
-    # allows; take a fraction of the next one to spend the remaining budget.
-    def cmp(x, y):
-        lhs = x[1] * y[0]   # x.value / x.cost  vs  y.value / y.cost
-        rhs = y[1] * x[0]
-        if lhs > rhs:
-            return -1
-        if lhs < rhs:
-            return 1
-        return 0
+    # 0/1 knapsack by pseudo-polynomial DP over the budget: dp[j] = best value with total cost <= j.
+    # Polynomial here because B <= 2000. `take[i]` records, as a bitmask over capacities, where
+    # item i was taken to improve dp[j], so one optimal subset can be reconstructed.
+    dp = [0] * (B + 1)
+    take = [0] * (n + 1)
+    for i in range(1, n + 1):
+        c, v = items[i - 1]
+        if c > B:
+            continue
+        ti = 0
+        for j in range(B, c - 1, -1):
+            cand = dp[j - c] + v
+            if cand > dp[j]:
+                dp[j] = cand
+                ti |= (1 << j)
+        take[i] = ti
 
-    items.sort(key=functools.cmp_to_key(cmp))
+    best = dp[B]
 
-    rem = B
-    total = Fraction(0)
-    for c, v in items:
-        if rem <= 0:
-            break
-        if c <= rem:
-            total += v
-            rem -= c
-        else:
-            total += Fraction(v * rem, c)
-            rem = 0
+    # Reconstruct one optimal subset by walking the take masks backwards.
+    chosen = []
+    j = B
+    for i in range(n, 0, -1):
+        if (take[i] >> j) & 1:
+            chosen.append(i)
+            j -= items[i - 1][0]
+    chosen.sort()
 
-    d = (Decimal(total.numerator) / Decimal(total.denominator)).quantize(
-        Decimal("0.000001"), rounding=ROUND_HALF_UP
-    )
-    sys.stdout.write(f"{d}\n")
+    sys.stdout.write(f"{best}\n")
+    sys.stdout.write(" ".join(map(str, chosen)) + "\n")
 
 
 main()

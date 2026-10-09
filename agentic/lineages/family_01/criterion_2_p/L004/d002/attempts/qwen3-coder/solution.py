@@ -1,63 +1,62 @@
 import sys
 from collections import defaultdict, deque
 
-def solve():
+def read_input():
     n, m = map(int, sys.stdin.readline().split())
-    
-    if m == 0:
-        # No constraints, all 1s is valid and lex smallest
-        print("YES")
-        print(" ".join(["1"] * n))
-        return
-    
-    # Build adjacency list
-    adj = defaultdict(list)
     edges = []
     for _ in range(m):
         u, v = map(int, sys.stdin.readline().split())
+        edges.append((u, v))
+    return n, m, edges
+
+def solve():
+    n, m, edges = read_input()
+    
+    # Build adjacency list
+    adj = defaultdict(list)
+    for u, v in edges:
         adj[u].append(v)
         adj[v].append(u)
-        edges.append((u, v))
     
-    # Color nodes with BFS to check bipartiteness
-    color = {}
-    assignment = [0] * (n + 1)  # 1-indexed
+    # Colors: 0 means unvisited, 1 and 2 are the two colors
+    color = [0] * (n + 1)
     
-    # Process each connected component
+    # Check the constraint: |a³ - b³| = 7 where a,b ∈ {1,2}
+    # 1³ = 1, 2³ = 8, |8-1| = 7. So adjacent nodes must have different values.
+    # This is a graph bipartitioning problem.
+    
+    # For each connected component, we need to check if it's bipartite
     for start in range(1, n + 1):
-        if start not in color:
-            # BFS coloring
-            queue = deque([start])
-            color[start] = 0
+        if color[start] == 0:
+            # BFS to color the component
+            queue = deque()
+            queue.append(start)
+            color[start] = 1
             
             while queue:
                 node = queue.popleft()
+                current_color = color[node]
+                
                 for neighbor in adj[node]:
-                    if neighbor not in color:
-                        color[neighbor] = 1 - color[node]
+                    if color[neighbor] == 0:
+                        color[neighbor] = 3 - current_color  # Flip color (1->2, 2->1)
                         queue.append(neighbor)
-                    elif color[neighbor] == color[node]:
+                    elif color[neighbor] == current_color:
+                        # Not bipartite
                         print("NO")
                         return
     
-    # If bipartite, construct assignment
-    # Assign 1 to color 0, 2 to color 1 for lex smallest
-    for i in range(1, n + 1):
-        if i in color and color[i] == 0:
-            assignment[i] = 1
-        elif i in color and color[i] == 1:
-            assignment[i] = 2
-        else:
-            # Isolated node, assign 1 (lex smallest)
-            assignment[i] = 1
-    
-    # Verify the solution
-    for u, v in edges:
-        if assignment[u] * assignment[v] != 2:
-            print("NO")
-            return
+    # If we reach here, the graph is bipartite and a solution exists
+    # The coloring already gives us a valid assignment
+    # To get the lexicographically smallest, we prefer color 1 over 2 for node 1
+    # If color[1] is 2, we flip all colors
+    if n >= 1 and color[1] == 2:
+        for i in range(1, n + 1):
+            color[i] = 3 - color[i]
     
     print("YES")
-    print(" ".join(map(str, assignment[1:])))
+    result = [str(color[i]) for i in range(1, n + 1)]
+    print(" ".join(result))
 
-solve()
+if __name__ == "__main__":
+    solve()

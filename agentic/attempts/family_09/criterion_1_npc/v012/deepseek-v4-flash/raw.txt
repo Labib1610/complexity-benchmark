@@ -1,0 +1,91 @@
+We need to find an independent set of size exactly `k` in an undirected graph with up to 46 nodes.  
+A direct brute force over all subsets is impossible (2^46).  
+We can use a meet-in-the-middle approach: split vertices into two halves, compute all independent sets in each half, then combine.
+
+Here’s the implementation:
+
+```python
+import sys
+from collections import defaultdict
+
+def solve():
+    input = sys.stdin.readline
+    n, m, k = map(int, input().split())
+    adj = [0] * n
+    for _ in range(m):
+        u, v = map(int, input().split())
+        u -= 1
+        v -= 1
+        adj[u] |= (1 << v)
+        adj[v] |= (1 << u)
+
+    # Split vertices into two halves
+    mid = n // 2
+    left_size = mid
+    right_size = n - mid
+
+    # Precompute independent sets for left half
+    left_ind_sets = []  # list of (mask, size)
+    for mask in range(1 << left_size):
+        ok = True
+        for i in range(left_size):
+            if mask & (1 << i):
+                # check conflict within left
+                if adj[i] & mask & ((1 << left_size) - 1):
+                    ok = False
+                    break
+        if ok:
+            left_ind_sets.append((mask, bin(mask).count('1')))
+
+    # Precompute independent sets for right half
+    right_ind_sets = []
+    for mask in range(1 << right_size):
+        ok = True
+        for i in range(right_size):
+            if mask & (1 << i):
+                # check conflict within right
+                if adj[left_size + i] & (mask << left_size) & (((1 << n) - 1) ^ ((1 << left_size) - 1)):
+                    ok = False
+                    break
+        if ok:
+            right_ind_sets.append((mask, bin(mask).count('1')))
+
+    # For each left independent set, find possible right sets that are compatible
+    # Build mapping from size -> list of (left_mask, right_mask)
+    # We'll iterate over left sets and check right sets
+    # To speed up, group right sets by size
+    right_by_size = defaultdict(list)
+    for rmask, rsize in right_ind_sets:
+        right_by_size[rsize].append(rmask)
+
+    # For each left set, we need a right set of size k - lsize that has no edges to left set
+    for lmask, lsize in left_ind_sets:
+        need = k - lsize
+        if need < 0 or need > right_size:
+            continue
+        # Build forbidden mask for right vertices
+        forbidden = 0
+        for i in range(left_size):
+            if lmask & (1 << i):
+                # neighbors in right half
+                forbidden |= (adj[i] >> left_size)
+        # Now find a right mask of size 'need' that has no overlap with forbidden
+        for rmask in right_by_size.get(need, []):
+            if rmask & forbidden == 0:
+                # Found solution
+                ans = []
+                for i in range(left_size):
+                    if lmask & (1 << i):
+                        ans.append(i + 1)
+                for j in range(right_size):
+                    if rmask & (1 << j):
+                        ans.append(left_size + j + 1)
+                print("YES")
+                print(" ".join(map(str, ans)))
+                return
+
+    print("NO")
+
+if __name__ == "__main__":
+    solve()
+```

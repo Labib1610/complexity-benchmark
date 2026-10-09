@@ -1,0 +1,146 @@
+import sys
+sys.setrecursionlimit(1 << 25)
+
+class Edge:
+    __slots__ = ('to', 'rev', 'cap', 'orig_cap', 'idx')
+    def __init__(self, to, rev, cap, orig_cap=0, idx=-1):
+        self.to = to
+        self.rev = rev
+        self.cap = cap
+        self.orig_cap = orig_cap
+        self.idx = idx  # index of original edge, -1 for added reverse edges
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it)); m = int(next(it))
+    s = int(next(it)) - 1
+    t = int(next(it)) - 1
+    d = int(next(it))
+    graph = [[] for _ in range(n)]
+    edge_refs = [None] * m  # reference to forward Edge object for each input edge
+
+    def add_edge(u, v, c, idx):
+        fwd = Edge(v, len(graph[v]), c, c, idx)
+        rev = Edge(u, len(graph[u]), 0, 0, -1)
+        graph[u].append(fwd)
+        graph[v].append(rev)
+
+    for i in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        cap = int(next(it))
+        add_edge(u, v, cap, i)
+
+    # store references after building
+    for u in range(n):
+        for e in graph[u]:
+            if e.idx >= 0:
+                edge_refs[e.idx] = e
+
+    # Dinic
+    INF = 10**18
+    level = [0]*n
+    it_ptr = [0]*n
+
+    from collections import deque
+
+    def bfs():
+        for i in range(n):
+            level[i] = -1
+        q = deque([s])
+        level[s] = 0
+        while q:
+            v = q.popleft()
+            for e in graph[v]:
+                if e.cap > 0 and level[e.to] < 0:
+                    level[e.to] = level[v] + 1
+                    q.append(e.to)
+        return level[t] >= 0
+
+    def dfs(v, f):
+        if v == t:
+            return f
+        for i in range(it_ptr[v], len(graph[v])):
+            it_ptr[v] = i
+            e = graph[v][i]
+            if e.cap > 0 and level[v] < level[e.to]:
+                ret = dfs(e.to, min(f, e.cap))
+                if ret:
+                    e.cap -= ret
+                    graph[e.to][e.rev].cap += ret
+                    return ret
+        return 0
+
+    flow = 0
+    while bfs():
+        it_ptr = [0]*n
+        while True:
+            pushed = dfs(s, INF)
+            if not pushed:
+                break
+            flow += pushed
+            if flow >= d:   # early stop if we already reached required amount
+                break
+        if flow >= d:
+            break
+
+    if flow < d:
+        print("NO")
+        return
+
+    # we have at least d flow; we may have sent more, need exactly d.
+    # Reduce excess flow if any by sending back along any augmenting path from t to s.
+    excess = flow - d
+    if excess > 0:
+        # Build residual graph for reduction: we can push back flow along used edges.
+        # We'll run a simple DFS to send 'excess' from t to s using edges with reverse capacity >0.
+        # Reuse level/it structures.
+        def bfs_back():
+            for i in range(n):
+                level[i] = -1
+            q = deque([t])
+            level[t] = 0
+            while q:
+                v = q.popleft()
+                for e in graph[v]:
+                    # e is forward edge in residual graph; we need edges that can send flow back (i.e., reverse edges with cap>0)
+                    if e.cap > 0 and level[e.to] < 0:
+                        level[e.to] = level[v] + 1
+                        q.append(e.to)
+            return level[s] >= 0
+
+        def dfs_back(v, f):
+            if v == s:
+                return f
+            for i in range(it_ptr[v], len(graph[v])):
+                it_ptr[v] = i
+                e = graph[v][i]
+                if e.cap > 0 and level[v] < level[e.to]:
+                    ret = dfs_back(e.to, min(f, e.cap))
+                    if ret:
+                        e.cap -= ret
+                        graph[e.to][e.rev].cap += ret
+                        return ret
+            return 0
+
+        while excess > 0 and bfs_back():
+            it_ptr = [0]*n
+            while excess > 0:
+                pushed = dfs_back(t, excess)
+                if not pushed:
+                    break
+                excess -= pushed
+
+    # Now extract flows on original edges
+    result = []
+    for e in edge_refs:
+        used = e.orig_cap - e.cap
+        result.append(str(used))
+    print("YES")
+    print(' '.join(result))
+
+if __name__ == "__main__":
+    solve()

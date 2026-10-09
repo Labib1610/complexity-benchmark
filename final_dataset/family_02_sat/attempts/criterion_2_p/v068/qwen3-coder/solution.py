@@ -1,0 +1,117 @@
+import sys
+from collections import defaultdict
+
+def main():
+    import sys
+    sys.setrecursionlimit(1 << 25)
+    
+    n, m = map(int, sys.stdin.readline().split())
+    
+    # If no protocols, any assignment works
+    if m == 0:
+        print("YES")
+        print(" ".join(["0"] * n))
+        return
+
+    # For each protocol (c1 or c2), we create implications
+    # Each protocol is: if not c1, then c2
+    # Which is equivalent to: (c1 or c2)
+    # In implication graph: (not c1 -> c2) and (not c2 -> c1)
+    
+    # Variables: 1 to n represent x_i = 1
+    #           -1 to -n represent x_i = 0
+    # So variable x (1 <= x <= n) corresponds to x_i = 1
+    # and -x corresponds to x_i = 0
+    
+    adj = defaultdict(list)
+    rev_adj = defaultdict(list)
+    
+    for _ in range(m):
+        c1, c2 = map(int, sys.stdin.readline().split())
+        # clause (c1 or c2) 
+        # This is equivalent to (not c1 -> c2) and (not c2 -> c1)
+        # not c1 -> c2
+        adj[-c1].append(c2)
+        rev_adj[c2].append(-c1)
+        # not c2 -> c1
+        adj[-c2].append(c1)
+        rev_adj[c1].append(-c2)
+    
+    # Kosaraju's algorithm for SCC
+    visited = set()
+    order = []
+    
+    def dfs1(u):
+        if u in visited:
+            return
+        visited.add(u)
+        for v in adj[u]:
+            dfs1(v)
+        order.append(u)
+    
+    # First DFS on original graph
+    nodes = set()
+    for u_list in adj.values():
+        nodes.update(u_list)
+    for u_list in rev_adj.values():
+        nodes.update(u_list)
+    # Also add all variables from 1 to n and their negations
+    for i in range(1, n+1):
+        nodes.add(i)
+        nodes.add(-i)
+        
+    for u in nodes:
+        dfs1(u)
+    
+    # Second DFS on transpose graph in reverse order
+    visited.clear()
+    scc = {}
+    scc_id = 0
+    
+    def dfs2(u):
+        if u in visited:
+            return
+        visited.add(u)
+        scc[u] = scc_id
+        for v in rev_adj[u]:
+            dfs2(v)
+    
+    while order:
+        u = order.pop()
+        if u not in visited:
+            dfs2(u)
+            scc_id += 1
+    
+    # Check for contradiction: x and -x in same SCC
+    for i in range(1, n+1):
+        if scc[i] == scc[-i]:
+            print("NO")
+            return
+    
+    # If no contradiction, a solution exists
+    print("YES")
+    
+    # Assign values: process SCCs in topological order
+    # We can assign values based on the topological order of SCCs
+    # Nodes in later SCCs (higher scc_id) are assigned first
+    
+    assignment = {}
+    
+    # Create list of (scc_id, node) and sort by scc_id descending
+    scc_nodes = [(scc[u], u) for u in scc]
+    scc_nodes.sort(reverse=True)
+    
+    for _, u in scc_nodes:
+        if u > 0 and u not in assignment:
+            assignment[u] = 1
+        elif u < 0 and (-u) not in assignment:
+            assignment[-u] = 0
+    
+    result = []
+    for i in range(1, n+1):
+        result.append(str(assignment.get(i, 0)))  # default to 0 if not assigned (shouldn't happen)
+    
+    print(" ".join(result))
+
+if __name__ == "__main__":
+    main()

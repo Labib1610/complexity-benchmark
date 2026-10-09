@@ -4,9 +4,7 @@ Time limit: 5 s   Memory limit: 256 MB
 
 ## Description
 
-A project requires **u** distinct skills (numbered 1..u). You can hire from **s** available consultants; each consultant brings a specific set of skills. A skill is **covered** if at least one hired consultant has it.
-
-With a budget of **k** hires, decide whether you can cover **every** required skill, and if so report which consultants to hire.
+A programme must secure **u** distinct competencies, numbered 1..u, by engaging specialists from a roster of **s** candidates; each candidate contributes a fixed bundle of competencies, and a competency is secured once any engaged candidate carries it. Under a hiring cap of **k**, decide whether it is possible to secure **every** competency, and if so report which candidates to engage. Rates, availability, and seniority are irrelevant; only which competencies each candidate's bundle contains matters. Securing any single competency is trivial — the difficulty is a group of only k candidates whose bundles jointly leave no competency uncovered.
 
 ## Input
 

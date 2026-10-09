@@ -1,0 +1,254 @@
+```python
+import sys
+from collections import defaultdict
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(["0"] * n))
+        return
+    
+    # We will build a graph for 2-SAT
+    # Each variable x_i has two nodes: 2*i (for x_i = 0) and 2*i+1 (for x_i = 1)
+    # But we'll use a more readable approach with implications
+    
+    # For each constraint l1, l2:
+    # C(l1) + C(l2) > -(|l1| + |l2|)
+    # C(v) = v * (2*s_{|v|} - 1)
+    # So C(l1) + C(l2) = l1*(2*s_{|l1|} - 1) + l2*(2*s_{|l2|} - 1)
+    #                  = 2*(l1*s_{|l1|} + l2*s_{|l2|}) - (l1 + l2)
+    # The condition becomes:
+    # 2*(l1*s_{|l1|} + l2*s_{|l2|}) - (l1 + l2) > -(|l1| + |l2|)
+    # 2*(l1*s_{|l1|} + l2*s_{|l2|}) > (l1 + l2) - (|l1| + |l2|)
+    # Let R = (l1 + l2) - (|l1| + |l2|)
+    # We need l1*s_{|l1|} + l2*s_{|l2|} > R/2
+    
+    # Since s_i is 0 or 1, l1*s_{|l1|} is either 0 or l1 (if l1>0) or l1 (which is negative, so l1*s = l1*0=0 or l1*1=l1)
+    # Actually, s_{|l1|} is 0 or 1, so l1*s_{|l1|} = 0 if s_{|l1|}=0, and l1 if s_{|l1|}=1
+    # So l1*s_{|l1|} is in {0, l1}
+    
+    # Let's define boolean variables: x_i = s_i (so x_i = True means s_i=1, x_i=False means s_i=0)
+    # Then l1*s_{|l1|} = 0 if x_{|l1|} is False, l1 if x_{|l1|} is True
+    # So we want: l1*x_{|l1|} + l2*x_{|l2|} > R/2, where x_i is boolean (0 or 1)
+    # Since we're dealing with integers, > R/2 is equivalent to >= (R//2 + 1) if R is even, or >= (R+1)//2
+    
+    # Let's simplify the condition:
+    # C(l1) + C(l2) > -(|l1| + |l2|)
+    # l1*(2*x_{|l1|} - 1) + l2*(2*x_{|l2|} - 1) > -(|l1| + |l2|)
+    # 2*l1*x_{|l1|} - l1 + 2*l2*x_{|l2|} - l2 > -(|l1| + |l2|)
+    # 2*(l1*x_{|l1|} + l2*x_{|l2|}) > l1 + l2 - (|l1| + |l2|)
+    # l1*x_{|l1|} + l2*x_{|l2|} > (l1 + l2 - |l1| - |l2|)/2
+    
+    # Let D = l1 + l2 - |l1| - |l2|
+    # We want l1*x_{|l1|} + l2*x_{|l2|} > D/2
+    
+    # Since x_i are boolean, l1*x_{|l1|} is 0 or l1
+    # l2*x_{|l2|} is 0 or l2
+    # So the left side is one of: 0, l1, l2, l1+l2
+    
+    # The condition is: l1*x_{|l1|} + l2*x_{|l2|} > D/2
+    
+    # Let's think of this as a constraint that must be satisfied.
+    # It's easier to enumerate all 4 possibilities for x_{|l1|}, x_{|l2|} and see which ones satisfy the constraint.
+    
+    # But there's a better way. This is a 2-SAT problem.
+    # We can convert each constraint into a disjunction (OR clause) of two literals.
+    
+    # For each constraint l1, l2:
+    # Let a = |l1|, b = |l2|
+    # x_a = (s_a = 1), x_{-a} = (s_a = 0)
+    # x_b = (s_b = 1), x_{-b} = (s_b = 0)
+    
+    # But in our case, l1 and l2 can be positive or negative.
+    # C(l1) = l1 * (2*s_a - 1) = l1*(2*x_a - 1)
+    # C(l2) = l2 * (2*s_b - 1) = l2*(2*x_b - 1)
+    # C(l1) + C(l2) = 2*(l1*x_a + l2*x_b) - (l1 + l2)
+    # Want: 2*(l1*x_a + l2*x_b) - (l1 + l2) > -(|l1| + |l2|)
+    # 2*(l1*x_a + l2*x_b) > (l1 + l2) - (|l1| + |l2|)
+    # l1*x_a + l2*x_b > ((l1 + l2) - (|l1| + |l2|))/2
+    
+    # Let's define val when x_a=0,1 and x_b=0,1:
+    # Case 00: x_a=0, x_b=0: val = 0
+    # Case 01: x_a=0, x_b=1: val = l2
+    # Case 10: x_a=1, x_b=0: val = l1
+    # Case 11: x_a=1, x_b=1: val = l1 + l2
+    
+    # Threshold T = ((l1 + l2) - (|l1| + |l2|))/2
+    # We want val > T, i.e., val >= T + epsilon. Since we're dealing with integers, val >= floor(T) + 1 if T is not integer, 
+    # or val >= T + 1 if T is integer and we want strict inequality.
+    # Actually, since all terms are integers, T = ((l1 + l2) - (|l1| + |l2|))/2 is either integer or half-integer.
+    # The condition val > T is equivalent to 2*val > 2*T = (l1 + l2) - (|l1| + |l2|)
+    
+    # So we want: 2*(l1*x_a + l2*x_b) > (l1 + l2) - (|l1| + |l2|)
+    # Which is: 2*l1*x_a + 2*l2*x_b > (l1 + l2) - (|l1| + |l2|)
+    
+    # Let's compute RHS: R = l1 + l2 - |l1| - |l2|
+    # For l1>0, |l1|=l1, so l1-|l1|=0
+    # For l1<0, |l1|=-l1, so l1-|l1|=l1-(-l1)=2*l1
+    # Similarly for l2
+    # So R = (l1 - |l1|) + (l2 - |l2|)
+    #     = 0 if l1>0, 2*l1 if l1<0
+    #     + 0 if l2>0, 2*l2 if l2<0
+    # So R = 2*(l1 if l1<0 else 0) + 2*(l2 if l2<0 else 0)
+    #     = 2 * (min(l1,0) + min(l2,0))
+    
+    # So condition is: 2*l1*x_a + 2*l2*x_b > 2*(min(l1,0) + min(l2,0))
+    # Simplify: l1*x_a + l2*x_b > min(l1,0) + min(l2,0)
+    
+    # Now, enumerate the 4 cases:
+    # Case 00: x_a=0, x_b=0: 0 > min(l1,0) + min(l2,0) ?
+    # Case 01: x_a=0, x_b=1: l2 > min(l1,0) + min(l2,0) ?
+    # Case 10: x_a=1, x_b=0: l1 > min(l1,0) + min(l2,0) ?
+    # Case 11: x_a=1, x_b=1: l1 + l2 > min(l1,0) + min(l2,0) ?
+    
+    # The constraint is satisfied if at least one of the cases is true.
+    # But we want to enforce that the constraint IS satisfied, so we need to prevent the cases where it's NOT satisfied.
+    # That is, we must avoid assignments that lead to unsatisfied constraints.
+    
+    # If a case leads to an unsatisfied constraint, we must forbid that combination.
+    # For example, if case 00 is bad, then we cannot have x_a=0 AND x_b=0.
+    # This is equivalent to (x_a OR x_b) - at least one of them must be true.
+    
+    # So for each constraint l1,l2:
+    # Compute T = min(l1,0) + min(l2,0)
+    # For each of the 4 cases, check if l1*x_a + l2*x_b <= T (bad case)
+    # For each bad case, add a clause to prevent it.
+    
+    # Bad cases:
+    # 00: x_a=0, x_b=0 forbidden -> clause (x_a OR x_b)
+    # 01: x_a=0, x_b=1 forbidden -> clause (x_a OR NOT x_b)
+    # 10: x_a=1, x_b=0 forbidden -> clause (NOT x_a OR x_b)
+    # 11: x_a=1, x_b=1 forbidden -> clause (NOT x_a OR NOT x_b)
+    
+    # In 2-SAT, clauses are of the form (u OR v) where u,v are literals (variables or their negations)
+    # We can solve 2-SAT using SCC (strongly connected components) in a graph.
+    
+    # Variables: x_1, ..., x_n (x_i represents s_i = 1)
+    # Nodes in graph: 0,1,...,2*n-1 where
+    # node 2*i represents x_{i+1} (s_{i+1}=1)
+    # node 2*i+1 represents NOT x_{i+1} (s_{i+1}=0)
+    
+    # But in our implementation, let's use 2*i for x_i (s_i=1) and 2*i+1 for NOT x_i (s_i=0)
+    # No, it's more standard to have:
+    # node 2*(i-1) for x_i 
+    # node 2*(i-1)+1 for NOT x_i
+    
+    # Actually, let's index from 0: variable i (0-based) corresponds to s_{i+1}
+    # Node 2*i for x_{i+1} (s_{i+1}=1)
+    # Node 2*i+1 for NOT x_{i+1} (s_{i+1}=0)
+    
+    from collections import defaultdict
+    
+    # Build implication graph for 2-SAT
+    graph = defaultdict(list)
+    reverse_graph = defaultdict(list)
+    
+    # Add clause (u OR v) as edges (NOT u -> v) and (NOT v -> u)
+    def add_clause(u, v):
+        # u and v are node indices
+        graph[u ^ 1].append(v)
+        graph[v ^ 1].append(u)
+        reverse_graph[v].append(u ^ 1)
+        reverse_graph[u].append(v ^ 1)
+    
+    idx = 2
+    for i in range(m):
+        l1 = int(data[idx])
+        l2 = int(data[idx+1])
+        idx += 2
+        
+        a = abs(l1)
+        b = abs(l2)
+        # Convert to 0-based indexing
+        a -= 1
+        b -= 1
+        
+        T = min(l1, 0) + min(l2, 0)
+        
+        # Check all 4 cases
+        # Case 00: x_a=0, x_b=0: 0 > T ?
+        if 0 <= T:  # Bad case, need to forbid x_a=0 AND x_b=0
+            # Clause (x_a OR x_b)
+            add_clause(2*a, 2*b)
+            
+        # Case 01: x_a=0, x_b=1: l2 > T ?
+        if l2 <= T:  # Bad case, need to forbid x_a=0 AND x_b=1
+            # Clause (x_a OR NOT x_b)
+            add_clause(2*a, 2*b + 1)
+            
+        # Case 10: x_a=1, x_b=0: l1 > T ?
+        if l1 <= T:  # Bad case, need to forbid x_a=1 AND x_b=0
+            # Clause (NOT x_a OR x_b)
+            add_clause(2*a + 1, 2*b)
+            
+        # Case 11: x_a=1, x_b=1: l1 + l2 > T ?
+        if l1 + l2 <= T:  # Bad case, need to forbid x_a=1 AND x_b=1
+            # Clause (NOT x_a OR NOT x_b)
+            add_clause(2*a + 1, 2*b + 1)
+    
+    # Now solve 2-SAT using SCC
+    # First, do DFS to get finishing times
+    visited = [False] * (2 * n)
+    order = []
+    
+    def dfs1(u):
+        visited[u] = True
+        for v in graph[u]:
+            if not visited[v]:
+                dfs1(v)
+        order.append(u)
+    
+    for i in range(2 * n):
+        if not visited[i]:
+            dfs1(i)
+    
+    # Second, transpose graph and do DFS in reverse order
+    visited = [False] * (2 * n)
+    components = []
+    comp_id = [-1] * (2 * n)
+    
+    def dfs2(u, component):
+        visited[u] = True
+        component.append(u)
+        comp_id[u] = len(components)
+        for v in reverse_graph[u]:
+            if not visited[v]:
+                dfs2(v, component)
+    
+    while order:
+        u = order.pop()
+        if not visited[u]:
+            component = []
+            dfs2(u, component)
+            components.append(component)
+    
+    # Check if satisfiable
+    # For each variable i, x_i and NOT x_i must be in different components
+    for i in range(n):
+        if comp_id[2*i] == comp_id[2*i + 1]:
+            print("NO")
+            return
+    
+    # Assign values: variables in later components (higher index) are true
+    # For each variable, if NOT x_i is in a later component than x_i, then x_i is false (so s_i = 0)
+    # else x_i is true (so s_i = 1)
+    assignment = [0] * n
+    for i in range(n):
+        if comp_id[2*i] > comp_id[2*i + 1]:
+            assignment[i] = 1
+        else:
+            assignment[i] = 0
+    
+    print("YES")
+    print(" ".join(map(str, assignment)))
+
+if __name__ == "__main__":
+    main()
+```

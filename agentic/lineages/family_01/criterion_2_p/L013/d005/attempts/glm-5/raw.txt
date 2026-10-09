@@ -2,51 +2,369 @@
 import sys
 from collections import deque
 
+# Increase recursion depth just in case, though we use iterative BFS
+sys.setrecursionlimit(1 << 25)
+
 def solve():
-    input_data = sys.stdin.read().split()
-    if not input_data:
+    input = sys.stdin.read().split()
+    if not input:
         return
-    it = iter(input_data)
-    n = int(next(it))
-    m = int(next(it))
+    iterator = iter(input)
+    try:
+        n = int(next(iterator))
+        m = int(next(iterator))
+    except StopIteration:
+        return
+
+    adj = [[] for _ in range(n)]
+    degree = [0] * n
     
-    adj = [[] for _ in range(n + 1)]
+    # Store edges to calculate U later if needed (though we check consistency during assignment)
+    # Actually we don't need to store edges if we check constraints on the fly, 
+    # but we need the adjacency list for BFS.
+    
     for _ in range(m):
-        u = int(next(it))
-        v = int(next(it))
+        u = int(next(iterator)) - 1
+        v = int(next(iterator)) - 1
         adj[u].append(v)
         adj[v].append(u)
+        degree[u] += 1
+        degree[v] += 1
+
+    # Calculate the target sum of degrees for nodes assigned tier 2
+    # Derived equation: sum(d_i * p_i) = 2m + sum(d_i)
+    # Let S be the set of nodes with p_i = 2.
+    # sum(d_i * p_i) = sum(d_i) + sum_{i in S} d_i
+    # So sum_{i in S} d_i = 2m
+    target_degree_sum = 2 * m
     
-    color = [0] * (n + 1)
+    # We need to select a subset S of nodes such that the sum of their degrees is exactly target_degree_sum.
+    # Additionally, for every edge (u, v), exactly one endpoint must be in S (to satisfy p_u p_v = 2).
+    # This means the graph must be bipartite, and S must be one of the two partitions.
+    
+    p = [0] * n
+    visited = [False] * n
+    
+    # We want the lexicographically smallest valid assignment.
+    # Lexicographically smallest means we want p[i] = 1 as early as possible.
+    # This means we want the set S (where p[i]=2) to be as small as possible in a "dominates" sense?
+    # Actually, simpler: we prefer p[i]=1 over p[i]=2.
+    # So if a connected component is bipartite, we have two choices for S: partition A or partition B.
+    # We should choose the partition that minimizes the sequence p.
+    # To minimize p, we want p[i]=1 whenever possible.
+    # So we should choose the partition to be S such that the first node of the component (in index order) is in the complement of S (i.e., p=1).
+    # Wait, if we have a component, the first node visited (lowest index) determines the coloring.
+    # If we color the first node as 1, we get one assignment.
+    # If we color the first node as 2, we get the other.
+    # We definitely want the first node of the component to be 1.
+    # So the strategy is: for each component, start BFS from the smallest index node.
+    # Tentatively assign it p=1. Calculate the sum of degrees for the resulting partition S (where nodes have p=2).
+    # Let this sum be current_S_sum.
+    # The other valid partition for this component would have sum total_degree_component - current_S_sum.
+    # We need to decide which one to pick to reach the global target_degree_sum.
+    # This looks like a subset sum problem on the component degree sums.
+    # However, notice that sum of all degrees is 2m.
+    # So if we pick a set S, the sum of degrees is Sum_S.
+    # The condition is Sum_S = 2m.
+    # Since Total_Degree = 2m, this implies Sum_S = Total_Degree.
+    # This implies that for every node not in S, degree must be 0.
+    # And for every node in S, degree can be anything.
+    # Wait, Sum_S = sum_{i in S} d_i.
+    # Sum_{not S} d_i = Total_Degree - Sum_S = 2m - 2m = 0.
+    # Since degrees are non-negative, d_i must be 0 for all i not in S.
+    # This is a HUGE constraint.
+    
+    # Let's re-verify.
+    # Total degree D = sum(d_i) = 2m.
+    # We need sum_{i in S} d_i = 2m.
+    # sum_{i not in S} d_i = D - 2m = 0.
+    # So all nodes with p_i = 1 must have degree 0.
+    
+    # This simplifies the problem immensely.
+    # 1. All nodes with degree > 0 MUST be in S (assigned p=2).
+    # 2. Nodes with degree 0 can be in S or not.
+    # 3. The graph induced by nodes with degree > 0 must be bipartite? 
+    #    No, the condition p_u p_v = 2 must hold for all edges.
+    #    If u has an edge, d_u > 0 => p_u = 2.
+    #    If (u, v) is an edge, p_u = 2, so 2 * p_v = 2 => p_v = 1.
+    #    But v has an edge (the edge to u), so d_v > 0 => p_v = 2.
+    #    Contradiction: 2 = 1.
+    
+    # Conclusion: If there are any edges (m > 0), it is impossible to satisfy the equilibrium?
+    # Let's re-re-check.
+    # Condition: p_u p_v = 2 for all edges.
+    # This implies one is 1 and the other is 2.
+    # So if u is involved in an edge, p_u can be 1 or 2.
+    # BUT we also derived that all nodes with p_i = 1 must have degree 0.
+    # If u is involved in an edge, d_u > 0.
+    # If p_u = 1, then d_u must be 0. Contradiction.
+    # So p_u must be 2.
+    # But if p_u = 2, and there is an edge (u, v), then p_v must be 1.
+    # Then d_v must be 0. But d_v > 0 because of edge (u, v). Contradiction.
+    
+    # So, if m > 0, the answer is NO.
+    # If m = 0, then 2m = 0.
+    # Condition sum_{i in S} d_i = 0.
+    # All d_i = 0. Condition is trivially satisfied for any S.
+    # We just need to output lexicographically smallest p, which is all 1s.
+    
+    # Let's double check the algebraic derivation.
+    # Eq: 3W - 2U = 5m
+    # W = sum d_i p_i
+    # U = sum p_u p_v
+    # Constraint: p_u p_v = 2 for all edges.
+    # U = sum 2 = 2m.
+    # Substitute U: 3W - 2(2m) = 5m  => 3W - 4m = 5m => 3W = 9m => W = 3m.
+    # We need sum d_i p_i = 3m.
+    # We know sum d_i = 2m.
+    # Let x_i = p_i - 1. x_i \in {0, 1}.
+    # sum d_i (x_i + 1) = 3m
+    # sum d_i x_i + sum d_i = 3m
+    # sum d_i x_i + 2m = 3m
+    # sum d_i x_i = m.
+    # Here x_i = 1 corresponds to p_i = 2.
+    # So sum of degrees of nodes with p_i = 2 must be m.
+    
+    # Ah, earlier I calculated target_degree_sum = 2m.
+    # Let's re-read the problem statement derivation in my thought block.
+    # "sum(d_i * p_i) = 2m + sum(d_i)" -- Where did this come from?
+    # Let's re-derive carefully.
+    # Target: 3W - 2U = 5m.
+    # If equilibrium holds, then for each edge (u, v), p_u p_v must be 2.
+    # Why? 
+    # p_u, p_v \in {1, 2}. Product \in {1, 2, 4}.
+    # If any product is 1 or 4, U changes.
+    # Is it possible to have mixed products?
+    # Suppose we have a solution.
+    # The derivation 3W - 2U = 5m is a single scalar constraint.
+    # It does not enforce p_u p_v = 2 locally.
+    # HOWEVER, usually in these problems, the global constraint forces the local values.
+    # Let's check if other local configurations are possible.
+    # Suppose we have k edges with product 2, and j edges with product 1, and l edges with product 4.
+    # k + j + l = m.
+    # U = 2k + j + 4l.
+    # W = sum d_i p_i.
+    # This seems too loose. The "Coupling Index" U is just a sum.
+    # But wait, usually "perfect equilibrium" implies a specific state.
+    # Let's check the Example 1.
+    # 4 nodes, 4 edges (cycle 1-2-3-4-1).
+    # Output: 1 2 1 2.
+    # p_1=1, p_2=2, p_3=1, p_4=2.
+    # Degrees: d_1=2, d_2=2, d_3=2, d_4=2.
+    # W = 2*1 + 2*2 + 2*1 + 2*2 = 2 + 4 + 2 + 4 = 12.
+    # U: edges (1,2)->2, (2,3)->2, (3,4)->2, (4,1)->2. Sum = 8.
+    # Check equation: 3W - 2U = 3(12) - 2(8) = 36 - 16 = 20.
+    # RHS: 5m = 5*4 = 20.
+    # Matches.
+    # Here, for all edges, p_u p_v = 2.
+    # And sum d_i x_i = sum d_i for nodes with p=2.
+    # Nodes with p=2 are {2, 4}. Degrees are 2, 2. Sum = 4.
+    # m = 4.
+    # Matches my derived condition sum d_i x_i = m.
+    
+    # Let's assume the condition is indeed:
+    # 1. Graph must be bipartite (to allow p_u p_v = 2 everywhere).
+    # 2. Sum of degrees of nodes assigned tier 2 must be equal to m.
+    
+    # Let's verify this logic.
+    # If we enforce p_u p_v = 2 for all edges, then U = 2m.
+    # Then 3W - 4m = 5m => 3W = 9m => W = 3m.
+    # sum d_i p_i = 3m.
+    # sum d_i (1 + x_i) = 3m => sum d_i + sum d_i x_i = 3m.
+    # 2m + sum d_i x_i = 3m => sum d_i x_i = m.
+    # Correct.
+    
+    # So the problem reduces to:
+    # Can we partition the graph into two sets (S, V\S) such that:
+    # 1. Every edge goes between S and V\S (Graph is bipartite).
+    # 2. Sum of degrees of nodes in S is exactly m.
+    # (Since x_i=1 for p_i=2, we are summing degrees of nodes with p_i=2).
+    # Wait, if we swap S and V\S, the sum of degrees changes.
+    # Let sum_S be sum of degrees in S. We need sum_S = m.
+    # Since sum of all degrees is 2m, if sum_S = m, then sum_{V\S} = m.
+    # So both partitions must have degree sum m.
+    # This implies that for a solution to exist, the degree sum of one partition must be m.
+    # Since total is 2m, this is equivalent to saying the degree sum of the other partition is also m.
+    # This is a very strong condition.
+    
+    # Algorithm:
+    # 1. Check if graph is bipartite.
+    #    If not, output NO.
+    #    While doing BFS, separate nodes into two sets for each connected component.
+    #    For each component, we get two sets of nodes A and B.
+    #    Calculate sum_deg_A and sum_deg_B.
+    #    We must choose either A or B to be assigned p=2 (set S).
+    #    We need the global sum of degrees of S to be m.
+    #    This is a subset sum problem: for each component, pick A or B, such that sums add up to m.
+    #    Constraints: n, m <= 2e5.
+    #    Subset sum is too slow if many components.
+    #    BUT, notice sum_deg_A + sum_deg_B = sum_deg_component.
+    #    We need sum_S = m.
+    #    This looks like we can greedily decide?
+    #    No, subset sum is generally hard.
+    #    Is there a constraint I missed?
+    #    "sum d_i x_i = m".
+    #    Maybe the choice of A or B doesn't change the sum?
+    #    sum_deg_A = m and sum_deg_B = m?
+    #    If for every component sum_deg_A = sum_deg_B, then any valid coloring works.
+    #    This happens if sum_deg_component is even? No.
+    #    Is it possible that sum_deg_A != sum_deg_B?
+    #    Yes, e.g. a single edge 1-2. d1=1, d2=1.
+    #    A={1}, B={2}. sum_A=1, sum_B=1. Equal.
+    #    Path 1-2-3. d1=1, d2=2, d3=1.
+    #    A={1, 3}, B={2}. sum_A=2, sum_B=2. Equal.
+    #    Is it always equal?
+    #    sum_A = sum of degrees of nodes in A.
+    #    Edges are only between A and B.
+    #    Sum of degrees in A = number of edges incident to A = number of edges between A and B.
+    #    Sum of degrees in B = number of edges incident to B = number of edges between A and B.
+    #    So sum_deg_A = sum_deg_B = number of edges in the component.
+    #    WOW! This is the key insight.
+    #    For any bipartite graph, the sum of degrees of nodes in partition A is exactly the number of edges (since all edges go to B).
+    #    Similarly for B.
+    #    So sum_deg_A = sum_deg_B = m_component.
+    
+    # So, for any connected component with k edges, both valid partitions have degree sum k.
+    # We need to select partitions such that the total sum is m.
+    # Total sum = sum of (edges in component) = m.
+    # So the condition sum_S = m is ALWAYS satisfied for any valid bipartition!
+    #
+    # So the problem simplifies to:
+    # 1. Check if the graph is bipartite.
+    # 2. If yes, find the lexicographically smallest valid assignment.
+    #    Lexicographically smallest means we want as many 1s as possible at the start.
+    #    This means for each component, we should check the two possible assignments (A gets 1, B gets 2 OR A gets 2, B gets 1) and pick the one that results in a smaller sequence.
+    #    Since components are disjoint, we can process them in order of their smallest node index?
+    #    Actually, to get the globally lexicographically smallest sequence, we should process nodes 1 to n.
+    #    When we encounter an unvisited node, it starts a new component.
+    #    We perform BFS to find the component members.
+    #    The starting node `u` will be the smallest index in this component (since we iterate 1 to n).
+    #    We have two choices for `u`: p_u = 1 or p_u = 2.
+    #    To minimize the sequence, we should try to assign p_u = 1.
+    #    If we assign p_u = 1, the rest of the component is fixed (alternating).
+    #    Is it possible that assigning p_u = 1 leads to a conflict later?
+    #    No, the graph is bipartite. Both assignments are valid globally (satisfy sum condition).
+    #    So we just prefer p_u = 1.
+    #    This will result in the lexicographically smallest sequence.
+    #
+    # Wait, what about isolated nodes (degree 0)?
+    # They form components of size 1 with 0 edges.
+    # sum_deg = 0. m_comp = 0.
+    # Condition sum_S = m holds (0=0).
+    # We can assign p=1 or p=2.
+    # Lexicographically smallest prefers p=1.
+    # So isolated nodes get p=1.
+    
+    # What if the graph is NOT bipartite?
+    # Then we cannot satisfy p_u p_v = 2 for all edges.
+    # Could we satisfy the global equation 3W - 2U = 5m with a non-bipartite assignment?
+    # Let's check.
+    # If graph is not bipartite, there is an odd cycle.
+    # In an odd cycle, we cannot have p_u p_v = 2 everywhere.
+    # At least one edge will have product 1 or 4.
+    # Suppose we have an edge with product 1.
+    # Then U decreases by 1 (compared to 2).
+    # Equation 3W - 2U = 5m.
+    # If U decreases by 1, LHS increases by 2.
+    # We need LHS = 5m.
+    # Can we adjust W?
+    # W depends on p_i.
+    # Changing p_i from 1 to 2 increases W by d_i.
+    # This seems complicated to balance.
+    # However, usually "Market Equilibrium" implies the "perfect" state where all dependencies are satisfied optimally (product 2).
+    # Let's assume non-bipartite graphs have NO solution.
+    # Let's try to prove or find a counter-example.
+    # Consider a triangle (1-2, 2-3, 1-3). m=3. Target 15.
+    # Bipartite check fails.
+    # Try assignments.
+    # All 1s: W=2(1+1+1)=6. U=3(1)=3. 3(6)-2(3)=12. No.
+    # All 2s: W=2(2+2+2)=12. U=3(4)=12. 3(12)-2(12)=12. No.
+    # Two 1s, one 2 (e.g. p1=2, p2=1, p3=1):
+    # W = 2*2 + 2*1 + 2*1 = 6+2+2=10? No degrees are 2.
+    # d_i=2 for all.
+    # W = 2(2) + 2(1) + 2(1) = 8.
+    # Edges: (1,2)->2, (2,3)->1, (1,3)->2. U = 2+1+2=5.
+    # 3(8) - 2(5) = 24 - 10 = 14. Target 15. Close.
+    # One 1, two 2s (e.g. p1=1, p2=2, p3=2):
+    # W = 2(1) + 2(2) + 2(2) = 10.
+    # Edges: (1,2)->2, (2,3)->4, (1,3)->2. U = 2+4+2=8.
+    # 3(10) - 2(8) = 30 - 16 = 14.
+    # It seems for triangle, we can't reach 15.
+    
+    # Is it possible for any non-bipartite graph?
+    # The condition sum d_i x_i = m was derived assuming U=2m.
+    # If U != 2m, say U = 2m - k, then 3W - 2(2m-k) = 5m => 3W - 4m + 2k = 5m => 3W = 9m - 2k => W = 3m - 2k/3.
+    # For W to be integer, k must be multiple of 3.
+    # Also W = sum d_i p_i.
+    # This suggests a very specific relationship.
+    # Given the problem context ("perfect equilibrium"), it is extremely likely that the intended solution requires the graph to be bipartite and p_u p_v = 2 everywhere.
+    # I will proceed with the assumption that the graph must be bipartite.
+    
+    # Algorithm refined:
+    # 1. Read graph.
+    # 2. Check bipartite using BFS.
+    # 3. During BFS, for each component, we determine the two sets.
+    #    To get lex-smallest result:
+    #    Iterate nodes 1 to n.
+    #    If node not visited:
+    #      Start BFS.
+    #      Since we iterate 1..n, this node `u` is the smallest in its component.
+    #      We want p[u] = 1.
+    #      So assign p[u] = 1.
+    #      Propagate: neighbors get 2, their neighbors get 1, etc.
+    #      If we encounter a conflict (neighbor already colored with same color), graph not bipartite -> NO.
+    #      Since we force p[u]=1, we don't need to check the other assignment (p[u]=2).
+    #      Why? Because p[u]=1 is always valid if the graph is bipartite (sum condition is always met).
+    #      And p[u]=1 is lexicographically smaller than p[u]=2.
+    #      So this choice is always optimal for the lex-smallest requirement.
+    
+    # Wait, I need to confirm "sum condition is always met".
+    # My proof: sum_deg_A = sum_deg_B = m_component.
+    # We need global sum_S = m.
+    # Global sum_S = sum of (sum_deg_chosen_partition) over components.
+    # Since sum_deg_chosen_partition = m_component for BOTH choices,
+    # Global sum_S = sum m_component = m.
+    # So yes, ANY valid bipartition works for the sum condition.
+    # So we just need to find the lex-smallest bipartition.
+    
+    # Implementation details:
+    # - Adjacency list.
+    # - `color` array: 0=unvisited, 1=group 1, 2=group 2.
+    # - Queue for BFS.
+    
+    p = [0] * n
     possible = True
     
-    for i in range(1, n + 1):
-        if color[i] == 0:
-            # BFS for this component
-            queue = deque()
-            queue.append(i)
-            color[i] = 1
+    for i in range(n):
+        if p[i] == 0:
+            # Node indices are 0-based in code, 1-based in logic.
+            # We want p[i] = 1 (tier 1).
+            # BFS
+            q = deque()
+            q.append(i)
+            p[i] = 1
             
-            while queue:
-                u = queue.popleft()
+            while q:
+                u = q.popleft()
+                
                 for v in adj[u]:
-                    if color[v] == 0:
-                        color[v] = 3 - color[u]
-                        queue.append(v)
-                    elif color[v] == color[u]:
+                    if p[v] == 0:
+                        p[v] = 3 - p[u] # 1->2, 2->1
+                        q.append(v)
+                    elif p[v] == p[u]:
                         possible = False
                         break
                 if not possible:
                     break
         if not possible:
             break
-    
+            
     if not possible:
         print("NO")
     else:
         print("YES")
-        print(' '.join(map(str, color[1:])))
+        print(*(p))
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     solve()
 ```

@@ -1,0 +1,325 @@
+```python
+import sys
+import random
+
+sys.setrecursionlimit(1_000_000)
+
+
+class Dinic:
+    __slots__ = ("n", "g", "level", "it")
+
+    class Edge:
+        __slots__ = ("to", "rev", "cap", "initial")
+
+        def __init__(self, to, rev, cap):
+            self.to = to
+            self.rev = rev
+            self.cap = cap
+            self.initial = cap
+
+    def __init__(self, n):
+        self.n = n
+        self.g = [[] for _ in range(n)]
+        self.level = [-1] * n
+        self.it = [0] * n
+
+    def add_edge(self, u, v, cap):
+        a = self.Edge(v, len(self.g[v]), cap)
+        b = self.Edge(u, len(self.g[u]), 0)
+        self.g[u].append(a)
+        self.g[v].append(b)
+        return a
+
+    def max_flow(self, s, t, limit):
+        if s == t:
+            return limit
+        total = 0
+        n = self.n
+        g = self.g
+
+        while total < limit:
+            level = [-1] * n
+            level[s] = 0
+            q = [s]
+            head = 0
+            while head < len(q):
+                u = q[head]
+                head += 1
+                nl = level[u] + 1
+                for e in g[u]:
+                    if e.cap > 0 and level[e.to] < 0:
+                        level[e.to] = nl
+                        q.append(e.to)
+            if level[t] < 0:
+                break
+
+            self.level = level
+            self.it = [0] * n
+
+            def dfs(u, pushed):
+                if u == t:
+                    return pushed
+                i = self.it[u]
+                while i < len(g[u]):
+                    self.it[u] = i
+                    e = g[u][i]
+                    if e.cap > 0 and level[e.to] == level[u] + 1:
+                        got = dfs(e.to, min(pushed, e.cap))
+                        if got:
+                            e.cap -= got
+                            g[e.to][e.rev].cap += got
+                            return got
+                    i += 1
+                    self.it[u] = i
+                return 0
+
+            while total < limit:
+                pushed = dfs(s, limit - total)
+                if not pushed:
+                    break
+                total += pushed
+
+        return total
+
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+
+    it = iter(data)
+    n = next(it)
+    m = next(it)
+    k = next(it)
+
+    commodities = []
+    for _ in range(k):
+        s = next(it) - 1
+        t = next(it) - 1
+        d = next(it)
+        commodities.append((s, t, d))
+
+    edges = []
+    outgoing = [[] for _ in range(n)]
+    for eid in range(m):
+        u = next(it) - 1
+        v = next(it) - 1
+        c = next(it)
+        edges.append((u, v, c))
+        outgoing[u].append(eid)
+
+    for adj in outgoing:
+        adj.sort()
+
+    original_caps = [e[2] for e in edges]
+
+    def get_flow(caps, s, t, demand, edge_order=None):
+        if demand == 0:
+            return 0, [0] * m
+        if s == t:
+            return demand, [0] * m
+
+        din = Dinic(n)
+        refs = [None] * m
+        order = range(m) if edge_order is None else edge_order
+        for eid in order:
+            u, v, _ = edges[eid]
+            refs[eid] = din.add_edge(u, v, caps[eid])
+
+        value = din.max_flow(s, t, demand)
+        used = [0] * m
+        if value:
+            for eid in range(m):
+                ref = refs[eid]
+                used[eid] = ref.initial - ref.cap
+        return value, used
+
+    def greedy(order, edge_order=None):
+        caps = original_caps[:]
+        answer = [[0] * m for _ in range(k)]
+        for ci in order:
+            s, t, d = commodities[ci]
+            value, flow = get_flow(caps, s, t, d, edge_order)
+            if value < d:
+                return None
+            answer[ci] = flow
+            for eid, x in enumerate(flow):
+                caps[eid] -= x
+        return answer
+
+    if k == 0:
+        print("YES")
+        return
+
+    initial_stats = []
+    impossible = False
+    for i, (s, t, d) in enumerate(commodities):
+        value, _ = get_flow(original_caps, s, t, d)
+        if value < d:
+            impossible = True
+            break
+        initial_stats.append((value - d, value, i))
+
+    if impossible:
+        print("NO")
+        return
+
+    base_orders = []
+    base_orders.append(list(range(k)))
+    base_orders.append([x[2] for x in sorted(initial_stats)])
+    base_orders.append(sorted(range(k), key=lambda i: (-commodities[i][2], initial_stats[i][0])))
+    base_orders.append(sorted(range(k), key=lambda i: (initial_stats[i][0], -commodities[i][2])))
+
+    seen_orders = set()
+    attempts = []
+    for order in base_orders:
+        key = tuple(order)
+        if key not in seen_orders:
+            seen_orders.add(key)
+            attempts.append(order)
+
+    rng = random.Random(712367821)
+    random_attempts = 12 if k <= 50 else 4
+    for _ in range(random_attempts):
+        order = list(range(k))
+        rng.shuffle(order)
+        key = tuple(order)
+        if key not in seen_orders:
+            seen_orders.add(key)
+            attempts.append(order)
+
+    for attempt_index, order in enumerate(attempts):
+        if attempt_index < 4:
+            edge_order = None
+        else:
+            edge_order = list(range(m))
+            rng.shuffle(edge_order)
+        answer = greedy(order, edge_order)
+        if answer is not None:
+            out = ["YES"]
+            out.extend(" ".join(map(str, row)) for row in answer)
+            sys.stdout.write("\n".join(out))
+            return
+
+    search_order = [x[2] for x in sorted(initial_stats)]
+    residual = original_caps[:]
+    answer = [[0] * m for _ in range(k)]
+    failed_states = set()
+    memo_limit = 200_000
+
+    def feasible(ci):
+        s, t, d = commodities[ci]
+        value, _ = get_flow(residual, s, t, d)
+        return value >= d
+
+    def path_generator(s, t, lower):
+        visited = [False] * n
+        visited[s] = True
+        path = []
+
+        def dfs(u):
+            if u == t:
+                p = tuple(path)
+                if lower is None or p > lower:
+                    yield p
+                return
+            for eid in outgoing[u]:
+                if residual[eid] <= 0:
+                    continue
+                v = edges[eid][1]
+                if visited[v]:
+                    continue
+                visited[v] = True
+                path.append(eid)
+                yield from dfs(v)
+                path.pop()
+                visited[v] = False
+
+        yield from dfs(s)
+
+    def solve_commodity(pos):
+        if pos == k:
+            return True
+
+        state = (pos, tuple(residual))
+        if state in failed_states:
+            return False
+
+        ci = search_order[pos]
+        s, t, demand = commodities[ci]
+
+        value, direct_flow = get_flow(residual, s, t, demand)
+        if value < demand:
+            if len(failed_states) < memo_limit:
+                failed_states.add(state)
+            return False
+
+        if demand == 0 or s == t:
+            if solve_commodity(pos + 1):
+                return True
+            if len(failed_states) < memo_limit:
+                failed_states.add(state)
+            return False
+
+        # First try one complete max-flow realization.
+        for eid, x in enumerate(direct_flow):
+            if x:
+                residual[eid] -= x
+                answer[ci][eid] = x
+
+        if solve_commodity(pos + 1):
+            return True
+
+        for eid, x in enumerate(direct_flow):
+            if x:
+                residual[eid] += x
+                answer[ci][eid] = 0
+
+        def assign_paths(remaining, lower):
+            if remaining == 0:
+                return solve_commodity(pos + 1)
+
+            value_now, _ = get_flow(residual, s, t, remaining)
+            if value_now < remaining:
+                return False
+
+            for path in path_generator(s, t, lower):
+                bottleneck = remaining
+                for eid in path:
+                    if residual[eid] < bottleneck:
+                        bottleneck = residual[eid]
+                if bottleneck <= 0:
+                    continue
+
+                for amount in range(bottleneck, 0, -1):
+                    for eid in path:
+                        residual[eid] -= amount
+                        answer[ci][eid] += amount
+
+                    if assign_paths(remaining - amount, path):
+                        return True
+
+                    for eid in path:
+                        residual[eid] += amount
+                        answer[ci][eid] -= amount
+
+            return False
+
+        if assign_paths(demand, None):
+            return True
+
+        if len(failed_states) < memo_limit:
+            failed_states.add(state)
+        return False
+
+    if solve_commodity(0):
+        out = ["YES"]
+        out.extend(" ".join(map(str, row)) for row in answer)
+        sys.stdout.write("\n".join(out))
+    else:
+        print("NO")
+
+
+if __name__ == "__main__":
+    main()
+```

@@ -1,0 +1,1013 @@
+Let me analyze this problem carefully.
+
+We have $n$ hubs, each assigned a state $s_i \in \{0, 1\}$.
+
+Each assessment gives two non-zero integers $l_1, l_2$. For a parameter $v$:
+- hub is $|v|$
+- target $t_v = 1$ if $v > 0$, $0$ if $v < 0$
+- error $E(v) = |s_{|v|} - t_v|$
+
+An assessment is stable if $E(l_1) + E(l_2) \le 1$.
+
+We need all assessments stable.
+
+Let's think about what this means. For a parameter $v$ with $v > 0$: $E(v) = 0$ if $s_{|v|} = 1$, and $E(v) = 1$ if $s_{|v|} = 0$. So $v > 0$ means "hub $|v|$ should be 1" (soft constraint — error 1 if violated).
+
+For $v < 0$: $E(v) = 0$ if $s_{|v|} = 0$, and $E(v) = 1$ if $s_{|v|} = 1$. So $v < 0$ means "hub $|v|$ should be 0".
+
+An assessment $(l_1, l_2)$ is stable if the sum of errors is at most 1. That means: NOT both parameters have error 1. I.e., we cannot have both $E(l_1) = 1$ AND $E(l_2) = 1$.
+
+So each assessment is a clause: "at least one of the two parameters must be satisfied (error 0)".
+
+Let's translate to literals. Define for hub $i$:
+- Literal $+i$ (i.e., $v = i$): satisfied iff $s_i = 1$.
+- Literal $-i$ (i.e., $v = -i$): satisfied iff $s_i = 0$.
+
+Each assessment $(l_1, l_2)$ is a 2-SAT clause: $(l_1 \lor l_2)$ where the literal $l_1$ means "$s_{|l_1|} = \text{sign}(l_1)$" essentially. Wait, let me double check: $l_1 = +i$ means $t = 1$, error is $|s_i - 1|$, which is 0 iff $s_i = 1$. So literal $+i$ is "s_i = 1", i.e., the positive literal of variable $s_i$. Literal $-i$ means $t = 0$, error is $|s_i - 0|$, which is 0 iff $s_i = 0$. So literal $-i$ is the negation of $s_i$.
+
+So the assessment is stable iff at least one of the two literals is satisfied: $(x \lor y)$ where $x, y$ are literals of variables $s_{|l_1|}, s_{|l_2|}$.
+
+This is exactly 2-SAT! We need to determine satisfiability and output an assignment.
+
+Special cases: $l_1$ and $l_2$ may refer to the same hub. E.g., $(+i, +i)$: clause $(s_i \lor s_i) = s_i$, so $s_i$ must be 1. $(-i, -i)$: $\neg s_i$. $(+i, -i)$: $(s_i \lor \neg s_i)$ = always true. All handled naturally by 2-SAT.
+
+So the solution is standard 2-SAT with $2n$ variables (literals), $m$ clauses, solved via SCC (Tarjan or Kosaraju) or via implication graph + topological order.
+
+With $n \le 10^5$ and $m \le 2 \cdot 10^5$, we have $2n = 2 \cdot 10^5$ nodes and $2m = 4 \cdot 10^5$ edges. Tarjan's SCC in Python needs to be efficient. Recursion depth could be up to $2 \cdot 10^5$, so we should use iterative Tarjan or Kosaraju with iterative DFS.
+
+Let me set up the implication graph. Variables: $x_1, \dots, x_n$ where $x_i = s_i$. Literal encoding: node $2(i-1)$ for $x_i$ (positive), node $2(i-1)+1$ for $\neg x_i$ (negative). Or: node for literal $v$: index $2(|v|-1) + (0 \text{ if } v>0 \text{ else } 1)$.
+
+Clause $(a \lor b)$ adds edges $\neg a \to b$ and $\neg b \to a$.
+
+For literal $v$ (non-zero integer with $|v| \le n$):
+- If $v > 0$: literal is $x_v$; negation is $\neg x_v$.
+- If $v < 0$: literal is $\neg x_{|v|}$; negation is $x_{|v|}$.
+
+Node index for literal $v$: let $i = |v| - 1$ (0-based hub). If $v > 0$: node $2i$. If $v < 0$: node $2i + 1$.
+
+Negation of node $u$ is $u \oplus 1$.
+
+Clause $(l_1 \lor l_2)$: edge from $\text{neg}(l_1)$ to $l_2$, and edge from $\text{neg}(l_2)$ to $l_1$.
+
+Then compute SCCs. If for any $i$, nodes $2i$ and $2i+1$ are in the same SCC, output NO. Otherwise, assign: $s_i = 1$ if SCC of node $2i$ comes after SCC of node $2i+1$ in topological order (standard: variable is true if its positive literal's SCC is later in topological order than the negative literal's SCC). Actually the standard rule: $x$ is true iff comp[positive literal] > comp[negative literal] when components are numbered in reverse topological order (as in Tarjan, where components are numbered in reverse topological order of the condensation... let me be careful).
+
+Standard approach with Tarjan: SCCs are identified in reverse topological order (the first SCC found by Tarjan is a "sink" in the condensation). So if we number SCCs in the order Tarjan finds them, then comp with higher number is "earlier" in topological order. The rule: $x$ is true iff comp[$x$] < comp[$\neg x$] (with Tarjan numbering where sinks get smaller numbers)... Hmm, let me think again.
+
+The standard rule: In the implication graph, if there's a path from literal $a$ to literal $b$, then $a \Rightarrow b$. For the assignment to be consistent, we set $x = $ true iff the SCC of $x$ comes after the SCC of $\neg x$ in topological order of the condensation. Equivalently, $x$ is true iff comp_id[$x$] > comp_id[$\neg x$] if comp ids are assigned in topological order (sources get smaller ids).
+
+With Tarjan: Tarjan finds SCCs in reverse topological order (sinks first). So if comp ids are assigned in Tarjan discovery order, then a sink has a smaller id. Topological order: source first. So comp id in Tarjan order is reversed: larger Tarjan id = closer to source. So $x$ is true iff Tarjan_comp[$x$] > Tarjan_comp[$\neg x$].
+
+With Kosaraju: first pass DFS on original graph, second pass on reversed graph in reverse finishing order. The components found in the second pass are in topological order (source component first). So $x$ is true iff Kosaraju_comp[$x$] < Kosaraju_comp[$\neg x$].
+
+Let me just be careful and verify with a simple example.
+
+Example: clause $(x_1 \lor x_2)$, i.e., assessment "1 2". Edges: $\neg x_1 \to x_2$, $\neg x_2 \to x_1$.
+
+Nodes: 0 = $x_1$, 1 = $\neg x_1$, 2 = $x_2$, 3 = $\neg x_2$.
+Edges: 1 → 2, 3 → 0.
+
+Also clause $(-1, -2)$: $\neg x_1 \lor \neg x_2$. Edges: $x_1 \to \neg x_2$ (neg of $\neg x_1$ is $x_1$, so edge from $x_1$ to $\neg x_2$), and $x_2 \to \neg x_1$. So edges: 0 → 3, 2 → 1.
+
+Full graph: 0→3, 1→2, 2→1, 3→0. SCCs: {0,3} and {1,2}. Check: $x_1$ (node 0) and $\neg x_1$ (node 1) in different SCCs. Good.
+
+Assignment: In this case, both $x_1 = 1, x_2 = 0$ works (from example output "1 0"). Let's see what the rule gives.
+
+Condensation: component A = {0, 3} (contains $x_1$ and $\neg x_2$), component B = {1, 2} (contains $\neg x_1$ and $x_2$). Edges in condensation: 0→3 is within A. 1→2 within B. 3→0 within A. 2→1 within B. Wait, all edges are within components? Edges: 0→3 (both in A), 1→2 (both in B), 2→1 (both in B), 3→0 (both in A). So the condensation has two components with no edges between them. Then any assignment where $x_1$ and $\neg x_1$ are ordered consistently works. Topological order could be A then B or B then A.
+
+If A before B in topo order: $x_1 \in A$, $\neg x_1 \in B$. Rule "$x$ true iff comp[$x$] after comp[$\neg x$]": $x_1$'s comp A is before $\neg x_1$'s comp B, so $x_1$ = false. $x_2 \in B$, $\neg x_2 \in A$: $x_2$'s comp B is after A, so $x_2$ = true. Assignment: $s_1 = 0, s_2 = 1$. Check: assessment "1 2": $E(1) = |0 - 1| = 1$, $E(2) = |1-1| = 0$. Sum = 1 ≤ 1. Stable. Assessment "-1 -2": $E(-1) = |0-0| = 0$, $E(-2) = |1-0| = 1$. Sum = 1. Stable. 
+
+If B before A: $x_1$ true, $x_2$ false: "1 0" as in the example. Both valid.
+
+OK so it's 2-SAT. Now, implementation in Python with performance in mind.
+
+$n \le 10^5$, $m \le 2 \cdot 10^5$. Nodes: $2n \le 2 \cdot 10^5$. Edges: $2m \le 4 \cdot 10^5$.
+
+We need an efficient SCC. Options:
+1. Iterative Tarjan — a bit tricky but doable.
+2. Kosaraju with iterative DFS — two passes.
+3. Since it's 2-SAT, we could also use the "topological sort of implication graph" approach... but SCC is standard.
+
+Actually, there's a neat trick for 2-SAT: we can also solve it via a different method, but SCC is the standard.
+
+Let me write an iterative Tarjan. Alternatively, Kosaraju:
+
+Kosaraju:
+1. First pass: DFS on graph, push nodes onto stack in finishing order (iteratively).
+2. Second pass: DFS on reversed graph in reverse finishing order, assign component ids.
+
+Both passes need iterative DFS. With $2 \cdot 10^5$ nodes and $4 \cdot 10^5$ edges, Python should handle it within 1 second... hmm, Python is slow. Time limit is 1 second. That's tight for Python. But typically these problems on judges give Python more time, or we just do our best. Let me write the most efficient version possible.
+
+Actually, let me think about whether there's a simpler structure to exploit. Each clause is $(a \lor b)$ with literals. Hmm, 2-SAT is the general problem; no simpler structure apparent. Wait — actually, let me reconsider. Is it really general 2-SAT? The literals are of the form "$s_i = 1$" or "$s_i = 0$". Clauses are disjunctions of two such literals. Yes, that's exactly general 2-SAT (any 2-SAT instance can be written this way). So we need a full 2-SAT solver.
+
+Hmm wait, but actually let me double-check the problem statement interpretation once more. "An assessment with parameters $l_1$ and $l_2$ is considered stable if the sum of the calibration errors of its two parameters is at most 1: $E(l_1) + E(l_2) \le 1$."
+
+$E(v) \in \{0, 1\}$ always (since $s, t \in \{0,1\}$). So $E(l_1) + E(l_2) \le 1$ means not both are 1. Yes, so at least one parameter has error 0, i.e., at least one literal satisfied. Confirmed: 2-SAT clause $(l_1 \lor l_2)$.
+
+Example 2: $n=1$, assessments "1 1" and "-1 -1". Clause 1: $(x_1 \lor x_1)$ → $x_1$. Clause 2: $(\neg x_1 \lor \neg x_1)$ → $\neg x_1$. Contradiction → NO. Matches.
+
+Example 1: clauses $(x_1 \lor x_2)$ and $(\neg x_1 \lor \neg x_2)$. Satisfiable, e.g., $x_1 = 1, x_2 = 0$. Matches.
+
+Great. Now implementation.
+
+Plan:
+- Read input fast: `sys.stdin.buffer.read().split()`.
+- Build adjacency list for implication graph with $2n$ nodes. Use arrays. For performance, build edge lists as flat arrays: `head`/`next` linked list style, or CSR (compressed sparse row) format.
+
+CSR approach: 
+- Collect all edges as pairs (u, v). There are $2m$ edges.
+- Count out-degrees, compute prefix sums, fill in neighbors array.
+
+This is efficient in Python if done with lists and careful loops. $2m = 4 \cdot 10^5$ edges — fine.
+
+Then Tarjan iterative or Kosaraju iterative.
+
+Let me think about which is faster in Python. Kosaraju requires building the reverse graph too (another CSR) and two full DFS passes. Tarjan requires one pass but with more bookkeeping (lowlink, stack). 
+
+Alternative: Since we need SCC + topological order of condensation, another approach for 2-SAT specifically: 
+
+Actually, there's a well-known simpler approach for 2-SAT: compute SCCs; assignment: $x_i = $ true iff comp[$x_i$] > comp[$\neg x_i$] where comp ids are in reverse topological order (Tarjan order). With Kosaraju, comp ids in second pass are in topological order (source first), so $x_i$ true iff comp[$x_i$] < comp[$\neg x_i$].
+
+Let me write iterative Tarjan carefully. Actually, let me consider a cleaner alternative: iterative DFS with explicit stack, computing finish order, then process reversed graph.
+
+Hmm, actually there's an even simpler approach avoiding full SCC: For 2-SAT, we can compute the topological order via... no, we need SCC to detect contradictions and to get proper ordering.
+
+Let me just write Kosaraju with iterative DFS. Actually, one pass to get finishing times can be done more cleverly: we can compute the "order" array using a simple iterative DFS. But actually, for the first pass of Kosaraju, we don't even need a full DFS — any order works? No, we need reverse finishing order of a DFS on the original graph.
+
+Hmm, alternatively: iterative Tarjan. Let me write it.
+
+Actually, let me think about a potentially faster approach in Python: use recursion-free algorithms with arrays and avoid function call overhead. Let me write iterative Tarjan:
+
+```python
+def tarjan_scc(n_nodes, adj):  # adj: CSR
+    # returns comp array, number of components
+    ...
+```
+
+Iterative Tarjan pseudocode:
+
+```
+index = 0
+stack = []  # tarjan stack
+on_stack = [False] * N
+indices = [-1] * N
+low = [0] * N
+comp = [-1] * N
+comp_cnt = 0
+
+for root in range(N):
+    if indices[root] != -1: continue
+    # iterative DFS
+    work = [(root, 0)]  # (node, edge pointer)
+    ...
+```
+
+Standard iterative Tarjan:
+
+```python
+def strongconnect(v):
+    indices[v] = low[v] = index; index += 1
+    stack.append(v); on_stack[v] = True
+    for w in adj[v]:
+        if indices[w] == -1:
+            strongconnect(w)
+            low[v] = min(low[v], low[w])
+        elif on_stack[w]:
+            low[v] = min(low[v], indices[w])
+    if low[v] == indices[v]:
+        start SCC: pop stack until v
+```
+
+Iterative version with explicit call stack:
+
+```python
+index_counter = 0
+for root in range(N):
+    if indices[root] != -1: continue
+    dfs_stack = [(root, iter_start)]  # we need to track position in adjacency
+    ...
+```
+
+Using CSR, adjacency of v is adj_list[start[v]:start[v+1]]. We track pointer into this range.
+
+```python
+N = 2*n
+# CSR: starts (N+1 array), adj_flat (E array)
+indices = [-1]*N
+low = [0]*N
+on_stack = bytearray(N)
+comp = [-1]*N
+comp_cnt = 0
+idx = 0
+tstack = []  # tarjan node stack
+
+for root in range(N):
+    if indices[root] != -1:
+        continue
+    # each frame: [node, ptr]
+    node_stack = [root]
+    ptr_stack = [starts[root]]
+    indices[root] = low[root] = idx; idx += 1
+    tstack.append(root); on_stack[root] = 1
+    while node_stack:
+        v = node_stack[-1]
+        p = ptr_stack[-1]
+        end = starts[v+1]
+        advanced = False
+        while p < end:
+            w = adj_flat[p]
+            p += 1
+            if indices[w] == -1:
+                # push w
+                ptr_stack[-1] = p
+                indices[w] = low[w] = idx; idx += 1
+                tstack.append(w); on_stack[w] = 1
+                node_stack.append(w)
+                ptr_stack.append(starts[w])
+                advanced = True
+                break
+            elif on_stack[w]:
+                if indices[w] < low[v]:
+                    low[v] = indices[w]
+        if advanced:
+            continue
+        # done with v
+        ptr_stack.pop()
+        node_stack.pop()
+        # v is root of SCC?
+        if low[v] == indices[v]:
+            # pop SCC
+            while True:
+                w = tstack.pop()
+                on_stack[w] = 0
+                comp[w] = comp_cnt
+                if w == v: break
+            comp_cnt += 1
+        if node_stack:
+            u = node_stack[-1]
+            if low[v] < low[u]:
+                low[u] = low[v]
+```
+
+Wait, there's a subtle bug: when we resume a node after returning from a child, we need to update low[v] with low[child]. In the loop above, after popping v, we update parent's low with low[v]. That's correct.
+
+But there's an issue with the inner while loop: when we resume node v (after child returns), p = ptr_stack[-1] points to the next edge. We continue scanning. When we encounter w with indices[w] != -1 and on_stack[w], we update low[v] with indices[w]. Correct.
+
+Hmm, but one issue: `low[v]` — when we do `if indices[w] < low[v]: low[v] = indices[w]`, that's the min. Fine.
+
+Also, after the child w returns, we do `if low[v] < low[u]` where u is parent... wait I wrote it as: after popping v, `u = node_stack[-1]`, update `low[u] = min(low[u], low[v])`. Correct.
+
+But wait — there's a subtle issue: when we push child w and break out of the edge loop, we set `ptr_stack[-1] = p` where p is the position after w. Good, so when we resume v, we continue from the next edge.
+
+Edge case: when `advanced` is False and we've processed all edges, we pop v. But note: we should only pop v and check SCC root condition once. The code does that.
+
+Hmm, but there's a subtle issue: the `while p < end` loop with `advanced` flag — when we don't advance (all remaining edges point to visited nodes), we fall through to popping. Good.
+
+Let me also double check the SCC pop: `while True: w = tstack.pop(); on_stack[w] = 0; comp[w] = comp_cnt; if w == v: break`. Correct.
+
+Tarjan comp ids: assigned in order of completion. The first completed SCC is a sink of the condensation. So comp ids are in reverse topological order: comp id 0 = sink (last in topological order), larger comp id = earlier in topological order.
+
+2-SAT assignment rule: $x$ is true iff comp[$x$] > comp[$\neg x$] (since larger comp id = earlier in topo order = "stronger"). Let me verify: The rule is $x$ = true iff $x$'s SCC is later than $\neg x$'s SCC in topological order? Or earlier?
+
+Standard: In the implication graph, if $\neg x$ can reach $x$... hmm. The rule from literature (Aspvall, Plass, Tarjan): assign $x$ = true if the SCC containing $x$ comes after the SCC containing $\neg x$ in the topological order of the condensation. Wait, I need to double check.
+
+The standard rule: $x$ is true iff comp($x$) appears later than comp($\neg x$) in topological order. Hmm, let me think about why. 
+
+The idea: if $x$'s component is after $\neg x$'s component in topological order, then there might be a path $\neg x \to \dots \to x$ but not $x \to \dots \to \neg x$ (if both, same SCC, unsatisfiable). Setting $x$ = true: we need consistency: any implication $a \to b$ with $a$ true requires $b$ true. The standard proof shows that assigning "true" to literals in components later in topological order is consistent.
+
+Actually the standard statement: "the variable is true if and only if the SCC of its positive literal is later in topological order than the SCC of its negative literal" — hmm, I've seen both formulations depending on convention. Let me just verify with a simple example.
+
+Example: clause $(x_1)$ alone, i.e., unit clause. In 2-SAT via implication: $(x_1 \lor x_1)$ gives edges $\neg x_1 \to x_1$ (twice). Graph: node 1 ($\neg x_1$) → node 0 ($x_1$). SCCs: {0}, {1}. Topological order: 1 then 0 (since edge 1→0). So $x_1$'s SCC (node 0) is after $\neg x_1$'s SCC (node 1) in topo order. And $x_1$ must be true. So rule: $x$ true iff comp[$x$] later in topo order. 
+
+With Tarjan numbering (reverse topo order: sink first): comp[{0}] — node 0 is a sink, found first, comp id 0. Node 1: comp id 1. So $x$ true iff Tarjan_comp[$x$] < Tarjan_comp[$\neg x$]. Hmm wait: node 0 ($x_1$) has comp 0, node 1 ($\neg x_1$) has comp 1. $x_1$ is true. So rule with Tarjan ids: $x$ true iff comp[$x$] < comp[$\neg x$].
+
+Hmm, let me double-check with the earlier example (Example 1). Graph: 0→3, 1→2, 2→1, 3→0. SCCs: A={0,3}, B={1,2}. Tarjan from root 0: DFS 0 → 3 → 0 (visited, on stack, low[3] = indices[0] = 0). Then 3 done: low[3]=0=indices[3]? indices[3] = 1, low[3] = 0 ≠ 1, so not root. Pop back to 0: low[0] = min(0, low[3]=0) = 0 = indices[0], so 0 is root. Pop SCC: stack is [0, 3], pop 3, pop 0 → comp A gets id 0: comp[0]=comp[3]=0. Then root 1: DFS 1 → 2 → 1 (on stack, low[2] = indices[1] = 1). 2 done: low[2]=1=indices[2]? indices[2]=2, low[2]=1≠2, not root. Back to 1: low[1] = min(1, low[2]=1) = 1 = indices[1], root. Pop SCC: comp[1]=comp[2]=1.
+
+So comp[$x_1$] = comp[0] = 0, comp[$\neg x_1$] = comp[1] = 1. Rule "x true iff comp[x] < comp[¬x]": 0 < 1 → $x_1$ = true. comp[$x_2$] = comp[2] = 1, comp[$\neg x_2$] = comp[3] = 0. 1 < 0 false → $x_2$ = false. Assignment: $s_1 = 1, s_2 = 0$. Matches expected output "1 0". 
+
+So with Tarjan comp ids (assigned in completion order, which is reverse topological): $x_i$ true iff comp[2i] < comp[2i+1].
+
+Let me double check this rule's correctness in general. Tarjan assigns ids in reverse topological order: if there's an edge from component C1 to component C2 in the condensation (C1 → C2), then C2 completes before C1, so id(C2) < id(C1). Topological order: C1 before C2. So smaller Tarjan id = later in topological order. Rule: $x$ true iff comp[$x$] is later in topo order than comp[$\neg x$] iff id(comp[$x$]) < id(comp[$\neg x$]). Yes consistent with the examples.
+
+Alternatively, to be safe, I could verify the assignment at the end... but that costs time. The rule is standard; I'm confident.
+
+Actually, let me re-derive the standard rule to be 100% sure. From Aspvall–Plass–Tarjan: "x_i is true if and only if the strongly connected component containing x_i precedes the strongly connected component containing ¬x_i in the topological order." Hmm, I recall it as: the literal whose component comes later in topological order is set to true. Let me think from first principles.
+
+Implication graph: literal nodes. Clause $(a \lor b)$: $\neg a \to b$, $\neg b \to a$. Assignment must satisfy: for every edge $u \to v$, if $u$ is true then $v$ must be true (contrapositive of the clause). 
+
+Claim: assign literal $u$ = true iff comp($u$) is later in topological order than comp($\neg u$)... Let's check consistency: suppose edge $u \to v$, $u$ true. Need $v$ true. Suppose for contradiction $v$ false, i.e., $\neg v$ true, i.e., comp($\neg v$) later than comp($v$). Edge $u \to v$ means comp($u$) ≤ comp($v$) in topo order (edge goes forward or same component). $u$ true: comp($u$) later than comp($\neg u$). Hmm, also note: for any literal $w$, there's an edge $w \to \neg w$? No! There's no such edge in general. There's an edge $\neg a \to b$ for clause $(a \lor b)$. Hmm, but there IS a symmetry: the implication graph for 2-SAT is skew-symmetric: edge $u \to v$ exists iff edge $\neg v \to \neg u$ exists. So comp($\neg u$) relates to comp($u$): the condensation is also skew-symmetric.
+
+Key fact: comp($u$) and comp($\neg u$) are "mirrored": if comp($u$) → comp($v$) edge exists, then comp($\neg v$) → comp($\neg u$) edge exists.
+
+Now, suppose $u$ true and $u \to v$ edge. comp($u$) ≤ comp($v$) (topo). $u$ true means comp($\neg u$) < comp($u$) (topo, strictly since different components). Mirror: edge $\neg v \to \neg u$ exists, so comp($\neg v$) ≤ comp($\neg u$) < comp($u$) ≤ comp($v$). So comp($\neg v$) < comp($v$) in topo order, which means $v$ is true by our rule. Consistent. 
+
+And the rule "true iff comp later in topo order": with Tarjan ids (reverse topo), true iff Tarjan_id smaller. Confirmed: $s_i = 1$ iff comp[2i] < comp[2i+1].
+
+Wait, I should double check: "later in topological order" — topological order lists components such that all edges go from earlier to later. A component "later" means closer to sinks. In my unit clause example: edge $\neg x \to x$. Topo order: {$\neg x$} then {$x$}. $x$'s component is later. $x$ = true. ✓.
+
+OK so now, implementation details for performance:
+
+1. Parsing: `data = sys.stdin.buffer.read().split()`. $n, m$ then $2m$ integers. Total tokens ~ $2 + 4 \cdot 10^5$. Fine.
+
+2. Building edges: for each assessment $(l_1, l_2)$:
+   - Node for literal $v$: `u = (abs(v)-1)*2 + (0 if v>0 else 1)`. Negation: `u ^ 1`.
+   - Edge neg(l1) → l2, edge neg(l2) → l1.
+
+   To compute node indices fast: for token values as ints. `abs(v)` — we can avoid abs: for v > 0: node = 2*v - 2; for v < 0: node = -2*v - 1 (since (|v|-1)*2+1 = -2v-1). 
+
+   Let me define a function inline in the loop. With m up to 2e5, a Python loop of 2e5 iterations with simple arithmetic is fine (~0.1-0.2s).
+
+3. CSR construction: 
+   - `deg = [0]*(2n)`; for each edge (u,v): deg[u] += 1.
+   - starts via prefix sum.
+   - Fill flat adjacency array.
+
+   Two loops over 4e5 edges. Fine.
+
+   Actually, alternative: build adjacency as list of lists. With 2e5 nodes and 4e5 edges, list of lists append is also OK but CSR with flat arrays is usually faster for the DFS.
+
+   Hmm, actually, let me think about the overall time budget. Time limit 1s (probably for C++; Python often gets 3x or the judge just runs it). We should aim for the fastest reasonable Python. Let me consider using arrays (list) and minimizing overhead.
+
+   One approach: avoid building explicit CSR and instead sort edges. Or use the standard trick: 
+
+   For Tarjan, we need adjacency. Let me build CSR:
+   
+   ```python
+   # edges stored in two flat lists eu, ev (or one interleaved)
+   ```
+
+   Actually, let me collect edges first as we parse:
+   
+   ```python
+   m = int(data[1])
+   # tokens: data[2:2+2*m]
+   ```
+   
+   For each pair (a, b):
+   - na = node(a), nb = node(b)
+   - edge (na^1, nb), edge (nb^1, na)
+   
+   Store in flat arrays: `E = [0]*(2*m*2)`? Or two lists `eu`, `ev` each of length 2m.
+
+   Then CSR: 
+   ```python
+   N = 2*n
+   deg = [0]*N
+   for u in eu: deg[u] += 1
+   # prefix
+   start = [0]*(N+1)
+   s = 0
+   for i in range(N): start[i] = s; s += deg[i]
+   start[N] = s
+   adj = [0]*(2*m)
+   pos = start[:] # copy of start[0:N]
+   for i in range(2*m):
+       u = eu[i]; adj[pos[u]] = ev[i]; pos[u] += 1
+   ```
+   
+   These loops: 4e5 each. OK.
+
+   Actually, a faster way to build CSR in Python: use counting with the edge list sorted. Hmm, `sorted` by u then fill... Sorting 4e5 pairs takes ~0.5s maybe. The manual loop is probably comparable. Let me just do the manual loops but optimize.
+
+   Alternative: use collections.Counter? No.
+
+   Another approach: since we do Tarjan anyway, maybe use adjacency as list of lists:
+   ```python
+   adj = [[] for _ in range(N)]
+   for i in range(m):
+       ...
+       adj[na^1].append(nb)
+       adj[nb^1].append(na)
+   ```
+   Then in Tarjan, `for w in adj[v]`. List of lists with 2e5 lists — memory OK (each empty list ~56 bytes → 2e5*56 = 11MB, plus append overhead). CSR flat arrays are more memory-efficient and the DFS inner loop `adj_flat[p]` with p from start[v] to start[v+1] is fast.
+
+   Hmm, but with CSR, the inner loop in Tarjan does index arithmetic. With list-of-lists, we can iterate `for w in adj[v]` but we need resumable iteration (since iterative). With CSR, resumption is natural via pointer p.
+
+   Let me go with CSR.
+
+4. Tarjan iterative as sketched. The main cost: total edge scans 4e5, each with a few operations. Plus node operations 2e5. Should run in maybe 1-2 seconds in CPython... Hmm, that might be too slow for a 1s limit. Let me think about optimizations.
+
+   Actually, let me reconsider: maybe there's a way to reduce constant factors.
+
+   Alternative: Kosaraju. Pass 1: iterative DFS computing finish order. Pass 2: iterative DFS on reversed graph. Total: 2 DFS passes over 4e5 edges each = 8e5 edge operations, plus building reverse CSR. Probably slower than Tarjan overall.
+
+   Another idea: use sys.setrecursionlimit and recursive Tarjan? Recursion depth up to 2e5 — Python default recursion limit 1000; setting to 300000 might work but each frame is heavy and there's risk of stack overflow at C level (Python's C stack). With 2e5 depth, CPython typically crashes (segfault) around ~10k-40k frames depending on frame size... Actually with default thread stack (8MB on Linux), each Python frame uses maybe ~100 bytes of C stack? Actually CPython 3.11+ doesn't consume C stack for pure Python calls in many cases (it has its own "data stack")... In CPython 3.11, pure Python-to-Python calls don't recurse into the C stack (they're inlined in the eval loop). So recursion depth 2e5 might be fine on 3.11+. But the judge's Python version is unknown. Safer to go iterative.
+
+   Let me write a highly optimized iterative Tarjan.
+
+   Actually, wait. Let me reconsider the problem size: n ≤ 1e5, m ≤ 2e5. Nodes 2e5, edges 4e5. In Python, a well-optimized iterative Tarjan handles this in roughly 1.5–3 seconds. Hmm. With a 1s limit... Many judges (like Codeforces) give Python solutions extended limits or we just hope. Since this is a "solve in Python" task, I'll aim for the fastest practical implementation.
+
+   Optimization ideas:
+   - Use arrays from `array` module? Lists of ints are fine; array('i') might be slower for element access due to boxing. Lists are usually faster for random access in pure Python.
+   - Minimize attribute lookups and function calls; inline everything in one function (local variable access is faster).
+   - Use `while` loops with manual index management.
+
+   Let me write the whole solver in one function `main()` with local variables.
+
+Let me now write the code:
+
+```python
+import sys
+
+def main():
+    data = sys.stdin.buffer.read().split()
+    n = int(data[0]); m = int(data[1])
+    N = 2 * n
+    # parse edges
+    # tokens: data[2 + 2*i], data[2 + 2*i + 1]
+    # We'll build CSR directly.
+    
+    # First pass: compute node for each literal and out-degrees.
+    # Edge list: for assessment (a, b): edges (na^1 -> nb) and (nb^1 -> na)
+    
+    # Let's compute all literal nodes first into a list `lit` of length 2m,
+    # where lit[2i] = node(l1 of assessment i), lit[2i+1] = node(l2).
+    # Then edges: (lit[2i]^1 -> lit[2i+1]) and (lit[2i+1]^1 -> lit[2i]).
+    
+    vals = data[2:2 + 2*m]
+    # convert to ints
+    # lit computation:
+    # for v > 0: node = 2v - 2
+    # for v < 0: node = -2v - 1
+    
+    M2 = 2 * m
+    lit = [0] * M2
+    deg = [0] * N
+    idx = 0
+    for tok in vals:
+        v = int(tok)
+        if v > 0:
+            u = 2*v - 2
+        else:
+            u = -2*v - 1
+        lit[idx] = u
+        idx += 1
+    # degrees: for each assessment i: u = lit[2i], w = lit[2i+1]
+    #   edge (u^1 -> w): deg[u^1] += 1
+    #   edge (w^1 -> u): deg[w^1] += 1
+    for i in range(0, M2, 2):
+        u = lit[i]; w = lit[i+1]
+        deg[u ^ 1] += 1
+        deg[w ^ 1] += 1
+    ...
+```
+
+Hmm, this is getting complicated with multiple passes. Let me simplify: single loop over assessments, computing nodes and degrees, storing edges in flat arrays eu, ev.
+
+```python
+    eu = [0]*M2
+    ev = [0]*M2
+    deg = [0]*N
+    p = 2
+    j = 0
+    for i in range(m):
+        a = int(data[p]); b = int(data[p+1]); p += 2
+        if a > 0: na = 2*a-2
+        else: na = -2*a-1
+        if b > 0: nb = 2*b-2
+        else: nb = -2*b-1
+        u = na ^ 1; w = nb ^ 1
+        eu[j] = u; ev[j] = nb; j += 1
+        eu[j] = w; ev[j] = na; j += 1
+        deg[u] += 1
+        deg[w] += 1
+```
+
+Then CSR:
+
+```python
+    start = [0]*(N+1)
+    s = 0
+    for i in range(N):
+        start[i] = s
+        s += deg[i]
+    start[N] = s
+    # fill
+    pos = start[:N]  # wait, need pos per node; pos = list(start[0:N])
+    # Actually copy: pos = start[:] then use pos[u]... but start has N+1 entries; fine, use pos = start[:N]... hmm start[:N] gives first N entries. But we need pos[u] for u in [0,N). OK.
+    adjf = [0]*M2
+    for i in range(M2):
+        u = eu[i]
+        q = pos[u]
+        adjf[q] = ev[i]
+        pos[u] = q + 1
+```
+
+Then Tarjan. Let me write it carefully:
+
+```python
+    # Tarjan iterative
+    indices = [-1]*N
+    low = [0]*N
+    on_stk = bytearray(N)
+    comp = [0]*N
+    comp_cnt = 0
+    tstack = []  # node stack
+    # dfs stacks
+    nstack = []  # nodes
+    pstack = []  # pointers into adjf via start
+    idx_counter = 0
+    
+    for root in range(N):
+        if indices[root] != -1:
+            continue
+        nstack.append(root)
+        pstack.append(start[root])
+        indices[root] = idx_counter
+        low[root] = idx_counter
+        idx_counter += 1
+        tstack.append(root)
+        on_stk[root] = 1
+        while nstack:
+            v = nstack[-1]
+            p = pstack[-1]
+            end = start[v+1]
+            # find next unvisited or process
+            advanced = False
+            while p < end:
+                w = adjf[p]
+                p += 1
+                iw = indices[w]
+                if iw == -1:
+                    pstack[-1] = p
+                    indices[w] = idx_counter
+                    low[w] = idx_counter
+                    idx_counter += 1
+                    tstack.append(w)
+                    on_stk[w] = 1
+                    nstack.append(w)
+                    pstack.append(start[w])
+                    advanced = True
+                    break
+                elif on_stk[w]:
+                    if iw < low[v]:
+                        low[v] = iw
+            if advanced:
+                continue
+            # v finished
+            nstack.pop()
+            pstack.pop()
+            lv = low[v]
+            if lv == indices[v]:
+                # root: pop SCC
+                while True:
+                    w = tstack.pop()
+                    on_stk[w] = 0
+                    comp[w] = comp_cnt
+                    if w == v:
+                        break
+                comp_cnt += 1
+            if nstack:
+                u = nstack[-1]
+                if lv < low[u]:
+                    low[u] = lv
+```
+
+Wait, there's a subtle issue: when we resume node v after a child returns, `p = pstack[-1]` — correct, we saved the advanced pointer. But note: in the inner while loop, when we scan edges and update low[v] via on-stack check, we don't save p back to pstack[-1] unless we advance. That's fine because if we don't advance, we finish v and pop pstack anyway.
+
+Hmm wait, but there's a bug: in the inner loop, `p` is a local variable; `pstack[-1]` is only updated when we push a child. If we scan some edges (updating low via on_stk) and then push a child, we save p (position after the child edge). Good. If we scan all edges without pushing, we finish v. Good.
+
+But actually there's still a subtle issue: after the inner while loop ends without advancing (p == end), we pop v. But we haven't updated pstack[-1] — doesn't matter since we pop it.
+
+Another subtle point: `low[v]` updates from on-stack edges use `indices[w]` (correct per Tarjan: low[v] = min(low[v], indices[w]) for back/cross edges to on-stack nodes). ✓.
+
+And after child w completes, parent's low updated with low[w]. ✓ (done at the end: `if lv < low[u]: low[u] = lv`).
+
+Hmm wait, but there's an ordering issue: when child w is popped and it's an SCC root, we still propagate low[w] to parent? In Tarjan, after recursive call strongconnect(w), we do low[v] = min(low[v], low[w]) regardless of whether w became an SCC root. Yes — in standard Tarjan, the update happens unconditionally after the recursive call. And low[w] at that point is final. If w was a root, low[w] = indices[w], and propagating that to parent is harmless (indices[w] > indices[v] so min doesn't change... wait, indices[w] > indices[v] since w was discovered after v; low[v] ≤ indices[v] < indices[w], so min(low[v], low[w]) = low[v]. Harmless.) ✓.
+
+Now the assignment:
+
+```python
+    # check satisfiability
+    res = [0]*n
+    for i in range(n):
+        c1 = comp[2*i]; c0 = comp[2*i+1]
+        if c1 == c0:
+            print("NO")
+            return
+        res[i] = 1 if c1 < c0 else 0
+    print("YES")
+    sys.stdout.write(" ".join(map(str, res)) + "\n")
+```
+
+Wait — but checking all i and printing NO if any conflict: we must check all before printing YES. The loop above prints NO inside — fine, returns immediately.
+
+Hmm, but wait: is the rule $s_i = 1$ iff comp[$x_i$] < comp[$\neg x_i$] (Tarjan ids)? Verified with examples above. Let me re-verify with unit clause: clause $(x_1 \lor x_1)$: edges $\neg x_1 \to x_1$ twice. Nodes: 0 = $x_1$, 1 = $\neg x_1$. Edges: 1→0 (twice). Tarjan from root 0: node 0, no out-edges (deg 0), low=indices=0, root, SCC {0}, comp[0]=0. Then root 1: edges to 0 (visited, on_stk[0]? No — 0 was popped from tstack, on_stk[0]=0). So low[1] stays indices[1]=1, root, SCC {1}, comp[1]=1. Assignment: comp[0]=0 < comp[1]=1 → $x_1$ = 1. ✓ (unit clause $x_1$ requires true).
+
+Another check: clause $(\neg x_1 \lor \neg x_1)$: edges $x_1 \to \neg x_1$: 0→1 twice. Tarjan root 0: DFS 0 → 1. 1 has no out-edges, root, comp[1] = 0. Then back to 0: low[0] = min(0, low[1]=1) = 0 = indices[0], root, comp[0] = 1. Assignment: comp[0]=1, comp[1]=0: c1 < c0? 1 < 0 false → $x_1 = 0$. ✓.
+
+Great, rule confirmed: $s_i = 1$ iff comp[2i] < comp[2i+1].
+
+Now, performance considerations. Let me count operations:
+
+Parsing: 4e5 int conversions. `int()` on bytes — fine. Actually, we can use `map(int, data)` once: `data = sys.stdin.buffer.read().split()` then convert all at once: `nums = list(map(int, data))`. That's fast (C-level).
+
+Let me restructure: 
+
+```python
+nums = sys.stdin.buffer.read().split()
+n = int(nums[0]); m = int(nums[1])
+```
+
+Then loop over assessments. Converting tokens one at a time with int() in the loop: 4e5 int() calls ~ 0.05-0.1s. Or convert all: `nums = list(map(int, sys.stdin.buffer.read().split()))` — one pass, fast.
+
+Edge building loop: m iterations (2e5), each with ~15 operations. ~0.2-0.3s.
+
+Degree counting: included in edge loop.
+
+CSR fill: 4e5 iterations, ~5 ops each: ~0.2s.
+
+Tarjan: nodes 2e5, edges 4e5. Inner loop per edge: ~8-10 ops. Plus per-node overhead. ~0.5-1s.
+
+Total: maybe 1-2s in CPython. Hmm. Tight but let's optimize where possible.
+
+Optimization 1: Combine edge building and degree counting in one loop (already done).
+
+Optimization 2: For the CSR fill, use a different technique: sort edges by source using... Actually there's a classic trick: 
+
+Instead of two passes (deg count, then fill), we can do:
+- Build adjacency as list of lists with append. Appending 4e5 times: `adj[u].append(v)` — this is one method call per edge, ~0.15s. Then in Tarjan, we'd need `adj[v]` lists and iterate with index. List-of-lists iteration: `for w in adj[v]` is fast but resumable iteration needs index tracking: `lst = adj[v]; p = 0; while p < len(lst): w = lst[p]; p += 1; ...`. That's fine too.
+
+Hmm, but list of 2e5 lists has memory overhead ~ 2e5 * 56 bytes = 11MB + list storage. Within 256MB.
+
+Actually, CSR with flat array is more cache-friendly and avoids per-list overhead. The fill loop:
+
+```python
+for i in range(M2):
+    u = eu[i]
+    q = pos[u]
+    adjf[q] = ev[i]
+    pos[u] = q + 1
+```
+
+That's 4 list index reads/writes + arithmetic per edge. ~0.3s for 4e5 edges. Hmm.
+
+Alternative fill trick: use `pos` as a "next free slot" array initialized to start, and do the loop. Same thing.
+
+Alternative: avoid eu/ev intermediate lists by doing two passes over the token array directly:
+- Pass 1: compute degrees (needs node computation per token — 4e5 node computations).
+- Pass 2: fill adjacency (another 4e5 node computations + fill).
+
+That doubles the node computation work. Better to store lit nodes once (4e5 ints in a list) and reuse.
+
+Actually here's a cleaner plan:
+
+```python
+# compute lit array: lit[j] = node of token j (j in 0..2m-1)
+lit = [0]*(2*m)
+j = 0
+for tok in tokens:  # tokens = data[2:]
+    v = int(tok)
+    lit[j] = v+v-2 if v > 0 else -v-v-1
+    j += 1
+```
+
+Hmm, `2*v-2` vs `v+v-2`: same. For negative: `-2*v-1` = `-(v+v)-1`.
+
+Then edges for assessment i (tokens 2i, 2i+1): (lit[2i]^1 → lit[2i+1]) and (lit[2i+1]^1 → lit[2i]).
+
+Degrees: deg[lit[2i]^1] += 1; deg[lit[2i+1]^1] += 1.
+
+Then CSR fill: for i in range(m): u = lit[2i]^1, w = lit[2i+1]^1; place lit[2i+1] at pos[u], lit[2i] at pos[w].
+
+Hmm, we can vectorize the lit computation using map with a lambda? `map(lambda v: ..., tokens)` — lambda call overhead per element, similar to loop. 
+
+Alternative: exploit that node = 2*|v|-2 + (v<0). Hmm.
+
+Trick: for token bytes like b'1', b'-3', etc. int() conversion needed anyway.
+
+Actually, here's a thought: we can compute lit via list comprehension, which is faster than explicit loop:
+
+```python
+lit = [ (v+v-2) if v > 0 else (-v-v-1) for v in map(int, data[2:2+2*m]) ]
+```
+
+List comprehension with condition: ~4e5 iterations, each with int conversion inside map (C speed) and the comprehension doing comparison + arithmetic. Maybe 0.15s. 
+
+Then degrees:
+
+```python
+deg = [0]*N
+for i in range(0, M2, 2):
+    deg[lit[i] ^ 1] += 1
+    deg[lit[i+1] ^ 1] += 1
+```
+
+2e5 iterations, ~8 ops: 0.15s.
+
+Hmm, can we avoid this loop? Alternative: count degrees from the full lit list: each literal node u appears as a source exactly when its negation appears as a literal in some clause. So deg[u] = (number of occurrences of literal u^1 across all tokens). So:
+
+```python
+deg = [0]*N
+for u in lit:
+    deg[u ^ 1] += 1
+```
+
+4e5 iterations, 4 ops each: ~0.2s. Similar. Or use `collections.Counter`? Counter on 4e5 elements is C-speed-ish (it's a Python loop internally in C for lists? Counter uses _count_elements in C). Then deg array construction: `for u, c in cnt.items(): deg[u^1] = c`. Number of distinct literals ≤ 2e5. Hmm, this could be faster:
+
+```python
+from collections import Counter
+cnt = Counter(lit)
+deg = [0]*N
+for u, c in cnt.items():
+    deg[u ^ 1] = c
+```
+
+_count_elements is implemented in C, so counting 4e5 elements is fast (~0.05s). The items loop is over distinct values (≤ 2e5 but typically less). This is probably faster than the pure Python loop. But marginal.
+
+Then prefix sums: 
+
+```python
+start = [0]*(N+1)
+s = 0
+for i in range(N):
+    start[i] = s
+    s += deg[i]
+start[N] = s
+```
+
+2e5 iterations: 0.1s. Could use itertools.accumulate:
+
+```python
+from itertools import accumulate
+start = [0] + list(accumulate(deg))  # start[i] = sum of deg[0..i-1]
+```
+
+accumulate is C-speed. start has length N+1. ✓. That's fast.
+
+Then fill:
+
+```python
+pos = start[:N]  # or list(start) — need mutable copy of first N
+adjf = [0]*M2
+for i in range(0, M2, 2):
+    a = lit[i]; b = lit[i+1]
+    # edge (a^1 -> b)
+    u = a ^ 1
+    q = pos[u]; adjf[q] = b; pos[u] = q+1
+    # edge (b^1 -> a)
+    u = b ^ 1
+    q = pos[u]; adjf[q] = a; pos[u] = q+1
+```
+
+2e5 iterations × ~12 ops: ~0.25s.
+
+Hmm. Alternatively, interleave differently: process edges as flat pairs. Let me think if there's a way to use sorting: create list of (source, target) pairs... sorting 4e5 tuples ~ 1s. No.
+
+What about this trick: build the adjacency using the "pos" array but iterate over a zipped structure:
+
+```python
+it = iter(lit)
+for a, b in zip(it, it):
+    ...
+```
+
+zip with two iterators gives pairs — cleaner and slightly faster than range indexing. 
+
+OK now Tarjan. Let me think about how to make the DFS fast. The main loop structure per node-frame:
+
+Actually, let me reconsider the algorithm choice. There's a neat alternative for 2-SAT that avoids Tarjan: 
+
+**Approach via topological sort on condensation is needed anyway.** Hmm.
+
+Alternative: **Kosaraju with a twist**: Actually, for 2-SAT there's a classic simpler method: compute finish order with iterative DFS (simple, no lowlink), then process nodes in reverse finish order on the *reversed* graph, assigning components. But we need the reversed graph CSR too (another 0.25s to build) and a second DFS pass. Tarjan does it in one pass. I'll stick with Tarjan.
+
+Let me think about the Tarjan inner loop more carefully and optimize:
+
+```python
+while nstack:
+    v = nstack[-1]
+    p = pstack[-1]
+    end = start[v+1]
+    ...
+```
+
+Each iteration of the outer while: we re-read v, p, end. When we push a child, we `continue` and re-read. When we scan multiple edges without pushing, we stay in the inner while. The overhead per edge in the inner loop:
+
+```python
+while p < end:
+    w = adjf[p]
+    p += 1
+    iw = indices[w]
+    if iw == -1:
+        ...push...
+        break
+    elif on_stk[w]:
+        if iw < low[v]:
+            low[v] = iw
+```
+
+Per edge: ~7-10 bytecode-heavy ops. 4e5 edges → maybe 0.4-0.6s. Plus per-node push/pop overhead: 2e5 nodes × ~20 ops = 0.3s. Total Tarjan ~ 0.7-1s. Overall program maybe 1.5-2.5s. Hmm.
+
+Given the constraints (n ≤ 1e5, m ≤ 2e5), and that this is likely from a contest where Python solutions are expected to pass with some slack, I'll optimize as much as reasonable but accept it.
+
+Wait, actually — maybe I should reconsider. Is there any special structure? Let me re-read the problem... "Each assessment provides two non-zero integer parameters l1 and l2." Hmm, this is exactly 2-SAT (this looks like a rephrasing of a classic 2-SAT problem — actually it resembles Codeforces problem "2-SAT" or the classic "Cat and Mouse"... Actually it strongly resembles the problem where clauses are given as pairs (a OR b) with signed literals — e.g., Codeforces 667B? No... It's like the classic problem "Boolean Satisfiability" from some judge, e.g., SWERC or "vulnerability"... The structure with |v| ≤ n and sign indicating polarity is exactly 2-SAT input format (like in the classic problem from "Codeforces 568?" Hmm, it's like problem from Kattis "2sat"?). Anyway, general 2-SAT it is.
+
+Hmm wait, actually, let me reconsider — maybe I'm wrong and it's not full 2-SAT. Let me re-examine: is the clause really a disjunction? $E(l_1) + E(l_2) \le 1$ with each $E \in \{0,1\}$: forbidden is $E(l_1) = E(l_2) = 1$, i.e., both literals violated. So yes: $(l_1 \lor l_2)$. Full 2-SAT. No shortcuts.
+
+OK let me now also think: can we use a smarter SCC approach given the skew-symmetry? There's a known optimization: in 2-SAT implication graphs, the graph is skew-symmetric, and there are algorithms exploiting it, but implementing those in Python won't be simpler.
+
+Alternatively — and this might be a big win — use **numpy** for some parts? SCC is inherently sequential-ish; hard to vectorize. Hmm.
+
+What about using **PyPy-style optimizations in CPython**: e.g., representing the DFS with arrays and avoiding function calls. That's what I'm doing.
+
+Another thought: maybe implement Tarjan's algorithm with the "check-avoid" trick: since we know the graph structure... no.
+
+Let me also consider: maybe use **sys.setrecursionlimit + recursive Tarjan with threading and larger stack**. We can run the recursive Tarjan in a thread with `threading.stack_size(512MB)`? Actually `threading.stack_size()` can be set before starting a thread; then recursive DFS with depth 2e5 might work. Recursive Tarjan in Python: function call overhead per node, but the code is simpler and per-edge work is lower (no explicit stack management). Per edge: `for w in adj[v]: iw = indices[w]; if iw == -1: strongconnect(w); if low[w] < low[v]: low[w]... elif on_stk[w] and iw < low[v]: low[v] = iw`. Recursive calls: 2e5 calls, each with frame creation ~ maybe 1µs → 0.2s, plus edge loop 4e5 × ~6 ops = 0.3s. Total maybe 0.6s. Comparable to iterative, but with recursion depth risk. CPython 3.11+ handles deep pure-Python recursion without C stack overflow... but 3.8-3.10 would segfault around 30k-100k depth even with setrecursionlimit raised. Using a thread with big stack size mitigates: `threading.stack_size(256*1024*1024)` then run in thread. That's a known trick. But it adds complexity and thread overhead is small.
+
+Hmm, but actually the iterative version's overhead isn't that much worse. Let me carefully write the iterative version to be as tight as possible.
+
+Actually, let me reconsider the iterative Tarjan structure to minimize per-node overhead. A common efficient pattern:
+
+```python
+for root in range(N):
+    if indices[root] >= 0: continue
+    # simulate: call stack of (node, iterator index)
+    stack_nodes = [root]
+    stack_ptrs = [start[root]]
+    indices[root] = low[root] = idx; idx += 1
+    tstack.append(root); on_stk[root] = 1
+    while stack_nodes:
+        v = stack_nodes[-1]
+        # try to find next child
+        p = stack_ptrs[-1]
+        end = start[v+1]
+        found = False
+        adj = adjf  # local
+        while p < end:
+            w = adj[p]
+            p += 1
+            if indices[w] < 0:
+                # descend
+                stack_ptrs[-1] = p
+                indices[w] = low[w] = idx; idx += 1
+                tstack.append(w); on_stk[w] = 1
+                stack_nodes.append(w)
+                stack_ptrs.append(start[w])
+                found = True
+                break
+            if on_stk[w] and indices[w] < low[v]:
+                low[v] = indices[w]
+        if found:
+            continue
+        # v done
+        stack_nodes.pop(); stack_ptrs.pop()
+        lv = low[v]
+        if lv == indices[v]:
+            while True:
+                w = tstack.pop()
+                on_stk[w] = 0
+                comp[w] = comp_cnt
+                if w == v: break
+            comp_cnt += 1
+        if stack_nodes:
+            u = stack_nodes[-1]
+            if lv < low[u]:
+                low[u] = lv
+```
+
+Wait, there's a subtle bug: `if on_stk[w] and indices[w] < low[v]` — I combined the elif. But careful: when `indices[w] < 0` we break out (descend). Otherwise indices[w] >= 0. Then check on_stk. Fine.
+
+Hmm, wait, another subtle issue: when we resume v after child w returns, we should NOT re-examine the edge to w (we already advanced p past it). ✓ since pstack saved p after w's edge.
+
+But here's a real subtlety: after returning from child w, the code at the end does `if lv < low[u]: low[u] = lv` where u = parent. ✓.
+
+Another subtlety: the `while p < end` loop — when we resume v, p = stack_ptrs[-1] which is the saved position. ✓.
+
+One more: `low[v]` might be updated by on-stack edges scanned before pushing a child; those updates persist in the low array. ✓.
+
+Now, per-node cost: push (5 ops) + pop (2 ops) + final checks (~6 ops) + outer loop re-reads (~6 ops). Per edge: ~6-8 ops. Let me estimate total bytecodes: nodes 2e5 × ~25 = 5e6; edges 4e5 × ~8 = 3.2e6. Total ~8-10e6 bytecode ops → in CPython ~ 0.5-1.0s (roughly 10-20M simple ops/sec... actually CPython does more like 30-70M simple bytecodes/sec for tight loops with local vars; realistically ~0.3-0.5s). Plus parsing and CSR building ~0.5s. Total ~1-1.5s. Probably acceptable given typical contest Python multipliers (and the problem says 1s but for Python submissions judges usually still accept if it's the intended complexity... well, we can't control that; just be as fast as possible).
+
+Micro-optimizations for Tarjan:
+- Bind `adjf`, `indices`, `low`, `on_stk`, `start`, `tstack`, `stack_nodes`, `stack_ptrs` as locals (they are, inside main()).
+- Use `stack_nodes[-1]` reads — each is a list index op.
+- Alternative: track v and p in local variables, only syncing to stacks when pushing/popping. Let me restructure:
+
+```python
+v = root; p = start[root]; ...
+while True:
+    # scan edges of v from p
+    end = start[v+1]
+    descended = False
+    while p < end:
+        w = adjf[p]; p += 1
+        iw = indices[w]
+        if iw < 0:
+            # save state, descend
+            stack_nodes.append(v); stack_ptrs.append(p)
+            ...init w...
+            v = w; p = start[w]
+            descended = True
+            break
+        if on_stk[w] and iw < low[v]:
+            low[v] = iw
+    if descended: continue
+    # v finished: pop
+    ...
+    if not stack_nodes: break
+    v = stack_nodes.pop(); p = stack_ptrs.pop()
+```
+
+Hmm wait, but when we descend, we push the PARENT's state (v, p) and switch to child. When child finishes, we pop parent's (v, p). This avoids the double-stack top reads. Let me restructure the whole thing:
+
+```python
+for root in range(N):
+    if indices[root] >= 0: continue
+    indices[root] = low[root] = idx; idx += 1
+    tstack.append(root); on_stk[root] = 1
+    v = root
+    p = start[root]
+    sn = []  # saved nodes
+    sp = []  # saved ptrs
+    while True:
+        end = start[v+1]
+        w = -1
+        while p < end:
+            w = adjf[p]; p += 1
+            iw = indices[w]
+            if iw < 0:
+                break
+            if on_stk[w]:
+                if iw < low[v]:
+                    low[v] = iw
+            w = -1  # hmm, need to mark not-found
+        ...
+```
+
+Hmm, this is getting messy with the w flag. Let me use a different control flow: use the `descended` flag approach but keep v, p in locals:
+
+```python
+    v = root
+    p = start[root]
+    while True:
+        descended = False
+        end = start[v + 1]
+        while p < end:
+            w = adjf[p]
+            p += 1
+            iw = indices[w]
+            if iw < 0:
+                # descend into w
+                sn.append(v)
+                sp.append(p)
+                indices[w] = low[w] = idx
+                idx += 1
+                tstack.append(w)
+                on_stk[w] = 1
+                v = w
+                p = start[w]
+                descended = True
+                break
+            elif on_stk[w] and iw < low[v]:
+                low[v] = iw
+        if descended:
+            continue
+        # v is finished
+        lv = low[v]
+        if lv == indices[v]:
+            # pop SCC
+            while True:
+                w = tstack.pop()
+                on_stk[w] = 0
+                comp[w] = comp_cnt
+                if w == v:
+                    break
+            comp_cnt += 1
+        if not sn:
+            break
+        # resume parent
+        child_low = lv
+        v = sn.pop()
+        p = sp.pop()
+        if child_low < low[v]:
+            low[v] = child_low
+```
+
+Wait, there's a bug: when we resume the parent, we need to update parent's low with child's low — but the child here is the node we just finished (v before reassignment). I saved `lv = low[v]` before popping. Then `if child_low < low[v]: low[v] = child_low` where v is now the parent. ✓.
+
+Hmm, but careful: `if lv == indices[v]` check and SCC pop happen BEFORE resuming parent — correct order.
+
+Also note: after resuming parent, the loop continues scanning parent's edges from saved p. ✓.
+
+This structure: per edge ~7 ops; per node: init (6 ops) + finish (~10 ops). Outer while True per node visit-resume: ~3 ops. Looks decent.
+
+Wait, one more check on correctness of the "descend" logic: when we break out of the edge loop to descend, p has already been incremented past w's edge slot. We save that p. ✓. When we later resume v, we continue from the next edge. ✓.
+
+Also the root handling: for each root, we init and run until `sn` empty. ✓.
+
+Edge case: N could be... n ≥ 1 so N ≥ 2. m = 0: no edges; all deg 0; Tarjan trivially assigns each node its own SCC; assignment: comp[2i] vs comp[2i+1] — both singleton SCCs. comp[2i] < comp[2i+1]? Depends on order: root 2i processed before 2i+1, so comp[2i] gets a smaller id → s_i = 1. Fine, any assignment works with m=0.
+
+Now, is the rule definitely comp[2i] < comp[2i+1] → s_i = 1? Verified above with examples. Let me also sanity check a contradiction case: clauses $(x_1)$ and $(\neg x_1)$: edges 1→0 (twice) and 0→1 (twice). SCC {0,1} together: comp[0] == comp[1] → NO. ✓ (Example 2 essentially).
+
+Let me trace Example 2 through my algorithm: n=1, m=2. Assessments: (1,1) and (-1,-1).
+- Assessment 1: a=1, b=1. na = 0, nb = 0. Edges: (na^1 → nb) = (1 → 0), (nb^1 → na) = (1 → 0). So two edges 1→0.
+- Assessment 2: a=-1, b=-1. na = -2*(-1)-1 = 1, nb = 1. Edges: (na^1 → nb) = (0 → 1), (0 → 1). Two edges 0→1.
+
+Graph: 1→0 ×2, 0→1 ×2. Tarjan root 0: indices[0]=0, tstack=[0]. v=0, p=start[0]=0, end=start[1]=2. Edge w=1: indices[1] = -1 → descend: sn=[0], sp=[1], indices[1]=low[1]=1, tstack=[0,1], v=1, p=start[1]=2, end=start[2]=4. Edges: w=0: indices[0]=0 ≥ 0, on_stk[0]=1, 0 < low[1]=1 → low[1]=0. Next edge w=0 again: 0 < 0? No. p=4=end. Finish v=1: lv=0, indices[1]=1, 0≠1, not root. sn not empty: v=0, p=1, child_low=0 < low[0]=0? No (0<0 false). Resume v=0: p=1, end=2. Edge w=adjf[1]=1: indices=1≥0, on_stk=1, 1 < low[0]=0? No. p=2=end. Finish v=0: lv=0=indices[0] → root. Pop SCC: tstack pop 1 (comp[1]=0), pop 0 (comp[0]=0). comp_cnt=1. sn empty → break. Then root 1: already visited.
+
+comp[0] == comp[1] == 0 → NO. ✓.
+
+Example 1: n=2, m=2. Assessments: (1,2): na=0, nb=2. Edges: (1→2), (3→0). (-1,-2): na=1, nb=3. Edges: (0→3), (2→1).
+CSR: node 0: out [3]; node 1: out [2]; node 2: out [1]; node 3: out [0].
+Tarjan root 0: indices[0]=0, tstack=[0]. v=0, p=0, end=1. w=3: unvisited → descend: sn=[0], sp=[1], indices[3]=low[3]=1, tstack=[0,3], v=3, p=start[3]=3, end=4. w=0: visited, on_stk, 0 < low[3]=1 → low[3]=0. p=4=end. Finish v=3: lv=0 ≠ indices[3]=1, not root. Resume v=0, p=1, child_low=0 < low[0]=0? No. v=0: p=1=end=1. Finish v=0: lv=0=indices[0] → root. Pop: comp[3]=0, comp[0]=0. comp_cnt=1. sn empty → break.
+Root 1: indices[1]=2, tstack=[1]. v=1, p=start[1]=1, end=2. w=2: unvisited → descend: sn=[1], sp=[2], indices[2]=low[2]=3, tstack=[1,2], v=2, p=start[2]=2, end=3. w=1: visited, on_stk, 2... wait indices[1]=2 < low[2]=3 → low[2]=2. p=3=end. Finish v=2: lv=2 ≠ indices[2]=3, not root. Resume v=1, p=2, child_low=2 < low[1]=2? No. v=1: p=2=end=2. Finish v=1: lv=2=indices[1] → root. Pop: comp[2]=1, comp[1]=1. comp_cnt=2.
+Assignment: i=0: comp[0]=0 < comp[1]=1 → s_0=1. i=1: comp[

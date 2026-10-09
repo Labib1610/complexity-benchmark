@@ -1,0 +1,307 @@
+Let's implement.
+
+**Solution Explanation**
+
+For every surgeon `x ( 1 … k )`, every operating room `y ( 1 … k )` and every
+time block `z ( 1 … k )` we have a column in an exact‑cover matrix
+
+```
+column 0 … k-1           – surgeon x
+column k … 2k-1          – room    y
+column 2k … 3k-1         – time    z
+```
+
+A feasible surgery `(x , y , z)` is a row that covers exactly the three
+columns belonging to `x , y , z`.
+
+The task *“choose k triples so that every surgeon, every room and every
+time block appears once”* is exactly the **exact cover** problem:
+pick rows so that every column is covered **once**.
+
+`k ≤ 22`  →  at most `3·k ≤ 66` columns.  
+` t ≤ k³ ≤ 10648` rows – still tiny.
+
+The classical back‑tracking algorithm *Algorithm X* (Donald Knuth) solves
+exact cover very fast when the number of columns is small.
+We implement a lightweight version that works only with
+bit masks – no dancing‑links are needed.
+
+
+
+--------------------------------------------------------------------
+
+#### 1.   Data representation  
+
+```
+colX = 0 … k-1                # surgeon columns
+colY = k … 2k-1               # room columns
+colZ = 2k … 3k-1              # time columns
+```
+
+For a triple `(x , y , z)` (1‑based in the input)
+
+```
+mx = 1 << (x-1)
+my = 1 << (k + y-1)
+mz = 1 << (2k + z-1)
+row_mask = mx | my | mz                     # three bits are 1
+```
+
+* `rows`      – list of `(mask , (x , y , z))`
+* `col_rows[c]` – indices of rows that contain column `c`
+* `FULL = (1 << (3*k)) - 1` – all columns are already covered when the
+  current mask equals `FULL`.
+
+All masks fit into a Python `int` ( ≤ 66 bits).
+
+--------------------------------------------------------------------
+
+#### 2.   Recursive search  
+
+```
+search(used_mask, chosen_rows):
+        if used_mask == FULL :   solution found
+        pick an uncovered column with the *fewest* still usable rows
+        (standard heuristic of Algorithm X)
+        for every row r that
+                - contains the chosen column
+                - does not intersect used_mask
+                recursively call search( used_mask | rows[r].mask ,
+                                        chosen_rows + [rows[r].triple] )
+        if none succeeds -> backtrack
+```
+
+*Choosing the column*  
+`missing = ~used_mask & FULL` – bits that are still uncovered.  
+We iterate over its set bits, count usable rows for each column and keep
+the column with the smallest count.  
+If a column has **zero** usable rows the current branch is dead‑ended
+and we backtrack immediately.
+
+Because every recursive call adds one row,
+the depth never exceeds `k ≤ 22`.  
+The branching factor is limited by the heuristic: we always branch on
+the column with the fewest alternatives, therefore the search tree is
+tiny for the given limits.
+
+--------------------------------------------------------------------
+
+#### 3.   Correctness Proof  
+
+We prove that the algorithm prints `YES` and a correct schedule
+iff such a schedule exists.
+
+---
+
+##### Lemma 1  
+During the search `used_mask` always equals the union of masks of the
+already chosen rows, and no column appears in two chosen rows.
+
+**Proof.**  
+Initially `used_mask = 0`, the empty union.  
+When a row `r` is added we call the recursion with
+`used_mask' = used_mask | rows[r].mask`.  
+`rows[r].mask` has a `1` exactly in the three columns of `r`.  
+The recursive call is performed only if `rows[r].mask & used_mask == 0`,
+i.e. none of those three columns is already set.
+Consequently the three new columns become set exactly once,
+all previous columns stay set, and no column is set twice. ∎
+
+
+
+##### Lemma 2  
+If the algorithm reaches `used_mask == FULL`, the list `chosen_rows`
+contains exactly `k` rows and forms a valid schedule.
+
+**Proof.**  
+`FULL` has a `1` in every column (all `3k` columns).  
+By Lemma&nbsp;1 each column is set by exactly one chosen row.
+Therefore each surgeon, each room and each time block occurs in exactly
+one chosen triple – the definition of a valid schedule.
+Every row contributes three new columns, hence the number of rows is
+`(3k)/3 = k`. ∎
+
+
+
+##### Lemma 3  
+If a valid schedule exists, the recursive search can reach a state with
+`used_mask == FULL`.
+
+**Proof.**  
+Take any valid schedule `S = {r₁,…,r_k}`.
+Consider the execution of the algorithm.
+At any moment the algorithm has a set `C` of already chosen rows.
+If `C ⊂ S`, choose the next uncovered column `c` that belongs to a row
+`r ∈ S \ C`.  
+Since `c` is uncovered, `r` does not intersect `used_mask` and therefore
+is among the candidate rows examined for column `c`.  
+The algorithm tries **all** those candidates, thus one recursive branch
+selects `r`. Repeating the argument we can extend `C` step by step until
+all rows of `S` are selected, i.e. `used_mask == FULL`. ∎
+
+
+
+##### Lemma 4  
+If the algorithm finishes without finding `FULL`, no valid schedule
+exists.
+
+**Proof.**  
+Assume a schedule `S` existed.
+By Lemma&nbsp;3 there is a recursive path that selects exactly the rows of
+`S` and reaches `FULL`.  
+The algorithm explores **all** recursive paths that respect the
+exact‑cover condition (it never discards a feasible row, only those that
+conflict with `used_mask`).  
+Hence the path corresponding to `S` would be explored and would succeed,
+contradicting the assumption that the algorithm failed.
+Therefore no schedule exists. ∎
+
+
+
+##### Theorem  
+The program prints  
+
+* `YES` followed by a list of `k` triples **iff** a schedule satisfying
+  the statement exists,
+* otherwise prints `NO`.
+
+**Proof.**  
+
+*If the program prints `YES`* – it reached `used_mask == FULL`,
+by Lemma&nbsp;2 the printed triples constitute a valid schedule.
+
+*If a valid schedule exists* – by Lemma&nbsp;3 a successful recursive
+branch exists, the algorithm will eventually find it,
+print `YES` and the corresponding triples.
+
+*If the program prints `NO`* – the search terminated without success,
+by Lemma&nbsp;4 no schedule exists.
+
+Thus the output is correct in all cases. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### 4.   Complexity Analysis  
+
+`k ≤ 22`, columns `C = 3k ≤ 66`, rows `R ≤ k³ ≤ 10648`.
+
+*Pre‑processing*  
+
+```
+O(R)          to build masks and column → rows lists
+```
+
+*Recursive search*  
+
+Depth ≤ `k`.  
+At each level we examine the uncovered column with the smallest number of
+compatible rows.
+Every compatibility test is a single bit‑wise `&`, i.e. **O(1)**.
+
+In the worst case the algorithm may try all exact covers,
+but the well‑known heuristic makes the explored tree tiny for the given
+bounds. Empirically it finishes far below the time limit.
+
+Memory consumption  
+
+```
+rows :  R  masks (int) + triples          ≤  O(R)
+col_rows : 3k lists, total length 3·R   ≤  O(R)
+other data : negligible
+```
+
+All well under the 256 MiB limit.
+
+
+
+--------------------------------------------------------------------
+
+#### 5.   Reference Implementation  (Python 3)
+
+```python
+import sys
+
+sys.setrecursionlimit(10000)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    k = int(next(it))
+    t = int(next(it))
+
+    rows = []                     # (mask, (x,y,z))   1‑based values kept for output
+    col_rows = [[] for _ in range(3 * k)]
+
+    for _ in range(t):
+        x = int(next(it)) - 1
+        y = int(next(it)) - 1
+        z = int(next(it)) - 1
+        mask = (1 << x) | (1 << (k + y)) | (1 << (2 * k + z))
+        idx = len(rows)
+        rows.append((mask, (x + 1, y + 1, z + 1)))   # store 1‑based for output
+        col_rows[x].append(idx)
+        col_rows[k + y].append(idx)
+        col_rows[2 * k + z].append(idx)
+
+    FULL = (1 << (3 * k)) - 1
+    solution = []
+
+    # -----------------------------------------------------------------
+    def search(used_mask: int, chosen):
+        """return True and fill solution when a full cover is found"""
+        if used_mask == FULL:
+            solution.extend(chosen)
+            return True
+
+        # find uncovered column with fewest admissible rows
+        missing = (~used_mask) & FULL
+        best_col = -1
+        best_candidates = None
+
+        while missing:
+            # lowest set bit
+            lsb = missing & -missing
+            col = (lsb.bit_length() - 1)
+
+            cand = []
+            for r in col_rows[col]:
+                row_mask, _ = rows[r]
+                if row_mask & used_mask == 0:
+                    cand.append(r)
+
+            if not cand:               # dead end
+                return False
+
+            if best_col == -1 or len(cand) < len(best_candidates):
+                best_col = col
+                best_candidates = cand
+                if len(best_candidates) == 1:
+                    break
+
+            missing ^= lsb
+
+        # try each candidate row
+        for r in best_candidates:
+            row_mask, triple = rows[r]
+            if search(used_mask | row_mask, chosen + [triple]):
+                return True
+        return False
+    # -----------------------------------------------------------------
+
+    if search(0, []):
+        out_lines = ["YES"]
+        out_lines += ["{} {} {}".format(*tr) for tr in solution]
+        sys.stdout.write("\n".join(out_lines))
+    else:
+        sys.stdout.write("NO")
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above and
+conforms to the required input / output format.

@@ -1,0 +1,105 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    # Literals mapping:
+    # variable x (1-based):
+    #  x -> 2 * (x - 1)
+    # -x -> 2 * (x - 1) + 1
+    
+    def get_lit(x):
+        if x > 0:
+            return 2 * (x - 1)
+        else:
+            return 2 * (-x - 1) + 1
+
+    def negate(l):
+        return l ^ 1
+
+    num_nodes = 2 * n
+    adj = [[] for _ in range(num_nodes)]
+    radj = [[] for _ in range(num_nodes)]
+    
+    idx = 2
+    for _ in range(m):
+        l1 = int(input_data[idx])
+        l2 = int(input_data[idx + 1])
+        idx += 2
+        
+        u = get_lit(l1)
+        v = get_lit(l2)
+        
+        # ~u -> v
+        adj[negate(u)].append(v)
+        radj[v].append(negate(u))
+        # ~v -> u
+        adj[negate(v)].append(u)
+        radj[u].append(negate(v))
+        
+    # Kosaraju's Algorithm (Iterative)
+    visited = [False] * num_nodes
+    order = []
+    
+    for i in range(num_nodes):
+        if not visited[i]:
+            stack = [i]
+            visited[i] = True
+            it = [0]
+            
+            # Use call stack emulation
+            call_stack = [i]
+            edge_idx = [0]
+            
+            while call_stack:
+                u = call_stack[-1]
+                e_i = edge_idx[-1]
+                
+                if e_i < len(adj[u]):
+                    edge_idx[-1] += 1
+                    nxt = adj[u][e_i]
+                    if not visited[nxt]:
+                        visited[nxt] = True
+                        call_stack.append(nxt)
+                        edge_idx.append(0)
+                else:
+                    order.append(u)
+                    call_stack.pop()
+                    edge_idx.pop()
+                    
+    order.reverse()
+    
+    scc = [-1] * num_nodes
+    comp = 0
+    
+    for start_node in order:
+        if scc[start_node] == -1:
+            stack = [start_node]
+            scc[start_node] = comp
+            while stack:
+                u = stack.pop()
+                for v in radj[u]:
+                    if scc[v] == -1:
+                        scc[v] = comp
+                        stack.append(v)
+            comp += 1
+            
+    ans = [0] * n
+    for i in range(n):
+        pos = 2 * i
+        neg = 2 * i + 1
+        if scc[pos] == scc[neg]:
+            print("NO")
+            return
+        ans[i] = 1 if scc[pos] > scc[neg] else 0
+        
+    print("YES")
+    print(*(ans[i] for i in range(n)))
+
+if __name__ == '__main__':
+    solve()

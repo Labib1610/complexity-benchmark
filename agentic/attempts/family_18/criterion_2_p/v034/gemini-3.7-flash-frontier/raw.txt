@@ -1,0 +1,240 @@
+```python
+import sys
+import time
+import random
+import math
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    B = int(input_data[2])
+    
+    if n == 1:
+        if B >= 0:
+            print("YES")
+            print("1")
+        else:
+            print("NO")
+        return
+
+    adj = [[] for _ in range(n + 1)]
+    idx = 3
+    for _ in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx + 1])
+        adj[u].append(v)
+        adj[v].append(u)
+        idx += 2
+
+    start_time = time.time()
+
+    # Precalculate subtree sizes and tree layouts
+    sz = [0] * (n + 1)
+    
+    def get_sz(u, p):
+        s = 1
+        for v in adj[u]:
+            if v != p:
+                s += get_sz(v, u)
+        sz[u] = s
+        return s
+
+    def build_layout(root):
+        get_sz(root, 0)
+        order = []
+        
+        def layout(u, p, d):
+            children = [v for v in adj[u] if v != p]
+            children.sort(key=lambda c: sz[c])
+            
+            if d == 'center':
+                left_children = []
+                right_children = []
+                left_sz = 0
+                right_sz = 0
+                for c in reversed(children):
+                    if left_sz <= right_sz:
+                        left_children.append(c)
+                        left_sz += sz[c]
+                    else:
+                        right_children.append(c)
+                        right_sz += sz[c]
+                
+                left_children.sort(key=lambda c: sz[c])
+                for c in reversed(left_children):
+                    layout(c, u, 'left')
+                order.append(u)
+                for c in right_children:
+                    layout(c, u, 'right')
+                    
+            elif d == 'right':
+                order.append(u)
+                for c in children:
+                    layout(c, u, 'right')
+            else: # 'left'
+                for c in reversed(children):
+                    layout(c, u, 'left')
+                order.append(u)
+
+        layout(root, 0, 'center')
+        return order
+
+    # Find centroids
+    get_sz(1, 0)
+    centroids = []
+    def find_centroids(u, p):
+        is_centroid = True
+        for v in adj[u]:
+            if v != p:
+                find_centroids(v, u)
+                if sz[v] > n // 2:
+                    is_centroid = False
+        if n - sz[u] > n // 2:
+            is_centroid = False
+        if is_centroid:
+            centroids.append(u)
+
+    find_centroids(1, 0)
+    
+    # Also get diameter endpoints
+    def get_farthest(start):
+        dist = [-1] * (n + 1)
+        dist[start] = 0
+        q = [start]
+        head = 0
+        while head < len(q):
+            u = q[head]
+            head += 1
+            for v in adj[u]:
+                if dist[v] == -1:
+                    dist[v] = dist[u] + 1
+                    q.append(v)
+        farthest = start
+        for i in range(1, n + 1):
+            if dist[i] > dist[farthest]:
+                farthest = i
+        return farthest, dist
+
+    d1, _ = get_farthest(1)
+    d2, _ = get_farthest(d1)
+
+    candidate_roots = list(set(centroids + [d1, d2, 1]))
+    if n <= 100:
+        candidate_roots = list(range(1, n + 1))
+    elif len(candidate_roots) < 15:
+        # Add random nodes
+        extra = list(range(1, n + 1))
+        random.shuffle(extra)
+        for x in extra:
+            if x not in candidate_roots:
+                candidate_roots.append(x)
+            if len(candidate_roots) >= 15:
+                break
+
+    best_cost = float('inf')
+    best_pos = None
+
+    def evaluate(order):
+        pos = [0] * (n + 1)
+        for i, u in enumerate(order):
+            pos[u] = i + 1
+        cost = 0
+        for u in range(1, n + 1):
+            pu = pos[u]
+            for v in adj[u]:
+                if u < v:
+                    cost += abs(pu - pos[v])
+        return cost, pos
+
+    for r in candidate_roots:
+        order = build_layout(r)
+        cost, pos = evaluate(order)
+        if cost < best_cost:
+            best_cost = cost
+            best_pos = pos
+            if best_cost <= B:
+                print("YES")
+                print(*(best_pos[1:]))
+                return
+
+    # Simulated Annealing / Local Search
+    pos = list(best_pos)
+    node_at = [0] * (n + 1)
+    for u in range(1, n + 1):
+        node_at[pos[u]] = u
+
+    current_cost = best_cost
+    T_start = max(1.0, current_cost * 0.1)
+    T_end = 0.01
+    
+    # We have up to 4.0 seconds
+    time_limit = 4.2
+    
+    iter_count = 0
+    while time.time() - start_time < time_limit:
+        iter_count += 1
+        elapsed = (time.time() - start_time) / time_limit
+        T = T_start * ((T_end / T_start) ** elapsed)
+        
+        # Choose two nodes to swap
+        if random.random() < 0.6:
+            # Pick a random edge and try to move endpoints closer
+            u = random.randint(1, n)
+            if not adj[u]:
+                continue
+            v = random.choice(adj[u])
+            # Pick a slot between pos[u] and pos[v] or near pos[v]
+            pu, pv = pos[u], pos[v]
+            if abs(pu - pv) <= 1:
+                continue
+            target_slot = (pu + pv) // 2 + random.randint(-1, 1)
+            target_slot = max(1, min(n, target_slot))
+            s1 = pu
+            s2 = target_slot
+        else:
+            s1 = random.randint(1, n)
+            s2 = random.randint(1, n)
+            
+        if s1 == s2:
+            continue
+            
+        u = node_at[s1]
+        v = node_at[s2]
+        
+        # Delta cost calculation
+        delta = 0
+        for w in adj[u]:
+            if w != v:
+                delta += abs(s2 - pos[w]) - abs(s1 - pos[w])
+        for w in adj[v]:
+            if w != u:
+                delta += abs(s1 - pos[w]) - abs(s2 - pos[w])
+                
+        if delta <= 0 or random.random() < math.exp(-delta / max(T, 1e-6)):
+            pos[u] = s2
+            pos[v] = s1
+            node_at[s1] = v
+            node_at[s2] = u
+            current_cost += delta
+            
+            if current_cost < best_cost:
+                best_cost = current_cost
+                best_pos = list(pos)
+                if best_cost <= B:
+                    print("YES")
+                    print(*(best_pos[1:]))
+                    return
+
+    if best_cost <= B:
+        print("YES")
+        print(*(best_pos[1:]))
+    else:
+        print("NO")
+
+if __name__ == '__main__':
+    solve()
+```

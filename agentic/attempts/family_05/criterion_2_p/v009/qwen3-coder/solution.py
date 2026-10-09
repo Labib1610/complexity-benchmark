@@ -1,0 +1,70 @@
+from collections import defaultdict, deque
+
+def solve():
+    k, t = map(int, input().split())
+    
+    # Since each specialist is qualified on exactly one machine,
+    # and no two specialists share the same machine,
+    # we can think of this as a bipartite matching problem between specialists and time slots.
+    # For each specialist x, we know their machine y_x.
+    # So for each allowed combination (x, y, z), we have a potential assignment of specialist x to time slot z.
+    
+    # Build a graph where edges represent possible assignments of specialists to time slots
+    # Edge from specialist x to time slot z exists if (x, y_x, z) is allowed
+    
+    # First, let's find the machine for each specialist
+    spec_to_machine = {}
+    allowed = []
+    
+    for _ in range(t):
+        x, y, z = map(int, input().split())
+        if x not in spec_to_machine:
+            spec_to_machine[x] = y
+        allowed.append((x, y, z))
+    
+    # Build adjacency list for the bipartite graph
+    # Left side: specialists (1 to k)
+    # Right side: time slots (1 to k)
+    adj = defaultdict(list)
+    
+    for x, y, z in allowed:
+        if spec_to_machine[x] == y:  # This check might be redundant based on problem statement
+            adj[x].append(z)
+    
+    # Now we need to find a maximum matching in this bipartite graph
+    # Use Hopcroft-Karp or a simpler approach like Ford-Fulkerson with DFS
+    
+    match_spec = {}  # Which time slot is matched to each specialist
+    match_time = {}  # Which specialist is matched to each time slot
+    
+    def dfs(u, visited):
+        for v in adj[u]:
+            if v in visited:
+                continue
+            visited.add(v)
+            
+            if v not in match_time or dfs(match_time[v], visited):
+                match_spec[u] = v
+                match_time[v] = u
+                return True
+        return False
+    
+    matching = 0
+    for u in range(1, k+1):
+        if dfs(u, set()):
+            matching += 1
+    
+    if matching < k:
+        print("NO")
+        return
+    
+    print("YES")
+    result = []
+    for x in range(1, k+1):
+        z = match_spec[x]
+        y = spec_to_machine[x]
+        result.append(f"{x} {y} {z}")
+    
+    print('\n'.join(result))
+
+solve()

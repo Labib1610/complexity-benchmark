@@ -1,0 +1,93 @@
+from collections import defaultdict, deque
+
+def solve():
+    q, t = map(int, input().split())
+    
+    # Build adjacency list for bipartite graph
+    # Left side: primary nodes 1 to q
+    # Right side: secondary nodes q+1 to 2q
+    graph = defaultdict(list)
+    edges = []
+    
+    for _ in range(t):
+        a, b = map(int, input().split())
+        graph[a].append(b)
+        edges.append((a, b))
+    
+    # Try to find maximum matching using BFS-based algorithm (Hopcroft-Karp like approach)
+    # But we'll use a simpler approach: try to find augmenting paths
+    
+    # partner[b] = a means secondary node b is matched to primary node a
+    partner = {}
+    # matched[a] = b means primary node a is matched to secondary node b
+    matched = {}
+    
+    def bfs():
+        # Find shortest augmenting paths
+        queue = deque()
+        dist = {}
+        
+        for a in range(1, q + 1):
+            if a not in matched:
+                dist[a] = 0
+                queue.append(a)
+            else:
+                dist[a] = float('inf')
+        dist[None] = float('inf')
+        
+        while queue:
+            a = queue.popleft()
+            if dist[a] < dist[None]:
+                for b in graph[a]:
+                    if b not in partner:
+                        if dist[None] == float('inf'):
+                            dist[None] = dist[a] + 1
+                            # Found an augmenting path
+                            partner[b] = a
+                            pa = a
+                            while pa is not None:
+                                old_b = matched.get(pa)
+                                matched[pa] = b
+                                if old_b is not None:
+                                    b = old_b
+                                    pa = partner.get(b)
+                                else:
+                                    break
+                            return True
+                    else:
+                        pa = partner[b]
+                        if dist[pa] == float('inf'):
+                            dist[pa] = dist[a] + 1
+                            queue.append(pa)
+        return False
+    
+    # Simplified approach: use greedy matching first, then try to improve
+    # Actually, let's implement a proper Hungarian-like algorithm
+    
+    def dfs(a, visited):
+        for b in graph[a]:
+            if b in visited:
+                continue
+            visited.add(b)
+            
+            if b not in partner or dfs(partner[b], visited):
+                partner[b] = a
+                matched[a] = b
+                return True
+        return False
+    
+    # Find maximum matching
+    matching = 0
+    for a in range(1, q + 1):
+        visited = set()
+        if dfs(a, visited):
+            matching += 1
+    
+    if matching == q:
+        print("YES")
+        for a in range(1, q + 1):
+            print(a, matched[a])
+    else:
+        print("NO")
+
+solve()

@@ -12,24 +12,29 @@ for _ in range(m):
     adj[u].append(v)
     adj[v].append(u)
 
-color = [-1] * n  # 0 -> amplitude 1, 1 -> amplitude 2
+color = [-1] * n
+possible = True
 
-for start in range(n):
-    if color[start] != -1:
-        continue
-    color[start] = 0
-    q = deque([start])
-    while q:
-        u = q.popleft()
-        for v in adj[u]:
-            if color[v] == -1:
-                color[v] = 1 - color[u]
-                q.append(v)
-            elif color[v] == color[u]:
-                print("NO")
-                sys.exit()
+for i in range(n):
+    if color[i] == -1:
+        color[i] = 1
+        q = deque([i])
+        while q:
+            u = q.popleft()
+            for v in adj[u]:
+                if color[v] == -1:
+                    color[v] = 3 - color[u]
+                    q.append(v)
+                elif color[v] == color[u]:
+                    possible = False
+                    break
+            if not possible:
+                break
+    if not possible:
+        break
 
-print("YES")
-# Convert colors to 1 and 2
-res = [1 if c == 0 else 2 for c in color]
-print(' '.join(map(str, res)))
+if not possible:
+    print("NO")
+else:
+    print("YES")
+    print(" ".join(str(c) for c in color))

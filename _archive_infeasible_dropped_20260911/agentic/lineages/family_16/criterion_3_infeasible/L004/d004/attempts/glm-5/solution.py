@@ -1,0 +1,53 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    j = int(next(it))
+    T = int(next(it))
+    
+    # Check for isolation witness (JOB)
+    for i in range(1, j + 1):
+        p1 = int(next(it))
+        p2 = int(next(it))
+        # Check if order i alone cannot meet deadline
+        # Earliest completion on WS2 is p1 + p2
+        if p1 + p2 > T:
+            print(f"JOB {i}")
+            return
+    
+    # If no isolation witness, must be relaxation witness (LOAD)
+    # We need to check which workstation has total load > T
+    # Since we already checked all jobs individually pass p1 + p2 <= T,
+    # and the problem guarantees no valid schedule exists,
+    # at least one workstation must have total load > T.
+    
+    # Re-read the data to compute loads
+    # We already consumed the input, so we need to re-process
+    # Actually, we consumed it in the first loop, so we need to re-read
+    # Let's re-read from the beginning
+    data = sys.stdin.read().split()
+    if not data:
+        # This shouldn't happen since we already read once
+        return
+    it = iter(data)
+    j = int(next(it))
+    T = int(next(it))
+    
+    total_p1 = 0
+    total_p2 = 0
+    for _ in range(j):
+        p1 = int(next(it))
+        p2 = int(next(it))
+        total_p1 += p1
+        total_p2 += p2
+    
+    if total_p1 > T:
+        print("LOAD 1")
+    else:
+        print("LOAD 2")
+
+if __name__ == "__main__":
+    solve()

@@ -1,0 +1,118 @@
+import sys
+sys.setrecursionlimit(10000)
+
+def solve():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    try:
+        n = int(next(it))
+        m = int(next(it))
+    except StopIteration:
+        return
+    
+    # Build implications for 2-SAT
+    adj = [[] for _ in range(2 * n)]
+    
+    for _ in range(m):
+        line = []
+        for __ in range(3):
+            try:
+                line.append(int(next(it)))
+            except StopIteration:
+                break
+        
+        # For stabilizer to work, at least one condition must be true
+        # Each condition: (l > 0) means ingredient |l| is Activated (x = True)
+        #                 (l < 0) means ingredient |l| is Dormant (x = False)
+        # Let's encode: variable index v (0-based) for ingredient v+1
+        # x_v = True means Activated, x_v = False means Dormant
+        # Positive l: x_{|l|-1} = True -> index 2*(|l|-1) is "Activated"
+        # Negative l: x_{|l|-1} = False -> index 2*(|l|-1)+1 is "Dormant"
+        
+        # Normalize conditions: each is a literal index in [0, 2n)
+        conds = []
+        for l in line:
+            v = abs(l) - 1
+            if l > 0:
+                lit = 2 * v      # v is Activated
+            else:
+                lit = 2 * v + 1  # v is Dormant
+        
+        # Add implications: (not a) -> b for all pairs a,b in conditions
+        # This encodes: if a is false, b must be true (at least one is true)
+        for i in range(3):
+            a = conds[i]
+            # Not a is the negation
+            na = a ^ 1
+            for j in range(3):
+                if i != j:
+                    b = conds[j]
+                    adj[na].append(b)
+    
+    # Kosaraju's algorithm for SCC
+    order = []
+    visited = [False] * (2 * n)
+    
+    def dfs1(v):
+        stack = [(v, 0)]
+        while stack:
+            u, idx = stack[-1]
+            if not visited[u]:
+                visited[u] = True
+            if idx < len(adj[u]):
+                nxt = adj[u][idx]
+                stack[-1] = (u, idx + 1)
+                if not visited[nxt]:
+                    stack.append((nxt, 0))
+            else:
+                stack.pop()
+                order.append(u)
+    
+    for v in range(2 * n):
+        if not visited[v]:
+            dfs1(v)
+    
+    # Reverse graph
+    radj = [[] for _ in range(2 * n)]
+    for u in range(2 * n):
+        for v in adj[u]:
+            radj[v].append(u)
+    
+    comp = [-1] * (2 * n)
+    cid = 0
+    
+    def dfs2(v, c):
+        stack = [v]
+        comp[v] = c
+        while stack:
+            u = stack.pop()
+            for w in radj[u]:
+                if comp[w] == -1:
+                    comp[w] = c
+                    stack.append(w)
+    
+    for v in reversed(order):
+        if comp[v] == -1:
+            dfs2(v, cid)
+            cid += 1
+    
+    # Check for unsatisfiability
+    for v in range(n):
+        if comp[2*v] == comp[2*v+1]:
+            print("NO")
+            return
+    
+    # Assign values based on topological order (higher comp id = earlier in topo order)
+    assignment = [0] * n
+    for v in range(n):
+        if comp[2*v] > comp[2*v+1]:
+            assignment[v] = 1
+        else:
+            assignment[v] = 0
+    
+    print("YES")
+    print(" ".join(map(str, assignment)))
+
+solve()

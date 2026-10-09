@@ -1,0 +1,72 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    idx = 0
+    n = int(data[idx]); idx += 1
+    m = int(data[idx]); idx += 1
+    t = int(data[idx]); idx += 1
+    
+    primaries = []
+    for _ in range(t):
+        primaries.append(int(data[idx]) - 1)
+        idx += 1
+    
+    INF = float('inf')
+    dist = [[INF] * n for _ in range(n)]
+    for i in range(n):
+        dist[i][i] = 0
+    
+    for _ in range(m):
+        u = int(data[idx]) - 1; idx += 1
+        v = int(data[idx]) - 1; idx += 1
+        w = int(data[idx]); idx += 1
+        if w < dist[u][v]:
+            dist[u][v] = w
+            dist[v][u] = w
+    
+    for k in range(n):
+        dk = dist[k]
+        for i in range(n):
+            di = dist[i]
+            dik = di[k]
+            if dik == INF:
+                continue
+            for j in range(n):
+                nd = dik + dk[j]
+                if nd < di[j]:
+                    di[j] = nd
+    
+    t_count = len(primaries)
+    if t_count <= 1:
+        print(0)
+        return
+    
+    dp = [INF] * (1 << t_count)
+    dp[0] = 0
+    
+    for mask in range(1 << t_count):
+        if dp[mask] == INF:
+            continue
+        for i in range(t_count):
+            if mask & (1 << i):
+                continue
+            new_mask = mask | (1 << i)
+            if dp[new_mask] > dp[mask]:
+                dp[new_mask] = dp[mask]
+            for j in range(t_count):
+                if mask & (1 << j):
+                    continue
+                if i == j:
+                    continue
+                new_mask2 = mask | (1 << i) | (1 << j)
+                cost = dp[mask] + dist[primaries[i]][primaries[j]]
+                if cost < dp[new_mask2]:
+                    dp[new_mask2] = cost
+            break
+    
+    print(dp[(1 << t_count) - 1])
+
+solve()

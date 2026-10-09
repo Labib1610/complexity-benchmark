@@ -1,0 +1,183 @@
+import sys
+from collections import defaultdict
+
+def read_input():
+    n, m = map(int, sys.stdin.readline().split())
+    checks = []
+    for _ in range(m):
+        l1, l2 = map(int, sys.stdin.readline().split())
+        checks.append((l1, l2))
+    return n, m, checks
+
+def get_target_spin(literal):
+    return 1 if literal > 0 else 0
+
+def get_qubit_index(literal):
+    return abs(literal) - 1
+
+def simulate_check(check, spins):
+    l1, l2 = check
+    q1_idx = get_qubit_index(l1)
+    q2_idx = get_qubit_index(l2)
+    target1 = get_target_spin(l1)
+    target2 = get_target_spin(l2)
+    
+    # Initial positions of particles
+    pos = [1, 2, 3]
+    
+    # Step 1: Check first qubit
+    if spins[q1_idx] != target1:
+        pos[0], pos[1] = pos[1], pos[0]
+    
+    # Step 2: Check second qubit
+    if spins[q2_idx] != target2:
+        pos[1], pos[2] = pos[2], pos[1]
+    
+    # Check if at least one particle is in original position
+    return 1 in pos or 2 in pos or 3 in pos
+
+def encode_state(qubit_idx, spin_value):
+    # Encode qubit index and spin value into a single integer for 2-SAT
+    # qubit i (0-indexed) with spin 0 -> variable 2*i
+    # qubit i (0-indexed) with spin 1 -> variable 2*i + 1
+    return 2 * qubit_idx + spin_value
+
+def build_2sat_clauses(n, checks):
+    # For each check, we need to ensure it's stable
+    # A check is stable if at least one particle remains in original position
+    clauses = []
+    
+    for l1, l2 in checks:
+        q1_idx = get_qubit_index(l1)
+        q2_idx = get_qubit_index(l2)
+        target1 = get_target_spin(l1)
+        target2 = get_target_spin(l2)
+        
+        # Let's analyze when a check is unstable:
+        # Particle positions after swaps: initially [1,2,3]
+        # If q1 doesn't match target1: swap positions 1 and 2 -> [2,1,3]
+        # Then if q2 doesn't match target2: swap positions 2 and 3 
+        #   If previous swap happened: swap positions of particles currently at "positions" 2 and 3 (which are 1 and 3) -> [3,1,2]
+        #   If no previous swap: swap particles at positions 2 and 3 -> [1,3,2]
+        
+        # The check is unstable when ALL particles are displaced:
+        # This happens only when the final arrangement has no 1, 2, or 3 in their original positions.
+        # Original positions: pos 1 (particle 1), pos 2 (particle 2), pos 3 (particle 3)
+        # Final positions after swaps:
+        # Case 1: Neither condition -> [1,2,3] -> stable (all in place)
+        # Case 2: Only first condition -> [2,1,3] -> stable (1 and 2 swapped, but in positions, 3 is in place)
+        # Case 3: Only second condition -> [1,3,2] -> stable (2 and 3 swapped, but in positions, 1 is in place)
+        # Case 4: Both conditions -> [3,1,2] -> unstable (1->pos 2, 2->pos 3, 3->pos 1, none in original)
+        
+        # So a check is unstable iff:
+        # (spins[q1] != target1) AND (spins[q2] != target2)
+        # Which is equivalent to:
+        # (spins[q1] == (1-target1)) AND (spins[q2] == (1-target2))
+        
+        # To ensure stability, we need to forbid this case:
+        # NOT( (q1==(1-target1)) AND (q2==(1-target2)) )
+        # Which is: (q1!=1-target1) OR (q2!=1-target2)
+        # Which is: (q1==target1) OR (q2==target2)
+        
+        # In terms of variables for 2-SAT:
+        # Variable for "q1 has spin target1": encode_state(q1_idx, target1)
+        # Variable for "q2 has spin target2": encode_state(q2_idx, target2)
+        # We need clause: (q1==target1) OR (q2==target2)
+        
+        var1 = encode_state(q1_idx, target1)
+        var2 = encode_state(q2_idx, target2)
+        clauses.append((var1, var2))
+        
+    return clauses
+
+def solve_2sat(n, clauses):
+    # Number of variables: 2*n (for each qubit, two variables: spin 0 and spin 1)
+    num_vars = 2 * n
+    
+    # Build implication graph
+    # Each variable x has nodes 2*x (for x=False) and 2*x+1 (for x=True)
+    adj = defaultdict(list)
+    rev_adj = defaultdict(list)
+    
+    # Add clauses
+    for a, b in clauses:
+        # Clause (a OR b) is equivalent to (~a => b) and (~b => a)
+        # ~a is node 2*a, a is node 2*a+1
+        # ~b is node 2*b, b is node 2*b+1
+        adj[2*a].append(2*b + 1)      # ~a => b
+        adj[2*b].append(2*a + 1)      # ~b => a
+        rev_adj[2*b + 1].append(2*a)  # reverse of ~a => b
+        rev_adj[2*a + 1].append(2*b)  # reverse of ~b => a
+    
+    # Find strongly connected components using Kosaraju's algorithm
+    visited = [False] * (2 * num_vars)
+    order = []
+    
+    def dfs1(v):
+        visited[v] = True
+        for u in adj[v]:
+            if not visited[u]:
+                dfs1(u)
+        order.append(v)
+    
+    for i in range(2 * num_vars):
+        if not visited[i]:
+            dfs1(i)
+    
+    visited = [False] * (2 * num_vars)
+    scc_id = [-1] * (2 * num_vars)
+    scc_count = 0
+    
+    def dfs2(v, cid):
+        visited[v] = True
+        scc_id[v] = cid
+        for u in rev_adj[v]:
+            if not visited[u]:
+                dfs2(u, cid)
+    
+    while order:
+        v = order.pop()
+        if not visited[v]:
+            dfs2(v, scc_count)
+            scc_count += 1
+    
+    # Check if satisfiable
+    assignment = [-1] * num_vars
+    for i in range(num_vars):
+        if scc_id[2*i] == scc_id[2*i + 1]:
+            return None  # Unsatisfiable
+        
+        # In the SCC graph, if NOT(x) is in a later component than x,
+        # then x should be false. Otherwise, x should be true.
+        # But we don't have the explicit component graph.
+        # Simpler approach: if scc_id[NOT_x] > scc_id[x], then x should be False.
+        # Actually, let's think differently.
+        # A variable is true if its true node is in a component that can be satisfied.
+        # In practice, if scc_id[2*i+1] > scc_id[2*i], we set variable i to true.
+        
+        if scc_id[2*i + 1] > scc_id[2*i]:
+            assignment[i] = 1
+        else:
+            assignment[i] = 0
+            
+    return assignment
+
+def main():
+    n, m, checks = read_input()
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(["0"] * n))
+        return
+    
+    clauses = build_2sat_clauses(n, checks)
+    result = solve_2sat(n, clauses)
+    
+    if result is None:
+        print("NO")
+    else:
+        print("YES")
+        print(" ".join(map(str, result)))
+
+if __name__ == "__main__":
+    main()

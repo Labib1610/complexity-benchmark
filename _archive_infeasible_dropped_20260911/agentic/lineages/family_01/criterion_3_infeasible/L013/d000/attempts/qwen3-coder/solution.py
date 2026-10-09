@@ -1,0 +1,53 @@
+import sys
+from collections import defaultdict
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    index = 2
+    edges = []
+    adj = defaultdict(set)
+    
+    for _ in range(m):
+        u = int(data[index])
+        v = int(data[index+1])
+        index += 2
+        if u > v:
+            u, v = v, u
+        edges.append((u, v))
+        adj[u].add(v)
+        adj[v].add(u)
+    
+    # Convert edges to a set for O(1) lookup
+    edge_set = set(edges)
+    
+    # We need to find a triangle: three nodes a < b < c such that (a,b), (b,c), (a,c) are all in edge_set
+    # Iterate through all edges (u,v) with u < v
+    # For each such edge, look for a node w > v such that (u,w) and (v,w) are also edges
+    
+    # Sort adjacency lists to help with ordering
+    for u in sorted(adj.keys()):
+        neighbors_u = sorted(list(adj[u]))
+        for i in range(len(neighbors_u)):
+            v = neighbors_u[i]
+            if v <= u:
+                continue
+            # Now we have u < v and (u,v) is an edge
+            # Look for w > v such that (u,w) and (v,w) exist
+            neighbors_v = adj[v]
+            for j in range(i+1, len(neighbors_u)):
+                w = neighbors_u[j]
+                if w <= v:
+                    continue
+                if w in neighbors_v:
+                    # Found triangle u < v < w
+                    print(u, v, w)
+                    return
+
+if __name__ == "__main__":
+    main()

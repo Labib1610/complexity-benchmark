@@ -1,43 +1,87 @@
 import sys
-from collections import deque
+from sys import setrecursionlimit
 
 def solve():
-    input = sys.stdin.read
-    data = input().split()
-    if not data:
+    input_data = sys.stdin.read().split()
+    if not input_data:
         return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
     
-    n = int(data[0])
-    m = int(data[1])
-    
-    adj = [[] for _ in range(n + 1)]
-    idx = 2
+    adj = [[] for _ in range(n)]
     for _ in range(m):
-        u = int(data[idx])
-        v = int(data[idx+1])
-        idx += 2
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
         adj[u].append(v)
         adj[v].append(u)
-        
-    color = [0] * (n + 1)
     
-    for i in range(1, n + 1):
-        if color[i] == 0:
-            queue = deque([i])
-            color[i] = 1
-            
-            while queue:
-                u = queue.popleft()
+    color = [0] * n
+    parent = [-1] * n
+    order = []
+    is_bipartite = True
+    
+    for start in range(n):
+        if color[start] == 0:
+            color[start] = 1
+            parent[start] = -1
+            stack = [start]
+            while stack:
+                u = stack.pop()
+                order.append(u)
                 for v in adj[u]:
                     if color[v] == 0:
                         color[v] = 3 - color[u]
-                        queue.append(v)
+                        parent[v] = u
+                        stack.append(v)
                     elif color[v] == color[u]:
-                        print("NO")
-                        return
-                        
+                        is_bipartite = False
+    
+    if not is_bipartite:
+        print("NO")
+        return
+    
+    # Build tree structure
+    children = [[] for _ in range(n)]
+    for v in range(n):
+        p = parent[v]
+        if p != -1:
+            children[p].append(v)
+    
+    # Process in reverse BFS order (reverse of order)
+    cnt = [0] * n
+    for u in reversed(order):
+        c = 0
+        for v in children[u]:
+            c ^= cnt[v]
+        cnt[u] = c
+    
+    # Find root of each component
+    is_root = [False] * n
+    for v in range(n):
+        if parent[v] == -1:
+            is_root[v] = True
+    
+    # Process in BFS order
+    flip = [0] * n
+    for u in order:
+        if is_root[u]:
+            flip[u] = cnt[u]
+        else:
+            p = parent[u]
+            if cnt[u] == 1:
+                flip[u] = flip[p] ^ 1
+            else:
+                flip[u] = flip[p]
+    
+    ans = []
+    for i in range(n):
+        if color[i] == 1:
+            ans.append(1 if flip[i] == 0 else 2)
+        else:
+            ans.append(2 if flip[i] == 0 else 1)
+    
     print("YES")
-    print(" ".join(map(str, color[1:])))
+    print(' '.join(map(str, ans)))
 
-if __name__ == '__main__':
-    solve()
+solve()

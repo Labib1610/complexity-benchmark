@@ -1,0 +1,58 @@
+import sys
+from sys import setrecursionlimit
+
+def solve():
+    input_data = sys.stdin.buffer.read().split()
+    idx = 0
+    n = int(input_data[idx]); idx += 1
+    m = int(input_data[idx]); idx += 1
+    t = int(input_data[idx]); idx += 1
+    
+    critical = [False] * (n + 1)
+    for _ in range(t):
+        c = int(input_data[idx]); idx += 1
+        critical[c] = True
+    
+    edges = []
+    for _ in range(m):
+        u = int(input_data[idx]); idx += 1
+        v = int(input_data[idx]); idx += 1
+        w = int(input_data[idx]); idx += 1
+        edges.append((u, v, w))
+    
+    parent = list(range(n + 1))
+    rank = [0] * (n + 1)
+    size = [1] * (n + 1)
+    crit_count = [1 if critical[i] else 0 for i in range(n + 1)]
+    
+    def find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+    
+    edges.sort(key=lambda e: e[2])
+    
+    total = 0
+    for u, v, w in edges:
+        pu = find(u)
+        pv = find(v)
+        if pu == pv:
+            continue
+        
+        if rank[pu] < rank[pv]:
+            pu, pv = pv, pu
+        
+        parent[pv] = pu
+        size[pu] += size[pv]
+        crit_count[pu] += crit_count[pv]
+        
+        if rank[pu] == rank[pv]:
+            rank[pu] += 1
+        
+        if crit_count[pu] < t:
+            total += w
+    
+    print(total)
+
+solve()

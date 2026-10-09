@@ -1,0 +1,39 @@
+import sys
+
+def solve() -> None:
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    jobs = []
+    for _ in range(n):
+        p1 = int(next(it))
+        p2 = int(next(it))
+        jobs.append((p1, p2))
+
+    first = []
+    second = []
+    for p1, p2 in jobs:
+        if p1 <= p2:
+            first.append((p1, p2))
+        else:
+            second.append((p1, p2))
+
+    first.sort(key=lambda x: x[0])          # ascending p1
+    second.sort(key=lambda x: x[1], reverse=True)  # descending p2
+
+    order = first + second
+
+    X = 0
+    Y = 0
+    for p1, p2 in order:
+        X += p1
+        if Y < X:
+            Y = X
+        Y += p2
+
+    sys.stdout.write(str(Y))
+
+if __name__ == "__main__":
+    solve()

@@ -1,0 +1,151 @@
+import sys
+sys.setrecursionlimit(1000000)
+
+def find_perfect_matching(n, adj):
+    # Blossom algorithm for maximum matching
+    # Returns a list match where match[u] = v if u matched with v, else -1
+    match = [-1] * n
+    p = [-1] * n
+    base = list(range(n))
+    q = []
+    used = [False] * n
+    blossom = [False] * n
+
+    def lca(a, b):
+        used_lca = [False] * n
+        while True:
+            a = base[a]
+            used_lca[a] = True
+            if match[a] == -1:
+                break
+            a = p[match[a]]
+        while True:
+            b = base[b]
+            if used_lca[b]:
+                return b
+            b = p[match[b]]
+
+    def mark_path(v, b, children):
+        while base[v] != b:
+            blossom[base[v]] = blossom[base[match[v]]] = True
+            p[v] = children
+            children = match[v]
+            v = p[match[v]]
+
+    def find_path(root):
+        nonlocal used, p, base, q, blossom
+        used = [False] * n
+        p = [-1] * n
+        for i in range(n):
+            base[i] = i
+        q = [root]
+        used[root] = True
+        for v in q:
+            for u in adj[v]:
+                if base[v] == base[u] or match[v] == u:
+                    continue
+                if u == root or (match[u] != -1 and p[match[u]] != -1):
+                    curbase = lca(v, u)
+                    blossom = [False] * n
+                    mark_path(v, curbase, u)
+                    mark_path(u, curbase, v)
+                    for i in range(n):
+                        if blossom[base[i]]:
+                            base[i] = curbase
+                            if not used[i]:
+                                used[i] = True
+                                q.append(i)
+                elif p[u] == -1:
+                    p[u] = v
+                    if match[u] == -1:
+                        return u
+                    u = match[u]
+                    used[u] = True
+                    q.append(u)
+        return -1
+
+    for i in range(n):
+        if match[i] == -1:
+            v = find_path(i)
+            while v != -1:
+                pv = p[v]
+                nv = match[pv]
+                match[v] = pv
+                match[pv] = v
+                v = nv
+    return match
+
+def solve():
+    input_data = sys.stdin.read().strip().split()
+    n = int(input_data[0])
+    m = int(input_data[1])
+    edges = []
+    adj = [[] for _ in range(n)]
+    for i in range(m):
+        u = int(input_data[2 + 2*i]) - 1
+        v = int(input_data[3 + 2*i]) - 1
+        edges.append((u, v))
+        adj[u].append(v)
+        adj[v].append(u)
+
+    # Check degree 3
+    for i in range(n):
+        if len(adj[i]) != 3:
+            print("NO")
+            return
+
+    match = find_perfect_matching(n, adj)
+    if any(x == -1 for x in match):
+        print("NO")
+        return
+
+    # Color matching edges with 1
+    color = [0] * m
+    match_set = set()
+    for i in range(n):
+        if match[i] != -1 and i < match[i]:
+            match_set.add((i, match[i]))
+            match_set.add((match[i], i))
+
+    for idx, (u, v) in enumerate(edges):
+        if (u, v) in match_set:
+            color[idx] = 1
+
+    # Remaining edges form cycles, color alternately 2 and 3
+    visited = [False] * n
+    for i in range(n):
+        if not visited[i]:
+            # find cycle
+            cycle_edges = []
+            start = i
+            prev = -1
+            cur = start
+            while True:
+                visited[cur] = True
+                # find next edge not in matching
+                nxt = -1
+                for nb in adj[cur]:
+                    if nb == prev:
+                        continue
+                    if (cur, nb) in match_set:
+                        continue
+                    nxt = nb
+                    break
+                if nxt == -1:
+                    break
+                cycle_edges.append((cur, nxt))
+                prev, cur = cur, nxt
+                if cur == start:
+                    break
+            # color alternately
+            for j, (u, v) in enumerate(cycle_edges):
+                for idx, (a, b) in enumerate(edges):
+                    if (a == u and b == v) or (a == v and b == u):
+                        color[idx] = 2 if j % 2 == 0 else 3
+                        break
+
+    print("YES")
+    print(" ".join(str(c) for c in color))
+
+if __name__ == "__main__":
+    solve()

@@ -1,0 +1,68 @@
+import sys
+from collections import defaultdict
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    index = 2
+    edges = []
+    adj = defaultdict(set)
+    
+    for _ in range(m):
+        u = int(data[index])
+        v = int(data[index+1])
+        index += 2
+        if u > v:
+            u, v = v, u
+        edges.append((u, v))
+        adj[u].add(v)
+        adj[v].add(u)
+    
+    # Convert edges to a set for fast lookup
+    edge_set = set(edges)
+    
+    # We need to find a triangle: three nodes a < b < c such that (a,b), (b,c), (a,c) are all edges
+    # Iterate through all edges (a,b) where a < b
+    found = False
+    result = None
+    
+    # To ensure lexicographical order, we'll iterate a from 1 to n, then b from a+1 to n,
+    # and check if there exists a c > b such that (a,c) and (b,c) exist.
+    # But since we want the lexicographically smallest (a,b,c), it's better to iterate through
+    # edges in sorted order of a, then b.
+    
+    # Let's sort the adjacency lists to help with ordering
+    for u in adj:
+        adj[u] = sorted(adj[u])
+    
+    # Now, iterate through possible a values
+    for a in range(1, n+1):
+        if a not in adj:
+            continue
+        # For each neighbor b of a, where b > a
+        for i, b in enumerate(adj[a]):
+            if b <= a:
+                continue
+            # Now look for c > b such that both (a,c) and (b,c) exist
+            # We can intersect neighbors of a and b to find common neighbors > b
+            neighbors_a = set(adj[a][i+1:]) # neighbors of a that are > b (since adj[a] is sorted and b is at index i)
+            neighbors_b = set(adj[b]) 
+            common = neighbors_a & neighbors_b
+            if common:
+                c = min(common)
+                result = (a, b, c)
+                found = True
+                break
+        if found:
+            break
+    
+    if result:
+        print(result[0], result[1], result[2])
+
+if __name__ == "__main__":
+    main()

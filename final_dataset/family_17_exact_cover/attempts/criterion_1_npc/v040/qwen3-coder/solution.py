@@ -1,0 +1,50 @@
+from itertools import combinations
+import sys
+
+def find_valid_assignment(q, t, database):
+    # Create a list of all possible combinations of q units from the database
+    # This is a brute force approach that works for small inputs
+    
+    if q == 0:
+        return []
+    
+    # Try all combinations of q triplets from the database
+    for selected_indices in combinations(range(t), q):
+        selected_triplets = [database[i] for i in selected_indices]
+        
+        # Check if all persons are covered exactly once
+        persons = set()
+        valid = True
+        
+        for triplet in selected_triplets:
+            triplet_set = set(triplet)
+            # If there's any overlap with already selected persons, it's invalid
+            if persons & triplet_set:
+                valid = False
+                break
+            persons.update(triplet_set)
+        
+        # Check if we have exactly 3*q persons
+        if valid and len(persons) == 3 * q:
+            return selected_triplets
+    
+    return None
+
+# Read input
+line = input().split()
+q, t = int(line[0]), int(line[1])
+
+database = []
+for _ in range(t):
+    a, b, c = map(int, input().split())
+    database.append((a, b, c))
+
+# Solve
+result = find_valid_assignment(q, t, database)
+
+if result is None:
+    print("NO")
+else:
+    print("YES")
+    for triplet in result:
+        print(triplet[0], triplet[1], triplet[2])

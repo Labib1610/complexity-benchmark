@@ -1,0 +1,28 @@
+import sys
+
+def main():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    j = int(data[0])
+    orders = []
+    idx = 1
+    for _ in range(j):
+        p1 = int(data[idx])
+        p2 = int(data[idx + 1])
+        idx += 2
+        orders.append((p1, p2))
+    
+    # Sort: larger p2 first, if tie smaller p1 first
+    orders.sort(key=lambda x: (-x[1], x[0]))
+    
+    time_oven = 0
+    time_icing = 0
+    for p1, p2 in orders:
+        time_oven += p1
+        time_icing = max(time_oven, time_icing) + p2
+    
+    print(time_icing)
+
+if __name__ == "__main__":
+    main()

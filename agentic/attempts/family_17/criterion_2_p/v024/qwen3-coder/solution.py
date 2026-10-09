@@ -1,0 +1,80 @@
+from collections import defaultdict, deque
+
+def find_maximum_matching(graph, left_set, right_set):
+    # Hopcroft-Karp algorithm for maximum bipartite matching
+    pair_left = {}
+    pair_right = {}
+    dist = {}
+    
+    def bfs():
+        queue = deque()
+        for u in left_set:
+            if u not in pair_left:
+                dist[u] = 0
+                queue.append(u)
+            else:
+                dist[u] = float('inf')
+        dist[None] = float('inf')
+        
+        while queue:
+            u = queue.popleft()
+            if dist[u] < dist[None]:
+                for v in graph[u]:
+                    if v not in pair_right:
+                        pair_right[v] = None
+                    paired_u = pair_right[v]
+                    if dist[paired_u] == float('inf'):
+                        dist[paired_u] = dist[u] + 1
+                        queue.append(paired_u)
+        return dist[None] != float('inf')
+    
+    def dfs(u):
+        if u is not None:
+            for v in graph[u]:
+                if v not in pair_right:
+                    pair_right[v] = None
+                paired_u = pair_right[v]
+                if dist[paired_u] == dist[u] + 1:
+                    if dfs(paired_u):
+                        pair_right[v] = u
+                        pair_left[u] = v
+                        return True
+            dist[u] = float('inf')
+            return False
+        return True
+    
+    matching = 0
+    while bfs():
+        for u in left_set:
+            if u not in pair_left:
+                if dfs(u):
+                    matching += 1
+                    
+    return matching, pair_left
+
+def solve():
+    q, t = map(int, input().split())
+    
+    # Build bipartite graph
+    # Left side: legacy servers (1 to q)
+    # Right side: virtual machines (q+1 to 2q)
+    graph = defaultdict(list)
+    
+    for _ in range(t):
+        a, b = map(int, input().split())
+        graph[a].append(b)
+    
+    left_set = list(range(1, q+1))
+    right_set = list(range(q+1, 2*q+1))
+    
+    # Find maximum matching
+    matching_size, matching_pairs = find_maximum_matching(graph, left_set, right_set)
+    
+    if matching_size == q:
+        print("YES")
+        for i in range(1, q+1):
+            print(i, matching_pairs[i])
+    else:
+        print("NO")
+
+solve()

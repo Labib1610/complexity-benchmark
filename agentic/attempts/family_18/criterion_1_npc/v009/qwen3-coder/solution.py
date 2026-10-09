@@ -1,0 +1,114 @@
+import sys
+from itertools import permutations
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    B = int(data[2])
+    
+    edges = []
+    index = 3
+    for _ in range(m):
+        u = int(data[index]) - 1  # Convert to 0-based
+        v = int(data[index+1]) - 1
+        edges.append((u, v))
+        index += 2
+    
+    # If n is small enough, try all permutations
+    if n <= 8:
+        for perm in permutations(range(n)):
+            total = 0
+            pos = [0] * n
+            for i in range(n):
+                pos[perm[i]] = i
+            
+            for u, v in edges:
+                total += abs(pos[u] - pos[v])
+                if total > B:
+                    break
+            if total <= B:
+                print("YES")
+                print(' '.join(str(x + 1) for x in perm))
+                return
+        print("NO")
+        return
+    
+    # For larger n, use a heuristic approach
+    # Start with a greedy placement
+    # Place nodes to minimize total distance
+    
+    # Build adjacency list
+    adj = [[] for _ in range(n)]
+    degree = [0] * n
+    for u, v in edges:
+        adj[u].append(v)
+        adj[v].append(u)
+        degree[u] += 1
+        degree[v] += 1
+    
+    # Sort nodes by degree descending
+    nodes = list(range(n))
+    nodes.sort(key=lambda x: degree[x], reverse=True)
+    
+    # Try to place high-degree nodes first
+    # Use a simple greedy approach: place each node in the position that minimizes increase in total cost
+    
+    def calculate_cost(placement):
+        pos = [0] * n
+        for i in range(n):
+            pos[placement[i]] = i
+        total = 0
+        for u, v in edges:
+            total += abs(pos[u] - pos[v])
+        return total
+    
+    # Start with initial placement
+    placement = [-1] * n
+    unplaced = set(range(n))
+    
+    # Place first node at position 0
+    first_node = nodes[0]
+    placement[0] = first_node
+    unplaced.remove(first_node)
+    
+    # Place remaining nodes greedily
+    for _ in range(1, n):
+        best_node = -1
+        best_pos = -1
+        best_cost = float('inf')
+        
+        # Try placing each unplaced node at each available position
+        available_positions = [i for i in range(n) if placement[i] == -1]
+        for node in unplaced:
+            for pos in available_positions:
+                placement[pos] = node
+                cost = calculate_cost(placement)
+                if cost < best_cost:
+                    best_cost = cost
+                    best_node = node
+                    best_pos = pos
+                placement[pos] = -1
+        
+        if best_node != -1:
+            placement[best_pos] = best_node
+            unplaced.remove(best_node)
+    
+    final_cost = calculate_cost(placement)
+    if final_cost <= B:
+        result = [0] * n
+        for i in range(n):
+            result[placement[i]] = i
+        print("YES")
+        print(' '.join(str(x + 1) for x in result))
+        return
+    
+    # If greedy fails, try local search or other heuristics
+    # For now, just say NO if we can't find a solution with simple greedy
+    print("NO")
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,96 @@
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    n = int(data[0])
+    m = int(data[1])
+    k = int(data[2])
+    adj = [[] for _ in range(n + 1)]
+    idx = 3
+    for _ in range(m):
+        u = int(data[idx]); v = int(data[idx + 1]); idx += 2
+        adj[u].append(v)
+        adj[v].append(u)
+
+    color = [0] * (n + 1)
+    sizes = []
+    comp_id = [0] * (n + 1)
+    cid = 0
+    for s in range(1, n + 1):
+        if color[s] == 0:
+            cid += 1
+            color[s] = 1
+            stack = [s]
+            cnt = [0, 0]
+            cnt[0] = 1
+            comp_id[s] = cid
+            while stack:
+                u = stack.pop()
+                for w in adj[u]:
+                    if color[w] == 0:
+                        color[w] = 3 - color[u]
+                        cnt[color[w] - 1] += 1
+                        comp_id[w] = cid
+                        stack.append(w)
+            sizes.append(cnt)
+
+    max_k = sum(max(c) for c in sizes)
+    if k > max_k:
+        print("NO")
+        return
+
+    # DP over components
+    NEG = -1
+    dp = [NEG] * (k + 1)
+    dp[0] = 0
+    par = [[0, 0, 0] for _ in range(k + 1)]
+    for i, (a, b) in enumerate(sizes):
+        lo, hi = (a, b) if a <= b else (b, a)
+        for j in range(k, -1, -1):
+            if dp[j] != NEG:
+                if j + lo <= k and dp[j + lo] == NEG:
+                    dp[j + lo] = j
+                    par[j + lo] = [j, i + 1, lo]
+                if j + hi <= k and dp[j + hi] == NEG:
+                    dp[j + hi] = j
+                    par[j + hi] = [j, i + 1, hi]
+        if dp[k] != NEG:
+            break
+
+    if dp[k] == NEG:
+        print("NO")
+        return
+
+    # Reconstruct chosen sizes per component
+    chosen = {}
+    cur = k
+    while cur > 0:
+        pj, comp, sz = par[cur]
+        chosen[comp] = sz
+        cur = pj
+
+    # Collect vertices
+    ans = []
+    for v in range(1, n + 1):
+        c = comp_id[v]
+        if c in chosen:
+            need = chosen[c]
+            a = sizes[c - 1][0]
+            b = sizes[c - 1][1]
+            if need == a and a <= b:
+                if color[v] == 1:
+                    ans.append(v)
+            elif need == b and b <= a:
+                if color[v] == 2:
+                    ans.append(v)
+            else:
+                # need equals both a and b, pick color 1
+                if color[v] == 1:
+                    ans.append(v)
+
+    print("YES")
+    print(' '.join(map(str, ans)))
+
+solve()

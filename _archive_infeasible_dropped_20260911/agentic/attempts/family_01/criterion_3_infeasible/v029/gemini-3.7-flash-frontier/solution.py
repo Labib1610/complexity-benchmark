@@ -1,0 +1,38 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    n = int(input_data[0])
+    m = int(input_data[1])
+
+    adj_mask = [0] * (n + 1)
+    neighbors = [[] for _ in range(n + 1)]
+
+    idx = 2
+    for _ in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx + 1])
+        idx += 2
+        adj_mask[u] |= (1 << v)
+        adj_mask[v] |= (1 << u)
+        neighbors[u].append(v)
+        neighbors[v].append(u)
+
+    for i in range(1, n + 1):
+        neighbors[i].sort()
+
+    for a in range(1, n + 1):
+        mask_a = adj_mask[a]
+        for b in neighbors[a]:
+            if b <= a:
+                continue
+            common = (mask_a & adj_mask[b]) >> (b + 1)
+            if common:
+                c = b + (common & -common).bit_length()
+                print(f"{a} {b} {c}")
+                return
+
+if __name__ == '__main__':
+    solve()

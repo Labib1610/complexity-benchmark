@@ -1,19 +1,20 @@
-# Problem B — Frequency Allocation
+# Tracking Frequencies
 
 Time limit: 1 s   Memory limit: 256 MB
 
-A wildlife tracking system consists of $n$ field sensors, consecutively labeled from 1 to $n$. The system uses exactly two transmission channels, Channel 1 and Channel 2, to relay data. Because of signal overlap, certain pairs of sensors are prone to mutual interference. If two such sensors are configured to transmit on the same channel, their signals become corrupted.
+Wildlife researchers are deploying tracking collars on $n$ animals. Each collar must be programmed to transmit on one of two available radio frequencies, designated as 1 and 2. 
 
-You are given a list of $m$ interfering sensor pairs. You must decide whether it is possible to configure each sensor to use either Channel 1 or Channel 2 so that no two interfering sensors share a channel.
-When multiple valid configurations exist, the firmware requires the configuration sequence to be as small as possible in lexicographical order.
+Based on observational data, the team has identified $m$ specific pairs of animals that frequently forage together. If two animals in one of these pairs are assigned the exact same transmission frequency, their tracking signals will interfere with each other when they are in close proximity. To guarantee reliable data collection, any two animals that are part of a known foraging pair must be programmed with different frequencies.
+
+Your task is to determine whether it is possible to assign a frequency to every collar without any signal interference. If a valid configuration exists, the tracking system requires a specific allocation format. The resulting sequence of $n$ frequency assignments must be lexicographically smallest, meaning that the system prefers using frequency 1 over frequency 2, prioritizing the animal with the lowest ID, then the second lowest, and so forth.
 
 ## Input
-The first line contains two integers $n$ and $m$ (1 ≤ $n$ ≤ 2·10⁵, 0 ≤ $m$ ≤ 2·10⁵), which denote the number of sensors and the number of interfering pairs.
-Each of the subsequent $m$ lines contains two integers $u$ and $v$ (1 ≤ $u, v$ ≤ $n$), meaning that sensor $u$ and sensor $v$ must be assigned to different channels.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$), representing the number of collared animals and the number of foraging pairs.
+The following $m$ lines each contain two integers $u$ and $v$ ($1 \le u, v \le n$), indicating that animal $u$ and animal $v$ forage together and thus risk signal interference.
 
 ## Output
-If there is no way to allocate the channels without causing interference, print a single line containing `NO`.
-If a safe allocation is possible, print `YES` on the first line. On the second line, print $n$ integers $c_1, \dots, c_n$ (where each $c_i \in \{1, 2\}$), representing the channel assignment for sensors 1 through $n$. This sequence must be the lexicographically smallest valid configuration.
+If there is no way to assign the frequencies without interference, output a single line containing `NO`.
+If a valid assignment exists, output `YES` on the first line. On the second line, output $n$ space-separated integers, where the $i$-th integer (either 1 or 2) represents the frequency assigned to animal $i$. This sequence must be the lexicographically smallest valid assignment.
 
 ## Example 1
 Input:

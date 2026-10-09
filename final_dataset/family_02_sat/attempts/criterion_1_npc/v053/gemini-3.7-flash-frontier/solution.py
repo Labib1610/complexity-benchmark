@@ -1,0 +1,111 @@
+import sys
+
+# Increase recursion depth just in case
+sys.setrecursionlimit(2000)
+
+def solve_sat():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    clauses = []
+    idx = 2
+    for _ in range(m):
+        c = [int(input_data[idx]), int(input_data[idx+1]), int(input_data[idx+2])]
+        idx += 3
+        # remove duplicate literals in clause
+        c = list(set(c))
+        # if clause contains both x and -x, it's always true, so ignore it
+        tautology = False
+        for lit in c:
+            if -lit in c:
+                tautology = True
+                break
+        if not tautology:
+            clauses.append(c)
+            
+    # DPLL Implementation
+    def unit_propagate(clauses, assignment):
+        while True:
+            unit_clauses = [c for c in clauses if len(c) == 1]
+            if not unit_clauses:
+                break
+            unit = unit_clauses[0][0]
+            assignment[abs(unit)] = 1 if unit > 0 else 0
+            new_clauses = []
+            for c in clauses:
+                if unit in c:
+                    continue
+                if -unit in c:
+                    new_c = [l for l in c if l != -unit]
+                    if not new_c:
+                        return None, assignment  # Conflict
+                    new_clauses.append(new_c)
+                else:
+                    new_clauses.append(c)
+            clauses = new_clauses
+        return clauses, assignment
+
+    def dpll(clauses, assignment):
+        clauses, assignment = unit_propagate(clauses, assignment)
+        if clauses is None:
+            return None
+        if not clauses:
+            return assignment
+        
+        # Pick literal with MOM heuristic (most occurrences in shortest clauses)
+        min_len = min(len(c) for c in clauses)
+        counts = {}
+        for c in clauses:
+            if len(c) == min_len:
+                for lit in c:
+                    counts[lit] = counts.get(lit, 0) + 1
+        
+        # Choose literal with max count
+        chosen_lit = max(counts, key=counts.get)
+        var = abs(chosen_lit)
+        
+        # Try chosen_lit first
+        for lit in [chosen_lit, -chosen_lit]:
+            val = 1 if lit > 0 else 0
+            new_assignment = assignment.copy()
+            new_assignment[var] = val
+            
+            new_clauses = []
+            conflict = False
+            for c in clauses:
+                if lit in c:
+                    continue
+                if -lit in c:
+                    new_c = [l for l in c if l != -lit]
+                    if not new_c:
+                        conflict = True
+                        break
+                    new_clauses.append(new_c)
+                else:
+                    new_clauses.append(c)
+            
+            if conflict:
+                continue
+                
+            res = dpll(new_clauses, new_assignment)
+            if res is not None:
+                return res
+                
+        return None
+
+    assignment = {}
+    res = dpll(clauses, assignment)
+    
+    if res is None:
+        print("NO")
+    else:
+        print("YES")
+        ans = [str(res.get(i, 0)) for i in range(1, n + 1)]
+        print(*(ans))
+
+if __name__ == '__main__':
+    solve_sat()

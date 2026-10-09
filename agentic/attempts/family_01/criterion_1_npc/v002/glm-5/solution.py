@@ -1,103 +1,61 @@
 import sys
 
 def solve():
-    input_data = sys.stdin.read().split()
-    if not input_data:
+    data = sys.stdin.read().strip().split()
+    if not data:
         return
-    iterator = iter(input_data)
-    try:
-        n = int(next(iterator))
-        m = int(next(iterator))
-    except StopIteration:
-        return
-
-    adj = [0] * n
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [set() for _ in range(n)]
     for _ in range(m):
-        u = int(next(iterator)) - 1
-        v = int(next(iterator)) - 1
-        adj[u] |= 1 << v
-        adj[v] |= 1 << u
-
-    # Check if the graph is 3-colorable
-    # We use a DP approach: dp[mask] = True if the subgraph induced by mask is 3-colorable
-    # A subgraph is 3-colorable iff it can be partitioned into 3 independent sets
-    # Equivalently, mask = I1 U I2 U I3 where Ij are disjoint independent sets
-    # This is equivalent to mask being a subset of the union of 3 independent sets
-    # Or simply: mask can be covered by 3 independent sets.
-    # We precompute all independent sets.
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u].add(v)
+        adj[v].add(u)
     
-    is_independent = [True] * (1 << n)
-    # is_independent[mask] is True if mask is an independent set
-    # We can compute this using DP: 
-    # mask is independent if (mask & adj[lsb]) == 0 and mask ^ lsb is independent
-    # Or simply iterate all masks and check.
-    # Since n <= 40, 2^n is too large. 
-    # Wait, the standard DP for chromatic number works for n <= 20 or so.
-    # For n=40, we need a different approach.
+    # Check if any node has degree >= 3 (needs 4 colors)
+    for i in range(n):
+        if len(adj[i]) >= 3:
+            print("NO")
+            return
     
-    # However, the problem asks for 3-colorability.
-    # We can use the recursive search with pruning (backtracking).
-    # To find the lexicographically smallest valid assignment, we assign colors
-    # to vertices 0, 1, ..., n-1 in order, trying colors 1, 2, 3.
-    # This naturally finds the lexicographically smallest solution.
-    # We need to prune efficiently.
+    # Find all edges (pairs of reactive chemicals)
+    edges = []
+    for u in range(n):
+        for v in adj[u]:
+            if u < v:
+                edges.append((u, v))
     
-    # Let's implement a backtracking search.
-    # State: assigned colors for vertices 0..k-1.
-    # Try to assign color to vertex k.
-    # Colors are 1, 2, 3.
+    # Try all 3^n assignments
+    # For n <= 40, this is too slow, but we can optimize
+    # Since max degree is 2, the graph is a collection of paths and cycles
+    # We can use backtracking with pruning
     
     assignment = [0] * n
     
-    # Optimization: reorder vertices?
-    # No, because we need lexicographically smallest assignment (s1, s2, ...).
-    # So we must assign vertex 0 first, then 1, etc.
-    
-    # Simple backtracking might be slow for n=40 if the graph is sparse.
-    # But for 3-coloring, it's often fast enough.
-    # We can add basic forward checking.
-    
-    def backtrack(index):
-        if index == n:
+    def backtrack(idx):
+        if idx == n:
             return True
-        
-        u = index
-        neighbors = adj[u]
-        
-        # Determine available colors
-        # We iterate colors 1, 2, 3 to ensure lexicographically smallest
+        # Try colors 1, 2, 3
         for color in range(1, 4):
-            conflict = False
-            # Check neighbors with smaller indices (already assigned)
-            # We only need to check v < u because v > u are not assigned yet
-            # neighbors mask contains all neighbors.
-            # We iterate through set bits in neighbors that are < index?
-            # Actually, just checking assigned neighbors is enough.
-            
-            # Iterate neighbors v where v < u
-            # (v > u are not assigned yet, so no conflict)
-            n_mask = neighbors & ((1 << u) - 1)
-            temp = n_mask
-            while temp:
-                v = (temp & -temp).bit_length() - 1
-                temp &= temp - 1
-                if assignment[v] == color:
-                    conflict = True
+            valid = True
+            for neighbor in adj[idx]:
+                if neighbor < idx and assignment[neighbor] == color:
+                    valid = False
                     break
-            
-            if not conflict:
-                assignment[u] = color
-                if backtrack(index + 1):
+            if valid:
+                assignment[idx] = color
+                if backtrack(idx + 1):
                     return True
-                assignment[u] = 0 # backtrack
-        
+                assignment[idx] = 0
         return False
-
+    
     if backtrack(0):
         print("YES")
-        print(*(assignment))
+        print(' '.join(map(str, assignment)))
     else:
         print("NO")
 
-if __name__ == '__main__':
-    solve()
+solve()

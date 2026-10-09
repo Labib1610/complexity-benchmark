@@ -1,0 +1,53 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    q = int(next(it))
+    t = int(next(it))
+    n = 3 * q
+    
+    # Group protocols by their minimum sector
+    protocols_by_min = [[] for _ in range(n + 1)]
+    for i in range(t):
+        a = int(next(it))
+        b = int(next(it))
+        c = int(next(it))
+        protocols_by_min[a].append((a, b, c, i + 1))
+    
+    result = []
+    secured = [False] * (n + 1)
+    
+    # Greedy approach: process sectors in order, match smallest unsecured with next two
+    i = 1
+    while i <= n:
+        if secured[i]:
+            i += 1
+            continue
+        
+        # Find a protocol starting at i that covers i, i+1, i+2
+        found = False
+        for a, b, c, idx in protocols_by_min[i]:
+            if b == i + 1 and c == i + 2:
+                result.append((a, b, c))
+                secured[a] = secured[b] = secured[c] = True
+                found = True
+                break
+        
+        if not found:
+            print("NO")
+            return
+        
+        i += 1
+    
+    if len(result) == q:
+        print("YES")
+        for a, b, c in result:
+            print(a, b, c)
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()

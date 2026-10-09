@@ -1,0 +1,133 @@
+import sys
+from collections import deque
+
+def find_mincut(graph, source, sink):
+    def bfs():
+        parent = [-1] * len(graph)
+        visited = [False] * len(graph)
+        queue = deque([source])
+        visited[source] = True
+        
+        while queue:
+            u = queue.popleft()
+            for v in range(len(graph)):
+                if not visited[v] and graph[u][v] > 0:
+                    visited[v] = True
+                    parent[v] = u
+                    queue.append(v)
+                    if v == sink:
+                        return parent
+        return None
+    
+    max_flow = 0
+    while True:
+        parent = bfs()
+        if parent is None:
+            break
+            
+        path_flow = float('inf')
+        s = sink
+        while s != source:
+            path_flow = min(path_flow, graph[parent[s]][s])
+            s = parent[s]
+            
+        max_flow += path_flow
+        v = sink
+        while v != source:
+            u = parent[v]
+            graph[u][v] -= path_flow
+            graph[v][u] += path_flow
+            v = parent[v]
+            
+    return max_flow
+
+def solve():
+    line = sys.stdin.readline().split()
+    n, m, k, B = int(line[0]), int(line[1]), int(line[2]), int(line[3])
+    
+    if k <= 1:
+        print("YES")
+        print("0")
+        return
+    
+    quarantine_zones = list(map(int, sys.stdin.readline().split()))
+    quarantine_set = set(quarantine_zones)
+    
+    edges = []
+    graph = [[0] * (n + 1) for _ in range(n + 1)]
+    
+    for _ in range(m):
+        u, v, w = map(int, sys.stdin.readline().split())
+        edges.append((u, v, w))
+        graph[u][v] += w
+        graph[v][u] += w
+    
+    # Create a new graph for min-cut: add source and sink
+    # Source connects to first quarantine zone with infinite capacity
+    # Sink connects to all other quarantine zones with infinite capacity
+    total_nodes = n + 2
+    source = 0
+    sink = n + 1
+    
+    # Build the new graph
+    new_graph = [[0] * total_nodes for _ in range(total_nodes)]
+    for i in range(1, n + 1):
+        for j in range(1, n + 1):
+            new_graph[i][j] = graph[i][j]
+    
+    # Connect source to first quarantine zone
+    new_graph[source][quarantine_zones[0]] = float('inf')
+    
+    # Connect all other quarantine zones to sink
+    for i in range(1, k):
+        new_graph[quarantine_zones[i]][sink] = float('inf')
+    
+    # Find min-cut
+    flow = find_mincut(new_graph, source, sink)
+    
+    if flow > B:
+        print("NO")
+        return
+    
+    # Reconstruct the cut
+    # Run BFS to find which nodes are reachable from source
+    visited = [False] * total_nodes
+    queue = deque([source])
+    visited[source] = True
+    
+    while queue:
+        u = queue.popleft()
+        for v in range(total_nodes):
+            if not visited[v] and new_graph[u][v] > 0:
+                visited[v] = True
+                queue.append(v)
+    
+    # Find edges that cross the cut
+    blocked_edges = []
+    total_sealant = 0
+    
+    for u, v, w in edges:
+        # Check if edge crosses the cut
+        u_reachable = visited[u]
+        v_reachable = visited[v]
+        
+        if u_reachable != v_reachable:
+            blocked_edges.append((u, v))
+            total_sealant += w
+        elif not u_reachable and v_reachable:
+            blocked_edges.append((u, v))
+            total_sealant += w
+        elif u_reachable and not v_reachable:
+            blocked_edges.append((u, v))
+            total_sealant += w
+    
+    if total_sealant > B:
+        print("NO")
+        return
+        
+    print("YES")
+    print(len(blocked_edges))
+    for u, v in blocked_edges:
+        print(u, v)
+
+solve()

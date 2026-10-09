@@ -1,0 +1,230 @@
+import sys
+from collections import defaultdict, deque
+
+def read_input():
+    n, m, k = map(int, sys.stdin.readline().split())
+    edges = []
+    for _ in range(m):
+        u, v = map(int, sys.stdin.readline().split())
+        edges.append((u, v))
+    return n, m, k, edges
+
+def solve(n, m, k, edges):
+    # Build adjacency list
+    adj = defaultdict(list)
+    for u, v in edges:
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # The graph is bipartite due to the even cycle property
+    # We can color it with 2 colors
+    color = [-1] * (n + 1)  # -1: unvisited, 0: red, 1: blue
+    
+    def bfs(start):
+        queue = deque([start])
+        color[start] = 0
+        red_count = 1
+        blue_count = 0
+        
+        while queue:
+            node = queue.popleft()
+            current_color = color[node]
+            next_color = 1 - current_color
+            
+            for neighbor in adj[node]:
+                if color[neighbor] == -1:
+                    color[neighbor] = next_color
+                    if next_color == 0:
+                        red_count += 1
+                    else:
+                        blue_count += 1
+                    queue.append(neighbor)
+                elif color[neighbor] != next_color:
+                    # This should not happen as per problem statement
+                    return None, None
+        
+        return red_count, blue_count
+    
+    red_nodes = []
+    blue_nodes = []
+    total_red = 0
+    total_blue = 0
+    
+    for i in range(1, n + 1):
+        if color[i] == -1:
+            red_count, blue_count = bfs(i)
+            if red_count is None:
+                return "NO", []
+            
+            # Collect nodes of each color
+            red_temp = []
+            blue_temp = []
+            queue = deque([i])
+            visited_component = set([i])
+            
+            while queue:
+                node = queue.popleft()
+                if color[node] == 0:
+                    red_temp.append(node)
+                else:
+                    blue_temp.append(node)
+                
+                for neighbor in adj[node]:
+                    if neighbor not in visited_component:
+                        visited_component.add(neighbor)
+                        queue.append(neighbor)
+            
+            red_nodes.extend(red_temp)
+            blue_nodes.extend(blue_temp)
+            total_red += red_count
+            total_blue += blue_count
+    
+    # Now we need to select exactly k nodes such that no two adjacent
+    # Since the graph is bipartite, we can take nodes from one side only
+    
+    # Try taking from red group
+    if total_red >= k:
+        selected = red_nodes[:k]
+        return "YES", selected
+    
+    # Try taking from blue group
+    if total_blue >= k:
+        selected = blue_nodes[:k]
+        return "YES", selected
+    
+    # Try combining both groups optimally
+    # But since they're separate components, we can't mix them if there are edges between components
+    # Actually, since we BFSed each component separately, we know there are no edges between components
+    # So we can combine selections from different components as long as we don't violate within-component constraints
+    
+    # But wait, the whole graph is not necessarily connected. Each component is bipartite.
+    # So we can select from either side of each component independently.
+    
+    # Let's reorganize our approach:
+    # For each connected component, we have a bipartition. 
+    # We can choose to take nodes from either side of each component.
+    
+    # Recalculate by components
+    component_partitions = []  # List of (red_nodes_list, blue_nodes_list) for each component
+    visited_global = [False] * (n + 1)
+    
+    for i in range(1, n + 1):
+        if not visited_global[i]:
+            # New component, do BFS to find its bipartition
+            red_part = []
+            blue_part = []
+            queue = deque([i])
+            color[i] = 0
+            visited_global[i] = True
+            
+            if color[i] == 0:
+                red_part.append(i)
+            else:
+                blue_part.append(i)
+                
+            is_bipartite = True
+            
+            while queue and is_bipartite:
+                node = queue.popleft()
+                current_color = color[node]
+                next_color = 1 - current_color
+                
+                for neighbor in adj[node]:
+                    if not visited_global[neighbor]:
+                        color[neighbor] = next_color
+                        visited_global[neighbor] = True
+                        if next_color == 0:
+                            red_part.append(neighbor)
+                        else:
+                            blue_part.append(neighbor)
+                        queue.append(neighbor)
+                    elif color[neighbor] != next_color:
+                        is_bipartite = False
+                        break
+            
+            if not is_bipartite:
+                return "NO", []
+                
+            component_partitions.append((red_part, blue_part))
+    
+    # Now we have all components partitioned
+    # We need to select exactly k nodes with no two adjacent
+    # This means from each component, we can take nodes only from one side
+    
+    # This becomes a subset sum problem variant:
+    # For each component, we can take 0..len(red) OR 0..len(blue) nodes, but not both sides
+    # We want to select exactly k nodes in total
+    
+    # But actually, we can take any number of nodes from one side of a component
+    # because there are no edges within a side (independent set property)
+    
+    # Greedy approach: try to build up to k nodes
+    selected = []
+    count = 0
+    
+    for red_part, blue_part in component_partitions:
+        if count >= k:
+            break
+            
+        remaining = k - count
+        # Take from the larger side to maximize our chances
+        if len(red_part) >= len(blue_part):
+            take = min(len(red_part), remaining)
+            selected.extend(red_part[:take])
+            count += take
+        else:
+            take = min(len(blue_part), remaining)
+            selected.extend(blue_part[:take])
+            count += take
+    
+    if count == k:
+        return "YES", selected
+    elif count > k:
+        # Trim down to k
+        return "YES", selected[:k]
+    else:
+        # Not enough nodes, let's see if we can get more by choosing differently
+        # Try again being more careful
+        selected = []
+        count = 0
+        
+        for red_part, blue_part in component_partitions:
+            if count >= k:
+                break
+            remaining = k - count
+            # Take max possible from either side
+            if len(red_part) >= remaining:
+                selected.extend(red_part[:remaining])
+                count += remaining
+                break
+            elif len(blue_part) >= remaining:
+                selected.extend(blue_part[:remaining])
+                count += remaining
+                break
+            else:
+                # Take the whole larger side
+                if len(red_part) >= len(blue_part):
+                    selected.extend(red_part)
+                    count += len(red_part)
+                else:
+                    selected.extend(blue_part)
+                    count += len(blue_part)
+        
+        if count >= k:
+            return "YES", selected[:k]
+    
+    # Final check
+    if len(selected) >= k:
+        return "YES", selected[:k]
+        
+    return "NO", []
+
+def main():
+    n, m, k, edges = read_input()
+    result, nodes = solve(n, m, k, edges)
+    print(result)
+    if result == "YES":
+        print(' '.join(map(str, nodes)))
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,147 @@
+```python
+import sys
+import itertools
+
+def solve():
+    n, m, k = map(int, sys.stdin.readline().split())
+    adj = [0] * (n + 1)
+    for _ in range(m):
+        u, v = map(int, sys.stdin.readline().split())
+        adj[u] |= (1 << (v - 1))
+        adj[v] |= (1 << (u - 1))
+
+    if k == 0:
+        print("YES")
+        print()
+        return
+    if k == 1:
+        print("YES")
+        print(1)
+        return
+
+    n1 = n // 2
+    n2 = n - n1
+
+    # Meet-in-the-middle
+    # Split variables into two sets: S1 (size n1) and S2 (size n2)
+    # We need to choose k1 from S1 and k2 from S2 such that k1 + k2 = k
+    # The sum is: (sum of edges in S1) + (sum of edges in S2) + (edges between S1 and S2)
+    # Edges between S1 and S2: sum_{i in S1, j in S2} x_i * x_j
+    # Let mask1 be the selection in S1, mask2 in S2.
+    # Edges between S1 and S2 = sum_{i in S1, x_i=1} (count of j in S2 s.t. x_j=1 and (i,j) is an edge)
+    
+    def get_edges(mask, size, offset):
+        count = 0
+        nodes = [i for i in range(size) if (mask >> i) & 1]
+        for i in range(len(nodes)):
+            for j in range(i + 1, len(nodes)):
+                if (adj[nodes[i] + 1 + offset] >> (nodes[j] + offset)) & 1:
+                    count += 1
+        return count
+
+    # Precompute for S1
+    # map: (k1, edges_in_S1, bitmask_of_neighbors_in_S2) -> mask1
+    # Actually, we need to store: (k1, edges_in_S1, bitmask_of_neighbors_in_S2)
+    # bitmask_of_neighbors_in_S2: for each j in S2, how many i in S1 (with x_i=1) are connected to j?
+    # Wait, the condition is sum = 0.
+    # Edges between S1 and S2 = sum_{j in S2, x_j=1} (count of i in S1 s.t. x_i=1 and (i,j) is an edge)
+    
+    memo1 = {}
+    for i in range(n1 + 1):
+        for combo in itertools.combinations(range(n1), i):
+            mask1 = 0
+            for idx in combo: mask1 |= (1 << idx)
+            
+            e1 = get_edges(mask1, n1, 0)
+            
+            # neighbors_in_S2[j] = count of i in S1 s.t. x_i=1 and (i, j+n1) is edge
+            neighbors_in_S2 = [0] * n2
+            for node in combo:
+                for j in range(n2):
+                    if (adj[node + 1] >> (j + n1)) & 1:
+                        neighbors_in_S2[j] += 1
+            
+            key = (i, e1, tuple(neighbors_in_S2))
+            memo1[key] = mask1
+
+    for i in range(n2 + 1):
+        if i > k: continue
+        k1 = k - i
+        if k1 > n1: continue
+        
+        for combo in itertools.combinations(range(n2), i):
+            mask2 = 0
+            for idx in combo: mask2 |= (1 << idx)
+            
+            e2 = get_edges(mask2, n2, n1)
+            
+            # We need e1 + e2 + sum_{j in combo} (neighbors_in_S2[j]) = 0
+            # Since e1, e2, neighbors >= 0, we need e1=0, e2=0, and neighbors=0
+            # So we need e1 = 0, e2 = 0, and for all j in combo, neighbors_in_S2[j] = 0
+            
+            target_neighbors = [0] * n2
+            for j in combo:
+                target_neighbors[j] = 0 # This is wrong, we need sum to be 0
+            
+            # Correct logic:
+            # e1 + e2 + sum_{j in combo} (count of i in S1 s.t. x_i=1 and (i, j+n1) is edge) = 0
+            # This implies e1=0, e2=0, and for all j in combo, count of i in S1 = 0
+            # Let's re-evaluate:
+            # e1 = 0, e2 = 0
+            # For all j in combo, count of i in S1 s.t. x_i=1 and (i, j+n1) is edge = 0
+            
+            # Precompute neighbors_in_S2 for all S1
+            # Actually, just iterate through all S1
+            pass
+
+    # Simplified approach: 46 is too big for 2^n, but 2^(n/2) is 2^23 ~ 8e6.
+    # Meet-in-the-middle is feasible.
+    
+    def get_data(n_part, offset):
+        res = []
+        for i in range(n_part + 1):
+            for combo in itertools.combinations(range(n_part), i):
+                mask = 0
+                for idx in combo: mask |= (1 << idx)
+                e = get_edges(mask, n_part, offset)
+                # neighbors[j] = count of i in combo connected to j
+                neighbors = [0] * (n - n_part)
+                for node in combo:
+                    for j in range(n - n_part):
+                        if (adj[node + 1 + offset] >> (j + (0 if offset else n_part))) & 1:
+                            neighbors[j] += 1
+                res.append((i, e, tuple(neighbors), mask))
+        return res
+
+    data1 = get_data(n1, 0)
+    data2 = get_data(n2, n1)
+    
+    for k1, e1, neigh1, m1 in data1:
+        if e1 > 0: continue
+        for k2, e2, neigh2, m2 in data2:
+            if k1 + k2 != k: continue
+            if e2 > 0: continue
+            
+            # Check cross edges
+            # sum_{j in S2, x_j=1} (neigh1[j]) = 0
+            # Since neigh1[j] >= 0 and x_j is 1 for j in combo2,
+            # we need neigh1[j] == 0 for all j in combo2
+            
+            possible = True
+            for j in range(n2):
+                if ((m2 >> j) & 1) and neigh1[j] > 0:
+                    possible = False
+                    break
+            if possible:
+                print("YES")
+                res = []
+                for i in range(n1):
+                    if (m1 >> i) & 1: res.append(i + 1)
+                for i in range(n2):
+                    if (m2 >> i) & 1: res.append(i + n1 + 1)
+                print(*(res))
+                return
+    print("NO")
+
+solve()
+```

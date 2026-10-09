@@ -1,0 +1,129 @@
+```python
+import sys
+
+def solve():
+    input_data = sys.stdin.buffer.read().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    # Build implication graph for 2-SAT
+    # Variable i: orientation s_i = 1 means True, s_i = 0 means False
+    # For each interlock (l1, l2):
+    #   gear v jams when:
+    #     v > 0: s_{|v|} = 0 (i.e. variable False)
+    #     v < 0: s_{|v|} = 1 (i.e. variable True)
+    #   Interlock triggers if both jam, so we need NOT(both jam)
+    #   = NOT(jam1 AND jam2) = (NOT jam1) OR (NOT jam2)
+    #   = (spin1) OR (spin2)
+    #   gear v spins when:
+    #     v > 0: s_{|v|} = 1 (variable True)
+    #     v < 0: s_{|v|} = 0 (variable False)
+    #   So clause: (spin1) OR (spin2)
+    #   If spin1 corresponds to literal x, spin2 corresponds to literal y
+    #   Then: x OR y  =>  (NOT x -> y) and (NOT y -> x)
+    
+    # Node indexing: 2*i for False (s_i=0), 2*i+1 for True (s_i=1), i from 0 to n-1
+    # Literal: if v > 0, spin means s_{|v|}=1, literal = 2*(|v|-1)+1 (True)
+    #          if v < 0, spin means s_{|v|}=0, literal = 2*(|v|-1) (False)
+    
+    from collections import defaultdict, deque
+    
+    graph = defaultdict(list)
+    
+    def get_literal(v):
+        idx = abs(v) - 1
+        if v > 0:
+            return 2 * idx + 1  # s = 1 (True)
+        else:
+            return 2 * idx  # s = 0 (False)
+    
+    def negate(lit):
+        return lit ^ 1
+    
+    for _ in range(m):
+        l1 = int(next(it))
+        l2 = int(next(it))
+        
+        x = get_literal(l1)
+        y = get_literal(l2)
+        
+        # Clause: x OR y
+        # (NOT x -> y) and (NOT y -> x)
+        graph[negate(x)].append(y)
+        graph[negate(y)].append(x)
+    
+    # Tarjan's SCC
+    index_counter = [0]
+    stack = []
+    on_stack = [False] * (2 * n)
+    indices = [-1] * (2 * n)
+    lowlink = [0] * (2 * n)
+    scc_id = [-1] * (2 * n)
+    scc_count = [0]
+    
+    import sys
+    sys.setrecursionlimit(300000)
+    
+    # Iterative Tarjan to avoid recursion limit issues
+    def tarjan_iterative():
+        for start in range(2 * n):
+            if indices[start] != -1:
+                continue
+            # Iterative DFS
+            call_stack = [(start, 0)]
+            while call_stack:
+                node, child_idx = call_stack[-1]
+                if child_idx == 0:
+                    indices[node] = index_counter[0]
+                    lowlink[node] = index_counter[0]
+                    index_counter[0] += 1
+                    stack.append(node)
+                    on_stack[node] = True
+                
+                neighbors = graph.get(node, [])
+                if child_idx < len(neighbors):
+                    call_stack[-1] = (node, child_idx + 1)
+                    w = neighbors[child_idx]
+                    if indices[w] == -1:
+                        call_stack.append((w, 0))
+                    elif on_stack[w]:
+                        lowlink[node] = min(lowlink[node], indices[w])
+                else:
+                    if lowlink[node] == indices[node]:
+                        while True:
+                            w = stack.pop()
+                            on_stack[w] = False
+                            scc_id[w] = scc_count[0]
+                            if w == node:
+                                break
+                        scc_count[0] += 1
+                    call_stack.pop()
+                    if call_stack:
+                        parent = call_stack[-1][0]
+                        lowlink[parent] = min(lowlink[parent], lowlink[node])
+    
+    tarjan_iterative()
+    
+    # Check satisfiability
+    for i in range(n):
+        if scc_id[2 * i] == scc_id[2 * i + 1]:
+            print("NO")
+            return
+    
+    # Assign values: variable is True if its True literal has higher SCC number
+    # (in topological order, higher SCC number comes later)
+    assignment = []
+    for i in range(n):
+        if scc_id[2 * i] < scc_id[2 * i + 1]:
+            assignment.append(1)  # s_i = 1
+        else:
+            assignment.append(0)  # s_i = 0
+    
+    print("YES")
+    print(' '.join(map(str, assignment)))
+
+solve()
+```

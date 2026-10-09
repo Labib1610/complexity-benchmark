@@ -1,0 +1,46 @@
+import sys
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+
+    n, m = data[0], data[1]
+    graph = [[] for _ in range(n)]
+
+    pos = 2
+    for _ in range(m):
+        u = data[pos] - 1
+        v = data[pos + 1] - 1
+        pos += 2
+        graph[u].append(v)
+        graph[v].append(u)
+
+    color = bytearray(n)
+
+    for start in range(n):
+        if color[start]:
+            continue
+
+        color[start] = 1
+        queue = [start]
+        head = 0
+
+        while head < len(queue):
+            u = queue[head]
+            head += 1
+            expected = 3 - color[u]
+
+            for v in graph[u]:
+                if color[v] == 0:
+                    color[v] = expected
+                    queue.append(v)
+                elif color[v] != expected:
+                    sys.stdout.write("NO\n")
+                    return
+
+    sys.stdout.write("YES\n")
+    sys.stdout.write(" ".join(map(str, color)) + "\n")
+
+if __name__ == "__main__":
+    main()

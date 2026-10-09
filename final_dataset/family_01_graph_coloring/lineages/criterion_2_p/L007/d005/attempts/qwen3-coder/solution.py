@@ -1,0 +1,61 @@
+import sys
+from collections import defaultdict, deque
+
+def solve():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
+    
+    edges = []
+    graph = defaultdict(list)
+    index = 2
+    for _ in range(m):
+        u = int(data[index]) - 1
+        v = int(data[index+1]) - 1
+        edges.append((u, v))
+        graph[u].append(v)
+        graph[v].append(u)
+        index += 2
+
+    # Color with 0 and 1 (0 represents flag 1, 1 represents flag 2)
+    color = [-1] * n
+    visited = [False] * n
+
+    # Check if bipartite and find lexicographically smallest coloring
+    for start in range(n):
+        if visited[start]:
+            continue
+        # BFS to color component
+        queue = deque()
+        queue.append(start)
+        # To get lexicographically smallest, start with color 0 for the first node
+        color[start] = 0
+        visited[start] = True
+        
+        while queue:
+            u = queue.popleft()
+            current_color = color[u]
+            for v in graph[u]:
+                if not visited[v]:
+                    color[v] = 1 - current_color
+                    visited[v] = True
+                    queue.append(v)
+                elif color[v] == current_color:
+                    print("NO")
+                    return
+    
+    # If we reach here, a valid coloring exists
+    # Convert colors back to flags (0 -> 1, 1 -> 2)
+    flags = [str(c + 1) for c in color]
+    print("YES")
+    print(" ".join(flags))
+
+solve()

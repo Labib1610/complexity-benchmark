@@ -1,62 +1,1388 @@
+This is a graph 3-coloring problem. We need to color a graph with n ≤ 40 vertices with 3 colors such that adjacent vertices have different colors.
+
+n ≤ 40 is small. We can solve this with backtracking with some pruning, or use a more clever approach.
+
+Approaches:
+1. Backtracking with ordering heuristics (DSATUR-like). For n=40, worst case could be bad, but with good heuristics it usually works. However, adversarial cases exist... For 3-coloring with n=40, backtracking with DSATUR heuristic should be fine in practice, but worst case could be exponential.
+
+2. Since n ≤ 40, we could use a meet-in-the-middle or a more clever algorithm. Actually, there's a classic approach: 3-coloring can be solved in O(1.4423^n) or so with branching algorithms. But for n=40, even simple backtracking with good pruning should work.
+
+Actually, let me think about a robust approach. A well-known technique for 3-coloring: 
+
+- If the graph contains a vertex with degree ≥ 3... hmm, actually for 3-coloring, a standard approach:
+- Find a triangle or use branching on vertices.
+
+Alternative robust approach: Use backtracking with DSATUR (choose vertex with most colors forbidden). For 3-coloring specifically, there's a nice property: if at any point a vertex has 3 forbidden colors, fail. 
+
+Actually, a cleaner robust method for n=40: split vertices into two halves of 20 each. For each half, enumerate all valid 3-colorings (3^20 ≈ 3.5 billion — too many). That's too many.
+
+Hmm, 3^20 = 3,486,784,401. Too many to enumerate directly in Python.
+
+Better: backtracking with DSATUR. In practice, DSATUR-based backtracking for 3-coloring on 40 vertices is very fast. The worst case for 3-coloring backtracking is around O(1.5^n) or so with good algorithms, and 1.5^40 ≈ 1.1e7 which is fine.
+
+Actually, let me think about a smarter exact algorithm for 3-coloring:
+
+Classic result: 3-coloring can be solved in O(1.3289^n) (Beigel & Eppstein). But implementing that is complex.
+
+Simpler: A well-known branching for 3-coloring:
+- If there's a vertex v with degree ≥ 3 among uncolored... hmm.
+
+Let me think about a simpler but effective approach: 
+
+**DSATUR backtracking**: At each step, pick the uncolored vertex with the maximum saturation degree (number of distinct colors among colored neighbors). Try each available color. This is very effective in practice. For n=40, even hard instances (like critical 3-chromatic graphs) should be handled quickly. Hard instances for 3-coloring backtracking are things like... 4-chromatic graphs that are "almost" 3-colorable, e.g., odd cycles with chords, or specific constructions. With n=40, DSATUR backtracking should still be OK.
+
+But to be safe, let me think about worst cases. The worst case for backtracking 3-coloring: graphs that are not 3-colorable but close, requiring many branches. For example, take a 4-critical graph on 40 vertices. 4-critical graphs on 40 vertices exist (e.g., odd wheels: wheel on 39 vertices = cycle of 38 + hub... wait, wheel W_n with odd cycle of length 2k+1 has 2k+2 vertices and is 4-chromatic and 4-critical). A wheel with 40 vertices: cycle of 39 (odd) + hub. That's 4-critical.
+
+For DSATUR on such graphs: the hub has degree 39, gets colored first. Then the cycle: each cycle vertex has saturation 1 (hub's color forbidden), so we need to 2-color an odd cycle with 3 colors available minus 1 = 2 colors... wait, each cycle vertex has 2 available colors (hub takes one). Odd cycle can't be 2-colored, so we fail. But backtracking would try: hub color 1 (3 choices), then cycle vertices each have 2 choices. DSATUR would detect failure... how fast? With DSATUR, when we color cycle vertices, once we have a conflict... Actually with an odd cycle, 2-coloring fails only at the end when we close the cycle. Hmm, but DSATUR picks the vertex with max saturation. After coloring hub, all cycle vertices have saturation 1. Pick one, color it. Its neighbors now have saturation 2 (hub + this vertex), so they have only 1 available color each. DSATUR forces the propagation around the cycle. When we get to the last vertex, it has 0 available colors → backtrack. Backtracking goes back... The search tree: essentially, for each hub color (3), the cycle coloring is forced except at the first vertex (2 choices), and failure is detected at the end. So ~3 * 2 * 39 nodes — trivial.
+
+Harder cases: graphs designed to defeat backtracking. E.g., "Zykov" or Mycielski graphs. Mycielski graph M_4 (Grötzsch graph, 11 vertices, 4-chromatic, triangle-free). For 40 vertices, Mycielskian iterations: M_5 has 23 vertices, M_6 has 47 vertices. So M_5 (23 vertices) doubled... Hmm, we could have combinations of hard instances.
+
+Actually, a known hard case: multiple copies of hard instances connected... but disconnected components are handled independently.
+
+Let me think about the worst-case complexity more carefully. A simple bound: backtracking where we branch on a vertex with at least 2 available colors, and propagation... Without propagation, worst case is 3^40. With DSATUR and good ordering, hard 4-critical graphs on 40 vertices could still cause exponential blowup in theory.
+
+To be safe, I could implement a proper algorithm with better guarantees. Options:
+
+1. **Beigel-Eppstein style**: For 3-coloring, there's a nice technique using "independent set + bipartite check": A graph is 3-colorable iff its vertices can be partitioned into an independent set S and a bipartite graph on the rest... Actually: G is 3-colorable iff there exists an independent set S such that G - S is bipartite. So we could search over independent sets... that's 2^40 subsets — too many.
+
+2. **Meet in the middle with bitsets**: Split into halves A (20) and B (20). Enumerate all proper 3-colorings of A (respecting internal edges of A) — could be up to 3^20 in the worst case (if A has no edges), too many.
+
+Hmm, but wait — if A has no internal edges, then... the constraint is only between A and B. Hmm.
+
+3. **Improved backtracking with propagation**: Use forward checking / constraint propagation. With unit propagation (when a vertex has exactly 1 available color, force it), the search is much smaller.
+
+Actually, let me think about the structure. For 3-coloring, there's a classical branching algorithm:
+
+Pick a vertex v of maximum degree. If deg(v) ≥ 3... hmm, actually here's a classical idea for 3-coloring:
+
+If the graph has maximum degree ≤ 2, it's easy (paths/cycles — check odd cycles). Otherwise, pick a vertex v with degree ≥ 3. Hmm, but that doesn't immediately give branching.
+
+Alternative classical idea (from the O(1.4423^n) algorithm or simpler ones): 
+
+**Key idea**: In a 3-coloring, consider a vertex v and its neighbors. If v has neighbors u, w that are adjacent to each other... 
+
+Let me think of the simple recursive algorithm with memoization on... no, states are too complex.
+
+Actually, for n=40, let me just do DSATUR backtracking with:
+- Forward checking (maintain available color sets).
+- Choose next vertex: max saturation, tie-break by degree.
+- Symmetry breaking: for the first vertex, only try one color (colors are interchangeable). More generally, when a vertex has all 3 colors available and no colored neighbor... hmm, simpler: when trying colors for a vertex, if we're about to try a color c that hasn't been used anywhere in the graph yet, we only need to try it once (all unused colors are symmetric). This is a standard symmetry breaking: maintain the set of "used" colors; when branching on a vertex with available colors, if a color is unused so far, only branch on one unused color (not all unused ones). This reduces the search space significantly.
+
+With symmetry breaking, the search tree size is bounded by the number of "essentially different" partial colorings explored. For 3-coloring, this is related to... hmm.
+
+Let me estimate: with symmetry breaking and DSATUR, hard instances on 40 vertices. I believe this will be fast for essentially all instances. Competitive programming problems with n ≤ 40 for 3-coloring typically expect backtracking with heuristics. Given time limit 2s and Python... hmm, Python is slow. Need to be careful.
+
+Let me think about what could make it slow in Python. If the search tree has ~10^5-10^6 nodes, Python might handle it in a couple seconds if each node is cheap. Let's design for efficiency.
+
+Alternative: use a completely different, guaranteed-fast approach.
+
+**Approach via maximal independent set + bipartiteness**: G is 3-colorable iff ∃ independent set S with G−S bipartite. Equivalently, ∃ partition into 3 independent sets. 
+
+Hmm, here's a thought: pick a maximum clique. If clique size > 3, answer NO. If the graph has a triangle (a,b,c), then in any 3-coloring, a, b, c get distinct colors. WLOG a=1, b=2, c=3 (symmetry). Then every other vertex is constrained: neighbors of a can't be color 1, etc. This gives strong propagation.
+
+If the graph is triangle-free: then it's more complex. Triangle-free 3-coloring... Grötzsch theorem says triangle-free planar graphs are 3-colorable, but general triangle-free graphs can be 4-chromatic (Grötzsch graph, Mycielski).
+
+Hmm, let me think about the branching algorithm for 3-coloring more carefully. There's a classical simple algorithm:
+
+**Algorithm (from Beigel & Eppstein / also in textbooks)**: 
+- If graph has ≤ some small size, brute force.
+- Find a vertex v of high degree. 
+
+Actually here's a cleaner classical approach for 3-coloring with O(1.4423^n)... Let me recall the simpler O(1.5^n)-ish approach:
+
+Pick a vertex v with degree ≥ 3 (if max degree ≤ 2, solve directly). Let u, w be two neighbors of v. Branch:
+- Case 1: color(u) = color(w). Then u, w can be merged into a single vertex (they're identically colored). Recurse on graph with u,w merged. n decreases by 1.
+- Case 2: color(u) ≠ color(w). Then add edge (u,w). Recurse. 
+
+Hmm, this doesn't terminate obviously... Actually the standard branching: pick vertex v with neighbors u1, u2, u3 (3 neighbors). In any 3-coloring, either two of them share a color or all three have distinct colors. Branch on pairs: for each pair (ui, uj), either they have the same color (merge them) or different colors (add edge). That's 2^3 = 8 branches... but with the constraint that at least... hmm, this gives the 1.4423^n bound with careful analysis. Complex.
+
+Simpler practical approach: **DSATUR with symmetry breaking + forward checking**. Let me just also add: process connected components independently. And handle the "all colors available + symmetry" reduction.
+
+Actually, let me think again about worst-case instances for DSATUR 3-coloring backtracking with n=40. Known hard instances for backtracking 3-coloring: random graphs around the phase transition (average degree ~ 4.7 for 3-coloring... actually the 3-colorability threshold for random graphs is around average degree 4.7). Random graphs with n=40 near threshold: DSATUR handles these very well typically. Structured hard instances: 4-critical graphs like odd wheels, Mycielski graphs, and "Hajós-like" constructions. For n=40, I'm fairly confident DSATUR + symmetry breaking works.
+
+But let me add more safety: **strong propagation via unit propagation (arc consistency)**: whenever a vertex has exactly one available color, assign it and propagate. This makes the algorithm much more robust.
+
+Also, another powerful technique: **if there's a triangle, fix its colors** (3! = 6 assignments, but by symmetry only 1 essentially — set the triangle to colors 1,2,3 in one way, since global color permutation is a symmetry). Then propagate.
+
+Let me design the algorithm:
+
+1. Read graph, build adjacency as bitmasks.
+2. Handle each connected component separately (coloring components independently). Actually, symmetry breaking across components: each component can use colors independently... but colors are global labels; any assignment works. For simplicity, process components one at a time; within each component, use symmetry breaking (first vertex gets color 1... or more precisely, when branching, only allow one "new" color).
+
+Hmm wait, actually with symmetry breaking per component: within a component, when we branch on a vertex whose available colors include colors not yet used in that component, we only try one such new color. This is valid because unused colors are interchangeable.
+
+3. For each component: run backtracking:
+   - State: color[v] for assigned vertices, avail[v] = bitmask of available colors for unassigned.
+   - Propagation queue: when a vertex is assigned color c, for each unassigned neighbor, remove c from avail. If avail becomes 0 → fail. If avail becomes 1 → assign (unit propagation).
+   - Vertex selection: DSATUR — pick unassigned vertex with fewest available colors (popcount of avail), tie-break by degree (larger degree first). If min avail count is 3 and... hmm.
+   - Branching with symmetry: let used = set of colors used in the component so far. For the chosen vertex v with avail mask A: partition A into colors in used and colors not in used. Try each color in used ∩ A, plus exactly one color from A \ used (if nonempty). 
+
+Wait, is that symmetry breaking correct? The claim: if a solution exists with v getting some new color c (not in used), then by permuting colors (renaming c to any other new color c'), we get a solution with v getting c'. Since all colors not in used are symmetric (they appear identically in constraints — no assigned vertex uses them), yes, we only need to try one new color. Correct.
+
+4. If a component fails, print NO. Otherwise combine.
+
+Additionally, special handling: if the component has a triangle, we could fix it, but the symmetry breaking already handles much of this: the first vertex gets color 1 (only one new color tried), its neighbors can't use color 1, etc.
+
+Let me also think: should I add memoization or restarts? Probably unnecessary.
+
+Let me think about the potential worst case more. Consider the Grötzsch graph (11 vertices, triangle-free, 4-chromatic) — DSATUR will explore and fail. How many nodes? Small. Now consider a graph built to be hard: e.g., 40-vertex 4-critical graphs with lots of symmetry... e.g., Mycielskian of Grötzsch = M_5 with 23 vertices (4-chromatic... wait no, Mycielskian of a 4-chromatic graph is 5-chromatic). Hmm: M_2 = C5? Let me recall: M(G) of a k-chromatic triangle-free graph is (k+1)-chromatic triangle-free. Grötzsch = M(C5)? C5 is 3-chromatic, M(C5) has 11 vertices and is 4-chromatic (that's the Grötzsch graph). M(Grötzsch) has 23 vertices, is 5-chromatic. For our problem, a 5-chromatic graph is definitely not 3-colorable, and DSATUR would need to prove that. How hard is it for DSATUR to fail on M(Grötzsch) (23 vertices)? Probably explores a moderate tree. Then add 17 more vertices... 
+
+Honestly, I think DSATUR with unit propagation and symmetry breaking will handle n=40 fine. But let me think whether there's a fundamentally better algorithm that's still simple to implement.
+
+**Alternative: O(3^(n/3)) via independent set partitioning?** Hmm.
+
+**Alternative: Lawler's dynamic programming over subsets**: O(2^n * ...) — 2^40 = 1e12, too many.
+
+**Alternative: meet in the middle**: Split V into A and B, |A| = |B| = 20. For each valid coloring of A... too many colorings.
+
+Hmm, but here's a smarter MITM for 3-coloring: G is 3-colorable iff we can partition V into 3 independent sets. Equivalently, iff there's an independent set S such that G−S is bipartite. 
+
+MITM idea: enumerate for subset... Let me think: Let f(A) for A ⊆ V... 
+
+Actually here's a neat approach: G is 3-colorable iff ∃ S ⊆ V, S independent, and G[V∖S] bipartite. Enumerate all independent sets of size... no, all independent sets — could be 2^40.
+
+Hmm, but here's a classic trick: in a 3-coloring, the largest color class has size ≥ n/3 = 14 (for n=40, ≥ 14). So there's an independent set S of size ≥ 14 such that G−S is bipartite. Enumerate independent sets of size exactly 14? C(40,14) ≈ 4e10 — too many.
+
+OK here's another classic: **3-coloring via bipartite matching / inclusion**: Not straightforward.
+
+Let me reconsider. The problem is from some contest ("Problem A — Operational Segments"), n ≤ 40, 2s limit. The intended solution is almost certainly backtracking with heuristics (DSATUR), possibly with the observation that n ≤ 40 is small enough. Given it's problem A (easy problem), the tests are probably not adversarial against backtracking. But since I can't be sure, let me implement a robust backtracking with:
+
+- Connected component decomposition.
+- DSATUR vertex ordering.
+- Forward checking with bitmasks.
+- Unit propagation.
+- Symmetry breaking (new colors tried only once).
+- Maybe: iterative deepening or random restarts? No, keep it deterministic.
+
+Additionally, I can add a preprocessing step: **clique-based lower bound**: if graph contains K4, output NO immediately. Finding K4: check all pairs of adjacent vertices with common adjacent pair — O(n^4) = 2.5e6, fine. Actually simpler: for each edge (u,v), compute common neighbors; if two common neighbors are adjacent → K4. This prunes some NO cases fast. But backtracking would find these quickly anyway.
+
+Also **preprocessing: simplicial vertices / degree-based reductions**? For 3-coloring: if a vertex v has degree ≤ 2, we can remove it (color the rest, then v can always be colored... wait, if deg(v) ≤ 2, v has at most 2 neighbors, so at least one of 3 colors is available — yes, remove v, color G−v, then color v greedily). This reduction is subsumed by unit propagation? Not exactly, but backtracking handles low-degree vertices trivially anyway.
+
+Hmm, one more consideration: **the "bipartite after removing independent set" with the triangle structure**. Let me think about whether there's a polynomial algorithm for this specific problem... No, 3-coloring is NP-hard in general. n=40 needs exponential in worst case but small exponent.
+
+Let me now also think about a **guaranteed-polynomial-in-practice approach with better worst-case bound**: 
+
+The Beigel–Eppstein / classical branching for 3-coloring achieving ~1.4423^n ≈ 1.4423^40 ≈ 3.4e6 leaves — that's fine even for Python if per-node cost is low. But implementing it correctly is tricky.
+
+Simpler branching with decent bound: **Branch on a vertex of maximum degree with "merge" operations**:
+
+Pick vertex v with degree ≥ 3 (if all degrees ≤ 2, solve directly: components are paths/cycles; odd cycle → NO else YES). Let u, w be two neighbors of v.
+
+Branch 1: u and w get the same color → merge u,w into one vertex uw (union of neighborhoods, minus themselves), recurse on n−1 vertices.
+Branch 2: u and w get different colors → add edge (u,w), recurse on n vertices but with an added edge.
+
+Hmm, branch 2 doesn't reduce n, so no immediate bound. But: adding edge (u,w)... if we always pick v as max-degree and u,w non-adjacent... The analysis: each merge reduces n by 1; adding edges increases degrees, eventually creating triangles/K4s which fail fast. The known bound for this "merge/edge-add" branching on pairs: choosing 3 neighbors u1,u2,u3 of v: either all three pairwise different colors (then u1,u2,u3 form... they're all adjacent to v with distinct colors, plus v has the 4th... wait no, v has one of the 3 colors too. Hmm, v's color differs from all neighbors. If u1,u2,u3 all have distinct colors, they use all 3 colors, but v also needs a color different from all 3 → impossible. So among any 3 neighbors of v, at least two share a color!
+
+That's the key: **For any vertex v and any 3 neighbors u1, u2, u3: at least two of them share a color** (since v's color is different from all three, the three neighbors use at most 2 colors... wait, v uses one color, neighbors use colors ≠ v's color, so neighbors use at most 2 distinct colors. So among u1,u2,u3, at least two share a color.)
+
+So branching: pick v with ≥ 3 neighbors u1,u2,u3. Branches: (u1=u2), (u1=u3), (u2=u3) — merge the pair. Each branch reduces n by 1 (merge). So T(n) = 3·T(n−1) → 3^n. That's bad. But wait — we can be smarter: if u1,u2 are adjacent, they can't share a color. So pick v and look at its neighborhood: if the neighborhood has an independent set of size 3, branch on 3 pairs. If the neighborhood is a clique... if N(v) is a clique of size ≥ 3, then those 3 clique vertices + v form K4 → NO. If N(v) has independence number ≤ 2, then... N(v) uses at most 2 colors (as shown), and if N(v) is covered by 2 cliques... hmm.
+
+The refined classical algorithm (this is essentially the Beigel–Eppstein idea): pick v of max degree. If N(v) contains an independent set {u1,u2,u3} of size 3, branch on the 3 merge options: T(n) ≤ 3T(n−1). Hmm, that's still 3^n = 3^40, way too big. The actual analysis is more subtle: merging creates vertices of higher degree, and high-degree vertices lead to quick failures... The 1.4423^n bound comes from a careful measure. Too complex to implement reliably.
+
+OK let me step back and think practically. What are realistic worst-case instances at n=40 for DSATUR-with-propagation backtracking?
+
+Known experimental results: DSATUR backtracking for 3-coloring handles random graphs with hundreds of vertices near the phase transition. Hard instances are specially constructed. For n=40, even somewhat hard instances would be fine. The truly hard instances for 3-coloring backtracking (e.g., from "hard instances for graph coloring" literature) are typically larger or specifically crafted. Given this is "Problem A" of what looks like a local contest, tests are likely: small graphs, random graphs, complete graphs, odd cycles, wheels, maybe K4, maybe some crafted NO cases. DSATUR will crush all of these.
+
+Nevertheless, let me make the implementation as robust as possible:
+
+1. **Preprocessing reductions** (cheap, help a lot):
+   - Remove vertices with degree ≤ 2 iteratively? Careful: for 3-coloring, a vertex of degree ≤ 2 can always be colored last (its ≤2 neighbors block ≤2 colors). So: iteratively remove degree-≤2 vertices (record order for reconstruction). What remains is a graph with min degree ≥ 3 ("3-core"). Then run backtracking on the core. If core is empty → trivially YES. This is a huge reduction for many instances (e.g., sparse graphs reduce to nothing or small cores).
+   
+   Wait, is this reduction sound? If G−v is 3-colorable, then extend to v: v has ≤ 2 neighbors, so ≤ 2 colors blocked, ≥ 1 color remains. Yes, sound. And iteratively: removing v reduces degrees of neighbors, possibly enabling more removals. The final remaining graph is the 3-core (well, the (≥3)-core). If the 3-core is small, backtracking is trivial.
+
+   For n=40, the 3-core could still be up to 40 vertices (e.g., random graph with avg degree ≥ 3, or 4-regular graphs).
+
+2. **K4 detection**: if K4 exists → NO. Also, more generally, backtracking finds this fast.
+
+3. **Backtracking on the core** with DSATUR + unit propagation + symmetry breaking.
+
+4. **Reconstruction**: color removed vertices in reverse removal order.
+
+Let me also consider: **should I use recursion with explicit undo, or copy state?** With n=40 and hopefully small search trees, copying state (avail masks as a list of ints) at each node is simple and safe. Each node: copy list of 40 ints — cheap. Depth ≤ 40. If tree has 1e5 nodes, that's 4e6 int copies — fine.
+
+Actually, let me think about implementing propagation efficiently:
+
+State: 
+- `avail`: list of 3-bit masks per vertex (bit c set = color c available).
+- `assigned`: list of colors or -1.
+
+Assign(v, c): set assigned[v]=c, avail[v]=0 (or keep as is, mark assigned). For each neighbor u unassigned: new_avail = avail[u] & ~(1<<c); if new_avail == 0 → fail; if new_avail != avail[u] and popcount(new_avail)==1 → add to queue; avail[u]=new_avail.
+
+For the search, I'll do a recursive function with full state copies (avail list, assigned list) — simple and correct. Python recursion depth 40+ is fine.
+
+Vertex selection: among unassigned, min popcount(avail), tie-break max degree. Computing this each node: O(n) with popcount — fine. Actually, since propagation assigns all forced vertices, at branch time all unassigned vertices have ≥ 2 available colors. DSATUR picks min available count (2 or 3).
+
+Hmm, one more important optimization: **when all unassigned vertices have 3 available colors** — that means no colored neighbors... that happens only at the start (or in disconnected parts). Fine.
+
+Symmetry breaking: track `used_mask` = OR of colors used so far in the current component (or globally — but careful: colors used in other components don't constrain this component... actually they do not constrain at all since components are independent; but for symmetry breaking within a component, "used" should be per-component). Since I process components separately, used_mask is per component. When branching on vertex v with avail mask A:
+- colors_in_used = A & used_mask
+- new_colors = A & ~used_mask
+- Try each color in colors_in_used, plus (if new_colors) exactly one color from new_colors (say the lowest bit).
+
+Wait, but there's subtlety: symmetry breaking is valid only if the unused colors are truly interchangeable. At the start of a component, used_mask=0, so first branch: only try color 1 (lowest bit of A=7). Good. After some assignments, unused colors are those not appearing in the component — they're symmetric. Yes, valid.
+
+Hmm wait, actually there's an even stronger standard symmetry breaking: when a vertex has all 3 colors available AND no colored neighbor... that's the same as "new colors" case partially. The rule above handles it: if A=7 and used_mask=7, we try all 3. If A=7 and used_mask=3 (colors 1,2 used), we try colors 1, 2, and one new color (3). Correct: trying color 3 covers the case "v gets a color different from all used colors" — any such color is equivalent by renaming.
+
+But careful: is it valid when the vertex has some colored neighbors? The colored neighbors use colors from used_mask. The new colors (not in used_mask) are interchangeable among themselves — permuting two unused colors doesn't affect any assigned vertex or any constraint involving assigned vertices. And unassigned vertices' avail masks: they might have excluded some unused colors? No wait — avail masks only exclude colors of *assigned* neighbors, which are all in used_mask. So unused colors are available for ALL unassigned vertices. Hence unused colors are fully symmetric. ✓.
+
+So the branching factor: at most (number of used colors available) + 1 ≤ 3. And early on it's much less.
+
+Now, the propagation loop:
+
+```
+def propagate(avail, assigned, queue):
+    while queue:
+        v = queue.pop()
+        c = lowest set bit of avail[v]  # the single available color
+        # assign v = c
+        assigned[v] = c
+        avail[v] = 0  # mark assigned? or keep mask with single bit
+        for u in adj[v]:
+            if assigned[u] == -1:
+                na = avail[u] & ~(1<<c)
+                if na != avail[u]:
+                    if na == 0: return False
+                    avail[u] = na
+                    if popcount(na) == 1: queue.append(u)
+    return True
+```
+
+Hmm, need to be careful: a vertex in the queue might get its avail further reduced before being processed; when popped, recompute single bit from current avail. Also a vertex might be added to queue multiple times — use a flag or just re-check: when popped, if popcount(avail[v]) != 1, skip (or if already assigned, skip). Let me use `assigned` marks: assigned[v] = c when we process it. When popping v from queue: if assigned[v] != -1: continue; c = avail[v] (single bit); assign.
+
+Wait, but if avail[v] becomes 0 while v is in queue → we detect at the time of reduction (na==0 → fail). OK.
+
+Also initial assignment: when we branch and assign color c to v, we set avail[v] = 1<<c... hmm, let me restructure: 
+
+Let me define assign-and-propagate:
+
+```
+def try_assign(avail, assigned, v, c):
+    # returns new (avail, assigned) copies with v=c and propagation done, or None on failure
+    avail = avail[:]  # copy
+    assigned = assigned[:]
+    assigned[v] = c
+    avail[v] = 0
+    queue = [v]  # process v's assignment effect... 
+```
+
+Hmm, let me restructure the propagation to handle "assign v color c" uniformly:
+
+```
+def propagate(avail, assigned, v, c):
+    # v is being assigned color c; propagate; return True/False
+    # assumes avail, assigned are fresh copies we can mutate
+    stack = [(v, c)]
+    while stack:
+        v, c = stack.pop()
+        for u in adj[v]:
+            if assigned[u] == -1:
+                bit = 1 << c
+                if avail[u] & bit:
+                    na = avail[u] & ~bit
+                    avail[u] = na
+                    if na == 0:
+                        return False
+                    if popcount(na) == 1:
+                        # forced assignment
+                        nc = na.bit_length() - 1
+                        assigned[u] = nc
+                        avail[u] = 0
+                        stack.append((u, nc))
+        # note: when we pop (u, nc), we then propagate u's assignment
+    return True
+```
+
+Wait, there's a bug: when I set assigned[u] = nc and push (u, nc), then later pop (u, nc) and propagate to u's neighbors. But between pushing and popping, u's neighbors might get modified by other stack entries — that's fine, the propagation is monotone (only removes colors). But: could a vertex u be assigned (avail set to single color, assigned[u] set) and then later another stack entry tries to remove color from u? When processing (x, cx), we check `assigned[u] == -1` — if u was already assigned, we skip. But what if u is in the stack pending (assigned[u] set, avail[u]=0) and another entry (x,cx) has u as neighbor: we skip since assigned[u] != -1. But wait — is that correct? u was assigned color nc because avail[u] became {nc}. If x is adjacent to u and cx == nc, then u's avail should have had cx removed... but we already removed it before assigning? Let me re-examine: avail[u] became single {nc} after removing colors of assigned neighbors. If x is a neighbor of u being assigned cx: if cx == nc, then when x was assigned, avail[u] would lose bit cx — but avail[u] = {nc} means cx ∉ avail[u]... contradiction? Not necessarily: the order matters. Let me trace: 
+
+Stack processing: entries are (vertex, color) meaning "this vertex is assigned this color; propagate to its neighbors". When we pop (x, cx), x is already assigned (assigned[x] = cx set when pushed... hmm, in my code above, for the initial call, I need to set assigned[v]=c before pushing. For forced vertices u, I set assigned[u]=nc when detected. So every stack entry (x,cx) has assigned[x]=cx already set.
+
+When popping (x,cx) and processing neighbor u:
+- If assigned[u] != -1: skip. Is this safe? u is assigned color cu. Was cx removed from u's avail before u got assigned? u got assigned when its avail reduced to {cu}. The reduction happens when some neighbor y of u is assigned cy and we process (y, cy) removing bit cy from avail[u]. Now x is also a neighbor of u assigned cx. If cx == cu: then when (x,cx) is processed... but we're skipping u because assigned[u] != -1. Did we ever remove cx from avail[u]? If cx == cu, then cu ∈ avail[u] at assignment time, and cx was never removed — meaning (x, cx) was never processed before u's assignment. But (x,cx) is being processed NOW, after u's assignment. So the constraint "u ≠ x" is violated: u = cu = cx = x's color, and u,x adjacent → invalid coloring!
+
+Hmm wait, but that can't happen if I'm careful: when u is assigned (forced), it's pushed to the stack. All assignments in the stack will eventually be processed. The issue: u was forced to color cu based on avail[u] which didn't yet account for x's color cx (because (x,cx) hadn't been processed yet). If cx == cu, we have a real conflict that must be detected.
+
+So the skip `if assigned[u] != -1: continue` is WRONG in this case. I need: when processing (x, cx) and neighbor u is already assigned cu, check cu != cx; if equal → fail.
+
+Let me redo:
+
+```
+while stack:
+    x, cx = stack.pop()
+    for u in adj[x]:
+        if assigned[u] == -1:
+            ... remove bit, maybe force ...
+        else:
+            if assigned[u] == cx: return False
+```
+
+Wait, but assigned[u] == cx with u adjacent to x means conflict. But hold on — can this actually occur given the order? u assigned cu= cx before (x,cx) processed. u's avail at assignment was {cu}. x adjacent to u, x assigned cx=cu. When was x assigned? Before or after u? If x assigned before u: then when processing (x,cx) — hmm, but if (x,cx) was processed before u's assignment, then bit cx was removed from avail[u], so cu ≠ cx. If (x,cx) processed after u's assignment: possible that cx == cu. So yes, the check is needed. Alternatively, process the stack in FIFO order... no, the issue is inherent: forced assignments can conflict with pending propagations. The check `assigned[u] == cx → fail` handles it. 
+
+Hmm wait, actually there's still a subtle issue: what if u is assigned but (u, cu) is still in the stack (pending), and we detect conflict assigned[u] == cx → return False. Fine, correct.
+
+What if u is assigned cu ≠ cx: no action needed (u's assignment already fixed, cx ≠ cu OK). ✓.
+
+What if u is unassigned: remove bit cx from avail[u]. If avail[u] becomes 0 → fail. If becomes single bit → assign u (assigned[u]=cu', avail[u]=0, push (u, cu')). But wait — u might already be in the stack as a forced assignment? No: forced assignments are immediately assigned (assigned[u] set) when detected. So unassigned vertices are never in the stack. ✓. But could u be pushed twice? u gets assigned exactly when detected, and assigned[u] is set at that moment, so it can't be detected-forced twice. ✓.
+
+Hmm, one more: when we pop (x, cx) from the stack, x is assigned. We process all neighbors. Fine.
+
+Also, initial call: assigned[v] = c; avail[v] = 0; stack = [(v,c)].
+
+Let me also double check the "avail[u] = 0" for assigned vertices: assigned vertices have avail 0; unassigned have nonzero. The check `if assigned[u] == -1` distinguishes. ✓.
+
+Now the search:
+
+```
+def solve_component(vertices):
+    # returns (assigned dict/list) or None
+    avail = [7]*n  # per global vertex index... 
+```
+
+Hmm, let me organize: I'll work with global arrays of size n, but process components one at a time. For each component, initialize avail=7 for its vertices, assigned=-1.
+
+Search function (recursive):
+
+```
+def search(avail, assigned, used_mask):
+    # find unassigned vertex with min popcount(avail), tie max degree
+    best = -1; best_key = None
+    for v in comp_vertices:
+        if assigned[v] == -1:
+            a = avail[v]
+            key = (popcount(a), -deg[v])
+            if best == -1 or key < best_key:
+                best = v; best_key = key
+    if best == -1:
+        return assigned  # all assigned
+    v = best
+    A = avail[v]
+    # colors to try
+    in_used = A & used_mask
+    new_col = A & ~used_mask
+    colors = [bits of in_used]
+    if new_col:
+        colors.append(lowest bit of new_col)
+    for c in colors:
+        na = avail[:]; nas = assigned[:]
+        nas[v] = c; na[v] = 0
+        if propagate(na, nas, v, c):   # propagate mutates na, nas
+            res = search(na, nas, used_mask | (1<<c))
+            if res is not None:
+                return res
+    return None
+```
+
+Wait, propagate as I wrote takes (avail, assigned, v, c) with stack initialized [(v,c)] and mutates. Let me make propagate return True/False and mutate the passed lists. Then in search, copy first, then call.
+
+Hmm, actually there's a subtle issue with symmetry breaking + DSATUR ordering: the vertex selection picks min-avail vertex; if that vertex has avail=3 (all colors) and used_mask=7... fine. The symmetry breaking is applied to the chosen vertex. But is symmetry breaking still valid given DSATUR ordering? The ordering is a heuristic — the search explores all colorings of the chosen vertex (modulo symmetry). Since we try all colors in used + one new color, we cover all equivalence classes of colorings for the chosen vertex. The rest of the search is complete. ✓ Valid.
+
+Edge case: what if the chosen vertex has avail with colors, all of which are new (A & used_mask == 0)? Then we try only one color. Valid by symmetry (all colors in A are unused → interchangeable). ✓.
+
+Now, complexity concerns: copying avail (40 ints) and assigned (40 ints) per node. If tree is ~1e4-1e5 nodes, fine.
+
+Let me now think about the degree-≤2 preprocessing (peeling). Actually, is it needed given unit propagation? Consider a long path attached to the core: backtracking would assign core vertices, and path vertices get forced... Actually no: a path vertex with 2 available colors isn't forced (needs 1 available). So a path of length k attached to a colored vertex: each path vertex has 2 available colors → branching factor 2 per vertex → 2^k?! Wait no — DSATUR: after coloring the attachment point, the next path vertex has 2 available colors; we branch on it (2 choices); then the next has 2 available... that's 2^k branches for a path! That would be terrible!
+
+Hold on, really? Path v1-v2-v3-...-vk, v1 colored color 1. v2: avail {2,3} (colors 2,3). Branch: v2=2. Then v3: neighbors v2 (=2) → avail {1,3}: branch 2 ways. Hmm, so yes, a simple path gives 2^(k-1) branches with plain DSATUR without further insight! That's catastrophic: a path of 30 vertices → 2^30.
+
+Wait, that can't be right — DSATUR on paths... Let me think again. DSATUR picks max saturation vertex. On a path with one end colored: v2 has saturation 1 (one colored neighbor), v3 has saturation 0. So DSATUR picks v2 (avail {2,3}), branches 2 ways. Then v3 has saturation 1, avail 2 colors, branches 2 ways... Yes, 2^k. DSATUR is known to be exponential on... hmm, actually I recall DSATUR is polynomial on bipartite... no wait. Hmm, DSATUR (the greedy) is optimal for bipartite graphs? There's a known result: DSATUR greedy (without backtracking) is exact for bipartite... no, for cycle graphs and... Let me recall: DSATUR exact (with backtracking) is exponential in general; DSATUR greedy uses at most Δ colors... For bipartite graphs, DSATUR greedy is optimal (uses 2 colors)? I think there's a theorem: DSATUR greedy is exact on bipartite graphs. Hmm, is that true? On a path: color v1=1, v2: saturation 1 → color 2, v3: saturation 1 (neighbor v2 has color 2) → color 1... greedy works. With backtracking + DSATUR ordering, the FIRST branch explored would succeed immediately (greedy order works), so no backtracking needed for a path — the search finds a solution on the first descent. 
+
+Oh right — I conflated "search tree size" with "worst case". For satisfiable instances, heuristics often find a solution quickly. The 2^k blowup happens on UNSATISFIABLE instances (or when the heuristic leads down failing paths). For a path (always 2-colorable... well, 3-colorable), first descent succeeds. But consider: an odd cycle attached... an odd cycle is 3-colorable, fine. What about a long path attached to a core that eventually fails? E.g., core is K4 (not 3-colorable) with a long path hanging off. Search: DSATUR picks core vertices first (higher saturation/degree)... K4: v1: avail 3, branch 3 (with symmetry: used_mask grows...). Let me trace K4 with symmetry breaking: vertices a,b,c,d all mutually adjacent. Pick a (max degree tie... all degree 3): avail 7, used 0 → try only color 1 (new). Propagate: b,c,d lose color 1 → avail 6 each. Pick b: avail 6, used_mask = 1 → in_used = 0, new = 6 → try only color 2. Propagate: c,d lose 2 → avail 4. Pick c: avail 4, used 3 → in_used 0, new 4 → try color 3. Propagate: d loses 3 → avail 0 → FAIL. Backtrack: c has no more colors. Backtrack b: no more colors (only tried color 2). Backtrack a: no more. Total: ~5 nodes. 
+
+Now K4 with a path of 30 vertices attached to a: The path doesn't interfere: search colors a=1, b=2, c=3, d fails → backtrack → NO in ~5 nodes. The path never gets colored because failure occurs before. But wait — DSATUR ordering: after a=1, b=2, c=3: d has avail 0 → fail immediately during propagation. So path vertices never branched. But what if the path is attached such that... hmm, consider core = odd cycle of length 39 plus... no wait, odd cycles are 3-colorable.
+
+Bad case for DSATUR: unsatisfiable core where failure is only detected after coloring many easy vertices. Hmm, e.g., take two K4's connected by a long path? Search: component includes both K4s and the path. DSATUR: degrees: K4 vertices have degree 3, path internal vertices degree 2, path ends degree 3 (2 path + 1 core). Initially all avail 3, saturation 0 → tie-break by degree: degree 3 vertices: K4 vertices and path ends. Pick one, say a K4 vertex a=1 (symmetry: only color 1). Propagate: its K4 neighbors b,c,d → avail {2,3}. DSATUR: b,c,d have saturation 1 → pick b=2 (in_used=0? used={1}, avail b = {2,3} → in_used = {} , new = {2,3} → try color 2 only). Propagate: c,d → avail {3}. Forced: c=3 → propagate: d loses 3 → avail 0 → FAIL. Backtrack... b: no more. a: no more. NO. ~5 nodes. Path untouched. 
+
+The dangerous scenario: unsatisfiability that requires exploring many combinations of "easy" vertices. Classic example: odd cycle — 2-coloring an odd cycle fails only at the end. For 3-coloring: consider a graph that forces two colors on a long odd cycle... e.g., take an odd cycle C_{2k+1} and add a vertex h adjacent to ALL cycle vertices (a wheel W, hub h). Wheel with odd cycle is 4-chromatic. Search: h has degree 2k+1 (max). Pick h: avail 3, used 0 → h=1. Propagate: all cycle vertices avail {2,3}. DSATUR: pick cycle vertex v1 (saturation 1, degree 3): in_used = {2,3}∩{1} = {} wait used_mask = {1}, avail = {2,3} → in_used = 0, new = {2,3} → try color 2 only. Propagate: v2, v_{2k+1} lose 2 → avail {3} → forced v2=3, v_{2k+1}=3 → propagate: v3, v_{2k} lose 3 → avail {2} → forced... chain around the cycle: v_i forced alternately 2,3. When the two chains meet: at the far side, v_k and v_{k+1}... cycle length odd: the two chains collide with conflicting forced colors → some vertex gets avail 0 → FAIL. All forced, no branching! Backtrack: v1 has no alternative (only tried color 2 — but wait, should v1 try color 3 too? in_used was empty, new = {2,3}, we try only ONE new color = 2. By symmetry color 3 ≡ color 2 (both unused). ✓ correct). Backtrack to h: no more colors. NO. ~O(k) nodes, all forced. 
+
+So wheels are handled by propagation. The unit propagation is doing heavy lifting: any structure where colors get forced is cheap.
+
+What's genuinely hard: triangle-free unsatisfiable graphs (Mycielski-like), where propagation forces little. E.g., Grötzsch graph (11 vertices, 4-chromatic, triangle-free): DSATUR backtracking explores... each vertex has ~4-5 degree, avail rarely drops below 2, so branching ~2-3 per node, tree maybe a few hundred to few thousand nodes. Fine. 
+
+Bigger hard instances: take Grötzsch graph and blow it up? Or Mycielskian M_5 (23 vertices, 5-chromatic, triangle-free): proving not-3-colorable... tree could be larger but likely still manageable (maybe 10^4-10^5 nodes). For n=40: M_5 (23 vertices) + extra vertices, or a 40-vertex 4-chromatic triangle-free graph with high girth. Hmm, high-girth 4-chromatic graphs on 40 vertices exist (smallest 4-chromatic graph with girth 4... Grötzsch is girth 4; girth ≥ 5 smallest is ~... the smallest 4-chromatic graph of girth 5 has 21 vertices? (the "Grötzsch graph" is triangle-free girth 4; girth-5 4-chromatic smallest is the 21-vertex? I recall the smallest 4-chromatic girth-5 graph has 21 vertices (Chvátal graph is 12 vertices, girth 4, 4-chromatic, triangle-free). Chvátal graph: 12 vertices, 4-regular, 4-chromatic, triangle-free, girth 4. Then there are 4-chromatic girth-5 graphs on ~21-25 vertices (e.g., the Grötzsch-like... the smallest is the "Grötzsch graph"? no. The smallest triangle-free 4-chromatic is Grötzsch (11). Smallest 4-chromatic girth 5: 21 vertices? I think it's the "Hajós"? Whatever.)
+
+Worst realistic case: a 40-vertex 4-chromatic graph with no triangles and no small structure, e.g., two copies of Chvátal graph (24 vertices) joined by... or Mycielskian constructions. Let me estimate DSATUR+propagation on Chvátal graph (12 vertices, 4-regular): tree size maybe hundreds. Two copies + 16 other vertices: components processed separately → fine.
+
+A single connected 40-vertex 4-chromatic triangle-free graph with high symmetry: e.g., Mycielski of Chvátal? M(Chvátal) has 25 vertices, 5-chromatic. Or "M(Grötzsch)" = 23 vertices, 5-chromatic. Plus attach stuff. DSATUR on M(Grötzsch): hmm. 23 vertices, 5-chromatic. To prove not 3-colorable... The search tree: hard to estimate, but I'd guess ≤ 10^5 nodes with propagation and symmetry breaking. In Python with cheap node ops (copy 2 lists of 40, propagate with bitmask ops), 10^5 nodes × ~50 μs = 5s. Hmm, borderline. Let me optimize per-node cost.
+
+Actually, wait. Let me reconsider: maybe I should think about whether there's a smarter algorithm to be safe.
+
+**Idea: reduce to 2-SAT-like / bipartite + independent set with the "one vertex fixed" trick:**
+
+For 3-coloring, here's a classical exact approach with better structure: 
+
+If the graph contains a triangle (a,b,c): fix a=1,b=2,c=3 (unique up to symmetry). Then every vertex adjacent to a can't be 1, etc. Then... still need search.
+
+If triangle-free: pick an edge (u,v): u=1, v=2 (up to symmetry, since colors 1,2,3 interchangeable and we can pick any edge... wait, in a 3-coloring u,v get 2 distinct colors; by symmetry fix u=1,v=2 — but careful: u,v might both get... they get distinct colors, WLOG 1,2 by renaming. ✓). Then every other vertex w: if adjacent to u, w ∈ {2,3}; if adjacent to v, w ∈ {1,3}; if adjacent to both, w = 3 (forced!); if adjacent to neither, w ∈ {1,2,3}.
+
+Hmm, this gives a start but still search.
+
+**Better idea — the "bipartite + independent set" formulation with MITM:**
+
+G 3-colorable ⟺ ∃ independent set S s.t. G−S bipartite. 
+
+MITM over vertex subsets: Let's split V into halves L, R (20 each). Hmm, the condition couples S∩L with S∩R and bipartiteness couples across the cut... Bipartiteness of G−S isn't easily decomposed. Not straightforward.
+
+**Alternative: DP over subsets for "is S independent and G−S bipartite"** — 2^40 states, no.
+
+**Alternative: Since one color class has ≥ ⌈n/3⌉ = 14 vertices (n=40):** enumerate independent sets of size 14? C(40,14) ≈ 4.7e10. No.
+
+Hmm OK. What about **randomized / hybrid**: run DSATUR backtracking with a node budget; if exceeded, fall back to... what? There's no obviously better fallback.
+
+Let me think about the actual difficulty differently. The problem says n ≤ 40, m up to n(n-1)/2 = 780. Time 2s. It's "Problem A" — the easiest problem in a contest. The intended solution is probably simple backtracking (maybe even naive with vertex ordering) — the tests are almost certainly benign (random graphs, cliques, cycles, wheels, complete bipartite, etc.). A well-implemented DSATUR + propagation + symmetry breaking is far beyond what's needed. I'll go with it, but let me make the implementation efficient and also add the degree-≤2 peeling preprocessing (which makes sparse cases trivial and reduces n for the search).
+
+Wait, actually, let me reconsider the peeling: peel degree ≤ 2 vertices iteratively → remaining core has min degree ≥ 3. For the core, run backtracking. Then reconstruct peeled vertices in reverse order (each has ≤ 2 colored neighbors at time of reconstruction... careful: when reconstructing in reverse peel order, a peeled vertex's neighbors that were peeled AFTER it are already colored, and neighbors peeled before or in core... hmm, let me think. Peel order v1, v2, ..., vk (each vi had degree ≤ 2 in the graph at time of peeling, i.e., among vertices not yet peeled {vi,...,remaining}). When reconstructing: color vk, v_{k-1}, ..., v1. When coloring vi, its neighbors in {v_{i+1},...,vk} ∪ core are all already colored (since we go in reverse), and its neighbors among {v1..v_{i-1}} are uncolored. The number of neighbors in the "already colored" set = its degree at peel time ≤ 2. So ≤ 2 colors blocked → color available. ✓.
+
+So: peel → core → search core → reconstruct. If core is empty: all good, trivially colorable (assign greedily in reverse peel order). 
+
+The core with min degree ≥ 3 and n ≤ 40: for random sparse graphs, core is small or empty. For dense graphs, core is the whole graph but propagation is strong. The hard middle: 3-regular or 4-regular graphs on 40 vertices that are 4-chromatic. E.g., a 3-regular 4-chromatic graph? Snarks! E.g., Petersen graph (10 vertices, 3-regular, 3-chromatic actually — Petersen is 3-chromatic). 4-chromatic 3-regular graphs: e.g., odd... hmm, 3-regular 4-chromatic: the smallest is... "the smallest 4-chromatic cubic graph"? There are 4-chromatic snarks like... Actually all snarks are 3-chromatic? No — snarks are cubic, bridgeless, non-3-edge-colorable; vertex coloring is different. Cubic 4-chromatic vertex coloring: e.g., take two odd... hmm, a cubic graph with a K4 subgraph... K4 itself is cubic and 4-chromatic. Larger: 40-vertex cubic 4-chromatic graphs exist. DSATUR on K4-like structures: propagation kills them fast (as traced above). 
+
+What about 4-chromatic graphs where every edge is in... hmm, triangle-free 4-chromatic cubic graphs? Do they exist? A cubic triangle-free 4-chromatic graph: I don't think small ones exist... Actually, cubic graphs: Brooks theorem says cubic graphs are 3-colorable unless K4. So cubic 4-chromatic = K4 only! Great — so after peeling to min-degree ≥ 3, if max degree = 3, the core is either K4 (→NO) or 3-colorable, and moreover... hmm wait, Brooks: connected graph with max degree Δ needs Δ colors unless complete graph or odd cycle. Max degree 3 → 3-colorable unless K4. So min-degree ≥ 3, max-degree 3 → 3-regular → either K4 or 3-colorable. And finding the coloring: DSATUR finds it fast (satisfiable instances are usually easy for DSATUR... not always, but usually).
+
+Min degree ≥ 3, max degree ≥ 4: could be hard. E.g., 4-regular 4-chromatic triangle-free graphs (Chvátal graph is 4-regular, 12 vertices). Blow up to 40 vertices: e.g., Chvátal graph + Mycielski-ish extensions, or just take a 40-vertex 4-regular 4-chromatic graph. DSATUR+propagation on Chvátal graph: let me roughly estimate. 12 vertices, 4-regular, triangle-free. Search: pick v1 (deg 4) = color 1 (symmetry). Neighbors lose color 1. Pick next: saturation 1 vertices (4 of them, deg 4): v2 = color 2 (new color, only one tried). Its neighbors lose 2. Now some vertices have saturation 2 → avail 1 → forced! Propagation cascades. Triangle-free 4-regular: after coloring 2 adjacent vertices, common neighbors (v1,v2 have common neighbors since 4-regular on 12 vertices: |N(v1)∩N(v2)| ≥ 4+4−10 = ... ≥ 2) get forced to color 3, then their neighbors lose 3... cascades. I'd guess the tree is small (hundreds). 
+
+For a 40-vertex 4-regular triangle-free 4-chromatic graph (if one exists — 4-chromatic triangle-free 4-regular on 40 vertices: probably exists, e.g., Mycielskian of a 3-regular... M(G) of cubic G: vertices 2n+1, degrees: original vertices get deg+1=4, shadows have deg of original = 3, root has deg n. Not regular. Whatever — some 40-vertex 4-chromatic graph with min degree ≥ 3 exists for sure, e.g., M(Grötzsch) (23 vertices, 5-chromatic, min degree... Grötzsch has min degree 4? Grötzsch graph: 11 vertices, degrees: 5 vertices of degree... it's 4-regular? No: Grötzsch graph has 11 vertices, 20 edges, degrees: the Mycielskian of C5: original C5 vertices degree 2+1=3, shadow vertices degree 2, root degree 5. Min degree 2! So peeling would remove shadows... interesting. M(Grötzsch) = 23 vertices: original Grötzsch vertices deg 4, shadows deg 4 (copy of original degree), root deg 11. Min degree 4. 5-chromatic. So M(Grötzsch) survives peeling (min degree 4). DSATUR on it: 23 vertices... tree size? Unknown but let me guess ≤ 10^4. Then pad to 40 with more vertices (e.g., another copy connected, or Mycielski again is 47 > 40). A 40-vertex instance could be: M(Grötzsch) (23) + 17 vertices forming another hard-ish structure connected to it. Even if the tree is 10^5-10^6 nodes, Python at ~10-20 μs/node (optimized) → 1-20s. Risky at the high end.
+
+Hmm. Let me think about how to make the search more robust. Options:
+
+(a) **Better propagation**: full arc consistency (AC-3 style): repeatedly, for each unassigned vertex, remove colors c such that some neighbor has avail = {c} only... Actually for coloring, "singleton removal" is what we do; AC would also remove color c from v if v has a neighbor u with avail[u] = {c}. That's exactly the propagation we do when u is assigned... but u might be unassigned with avail={c} — we assign it immediately (unit propagation), so it's the same. Stronger: remove c from v if for color c, v needs a neighbor... no wait, that's for list coloring satisfiability (not just inequality). AC for graph coloring: avail[v] removes c if ∃ neighbor u with avail[u] = {c}. Since we immediately assign singletons, this is covered. Full AC beyond that: for inequality constraints, AC is exactly singleton removal. So our propagation = AC. Good.
+
+(b) **Better branching — "pair branching" / clique-based**: When branching on vertex v, instead of just trying colors, we could branch on pairs... 
+
+(c) **Memoization on canonical form**: too expensive.
+
+(d) **Better vertex ordering / restarts with random orders**: For satisfiable instances, trying multiple random greedy orders first often finds a solution instantly. Then backtracking only for the hard unsatisfiable cases. Hmm, but hard unsat cases are the expensive ones.
+
+(e) **K4 detection + odd wheel detection etc.**: minor.
+
+Honestly, let me just also implement a **fallback exact algorithm with guaranteed bound**? Let me reconsider the merge-branching algorithm, which has a proven bound around 1.4423^n or at least ~1.5^n ≈ 10^7 for n=40 — too slow in Python if per-node is heavy... 1.5^40 = 1.1e11?? No wait: 1.5^40 = (1.5^10)^4 = 57.66^4 ≈ 1.1e7. Yes 1.1e7 leaves. Hmm, 1.4423^40 = e^(40 × 0.3664) = e^14.66 ≈ 2.3e6. And 1.5^40 ≈ 1.1e7. In Python, 1e7 nodes is too slow (each node involves graph copies...). Unless nodes are super cheap. Not viable as the main algorithm in Python.
+
+Let me reconsider: is there any polynomial-ish or MITM approach for n=40 3-coloring that's Python-feasible?
+
+**MITM for 3-coloring — let me think harder.** 
+
+3-coloring: partition V into 3 independent sets A, B, C. 
+
+Alternative formulation: choose the color class containing a specific vertex... 
+
+Hmm, here's a thought: **G is 3-colorable iff ∃ independent set S with G−S bipartite.** Let's split V = X ∪ Y with |X| = |Y| = 20. 
+
+For the bipartiteness of G−S: G−S is bipartite iff no odd cycle in G−S. Hmm.
+
+Alternative: **DP over subsets of X**: For each subset S_X ⊆ X that is independent in G[X], and each bipartition (P_X, Q_X) of... hmm, we need to combine with Y.
+
+Let me think: 3-coloring = partition into (I, P, Q) where I independent, and P, Q each independent (P∪Q independent? No! P and Q are the two sides of a bipartition of G−I, meaning P independent, Q independent, but P∪Q can have edges (between P and Q)). So: 3-coloring = (I, P, Q): I, P, Q each independent sets partitioning V. That's just the definition. 
+
+MITM: enumerate over X: all ways to assign X's vertices to {I,P,Q} such that each class is independent within X: up to 3^20 = 3.5e9. Too many. But we don't need all: we need, for each "interface state", whether feasible. The interface between X and Y: for the combination to work, we need for each vertex y ∈ Y and each class, consistency... The problem: the classes of Y interact with classes of X only via edges between X and Y: y can be in class C only if no neighbor in X is in class C. So the interface is: for each y ∈ Y, the set of classes blocked, which is determined by the X-assignment: blocked_C(y) = ∃ x ∈ N(y)∩X with x in class C. So interface = for each y, a 3-bit mask. Then Y's problem: assign Y vertices to classes respecting internal edges and the blocked masks. 
+
+So: enumerate all valid assignments of X (3^20 worst case — too many). But we can group by interface state: the interface state is a tuple of 20 3-bit masks = huge state space. No good.
+
+Hmm, but wait: we can flip it: enumerate assignments of X but only need the "blocked masks" for Y... The number of distinct blocked-mask-tuples could still be huge.
+
+Alternatively **choose X to be a small set**? If |X| = 13, 3^13 = 1.6e6, and Y = 27 vertices... then Y's problem is still a 3-coloring with preclusions — still exponential. No.
+
+OK, MITM doesn't easily work for 3-coloring (it's known 3-coloring doesn't have simple MITM; the best algorithms are branching-based).
+
+**Decision**: Go with DSATUR + unit propagation + symmetry breaking + peeling + component decomposition. This is the practical standard. For n=40, it will almost certainly be fast. To hedge against pathological cases, I'll optimize the inner loops well (bitmask ops, local variable caching) and maybe add a couple of extra prunes:
+
+- **K4 quick check**: if any K4 exists → NO immediately. (Cheap: for each edge, common neighbors; for each pair of common neighbors adjacent → K4. O(m × deg^2) fine.) This catches cliques and dense unsat cases instantly.
+
+- **Clique-based initial fixing**: if there's a triangle, fix its 3 colors before search (reduces symmetry breaking work — but symmetry breaking already does this implicitly). Skip.
+
+- **Odd cycle in "2-available" structures**: propagation handles.
+
+Let me also think about **the order of trying colors**: try colors in order... for satisfiable instances, trying "most used color first" or "least constraining"... Minor. I'll try in increasing color order, with new color last... hmm, actually for finding solutions fast, trying the most-used color first tends to reuse colors and succeed faster on sparse graphs; trying new colors grows... For 3 colors it hardly matters. Keep it simple: iterate bits of in_used (low to high), then the new color.
+
+Hmm, one more heuristic thought: **vertex selection tie-breaking by degree** is important. Also, when avail counts are equal (say all 2), picking the vertex adjacent to most unassigned vertices helps propagation. Standard DSATUR tie-break: max degree in uncolored subgraph. I'll use static degree (simpler) or dynamic? Let me use dynamic degree among unassigned (number of unassigned neighbors) — slightly better, costs O(deg) per candidate... For n=40, computing for all candidates each node: fine. Actually simpler: precompute static degree; tie-break by static degree descending. Good enough. Hmm, let me do dynamic: count unassigned neighbors. It's O(sum of degrees) = O(2m) ≤ 1560 per node — that's too much if nodes are many. Static degree: O(1). I'll use static degree. Or... compromise: tie-break by (number of unassigned neighbors) computed only among tied candidates? Meh. Static is fine.
+
+Actually, let me reconsider the whole implementation for speed. Represent:
+
+- n ≤ 40. adjacency: list of lists adj[v] (neighbors), and bitmask nbr[v] (bitmask of neighbors).
+- avail: list of ints (3-bit masks), one per vertex (global array; only component vertices matter).
+- assigned: list of ints, -1 or color.
+
+Propagation with bitmasks: when assigning v color c, the affected vertices = nbr[v] & unassigned_mask. Maintaining unassigned_mask: let me keep `free_mask` = bitmask of unassigned vertices. Then:
+
+```
+def propagate(avail, assigned, free_mask, v, c):
+    # v assigned color c; returns (True, free_mask') or (False, _)
+    stack = [(v, c)]
+    while stack:
+        x, cx = stack.pop()
+        bit = 1 << cx
+        affected = nbr[x] & free_mask
+        # iterate over set bits of affected
+        while affected:
+            lb = affected & (-affected)
+            affected ^= lb
+            u = lb.bit_length() - 1
+            na = avail[u] & ~bit
+            if na != avail[u]:
+                if na == 0: return False
+                avail[u] = na
+                if na & (na-1) == 0:  # single bit
+                    cu = na.bit_length() - 1
+                    assigned[u] = cu
+                    free_mask ^= lb
+                    stack.append((u, cu))
+        # also check assigned neighbors for conflict? 
+```
+
+Wait — the conflict check with already-assigned neighbors: as discussed, when processing (x,cx), an already-assassigned neighbor u with assigned[u] == cx → conflict. With bitmask approach: assigned vertices aren't in free_mask, so `nbr[x] & free_mask` skips them. I need to also check: nbr[x] & assigned_mask_cx where assigned_mask_cx = vertices assigned color cx. Maintain assigned_mask[color] = bitmask of vertices with that color. Then conflict iff nbr[x] & assigned_mask[cx] != 0. 
+
+Hmm wait, but actually — can that happen? u assigned cu=cx, u adjacent to x, x assigned cx. When u was assigned cu, was x's assignment processed? If x was assigned before u and processed (propagated) before u's assignment, then bit cx was removed from avail[u], so u couldn't be assigned cx. So conflict only if (x,cx) propagation happens after u's assignment — i.e., x is in the stack pending while u gets assigned. Possible. So yes, need the check: `if nbr[x] & assigned_mask[cx]: return False`. But careful: x itself is in assigned_mask[cx]... x ∉ nbr[x] (no self-loops). But other stack-pending vertices could be neighbors of x with the same color → conflict, correctly detected. ✓.
+
+Hmm, wait, actually let me simplify: instead of checking conflicts via assigned_mask, note that when u is assigned (forced), avail[u] was reduced to {cu} by removing colors of all *processed* neighbor assignments. Pending assignments (in stack) haven't removed their colors yet. So the check `nbr[x] & assigned_mask[cx]` at processing time catches exactly these pending conflicts. ✓. Also initial branch assignment: v=c, then propagate — assigned_mask[c] gets v... Let me maintain assigned_mask as array of 3 bitmasks.
+
+Alternatively — simpler correctness: process stack in FIFO (queue) order? Doesn't eliminate the issue. The check is needed regardless. Fine, maintain assigned_mask[3].
+
+Actually hmm, wait. Let me reconsider: is the pending-conflict scenario actually possible? Stack entries are (vertex, color) pairs where vertex is assigned. When we push (u, cu) [u forced], u is assigned cu. Later we pop (x, cx) with x adjacent to u and cx == cu. For this, x must have been assigned and pushed before u was assigned (since after popping (x,cx) we'd have removed cx from avail[u]... wait no — we pop (x,cx) NOW; it was pushed earlier and sat in the stack while u got assigned by another entry's propagation. Yes, possible. Example: path u—x, and u—w, x—w? Let me construct: vertices a, b adjacent; a—c, b—c... Take triangle-free: u adjacent to x and to w; x adjacent to w? Let me just trust the analysis: the check is needed. Example: star: center w adjacent to u and x. w assigned color 1 → pushed (w,1). Pop (w,1): u loses 1 → avail {2,3}; x loses 1 → avail {2,3}. No forcing. Hmm, need forcing: u adjacent to w (color 1) and to y (color 2) → u forced to 3. x adjacent to w (color 1) and z (color 3) → x forced to 3. And x adjacent to u → conflict (both 3, adjacent). Sequence: assign w=1, push (w,1). Pop (w,1): u avail {2,3}, x avail {2,3}. Assign y=2 (branch), push (y,2). Pop (y,2): u loses 2 → avail {3} → forced u=3, push (u,3). Pop (u,3): x loses 3 → avail {2} → forced x=2, push (x,2). Pop (x,2)... no conflict here. Let me redo: I want x forced to 3 while u is pending-3 and x adjacent u. x adjacent to w(1) and z(3): assign z=3, push (z,3). Pop order: stack = [(w,1)] → pop (w,1) → u:{2,3}, x:{2,3}. Branch y=2: stack=[(y,2)] → pop → u forced 3, push (u,3). stack=[(u,3)]. Branch z=3: stack=[(z,3)] → pop (z,3): x loses 3 → {2} → forced x=2. Hmm x forced to 2, not 3. I need x forced to 3: x adjacent to w(1) and z(2): z=2... but y=2 already... colors can repeat. z=2: pop (z,2): x loses 2 → {3} → forced x=3, push (x,3). Now stack = [(u,3), (x,3)] with u,x adjacent! Pop (x,3): check nbr[x] & assigned_mask[3]: u is assigned 3 and adjacent to x → conflict detected → FAIL. ✓. So yes, the check catches it. Without the check, we'd produce an invalid coloring. Good thing I thought this through.
+
+So propagate maintains: avail[], assigned[], free_mask, assigned_mask[3]. All mutated in place; on failure return False (state is garbage, caller discards).
+
+Since I copy state per branch anyway, let me bundle state into a small object or just pass tuples of (avail list, assigned list, free_mask, assigned_mask list). Copy: avail[:], assigned[:], assigned_mask[:] — 4 small copies per node. Fine.
+
+Alternatively, do trail-based undo (no copies): more error-prone; copies are fine for expected small trees.
+
+Let me now write the search:
+
+```
+import sys
+
+def main():
+    input_data = sys.stdin.buffer.read().split()
+    n = int(input_data[0]); m = int(input_data[1])
+    adj = [[] for _ in range(n)]
+    nbr = [0]*n
+    idx = 2
+    for _ in range(m):
+        u = int(input_data[idx])-1; v = int(input_data[idx+1]); idx += 2
+        if u != v:
+            adj[u].append(v); adj[v].append(u)
+            nbr[u] |= 1<<v; nbr[v] |= 1<<u
+    # dedupe? m pairs could contain duplicates? Problem says pairs; assume no duplicates. But safe: nbr bitmask dedupes; adj lists might have duplicates → propagation processes neighbor twice — harmless (second time avail unchanged... wait, in propagate I iterate over bitmask `nbr[x] & free_mask` — deduped ✓). But adj used for degree — compute degree from nbr popcount instead. OK.
+```
+
+I'll compute deg[v] = popcount(nbr[v]) (deduped). Use nbr bitmasks everywhere; adj lists not needed except maybe for reconstruction (greedy coloring of peeled vertices — can use nbr bitmask too).
+
+**Peeling**: 
+```
+deg = [popcount(nbr[v]) for v in range(n)]
+removed = [False]*n
+peel_order = []
+stack of vertices with deg ≤ 2 (and not removed)
+while stack: v = pop; if removed or deg>2: continue; removed[v]=True; peel_order.append(v); for u in nbr[v] if not removed: deg[u]-=1; if deg[u]==2: push u
+core = [v for v not removed]
+```
+
+Wait, careful: deg here should be the current degree in the remaining graph. Standard peeling. ✓.
+
+If core is empty → color all via reverse peel order greedily → output YES.
+
+Else: run search on core. But also — the core might be disconnected; decompose core into components and solve each separately. (Symmetry breaking per component is fine — actually, I could even solve each component with its own used_mask starting at 0.)
+
+Hmm wait, actually, should I decompose into components BEFORE peeling? Peeling is global; components of the original graph... Let me just: peel globally, then find components of the core, solve each component by backtracking, then reconstruct peeled vertices globally (reverse peel order works globally: each peeled vertex has ≤2 neighbors remaining at peel time, all of which are colored before it in reverse order — regardless of component structure ✓).
+
+**K4 check** (optional but nice): on the core (or whole graph): for each vertex v, for pairs of neighbors... Let me do: for each edge (u,v) with nbr[u]&nbr[v] != 0: for each w in common: if exists x in common adjacent to w → K4. Simpler: for each 4-clique: iterate v; A = nbr[v]; for u in A: B = A & nbr[u] (common neighbors of u,v that are also neighbors of v); if B has two adjacent vertices → K4. Cost: sum over edges of deg^2 ≈ 40 × 40 × 40 worst = fine. Actually simpler: for each pair (u,w) in B check nbr[w] & B != 0... Let me implement:
+
+```
+def has_k4():
+    for v in range(n):
+        A = nbr[v]
+        while A:
+            u = lowest bit; A ^= bit
+            B = nbr[v] & nbr[u]  # common neighbors, both adjacent to v
+            # need two adjacent vertices in B
+            while B:
+                w_bit = B & -B; B ^= w_bit
+                if nbr[w] & B: return True
+    return False
+```
+O(n × deg × deg × ...) fine for n=40.
+
+If K4 → print NO. (Not necessary — search would find it — but cheap insurance for dense unsat cases. Actually, dense unsat cases: search with propagation handles cliques instantly as traced. K4 check is optional; I'll include it anyway, it's cheap.)
+
+Hmm, also: **clique of size 4 detection via more general**: if max clique > 3 → NO. K4 check covers it (any clique ≥4 contains K4). ✓.
+
+**Component solving**:
+
+```
+def solve_component(comp_vertices):
+    # comp_vertices: list of vertices
+    k = len(comp_vertices)
+    if k == 0: return {}
+    # quick: if k small (≤ ~20?), could brute force 3^k? 3^20 too big. ≤ 12: 3^12=531k... maybe not needed.
+    avail = [7]*n  # only comp vertices used
+    assigned = [-1]*n
+    free_mask = OR of bits of comp vertices
+    assigned_mask = [0,0,0]
+    used_mask = 0
+    # search
+```
+
+Wait — avail array indexed globally (size n) but only comp entries used. Copies of size-n lists: fine (n=40).
+
+Search recursion:
+
+```
+def search(avail, assigned, free_mask, assigned_mask, used_mask, comp_list):
+    if free_mask == 0:
+        return assigned
+    # pick vertex: min popcount(avail), tie max static degree
+    best_v = -1; best_pc = 4; best_deg = -1
+    fm = free_mask
+    while fm:
+        b = fm & -fm; fm ^= b
+        v = b.bit_length()-1
+        a = avail[v]
+        pc = popcount(a)
+        d = deg[v]
+        if pc < best_pc or (pc == best_pc and d > best_deg):
+            best_v = v; best_pc = pc; best_deg = d
+    v = best_v
+    A = avail[v]
+    cand = A & used_mask
+    newc = A & ~used_mask
+    colors = []
+    while cand: 
+        b = cand & -cand; cand ^= b; colors.append(b)
+    if newc: colors.append(newc & -newc)
+    for cb in colors:
+        c = cb.bit_length()-1
+        avail2 = avail[:]
+        assigned2 = assigned[:]
+        am2 = assigned_mask[:]
+        assigned2[v] = c
+        am2[c] |= 1<<v
+        avail2[v] = 0
+        fm2 = free_mask ^ (1<<v)
+        ok = propagate(avail2, assigned2, fm2, am2, v, c)  # returns new free_mask or -1
+        if ok >= 0:
+            res = search(avail2, assigned2, ok, am2, used_mask | cb, comp_list)
+            if res is not None: return res
+    return None
+```
+
+And propagate mutates avail2, assigned2, am2 and returns updated free_mask or -1 on failure:
+
+```
+def propagate(avail, assigned, free_mask, assigned_mask, v, c):
+    stack = [(v, c)]
+    while stack:
+        x, cx = stack.pop()
+        if nbr[x] & assigned_mask[cx]:
+            # conflict: some neighbor already has color cx
+            # careful: x itself is in assigned_mask[cx] but x not in nbr[x] ✓
+            return -1
+        bit = 1 << cx
+        aff = nbr[x] & free_mask
+        while aff:
+            lb = aff & -aff; aff ^= lb
+            u = lb.bit_length()-1
+            na = avail[u] & ~bit
+            if na != avail[u]:
+                if na == 0: return -1
+                avail[u] = na
+                if not (na & (na-1)):
+                    cu = na.bit_length()-1
+                    assigned[u] = cu
+                    assigned_mask[cu] |= lb
+                    free_mask ^= lb
+                    stack.append((u, cu))
+    return free_mask
+```
+
+Wait, there's an issue with the conflict check placement: when popping (x,cx), x is assigned cx and assigned_mask[cx] includes x. Check nbr[x] & assigned_mask[cx]: includes vertices assigned cx (including possibly ones pending in stack). If any neighbor of x has color cx → conflict. But note: when we process (x,cx), neighbors of x that were assigned cx *before* x's assignment and already propagated — could that happen? If neighbor u was assigned cx and propagated before x was assigned, then when u propagated, x (unassigned then, or...) hmm: if u assigned cx and (u,cx) processed while x unassigned → x loses bit cx from avail → x can't later be assigned cx... but x IS assigned cx now (we're processing (x,cx)) — contradiction? x was assigned cx either by branch choice or forced. If forced: avail[x] was {cx} — but u's propagation removed cx from avail[x] → avail[x] couldn't contain cx. If branch: we chose cx ∈ avail[x] — again cx was removed. So no: if (u,cx) was fully processed before x's assignment, x wouldn't have cx available. Therefore any neighbor in assigned_mask[cx] at processing time must be a pending one (assigned but not yet propagated) — exactly the conflicts we must catch. And the check is correct and necessary. ✓.
+
+But hmm, one subtlety: the check `nbr[x] & assigned_mask[cx]` — assigned_mask[cx] includes x itself; x ∉ nbr[x] assuming no self-loops (input shouldn't have self-loops; if u==v in input, I skip adding — I already guard `if u != v`). ✓. Also multi-edges deduped by bitmask. ✓.
+
+Also: what about vertices assigned but their stack entry processed — they're in assigned_mask and NOT in free_mask; the `aff` loop only touches free (unassigned) vertices. ✓.
+
+Now, popcount: Python 3.8 has int.bit_count? bit_count is 3.10+. To be safe, use bin(x).count('1') or a small lookup table for 3-bit values: popcount of 3-bit masks: precompute [0,1,1,2,1,2,2,3]. avail values are 3-bit → use table PC3 = (0,1,1,2,1,2,2,3). ✓ fast.
+
+**Symmetry breaking correctness re-check with components**: used_mask per component starts 0. First branch: v with avail 7, used 0 → colors = [] + [bit 1] → only color 0 tried. ✓ (colors 1,2,3 ↔ bits 0,1,2; output color = bit index + 1).
+
+**Reconstruction of peeled vertices**: after core colored (assigned array has colors for core vertices), color peeled vertices in reverse peel order: for v in reversed(peel_order): blocked = OR of (1<<assigned[u]) for u in nbr[v] with assigned[u] != -1. At that point, all neighbors of v that were "present" when v was peeled are colored (they're either core or peeled later → earlier in reversed order → already colored ✓). Neighbors peeled before v: uncolored, but they weren't counted in v's peel-time degree... wait, v's peel-time degree counts neighbors not yet peeled at v's peel time. Neighbors peeled before v are already removed → not counted. So blocked has ≤ 2 bits → some color available. Assign lowest available. ✓.
+
+Hold on — subtle: when v is peeled, deg[v] ≤ 2 counts remaining neighbors. When reconstructing v (reverse order), remaining-at-peel-time neighbors = core ∪ peeled-after-v → all colored by then ✓. So blocked ≤ 2 bits, avail = 7 & ~blocked ≠ 0 ✓.
+
+**Components of the core**: find via BFS/DFS using nbr bitmasks over core vertices. For each component: run search. If any returns None → print NO. Else continue.
+
+Wait, actually — do I even need component decomposition for correctness? No, just performance (smaller used_masks per component → better symmetry breaking, and independent failures). Keep it.
+
+Hmm, actually one more thought on symmetry breaking across components: components are independent, so each component's coloring can use colors independently — per-component used_mask starting from 0 is correct. ✓.
+
+**Special case: component of size 1 or 2**: trivially colorable; search handles (first vertex: only color 0 tried by symmetry; second: if adjacent, avail {1,2}... wait used_mask={0}, avail = {bits 1,2} → in_used = 0, new = {1,2} → try only bit 1 ✓; fine).
+
+**Recursion depth**: ≤ core size ≤ 40 → fine.
+
+**Now, performance of the search on hard instances**: Let me think about whether to add extra safety. One more powerful and simple technique: **restart with different vertex orderings won't help unsat**. For unsat, the whole tree must be explored. The tree size with symmetry breaking + propagation for 40-vertex 4-critical graphs... I'll estimate it's fine. Let me also add one more cheap but effective technique for the branching: **when the chosen vertex v has avail = 2 colors {c1, c2}, instead of branching "v=c1" vs "v=c2", we could branch on something stronger**... e.g., "pair branching": pick two adjacent unassigned vertices u,w both with avail 2... Standard improvement: branch on an edge (u,w): either same color or different — for 3 colors... meh. Keep it simple.
+
+Another cheap improvement: **choose branching vertex among those with avail=2 if any (DSATUR does this), and among avail=2 vertices, prefer one adjacent to another avail=2 vertex** (creates chains/propagation). My tie-break by static degree approximates this. OK.
+
+Let me also handle **the case where propagation at the root (before any branching) is vacuous** — no initial forced vertices (no pre-colored vertices), fine.
+
+Let me also think: **is DSATUR min-avail selection correct with the "new color" symmetry?** Yes as argued.
+
+Edge: **used_mask | cb** — when trying color cb, used grows. ✓.
+
+Let me now also double check the **branch color ordering for finding solutions quickly**: colors list = in-used colors (low bits first) + one new color. For a satisfiable sparse graph: first vertex tries new color 0; second vertex (adjacent) tries new color 1; third adjacent to both → forced... For a path: v1=0 (new), v2: avail {1,2}, used {0} → in_used ∅ → new {1,2} → try bit1 (=color 2). v3: adjacent v2 → avail {0,2}, used {0,1} → in_used {0} → try color 0 first! v3 = 0. v4: avail {1,2}... wait v4 adjacent v3(=0) → avail {1,2}, used {0,1} → in_used {1} → try color 1... hmm wait bits: colors are 0,1,2 (bits 1,2,4). v3 = color 0 (bit 1). v4 adjacent v3 → avail bits {2,4} (colors 1,2). used_mask = bits {1,2} (colors 0,1). in_used = {2} → color 1. v4 = 1. v5 adjacent v4 → avail {1,4} → in_used {1} → color 0. So path colored 0,1,0,1,... alternating — first descent succeeds. ✓. Odd cycle: 0,1,0,1,...,last vertex adjacent to first(0) and prev(1) → forced color 2 ✓ succeeds. 
+
+**Now let me also think about whether trying in-used colors before new colors is right**: for satisfiable instances, reusing colors is good (3 colors suffice only if reused). ✓. For unsat, order irrelevant.
+
+**Potential pathological case for min-avail selection**: none serious.
+
+Let me also consider **adding a "greedy first" pass**: run DSATUR greedy (no backtracking) with several orderings; if it finds a 3-coloring → output. This makes typical satisfiable cases instant, and backtracking only runs when greedy fails (unsat or tricky sat). But backtracking's first descent IS essentially greedy. So skip.
+
+**Let me now also reconsider: could the search blow up on a satisfiable instance?** DSATUR backtracking on satisfiable instances can also blow up in theory (heuristic leads to dead ends repeatedly). With propagation + symmetry, on 40 vertices, I'll take the risk. 
+
+Hmm, let me think about known hard SATISFIABLE instances for backtracking 3-coloring... e.g., graphs that are 3-chromatic but "just barely" — like critical 3-chromatic graphs (odd cycles with chords?). An odd cycle: handled (first descent works as shown). 3-critical graphs = odd cycles only. So satisfiable hard cases are non-critical 3-chromatic graphs where greedy fails... e.g., graphs where DSATUR greedy uses 4 colors but graph is 3-colorable. Random 3-colorable graphs near threshold — DSATUR backtracking handles these fine typically (literature: DSATUR solves random 3-colorable instances with n up to hundreds quickly... mostly). n=40: fine.
+
+OK here's another consideration — maybe I'm overengineering. Let me also add a **node counter with fallback**? If search exceeds, say, 2 million nodes, then... fallback to what? There's no better fallback. I could fall back to a different algorithm (merge-branching). Hmm. Let me think about whether to implement the merge-branching algorithm as the primary or fallback.
+
+**Merge-branching algorithm (classical, guaranteed ~1.4423^n–1.5^n):**
+
+Actually, let me recall the proper algorithm. Beigel & Eppstein's 3-coloring algorithm is more complex (uses "tree decomposition of neighborhoods"). The simpler "merge" branching:
+
+Pick vertex v with degree ≥ 3 (if none, graph is max-degree ≤ 2 → easy). Pick 3 neighbors u1, u2, u3 of v. In any valid 3-coloring, v's color differs from all ui's colors, so {colors of u1,u2,u3} ⊆ 3-colors minus v's color → at most 2 distinct → some pair shares a color. Branches: (u1=u2), (u1=u3), (u2=u3). Each branch: merge the pair (contract into one vertex). n decreases by 1 each branch → T(n) = 3 T(n-1) → 3^40. BAD without refinement. Refinements: 
+- If some pair is adjacent (edge), that pair can't share → skip that branch. If all 3 pairs adjacent → u1u2u3 triangle + v adjacent to all → K4 → NO. So if N(v) has an independent set of size 3, we get 3 branches... still 3-way on n-1.
+- Better: choose v = max degree; merges increase degrees; high degree → quick K4 detection... The refined analysis gives ~1.4423^n? Hmm, actually I recall the merge-based 3-coloring bound is O(1.4423^n)? No — 1.4423^n is Beigel–Eppstein. The simple merge branching gives... Let me think: if we pick v with degree ≥ 3 and 3 pairwise NON-adjacent neighbors (independent triple), 3 branches each reducing n by 1: 3^n. If N(v) has no independent triple, N(v) is "2-clique-coverable"... then v's neighbors use ≤ 2 colors anyway... hmm, then we could branch differently: the neighbors partition into 2 cliques? If N(v) = clique cover with 2 cliques C1, C2: all neighbors use ≤ 2 colors, and each clique is monochromatic? No — clique vertices have distinct colors, so a clique of size ≥ 3 in N(v) → K4 with v → NO. So cliques in N(v) have size ≤ 2 → N(v) ≤ 4 vertices... interesting: if N(v) has no independent set of size 3 and no K4, then N(v) can be covered by 2 cliques of size ≤ 2 → deg(v) ≤ 4. Hmm, so for deg(v) ≥ 5, N(v) always has an independent triple → 3-way merge branching. For deg(v) ∈ {3,4}: special handling. This is getting complicated — the known bound for this style is around 1.4^n with careful measures. Implementing correctly = risky. 
+
+**Decision**: Skip merge-branching. Go with DSATUR+propagation+symmetry+peeling+K4-check. For n=40 in a contest problem A, this is more than sufficient. I'll optimize constants.
+
+Actually, hold on. Let me reconsider the problem source. "Problem A — Operational Segments", n ≤ 40, 3 colors. This smells like a rephrased classic: "graph 3-coloring, n ≤ 40". Could be from a Russian contest (ICPC-style?). The intended solution might be backtracking with the observation that... hmm, n ≤ 40 with 3 colors — maybe intended: 3^(n/2) meet-in-the-middle? 3^20 = 3.5e9 — no. Or intended: since it's problem A, maybe tests are weak and simple backtracking passes. Or maybe the intended solution is exactly DSATUR. Either way, my solution is strictly stronger than simple backtracking.
+
+Wait, actually, maybe I should reconsider — is there a polynomial solution?? "Each worker allocated to one of 3 segments, interfering pairs can't share" — that's exactly graph 3-coloring, NP-complete. With n ≤ 40, exponential intended. OK.
+
+Hmm, wait, one more idea for a **guaranteed-fast exact algorithm that's simple**: **transform to SAT and... no. Transform to 2-SAT?** No.
+
+**Another angle — the "one color class is a large independent set" + bipartite check with MITM on the independent set choice:**
+
+G 3-colorable ⟺ ∃ S independent, G−S bipartite. Equivalently: ∃ partition (S, P, Q): S independent, P independent, Q independent. 
+
+MITM: split V into X (size k) and Y (size 40−k). For each assignment of X's vertices to roles {S,P,Q} (3^k), check internal consistency (each role class independent within X). For each valid X-assignment, compute constraints on Y: for y ∈ Y, allowed roles = roles r such that no neighbor of y in X has role r. Then Y-problem: assign roles to Y vertices s.t. each role class independent within Y and respecting allowed roles. The Y-problem is itself 3-coloring-like (exponential). Unless Y is small: k=20 → 3^20 X-assignments (3.5e9) — too many. k=13: 1.6e6 X-assignments, Y = 27 vertices → Y-problem exponential per assignment. No good.
+
+**DP over "for each subset of X, roles"**... no.
+
+OK here's yet another angle: **Schaefer-style / algebraic**: no.
+
+**Final answer: DSATUR backtracking.** Let me also add **iterative deepening on... no.** Let me also consider adding **randomized restarts with different tie-breaks** as a safety net for satisfiable cases: if the deterministic search struggles (node budget exceeded), restart with randomized vertex selection among ties. This helps satisfiable cases (where diversity finds solutions) but not unsat. Implementing restarts adds complexity; the deterministic version is likely fine. I'll skip restarts but maybe add a tiny bit of randomization? No — deterministic, reproducible.
+
+Hmm, let me estimate the worst unsat tree more concretely by considering the nastiest 40-vertex 4-chromatic graph I can think of: **the 40-vertex "double Mycielski" or a random 4-chromatic graph**. Random graphs G(40, p) with p around 0.3-0.5: mostly contain K4 → K4 check → instant NO. p ~ 0.05-0.1: 3-colorable typically. The unsat sweet spot without K4: triangle-free 4-chromatic. On 40 vertices: e.g., **M(Grötzsch) (23 vertices, 5-chromatic)** — wait, 5-chromatic means also not 3-colorable, and it's triangle-free with min degree 4. Plus 17 more vertices attached to make n=40 (e.g., another M(Grötzsch)-ish or just a hard 4-chromatic piece). If components: solved separately (23-vertex component: tree size?). Let me try to mentally estimate DSATUR+propagation on M(Grötzsch): 23 vertices. Hmm, hard to estimate without running. My gut: ≤ 10^4 nodes. Python: ~0.5-1s at 50μs/node? Each node: copy 3 lists (~120 ints) + propagate (bit ops over ≤ 40-bit masks) + selection loop over ≤ 23 vertices. Maybe 30-80 μs/node → 10^4 nodes = ~0.5s. OK. If tree were 10^5: ~5s — too slow. Risk exists but I judge it low for this problem's likely tests.
+
+To reduce risk, let me optimize the node cost aggressively:
+
+1. Avoid copying `assigned` list: derive... hmm, needed. Actually, I can restructure: instead of copying avail/assigned per branch, use **trail-based undo**: record changes (avail updates, assignments) and undo on backtrack. This makes node cost O(changes) instead of O(n). Changes per assignment ≈ deg. Let me implement trail:
+
+- `avail`, `assigned`, `free_mask`, `assigned_mask` as mutable globals (per component search).
+- Trail: list of (type, data) entries; or simpler: record (vertex, old_avail) pairs for avail changes, and (vertex) for assignments. On backtrack: pop entries and restore.
+
+Trail entries:
+- For each avail change: (u, old_avail).
+- For each assignment: (u, old_assigned=-1) — also avail[u] set to 0 (record old avail too — it was the single-bit value; restoring avail[u] to that value and assigned[u]=-1 suffices; but avail[u] change also needs recording... when u gets assigned: avail[u] was na (single bit), set to 0. Record (u, na). And assigned[u] = cu: record assignment. On undo: assigned[u] = -1, avail[u] = na. But careful: avail[u] might have been changed multiple times before assignment — each change recorded separately; undo in reverse order restores correctly ✓.
+- free_mask changes: derivable from assignments (each assignment removes a bit; undo re-adds). Record count or just recompute: on undo of assignment (u,cu): free_mask |= 1<<u; assigned_mask[cu] ^= 1<<u.
+- assigned_mask changes: same.
+
+So trail = list of ops: ('A', u, old_avail) for avail-change-without-assignment, and ('B', u, cu, old_avail) for assignment (avail[u] set 0, assigned[u]=cu, free_mask bit removed, assigned_mask bit added). Undo: pop and reverse.
+
+This avoids all copying. Node cost = propagate cost + selection cost. Selection: loop over free_mask bits computing popcount via table + deg compare: O(k) with small constant. For k=23: ~23 iterations of cheap ops ≈ 10 μs. Propagate: per assignment, loop over neighbor bits: total work per node ≈ O(edges touched) ≈ 40-80 bit-ops ≈ 20-40 μs. So ~30-60 μs/node → 10^5 nodes ≈ 3-6s. Hmm. Still borderline IF the tree is 10^5. 
+
+Alternatively reduce tree size with better branching. Let me add one more classic technique that's cheap: **when branching on v with 2 available colors, also try to pick a better branching vertex: prefer v adjacent to vertices with small avail** — my tie-break is static degree; let me use dynamic: among min-avail vertices, pick the one with max number of unassigned neighbors (dynamic degree). Computing dynamic degree for all candidates: O(sum deg) — expensive. Compromise: compute dynamic degree only for vertices tied at (min_avail, ...)? Simpler: tie-break by static degree — accept.
+
+Actually, you know what? Let me ALSO add the **"brelaz" style: prefer avail=2 vertices adjacent to other avail=2 vertices**... skip. Static degree tie-break is standard DSATUR (original DSATUR ties break by max degree in uncolored subgraph — dynamic). Let me do dynamic degree but computed cheaply: maintain `dyn_deg[v]` = number of unassigned neighbors, updated during propagation (when u gets assigned, decrement dyn_deg for its neighbors — that's O(deg) extra per assignment, same order as propagate itself). Then selection = loop over free bits: key = (pc, -dyn_deg). That's proper DSATUR. Cost: fine.
+
+Hmm, but updating dyn_deg needs trail too (or recompute at each node: O(sum over free vertices of deg) = up to 2m = 1560 ops per node — too much). Trail for dyn_deg: record (w, old) on decrement... that's O(deg) extra trail entries per assignment. Doubles trail size but OK. Alternatively: don't trail dyn_deg; instead recompute dyn_deg only for... hmm. Or: note that dyn_deg[v] = popcount(nbr[v] & free_mask) — computable in O(1) per vertex with bitmask popcount! popcount of a 40-bit int: bin(x).count('1') — that's ~1μs? Actually bin() of 40-bit int is fast-ish but not free. For 23 candidates: 23 × (bitand + popcount) ≈ 23 × 0.3μs ≈ 7μs. Acceptable. But bin().count is slowish; use a precomputed popcount via... Python 3.10 has int.bit_count (fast). Judge Python version? Assume ≥3.9? Risky. Use a fallback: define popcount = int.bit_count if available else bin-based. Hmm, but for 40-bit masks I'd need a general popcount. Options: split mask into bytes and table-lookup: PC = table of 256; popcount(x) = PC[x&255]+PC[(x>>8)&255]+PC[(x>>16)&255]+PC[(x>>24)&255]+PC[x>>32]... For selection I only need popcount of 3-bit avail → table PC3. For dyn_deg I'd need 40-bit popcount — only used in tie-breaks. Alternatively tie-break by static degree (precomputed popcount once) — zero per-node cost. 
+
+Let me simplify: **tie-break by static degree**. It's fine. DSATUR with static-degree tie-break is still strong.
+
+Hmm, wait, actually let me reconsider using dyn degree via bitmask trick: dyn_deg[v] = popcount(nbr[v] & free_mask). I can compute this only for the tied set... The selection loop: first pass find min pc; second pass among min-pc vertices find max dyn_deg. Two passes over ≤40 bits. With bin().count: 40 × 2 × ~0.5μs = 40μs — too slow. Skip. Static degree it is. 
+
+Actually — alternative tie-break that's free: **precomputed static degree** ✓. Done.
+
+Let me now also think about **the order of colors to try** once more, specifically for propagation strength: trying a color that's already used by a neighbor... can't (avail excludes). Trying in-used colors first vs new color first: for SAT instances, in-used first promotes reuse → good. Keep.
+
+Now let me also double-check the **symmetry breaking + propagation interplay**: when we branch v=new color c (c ∉ used_mask), propagation may force other vertices... all consistent. ✓.
+
+**Let me also handle reading input robustly**: m lines of pairs; possible duplicates or self-loops — handle gracefully (dedupe via bitmask; ignore self-loops... a self-loop would make the instance unsolvable (worker interferes with itself?) — problem guarantees pairs of workers, presumably distinct. If u==v appears, treat as... I'll just ignore self-loops (or could output NO; ignoring is safer? If a self-loop exists, no valid allocation exists — but such input shouldn't occur. I'll ignore.)
+
+**Output**: "YES\n" + colors 1-indexed space-separated, or "NO".
+
+Let me now write the full code.
+
 ```python
 import sys
 
-def solve():
-    data = sys.stdin.read().strip().split()
-    if not data:
-        return
-    it = iter(data)
-    n = int(next(it))
-    m = int(next(it))
-    
-    adj = [set() for _ in range(n)]
+def main():
+    data = sys.stdin.buffer.read().split()
+    n = int(data[0]); m = int(data[1])
+    nbr = [0]*n
+    idx = 2
     for _ in range(m):
-        u = int(next(it)) - 1
-        v = int(next(it)) - 1
-        adj[u].add(v)
-        adj[v].add(u)
+        u = int(data[idx])-1; v = int(data[idx+1])-1; idx += 2
+        if u != v:
+            nbr[u] |= 1 << v
+            nbr[v] |= 1 << u
+    deg = [bin(nbr[i]).count('1') for i in range(n)]
     
-    # We use backtracking with pruning.
-    # assignment[i] stores the block (1, 2, or 3) for worker i.
-    assignment = [0] * n
+    PC3 = (0,1,1,2,1,2,2,3)
     
-    # Precompute neighbors for faster access
-    # adj is already a list of sets
+    # Peel degree <= 2
+    degc = deg[:]
+    removed = [False]*n
+    peel = []
+    stack = [v for v in range(n) if degc[v] <= 2]
+    while stack:
+        v = stack.pop()
+        if removed[v]:
+            continue
+        # degc[v] should be <= 2 (might have decreased further; fine)
+        removed[v] = True
+        peel.append(v)
+        w = nbr[v]
+        while w:
+            b = w & -w; w ^= b
+            u = b.bit_length()-1
+            if not removed[u]:
+                degc[u] -= 1
+                if degc[u] <= 2:
+                    stack.append(u)
+    core = [v for v in range(n) if not removed[v]]
     
-    def backtrack(index):
-        if index == n:
+    assigned = [-1]*n
+    
+    if core:
+        # K4 check on core (or whole graph; core suffices since K4 has min degree 3)
+        # Actually check whole graph? K4 vertices all have degree >=3 in whole graph... 
+        # A K4 in the peeled-away part? Peeled vertices have degree<=2 at peel time; 
+        # K4 vertices have 3 neighbors within K4 -> degree >=3 always -> never peeled. 
+        # So checking core is sufficient. But simpler: check whole graph.
+        def has_k4():
+            for x in range(n):
+                A = nbr[x]
+                while A:
+                    ab = A & -A; A ^= ab
+                    y = ab.bit_length()-1
+                    if y < x: continue  # avoid double work; not necessary
+                    B = nbr[x] & nbr[y]
+                    while B:
+                        bb = B & -B; B ^= bb
+                        z = bb.bit_length()-1
+                        if nbr[z] & B:
+                            return True
+            return False
+        # hmm wait, this checks: x,y adjacent, z in common neighbors, and z adjacent to 
+        # another common neighbor w (w in B after removing z) -> x,y,z,w K4? 
+        # x,y adjacent; z adjacent to x,y; w adjacent to x,y; z~w. Yes K4. ✓
+        if has_k4():
+            print("NO")
+            return
+        # components of core
+        in_core = [False]*n
+        for v in core: in_core[v] = True
+        visited = [False]*n
+        comps = []
+        for s in core:
+            if not visited[s]:
+                comp = []
+                dq = [s]; visited[s] = True
+                while dq:
+                    x = dq.pop()
+                    comp.append(x)
+                    w = nbr[x]
+                    while w:
+                        b = w & -w; w ^= b
+                        u = b.bit_length()-1
+                        if in_core[u] and not visited[u]:
+                            visited[u] = True
+                            dq.append(u)
+                comps.append(comp)
+        # solve each component
+        for comp in comps:
+            if not solve_component(comp, nbr, deg, assigned, PC3):
+                print("NO")
+                return
+    # reconstruct peeled
+    for v in reversed(peel):
+        blocked = 0
+        w = nbr[v]
+        while w:
+            b = w & -w; w ^= b
+            u = b.bit_length()-1
+            c = assigned[u]
+            if c >= 0:
+                blocked |= 1 << c
+        av = 7 & ~blocked
+        assigned[v] = (av & -av).bit_length() - 1
+    print("YES")
+    print(' '.join(str(c+1) for c in assigned))
+```
+
+Wait — there's a bug in reconstruction: peeled vertices' neighbors that are peeled LATER are colored before v in reversed order ✓; neighbors peeled EARLIER are uncolored (assigned=-1) → skipped ✓; core neighbors colored ✓. But what about neighbors peeled earlier that... they don't constrain v's peel-time degree, but they ARE neighbors — when they get colored later (they come earlier in reversed order... wait no). Let me recheck: peel order p1, p2, ..., pk (p1 peeled first). Reverse: pk, ..., p1. When coloring pi: neighbors peeled after pi (pj, j>i) already colored ✓; neighbors peeled before (pj, j<i) not yet colored; core neighbors colored. pi's peel-time degree = # neighbors in {pi+1..pk} ∪ core ≤ 2. So blocked ≤ 2 bits ✓. The not-yet-colored neighbors don't matter (they'll avoid pi's color later). ✓ Correct.
+
+Now `solve_component`. Let me write it with trail-based backtracking:
+
+```python
+def solve_component(comp, nbr, deg, assigned, PC3):
+    n = len(nbr)
+    comp_mask = 0
+    for v in comp: comp_mask |= 1 << v
+    avail = [7]*n
+    free_mask = comp_mask
+    assigned_local = ... 
+```
+
+Hmm — `assigned` is the global array being filled; using it directly with trail-undo is fine (component solving either fully succeeds — leaves assignments — or fails and we print NO, discarding). Since on failure we print NO immediately, we don't even need to undo on failure! But we DO need to undo during the search (backtracking between branches). So trail-undo is needed for backtracking within the search, but on total failure we can leave garbage (we print NO). ✓ simplifies.
+
+Wait, careful: if component A succeeds and component B fails → print NO; A's assignments in the global array are garbage but we don't use them. ✓.
+
+Let me write the search iteratively or recursively? Recursive is clearer:
+
+```python
+def solve_component(comp, nbr, deg, assigned, PC3):
+    n = len(nbr)
+    avail = [7]*n
+    free_mask = 0
+    for v in comp: free_mask |= 1 << v
+    amask = [0,0,0]  # assigned_mask per color
+    trail = []  # ops: (0, u, old_avail) avail change; (1, u, cu, old_avail) assignment
+    comp_set = free_mask  # for selection loop
+    
+    def propagate(v, c):
+        # v already assigned color c, avail[v]=0, free_mask updated, amask updated
+        # returns True/False; on False, state partially modified (caller will undo trail)
+        stack = [(v, c)]
+        nm = nbr  # local
+        while stack:
+            x, cx = stack.pop()
+            if nm[x] & amask[cx]:
+                return False
+            bit = 1 << cx
+            aff = nm[x] & free_mask
+            while aff:
+                lb = aff & -aff; aff ^= lb
+                u = lb.bit_length() - 1
+                au = avail[u]
+                na = au & ~bit
+                if na != au:
+                    if na == 0:
+                        return False
+                    trail.append((0, u, au))
+                    avail[u] = na
+                    if not (na & (na - 1)):
+                        cu = na.bit_length() - 1
+                        trail.append((1, u, cu, na))
+                        assigned[u] = cu
+                        amask[cu] |= lb
+                        free_mask ^= lb
+                        stack.append((u, cu))
+        return True
+```
+
+Hmm wait, there's an ordering issue with trail entries: for vertex u that gets assigned, I append (0,u,au) [avail change] then (1,u,cu,na) [assignment]. On undo (reverse): (1,u,cu,na) → assigned[u]=-1, avail[u]=na, free_mask |= lb, amask[cu] ^= lb; then (0,u,au) → avail[u]=au. ✓ consistent.
+
+But wait — in the assignment op, I need `lb` (the bit) to restore free_mask and amask: derivable as 1<<u. ✓ (u known). So op (1, u, cu, old_avail_before_zeroing) — old avail = na. Undo: avail[u] = na... but hold on, the (0,u,au) entry already sets avail[u]=au when undone after. Order: trail = [..., (0,u,au), (1,u,cu,na)]. Undo pops (1,...) first: avail[u] = na? then pops (0,...): avail[u] = au. Final = au ✓. Actually the (1,...) undo doesn't need to touch avail since (0,...) handles it — but wait, does it? avail[u] was au, changed to na (recorded in (0,u,au)), then set to 0 at assignment (recorded in (1,u,cu,na) — I store na as "old avail at assignment time"). Undo reverse: (1,u,cu,na): assigned[u]=-1; free_mask |= 1<<u; amask[cu] ^= 1<<u; avail[u] = na (restore to pre-assignment value). Then (0,u,au): avail[u] = au. ✓. Both entries restore avail; final correct. Alternatively make (1,...) not store avail and rely on (0,...) — but the assignment set avail[u]=0 which needs undo; (0,u,au) restores au directly ✓ — so (1,...) needn't touch avail at all! Since (0,u,au) is always appended right before (1,...) for the same u? Is it? When u gets assigned: na != au (we're in the `if na != au` branch) → yes, (0,u,au) appended immediately before. ✓. So op (1,u,cu): undo = assigned[u]=-1; free_mask |= 1<<u; amask[cu] ^= 1<<u. And avail restored by the (0,...) entry. 
+
+Hmm wait, but there's a subtlety: what if u is assigned via propagation where na == au? Impossible: assignment only happens inside `if na != au`. And the initial branch assignment: v chosen with avail A; we set avail[v]=0, assigned[v]=c — need trail entries: (0, v, A) and (1, v, c). ✓ same pattern.
+
+Undo function:
+
+```python
+    def undo_to(mark):
+        while len(trail) > mark:
+            op = trail.pop()
+            if op[0] == 0:
+                avail[op[1]] = op[2]
+            else:
+                u = op[1]; cu = op[2]
+                assigned[u] = -1
+                free_mask |= 1 << u
+                amask[cu] ^= 1 << u
+```
+
+Wait — free_mask is a closure variable (int) — mutating via `free_mask ^= ...` inside nested function requires `nonlocal`. In Python, integers are immutable; I'll use a one-element list or declare nonlocal. Since propagate and undo both modify free_mask, use `nonlocal` declarations. Or wrap in list FM[0]. Let me use nonlocal.
+
+Search:
+
+```python
+    used_mask = 0  # also nonlocal-ish per recursion — pass as arg
+    
+    def search(free_m, used):
+        # hmm, free_mask is maintained globally by propagate/undo; pass used only
+        if free_mask == 0:
             return True
-        
-        for block in [1, 2, 3]:
-            valid = True
-            # Check constraints with already assigned neighbors
-            # We only need to check neighbors j < index since others are unassigned
-            # Actually, we check all neighbors j such that assignment[j] != 0
-            # But since we fill sequentially, j < index implies assignment[j] != 0
-            # and j >= index implies assignment[j] == 0.
-            # So checking neighbors in range(index) is sufficient and correct.
-            for neighbor in adj[index]:
-                if neighbor < index:
-                    if assignment[neighbor] == block:
-                        valid = False
-                        break
-            
-            if valid:
-                assignment[index] = block
-                if backtrack(index + 1):
+        # select vertex
+        best_v = -1; best_pc = 9; best_d = -1
+        fm = free_mask
+        while fm:
+            b = fm & -fm; fm ^= b
+            v = b.bit_length() - 1
+            a = avail[v]
+            pc = PC3[a]
+            if pc < best_pc or (pc == best_pc and deg[v] > best_d):
+                best_pc = pc; best_d = deg[v]; best_v = v
+        v = best_v
+        A = avail[v]
+        cand = A & used
+        newc = A & ~used
+        mark = len(trail)
+        # try in-used colors
+        c = 0
+        cb = 1
+        while cb <= 4:
+            if cand & cb:
+                # assign v = c
+                trail.append((0, v, A))
+                avail[v] = 0
+                assigned[v] = c
+                amask[c] |= 1 << v
+                free_mask ^= 1 << v
+                trail.append((1, v, c))
+                if propagate(v, c):
+                    if search(free_mask, used | cb):
+                        return True
+                undo_to(mark)
+            cb <<= 1; c += 1
+        if newc:
+            cb = newc & -newc
+            c = cb.bit_length() - 1
+            trail.append((0, v, A))
+            avail[v] = 0
+            assigned[v] = c
+            amask[c] |= 1 << v
+            free_mask ^= 1 << v
+            trail.append((1, v, c))
+            if propagate(v, c):
+                if search(free_mask, used | cb):
                     return True
-                # Backtrack: assignment[index] will be overwritten or remains 0 if we return False
-                # but explicit reset is cleaner for logic, though not strictly necessary if we overwrite.
-                assignment[index] = 0
-        
+            undo_to(mark)
+        return False
+```
+
+Hmm wait, there's a bug: after `undo_to(mark)`, `avail[v]` is restored to A ✓, `assigned[v]` = -1 ✓, free_mask restored ✓, amask restored ✓. But `A` was captured before — fine since restored. ✓.
+
+Also note: after a failed propagate, state is partially modified; undo_to(mark) restores ✓ (all modifications are trailed). Let me double check propagate trails ALL modifications: avail changes ✓ (0-ops), assignments ✓ (1-ops, with preceding 0-op for the avail change... wait — the assignment inside propagate: I append (0,u,au) then (1,u,cu). The (1) op undo doesn't restore avail — relies on the (0) op. ✓ both present). free_mask changes: only in assignments → restored by (1) ops ✓. amask: only in assignments ✓. assigned: only in assignments ✓. 
+
+One more check in propagate: the conflict test `if nm[x] & amask[cx]: return False` — at that point, have we made modifications for THIS (x,cx) processing? No — modifications happen after the test. But earlier stack entries' modifications are trailed ✓. Also — hmm, when the conflict test triggers, some pending stack entries won't be processed — their assignments are already trailed (assignments happen at push time) ✓.
+
+Wait, actually there's still a subtle issue with the conflict test: `nm[x] & amask[cx]` — amask[cx] includes x itself (x assigned cx). x ∉ nm[x] ✓ (no self-loops). But could amask[cx] include a vertex y adjacent to x where y was assigned cx LEGITIMATELY-DETECTED... no wait, if y adjacent to x and both assigned cx, that's a genuine conflict regardless of detection order — because assignments are only "valid" if consistent; y assigned cx means at y's assignment, avail[y] ∋ cx, meaning x's color wasn't yet propagated to y. If x is also cx → conflict. The test catches it when processing (x,cx) (or earlier when processing (y,cx) if x was assigned first... symmetric ✓). But — is it possible that BOTH (x,cx) and (y,cx) get processed without the test triggering? Processing (x,cx): test nm[x] & amask[cx] — y ∈ nm[x] and y ∈ amask[cx] (y assigned before this processing? y assigned at push time, which precedes its processing... hmm: y assigned cx → amask[cx] includes y from that moment. When (x,cx) is processed (popped), y is already in amask[cx] (assignment happened at push). So test triggers ✓. Unless y is assigned AFTER (x,cx) is processed: then when (y,cx) is pushed... y's assignment: avail[y] reduced to {cx} — but x's processing removed bit cx from avail[y] (y ∈ nm[x], y unassigned then) → avail[y] couldn't be {cx}... unless y ∉ nm[x] — contradiction with adjacency. Wait: y ∈ nm[x] and when processing (x,cx), y unassigned → avail[y] &= ~bit → cx removed → y can't be assigned cx later ✓. So all cases covered: conflict always detected. ✓✓.
+
+Hmm, one more: the initial branch assignment of v=c: before that, no check that c is "valid" for v — c ∈ avail[v] by construction ✓, and v's assigned neighbors have colors ∉ avail[v] ✓ (avail maintained). But pending-conflicts: v's assignment could conflict with a PENDING assignment? At branch time, the stack is empty (propagate completed) — all assignments fully propagated. So no pending conflicts at branch time ✓. Within propagate, handled ✓.
+
+Also: at branch time, is it guaranteed that no assigned neighbor of v has color c? Yes: avail[v] excludes colors of all assigned neighbors (propagation complete) ✓.
+
+Now — **the `search` recursion and `free_mask` sharing**: propagate and undo modify the closure `free_mask`; search reads it. I pass `used` as parameter. `search` returns True/False. On True, assignments remain in global `assigned` ✓ (trail not undone on success — we keep trail but never undo past success... on success we return True up the chain without undoing ✓).
+
+Wait, but there's an issue: on success at deep levels, the trail still contains entries — that's fine, we just never undo them. The global `assigned` has the full component coloring ✓.
+
+**Recursion in Python**: depth ≤ 40, fine.
+
+**Now, the selection loop**: iterates free_mask bits. Note free_mask here is the closure variable — read it once at function start: `fm = free_mask`. ✓.
+
+**Efficiency of bit iteration**: `b.bit_length()-1` — fine.
+
+Let me reconsider whether to include the K4 check. With propagation, K4 fails in ~5 nodes, so the check is redundant — but harmless and cheap. Actually, let me keep it — it also instantly kills dense unsat graphs (which contain K4s) without any search. But hmm — what about dense unsat graphs WITHOUT K4 (triangle-free 4-chromatic dense)? Rare/adversarial. Keep search for those.
+
+Wait, actually, I realize I should double-check the K4-detection code more carefully:
+
+```python
+def has_k4():
+    for x in range(n):
+        A = nbr[x]
+        while A:
+            ab = A & -A; A ^= ab
+            y = ab.bit_length()-1
+            B = nbr[x] & nbr[y]   # common neighbors of x and y
+            while B:
+                bb = B & -B; B ^= bb
+                z = bb.bit_length()-1
+                if nbr[z] & B:   # z adjacent to some other common neighbor w
+                    return True
+    return False
+```
+
+x~y, z adjacent to both x,y; w ∈ B (after removing z) adjacent to z, w adjacent to x,y. So {x,y,z,w}: x~y ✓, x~z ✓ (z ∈ nbr[x]), x~w ✓, y~z ✓, y~w ✓, z~w ✓ → K4 ✓. Conversely, any K4 {a,b,c,d}: x=a, y=b, B ⊇ {c,d}, z=c: nbr[c] & B ∋ d → detected ✓. Correct. Complexity: Σ_x Σ_{y∈N(x)} Σ_{z∈N(x)∩N(y)} 1 ≤ n·Δ² = 40·39·39 ≈ 60k basic ops — fine. (The inner `nbr[z] & B` is O(1).) ✓.
+
+Hmm, but note: this runs on the WHOLE graph (all n), including peeled vertices — fine (peeled vertices can't be in K4 anyway, but no harm). Actually wait — I do the K4 check before peeling or after? Order doesn't matter for correctness: if K4 exists → NO regardless. Let me do K4 check first (before peeling) — if NO, skip everything. ✓.
+
+Hmm, actually also: should I check for K4 only, or also use a general clique bound? K4 suffices for 3-coloring (clique ≥ 4 → NO; clique ≤ 3 → maybe). ✓.
+
+**Now — one more design question: the peeling + component decomposition order.** Plan:
+1. Read graph.
+2. K4 check → NO.
+3. Peel deg ≤ 2 → core.
+4. Components of core → solve each with search.
+5. Reconstruct peeled.
+6. Output.
+
+Wait, but there's an issue with peeling + the search's symmetry breaking: none — independent. ✓.
+
+Also, hmm: should peeling be applied to the CORE repeatedly during search (dynamic)? E.g., after assignments, some vertices drop to ≤2 unassigned-neighbors... that's roughly what propagation does (avail-based). Not needed.
+
+**Another important consideration: the search on a component — initial propagation?** At the start, no assignments → nothing to propagate. ✓.
+
+**Let me also think about whether DSATUR selection should prefer avail=2 vertices adjacent to assigned... ** — no, min-avail is the rule. ✓.
+
+Let me now also think about **potential worst-case: satisfiable but search blows up**. One classic bad case for DSATUR: hmm. Let me think of the "3-colorable but DSATUR-greedy fails" constructions... With backtracking + propagation, n=40, I'm not worried.
+
+Let me also make sure about **components with ≤ 3 vertices** etc. — trivial, search handles.
+
+**Edge cases**:
+- n=1, m=0 → core empty (deg 0 ≤ 2 → peeled) → reconstruct: assigned[0]=0 → output "1". ✓.
+- Self-loop input (u==v): ignored → treated as colorable. Problem likely won't have it.
+- Duplicate edges: deduped by bitmask ✓.
+- m=0: all peeled, all colored 1. ✓.
+
+**Output format**: "YES\n1 2 3 3" — colors space-separated on second line. ✓. For NO: just "NO". ✓.
+
+Let me now also double check the example:
+Example 1: n=4, edges 1-2,1-3,2-3,1-4,2-4. Degrees: v1: 3 (nbrs 2,3,4), v2: 3, v3: 2 (nbrs 1,2), v4: 2 (nbrs 1,2). Peel: deg ≤2: v3, v4 → peel v3 (deg 2), then v4's deg → 2... wait initial deg v4 = 2 → in stack. Peel v3: decrement deg of 1,2 → deg1=2, deg2=2 → push 1,2. Peel v4: decrement deg 1,2 → deg1=1, deg2=1 → push. Peel 1, then 2 (deg 0). Core empty! Reconstruct reversed peel: peel order say [3,4,1,2] (stack order: initial stack [3,4] (v=0..3 → vertices 2,3 0-indexed... let me not trace exactly). Reverse: color 2 (0-indexed v1... ugh). Anyway: reverse order colors each with ≤2 blocked → valid. E.g., peel order (0-indexed) [2,3,0,1]: reverse: v1(0): neighbors 2,3 uncolored... wait v1's neighbors are v2,v3,v4 (0-indexed 1,2,3). At reconstruction of v1: v2 uncolored (peeled after? peel order [2,3,0,1] → v1=0 peeled 3rd, v2=1 peeled 4th → in reverse, v2 colored first, then v1). Hmm whatever — the algorithm guarantees validity. Output some valid coloring like "1 1 2 3"? Let me verify validity differently: the graph is K4 minus edge (3,4) → 3-colorable: colors 1,2,1... v3,v4 not adjacent → both can share. E.g., v1=1,v2=2,v3=3,v4=3 ✓ (expected output "1 2 3 3" but any valid accepted). ✓.
+
+Example 2: K4 → K4 check → NO ✓.
+
+Now let me also reconsider: **is the peeling + K4 + components + DSATUR search all correct together?** One more check on peeling: I peel vertices with CURRENT degree ≤ 2. Initial stack: all v with deg[v] ≤ 2. When popped, `if removed[v]: continue` — but deg might have changed; a vertex pushed when deg ≤ 2 might later... deg only DECREASES as neighbors are removed, so if pushed at deg ≤ 2, still ≤ 2 when popped ✓. But wait — I push u when degc[u] becomes ≤ 2 after decrement; also initial pushes. A vertex could be pushed multiple times — `removed` guard handles ✓. Also a vertex with initial deg ≤ 2 pushed initially, popped later — deg still ≤ 2 ✓. Correct: every peeled vertex had ≤2 remaining neighbors at peel time ✓.
+
+Hmm, one subtlety: when I pop v from stack and v is not removed, I peel it even if degc[v] < original... yes that's the point ✓.
+
+**Now, let me also think about whether the search could recurse infinitely**: each search call assigns ≥ 1 vertex (the branch vertex) → depth ≤ comp size ✓.
+
+**Trail memory**: each assignment adds ~2 entries + avail changes; depth 40, total trail ≤ O(nodes × ...) — trail grows across the whole search (never truncated except via undo_to marks). Max trail length = depth × (assignments+changes per level) ≈ 40 × (40 + 160) ≈ 8000 entries — tiny ✓. Wait, no: trail is undone on backtrack, so its length stays bounded by current path length × changes per level ✓.
+
+**Now — Python recursion with nested functions and nonlocal**: let me structure solve_component carefully.
+
+Actually, let me restructure to avoid nonlocal complexities: use a class or pass mutable containers. Simplest: make avail, amask lists (mutable ✓), free_mask as FM = [int] (mutable container), assigned global list ✓, trail list ✓, used passed as arg. Let me write:
+
+```python
+import sys
+
+def main():
+    data = sys.stdin.buffer.read().split()
+    n = int(data[0]); m = int(data[1])
+    nbr = [0]*n
+    idx = 2
+    for _ in range(m):
+        u = int(data[idx]) - 1
+        v = int(data[idx+1]) - 1
+        idx += 2
+        if u != v:
+            nbr[u] |= 1 << v
+            nbr[v] |= 1 << u
+
+    # popcount for 3-bit values
+    PC3 = (0, 1, 1, 2, 1, 2, 2, 3)
+
+    deg = [0]*n
+    for i in range(n):
+        deg[i] = bin(nbr[i]).count('1')
+
+    # K4 detection
+    def has_k4():
+        for x in range(n):
+            A = nbr[x]
+            ax = A
+            while ax:
+                ab = ax & -ax; ax ^= ab
+                y = ab.bit_length() - 1
+                B = A & nbr[y]
+                while B:
+                    bb = B & -B; B ^= bb
+                    z = bb.bit_length() - 1
+                    if nbr[z] & B:
+                        return True
         return False
 
-    if backtrack(0):
-        print("YES")
-        print(*(assignment))
-    else:
-        print("NO")
+    if has_k4():
+        sys.stdout.write("NO\n")
+        return
 
-if __name__ == '__main__':
-    solve()
+    # Peel vertices with degree <= 2
+    degc = deg[:]
+    removed = [False]*n
+    peel = []
+    st = [v for v in range(n) if degc[v] <= 2]
+    while st:
+        v = st.pop()
+        if removed[v]:
+            continue
+        removed[v] = True
+        peel.append(v)
+        w = nbr[v]
+        while w:
+            b = w & -w; w ^= b
+            u = b.bit_length() - 1
+            if not removed[u]:
+                degc[u] -= 1
+                if degc[u] <= 2:
+                    st.append(u)
+
+    assigned = [-1]*n
+
+    core_mask = 0
+    for v in range(n):
+        if not removed[v]:
+            core_mask |= 1 << v
+
+    if core_mask:
+        # split core into components
+        visited = 0
+        fm = core_mask
+        while fm:
+            b = fm & -fm; fm ^= b
+            s = b.bit_length() - 1
+            # BFS
+            comp_mask = 0
+            frontier = b
+            visited |= b
+            while frontier:
+                comp_mask |= frontier
+                nxt = 0
+                g = frontier
+                while g:
+                    gb = g & -g; g ^= gb
+                    x = gb.bit_length() - 1
+                    nxt |= nbr[x]
+                nxt &= core_mask & ~visited
+                visited |= nxt
+                frontier = nxt
+            if not solve_comp(comp_mask, nbr, deg, assigned, PC3, n):
+                sys.stdout.write("NO\n")
+                return
+
+    # reconstruct peeled vertices
+    for i in range(len(peel) - 1, -1, -1):
+        v = peel[i]
+        blocked = 0
+        w = nbr[v]
+        while w:
+            b = w & -w; w ^= b
+            u = b.bit_length() - 1
+            c = assigned[u]
+            if c >= 0:
+                blocked |= 1 << c
+        av = 7 ^ blocked
+        assigned[v] = (av & -av).bit_length() - 1
+
+    out = ["YES"]
+    out.append(' '.join([str(c+1) for c in assigned]))
+    sys.stdout.write('\n'.join(out) + '\n')
 ```
+
+Hmm wait, `av = 7 ^ blocked` — blocked ⊆ 7? blocked bits are 1<<c for c ∈ {0,1,2} ✓ so 7^blocked = 7 & ~blocked ✓ (since blocked ⊆ 7). And av ≠ 0 guaranteed (≤2 bits blocked) ✓.
+
+Now solve_comp:
+
+```python
+def solve_comp(comp_mask, nbr, deg, assigned, PC3, n):
+    avail = [7]*n
+    FM = [comp_mask]
+    amask = [0, 0, 0]
+    trail = []
+    
+    def propagate(v, c):
+        stack = [(v, c)]
+        push = stack.append
+        pop = stack.pop
+        while stack:
+            x, cx = pop()
+            if nbr[x] & amask[cx]:
+                return False
+            bit = 1 << cx
+            aff = nbr[x] & FM[0]
+            while aff:
+                lb = aff & -aff; aff ^= lb
+                u = lb.bit_length() - 1
+                au = avail[u]
+                na = au & ~bit
+                if na != au:
+                    if na == 0:
+                        return False
+                    trail.append((0, u, au))
+                    avail[u] = na
+                    if not (na & (na - 1)):
+                        cu = na.bit_length() - 1
+                        trail.append((1, u, cu))
+                        assigned[u] = cu
+                        amask[cu] |= lb
+                        FM[0] ^= lb
+                        push((u, cu))
+        return True
+
+    def undo_to(mark):
+        t = trail
+        while len(t) > mark:
+            op = t.pop()
+            if op[0] == 0:
+                avail[op[1]] = op[2]
+            else:
+                u = op[1]; cu = op[2]
+                assigned[u] = -1
+                amask[cu] ^= 1 << u
+                FM[0] |= 1 << u
+
+    def search(used):
+        fm = FM[0]
+        if fm == 0:
+            return True
+        best_v = -1; best_pc = 9; best_d = -1
+        while fm:
+            b = fm & -fm; fm ^= b
+            v = b.bit_length() - 1
+            a = avail[v]
+            pc = PC3[a]
+            if pc < best_pc or (pc == best_pc and deg[v] > best_d):
+                best_pc = pc; best_d = deg[v]; best_v = v
+        v = best_v
+        A = avail[v]
+        mark = len(trail)
+        cand = A & used
+        # try colors already used
+        cb = 1
+        while cb <= 4:
+            if cand & cb:
+                c = cb.bit_length() - 1
+                trail.append((0, v, A))
+                avail[v] = 0
+                assigned[v] = c
+                amask[c] |= 1 << v
+                FM[0] ^= 1 << v
+                trail.append((1, v, c))
+                if propagate(v, c) and search(used | cb):
+                    return True
+                undo_to(mark)
+            cb <<= 1
+        # try one new color if available
+        newc = A & ~used
+        if newc:
+            cb = newc & -newc
+            c = cb.bit_length() - 1
+            trail.append((0, v, A))
+            avail[v] = 0
+            assigned[v] = c
+            amask[c] |= 1 << v
+            FM[0] ^= 1 << v
+            trail.append((1, v, c))
+            if propagate(v, c) and search(used | cb):
+                return True
+            undo_to(mark)
+        return False
+
+    return search(0)
+```
+
+Wait — issue: in `search`, after `undo_to(mark)`, `A = avail[v]` — restored ✓. But careful: `cand`/`newc` computed from A before loop ✓.
+
+Another issue: in the color loop, after a failed branch and undo, `avail[v]` = A again ✓, `assigned[v]` = -1 ✓.
+
+Hmm, wait — there's a subtle bug: in the loop over in-used colors, after `undo_to(mark)`, the next iteration checks `cand & cb` — cand unchanged ✓.
+
+Another subtle thing: `search(used | cb)` — used grows along the path ✓.
+
+**Bug check — `undo_to` and op (1):** op (1, u, cu) undo: assigned[u] = -1; amask[cu] ^= 1<<u; FM[0] |= 1<<u. And avail[u] restored by the preceding (0,u,au) op — which is popped AFTER (since appended before) ✓. But WAIT: is the (0,u,au) op ALWAYS immediately before (1,u,cu)? In propagate: yes (appended back-to-back). In search branch assignment: yes ✓. But could there be OTHER ops between? In propagate: `trail.append((0,u,au)); avail[u]=na; if single: trail.append((1,u,cu))...` — between them only the `if` check — no other appends ✓. In search: (0,v,A) then (1,v,c) back-to-back ✓. So on undo, popping (1,u,cu) then later popping (0,u,au) restores avail[u]=au ✓. But actually the (1) op doesn't restore avail at all — and between popping (1) and (0), avail[u] is 0 — but nothing reads avail in between ✓ (undo loop only).
+
+Hmm, but actually — do I even need avail[u] restored to `au` vs `na`? The (0) op restores to au (the value before this change) ✓ correct trail semantics.
+
+**Another check — `propagate` conflict test with amask:** `if nbr[x] & amask[cx]: return False`. Note amask[cx] includes x. nbr[x] excludes x ✓. But — could it include a vertex y that is adjacent to x, assigned cx, and this is a FALSE conflict? No: y assigned cx and adjacent x, x assigned cx → real conflict ✓. Could it MISS a conflict where y assigned cx adjacent x, but y gets unassigned... no, within one propagate call assignments aren't undone. ✓.
+
+Hmm wait, actually there's one more scenario: the conflict test happens when POPPING (x,cx). What if the conflict exists but (x,cx) is never popped because propagate returns False earlier for another reason? Then we return False anyway ✓. What if propagate returns True but a conflict went undetected? Conflicts are: two adjacent vertices both assigned same color. Case A: both assigned before propagate call... impossible (branch maintains consistency: at branch time all previous assignments consistent — inductively: propagate returned True means... hmm, let me verify the invariant: **if propagate returns True, then the current assignment set is consistent (no edge with both endpoints assigned same color) AND avail[v] excludes colors of assigned neighbors for every unassigned v.**
+
+Induction: before branch, invariant holds (from previous propagate True or initial state). Branch assigns v=c: c ∈ avail[v] → v's assigned neighbors ≠ c ✓ consistent so far; avail[v] set 0 (v now assigned). Then propagate processes each assignment exactly once (stack). Processing (x,cx): 
+- Conflict test: catches adjacent same-color pairs involving x and previously-assigned vertices ✓.
+- For unassigned neighbors u: removes cx from avail[u] → maintains "avail excludes assigned neighbors' colors" for edge (x,u) ✓.
+So after all stack processed: every assigned pair adjacent → tested when the later-popped one processed... hmm, wait: pair (x,y) both assigned, adjacent, same color cx: when the SECOND-assigned one is processed... let me re-examine: assignments happen at push time; processing at pop time. Pair x,y adjacent, both assigned cx. Suppose x assigned first (pushed), y assigned second (pushed). When (x,cx) pops: is y in amask[cx]? y assigned at its push, which happened... could be before or after (x,cx) pops. If y pushed before (x,cx) pops → y ∈ amask[cx] → conflict detected ✓. If y pushed after (x,cx) popped:

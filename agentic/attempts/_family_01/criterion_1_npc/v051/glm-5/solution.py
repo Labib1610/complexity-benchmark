@@ -1,0 +1,194 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    n = int(data[0])
+    m = int(data[1])
+    adj = [0] * n
+    idx = 2
+    for _ in range(m):
+        u = int(data[idx]) - 1
+        v = int(data[idx+1]) - 1
+        idx += 2
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+    
+    # Find connected components
+    visited = [False] * n
+    components = []
+    for i in range(n):
+        if not visited[i]:
+            comp = []
+            stack = [i]
+            visited[i] = True
+            while stack:
+                v = stack.pop()
+                comp.append(v)
+                for u in range(n):
+                    if (adj[v] >> u) & 1 and not visited[u]:
+                        visited[u] = True
+                        stack.append(u)
+            components.append(comp)
+    
+    color = [0] * n
+    
+    for comp in components:
+        # Build subgraph
+        k = len(comp)
+        if k == 1:
+            color[comp[0]] = 1
+            continue
+        
+        # Map vertices to 0..k-1
+        idx_map = {v: i for i, v in enumerate(comp)}
+        sub_adj = [0] * k
+        for i, v in enumerate(comp):
+            mask = 0
+            for j, u in enumerate(comp):
+                if (adj[v] >> u) & 1:
+                    mask |= 1 << j
+            sub_adj[i] = mask
+        
+        # Find all maximal independent sets using Bron-Kerbosch
+        # with pivot and degeneracy ordering
+        best = None
+        best_size = -1
+        
+        # Degeneracy ordering
+        deg = [bin(sub_adj[i]).count('1') for i in range(k)]
+        order = sorted(range(k), key=lambda x: deg[x])
+        # Actually, let's just use a simple ordering by degree
+        
+        def bron_kerbosch(R, P, X):
+            nonlocal best, best_size
+            if P == 0 and X == 0:
+                size = bin(R).count('1')
+                if size > best_size:
+                    best_size = size
+                    best = R
+                return
+            if bin(P).count('1') + bin(R).count('1') <= best_size:
+                return
+            # Choose pivot
+            pivot = -1
+            pivot_deg = -1
+            temp = P | X
+            while temp:
+                v = (temp & -temp).bit_length() - 1
+                temp &= temp - 1
+                d = bin(sub_adj[v] & P).count('1')
+                if d > pivot_deg:
+                    pivot_deg = d
+                    pivot = v
+            if pivot == -1:
+                # P is empty, X is not empty, not maximal
+                return
+            # Candidates = P \ N(pivot)
+            candidates = P & ~sub_adj[pivot]
+            while candidates:
+                v = (candidates & -candidates).bit_length() - 1
+                candidates &= candidates - 1
+                vbit = 1 << v
+                bron_kerbosch(R | vbit, P & ~sub_adj[v] & ~vbit, X & ~sub_adj[v])
+                P &= ~vbit
+                X |= vbit
+        
+        bron_kerbosch(0, (1 << k) - 1, 0)
+        
+        if best is None:
+            print("NO")
+            return
+        
+        # best is a maximal independent set (bitmask over 0..k-1)
+        # Assign color 1 to vertices in best, color 2 to rest
+        # But we need to check if the rest is 2-colorable (bipartite)
+        # Actually, the rest must be 2-colorable since we removed an independent set
+        # Wait, no. The rest might not be bipartite.
+        # We need to find an independent set S such that G \ S is bipartite.
+        
+        # Let's enumerate all maximal independent sets and check if complement is bipartite
+        # For k up to 40, this could be expensive, but let's try
+        
+        # Actually, let's collect all maximal independent sets
+        mis_list = []
+        
+        def bron_kerbosch_collect(R, P, X):
+            if P == 0 and X == 0:
+                mis_list.append(R)
+                return
+            # Pruning: if too many, stop
+            if len(mis_list) > 100000:
+                return
+            pivot = -1
+            pivot_deg = -1
+            temp = P | X
+            while temp:
+                v = (temp & -temp).bit_length() - 1
+                temp &= temp - 1
+                d = bin(sub_adj[v] & P).count('1')
+                if d > pivot_deg:
+                    pivot_deg = d
+                    pivot = v
+            if pivot == -1:
+                return
+            candidates = P & ~sub_adj[pivot]
+            while candidates:
+                v = (candidates & -candidates).bit_length() - 1
+                candidates &= candidates - 1
+                vbit = 1 << v
+                bron_kerbosch_collect(R | vbit, P & ~sub_adj[v] & ~vbit, X & ~sub_adj[v])
+                P &= ~vbit
+                X |= vbit
+        
+        bron_kerbosch_collect(0, (1 << k) - 1, 0)
+        
+        found = False
+        for mis in mis_list:
+            # Check if complement is bipartite
+            # Complement vertices: those not in mis
+            comp_mask = ((1 << k) - 1) & ~mis
+            # Build subgraph on complement
+            # Check bipartiteness using BFS
+            comp_color = [-1] * k
+            is_bip = True
+            temp = comp_mask
+            while temp and is_bip:
+                start = (temp & -temp).bit_length() - 1
+                temp &= temp - 1
+                if comp_color[start] != -1:
+                    continue
+                comp_color[start] = 0
+                queue = [start]
+                while queue and is_bip:
+                    v = queue.pop(0)
+                    neighbors = sub_adj[v] & comp_mask
+                    while neighbors:
+                        u = (neighbors & -neighbors).bit_length() - 1
+                        neighbors &= neighbors - 1
+                        if comp_color[u] == -1:
+                            comp_color[u] = 1 - comp_color[v]
+                            queue.append(u)
+                        elif comp_color[u] == comp_color[v]:
+                            is_bip = False
+                            break
+            
+            if is_bip:
+                # Assign colors
+                for i in range(k):
+                    if (mis >> i) & 1:
+                        color[comp[i]] = 1
+                    else:
+                        color[comp[i]] = 2 + comp_color[i]
+                found = True
+                break
+        
+        if not found:
+            print("NO")
+            return
+    
+    print("YES")
+    print(" ".join(str(c) for c in color))
+
+solve()

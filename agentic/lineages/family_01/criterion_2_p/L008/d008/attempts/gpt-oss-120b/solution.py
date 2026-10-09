@@ -1,55 +1,54 @@
 import sys
-sys.setrecursionlimit(1 << 25)
+from collections import deque
 
 def solve() -> None:
-    data = sys.stdin.read().strip().split()
+    data = sys.stdin.buffer.read().split()
     if not data:
         return
     it = iter(data)
     n = int(next(it))
     m = int(next(it))
-    g = [[] for _ in range(n)]
+
+    adj = [[] for _ in range(n)]
     for _ in range(m):
         u = int(next(it)) - 1
         v = int(next(it)) - 1
-        g[u].append(v)
-        g[v].append(u)
+        if u == v:                     # self‑loop → impossible
+            print("NO")
+            return
+        adj[u].append(v)
+        adj[v].append(u)
 
-    color = [-1] * n          # 0/1 parity
-    ans = [0] * n             # final states 1 or 2
-    from collections import deque
+    colour = [-1] * n          # -1 = unvisited, 0/1 = bipartite colour
+    answer = [1] * n           # default 1 (isolated vertices stay 1)
 
     for start in range(n):
-        if color[start] != -1:
-            continue
-        # BFS this component
+        if colour[start] != -1 or not adj[start]:
+            continue            # already processed or isolated
         q = deque([start])
-        color[start] = 0
-        comp = [start]
-        ok = True
+        colour[start] = 0
+        component = [start]
+
         while q:
-            u = q.popleft()
-            for v in g[u]:
-                if color[v] == -1:
-                    color[v] = color[u] ^ 1
-                    q.append(v)
-                    comp.append(v)
-                elif color[v] == color[u]:
+            v = q.popleft()
+            cv = colour[v]
+            for nb in adj[v]:
+                if colour[nb] == -1:
+                    colour[nb] = cv ^ 1
+                    q.append(nb)
+                    component.append(nb)
+                elif colour[nb] == cv:
                     print("NO")
                     return
-        # decide orientation: smallest index gets state 1
-        min_node = min(comp)
-        # parity of min_node
-        parity_min = color[min_node]
-        # assign states
-        for v in comp:
-            if color[v] == parity_min:
-                ans[v] = 1
-            else:
-                ans[v] = 2
+
+        # make the smallest index of the component have c = 1
+        min_vertex = min(component)
+        flip = colour[min_vertex]          # 0 → keep, 1 → swap sides
+        for v in component:
+            answer[v] = (colour[v] ^ flip) + 1   # 0→1, 1→2 after possible flip
 
     print("YES")
-    print(' '.join(map(str, ans)))
+    sys.stdout.write(' '.join(map(str, answer)))
 
 if __name__ == "__main__":
     solve()

@@ -1,0 +1,221 @@
+```python
+import sys
+
+sys.setrecursionlimit(1000000)
+
+data = list(map(int, sys.stdin.buffer.read().split()))
+if not data:
+    sys.exit(0)
+
+k, t = data[0], data[1]
+triples = []
+vertex_masks = [0] * t
+incidence = [0] * (3 * k)
+
+xy = [0] * (k * k)
+xz = [0] * (k * k)
+yz = [0] * (k * k)
+
+p = 2
+for i in range(t):
+    x = data[p] - 1
+    y = data[p + 1] - 1
+    z = data[p + 2] - 1
+    p += 3
+
+    triples.append((x + 1, y + 1, z + 1))
+    bit = 1 << i
+
+    vx = x
+    vy = k + y
+    vz = 2 * k + z
+    vertex_masks[i] = (1 << vx) | (1 << vy) | (1 << vz)
+
+    incidence[vx] |= bit
+    incidence[vy] |= bit
+    incidence[vz] |= bit
+
+    xy[x * k + y] |= bit
+    xz[x * k + z] |= bit
+    yz[y * k + z] |= bit
+
+if t == 0:
+    print("NO")
+    sys.exit(0)
+
+for mask in incidence:
+    if mask == 0:
+        print("NO")
+        sys.exit(0)
+
+conflict = [0] * t
+for i, (x, y, z) in enumerate(triples):
+    conflict[i] = incidence[x - 1] | incidence[k + y - 1] | incidence[2 * k + z - 1]
+
+all_columns = (1 << (3 * k)) - 1
+all_rows = (1 << t) - 1
+layer_mask = (1 << k) - 1
+
+solution = []
+failed = set()
+MEMO_LIMIT = 700000
+
+
+def remember(state):
+    if len(failed) < MEMO_LIMIT:
+        failed.add(state)
+
+
+def pair_has_matching(matrix, left_mask, right_mask, active):
+    left_vertices = []
+    lm = left_mask
+    while lm:
+        b = lm & -lm
+        left_vertices.append(b.bit_length() - 1)
+        lm ^= b
+
+    adjacency = []
+    for u in left_vertices:
+        opts = 0
+        rm = right_mask
+        base = u * k
+        while rm:
+            b = rm & -rm
+            v = b.bit_length() - 1
+            if active & matrix[base + v]:
+                opts |= b
+            rm ^= b
+        if opts == 0:
+            return False
+        adjacency.append((opts.bit_count(), u, opts))
+
+    adjacency.sort()
+    adj = [0] * k
+    order = []
+    for _, u, opts in adjacency:
+        adj[u] = opts
+        order.append(u)
+
+    matched_right = [-1] * k
+
+    def augment(u):
+        nonlocal seen
+        opts = adj[u] & ~seen
+        while opts:
+            b = opts & -opts
+            opts ^= b
+            v = b.bit_length() - 1
+            seen |= b
+            old = matched_right[v]
+            if old == -1 or augment(old):
+                matched_right[v] = u
+                return True
+        return False
+
+    for u in order:
+        seen = 0
+        if not augment(u):
+            return False
+    return True
+
+
+def projection_checks(covered, active):
+    ux = layer_mask & ~covered
+    uy = layer_mask & ~(covered >> k)
+    uz = layer_mask & ~(covered >> (2 * k))
+
+    if not pair_has_matching(xy, ux, uy, active):
+        return False
+    if not pair_has_matching(xz, ux, uz, active):
+        return False
+    if not pair_has_matching(yz, uy, uz, active):
+        return False
+    return True
+
+
+def dfs(covered, active):
+    if covered in failed:
+        return False
+
+    original_covered = covered
+    start_len = len(solution)
+
+    while True:
+        if covered == all_columns:
+            return True
+
+        uncovered = all_columns ^ covered
+        scan = uncovered
+        best_count = t + 1
+        best_rows = 0
+
+        while scan:
+            b = scan & -scan
+            col = b.bit_length() - 1
+            rows = active & incidence[col]
+            cnt = rows.bit_count()
+
+            if cnt == 0:
+                del solution[start_len:]
+                remember(original_covered)
+                remember(covered)
+                return False
+
+            if cnt < best_count:
+                best_count = cnt
+                best_rows = rows
+                if cnt == 1:
+                    break
+            scan ^= b
+
+        if best_count != 1:
+            break
+
+        row_bit = best_rows & -best_rows
+        row = row_bit.bit_length() - 1
+        solution.append(row)
+        covered |= vertex_masks[row]
+        active &= ~conflict[row]
+
+        if covered in failed:
+            del solution[start_len:]
+            remember(original_covered)
+            return False
+
+    remaining = k - len(solution)
+    if remaining >= 3 and not projection_checks(covered, active):
+        del solution[start_len:]
+        remember(original_covered)
+        remember(covered)
+        return False
+
+    candidates = []
+    rows = best_rows
+    while rows:
+        b = rows & -rows
+        r = b.bit_length() - 1
+        rows ^= b
+        candidates.append(r)
+
+    if len(candidates) <= 64:
+        candidates.sort(key=lambda r: (active & conflict[r]).bit_count())
+
+    for row in candidates:
+        solution.append(row)
+        if dfs(covered | vertex_masks[row], active & ~conflict[row]):
+            return True
+        solution.pop()
+
+    del solution[start_len:]
+    remember(original_covered)
+    remember(covered)
+    return False
+
+
+if dfs(0, all_rows):
+    out = ["YES"]
+    out.extend("{} {} {}".format(*triples[i]) for i in solution)
+    sys.stdout.write("\n".join(out))
+else:
+    print("NO")
+```

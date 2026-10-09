@@ -1,0 +1,213 @@
+import sys
+from collections import deque
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    k = int(next(it))
+    B = int(next(it))
+    
+    roots = [int(next(it)) - 1 for _ in range(k)]
+    root_set = set(roots)
+    
+    edges = []
+    adj = [[] for _ in range(n)]
+    for i in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        w = int(next(it))
+        edges.append((u, v, w))
+        adj[u].append((v, w, i))
+        adj[v].append((u, w, i))
+        
+    if k <= 1:
+        print("YES")
+        print(0)
+        return
+
+    # Max-flow / Min-cut (Dinic's Algorithm)
+    class Dinic:
+        def __init__(self, num_nodes):
+            self.n = num_nodes
+            self.graph = [[] for _ in range(num_nodes)]
+            self.edges = []
+            
+        def add_edge(self, u, v, cap):
+            self.graph[u].append(len(self.edges))
+            self.edges.append([v, cap, 0, len(self.edges) + 1, u])
+            self.graph[v].append(len(self.edges))
+            self.edges.append([u, cap, 0, len(self.edges) - 1, v])
+            
+        def bfs(self, s, t):
+            self.level = [-1] * self.n
+            self.level[s] = 0
+            q = deque([s])
+            while q:
+                u = q.popleft()
+                for e_idx in self.graph[u]:
+                    v, cap, flow, _, _ = self.edges[e_idx]
+                    if cap - flow > 0 and self.level[v] == -1:
+                        self.level[v] = self.level[u] + 1
+                        q.append(v)
+            return self.level[t] != -1
+            
+        def dfs(self, u, t, pushed):
+            if pushed == 0 or u == t:
+                return pushed
+            for cid in range(self.ptr[u], len(self.graph[u])):
+                self.ptr[u] = cid
+                e_idx = self.graph[u][cid]
+                v, cap, flow, rev, _ = self.edges[e_idx]
+                if self.level[u] + 1 != self.level[v] or cap - flow <= 0:
+                    continue
+                tr = self.dfs(v, t, min(pushed, cap - flow))
+                if tr == 0:
+                    continue
+                self.edges[e_idx][2] += tr
+                self.edges[rev][2] -= tr
+                return tr
+            return 0
+            
+        def max_flow(self, s, t):
+            flow = 0
+            while self.bfs(s, t):
+                self.ptr = [0] * self.n
+                while True:
+                    pushed = self.dfs(s, t, float('inf'))
+                    if pushed == 0:
+                        break
+                    flow += pushed
+            return flow
+            
+        def get_min_cut_component(self, s):
+            visited = [False] * self.n
+            q = deque([s])
+            visited[s] = True
+            while q:
+                u = q.popleft()
+                for e_idx in self.graph[u]:
+                    v, cap, flow, _, _ = self.edges[e_idx]
+                    if cap - flow > 0 and not visited[v]:
+                        visited[v] = True
+                        q.append(v)
+            return visited
+
+    def compute_isolating_cut(root_idx):
+        src = roots[root_idx]
+        sink = n
+        dinic = Dinic(n + 1)
+        for u, v, w in edges:
+            dinic.add_edge(u, v, w)
+        for i, r in enumerate(roots):
+            if i != root_idx:
+                dinic.add_edge(r, sink, float('inf'))
+        
+        flow = dinic.max_flow(src, sink)
+        comp = dinic.get_min_cut_component(src)
+        
+        cut_edges = []
+        for u, v, w in edges:
+            if comp[u] != comp[v]:
+                cut_edges.append((u, v))
+        return flow, set(cut_edges)
+
+    # 1. Try the 2-approximation isolating cut heuristic (union of k-1 best cuts)
+    iso_cuts = []
+    for i in range(k):
+        flow, cut_set = compute_isolating_cut(i)
+        iso_cuts.append((flow, cut_set, i))
+    
+    iso_cuts.sort(key=lambda x: x[0])
+    
+    # Try all subsets of k-1 cuts and pick the one with minimal union weight
+    best_heuristic_cut = None
+    best_heuristic_cost = float('inf')
+    
+    for omit in range(k):
+        combined_edges = set()
+        for i in range(k):
+            if i == omit:
+                continue
+            combined_edges |= iso_cuts[i][1]
+        
+        # Calculate true cost of combined edges
+        cost = 0
+        for u, v in combined_edges:
+            # find original weight
+            for nu, nw, _ in adj[u]:
+                if nu == v:
+                    cost += nw
+                    break
+        if cost < best_heuristic_cost:
+            best_heuristic_cost = cost
+            best_heuristic_cut = combined_edges
+            
+    if best_heuristic_cost <= B:
+        print("YES")
+        print(len(best_heuristic_cut))
+        for u, v in best_heuristic_cut:
+            print(f"{u + 1} {v + 1}")
+        return
+
+    # 2. Exact Branch and Bound for small / general cases
+    # Assign each node to a terminal 0..k-1
+    # Sort vertices by degree to branch on high-degree vertices first
+    assignment = [-1] * n
+    for i, r in enumerate(roots):
+        assignment[r] = i
+        
+    unassigned = [i for i in range(n) if assignment[i] == -1]
+    unassigned.sort(key=lambda u: len(adj[u]), reverse=True)
+    
+    best_cost = [B + 1]
+    best_assignment = [None]
+    
+    # Pre-calculate incident edge weights for faster bounding
+    def search(idx, current_cost):
+        if current_cost >= best_cost[0]:
+            return
+        if idx == len(unassigned):
+            best_cost[0] = current_cost
+            best_assignment[0] = list(assignment)
+            return
+            
+        u = unassigned[idx]
+        
+        # Calculate cost additions for assigning u to each color
+        color_cost = [0] * k
+        for v, w, _ in adj[u]:
+            cv = assignment[v]
+            if cv != -1:
+                for c in range(k):
+                    if c != cv:
+                        color_cost[c] += w
+                        
+        # Try colors ordered by added cost (greedy)
+        sorted_colors = sorted(range(k), key=lambda c: color_cost[c])
+        for c in sorted_colors:
+            assignment[u] = c
+            search(idx + 1, current_cost + color_cost[c])
+            assignment[u] = -1
+
+    search(0, 0)
+    
+    if best_cost[0] <= B:
+        final_assignment = best_assignment[0]
+        result_edges = []
+        for u, v, w in edges:
+            if final_assignment[u] != final_assignment[v]:
+                result_edges.append((u, v))
+        print("YES")
+        print(len(result_edges))
+        for u, v in result_edges:
+            print(f"{u + 1} {v + 1}")
+    else:
+        print("NO")
+
+if __name__ == '__main__':
+    solve()

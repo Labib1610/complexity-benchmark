@@ -1,0 +1,32 @@
+import sys
+
+def solve() -> None:
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    vessels = []
+    total_t2 = 0
+    for _ in range(n):
+        t1 = int(next(it))
+        t2 = int(next(it))
+        vessels.append((t1, t2))
+        total_t2 += t2
+
+    # sort by (t1 - t2) ascending
+    vessels.sort(key=lambda x: x[0] - x[1])
+
+    cur = 0          # current value after adding t1 but before subtracting t2
+    max_cur = 0      # maximum of cur over all positions
+    for t1, t2 in vessels:
+        cur += t1
+        if cur > max_cur:
+            max_cur = cur
+        cur -= t2
+
+    answer = total_t2 + max_cur
+    sys.stdout.write(str(answer))
+
+if __name__ == "__main__":
+    solve()

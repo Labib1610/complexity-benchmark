@@ -1,0 +1,313 @@
+Let me analyze this problem carefully.
+
+We have $n$ nodes, each with $x_i \in \{0, 1\}$. Each constraint gives two non-zero integers $l_1, l_2$ with $1 \le |l_1|, |l_2| \le n$.
+
+For a constraint, the projection is $P = (x_{|l_1|}, x_{|l_2|})$ and the target is $T = (t_1, t_2)$ where $t_j = \frac{1}{2}(1 + \frac{l_j}{|l_j|})$.
+
+So if $l_j > 0$, then $t_j = \frac{1}{2}(1+1) = 1$. If $l_j < 0$, then $t_j = \frac{1}{2}(1-1) = 0$.
+
+So the target point $T$ is: $t_j = 1$ if $l_j > 0$, else $t_j = 0$.
+
+The constraint is satisfied iff $(x_{|l_1|} - t_1)^2 + (x_{|l_2|} - t_2)^2 < 2$.
+
+Since $x_i \in \{0,1\}$ and $t_j \in \{0,1\}$, each squared difference is either 0 or 1. So the sum is 0, 1, or 2. The constraint is satisfied iff the sum is 0 or 1, i.e., NOT both differences are 1.
+
+So the constraint is violated iff $x_{|l_1|} \ne t_1$ AND $x_{|l_2|} \ne t_2$.
+
+In other words: it's NOT the case that both $x_{|l_1|} = 1 - t_1$ and $x_{|l_2|} = 1 - t_2$.
+
+Let me define: for a literal $l$ (non-zero integer), let $v(l) = |l|$ be the variable index, and the "negation" semantics: if $l > 0$, then $t = 1$, so the "bad" value is $x_{|l|} = 0$. If $l < 0$, then $t = 0$, so the "bad" value is $x_{|l|} = 1$.
+
+So the constraint says: NOT (both literals take their "bad" values). Equivalently: at least one literal takes its "good" value.
+
+Hmm, let me think in terms of 2-SAT. Let's define a literal $l$ as satisfied if $x_{|l|} = t$ where $t = 1$ if $l > 0$ else $0$. Wait, let me re-derive.
+
+If $l > 0$: $t = 1$, "good" means $x_{|l|} = 1$, "bad" means $x_{|l|} = 0$.
+If $l < 0$: $t = 0$, "good" means $x_{|l|} = 0$, "bad" means $x_{|l|} = 1$.
+
+So "good" for literal $l$ means $x_{|l|} = 1$ if $l > 0$, and $x_{|l|} = 0$ if $l < 0$. This is exactly the standard SAT literal semantics: literal $l$ is true iff $x_{|l|}$ equals the sign of $l$ (positive literal true when variable is 1, negative literal true when variable is 0).
+
+The constraint: NOT (literal $l_1$ is false AND literal $l_2$ is false) = ($l_1$ OR $l_2$).
+
+So this is exactly 2-SAT! Each constraint is a clause $(l_1 \vee l_2)$ where literals are encoded as signed integers (positive = variable, negative = negation).
+
+So we need to solve a 2-SAT problem with $n$ variables and $m$ clauses, and output a satisfying assignment.
+
+Standard 2-SAT: build implication graph. For clause $(a \vee b)$: $\neg a \Rightarrow b$, $\neg b \Rightarrow a$.
+
+With $n$ up to $10^5$ and $m$ up to $2 \cdot 10^5$, we have up to $2 \cdot 10^5$ variables in the 2-SAT sense (each of the $n$ variables has two literals), and $4 \cdot 10^5$ implications. We need to compute strongly connected components (SCC) and then assign values.
+
+In Python, we need an efficient SCC implementation. Options:
+1. Tarjan's algorithm (recursive — risky with $2 \cdot 10^5$ nodes due to recursion limit; can set recursion limit high but Python recursion is slow and may stack overflow... actually Python's recursion limit can be set to like $10^6$, and stack depth in Tarjan could be up to number of nodes. Python's default C stack might handle it with threading with larger stack size).
+2. Kosaraju's algorithm (iterative, two DFS passes).
+3. Iterative Tarjan.
+
+Let me think about the sizes: nodes in implication graph: $2n$ up to $2 \cdot 10^5$. Edges: $2m$ up to $4 \cdot 10^5$. This is manageable.
+
+Let me encode literals: for variable $i$ (1-indexed), literal $+i$ → node $2i$ (or $2(i-1)$), literal $-i$ → node $2i+1$ (or $2(i-1)+1$). Let me use: node for literal $l$: if $l > 0$: $2(l-1)$; if $l < 0$: $2(-l-1)+1$. Then negation of node $v$ is $v \oplus 1$.
+
+Clause $(a \vee b)$: add edges $\neg a \to b$ and $\neg b \to a$.
+
+Then compute SCCs. If for any variable $i$, nodes $2(i-1)$ and $2(i-1)+1$ are in the same SCC, output NO. Otherwise, assign: $x_i = 1$ if SCC of node $2(i-1)$ (positive literal) comes after SCC of node $2(i-1)+1$ in reverse topological order... Standard: in Tarjan, components are numbered in reverse topological order (a component gets a number when it finishes, so earlier-finished components are "later" in topological order... let me recall).
+
+Standard rule: $x_i$ is true iff comp[pos_node] > comp[neg_node] in Tarjan numbering (where Tarjan assigns component IDs in reverse topological order — i.e., the first completed SCC is a "sink"). Actually let me think again.
+
+In Tarjan's algorithm, SCCs are identified in reverse topological order: the first SCC found is a sink of the condensation (no outgoing edges to other SCCs... wait, actually the first SCC completed is one that has no edges to SCCs that come after it — hmm).
+
+Let me think carefully. In Tarjan, when an SCC is completed (popped off the stack), all SCCs it has edges to have already been completed. So the first completed SCC is a sink in the condensation DAG. So component IDs assigned in order of completion: comp 0 is a sink, comp 1 can only have edges to comp 0, etc. So edges go from higher comp ID to lower comp ID? No wait: if SCC A has an edge to SCC B, then B is completed before A. So comp(B) < comp(A). Edges go from higher IDs to lower IDs. So the assignment rule: literal $u$ is true iff comp[u] < comp[¬u]? Hmm, let me recall the standard rule.
+
+Standard rule (e.g., from competitive programming): In Tarjan's algorithm, the component of the negation... The rule is: $x_i$ is true iff comp[2i] < comp[2i+1] (using 0-indexed Tarjan component IDs where lower ID = completed earlier = closer to sink). Wait, I need to double check.
+
+The standard approach: assign $x_i = $ true if the SCC containing literal $x_i$ comes AFTER the SCC containing $\neg x_i$ in topological order. In the implication graph, if there's a path from $u$ to $v$, then $u \le v$ in topological order (u comes before v). We want to set literals true if they come later in topological order (so that implications from a true literal lead to true literals).
+
+In Tarjan, comp IDs are assigned in reverse topological order: comp ID 0 = last in topological order (sink). So "later in topological order" = "smaller comp ID". So $x_i$ is true iff comp[pos_i] < comp[neg_i].
+
+Hmm wait, let me re-verify: In Tarjan, when we complete an SCC, all SCCs reachable from it (via edges leaving it) have already been completed (they have smaller IDs). So if there's an edge from SCC A to SCC B (A ≠ B), then comp(B) < comp(A). Topological order: A before B. So higher comp ID = earlier in topological order. We want a literal to be true iff its SCC is later in topological order than its negation's SCC, i.e., comp[literal] < comp[¬literal].
+
+Yes: $x_i$ true iff comp[2(i-1)] < comp[2(i-1)+1].
+
+Alternatively, with Kosaraju: compute SCCs, get topological order of components, and set $x_i$ true iff comp[pos] > comp[neg] in topological order numbering.
+
+Let me just be careful and verify with a small example.
+
+Example: single clause $(x_1 \vee x_2)$, i.e., input "1 2". Nodes: pos1=0, neg1=1, pos2=2, neg2=3. Edges: ¬x1 → x2: node 1 → node 2. ¬x2 → x1: node 3 → node 0.
+
+All four nodes are separate SCCs (assuming no other clauses). Topological order: e.g., 1 → 2, 3 → 0. Topo order could be 1, 3, 2, 0 or 3, 1, 0, 2, etc. With Tarjan: DFS from node 0: node 0 has no outgoing edges → SCC {0} gets ID 0. Then DFS from node 1: 1 → 2, 2 has no outgoing → SCC {2} gets ID 1, then SCC {1} gets ID 2. Then node 3: 3 → 0 (already visited, different SCC) → SCC {3} gets ID 3.
+
+comp[pos1]=0, comp[neg1]=2. comp[pos1] < comp[neg1] → x1 = true. comp[pos2]=1, comp[neg2]=3 → x2 = true. Assignment: x1=1, x2=1. Check clause: satisfied. Good.
+
+Another check: clause $(\neg x_1 \vee \neg x_2)$, input "-1 -2". Edges: x1 → ¬x2: node 0 → node 3. x2 → ¬x1: node 2 → node 1.
+
+Tarjan: DFS from 0: 0 → 3, 3 no out → SCC{3} ID 0, SCC{0} ID 1. DFS from 2: 2 → 1, 1 no out → SCC{1} ID 2, SCC{2} ID 3.
+
+comp[pos1]=1, comp[neg1]=2 → comp[pos1] < comp[neg1] → x1 = true?? But the clause says ¬x1 ∨ ¬x2, and setting both true would violate it. Hmm wait, let me recheck.
+
+Hmm, wait. Let me redo the Tarjan trace. Nodes: 0 (x1), 1 (¬x1), 2 (x2), 3 (¬x2). Edges: 0→3, 2→1.
+
+DFS from node 0: visit 0, then 3. 3 has no outgoing edges. SCC {3} completed, ID 0. Back to 0: SCC {0} completed, ID 1.
+
+DFS from node 1 (next unvisited): node 1 has no outgoing edges. SCC {1} completed, ID 2.
+
+DFS from node 2: 2 → 1, already visited and in a completed SCC. SCC {2} completed, ID 3.
+
+comp: [1, 2, 3, 0] for nodes [0, 1, 2, 3].
+
+x1: comp[pos1] = comp[0] = 1, comp[neg1] = comp[1] = 2. Rule says x1 true iff comp[pos] < comp[neg] → 1 < 2 → x1 = true. Similarly x2: comp[2]=3, comp[3]=0 → 3 < 0 false → x2 = false.
+
+Assignment: x1=1, x2=0. Check clause (¬x1 ∨ ¬x2): ¬x2 is true. Satisfied. OK good, it works. I made an error before — x2 is false, not true.
+
+Let me double check the rule direction once more with a case where the implication matters. Clause set: (x1 ∨ x1), i.e., input "1 1". Edges: ¬x1 → x1 (twice): node 1 → node 0.
+
+Tarjan: DFS from 0: SCC{0} ID 0. DFS from 1: 1 → 0 (visited, completed). SCC{1} ID 1.
+
+comp[pos1]=0 < comp[neg1]=1 → x1 = true. Correct, since clause (x1 ∨ x1) forces x1 = true.
+
+Clause (¬x1 ∨ ¬x1), input "-1 -1": edges: x1 → ¬x1: node 0 → node 1. Tarjan: DFS from 0: 0 → 1, SCC{1} ID 0, SCC{0} ID 1. comp[pos]=1, comp[neg]=0 → x1 false. Correct.
+
+Great, the rule is: $x_i = 1$ iff comp[2(i-1)] < comp[2(i-1)+1] (with Tarjan IDs).
+
+Now, implementation in Python. With $n = 10^5$, we have $2 \cdot 10^5$ nodes and up to $4 \cdot 10^5$ edges. Recursion-based Tarjan would need recursion depth up to $2 \cdot 10^5$ — risky. Let me implement iterative Tarjan or Kosaraju.
+
+Actually, for 2-SAT there's a simpler approach: since we just need any satisfying assignment, we can use the SCC-based approach. Let me implement iterative Tarjan.
+
+Alternatively, there's a well-known simpler (but potentially slower) approach for 2-SAT: the backtracking algorithm with unit propagation, which is $O(n \cdot m)$ worst case but often fast. But worst case could be too slow. Let's stick with SCC.
+
+Let me write an iterative Tarjan. The standard iterative Tarjan is a bit tricky but doable. Alternatively, Kosaraju with iterative DFS is simpler to get right:
+
+Kosaraju:
+1. First pass: DFS on graph G, push nodes onto a stack in order of completion (post-order).
+2. Second pass: process nodes in reverse post-order (popping from the stack), DFS on reverse graph G^T, each DFS tree is an SCC.
+
+Then, topological order of SCCs: the order in which SCCs are found in the second pass is a reverse topological order of G^T, which is a topological order of G. Wait: In Kosaraju, the second pass on G^T finds SCCs in topological order of G (the condensation of G^T is the reverse of condensation of G; processing in reverse post-order of G means... let me think).
+
+Actually: In Kosaraju's algorithm, the second pass processes vertices in decreasing finish time of the first pass. The SCCs are then identified in reverse topological order of G^T, which equals topological order of G. Hmm, let me be careful.
+
+Standard result: In Kosaraju, if you do the second DFS on G^T starting from vertices in decreasing finish time (from the first pass on G), the SCCs are found in topological order of the condensation of G... Let me verify with a simple example: G: 0 → 1. First pass on G: DFS from 0: visit 0, visit 1, finish 1, finish 0. Stack (post-order push): [1, 0]. Process in reverse: pop 0 first. Second pass on G^T: G^T has edge 1 → 0. DFS from 0: SCC {0}. Then pop 1: DFS from 1 on G^T: 1 → 0 (visited), SCC {1}. So SCCs found in order: {0}, {1}. Topological order of G: 0 before 1 (edge 0→1). So yes, SCCs are found in topological order of G: {0} (ID 0) before {1} (ID 1). Edge goes from lower ID to higher ID.
+
+So with Kosaraju, comp IDs are in topological order of G (edges go from lower to higher comp ID). Then the rule: $x_i$ true iff comp[pos_i] > comp[neg_i] (literal true iff its SCC is later in topological order).
+
+Let me verify with the earlier example: clause (x1 ∨ x1): edge ¬x1 → x1, i.e., node 1 → node 0. G: 1 → 0. First pass: DFS from 0: finish 0, push 0. DFS from 1: 1 → 0 (visited), finish 1, push 1. Stack: [0, 1]. Pop 1 first: second pass on G^T (edge 0 → 1): DFS from 1: SCC {1}, ID 0. Pop 0: DFS from 0 on G^T: 0 → 1 (visited), SCC {0}, ID 1. comp[1] = 0 (¬x1), comp[0] = 1 (x1). Rule: x1 true iff comp[pos] > comp[neg] → 1 > 0 → true. Correct.
+
+OK so both work. Now, which is easier/faster to implement iteratively in Python?
+
+Iterative DFS for Kosaraju first pass: standard pattern using explicit stack. For the first pass, we need post-order. A common trick:
+
+```
+order = []
+visited = [False]*N
+for s in range(N):
+    if visited[s]: continue
+    stack = [s]
+    visited[s] = True
+    while stack:
+        v = stack[-1]
+        # find next unvisited neighbor... 
+```
+
+The tricky part is iterating over neighbors without re-scanning from the beginning each time (which could be O(E^2) in the worst case... actually no, re-scanning would be O(deg) each time, giving O(deg^2) per node — bad for high-degree nodes). We can maintain an iterator index per node, or use the "push all neighbors, mark visited when pushed" trick.
+
+The "mark visited when pushed" trick: 
+
+```
+for s in range(N):
+    if visited[s]: continue
+    stack = [s]
+    visited[s] = True
+    while stack:
+        v = stack.pop()
+        order.append(v)  # hmm, this gives a valid finish order? 
+        for u in adj[v]:
+            if not visited[u]:
+                visited[u] = True
+                stack.append(u)
+```
+
+Wait, this doesn't give a proper post-order/finish order. Popping v and appending to order: v is "finished" when popped, but its neighbors might be pushed and finished before... hmm, actually with this pattern, when we pop v and append to order, v is finished before its unvisited neighbors are explored. That's wrong for finish order.
+
+Hmm, but there's a known fact: for Kosaraju, we don't strictly need a proper finish order; we need... Actually, the standard requirement is decreasing finish time. Let me think about whether the simple pop-order works.
+
+Actually, there's a well-known alternative: the order needed for Kosaraju's first pass is a valid "finish order" (post-order). The simple stack-based DFS with "pop and append to order, then push unvisited neighbors" gives an order where a node appears before its descendants — that's like a pre-order-ish, not post-order. That would break Kosaraju.
+
+Hmm wait, actually let me reconsider. There's a classic trick: if you do the pop-order DFS on G and collect nodes in the order they're popped (which is a pre-order), it doesn't directly work for Kosaraju.
+
+But there's another known result: Kosaraju works if the first pass produces any order that is a "reverse topological-ish"... no, it specifically needs finish times.
+
+Let me just implement proper iterative DFS with post-order. A clean way:
+
+```
+# First pass: compute finish order
+adj = ... # adjacency list
+visited = [False]*N
+order = []
+for s in range(N):
+    if visited[s]: continue
+    stack = [(s, 0)]  # (node, iterator index)
+    visited[s] = True
+    while stack:
+        v, i = stack[-1]
+        if i < len(adj[v]):
+            stack[-1] = (v, i+1)
+            u = adj[v][i]
+            if not visited[u]:
+                visited[u] = True
+                stack.append((u, 0))
+        else:
+            order.append(v)
+            stack.pop()
+```
+
+This is O(V+E) but the tuple manipulation is slow-ish in Python. Alternative: use two parallel stacks or index arrays.
+
+A faster pattern: use an explicit stack of nodes and a separate "iterator position" array:
+
+```
+it = [0]*N  # next neighbor index to process
+for s in range(N):
+    if visited[s]: continue
+    visited[s] = True
+    stack = [s]
+    while stack:
+        v = stack[-1]
+        av = adj[v]
+        i = it[v]
+        found = False
+        while i < len(av):
+            u = av[i]
+            i += 1
+            if not visited[u]:
+                it[v] = i
+                visited[u] = True
+                stack.append(u)
+                found = True
+                break
+        if not found:
+            it[v] = i
+            order.append(v)
+            stack.pop()
+```
+
+Hmm, this has an inner while loop that re-reads; it's fine, each edge is examined O(1) times total per node... Actually the inner while loop: when we don't find an unvisited neighbor, we scan remaining neighbors (all visited) — each edge is scanned at most twice overall (once when advancing, once... no). Let me think: `it[v]` persists, so each edge of v is examined at most... when we resume v, we continue from it[v]. Each edge examined at most once for the "skip visited" plus once when it's the current edge... Actually each edge is examined exactly once in total across all resumptions of v, except the edge that causes a push is examined once. So total work is O(E). Good.
+
+But this is still Python-loop heavy: ~4·10^5 edges × 2 passes × 2 (Kosaraju needs both G and G^T) = fine, maybe 2-3 million loop iterations. Python can do ~10-50 million simple operations per second... this might be around 1-2 seconds. Time limit is 1s. Hmm, risky. Let me think about optimizations.
+
+Alternative: iterative Tarjan with the same pattern but computing lowlinks. Tarjan needs only one pass over the graph (one adjacency structure), which is an advantage. But Tarjan's iterative version is more complex.
+
+Actually, for 2-SAT specifically, there's an even simpler observation! Let me look at the structure of the clauses more carefully. Hmm, the clauses are arbitrary 2-SAT clauses, so no special structure. But wait — maybe there's something special about this problem...
+
+Hmm, actually, let me reconsider. This looks like it's from a specific contest (the problem statement style with "Hypercube Projection Proximity" is a disguise for 2-SAT). The constraints: $n \le 10^5$, $m \le 2 \cdot 10^5$. Standard 2-SAT. Time limit 1s — for Python that's tight but the problem says "solve in Python 3", so presumably a Python solution is expected to pass. Let me aim for an efficient implementation.
+
+Options for speed:
+1. Use arrays (lists) and avoid per-edge function call overhead.
+2. Use sys.stdin for fast input.
+3. Consider using a different algorithm.
+
+Alternative idea: Since it's 2-SAT, we could also use the approach of building the graph and computing SCC via... hmm.
+
+Another thought: could we avoid SCC entirely? For 2-SAT, there's the simple $O(nm)$ algorithm: repeatedly pick an unassigned variable, try setting it, propagate implications; on conflict, flip. Worst case is bad but maybe fine here? No, worst case with $n = 10^5$, $m = 2 \cdot 10^5$ could be $2 \cdot 10^{10}$ — too slow in adversarial cases. But is this problem adversarial? It's a "solve this problem" task; I should assume worst case. Stick with SCC.
+
+Let me think about how to make iterative Tarjan fast in Python.
+
+Actually, let me reconsider: maybe I can implement Kosaraju more cleverly. Or use Tarjan iteratively.
+
+Let me write iterative Tarjan carefully:
+
+```
+index_counter = 0
+indices = [-1]*N  # discovery index
+lowlink = [0]*N
+on_stack = [False]*N
+scc_stack = []
+comp = [-1]*N
+comp_count = 0
+it = [0]*N
+
+for root in range(N):
+    if indices[root] != -1: continue
+    # iterative DFS
+    stack = [root]
+    indices[root] = lowlink[root] = index_counter; index_counter += 1
+    scc_stack.append(root); on_stack[root] = True
+    while stack:
+        v = stack[-1]
+        av = adj[v]
+        i = it[v]
+        # advance
+        pushed = False
+        while i < len(av):
+            u = av[i]
+            i += 1
+            if indices[u] == -1:
+                it[v] = i
+                indices[u] = lowlink[u] = index_counter; index_counter += 1
+                scc_stack.append(u); on_stack[u] = True
+                stack.append(u)
+                pushed = True
+                break
+            elif on_stack[u]:
+                if indices[u] < lowlink[v]: lowlink[v] = indices[u]
+        if pushed: continue
+        # v finished
+        it[v] = i
+        stack.pop()
+        if stack:
+            p = stack[-1]
+            if lowlink[v] < lowlink[p]: lowlink[p] = lowlink[v]
+        if lowlink[v] == indices[v]:
+            # pop SCC
+            while True:
+                w = scc_stack.pop()
+                on_stack[w] = False
+                comp[w] = comp_count
+                if w == v: break
+            comp_count += 1
+```
+
+Wait, there's a subtle issue: when we resume v after a child returns, we need to update lowlink[v] with lowlink[child]. In my code above, after popping v (when v is finished), I update the parent's lowlink. But also, when scanning edges and finding u already visited and on_stack, we update lowlink[v] with indices[u]. That's the standard Tarjan.
+
+Hmm, but there's an issue with the inner while loop: when we break to push a child, we've already incremented i and saved it[v] = i. When we come back to v, we resume from it[v]. The edges between the old i and new it[v]... we processed edge at position i (the one that caused the push) — we don't re-examine it. Good. But wait, in the inner while loop, when we encounter visited neighbors, we update lowlink[v] but continue the loop without saving i. If we then push a child at position i', we save it[v] = i'+1. The visited neighbors between old i and i' were processed (lowlink updated) and won't be re-examined. Good. If we exhaust the loop without pushing, we set it[v] = i (== len) and finish v. Good.
+
+One more subtlety: when we finish v and update parent p's lowlink with lowlink[v] — that's correct for tree edges. And cross/forward edges to on-stack nodes are handled in the scan. Edges to nodes not on stack (already completed SCCs) are ignored. Correct.
+
+This is a correct iterative Tarjan. The component IDs are assigned in order of completion = reverse topological order (sinks get low IDs). Rule: $x_i$ true iff comp[pos_i] < comp[neg_i].
+
+Hmm wait, I need to double check the direction again. In Tarjan, when SCC C is completed, all SCCs reachable from C have already been completed (they have smaller IDs). So edges in condensation go from higher

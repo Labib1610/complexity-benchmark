@@ -1,0 +1,70 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    k = int(next(it))
+    t = int(next(it))
+    
+    adj = [[] for _ in range(k + 1)]
+    for _ in range(t):
+        c = int(next(it))
+        n = int(next(it))
+        i = int(next(it))
+        adj[c].append((n, i))
+        
+    match_n = [0] * (k + 1)
+    match_i = [0] * (k + 1)
+    ans = [None] * (k + 1)
+    
+    def dfs(u, visited):
+        for v, w in adj[u]:
+            if visited[v]:
+                continue
+            visited[v] = True
+            if match_n[v] == 0:
+                match_n[v] = u
+                match_i[w] = u
+                ans[u] = (v, w)
+                return True
+            else:
+                prev_u = match_n[v]
+                prev_w = ans[prev_u][1]
+                if match_i[w] == 0:
+                    match_n[v] = u
+                    match_i[w] = u
+                    match_i[prev_w] = 0
+                    ans[u] = (v, w)
+                    ans[prev_u] = None
+                    visited = [False] * (k + 1)
+                    visited[v] = True
+                    if dfs(prev_u, visited):
+                        return True
+                    match_n[v] = prev_u
+                    match_i[w] = 0
+                    match_i[prev_w] = prev_u
+                    ans[u] = None
+                    ans[prev_u] = (v, prev_w)
+                else:
+                    if dfs(match_i[w], visited):
+                        match_n[v] = u
+                        match_i[w] = u
+                        ans[u] = (v, w)
+                        return True
+        return False
+
+    for u in range(1, k + 1):
+        visited = [False] * (k + 1)
+        if not dfs(u, visited):
+            print("NO")
+            return
+            
+    print("YES")
+    for u in range(1, k + 1):
+        v, w = ans[u]
+        print(u, v, w)
+
+if __name__ == '__main__':
+    solve()

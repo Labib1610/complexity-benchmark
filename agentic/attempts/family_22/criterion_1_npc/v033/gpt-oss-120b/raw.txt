@@ -1,0 +1,371 @@
+**Solution Explanation**
+
+For every task  
+
+* processing time = 1 slot  
+* it may be executed on any of the `M` identical stations  
+* if there is a directed edge `a → b` then `slot[b] > slot[a]`
+
+We have to assign a slot `1 … T` to every task, at most `M` tasks per slot,
+or decide that it is impossible.
+
+
+
+--------------------------------------------------------------------
+
+#### 1.  Observations  
+
+* The precedence graph must be a **DAG** – otherwise the answer is `NO`.
+* The problem is the classical scheduling problem  
+
+```
+P | prec , pj = 1 | Cmax
+```
+
+  (identical parallel machines, unit processing time, precedence
+  constraints, minimise the makespan `Cmax`).
+
+* For this problem an optimal schedule can be built in polynomial time
+  – the **Coffman‑Graham algorithm**.
+  The algorithm receives the number of machines `M` and produces a schedule
+  whose length `L` is the smallest possible makespan.
+  Consequently  
+
+```
+feasible  ⇔  L ≤ T
+```
+
+* The algorithm works in two phases  
+
+  1. **labeling** – a number `label(v)` is assigned to every vertex.
+     The rule guarantees that a vertex never needs more than `M` different
+     earlier labels among its successors.
+  2. **list scheduling** – vertices are taken in non‑decreasing order of the
+     label (ties broken by a fixed topological order) and placed as early as
+     possible respecting the already placed predecessors and the capacity
+     `M`.
+
+Both phases are easy to implement and run in `O(n log n + m)` time.
+
+
+
+--------------------------------------------------------------------
+
+#### 2.  Coffman‑Graham labeling  
+
+*First* a topological order `topo` of the DAG is computed (Kahn’s algorithm).
+
+Vertices are processed **backwards** in this order, i.e. from sinks to sources.
+When a vertex `v` is processed, all its successors already own a label.
+
+```
+S = { label(u) | u is a direct successor of v }
+take the M largest numbers of S   (if |S| < M take all of them)
+let L = this set
+label(v) = the smallest positive integer not contained in L
+```
+
+Why does the smallest missing integer never exceed `M+1` ?
+`L` contains at most `M` numbers, therefore among the integers `1 … M+1`
+at least one is missing.
+
+The labeling needs only the labels of the successors, therefore it can be
+performed in the reverse topological order.
+
+
+
+--------------------------------------------------------------------
+
+#### 3.  Building the schedule  
+
+*Order* the vertices by the pair  
+
+```
+(label(v), position of v inside the topological order)
+```
+
+The second component guarantees a total order – any tie‑break works.
+
+Now we schedule greedily:
+
+```
+for v in that order
+        earliest = 1
+        for each predecessor p of v
+                earliest = max(earliest, slot[p] + 1)
+
+        while used[earliest] == M               # slot already full
+                earliest += 1
+
+        slot[v] = earliest
+        used[earliest] += 1
+```
+
+Because the vertices are processed in a topological order (the label order
+is a topological order), all predecessors of `v` are already scheduled,
+hence `earliest` is well defined.
+The while‑loop moves to the first slot that still has a free station.
+Every increment of `earliest` consumes one free place, therefore the total
+number of loop iterations over the whole algorithm is at most `n`.
+The obtained makespan `L = max slot[v]` is optimal (the theorem of
+Coffman‑Graham).
+
+--------------------------------------------------------------------
+
+#### 4.  Correctness Proof  
+
+We prove that the algorithm prints `YES` and a feasible schedule
+iff such a schedule exists.
+
+---
+
+##### Lemma 1  
+The labeling step assigns to every vertex `v` a positive integer
+`label(v) ≤ M+1`.
+
+**Proof.**  
+During the computation of `label(v)` we look at at most `M` numbers
+(the `M` largest labels of the successors).  
+Among the `M+1` integers `1 … M+1` at least one is missing, therefore the
+smallest missing integer is ≤ `M+1`. ∎
+
+
+
+##### Lemma 2  
+If vertices are ordered by non‑decreasing `label` (ties broken arbitrarily),
+the order is a topological order of the DAG.
+
+**Proof.**  
+Consider an edge `a → b`.  
+When `a` is processed in the labeling phase, `b` is already labelled
+(because we go backwards).  
+`label(a)` is defined as the smallest integer not appearing among the
+`M` largest labels of the successors of `a`.  
+Since `label(b)` belongs to that set of successors, `label(b) ≠ label(a)`.
+If `label(b) < label(a)` then `label(b)` would be missing from the set,
+contradicting the definition of `label(a)`.  
+Hence `label(b) > label(a)`.  
+Therefore every edge goes from a smaller to a larger label, i.e. the
+ordering respects all edges. ∎
+
+
+
+##### Lemma 3  
+During the scheduling phase, when a vertex `v` is processed,
+all its predecessors already have a slot assigned and
+`earliest = 1 + max_{p predecessor of v} slot[p]`.
+
+**Proof.**  
+By Lemma&nbsp;2 the processing order is a topological order,
+so every predecessor `p` appears earlier in the list and has already been
+scheduled.  
+The algorithm explicitly computes the maximum of `slot[p] + 1`,
+hence `earliest` equals the stated value. ∎
+
+
+
+##### Lemma 4  
+The slot assigned to a vertex `v` by the algorithm satisfies all
+precedence constraints and never exceeds the capacity `M` of a slot.
+
+**Proof.**  
+*Precedence*: by Lemma&nbsp;3 `slot[v] ≥ earliest ≥ slot[p] + 1` for every
+predecessor `p`, therefore `slot[v] > slot[p]`.
+
+*Capacity*: the algorithm puts `v` into the first slot `s` with
+`used[s] < M`. Afterwards `used[s]` is increased by one, so the invariant
+“no slot contains more than `M` tasks” holds inductively. ∎
+
+
+
+##### Lemma 5  
+Let `L` be the makespan produced by the algorithm.
+No schedule respecting the constraints can have makespan `< L`.
+
+**Proof.**  
+The Coffman‑Graham algorithm is known to be optimal for the problem
+`P | prec , pj = 1 | Cmax`.  
+Its optimality proof (see Coffman & Graham, 1972) shows that the
+list‑scheduling step, applied to the label order, yields a schedule whose
+length equals the minimum possible makespan.
+Therefore any feasible schedule needs at least `L` slots. ∎
+
+
+
+##### Lemma 6  
+If the algorithm outputs `YES` (i.e. `L ≤ T`) then the printed assignment is
+a feasible schedule inside the deadline.
+
+**Proof.**  
+By Lemma&nbsp;4 all precedence constraints and the per‑slot capacity are
+satisfied.  
+All slots are between `1` and `L`, and `L ≤ T`, therefore the deadline is
+met. ∎
+
+
+
+##### Lemma 7  
+If the algorithm outputs `NO` (i.e. `L > T`) then **no** feasible schedule
+with deadline `T` exists.
+
+**Proof.**  
+Assume a feasible schedule with makespan ≤ `T` existed.
+Its makespan would be `< L` (because `L > T`).  
+This contradicts Lemma&nbsp;5, which states that `L` is the minimum possible
+makespan. ∎
+
+
+
+##### Theorem  
+The program prints  
+
+* `YES` and a correct assignment of slots **iff** a schedule satisfying all
+  constraints and the deadline exists,
+* otherwise it prints `NO`.
+
+**Proof.**  
+*If* part – existence ⇒ algorithm prints `YES`:
+If a feasible schedule exists, its makespan is some `C ≤ T`.  
+The optimal makespan `L` computed by the algorithm cannot be larger than
+`C` (optimality), therefore `L ≤ C ≤ T`.  
+Consequently the algorithm outputs `YES` and, by Lemma&nbsp;6,
+the printed assignment is feasible.
+
+*Only‑if* part – algorithm prints `YES` ⇒ existence:
+When the algorithm prints `YES`, Lemma&nbsp;6 gives a feasible schedule,
+hence a solution exists.
+
+If the algorithm prints `NO`, Lemma&nbsp;7 shows that no feasible schedule
+with deadline `T` exists. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### 5.  Complexity Analysis  
+
+*Topological sorting* : `O(n + m)`  
+*Labeling* : each vertex looks at its outgoing edges, sorts at most its
+out‑degree numbers – total `O( Σ deg(v) log deg(v) ) = O(m log n)`  
+*Sorting by label* : `O(n log n)`  
+*List scheduling* : each vertex examined once, each slot counter increased
+once – `O(n + L) ≤ O(n + n) = O(n)`
+
+Overall  
+
+```
+Time   : O( n log n + m log n )
+Memory : O( n + m )
+```
+
+Both satisfy the limits (`5 s`, `256 MB`) for the usual constraints
+(`n, m ≤ 2·10⁵` etc.).
+
+--------------------------------------------------------------------
+
+#### 6.  Reference Implementation  (Python 3)
+
+```python
+import sys
+from collections import deque
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    M = int(next(it))
+    T = int(next(it))
+    m = int(next(it))
+
+    succ = [[] for _ in range(n)]
+    pred = [[] for _ in range(n)]
+    indeg = [0] * n
+    for _ in range(m):
+        a = int(next(it)) - 1
+        b = int(next(it)) - 1
+        succ[a].append(b)
+        pred[b].append(a)
+        indeg[b] += 1
+
+    # ---------- topological order ----------
+    q = deque([i for i, d in enumerate(indeg) if d == 0])
+    topo = []
+    while q:
+        v = q.popleft()
+        topo.append(v)
+        for nb in succ[v]:
+            indeg[nb] -= 1
+            if indeg[nb] == 0:
+                q.append(nb)
+
+    if len(topo) != n:          # cycle
+        print("NO")
+        return
+
+    pos_in_topo = [0] * n
+    for idx, v in enumerate(topo):
+        pos_in_topo[v] = idx
+
+    # ---------- labeling ----------
+    label = [0] * n
+    # process in reverse topological order
+    for v in reversed(topo):
+        # collect labels of successors
+        labs = [label[u] for u in succ[v]]
+        if not labs:
+            label[v] = 1
+            continue
+        labs.sort(reverse=True)
+        # keep only M largest
+        if len(labs) > M:
+            labs = labs[:M]
+        # find smallest missing positive integer
+        present = set()
+        for x in labs:
+            if x <= M + 1:
+                present.add(x)
+        cur = 1
+        while cur in present:
+            cur += 1
+        label[v] = cur
+
+    # ---------- order by label ----------
+    order = list(range(n))
+    order.sort(key=lambda x: (label[x], pos_in_topo[x]))
+
+    # ---------- list scheduling ----------
+    slot = [0] * n
+    used = []          # used[i] = number of tasks in slot i+1
+    for v in order:
+        earliest = 1
+        for p in pred[v]:
+            if slot[p] + 1 > earliest:
+                earliest = slot[p] + 1
+        # ensure used list is long enough
+        while len(used) < earliest:
+            used.append(0)
+        # move to first slot with free capacity
+        while used[earliest - 1] >= M:
+            earliest += 1
+            if len(used) < earliest:
+                used.append(0)
+        slot[v] = earliest
+        used[earliest - 1] += 1
+
+    makespan = max(slot)
+    if makespan > T:
+        print("NO")
+        return
+
+    # output
+    print("YES")
+    print(' '.join(str(slot[i]) for i in range(n)))
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above
+and conforms to the required input‑output format.

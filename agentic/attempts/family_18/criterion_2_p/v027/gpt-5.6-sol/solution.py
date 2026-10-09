@@ -1,0 +1,209 @@
+import sys
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+
+    it = iter(data)
+    n = next(it)
+    m = next(it)
+    budget = next(it)
+
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = next(it) - 1
+        v = next(it) - 1
+        iu = len(adj[u])
+        iv = len(adj[v])
+        adj[u].append((v, iv))
+        adj[v].append((u, iu))
+
+    if n == 1:
+        if budget >= 0:
+            print("YES")
+            print(1)
+        else:
+            print("NO")
+        return
+
+    parent = [-1] * n
+    parent_index = [-1] * n
+    order = [0]
+
+    for v in order:
+        for i, (u, _) in enumerate(adj[v]):
+            if u == parent[v]:
+                continue
+            parent[u] = v
+            parent_index[u] = adj[v][i][1]
+            order.append(u)
+
+    subtree = [1] * n
+    incoming_cost = [[0] * len(adj[v]) for v in range(n)]
+
+    # Messages from children toward their parents.
+    for v in reversed(order):
+        children = []
+        base = 0
+
+        for i, (u, rev) in enumerate(adj[v]):
+            if parent[u] == v:
+                children.append((subtree[u], i))
+                base += incoming_cost[v][i] + 1
+                subtree[v] += subtree[u]
+
+        children.sort()
+        d = len(children)
+        anchored_cost = base
+        for rank, (size, _) in enumerate(children):
+            anchored_cost += size * ((d - rank) // 2)
+
+        if parent[v] != -1:
+            p = parent[v]
+            idx_in_parent = parent_index[v]
+            incoming_cost[p][idx_in_parent] = anchored_cost
+
+    incoming_size = [[0] * len(adj[v]) for v in range(n)]
+    sorted_indices = [None] * n
+
+    best_cost = None
+    best_root = 0
+
+    # Rerooting pass. At this point, the parent-side message of each processed
+    # vertex is already available.
+    for v in order:
+        deg = len(adj[v])
+
+        for i, (u, _) in enumerate(adj[v]):
+            if parent[u] == v:
+                incoming_size[v][i] = subtree[u]
+            else:
+                incoming_size[v][i] = n - subtree[v]
+
+        indices = list(range(deg))
+        indices.sort(key=lambda idx: (incoming_size[v][idx], adj[v][idx][0]))
+        sorted_indices[v] = indices
+
+        base_total = deg + sum(incoming_cost[v])
+
+        global_cost = base_total
+        for rank, idx in enumerate(indices):
+            global_cost += incoming_size[v][idx] * ((deg - 1 - rank) // 2)
+
+        if best_cost is None or global_cost < best_cost:
+            best_cost = global_cost
+            best_root = v
+
+        if deg == 0:
+            continue
+
+        d = deg - 1
+        prefix = [0] * (deg + 1)
+        suffix = [0] * (deg + 1)
+
+        for rank, idx in enumerate(indices):
+            coefficient = (d - rank) // 2
+            prefix[rank + 1] = (
+                prefix[rank] + incoming_size[v][idx] * coefficient
+            )
+
+        for rank in range(deg - 1, -1, -1):
+            idx = indices[rank]
+            coefficient = (d - rank + 1) // 2
+            suffix[rank] = (
+                suffix[rank + 1] + incoming_size[v][idx] * coefficient
+            )
+
+        for rank, idx in enumerate(indices):
+            u, rev = adj[v][idx]
+            outgoing = (
+                base_total
+                - incoming_cost[v][idx]
+                - 1
+                + prefix[rank]
+                + suffix[rank + 1]
+            )
+            incoming_cost[u][rev] = outgoing
+
+    if best_cost > budget:
+        print("NO")
+        return
+
+    def split_children(v, p, root_mode):
+        child_indices = [
+            idx for idx in sorted_indices[v]
+            if adj[v][idx][0] != p
+        ]
+        d = len(child_indices)
+        left_count = d // 2
+        right_count = d - left_count
+
+        slots = []
+        if root_mode:
+            for j in range(left_count):
+                slots.append((left_count - 1 - j, 0, j))
+            for j in range(right_count):
+                slots.append((right_count - 1 - j, 1, j))
+        else:
+            for j in range(left_count):
+                slots.append((left_count - j, 0, j))
+            for j in range(right_count):
+                slots.append((right_count - 1 - j, 1, j))
+
+        slots.sort(key=lambda x: (-x[0], x[1], x[2]))
+
+        left = [None] * left_count
+        right = [None] * right_count
+
+        for idx, (_, side, rank) in zip(child_indices, slots):
+            child = adj[v][idx][0]
+            if side == 0:
+                left[rank] = child
+            else:
+                right[rank] = child
+
+        return left, right
+
+    hallway_order = []
+    # Stack entries:
+    # (0, vertex, parent, reverse, root_mode) processes a subtree.
+    # (1, vertex, 0, 0, 0) emits a vertex.
+    stack = [(0, best_root, -1, False, True)]
+
+    while stack:
+        typ, v, p, reverse, root_mode = stack.pop()
+
+        if typ == 1:
+            hallway_order.append(v)
+            continue
+
+        left, right = split_children(v, p, root_mode)
+
+        actions = []
+        if not reverse:
+            for child in reversed(left):
+                actions.append((0, child, v, True, False))
+            actions.append((1, v, 0, False, False))
+            for child in right:
+                actions.append((0, child, v, False, False))
+        else:
+            for child in reversed(right):
+                actions.append((0, child, v, True, False))
+            actions.append((1, v, 0, False, False))
+            for child in left:
+                actions.append((0, child, v, False, False))
+
+        for action in reversed(actions):
+            stack.append(action)
+
+    office = [0] * n
+    for position, researcher in enumerate(hallway_order, 1):
+        office[researcher] = position
+
+    print("YES")
+    print(*office)
+
+
+if __name__ == "__main__":
+    main()

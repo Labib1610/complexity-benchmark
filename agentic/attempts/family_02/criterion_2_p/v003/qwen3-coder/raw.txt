@@ -1,0 +1,151 @@
+```python
+import sys
+from collections import defaultdict, deque
+
+def solve():
+    n, m = map(int, sys.stdin.readline().split())
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(["0"] * n))
+        return
+    
+    # For each rule (a or b), we create two implications:
+    # if not a then b, and if not b then a
+    # Variables: 1..n for positive, -(1..n) for negative
+    # We'll use 2*i for variable i positive, 2*i+1 for variable i negative
+    
+    graph = defaultdict(list)
+    reverse_graph = defaultdict(list)
+    
+    for _ in range(m):
+        l1, l2 = map(int, sys.stdin.readline().split())
+        # l1 or l2 means (not l1) implies l2 and (not l2) implies l1
+        # Convert to 0-based indexing for graph nodes
+        # For variable x: node 2*x represents x, node 2*x+1 represents not x
+        if l1 > 0:
+            not_l1 = 2 * l1 + 1  # not x
+            l1_node = 2 * l1     # x
+        else:
+            not_l1 = 2 * (-l1)   # not (not x) = x
+            l1_node = 2 * (-l1) + 1  # not x
+            
+        if l2 > 0:
+            not_l2 = 2 * l2 + 1  # not y
+            l2_node = 2 * l2     # y
+        else:
+            not_l2 = 2 * (-l2)   # not (not y) = y
+            l2_node = 2 * (-l2) + 1  # not y
+            
+        # Add implications: not l1 -> l2, not l2 -> l1
+        graph[not_l1].append(l2_node)
+        graph[not_l2].append(l1_node)
+        reverse_graph[l2_node].append(not_l1)
+        reverse_graph[l1_node].append(not_l2)
+    
+    # Kosaraju's algorithm for finding strongly connected components
+    visited = [False] * (2 * n + 2)
+    order = []
+    
+    def dfs1(node):
+        if visited[node]:
+            return
+        visited[node] = True
+        for neighbor in graph[node]:
+            dfs1(neighbor)
+        order.append(node)
+    
+    # First DFS on original graph
+    for i in range(2, 2 * n + 2):
+        dfs1(i)
+    
+    # Second DFS on reverse graph
+    visited = [False] * (2 * n + 2)
+    scc = [-1] * (2 * n + 2)
+    scc_id = 0
+    
+    def dfs2(node):
+        if visited[node]:
+            return
+        visited[node] = True
+        scc[node] = scc_id
+        for neighbor in reverse_graph[node]:
+            dfs2(neighbor)
+    
+    # Process in reverse order
+    while order:
+        node = order.pop()
+        if not visited[node]:
+            dfs2(node)
+            scc_id += 1
+    
+    # Check if any variable and its negation are in the same SCC
+    for i in range(1, n + 1):
+        pos = 2 * i
+        neg = 2 * i + 1
+        if scc[pos] == scc[neg]:
+            print("NO")
+            return
+    
+    # Assign values based on SCC topological order
+    # Variables in later SCCs should be assigned True
+    assignment = [False] * (n + 1)
+    
+    # Create SCC graph and find topological order
+    scc_graph = defaultdict(set)
+    for node in range(2, 2 * n + 2):
+        for neighbor in graph[node]:
+            if scc[node] != scc[neighbor]:
+                scc_graph[scc[node]].add(scc[neighbor])
+    
+    # Topological sort of SCCs
+    scc_in_degree = [0] * scc_id
+    for u in scc_graph:
+        for v in scc_graph[u]:
+            scc_in_degree[v] += 1
+    
+    queue = deque()
+    for i in range(scc_id):
+        if scc_in_degree[i] == 0:
+            queue.append(i)
+    
+    scc_order = []
+    while queue:
+        u = queue.popleft()
+        scc_order.append(u)
+        for v in scc_graph[u]:
+            scc_in_degree[v] -= 1
+            if scc_in_degree[v] == 0:
+                queue.append(v)
+    
+    # Assign truth values
+    scc_value = [False] * scc_id
+    for scc_node in scc_order:
+        for node in range(2, 2 * n + 2):
+            if scc[node] == scc_node:
+                var_index = (node - 2) // 2 + 1
+                is_positive = (node % 2 == 0)
+                if is_positive:  # This is variable node
+                    if not scc_value[scc_node]:
+                        # Check if assigning True would cause conflict
+                        if scc[2 * var_index + 1] == scc_node:
+                            print("NO")
+                            return
+                    assignment[var_index] = scc_value[scc_node]
+                else:  # This is negation node
+                    if not scc_value[scc_node]:
+                        # Check if assigning False would cause conflict
+                        if scc[2 * var_index] == scc_node:
+                            print("NO")
+                            return
+                    assignment[var_index] = not scc_value[scc_node]
+        scc_value[scc_node] = True
+    
+    print("YES")
+    result = []
+    for i in range(1, n + 1):
+        result.append("1" if assignment[i] else "0")
+    print(" ".join(result))
+
+solve()
+```

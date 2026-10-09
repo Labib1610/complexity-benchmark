@@ -49,6 +49,25 @@ def gen_steiner(n, t, seed):
 
 
 # --- criterion 2: MST (connected graph) -----------------------------------------
+def gen_tree_steiner(n, t, seed):
+    """UNIFIED schema (audit B4): same as criterion 1 (n m t + required sites + weighted edges), but
+    the cabling graph is a TREE (m = n-1). Steiner tree on a tree is polynomial (the minimal subtree
+    spanning the required sites). t required sites are chosen at random."""
+    rng = random.Random(seed * 2_000_003 + 7)
+    edges = []
+    for c in range(2, n + 1):
+        p = rng.randint(1, c - 1)
+        w = rng.randint(1, 1_000_000)
+        edges.append((p, c, w))
+    t = max(1, min(t, n))
+    terminals = rng.sample(range(1, n + 1), t)
+    rng.shuffle(edges)
+    lines = [f"{n} {len(edges)} {t}"]
+    lines.append(" ".join(map(str, terminals)))
+    lines += [f"{u} {v} {w}" for (u, v, w) in edges]
+    return "\n".join(lines) + "\n"
+
+
 def gen_mst(n, m, seed, equal=False):
     """Connected weighted graph. equal=True -> all edges have the SAME weight (stress
     tie-breaking). Otherwise random weights. A random spanning tree guarantees
@@ -129,7 +148,8 @@ def main():
     if args.criterion == 1:
         out = gen_steiner(args.n, args.t, args.seed)
     elif args.criterion == 2:
-        out = gen_mst(args.n, args.m, args.seed, equal=args.equal)
+        # audit B4: unified schema (n m t + terminals) with a tree-graph promise (Steiner on a tree).
+        out = gen_tree_steiner(args.n, args.t, args.seed)
     else:
         out = gen_isolated_terminal(args.n, args.m, args.t, args.seed, at=args.at)
 

@@ -1,0 +1,145 @@
+import sys
+
+def solve():
+    input = sys.stdin.read
+    data = input().split()
+    if not data:
+        return
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    adj = [0] * n
+    idx = 2
+    for _ in range(m):
+        u = int(data[idx]) - 1
+        v = int(data[idx+1]) - 1
+        idx += 2
+        if u != v:
+            adj[u] |= (1 << v)
+            adj[v] |= (1 << u)
+            
+    # Check self-loops
+    # Problem says u, v interfering, if u == v then NO
+    # But graph has u, v distinct in valid simple graphs. If u==v, it can't be colored.
+    
+    # Backtracking with MRV + Forward Checking
+    color = [-1] * n
+    avail = [7] * n  # bits 0, 1, 2 correspond to colors 1, 2, 3
+    
+    popcount = [0] * 8
+    for i in range(8):
+        popcount[i] = bin(i).count('1')
+
+    def get_first_color(mask):
+        if mask & 1: return 0
+        if mask & 2: return 1
+        if mask & 4: return 2
+        return -1
+
+    def backtrack(uncolored_count):
+        if uncolored_count == 0:
+            return True
+        
+        # Unit propagation loop
+        # Check if any vertex has 0 colors -> failure
+        # Check if any vertex has 1 color -> must assign
+        changed = []
+        while True:
+            min_c = 4
+            best_v = -1
+            for i in range(n):
+                if color[i] == -1:
+                    c_count = popcount[avail[i]]
+                    if c_count == 0:
+                        # Rollback this propagation round
+                        for v_rev, mask_rev, prev_c in reversed(changed):
+                            color[v_rev] = -1
+                            # restore avail of neighbors
+                            for u in range(n):
+                                if (adj[v_rev] >> u) & 1:
+                                    avail[u] = (avail[u] & mask_rev[u][0]) | mask_rev[u][1]
+                        return False
+                    if c_count < min_c:
+                        min_c = c_count
+                        best_v = i
+            
+            if min_c == 1:
+                # Assign best_v its only color
+                c = get_first_color(avail[best_v])
+                c_mask = 1 << c
+                # record changes
+                mask_backup = {}
+                for u in range(n):
+                    if (adj[best_v] >> u) & 1:
+                        # old avail[u]
+                        # we want to know what bit was cleared
+                        bit_cleared = avail[u] & c_mask
+                        mask_backup[u] = (~0, bit_cleared)
+                        avail[u] &= ~c_mask
+                color[best_v] = c
+                changed.append((best_v, mask_backup, c))
+                uncolored_count -= 1
+                if uncolored_count == 0:
+                    return True
+            else:
+                break
+        
+        # Now choose a vertex to branch on
+        # Pick vertex with minimum available colors, break tie by max uncolored degree
+        best_v = -1
+        min_c = 4
+        max_deg = -1
+        for i in range(n):
+            if color[i] == -1:
+                c_count = popcount[avail[i]]
+                if c_count < min_c:
+                    min_c = c_count
+                    max_deg = bin(adj[i]).count('1')
+                    best_v = i
+                elif c_count == min_c:
+                    deg = bin(adj[i]).count('1')
+                    if deg > max_deg:
+                        max_deg = deg
+                        best_v = i
+                        
+        cand_colors = []
+        for c in range(3):
+            if (avail[best_v] >> c) & 1:
+                cand_colors.append(c)
+                
+        for c in cand_colors:
+            c_mask = 1 << c
+            # save state of neighbors
+            saved_avail = []
+            for u in range(n):
+                if (adj[best_v] >> u) & 1 and color[u] == -1:
+                    saved_avail.append((u, avail[u]))
+                    avail[u] &= ~c_mask
+            
+            color[best_v] = c
+            if backtrack(uncolored_count - 1):
+                return True
+            
+            # restore
+            color[best_v] = -1
+            for u, old_val in saved_avail:
+                avail[u] = old_val
+                
+        # Rollback unit propagation done at the start of this call
+        for v_rev, mask_rev, prev_c in reversed(changed):
+            color[v_rev] = -1
+            for u in range(n):
+                if (adj[v_rev] >> u) & 1:
+                    avail[u] |= mask_rev[u][1]
+                    
+        return False
+
+    if backtrack(n):
+        print("YES")
+        print(*(color[i] + 1 for i in range(n)))
+    else:
+        print("NO")
+
+if __name__ == '__main__':
+    solve()

@@ -1,0 +1,27 @@
+import sys
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    B = int(next(it))
+    edges = [(int(next(it)), int(next(it))) for _ in range(m)]
+
+    # use identity permutation: position of node i is i
+    total = 0
+    for u, v in edges:
+        total += abs(u - v)
+        if total > B:   # early stop
+            break
+
+    if total <= B:
+        print("YES")
+        print(' '.join(str(i) for i in range(1, n + 1)))
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()

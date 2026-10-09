@@ -1,0 +1,111 @@
+import sys
+from collections import deque
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    iterator = iter(input_data)
+    try:
+        q = int(next(iterator))
+        t = int(next(iterator))
+    except StopIteration:
+        return
+
+    nrows = q
+    ncols = q
+    
+    # Capacity matrix dimensions: (nrows + ncols + 2) x (nrows + ncols + 2)
+    # Nodes: 0=source, 1..nrows=controllers, nrows+1..nrows+ncols=platforms, sink=nrows+ncols+1
+    N = nrows + ncols + 2
+    source = 0
+    sink = N - 1
+    
+    cap = [bytearray(N) for _ in range(N)]
+    adj = [[] for _ in range(N)]
+    
+    # Build graph
+    for i in range(1, nrows + 1):
+        u = i
+        v = sink
+        cap[u][v] = 1
+        adj[u].append(v)
+        adj[v].append(u)
+        
+    for j in range(1, ncols + 1):
+        u = source
+        v = nrows + j
+        cap[u][v] = 1
+        adj[u].append(v)
+        adj[v].append(u)
+
+    for _ in range(t):
+        try:
+            a = int(next(iterator))
+            b = int(next(iterator))
+        except StopIteration:
+            break
+        u = a
+        v = b - nrows
+        if 1 <= u <= nrows and 1 <= v <= ncols:
+            if cap[u][v] == 0:
+                cap[u][v] = 1
+                adj[u].append(v)
+                adj[v].append(u)
+
+    # Dinic's algorithm
+    level = [0] * N
+    ptr = [0] * N
+    
+    def bfs():
+        for i in range(N):
+            level[i] = -1
+        queue = deque([source])
+        level[source] = 0
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if level[v] == -1 and cap[u][v] > 0:
+                    level[v] = level[u] + 1
+                    queue.append(v)
+        return level[sink] != -1
+
+    def dfs(u, flow):
+        if u == sink:
+            return flow
+        for i in range(ptr[u], len(adj[u])):
+            v = adj[u][i]
+            if level[v] == level[u] + 1 and cap[u][v] > 0:
+                pushed = dfs(v, 1)
+                if pushed:
+                    cap[u][v] = 0
+                    cap[v][u] = 1
+                    return pushed
+            ptr[u] += 1
+        return 0
+
+    flow = 0
+    while bfs():
+        ptr = [0] * N
+        while True:
+            pushed = dfs(source, 0)
+            if not pushed:
+                break
+            flow += 1
+            if flow == q:
+                break
+        if flow == q:
+            break
+
+    if flow != q:
+        print("NO")
+    else:
+        print("YES")
+        # Reconstruct matching
+        for u in range(1, nrows + 1):
+            for v in range(1, ncols + 1):
+                if cap[v][u] == 1:
+                    print(u, v + nrows)
+                    break
+
+solve()

@@ -1,0 +1,252 @@
+import sys
+
+sys.setrecursionlimit(10000)
+
+data = list(map(int, sys.stdin.buffer.read().split()))
+if not data:
+    sys.exit()
+
+it = iter(data)
+n = next(it)
+m = next(it)
+
+adj = [0] * n
+graph = [[] for _ in range(n)]
+
+for eid in range(m):
+    u = next(it) - 1
+    v = next(it) - 1
+    if u == v:
+        print("NO")
+        sys.exit()
+    if (adj[u] >> v) & 1:
+        continue
+    adj[u] |= 1 << v
+    adj[v] |= 1 << u
+    graph[u].append((v, eid))
+    graph[v].append((u, eid))
+
+# Find biconnected components. A graph is 3-colorable iff all its
+# biconnected components are 3-colorable.
+disc = [-1] * n
+low = [0] * n
+timer = 0
+edge_stack = []
+blocks = []
+
+def tarjan(u, parent_edge):
+    global timer
+    disc[u] = low[u] = timer
+    timer += 1
+
+    for v, eid in graph[u]:
+        if disc[v] == -1:
+            edge_stack.append((u, v, eid))
+            tarjan(v, eid)
+            low[u] = min(low[u], low[v])
+
+            if low[v] >= disc[u]:
+                mask = 0
+                while edge_stack:
+                    a, b, e = edge_stack.pop()
+                    mask |= (1 << a) | (1 << b)
+                    if e == eid:
+                        break
+                blocks.append(mask)
+        elif eid != parent_edge and disc[v] < disc[u]:
+            edge_stack.append((u, v, eid))
+            low[u] = min(low[u], disc[v])
+
+for i in range(n):
+    if disc[i] == -1:
+        tarjan(i, -1)
+
+def bipartite(mask):
+    left = 0
+    right = 0
+    unseen = mask
+
+    while unseen:
+        seed = unseen & -unseen
+        left |= seed
+        stack = seed
+        unseen ^= seed
+
+        while stack:
+            bit = stack & -stack
+            stack ^= bit
+            v = bit.bit_length() - 1
+            neighbors = adj[v] & mask
+
+            if left & bit:
+                if neighbors & left:
+                    return None
+                new_vertices = neighbors & ~(left | right)
+                right |= new_vertices
+            else:
+                if neighbors & right:
+                    return None
+                new_vertices = neighbors & ~(left | right)
+                left |= new_vertices
+
+            unseen &= ~new_vertices
+            stack |= new_vertices
+
+    return left, right
+
+def color_block(mask):
+    bp = bipartite(mask)
+    if bp is not None:
+        left, right = bp
+        result = {}
+        bits = left
+        while bits:
+            bit = bits & -bits
+            bits ^= bit
+            result[bit.bit_length() - 1] = 2
+        bits = right
+        while bits:
+            bit = bits & -bits
+            bits ^= bit
+            result[bit.bit_length() - 1] = 3
+        return result
+
+    comp_adj = [0] * n
+    bits = mask
+    while bits:
+        bit = bits & -bits
+        bits ^= bit
+        v = bit.bit_length() - 1
+        comp_adj[v] = mask & ~adj[v] & ~bit
+
+    solution = None
+
+    def bron_kerbosch(r, p, x):
+        nonlocal solution
+
+        if p == 0:
+            if x == 0:
+                remainder = mask & ~r
+                partition = bipartite(remainder)
+                if partition is not None:
+                    solution = (r, partition[0], partition[1])
+                    return True
+            return False
+
+        union = p | x
+        pivot = -1
+        best = -1
+        temp = union
+        while temp:
+            bit = temp & -temp
+            temp ^= bit
+            u = bit.bit_length() - 1
+            score = (p & comp_adj[u]).bit_count()
+            if score > best:
+                best = score
+                pivot = u
+
+        candidates = p if pivot == -1 else p & ~comp_adj[pivot]
+
+        while candidates:
+            bit = candidates & -candidates
+            candidates ^= bit
+            v = bit.bit_length() - 1
+
+            if bron_kerbosch(
+                r | bit,
+                p & comp_adj[v],
+                x & comp_adj[v]
+            ):
+                return True
+
+            p ^= bit
+            x |= bit
+
+        return False
+
+    if not bron_kerbosch(0, mask, 0):
+        return None
+
+    independent, left, right = solution
+    result = {}
+
+    bits = independent
+    while bits:
+        bit = bits & -bits
+        bits ^= bit
+        result[bit.bit_length() - 1] = 1
+
+    bits = left
+    while bits:
+        bit = bits & -bits
+        bits ^= bit
+        result[bit.bit_length() - 1] = 2
+
+    bits = right
+    while bits:
+        bit = bits & -bits
+        bits ^= bit
+        result[bit.bit_length() - 1] = 3
+
+    return result
+
+incident = [[] for _ in range(n)]
+for idx, mask in enumerate(blocks):
+    bits = mask
+    while bits:
+        bit = bits & -bits
+        bits ^= bit
+        incident[bit.bit_length() - 1].append(idx)
+
+colors = [0] * n
+visited_blocks = [False] * len(blocks)
+
+def process_block(block_id, shared_vertex=-1):
+    visited_blocks[block_id] = True
+    mask = blocks[block_id]
+    local = color_block(mask)
+
+    if local is None:
+        return False
+
+    if shared_vertex != -1 and colors[shared_vertex] != 0:
+        source = local[shared_vertex]
+        target = colors[shared_vertex]
+        if source != target:
+            for v in local:
+                c = local[v]
+                if c == source:
+                    local[v] = target
+                elif c == target:
+                    local[v] = source
+
+    for v, c in local.items():
+        if colors[v] != 0 and colors[v] != c:
+            return False
+        colors[v] = c
+
+    bits = mask
+    while bits:
+        bit = bits & -bits
+        bits ^= bit
+        v = bit.bit_length() - 1
+        for nxt in incident[v]:
+            if not visited_blocks[nxt]:
+                if not process_block(nxt, v):
+                    return False
+
+    return True
+
+for b in range(len(blocks)):
+    if not visited_blocks[b]:
+        if not process_block(b):
+            print("NO")
+            sys.exit()
+
+for i in range(n):
+    if colors[i] == 0:
+        colors[i] = 1
+
+print("YES")
+print(*colors)

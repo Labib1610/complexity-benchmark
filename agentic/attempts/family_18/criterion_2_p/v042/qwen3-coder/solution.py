@@ -1,0 +1,295 @@
+import sys
+from collections import defaultdict, deque
+
+def main():
+    import sys
+    sys.setrecursionlimit(1000000)
+    
+    input = sys.stdin.read
+    data = input().split()
+    
+    idx = 0
+    n = int(data[idx])
+    idx += 1
+    m = int(data[idx])
+    idx += 1
+    B = int(data[idx])
+    idx += 1
+    
+    if m != n - 1:
+        print("NO")
+        return
+        
+    adj = defaultdict(list)
+    for _ in range(m):
+        u = int(data[idx])
+        idx += 1
+        v = int(data[idx])
+        idx += 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # Since it's a tree, we can root it at node 1
+    # We'll do a BFS to get the parent relationships and ordering
+    parent = [-1] * (n + 1)
+    order = []
+    visited = [False] * (n + 1)
+    queue = deque([1])
+    visited[1] = True
+    while queue:
+        u = queue.popleft()
+        order.append(u)
+        for v in adj[u]:
+            if not visited[v]:
+                visited[v] = True
+                parent[v] = u
+                queue.append(v)
+    
+    # Try to assign labels to minimize total cost
+    # Strategy: assign labels in a way that minimizes the sum of |label[u] - label[v]| for all edges
+    # This is essentially finding a labeling of the tree nodes with {1,...,n} to minimize sum of edge weights
+    
+    # A known good heuristic is to do a DFS and assign labels in inorder traversal
+    # But let's try a more systematic approach
+    
+    # Let's model this as trying to find a permutation of labels 1..n that minimizes sum of |label[u] - label[v]|
+    # This is NP-hard in general, but since it's a tree, there are polynomial algorithms
+    
+    # One approach: centroid decomposition or using dynamic programming
+    # But given constraints, maybe local search or greedy works
+    
+    # Let's try a greedy approach:
+    # Root the tree at node 1
+    # Assign label to root, then try to assign nearby labels to neighbors to minimize cost
+    
+    # Actually, let's think differently:
+    # The optimal labeling for a tree to minimize sum of absolute differences is related to the structure
+    # A common method is to use a DFS and assign labels based on subtree sizes
+    
+    # Compute subtree sizes
+    subtreesize = [0] * (n + 1)
+    children = [[] for _ in range(n + 1)]
+    
+    def dfs_size(u, p):
+        size = 1
+        for v in adj[u]:
+            if v != p:
+                children[u].append(v)
+                dfs_size(v, u)
+                size += subtreesize[v]
+        subtreesize[u] = size
+    
+    dfs_size(1, -1)
+    
+    # Now assign labels using a greedy strategy
+    # Assign labels in a way that keeps connected nodes close in label space
+    
+    # Use a priority queue approach or just try to keep labels close
+    # Let's try assigning labels in a DFS inorder manner
+    
+    label = [0] * (n + 1)
+    current_label = 1
+    
+    def dfs_label(u):
+        nonlocal current_label
+        # Assign to children first (inorder), then to self
+        if children[u]:
+            mid = len(children[u]) // 2
+            # Assign to first half
+            for i in range(mid):
+                dfs_label(children[u][i])
+            # Assign to self
+            label[u] = current_label
+            current_label += 1
+            # Assign to second half
+            for i in range(mid, len(children[u])):
+                dfs_label(children[u][i])
+        else:
+            label[u] = current_label
+            current_label += 1
+    
+    dfs_label(1)
+    
+    # Calculate total cost
+    total_cost = 0
+    for u in range(1, n+1):
+        for v in adj[u]:
+            if v > u:  # Count each edge once
+                total_cost += abs(label[u] - label[v])
+    
+    if total_cost <= B:
+        print("YES")
+        result = [str(label[i]) for i in range(1, n+1)]
+        print(' '.join(result))
+        return
+    
+    # If the greedy didn't work, let's try another approach
+    # Try to find a better labeling by trying different rootings or approaches
+    
+    # Another idea: use a linear arrangement algorithm
+    # For trees, the optimal can be found using dynamic programming
+    
+    # But let's try a simpler thing: try a BFS-based labeling
+    
+    # Reset
+    label = [0] * (n + 1)
+    current_label = 1
+    
+    # BFS order labeling
+    queue = deque([1])
+    visited = [False] * (n + 1)
+    visited[1] = True
+    order_bfs = []
+    
+    while queue:
+        u = queue.popleft()
+        order_bfs.append(u)
+        for v in adj[u]:
+            if not visited[v]:
+                visited[v] = True
+                queue.append(v)
+    
+    # Assign labels in BFS order
+    for u in order_bfs:
+        label[u] = current_label
+        current_label += 1
+        
+    # Check cost
+    total_cost = 0
+    for u in range(1, n+1):
+        for v in adj[u]:
+            if v > u:
+                total_cost += abs(label[u] - label[v])
+                
+    if total_cost <= B:
+        print("YES")
+        result = [str(label[i]) for i in range(1, n+1)]
+        print(' '.join(result))
+        return
+    
+    # Still not working. Let's try yet another approach.
+    # Assign labels so that for each edge, the endpoints have labels differing by 1 if possible
+    
+    # That would mean creating a path, which isn't always possible unless the tree is a path
+    
+    # Let's try a more sophisticated approach: 
+    # Find a centroid of the tree, make it the middle label, recurse
+    
+    def find_centroid(u, p, total_nodes):
+        for v in adj[u]:
+            if v != p and subtreesize[v] > total_nodes // 2:
+                return find_centroid(v, u, total_nodes)
+        return u
+    
+    # Rebuild with new approach
+    label = [0] * (n + 1)
+    assigned = [False] * (n + 1)
+    
+    def assign_labels(l, r, nodes):
+        if not nodes:
+            return
+        if len(nodes) == 1:
+            label[nodes[0]] = l
+            return
+            
+        # Find centroid of subgraph induced by nodes
+        # This is complex; let's simplify
+        
+        # Just try all permutations for small n, otherwise use heuristics
+        if n <= 8:
+            # Brute force
+            from itertools import permutations
+            nodes_list = list(nodes)
+            for perm in permutations(range(1, n+1)):
+                mapping = dict(zip(nodes_list, perm))
+                cost = 0
+                valid = True
+                for u in nodes_list:
+                    for v in adj[u]:
+                        if v in nodes:
+                            cost += abs(mapping[u] - mapping[v])
+                        if cost > B:
+                            valid = False
+                            break
+                    if not valid:
+                        break
+                if valid and cost <= B:
+                    for node in nodes_list:
+                        label[node] = mapping[node]
+                    return
+                        
+        # For larger n, use previous best attempt
+        nodes_sorted = sorted(nodes)
+        for i, node in enumerate(nodes_sorted):
+            label[node] = l + i
+            
+    # Try simple sequential assignment again but check properly
+    label = list(range(1, n+1))  # identity permutation initially
+    
+    # Calculate cost of identity permutation
+    total_cost = 0
+    for u in range(1, n+1):
+        for v in adj[u]:
+            if v > u:
+                total_cost += abs(label[u-1] - label[v-1])
+    
+    if total_cost <= B:
+        print("YES")
+        print(' '.join(map(str, label)))
+        return
+        
+    # Try reverse permutation
+    label = list(range(n, 0, -1))
+    total_cost = 0
+    for u in range(1, n+1):
+        for v in adj[u]:
+            if v > u:
+                total_cost += abs(label[u-1] - label[v-1])
+    
+    if total_cost <= B:
+        print("YES")
+        print(' '.join(map(str, label)))
+        return
+    
+    # Since none worked, and brute force is too slow, we might need a smarter algorithm
+    # But given time constraints, let's assume our earlier DFS-based approach was close
+    # Let's re-implement it correctly
+    
+    label = [0] * (n + 1)
+    
+    # Get DFS post-order
+    post_order = []
+    visited = [False] * (n + 1)
+    
+    def dfs_post(u):
+        visited[u] = True
+        for v in adj[u]:
+            if not visited[v]:
+                dfs_post(v)
+        post_order.append(u)
+    
+    dfs_post(1)
+    
+    # Assign labels in post-order
+    current_label = 1
+    for u in post_order:
+        label[u] = current_label
+        current_label += 1
+        
+    # Check cost
+    total_cost = 0
+    for u in range(1, n+1):
+        for v in adj[u]:
+            if v > u:
+                total_cost += abs(label[u] - label[v])
+    
+    if total_cost <= B:
+        print("YES")
+        result = [str(label[i]) for i in range(1, n+1)]
+        print(' '.join(result))
+        return
+    
+    print("NO")
+
+if __name__ == "__main__":
+    main()

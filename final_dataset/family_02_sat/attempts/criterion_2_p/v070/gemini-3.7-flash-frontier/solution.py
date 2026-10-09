@@ -1,0 +1,100 @@
+import sys
+
+# Increase recursion depth just in case, but we use iterative algorithms
+sys.setrecursionlimit(300000)
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    num_nodes = 2 * n
+    
+    def to_node(l):
+        if l > 0:
+            return 2 * (l - 1)
+        else:
+            return 2 * (-l - 1) + 1
+            
+    adj = [[] for _ in range(num_nodes)]
+    rev_adj = [[] for _ in range(num_nodes)]
+    
+    idx = 2
+    for _ in range(m):
+        l1 = int(input_data[idx])
+        l2 = int(input_data[idx + 1])
+        idx += 2
+        
+        u = to_node(l1)
+        v = to_node(l2)
+        
+        # ~u -> v
+        adj[u ^ 1].append(v)
+        rev_adj[v].append(u ^ 1)
+        
+        # ~v -> u
+        adj[v ^ 1].append(u)
+        rev_adj[u].append(v ^ 1)
+        
+    # Kosaraju's Algorithm - Step 1: Order by finish time
+    visited = [False] * num_nodes
+    order = []
+    
+    for i in range(num_nodes):
+        if not visited[i]:
+            stack = [i]
+            visited[i] = True
+            it_stack = [0]
+            
+            while stack:
+                u = stack[-1]
+                it = it_stack[-1]
+                
+                if it < len(adj[u]):
+                    v = adj[u][it]
+                    it_stack[-1] += 1
+                    if not visited[v]:
+                        visited[v] = True
+                        stack.append(v)
+                        it_stack.append(0)
+                else:
+                    order.append(u)
+                    stack.pop()
+                    it_stack.pop()
+                    
+    # Step 2: Assign SCC IDs using reverse graph
+    scc_id = [-1] * num_nodes
+    current_scc = 0
+    
+    for u in reversed(order):
+        if scc_id[u] == -1:
+            stack = [u]
+            scc_id[u] = current_scc
+            while stack:
+                curr = stack.pop()
+                for v in rev_adj[curr]:
+                    if scc_id[v] == -1:
+                        scc_id[v] = current_scc
+                        stack.append(v)
+            current_scc += 1
+            
+    # Check satisfiability and determine assignments
+    ans = [0] * n
+    for i in range(n):
+        pos_node = 2 * i
+        neg_node = 2 * i + 1
+        if scc_id[pos_node] == scc_id[neg_node]:
+            print("NO")
+            return
+        # In Kosaraju, a component visited earlier in the second pass has a higher topological order.
+        # Thus, if scc_id[pos] < scc_id[neg], pos comes later in topological order, so pos is True.
+        ans[i] = 1 if scc_id[pos_node] < scc_id[neg_node] else 0
+        
+    print("YES")
+    print(*(ans))
+
+if __name__ == '__main__':
+    solve()

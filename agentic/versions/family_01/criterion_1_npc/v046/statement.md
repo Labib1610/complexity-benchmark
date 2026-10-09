@@ -1,20 +1,20 @@
-# Problem A — Distributed Deployment Configuration
+# Problem A — Plant Roster Allocation
 
 Time limit: 2 s   Memory limit: 256 MB
 
-You must deploy $n$ service instances into three isolated hosting environments, designated 1, 2, and 3. Each service instance must be assigned to exactly one of these environments.
+A continuous-process chemical plant divides its 24-hour operation into three distinct time blocks: Morning (1), Swing (2), and Night (3). The facility employs $n$ technicians, and each technician must be assigned to exactly one of these time blocks. 
 
-To ensure fault tolerance, the deployment is subject to a set of mutual exclusion rules. Each rule specifies a pair of instances that cannot be deployed into the same environment. Your task is to determine whether a valid deployment configuration exists.
+The plant's incident database flags specific pairs of technicians who cannot work together due to previous safety incidents. A roster is only valid if no two flagged technicians are assigned to the same time block. 
 
-If multiple valid configurations are possible, the deployment system requires the one that prioritizes lower-numbered environments for lower-numbered instances. Specifically, when comparing two valid configurations, find the lowest-numbered instance where they differ; the configuration that assigns this instance to the smaller environment number is strictly preferred.
+Your task is to generate a valid roster for the facility or determine that no such roster is possible.
 
 ## Input
-The first line contains two integers $n$ and $m$ — the number of service instances and the number of mutual exclusion rules ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
-Each of the next $m$ lines contains two integers $u$ and $v$ — representing a mutually exclusive pair of instances.
+The first line contains two integers $n$ and $m$ — the number of technicians and the number of flagged pairs ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
+Each of the next $m$ lines contains two integers $u$ and $v$ — a pair of flagged technicians.
 
 ## Output
-If no valid deployment configuration exists, print a single line containing `NO`.
-Otherwise, print `YES` on the first line. On the second line, print $n$ integers $e_1, e_2, \dots, e_n$ (each in $\{1, 2, 3\}$), where $e_i$ is the environment assigned to service instance $i$. Output the single strictly preferred configuration as defined above.
+If no valid roster can be formed, print a single line `NO`.
+Otherwise, print `YES` on the first line. On the second line, print $n$ integers $s_1, s_2, \ldots, s_n$ (each in $\{1, 2, 3\}$), where $s_i$ is the time block assigned to technician $i$. Any valid roster is accepted.
 
 ## Example 1
 Input:

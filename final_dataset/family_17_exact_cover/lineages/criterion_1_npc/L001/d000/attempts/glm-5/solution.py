@@ -1,0 +1,71 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    q = int(input_data[0])
+    t = int(input_data[1])
+    
+    n = 3 * q
+    idx = 2
+    
+    adj = [[] for _ in range(n + 1)]
+    triples = []
+    
+    for _ in range(t):
+        a = int(input_data[idx])
+        b = int(input_data[idx+1])
+        c = int(input_data[idx+2])
+        idx += 3
+        
+        triples.append((a, b, c))
+        adj[a].append((b, c))
+        adj[b].append((a, c))
+        adj[c].append((a, b))
+        
+    match = [0] * (n + 1)
+    
+    def dfs(u, vis):
+        for v, w in adj[u]:
+            if match[v] == w:
+                continue
+            if vis[v]:
+                continue
+            vis[v] = True
+            
+            if match[v] == 0:
+                match[u] = v
+                match[v] = u
+                return True
+            
+            old_match_v = match[v]
+            match[v] = u
+            match[u] = v
+            match[old_match_v] = 0
+            
+            if dfs(old_match_v, vis):
+                return True
+                
+            match[v] = old_match_v
+            match[old_match_v] = v
+            match[u] = 0
+            
+        return False
+
+    for u in range(1, n + 1):
+        if match[u] == 0:
+            vis = [False] * (n + 1)
+            vis[u] = True
+            if not dfs(u, vis):
+                print("NO")
+                return
+                
+    print("YES")
+    for u in range(1, n + 1):
+        if u < match[u]:
+            print(u, match[u], match[match[u]])
+
+if __name__ == '__main__':
+    solve()

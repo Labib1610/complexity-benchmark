@@ -1,0 +1,211 @@
+**Solution Explanation**
+
+For every specialist `x` all feasible configurations contain the same machine `y`.
+Therefore a configuration is completely described by the pair `(x , z)` –  
+the specialist and the time slot.  
+Choosing `k` configurations that use each specialist, each machine and each
+time slot exactly once is equivalent to finding a *perfect matching* in the
+bipartite graph
+
+* left side : specialists `1 … k`
+* right side: time slots `1 … k`
+* edge `(x , z)` exists iff a configuration `(x , y , z)` is given  
+  (`y` is stored separately for output).
+
+So the problem reduces to checking whether this bipartite graph has a perfect
+matching and, if it does, outputting one.
+
+The classic Hopcroft‑Karp algorithm finds a maximum matching in  
+`O(E·√V)` time, which is easily fast enough for `k ≤ 1200` and
+`E ≤ k² ≤ 1.44·10⁶`.
+
+--------------------------------------------------------------------
+
+#### Algorithm
+```
+read k, t
+machine[x] = 0 for all x
+adj[x] = []                     # adjacency list of left side
+
+for each of the t lines (x, y, z):
+        if machine[x] == 0: machine[x] = y   # first occurrence, store machine
+        # (the input guarantees all y for the same x are equal)
+        adj[x].append(z)
+
+run Hopcroft‑Karp on the graph (left 1..k, right 1..k, edges adj)
+let matchL[x] be the right vertex matched with x (0 = unmatched)
+
+if any matchL[x] == 0 :          # not a perfect matching
+        print "NO"
+else:
+        print "YES"
+        for x = 1 .. k:
+                z = matchL[x]
+                print x, machine[x], z
+```
+
+--------------------------------------------------------------------
+
+#### Correctness Proof  
+
+We prove that the algorithm prints `YES` and a valid schedule iff such a
+schedule exists.
+
+---
+
+##### Lemma 1  
+For any set of approved configurations satisfying the statement,
+the pairs `(specialist, time slot)` form a perfect matching in the described
+bipartite graph.
+
+**Proof.**  
+Each approved configuration uses a distinct specialist and a distinct time slot,
+so the set of pairs contains each specialist exactly once and each time slot
+exactly once – precisely the definition of a perfect matching. ∎
+
+
+
+##### Lemma 2  
+If the algorithm outputs `YES`, the printed configurations satisfy all
+requirements.
+
+**Proof.**  
+`YES` is printed only when Hopcroft‑Karp returns a matching that matches every
+left vertex, i.e. `matchL[x] ≠ 0` for all specialists `x`.  
+Thus each specialist appears exactly once, each time slot appears exactly once
+(because a matching never uses a right vertex twice), and the printed machine
+is `machine[x]`, which is the (unique) machine certified for specialist `x`.
+Hence all three sets (specialists, machines, time slots) are used exactly once. ∎
+
+
+
+##### Lemma 3  
+If a valid schedule exists, the algorithm outputs `YES`.
+
+**Proof.**  
+By Lemma&nbsp;1 the schedule yields a perfect matching in the graph.
+Hopcroft‑Karp computes a *maximum* matching, therefore its size is at least the
+size of any matching, in particular at least `k`.  
+Since the graph has only `k` vertices on each side, a matching of size `k` is
+perfect, and the algorithm will find it and output `YES`. ∎
+
+
+
+##### Theorem  
+The algorithm prints `YES` and a correct set of `k` configurations
+iff such a set exists; otherwise it prints `NO`.
+
+**Proof.**  
+*If* part: by Lemma&nbsp;3 a schedule ⇒ algorithm finds a perfect matching ⇒
+prints `YES`. By Lemma&nbsp;2 the printed configurations are valid.
+
+*Only‑if* part: if the algorithm prints `YES`, Lemma&nbsp;2 guarantees the
+printed configurations are valid, therefore a schedule exists. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### Complexity Analysis  
+
+*`V = 2k ≤ 2400`*, `E ≤ k² ≤ 1.44·10⁶`.
+
+Hopcroft‑Karp runs in `O(E·√V)`  
+`≤ 1.44·10⁶ · √2400 ≈ 1.44·10⁶ · 49 ≈ 7·10⁷` operations – well inside the limits.  
+Memory consumption: adjacency lists (`O(E)`) plus a few arrays of size `O(k)`,
+all below the 256 MiB limit.
+
+--------------------------------------------------------------------
+
+#### Reference Implementation  (Python 3)
+
+```python
+import sys
+from collections import deque
+
+def hopcroft_karp(adj, n_left, n_right):
+    # vertices are 1..n_left on left, 1..n_right on right
+    INF = 10 ** 9
+    pair_u = [0] * (n_left + 1)
+    pair_v = [0] * (n_right + 1)
+    dist = [0] * (n_left + 1)
+
+    def bfs():
+        q = deque()
+        for u in range(1, n_left + 1):
+            if pair_u[u] == 0:
+                dist[u] = 0
+                q.append(u)
+            else:
+                dist[u] = INF
+        dist[0] = INF
+        while q:
+            u = q.popleft()
+            if dist[u] < dist[0]:
+                for v in adj[u]:
+                    if pair_v[v] == 0:
+                        if dist[0] == INF:
+                            dist[0] = dist[u] + 1
+                    elif dist[pair_v[v]] == INF:
+                        dist[pair_v[v]] = dist[u] + 1
+                        q.append(pair_v[v])
+        return dist[0] != INF
+
+    def dfs(u):
+        if u == 0:
+            return True
+        for v in adj[u]:
+            if pair_v[v] == 0 or (dist[pair_v[v]] == dist[u] + 1 and dfs(pair_v[v])):
+                pair_u[u] = v
+                pair_v[v] = u
+                return True
+        dist[u] = INF
+        return False
+
+    matching = 0
+    while bfs():
+        for u in range(1, n_left + 1):
+            if pair_u[u] == 0 and dfs(u):
+                matching += 1
+    return pair_u, matching
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    k = int(next(it))
+    t = int(next(it))
+    machine = [0] * (k + 1)
+    adj = [[] for _ in range(k + 1)]
+
+    for _ in range(t):
+        x = int(next(it)); y = int(next(it)); z = int(next(it))
+        if machine[x] == 0:
+            machine[x] = y
+        # input guarantees same y for same x, so we ignore further checks
+        adj[x].append(z)
+
+    # quick impossibility test: any specialist with no edges
+    for x in range(1, k + 1):
+        if not adj[x]:
+            print("NO")
+            return
+
+    pair_u, size = hopcroft_karp(adj, k, k)
+    if size != k:
+        print("NO")
+        return
+
+    out_lines = ["YES"]
+    for x in range(1, k + 1):
+        z = pair_u[x]
+        out_lines.append(f"{x} {machine[x]} {z}")
+    sys.stdout.write("\n".join(out_lines))
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above and conforms
+to the required input‑output format.

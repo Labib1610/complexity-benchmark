@@ -1,0 +1,121 @@
+import sys
+from collections import defaultdict
+import heapq
+
+def main():
+    import sys
+    sys.setrecursionlimit(1 << 25)
+    
+    n, m, t = map(int, sys.stdin.readline().split())
+    flagged = set(map(int, sys.stdin.readline().split()))
+    
+    # If there's only one flagged node, cost is 0
+    if t <= 1:
+        print(0)
+        return
+    
+    # Build the tree
+    adj = defaultdict(list)
+    edges = []
+    for _ in range(m):
+        u, v, w = map(int, sys.stdin.readline().split())
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+        edges.append((w, u, v))
+    
+    # We need to find the minimum subtree that connects all flagged nodes
+    # This is the Minimum Steiner Tree problem on a tree, which can be solved efficiently
+    
+    # Approach:
+    # 1. Since the graph is a tree, we can use the fact that the minimal subtree connecting
+    #    a set of vertices is obtained by including all vertices on paths between them.
+    # 2. A simpler approach: root the tree at any flagged node, then find the minimal
+    #    connected subtree containing all flagged nodes.
+    # 3. But there's an even simpler way for trees:
+    #    - Root the tree at any node
+    # - For each node, compute if its subtree contains any flagged node
+    # - An edge should be included if it connects two components that both contain flagged nodes,
+    #   or leads to a subtree with flagged nodes when the other side also has flagged nodes.
+    # Actually, let's think differently:
+    # The optimal solution is the subtree that spans all the flagged nodes.
+    # In a tree, this is unique and corresponds to the union of all paths between flagged nodes.
+    # But how to compute it?
+    # There's a classic algorithm for this on trees:
+    # 1. Pick any flagged node as root
+    # 2. Do a DFS to compute for each node whether its subtree contains any flagged node
+    # 3. Do another DFS to count edges where both sides have flagged nodes in their subtree
+    
+    # Even simpler idea:
+    # The answer is the total weight of edges in the minimal subtree spanning all flagged nodes.
+    # On a tree, this is equivalent to finding the "Steiner tree" which is just the union of paths.
+    # Efficient way:
+    # 1. Root the tree at some node
+    # 2. For each node, compute in its subtree how many flagged nodes exist
+    # 3. An edge {u,v} contributes to the final cost if removing it separates the tree into 
+    #    two components, each having at least one flagged node.
+    # So contribution of edge {u,v} = weight * (number of flagged nodes in one side) * (number in other)
+    # Wait, that's for general graphs. For trees:
+    # If we remove an edge, we get two components. The edge contributes to MST iff both components
+    # contain at least one flagged node.
+    
+    # Let's implement this correctly:
+    # 1. Root the tree at node 1
+    # 2. Compute for each node the count of flagged nodes in its subtree
+    # 3. Then, for each edge, determine if it's part of the minimal connecting subtree
+    
+    # Arbitrarily root at node 1
+    parent = [-1] * (n+1)
+    children = defaultdict(list)
+    edge_weight = {}
+    
+    def dfs_root(node, par):
+        parent[node] = par
+        for nei, w in adj[node]:
+            if nei != par:
+                children[node].append(nei)
+                edge_weight[(node, nei)] = w
+                edge_weight[(nei, node)] = w
+                dfs_root(nei, node)
+                
+    dfs_root(1, -1)
+    
+    # Count flagged nodes in each subtree
+    subtree_flagged_count = [0] * (n+1)
+    
+    def dfs_count(node):
+        count = 1 if node in flagged else 0
+        for child in children[node]:
+            count += dfs_count(child)
+        subtree_flagged_count[node] = count
+        return count
+        
+    dfs_count(1)
+    
+    # Total flagged nodes
+    total_flagged = len(flagged)
+    
+    # Calculate the result
+    result = 0
+    # For each edge, check if it's in the minimal subtree
+    # An edge (u,v) is in the minimal subtree iff:
+    # - One component has k1 flagged nodes
+    # - Other component has k2 = total - k1 flagged nodes
+    # - Both k1 > 0 and k2 > 0
+    
+    # Traverse the tree edges
+    def dfs_edges(node):
+        nonlocal result
+        for child in children[node]:
+            w = edge_weight[(node, child)]
+            count_child = subtree_flagged_count[child]
+            count_parent = total_flagged - count_child
+            if count_child > 0 and count_parent > 0:
+                result += w
+            dfs_edges(child)
+            
+    dfs_edges(1)
+    
+    print(result)
+
+if __name__ == "__main__":
+    main()

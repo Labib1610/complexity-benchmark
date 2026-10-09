@@ -1,0 +1,61 @@
+import sys
+import heapq
+from collections import defaultdict
+
+def find(parent, x):
+    if parent[x] != x:
+        parent[x] = find(parent, parent[x])
+    return parent[x]
+
+def union(parent, rank, x, y):
+    px, py = find(parent, x), find(parent, y)
+    if px == py:
+        return False
+    if rank[px] < rank[py]:
+        px, py = py, px
+    parent[py] = px
+    if rank[px] == rank[py]:
+        rank[px] += 1
+    return True
+
+def kruskal(n, edges, must_connect):
+    parent = list(range(n + 1))
+    rank = [0] * (n + 1)
+    
+    # Sort edges by weight
+    edges.sort(key=lambda x: x[2])
+    
+    cost = 0
+    connected_components = n
+    
+    for u, v, w in edges:
+        if union(parent, rank, u, v):
+            cost += w
+            connected_components -= 1
+            # Check if all critical nodes are connected
+            first_component = find(parent, must_connect[0])
+            if all(find(parent, node) == first_component for node in must_connect):
+                return cost
+    
+    return cost
+
+def main():
+    n, m, t = map(int, sys.stdin.readline().split())
+    critical = list(map(int, sys.stdin.readline().split()))
+    
+    # If there's only one critical chamber, no pipes needed
+    if t <= 1:
+        print(0)
+        return
+    
+    edges = []
+    for _ in range(m):
+        u, v, w = map(int, sys.stdin.readline().split())
+        edges.append((u, v, w))
+    
+    # Use Kruskal's algorithm to find minimum spanning tree that connects all critical nodes
+    result = kruskal(n, edges, critical)
+    print(result)
+
+if __name__ == "__main__":
+    main()

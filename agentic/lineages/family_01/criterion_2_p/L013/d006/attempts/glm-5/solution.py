@@ -1,55 +1,68 @@
 import sys
-from collections import deque
 
 def solve():
-    input_data = sys.stdin.read().split()
-    if not input_data:
+    input = sys.stdin.read
+    data = input().split()
+    if not data:
         return
-    it = iter(input_data)
-    n = int(next(it))
-    m = int(next(it))
+    n = int(data[0])
+    m = int(data[1])
     
     adj = [[] for _ in range(n)]
-    for _ in range(m):
-        u = int(next(it)) - 1
-        v = int(next(it)) - 1
+    for i in range(m):
+        u = int(data[2 + 2 * i]) - 1
+        v = int(data[2 + 2 * i + 1]) - 1
         adj[u].append(v)
         adj[v].append(u)
-    
-    # We need to assign values 0 or 1 to each node.
-    # For an edge (u, v), we need val[u] + val[v] == 1 (mod 2).
-    # This is a bipartite graph check with 2-coloring.
-    
+        
     color = [-1] * n
-    possible = True
+    is_bipartite = True
     
     for i in range(n):
         if color[i] == -1:
-            # Start BFS from node i
-            # To get lexicographically smallest assignment, we prefer color 0 (transformation 1)
-            # for the starting node of each component.
-            queue = deque([i])
+            queue = [i]
             color[i] = 0
             while queue:
-                u = queue.popleft()
+                u = queue.pop()
                 for v in adj[u]:
                     if color[v] == -1:
                         color[v] = 1 - color[u]
                         queue.append(v)
                     elif color[v] == color[u]:
-                        possible = False
+                        is_bipartite = False
                         break
-                if not possible:
+                if not is_bipartite:
                     break
-        if not possible:
+        if not is_bipartite:
             break
             
-    if not possible:
+    if not is_bipartite:
         print("NO")
+        return
+    
+    # To get the lexicographically smallest sequence, we want to assign 1 
+    # to as many nodes as possible. This means we should assign 1 to the 
+    # color class that has more nodes.
+    count0 = sum(1 for x in color if x == 0)
+    count1 = n - count0
+    
+    if count0 >= count1:
+        # Assign tier 1 to color 0
+        for i in range(n):
+            if color[i] == 0:
+                color[i] = 1
+            else:
+                color[i] = 2
     else:
-        # color[i] is 0 or 1. Transformation is color[i] + 1.
-        print("YES")
-        print(*(c + 1 for c in color))
+        # Assign tier 1 to color 1
+        for i in range(n):
+            if color[i] == 1:
+                color[i] = 1
+            else:
+                color[i] = 2
+                
+    print("YES")
+    print(" ".join(map(str, color)))
 
 if __name__ == '__main__':
     solve()

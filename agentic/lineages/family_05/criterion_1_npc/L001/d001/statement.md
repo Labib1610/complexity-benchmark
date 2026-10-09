@@ -1,0 +1,78 @@
+# Problem A — Crew Assembly
+
+Time limit: 5 s   Memory limit: 256 MB
+
+## Description
+
+An operation requires coordinating three distinct pools of resources. Each pool contains exactly **k** elements:
+- Personnel: **k** specialists, identified by integers 1 through k,
+- Equipment: **k** machines, identified by integers 1 through k,
+- Schedule: **k** time slots, identified by integers 1 through k.
+
+A deployment unit is formed by assigning exactly one specialist to operate exactly one machine during exactly one time slot. Due to certification and availability constraints, only specific configurations of (specialist, machine, time slot) are authorized. You will receive a catalog of these authorized configurations.
+
+Your task is to formulate a comprehensive operational roster. This roster must consist of exactly **k** authorized configurations chosen from the catalog. To be valid, the roster must utilize every specialist, every machine, and every time slot exactly once across the chosen configurations.
+
+Determine if such a roster can be formulated. If it can, provide one valid set of configurations.
+
+## Input
+
+The first line provides two integers **k** and **t** (1 ≤ k ≤ 22, 0 ≤ t ≤ k·k·k), representing the size of each resource pool and the total number of authorized configurations in the catalog.
+The following **t** lines each contain three integers **x**, **y**, **z** (1 ≤ x, y, z ≤ k), describing an authorized configuration consisting of specialist **x**, machine **y**, and time slot **z**. No configuration appears more than once in the catalog.
+
+## Output
+
+If a valid roster of **k** configurations can be formulated, output `YES` on the first line. Following this, output **k** lines, each containing three integers `x y z` corresponding to a chosen configuration. Any valid roster that assigns every specialist, machine, and time slot exactly once is acceptable. The configurations may be printed in any order.
+
+If no such roster can be formulated, output `NO`.
+
+## Examples
+
+### Example 1
+
+**Input**
+```
+2 3
+1 1 1
+1 2 2
+2 2 2
+```
+
+**Output**
+```
+YES
+1 1 1
+2 2 2
+```
+
+### Example 2
+
+**Input**
+```
+2 2
+1 1 1
+2 1 2
+```
+
+**Output**
+```
+NO
+```
+
+### Example 3
+
+**Input**
+```
+1 1
+1 1 1
+```
+
+**Output**
+```
+YES
+1 1 1
+```
+
+## Note
+
+In Example 2, both authorized configurations require machine 1, meaning machine 2 can never be utilized in the roster.

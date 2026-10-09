@@ -1,0 +1,255 @@
+Looking at this problem, we need to select exactly k configurations from the approved list such that all k frequency bands, all k modulation schemes, and all k encryption keys are used. Since we're selecting exactly k items and need to cover k values in each of 3 categories, each value 1..k must appear exactly once in each category.
+
+This is equivalent to finding a perfect matching in a 3-partite 3-uniform hypergraph. With k ≤ 22, I'll use a backtracking approach with bitmask DP.
+
+The key insight: we need to select k triplets where the x-values form a permutation of 1..k, y-values form a permutation of 1..k, and z-values form a permutation of 1..k. 
+
+I'll use a meet-in-the-middle / DP approach. Since we need each x exactly once, I can process x-values in order and track which y and z values are used via bitmasks. But with k up to 22, the state space (2^22 × 2^22) is too large.
+
+Better approach: Use the structure where we process by x-value. For each x, we have a set of available (y,z) pairs. We need to select one pair per x such that y's form a permutation and z's form a permutation. This is a problem of finding a perfect matching in a bipartite graph where left nodes are x-values, right nodes are... but we have two constraints (y and z).
+
+With k ≤ 22, I'll use a recursive backtracking with pruning. Process x from 1 to k. At each step, try each available (y,z) pair for that x where both y and z are unused. Use bitmasks for used-y and used-z. Add memoization on (x_index, used_y_mask, used_z_mask).
+
+Actually the state space could be large, but with good pruning and the constraint that we process x in order, it should work for k ≤ 22 in practice with the 5-second time limit.
+
+Let me implement this with memoization:
+
+```python
+import sys
+from functools import lru_cache
+
+def solve():
+    input_data = sys.stdin.read().split()
+    idx = 0
+    k = int(input_data[idx]); idx += 1
+    t = int(input_data[idx]); idx += 1
+    
+    # Group configurations by x
+    configs_by_x = [[] for _ in range(k + 1)]
+    for _ in range(t):
+        x = int(input_data[idx]); idx += 1
+        y = int(input_data[idx]); idx += 1
+        z = int(input_data[idx]); idx += 1
+        configs_by_x[x].append((y, z))
+    
+    # Check all x values have at least one config
+    for x in range(1, k + 1):
+        if not configs_by_x[x]:
+            print("NO")
+            return
+    
+    full_mask = (1 << k) - 1
+    result = [None] * k
+    
+    # Memoization: (x_index, used_y, used_z) -> bool
+    memo = {}
+    
+    def backtrack(x, used_y, used_z):
+        if x > k:
+            return used_y == full_mask and used_z == full_mask
+        
+        key = (x, used_y, used_z)
+        if key in memo:
+            return memo[key]
+        
+        for (y, z) in configs_by_x[x]:
+            ybit = 1 << (y - 1)
+            zbit = 1 << (z - 1)
+            if (used_y & ybit) == 0 and (used_z & zbit) == 0:
+                result[x - 1] = (x, y, z)
+                if backtrack(x + 1, used_y | ybit, used_z | zbit):
+                    memo[key] = True
+                    return True
+        
+        memo[key] = False
+        return False
+    
+    if backtrack(1, 0, 0):
+        print("YES")
+        for x, y, z in result:
+            print(x, y, z)
+    else:
+        print("NO")
+
+solve()
+```
+
+Wait, the memoization could grow too large. Let me think about whether this is feasible. The number of distinct (used_y, used_z) pairs at depth d is at most C(k, d) × C(k, d) which for d=11 is about 646646^2 ≈ 4×10^11. That's way too much.
+
+However, in practice, the backtracking with early termination should prune heavily. But worst case could be bad. Let me think of a better approach.
+
+Alternative: This is a 3-dimensional assignment problem. We can model it as finding a perfect matching. 
+
+Actually, let me reconsider. The problem is NP-hard in general (3-dimensional matching), but k ≤ 22 is small enough that with good pruning, backtracking should work for the test cases. Let me add better pruning: order the x-values by number of available configs (most constrained first).
+
+Let me refine:
+
+```python
+import sys
+
+def solve():
+    input_data = sys.stdin.buffer.read().split()
+    idx = 0
+    k = int(input_data[idx]); idx += 1
+    t = int(input_data[idx]); idx += 1
+    
+    configs_by_x = [[] for _ in range(k + 1)]
+    for _ in range(t):
+        x = int(input_data[idx]); idx += 1
+        y = int(input_data[idx]); idx += 1
+        z = int(input_data[idx]); idx += 1
+        configs_by_x[x].append((y, z))
+    
+    for x in range(1, k + 1):
+        if not configs_by_x[x]:
+            print("NO")
+            return
+    
+    full_mask = (1 << k) - 1
+    # Order x by number of configs (ascending - most constrained first)
+    order = sorted(range(1, k + 1), key=lambda x: len(configs_by_x[x]))
+    result = {}
+    
+    def backtrack(i, used_y, used_z):
+        if i == k:
+            return True
+        
+        x = order[i]
+        for (y, z) in configs_by_x[x]:
+            ybit = 1 << (y - 1)
+            zbit = 1 << (z - 1)
+            if (used_y & ybit) == 0 and (used_z & zbit) == 0:
+                result[x] = (x, y, z)
+                if backtrack(i + 1, used_y | ybit, used_z | zbit):
+                    return True
+        return False
+    
+    if backtrack(0, 0, 0):
+        print("YES")
+        for x in range(1, k + 1):
+            r = result[x]
+            print(r[0], r[1], r[2])
+    else:
+        print("NO")
+
+solve()
+```
+
+This should work reasonably well with the most-constrained-first heuristic. Let me verify with the examples.
+
+Example 1: k=2, configs: (1,1,1), (1,2,2), (2,2,2). configs_by_x[1] = [(1,1),(2,2)], configs_by_x[2] = [(2,2)]. Order: x=2 first (1 config), then x=1. 
+- x=2: try (2,2), used_y=10, used_z=10
+- x=1: try (1,1) - y=1 not used, z=1 not used. OK. Result: x=1→(1,1,1), x=2→(2,2,2). Output YES. ✓
+
+Example 2: k=2, configs: (1,1,1), (2,1,2). configs_by_x[1]=[(1,1)], configs_by_x[2]=[(1,2)]. 
+- x=1: (1,1), used_y=01, used_z=01
+- x=2: (1,2) - y=1 used. Fail. Backtrack. No other option for x=1. NO. ✓
+
+Example 3: k=1, (1,1,1). YES. ✓
+
+The solution looks correct. Let me finalize it.
+
+```python
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    idx = 0
+    k = int(data[idx]); idx += 1
+    t = int(data[idx]); idx += 1
+    
+    configs_by_x = [[] for _ in range(k + 1)]
+    for _ in range(t):
+        x = int(data[idx]); idx += 1
+        y = int(data[idx]); idx += 1
+        z = int(data[idx]); idx += 1
+        configs_by_x[x].append((y, z))
+    
+    for x in range(1, k + 1):
+        if not configs_by_x[x]:
+            print("NO")
+            return
+    
+    order = sorted(range(1, k + 1), key=lambda x: len(configs_by_x[x]))
+    result = {}
+    
+    def backtrack(i, used_y, used_z):
+        if i == k:
+            return True
+        x = order[i]
+        for (y, z) in configs_by_x[x]:
+            ybit = 1 << (y - 1)
+            zbit = 1 << (z - 1)
+            if (used_y & ybit) == 0 and (used_z & zbit) == 0:
+                result[x] = (x, y, z)
+                if backtrack(i + 1, used_y | ybit, used_z | zbit):
+                    return True
+        return False
+    
+    if backtrack(0, 0, 0):
+        print("YES")
+        for x in range(1, k + 1):
+            r = result[x]
+            print(r[0], r[1], r[2])
+    else:
+        print("NO")
+
+solve()
+```
+
+This should be efficient enough given the constraints and the 5-second time limit. The most-constrained-first ordering provides good pruning.Looking at this problem, I need to select exactly k configurations where each frequency band, modulation scheme, and encryption key appears exactly once (since we select k items and need to cover k values in each category).
+
+This is a 3-dimensional matching problem. I'll use backtracking with the most-constrained-first heuristic: process x-values with fewer available configurations first, using bitmasks to track used y and z values.
+
+**Verification with examples:**
+- Example 1: x=2 has only (2,2), x=1 has (1,1) and (2,2). Selecting (2,2) for x=2 and (1,1) for x=1 works. ✓
+- Example 2: x=1 must use (1,1), x=2 must use (1,2), but y=1 conflicts. NO. ✓
+- Example 3: Single config works. ✓
+
+```python
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    idx = 0
+    k = int(data[idx]); idx += 1
+    t = int(data[idx]); idx += 1
+    
+    configs_by_x = [[] for _ in range(k + 1)]
+    for _ in range(t):
+        x = int(data[idx]); idx += 1
+        y = int(data[idx]); idx += 1
+        z = int(data[idx]); idx += 1
+        configs_by_x[x].append((y, z))
+    
+    for x in range(1, k + 1):
+        if not configs_by_x[x]:
+            print("NO")
+            return
+    
+    order = sorted(range(1, k + 1), key=lambda x: len(configs_by_x[x]))
+    result = {}
+    
+    def backtrack(i, used_y, used_z):
+        if i == k:
+            return True
+        x = order[i]
+        for (y, z) in configs_by_x[x]:
+            ybit = 1 << (y - 1)
+            zbit = 1 << (z - 1)
+            if (used_y & ybit) == 0 and (used_z & zbit) == 0:
+                result[x] = (x, y, z)
+                if backtrack(i + 1, used_y | ybit, used_z | zbit):
+                    return True
+        return False
+    
+    if backtrack(0, 0, 0):
+        print("YES")
+        for x in range(1, k + 1):
+            r = result[x]
+            print(r[0], r[1], r[2])
+    else:
+        print("NO")
+
+solve()
+```

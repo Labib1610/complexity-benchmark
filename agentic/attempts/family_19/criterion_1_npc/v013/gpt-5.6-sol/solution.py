@@ -1,0 +1,304 @@
+import sys
+from collections import deque
+
+sys.setrecursionlimit(1_000_000)
+
+data = list(map(int, sys.stdin.buffer.read().split()))
+if not data:
+    sys.exit()
+
+it = iter(data)
+n = next(it)
+m = next(it)
+k = next(it)
+
+commodities = []
+for _ in range(k):
+    s = next(it) - 1
+    t = next(it) - 1
+    d = next(it)
+    commodities.append((s, t, d))
+
+edges = []
+adj_edges = [[] for _ in range(n)]
+rev_nodes = [[] for _ in range(n)]
+
+for eid in range(m):
+    u = next(it) - 1
+    v = next(it) - 1
+    c = next(it)
+    edges.append((u, v, c))
+    if c > 0:
+        adj_edges[u].append((v, eid))
+        rev_nodes[v].append(u)
+
+initial_cap = [c for _, _, c in edges]
+
+
+def maxflow_with_flows(s, t, limit, capacities):
+    if limit <= 0 or s == t:
+        return limit, [0] * m
+
+    graph = [[] for _ in range(n)]
+    refs = [None] * m
+
+    def add_edge(u, v, cap, eid):
+        a = [v, len(graph[v]), cap, eid]
+        b = [u, len(graph[u]), 0, -1]
+        graph[u].append(a)
+        graph[v].append(b)
+        refs[eid] = a
+
+    for eid, (u, v, _) in enumerate(edges):
+        if capacities[eid] > 0:
+            add_edge(u, v, capacities[eid], eid)
+
+    total = 0
+    level = [-1] * n
+
+    while total < limit:
+        for i in range(n):
+            level[i] = -1
+        level[s] = 0
+        q = deque([s])
+
+        while q:
+            u = q.popleft()
+            for e in graph[u]:
+                if e[2] > 0 and level[e[0]] < 0:
+                    level[e[0]] = level[u] + 1
+                    q.append(e[0])
+
+        if level[t] < 0:
+            break
+
+        ptr = [0] * n
+
+        def dfs(u, pushed):
+            if u == t:
+                return pushed
+            while ptr[u] < len(graph[u]):
+                e = graph[u][ptr[u]]
+                v = e[0]
+                if e[2] > 0 and level[v] == level[u] + 1:
+                    got = dfs(v, min(pushed, e[2]))
+                    if got:
+                        e[2] -= got
+                        graph[v][e[1]][2] += got
+                        return got
+                ptr[u] += 1
+            return 0
+
+        while total < limit:
+            pushed = dfs(s, limit - total)
+            if not pushed:
+                break
+            total += pushed
+
+    lane_flow = [0] * m
+    for eid, ref in enumerate(refs):
+        if ref is not None:
+            lane_flow[eid] = capacities[eid] - ref[2]
+
+    return total, lane_flow
+
+
+active = [i for i, (s, t, d) in enumerate(commodities) if d > 0 and s != t]
+
+
+def try_greedy(order):
+    residual = initial_cap[:]
+    answer = [[0] * m for _ in range(k)]
+
+    for ci in order:
+        s, t, d = commodities[ci]
+        value, flow = maxflow_with_flows(s, t, d, residual)
+        if value < d:
+            return None
+        answer[ci] = flow
+        for eid, x in enumerate(flow):
+            residual[eid] -= x
+
+    return answer
+
+
+orders = []
+seen_orders = set()
+
+candidates = [
+    tuple(active),
+    tuple(reversed(active)),
+    tuple(sorted(active, key=lambda x: -commodities[x][2])),
+    tuple(sorted(active, key=lambda x: commodities[x][2])),
+]
+
+for order in candidates:
+    if order not in seen_orders:
+        seen_orders.add(order)
+        orders.append(order)
+
+for order in orders:
+    result = try_greedy(order)
+    if result is not None:
+        out = ["YES"]
+        out.extend(" ".join(map(str, row)) for row in result)
+        sys.stdout.write("\n".join(out))
+        sys.exit()
+
+
+def all_simple_paths(s, t):
+    reachable = [False] * n
+    reachable[t] = True
+    q = [t]
+    for v in q:
+        for u in rev_nodes[v]:
+            if not reachable[u]:
+                reachable[u] = True
+                q.append(u)
+
+    if not reachable[s]:
+        return []
+
+    paths = []
+    current = []
+    visited = [False] * n
+    visited[s] = True
+
+    def dfs(u):
+        if u == t:
+            paths.append(tuple(current))
+            return
+        for v, eid in adj_edges[u]:
+            if reachable[v] and not visited[v]:
+                visited[v] = True
+                current.append(eid)
+                dfs(v)
+                current.pop()
+                visited[v] = False
+
+    dfs(s)
+    paths.sort(key=len)
+    return paths
+
+
+paths_by_commodity = {}
+impossible = False
+
+for ci in active:
+    s, t, _ = commodities[ci]
+    paths = all_simple_paths(s, t)
+    if not paths:
+        impossible = True
+        break
+    paths_by_commodity[ci] = paths
+
+if impossible:
+    print("NO")
+    sys.exit()
+
+order = sorted(
+    active,
+    key=lambda ci: (len(paths_by_commodity[ci]), commodities[ci][2])
+)
+
+residual = initial_cap[:]
+answer = [[0] * m for _ in range(k)]
+failed_states = set()
+
+
+def solve(pos):
+    if pos == len(order):
+        return True
+
+    state = (pos, tuple(residual))
+    if state in failed_states:
+        return False
+
+    ci = order[pos]
+    s, t, demand = commodities[ci]
+
+    value, direct_flow = maxflow_with_flows(s, t, demand, residual)
+    if value < demand:
+        failed_states.add(state)
+        return False
+
+    for eid, x in enumerate(direct_flow):
+        if x:
+            residual[eid] -= x
+            answer[ci][eid] += x
+
+    if solve(pos + 1):
+        return True
+
+    for eid, x in enumerate(direct_flow):
+        if x:
+            residual[eid] += x
+            answer[ci][eid] -= x
+
+    paths = paths_by_commodity[ci]
+    plen = len(paths)
+
+    def enough_capacity(start, need):
+        possible = 0
+        for qidx in range(start, plen):
+            path = paths[qidx]
+            bottleneck = need
+            for eid in path:
+                if residual[eid] < bottleneck:
+                    bottleneck = residual[eid]
+                    if bottleneck == 0:
+                        break
+            possible += bottleneck
+            if possible >= need:
+                return True
+        return False
+
+    def enumerate_allocations(start, remaining):
+        if remaining == 0:
+            return solve(pos + 1)
+
+        if not enough_capacity(start, remaining):
+            return False
+
+        for qidx in range(start, plen):
+            path = paths[qidx]
+            bottleneck = remaining
+            for eid in path:
+                if residual[eid] < bottleneck:
+                    bottleneck = residual[eid]
+                    if bottleneck == 0:
+                        break
+
+            if bottleneck == 0:
+                continue
+
+            for amount in range(bottleneck, 0, -1):
+                for eid in path:
+                    residual[eid] -= amount
+                    answer[ci][eid] += amount
+
+                if enumerate_allocations(qidx + 1, remaining - amount):
+                    return True
+
+                for eid in path:
+                    residual[eid] += amount
+                    answer[ci][eid] -= amount
+
+        return False
+
+    if enumerate_allocations(0, demand):
+        return True
+
+    failed_states.add(state)
+    if len(failed_states) > 200000:
+        failed_states.clear()
+        failed_states.add(state)
+    return False
+
+
+if solve(0):
+    out = ["YES"]
+    out.extend(" ".join(map(str, row)) for row in answer)
+    sys.stdout.write("\n".join(out))
+else:
+    print("NO")

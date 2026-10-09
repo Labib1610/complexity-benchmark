@@ -1,0 +1,306 @@
+**Solution Explanation**
+
+For the required set of trajectories we need an *independent set* of size `k`
+in the given graph `G = (V , E)`.
+The complement graph `G̅` has an edge between two vertices **iff**
+they are *not* connected in `G`.  
+Therefore a set of vertices is independent in `G`
+iff it is a *clique* (complete subgraph) in `G̅`.
+
+So the problem becomes:
+
+*find a clique of size `k` in the complement graph `G̅`*.
+
+`n ≤ 46`, therefore a classic exact‑search algorithm for the maximum clique
+works easily within the limits.  
+We use a depth‑first branch‑and‑bound algorithm (Tomita’s variant of
+Bron–Kerbosch with pivoting) that stops as soon as a clique of size `k`
+is found.
+
+--------------------------------------------------------------------
+
+#### 1.   Bitset representation  
+
+Vertices are numbered `0 … n‑1`.  
+For every vertex `v` we store a 64‑bit integer `adjc[v]` – the neighbour
+set of `v` in the *complement* graph `G̅`.  
+All set operations become fast bit operations:
+
+* `P & adjc[v]` – vertices of `P` that are adjacent to `v`
+* `P ^ (1 << v)` – remove `v` from `P`
+* `popcount(x)` – number of vertices in a set (`int.bit_count()`)
+
+--------------------------------------------------------------------
+
+#### 2.   Recursive search  
+
+```
+search(R, P):
+    # R – current clique (as list of vertices)
+    # P – candidate vertices that can extend R (bitset)
+
+    if len(R) == k:               # success
+        answer = R
+        stop recursion
+
+    # pruning: even if we take all remaining candidates we cannot reach k
+    if len(R) + popcount(P) < k:
+        return
+
+    # choose a pivot u from P (any vertex, here the one with max degree)
+    u = vertex with maximal popcount(P & adjc[u])
+
+    # vertices to branch on = P \ N(u)
+    for each vertex v in P without edge to u:
+        R.append(v)
+        search(R, P & adjc[v])     # only neighbours of v can stay in the clique
+        R.pop()
+        P = P without v            # remove v from further consideration
+        if answer already found: return
+```
+
+The pivot reduces the number of recursive calls dramatically.
+The algorithm explores only the part of the search tree that can still
+reach size `k`, therefore it finishes very quickly for the given limits.
+
+--------------------------------------------------------------------
+
+#### 3.   Building the complement graph  
+
+For every vertex `v` we start with a mask containing all vertices except `v`
+(`full = (1<<n)-1; mask = full ^ (1<<v)`).  
+For each edge `(a,b)` of the original graph we delete the opposite bits,
+because `a` and `b` are **not** adjacent in the complement.
+
+--------------------------------------------------------------------
+
+#### 4.   Correctness Proof  
+
+We prove that the algorithm prints `YES` and a correct set
+iff such a set exists.
+
+---
+
+##### Lemma 1  
+A vertex set `S` is independent in the original graph `G`
+iff `S` is a clique in the complement graph `G̅`.
+
+**Proof.**  
+By definition of complement, for any two distinct vertices `x,y` :
+
+* `(x,y) ∈ E(G)`  ⇔  `(x,y) ∉ E(G̅)`
+
+Thus all pairs of vertices of `S` are non‑edges in `G`
+iff all pairs are edges in `G̅`. ∎
+
+
+
+##### Lemma 2  
+During the recursive call `search(R,P)` the invariant holds:
+
+*All vertices of `R` are pairwise adjacent in `G̅`*  
+*Every vertex of `P` is adjacent to all vertices of `R`*.
+
+**Proof.**  
+Initially `R = []`, `P = all vertices`, invariant holds trivially.  
+Induction step: we pick a vertex `v ∈ P` and call
+`search(R∪{v}, P ∩ N̅(v))`.  
+`v` is adjacent to every vertex of `R` because `v ∈ P`.  
+The new candidate set is the intersection with `N̅(v)`, therefore each
+remaining candidate stays adjacent to `v` and, by induction hypothesis,
+to all of `R`. ∎
+
+
+
+##### Lemma 3  
+If the algorithm reaches `len(R) == k`, the vertices stored in `R`
+form an independent set of size `k` in the original graph.
+
+**Proof.**  
+By Lemma&nbsp;2, `R` is a clique in `G̅`.  
+By Lemma&nbsp;1 the same vertex set is independent in `G`. ∎
+
+
+
+##### Lemma 4  
+If a clique of size `k` exists in `G̅`, the algorithm will eventually
+reach a recursive state with `len(R) == k`.
+
+**Proof.**  
+Consider any maximal clique `C` of size `k`.  
+The search explores all possibilities that respect the invariant of
+Lemma&nbsp;2.  
+At each level it chooses a vertex `v` from the current candidate set `P`.
+Since `C` is a clique, every vertex of `C` is always present in the
+candidate set of the branch that has already taken all earlier vertices of
+`C`. Consequently the branch that successively picks the vertices of `C`
+is never pruned (pruning condition needs `|R|+|P| < k`, but for this branch
+`|R|+|P| ≥ k` holds). Hence the recursion can follow this branch and
+will finally have `R = C`. ∎
+
+
+
+##### Lemma 5  
+If the algorithm finishes without finding a clique of size `k`,
+no such clique exists in `G̅`.
+
+**Proof.**  
+Assume a size‑`k` clique `C` existed. By Lemma&nbsp;4 the algorithm would
+reach a state with `R = C`. The only way the algorithm could avoid reporting
+it is if it pruned the branch before reaching that state.
+But pruning occurs only when `|R| + |P| < k`.  
+Along the branch that builds `C` we always have `C ⊆ R ∪ P`,
+hence `|R| + |P| ≥ |C| = k`. Contradiction. ∎
+
+
+
+##### Theorem  
+The program outputs  
+
+* `YES` and a list of `k` trajectories that are pairwise non‑colliding
+  **iff** such a set exists,
+* otherwise outputs `NO`.
+
+**Proof.**  
+
+*If the program prints `YES`*: it printed the vertices stored in `R`
+when `len(R)==k`. By Lemma&nbsp;3 they form an independent set of size `k`.
+
+*If a size‑`k` independent set exists*: by Lemma&nbsp;1 there is a size‑`k`
+clique in `G̅`. By Lemma&nbsp;4 the algorithm will find it and output `YES`.
+
+*If the program prints `NO`*: it terminated without finding a clique of
+size `k`. By Lemma&nbsp;5 no such clique exists, therefore by Lemma&nbsp;1
+no independent set of size `k` exists. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### 5.   Complexity Analysis  
+
+`n ≤ 46`, all sets are stored in a 64‑bit integer.
+
+*Building complement adjacency*: `O(n²)` time, `O(n)` memory.  
+
+The recursive search is exponential in the worst case, but the
+branch‑and‑bound with pivoting is known to be very fast for graphs of this
+size (the given structural bounds guarantee a small search space).  
+In the worst theoretical case it explores all cliques, i.e. `O(3^{n/3})`,
+which for `n = 46` is far below the time limit.
+
+Memory consumption: adjacency masks (`n` integers) + recursion stack
+(`≤ n` levels) → `O(n)` ≤ a few kilobytes.
+
+--------------------------------------------------------------------
+
+#### 6.   Reference Implementation  (Python 3)
+
+```python
+import sys
+
+sys.setrecursionlimit(10000)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    k = int(next(it))
+
+    # original adjacency as bitsets
+    adj = [0] * n
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+
+    full = (1 << n) - 1
+    # complement adjacency (edges where original graph has none)
+    adjc = [0] * n
+    for v in range(n):
+        adjc[v] = full ^ (1 << v) ^ adj[v]   # all except self and original neighbours
+
+    answer = None          # will hold list of vertices (0‑based) when found
+    target = k
+
+    # ordering vertices by degree in complement (optional heuristic)
+    order = sorted(range(n), key=lambda x: adjc[x].bit_count(), reverse=True)
+
+    # map from original index to position in ordered list and back
+    pos2orig = order
+    orig2pos = [0] * n
+    for i, v in enumerate(order):
+        orig2pos[v] = i
+
+    # rebuild adjacency according to ordering to improve pruning
+    adjc_ord = [0] * n
+    for i, v in enumerate(order):
+        mask = 0
+        for u in range(n):
+            if adjc[v] >> u & 1:
+                mask |= 1 << orig2pos[u]
+        adjc_ord[i] = mask
+
+    all_vertices = (1 << n) - 1
+
+    # recursive search
+    def dfs(R_mask: int, R_list: list, P_mask: int):
+        nonlocal answer
+        if answer is not None:
+            return
+        if len(R_list) == target:
+            answer = R_list[:]
+            return
+        # pruning
+        if len(R_list) + P_mask.bit_count() < target:
+            return
+
+        # choose pivot u with max degree in P
+        # simple heuristic: first vertex in P
+        # better: vertex with max |P ∩ N(u)|
+        u = -1
+        max_deg = -1
+        tmp = P_mask
+        while tmp:
+            v = (tmp & -tmp).bit_length() - 1
+            deg = (P_mask & adjc_ord[v]).bit_count()
+            if deg > max_deg:
+                max_deg = deg
+                u = v
+            tmp &= tmp - 1
+
+        # candidates = P \ N(u)
+        cand = P_mask & ~adjc_ord[u]
+
+        while cand:
+            v = (cand & -cand).bit_length() - 1
+            cand &= cand - 1
+
+            R_list.append(pos2orig[v])
+            dfs(R_mask | (1 << v), R_list, P_mask & adjc_ord[v])
+            R_list.pop()
+            if answer is not None:
+                return
+            P_mask &= ~(1 << v)   # remove v from P
+
+    dfs(0, [], all_vertices)
+
+    out = sys.stdout
+    if answer is None:
+        out.write("NO\n")
+    else:
+        # convert back to 1‑based numbers
+        ans_one = [str(v + 1) for v in answer]
+        out.write("YES\n")
+        out.write(" ".join(ans_one) + "\n")
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above
+and conforms to the required input‑output format.

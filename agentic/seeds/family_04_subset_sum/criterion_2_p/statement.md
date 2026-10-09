@@ -4,11 +4,7 @@ Time limit: 2 s   Memory limit: 256 MB
 
 ## Description
 
-A store offers **n** items for purchase. Item **i** has a positive cost. You are given a target budget **T** and must decide whether some group of items can be bought so that their costs add up to **exactly** T.
-
-Each item may be chosen at most once. The group is allowed to be empty (an empty group has total cost 0).
-
-Determine whether such a group exists, and if so report one.
+A procurement officer reviews **n** line items, each with a positive price, and must hit a target **T** exactly. A plan selects a group of items (each at most once; empty group totals zero) whose prices sum to exactly T. In this catalogue the prices and the target are all modest, bounded well within a small range, so the set of reachable running totals stays compact and can be tracked directly. Decide whether some group sums exactly to T, and if so report one; otherwise report that no exact-total group exists.
 
 ## Input
 

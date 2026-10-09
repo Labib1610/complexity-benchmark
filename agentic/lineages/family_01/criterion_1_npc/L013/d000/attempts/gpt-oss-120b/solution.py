@@ -1,4 +1,5 @@
 import sys
+sys.setrecursionlimit(10000)
 
 def solve() -> None:
     data = sys.stdin.read().strip().split()
@@ -7,62 +8,101 @@ def solve() -> None:
     it = iter(data)
     n = int(next(it))
     m = int(next(it))
+
     adj = [[] for _ in range(n)]
     for _ in range(m):
         u = int(next(it)) - 1
         v = int(next(it)) - 1
+        if u == v:
+            continue
         adj[u].append(v)
         adj[v].append(u)
 
-    # possible colors bitmask: bit 0->color1, 1->color2, 2->color3
-    possible = [0b111] * n
-    color = [0] * n  # 0 means unassigned, else 1..3
-    sys.setrecursionlimit(10000)
+    # ---------- greedy trial ----------
+    order = sorted(range(n), key=lambda x: -len(adj[x]))
+    greedy_col = [0] * n
+    for v in order:
+        used = 0
+        for nb in adj[v]:
+            c = greedy_col[nb]
+            if c:
+                used |= 1 << (c - 1)
+        # pick the smallest colour not used
+        for col in (1, 2, 3):
+            if not (used & (1 << (col - 1))):
+                greedy_col[v] = col
+                break
+        else:
+            # greedy failed
+            greedy_col = None
+            break
 
-    # order is fixed 0..n-1 to guarantee lexicographic minimality
-    def dfs(idx: int) -> bool:
-        if idx == n:
-            return True
-        # if already colored (should not happen), skip
-        if color[idx]:
-            return dfs(idx + 1)
+    if greedy_col is not None:
+        print("YES")
+        print(" ".join(map(str, greedy_col)))
+        return
 
-        mask = possible[idx]
+    # ---------- backtracking ----------
+    ALL = 0b111  # three colours possible
+    domains = [ALL] * n
+    col = [0] * n
+
+    # order vertices by degree for tie‑breaking in MRV
+    degree = [len(adj[v]) for v in range(n)]
+
+    from functools import lru_cache
+
+    # popcount for tiny ints
+    def bits(x):
+        return (x & 1) + ((x >> 1) & 1) + ((x >> 2) & 1)
+
+    def dfs(domains, col, left):
+        if left == 0:
+            return col
+        # MRV: vertex with smallest domain size (>0) and highest degree tie‑break
+        best_v = -1
+        best_sz = 4  # larger than any possible domain size
+        best_deg = -1
+        for v in range(n):
+            if col[v] == 0:
+                sz = bits(domains[v])
+                if sz < best_sz or (sz == best_sz and degree[v] > best_deg):
+                    best_sz = sz
+                    best_v = v
+                    best_deg = degree[v]
+                if sz == 1:
+                    break  # cannot get better
+        v = best_v
+        mask = domains[v]
+        # try colours in order 1,2,3
         for c in (1, 2, 3):
             bit = 1 << (c - 1)
             if not (mask & bit):
                 continue
-            # assign c to idx
-            color[idx] = c
-            changed = []  # list of (neighbor, previous_mask)
+            new_domains = domains[:]
+            new_col = col[:]
+            new_col[v] = c
             fail = False
-            for nb in adj[idx]:
-                if color[nb]:
-                    if color[nb] == c:
-                        fail = True
-                        break
-                else:
-                    prev = possible[nb]
-                    new = prev & ~bit
-                    if new != prev:
-                        changed.append((nb, prev))
-                        possible[nb] = new
-                        if new == 0:
+            # forward checking
+            for nb in adj[v]:
+                if new_col[nb] == 0:
+                    if new_domains[nb] & bit:
+                        new_domains[nb] &= ~bit
+                        if new_domains[nb] == 0:
                             fail = True
                             break
-            if not fail and dfs(idx + 1):
-                return True
-            # revert changes
-            for nb, prev in reversed(changed):
-                possible[nb] = prev
-            color[idx] = 0
-        return False
+            if not fail:
+                res = dfs(new_domains, new_col, left - 1)
+                if res is not None:
+                    return res
+        return None
 
-    if dfs(0):
-        out = "YES\n" + " ".join(str(c) for c in color)
+    answer = dfs(domains, col, n)
+    if answer is None:
+        print("NO")
     else:
-        out = "NO"
-    sys.stdout.write(out)
+        print("YES")
+        print(" ".join(map(str, answer)))
 
 if __name__ == "__main__":
     solve()

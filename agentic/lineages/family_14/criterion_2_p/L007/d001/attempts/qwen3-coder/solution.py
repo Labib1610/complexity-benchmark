@@ -1,0 +1,115 @@
+import sys
+import threading
+
+def main():
+    import sys
+    sys.setrecursionlimit(1 << 25)
+    
+    n, m, t = map(int, sys.stdin.readline().split())
+    leased = set(map(int, sys.stdin.readline().split()))
+    
+    edges = []
+    for _ in range(m):
+        u, v, w = map(int, sys.stdin.readline().split())
+        edges.append((w, u, v))
+    
+    # If there's only one leased rack, cost is 0
+    if t <= 1:
+        print(0)
+        return
+    
+    # Sort edges by weight
+    edges.sort()
+    
+    # Union-Find data structure
+    parent = list(range(n + 1))
+    
+    def find(x):
+        if parent[x] != x:
+            parent[x] = find(parent[x])
+        return parent[x]
+    
+    def union(x, y):
+        px, py = find(x), find(y)
+        if px != py:
+            parent[px] = py
+            return True
+        return False
+    
+    # Kruskal's algorithm
+    total_cost = 0
+    connected_components = t
+    
+    for w, u, v in edges:
+        if union(u, v):
+            # Check if both u and v are leased
+            u_is_leased = u in leased
+            v_is_leased = v in leased
+            
+            # If this edge connects two different components that contain leased nodes
+            # we might have reduced the number of connected components
+            if u_is_leased or v_is_leased:
+                # We need to check if this union actually connected two components with leased nodes
+                pass
+            
+            total_cost += w
+            connected_components -= 1
+            
+            # If all leased nodes are connected, we're done
+            if connected_components == 1:
+                break
+    
+    # Let's reimplement with a better approach
+    # We need to find the minimum spanning tree of the subgraph induced by the leased nodes
+    # But we can route through unleased nodes
+    
+    # Better approach: Use Kruskal but stop when all leased nodes are connected
+    parent = list(range(n + 1))
+    
+    def find(x):
+        if parent[x] != x:
+            parent[x] = find(parent[x])
+        return parent[x]
+    
+    def union(x, y):
+        px, py = find(x), find(y)
+        if px != py:
+            parent[px] = py
+            return True
+        return False
+    
+    # Count how many leased nodes are in each component
+    component_count = {rack: 1 for rack in leased}
+    for i in range(1, n+1):
+        if i not in component_count:
+            component_count[i] = 0
+    
+    total_cost = 0
+    connected_leased = 1  # We start with one component
+    
+    for w, u, v in edges:
+        pu, pv = find(u), find(v)
+        if pu != pv:
+            # Check if this union connects more leased nodes
+            leased_in_u = component_count[pu]
+            leased_in_v = component_count[pv]
+            
+            # Perform the union
+            union(u, v)
+            
+            # Update the component count at the new root
+            new_root = find(u)
+            component_count[new_root] = leased_in_u + leased_in_v
+            
+            # Add the edge cost if it connects leased nodes
+            if leased_in_u > 0 and leased_in_v > 0:
+                total_cost += w
+                connected_leased += 1
+                
+                # If all leased nodes are connected, we're done
+                if connected_leased == t:
+                    break
+    
+    print(total_cost)
+
+threading.Thread(target=main).start()

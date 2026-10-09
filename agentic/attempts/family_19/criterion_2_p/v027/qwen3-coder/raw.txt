@@ -1,0 +1,130 @@
+```python
+from collections import deque
+
+def solve():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    idx = 0
+    n = int(data[idx])
+    m = int(data[idx+1])
+    idx += 2
+    
+    s = int(data[idx])
+    t = int(data[idx+1])
+    d = int(data[idx+2])
+    idx += 3
+    
+    edges = []
+    graph = [[] for _ in range(n+1)]
+    
+    for i in range(m):
+        u = int(data[idx])
+        v = int(data[idx+1])
+        cap = int(data[idx+2])
+        idx += 3
+        edges.append((u, v, cap))
+        graph[u].append((v, cap, len(edges)-1))
+        graph[v].append((u, 0, -(len(edges)-1)-1))  # residual edge with negative index
+    
+    # Create super source and super sink
+    super_s = 0
+    super_t = n + 1
+    
+    # Add edges from super source to s with capacity d
+    graph[super_s].append((s, d, -1000000))  # dummy edge id
+    graph[s].append((super_s, 0, -1000001))  # residual
+    
+    # Add edges from t to super sink with capacity d
+    graph[t].append((super_t, d, -1000002))  # dummy edge id
+    graph[super_t].append((t, 0, -1000003))   # residual
+    
+    # Also add the reverse mappings for the new edges
+    m_new = m + 2
+    edges.append((super_s, s, d))
+    edges.append((t, super_t, d))
+    
+    # Ford-Fulkerson with BFS (Edmonds-Karp)
+    def bfs():
+        parent = [-1] * (n + 2)
+        edge_index = [-1] * (n + 2)
+        queue = deque([super_s])
+        parent[super_s] = -2  # mark as visited
+        while queue:
+            u = queue.popleft()
+            for v, cap, idx in graph[u]:
+                if parent[v] == -1 and cap > 0:
+                    parent[v] = u
+                    edge_index[v] = idx
+                    if v == super_t:
+                        return parent, edge_index
+                    queue.append(v)
+        return None, None
+    
+    max_flow = 0
+    flow_values = [0] * m
+    
+    while True:
+        parent, edge_idx = bfs()
+        if parent is None:
+            break
+            
+        # Find minimum capacity along the path
+        path_flow = float('inf')
+        current = super_t
+        path_edges = []
+        while current != super_s:
+            prev = parent[current]
+            e_idx = edge_idx[current]
+            path_edges.append(e_idx)
+            # Find the actual edge capacity
+            found_cap = 0
+            for v, cap, idx in graph[prev]:
+                if v == current and idx == e_idx:
+                    found_cap = cap
+                    break
+            path_flow = min(path_flow, found_cap)
+            current = prev
+        
+        # Update capacities and find flow on original edges
+        current = super_t
+        while current != super_s:
+            prev = parent[current]
+            e_idx = edge_idx[current]
+            
+            # Update forward edge
+            for i in range(len(graph[prev])):
+                if graph[prev][i][0] == current and graph[prev][i][2] == e_idx:
+                    graph[prev][i] = (current, graph[prev][i][1] - path_flow, e_idx)
+                    break
+                    
+            # Update backward edge
+            found = False
+            for i in range(len(graph[current])):
+                if graph[current][i][0] == prev and graph[current][i][2] == (-e_idx-1 if e_idx >= 0 and e_idx < m else -(e_idx+1)):
+                    graph[current][i] = (prev, graph[current][i][1] + path_flow, graph[current][i][2])
+                    found = True
+                    break
+            if not found:
+                rev_idx = -(e_idx+1) if e_idx >= 0 else -(e_idx+1)
+                graph[current].append((prev, path_flow, rev_idx))
+            
+            current = prev
+        
+        # Record flow on original edges
+        for e_idx in path_edges:
+            if 0 <= e_idx < m:
+                flow_values[e_idx] += path_flow
+        
+        max_flow += path_flow
+    
+    if max_flow < d:
+        print("NO")
+        return
+    
+    print("YES")
+    print(' '.join(map(str, flow_values)))
+
+solve()
+```

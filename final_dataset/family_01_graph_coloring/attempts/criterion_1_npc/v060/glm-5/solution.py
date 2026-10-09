@@ -1,0 +1,135 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    n = int(data[0])
+    m = int(data[1])
+    adj = [0] * n
+    idx = 2
+    for _ in range(m):
+        u = int(data[idx]) - 1
+        v = int(data[idx+1]) - 1
+        idx += 2
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+
+    # Find connected components
+    visited = [False] * n
+    components = []
+    for i in range(n):
+        if not visited[i]:
+            comp = []
+            stack = [i]
+            visited[i] = True
+            while stack:
+                u = stack.pop()
+                comp.append(u)
+                for v in range(n):
+                    if (adj[u] >> v) & 1 and not visited[v]:
+                        visited[v] = True
+                        stack.append(v)
+            components.append(comp)
+
+    color = [0] * n
+
+    for comp in components:
+        k = len(comp)
+        if k == 1:
+            color[comp[0]] = 1
+            continue
+
+        # Map component vertices to 0..k-1
+        idx_map = {v: i for i, v in enumerate(comp)}
+        comp_adj = [0] * k
+        for v in comp:
+            vi = idx_map[v]
+            for u in comp:
+                if (adj[v] >> u) & 1:
+                    comp_adj[vi] |= 1 << idx_map[u]
+
+        # Find all maximal independent sets using Bron-Kerbosch with pivoting
+        mis_list = []
+        def bron_kerbosch(R, P, X):
+            if P == 0 and X == 0:
+                mis_list.append(R)
+                return
+            # Choose pivot u in P | X with maximum degree in P
+            union = P | X
+            if union == 0:
+                return
+            # Find pivot
+            pivot = -1
+            best = -1
+            temp = union
+            while temp:
+                low = temp & (-temp)
+                u = low.bit_length() - 1
+                cnt = bin(comp_adj[u] & P).count('1')
+                if cnt > best:
+                    best = cnt
+                    pivot = u
+                temp ^= low
+            # Iterate over vertices in P \ N(pivot)
+            candidates = P & ~comp_adj[pivot]
+            while candidates:
+                low = candidates & (-candidates)
+                v = low.bit_length() - 1
+                bron_kerbosch(R | (1 << v), P & ~comp_adj[v] & ~(1 << v), X & ~comp_adj[v] & ~(1 << v))
+                P &= ~(1 << v)
+                X |= (1 << v)
+                candidates ^= low
+
+        bron_kerbosch(0, (1 << k) - 1, 0)
+
+        # Check if 3-colorable using exact cover with 3 independent sets
+        found = False
+        assignment = [0] * k
+        L = len(mis_list)
+        # Precompute complement (vertices not in MIS)
+        mis_comp = [((1 << k) - 1) ^ s for s in mis_list]
+
+        def backtrack(idx, covered, chosen):
+            nonlocal found, assignment
+            if found:
+                return
+            if covered == (1 << k) - 1:
+                found = True
+                for c, s in enumerate(chosen):
+                    temp = s
+                    while temp:
+                        low = temp & (-temp)
+                        v = low.bit_length() - 1
+                        assignment[v] = c + 1
+                        temp ^= low
+                return
+            if idx >= L:
+                return
+            if len(chosen) >= 3:
+                return
+            # Pruning: check if remaining can cover
+            # Simple bound: if even taking all remaining can't cover the missing
+            # Skip for simplicity, k <= 40 but components are usually small
+            # Try including mis_list[idx]
+            new_covered = covered | mis_list[idx]
+            if new_covered != covered:
+                backtrack(idx + 1, new_covered, chosen + [mis_list[idx]])
+                if found:
+                    return
+            # Try excluding
+            backtrack(idx + 1, covered, chosen)
+
+        backtrack(0, 0, [])
+
+        if not found:
+            print("NO")
+            return
+
+        for i in range(k):
+            color[comp[i]] = assignment[i]
+
+    print("YES")
+    print(' '.join(map(str, color)))
+
+solve()

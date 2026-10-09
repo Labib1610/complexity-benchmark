@@ -1,0 +1,208 @@
+```python
+import sys
+import time
+import random
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    B = int(input_data[2])
+    
+    if n == 1:
+        print("YES")
+        print("1")
+        return
+        
+    adj = [[] for _ in range(n + 1)]
+    edges = []
+    idx = 3
+    for _ in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx+1])
+        adj[u].append(v)
+        adj[v].append(u)
+        edges.append((u, v))
+        idx += 2
+
+    start_time = time.time()
+    
+    def calc_cost(pos):
+        c = 0
+        for u, v in edges:
+            c += abs(pos[u] - pos[v])
+        return c
+
+    def get_pos_from_order(order):
+        pos = [0] * (n + 1)
+        for i, u in enumerate(order):
+            pos[u] = i + 1
+        return pos
+
+    # Centroid layout generator
+    def centroid_layout():
+        sub_sz = [0] * (n + 1)
+        removed = [False] * (n + 1)
+
+        def get_sizes(u, p):
+            sub_sz[u] = 1
+            for v in adj[u]:
+                if v != p and not removed[v]:
+                    get_sizes(v, u)
+                    sub_sz[u] += sub_sz[v]
+
+        def get_centroid(u, p, total):
+            for v in adj[u]:
+                if v != p and not removed[v] and sub_sz[v] > total // 2:
+                    return get_centroid(v, u, total)
+            return u
+
+        def decompose(u):
+            get_sizes(u, 0)
+            c = get_centroid(u, 0, sub_sz[u])
+            removed[c] = True
+            
+            branches = []
+            for v in adj[c]:
+                if not removed[v]:
+                    branches.append(decompose(v))
+            
+            random.shuffle(branches)
+            left, right = [], []
+            l_sz, r_sz = 0, 0
+            for b in branches:
+                if l_sz <= r_sz:
+                    left.extend(b)
+                    l_sz += len(b)
+                else:
+                    right.extend(b)
+                    r_sz += len(b)
+            return left + [c] + right
+
+        return decompose(1)
+
+    # DFS layout
+    def dfs_layout():
+        order = []
+        visited = [False] * (n + 1)
+        root = random.randint(1, n)
+        
+        def dfs(u):
+            visited[u] = True
+            neighbors = [v for v in adj[u] if not visited[v]]
+            random.shuffle(neighbors)
+            mid = len(neighbors) // 2
+            for v in neighbors[:mid]:
+                dfs(v)
+            order.append(u)
+            for v in neighbors[mid:]:
+                dfs(v)
+
+        dfs(root)
+        return order
+
+    best_cost = float('inf')
+    best_pos = None
+
+    # Generate initial candidates
+    candidates = []
+    for _ in range(5):
+        candidates.append(centroid_layout())
+    for _ in range(5):
+        candidates.append(dfs_layout())
+
+    for cand in candidates:
+        pos = get_pos_from_order(cand)
+        cost = calc_cost(pos)
+        if cost < best_cost:
+            best_cost = cost
+            best_pos = pos
+            if best_cost <= B:
+                print("YES")
+                print(*(best_pos[1:]))
+                return
+
+    # Simulated Annealing / Local Search
+    curr_order = [0] * (n + 1)
+    for u in range(1, n + 1):
+        curr_order[best_pos[u]] = u
+    order = curr_order[1:]
+    pos = list(best_pos)
+    cost = best_cost
+
+    T = 1.0
+    T_min = 0.001
+    alpha = 0.99995
+
+    while time.time() - start_time < 4.6:
+        # Pick two random positions to swap or shift
+        move_type = random.random()
+        if move_type < 0.6:
+            # Swap
+            i = random.randint(0, n - 1)
+            j = random.randint(0, n - 1)
+            if i == j:
+                continue
+            u, v = order[i], order[j]
+            
+            # Delta cost
+            delta = 0
+            for w in adj[u]:
+                if w != v:
+                    delta += abs(j + 1 - pos[w]) - abs(i + 1 - pos[w])
+            for w in adj[v]:
+                if w != u:
+                    delta += abs(i + 1 - pos[w]) - abs(j + 1 - pos[w])
+            
+            if delta < 0 or (T > 0 and random.random() < 2.718281828459045 ** (-delta / max(T, 1e-6))):
+                order[i], order[j] = v, u
+                pos[u] = j + 1
+                pos[v] = i + 1
+                cost += delta
+                if cost < best_cost:
+                    best_cost = cost
+                    best_pos = list(pos)
+                    if best_cost <= B:
+                        print("YES")
+                        print(*(best_pos[1:]))
+                        return
+        else:
+            # Shift
+            i = random.randint(0, n - 1)
+            j = random.randint(0, n - 1)
+            if i == j:
+                continue
+            u = order[i]
+            # Remove u from i and insert at j
+            new_order = order[:i] + order[i+1:]
+            new_order.insert(j, u)
+            new_pos = get_pos_from_order(new_order)
+            new_cost = calc_cost(new_pos)
+            delta = new_cost - cost
+            
+            if delta < 0 or (T > 0 and random.random() < 2.718281828459045 ** (-delta / max(T, 1e-6))):
+                order = new_order
+                pos = new_pos
+                cost = new_cost
+                if cost < best_cost:
+                    best_cost = cost
+                    best_pos = list(pos)
+                    if best_cost <= B:
+                        print("YES")
+                        print(*(best_pos[1:]))
+                        return
+                        
+        T = max(T_min, T * alpha)
+
+    if best_cost <= B:
+        print("YES")
+        print(*(best_pos[1:]))
+    else:
+        print("NO")
+
+if __name__ == '__main__':
+    solve()
+```

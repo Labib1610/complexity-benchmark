@@ -1,0 +1,74 @@
+from collections import defaultdict, deque
+
+def solve():
+    q, t = map(int, input().split())
+    
+    # Build adjacency list for bipartite graph
+    # Controllers: 1 to q
+    # Platforms: q+1 to 2*q
+    graph = defaultdict(list)
+    edges = []
+    
+    for _ in range(t):
+        a, b = map(int, input().split())
+        graph[a].append(b)
+        edges.append((a, b))
+    
+    # Try to find a maximum matching using BFS-based approach (Hopcroft-Karp like)
+    # But since we need exactly q matches, we can use a simpler approach
+    
+    # Use a greedy matching algorithm with BFS to find maximum matching
+    match_controller = [-1] * (q + 1)  # match_controller[i] = platform matched to controller i
+    match_platform = [-1] * (2 * q + 1)  # match_platform[j] = controller matched to platform j
+    
+    def bfs():
+        queue = deque()
+        dist = [-1] * (q + 1)
+        
+        for i in range(1, q + 1):
+            if match_controller[i] == -1:
+                dist[i] = 0
+                queue.append(i)
+            else:
+                dist[i] = -1
+        
+        found = False
+        while queue:
+            u = queue.popleft()
+            
+            for v in graph[u]:
+                paired_u = match_platform[v]
+                if paired_u == -1:
+                    found = True
+                elif dist[paired_u] == -1:
+                    dist[paired_u] = dist[u] + 1
+                    queue.append(paired_u)
+        
+        return found
+    
+    def dfs(u):
+        for v in graph[u]:
+            paired_u = match_platform[v]
+            if paired_u == -1 or (match_controller[paired_u] != -1 and 
+                                 dfs(paired_u)):
+                match_controller[u] = v
+                match_platform[v] = u
+                return True
+        return False
+    
+    # Main matching loop
+    matching = 0
+    while bfs():
+        for i in range(1, q + 1):
+            if match_controller[i] == -1:
+                if dfs(i):
+                    matching += 1
+    
+    if matching == q:
+        print("YES")
+        for i in range(1, q + 1):
+            print(i, match_controller[i])
+    else:
+        print("NO")
+
+solve()

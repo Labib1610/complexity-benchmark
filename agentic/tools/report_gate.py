@@ -110,7 +110,7 @@ def sensitivity_table(rows):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--family", required=True)
-    ap.add_argument("--criterion", type=int, choices=[1, 2, 3])
+    ap.add_argument("--criterion", type=int, choices=[1, 2])
     args = ap.parse_args()
 
     REPORT.parent.mkdir(parents=True, exist_ok=True)

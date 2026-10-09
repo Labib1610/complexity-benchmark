@@ -1,0 +1,58 @@
+import sys
+sys.setrecursionlimit(300000)
+
+def solve():
+    input = sys.stdin.readline
+    n, m, t = map(int, input().split())
+    primaries = set(map(int, input().split()))
+    
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u, v, w = map(int, input().split())
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+    
+    # If only one primary, no links needed
+    if t == 1:
+        print(0)
+        return
+    
+    # Root at any primary
+    root = next(iter(primaries))
+    
+    parent = [0] * (n + 1)
+    parent_edge_cost = [0] * (n + 1)
+    order = []
+    stack = [root]
+    parent[root] = -1
+    
+    # DFS to build parent info
+    while stack:
+        u = stack.pop()
+        order.append(u)
+        for v, w in adj[u]:
+            if v == parent[u]:
+                continue
+            parent[v] = u
+            parent_edge_cost[v] = w
+            stack.append(v)
+    
+    # DP: whether subtree contains a primary
+    has_primary = [False] * (n + 1)
+    for p in primaries:
+        has_primary[p] = True
+    
+    total_cost = 0
+    # Process in reverse order (post-order)
+    for u in reversed(order):
+        if u == root:
+            continue
+        if has_primary[u]:
+            total_cost += parent_edge_cost[u]
+            # propagate up
+            has_primary[parent[u]] = True
+    
+    print(total_cost)
+
+if __name__ == "__main__":
+    solve()

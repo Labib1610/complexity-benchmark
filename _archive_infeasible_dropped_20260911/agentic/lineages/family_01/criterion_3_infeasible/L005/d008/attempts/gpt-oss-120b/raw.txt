@@ -1,0 +1,206 @@
+**Solution Explanation**
+
+For three different persons `a < b < c` we need the three incompatibility logs  
+
+```
+(a , b) , (a , c) , (b , c)
+```
+
+i.e. the three vertices must form a *triangle* in the undirected graph whose
+edges are the given logs.
+
+The task is to output the lexicographically smallest triangle
+(`a` minimal, then `b`, then `c`).
+`n ≤ 2000`, therefore a bitset of length `n` fits into a single Python
+integer (`2000` bits ≈ 250 bytes).
+
+--------------------------------------------------------------------
+
+#### 1.   Data representation  
+
+* vertices are numbered `0 … n‑1` inside the program  
+* `adj[v]` – an integer whose `i`‑th bit (`1 << i`) is set **iff**
+  there is an edge `v – i`.
+
+Construction:
+
+```
+adj = [0] * n
+for each edge (u , v):
+        u -= 1 ; v -= 1                # to 0‑based
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+```
+
+Now we can test the existence of an edge in `O(1)` :
+
+```
+edge(u, v)  ⇔  (adj[u] >> v) & 1 == 1
+```
+
+--------------------------------------------------------------------
+
+#### 2.   Searching the smallest triangle  
+
+We iterate over the first vertex `a` from `0` to `n‑1`.
+For a fixed `a` we iterate over `b` (`a < b`) **only if the edge `a‑b`
+exists**.
+All common neighbours of `a` and `b` are given by the bitwise `AND`
+
+```
+common = adj[a] & adj[b]          # bits of vertices adjacent to both
+```
+
+A triangle needs a third vertex `c` that is larger than `b`.
+Therefore we discard bits `0 … b` :
+
+```
+common >>= (b + 1)                # now bit 0 corresponds to vertex b+1
+```
+
+If `common` is non‑zero, the least significant set bit gives the smallest
+possible `c`.  
+The index of that bit is obtained by `lowbit = common & -common`
+and `idx = lowbit.bit_length() - 1`.  
+Finally `c = b + 1 + idx`.
+
+Because the outer loops increase `a` first, then `b`, and we always pick the
+smallest possible `c`, the first triangle we encounter is exactly the
+lexicographically smallest one.
+
+Complexities  
+
+* building the masks: `O(m)`
+* main loops: at most `n·(n‑1)/2 ≤ 2·10⁶` iterations, each `O(1)`  
+  → `O(n²)` time, well below the limit (`n = 2000` → ~4 · 10⁶ operations)
+* memory: `n` integers → `O(n)` (≈ 250 KB)
+
+--------------------------------------------------------------------
+
+#### 3.   Correctness Proof  
+
+We prove that the algorithm outputs the lexicographically smallest triple
+`(a,b,c)` that forms a triangle.
+
+---
+
+##### Lemma 1  
+For any vertices `a` and `b` (`a < b`) the expression  
+
+```
+common = (adj[a] & adj[b]) >> (b+1)
+```
+
+has a set bit at position `k` **iff** vertex `c = b+1+k` is adjacent to both
+`a` and `b`.
+
+**Proof.**  
+`adj[a] & adj[b]` has exactly the bits of vertices adjacent to *both* `a`
+and `b`. Shifting right by `b+1` removes bits `0 … b`. The remaining bit
+position `k` corresponds to original vertex `b+1+k`. ∎
+
+
+
+##### Lemma 2  
+If `common` is non‑zero, the vertex `c` obtained from the least significant
+set bit of `common` is the smallest vertex `> b` that together with `a` and
+`b` forms a triangle.
+
+**Proof.**  
+By Lemma&nbsp;1 every set bit of `common` corresponds to a vertex `c > b`
+adjacent to both `a` and `b`. The least significant set bit has the smallest
+index `k`, therefore its original vertex `c = b+1+k` is the smallest such
+vertex. ∎
+
+
+
+##### Lemma 3  
+When the algorithm prints a triple `(a,b,c)`, the three edges
+`(a,b) , (a,c) , (b,c)` are present in the input.
+
+**Proof.**  
+The algorithm reaches the printing statement only after:
+
+* `edge(a,b)` was verified (`(adj[a]>>b)&1 == 1`);
+* `common` was computed and found non‑zero;
+* `c` was derived from a set bit of `common`.
+
+By Lemma&nbsp;1 this set bit guarantees that `c` is adjacent to both `a`
+and `b`. Hence all three edges exist. ∎
+
+
+
+##### Lemma 4  
+The first printed triple is the lexicographically smallest triangle.
+
+**Proof.**  
+The outer loop enumerates `a` in increasing order.
+For a fixed `a`, the inner loop enumerates `b` in increasing order,
+skipping those without edge `a‑b`.  
+For each such pair `(a,b)` Lemma&nbsp;2 yields the smallest possible `c`.
+Therefore the algorithm examines triangles in the exact order of increasing
+lexicographic triples `(a,b,c)`.  
+Consequently the first triangle found (and printed) is the minimal one. ∎
+
+
+
+##### Theorem  
+The algorithm always outputs three integers `a < b < c` that constitute a
+valid proof (a triangle) and among all possible proofs it outputs the
+lexicographically smallest one.
+
+**Proof.**  
+Existence: the statement guarantees at least one triangle; the algorithm
+will eventually encounter its `(a,b)` pair and, by Lemma&nbsp;2, a suitable
+`c`, thus it will print something.
+
+Validity: by Lemma&nbsp;3 the printed triple indeed forms a triangle,
+hence uses exactly three distinct logs.
+
+Minimality: by Lemma&nbsp;4 the first printed triple is the smallest
+lexicographically among all triangles, and the algorithm stops after the
+first print. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### 4.   Reference Implementation  (Python 3)
+
+```python
+import sys
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    adj = [0] * n
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+
+    for a in range(n):
+        mask_a = adj[a]
+        for b in range(a + 1, n):
+            if (mask_a >> b) & 1 == 0:
+                continue          # edge a-b missing
+            common = (mask_a & adj[b]) >> (b + 1)
+            if common:
+                lowbit = common & -common
+                idx = lowbit.bit_length() - 1
+                c = b + 1 + idx
+                # output 1‑based and sorted
+                print(a + 1, b + 1, c + 1)
+                return
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above and conforms
+to the required input‑output format.

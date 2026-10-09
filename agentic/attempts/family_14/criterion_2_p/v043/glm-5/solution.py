@@ -1,0 +1,92 @@
+import sys
+sys.setrecursionlimit(1 << 25)
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    idx = 0
+    n = int(data[idx]); idx += 1
+    m = int(data[idx]); idx += 1
+    t = int(data[idx]); idx += 1
+    
+    critical = [False] * (n + 1)
+    for _ in range(t):
+        u = int(data[idx]); idx += 1
+        critical[u] = True
+    
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(data[idx]); idx += 1
+        v = int(data[idx]); idx += 1
+        w = int(data[idx]); idx += 1
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+    
+    # Iterative DFS to compute subtree sums
+    total_cost = 0
+    stack = [(1, 0, 0, 0)]  # node, parent, weight_to_parent, state (0=enter, 1=exit)
+    
+    while stack:
+        node, parent, weight, state = stack.pop()
+        if state == 0:
+            stack.append((node, parent, weight, 1))
+            for child, w in adj[node]:
+                if child != parent:
+                    stack.append((child, node, w, 0))
+        else:
+            subtree_sum = 0
+            for child, w in adj[node]:
+                if child != parent:
+                    subtree_sum += subtree_sums[child]
+            
+            if subtree_sum > 0 or critical[node]:
+                subtree_sum += weight
+            
+            subtree_sums[node] = subtree_sum
+    
+    # We need to initialize subtree_sums before using it
+    # Let me redo this properly
+
+def solve2():
+    data = sys.stdin.buffer.read().split()
+    idx = 0
+    n = int(data[idx]); idx += 1
+    m = int(data[idx]); idx += 1
+    t = int(data[idx]); idx += 1
+    
+    critical = [False] * (n + 1)
+    for _ in range(t):
+        u = int(data[idx]); idx += 1
+        critical[u] = True
+    
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(data[idx]); idx += 1
+        v = int(data[idx]); idx += 1
+        w = int(data[idx]); idx += 1
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+    
+    subtree_sums = [0] * (n + 1)
+    stack = [(1, 0, 0, 0)]  # node, parent, weight_to_parent, state
+    
+    while stack:
+        node, parent, weight, state = stack.pop()
+        if state == 0:
+            stack.append((node, parent, weight, 1))
+            for child, w in adj[node]:
+                if child != parent:
+                    stack.append((child, node, w, 0))
+        else:
+            s = 0
+            for child, w in adj[node]:
+                if child != parent:
+                    s += subtree_sums[child]
+            
+            if s > 0 or critical[node]:
+                s += weight
+            
+            subtree_sums[node] = s
+    
+    print(subtree_sums[1])
+
+solve2()

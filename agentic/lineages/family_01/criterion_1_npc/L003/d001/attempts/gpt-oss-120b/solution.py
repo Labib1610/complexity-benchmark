@@ -1,4 +1,5 @@
 import sys
+sys.setrecursionlimit(10000)
 
 def solve() -> None:
     data = sys.stdin.read().strip().split()
@@ -7,64 +8,46 @@ def solve() -> None:
     it = iter(data)
     n = int(next(it))
     m = int(next(it))
-    adj = [[] for _ in range(n)]
+    adj = [set() for _ in range(n)]
     for _ in range(m):
         u = int(next(it)) - 1
         v = int(next(it)) - 1
-        adj[u].append(v)
-        adj[v].append(u)
+        adj[u].add(v)
+        adj[v].add(u)
 
-    color = [0] * n               # 0 = uncoloured, else 1..3
-    mask = [0b111] * n            # possible colours bitmask
+    # order vertices by descending degree for better pruning
+    order = sorted(range(n), key=lambda x: -len(adj[x]))
+    pos_in_order = [0]*n
+    for idx, v in enumerate(order):
+        pos_in_order[v] = idx
 
-    sys.setrecursionlimit(10000)
+    colors = [0]*n
+    found = False
 
-    def dfs(pos: int) -> bool:
-        if pos == n:
+    def dfs(idx: int) -> bool:
+        nonlocal found
+        if idx == n:
             return True
-        v = pos
-        # try colours 1,2,3
+        v = order[idx]
+        # try colors 1..3
         for c in (1, 2, 3):
-            bit = 1 << (c - 1)
-            if not (mask[v] & bit):
-                continue
-
-            # assign c to v
-            saved = []                     # (vertex, old_mask)
-            color[v] = c
-            old_mask_v = mask[v]
-            mask[v] = bit
-
             ok = True
-            for u in adj[v]:
-                if color[u]:
-                    if color[u] == c:
-                        ok = False
-                        break
-                    continue
-                if mask[u] & bit:
-                    new_mask = mask[u] & ~bit
-                    saved.append((u, mask[u]))
-                    mask[u] = new_mask
-                    if new_mask == 0:
-                        ok = False
-                        break
-
-            if ok and dfs(pos + 1):
-                return True
-
-            # backtrack
-            for u, old in reversed(saved):
-                mask[u] = old
-            mask[v] = old_mask_v
-            color[v] = 0
+            for nb in adj[v]:
+                if colors[nb] == c:
+                    ok = False
+                    break
+            if ok:
+                colors[v] = c
+                if dfs(idx+1):
+                    return True
+                colors[v] = 0
         return False
 
     if dfs(0):
-        out = ['YES', ' '.join(str(c) for c in color)]
+        print("YES")
+        print(' '.join(str(colors[i]) for i in range(n)))
     else:
-        out = ['NO']
-    sys.stdout.write('\n'.join(out))
+        print("NO")
 
 if __name__ == "__main__":
     solve()

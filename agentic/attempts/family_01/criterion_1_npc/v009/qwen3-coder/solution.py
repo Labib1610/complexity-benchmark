@@ -1,24 +1,19 @@
 def solve():
-    import sys
-    from collections import defaultdict
-    
-    n, m = map(int, sys.stdin.readline().split())
+    n, m = map(int, input().split())
     
     # Build adjacency list
-    adj = defaultdict(list)
+    adj = [[] for _ in range(n + 1)]
     for _ in range(m):
-        u, v = map(int, sys.stdin.readline().split())
+        u, v = map(int, input().split())
         adj[u].append(v)
         adj[v].append(u)
     
-    # Color the graph with 3 colors (1, 2, 3)
-    # Try to find a valid 3-coloring that is lexicographically smallest
-    colors = [0] * (n + 1)  # colors[i] represents the shift of worker i
+    # Try all 3-colorings
+    coloring = [0] * (n + 1)  # 0 means uncolored, 1, 2, 3 are the colors
     
-    def is_valid(node, color):
-        # Check if assigning 'color' to 'node' is valid
+    def is_valid_color(node, color):
         for neighbor in adj[node]:
-            if colors[neighbor] == color:
+            if coloring[neighbor] == color:
                 return False
         return True
     
@@ -26,19 +21,18 @@ def solve():
         if node > n:
             return True
             
-        for color in [1, 2, 3]:
-            if is_valid(node, color):
-                colors[node] = color
+        for color in range(1, 4):
+            if is_valid_color(node, color):
+                coloring[node] = color
                 if backtrack(node + 1):
                     return True
-                colors[node] = 0  # backtrack
-                
+                coloring[node] = 0
+        
         return False
     
-    # Try to color the graph
     if backtrack(1):
         print("YES")
-        print(' '.join(map(str, colors[1:])))
+        print(*coloring[1:])
     else:
         print("NO")
 

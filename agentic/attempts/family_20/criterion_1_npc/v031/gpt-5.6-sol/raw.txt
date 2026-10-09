@@ -1,0 +1,322 @@
+```python
+import sys
+sys.setrecursionlimit(1000000)
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if len(data) < 2:
+        return
+
+    n, m = data[0], data[1]
+    if m != 3 * n // 2 or len(data) != 2 + 2 * m:
+        print("NO")
+        return
+
+    eu = [0] * m
+    ev = [0] * m
+    inc = [[] for _ in range(n)]
+
+    p = 2
+    for i in range(m):
+        u = data[p] - 1
+        v = data[p + 1] - 1
+        p += 2
+        if not (0 <= u < n and 0 <= v < n) or u == v:
+            print("NO")
+            return
+        eu[i] = u
+        ev[i] = v
+        inc[u].append(i)
+        inc[v].append(i)
+
+    if any(len(inc[v]) != 3 for v in range(n)):
+        print("NO")
+        return
+
+    # Connected components and bipartitions.
+    side = [-1] * n
+    components = []
+    is_bipartite = []
+
+    from collections import deque
+
+    for start in range(n):
+        if side[start] != -1:
+            continue
+        q = deque([start])
+        side[start] = 0
+        vertices = []
+        edge_set = set()
+        bip = True
+
+        while q:
+            v = q.popleft()
+            vertices.append(v)
+            for e in inc[v]:
+                edge_set.add(e)
+                w = ev[e] if eu[e] == v else eu[e]
+                if side[w] == -1:
+                    side[w] = side[v] ^ 1
+                    q.append(w)
+                elif side[w] == side[v]:
+                    bip = False
+
+        components.append((vertices, list(edge_set)))
+        is_bipartite.append(bip)
+
+    # A cubic graph with a bridge cannot have a 3-edge-colouring.
+    tin = [-1] * n
+    low = [0] * n
+    timer = 0
+    has_bridge = False
+
+    def bridge_dfs(v, parent_edge):
+        nonlocal timer, has_bridge
+        tin[v] = low[v] = timer
+        timer += 1
+
+        for e in inc[v]:
+            if e == parent_edge:
+                continue
+            w = ev[e] if eu[e] == v else eu[e]
+            if tin[w] == -1:
+                bridge_dfs(w, e)
+                if has_bridge:
+                    return
+                low[v] = min(low[v], low[w])
+                if low[w] > tin[v]:
+                    has_bridge = True
+                    return
+            else:
+                low[v] = min(low[v], tin[w])
+
+    for v in range(n):
+        if tin[v] == -1:
+            bridge_dfs(v, -1)
+            if has_bridge:
+                print("NO")
+                return
+
+    color = [-1] * m
+
+    # Cubic bipartite components are coloured by one perfect matching
+    # followed by alternating the remaining cycles.
+    def color_bipartite(vertices, edges):
+        left = [v for v in vertices if side[v] == 0]
+        pair_right = [-1] * n
+        match_edge = [-1] * n
+        seen = [0] * n
+        stamp = 0
+
+        def augment(u):
+            for e in inc[u]:
+                v = ev[e] if eu[e] == u else eu[e]
+                if side[v] != 1 or seen[v] == stamp:
+                    continue
+                seen[v] = stamp
+                old = pair_right[v]
+                if old == -1 or augment(old):
+                    pair_right[v] = u
+                    match_edge[u] = e
+                    return True
+            return False
+
+        for u in left:
+            stamp += 1
+            if not augment(u):
+                return False
+
+        matching = [False] * m
+        for u in left:
+            e = match_edge[u]
+            if e < 0:
+                return False
+            matching[e] = True
+            color[e] = 0
+
+        for first in edges:
+            if matching[first] or color[first] != -1:
+                continue
+            color[first] = 1
+            q = deque([first])
+
+            while q:
+                e = q.popleft()
+                required = 3 - color[e]  # swaps 1 and 2
+                for v in (eu[e], ev[e]):
+                    other = -1
+                    for f in inc[v]:
+                        if f != e and not matching[f]:
+                            other = f
+                            break
+                    if other == -1:
+                        return False
+                    if color[other] == -1:
+                        color[other] = required
+                        q.append(other)
+                    elif color[other] != required:
+                        return False
+
+        return True
+
+    for idx, (vertices, edges) in enumerate(components):
+        if is_bipartite[idx]:
+            if not color_bipartite(vertices, edges):
+                print("NO")
+                return
+
+    # Backtracking with exact-one propagation for non-bipartite components.
+    masks = [7] * m
+    used = [0] * n
+    trail = []
+
+    def rollback(snapshot):
+        while len(trail) > snapshot:
+            typ, idx, old = trail.pop()
+            if typ == 0:
+                masks[idx] = old
+            elif typ == 1:
+                color[idx] = old
+            else:
+                used[idx] = old
+
+    def propagate(initial):
+        queue = list(initial)
+        head = 0
+
+        while head < len(queue):
+            e, c = queue[head]
+            head += 1
+            bit = 1 << c
+
+            if color[e] != -1:
+                if color[e] != c:
+                    return False
+                continue
+
+            if not (masks[e] & bit):
+                return False
+
+            u, v = eu[e], ev[e]
+            if (used[u] & bit) or (used[v] & bit):
+                return False
+
+            trail.append((1, e, color[e]))
+            color[e] = c
+            trail.append((0, e, masks[e]))
+            masks[e] = bit
+
+            trail.append((2, u, used[u]))
+            used[u] |= bit
+            trail.append((2, v, used[v]))
+            used[v] |= bit
+
+            for x in (u, v):
+                for f in inc[x]:
+                    if color[f] == -1 and (masks[f] & bit):
+                        old = masks[f]
+                        new = old & ~bit
+                        trail.append((0, f, old))
+                        masks[f] = new
+                        if new == 0:
+                            return False
+                        if new & (new - 1) == 0:
+                            queue.append((f, new.bit_length() - 1))
+
+            for x in (u, v):
+                remaining = 7 & ~used[x]
+                b = 1
+                for c2 in range(3):
+                    if remaining & b:
+                        only = -1
+                        count = 0
+                        for f in inc[x]:
+                            if color[f] == -1 and (masks[f] & b):
+                                count += 1
+                                only = f
+                        if count == 0:
+                            return False
+                        if count == 1:
+                            queue.append((only, c2))
+                    b <<= 1
+
+        return True
+
+    def solve_component(vertices, edges):
+        # Branch on an exact-one constraint with two candidates when possible.
+        branch_pair = None
+
+        for v in vertices:
+            remaining = 7 & ~used[v]
+            bit = 1
+            for c in range(3):
+                if remaining & bit:
+                    candidates = []
+                    for e in inc[v]:
+                        if color[e] == -1 and (masks[e] & bit):
+                            candidates.append(e)
+                    if len(candidates) == 2:
+                        branch_pair = (candidates[0], candidates[1], c)
+                        break
+                bit <<= 1
+            if branch_pair is not None:
+                break
+
+        unassigned = -1
+        best_count = 4
+        if branch_pair is None:
+            for e in edges:
+                if color[e] == -1:
+                    cnt = masks[e].bit_count()
+                    if cnt < best_count:
+                        best_count = cnt
+                        unassigned = e
+                        if cnt == 2:
+                            break
+
+            if unassigned == -1:
+                return True
+
+        if branch_pair is not None:
+            e1, e2, c = branch_pair
+            choices = ((e1, c), (e2, c))
+        else:
+            choices_list = []
+            mm = masks[unassigned]
+            for c in range(3):
+                if mm & (1 << c):
+                    choices_list.append((unassigned, c))
+            choices = choices_list
+
+        for e, c in choices:
+            snapshot = len(trail)
+            if propagate([(e, c)]) and solve_component(vertices, edges):
+                return True
+            rollback(snapshot)
+
+        return False
+
+    for idx, (vertices, edges) in enumerate(components):
+        if is_bipartite[idx]:
+            continue
+
+        root = vertices[0]
+        root_edges = inc[root]
+        snapshot = len(trail)
+        initial = [(root_edges[0], 0), (root_edges[1], 1), (root_edges[2], 2)]
+
+        if not propagate(initial) or not solve_component(vertices, edges):
+            rollback(snapshot)
+            print("NO")
+            return
+
+    if any(c < 0 for c in color):
+        print("NO")
+        return
+
+    print("YES")
+    print(" ".join(str(c + 1) for c in color))
+
+if __name__ == "__main__":
+    main()
+```

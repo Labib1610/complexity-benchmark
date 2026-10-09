@@ -1,0 +1,108 @@
+import sys
+from collections import defaultdict
+
+def main():
+    import sys
+    sys.setrecursionlimit(1 << 25)
+    
+    n, m = map(int, sys.stdin.readline().split())
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(["0"] * n))
+        return
+    
+    # For each rule (l1 or l2), we create implications
+    # l1 or l2 is equivalent to (not l1 -> l2) and (not l2 -> l1)
+    
+    # We'll build a graph for 2-SAT
+    # Variables: 0 to n-1 for relays in mode 0, n to 2n-1 for relays in mode 1
+    # But it's easier to work with signed variables: +i for relay i in mode 1, -i for mode 0
+    
+    adj = defaultdict(list)
+    adj_rev = defaultdict(list)
+    
+    for _ in range(m):
+        l1, l2 = map(int, sys.stdin.readline().split())
+        # l1 or l2
+        # This is equivalent to (not l1 -> l2) and (not l2 -> l1)
+        # not l1 -> l2
+        adj[-l1].append(l2)
+        adj_rev[l2].append(-l1)
+        # not l2 -> l1
+        adj[-l2].append(l1)
+        adj_rev[l1].append(-l2)
+    
+    # Kosaraju's algorithm for finding SCCs
+    visited = set()
+    order = []
+    
+    def dfs1(u):
+        if u in visited:
+            return
+        visited.add(u)
+        for v in adj[u]:
+            dfs1(v)
+        order.append(u)
+    
+    # Collect all nodes
+    nodes = set()
+    for u in adj:
+        nodes.add(u)
+        for v in adj[u]:
+            nodes.add(v)
+    
+    for u in nodes:
+        dfs1(u)
+    
+    visited = set()
+    scc = {}
+    scc_id = 0
+    
+    def dfs2(u):
+        if u in visited:
+            return
+        visited.add(u)
+        scc[u] = scc_id
+        for v in adj_rev[u]:
+            dfs2(v)
+    
+    for u in reversed(order):
+        if u not in visited:
+            dfs2(u)
+            scc_id += 1
+    
+    # Check for contradiction
+    for i in range(1, n+1):
+        if scc.get(i, -1) == scc.get(-i, -1):
+            print("NO")
+            return
+    
+    # Assign values
+    result = [0] * (n + 1)  # 1-indexed
+    
+    # Process SCCs in reverse topological order
+    scc_order = list(range(scc_id))
+    scc_order.sort(key=lambda x: -list(scc.values()).count(x))  # Not needed, we just need to process in order
+    
+    # Actually, we process variables in the order of their SCCs in the condensation graph
+    # But since we built the order via Kosaraju, we can just go in reverse order of finishing times
+    
+    assigned = [False] * (n + 1)
+    
+    for u in reversed(order):
+        var = abs(u)
+        if var == 0 or assigned[var]:
+            continue
+        if u > 0 and not assigned[var]:
+            result[var] = 1
+            assigned[var] = True
+        elif u < 0 and not assigned[var]:
+            result[var] = 0
+            assigned[var] = True
+    
+    print("YES")
+    print(" ".join(str(result[i]) for i in range(1, n+1)))
+
+if __name__ == "__main__":
+    main()

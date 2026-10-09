@@ -1,0 +1,127 @@
+import sys
+from collections import deque
+
+def solve():
+    input = sys.stdin.readline
+    n, m = map(int, input().split())
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u, v = map(int, input().split())
+        u -= 1
+        v -= 1
+        adj[u].append(v)
+        adj[v].append(u)
+
+    color = [-1] * n
+    possible = True
+
+    for i in range(n):
+        if color[i] != -1:
+            continue
+        # try coloring with 0 (phase 1) first
+        q = deque([i])
+        color[i] = 0
+        ok = True
+        while q:
+            u = q.popleft()
+            for v in adj[u]:
+                if color[v] == -1:
+                    color[v] = color[u] ^ 1
+                    q.append(v)
+                elif color[v] == color[u]:
+                    ok = False
+                    break
+            if not ok:
+                break
+        if not ok:
+            # try coloring with 1 (phase 2) first
+            color = [-1] * n
+            q = deque([i])
+            color[i] = 1
+            ok = True
+            while q:
+                u = q.popleft()
+                for v in adj[u]:
+                    if color[v] == -1:
+                        color[v] = color[u] ^ 1
+                        q.append(v)
+                    elif color[v] == color[u]:
+                        ok = False
+                        break
+                if not ok:
+                    break
+            if not ok:
+                print("NO")
+                return
+            # else we have a valid coloring with this start
+        # else we already have a valid coloring with 0 start
+
+    # Now we have a valid coloring, but we need lexicographically smallest.
+    # The above greedy may not be globally lexicographically smallest because
+    # we might have chosen a different color for a component start.
+    # We need to ensure for each component, we pick the start color that yields
+    # lexicographically smaller overall sequence.
+
+    # We'll redo with a proper approach: for each component, try both colorings
+    # and pick the one that gives smaller result for that component.
+
+    color = [-1] * n
+    for i in range(n):
+        if color[i] != -1:
+            continue
+        # BFS to collect component
+        comp = []
+        q = deque([i])
+        color[i] = 0
+        comp.append(i)
+        while q:
+            u = q.popleft()
+            for v in adj[u]:
+                if color[v] == -1:
+                    color[v] = color[u] ^ 1
+                    q.append(v)
+                    comp.append(v)
+        # Now we have a coloring for this component with start 0.
+        # Try start 1 as well.
+        color2 = color[:]
+        # flip all colors in this component
+        for u in comp:
+            color2[u] ^= 1
+        # Check if both are valid
+        valid0 = True
+        valid1 = True
+        for u in comp:
+            for v in adj[u]:
+                if color[u] == color[v]:
+                    valid0 = False
+                if color2[u] == color2[v]:
+                    valid1 = False
+        if not valid0 and not valid1:
+            print("NO")
+            return
+        if valid0 and valid1:
+            # choose lexicographically smaller for this component
+            # compare the two sequences restricted to comp
+            # Since comp is sorted by index? Not necessarily, but we can compare
+            # by iterating over all nodes in order and picking the first difference.
+            # We'll just compare the full arrays after applying.
+            # But we haven't applied to all yet. We'll decide now.
+            # Compare color vs color2 for nodes in comp, in increasing index order.
+            comp_sorted = sorted(comp)
+            for u in comp_sorted:
+                if color[u] != color2[u]:
+                    if color[u] > color2[u]:
+                        # color2 is smaller
+                        for v in comp:
+                            color[v] = color2[v]
+                    break
+        elif not valid0:
+            for v in comp:
+                color[v] = color2[v]
+        # else keep color
+
+    print("YES")
+    print(' '.join(str(c + 1) for c in color))
+
+if __name__ == "__main__":
+    solve()

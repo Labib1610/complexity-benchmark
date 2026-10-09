@@ -1,0 +1,191 @@
+import sys
+sys.setrecursionlimit(10000)
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [[] for _ in range(n + 1)]
+    edges = []
+    for i in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        edges.append((u, v))
+        adj[u].append((v, i))
+        adj[v].append((u, i))
+    
+    # Check degree
+    for i in range(1, n + 1):
+        if len(adj[i]) != 3:
+            print("NO")
+            return
+    
+    # Build adjacency list with edge indices for traversal
+    # We need to find cycles in the 4-regular graph formed by vertices (valves)
+    # and edges (pipelines). Each valve has degree 3.
+    # The graph is a union of cycles.
+    
+    visited_edges = [False] * m
+    edge_colors = [0] * m
+    
+    # For each unvisited edge, start a cycle traversal
+    for start_edge_idx in range(m):
+        if visited_edges[start_edge_idx]:
+            continue
+        
+        # Start traversing a cycle
+        u, v = edges[start_edge_idx]
+        # Choose direction: start from u, go to v
+        curr = v
+        prev = u
+        edge_idx = start_edge_idx
+        
+        color = 1
+        path = []
+        
+        while not visited_edges[edge_idx]:
+            visited_edges[edge_idx] = True
+            edge_colors[edge_idx] = color
+            path.append(edge_idx)
+            
+            # Find next edge
+            # Current vertex is curr, we came from prev via edge_idx
+            # We need to find the next edge from curr
+            # The rule: take the edge that is not the one we came from
+            # and not the one that shares the same "other" vertex as prev
+            
+            # Actually, the rule is simpler:
+            # At each vertex, the three edges are e1, e2, e3.
+            # If we arrived via e1, we leave via e2 or e3.
+            # The choice determines which cycle we are tracing.
+            # Since the graph is 4-regular (each vertex has 2 cycles passing through),
+            # we need to consistently choose one direction.
+            
+            # Let's use the rule: if we arrived via edge e1, and the other two edges
+            # are e2 and e3, then we leave via the edge that does NOT share the same
+            # "other" vertex as e1. This is equivalent to: if we arrived from vertex A,
+            # and the current vertex is B, then we leave via the edge that goes to C,
+            # where C is the vertex that is NOT A and NOT the vertex shared by the other edge.
+            
+            # Wait, let's re-derive.
+            # At vertex B, we have 3 edges: to A, to C, to D.
+            # We arrived from A. The other two edges go to C and D.
+            # The cycles are formed by alternating edges.
+            # If we take edge to C, then at C, we must take the edge that doesn't go back to B
+            # and doesn't go to the vertex that shares an edge with B (other than A).
+            # This is getting complicated.
+            
+            # Let's use the simpler rule:
+            # At vertex B, we arrived from A. The other two edges go to C and D.
+            # We need to choose one. Let's say we choose C.
+            # Then at C, we arrived from B. The other two edges go to E and F.
+            # We need to choose one. The rule is: we cannot go to a vertex that is
+            # connected to B (other than A and C). But B is connected to A, C, D.
+            # So we cannot go to D. We can go to E or F.
+            # This means we need to track the "forbidden" vertex.
+            
+            # Let's implement this.
+            
+            # Current state: at vertex `curr`, came from `prev`.
+            # Find the next edge.
+            next_edge_idx = -1
+            next_curr = -1
+            
+            for neighbor, e_idx in adj[curr]:
+                if e_idx == edge_idx:
+                    continue
+                # Check if this edge shares a vertex with the edge we came from
+                # The edge we came from is (prev, curr)
+                # This edge is (curr, neighbor)
+                # We need to check if neighbor is connected to prev
+                # But we don't have direct access to that.
+                # Instead, we check if the edge (prev, neighbor) exists.
+                # We can precompute a set of edges for faster lookup.
+                pass
+            
+            # Precompute edge set
+            pass
+        
+        # This approach is getting too complex. Let's use a different method.
+        break
+    
+    # Alternative approach:
+    # Since the graph is 4-regular, we can find cycles by:
+    # 1. Start at any vertex.
+    # 2. Take any edge.
+    # 3. At each vertex, take the edge that is not the one we came from
+    #    and not the one that is "paired" with it.
+    # The pairing is determined by the structure of the graph.
+    
+    # Let's use the fact that the graph is a line graph of a cubic graph.
+    # This means we can find a perfect matching in the original graph,
+    # and the cycles correspond to the edges not in the matching.
+    
+    # But finding a perfect matching is also non-trivial.
+    
+    # Let's go back to the cycle finding approach.
+    # We can use a simple DFS to find cycles.
+    
+    # Re-initialize
+    visited_edges = [False] * m
+    edge_colors = [0] * m
+    
+    # Precompute edge set for O(1) lookup
+    edge_set = set(edges)
+    
+    for start_edge_idx in range(m):
+        if visited_edges[start_edge_idx]:
+            continue
+        
+        u, v = edges[start_edge_idx]
+        curr = v
+        prev = u
+        edge_idx = start_edge_idx
+        color = 1
+        
+        while not visited_edges[edge_idx]:
+            visited_edges[edge_idx] = True
+            edge_colors[edge_idx] = color
+            
+            # Find next edge
+            # At vertex `curr`, we came from `prev`.
+            # The other two edges go to `next1` and `next2`.
+            # We need to choose the one that is not connected to `prev`.
+            
+            candidates = []
+            for neighbor, e_idx in adj[curr]:
+                if e_idx != edge_idx:
+                    candidates.append((neighbor, e_idx))
+            
+            if len(candidates) != 2:
+                # Should not happen
+                print("NO")
+                return
+            
+            next1, e1 = candidates[0]
+            next2, e2 = candidates[1]
+            
+            # Check which one is not connected to prev
+            # i.e., check if (prev, next1) is an edge
+            if (min(prev, next1), max(prev, next1)) in edge_set:
+                # next1 is connected to prev, so we take next2
+                next_curr = next2
+                next_edge_idx = e2
+            else:
+                # next1 is not connected to prev, so we take next1
+                next_curr = next1
+                next_edge_idx = e1
+            
+            prev = curr
+            curr = next_curr
+            edge_idx = next_edge_idx
+            color = 3 - color  # Alternate between 1 and 2
+    
+    print("YES")
+    print(" ".join(map(str, edge_colors)))
+
+solve()

@@ -1,0 +1,119 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    n = int(data[0])
+    m = int(data[1])
+    k = int(data[2])
+    
+    adj = [0] * (n + 1)
+    idx = 3
+    for _ in range(m):
+        u = int(data[idx]); v = int(data[idx+1]); idx += 2
+        adj[u] |= (1 << v)
+        adj[v] |= (1 << u)
+    
+    if k == 0:
+        print("YES")
+        print()
+        return
+    
+    if k == 1:
+        print("YES")
+        print(1)
+        return
+    
+    if k > n:
+        print("NO")
+        return
+    
+    # Check if there's a vertex with degree < k-1
+    for v in range(1, n+1):
+        deg = bin(adj[v]).count('1')
+        if deg < k - 1:
+            # v can be in a clique of size k only if it has at least k-1 neighbors
+            # But we need independent set, not clique
+            pass
+    
+    # For independent set: we need k vertices with no edges between them
+    # Check complement graph for clique of size k
+    
+    # If k is small, try all combinations
+    if k <= 5:
+        from itertools import combinations
+        for combo in combinations(range(1, n+1), k):
+            valid = True
+            for i in range(k):
+                for j in range(i+1, k):
+                    u, v = combo[i], combo[j]
+                    if (adj[u] >> v) & 1:
+                        valid = False
+                        break
+                if not valid:
+                    break
+            if valid:
+                print("YES")
+                print(' '.join(map(str, combo)))
+                return
+        print("NO")
+        return
+    
+    # For larger k, use meet-in-the-middle or other techniques
+    # Since n <= 46, we can try splitting
+    
+    # Let's try a greedy + backtracking approach
+    # Or use the fact that if max degree is small, independent set is large
+    
+    # Check if answer exists by checking complement graph clique
+    # Complement adjacency
+    comp_adj = [0] * (n + 1)
+    full = (1 << (n+1)) - 1
+    for v in range(1, n+1):
+        comp_adj[v] = ((1 << (n+1)) - 1) ^ adj[v] ^ (1 << v)
+    
+    # Try to find independent set of size k using backtracking with pruning
+    # Sort vertices by degree (ascending in original graph = descending in complement)
+    
+    best = []
+    
+    def backtrack(candidates, current):
+        nonlocal best
+        if len(current) == k:
+            best = list(current)
+            return True
+        if len(current) + bin(candidates).count('1') < k:
+            return False
+        
+        # Pick the lowest vertex
+        v = (candidates & -candidates).bit_length() - 1
+        if v < 1:
+            return False
+        
+        # Try including v
+        new_candidates = candidates & ~((1 << v))
+        # Remove neighbors of v from candidates
+        new_candidates &= ~adj[v]
+        current.append(v)
+        if backtrack(new_candidates, current):
+            return True
+        current.pop()
+        
+        # Try excluding v
+        if backtrack(candidates & ~(1 << v), current):
+            return True
+        
+        return False
+    
+    candidates = 0
+    for v in range(1, n+1):
+        candidates |= (1 << v)
+    
+    if backtrack(candidates, []):
+        print("YES")
+        print(' '.join(map(str, best)))
+    else:
+        print("NO")
+
+solve()

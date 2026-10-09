@@ -1,0 +1,51 @@
+def solve():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    # Parse rules
+    rules = []
+    idx = 2
+    for _ in range(m):
+        rule = []
+        for _ in range(3):
+            num = int(data[idx])
+            idx += 1
+            rule.append(num)
+        rules.append(rule)
+    
+    # Try all possible configurations
+    for mask in range(1 << n):
+        valid = True
+        # Check each rule
+        for rule in rules:
+            satisfied = False
+            for literal in rule:
+                zone_idx = abs(literal) - 1  # Convert to 0-based index
+                setting = (mask >> zone_idx) & 1
+                if literal > 0:  # Positive: need Refrigerated (1)
+                    if setting == 1:
+                        satisfied = True
+                        break
+                else:  # Negative: need Ambient (0)
+                    if setting == 0:
+                        satisfied = True
+                        break
+            if not satisfied:
+                valid = False
+                break
+        
+        if valid:
+            print("YES")
+            config = []
+            for i in range(n):
+                config.append(str((mask >> i) & 1))
+            print(" ".join(config))
+            return
+    
+    print("NO")
+
+solve()

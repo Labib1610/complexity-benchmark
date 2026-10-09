@@ -1,0 +1,38 @@
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    j = int(data[0])
+    # data[1:] contains 2*j integers
+    vessels = []
+    idx = 1
+    for _ in range(j):
+        p1 = int(data[idx]); p2 = int(data[idx+1])
+        vessels.append((p1, p2))
+        idx += 2
+    
+    # Sort by min(p1, p2) ascending, with p1 before p2 when equal
+    vessels.sort(key=lambda x: (min(x[0], x[1]), x[0]))
+    
+    # Compute prefix sums of p1
+    prefix_p1 = [0] * (j + 1)
+    for i in range(j):
+        prefix_p1[i+1] = prefix_p1[i] + vessels[i][0]
+    
+    # Compute suffix maximums of p2
+    suffix_max_p2 = [0] * (j + 1)
+    for i in range(j-1, -1, -1):
+        suffix_max_p2[i] = max(suffix_max_p2[i+1], vessels[i][1])
+    
+    # Find minimum of prefix_p1[k] + suffix_max_p2[k] for k in 0..j
+    ans = float('inf')
+    for k in range(j + 1):
+        val = prefix_p1[k] + suffix_max_p2[k]
+        if val < ans:
+            ans = val
+    
+    print(ans)
+
+solve()

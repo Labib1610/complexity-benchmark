@@ -1,21 +1,16 @@
-# Problem B — Signal Balancing
+# Problem B — Factory Tuning
 
-Time limit: 1 s
-Memory limit: 256 MB
+Time limit: 1 s   Memory limit: 256 MB
 
-You are configuring $n$ signal transmitters. Each transmitter must be assigned a power level of either 1 or 2.
-
-The network contains $m$ receivers. Each receiver listens to exactly two specific transmitters. To decode the transmission correctly, each receiver must detect a combined total power level of exactly 3 from the two transmitters it listens to. 
-
-You must assign a power level to each of the $n$ transmitters so that all $m$ receivers detect a combined power level of exactly 3. If no such configuration is possible, you must report it.
+The factory requires each of its $n$ machines to be set to a power mode of either 1 or 2. There are $m$ interference links between specific pairs of machines. A legacy controller accepts a link only when the $2 \times 2$ matrix $\begin{pmatrix} x & 1 \\ 1 & y \end{pmatrix}$, where $x$ and $y$ are the modes of the two connected machines, is invertible and its inverse matrix consists entirely of integers. You must assign a power mode to every machine such that all $m$ links are accepted by the controller.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$).
-Each of the next $m$ lines contains two integers $u$ and $v$ — the two transmitters that a single receiver listens to.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$).
+Each of the next $m$ lines contains two integers $u$ and $v$ — a linked pair of machines.
 
 ## Output
-If no valid power level assignment exists, print a single line containing `NO`.
-Otherwise, print `YES` on the first line, followed by a second line containing $n$ integers $p_1, \dots, p_n$ (each $p_i \in \{1, 2\}$), where $p_i$ is the power level assigned to transmitter $i$. If there are multiple valid assignments, output the one that is lexicographically smallest.
+If no valid assignment of modes exists, print a single line NO.
+Otherwise print YES, then a second line with $n$ integers $s_1 \dots s_n$ (each in $\{1,2\}$), representing the lexicographically smallest valid assignment.
 
 ## Example 1
 Input:

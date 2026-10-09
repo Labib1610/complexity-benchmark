@@ -1,0 +1,90 @@
+from collections import defaultdict, deque
+
+def solve():
+    n, M, T, m = map(int, input().split())
+    
+    # Build graph and in-degree count
+    graph = defaultdict(list)
+    in_degree = [0] * (n + 1)
+    
+    for _ in range(m):
+        a, b = map(int, input().split())
+        graph[a].append(b)
+        in_degree[b] += 1
+    
+    # Topological sort with level assignment
+    queue = deque()
+    for i in range(1, n + 1):
+        if in_degree[i] == 0:
+            queue.append(i)
+    
+    # level[i] represents the earliest section where document i can be placed
+    level = [0] * (n + 1)
+    topo_order = []
+    
+    while queue:
+        node = queue.popleft()
+        topo_order.append(node)
+        for neighbor in graph[node]:
+            in_degree[neighbor] -= 1
+            level[neighbor] = max(level[neighbor], level[node] + 1)
+            if in_degree[neighbor] == 0:
+                queue.append(neighbor)
+    
+    # Check if all nodes were processed (no cycles)
+    if len(topo_order) != n:
+        print("NO")
+        return
+    
+    # Group nodes by their level
+    max_level = max(level[1:])
+    if max_level >= T:  # Not enough sections
+        print("NO")
+        return
+    
+    # Count nodes per level
+    level_count = [0] * (max_level + 1)
+    for i in range(1, n + 1):
+        level_count[level[i]] += 1
+    
+    # Check if any level exceeds M documents
+    if any(count > M for count in level_count):
+        # Try to distribute nodes within their valid section ranges
+        section = [0] * (n + 1)
+        level_nodes = [[] for _ in range(max_level + 1)]
+        
+        for i in range(1, n + 1):
+            level_nodes[level[i]].append(i)
+        
+        # Assign sections level by level
+        section_count = [0] * (T + 1)  # 1-indexed
+        
+        for lvl in range(max_level + 1):
+            # Documents at this level can go to sections [lvl, T-1] (0-indexed as [lvl+1, T])
+            # But we need to respect the M limit
+            for node in level_nodes[lvl]:
+                # Find the earliest section >= lvl+1 that has space
+                assigned = False
+                for s in range(lvl + 1, T + 1):
+                    if section_count[s] < M:
+                        section[node] = s
+                        section_count[s] += 1
+                        assigned = True
+                        break
+                if not assigned:
+                    print("NO")
+                    return
+        
+        print("YES")
+        print(*section[1:])
+        return
+    
+    # Simple case: assign section = level + 1
+    section = [0] * (n + 1)
+    for i in range(1, n + 1):
+        section[i] = level[i] + 1
+    
+    print("YES")
+    print(*section[1:])
+
+solve()

@@ -1,135 +1,50 @@
-import sys
-from collections import defaultdict, deque
-
-def read_input():
-    n, m = map(int, sys.stdin.readline().split())
-    edges = []
-    for _ in range(m):
-        u, v = map(int, sys.stdin.readline().split())
-        edges.append((u, v))
-    return n, m, edges
-
 def solve():
-    n, m, edges = read_input()
+    n, m = map(int, input().split())
     
-    # Build adjacency list
-    adj = defaultdict(list)
-    for u, v in edges:
+    # Create adjacency list representation of the graph
+    # Each edge represents a friction between two technicians
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u, v = map(int, input().split())
         adj[u].append(v)
         adj[v].append(u)
     
-    # Color nodes with 3 colors using BFS/DFS, trying to get lexicographically smallest assignment
-    color = [0] * (n + 1)  # 0 means uncolored, 1, 2, 3 are the colors
-    
-    # For each connected component, we need to try coloring
-    for start_node in range(1, n + 1):
-        if color[start_node] != 0:
-            continue
-            
-        # Try to color this component starting with color 1 for the first node
-        # We'll use BFS and try colors 1,2,3 in order for the starting node
-        queue = deque([start_node])
-        color[start_node] = 1
-        
-        while queue:
-            node = queue.popleft()
-            current_color = color[node]
-            
-            # Check neighbors
-            for neighbor in adj[node]:
-                if color[neighbor] == 0:
-                    # Assign the smallest available color (1,2,3) that's not used by neighbors
-                    forbidden = set()
-                    for n_neighbor in adj[neighbor]:
-                        if color[n_neighbor] != 0:
-                            forbidden.add(color[n_neighbor])
-                    
-                    # Try colors 1,2,3 in order
-                    new_color = 0
-                    for c in range(1, 4):
-                        if c not in forbidden:
-                            new_color = c
-                            break
-                    
-                    if new_color == 0:
-                        print("NO")
-                        return
-                        
-                    color[neighbor] = new_color
-                    queue.append(neighbor)
-                else:
-                    # Check if there's a conflict
-                    if color[neighbor] == current_color:
-                        print("NO")
-                        return
-    
-    # Now we have a valid coloring, but it might not be lexicographically smallest
-    # We need to do a more careful approach to get the lex smallest
-    
-    # Let's restart with a better approach
+    # Try to 3-color the graph
+    # color[i] will be 0 if uncolored, 1/2/3 for the three periods
     color = [0] * (n + 1)
     
-    def is_valid_color(node, c):
-        for neighbor in adj[node]:
-            if color[neighbor] == c:
-                return False
-        return True
-    
-    # Try to assign colors greedily in lexicographical order
-    def dfs(node):
-        # For current node, try colors 1,2,3 in order
+    # Check if we can 3-color the graph using backtracking
+    def can_color(node):
+        if node > n:
+            return True
+            
+        # Try each of the 3 colors
         for c in range(1, 4):
-            if is_valid_color(node, c):
-                color[node] = c
-                # Find next uncolored node
-                next_node = -1
-                for i in range(1, n + 1):
-                    if color[i] == 0:
-                        next_node = i
-                        break
-                
-                if next_node == -1:
-                    return True  # All colored
-                    
-                if dfs(next_node):
-                    return True
-                    
-                # Backtrack handled implicitly by loop
-                
-        # Reset color before returning
-        color[node] = 0
-        return False
-    
-    # Start with node 1
-    if n > 0:
-        found = False
-        for c in range(1, 4):
-            color[1] = c
-            next_node = -1
-            for i in range(2, n + 1):
-                if color[i] == 0:
-                    next_node = i
+            # Check if this color is valid for current node
+            valid = True
+            for neighbor in adj[node]:
+                if color[neighbor] == c:
+                    valid = False
                     break
             
-            success = False
-            if next_node == -1:
-                success = True
-            else:
-                success = dfs(next_node)
-                
-            if success:
-                found = True
-                break
-            else:
-                color[1] = 0
-                
-        if not found:
-            print("NO")
-            return
-    else:
-        pass  # n=0 case, already all colored
+            if valid:
+                color[node] = c
+                if can_color(node + 1):
+                    return True
+                color[node] = 0  # backtrack
+        
+        return False
     
-    print("YES")
-    print(' '.join(map(str, color[1:n+1])))
+    # Special case: no technicians
+    if n == 0:
+        print("YES")
+        return
+    
+    # Try to color the graph
+    if can_color(1):
+        print("YES")
+        print(*color[1:])
+    else:
+        print("NO")
 
 solve()

@@ -1,0 +1,113 @@
+import sys
+from collections import deque
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    q = int(next(it))
+    t = int(next(it))
+
+    # Adjacency list: adj[u] stores list of (v, edge_id)
+    adj = [[] for _ in range(q + 1)]
+    edges = []
+    for i in range(t):
+        u = int(next(it))
+        v = int(next(it))
+        edges.append((u, v))
+        adj[u].append((v, i))
+
+    # We need to find a perfect matching in the bipartite graph.
+    # Using Hopcroft-Karp algorithm.
+    
+    pair_U = [-1] * (q + 1)  # pair_U[u] = v matched to u
+    pair_V = [-1] * (q + 1)  # pair_V[v] = u matched to v (indices 1..q)
+    dist = [0] * (q + 1)
+
+    def bfs():
+        queue = deque()
+        for u in range(1, q + 1):
+            if pair_U[u] == -1:
+                dist[u] = 0
+                queue.append(u)
+            else:
+                dist[u] = float('inf')
+        
+        found_augmenting_path = False
+        while queue:
+            u = queue.popleft()
+            for v, edge_id in adj[u]:
+                # If v is matched, the partner of v is pair_V[v]
+                # We check if we can reach the partner through v
+                if pair_V[v] != -1:
+                    if dist[pair_V[v]] == float('inf'):
+                        dist[pair_V[v]] = dist[u] + 1
+                        queue.append(pair_V[v])
+                else:
+                    # We found a free vertex in V, so an augmenting path exists
+                    found_augmenting_path = True
+        return found_augmenting_path
+
+    def dfs(u):
+        for v, edge_id in adj[u]:
+            if pair_V[v] == -1 or (dist[pair_V[v]] == dist[u] + 1 and dfs(pair_V[v])):
+                pair_U[u] = v
+                pair_V[v] = u
+                return True
+        dist[u] = float('inf')
+        return False
+
+    matching_size = 0
+    while bfs():
+        for u in range(1, q + 1):
+            if pair_U[u] == -1:
+                if dfs(u):
+                    matching_size += 1
+    
+    if matching_size < q:
+        print("NO")
+    else:
+        print("YES")
+        # Reconstruct the selected edges
+        # We need to output the original edge indices (a, b)
+        # pair_U[u] gives the matched v.
+        # We need to find which edge (u, v) was used.
+        # Since multiple edges can exist between u and v, we need to track used edges.
+        
+        used_edges = [False] * t
+        # To avoid reusing edges, we can iterate through adjacency lists and mark used.
+        # We need to output exactly q edges.
+        
+        # Let's build a list of selected edges to print
+        output_lines = []
+        # We need to be careful: pair_U[u] = v.
+        # We need to pick one valid edge (u, v) from the input.
+        # We can iterate through edges and pick the first unused one that matches the pair.
+        
+        # To speed up, we can use a pointer for each u to track which edges we've considered
+        # but since we just need to output, iterating edges is fine if we mark used.
+        # However, iterating edges for every u is O(t).
+        # Better: iterate edges once, check if it matches a pair in pair_U.
+        
+        # But wait, if there are multiple edges (u, v), we only need one.
+        # Let's just iterate u from 1 to q, and pick the first edge in adj[u] that connects to pair_U[u].
+        
+        # We need to ensure we don't print duplicate edges if the logic was flawed,
+        # but here each u is distinct, so we just pick one edge for each u.
+        
+        for u in range(1, q + 1):
+            v = pair_U[u]
+            # Find an edge (u, v)
+            # We can iterate adj[u] to find one.
+            # To avoid printing the same edge index twice (though logically impossible here
+            # since u is unique), we just find the edge.
+            for v_neighbor, edge_id in adj[u]:
+                if v_neighbor == v:
+                    output_lines.append(f"{u} {v}")
+                    break
+        
+        sys.stdout.write("\n".join(output_lines) + "\n")
+
+if __name__ == '__main__':
+    solve()

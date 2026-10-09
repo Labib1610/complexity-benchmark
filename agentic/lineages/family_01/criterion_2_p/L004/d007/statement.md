@@ -1,25 +1,34 @@
-# Problem B — Binary Variable Assignment
+# Orbital Resonance
 
 Time limit: 1 s
 Memory limit: 256 MB
 
-You are given $n$ variables $z_1, z_2, \dots, z_n$. Each variable must be assigned a value of either $1$ or $2$.
+A deep space communications network consists of $n$ relay satellites, numbered 1 through $n$. Within this network, there are $m$ known proximity hazards. Each hazard involves a specific pair of satellites that are physically too close to one another.
 
-You are also given a sequence of $m$ pairs of indices. Let $(u, v)$ represent a pair in this sequence.
+To stabilize the network, every satellite $i$ must be assigned a tuning parameter $s_i \in \{1, 2\}$. 
 
-Determine whether there exists at least one valid assignment of values to all $n$ variables such that the following equality holds exactly:
+This parameter determines the satellite's spatial orientation vector $V_i \in \mathbb{R}^3$:
+- If $s_i = 1$, its orientation is $V_i = (1, 2, 2)$.
+- If $s_i = 2$, its orientation is $V_i = (2, 1, 2)$.
 
-$$ \sum_{(u, v)} \left( \frac{z_u}{z_v} + \frac{z_v}{z_u} \right) = \frac{5m}{2} $$
+When a signal passes between two satellites $u$ and $v$ involved in a proximity hazard, it generates an interference vector $W_{u,v}$ defined by the cross product of their orientations:
+$W_{u,v} = V_u \times V_v$
 
-where the sum is taken over all $m$ given pairs.
+The scalar interference of this specific hazard is given by the squared Euclidean norm of the interference vector, $\|W_{u,v}\|^2$.
+
+For the network to be safe, the total scalar interference across all $m$ listed hazards must be exactly $17m$.
+
+Your task is to determine if there is a valid configuration of tuning parameters for all $n$ satellites that achieves this exact total interference. If such a configuration is possible, you must output it. 
+
+Among all valid assignments $s_1, s_2, \dots, s_n$, output the lexicographically smallest sequence. (A sequence $A$ is lexicographically smaller than sequence $B$ if, at the first index $i$ where they differ, $A_i < B_i$).
 
 ## Input
 The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$).
-Each of the next $m$ lines contains two integers $u$ and $v$ — the indices of the variables in a pair.
+Each of the next $m$ lines contains two integers $u$ and $v$ — a proximity hazard between satellite $u$ and satellite $v$.
 
 ## Output
-If no such assignment exists, output a single line containing `NO`.
-Otherwise, output `YES` on the first line. On the second line, output $n$ integers $z_1 \dots z_n$ (where each $z_i \in \{1,2\}$) representing the assignment. If there are multiple valid assignments that satisfy the equation, output the lexicographically smallest sequence $z_1 \dots z_n$.
+If no safe configuration exists, print a single line containing `NO`.
+Otherwise, print `YES` on the first line. On the second line, print $n$ integers $s_1, \dots, s_n$ (each being either 1 or 2), representing the tuning parameter assigned to each satellite from 1 to $n$. This sequence must be the lexicographically smallest valid assignment.
 
 ## Example 1
 Input:

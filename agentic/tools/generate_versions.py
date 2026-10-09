@@ -341,7 +341,7 @@ def main():
 
     ap = argparse.ArgumentParser()
     ap.add_argument("--family", required=True)   # id or 'all'
-    ap.add_argument("--criterion", type=int, choices=[1, 2, 3])
+    ap.add_argument("--criterion", type=int, choices=[1, 2])
     ap.add_argument("--sources", default="grid,sample,composition")
     ap.add_argument("--n", type=int, default=None)
     ap.add_argument("--dry-run", action="store_true")
@@ -359,7 +359,7 @@ def main():
     strategies = load_strategies()
     intensities = load_intensities()
 
-    crits = [args.criterion] if args.criterion else run_cfg.get("criteria", [1, 2, 3])
+    crits = [args.criterion] if args.criterion else run_cfg.get("criteria", [1, 2])
     for family in B.list_families(args.family):
         for c in crits:
             run_criterion(family, c, sources, args, run_cfg, models, strategies, intensities)

@@ -1,21 +1,22 @@
-# Problem A — Shift Distribution
+# Acoustic Levitation Arrays
 
-Time limit: 2 s
-Memory limit: 256 MB
+Time limit: 2 s   Memory limit: 256 MB
 
-A factory employs $n$ workers. To keep operations running smoothly, the factory operates on three distinct shifts each day, labeled 1, 2, and 3. Every worker must be assigned to exactly one of these three shifts.
+You are tasked with tuning an acoustic levitation array consisting of $n$ wave emitters. For the system to function, every emitter must be assigned a phase offset. The hardware allows exactly three distinct offset modes, identified by the numeric codes 1, 2, and 3.
 
-However, certain pairs of workers have conflicts. You are provided with a list of historical conflicts between distinct workers. If two workers have a conflict, they cannot be assigned to the same shift.
+Due to the geometry of the system, certain pairs of emitters project sound waves that converge at shared focal points. In total, there are $m$ such pairs. When a pair of emitters targets the same focal point, their acoustic outputs interfere. If the product of their two assigned numeric codes results in a perfect square, the interference becomes perfectly constructive. This causes a localized pressure spike that destroys the levitated specimen. Therefore, for the system to operate safely, the product of the codes assigned to any two emitters that share a focal point must never be a perfect square.
 
-Your objective is to determine if a valid shift assignment exists for all $n$ workers. If it does, you must find the assignment that minimizes the objective function $\sum_{i=1}^n s_i \cdot 4^{n-i}$, where $s_i$ is the shift number assigned to worker $i$. 
+Be aware that the evaluation data includes highly interconnected emitter arrangements. These test cases are specifically designed to maximize the number of seemingly valid partial configurations, causing naive trial-and-error assignments to exceed the time limit.
+
+You must determine whether it is possible to assign a safe phase offset code to all $n$ emitters given the list of interacting pairs.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$). The workforce size $n$ is at least 1 and capped at the 40 available workstations. The number of conflict records $m$ ranges from 0 up to the maximum possible number of distinct pairs $n(n-1)/2$.
-Each of the following $m$ lines contains two integers $u$ and $v$ — a pair of distinct workers who cannot share the same shift.
+The first line contains two integers $n$ and $m$ — the number of emitters and the number of interacting emitter pairs ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$). Emitters are indexed from $1$ to $n$.
+Each of the subsequent $m$ lines provides two integers $u$ and $v$, specifying that emitter $u$ and emitter $v$ share a focal point.
 
 ## Output
-If there is no valid way to assign the shifts, output a single line containing `NO`.
-If a valid assignment is possible, output `YES` on the first line. On the second line, output $n$ integers $s_1, s_2, \dots, s_n$ ($s_i \in \{1, 2, 3\}$), where $s_i$ is the shift assigned to worker $i$. If multiple valid assignments exist, output the sequence $s_1, s_2, \dots, s_n$ that minimizes the value of $\sum_{i=1}^n s_i \cdot 4^{n-i}$.
+If a safe tuning is impossible, output a single line containing NO.
+If a valid tuning exists, output YES on the first line. On the second line, output $n$ space-separated integers $p_1, p_2, \dots, p_n$ (where each $p_i \in \{1, 2, 3\}$), representing the offset code assigned to emitter $i$. Any valid array configuration will be accepted.
 
 ## Example 1
 Input:

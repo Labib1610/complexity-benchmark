@@ -29,18 +29,19 @@ def gen_lcs_two(L, seed, mode="random"):
       low       -> mostly different so the LCS is short (~1).
       random    -> random over a small alphabet.
     """
+    # Unified schema (audit B4): a "k" header (k=2) then the two sequences, matching criterion 1.
     rng = random.Random(seed * 2_000_003 + 7)
     if mode == "identical":
         s = "".join(rng.choice("abcdefgh") for _ in range(L))
-        return f"{s}\n{s}\n"
+        return f"2\n{s}\n{s}\n"
     if mode == "low":
         # first uses letters a-m, second uses n-z, but share exactly one 'a' each -> LCS ~1
         s1 = "".join(rng.choice("abcdefghijklm") for _ in range(L - 1)) + "a"
         s2 = "a" + "".join(rng.choice("nopqrstuvwxyz") for _ in range(L - 1))
-        return f"{s1}\n{s2}\n"
+        return f"2\n{s1}\n{s2}\n"
     s1 = "".join(rng.choice("abcd") for _ in range(L))
     s2 = "".join(rng.choice("abcd") for _ in range(L))
-    return f"{s1}\n{s2}\n"
+    return f"2\n{s1}\n{s2}\n"
 
 
 # --- criterion 3: disjoint alphabets --------------------------------------------

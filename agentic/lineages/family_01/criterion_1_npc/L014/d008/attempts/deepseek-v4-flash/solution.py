@@ -1,40 +1,67 @@
 import sys
 
 def solve():
-    input_data = sys.stdin.read().strip().split()
-    if not input_data:
-        return
-    it = iter(input_data)
-    n = int(next(it))
-    m = int(next(it))
-    adj = [[] for _ in range(n)]
+    input = sys.stdin.readline
+    n, m = map(int, input().split())
+    edges = []
     for _ in range(m):
-        u = int(next(it)) - 1
-        v = int(next(it)) - 1
-        adj[u].append(v)
-        adj[v].append(u)
+        u, w = map(int, input().split())
+        edges.append((u-1, w-1))
     
-    color = [0] * n
+    # Precompute allowed speed pairs for each edge
+    allowed = []
+    for u, w in edges:
+        ok = []
+        for x in (1,2,3):
+            for y in (1,2,3):
+                vu = (w * x * x + y) % x
+                vw = (u * y * y + x) % y
+                if vu != vw:
+                    ok.append((x,y))
+        allowed.append(ok)
     
-    def backtrack(idx):
-        if idx == n:
+    # Backtracking
+    assign = [0]*n
+    # adjacency list
+    adj = [[] for _ in range(n)]
+    for idx, (u,w) in enumerate(edges):
+        adj[u].append((w, idx))
+        adj[w].append((u, idx))
+    
+    # order nodes by degree
+    order = sorted(range(n), key=lambda i: -len(adj[i]))
+    
+    def backtrack(pos):
+        if pos == n:
             return True
-        for c in range(1, 4):
-            ok = True
-            for nb in adj[idx]:
-                if color[nb] == c:
-                    ok = False
-                    break
-            if ok:
-                color[idx] = c
-                if backtrack(idx + 1):
+        node = order[pos]
+        for speed in (1,2,3):
+            assign[node] = speed
+            valid = True
+            for nb, eidx in adj[node]:
+                if assign[nb] != 0:
+                    # check edge constraint
+                    u, w = edges[eidx]
+                    if u == node:
+                        x = speed
+                        y = assign[nb]
+                    else:
+                        x = assign[nb]
+                        y = speed
+                    vu = (w * x * x + y) % x
+                    vw = (u * y * y + x) % y
+                    if vu == vw:
+                        valid = False
+                        break
+            if valid:
+                if backtrack(pos+1):
                     return True
-                color[idx] = 0
+            assign[node] = 0
         return False
     
     if backtrack(0):
         print("YES")
-        print(" ".join(map(str, color)))
+        print(" ".join(map(str, assign)))
     else:
         print("NO")
 

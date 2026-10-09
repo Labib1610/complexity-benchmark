@@ -1,0 +1,175 @@
+```python
+import sys
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+
+    n, m, k = data[0], data[1], data[2]
+
+    if k == 1:
+        print("YES")
+        print(1)
+        return
+
+    reactive = [0] * n
+    idx = 3
+    for _ in range(m):
+        u = data[idx] - 1
+        v = data[idx + 1] - 1
+        idx += 2
+        reactive[u] |= 1 << v
+        reactive[v] |= 1 << u
+
+    full = (1 << n) - 1
+    compatible = [
+        full & ~(reactive[v] | (1 << v))
+        for v in range(n)
+    ]
+
+    # Every vertex in a clique of size k must belong to the (k-1)-core.
+    active = full
+    while True:
+        remove = 0
+        q = active
+        while q:
+            bit = q & -q
+            v = bit.bit_length() - 1
+            if (compatible[v] & active).bit_count() < k - 1:
+                remove |= bit
+            q ^= bit
+        if not remove:
+            break
+        active &= ~remove
+        if active.bit_count() < k:
+            print("NO")
+            return
+
+    vertices = []
+    q = active
+    while q:
+        bit = q & -q
+        vertices.append(bit.bit_length() - 1)
+        q ^= bit
+
+    vertices.sort(
+        key=lambda v: (compatible[v] & active).bit_count(),
+        reverse=True
+    )
+
+    size_n = len(vertices)
+    if size_n < k:
+        print("NO")
+        return
+
+    position = {v: i for i, v in enumerate(vertices)}
+    adj = [0] * size_n
+
+    for i, v in enumerate(vertices):
+        q = compatible[v] & active
+        mask = 0
+        while q:
+            bit = q & -q
+            u = bit.bit_length() - 1
+            mask |= 1 << position[u]
+            q ^= bit
+        adj[i] = mask
+
+    all_candidates = (1 << size_n) - 1
+
+    # Fast greedy attempts often find a requested clique immediately.
+    for reverse_ties in (False, True):
+        for seed in range(-1, size_n):
+            if seed == -1:
+                chosen = []
+                candidates = all_candidates
+            else:
+                chosen = [seed]
+                candidates = adj[seed]
+
+            while candidates and len(chosen) < k:
+                best_v = -1
+                best_degree = -1
+                q = candidates
+                while q:
+                    bit = q & -q
+                    v = bit.bit_length() - 1
+                    degree = (adj[v] & candidates).bit_count()
+                    if degree > best_degree or (
+                        reverse_ties and degree == best_degree
+                    ):
+                        best_degree = degree
+                        best_v = v
+                    q ^= bit
+
+                chosen.append(best_v)
+                candidates &= adj[best_v]
+
+            if len(chosen) >= k:
+                result = [vertices[v] + 1 for v in chosen[:k]]
+                print("YES")
+                print(*result)
+                return
+
+    answer = None
+    path = []
+
+    def expand(candidates):
+        nonlocal answer
+
+        depth = len(path)
+        if depth + candidates.bit_count() < k:
+            return False
+
+        order = []
+        color_bound = []
+        uncolored = candidates
+        color = 0
+
+        # Greedy coloring gives an upper bound on any clique in candidates.
+        while uncolored:
+            color += 1
+            color_class = uncolored
+            while color_class:
+                bit = color_class & -color_class
+                v = bit.bit_length() - 1
+                order.append(v)
+                color_bound.append(color)
+
+                uncolored ^= bit
+                color_class ^= bit
+                color_class &= ~adj[v]
+
+        for i in range(len(order) - 1, -1, -1):
+            if depth + color_bound[i] < k:
+                return False
+
+            v = order[i]
+            bit = 1 << v
+            path.append(v)
+
+            if depth + 1 == k:
+                answer = path.copy()
+                return True
+
+            next_candidates = candidates & adj[v]
+            if next_candidates.bit_count() >= k - depth - 1:
+                if expand(next_candidates):
+                    return True
+
+            path.pop()
+            candidates ^= bit
+
+        return False
+
+    if expand(all_candidates):
+        result = [vertices[v] + 1 for v in answer]
+        print("YES")
+        print(*result)
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    main()
+```

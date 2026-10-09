@@ -1,0 +1,366 @@
+```python
+import sys
+sys.setrecursionlimit(1_000_000)
+
+data = list(map(int, sys.stdin.buffer.read().split()))
+it = iter(data)
+nin = next(it)
+nout = next(it)
+m = next(it)
+
+U = [0] * m
+W = [0] * m
+deg_l = [0] * nin
+deg_r = [0] * nout
+
+for i in range(m):
+    u = next(it) - 1
+    v = next(it) - 1
+    U[i] = u
+    W[i] = v
+    deg_l[u] += 1
+    deg_r[v] += 1
+
+D = 0
+if deg_l:
+    D = max(D, max(deg_l))
+if deg_r:
+    D = max(D, max(deg_r))
+
+answer = [0] * m
+
+if m == 0:
+    sys.stdout.write("YES\n\n")
+    raise SystemExit
+
+base_vertices = nin + nout
+max_vertices = base_vertices * 2 + 5
+
+euler_head = [-1] * max_vertices
+euler_deg = [0] * max_vertices
+
+match_l = [-1] * nin
+match_r = [-1] * nout
+match_deg_l = [0] * nin
+match_deg_r = [0] * nout
+match_head_l = [-1] * nin
+match_head_r = [-1] * nout
+hk_dist = [-1] * nin
+hk_ptr = [-1] * nin
+seen_r = [0] * nout
+seen_token = 0
+
+
+def split_even(edges):
+    real_count = len(edges)
+
+    A = []
+    B = []
+    next_a = []
+    next_b = []
+    touched = []
+
+    def add_edge(a, b):
+        idx = len(A)
+        A.append(a)
+        B.append(b)
+
+        if euler_deg[a] == 0:
+            touched.append(a)
+        if euler_deg[b] == 0:
+            touched.append(b)
+
+        next_a.append(euler_head[a])
+        next_b.append(euler_head[b])
+        euler_head[a] = idx
+        euler_head[b] = idx
+        euler_deg[a] += 1
+        euler_deg[b] += 1
+
+    for eid in edges:
+        add_edge(U[eid], nin + W[eid])
+
+    odd_left = []
+    odd_right = []
+    for x in touched:
+        if euler_deg[x] & 1:
+            if x < nin:
+                odd_left.append(x)
+            else:
+                odd_right.append(x)
+
+    common = min(len(odd_left), len(odd_right))
+    for i in range(common):
+        add_edge(odd_left[i], odd_right[i])
+
+    dummy_id = base_vertices
+
+    i = common
+    while i < len(odd_left):
+        d = dummy_id
+        dummy_id += 1
+        add_edge(odd_left[i], d)
+        add_edge(odd_left[i + 1], d)
+        i += 2
+
+    i = common
+    while i < len(odd_right):
+        d = dummy_id
+        dummy_id += 1
+        add_edge(d, odd_right[i])
+        add_edge(d, odd_right[i + 1])
+        i += 2
+
+    total = len(A)
+    used = bytearray(total)
+    left_part = []
+    right_part = []
+
+    for start in touched:
+        while True:
+            e = euler_head[start]
+            while e != -1 and used[e]:
+                if A[e] == start:
+                    e = next_a[e]
+                else:
+                    e = next_b[e]
+                euler_head[start] = e
+
+            if e == -1:
+                break
+
+            stack_v = [start]
+            stack_e = []
+            circuit = []
+
+            while stack_v:
+                x = stack_v[-1]
+                e = euler_head[x]
+
+                while e != -1 and used[e]:
+                    if A[e] == x:
+                        e = next_a[e]
+                    else:
+                        e = next_b[e]
+                    euler_head[x] = e
+
+                if e == -1:
+                    stack_v.pop()
+                    if stack_e:
+                        circuit.append(stack_e.pop())
+                    continue
+
+                if A[e] == x:
+                    euler_head[x] = next_a[e]
+                    y = B[e]
+                else:
+                    euler_head[x] = next_b[e]
+                    y = A[e]
+
+                if used[e]:
+                    continue
+                used[e] = 1
+                stack_v.append(y)
+                stack_e.append(e)
+
+            for pos, local_e in enumerate(circuit):
+                if local_e < real_count:
+                    eid = edges[local_e]
+                    if pos & 1:
+                        right_part.append(eid)
+                    else:
+                        left_part.append(eid)
+
+    for x in touched:
+        euler_head[x] = -1
+        euler_deg[x] = 0
+
+    return left_part, right_part
+
+
+def extract_matching(edges, target_degree):
+    nonlocal_dummy = None
+    touched_l = []
+    touched_r = []
+    next_l = [-1] * len(edges)
+    next_r = [-1] * len(edges)
+
+    for i, eid in enumerate(edges):
+        u = U[eid]
+        v = W[eid]
+
+        if match_deg_l[u] == 0:
+            touched_l.append(u)
+        if match_deg_r[v] == 0:
+            touched_r.append(v)
+
+        match_deg_l[u] += 1
+        match_deg_r[v] += 1
+
+        next_l[i] = match_head_l[u]
+        match_head_l[u] = i
+        next_r[i] = match_head_r[v]
+        match_head_r[v] = i
+
+    required_l = [u for u in touched_l if match_deg_l[u] == target_degree]
+    required_r_flag = bytearray(nout)
+    required_r = []
+    for v in touched_r:
+        if match_deg_r[v] == target_degree:
+            required_r_flag[v] = 1
+            required_r.append(v)
+
+    if required_l:
+        def bfs():
+            q = []
+            for u in required_l:
+                if match_l[u] == -1:
+                    hk_dist[u] = 0
+                    q.append(u)
+                else:
+                    hk_dist[u] = -1
+
+            found = False
+            qpos = 0
+            while qpos < len(q):
+                u = q[qpos]
+                qpos += 1
+                e = match_head_l[u]
+                while e != -1:
+                    eid = edges[e]
+                    v = W[eid]
+                    old = match_r[v]
+                    if old == -1:
+                        found = True
+                    else:
+                        u2 = U[old]
+                        if hk_dist[u2] == -1:
+                            hk_dist[u2] = hk_dist[u] + 1
+                            q.append(u2)
+                    e = next_l[e]
+            return found
+
+        def dfs_hk(u):
+            e = hk_ptr[u]
+            while e != -1:
+                hk_ptr[u] = next_l[e]
+                eid = edges[e]
+                v = W[eid]
+                old = match_r[v]
+                if old == -1:
+                    match_l[u] = eid
+                    match_r[v] = eid
+                    return True
+
+                u2 = U[old]
+                if hk_dist[u2] == hk_dist[u] + 1 and dfs_hk(u2):
+                    match_l[u] = eid
+                    match_r[v] = eid
+                    return True
+
+                e = hk_ptr[u]
+
+            hk_dist[u] = -1
+            return False
+
+        while bfs():
+            for u in touched_l:
+                hk_ptr[u] = match_head_l[u]
+            for u in required_l:
+                if match_l[u] == -1:
+                    dfs_hk(u)
+
+    global seen_token
+
+    def dfs_right(v, token):
+        seen_r[v] = token
+        e = match_head_r[v]
+
+        while e != -1:
+            eid = edges[e]
+            u = U[eid]
+            old = match_l[u]
+
+            if old == -1:
+                match_l[u] = eid
+                match_r[v] = eid
+                return True
+
+            old_v = W[old]
+            if not required_r_flag[old_v]:
+                match_r[old_v] = -1
+                match_l[u] = eid
+                match_r[v] = eid
+                return True
+
+            if seen_r[old_v] != token and dfs_right(old_v, token):
+                match_l[u] = eid
+                match_r[v] = eid
+                return True
+
+            e = next_r[e]
+
+        return False
+
+    for v in required_r:
+        if match_r[v] == -1:
+            seen_token += 1
+            dfs_right(v, seen_token)
+
+    selected = []
+    for u in touched_l:
+        if match_l[u] != -1:
+            selected.append(match_l[u])
+
+    for u in touched_l:
+        match_l[u] = -1
+        match_deg_l[u] = 0
+        match_head_l[u] = -1
+
+    for v in touched_r:
+        match_r[v] = -1
+        match_deg_r[v] = 0
+        match_head_r[v] = -1
+
+    return selected
+
+
+def color_edges(edges, degree_bound, first_color):
+    if not edges:
+        return
+
+    if degree_bound == 1:
+        for eid in edges:
+            answer[eid] = first_color
+        return
+
+    if degree_bound & 1:
+        matching = extract_matching(edges, degree_bound)
+
+        if matching:
+            chosen = bytearray(len(edges))
+            positions = {eid: i for i, eid in enumerate(edges)}
+            for eid in matching:
+                chosen[positions[eid]] = 1
+                answer[eid] = first_color + degree_bound - 1
+
+            remaining = [
+                eid for i, eid in enumerate(edges) if not chosen[i]
+            ]
+        else:
+            remaining = edges
+
+        color_edges(remaining, degree_bound - 1, first_color)
+    else:
+        part_a, part_b = split_even(edges)
+        half = degree_bound // 2
+        color_edges(part_a, half, first_color)
+        color_edges(part_b, half, first_color + half)
+
+
+color_edges(list(range(m)), D, 1)
+
+sys.stdout.write("YES\n")
+sys.stdout.write(" ".join(map(str, answer)))
+sys.stdout.write("\n")
+```

@@ -1,0 +1,66 @@
+import sys
+import heapq
+
+input = sys.stdin.readline
+
+def solve():
+    n, m, t = map(int, input().split())
+    critical = list(map(int, input().split()))
+    critical_set = set(critical)
+    
+    # Build graph
+    graph = [[] for _ in range(n+1)]
+    for _ in range(m):
+        u, v, w = map(int, input().split())
+        graph[u].append((v, w))
+        graph[v].append((u, w))
+    
+    if t <= 1:
+        print(0)
+        return
+    
+    # Map critical nodes to bit positions
+    idx = {node: i for i, node in enumerate(critical)}
+    
+    # Compute shortest paths between all pairs of critical nodes
+    INF = 10**18
+    dist = [[INF]*t for _ in range(t)]
+    
+    # Dijkstra from each critical node
+    for i, src in enumerate(critical):
+        d = [INF]*(n+1)
+        d[src] = 0
+        pq = [(0, src)]
+        while pq:
+            du, u = heapq.heappop(pq)
+            if du != d[u]:
+                continue
+            for v, w in graph[u]:
+                if d[v] > du + w:
+                    d[v] = du + w
+                    heapq.heappush(pq, (d[v], v))
+        for j, node in enumerate(critical):
+            dist[i][j] = d[node]
+    
+    # DP over subsets of critical nodes
+    # dp[mask][i] = min cost to connect nodes in mask, ending at critical node i
+    dp = [[INF]*t for _ in range(1<<t)]
+    for i in range(t):
+        dp[1<<i][i] = 0
+    
+    for mask in range(1<<t):
+        # Try extending by one node
+        for i in range(t):
+            if dp[mask][i] == INF:
+                continue
+            for j in range(t):
+                if not (mask & (1<<j)):
+                    nmask = mask | (1<<j)
+                    dp[nmask][j] = min(dp[nmask][j], dp[mask][i] + dist[i][j])
+    
+    full = (1<<t) - 1
+    ans = min(dp[full][i] for i in range(t))
+    print(ans)
+
+if __name__ == "__main__":
+    solve()

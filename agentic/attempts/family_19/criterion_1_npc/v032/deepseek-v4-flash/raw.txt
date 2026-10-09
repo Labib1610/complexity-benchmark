@@ -1,0 +1,92 @@
+We can model this as a **multi-commodity flow** problem, but since all categories share chute capacities, we can combine them into a single flow if we treat each category’s demand as a separate source–sink pair.
+
+A direct multi-commodity flow is hard, but here we can use **linear programming** or **max flow with lower bounds** if we transform it properly. However, the problem is small enough that we can use a **min-cost max-flow** or **LP solver** approach.
+
+We’ll use **network simplex** via `networkx` or a custom max-flow with lower bounds.  
+But since we need to output the actual flow per category, we can solve it as a **feasibility flow with lower bounds** for each category separately, but that doesn’t handle shared capacities.
+
+A simpler approach:  
+We can treat it as a **single-commodity flow** if we add a super source and super sink, but that only works if all categories have the same source/sink.  
+Since they differ, we need multi-commodity.
+
+Given constraints are small (likely n, m, k ≤ 50), we can use **linear programming** with `scipy.optimize.linprog` or `pulp`.  
+But to keep it pure Python, we can implement a **simplex** or use `networkx` with `capacity` and `demand` per node.
+
+Actually, we can model it as a **circulation problem with lower bounds** for each commodity, but that’s complex.
+
+Given the time, I’ll implement a **max-flow with lower bounds** for each commodity separately, but that doesn’t enforce shared capacity.  
+So we need a **multi-commodity flow** solver.
+
+I’ll use `networkx` with `nx.algorithms.flow` but that’s single-commodity.
+
+Given the problem constraints are small, we can use **integer linear programming** via `pulp` or `ortools`.  
+But since we must output only code, I’ll use `pulp` if available, else fallback.
+
+I’ll write a solution using `pulp` (which is commonly available in competitive programming environments) to solve the LP.
+
+```python
+import sys
+import pulp
+
+def solve():
+    input_data = sys.stdin.read().strip().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    k = int(next(it))
+    
+    demands = []
+    for _ in range(k):
+        s = int(next(it)) - 1
+        t = int(next(it)) - 1
+        d = int(next(it))
+        demands.append((s, t, d))
+    
+    edges = []
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        cap = int(next(it))
+        edges.append((u, v, cap))
+    
+    prob = pulp.LpProblem("ParcelRouting", pulp.LpMinimize)
+    
+    # Variables: x[i][j] = flow of category i on edge j
+    x = [[pulp.LpVariable(f"x_{i}_{j}", lowBound=0, cat='Integer') for j in range(m)] for i in range(k)]
+    
+    # Objective: dummy (feasibility)
+    prob += 0
+    
+    # Capacity constraints per edge
+    for j in range(m):
+        prob += pulp.lpSum(x[i][j] for i in range(k)) <= edges[j][2]
+    
+    # Flow conservation per node per category
+    for i in range(k):
+        s, t, d = demands[i]
+        for node in range(n):
+            inflow = pulp.lpSum(x[i][j] for j in range(m) if edges[j][1] == node)
+            outflow = pulp.lpSum(x[i][j] for j in range(m) if edges[j][0] == node)
+            if node == s:
+                prob += outflow - inflow == d
+            elif node == t:
+                prob += inflow - outflow == d
+            else:
+                prob += inflow - outflow == 0
+    
+    # Solve
+    status = prob.solve(pulp.PULP_CBC_CMD(msg=False))
+    if pulp.LpStatus[status] != 'Optimal':
+        print("NO")
+        return
+    
+    print("YES")
+    for i in range(k):
+        row = [str(int(pulp.value(x[i][j]))) for j in range(m)]
+        print(" ".join(row))
+
+if __name__ == "__main__":
+    solve()
+```

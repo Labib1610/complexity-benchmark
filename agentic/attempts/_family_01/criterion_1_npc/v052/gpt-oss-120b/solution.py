@@ -1,0 +1,86 @@
+import sys
+
+sys.setrecursionlimit(10000)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    adj = [0] * n  # bitmask adjacency
+    neigh = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        if u == v:
+            continue
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+        neigh[u].append(v)
+        neigh[v].append(u)
+
+    colors = [-1] * n  # -1 uncolored, else 0,1,2
+
+    # order vertices by degree descending for initial heuristic
+    order = sorted(range(n), key=lambda x: len(neigh[x]), reverse=True)
+
+    # Precompute neighbor masks per color for fast checking
+    def can_color(v, c):
+        for nb in neigh[v]:
+            if colors[nb] == c:
+                return False
+        return True
+
+    # Choose next vertex: uncolored with most colored neighbors (DSATUR)
+    def select_vertex():
+        best = -1
+        best_sat = -1
+        best_deg = -1
+        for v in range(n):
+            if colors[v] != -1:
+                continue
+            # saturation degree: number of distinct colors among colored neighbors
+            sat_set = 0
+            for nb in neigh[v]:
+                col = colors[nb]
+                if col != -1:
+                    sat_set |= 1 << col
+            sat = sat_set.bit_count()
+            deg = len(neigh[v])
+            if sat > best_sat or (sat == best_sat and deg > best_deg):
+                best_sat = sat
+                best_deg = deg
+                best = v
+        return best
+
+    solved = False
+
+    def dfs(colored_cnt):
+        nonlocal solved
+        if solved:
+            return
+        if colored_cnt == n:
+            solved = True
+            return
+        v = select_vertex()
+        for c in range(3):
+            if can_color(v, c):
+                colors[v] = c
+                dfs(colored_cnt + 1)
+                if solved:
+                    return
+                colors[v] = -1
+
+    dfs(0)
+
+    if not solved:
+        print("NO")
+    else:
+        print("YES")
+        # output 1-indexed frequencies
+        print(' '.join(str(c + 1) for c in colors))
+
+if __name__ == "__main__":
+    solve()

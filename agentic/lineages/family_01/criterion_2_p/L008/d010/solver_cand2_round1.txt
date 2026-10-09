@@ -1,79 +1,64 @@
 ```python
 import sys
 
-# The interference matrix T for a link (u, v) is:
-# T = [[1, 4 - 2*s_u - 2*s_v + s_u*s_v], [s_u*s_v - s_u - s_v + 1, 1]]
-# Let x_i = s_i - 1, so x_i in {0, 1}.
-# s_u = 1 => x_u = 0; s_u = 2 => x_u = 1.
-# T_12 = 4 - 2(x_u+1) - 2(x_v+1) + (x_u+1)(x_v+1)
-#      = 4 - 2x_u - 2 - 2x_v - 2 + x_u*x_v + x_u + x_v + 1
-#      = 1 - x_u - x_v + x_u*x_v = (1-x_u)(1-x_v)
-# T_21 = (x_u+1)(x_v+1) - (x_u+1) - (x_v+1) + 1
-#      = x_u*x_v + x_u + x_v + 1 - x_u - 1 - x_v - 1 + 1 = x_u*x_v
+# The matrices are:
+# M1 = [[1, -1], [1, -1]]
+# M2 = [[1, 1], [-1, -1]]
 #
-# M is the product of T_i. For M to be identity, the sum of off-diagonal
-# elements must be 0 mod 2 (since diagonal elements are 1).
-# Sum of T_12 = sum((1-x_u)(1-x_v)) = 0 (mod 2)
-# Sum of T_21 = sum(x_u*x_v) = 0 (mod 2)
+# Let's compute the products:
+# M1*M1 = [[1-1, -1+1], [1-1, -1+1]] = [[0, 0], [0, 0]]
+# M2*M2 = [[1-1, 1-1], [-1+1, -1+1]] = [[0, 0], [0, 0]]
+# M1*M2 = [[1+1, 1+1], [1+1, 1+1]] = [[2, 2], [2, 2]]
+# M2*M1 = [[1-1, -1+1], [-1+1, 1-1]] = [[0, 0], [0, 0]]
 #
-# (1-x_u)(1-x_v) = 1 - x_u - x_v + x_u*x_v
-# Sum(1 - x_u - x_v + x_u*x_v) = m - sum(x_u) - sum(x_v) + sum(x_u*x_v) = 0 (mod 2)
-# Since sum(x_u) + sum(x_v) = sum(deg_i * x_i), and sum(x_u*x_v) is the number of edges
-# where both endpoints are 1.
-# Actually, the condition M = I is equivalent to:
-# sum_{edges} (x_u * x_v) = 0 (mod 2) AND sum_{edges} ((1-x_u)*(1-x_v)) = 0 (mod 2)
-# This is satisfied if we can partition the graph into two sets (x=0 and x=1)
-# such that the number of edges within the x=1 set is even AND the number of
-# edges within the x=0 set is even.
+# Resonance R_{u,v} = M_u*M_v + M_v*M_u
+# If u=1, v=1: R = M1*M1 + M1*M1 = 0 + 0 = 0 (Not [[4, 0], [0, 4]])
+# If u=2, v=2: R = M2*M2 + M2*M2 = 0 + 0 = 0 (Not [[4, 0], [0, 4]])
+# If u=1, v=2: R = M1*M2 + M2*M1 = [[2, 2], [2, 2]] + [[0, 0], [0, 0]] = [[2, 2], [2, 2]] (Not [[4, 0], [0, 4]])
+#
+# Wait, let's re-check the matrix multiplication:
+# M1 = [[1, -1], [1, -1]]
+# M2 = [[1, 1], [-1, -1]]
+# M1*M2 = [[1*1 + (-1)*(-1), 1*1 + (-1)*(-1)], [1*1 + (-1)*(-1), 1*1 + (-1)*(-1)]] = [[2, 2], [2, 2]]
+# M2*M1 = [[1*1 + 1*1, 1*(-1) + 1*(-1)], [(-1)*1 + (-1)*1, (-1)*(-1) + (-1)*(-1)]] = [[2, -2], [-2, 2]]
+# R_{1,2} = M1*M2 + M2*M1 = [[2+2, 2-2], [2-2, 2+2]] = [[4, 0], [0, 4]]
+#
+# So R_{u,v} = [[4, 0], [0, 4]] if and only if {u, v} = {1, 2}.
+# This means the graph must be bipartite, and every edge must connect a node of type 1 to a node of type 2.
+# If the graph has any edges, it must be bipartite. If it has no edges, any assignment works (lexicographically smallest is all 1s).
 
 def solve():
-    n, m = map(int, sys.stdin.readline().split())
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    n = int(input_data[0])
+    m = int(input_data[1])
     adj = [[] for _ in range(n + 1)]
+    idx = 2
     for _ in range(m):
-        u, v = map(int, sys.stdin.readline().split())
+        u = int(input_data[idx])
+        v = int(input_data[idx+1])
         adj[u].append(v)
         adj[v].append(u)
-
-    color = [-1] * (n + 1)
+        idx += 2
     
+    color = [0] * (n + 1)
     for i in range(1, n + 1):
-        if color[i] == -1:
-            stack = [(i, 0)]
-            color[i] = 0
+        if color[i] == 0:
+            stack = [(i, 1)]
+            color[i] = 1
             while stack:
                 u, c = stack.pop()
                 for v in adj[u]:
-                    if color[v] == -1:
-                        color[v] = 1 - c
-                        stack.append((v, 1 - c))
+                    if color[v] == 0:
+                        color[v] = 3 - c
+                        stack.append((v, 3 - c))
+                    elif color[v] == c:
+                        print("NO")
+                        return
     
-    # Try setting all to 1 (x=0) or all to 2 (x=1)
-    # Or use the bipartite coloring.
-    # The condition is satisfied if we pick a bipartite coloring.
-    # Let S0 be nodes with color 0, S1 be nodes with color 1.
-    # If we set all nodes in S0 to state 1 and S1 to state 2:
-    # x_u*x_v = 1 only if both u, v in S1.
-    # (1-x_u)(1-x_v) = 1 only if both u, v in S0.
-    # This works if number of edges in S0 is even AND number of edges in S1 is even.
-    
-    s = [1] * (n + 1)
-    for i in range(1, n + 1):
-        if color[i] == 1:
-            s[i] = 2
-            
-    e0 = 0
-    e1 = 0
-    for u in range(1, n + 1):
-        for v in adj[u]:
-            if u < v:
-                if s[u] == 1 and s[v] == 1: e0 += 1
-                if s[u] == 2 and s[v] == 2: e1 += 1
-    
-    if e0 % 2 == 0 and e1 % 2 == 0:
-        print("YES")
-        print(*(s[1:]))
-    else:
-        print("NO")
+    print("YES")
+    print(*(color[1:]))
 
 solve()
 ```

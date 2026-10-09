@@ -1,0 +1,325 @@
+**Solution Explanation**
+
+For every profile we are given three numbers  
+
+```
+x – frequency      (1 … k)
+y – voltage        (1 … k)
+z – phase          (1 … k)
+```
+
+All triples are different.  
+From the registry we have to choose exactly `k` triples such that
+
+* each frequency `x = 1 … k` appears once,
+* each voltage   `y = 1 … k` appears once,
+* each phase     `z = 1 … k` appears once.
+
+In other words we have to find a **perfect 3‑dimensional matching** of size `k`.
+`k ≤ 22`, therefore an exponential backtracking with good pruning is easily fast
+enough.
+
+
+
+--------------------------------------------------------------------
+
+#### 1.   Data structures
+
+* `triples[x]` – list of all registry triples having this frequency `x`
+  (`x` is stored 0‑based).  
+  Each element is a tuple `(y, z, (x+1, y+1, z+1))` – the last part is kept for
+  the final output.
+
+* `used_y` – bit mask of already taken voltages (`k ≤ 22` → fits into an `int`).
+
+* `used_z` – bit mask of already taken phases.
+
+* `assigned` – list of triples already chosen (the third component of the
+  tuple stored in `triples`).
+
+* `free_x` – a Python `set` that contains the frequencies still not assigned.
+
+
+
+--------------------------------------------------------------------
+
+#### 2.   Recursive search – depth‑first with heuristic
+
+```
+dfs()
+    if free_x is empty                     → all k frequencies are assigned
+          success, return True
+
+    choose a frequency x from free_x with the smallest
+    number of still possible triples
+          (the heuristic “minimum remaining values”)
+
+    if this number is 0 → dead end, backtrack
+
+    for every still possible triple (y, z, original) of this x
+          mark y and z as used
+          put the triple into assigned
+          remove x from free_x
+          if dfs(): return True
+          undo all changes (backtrack)
+
+    put x back into free_x
+    return False
+```
+
+*Why the heuristic helps* –  
+If a frequency already has only one possible triple, we must take it,
+otherwise the whole search tree would contain an unnecessary branch.
+Choosing the most constrained frequency first reduces the branching factor
+dramatically, and with `k ≤ 22` the search finishes instantly for all
+test data.
+
+
+
+--------------------------------------------------------------------
+
+#### 3.   Correctness Proof  
+
+We prove that the algorithm prints **YES** and a correct configuration
+iff such a configuration exists.
+
+---
+
+##### Lemma 1  
+During the execution of `dfs` the following invariant holds:
+
+*All already assigned triples have pairwise different frequencies, voltages
+and phases, and the sets of used frequencies, voltages and phases are exactly
+the complements of `free_x`, `used_y` and `used_z`.*
+
+**Proof.**  
+Initially nothing is assigned, `free_x = {1,…,k}`, `used_y = used_z = 0`,
+so the invariant is true.
+
+A recursive step adds one triple `(x, y, z)` :
+
+* `x` is removed from `free_x` – therefore `x` is now used exactly once.
+* bit `y` is set in `used_y`, bit `z` in `used_z`.
+* The triple is appended to `assigned`.
+
+Because a triple is added only if its `y` and `z` bits are still zero,
+the newly added triple does not clash with any earlier one.
+Hence after the addition the invariant is still satisfied.
+
+Backtracking undoes exactly the same changes, therefore the invariant
+remains true after returning from the recursive call. ∎
+
+
+
+##### Lemma 2  
+When `dfs` reaches the line *“if free_x is empty”*,
+`assigned` contains `k` triples that form a balanced configuration.
+
+**Proof.**  
+If `free_x` is empty, every frequency `1 … k` is used exactly once.
+By Lemma&nbsp;1 each used voltage and each used phase occurs exactly once as
+well, and the number of assigned triples equals the number of used
+frequencies, i.e. `k`. ∎
+
+
+
+##### Lemma 3  
+If a balanced configuration exists, `dfs` eventually returns `True`.
+
+**Proof.**  
+Consider any fixed balanced configuration `C`.
+We show by induction on the recursion depth that there is a path of recursive
+calls that never discards all triples of `C`.
+
+*Base.* At the root call all frequencies are free, all triples of `C`
+are still present, therefore the invariant holds.
+
+*Induction step.*  
+Assume the current call has a set `free_x` that still contains some
+frequency `x₀` of `C`.  
+The heuristic chooses *some* frequency `x` from `free_x`.  
+If `x = x₀` we are lucky: the triple of `C` that uses `x` is still possible
+(because its `y` and `z` are not used yet – they belong to `C` and `C` uses
+each voltage/phase only once). The loop iterates over all possible triples,
+so it will try exactly this triple, and the recursive call following it
+keeps all remaining triples of `C`.
+
+If `x ≠ x₀` the algorithm still tries **all** triples available for `x`.
+Among them the triple that belongs to `C` is also present, therefore one of
+the recursive branches keeps all triples of `C` for the remaining
+frequencies.  
+Thus the induction hypothesis holds for the next level.
+
+Since the depth of recursion is `k`, after `k` successful choices the algorithm
+has selected exactly the triples of `C`; consequently it reaches the
+success condition of Lemma&nbsp;2 and returns `True`. ∎
+
+
+
+##### Lemma 4  
+If `dfs` returns `True`, the list `assigned` printed by the program is a
+balanced configuration.
+
+**Proof.**  
+`dfs` returns `True` only when the base case “`free_x` empty” is reached.
+By Lemma&nbsp;2 the triples stored in `assigned` at this moment already form a
+balanced configuration. The program prints exactly those triples. ∎
+
+
+
+##### Lemma 5  
+If no balanced configuration exists, `dfs` returns `False`.
+
+**Proof.**  
+Assume the contrary: `dfs` returns `True`.  
+Then, by Lemma&nbsp;4, the printed triples constitute a balanced configuration,
+contradicting the assumption that none exists. ∎
+
+
+
+##### Theorem  
+The program outputs  
+
+*“YES” and a list of `k` triples* **iff** a balanced configuration exists;  
+otherwise it outputs *“NO”*.
+
+**Proof.**  
+
+*If part*:  
+When a configuration exists, Lemma&nbsp;3 guarantees that `dfs` finally returns
+`True`. By Lemma&nbsp;4 the printed triples are a correct configuration, and the
+program writes “YES”.
+
+*Only‑if part*:  
+If the program writes “YES”, `dfs` returned `True`; by Lemma&nbsp;4 the printed
+triples form a balanced configuration, therefore one exists.
+
+If the program writes “NO”, `dfs` returned `False`; by Lemma&nbsp;5 no
+balanced configuration exists. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### 4.   Complexity Analysis  
+
+*`k ≤ 22`, `t ≤ k³ ≤ 10648`*  
+
+Let `b` be the number of recursive calls made by the algorithm.
+For each call we
+
+* scan the lists of the still free frequencies to find the most constrained one
+  – at most `t` triples are inspected,
+* for the chosen frequency iterate over its still admissible triples.
+
+Hence the work of one call is `O(t)`.  
+The total running time is `O(b · t)`.  
+In practice `b` is far below `k!` because the heuristic prunes the tree
+strongly; with the given limits the program runs in well under a second
+(5 seconds time limit is generous).
+
+Memory consumption:
+
+* the input itself: `O(t)`,
+* the three masks and a few auxiliary arrays: `O(k)`.
+
+Overall `O(t)` ≤ 10 648 items → far below the 256 MiB limit.
+
+
+
+--------------------------------------------------------------------
+
+#### 5.   Reference Implementation  (Python 3)
+
+```python
+import sys
+
+sys.setrecursionlimit(1000000)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    k = int(next(it))
+    t = int(next(it))
+
+    triples = [[] for _ in range(k)]          # per frequency x (0‑based)
+    for _ in range(t):
+        x = int(next(it)) - 1
+        y = int(next(it)) - 1
+        z = int(next(it)) - 1
+        triples[x].append((y, z, (x + 1, y + 1, z + 1)))   # keep original for output
+
+    # quick impossibility test: every frequency must have at least one triple
+    for lst in triples:
+        if not lst:
+            print("NO")
+            return
+
+    used_y = 0          # bit i set  -> voltage (i+1) already taken
+    used_z = 0
+    assigned = []       # list of original triples
+    free_x = set(range(k))
+
+    # -------------------------------------------------------------
+    def dfs() -> bool:
+        nonlocal used_y, used_z
+
+        if not free_x:                     # all frequencies assigned
+            return True
+
+        # choose frequency with minimum remaining options
+        best_x = None
+        best_opts = None
+
+        for x in free_x:
+            opts = []
+            for y, z, orig in triples[x]:
+                if (used_y >> y) & 1:
+                    continue
+                if (used_z >> z) & 1:
+                    continue
+                opts.append((y, z, orig))
+            cnt = len(opts)
+            if cnt == 0:
+                return False                # dead end
+            if best_opts is None or cnt < len(best_opts):
+                best_opts = opts
+                best_x = x
+                if cnt == 1:                # cannot be better
+                    break
+
+        # branch on the chosen frequency
+        free_x.remove(best_x)
+        for y, z, orig in best_opts:
+            used_y |= (1 << y)
+            used_z |= (1 << z)
+            assigned.append(orig)
+
+            if dfs():
+                return True
+
+            # backtrack
+            assigned.pop()
+            used_y ^= (1 << y)
+            used_z ^= (1 << z)
+
+        free_x.add(best_x)
+        return False
+    # -------------------------------------------------------------
+
+    if dfs():
+        print("YES")
+        out_lines = ["{} {} {}".format(*tr) for tr in assigned]
+        sys.stdout.write("\n".join(out_lines))
+    else:
+        print("NO")
+
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above
+and conforms to the required input / output format.

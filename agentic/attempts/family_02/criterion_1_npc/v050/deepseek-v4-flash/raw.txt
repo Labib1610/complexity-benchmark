@@ -1,0 +1,140 @@
+We can model each valve as a Boolean variable, and each relay as a clause that must be satisfied.  
+
+A relay with observations like `(a, b, c)` means:  
+- If `w` is positive, the literal is `x_w` (valve = 1).  
+- If `w` is negative, the literal is `¬x_w` (valve = 0).  
+
+The relay is stable if at least one literal is true.  
+So each relay is a clause of 3 literals, and we need to satisfy all clauses — this is a **3-SAT** problem.  
+
+Since `n ≤ 90` and `m ≤ 400`, we can solve it with a backtracking algorithm with unit propagation and pure literal elimination, which is efficient enough for this size.
+
+Here’s the implementation:
+
+```python
+import sys
+
+def solve():
+    input_data = sys.stdin.read().strip().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    clauses = []
+    for _ in range(m):
+        w1 = int(next(it))
+        w2 = int(next(it))
+        w3 = int(next(it))
+        clause = []
+        for w in (w1, w2, w3):
+            var = abs(w) - 1
+            val = 1 if w > 0 else 0
+            clause.append((var, val))
+        clauses.append(clause)
+    
+    assignment = [-1] * n  # -1 unassigned, 0 or 1 assigned
+    
+    def propagate(assign):
+        # Returns (new_assign, conflict)
+        assign = assign[:]
+        changed = True
+        while changed:
+            changed = False
+            for clause in clauses:
+                unassigned = []
+                satisfied = False
+                for var, val in clause:
+                    if assign[var] == -1:
+                        unassigned.append((var, val))
+                    elif assign[var] == val:
+                        satisfied = True
+                        break
+                if satisfied:
+                    continue
+                if len(unassigned) == 0:
+                    return None, True  # conflict
+                if len(unassigned) == 1:
+                    var, val = unassigned[0]
+                    if assign[var] == -1:
+                        assign[var] = val
+                        changed = True
+                    elif assign[var] != val:
+                        return None, True
+        return assign, False
+    
+    def pure_literal(assign):
+        # Find pure literals and assign them
+        assign = assign[:]
+        counts = {}
+        for clause in clauses:
+            for var, val in clause:
+                if assign[var] == -1:
+                    key = (var, val)
+                    counts[key] = counts.get(key, 0) + 1
+        for (var, val), cnt in counts.items():
+            # Check if opposite literal appears
+            opp = (var, 1 - val)
+            if opp not in counts:
+                assign[var] = val
+        return assign
+    
+    def backtrack(assign):
+        assign, conflict = propagate(assign)
+        if conflict:
+            return None
+        # Check if all clauses satisfied
+        all_sat = True
+        for clause in clauses:
+            sat = False
+            for var, val in clause:
+                if assign[var] == val:
+                    sat = True
+                    break
+            if not sat:
+                all_sat = False
+                break
+        if all_sat:
+            return assign
+        
+        # Pure literal elimination
+        assign = pure_literal(assign)
+        assign, conflict = propagate(assign)
+        if conflict:
+            return None
+        all_sat = True
+        for clause in clauses:
+            sat = False
+            for var, val in clause:
+                if assign[var] == val:
+                    sat = True
+                    break
+            if not sat:
+                all_sat = False
+                break
+        if all_sat:
+            return assign
+        
+        # Choose unassigned variable
+        for var in range(n):
+            if assign[var] == -1:
+                for val in (0, 1):
+                    new_assign = assign[:]
+                    new_assign[var] = val
+                    result = backtrack(new_assign)
+                    if result is not None:
+                        return result
+                return None
+        return None
+    
+    result = backtrack(assignment)
+    if result is None:
+        print("NO")
+    else:
+        print("YES")
+        print(" ".join(str(result[i]) for i in range(n)))
+
+if __name__ == "__main__":
+    solve()
+```

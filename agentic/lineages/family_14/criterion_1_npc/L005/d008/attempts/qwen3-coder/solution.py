@@ -1,0 +1,148 @@
+import sys
+from itertools import combinations
+from collections import defaultdict
+import heapq
+
+def dijkstra(graph, start, end):
+    # Dijkstra's algorithm to find shortest path
+    distances = defaultdict(lambda: float('inf'))
+    distances[start] = 0
+    pq = [(0, start)]
+    
+    while pq:
+        current_distance, current_node = heapq.heappop(pq)
+        
+        if current_node == end:
+            return current_distance
+            
+        if current_distance > distances[current_node]:
+            continue
+            
+        for neighbor, weight in graph[current_node]:
+            distance = current_distance + weight
+            
+            if distance < distances[neighbor]:
+                distances[neighbor] = distance
+                heapq.heappush(pq, (distance, neighbor))
+                
+    return distances[end]
+
+def find_min_cost_to_connect(reg_ledgers, graph):
+    # For each pair of regulated ledgers, find the minimum cost to connect them
+    min_costs = {}
+    reg_ledgers = sorted(reg_ledgers)
+    for u, v in combinations(reg_ledgers, 2):
+        cost = dijkstra(graph, u, v)
+        min_costs[(u, v)] = cost
+        
+    return min_costs
+
+def solve():
+    input = sys.stdin.read
+    data = input().split()
+    
+    idx = 0
+    n = int(data[idx])
+    idx += 1
+    m = int(data[idx])
+    idx += 1
+    t = int(data[idx])
+    idx += 1
+    
+    if t <= 1:
+        print(0)
+        return
+    
+    reg_ledgers = []
+    for _ in range(t):
+        reg_ledgers.append(int(data[idx]))
+        idx += 1
+    
+    # Build graph
+    graph = defaultdict(list)
+    edges = []
+    for _ in range(m):
+        u = int(data[idx])
+        idx += 1
+        v = int(data[idx])
+        idx += 1
+        w = int(data[idx])
+        idx += 1
+        graph[u].append((v, w))
+        graph[v].append((u, w))
+        edges.append((u, v, w))
+    
+    # Find minimum costs between all pairs of regulated ledgers
+    min_costs = {}
+    for u, v in combinations(reg_ledgers, 2):
+        cost = dijkstra(graph, u, v)
+        min_costs[(u, v)] = cost
+    
+    # Now we need to find a subset of edges that connects all regulated ledgers
+    # This is essentially finding a minimum spanning tree on the complete graph
+    # where edge weights are the shortest path costs between regulated ledgers
+    
+    # But since we want to minimize total cost, we can model this as a Steiner Tree problem
+    # However, with t<=10, we can try all possible combinations
+    
+    # Actually, let's think differently:
+    # We need to ensure that for every pair of regulated ledgers, 
+    # there exists a way to get an odd count on those two and even on others.
+    # This means we need to be able to create a path between any two regulated ledgers
+    # in the graph formed by selected edges.
+    
+    # So we need the subgraph induced by selected edges to connect all regulated ledgers.
+    # This is the Steiner Tree problem.
+    
+    # Since t <= 10, we can use enumeration approach or dynamic programming.
+    
+    # Let's use a greedy approach similar to Kruskal's algorithm:
+    # Sort all edges by weight and union-find to build a connected component containing all regulated nodes.
+    
+    # But we need to consider that we're working on the original graph,
+    # and we want to select edges such that in the subgraph they induce,
+    # all regulated nodes are connected.
+    
+    class UnionFind:
+        def __init__(self, size):
+            self.parent = list(range(size))
+            self.rank = [0] * size
+            
+        def find(self, x):
+            if self.parent[x] != x:
+                self.parent[x] = self.find(self.parent[x])
+            return self.parent[x]
+            
+        def union(self, x, y):
+            px, py = self.find(x), self.find(y)
+            if px == py:
+                return False
+            if self.rank[px] < self.rank[py]:
+                px, py = py, px
+            self.parent[py] = px
+            if self.rank[px] == self.rank[py]:
+                self.rank[px] += 1
+            return True
+    
+    # Sort edges by weight
+    edges.sort(key=lambda x: x[2])
+    
+    uf = UnionFind(n + 1)
+    total_cost = 0
+    reg_set = set(reg_ledgers)
+    connected_reg = set()
+    
+    # First, let's see which regulated nodes are already connected through given edges
+    for u, v, w in edges:
+        if uf.union(u, v):
+            total_cost += w
+            # Check if we've connected all regulated nodes
+            components = set()
+            for node in reg_ledgers:
+                components.add(uf.find(node))
+            if len(components) == 1:  # All in same component
+                break
+                
+    print(total_cost)
+
+solve()

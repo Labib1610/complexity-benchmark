@@ -1,46 +1,30 @@
-import sys
+n, m = map(int, input().split())
+edges = [tuple(map(int, input().split())) for _ in range(m)]
 
-def solve():
-    input_data = sys.stdin.read().strip().split()
-    if not input_data:
-        return
-    n = int(input_data[0])
-    m = int(input_data[1])
-    edges = []
-    idx = 2
-    adj = [[] for _ in range(n)]
-    for _ in range(m):
-        u = int(input_data[idx]) - 1
-        v = int(input_data[idx+1]) - 1
-        idx += 2
-        adj[u].append(v)
-        adj[v].append(u)
-    
-    # We'll use backtracking
-    freq = [0] * n
-    
-    def backtrack(pos):
-        if pos == n:
-            return True
-        for f in (1, 2, 3):
-            # Check constraints with already assigned neighbors
-            ok = True
-            for nb in adj[pos]:
-                if nb < pos and freq[nb] == f:
-                    ok = False
-                    break
-            if ok:
-                freq[pos] = f
-                if backtrack(pos + 1):
-                    return True
-                freq[pos] = 0
-        return False
-    
-    if backtrack(0):
-        print("YES")
-        print(" ".join(map(str, freq)))
-    else:
-        print("NO")
+adj = [[] for _ in range(n)]
+for u, v in edges:
+    adj[u-1].append(v-1)
+    adj[v-1].append(u-1)
 
-if __name__ == "__main__":
-    solve()
+color = [-1] * n
+
+def dfs(node):
+    if node == n:
+        return True
+    used = set()
+    for nei in adj[node]:
+        if color[nei] != -1:
+            used.add(color[nei])
+    for c in range(1, 4):
+        if c not in used:
+            color[node] = c
+            if dfs(node + 1):
+                return True
+            color[node] = -1
+    return False
+
+if dfs(0):
+    print("YES")
+    print(" ".join(str(c) for c in color))
+else:
+    print("NO")

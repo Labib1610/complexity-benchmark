@@ -1,0 +1,167 @@
+An optimal and efficient solution in Python 3 to solve the 3-edge-coloring problem (Phase Assignment) for cubic graphs.
+
+### Method Explanation
+
+The problem asks for a 3-edge-coloring of a given cubic (3-regular) graph with $n$ vertices and $m = \frac{3n}{2}$ edges. This is equivalent to finding a proper 3-vertex-coloring of the line graph $L(G)$, where $L(G)$ is a 4-regular graph of $m \le 3000$ vertices.
+
+1. **Bridge Detection**: A cubic graph containing a bridge cannot be 3-edge-colored because removing the bridge leaves two components of odd size, neither of which admits a 1-factor. We can prune such graphs immediately.
+2. **Backtracking with MRV and Constraint Propagation (Forward Checking)**:
+   - We maintain a bitmask of available colors $\{1, 2, 3\}$ for each unassigned edge.
+   - We use the **Minimum Remaining Values (MRV)** heuristic: always pick the unassigned edge with the fewest available colors. If any edge has 0 available colors, we backtrack immediately. If an edge has only 1 available color (unit propagation), it is forced and resolved next.
+   - For tie-breaking, we select the edge with the maximum number of uncolored neighbors (degree heuristic).
+   - An undo history stack is maintained to enable fast backtracking without copying graph states.
+
+### Python 3 Source Code
+
+```python
+import sys
+
+# Increase recursion depth just in case
+sys.setrecursionlimit(200000)
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    edges = []
+    adj_edges = [[] for _ in range(n + 1)]
+    
+    idx = 2
+    for e in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx + 1])
+        idx += 2
+        edges.append((u, v))
+        adj_edges[u].append(e)
+        adj_edges[v].append(e)
+        
+    # Build the line graph adjacency: for each edge, find incident edges
+    line_adj = [[] for _ in range(m)]
+    for e in range(m):
+        u, v = edges[e]
+        neighbors = set()
+        for ne in adj_edges[u]:
+            if ne != e:
+                neighbors.add(ne)
+        for ne in adj_edges[v]:
+            if ne != e:
+                neighbors.add(ne)
+        line_adj[e] = list(neighbors)
+
+    # Pre-check for bridges (if a cubic graph has a bridge, it's not 3-edge-colorable)
+    # Standard Tarjan's bridge-finding algorithm
+    visited = [False] * (n + 1)
+    tin = [0] * (n + 1)
+    low = [0] * (n + 1)
+    timer = 0
+    has_bridge = False
+
+    def dfs_bridge(v, p_edge):
+        nonlocal timer, has_bridge
+        visited[v] = True
+        timer += 1
+        tin[v] = low[v] = timer
+        for e in adj_edges[v]:
+            if e == p_edge:
+                continue
+            to = edges[e][0] if edges[e][1] == v else edges[e][1]
+            if visited[to]:
+                low[v] = min(low[v], tin[to])
+            else:
+                dfs_bridge(to, e)
+                low[v] = min(low[v], low[to])
+                if low[to] > tin[v]:
+                    has_bridge = True
+
+    for i in range(1, n + 1):
+        if not visited[i]:
+            dfs_bridge(i, -1)
+
+    if has_bridge:
+        print("NO")
+        return
+
+    # Backtracking variables
+    # Colors: 1, 2, 3 (masks: 1, 2, 4 -> all colors mask = 7)
+    color_mask = [7] * m
+    assigned_color = [0] * m
+    unassigned_count = m
+
+    # Pre-count of unassigned neighbors for degree tie-breaking
+    unassigned_deg = [len(line_adj[i]) for i in range(m)]
+
+    # Backtracking search with MRV and forward checking
+    def backtrack():
+        nonlocal unassigned_count
+        if unassigned_count == 0:
+            return True
+
+        # Find variable with minimum remaining values (MRV)
+        best_e = -1
+        min_choices = 4
+        max_deg = -1
+
+        for e in range(m):
+            if assigned_color[e] == 0:
+                mask = color_mask[e]
+                choices = (mask & 1) + ((mask >> 1) & 1) + ((mask >> 2) & 1)
+                if choices == 0:
+                    return False
+                if choices < min_choices or (choices == min_choices and unassigned_deg[e] > max_deg):
+                    min_choices = choices
+                    best_e = e
+                    max_deg = unassigned_deg[e]
+                    if choices == 1:
+                        break  # Can't do better than 1 choice
+
+        e = best_e
+        mask = color_mask[e]
+
+        # Try possible colors
+        for c in (1, 2, 3):
+            c_bit = 1 << (c - 1)
+            if mask & c_bit:
+                # Apply assignment
+                assigned_color[e] = c
+                unassigned_count -= 1
+                for ne in line_adj[e]:
+                    unassigned_deg[ne] -= 1
+
+                # Forward check: remove c_bit from neighbors
+                affected = []
+                conflict = False
+                for ne in line_adj[e]:
+                    if assigned_color[ne] == 0:
+                        if color_mask[ne] & c_bit:
+                            color_mask[ne] ^= c_bit
+                            affected.append(ne)
+                            if color_mask[ne] == 0:
+                                conflict = True
+
+                if not conflict:
+                    if backtrack():
+                        return True
+
+                # Undo changes
+                for ne in affected:
+                    color_mask[ne] |= c_bit
+                for ne in line_adj[e]:
+                    unassigned_deg[ne] += 1
+                assigned_color[e] = 0
+                unassigned_count += 1
+
+        return False
+
+    if backtrack():
+        print("YES")
+        print(*(assigned_color[e] for e in range(m)))
+    else:
+        print("NO")
+
+if __name__ == '__main__':
+    solve()
+```

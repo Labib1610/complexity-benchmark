@@ -1,0 +1,149 @@
+from collections import defaultdict, deque
+import sys
+
+def find_matching(q, t, groups):
+    if t == 0:
+        return "NO" if q > 0 else "YES"
+    
+    # Create a graph for maximum matching
+    # Left side: samples, Right side: groups
+    # We want a matching that covers all samples exactly once
+    
+    sample_to_groups = defaultdict(list)
+    group_contains = []
+    
+    for i, (a, b, c) in enumerate(groups):
+        sample_to_groups[a].append(i)
+        sample_to_groups[b].append(i)
+        sample_to_groups[c].append(i)
+        group_contains.append((a, b, c))
+    
+    # Try to find a perfect matching using backtracking with pruning
+    # Each group can be used at most once
+    # Each sample must be used exactly once
+    
+    def backtrack(pos, used_groups, used_samples):
+        if pos > 3 * q:
+            return []
+        
+        if len(used_samples) == 3 * q:
+            return []
+            
+        # If we've placed q groups, we're done
+        if len(used_groups) == q:
+            return [] if len(used_samples) == 3 * q else None
+        
+        # Try to place samples in order
+        next_sample = 1
+        while next_sample <= 3 * q and next_sample in used_samples:
+            next_sample += 1
+            
+        if next_sample > 3 * q:
+            return [] if len(used_groups) == q else None
+            
+        # Try each group containing next_sample
+        for group_idx in sample_to_groups[next_sample]:
+            if group_idx in used_groups:
+                continue
+                
+            a, b, c = group_contains[group_idx]
+            
+            # Check if all samples in this group are available
+            if a in used_samples or b in used_samples or c in used_samples:
+                continue
+            
+            # Try this group
+            used_groups.add(group_idx)
+            used_samples.add(a)
+            used_samples.add(b)
+            used_samples.add(c)
+            
+            result = backtrack(pos + 1, used_groups, used_samples)
+            if result is not None:
+                return [(a, b, c)] + result
+                
+            # Backtrack
+            used_groups.remove(group_idx)
+            used_samples.remove(a)
+            used_samples.remove(b)
+            used_samples.remove(c)
+        
+        return None
+    
+    # More efficient approach: build matching using greedy + backtracking
+    used_groups = set()
+    used_samples = set()
+    result = []
+    
+    # Use a different approach - try to build solution incrementally
+    def solve():
+        # Build adjacency for samples to groups
+        adj = defaultdict(list)
+        for i, (a, b, c) in enumerate(groups):
+            adj[a].append(i)
+            adj[b].append(i)
+            adj[c].append(i)
+        
+        # Track which groups are used and which samples are used
+        group_used = [False] * t
+        sample_used = [False] * (3 * q + 1)
+        selected_groups = []
+        
+        def dfs(sample):
+            if sample > 3 * q:
+                return True
+                
+            if sample_used[sample]:
+                return dfs(sample + 1)
+                
+            # Try each group containing this sample
+            for group_idx in adj[sample]:
+                if group_used[group_idx]:
+                    continue
+                    
+                a, b, c = groups[group_idx]
+                
+                if sample_used[a] or sample_used[b] or sample_used[c]:
+                    continue
+                
+                # Use this group
+                group_used[group_idx] = True
+                sample_used[a] = True
+                sample_used[b] = True
+                sample_used[c] = True
+                selected_groups.append((a, b, c))
+                
+                if dfs(sample + 1):
+                    return True
+                    
+                # Backtrack
+                group_used[group_idx] = False
+                sample_used[a] = False
+                sample_used[b] = False
+                sample_used[c] = False
+                selected_groups.pop()
+            
+            return False
+        
+        if dfs(1) and len(selected_groups) == q:
+            return ["YES"] + ["{} {} {}".format(a, b, c) for a, b, c in selected_groups]
+        else:
+            return ["NO"]
+    
+    return solve()
+
+def main():
+    line = input().split()
+    q, t = int(line[0]), int(line[1])
+    
+    groups = []
+    for _ in range(t):
+        a, b, c = map(int, input().split())
+        groups.append((a, b, c))
+    
+    result = find_matching(q, t, groups)
+    for line in result:
+        print(line)
+
+if __name__ == "__main__":
+    main()

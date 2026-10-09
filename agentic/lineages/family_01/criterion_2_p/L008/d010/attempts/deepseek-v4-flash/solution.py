@@ -12,29 +12,34 @@ for _ in range(m):
     adj[u].append(v)
     adj[v].append(u)
 
-color = [-1] * n  # -1 uncolored, 0 and 1 are the two sides
+color = [-1] * n
+color[0] = 1
+q = deque([0])
 
-def bfs(start):
-    q = deque([start])
-    color[start] = 0
-    while q:
-        u = q.popleft()
-        for v in adj[u]:
-            if color[v] == -1:
-                color[v] = 1 - color[u]
-                q.append(v)
-            elif color[v] == color[u]:
-                return False
-    return True
-
-for i in range(n):
-    if color[i] == -1:
-        if not bfs(i):
+while q:
+    u = q.popleft()
+    for v in adj[u]:
+        if color[v] == -1:
+            color[v] = 3 - color[u]  # 1 -> 2, 2 -> 1
+            q.append(v)
+        elif color[v] == color[u]:
             print("NO")
             sys.exit()
 
-# Lexicographically smallest: prefer state 1 for lower indices
-# color 0 -> state 1, color 1 -> state 2
-res = [1 if c == 0 else 2 for c in color]
+# If graph is disconnected, color remaining components
+for i in range(n):
+    if color[i] == -1:
+        color[i] = 1
+        q = deque([i])
+        while q:
+            u = q.popleft()
+            for v in adj[u]:
+                if color[v] == -1:
+                    color[v] = 3 - color[u]
+                    q.append(v)
+                elif color[v] == color[u]:
+                    print("NO")
+                    sys.exit()
+
 print("YES")
-print(" ".join(map(str, res)))
+print(" ".join(map(str, color)))

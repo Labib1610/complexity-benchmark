@@ -1,0 +1,301 @@
+```python
+import sys
+
+def solve():
+    input_data = sys.stdin.buffer.read().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    nV = int(next(it))
+    nD = int(next(it))
+    m = int(next(it))
+    
+    edges = []
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        edges.append((u, v))
+    
+    degV = [0] * (nV + 1)
+    degD = [0] * (nD + 1)
+    for u, v in edges:
+        degV[u] += 1
+        degD[v] += 1
+    
+    delta = 0
+    for i in range(1, nV + 1):
+        if degV[i] > delta:
+            delta = degV[i]
+    for i in range(1, nD + 1):
+        if degD[i] > delta:
+            delta = degD[i]
+    
+    if delta == 0:
+        out = ["YES", ""]
+        sys.stdout.write("\n".join(out))
+        return
+    
+    # Build bipartite graph: left = vessels, right = docks
+    # We need to edge-color with delta colors
+    # Use the standard approach: for each edge, find available color on both sides
+    
+    # For efficiency, we'll use the "Eulerian decomposition" approach
+    # or the greedy with recoloring. Given constraints, let's use a simpler approach.
+    
+    # Actually, let's use the approach of decomposing into matchings via Euler tours
+    # on the bipartite multigraph.
+    
+    # Build adjacency list
+    # Each edge has an index
+    # Left side: vessels 1..nV, Right side: docks 1..nD (offset by nV)
+    
+    N = nV + nD
+    adj = [[] for _ in range(N + 1)]
+    edge_list = []
+    for idx, (u, v) in enumerate(edges):
+        w = nV + v
+        adj[u].append((w, idx))
+        adj[w].append((u, idx))
+        edge_list.append((u, w))
+    
+    # For Euler tour decomposition:
+    # If delta is odd, we need to add dummy edges to make all degrees even
+    # Then decompose into delta/2 Euler tours (if delta even) or (delta+1)/2 (if delta odd)
+    # Each Euler tour gives 2 colors alternating
+    
+    # Actually, let's use a different approach: direct edge coloring via Vizing-like method
+    # But bipartite edge coloring with delta colors can be done via:
+    # 1. If delta is even: decompose into delta/2 2-factors, each 2-factor into 2 matchings
+    # 2. If delta is odd: add a perfect matching (dummy edges), making delta+1 (even), 
+    #    then decompose into (delta+1)/2 2-factors
+    
+    # This is complex. Let me use the simpler greedy with augmenting paths approach.
+    
+    # For bipartite graphs, we can color edges one by one:
+    # For each edge (u,v), find smallest free color cu on u and cv on v
+    # If cu == cv, assign it
+    # If cu < cv, assign cu, then recolor the edge at v that has color cu
+    #   This creates an augmenting path
+    
+    # But this can be O(m * delta) in worst case which might be too slow.
+    
+    # Let me try the Euler tour approach properly.
+    
+    # Make a copy of degrees
+    deg = [0] * (N + 1)
+    for i in range(1, nV + 1):
+        deg[i] = degV[i]
+    for i in range(1, nD + 1):
+        deg[nV + i] = degD[i]
+    
+    # If delta is odd, add dummy edges to make all degrees even
+    # We add edges between vertices of odd degree
+    # In bipartite graph, sum of degrees on left = sum on right = m
+    # Number of odd-degree vertices on left has same parity as m
+    # Same for right
+    # So we can pair them up
+    
+    dummy_edges = []
+    if delta % 2 == 1:
+        odd_left = []
+        odd_right = []
+        for i in range(1, nV + 1):
+            if deg[i] % 2 == 1:
+                odd_left.append(i)
+        for i in range(1, nD + 1):
+            if deg[nV + i] % 2 == 1:
+                odd_right.append(nV + i)
+        
+        # Pair up odd vertices on each side
+        for i in range(0, len(odd_left), 2):
+            if i + 1 < len(odd_left):
+                dummy_edges.append((odd_left[i], odd_left[i+1], -1))
+                deg[odd_left[i]] += 1
+                deg[odd_left[i+1]] += 1
+        for i in range(0, len(odd_right), 2):
+            if i + 1 < len(odd_right):
+                dummy_edges.append((odd_right[i], odd_right[i+1], -1))
+                deg[odd_right[i]] += 1
+                deg[odd_right[i+1]] += 1
+        
+        # If there's still an odd number, we might need to add more
+        # Actually, after pairing, if there's 1 left on each side, 
+        # we need to connect them through a dummy vertex or add 2 more edges
+        # But in bipartite, left and right odd counts have same parity
+        # So if 1 left on each side, we add edge between them (but that's a real edge in bipartite)
+        # Wait, dummy edges can be between any two vertices (they're not real transfers)
+        
+        if len(odd_left) % 2 == 1:
+            # One left on each side, connect them
+            dummy_edges.append((odd_left[-1], odd_right[-1], -1))
+            deg[odd_left[-1]] += 1
+            deg[odd_right[-1]] += 1
+    
+    # Now all degrees should be even, and max degree is delta (or delta+1 if we added dummy)
+    # Actually, we need to be more careful. Let me add dummy edges to make max degree even
+    # and all degrees even.
+    
+    # Hmm, this is getting complicated. Let me just use the greedy approach with
+    # the observation that for bipartite graphs, the greedy with recoloring works
+    # and the total work is bounded.
+    
+    # Actually, let me implement the standard bipartite edge coloring algorithm
+    # using the "rotate" / augmenting path method.
+    
+    color = [0] * m  # color for each edge, 1-indexed
+    # For each vertex, track which color is used by which edge
+    # used[v][c] = edge_index, or -1 if free
+    
+    # To save memory, use dict for each vertex
+    # But with delta up to 400000 and vertices up to 200000, this could be large
+    # Let's use arrays of size delta+1 for vertices that have edges
+    
+    # Actually, let's use a different representation
+    # For each vertex, maintain a list of (color, edge_index) pairs
+    # And a dict for quick lookup
+    
+    # Given time constraints, let me implement the simpler version
+    
+    # For each vertex, slot[v] = array where slot[v][c] = edge index with color c, or -1
+    # This uses too much memory if delta is large and many vertices
+    
+    # Let's use dict-based approach
+    slot = [dict() for _ in range(N + 1)]
+    
+    for idx in range(m):
+        u, v = edge_list[idx]
+        # Find smallest free color on u and v
+        cu = 1
+        while cu in slot[u]:
+            cu += 1
+        cv = 1
+        while cv in slot[v]:
+            cv += 1
+        
+        if cu == cv:
+            color[idx] = cu
+            slot[u][cu] = idx
+            slot[v][cu] = idx
+        elif cu < cv:
+            # Assign cu to this edge
+            # But v might have cu used by another edge
+            if cu in slot[v]:
+                # Need to recolor
+                # Find augmenting path starting from v
+                # The edge at v with color cu needs to be recolored to cv
+                # But cv might be used at the other endpoint of that edge
+                # Continue augmenting
+                
+                # Let's do the standard augmenting path
+                # We want to assign color cu to edge (u,v)
+                # u is free at cu, v is not free at cu
+                # The edge at v with color cu: let's call it e1 = (v, w)
+                # We try to recolor e1 to cv (which is free at v)
+                # If cv is free at w, done
+                # Otherwise, continue
+                
+                # Actually, let me implement the standard algorithm properly
+                # This is getting complex. Let me use a different approach.
+                pass
+            
+            # Let me just use the simple approach: assign cu, and if conflict, 
+            # do the augmenting path
+            
+            # Actually for bipartite, the standard approach is:
+            # Let a = cu (free on u), b = cv (free on v, b > a)
+            # We want to use color a on edge (u,v)
+            # If a is free on v, just use it
+            # If a is used on v by edge (v,w), then:
+            #   - Find the maximal alternating path from w using colors a and b
+            #   - Swap colors a and b along this path
+            #   - Now a is free on v, assign a to edge (u,v)
+            
+            # Let's implement this
+            a, b = cu, cv
+            
+            # Check if a is free on v
+            if a not in slot[v]:
+                color[idx] = a
+                slot[u][a] = idx
+                slot[v][a] = idx
+            else:
+                # a is used on v by some edge
+                # Find alternating path from v (or from the other endpoint)
+                # Actually, we need to find the path starting from u's side
+                
+                # The edge using color a at v: let's find it
+                # Then follow the alternating path of colors a, b
+                
+                # Build the alternating path
+                # Start from v, color a is used, follow to the other endpoint
+                # At that endpoint, check if color b is used, if so follow, etc.
+                
+                path = []  # list of (vertex, edge_index, color_to_swap_to)
+                curr = v
+                curr_color = a
+                
+                while True:
+                    if curr_color not in slot[curr]:
+                        break
+                    e = slot[curr][curr_color]
+                    path.append((curr, e, curr_color))
+                    # Move to other endpoint
+                    eu, ev = edge_list[e]
+                    curr = ev if curr == eu else eu
+                    curr_color = b if curr_color == a else a
+                
+                # Swap colors along the path
+                for vertex, e_idx, old_color in path:
+                    new_color = b if old_color == a else a
+                    other = edge_list[e_idx][0] if vertex == edge_list[e_idx][1] else edge_list[e_idx][1]
+                    del slot[vertex][old_color]
+                    del slot[other][old_color]
+                    slot[vertex][new_color] = e_idx
+                    slot[other][new_color] = e_idx
+                    color[e_idx] = new_color
+                
+                # Now a should be free on v
+                color[idx] = a
+                slot[u][a] = idx
+                slot[v][a] = idx
+        else:
+            # cu > cv, symmetric case
+            a, b = cv, cu
+            
+            if a not in slot[u]:
+                color[idx] = a
+                slot[u][a] = idx
+                slot[v][a] = idx
+            else:
+                path = []
+                curr = u
+                curr_color = a
+                
+                while True:
+                    if curr_color not in slot[curr]:
+                        break
+                    e = slot[curr][curr_color]
+                    path.append((curr, e, curr_color))
+                    eu, ev = edge_list[e]
+                    curr = ev if curr == eu else eu
+                    curr_color = b if curr_color == a else a
+                
+                for vertex, e_idx, old_color in path:
+                    new_color = b if old_color == a else a
+                    other = edge_list[e_idx][0] if vertex == edge_list[e_idx][1] else edge_list[e_idx][1]
+                    del slot[vertex][old_color]
+                    del slot[other][old_color]
+                    slot[vertex][new_color] = e_idx
+                    slot[other][new_color] = e_idx
+                    color[e_idx] = new_color
+                
+                color[idx] = a
+                slot[u][a] = idx
+                slot[v][a] = idx
+    
+    out = ["YES"]
+    out.append(" ".join(str(c) for c in color))
+    sys.stdout.write("\n".join(out))
+
+solve()
+```

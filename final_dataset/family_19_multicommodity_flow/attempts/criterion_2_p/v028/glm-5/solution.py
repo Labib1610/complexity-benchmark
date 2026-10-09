@@ -1,0 +1,109 @@
+import sys
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    
+    # Skip 1 at end of first line
+    n = int(next(it))
+    m = int(next(it))
+    _ = int(next(it))  # the trailing '1'
+    
+    s = int(next(it))
+    t = int(next(it))
+    d = int(next(it))
+    
+    edges_info = []
+    adj = [[] for _ in range(n + 1)]  # 1-based accounts
+    
+    for i in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        cap = int(next(it))
+        edges_info.append((u, v, cap))
+        # Add directed edge to adjacency list
+        adj[u].append((v, i))
+    
+    # Dinic's Max Flow implementation
+    # Node indices 1..n
+    
+    # Build graph as (to, rev_index, cap) for each edge and reverse edge
+    graph = [[] for _ in range(n + 1)]
+    # Store edges in order to retrieve capacities later
+    # edge_keeper[j] is (node_u, index_in_graph[u])
+    edge_keeper = [None] * m
+    
+    for j, (u, v, cap) in enumerate(edges_info):
+        # Forward edge
+        graph[u].append([v, len(graph[v]), cap])
+        # Backward edge
+        graph[v].append([u, len(graph[u]) - 1, 0])
+        
+        edge_keeper[j] = (u, len(graph[u]) - 1)
+    
+    level = [0] * (n + 1)
+    ptr = [0] * (n + 1)
+    
+    def bfs() -> bool:
+        for i in range(1, n + 1):
+            level[i] = -1
+        level[s] = 0
+        queue = [s]
+        head = 0
+        while head < len(queue):
+            u = queue[head]
+            head += 1
+            for v, rev_idx, cap in graph[u]:
+                if cap > 0 and level[v] == -1:
+                    level[v] = level[u] + 1
+                    if v == t:
+                        return True
+                    queue.append(v)
+        return False
+    
+    def dfs(u, flow) -> int:
+        if u == t:
+            return flow
+        while ptr[u] < len(graph[u]):
+            v, rev_idx, cap = graph[u][ptr[u]]
+            if cap > 0 and level[v] == level[u] + 1:
+                pushed = dfs(v, min(flow, cap))
+                if pushed > 0:
+                    graph[u][ptr[u]][2] -= pushed
+                    graph[v][rev_idx][2] += pushed
+                    return pushed
+            ptr[u] += 1
+        return 0
+    
+    flow = 0
+    while bfs():
+        ptr = [0] * (n + 1)
+        while True:
+            pushed = dfs(s, d - flow)
+            if pushed == 0:
+                break
+            flow += pushed
+            if flow >= d:
+                break
+        if flow >= d:
+            break
+    
+    if flow < d:
+        print("NO")
+    else:
+        print("YES")
+        # Retrieve allocated tokens from graph capacities
+        # Original cap - residual cap = flow
+        allocations = []
+        for j in range(m):
+            u, idx_in_u = edge_keeper[j]
+            original_cap = edges_info[j][2]
+            residual_cap = graph[u][idx_in_u][2]
+            alloc = original_cap - residual_cap
+            allocations.append(str(alloc))
+        print(" ".join(allocations))
+
+if __name__ == "__main__":
+    solve()

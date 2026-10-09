@@ -1,0 +1,1251 @@
+This is the classic 2-SAT problem. Each machine is a boolean variable. Each interlock with feeds $c_1, c_2$ says: NOT (feed1 high AND feed2 high), i.e., at least one feed must be low.
+
+Let me formalize. Machine $i$ has mode $s_i \in \{0, 1\}$. Define a literal: for $c > 0$, the feed is high when machine $c$ is in mode 0. For $c < 0$, the feed is high when machine $|c|$ is in mode 1.
+
+So feed $c$ being "high" corresponds to a condition on machine $|c|$:
+- $c > 0$: high iff $s_c = 0$, i.e., NOT ($s_c = 1$). In boolean terms, if we let $x_i$ = "machine $i$ is in mode 1", then feed $c > 0$ high iff $\neg x_c$.
+- $c < 0$: high iff $s_{|c|} = 1$, i.e., $x_{|c|}$.
+
+The constraint: NOT (feed1 high AND feed2 high) = (feed1 low) OR (feed2 high... wait, feed2 low).
+
+So the clause is: (NOT feed1 high) OR (NOT feed2 high).
+
+If feed1 is literal $L_1$ (in terms of $x$), feed2 is literal $L_2$, then the clause is $\neg L_1 \lor \neg L_2$.
+
+Equivalently, $L_1 \Rightarrow \neg L_2$ and $L_2 \Rightarrow \neg L_1$.
+
+For 2-SAT: implication graph. For each clause $(a \lor b)$, add edges $\neg a \to b$ and $\neg b \to a$.
+
+Here clause is $(\neg L_1 \lor \neg L_2)$, so add edges $L_1 \to \neg L_2$ and $L_2 \to \neg L_1$.
+
+Let me set up variable encoding: variable $i$ (1-indexed machine), nodes: $2(i-1)$ for $x_i$ true (mode 1), $2(i-1)+1$ for $x_i$ false (mode 0). Or use $2i$ and $2i+1$ with 1-indexed variables.
+
+Literal for feed $c$:
+- If $c > 0$: high iff $\neg x_c$, so literal $L = \neg x_c$ → node index for $x_c$ false.
+- If $c < 0$: high iff $x_{|c|}$, so literal $L = x_{|c|}$ → node for $x_{|c|}$ true.
+
+Then edges: $L_1 \to \neg L_2$ and $L_2 \to \neg L_1$.
+
+Where $\neg L$ flips the node: if node is $2i$ (true), negation is $2i+1$, and vice versa.
+
+Then run Tarjan's SCC (iterative, since $n$ up to $10^5$, so $2n = 2 \cdot 10^5$ nodes, $2m = 4 \cdot 10^5$ edges). Then assign: $x_i$ true iff comp[node_true] < comp[node_false] in reverse topological order... Standard: in Tarjan, SCCs are numbered in reverse topological order (the first completed SCC is a "sink" in the condensation... actually Tarjan assigns SCC ids such that SCC ids are in reverse topological order of the condensation — the first SCC found is a sink). The standard assignment: $x_i$ = true iff comp[$x_i$] > comp[$\neg x_i$] when comp ids are in topological order, or the reverse. Let me be careful.
+
+Standard 2-SAT with Tarjan: comp array where SCCs are numbered in reverse topological order (Tarjan produces SCCs in reverse topological order — i.e., if there's an edge from SCC A to SCC B in the condensation, then B is completed before A, so id[B] < id[A]). Then $x_i$ is true iff comp[$x_i$] < comp[$\neg x_i$]... Hmm, let me think again.
+
+The rule: $x$ is true iff the SCC of $x$ comes after the SCC of $\neg x$ in topological order of the implication graph. In topological order, if comp of $x$ comes later (higher position), then $x$ is "more true".
+
+With Tarjan, SCC ids: the first SCC completed gets id 0. Tarjan completes SCCs in reverse topological order (sinks first). So if id[A] < id[B], then in topological order, B comes before A? No wait. Tarjan: sinks of the condensation are completed first. So the first completed SCC (id 0) is a sink. Topological order has sources first, sinks last. So id 0 = sink = last in topological order. So smaller id = later in topological order. So $x$ is true iff comp[$x$] < comp[$\neg x$] (x's SCC is closer to a sink, i.e., later in topological order).
+
+Hmm, let me double check with the standard convention. In many references (e.g., competitive programming), with Tarjan's algorithm producing comp ids in reverse topological order, the assignment is: $x_i$ = true iff comp[$x_i$] < comp[$\neg x_i$]. Wait, actually I recall it's: value true if comp[x] > comp[¬x] when comp ids are topological order. Let me just derive it.
+
+Implication graph: edge $u \to v$ means "if $u$ then $v$". Assignment rule for 2-SAT via SCC: variable $x$ is assigned true iff $\neg x$'s SCC precedes $x$'s SCC in topological order... Let me think about why.
+
+The standard rule: assign $x$ = true if SCC($x$) comes after SCC($\neg x$) in topological order. Reasoning: we want to avoid setting a literal true when its negation is implied. If SCC($x$) comes after SCC($\neg x$) topologically, then setting $x$ true: everything reachable from $x$ gets set true. Since SCC($x$) is after SCC($\neg x$), we can't reach $\neg x$ from $x$ (reaching would mean SCC($\neg x$) is after SCC($x$) or same SCC — same SCC means unsat). Hmm, actually the standard proof: choose for each variable the literal whose SCC is later in topological order. If literal $L$ is chosen (its SCC is later than SCC of $\neg L$), then all literals reachable from $L$ also have SCCs later... hmm, reachable from $L$ means SCCs that come after SCC($L$) in topological order (or equal). And none of them can be the negation of a chosen literal, because for any literal $M$ reachable from $L$, $\neg M$ implies $\neg L$... 
+
+OK regardless of the proof details, the standard rule with Tarjan (which numbers SCCs in reverse topological order, i.e., comp id 0 is a sink): $x$ = true iff comp[$x$] < comp[$\neg x$]. Because smaller comp id = later in topological order (closer to sink). And the rule "true iff later in topological order" gives comp[$x$] < comp[$\neg x$].
+
+Wait, I need to double-check the direction of the rule. Let me verify with a simple example: single clause $(x \lor x)$, i.e., $x$ must be true. Implication graph: $\neg x \to x$. Nodes: $\neg x$, $x$. Edge $\neg x \to x$. SCCs: {x} is a sink, {$\neg x$} is a source. Tarjan: starting DFS from... depends on order, but SCC of $x$ (sink) gets smaller id than SCC of $\neg x$. So comp[$x$] < comp[$\neg x$]. And $x$ must be true. So rule: true iff comp[x] < comp[¬x]. ✓.
+
+Another check: clause $(\neg x \lor \neg x)$: $x$ must be false. Edge: $x \to \neg x$. SCC of $\neg x$ is sink, gets smaller id. comp[$\neg x$] < comp[$x$], so comp[$x$] > comp[$\neg x$] → $x$ false. ✓.
+
+Great, so with Tarjan: $x_i$ = true (mode 1) iff comp[node_true(i)] < comp[node_false(i)].
+
+Alternatively, I could use Kosaraju or just do the standard approach. Let me also double check the clause construction with the examples.
+
+Example 1: n=2, m=2. Interlocks: (1, 2) and (-1, -2).
+
+Interlock 1: feeds $c_1 = 1$, $c_2 = 2$. Feed 1 high iff machine 1 in mode 0 ($\neg x_1$). Feed 2 high iff machine 2 in mode 0 ($\neg x_2$). Constraint: not both high: $\neg(\neg x_1 \land \neg x_2)$ = $x_1 \lor x_2$. So at least one of machines 1, 2 in mode 1.
+
+Interlock 2: feeds $-1$, $-2$: high iff machine 1 in mode 1 ($x_1$), machine 2 in mode 1 ($x_2$). Constraint: $\neg(x_1 \land x_2)$ = $\neg x_1 \lor \neg x_2$.
+
+So solutions: $x_1 \lor x_2$ and $\neg x_1 \lor \neg x_2$: e.g., $x_1 = 1, x_2 = 0$ → modes "1 0". Matches expected output "1 0". 
+
+Example 2: n=1, m=2. Interlocks: (1,1): both feeds high iff machine 1 in mode 0. Constraint: not (mode 0 and mode 0) → machine 1 not in mode 0 → mode 1. Interlock (-1,-1): not (mode 1 and mode 1) → mode 0. Contradiction → NO. ✓.
+
+Now, implementation details:
+
+- $n \le 10^5$, $m \le 2 \cdot 10^5$. Nodes: $2n \le 2 \cdot 10^5$. Edges: $2m \le 4 \cdot 10^5$.
+- Python with recursion is dangerous; use iterative Tarjan or Kosaraju. Iterative Tarjan in Python for 2·10^5 nodes and 4·10^5 edges should be fine within 1 second... Python might be slow but let's optimize.
+
+Actually, time limit is 1 second which is tight for Python. Let me write an efficient iterative Tarjan or use Kosaraju with iterative DFS. Alternatively, use the standard "2-SAT via SCC with iterative Tarjan" pattern.
+
+Let me think about performance. 2·10^5 nodes, 4·10^5 edges. Iterative Tarjan with adjacency lists stored as arrays (CSR format) would be fastest in Python. Let me write it carefully.
+
+Alternative: Kosaraju needs two DFS passes plus graph transpose. Tarjan is one pass but with more bookkeeping. Both are fine.
+
+Let me write iterative Tarjan:
+
+```python
+import sys
+
+def main():
+    data = sys.stdin.buffer.read().split()
+    idx = 0
+    n = int(data[idx]); idx += 1
+    m = int(data[idx]); idx += 1
+    
+    # node for literal: machine i (1-indexed): true node = 2*i, false node = 2*i+1
+    # feed c: c>0 -> literal "machine c is mode 0" = false node of c = 2*c+1
+    #         c<0 -> literal "machine |c| is mode 1" = true node = 2*|c|
+    # clause: (not L1) or (not L2): edges L1 -> not L2, L2 -> not L1
+    
+    # Build CSR
+    # count edges
+    us = []
+    vs = []
+    for _ in range(m):
+        c1 = int(data[idx]); idx += 1
+        c2 = int(data[idx]); idx += 1
+        if c1 > 0:
+            l1 = 2*c1 + 1
+        else:
+            l1 = 2*(-c1)
+        if c2 > 0:
+            l2 = 2*c2 + 1
+        else:
+            l2 = 2*(-c2)
+        # edge l1 -> not l2, l2 -> not l1
+        # not of node v: v^1 (since true=2i, false=2i+1, XOR 1 flips)
+        us.append(l1); vs.append(l2 ^ 1)
+        us.append(l2); vs.append(l1 ^ 1)
+    
+    N = 2*n + 2  # nodes 0..2n+1, but node 0 unused (machine 0 doesn't exist). Actually machines are 1..n, so nodes 2..2n+1. Let's just use size 2n+2.
+```
+
+Hmm, node 0 and 1 are unused (machine 0). That's fine, just wasted 2 nodes. Or I could map machine i to nodes 2(i-1) and 2(i-1)+1. Let's do that to save a bit: machine i → true node = 2(i-1), false node = 2(i-1)+1. Feed c>0 → literal = false node of machine c = 2(c-1)+1. Feed c<0 → true node = 2(|c|-1).
+
+Negation: XOR 1.
+
+Then N = 2n.
+
+Build CSR: 
+```python
+deg = [0]*(N)
+for u in us: deg[u]+=1
+# prefix sums
+start = [0]*(N+1)
+for i in range(N): start[i+1] = start[i]+deg[i]
+adj = [0]*(2*len(us))  # total edges
+pos = start[:]  # copy of start[0..N-1]
+for i, u in enumerate(us):
+    adj[pos[u]] = vs[i]
+    pos[u]+=1
+```
+
+Actually with m up to 2·10^5, edges up to 4·10^5. Building lists us, vs of 4·10^5 each is fine.
+
+Iterative Tarjan:
+
+```python
+    index_counter = 0
+    indices = [-1]*N  # discovery index
+    low = [0]*N
+    on_stack = bytearray(N)
+    comp = [-1]*N
+    comp_count = 0
+    stack = []  # Tarjan stack
+    # iterative DFS
+    for root in range(N):
+        if indices[root] != -1: continue
+        # dfs stack: (node, edge pointer)
+        dfs_stack = [(root, start[root])]
+        indices[root] = low[root] = index_counter; index_counter += 1
+        stack.append(root); on_stack[root] = 1
+        while dfs_stack:
+            u, ei = dfs_stack[-1]
+            if ei < start[u+1]:
+                # advance pointer
+                dfs_stack[-1] = (u, ei+1)
+                v = adj[ei]
+                if indices[v] == -1:
+                    indices[v] = low[v] = index_counter; index_counter += 1
+                    stack.append(v); on_stack[v] = 1
+                    dfs_stack.append((v, start[v]))
+                else:
+                    if on_stack[v] and low[v] < low[u]:
+                        low[u] = low[v]
+            else:
+                dfs_stack.pop()
+                if dfs_stack:
+                    p = dfs_stack[-1][0]
+                    if low[u] < low[p]: low[p] = low[u]
+                if low[u] == indices[u]:
+                    # root of SCC
+                    while True:
+                        w = stack.pop()
+                        on_stack[w] = 0
+                        comp[w] = comp_count
+                        if w == u: break
+                    comp_count += 1
+```
+
+Wait, there's a subtle issue: when we do `dfs_stack[-1] = (u, ei+1)` and then push child, the low update from child happens when child pops. That's handled.
+
+But there's a bug: when ei < start[u+1], we set dfs_stack[-1] = (u, ei+1) BEFORE processing edge ei. Then if v is unvisited, we push v. When v finishes and pops, we update low[u] via parent check. Good. If v is visited and on stack, we update low[u] with low[v]... 
+
+Hmm, careful: standard Tarjan uses `low[u] = min(low[u], index[v])` for back/cross edges to on-stack nodes, not low[v]. Using low[v] for on-stack nodes is actually also correct in many implementations? Let me think. The standard Tarjan:
+
+```
+for each v in adj[u]:
+    if index[v] undefined:
+        strongconnect(v)
+        low[u] = min(low[u], low[v])
+    else if on_stack[v]:
+        low[u] = min(low[u], index[v])
+```
+
+Using low[v] instead of index[v] in the else branch: is it safe? low[v] ≤ index[v], so it could make low[u] smaller than it should be. Could that incorrectly merge SCCs? Hmm. Actually, there's a known fact: using low[v] for on-stack v is still correct because if v is on the stack, v is in the current SCC being built or... hmm, actually if v is on the Tarjan stack, then v's SCC hasn't been finalized, and there's a path from v to u (since v is on stack means v can reach the current DFS path root... actually on_stack means v was visited and its SCC not yet completed, and importantly, v can reach u in the DFS tree? No...).
+
+The known result: if v is on the stack when we're processing u, then there's a path from v to u in the graph. Because v is on the stack iff v's SCC is not yet complete, and all vertices on the stack form a path... Hmm, actually the invariant is: a vertex remains on the stack after being visited iff it has a path to some vertex earlier... Let me recall: vertices are on the stack iff they have a path to the current vertex u? Not exactly — the invariant is that the stack contains vertices whose SCCs are not fully determined, and every vertex on the stack can reach the current vertex u. Yes! That's the key invariant of Tarjan: after strongconnect(v) is called for v on the stack, v remains on the stack only if v has a path to the vertex that called it... Actually the invariant: vertex v is removed from the stack when its SCC root finishes. And a vertex v stays on the stack iff there's a path from v to the current DFS vertex. Hmm, I believe the invariant is: all vertices on the stack have a path to the current vertex u (through tree/back edges within the current SCC exploration). 
+
+If v is on the stack and there's a path from v to u, then low[v] values... using low[v] instead of index[v]: low[v] ≤ index[v], and low[v] represents the smallest index reachable from v. Since v can reach u, and u can reach v (edge u→v), u and v are in the same SCC (v reaches u via stack invariant, u reaches v via the edge). So using low[v] is fine because they're in the same SCC anyway, and low values within an SCC converge to the SCC root's index. Hmm, but wait — is it guaranteed that v on stack implies path from v to u? 
+
+The Tarjan invariant: a vertex w is on the stack if and only if there is a path from w to the vertex u currently being processed. Let me verify: when we visit w, we push it. w stays until its SCC root pops. If w is on the stack while processing u, then... Consider the moment w was pushed: it was pushed during the DFS. The claim is that any vertex on the stack can reach the current vertex. This is a standard invariant. Yes, I recall this is true: the stack contains exactly those vertices which have been visited but whose SCC is not yet complete, and each of them can reach the current vertex u. Because when w's subtree exploration moves on (w is not popped), it means w's SCC is incomplete, meaning some descendant... hmm.
+
+Actually, let me just be safe and use index[v] for the on-stack case, which is the textbook version. It's definitely correct.
+
+But wait — there's a subtlety with using low[v] vs index[v] in the iterative version where I update parent's low when child pops: `if low[u] < low[p]: low[p] = low[u]` — that's the tree-edge case, which is correct (low[v] for tree children).
+
+For the non-tree edge case, I'll use `if on_stack[v] and indices[v] < low[u]: low[u] = indices[v]`.
+
+Hmm, but actually many competitive programmers use low[v] in both cases and it works. But to be safe, textbook version.
+
+Actually hold on, there's a well-known subtlety: using `low[u] = min(low[u], index[v])` when v is on stack. Some implementations use `low[u] = min(low[u], low[v])` for all visited v (not checking on_stack) — that's incorrect. But checking on_stack and using low[v]... I've seen discussions that it's still correct. Anyway, textbook version with index[v] is safest.
+
+Let me now also think about performance. The iterative Tarjan with tuple stack `(u, ei)` creates lots of tuple allocations. Better to use two parallel lists or encode as single integer: `u * (N+1) + ei`? Or use arrays. Let me use two lists: `node_stack` and `edge_ptr_stack`. Actually, a common trick: store the state as a single list where we push u, and maintain a separate pointer array `it[u]` (current edge pointer per node) — since each node is on the DFS stack at most once, we can store the iterator in an array indexed by node:
+
+```python
+it = list(start[:N])  # current edge pointer for each node while on dfs stack
+```
+
+Then DFS:
+
+```python
+for root in range(N):
+    if indices[root] != -1: continue
+    indices[root] = low[root] = index_counter; index_counter += 1
+    stack.append(root); on_stack[root] = 1
+    path = [root]
+    while path:
+        u = path[-1]
+        advanced = False
+        while it[u] < start[u+1]:
+            v = adj[it[u]]
+            it[u] += 1
+            if indices[v] == -1:
+                indices[v] = low[v] = index_counter; index_counter += 1
+                stack.append(v); on_stack[v] = 1
+                path.append(v)
+                advanced = True
+                break
+            elif on_stack[v]:
+                if indices[v] < low[u]: low[u] = indices[v]
+        if not advanced:
+            path.pop()
+            if path:
+                p = path[-1]
+                if low[u] < low[p]: low[p] = low[u]
+            if low[u] == indices[u]:
+                while True:
+                    w = stack.pop()
+                    on_stack[w] = 0
+                    comp[w] = comp_count
+                    if w == u: break
+                comp_count += 1
+```
+
+Hmm, the inner while loop with break — when we push a child, we break out and continue the outer loop with the child as top. When child finishes and pops, we return to u and continue scanning from it[u]. This works. But the structure: `while it[u] < start[u+1]: ... if unvisited: push, break` — after break, outer while continues with new top. When we come back to u later, we resume the inner while. Good.
+
+But there's an issue: after the inner while completes without break (all edges scanned), we pop u. But wait — the inner while might have processed several on-stack edges before finding an unvisited one or exhausting. That's fine.
+
+Actually, let me restructure to avoid the double loop overhead. Alternative cleaner iterative Tarjan:
+
+```python
+path = [root]
+...
+while path:
+    u = path[-1]
+    if it[u] < end[u]:
+        v = adj[it[u]]
+        it[u] += 1
+        if indices[v] == -1:
+            indices[v] = low[v] = idx; idx += 1
+            tstack.append(v); on_stack[v] = 1
+            path.append(v)
+        elif on_stack[v] and indices[v] < low[u]:
+            low[u] = indices[v]
+    else:
+        path.pop()
+        if path:
+            p = path[-1]
+            if low[u] < low[p]: low[p] = low[u]
+        if low[u] == indices[u]:
+            ...pop SCC...
+```
+
+This is the classic form. Each iteration of the outer while handles one edge or one pop. Total iterations ≈ edges + nodes = 6·10^5. Each iteration does a handful of list indexing operations. In Python, this might take ~1-2 seconds... Time limit is 1s. Hmm, risky. But typically these problems on judges give Python some leniency, or we just do our best. Let me optimize as much as possible.
+
+Optimizations:
+- Use local variable references for lists (adj, it, indices, low, on_stack, path, tstack, start).
+- Use arrays (lists) with integer indexing.
+- Minimize attribute lookups.
+
+Alternative approach: Kosaraju with iterative DFS might be similar speed (two passes). Tarjan single pass is probably better.
+
+Another alternative: since this is 2-SAT, there's a simpler approach? Not really — 2-SAT needs SCC in general.
+
+Hmm, wait. Actually, let me reconsider the problem structure. The clauses are all of the form $\neg L_1 \lor \neg L_2$ where $L_1, L_2$ are literals. In terms of variables: each clause is "not both feeds high". This is exactly 2-SAT with clauses $(\neg L_1 \lor \neg L_2)$. No special structure (it's general 2-SAT since $L_1, L_2$ can be any literals, and $(\neg L_1 \lor \neg L_2)$ can represent... hmm, can it represent all 2-SAT clauses? A clause $(a \lor b)$ with arbitrary literals — we'd need it as $(\neg L_1 \lor \neg L_2)$ where $\neg L_1 = a$, i.e., $L_1 = \neg a$. Yes, so it's fully general 2-SAT.)
+
+So we need SCC. Let me write the most optimized Python I can.
+
+Actually, one more consideration: maybe use sys.setrecursionlimit and recursive Tarjan? With 2·10^5 nodes, recursion depth could be 2·10^5 — Python recursion at that depth with function call overhead... it might work but risks stack overflow (C stack) — in CPython, recursion depth 2·10^5 is generally OK if recursion limit is raised (default C stack ~8MB, each frame maybe ~100 bytes of C stack for the interpreter loop... actually Python frames are heap-allocated; the C stack usage per recursion level in the eval loop is small, ~ a few hundred bytes... 2·10^5 * ~500 bytes = 100MB? No...). Hmm, risky. Iterative is safer.
+
+Let me think about whether I can vectorize anything with... not really, SCC is inherently sequential.
+
+Let me estimate: outer loop iterations ~ (nodes pushed: 2·10^5) + (edges scanned: 4·10^5) + (pops: 2·10^5) ≈ 8·10^5 iterations of the while loop, each with maybe 5-15 bytecode-heavy operations. In CPython, roughly 10^7 simple operations per second... 8·10^5 iterations × ~20 ops = 1.6·10^7 ops ≈ 1.5-3 seconds. Hmm, tight. Time limit 1s. But often these problems are tested with extended limits for Python, or the test data isn't worst-case. Let me just write it as efficiently as possible.
+
+Alternative: Use a different algorithm formulation that's more Python-friendly. 
+
+Option: Kosaraju with the "finish order" computed via iterative DFS, then second pass on the reversed graph. The first DFS can be done with a simple stack without low-link tracking:
+
+Pass 1: compute finish order (post-order). 
+```python
+visited = bytearray(N)
+order = []
+for s in range(N):
+    if visited[s]: continue
+    stack = [s]
+    visited[s] = 1
+    while stack:
+        u = stack[-1]
+        # need to track edge pointers
+        ...
+```
+Still needs edge pointers. Similar cost.
+
+Hmm, alternative for pass 1 without edge pointers: push all neighbors, mark visited on push. But that gives wrong post-order for Kosaraju? Actually, there's a trick: for Kosaraju, you need finish times. A common hack: DFS where you push neighbors and mark visited when pushed; then the order in which nodes are popped... no, that doesn't give valid finish order.
+
+Actually there IS a known trick: if you do DFS pushing all unvisited neighbors (marking visited at push time), and record nodes in the order they're popped from the stack... that's not post-order. Hmm.
+
+But there's another trick for Kosaraju: process nodes, and the "reverse post-order"... Let me think. Actually the correct statement: Kosaraju needs the vertices in order of decreasing finish time. A DFS that marks visited at push time and appends to order at pop time gives... Let me think about whether that order works.
+
+Hmm, there's a classical result that for Kosaraju you can use a simpler order? No, I don't think so. Let me not risk it.
+
+Alternative trick that DOES work: iterative DFS with "push all unvisited neighbors, mark on push, and when popping a node, if it's already 'finished' skip; else record post-order". The issue: a node might be pushed multiple times. Standard trick:
+
+```python
+# compute post-order using explicit stack, allowing duplicates
+for s in range(N):
+    if visited[s]: continue
+    stack = [s]
+    while stack:
+        u = stack.pop()
+        if visited[u]: 
+            continue?? 
+```
+
+Hmm, the classic trick: 
+
+```python
+stack = [s]
+visited[s] = True
+while stack:
+    u = stack.pop()
+    order.append(u)  # this is not post-order...
+```
+
+Let me think of the well-known approach: to get post-order iteratively without edge pointers:
+
+```python
+for s in range(N):
+    if visited[s]: continue
+    dfs_stack = [(s, 0)]  # or use the two-phase push trick
+```
+
+Two-phase push trick: push u once; when popped the first time, mark "expanded", push u again with a marker, then push all unvisited children. When popped the second time, append to post-order. Implementation: push (u, False); when popping (u, flag): if flag: postorder.append(u) else: push (u, True), then for each neighbor v unvisited: mark visited, push (v, False). 
+
+Wait, but marking visited at push time — for post-order computation that's fine (it's just DFS with early visited marking; the resulting post-order of the "visited-marking tree" — hmm, is it a valid DFS post-order of the original graph? For Kosaraju's correctness we need: order of decreasing finish time in the ORIGINAL graph DFS. The two-phase trick with visited-at-push gives a post-order of a DFS forest where children are marked visited possibly by other branches... 
+
+Hmm, actually the standard iterative DFS post-order with visited marking at push time: this computes a valid DFS? Let me think. In the two-phase approach, when we pop (u, False), we push (u, True) and then push all unvisited neighbors. The neighbors get marked visited immediately. Then we process the last-pushed neighbor first. This mimics recursive DFS where we mark children visited when we start... no wait, in recursive DFS we mark u visited when we first visit it (at call time), and children are marked when recursed into. In the two-phase trick, children are marked at push time, i.e., when u is expanded. In recursive DFS, child v is marked visited when the call to v happens, which is when the previous siblings' subtrees are done. The difference: in the two-phase trick, all children get marked visited before any child's subtree is fully explored. Does this change the post-order in a way that breaks Kosaraju?
+
+Consider: u has children v, w (in adj order). Two-phase: push (u,T), push v, push w (w marked visited). Pop w, expand w... explore w's whole subtree, then pop (w,T) → postorder gets w's subtree. Then pop v, expand v, ... then (v,T), then (u,T). Post-order: [w's subtree..., w, v's subtree..., v, u]. Recursive DFS: visit u, mark u; for v in adj: if not visited: recurse(v) → v marked, v's subtree post-order, then w: recurse(w)... Post-order: [v's subtree, v, w's subtree, w, u]. 
+
+The orders differ! In the two-phase version, the order of subtree exploration is reversed (stack = LIFO). But more importantly, the marking times differ: in two-phase, w is marked visited before v's subtree is explored. If v's subtree contains an edge to w, recursive DFS would see w as... in recursive DFS, when exploring v's subtree, edge to w: w not yet visited (w gets visited after v's subtree), so w would be explored as part of v's subtree — wait no, in recursive DFS from u: children iterated in adj order v then w. When in v's subtree and we find edge x→w where x in v's subtree: w not visited yet, so we recurse into w from x — w becomes part of the DFS tree under v's subtree. In two-phase, w was already marked when u expanded, so edge x→w is skipped.
+
+So the DFS trees differ. But does Kosaraju still work with the two-phase order? Kosaraju's correctness relies on: process vertices in decreasing finish time of a DFS of G; then DFS on G^T in that order finds SCCs. The finish times must be from an actual DFS. The two-phase trick produces a valid DFS post-order of SOME DFS? Hmm, let me think again — is the two-phase order a valid DFS post-order of the original graph?
+
+Actually, I recall that the two-phase trick (mark visited at expansion... or at push) does produce a correct post-order for Kosaraju as long as... hmm, I'm not 100% sure. Let me think more carefully.
+
+Claim: The two-phase iterative DFS produces the post-order of a valid DFS of the graph, just with a different child iteration order (reversed) and different tie-breaking. Hmm, but the marking difference I identified (w marked before v's subtree explored) — in a "valid DFS", when we're exploring v's subtree and encounter w unvisited, we MUST recurse into w (that's what DFS does — it visits unvisited neighbors). The two-phase version doesn't. So the two-phase order is NOT a valid DFS post-order in general.
+
+Wait, but actually, let me re-examine. In the two-phase version, when u is expanded, we push all unvisited neighbors onto the stack. But those neighbors are only expanded when popped. The stack discipline: after expanding u, the top is the last-pushed neighbor. We fully explore that neighbor's subtree (recursively, with the same discipline) before moving to the next. When exploring that subtree, we encounter w (already pushed as u's child, marked visited). We skip it. When we return to u's stack frame, w is still on the stack and gets expanded later.
+
+Hmm, so is the resulting order a valid DFS post-order? Let's define the "DFS" that the two-phase version performs: it's a DFS where at each node u, the children are considered in reverse adjacency order, and all children are "claimed" (marked) at expansion time. This is like a DFS with a different visited-marking policy. 
+
+For Kosaraju's correctness, what we need precisely: an order $v_1, ..., v_N$ (decreasing finish time) such that for the condensation... The key lemma: if we do DFS on G^T processing vertices in decreasing finish order of a DFS on G, each DFS tree in G^T is exactly one SCC. The proof uses properties of finish times from a real DFS.
+
+Hmm, but actually there's a more robust way to think about Kosaraju: it works with ANY order that is a "reverse topological-ish" order... no.
+
+Let me think about whether the two-phase order satisfies the needed property. Alternative: I recall that the two-phase trick is widely used and IS correct for Kosaraju. Let me try to reason why.
+
+Actually, let me reconsider: maybe I should mark visited at POP time (first pop), not push time. Variant: push u; when popping u, if visited[u], skip (it was pushed multiple times); else mark visited, push (u, True) marker, push all unvisited neighbors (without marking). Then when (u, True) is popped, append u to post-order. This handles duplicates: u may be pushed multiple times before being visited; the extra copies get skipped at pop. This version: children marked at expansion (pop) time, which matches recursive DFS more closely? In recursive DFS, child v is marked when the recursive call starts, which is after all earlier siblings' subtrees are done. In this variant, v is pushed (unmarked) during u's expansion; v gets marked when popped = when v's exploration starts. But the stack order means the last-pushed child is explored first. So child order is reversed relative to recursive DFS with the same adjacency order. But reversed child order is still a valid DFS (DFS with children in reverse order is a valid DFS). And marking at exploration start matches recursive DFS. And duplicates: if v is pushed by u and also pushed by x (x explored before v is popped), then when v is popped the first time, it's marked and explored; the second copy is skipped later. In recursive DFS terms: x's edge to v — at the time x explores edge x→v, is v visited? In this stack variant, v might be pushed by u but not yet marked when x is explored; then x pushes another copy of v; when that copy is popped (after x's other work), v might already be marked → skipped. Hmm, but in a real DFS from x, edge x→v with v unvisited would recurse into v immediately, making v part of x's subtree. In the stack variant, v's exploration is deferred to the stack position. 
+
+Ugh, this is getting complicated. The duplicate-skipping variant: does it produce a valid DFS post-order? Let me think of it as: the stack contains "pending tasks". Hmm.
+
+Let me just think about it differently. Known correct approaches:
+
+1. Tarjan iterative with edge pointers (the one I wrote) — definitely correct, textbook.
+2. Kosaraju with proper finish-time computation — needs edge pointers too, or the two-phase trick (which I believe is correct, and is widely used).
+
+Actually, you know what — the two-phase trick IS correct for computing post-order/finish times. Let me convince myself with the invariant argument.
+
+Two-phase with visited-at-push: When we pop (u, False) and expand: we push (u, True) then push all currently-unvisited neighbors, marking them. Claim: the sequence of post-order appends equals the post-order of a valid recursive DFS where at each node, neighbors are iterated in reverse order... but the marking issue: in recursive DFS, when expanding u, we iterate neighbors one at a time, recursing immediately. In two-phase, all neighbors are marked upfront. Difference arises when two children v, w are adjacent (v's subtree reaches w). Recursive: w explored within v's subtree (if edge v-subtree → w exists and w comes after v... wait no — recursive DFS from u iterates neighbors in order; if v comes before w in adj[u], v's subtree is explored first; if v's subtree has an edge to w, then during v's subtree exploration, w is unvisited → w gets visited there, and w is NOT expanded again from u (when u's loop reaches w, it's visited). Two-phase: w marked at u's expansion; v's subtree edge to w is skipped; w expanded from u's stack entry later.
+
+Both are "valid DFS" in the sense of graph reachability exploration, but the trees differ. The question is whether Kosaraju's finish-time property holds for the two-phase order.
+
+Kosaraju's key property needed: Let $f(v)$ = finish time. Property used: for SCCs $C_1, C_2$ in condensation with edge $C_1 \to C_2$ ($C_1 \ne C_2$), max finish time in $C_1$ > max finish time in $C_2$... Actually the property: the SCC that is a "source" in the condensation has the highest finish times... Specifically: if edge $C_1 \to C_2$ in condensation, then the maximum finish time in $C_1$ is greater than maximum finish time in $C_2$. This holds for any DFS. Does it hold for the two-phase order?
+
+Hmm. Let me think about whether the two-phase exploration is a valid DFS in the sense needed. The property proof: consider edge $C_1 \to C_2$, $C_1 \neq C_2$. Take the vertex $u \in C_1$ that is visited first among all vertices in $C_1 \cup C_2$... The standard proof: let $v$ be the first vertex visited in $C_1 \cup C_2$. If $v \in C_1$: all of $C_2$ is reachable from $v$, and in DFS, all vertices reachable from $v$ that are not... hmm, the standard proof shows all vertices of $C_2$ finish before $v$ finishes. This uses: any vertex reachable from $v$ is visited before $v$ finishes. In the two-phase version: is every vertex reachable from $v$ visited (marked) before $v$ is popped (finished)? When $v$ is expanded, we mark its unvisited neighbors and push them. Those neighbors will be expanded (visited) before (v, True) is popped, because they're above (v, True) on the stack... wait, are they? We push (v, True) FIRST, then push neighbors. So neighbors are above (v, True). Each neighbor, when expanded, pushes its own neighbors above. By induction, everything reachable from $v$ gets marked and expanded before (v, True) is popped. Yes! Because the stack discipline ensures all pushed-above items are fully processed before (v, True) is reached. And any vertex reachable from v is either already marked, or gets pushed by some expanded ancestor-path vertex before (v,True) is popped. 
+
+Hmm wait, subtle: a vertex $x$ reachable from $v$ via path $v \to ... \to x$. By induction along the path: $v$'s child on the path is marked before (v,True) popped; it's expanded (popped and expanded) before (v,True) since it's above it; when expanded, it marks its unvisited neighbors including the next path vertex... but "expanded before (v,True) is popped" — yes, since it's pushed above (v,True), it's popped before (v,True). When popped (first time, with False flag), it's expanded: pushes its (True) marker and neighbors. So by induction, all vertices reachable from v are marked before v finishes. 
+
+So the two-phase order satisfies: "everything reachable from v is marked/visited before v finishes". But the standard DFS property needed for Kosaraju is stronger: "everything reachable from v FINISHES before v finishes" (for vertices not in v's SCC... no wait). Hmm, the standard property: in a DFS, if $v$ is visited at time $t$, all vertices reachable from $v$ are visited before $v$ finishes. And finish times: vertices reachable from $v$ finish before $v$ finishes IF they were unvisited when $v$ started... no, that's not right either — a vertex $w$ reachable from $v$ that was already visited before $v$ (from an earlier root) has a finish time before $v$'s. A vertex $w$ reachable from $v$, unvisited at $v$'s start: it's visited during $v$'s exploration and finishes before $v$ finishes. In the two-phase version: $w$ marked before $v$ finishes, but does $w$ FINISH (post-order append) before $v$ finishes? $w$ is pushed above (v, True) at some point (or is in a subtree above). Once marked and pushed, $w$'s expansion and completion happen before (v, True) is popped? $w$ is pushed above (v,True) on the stack, so $w$'s entries are all popped before (v,True). When $w$ is popped (False), expanded, (w,True) pushed, and (w,True) is popped before (v,True) since it's above. So yes, $w$ finishes before $v$ finishes. 
+
+So the two-phase order satisfies: for any $v$, all vertices reachable from $v$ that are unvisited at the time $v$ is expanded, finish before $v$ finishes. And this is exactly the property Kosaraju needs. Let me re-derive Kosaraju's correctness with just this property:
+
+Kosaraju: compute finish order on $G$. Process vertices in decreasing finish time, doing DFS on $G^T$, each DFS tree = one SCC.
+
+Key lemma: if condensation has edge $C_1 \to C_2$ ($C_1 \neq C_2$), then $\max_{f}(C_1) > \max_f(C_2)$ (the last-finishing vertex of $C_1$ finishes after all of $C_2$)... The standard lemma: the first vertex of $C_1 \cup C_2$ to be visited... Let me just recall the standard proof: Let $v$ = first visited vertex in $C_1 \cup C_2$. Case $v \in C_1$: all vertices of $C_2$ are reachable from $v$ and unvisited at $v$'s start (since $v$ is first in $C_1 \cup C_2$), so they all finish before $v$ finishes. Hence max finish in $C_2$ < finish(v) ≤ max finish in $C_1$. Case $v \in C_2$: all of $C_1$ is reachable from... no wait, edge is $C_1 \to C_2$, so from $C_2$ you can't reach $C_1$. Hmm, in this case: $v \in C_2$ first. Then all of $C_2$ finishes before any vertex of $C_1$ is visited? No... Standard argument: if $v \in C_2$ is visited first, then since $C_2$'s vertices can't reach $C_1$, hmm, but vertices of $C_1$ could be visited during $v$'s exploration? No — $v$'s exploration only reaches $C_2$'s descendants in condensation, which don't include $C_1$ (edge $C_1 \to C_2$ means $C_2$ can't reach $C_1$... in condensation, reachability is a DAG; $C_2$ reaching $C_1$ would create a cycle, merging them). So during $v$'s exploration, no vertex of $C_1$ is visited. $C_2$'s exploration completes (all of $C_2$ finishes). Later, some vertex of $C_1$ is visited and finishes after. So max finish in $C_1$ > max finish in $C_2$. ✓.
+
+This proof only uses: (a) vertices reachable from $v$ and unvisited at $v$'s start finish before $v$; (b) exploration from $v$ only visits vertices reachable from $v$. Both hold for the two-phase version. 
+
+So the two-phase trick gives a valid Kosaraju order. And this two-phase approach avoids per-node edge-pointer arrays and is quite fast: total pushes = O(V + E) with each edge causing at most one push... wait, in the two-phase version with visited-at-push: each edge (u,v) causes a push of v only if v unvisited at u's expansion. Each vertex pushed at most once (marked at push). Plus the (u,True) markers. So total stack operations O(V + E). 
+
+But wait — with visited-at-push, is property (a) satisfied? Let me redo: $v$ expanded → all unvisited neighbors marked and pushed above (v,True). Each marked vertex is expanded before (v,True) pops. By induction all reachable-unvisited vertices are marked and expanded (hence finished) before (v,True) pops. ✓. And (b): obvious. But hold on — with visited-at-push, there's an issue with the case analysis: "vertices of $C_1$ visited during $v \in C_2$'s exploration" — with visited-at-push, "visited" = marked. Exploration from v marks only vertices reachable from v. ✓.
+
+Hmm wait, but there's one more subtlety with visited-at-push in the case $v \in C_1$: "all vertices of $C_2$ are reachable from $v$ and unvisited at $v$'s start" — with visited-at-push, "unvisited at $v$'s start" — $v$'s start = when $v$ is marked (pushed) or when expanded? In the two-phase version, marking happens at push, expansion happens at pop. There's a gap: $v$ marked at push time $t_1$, expanded at pop time $t_2 > t_1$. During $(t_1, t_2)$, other vertices are explored (those pushed after $v$). Hmm, does the proof still work? Let me redefine "visit time" = push time (marking time). Then "expansion" of $v$ happens at pop. The property (a) I proved: all vertices reachable from $v$ that are unmarked at $v$'s EXPANSION finish before $v$ finishes. But the proof needs: unmarked at $v$'s VISIT (push). Hmm, discrepancy.
+
+Let me redo the lemma proof with push-time as visit time. Let $v$ = first-marked vertex in $C_1 \cup C_2$. Case $v \in C_1$: at $v$'s expansion, are all vertices of $C_2$ unmarked? Not necessarily! Between $v$'s marking and $v$'s expansion, other vertices are processed (those pushed after $v$, i.e., marked after $v$). Could a vertex of $C_2$ be marked in that window? The vertices marked in that window are pushed by vertices... hmm. $v$ is marked by some vertex $p$ (or is a root). Then stuff pushed after $v$ gets expanded before $v$. Those are vertices marked after $v$, all reachable from $p$'s expansion... but could they include $C_2$ vertices? $C_2$ is reachable from $v$... but $v$ hasn't been expanded yet, so pushes from $v$ haven't happened. Vertices marked between $v$'s push and $v$'s expansion: they're pushed by vertices expanded in that window, which form a chain: $p$ pushed $v$ and possibly others after $v$; those others (marked after $v$) are expanded before $v$; they push more, etc. All these are reachable from $p$ (or from ancestors in the pending stack). Could a $C_2$ vertex be among them? $C_2$ is reachable from $v$, but $v$ isn't expanded yet. Is $C_2$ reachable from $p$ without going through $v$? Not necessarily... but hmm, actually the vertices expanded before $v$ in that window are exactly those pushed after $v$ (stack above $v$). They were pushed by $p$ (v's siblings pushed after v) or by descendants of those siblings. $C_2$ vertices reachable from $v$ only (among the marked-so-far)... 
+
+Hmm, wait. Let me reconsider. If a $C_2$ vertex $w$ gets marked before $v$'s expansion, then $w$ was pushed by some vertex $x$ that was expanded before $v$... and $x$ was pushed after $v$, ... chain leads to $p$ pushing something after $v$, or a root. All these vertices are reachable from $p$ (or another root/ancestor). But actually, hmm, is that a problem for the lemma? The lemma wants: max finish in $C_2$ < max finish in $C_1$. Let me look at the actual standard proof more carefully; maybe I should use a cleaner formulation.
+
+Alternative cleaner approach: just use the version where visited is marked at EXPANSION (pop) time, with duplicate pushes allowed and skipped at pop. Let me verify that version:
+
+```python
+postorder = []
+visited = bytearray(N)
+for s in range(N):
+    if visited[s]: continue
+    stack = [(s, ENTER)]  # or encode: push s; use sentinel
+    ...
+```
+
+Implementation with duplicates: push s. While stack: pop u. If visited[u]: continue. Mark visited[u]. Push u with marker (or push u again — but then we can't distinguish... use encoding: push ~u (negative) as "exit" marker, push u positive as "enter"). When popping negative ~u: append u to postorder. When popping positive u: if visited: skip; else mark, push ~u, then push all neighbors (unfiltered — we can push without checking, duplicates skipped later; but pushing without checking increases stack ops; better to check visited to reduce pushes).
+
+With visited-at-expansion: this exactly mimics recursive DFS? Let's see: pop u (enter), mark, push exit marker, push unvisited neighbors (in reverse so that they're processed in adjacency order... order doesn't matter for correctness). Neighbors not yet visited get pushed; when popped, if still unvisited, expanded; if already visited (by a sibling's subtree in between), skipped. Compare with recursive DFS: from u, iterate neighbors; for each unvisited at THAT MOMENT, recurse. In the stack version: neighbors pushed at u's expansion; each popped in LIFO order; a neighbor that gets visited by an earlier sibling's subtree is skipped when popped. This matches recursive DFS with a specific neighbor order (reverse of push order). And marking happens at expansion = recursive call start. I'm fairly confident this is a valid DFS emulation: it produces exactly the same behavior as recursive DFS with children visited in reverse-push order. 
+
+Hmm wait, is that exactly true? Recursive DFS: at u, look at neighbor v (first in order): if unvisited, recurse (v marked, v's subtree done), then next neighbor w: if unvisited (maybe visited during v's subtree), recurse or skip. Stack version: push neighbors in reverse order [w, v] (v on top). Pop v: unvisited → expand v's subtree fully (all its pushes are above w's entry... wait, v's expansion pushes v's exit marker and v's neighbors, all above w). v's subtree fully processed. Then pop w: if visited during v's subtree, skip; else expand. Yes — identical to recursive DFS with neighbor order = reverse push order = original order if we push in reverse. 
+
+So the visited-at-expansion stack DFS is a faithful DFS emulation. Then finish times are genuine DFS finish times, and Kosaraju works. 
+
+But this version pushes each edge's target potentially multiple times? No — we check visited before pushing: at u's expansion, we push only currently-unvisited neighbors. But a vertex can be pushed by multiple parents before being visited (pushed by u, then before being popped, pushed by x too). So total pushes ≤ V + E still (each edge pushes at most once). Fine.
+
+OK here's the thing: both approaches are O(V+E) with similar constants. The two-phase with visited-at-push has fewer stack entries (each vertex pushed once + once for exit marker). The visited-at-expansion has skips. Either way, similar performance. 
+
+But honestly, Tarjan single-pass vs Kosaraju two-pass: Tarjan does one pass over the graph but with low-link bookkeeping; Kosaraju does two full passes (finish order on G, then DFS on G^T) but each pass is simpler. Also Kosaraju needs the transpose graph built (another 4·10^5 edges) — memory and construction time. Tarjan avoids that. I'll go with Tarjan.
+
+Hmm, wait. Actually, let me reconsider the problem size: n ≤ 1e5, m ≤ 2e5. Nodes 2e5, edges 4e5. Tarjan iterative in pure Python... Let me estimate more carefully. The main loop runs once per edge-advance plus once per pop: ~4e5 + 2e5 = 6e5 iterations. Each iteration: ~10-20 bytecodes with list indexing. CPython does roughly 30-70M simple bytecodes/sec. So maybe 6e5 × 15 = 9e6 bytecodes ≈ 0.2-0.5s. Plus SCC popping total 2e5 pops. Plus graph construction: parsing 4e5 integers (fast with buffer read + split + int mapping), building CSR with counting sort: a few passes over 4e5 elements ≈ maybe 0.3-0.5s. Total maybe 1-1.5s. Tight but plausible. Many judges run Python with extra time. Let me optimize hard.
+
+Optimization ideas:
+1. Parse with `sys.stdin.buffer.read().split()` and process tokens directly.
+2. Build edge arrays using list comprehensions / map where possible.
+3. CSR construction via counting: use a loop... In Python, loops over 4e5 with appends are slowish. Alternative: build adjacency as list of lists with append — 4e5 appends, then flatten. Hmm.
+
+Alternative CSR construction trick: 
+```python
+head = ... 
+```
+Let me think about the fastest way to build the graph in Python.
+
+Approach: read all tokens. tokens = data[2:]. Convert to ints: `vals = list(map(int, data[2:]))` — 4e5 ints, fast (map int is C-level).
+
+Then compute literal node for each feed value: node = 2*(|c|-1) + (0 if c<0 else 1). I.e., for value c: if c>0: node = 2*c - 1 (false node of machine c: 2(c-1)+1 = 2c-1). If c<0: node = -2*c - 2 (true node: 2(|c|-1) = 2(-c)-2 = -2c-2).
+
+So: `lit = 2*abs(c)-1 if c>0 else -2*c-2`. Hmm: for c>0: 2c-1. For c<0: -2c-2. Note 2*abs(c)-1 works for c>0; for c<0, -2c-2 = 2*abs(c)-2. So lit(c) = 2*|c| - 1 - (1 if c<0 else 0) = 2*|c| - 1 - (c<0). Or: lit = 2*abs(c) - 1 + (c>>31)... in Python, for negative c, (c<0) is True=1. So `lit = 2*abs(c) - 1 - (c < 0)`. Hmm wait let me double check: c>0: 2c-1-(0)=2c-1 ✓ (false node of machine c). c<0: 2|c|-1-1 = 2|c|-2 ✓ (true node of machine |c|).
+
+Then edges: for clause with literals L1, L2 (nodes a, b): edges a → b^1 and b → a^1.
+
+So edge list: pairs (a, b^1), (b, a^1) for consecutive feed pairs.
+
+Vectorized construction: 
+```python
+vals = list(map(int, data[2:2+2*m]))
+# compute lits
+lits = [2*(v if v>0 else -v) - 1 - (v<0) for v in vals]  # list comp, 4e5
+```
+Hmm, list comprehension with conditional — 4e5 iterations, ~0.1-0.2s. Acceptable. Or use map with abs: `lits = [2*abs(v) - 1 - (v<0) for v in vals]`.
+
+Then edges: us = lits[0::2] interleaved with... For i in range(m): a = lits[2i], b = lits[2i+1]; edges (a, b^1), (b, a^1).
+
+Vectorized: 
+```python
+A = lits[0::2]  # first feeds
+B = lits[1::2]  # second feeds
+# edges: A -> B^1, B -> A^1
+us = A + B
+vs = [x^1 for x in B] + [x^1 for x in A]
+```
+Wait: edges (a, b^1) for all i, then (b, a^1) for all i. So us = A + B, vs = [b^1 for b in B] + [a^1 for a in A]. The XOR list comps: 2 list comps of 2e5 each. Fine.
+
+Then CSR: counting sort by u.
+```python
+N = 2*n
+deg = [0]*N
+for u in us: deg[u] += 1   # 4e5 iterations, slowish (~0.15s)
+```
+Alternative: use `collections.Counter`? Or since us values are in [0, N), we can do: 
+```python
+deg = [0]*N
+for u in us: deg[u]+=1
+```
+Hmm. Faster: `import numpy`? The problem says Python 3; numpy availability is uncertain but usually available on competitive judges... Risky. Let me consider whether to use numpy. Many judges (Codeforces) have numpy. This problem looks like a Codeforces-style problem. But to be safe, I could write pure Python with a fallback... Actually, let me just write efficient pure Python; it should pass. Actually, hmm, let me think about whether numpy would help significantly.
+
+With numpy:
+- Parse: `arr = np.array(data[2:], dtype=np.int64)` — hmm, data is a list of bytes objects; np.array on list of bytes... better: `np.fromstring`? Deprecated. `np.frombuffer`? The input is text. Could do: `arr = np.array(sys.stdin.buffer.read().split(), dtype=np.int64)` — numpy can convert bytes to int? np.array with dtype int64 from a list of bytes strings — I think it works (numpy parses bytes as numbers). Actually yes, `np.array([b'1', b'2'], dtype=np.int64)` works in modern numpy? I believe `np.array([b'123'], dtype=np.int64)` does work (it goes through int conversion). Hmm, not 100% sure across versions. There's also `np.fromiter(map(int, tokens), dtype=np.int64)` — that's Python-level int conversion anyway.
+
+Let me just do pure Python but carefully optimized. Actually, you know, let me reconsider: maybe I'm overengineering. Let me write clean, optimized pure-Python Tarjan and hope it's fast enough. Given the constraints (2e5 nodes, 4e5 edges), a well-written iterative Tarjan should run in ~1-2s in CPython, and many judges give Python 3-4x time. The problem statement says 1s, but we do our best.
+
+Alternatively — is there a smarter algorithm for this specific 2-SAT structure? The clauses are $(\neg L_1 \lor \neg L_2)$ — "not both". Hmm, this is like a graph where each clause forbids a pair of literal assignments. General 2-SAT. No shortcut.
+
+Wait, actually, let me reconsider. Hmm, each interlock gives clause $\neg L_1 \lor \neg L_2$. In terms of the original variables with the mode interpretation: feed c>0 high iff mode 0; feed c<0 high iff mode 1. Clause: at least one of the two feeds is low. This is exactly 2-SAT. Yes, need SCC.
+
+Let me now write the full solution:
+
+```python
+import sys
+
+def main():
+    data = sys.stdin.buffer.read().split()
+    n = int(data[0]); m = int(data[1])
+    N = 2 * n
+    
+    # parse feeds
+    # tokens: data[2 + 2i], data[3 + 2i] for i in range(m)
+    vals = data[2:2 + 2*m]
+    # convert to int and compute literal nodes
+    # lit(c) = 2|c| - 1 - (c<0): c>0 -> 2c-1 (false node), c<0 -> 2|c|-2 (true node)
+    
+    # Build edges
+    # For speed, process pairs
+    E = 2 * m
+    us = [0]*E
+    vs = [0]*E
+    # ... loops
+    
+    # CSR
+    # Tarjan
+    # Output
+```
+
+Let me write the parsing + edge building as one loop over m:
+
+```python
+    pos = 2
+    us = []
+    vs = []
+    ap = us.append
+    av = vs.append
+    for _ in range(m):
+        c1 = int(data[pos]); c2 = int(data[pos+1]); pos += 2
+        if c1 > 0:
+            a = 2*c1 - 1
+        else:
+            a = -2*c1 - 2
+        if c2 > 0:
+            b = 2*c2 - 1
+        else:
+            b = -2*c2 - 2
+        ap(a); av(b ^ 1)
+        ap(b); av(a ^ 1)
+```
+
+That's m=2e5 iterations with ~15 ops each ≈ 3e6 ops ≈ 0.3-0.5s. Hmm. Could vectorize better:
+
+```python
+    vals = list(map(int, data[2:2+2*m]))  # C-level fast
+    A = vals[0::2]
+    B = vals[1::2]
+    # lit for each: 
+    # a_i = 2*|A_i| - 1 - (A_i<0)
+    litsA = [2*(x if x > 0 else -x) - 1 - (x < 0) for x in A]
+    litsB = [2*(x if x > 0 else -x) - 1 - (x < 0) for x in B]
+```
+
+Hmm, `(x < 0)` returns bool; arithmetic with bool works. List comp with conditional expression: ~2e5 × 2 comps. Each comp iteration maybe 0.1μs... roughly 2e5 * ~0.15μs = 0.03s each. Fine.
+
+Actually simpler: note lit(c) = 2*|c| - 1 - (c<0). Alternatively: for c>0, node = 2c-1; for c<0, node = -2c-2. We can compute: `t = 2*abs(x); lit = t - 1 if x > 0 else t - 2`. Or avoid abs: hmm.
+
+Even faster trick: lit = (2*abs(x) - 2) + (x > 0). For c>0: 2c-2+1 = 2c-1 ✓. For c<0: 2|c|-2+0 ✓. So `lit = 2*abs(x) - 2 + (x > 0)`. Using map: `litsA = list(map(lambda x: 2*abs(x)-2+(x>0), A))` — lambda overhead makes it slower than list comp probably. List comp is fine.
+
+Then:
+```python
+    us = litsA + litsB  # wait, need interleaving? No! CSR doesn't care about edge order.
+```
+Right, edge order doesn't matter for SCC. So:
+```python
+    us = litsA + litsB
+    vs = [y ^ 1 for y in litsB] + [y ^ 1 for y in litsA]
+```
+Hmm wait: edges are (a, b^1) and (b, a^1). So us = litsA + litsB, vs = [b^1 for b in litsB] + [a^1 for a in litsA]. Yes.
+
+XOR comp: `[y ^ 1 for y in litsB]` — 2e5 iterations each. Fine.
+
+CSR construction:
+```python
+    N = 2*n
+    deg = [0] * (N + 1)
+    for u in us:
+        deg[u + 1] += 1   # hmm, or deg[u] += 1 then prefix
+```
+Loop of 4e5 with increment — ~0.15s. Alternative: 
+```python
+    from collections import Counter
+    cnt = Counter(us)
+```
+Counter is C-optimized (uses _count_elements in C) — fast! Then deg[i] = cnt.get(i, 0). Building deg list from Counter: loop over N=2e5... or:
+
+```python
+    deg = [0]*(N+1)
+    for u, c in Counter(us).items():
+        deg[u+1] = c
+```
+Counter.items() has at most N distinct — 2e5 iterations worst case. Hmm, similar. Actually _count_elements is C-speed for the counting (4e5 elements fast), then the items loop is over distinct values ≤ 2e5. Total maybe faster than pure Python 4e5 loop. Marginal.
+
+Alternatively, skip CSR entirely and use adjacency lists of lists:
+```python
+    g = [[] for _ in range(N)]  # 2e5 list creations, ~0.1s
+    for i in range(E):
+        g[us[i]].append(vs[i])  # 4e5 iterations with method lookup — slow ~0.3s
+```
+Hmm. Or `for u, v in zip(us, vs): g[u].append(v)` — still 4e5 iterations. CSR with counting sort is probably comparable. Let me think about which is faster for the DFS inner loop.
+
+With CSR (flat array + start array): inner loop accesses `adj[it[u]]` — two list indexings. With list-of-lists: `row = g[u]` cached, then `row[it_u]`... but we need it_u per node anyway. Actually with list-of-lists we could do the "two-phase" DFS which doesn't need edge pointers:
+
+Two-phase DFS for Tarjan? Tarjan needs low-link computation which requires knowing when we return from a child — the two-phase (enter/exit markers) approach works for Tarjan too! Let me think:
+
+Tarjan with enter/exit markers:
+- Pop u (enter): if visited skip; else set index/low, push onto Tarjan stack, push exit marker for u, push all neighbors.
+- Pop exit(u): for each neighbor v of u... wait no. Low-link updates happen when scanning edges. Hmm, with the two-phase approach, when we pop exit(u), we need low[u] already updated by all children (children's exit markers processed before exit(u) — yes, since children pushed after exit(u) marker... wait, order: pop enter(u) → push exit(u) → push neighbors. Neighbors above exit(u). Each neighbor's full subtree processed before exit(u) popped. When a child v finishes (exit(v) popped), we do low[u] = min(low[u], low[v]) — but at exit(v) time, how do we know the parent u? We'd need to store parent info with the exit marker: push (u, v) pairs... 
+
+Alternative: when popping exit(v), update low[parent] — need parent. Store exit markers as encoded (parent, child)? That doubles memory. Alternatively, at exit(v): `if low[v] < low[cur_parent]` — we can track the parent as... hmm, the parent is the node whose enter is below on the stack, but we don't have direct access.
+
+Alternative: when popping exit(v), we can just do: low[v] finalized; then when exit(u) is popped, low[u] should already include children's lows — but children update low[u] at their exit. So encode exit marker as (u, v) meaning "v is exiting, parent u": `stack.append((N+1+... ))` hmm, encode as single int: exit_marker = v * (N+2) + u? Messy but doable: since u,v < N ≤ 2e5, encode exit as `v * N + u`? But enter markers are just u (< N). So: values < N are enters; values ≥ N are exits with (val - N) = v*N + u... need v*N+u < N*N = 4e10, fine for Python ints but big-int arithmetic is slower. Alternatively use two parallel stacks or tuples. Tuples: `stack.append((v, u))` for exit, `stack.append(v)` for enter — then type checking at pop: `if type(x) is int`. Hmm, type check per pop.
+
+Alternatively: since each node's enter happens once, we can push exit marker as `u + N` (meaning "u exits") and handle the parent-low update differently: when exit(u) is popped, we know low[u] is final. The parent p needs low[u] — but we can instead propagate at exit time by looking at... we could store parent in an array `parent[v]` set when v is entered (parent[v] = current top-of-path u). Since DFS path: when we pop enter(v) and expand, the parent is the node whose enter... hmm, with the marker approach, when enter(v) is popped, the parent is not directly known. But we can maintain a "current path" — no wait, with marker stacks, when enter(v) is popped, the parent's exit marker is somewhere below, but between them there could be... no: parent u pushed exit(u) then pushed neighbors including v. v is popped next-ish. Actually when enter(v) is popped, the entries below it: ..., exit(u), ... — the nearest exit marker below v's position corresponds to... hmm, not exactly u if other neighbors were pushed after v and processed... wait no: u pushes exit(u), then pushes neighbors v1, v2, ..., vk (in some order). Stack top is vk. Pop vk (enter), expand: pushes exit(vk), vk's neighbors... all of vk's subtree. Then v_{k-1}, etc. When enter(v) is popped (v = some vi), the stack below contains exit(u) and below that the rest. The nearest ancestor: we could scan down for the first exit marker — O(depth) — no good.
+
+Simplest: maintain parent array. When we pop enter(v) and it's unvisited: parent[v] = last_entered_node? No — parent[v] = the node u that pushed v. When u pushes neighbors, we could record... but multiple neighbors pushed at once; when v is popped later, the pusher is u — we can record pusher at push time: but pushing is done in a loop `for w in g[u]: stack.append(w)` — we'd need `stack.append(w)` and parent[w] = u — but w might be pushed multiple times by different pushers before being visited; parent[w] should be the one whose push "wins" = the first pop... Since we skip visited at pop, the first time enter(w) is popped and w unvisited, the pusher... but we don't know which push that was. Hmm, but actually: does it matter? For low-link propagation, parent[w] must be the DFS tree parent = the node whose expansion was in progress when w was visited. With the marker stack: when enter(w) is popped and w is unvisited, the current "active" node (the one whose exit marker is the most recent un-matched exit below the top)... 
+
+OK this is getting complicated. Let me just use the edge-pointer (it-array) Tarjan — it's straightforward and correct. The inner loop:
+
+```python
+    while path:
+        u = path[-1]
+        i = it[u]
+        if i < end[u]:   # end[u] = start[u+1]
+            it[u] = i + 1
+            v = adj[i]
+            iv = indices[v]
+            if iv == -1:
+                indices[v] = iv = low[v] = counter; counter += 1
+                tstack_append(v)
+                on_stack[v] = 1
+                path_append(v)
+            elif on_stack[v] and iv < low[u]:
+                low[u] = iv
+        else:
+            path_pop = path.pop()
+            if low[u] == indices[u]:
+                # SCC root
+                while True:
+                    w = tstack.pop()
+                    on_stack[w] = 0
+                    comp[w] = ncomp
+                    if w == u: break
+                ncomp += 1
+            if path:
+                p = path[-1]
+                if low[u] < low[p]:
+                    low[p] = low[u]
+```
+
+Wait, careful: the SCC pop must happen before or after parent update — order doesn't matter between them. But note: after popping u from path, `u = path[-1]` in next iteration is the parent. The parent low update: `if low[u] < low[p]: low[p] = low[u]` — correct for tree edge.
+
+Hmm, one issue: `end[u]` — I can just use `start[u+1]` directly, or make `end` a separate array = start[1:]. Let me use `start` array of length N+1 and compare `it[u] < start[u+1]`. Or precompute `end = start[1:] + [E]`... start has length N+1 where start[u+1] is end of u's edges. Just index start[u+1].
+
+Micro-optimizations:
+- Local variable bindings: `adj_local = adj`, etc.
+- `path[-1]` each iteration — fine.
+- Combine `indices` and `low` — needed separately.
+- `on_stack` as bytearray.
+- `indices` initialized to -1; use a separate `visited` bytearray? `indices[v] == -1` check vs `visited[v]` — bytearray check might be faster (small int). But we need indices anyway for low-link comparisons. Use both: visited bytearray for the check, indices array for values. Extra memory 2e5 bytes, fine. Actually `indices[v] == -1` on a list of ints is fine too. Hmm, bytearray indexing returns int 0/1 — comparison fast. Let me use visited bytearray.
+
+Actually, alternative: instead of indices array with counter, note that low-link comparisons only need relative order of discovery indices. We can just use the counter values. Fine.
+
+Let me also consider: maybe use arrays from the `array` module for memory locality? Python lists of small ints — small ints are cached, list indexing is fast. `array('i')` indexing creates new int objects each access — slower. Lists are better in CPython for speed (cached small ints... but indices up to 2e5 — ints up to 256 are cached; larger ints are objects but the list stores pointers; creating them once at assignment). Comparisons of ints up to 2e5 — fine.
+
+Let me now also handle the output: after Tarjan, check for each machine i (1..n): true node t = 2(i-1), false node f = 2(i-1)+1. If comp[t] == comp[f] → NO. Else mode s_i = 1 if comp[t] < comp[f] else 0.
+
+Wait, I need to double check the direction again. Tarjan assigns comp ids in the order SCCs are completed. Tarjan completes SCCs in reverse topological order of the condensation (sinks first). So comp id 0 = first completed = a sink of the condensation. In topological order (sources → sinks), sinks come last. So smaller comp id = later in topological order.
+
+2-SAT assignment: x = true iff SCC(x) is LATER in topological order than SCC(¬x)? Let me re-derive. Standard: x = true iff comp[x] > comp[¬x] where comp ids are in TOPOLOGICAL order (i.e., if edge A→B in condensation, comp[A] < comp[B]). Hmm, which is it?
+
+Let me re-derive from first principles. Implication graph: literal nodes; edge u→v means u implies v. Assignment: pick for each variable the literal that is "later" in topological order? Or "earlier"?
+
+Standard result (from e.g. "The 2-SAT algorithm"): assign x = true if x's SCC comes AFTER ¬x's SCC in topological order. Reasoning: we set literal L true if SCC(L) is later in topological order; then all implications from L go to even later SCCs, which are also set true; and their negations are in earlier SCCs, set false. Consistency: for any literal set true, its negation is set false. The key property: if SCC(L) is after SCC(¬L) topologically, then for any M with L → M (M in SCC at or after SCC(L)), we have ¬M → ¬L, so SCC(¬M) is at or before SCC(¬L), which is before SCC(L) ≤ SCC(M). So SCC(¬M) < SCC(M) in topological order, so M is also set true. Consistent. ✓.
+
+So: x = true iff SCC(x) is later in topological order than SCC(¬x).
+
+Now, Tarjan comp ids: reverse topological (sink gets id 0). "Later in topological order" = smaller Tarjan id. So x = true iff comp[x] < comp[¬x] in Tarjan numbering.
+
+Check with earlier example: clause (x ∨ x) → edge ¬x → x. SCC(x) is the sink (x has no outgoing edges... well, edge ¬x→x; x's SCC: {x} if no other edges; condensation: {¬x} → {x}; {x} is sink, completed first, comp[x] = 0 < comp[¬x] = 1. x = true ✓ (clause forces x true).
+
+Great: mode_i = 1 (x_i true) iff comp[true_node(i)] < comp[false_node(i)].
+
+Let me double check with example 1 fully. n=2, m=2. Machines 1,2. Nodes: machine 1: true=T1=0, false=F1=1; machine 2: T2=2, F2=3.
+
+Interlock 1: feeds 1, 2 → literals: feed 1 (c=1>0) = machine 1 mode 0 = F1 = node 1. Feed 2 = F2 = node 3. Clause: ¬(F1 ∧ F2) = ¬F1 ∨ ¬F2 = T1 ∨ T2. Edges: L1 → ¬L2: F1 → ¬F2 = T2 (node 2). L2 → ¬L1: F2 → T1 (node 0).
+
+Interlock 2: feeds -1, -2 → literals T1 (node 0), T2 (node 2). Clause: ¬T1 ∨ ¬T2 = F1 ∨ F2. Edges: T1 → F2 (node 3), T2 → F1 (node 1).
+
+Graph: 0→3, 2→1, 1→2, 3→0. So 0→3→0 is a cycle: SCC {0,3} = {T1, F2}. And 1→2→1: SCC {1,2} = {F1, T2}. Two SCCs. comp: Tarjan from node 0: DFS: 0 → 3 → 0 (on stack, low update). SCC {0,3} completed first: comp[0]=comp[3]=0. Then from node 1: 1→2→1: SCC {1,2}: comp=1.
+
+Machine 1: T1=0, F1=1. comp[T1]=0 < comp[F1]=1 → x1 = true → mode 1. Machine 2: T2=2, F2=3. comp[T2]=1, comp[F2]=0. comp[T2] < comp[F2]? 1 < 0 false → x2 = false → mode 0. Output: "1 0" ✓ matches expected.
+
+Example 2: n=1, m=2. Nodes: T1=0, F1=1. Interlock (1,1): literals F1, F1. Clause ¬F1 ∨ ¬F1 = T1. Edges: L1→¬L2: F1 → T1; L2→¬L1: F1 → T1. Interlock (-1,-1): literals T1, T1. Clause: F1 ∨ F1. Edges: T1 → F1 (twice). Graph: 1→0 (×2), 0→1 (×2). SCC {0,1} — comp[0]==comp[1] → NO ✓.
+
+Now, the output format: "YES\n" then modes space-separated. If NO: "NO".
+
+Edge cases: m=0 → all zeros? Any assignment works; our algorithm: no edges, each node its own SCC. comp[T_i] vs comp[F_i]: Tarjan from node 0: node 0 (T1) is an SCC, comp=0; node 1 (F1) comp=1; node 2 (T2) comp=2... comp[T_i] = 2(i-1) < comp[F_i] = 2(i-1)+1 → all modes 1. Fine, valid (no constraints). Output "YES\n1 1 1 ... 1". OK.
+
+Also note: duplicate edges, self-loops (like example 2 has edges 1→0 twice, and also note interlock (1,1) gives edges F1→T1 twice — wait, interlock (1,1): L1 = L2 = F1. Edges: L1 → ¬L2 = F1 → T1, and L2 → ¬L1 = F1 → T1. Yes two identical edges. Fine.
+
+What about an interlock like (1, -1)? Feeds: c1=1 → literal F1 (machine 1 mode 0 high), c2=-1 → literal T1 (mode 1 high). Clause: ¬F1 ∨ ¬T1 = T1 ∨ F1 — always true (machine must be in some mode). Edges: F1 → ¬T1 = F1 (self-loop), T1 → ¬F1 = T1 (self-loop). Self-loops fine in Tarjan.
+
+Now let me also double check the clause-to-edges mapping once more. Clause (a ∨ b) → edges ¬a → b, ¬b → a. Our clause: (¬L1 ∨ ¬L2). So a = ¬L1, b = ¬L2. Edges: ¬a → b = L1 → ¬L2 ✓; ¬b → a = L2 → ¬L1 ✓. Correct.
+
+Now, the full implementation. Let me write it carefully:
+
+```python
+import sys
+from collections import Counter
+
+def main():
+    data = sys.stdin.buffer.read().split()
+    n = int(data[0]); m = int(data[1])
+    N = 2 * n
+    E = 2 * m
+    
+    # literal nodes
+    vals = list(map(int, data[2:2 + 2 * m]))
+    A = vals[0::2]
+    B = vals[1::2]
+    # lit(c) = 2|c| - 2 + (c > 0)
+    litsA = [2 * (x if x > 0 else -x) - 2 + (x > 0) for x in A]
+    litsB = [2 * (x if x > 0 else -x) - 2 + (x > 0) for x in B]
+    us = litsA + litsB
+    vs = [y ^ 1 for y in litsB] + [y ^ 1 for y in litsA]
+```
+
+Hmm wait, `(x > 0)` is a bool; `2*abs - 2 + True` = 2*abs - 1. OK. But let me simplify: `2 * abs(x) - 2 + (x > 0)`. abs() is a builtin call — 4e5 calls... `x if x > 0 else -x` inline might be faster than abs(x)? Both fine. Actually, since |c| ≤ n and c ≠ 0, values fit in small ints.
+
+Hmm, actually here's a cuter trick: lit(c) for c>0 is 2c-1, for c<0 is -2c-2. Note: -2c-2 = -(2c+2) = (-2)*c - 2. And 2c-1. Hmm, alternatively: lit = 2*c - 1 if c>0 else -2*c-2. 
+
+Or: multiply-based: for any c: t = 2*|c|; lit = t-1 if c>0 else t-2. Let me just write the conditional expression.
+
+Actually, here's an even faster idea: process with map and operator? Not worth it. List comps are fine.
+
+Wait, actually, I realize there might be an issue with slicing when m=0: vals = [], A = [], B = [] — fine.
+
+CSR build:
+
+```python
+    # counting sort by u
+    start = [0] * (N + 1)
+    for u in us:
+        start[u + 1] += 1
+    for i in range(1, N + 1):
+        start[i] += start[i - 1]
+    adj = [0] * E
+    pos_ = start[:N]  # copy for filling... wait, need mutable positions
+    # fill
+    fill = list(start[:N])  # current insert positions
+    for i in range(E):
+        u = us[i]
+        adj[fill[u]] = vs[i]
+        fill[u] += 1
+```
+
+The fill loop: 4e5 iterations, each with several index ops — ~0.3s. Hmm. Alternative fill trick: sort edges by u using... `sorted(zip(us, vs))` — Timsort on 4e5 tuples — probably slower and memory heavy.
+
+Alternative: avoid CSR, use list-of-lists adjacency:
+
+```python
+    g = [[] for _ in range(N)]
+    for u, v in zip(us, vs):
+        g[u].append(v)
+```
+4e5 iterations with append — ~0.4s. Similar.
+
+Hmm, what about building adjacency via the two-phase DFS which iterates `for w in g[u]`? With list-of-lists, the DFS inner loop is `for w in g[u]` — but Tarjan with edge pointers needs indexable adjacency. With list-of-lists, I can do Tarjan differently: when expanding u, grab `row = g[u]` and iterate with pointer `it[u]`... same thing.
+
+Alternatively — two-phase Tarjan with list-of-lists and parent tracking. Let me think about implementing Tarjan with the enter/exit marker approach and a parent stack:
+
+Actually, here's a clean way: maintain `path` (current DFS path) and the marker stack contains encoded entries. When we pop an "enter" for v and v is unvisited: parent = path[-1] if path else -1... wait, is path[-1] the parent? With the marker approach: when enter(v) is popped, the current path is [root, ..., u] where u is the node currently being expanded... but with markers, "currently being expanded" — the path should be maintained: when enter(v) is popped and visited, path.append(v); when exit(v) popped, path.pop(). Then when enter(v) is popped (v unvisited), the parent is path[-1] — is that right? Let's see: u expanded → pushed exit(u) → pushed neighbors. path currently ends with u (u was appended at its enter). Neighbors processed; when enter(v) popped (v unvisited), path[-1] = u? Between u's expansion and v's pop, other neighbors' subtrees were fully processed — each such subtree: enter(w) → path.append(w) ... exit(w) → path.pop(). So after they complete, path[-1] = u again. But wait — v might be popped when path[-1] = u only if all entries above exit(u) that were pushed before v have completed. Stack above exit(u): neighbors pushed after v (in push order) — those complete before v is popped. And entries pushed by them — also complete. So yes: when enter(v) is popped, path[-1] is exactly the node that pushed v (the tree parent), because everything pushed between exit(u) and v has completed and popped. Wait, need care: u pushes exit(u), then neighbors w1..wk. Stack: [..., exit(u), w1, ..., wk]. Pop wk: if unvisited, expand: push exit(wk), wk's neighbors. path: [..., u, wk]. wk's subtree fully processes (all its pushes complete) before w_{k-1} is popped. When w_{k-1} popped: path[-1] = u ✓. Eventually v = wi popped: path[-1] = u ✓. And if v was already visited (marked during a sibling's subtree), we skip — no path change. ✓.
+
+So two-phase Tarjan:
+- Main stack `st` contains ints: enter entries = node v (0..N-1); exit entries = v + N (or ~v = -v-1... let me use v + N, requiring values up to 2N-1... N=2e5, so up to 4e5-1, fine).
+- `path` list for current path (also gives parent = path[-1]).
+- Tarjan stack `tstack` for SCC extraction.
+- When enter(v): if visited[v]: skip. Else: visited[v]=1; index[v]=low[v]=counter++; tstack.append(v); on_stack[v]=1; path.append(v); st.append(v+N) [exit marker]; for w in g[v]: if not visited[w]: st.append(w). — Wait, should we push only unvisited neighbors? If we push visited ones, they get skipped at pop (cheap check). Pushing all neighbors: E pushes total. Pushing only unvisited: fewer pushes but requires visited check at push time (same cost as at pop). Either way ~E checks. Pushing all is simpler: `st.extend(g[v])` — C-level extend! That's fast. Then at pop, visited check skips. Total stack ops: each edge pushed once → 4e5 pushes via extend (fast, C level), 4e5 pops with checks.
+
+Hmm nice, `st.extend(row)` is a fast C operation. Then the pop loop handles each: pop → if ≥ N: exit handling; elif visited: skip; else: expand.
+
+- When exit(v) popped (val = v+N): path.pop(); if low[v] == index[v]: extract SCC from tstack (pop until v). Then parent p = path[-1] if path else None; if p is not None and low[v] < low[p]: low[p] = low[v].
+
+Wait — order: extract SCC before or after parent update — independent. But careful: parent update must happen (tree edge low propagation).
+
+Hold on, but there's a subtlety: when enter(v) is skipped because visited[v] — that corresponds to a non-tree edge (u, v) where v already visited. The low-link update for such edges: if on_stack[v]: low[u] = min(low[u], index[v]). But in the marker approach, when we pop enter(v) and it's visited, we need to update low of... u = path[-1] (the node that pushed v — since v was pushed by u's expansion... wait, was it? v could have been pushed by u, but v might also have been pushed earlier by another node x and not yet popped... no wait — if we're popping v now, v was pushed by the most recent push that's still on the stack... hmm, actually the stack: v's entry could have been pushed by u (u's extend) — and entries pushed after it have all been processed. The node that pushed this particular copy of v is... we don't track it. But path[-1] at pop time: is it the pusher? 
+
+When u expands (enter(u) processed), it pushes exit(u) then extends with all neighbors. The stack above exit(u) = u's neighbors (in reverse order of g[u]... extend appends in order, so pops happen in reverse). Each neighbor entry gets popped; when neighbor w is popped and unvisited, w expands (pushing above), processes fully, then next neighbor popped. When v (a neighbor entry of u) is popped, all entries above exit(u) pushed before v's position have completed. path[-1] = u ✓ (u still on path since exit(u) not yet popped). So yes, the pusher of the currently-popped entry is path[-1]. 
+
+So when popping a visited enter(v): u = path[-1]; if on_stack[v] and index[v] < low[u]: low[u] = index[v]. ✓ This handles back/cross edges to on-stack nodes.
+
+When popping an unvisited enter(v): expand as described. The tree-edge low propagation happens at exit(v) (low[p] = min(low[p], low[v])). ✓.
+
+This is correct Tarjan. Let me double check the low update for visited enters: standard Tarjan at edge (u,v) with v visited: if on_stack[v]: low[u] = min(low[u], index[v]). ✓ matches.
+
+And exit(v): low[v] final; propagate to parent; check SCC root (low[v] == index[v]) → pop tstack until v inclusive, assign comp ids. ✓.
+
+This two-phase approach avoids the `it` pointer array and the per-edge pointer increments, and uses `st.extend(g[v])` for fast pushes. The main loop pops 4e5 (edge entries) + 2e5 (enter... wait, each node enters once but can be pushed multiple times — pushed once per incoming edge! So pops = E (edge pushes) + N (exit markers) + N (enters... no: enter entries = one per edge push = E total, plus exit markers N, plus roots). Total pops ≈ E + N = 6e5. Each pop: a few operations. Hmm, comparable to the pointer version (6e5 iterations). But the pushes are C-level extends (fast) vs. pointer version has no pushes but has `it[u]` increments per edge (Python-level). 
+
+Hmm, actually wait: in the pointer version, per edge we do: `i = it[u]; it[u] = i+1; v = adj[i]; check visited...`. That's ~4-6 ops per edge. In the marker version, per edge-entry pop: `x = st.pop(); if x >= N: ... else: v = x; if visited[v]: (check on_stack, maybe update low) else: expand`. The expand does the extend. Per edge-entry: pop + compare + visited check + (if visited: on_stack check + maybe low update). ~5-8 ops. Similar. But the marker version's pushes are C-fast. And the pointer version needs CSR construction (counting sort fill loop, 4e5 Python iterations ~0.3s) while marker version needs list-of-lists append loop (4e5 iterations ~0.4s) — hmm, similar too.
+
+List-of-lists construction alternatives: 
+```python
+g = [[] for _ in range(N)]
+for u, v in zip(us, vs): g[u].append(v)
+```
+4e5 iterations. Each: tuple unpack, index, method call append. ~0.4-0.5s. Hmm.
+
+CSR fill:
+```python
+for i in range(E):
+    u = us[i]
+    p = fill[u]; adj[p] = vs[i]; fill[u] = p + 1
+```
+4e5 iterations, ~6 ops each: ~0.4s. Plus counting loop 4e5 (~0.2s) plus prefix 2e5 (~0.1s). Hmm, CSR total ~0.7s vs lists ~0.5s. 
+
+Faster list-of-lists construction? Trick: sort edges by u... Another trick: 
+```python
+g = [[] for _ in range(N)]
+gu = g  # 
+for i in range(E): g[us[i]].append(vs[i])
+```
+Or use zip: `for u, v in zip(us, vs): g[u].append(v)` — zip is C-level iteration, unpack fast. Probably ~0.35s for 4e5.
+
+Hmm, what about a completely different construction: build adjacency via sorting with `sorted` on combined keys? Probably slower.
+
+What about numpy for CSR construction? If numpy is available:
+```python
+import numpy as np
+us_np = np.array(us)  # or build directly from parsed ints
+vs_np = np.array(vs)
+order = np.argsort(us_np, kind='stable')
+adj = vs_np[order]
+counts = np.bincount(us_np, minlength=N)
+start = np.zeros(N+1, dtype=np.int64); start[1:] = np.cumsum(counts)
+```
+That's all C-speed. Then the Tarjan loop still needs Python-level access to adj/start — converting numpy arrays to Python access: `adj[i]` on numpy array returns np.int64 — slow-ish per access (numpy scalar creation). Could do `adj = adj_np.tolist()` — fast C conversion to Python list. Similarly start. So: use numpy just for CSR construction, then tolist() and run pure-Python Tarjan with pointers. If numpy unavailable, fallback to pure Python construction. Hmm, adding a fallback complicates. Let me think about expected performance without numpy.
+
+Actually, let me reconsider the whole thing. Total budget: let me aim for ~2s in CPython worst case and hope the judge is lenient (many "1s" limits are for C++; Python often gets 3-10s or the tests are weak). But let me still optimize reasonably.
+
+Actually — wait. Let me reconsider using bit tricks / different algorithm... No, 2-SAT needs SCC.
+
+Alternatively, use a simpler SCC approach optimized for Python: Kosaraju with the two-phase DFS, where the DFS loops can be made tight. Kosaraju pass 1 (finish order) with two-phase markers:
+
+```python
+# pass 1 on G
+visited = bytearray(N)
+post = []
+st = []
+for s in range(N):
+    if visited[s]: continue
+    visited[s] = 1
+    st.append(~s)  # exit marker
+    st.extend(g[s])  # hmm, need to mark visited at push or at pop?
+```
+
+Hmm wait, for pass 1 with visited-at-push: 
+```python
+for s in range(N):
+    if visited[s]: continue
+    st = [~s]
+    visited[s] = 1
+    st.extend(g[s])  # but neighbors need visited marking...
+```
+Problem: extend doesn't mark visited. With visited-at-pop (skip if visited), we push all neighbors unmarked:
+```python
+    st = [~s, s]  # hmm order
+```
+Let me write: push exit marker ~s, then extend with g[s]. Pop loop: x = st.pop(); if x < 0: post.append(~x) [finish]; else: if visited[x]: continue; visited[x] = 1; st.append(~x); st.extend(g[x]).
+
+Wait but then s itself: we push ~s and g[s]; when s popped: visited check — s not yet visited → mark, push ~s, extend g[s]. So initial: st = [s] only. Let me restructure:
+
+```python
+for s in range(N):
+    if visited[s]: continue
+    st = [s]
+    while st:
+        x = st.pop()
+        if x < 0:
+            post.append(~x)
+        elif not visited[x]:
+            visited[x] = 1
+            st.append(~x)
+            st.extend(g[x])
+```
+Wait, but if x ≥ 0 and visited[x] → skip (just continue). Yes. Hmm, but there's an issue: `st.extend(g[x])` pushes ALL neighbors including visited ones — they get skipped at pop. Total pops = E + N. Each pop: sign check, maybe visited check. This is quite tight: per edge-entry pop: pop + `x<0` check + visited check + continue. ~4 ops. Per node: expand with extend (C-fast) + append. 
+
+But as I discussed, visited-at-pop with duplicate pushes — is the resulting post-order a valid DFS order for Kosaraju? Earlier I argued the visited-at-pop version faithfully emulates recursive DFS (with reversed neighbor order). Let me re-verify that claim, because it's important.
+
+Visited-at-pop marker DFS: pop x (enter, x≥0, unvisited): mark, push ~x, extend g[x]. The neighbors are pushed; they'll be popped in reverse order. First neighbor popped: if unvisited, expands fully (its subtree pushes above the remaining neighbors of x), then next neighbor of x popped, etc. When ~x popped, all neighbors processed. This exactly matches recursive DFS where x's neighbors are iterated in reverse order of g[x], and "visited" is checked at recursion time. In recursive DFS, when we're at neighbor v of x and v is unvisited at that moment, we recurse. In marker version: v's entry (pushed by x) is popped at the corresponding moment; if v was visited in between (by an earlier sibling's subtree), skip. Exactly matches. And the marking time = recursion start time. ✓. So post-order = genuine DFS post-order (for some neighbor order). Kosaraju valid. ✓.
+
+Then pass 2 on G^T: process post in reverse; for each unassigned s, DFS on G^T collecting the SCC (all nodes reached). Assignment: comp ids in order of pass-2 roots — these are in topological order of condensation (Kosaraju: SCCs found in topological order — first found is a source... let me recall: processing in decreasing finish time on G^T finds SCCs such that... The first DFS tree in pass 2 is an SCC that is a source in G's condensation? Kosaraju: pass 2 on G^T in decreasing finish order of G. The vertex with highest finish time in G is in a source SCC of G's condensation (since max finish is in a source... hmm: the vertex with the highest finish time belongs to a source SCC of the condensation of G). The DFS on G^T from it collects exactly that SCC. Then next unassigned highest-finish vertex → next source in the remaining condensation, etc. So comp ids assigned in pass 2 are in topological order of G's condensation (sources first): comp id 0 = source. So for 2-SAT: x true iff SCC(x) later in topological order = larger comp id (in this Kosaraju numbering). So x true iff comp[T] > comp[F] with Kosaraju numbering.
+
+Hmm wait, let me double-check: Kosaraju comp numbering: pass 2 processes vertices in decreasing finish time; each new DFS tree = new SCC; these SCCs are in topological order of the condensation of G (id 0 = source of condensation). Topological order: sources first. "x true iff SCC(x) after SCC(¬x) in topological order" → comp[x] > comp[¬x]. Let me sanity check with the simple example: clause (x ∨ x): edge ¬x → x in G. G: ¬x→x. Pass 1 on G: DFS from... say start with node x (if x is node 0): visited x, push ~x, extend g[x] = [] (x has no out-edges). Pop ~x: post = [x]. Then node ¬x: post = [x, ¬x]. Decreasing finish: ¬x first. Pass 2 on G^T: G^T has edge x → ¬x. Start from ¬x: DFS on G^T from ¬x: reaches only ¬x (¬x has no out-edges in G^T). SCC {¬x}: comp[¬x] = 0. Then x: comp[x] = 1. x true iff comp[x] > comp[¬x]: 1 > 0 ✓ true. 
+
+But wait — pass 1 starting order matters for the post order but any valid DFS works. If pass 1 started from ¬x: DFS from ¬x: visit ¬x, push ~¬x, extend g[¬x] = [x]; pop x: unvisited → mark, push ~x, extend g[x] = [] → pop ~x: post=[x]; pop ~¬x: post=[x, ¬x]. Same. OK.
+
+Kosaraju needs the transpose graph — building G^T: another 4e5 appends (~0.4s). Plus two DFS passes (each ~6e5 pops). Total maybe 1.5-2.5s. Tarjan single pass with pointer CSR: construction ~0.7s + DFS ~0.5-0.8s ≈ 1.2-1.5s. Tarjan with marker approach + list-of-lists: construction ~0.4s + DFS ~0.6s ≈ 1.0-1.3s. 
+
+Hmm, let me think about Tarjan marker version more: pops = E (edge entries) + N (exit markers) + N (enter entries... no wait). Let me recount: stack entries: for each node expanded once: 1 exit marker + deg(node) neighbor entries. Total = N + E entries. Plus roots pushed: N. So total pops = N + E + N = E + 2N = 4e5 + 4e5 = 8e5. Hmm, each pop does: `x = st.pop()`, `if x >= N` (or sign check), branch. For edge entries (E of them): visited check (bytearray), and if visited: on_stack check + maybe low update; if unvisited: full expand (but that's N times total). So per-edge-entry cost ~4-6 ops. Per exit marker: path.pop, low==index check, parent low update, maybe SCC extraction. ~6-10 ops but only N of them. Overall ~8e5 pops × ~5 ops = 4e6 ops ≈ 0.4-0.8s. Plus construction 0.4s. Plus parsing 0.2s. Plus output 0.1s. Total ~1.2-1.7s. Probably OK-ish for a lenient judge.
+
+Alternatively, the pointer-CSR Tarjan: main loop iterations = E (edge scans) + N (pops) = 6e5, each ~8-12 ops → similar. Plus CSR construction ~0.6s. Similar total.
+
+Let me think if there's a way to cut the graph construction cost. 
+
+Idea: build adjacency lists directly during parsing without intermediate us/vs lists:
+
+```python
+g = [[] for _ in range(N)]
+idx = 2
+for _ in range(m):
+    c1 = int(data[idx]); c2 = int(data[idx+1]); idx += 2
+    ...
+    g[a].append(b^1); g[b].append(a^1)
+```
+m=2e5 iterations × ~20 ops = 4e6 ops ≈ 0.5-0.8s. Worse than vectorized.
+
+Vectorized approach with list comps (as sketched): 
+- `vals = list(map(int, data[2:2+2m]))` — C-level, ~0.05s for 4e5.
+- A = vals[0::2], B = vals[1::2] — C-level slicing, fast.
+- litsA, litsB list comps: 2 comps × 2e5 × ~8 ops = 3.2e6 ≈ 0.3s. Hmm. Can I avoid the per-element conditional? 
+
+Trick: lit(c) = 2|c| - 2 + (c>0). As a single expression without branching: `2*abs(x) - 2 + (x > 0)`. Still has comparison. Alternatively: note for c>0: 2c-1; c<0: -2c-2. Consider f(c) = 2c - 1 if c>0. Hmm: what about `x + x - 1` for positive... 
+
+Bit trick: for c<0, Python ints... (c >> 63) doesn't work (arbitrary precision, but for negative c, c>>63 = -1; for positive, 0 — actually Python's >> on negative ints is arithmetic, so c >> 63 gives -1 for any negative c (since |c| ≤ 1e5 < 2^63) and 0 for positive. So: sign = -(c >> 63) → 1 if c<0 else 0. Then lit = 2*abs... still need abs. abs(c) = (c ^ sign_mask) - sign_mask where sign_mask = c>>63: for c<0: c ^ -1 = ~c = -c-1, minus -1 → -c = |c| ✓. For c>0: c^0 - 0 = c ✓. So |c| = (c ^ (c>>63)) - (c>>63). Then lit = 2*|c| - 2 + (c>0) = 2*|c| - 2 + 1 - (c<0) = 2*|c| - 1 - (c<0).
+
+So lit = 2*((c ^ s) - s) - 1 + s where s = c >> 63 (s=0 or -1). Check c>0: s=0: 2c - 1 ✓. c<0: s=-1: (c^-1) - (-1) = ~c + 1 = -c ✓ → 2(-c) - 1 + (-1) = -2c - 2 ✓. So lit = 2*((c^(s:=c>>63)) - s) + s - 1... this is more ops than the conditional. Not faster. List comp with conditional is fine.
+
+Actually — simpler: since we need per-element transformation anyway, how about `map` with `int.__abs__`... no. Let me just accept the list comps.
+
+Hmm, actually here's another thought: can I combine steps? lit computation and XOR and adjacency building... 
+
+What about building CSR directly with numpy if available, else fallback? Let me include a try/except numpy. Actually, let me think about whether numpy parsing is reliable: `np.array(data[2:], dtype=np.int64)` where data elements are bytes — numpy will try to convert bytes to int64. I believe `np.array([b'12', b'-3'], dtype=np.int64)` works (numpy converts via int()). Actually I recall it does work — numpy calls int() on each element? For dtype int64 with bytes elements, numpy raises? Let me think... `np.array([b'12'], dtype=np.int64)` — I believe this works in numpy (it parses strings/bytes to integers). Hmm, actually I've seen `np.array(["12"], dtype=int)` work? I'm not certain. There's `np.fromstring(s, dtype=int, sep=' ')` (deprecated but works) or `np.frombuffer`... For text, the modern way: `np.loadtxt` (slow) or `np.fromstring(s, sep=' ')` — deprecated in newer numpy but still functional? It was removed? `np.fromstring` with sep still works with DeprecationWarning in numpy 1.x; in numpy 2.0 it might be removed. Risky.
+
+Safest numpy parse: `arr = np.array(sys.stdin.buffer.read().split(), dtype=np.int64)` — hmm. Actually I'm fairly confident `np.array(list_of_bytes, dtype=np.int64)` works: numpy converts each bytes object via int(bytes) — Python's int() accepts bytes? `int(b'12')` → works? Yes! int(b'12') = 12 in Python 3 (int accepts str, bytes, bytearray). And numpy's casting from object/bytes to int64... numpy would first create an array of bytes (dtype 'S') then astype(int64)? `np.array([b'12', b'-3']).astype(np.int64)` — does numpy support string-to-int conversion? I believe yes, numpy can cast 'S' dtype to numeric via astype (it parses). Hmm, actually I recall `np.array(['1','2']).astype(int)` works. Yes, numpy supports casting string arrays to numeric. OK but I'm not fully sure about edge cases. 
+
+Given uncertainty, maybe just do pure Python parsing (map(int, ...) is C-fast anyway) and optionally use numpy only for CSR construction from Python lists: `us_np = np.fromiter(us, dtype=np.int64, count=E)` hmm, fromiter is Python-level iteration but C-level conversion... `np.array(us)` from a list of Python ints — C-level, fast (~0.05s for 4e5). Then argsort/bincount/cumsum — C-level. Then `adj = vs_np[order].tolist()` — C-level. This would make CSR construction ~0.1s instead of ~0.6s. Worth it if numpy exists. But adding numpy dependency with fallback... Let me think about whether to bother.
+
+Actually, let me reconsider: maybe pure Python is fine. Let me carefully count the pure-Python costs:
+
+1. Parsing: read + split: ~0.05s. map int over 4e5+2 tokens: ~0.05-0.1s.
+2. Slices A, B: ~0.02s.
+3. litsA, litsB comps: 4e5 elements total, each ~6-8 bytecodes: ~0.2-0.3s.
+4. XOR comps for vs: 4e5 elements, each ~4 bytecodes: ~0.15s. Hmm wait — do I even need to materialize vs with XOR? In CSR fill: adj[...] = vs[i]. I could compute XOR inline in the fill loop... no, keep it.
+5. Counting degrees: loop 4e5: `start[u+1] += 1` — hmm, that's per edge: index add store: ~4-5 bytecodes → 0.2s. Alternative with Counter: `Counter(us)` — C-level `_count_elements`: ~0.05s! Then `for u, c in cnt.items(): start[u+1] = c` — up to 2e5 iterations: 0.1s. Hmm, or... Actually simpler: I can compute degrees differently: since I build us = litsA + litsB, degrees = count of each literal in litsA plus in litsB. Counter(us) handles it. OK ~0.15s total.
+6. Prefix sums: 2e5 iterations: 0.05-0.1s. Or `itertools.accumulate`: `start = [0] + list(accumulate(...))` — C-level! `start = list(accumulate(deg_counts))`... Let me structure: deg array of length N; start = [0]; start.extend(accumulate(deg)) → C-level fast.
+7. CSR fill: 4e5 iterations × ~6 bytecodes: 0.25-0.4s. Hmm. Can I avoid this Python loop? 
+
+Alternative CSR fill trick: use `sorted` with key? No. Hmm: 
+
+What about: build adjacency as list of lists but with a faster method: 
+```python
+g = [[] for _ in range(N)]
+for u, v in zip(us, vs): g[u].append(v)
+```
+4e5 × ~7 bytecodes (unpack, index, load method, call) ≈ 0.3-0.4s. Similar to CSR fill.
+
+Is there any C-level way to distribute into buckets? Hmm... `sorted(zip(us, vs))` — Timsort C-level but tuple comparisons: 4e5 log(4e5) ≈ 4e5×19 comparisons ≈ 7.6e6 tuple comparisons at C level but tuple comparison is slowish... maybe 0.5-1s. No.
+
+What about grouping via dictionaries... no.
+
+OK here's another thought: since the two-phase marker DFS pushes ALL neighbors via `st.extend(g[u])`, list-of-lists is natural. And for list-of-lists, the construction loop is the main cost. Alternatively, construct with CSR and use extend of slices: `st.extend(adj[start[u]:end[u]])` — slicing a list is C-level! So CSR + marker DFS with slice-extends: construction = counting (Counter) + accumulate + fill loop (0.3s). Hmm, the fill loop is still there.
+
+Wait — can I avoid the fill loop using... hmm. What if I don't CSR-sort at all, and instead build the adjacency as list-of-lists via a different vectorized trick:
+
+Trick: sort edges by target... no. 
+
+Trick using `list.sort` on interleaved encoded values: encode edge (u,v) as u*M + v (M = N or 2^32...). Then `encoded.sort()` — C-level sort of 4e5 ints: ~0.1-0.2s (ints, fast comparisons). Then decode: adj entries in sorted order: u = e >> 20 (if v < 2^20), v = e & mask. Then CSR start positions from Counter/accumulate. Decoding 4e5: list comp `[e & MASK for e in encoded]` — 0.1s. And us for counting: `[e >> 20 for e in encoded]` — 0.1s. Hmm, total: encode comp (4e5 × ~5 ops = 0.15s), sort (0.15s), decode comps (0.2s), Counter (0.05s), accumulate (0.02s). Total ~0.6s. Not better than direct fill loop (~0.3-0.4s). OK, direct fill loop it is. Actually wait, let me recount the fill loop cost:
+
+```python
+fill = start[:]   # copy N+1... actually need positions
+for i in range(E):
+    u = us[i]
+    p = fill[u]
+    adj[p] = vs[i]
+    fill[u] = p + 1
+```
+Per iteration: range next, us[i] (index), fill[u] (index), adj[p] (store), vs[i] (index), fill[u] store + add. ~10 bytecodes. 4e5 × 10 = 4e6 bytecodes ≈ 0.3-0.5s. Yeah.
+
+Alternative fill with zip: 
+```python
+for u, v in zip(us, vs):
+    p = fill[u]; adj[p] = v; fill[u] = p + 1
+```
+zip iteration is C-level; per iter ~8 bytecodes. ~0.3s. OK.
+
+Hmm, honestly, let me estimate the total pure-Python solution:
+- parse+comps: ~0.5s
+- CSR: ~0.5s
+- Tarjan: ~0.6-0.9s
+- output: ~0.1s
+Total: ~1.7-2.0s worst case. On a typical 1s limit (probably meaning C++ 1s), Python solutions often get accepted if the judge multiplies time or if tests are not adversarial. Risky but let's go. Alternatively use numpy when available to cut construction to ~0.2s, making total ~1.2s. 
+
+Hmm, let me think again about whether there's a fundamentally lighter approach to the SCC for 2-SAT... 
+
+There's the classic "double DFS" 2-SAT... no. There's an incremental approach? No.
+
+OK here's another thought: PyPy-style optimizations don't apply; we're told Python 3. Let me just also consider: maybe the test data is small/weak. n ≤ 1e5, m ≤ 2e5 are the bounds; assume worst case.
+
+Let me now decide the final algorithm: iterative Tarjan with CSR + edge pointers, OR marker-based Tarjan with list-of-lists. Let me think once more about which inner loop is tightest.
+
+Pointer version inner loop (per edge):
+```python
+u = path[-1]          # 1 op (load, index)
+i = it[u]             # 2
+if i < end_u...       # need start[u+1]: 2 ops
+it[u] = i + 1         # 3
+v = adj[i]            # 2
+if visited[v]:        # 3
+    ...skip or back-edge handling
+else:
+    expand: visited[v]=1, index/low set, tstack.append, path.append  (~10, but only N times)
+```
+Per edge ~10-12 bytecodes plus for back-edges: on_stack check + low update (~5). So ~12 avg → 4e5 × 12 = 4.8e6 ≈ 0.5-0.7s. Plus per pop (N=2e5): path.pop, low==index check, parent update, SCC check: ~10 bytecodes → 2e6 ≈ 0.2-0.3s. Total Tarjan ~0.8-1.0s. Hmm.
+
+Marker version inner loop (per stack entry, E+2N+... entries ≈ 8e5):
+```python
+x = st.pop()          # 2 (method + call... bound method cached: ~2)
+if x < 0:             # 2
+    # exit: ~8 ops (N times)
+else:
+    if visited[x]:    # 3
+        # visited: on_stack check + low update: ~6 (up to E times)
+        continue
+    # expand: visited[x]=1, index/low, tstack append, path append, st.append(~x), st.extend(row): ~15 (N times)
+```
+Per edge-entry: ~2+2+3+~4 = ~11 bytecodes → 4e5 × 11 = 4.4e6 ≈ 0.5s. Plus exits 2e5 × 10 = 2e6 ≈ 0.25s. Total ~0.75s. Similar.
+
+Both similar. The marker version needs list-of-lists (construction 0.3-0.4s via append loop) vs CSR (construction ~0.5s with Counter+accumulate+fill). Comparable. 
+
+I'll go with the pointer-CSR Tarjan since I'm most confident in its correctness, and micro-optimize it. Actually, hmm, wait — with CSR, the marker version can use `st.extend(adj[start[u]:start[u+1]])` — slice creation is C-level and extend C-level. That combines CSR construction with marker DFS. But CSR fill loop is the cost either way.
+
+Alternatively, list-of-lists + pointer Tarjan: `it[u]` pointers into lists g[u]... `row = g[u]` cached where? We'd need to fetch g[u] each time or cache per path frame. With path as list of nodes and it as array of indices: `v = g[u][it[u]]` — double indexing, slower. CSR flat array is better for pointer version.
+
+Let me also consider: maybe I can skip building `vs` with XOR by storing... no, fine.
+
+Let me also double check memory: lists us, vs, adj: 4e5 elements each → each list ~3.2MB (pointers) + int objects (mostly small... values up to 2e5 — ints beyond 256 are separate objects, ~28 bytes each; but many duplicates? Each int object created once per occurrence in comps... list comp creates new int objects per element (except small ints ≤256 cached). 4e5 × 28 bytes = 11MB per list. us, vs, adj, litsA, litsB: ~5 lists × 11MB = 55MB. Plus data tokens (4e5 bytes objects ~ 4e5 × ~38 bytes = 15MB, freed after map). Plus Tarjan arrays: indices, low, comp, it, start: 5 × 2e5 × 8 bytes pointers + int objects... ints up to 2e5: each unique value object shared? No — arithmetic creates new objects; but stored values are shared references when assigned from existing objects. Roughly fine. Memory limit 256MB — should be OK, but let me free intermediate lists (del us, vs, vals, A, B, litsA, litsB after CSR build) to be safe.
+
+Actually, one more idea to reduce work: note that edges come in pairs with a nice structure: edge (a, b^1) and (b, a^1). Nothing exploitable.
+
+Hmm, wait, actually let me reconsider the problem constraints: m ≤ 2e5 interlocks → 4e5 edges. n ≤ 1e5 → 2e5 nodes. Fine.
+
+Let me also handle potential duplicate interlocks or self-feeding — no issue.
+
+Now, let me also think about the output: modes for machines 1..n: s_i = 1 if comp[2(i-1)] < comp[2(i-1)+1] else 0. Build result list: 
+```python
+res = []
+ok = True
+ct = comp  # list
+for i in range(0, 2*n, 2):
+    if ct[i] == ct[i+1]: ok = False; break
+    res.append(1 if ct[i] < ct[i+1] else 0)
+```
+2e5 iterations ~0.1s. Vectorized: `pairs = list(zip(comp[0::2], comp[1::2]))`... or:
+```python
+t = comp[0::2]; f = comp[1::2]
+if any(a == b for a, b in zip(t, f)): print NO
+res = [1 if a < b else 0 for a, b in zip(t, f)]
+```
+C-level slicing + comp-based loops. Fine.
+
+Output: `sys.stdout.write("YES\n" + " ".join(map(str, res)) + "\n")`.
+
+Now let me write the final code carefully.
+
+```python
+import sys
+from itertools import accumulate
+from collections import Counter
+
+def main():
+    data = sys.stdin.buffer.read().split()
+    n = int(data[0]); m = int(data[1])
+    N = 2 * n
+    E = 2 * m
+
+    # Parse feeds and compute literal node indices.
+    # Machine i (1..n): true node = 2(i-1), false node = 2(i-1)+1 = 2i-1.
+    # Feed c: c>0 -> literal "machine c in mode 0" -> false node -> 2c-1.
+    #         c<0 -> literal "machine |c| in mode 1" -> true node -> -2c-2.
+    vals = list(map(int, data[2:2 + 2 * m]))
+    A = vals[0::2]
+    B = vals[1::2]
+    litsA = [2 * x - 1 if x > 0 else -2 * x - 2 for x in A]
+    litsB = [2 * x - 1 if x > 0 else -2 * x - 2 for x in B]
+    del vals, A, B
+    
+    # Edges: for clause (¬L1 ∨ ¬L2): L1 -> ¬L2, L2 -> ¬L1.
+    us = litsA + litsB
+    vs = [y ^ 1 for y in litsB] + [y ^ 1 for y in litsA]
+    del litsA, litsB
+    
+    # CSR
+    cnt = Counter(us)
+    start = [0] * (N + 1)
+    for u, c in cnt.items():
+        start[u + 1] = c
+    start = list(accumulate(start))
+    # now start[u]..start[u+1] range for u; start has length N+1 with start[N] = E.
+    adj = [0] * E
+    fill = start[:N]  # copy of first N entries (insert positions)
+    for u, v in zip(us, vs):
+        p = fill[u]
+        adj[p] = v
+        fill[u] = p + 1
+    del us, vs, fill, cnt, data
+```
+
+Wait, careful with accumulate: I want start[u] = sum of degrees of nodes < u. Let me define deg_start where start[0] = 0, start[u+1] = start[u] + deg[u]. With the array `tmp` of length N+1 where tmp[u+1] = deg[u], then accumulate gives running sums: acc[i] = tmp[0] + ... + tmp[i]. tmp[0] = 0, so acc[u+1] = deg[0]+...+deg[u] = start[u+1] ✓, and acc[0] = 0 = start[0] ✓. So `start = list(accumulate(tmp))` where tmp[0]=0, tmp[i]=deg[i-1]. In my code above: `start = [0]*(N+1); for u,c in cnt.items(): start[u+1] = c` — that sets start[u+1] = deg[u] ✓ (start[0] stays 0). Then accumulate → correct start array of length N+1. ✓.
+
+Then Tarjan:
+
+```python
+    # Tarjan iterative
+    UNVISITED = -1
+    index_arr = [-1] * N
+    low = [0] * N
+    visited = bytearray(N)
+    on_stack = bytearray(N)
+    comp = [-1] * N
+    it = start[:N]  # edge pointers... wait, start[:N] gives start[0..N-1] = starting positions ✓
+    tstack = []
+    path = []
+    ncomp = 0
+    counter = 0
+    
+    for root in range(N):
+        if visited[root]:
+            continue
+        # init root
+        visited[root] = 1
+        index_arr[root] = low[root] = counter
+        counter += 1
+        tstack.append(root)
+        on_stack[root] = 1
+        path.append(root)
+        while path:
+            u = path[-1]
+            i = it[u]
+            if i < start[u + 1]:
+                it[u] = i + 1
+                v = adj[i]
+                if visited[v]:
+                    if on_stack[v]:
+                        iv = index_arr[v]
+                        if iv < low[u]:
+                            low[u] = iv
+                else:
+                    visited[v] = 1
+                    index_arr[v] = low[v] = counter
+                    counter += 1
+                    tstack.append(v)
+                    on_stack[v] = 1
+                    path.append(v)
+            else:
+                path.pop()
+                lu = low[u]
+                if lu == index_arr[u]:
+                    # SCC root: pop tstack until u
+                    while True:
+                        w = tstack.pop()
+                        on_stack[w] = 0
+                        comp[w] = ncomp
+                        if w == u:
+                            break
+                    ncomp += 1
+                if path:
+                    p = path[-1]
+                    if lu < low[p]:
+                        low[p] = lu
+```
+
+Wait, there's a subtle bug: in the else branch (pop), I use `u = path[-1]` from the top of the while — yes, u is still the node being popped since I read `u = path[-1]` at loop start and haven't modified path in this branch until `path.pop()`. ✓.
+
+Hmm, but one issue: after `path.pop()`, the next iteration reads `u = path[-1]` = parent. ✓.
+
+Another check: the low update for back edges uses index_arr[v] (textbook) ✓. Tree edge propagation at pop ✓.
+
+Let me double check the SCC extraction condition: u is an SCC root iff low[u] == index_arr[u] ✓ (standard Tarjan).
+
+Now, is `it = start[:N]` correct? start[u] = beginning of u's edge range ✓. And `start[u+1]` = end ✓ (start has N+1 entries).
+
+Now correctness of comp numbering for the 2-SAT assignment: Tarjan completes SCCs in reverse topological order → comp id smaller = later in topological order (closer to sink). x true iff comp[true] < comp[false]. As verified with examples. But let me re-verify the "true iff later in topo order" claim once more with a concrete 2-SAT: clauses: (x ∨ y), i.e., x or y must hold. Edges: ¬x→y, ¬y→x. Nodes: x=0, ¬x=1, y=2, ¬y=3. Edges: 1→2, 3→0. SCCs: {0},{1},{2},{3} (no cycles). Condensation edges: 1→2, 3→0. Topological order must have 1 before 2, 3 before 0. E.g., topo: 1, 3, 2, 0 or 3, 1, 0, 2, etc. Tarjan comp ids: reverse topo (sinks first). Sinks: 0 and 2 (no out-edges). Tarjan from root 0: SCC {0} → comp[0]=0. Root 1: DFS 1 → 2: SCC {2} completes first (2 is sink): comp[2]=1; then SCC {1}: comp[1]=2. Root 3: → 0 visited (not on stack, no low update); SCC {3}: comp[3]=3.
+
+Assignment: x: comp[0]=0 < comp[1]=2 → x true. y: comp[2]=1 < comp[3]=3 → y true. x=true, y=true: satisfies (x ∨ y) ✓. Also check no violation: fine.
+
+Another test: clauses (x), (¬x ∨ ¬x) → contradiction: edges: ¬x→x (from clause x∨x... wait clause (x) = (x ∨ x): edges ¬x→x twice. Clause (¬x ∨ ¬x): edges x→¬x twice. Cycle: x ↔ ¬x → same SCC → NO ✓.
+
+Another: clause (¬x ∨ y) and (¬y ∨ x): meaning x ↔ y. Edges: from (¬x ∨ y): x→y, ¬y→¬x. From (¬y ∨ x): y→x, ¬x→¬y. SCCs: {x, y}, {¬x, ¬y}. Condensation: {x,y} ↔ {¬x,¬y}? Edges: x→y (within), y→x (within), ¬y→¬x (within), ¬x→¬y (within). Cross-SCC edges: none! Wait: x→y is within {x,y}; ¬y→¬x within {¬x,¬y}. Hmm, so condensation has no edges between the two SCCs. Then Tarjan order depends on DFS start. Say nodes: x=0, ¬x=1, y=2, ¬y=3. Edges: 0→2, 3→1, 2→0, 1→3. Tarjan from 0: visit 0, edge 0→2: visit 2, edge 2→0: on stack, low[2]=0. 2 done: low[2]=0 == index[2]? index[2]=1, low[2]=0 ≠ 1 → not root; propagate low[0]=min(0, 0)=0. 0 done: low[0]=0==index[0]=0 → root: pop tstack: 2, 0 → comp[2]=comp[0]=0. Then root 1: visit 1, edge 1→3: visit 3, edge 3→1: on stack: low[3]=index[1]=2. 3: low=2 == index[3]=3? No. propagate low[1]=2. 1: low[1]=2 == index[1]=2 → root: pop 3, 1: comp[3]=comp[1]=1.
+
+Assignment: x: comp[0]=0 < comp[1]=1 → x true. y: comp[2]=0 < comp[3]=1 → y true. x=y=true ✓ consistent.
+
+If Tarjan had started from node 1 first: comp[1]=comp[3]=0, comp[0]=comp[2]=1. Then x: comp[0]=1 < comp[1]=0? No → x false; y: comp[2]=1 < comp[3]=0? No → y false. x=y=false ✓ also consistent. Good — both work since the SCCs are incomparable.
+
+Now, the important property: comp[x] < comp[¬x] → x true. This is the standard rule with Tarjan's reverse-topological numbering. I'm confident.
+
+Hmm, wait, actually let me double-check the claim "Tarjan numbers SCCs in reverse topological order" precisely. In Tarjan, when an SCC is completed (root pops), all SCCs reachable from it (via condensation edges) have already been completed? Hmm: when root u of SCC C pops, all vertices reachable from u are visited. Are all SCCs reachable from C already completed? Consider C → D in condensation (D ≠ C). Vertices of D are reachable from u, so visited before u finishes. When does D complete? D's vertices: since D ≠ C and reachable from C... Claim: D completes before C. Standard fact: yes — in Tarjan, SCCs are emitted in reverse topological order. Proof sketch: consider edge x→y with SCC(x) ≠ SCC(y). low[x] considerations... The standard known fact: "Tarjan's algorithm outputs the strongly connected components in reverse topological order" — yes, this is well-known (the first SCC output is a sink of the condensation). ✓.
+
+So comp ids: reverse topological. "x true iff SCC(x) later in topo order" ⟺ "comp[x] < comp[¬x]". ✓.
+
+Hmm hold on, let me just re-derive "x true iff SCC(x) later in topo order" once more, because getting this backwards would produce wrong answers on satisfiable instances (though the examples verified it — example 1 gave the right answer with this rule, and it's a nontrivial check since both machines had constraints). Example 1 verified: modes "1 0" produced, and expected output "1 0" — but note "any valid configuration" is accepted, so let me verify "1 0" is actually valid for example 1's constraints: Interlock 1 (feeds 1,2): machine 1 mode 1 → feed 1 (c=1>0, high when mode 0) → mode 1 → low. OK not both high ✓. Interlock 2 (feeds -1,-2): high when mode 1: machine 1 mode 1 → feed -1 HIGH; machine 2 mode 0 → feed -2 (high when mode 1) → mode 0 → LOW. Not both high ✓. Valid ✓. And with the opposite rule we'd get "0 1": interlock 1: machine 1 mode 0 → feed 1 HIGH; machine 2 mode 1 → feed 2 (high when mode 0) → LOW. Not both high ✓. Interlock 2: feed -1: mode 0 → LOW; feed -2: mode 1 → HIGH. Not both ✓. Also valid! Hmm, so example 1 doesn't disambiguate the rule direction (both assignments valid). Let me use my earlier simple test: clause (x ∨ x) forcing x true — verified the rule gives x true. And clause (¬x∨¬x) gives x false. Those disambiguate. ✓. Good.
+
+Let me also verify with a case where the choice matters for validity: clauses: (x ∨ y), (x ∨ ¬y), (¬x ∨ ¬y)? Let's see: from (x∨y) and (x∨¬y): x must be... (x∨y) ∧ (x∨¬y) = x ∨ (y∧¬y) = x. So x true, and then (¬x∨¬y) → ¬y. Unique solution: x=1, y=0. Edges: (x∨y): ¬x→y, ¬y→x. (x∨¬y): ¬x→¬y, y→x. (¬x∨¬y): x→¬y, y→¬x. Nodes: x=0,¬x=1,y=2,¬y=3. Edges: 1→2, 3→0, 1→3, 2→0, 0→3, 2→1.
+
+Let me run Tarjan mentally from root 0: visit 0 (idx0). 0's edges: 0→3: visit 3 (idx1). 3's edges: 3→0: 0 on stack → low[3]=0. 3 done: low[3]=0 ≠ idx 1 → not root; parent 0: low[0]=min(0,0)=0. 0 done: low[0]=0==idx0 → root: pop tstack: 3, 0 → comp[3]=comp[0]=0. Root 1: visit 1 (idx2). 1→2: visit 2 (idx3). 2's edges: 2→0: visited, on_stack? 0 not on stack (popped) → no update. 2→1: on stack → low[2]=idx[1]=2. 2 done: low[2]=2 ≠ idx3=3 → not root; parent 1: low[1]=min(2,2)=2. 1's next edge: 1→3: visited, not on stack → skip. 1 done: low[1]=2==idx2 → root: pop 2, 1 → comp[2]=comp[1]=1.
+
+Assignment: x: comp[0]=0 < comp[1]=1 → x=1 ✓. y: comp[2]=1 < comp[3]=0? No → y=0 ✓. Unique solution found ✓. 
+
+Now let me also think: is it possible that comp[x] == comp[¬x] check must happen before outputting — yes, check all pairs; if any equal → NO.
+
+Now, performance of the Tarjan loop — let me micro-optimize:
+
+- Bind frequently used lists to locals inside main (they already are locals since we're in main).
+- `path[-1]` each iteration: could maintain `u` variable across iterations to avoid re-indexing: restructure so that after pushing a child, we set u = v directly. Let me restructure:
+
+```python
+        u = root
+        while True:
+            # process u
+            i = it

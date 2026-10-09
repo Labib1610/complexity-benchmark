@@ -1,0 +1,69 @@
+import sys
+from collections import defaultdict, deque
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
+    
+    edges = []
+    adj = defaultdict(list)
+    index = 2
+    for _ in range(m):
+        u = int(data[index]) - 1
+        v = int(data[index+1]) - 1
+        edges.append((u, v))
+        adj[u].append(v)
+        adj[v].append(u)
+        index += 2
+    
+    # Color coding: 0 -> color 1, 1 -> color 2
+    # We'll use BFS to check if the graph is bipartite and find a valid coloring
+    color = [-1] * n
+    
+    for i in range(n):
+        if color[i] == -1:
+            queue = deque()
+            queue.append(i)
+            color[i] = 0
+            while queue:
+                node = queue.popleft()
+                current_color = color[node]
+                for neighbor in adj[node]:
+                    if color[neighbor] == -1:
+                        color[neighbor] = 1 - current_color
+                        queue.append(neighbor)
+                    elif color[neighbor] == current_color:
+                        print("NO")
+                        return
+    
+    # To get lexicographically smallest assignment:
+    # Process 0 should be 1 if possible.
+    # Since we colored with 0 and 1, and want phases 1 and 2,
+    # we can map color 0 -> phase 1, color 1 -> phase 2
+    # But to ensure lex smallest, we need to make sure process 0 gets 1 if possible.
+    # Our coloring already ensures that adjacent nodes have different colors.
+    # The mapping {color 0 -> 1, color 1 -> 2} will give us a valid assignment.
+    # To make it lex smallest, among all valid assignments, we prefer earlier processes to be 1.
+    # Since our BFS starts from uncolored nodes in order, and assigns 0 first, this naturally gives lex smallest.
+    
+    phase_assignment = []
+    for c in color:
+        if c == 0:
+            phase_assignment.append('1')
+        else:
+            phase_assignment.append('2')
+            
+    print("YES")
+    print(" ".join(phase_assignment))
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,32 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    j = int(next(it))
+    vessels = []
+    for _ in range(j):
+        t1 = int(next(it))
+        t2 = int(next(it))
+        vessels.append((t1, t2))
+    
+    # Sort by max(t1, t2) descending
+    vessels.sort(key=lambda x: -max(x[0], x[1]))
+    
+    time_alpha = 0
+    time_beta = 0
+    
+    for t1, t2 in vessels:
+        time_alpha += t1
+        # Vessel finishes Alpha at time_alpha
+        # Can start Beta at max(time_alpha, time_beta)
+        # Finishes Beta at start_time + t2
+        start_beta = time_alpha if time_alpha > time_beta else time_beta
+        time_beta = start_beta + t2
+    
+    print(time_beta)
+
+if __name__ == "__main__":
+    solve()

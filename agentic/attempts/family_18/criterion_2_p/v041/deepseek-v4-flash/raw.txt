@@ -1,0 +1,200 @@
+We can treat the bulbs and wires as a tree, because there are exactly n−1 edges and no cycles (the statement guarantees a single coordinated system).
+
+The task is to label the vertices with numbers 1…n (a permutation) such that the sum over edges of absolute differences of labels is at most B.
+
+A useful observation: for a tree, the total absolute difference over edges is minimized when labels increase monotonically along a DFS order. In fact, the minimal possible total is fixed, independent of label assignment for any tree, and equals the sum over edges of absolute differences when we assign labels by an inorder traversal, but more directly: The minimal total possible is when we arrange the tree in a linear order minimizing distances.
+
+We can achieve the minimum sum as follows:
+- Root the tree arbitrarily.
+- Do a DFS, and assign labels in preorder (or any order that keeps edges small).
+The minimal sum for any tree is equal to the sum over all edges of the size of the smaller side when removing that edge? No, that’s not generally true. Let's think differently.
+
+The key fact: A tree can be embedded into a line with total distance equal to the minimal possible if we do an in-order traversal of the tree decomposed into a path. But indeed the optimal arrangement is known: it's obtained by performing a Depth-First Search and assigning labels in visit order.
+
+Observation: If we arrange labels in DFS order, each edge connects a parent and child whose labels differ by exactly the size of the subtree of the child. The total sum becomes:
+
+For each edge (parent p, child c), where subtree(c) has size k, the label difference = k.  
+Sum over all edges is then the sum of subtree sizes of all non-root nodes.
+
+That sum is minimal independent of the tree shape? Actually yes: For any tree, if you place labels according to preorder, each edge contributes the subtree size of the child. The smallest possible sum of |label difference| over edges is exactly that value; it cannot be smaller because each edge must cross the gap between the smallest and largest index in the child's subtree.
+
+Let’s verify: For each edge, if child subtree contains vertices with labels in some interval [L, R], the edge must contribute at least (R−L+1) – size of that subtree. Indeed the minimal across all labelings is achieved when each subtree occupies a contiguous interval. For a tree, such interval labeling exists and corresponds to an Euler tour order.
+
+Thus, we can:
+1. Build adjacency from input.
+2. Root the tree at node 1.
+3. Do a DFS to compute subtree sizes.
+4. Minimum total = sum of subtree sizes of all nodes except the root.
+5. If that minimum > B → answer NO.
+6. Otherwise we can output YES, and produce such labeling by assigning labels via a DFS preorder (any order that keeps each subtree contiguous). One simple method: do a DFS that numbers nodes in the order visited. This yields each subtree contiguous and edge cost = subtree size.
+
+Implementation plan:
+
+- Read n, m, B.
+- Build adjacency list.
+- Since m = n−1 and the input guarantees a tree, we can root at 1.
+- Perform iterative DFS to compute subtree sizes and also assign preorder numbers (labels).
+- Compute min_total = sum(subtree_size[child] for each child edge).
+- If min_total > B → NO.
+- Else output YES and the labels array.
+
+We must ensure we output exactly n integers — the label of each bulb i.
+
+Let's code it. We'll use recursion but with a high recursion limit (n could be large? The constraints aren't given, but we can set recursionlimit high). Safer to implement iterative DFS.
+
+We can do a two-pass iterative DFS:
+- First pass: compute parent and order via stack.
+- Second pass: compute subtree sizes by reverse order.
+- Also assign labels in the preorder traversal.
+
+But we also need to assign labels in DFS order. We can do this in one pass: start stack with root, and assign incrementing labels as we pop.
+
+However, to compute subtree_size we need to process children before the parent, which is done in reverse order after the forward pass.
+
+Let's write iterative approach:
+
+```python
+import sys
+sys.setrecursionlimit(300000)
+input = sys.stdin.readline
+
+n, m, B = map(int, input().split())
+adj = [[] for _ in range(n)]
+for _ in range(m):
+    u, v = map(int, input().split())
+    u -= 1
+    v -= 1
+    adj[u].append(v)
+    adj[v].append(u)
+
+parent = [-1]*n
+order = []
+stack = [0]
+parent[0] = 0
+while stack:
+    u = stack.pop()
+    order.append(u)
+    for v in adj[u]:
+        if v == parent[u]:
+            continue
+        parent[v] = u
+        stack.append(v)
+
+sub = [1]*n
+for u in reversed(order):
+    for v in adj[u]:
+        if v == parent[u]:
+            continue
+        sub[u] += sub[v]
+
+min_total = sum(sub[i] for i in range(n) if i != 0)
+
+if min_total > B:
+    print("NO")
+else:
+    # Assign labels via preorder (same order as the DFS order we built)
+    labels = [0]*n
+    for idx, node in enumerate(order):
+        labels[node] = idx+1
+    print("YES")
+    print(' '.join(map(str, labels)))
+```
+
+Check with example:
+
+Input tree: edges (1-2), (1-3), (3-4), (3-5). Root at 1.
+Order = DFS may be [1,3,5,4,2] or [1,2,3,4,5] depending on adjacency order. Let's simulate adjacency:
+
+adj[0]=[1,2], adj[1]=[0], adj[2]=[0,3,4], adj[3]=[2], adj[4]=[2]
+Stack starts [0], pop 0 → order[0]=0, push 1,2. Pop 2 → order [0,2], push 4,3. Pop 3 → order [0,2,3], push nothing (2 already). Pop 4 → order [0,2,3,4]. Pop 1 → order [0,2,3,4,1]. Labels: node0->1, node2->2, node3->3, node4->4, node1->5.
+Edges: (1,3) diff=|5-3|=2, (1,2) diff=|5-1|=4, (2,4) diff=|1-4|=3, (2,5) diff=|1-2|=1 → sum=10? Wait that's too big.
+
+But min_total = sum(sub[1..])= Subtree sizes: node2 has subtree size 3 (nodes 2,3,4), node3 size 1, node4 size 1, node1 size 1 → sum=6. Our order gives cost 10, which is not minimal because subtrees aren't contiguous in that order? In the order [0,2,3,4,1], node2's subtree is not contiguous (node1 appears at end, breaking). So just any DFS order won't do.
+
+We need to ensure each subtree is contiguous. The way: perform a **preorder** traversal that visits all children in order, and assign numbers in that visit order. That *will* ensure each subtree is contiguous.
+
+My prior iterative approach gave a DFS order but maybe not preorder? Actually it was a DFS visit order, which *should* give contiguous subtrees if we are careful: In a standard DFS, you visit a node, then fully explore each child's subtree before moving to the next child. My stack approach pushes children and pops last-in-first-out, so the last pushed child is explored first. That should still give contiguous subtree per child because when you pop a child, you process its whole subtree before moving to next sibling (since the next sibling is beneath in stack). So the order should be a valid preorder. Let's re-check: order [0,2,3,4,1] — for root 0, we pushed 1 and then 2. Stack: [1,2]; pop 2, then explore 2's children (push 4,3). Stack now [1,4,3]; pop 3, explore 3 (push nothing). Then pop 4. Then pop 1. That's a valid preorder: for child 2, when we popped 2 we fully explored its subtree before returning to 1. So subtrees should be contiguous: child 1's subtree is just [1], which appears at end — that's fine. child 2's subtree is nodes 2,3,4 — they appear at positions 1,2,3 — contiguous indeed. So the order was [0,2,3,4,1] — positions: 0 at 1, 2 at 2, 3 at 3, 4 at 4, 1 at 5 → child1 subtree [5] contig, child2 subtree [2,3,4] contig. Good.
+
+Now compute edge costs: (0-1): |1-5|=4, (0-2): |1-2|=1, (2-3): |2-3|=1, (2-4): |2-4|=2 → total=8, but min_total=6. Why mismatch? Because in my labeling, the child 2's subtree size =3, but the labels inside start at 2 and end at 4 → difference =2? Wait, root's child 2: labels 2,3,4 → max-min+1 = 3, edge cost should be 3, but in our case edges are only to nodes 3 and 4 (children of 2) and root-2 edge. The edge root-2 cost = |1-2|=1, edge 2-3 = |2-3|=1, edge 2-4 = |2-4|=2 → sum=4 for that subtree, not 6. So we aren't achieving minimal.
+
+The minimal total sum = sum of subtree sizes = for root's children: node1 size=1, node2 size=3 → total=4, not 6. My earlier sum included node3 and node4 too, but those are already counted within node2's subtree. We should sum **only for non-root nodes their subtree size**? Actually for each edge (parent, child), cost = subtree_size(child). So total = sum over all non-root nodes of subtree_size(node). Let's compute: node1 size=1, node2 size=3, node3 size=1, node4 size=1 → sum=6. But we just said root-2 edge cost 1, not 3. That's because the edge cost equals subtree size only if child's labels form a contiguous interval starting immediately after parent's label. In our preorder, root label=1, child2 label=2, then its subtree labels 2..4 → edge cost = |1-2|=1 rather than 3. So preorder doesn't achieve minimal.
+
+To achieve minimal total, we need something like **inorder**? Actually the known optimal labeling is an Euler tour **postorder** or **inorder** labeling? Let's think:
+
+For an edge parent-child, the child subtree must occupy a block of size = subtree_size(child). If parent label is outside that block, the cost is at least that block size. The minimal possible for each edge is exactly subtree_size(child). That's achieved if the parent label is immediately at one boundary of the block.
+
+If we assign labels in **preorder**, the parent gets a smaller label than its whole subtree, and the difference between parent and the last node in child's subtree = subtree_size(child). But the edge connects only parent to child; child's label might be parent+1, the cost is just 1, not subtree_size. So to force cost=subtree_size, we'd need the child to be at the far end of its subtree block from the parent. So the labeling should be **postorder**: first label all of child's subtree, then label the parent. Then parent gets the next label after the subtree block, and edge cost = subtree_size(child). That gives exactly the sum of subtree sizes.
+
+Check with that: In postorder, order = child subtrees first, then parent. For root at 1, we'd assign: label node3=1, node4=2, node2=3, node1=4, root=5. Edges: (1-2): |5-3|=2, (1-3): |5-4|=1, (2-4): |3-2|=1, (2-5): |3-1|=2 → sum=6 = min. Works.
+
+Thus the correct approach: compute postorder labels.
+
+Implementation:
+
+- Build adjacency.
+- Root at 0.
+- Do iterative postorder: get order (children before parent).
+- Assign labels in that order (first in postorder gets label 1, etc.).
+- Compute min_total = sum(subtree_size[non-root]) as before.
+- If min_total > B → NO, else output labels.
+
+Let's implement:
+
+```python
+n, m, B = map(int, input().split())
+adj = [[] for _ in range(n)]
+for _ in range(m):
+    u, v = map(int, input().split())
+    adj[u-1].append(v-1)
+    adj[v-1].append(u-1)
+
+parent = [-1]*n
+order = []
+stack = [0]
+parent[0] = 0
+while stack:
+    u = stack.pop()
+    order.append(u)
+    for v in adj[u]:
+        if v == parent[u]:
+            continue
+        parent[v] = u
+        stack.append(v)
+
+# postorder: reverse of this order? In the above, we append on pop, so it's a preorder. To get postorder, we can do another pass:
+# We can get postorder list by doing a standard DFS that appends after processing children.
+
+# Let's do simple recursion-free:
+post = []
+stack = [(0, 0)]  # (node, state) state 0 = enter, 1 = exit
+parent[0] = -1
+while stack:
+    u, state = stack.pop()
+    if state == 0:
+        stack.append((u, 1))
+        for v in adj[u]:
+            if v != parent[u]:
+                parent[v] = u
+                stack.append((v, 0))
+    else:
+        post.append(u)
+
+sub = [1]*n
+for u in reversed(post):
+    for v in adj[u]:
+        if v != parent[u]:
+            sub[u] += sub[v]
+
+min_total = sum(sub[i] for i in range(n) if i != 0)
+
+if min_total > B:
+    print("NO")
+else:
+    labels = [0]*n
+    for idx, node in enumerate(post):
+        labels[node] = idx+1
+    print("YES")
+    print(' '.join(map(str, labels)))
+```
+
+This should produce valid labeling with minimum possible total sum. If that sum ≤ B, output YES; else NO.

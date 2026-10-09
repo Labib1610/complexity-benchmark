@@ -1,0 +1,194 @@
+Let me analyze this problem carefully.
+
+We have a bipartite graph (the two-camp structure means the graph is bipartite, and the bipartition is given implicitly by the structure — actually the graph is guaranteed bipartite, and we need to recover the camps via 2-coloring).
+
+We need to find an independent set of size exactly k (or determine it doesn't exist).
+
+In a bipartite graph with parts A and B, by König's theorem, the size of the maximum independent set is n - (size of maximum matching). So:
+- Compute maximum matching M in the bipartite graph.
+- If n - M >= k, then an independent set of size k exists. Otherwise, print NO.
+
+But we also need to *construct* an independent set of size exactly k.
+
+Standard construction: Given a maximum matching, we can find a minimum vertex cover, and the complement is a maximum independent set. The minimum vertex cover in bipartite graph: from the matching, do BFS/DFS from unmatched vertices in one side (say left side A), alternating between non-matching and matching edges. Let Z be the set of vertices reachable by alternating paths from unmatched A-vertices. Then the minimum vertex cover is (A \ Z) ∪ (B ∩ Z). The maximum independent set is (A ∩ Z) ∪ (B \ Z).
+
+The maximum independent set has size n - M. If n - M >= k, we can just take any k vertices from the maximum independent set (any subset of an independent set is independent). 
+
+So the algorithm:
+1. Read graph.
+2. 2-color the graph to get parts A and B (handle isolated vertices — they can go to either part; actually isolated vertices can be assigned arbitrarily, they'll be in the independent set anyway... wait, need to be careful. Isolated vertices have no edges, so they're never in any matching, and they'll always end up in the maximum independent set. Let me verify: an isolated vertex in A is unmatched, so it's in Z (reachable trivially from itself), so it's in A ∩ Z, which is in the independent set. Good.)
+
+Actually wait — vertices with no edges at all. If we assign them to A, they're unmatched in A, so they're starting points of the alternating BFS, so they're in Z, so they're in the independent set. Good.
+
+3. Compute maximum matching using Hopcroft-Karp (n up to 100000, m up to 400000). Hopcroft-Karp is O(E sqrt(V)) which is 400000 * 316 ≈ 1.3e8... that might be slow in Python. Hmm.
+
+Let me think about the constraints: n ≤ 100000, m ≤ 400000. Hopcroft-Karp in Python with adjacency lists... It could be tight but might work with careful implementation. Time limit is 2 seconds. Python Hopcroft-Karp on 400k edges... Let me think.
+
+Actually, there's a subtlety here. The problem says "every friendship connects a user in one camp to a user in the other". The camps are fixed but unknown to us. The graph is bipartite. But note: the graph might be disconnected, and the 2-coloring is unique up to swapping within each connected component. But the actual camps are fixed. Does that matter? For the independent set problem, no — any valid 2-coloring works, since the independent set condition only depends on the graph structure, not the coloring. The coloring is just a tool.
+
+Wait, but actually there's a subtle point: the problem says the graph follows the two-camp structure. So the graph IS bipartite. We just need any independent set of size k. The bipartiteness lets us use König's theorem.
+
+So the plan:
+1. Build graph.
+2. 2-color via BFS to get parts A, B.
+3. Hopcroft-Karp for maximum matching.
+4. If n - matching_size < k: print NO.
+5. Else: construct maximum independent set via König's construction, take first k vertices, print YES and them.
+
+Let me think about the construction more carefully.
+
+König's theorem construction for minimum vertex cover:
+- Let A, B be the two parts.
+- Let M be a maximum matching.
+- Let U = unmatched vertices in A.
+- Build alternating-path reachability: Z = set of vertices reachable from U by alternating paths (paths that alternate between edges not in M and edges in M). Formally: BFS from U. From a vertex a in A, traverse non-matching edges to B. From a vertex b in B, traverse the matching edge (if b is matched) to A.
+- Minimum vertex cover C = (A \ Z) ∪ (B ∩ Z).
+- Maximum independent set I = (A ∩ Z) ∪ (B \ Z).
+
+Proof sketch: I is independent: Suppose edge (a, b) with a ∈ A, b ∈ B, both in I. Then a ∈ Z, b ∉ Z. But if a ∈ Z and edge (a,b) exists: if (a,b) is a matching edge, then b ∈ Z (since from a we... wait, from A we traverse non-matching edges; from B we traverse matching edges). Hmm, let me redo.
+
+If a ∈ Z and (a,b) is a non-matching edge, then b is reachable from a via a non-matching edge, so b ∈ Z. Contradiction with b ∉ Z. If (a,b) is a matching edge, then b is matched to a. Since a ∈ Z... how did a get into Z? a was reached either as a starting point (unmatched — but a is matched since (a,b) is a matching edge, contradiction) or via a matching edge from b — but then b ∈ Z. Contradiction. So no such edge exists. Hence I is independent.
+
+Size: |I| = |A ∩ Z| + |B \ Z| = |A ∩ Z| + |B| - |B ∩ Z|. And |C| = |A| - |A ∩ Z| + |B ∩ Z| = M (by König, min vertex cover = max matching; and one can show |C| = M directly: matched vertices in A\Z... hmm, standard result). Anyway, |I| = n - M.
+
+Actually let me just trust the standard construction. Let me double check with a simple example: single edge (a1, b1). A = {a1}, B = {b1}. Matching M = {(a1,b1)}, size 1. U = {} (a1 is matched). Z = {} (no starting points). C = (A \ Z) ∪ (B ∩ Z) = {a1}. I = (A ∩ Z) ∪ (B \ Z) = {b1}. |I| = 1 = n - M = 2 - 1 = 1. Correct.
+
+Another example: path a1 - b1 - a2 (edges a1-b1, a2-b1). Maximum matching size 1 (say (a1, b1)). U = {a2}. Z: start a2. From a2, non-matching edges: a2-b1 is non-matching (matching is a1-b1), so b1 ∈ Z. From b1, matching edge to a1, so a1 ∈ Z. From a1, non-matching edges: a1-b1 (already in Z). So Z = {a2, b1, a1}. C = (A \ Z) ∪ (B ∩ Z) = {} ∪ {b1} = {b1}. I = {a1, a2}. |I| = 2 = 3 - 1. Correct, {a1, a2} is independent.
+
+Great, the construction works.
+
+Now, the main performance concern: Hopcroft-Karp in Python with n=100000, m=400000.
+
+Hopcroft-Karp complexity: O(E√V). With E=400000 and V=100000, √V ≈ 316, so worst case ~1.26e8 edge traversals. In pure Python that's way too slow (Python does maybe 1e7-5e7 simple operations per second, and each edge traversal involves several operations).
+
+Hmm. But wait — is the worst case actually achievable? The number of phases in Hopcroft-Karp is O(√V), but each phase is O(E). In practice, the number of phases is often much smaller. But adversarial inputs could force many phases.
+
+Alternative: Dinic's algorithm on bipartite graphs is equivalent to Hopcroft-Karp in complexity.
+
+Hmm, let me think about whether there's a smarter approach given the problem structure.
+
+Actually wait. Let me reconsider. The problem is from some contest ("Problem B" with "Problem A" being the general version which is NP-hard). The bipartite structure allows the König's theorem approach. The intended solution is probably Hopcroft-Karp or Dinic. In C++ that's fine. In Python, we need to be careful.
+
+Let me think about how to implement Hopcroft-Karp efficiently in Python.
+
+Standard Hopcroft-Karp:
+```
+INF = large
+match_A = [0]*(nA+1)  # 0 = unmatched, else vertex in B
+match_B = [0]*(nB+1)
+
+def bfs():
+    queue = deque
+    for a in 1..nA:
+        if match_A[a] == 0:
+            dist[a] = 0
+            queue.append(a)
+        else:
+            dist[a] = INF
+    found = False
+    while queue:
+        a = queue.popleft()
+        for b in adj[a]:
+            mb = match_B[b]
+            if mb == 0:
+                found = True
+            elif dist[mb] == INF:
+                dist[mb] = dist[a] + 1
+                queue.append(mb)
+    return found
+
+def dfs(a):
+    for b in adj[a]:
+        mb = match_B[b]
+        if mb == 0 or (dist[mb] == dist[a] + 1 and dfs(mb)):
+            match_A[a] = b
+            match_B[b] = = a
+            return True
+    dist[a] = INF
+    return False
+```
+
+With recursion depth issues — need iterative DFS or increase recursion limit. With n=100000, recursion could be deep. Better to implement iteratively, or use sys.setrecursionlimit and hope... Actually alternating paths can be long (up to O(V)), so recursion depth up to 100000 — Python default recursion limit is 1000. We can set it to 200000+, but deep recursion in Python can cause stack overflow at the C level (though CPython usually handles ~100k frames if the limit is raised... it depends on the platform's stack. Each frame is maybe 100+ bytes on the C stack... actually CPython frames use the C stack too, roughly a few KB per frame? No — CPython uses its own frame objects on the heap but each Python-level call does consume C stack. With 100000 depth it might crash. Safer to do iterative DFS.)
+
+Alternatively, implement the DFS iteratively with an explicit stack, keeping iterator positions.
+
+Let me think about the total work. Hmm.
+
+Actually, there's another thought: maybe the test data isn't adversarial for Hopcroft-Karp phases. Many contest problems with bipartite matching in Python get solved with Hopcroft-Karp implementations. With m=400000, each phase costs O(m) = 400k operations. If there are, say, 30 phases, that's 12M operations — feasible. Worst case √n ≈ 316 phases → 126M operations — too slow in pure Python.
+
+Hmm, but actually the number of phases in Hopcroft-Karp is O(√M) where M is the matching size, and more precisely, after √M phases, the remaining number of augmenting paths is at most √M, so total phases ≤ 2√M + something. With M up to 50000 (matching size at most min(|A|,|B|) ≤ 50000), √M ≈ 224. Still potentially 224 phases × 400k = 90M operations. Too slow for pure Python at 2s.
+
+Hmm, but each phase's DFS only visits... no, the DFS in each phase can traverse many edges.
+
+Let me think about optimizations:
+
+1. Use arrays (lists) instead of dicts.
+2. Flatten adjacency: adj as list of lists, or CSR format (arrays). CSR with a single flat array might be faster.
+3. In the BFS phase, we can prune: only continue BFS to find the layered graph.
+4. In DFS, use the "current arc" optimization to avoid re-scanning edges.
+
+Actually, a well-known trick for Hopcroft-Karp in Python: implement it carefully with flat arrays. Let me estimate: per phase, BFS is O(E) with simple operations, DFS with current-arc is O(E) amortized per phase (each edge is scanned at most a constant number of times per phase... actually with current arc, each edge is scanned at most once per phase in the DFS, plus the BFS O(E)). So per phase ~2-3 passes over edges, each pass with maybe 5-10 Python bytecode ops per edge. 400k edges × 10 ops = 4M ops per phase. At ~20-50M ops/sec for Python... that's 0.1-0.2s per phase. With 20+ phases, we're at 2-4 seconds. Risky.
+
+Hmm. Let me think if there's something special about this problem that helps.
+
+Wait — actually, let me reconsider. Is there a simpler characterization? We need an independent set of size k in a bipartite graph. Max independent set = n - max matching. 
+
+Hmm, is there any way to avoid computing the full matching? We need to decide if max independent set ≥ k, i.e., if max matching ≤ n - k. Hmm, that's still a matching computation.
+
+Alternatively... hmm, think about it differently. Actually no, I think we need the matching.
+
+Let me think about the structure more. n ≤ 100000, m ≤ 400000. Average degree 8. Hmm.
+
+One important optimization for Hopcroft-Karp: greedy initial matching. A greedy matching first can significantly reduce the number of phases. After a greedy matching, the number of phases needed is bounded by O(√(remaining augmenting path length))... The bound is: after greedy, the matching is maximal, and Hopcroft-Karp from a maximal matching still has O(√V) phases worst case. But in practice it helps a lot.
+
+Another approach: use Dinic's algorithm. For bipartite matching, Dinic with the "scaling" or the standard implementation is equivalent to Hopcroft-Karp. Dinic in Python with proper implementation (using arrays, current-arc, level graph) — similar performance.
+
+Hmm, what about using bitsets? There's a known technique for bipartite matching with bitsets: O(n^3 / 64)... no, that's for transitive closure stuff.
+
+Alternative: Since this is Python, maybe I should write the matching in a very optimized way. Let me think about what the actual worst case could be.
+
+Worst case for Hopcroft-Karp phases: graphs like a "staircase" that force many long augmenting paths. E.g., the classic worst case has Θ(√V) phases. With V = 100000 (but bipartite parts of 50000 each), √(50000) ≈ 224 phases. Each phase O(E) = 400k. Total ~9e7 edge operations minimum, each maybe 3-5 Python bytecodes... 3-5e8 bytecodes. At ~5e7 bytecodes/sec (typical CPython), that's 6-10 seconds. Too slow.
+
+Hmm, but wait — is the worst case actually constructible within m ≤ 400000? The classic HK worst-case instances... The number of phases is related to the length of augmenting paths. Phase i finds augmenting paths of length ≥ 2i-1 (lengths increase by at least 2 each phase). Max augmenting path length is O(V). For √V phases, we need augmenting paths of length up to 2√V. The known worst-case construction (for the "unit" version) achieves Θ(√V) phases with O(V) edges? I recall there are constructions with Θ(√V) phases and O(V) edges... Hmm, actually I think the worst case for HK phases requires specific constructions. Let me think: the "Chlebík and Chlebíková" instances? There are known families where HK takes Θ(√V) phases. I believe such families exist with a linear number of edges. So an adversarial test could exist.
+
+But — is this problem from a real contest with adversarial tests against Python? The problem statement says "Time limit: 2 s". For Python solutions, we might need to hope tests aren't fully adversarial, or find a faster method.
+
+Hmm, let me think about alternative algorithms.
+
+Alternative idea: Since we need max matching in a bipartite graph with n ≤ 1e5, m ≤ 4e5, maybe there's a way to exploit the structure "the graph is bipartite with the two camps given implicitly". No extra structure is guaranteed though — any bipartite graph can appear.
+
+OK here's another thought: maybe implement Hopcroft-Karp but with the DFS replaced by a BFS-based augmenting approach per phase, or implement the whole thing with careful attention to constant factors. Let me think about how to make each phase as fast as possible.
+
+Actually, there's a neat implementation trick for Hopcroft-Karp where the DFS is done iteratively and edges are stored in flat arrays. Let me think about the constant factor:
+
+Per phase:
+- BFS: iterate over all unmatched A vertices, traverse edges. Work: O(E) in the worst case, but actually BFS only traverses edges from A vertices in the current layer. Total BFS work per phase is O(E).
+- DFS: with current-arc pointers, total work O(E) per phase (each edge scanned at most once, plus O(V) for resets... actually resetting current-arc pointers is O(V_A) per phase).
+
+So per phase: ~O(E + V) with small constants. Let's say each edge processed costs ~4-8 Python operations in a tight loop. 400k edges → ~2-3M operations per phase → ~0.05-0.1s per phase in CPython. If phases ≤ 20, we're at 1-2s. If phases ~200, 10-20s. 
+
+Hmm, risky. Let me think about whether we can bound phases better with a good initial matching.
+
+Actually, here's a thought: use a randomized/greedy initial matching, then HK. The number of HK phases after greedy is at most O(√(M - M_greedy))? No... The theorem is: after k phases, the shortest augmenting path length is ≥ 2k+1, and if the shortest augmenting path has length ≥ 2k+1 then the matching size is within a factor of the optimum... Specifically, if max augmenting path length (i.e., deficiency) — the theorem: if shortest augmenting path length is ≥ 2k-1, then at most (n - M)/k... hmm, the standard bound: number of phases ≤ 2√M + O(1) where M is the max matching size. Because after √M phases, remaining augmentations ≤ √M, and each subsequent phase finds at least one augmenting path... wait no, each phase finds a maximal set of vertex-disjoint shortest augmenting paths, and after √M phases the shortest path length exceeds 2√M, which implies the number of remaining augmenting paths is < √M... hmm, actually the bound is: if the shortest augmenting path has length ≥ 2k, then the number of vertex-disjoint augmenting paths is at most... Let me recall: max matching size - current matching size ≤ (number of vertices on shortest augmenting path stuff)... 
+
+The standard argument: Let P be a maximal set of vertex-disjoint shortest augmenting paths, each of length ≥ 2k-1. Then |P| ≤ V/(2k-1)... no wait. Hmm: if the shortest augmenting path has length L, then any maximal set of vertex-disjoint augmenting paths... The symmetric difference of current matching and max matching contains M* - M vertex-disjoint augmenting paths. If the shortest augmenting path has length ≥ 2k+1, then... hmm, the paths in the symmetric difference are vertex-disjoint, each with ≥ 2k+1 vertices... that gives M* - M ≤ V/(2k+1)? No, that's not right either because the paths in the symmetric difference could be longer than the shortest.
+
+The correct argument: Let M be current matching, M* maximum. M* ⊕ M decomposes into vertex-disjoint alternating paths and cycles. The number of augmenting paths in this decomposition is exactly M* - M. Each augmenting path has length ≥ (shortest augmenting path length) = L. So (M* - M) · L ≤ |vertices in M* ⊕ M| ≤ 2V... roughly. So M* - M ≤ 2V/L. After k phases, L ≥ 2k+1, so remaining augmentations ≤ 2V/(2k+1) ≈ V/k. Each phase performs at least one augmentation (if M < M*). So total phases ≤ √(2V) + ... : phases needed to reduce remaining to 0: after √(2V) phases, remaining ≤ √(2V), and each further phase reduces by ≥ 1, so total ≤ 2√(2V). With V = 100000, that's ~2·447 = 894 phases?? Hmm wait, that doesn't match the standard O(√V) bound. Let me redo.
+
+Standard HK bound: O(√V) phases where V = number of vertices. The argument: after √V phases, shortest augmenting path length > √V... hmm, each phase increases the shortest augmenting path length by at least 2 (actually by at least 2, could be more). After k phases, shortest length ≥ 2k+1. Number of remaining augmentations ≤ V/(2k+1) (since vertex-disjoint paths each with ≥ 2k+1 vertices, total vertices ≤ V... wait each augmenting path has ≥ 2k+1 edges hence ≥ 2k+2 vertices; and they're vertex-disjoint; so count ≤ V/(2k+2)). With k = √V/2: remaining ≤ V/(√V+2) ≈ √V. Then each subsequent phase does ≥ 1 augmentation, so at most √V more phases. Total ≈ 1.5√V phases. With V = 1e5: ~474 phases. Hmm, but the standard statement is O(√V) with V = |V|... For bipartite matching, it's usually stated as O(E√V). With V=1e5, √V ≈ 316, so ~316-500 phases worst case. Each phase O(E)=4e5. Total 1.2e8-2e8 edge ops. Pure Python: too slow (each edge op ~ 0.1-0.2 μs at best in tight loops... actually CPython does roughly 30-70M simple bytecode ops/sec; an edge operation in BFS involves list indexing, comparisons, appends — maybe 10-15 bytecodes. So 1.2e8 edge ops × 12 bytecodes = 1.5e9 bytecodes ≈ 20-50 seconds. Way too slow.)
+
+BUT: worst-case HK instances are quite special. Typical instances need far fewer phases. The question is what the test data looks like. Since this appears to be a problem from a specific contest (maybe a Codeforces problem or a training problem), and the "Note" says it's Problem B version of Problem A (general independent set, NP-hard), the tests probably include some stress cases. Hmm.
+
+Let me search my memory: "Social Network Camps", "two camps", "all-strangers group"... This resembles Codeforces problem... Hmm, "Camp" problems... Actually this reminds me of Codeforces Round problem "1105D"? No. Let me think: bipartite graph, find independent set of size k — this is like finding... Hmm, there's a known Codeforces problem 1225? "Bad Prize"? Hmm.
+
+Actually, this strongly resembles Codeforces problem "F. Independent Set"? Or maybe it's from a Codeforces educational round: "Given a bipartite... find independent set of size k or report none" — hmm, there's CF problem 1385? Hmm, "Berland regional"? No.
+
+Wait, I recall a problem: Codeforces 1225 F? No... Let me think about "n ≤ 100000, m ≤ 400000, bipartite guaranteed, find independent set of size k". Hmm, there's CF Round #... problem "E. Minimum cover"? I can't place it exactly. It might be an original problem for this dataset (the phrasing "Problem A — ... NP-hard" suggests a generated pair).
+
+Given uncertainty, I should write the fastest possible Python solution. Options:
+
+1. Hopcroft-Karp with flat arrays, iterative DFS, greedy initialization. Hope tests are not adversarial.
+
+2. Try to use bit-parallel matching? There's a technique: for each vertex, represent adjacency as a bitmask over the other side, and do BFS/DFS with bit operations. Matching via bitset: Hmm, there's the "Hopcroft-Karp with bitset" or the O(V·E/64) approach for bipartite matching? Actually there's a known bitset algorithm for maximum matching in bipartite graphs running in O(V·E/64)? Hmm, I don't recall a standard one. There IS a bitset algorithm for computing the "dulmage-mendelsohn" or for reachability... 
+
+Hmm, actually there's a neat bitset-based

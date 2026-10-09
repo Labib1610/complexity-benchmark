@@ -1,0 +1,209 @@
+**Solution Explanation**
+
+For every pair of people `u < v` that are incompatible we look for a third person `w`
+that is incompatible with both of them.
+If such a `w` exists, `{u,v,w}` is a triangle in the incompatibility graph.
+The required answer is the lexicographically smallest triangle
+(`a` minimal, then `b`, then `c`).
+
+`n ≤ 2000`, therefore a whole adjacency row fits into a 2000‑bit integer.
+Bit operations on Python integers are performed in C and are extremely fast,
+so we can test the existence of a common neighbour of `u` and `v`
+by a single `&` (bitwise AND).
+
+--------------------------------------------------------------------
+
+#### Data structures
+* `adj[i]` – integer whose `j`‑th bit (`j` from `0` to `n‑1`) is `1`
+  iff person `i+1` is incompatible with person `j+1`.
+* `neigh[i]` – sorted list of neighbours of vertex `i+1`
+  (only needed to iterate over edges).
+
+--------------------------------------------------------------------
+
+#### Algorithm
+```
+read n, m
+adj = [0] * n
+neigh = [ [] for _ in range(n) ]
+
+for each edge (u, v):
+        u -= 1 ; v -= 1                # 0‑based
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+        neigh[u].append(v)
+        neigh[v].append(u)
+
+for i = 0 … n-1:
+        sort neigh[i]                 # ensures v > u when iterating
+
+best = (inf, inf, inf)
+
+for u = 0 … n-1:
+        for v in neigh[u]:            # v > u because of sorting
+                if v <= u: continue
+                common = adj[u] & adj[v]          # vertices adjacent to both
+                # we need w > v, i.e. bits with index ≥ v+1
+                mask = (-1) << (v+1)               # bits v+1, v+2, …
+                common &= mask
+                if common:
+                        low = common & -common      # lowest set bit
+                        w = low.bit_length() - 1    # 0‑based index
+                        cand = (u+1, v+1, w+1)
+                        if cand < best:
+                                best = cand
+
+print best
+```
+
+*Finding the smallest `w`*  
+`low = common & -common` isolates the lowest set bit.
+`low.bit_length() - 1` gives its index (0‑based).
+
+--------------------------------------------------------------------
+
+#### Correctness Proof  
+
+We prove that the algorithm outputs the lexicographically smallest triangle.
+
+---
+
+**Lemma 1**  
+For any vertices `u < v`, after `common = adj[u] & adj[v]` the set bits of
+`common` are exactly the vertices adjacent to **both** `u` and `v`.
+
+*Proof.*  
+`adj[u]` has a 1‑bit exactly at positions of neighbours of `u`,
+similarly for `adj[v]`. Bitwise AND keeps a 1 only where both have 1,
+i.e. where the vertex is neighbour of both. ∎
+
+
+
+**Lemma 2**  
+After `common &= mask` (where `mask` has 1‑bits only for indices `> v`),
+the remaining set bits correspond precisely to common neighbours `w` with
+`w > v`.
+
+*Proof.*  
+`mask` zeroes all bits `≤ v`. Intersection with `common` therefore removes
+all common neighbours `≤ v` and keeps the others unchanged. ∎
+
+
+
+**Lemma 3**  
+If the algorithm discovers a triple `(u+1, v+1, w+1)`,
+then these three vertices form a triangle (pairwise incompatible).
+
+*Proof.*  
+`v` is taken from `neigh[u]`, so edge `u–v` exists.
+By Lemma&nbsp;1, `w` is a neighbour of both `u` and `v`.
+Thus edges `u–w` and `v–w` exist as well. ∎
+
+
+
+**Lemma 4**  
+For every triangle `{a,b,c}` with `a<b<c` the algorithm will consider the
+pair `(a,b)` (or `(a,c)` or `(b,c)`) and will find the third vertex,
+hence will generate the candidate `(a,b,c)`.
+
+*Proof.*  
+Take the smallest vertex `a`. Its neighbour list contains both `b` and `c`,
+so during the iteration with `u = a-1` the inner loop reaches `v = b-1`
+(because `b>a`). By Lemma&nbsp;1 the common neighbours of `a` and `b`
+include `c`. Since `c > b`, Lemma&nbsp;2 keeps it, and the algorithm extracts
+`w = c-1`. Thus the candidate `(a,b,c)` is produced. ∎
+
+
+
+**Lemma 5**  
+`best` after the loops equals the lexicographically smallest triangle.
+
+*Proof.*  
+By Lemma&nbsp;4 every triangle appears as a candidate, and by Lemma&nbsp;3
+each candidate is a triangle. The algorithm keeps the minimum of all
+candidates using the natural tuple order, which is exactly lexicographic
+order on `(a,b,c)`. Hence the final `best` is the smallest triangle. ∎
+
+
+
+**Theorem**  
+The program outputs three integers `a<b<c` that are pairwise incompatible,
+and among all such triples it is the lexicographically smallest one.
+
+*Proof.*  
+Existence of at least one triangle is guaranteed, so `best` is set.
+By Lemma&nbsp;3 the output triple is a triangle.
+By Lemma&nbsp;5 it is the lexicographically smallest triangle.
+Therefore the theorem holds. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### Complexity Analysis  
+
+*Building adjacency*: `O(m)`  
+*Sorting neighbour lists*: total `O(m log n)` but `n ≤ 2000`, negligible.  
+*Main double loop*: for each edge `(u,v)` we perform a constant‑time bitwise
+`&` and a few integer operations → `O(m)`.  
+
+Memory: `n` integers of ≤2000 bits → `O(n)` ≈ 2000·256 bits ≈ 64 KB,
+plus neighbour lists `O(m)`.
+
+Both limits satisfy the constraints.
+
+--------------------------------------------------------------------
+
+#### Reference Implementation  (Python 3)
+
+```python
+import sys
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+
+    adj = [0] * n
+    neigh = [[] for _ in range(n)]
+
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+        neigh[u].append(v)
+        neigh[v].append(u)
+
+    for lst in neigh:
+        lst.sort()
+
+    INF = 10 ** 9
+    best = (INF, INF, INF)
+
+    for u in range(n):
+        for v in neigh[u]:
+            if v <= u:
+                continue
+            common = adj[u] & adj[v]
+            # keep only vertices with index > v
+            mask = (-1) << (v + 1)
+            common &= mask
+            if common:
+                low = common & -common
+                w = low.bit_length() - 1  # 0‑based
+                cand = (u + 1, v + 1, w + 1)
+                if cand < best:
+                    best = cand
+
+    print(best[0], best[1], best[2])
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above and conforms
+to the required input‑output format.

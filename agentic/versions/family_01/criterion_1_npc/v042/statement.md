@@ -1,19 +1,20 @@
-# Problem A — Network Licensing
+# Problem A — Ring Architecture
 
 Time limit: 2 s   Memory limit: 256 MB
 
-A regional communication network consists of $n$ broadcast towers. The regulatory authority has licensed exactly three frequency channels for use, designated as channel 1, channel 2, and channel 3. 
+A new operating system kernel organizes its background processes into three isolated execution rings, designated as Ring 1, Ring 2, and Ring 3. During system boot, $n$ background services (numbered 1 through $n$) must be distributed among these three rings. Every service must be assigned to exactly one ring.
 
-Due to overlapping coverage areas, certain pairs of towers will experience critical signal interference if they are configured to operate on the exact same channel. You must assign every tower to exactly one of the three available channels such that no two interfering towers share a channel. If no such configuration is possible, you must report this.
+Due to legacy code, certain pairs of services attempt to lock the same hardware registers. If two such services are assigned to the same execution ring, a deadlock will occur. You have been provided with a list of all unsafe service pairs.
+
+Determine if there is a valid deployment configuration that avoids all potential deadlocks, and if so, provide one such configuration.
 
 ## Input
-The first line contains two integers $n$ and $m$ — the number of broadcast towers and the number of interfering pairs ($1 \le n \le 40$, $0 \le m \le n \cdot (n-1)/2$).
-The towers are numbered from 1 to $n$.
-Each of the following $m$ lines contains two integers $u$ and $v$ — a pair of towers that interfere.
+The first line contains two integers $n$ and $m$ — the total number of background services and the number of unsafe legacy pairs ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
+Each of the subsequent $m$ lines contains two integers $u$ and $v$ — the identifiers of two services that will cause a deadlock if they operate in the same ring.
 
 ## Output
-If there is no valid channel configuration, print a single line containing `NO`.
-Otherwise, print `YES` on the first line. On the second line, print $n$ integers $c_1, c_2, \dots, c_n$ (each in $\{1, 2, 3\}$), where $c_i$ is the channel assigned to tower $i$. Among all valid configurations, output the lexicographically smallest sequence (compare $c_1$ first, then $c_2$, and so on).
+If a safe deployment is impossible, print a single line containing `NO`.
+Otherwise, print `YES` on the first line. On the second line, print $n$ space-separated integers $r_1, r_2, \dots, r_n$ (each in the set $\{1, 2, 3\}$), where $r_i$ is the execution ring assigned to service $i$. If multiple valid deployments exist, you may output any of them.
 
 ## Example 1
 Input:

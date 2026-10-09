@@ -1,0 +1,81 @@
+# Problem B — Two-Segment Routing
+
+Time limit: 1 s
+Memory limit: 256 MB
+
+## Description
+
+A network router must transmit **j** packets. The transmission path consists of exactly 2 segments: an uplink followed by a downlink. Each packet requires **p1** microseconds to traverse the uplink, and **p2** microseconds to traverse the downlink.
+
+You must choose a single sequence in which to transmit all **j** packets. Both segments process the packets in this exact chosen permutation. Each segment handles at most one packet at a time. Every packet must completely finish the uplink before it can begin the downlink. Once a segment begins processing a packet, it processes it continuously without interruption.
+
+These operational rules are equivalently captured by the following definitions. Let the chosen permutation of packets be $S = (S_1, S_2, \dots, S_j)$.
+For the $i$-th packet in the sequence, let $A_i$ be its required time on the uplink, and $B_i$ be its required time on the downlink (corresponding to its **p1** and **p2** values).
+
+Let $T_{up}(i)$ denote the time when packet $S_i$ completes the uplink:
+- $T_{up}(0) = 0$
+- $T_{up}(i) = T_{up}(i-1) + A_i$ for $1 \le i \le j$.
+
+Let $T_{down}(i)$ denote the time when packet $S_i$ completes the downlink:
+- $T_{down}(0) = 0$
+- $T_{down}(i) = \max(T_{up}(i), T_{down}(i-1)) + B_i$ for $1 \le i \le j$.
+
+Your objective is to determine the optimal permutation $S$ that minimizes $T_{down}(j)$, the time at which the final packet completely finishes the downlink. Report this minimum possible completion time.
+
+## Input
+
+The first line contains a single integer **j** (1 ≤ j ≤ 200000).
+Each of the next **j** lines contains two integers **p1** and **p2** (1 ≤ p1, p2 ≤ 1000000): the uplink time and the downlink time of a packet.
+
+## Output
+
+Print a single integer: the smallest possible time at which all packets are complete.
+
+## Examples
+
+### Example 1
+
+**Input**
+```
+3
+3 2
+2 4
+1 3
+```
+
+**Output**
+```
+10
+```
+
+### Example 2
+
+**Input**
+```
+1
+5 3
+```
+
+**Output**
+```
+8
+```
+
+### Example 3
+
+**Input**
+```
+3
+2 2
+2 2
+2 2
+```
+
+**Output**
+```
+8
+```
+
+## Note
+
+In Example 2, there is only one packet. The uplink takes it at time 0 and finishes at time 5. The downlink immediately takes it and finishes at time 5 + 3 = 8.

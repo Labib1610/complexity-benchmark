@@ -1,0 +1,175 @@
+import sys
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+
+    n, m, budget = data[0], data[1], data[2]
+
+    if n == 1:
+        if budget >= 0:
+            print("YES")
+            print(1)
+        else:
+            print("NO")
+        return
+
+    adj = [[] for _ in range(n)]
+    endpoints = [0] * (2 * m)
+
+    p = 3
+    for e in range(m):
+        u = data[p] - 1
+        v = data[p + 1] - 1
+        p += 2
+        d = 2 * e
+        endpoints[d] = v
+        endpoints[d ^ 1] = u
+        adj[u].append(d)
+        adj[v].append(d ^ 1)
+
+    parent = [-1] * n
+    parent_dir = [-1] * n
+    traversal = [0]
+    parent[0] = 0
+
+    for v in traversal:
+        for d in adj[v]:
+            u = endpoints[d]
+            if parent[u] == -1:
+                parent[u] = v
+                parent_dir[u] = d ^ 1  # u -> v
+                traversal.append(u)
+
+    msg_size = [0] * (2 * m)
+    msg_cost = [0] * (2 * m)
+
+    # Bottom-up messages: vertex/component -> its parent.
+    for v in reversed(traversal[1:]):
+        items = []
+        base = 0
+        total_size = 1
+
+        for d in adj[v]:
+            u = endpoints[d]
+            if parent[u] == v:
+                incoming = d ^ 1  # u -> v
+                s = msg_size[incoming]
+                a = msg_cost[incoming]
+                items.append((s, u))
+                total_size += s
+                base += a + 1
+
+        items.sort(key=lambda x: (-x[0], x[1]))
+
+        weighted = 0
+        for i, (s, _) in enumerate(items):
+            weighted += ((i + 1) // 2) * s
+
+        out = parent_dir[v]
+        msg_size[out] = total_size
+        msg_cost[out] = base + weighted
+
+    best_cost = None
+    best_root = 0
+
+    # Top-down messages and the free-root cost for every possible root.
+    for v in traversal:
+        items = []
+        total_size = 1
+        base = 0
+
+        for d in adj[v]:
+            incoming = d ^ 1
+            s = msg_size[incoming]
+            a = msg_cost[incoming]
+            u = endpoints[d]
+            items.append((s, u, d, a))
+            total_size += s
+            base += a + 1
+
+        items.sort(key=lambda x: (-x[0], x[1]))
+        degree = len(items)
+
+        free_weighted = 0
+        anchored_weighted = 0
+        for i, (s, _, _, _) in enumerate(items):
+            free_weighted += (i // 2) * s
+            anchored_weighted += ((i + 1) // 2) * s
+
+        free_cost = base + free_weighted
+        if best_cost is None or free_cost < best_cost:
+            best_cost = free_cost
+            best_root = v
+
+        suffix_odd = [0] * (degree + 1)
+        for i in range(degree - 1, -1, -1):
+            suffix_odd[i] = suffix_odd[i + 1]
+            if i & 1:
+                suffix_odd[i] += items[i][0]
+
+        for i, (s, _, out, a) in enumerate(items):
+            shifted_weighted = (
+                anchored_weighted
+                - ((i + 1) // 2) * s
+                - suffix_odd[i + 1]
+            )
+            msg_size[out] = total_size - s
+            msg_cost[out] = base - (a + 1) + shifted_weighted
+
+    if best_cost > budget:
+        print("NO")
+        return
+
+    # Construct the corresponding arrangement iteratively.
+    order = []
+    # Tasks: (kind, vertex, parent, reflected)
+    # kind 0 = expand subtree, kind 1 = emit vertex
+    stack = [(0, best_root, -1, False)]
+
+    while stack:
+        kind, v, par, reflected = stack.pop()
+
+        if kind == 1:
+            order.append(v)
+            continue
+
+        children = []
+        for d in adj[v]:
+            u = endpoints[d]
+            if u == par:
+                continue
+            incoming = d ^ 1
+            children.append((msg_size[incoming], u))
+
+        children.sort(key=lambda x: (-x[0], x[1]))
+
+        tokens = []
+        for i in range(1, len(children), 2):
+            tokens.append((0, children[i][1], v, True))
+        tokens.append((1, v, -1, False))
+        for i in range((len(children) - 1) & ~1, -1, -2):
+            tokens.append((0, children[i][1], v, False))
+
+        if reflected:
+            transformed = []
+            for token in reversed(tokens):
+                if token[0] == 0:
+                    transformed.append((0, token[1], token[2], not token[3]))
+                else:
+                    transformed.append(token)
+            tokens = transformed
+
+        for token in reversed(tokens):
+            stack.append(token)
+
+    positions = [0] * n
+    for i, v in enumerate(order, 1):
+        positions[v] = i
+
+    print("YES")
+    print(*positions)
+
+if __name__ == "__main__":
+    main()

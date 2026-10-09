@@ -1,0 +1,95 @@
+import sys
+sys.setrecursionlimit(1 << 25)
+
+class Dinic:
+    def __init__(self, n):
+        self.n = n
+        self.adj = [[] for _ in range(n)]
+
+    def add_edge(self, u, v, c):
+        self.adj[u].append([v, c, len(self.adj[v])])
+        self.adj[v].append([u, 0, len(self.adj[u]) - 1])
+
+    def bfs_level(self, s, t):
+        level = [-1] * self.n
+        q = [s]
+        level[s] = 0
+        for u in q:
+            for v, cap, rev in self.adj[u]:
+                if cap and level[v] == -1:
+                    level[v] = level[u] + 1
+                    q.append(v)
+        self.level = level
+        return level[t] != -1
+
+    def dfs(self, u, t, f, it):
+        if u == t:
+            return f
+        for i in range(it[u], len(self.adj[u])):
+            it[u] = i
+            v, cap, rev = self.adj[u][i]
+            if cap and self.level[v] == self.level[u] + 1:
+                ret = self.dfs(v, t, min(f, cap), it)
+                if ret:
+                    self.adj[u][i][1] -= ret
+                    self.adj[v][rev][1] += ret
+                    return ret
+        return 0
+
+    def max_flow(self, s, t):
+        flow = 0
+        INF = 10**18
+        while self.bfs_level(s, t):
+            it = [0] * self.n
+            while True:
+                f = self.dfs(s, t, INF, it)
+                if not f:
+                    break
+                flow += f
+        return flow
+
+    def reachable_from(self, s):
+        seen = [False] * self.n
+        stack = [s]
+        seen[s] = True
+        while stack:
+            u = stack.pop()
+            for v, cap, rev in self.adj[u]:
+                if cap and not seen[v]:
+                    seen[v] = True
+                    stack.append(v)
+        return seen
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it)); m = int(next(it)); s = int(next(it))-1; t = int(next(it))-1; B = int(next(it))
+    edges = []
+    dinic = Dinic(n)
+    for _ in range(m):
+        u = int(next(it))-1; v = int(next(it))-1; w = int(next(it))
+        edges.append((u, v, w))
+        # undirected edge as two directed with capacity w
+        dinic.add_edge(u, v, w)
+        dinic.add_edge(v, u, w)
+
+    min_cut = dinic.max_flow(s, t)
+    if min_cut > B:
+        print("NO")
+        return
+
+    reachable = dinic.reachable_from(s)
+    cut_edges = []
+    for u, v, w in edges:
+        if (reachable[u] and not reachable[v]) or (reachable[v] and not reachable[u]):
+            cut_edges.append((u+1, v+1))
+
+    print("YES")
+    print(len(cut_edges))
+    for u, v in cut_edges:
+        print(u, v)
+
+if __name__ == "__main__":
+    solve()

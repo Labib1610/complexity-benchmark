@@ -1,0 +1,175 @@
+```python
+import sys
+from collections import defaultdict
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    # We'll model this as a 2-SAT problem
+    # Each qubit i has two variables: i (for state 0) and -i (for state 1)
+    # For each route (l1, l2), we need to ensure that NOT(P ⊆ S ⊆ N^c)
+    # This is equivalent to: NOT(P ⊆ S) OR NOT(S ⊆ N^c)
+    # Which is: (exists p in P, p not in S) OR (exists n in N, n in S)
+    # In terms of variables: (exists p in P, x_p = 1) OR (exists n in N, x_n = 0)
+    # This is a clause: OR_{p in P} (x_p = 1) OR OR_{n in N} (x_n = 0)
+    # But we need to convert to 2-CNF. Each route gives us a constraint that is at most 2 literals.
+    # Actually, let's think differently.
+    # A route (l1, l2) defines P and N.
+    # Fault occurs when P ⊆ S and S ⊆ N^c.
+    # That is, for all p in P, p in S, and for all n in N, n not in S.
+    # So the fault condition is: (AND_{p in P} x_p=0) AND (AND_{n in N} x_n=1)
+    # We want to avoid this, so we want: (OR_{p in P} x_p=1) OR (OR_{n in N} x_n=0)
+    # This is a clause with potentially many literals. But since we have at most 2 literals per route,
+    # each route contributes at most 2 literals to the clause.
+    
+    # Let's build the implication graph for 2-SAT
+    # For each variable x_i, we have nodes i (x_i=True) and -i (x_i=False)
+    # For clause (a OR b), we add edges (~a -> b) and (~b -> a)
+    
+    # adj[i] contains nodes that i implies
+    adj = defaultdict(list)
+    adj_rev = defaultdict(list)
+    
+    idx = 2
+    clauses = []
+    
+    for i in range(m):
+        l1 = int(data[idx])
+        l2 = int(data[idx+1])
+        idx += 2
+        
+        # Determine P and N
+        P = []
+        N = []
+        if l1 > 0:
+            P.append(l1)
+        elif l1 < 0:
+            N.append(-l1)
+            
+        if l2 > 0:
+            P.append(l2)
+        elif l2 < 0:
+            N.append(-l2)
+            
+        # The fault condition is: for all p in P, x_p=0 AND for all n in N, x_n=1
+        # We want to avoid this, so we want:
+        # (exists p in P, x_p=1) OR (exists n in N, x_n=0)
+        # This is a clause with literals: OR_{p in P} x_p OR OR_{n in N} ~x_n
+        
+        literals = []
+        for p in P:
+            literals.append(p)  # x_p = True
+        for n in N:
+            literals.append(-n)  # x_n = False
+            
+        # Add clause (literals[0] OR literals[1] OR ...)
+        # For 2-SAT, we need to convert to pairwise implications
+        # If we have a clause with k literals, we can convert it to k-1 pairwise clauses
+        # But since we have at most 2 literals, it's already a 2-clause or 1-clause
+        if len(literals) == 1:
+            lit = literals[0]
+            # Clause is (lit), which is equivalent to (~lit -> lit)
+            # But more directly, it means lit must be true
+            # In 2-SAT, we can model this as (lit OR lit), so (~lit -> lit)
+            adj[-lit].append(lit)
+            adj_rev[lit].append(-lit)
+        elif len(literals) == 2:
+            lit1, lit2 = literals
+            # Clause is (lit1 OR lit2), which is (~lit1 -> lit2) and (~lit2 -> lit1)
+            adj[-lit1].append(lit2)
+            adj[-lit2].append(lit1)
+            adj_rev[lit2].append(-lit1)
+            adj_rev[lit1].append(-lit2)
+        # If len(literals) == 0, then the clause is empty (false), meaning unsatisfiable
+        # But this shouldn't happen based on problem constraints
+    
+    # Now we do strongly connected components to check 2-SAT satisfiability
+    # Kosaraju's algorithm
+    
+    visited = [False] * (2 * n + 1)
+    for i in range(len(visited)):
+        visited[i] = False
+    order = []
+    
+    def dfs1(u):
+        visited[u] = True
+        for v in adj[u]:
+            if not visited[v]:
+                dfs1(v)
+        order.append(u)
+        
+    def dfs2(u, component):
+        visited[u] = True
+        component.append(u)
+        for v in adj_rev[u]:
+            if not visited[v]:
+                dfs2(v, component)
+                
+    # First DFS pass
+    for i in range(1, n+1):
+        if not visited[i]:
+            dfs1(i)
+        if not visited[-i]:
+            dfs1(-i)
+            
+    # Second DFS pass on transpose graph
+    for i in range(len(visited)):
+        visited[i] = False
+        
+    # Process in reverse order
+    order.reverse()
+    components = []
+    comp_id = {}
+    
+    for u in order:
+        if not visited[u]:
+            component = []
+            dfs2(u, component)
+            components.append(component)
+            for node in component:
+                comp_id[node] = len(components) - 1
+                
+    # Check if satisfiable
+    for i in range(1, n+1):
+        if comp_id[i] == comp_id[-i]:
+            print("NO")
+            return
+            
+    # Assign values
+    assignment = [0] * (n + 1)  # 1-indexed
+    # Process components in reverse topological order
+    for component in components:
+        for node in component:
+            if node > 0 and assignment[node] == 0:
+                assignment[node] = 1  # False
+            elif node < 0 and assignment[-node] == 0:
+                assignment[-node] = 0  # True, but in our encoding x_i=0 means in S
+                
+    # In our problem, x_i = 0 means qubit i is in S (state 0)
+    # x_i = 1 means qubit i is not in S (state 1)
+    # But in standard 2-SAT, x_i = True means x_i is true
+    # We had clause (exists p in P, x_p=1) OR (exists n in N, x_n=0)
+    # x_p=1 means p not in S, x_n=0 means n in S
+    # In 2-SAT, x_p=True means x_p literal is true, x_n=False means ~x_n literal is true
+    # So x_p corresponds to x_p=True, and -x_n corresponds to x_n=False
+    # After solving 2-SAT:
+    # If x_i is True, then x_i=1, so qubit i is not in S, so state is 1
+    # If x_i is False, then x_i=0, so qubit i is in S, so state is 0
+    
+    print("YES")
+    result = []
+    for i in range(1, n+1):
+        if comp_id[i] < comp_id[-i]:  # x_i is False in satisfying assignment
+            result.append('0')
+        else:  # x_i is True in satisfying assignment
+            result.append('1')
+    print(' '.join(result))
+
+if __name__ == "__main__":
+    main()
+```

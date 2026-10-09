@@ -1,0 +1,119 @@
+We can model this as a **multi-commodity flow** problem, but since the number of contracts and edges is small enough, we can solve it with **linear programming** using integer flows.  
+
+We’ll use `scipy.optimize.linprog` or a custom simplex, but since SciPy may not be available in all judges, we can use **PuLP** or implement a simple **max-flow per commodity** with capacity sharing.  
+
+However, the cleanest approach here is to use **integer linear programming** with `pulp` or `ortools`. Since we can’t rely on external libraries in a standard competitive programming environment, we can instead use **network flow with lower/upper bounds** and solve via **max flow with multiple commodities** using **linear programming via simplex** implemented manually — but that’s heavy.
+
+Given the constraints are small (likely n, m, k ≤ 50), we can use **brute force with linear programming via `scipy`** if allowed, but to be safe, we can implement a **min-cost max-flow** per commodity with capacity sharing using **binary search on flow values**? That’s not straightforward.
+
+A practical approach:  
+We can treat each contract as a separate flow, and use **linear programming** with `scipy.optimize.linprog` to find a feasible integer solution. Since the problem says “whole number”, we can solve the LP and then round if the solution is integral (which it will be for network matrices).
+
+Let’s implement using `scipy.optimize.linprog` with integer constraints via `milp` if available, else use `linprog` and check integrality.
+
+Here’s the code:
+
+```python
+import sys
+import numpy as np
+from scipy.optimize import linprog
+
+def solve():
+    input_data = sys.stdin.read().strip().split()
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    k = int(next(it))
+    
+    contracts = []
+    for _ in range(k):
+        s = int(next(it)) - 1
+        t = int(next(it)) - 1
+        d = int(next(it))
+        contracts.append((s, t, d))
+    
+    edges = []
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        c = int(next(it))
+        edges.append((u, v, c))
+    
+    # Variables: x_{i,j} for contract i, edge j
+    num_vars = k * m
+    
+    # Objective: minimize 0 (just feasibility)
+    c_vec = np.zeros(num_vars)
+    
+    A_ub = []
+    b_ub = []
+    
+    # Capacity constraints per edge
+    for j in range(m):
+        row = np.zeros(num_vars)
+        for i in range(k):
+            row[i*m + j] = 1
+        A_ub.append(row)
+        b_ub.append(edges[j][2])
+    
+    # Flow conservation constraints
+    # For each contract i and each node v (except origin/dest), inflow = outflow
+    # For origin: outflow - inflow = d_i
+    # For dest: inflow - outflow = d_i
+    
+    A_eq = []
+    b_eq = []
+    
+    for i in range(k):
+        s, t, d = contracts[i]
+        for node in range(n):
+            row = np.zeros(num_vars)
+            # outgoing edges from node
+            for j, (u, v, c) in enumerate(edges):
+                if u == node:
+                    row[i*m + j] += 1
+                if v == node:
+                    row[i*m + j] -= 1
+            if node == s:
+                # outflow - inflow = d
+                b_eq.append(d)
+                A_eq.append(row)
+            elif node == t:
+                # inflow - outflow = d => -(outflow - inflow) = d => outflow - inflow = -d
+                b_eq.append(-d)
+                A_eq.append(row)
+            else:
+                # outflow - inflow = 0
+                b_eq.append(0)
+                A_eq.append(row)
+    
+    A_ub = np.array(A_ub)
+    b_ub = np.array(b_ub)
+    A_eq = np.array(A_eq)
+    b_eq = np.array(b_eq)
+    
+    bounds = [(0, None)] * num_vars
+    
+    res = linprog(c_vec, A_ub=A_ub, b_ub=b_ub, A_eq=A_eq, b_eq=b_eq, bounds=bounds, method='highs')
+    
+    if not res.success:
+        print("NO")
+        return
+    
+    x = res.x
+    # Check integrality
+    for val in x:
+        if abs(val - round(val)) > 1e-6:
+            print("NO")
+            return
+    
+    x = np.round(x).astype(int)
+    
+    print("YES")
+    for i in range(k):
+        row = x[i*m:(i+1)*m]
+        print(' '.join(map(str, row)))
+
+if __name__ == "__main__":
+    solve()
+```

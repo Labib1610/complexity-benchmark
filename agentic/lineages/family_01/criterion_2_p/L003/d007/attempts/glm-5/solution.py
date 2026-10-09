@@ -1,0 +1,120 @@
+import sys
+from collections import deque
+
+# Define the two matrices
+M1 = [
+    [-8, -5, 4, 5],
+    [-10, -6, 5, 6],
+    [-16, -10, 8, 10],
+    [-10, -6, 5, 6]
+]
+
+M2 = [
+    [6, 1, -2, -2],
+    [10, -4, -2, 0],
+    [10, 13, -6, -10],
+    [13, -12, -1, 4]
+]
+
+def mat_mult(A, B):
+    """Multiply two 4x4 matrices."""
+    C = [[0]*4 for _ in range(4)]
+    for i in range(4):
+        for k in range(4):
+            if A[i][k] == 0:
+                continue
+            for j in range(4):
+                C[i][j] += A[i][k] * B[k][j]
+    return C
+
+def is_zero(M):
+    """Check if matrix is zero matrix."""
+    for row in M:
+        for val in row:
+            if val != 0:
+                return False
+    return True
+
+# Precompute which pairs are forbidden
+# forbidden[a][b] = True means mode a for u and mode b for v is forbidden
+# (because M_a * M_b = Z)
+M = [None, M1, M2]
+forbidden = [[False]*3 for _ in range(3)]
+
+for a in range(1, 3):
+    for b in range(1, 3):
+        prod = mat_mult(M[a], M[b])
+        if is_zero(prod):
+            forbidden[a][b] = True
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [[] for _ in range(n+1)]
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # We want lexicographically smallest, so prefer mode 1
+    # For each edge (u,v), we need to avoid forbidden pairs
+    # This is a 2-SAT problem where:
+    # - Variable x_i: True means mode 1, False means mode 2
+    # - For each edge, we add clauses to forbid forbidden pairs
+    
+    # Using BFS to assign modes greedily
+    # Start with mode 1, and propagate constraints
+    
+    color = [0] * (n + 1)  # 0: unassigned, 1: mode 1, 2: mode 2
+    possible = True
+    
+    for start in range(1, n + 1):
+        if color[start] != 0:
+            continue
+        
+        # Try to assign mode 1 to start (lexicographically smallest)
+        queue = deque()
+        color[start] = 1
+        queue.append(start)
+        
+        while queue and possible:
+            u = queue.popleft()
+            cu = color[u]
+            for v in adj[u]:
+                if color[v] == 0:
+                    # Find valid mode for v
+                    found = False
+                    for cv in [1, 2]:  # Try mode 1 first for lex smallest
+                        if not forbidden[cu][cv] and not forbidden[cv][cu]:
+                            color[v] = cv
+                            queue.append(v)
+                            found = True
+                            break
+                    if not found:
+                        possible = False
+                        break
+                else:
+                    cv = color[v]
+                    if forbidden[cu][cv] or forbidden[cv][cu]:
+                        possible = False
+                        break
+            if not possible:
+                break
+        
+        if not possible:
+            break
+    
+    if not possible:
+        print("NO")
+    else:
+        print("YES")
+        print(' '.join(str(color[i]) for i in range(1, n + 1)))
+
+if __name__ == "__main__":
+    solve()

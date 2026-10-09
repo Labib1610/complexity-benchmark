@@ -1,0 +1,77 @@
+import sys
+
+def main():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    adj = [[] for _ in range(2 * n)]
+    rev_adj = [[] for _ in range(2 * n)]
+    
+    idx = 2
+    for _ in range(m):
+        l1 = int(input_data[idx])
+        l2 = int(input_data[idx + 1])
+        idx += 2
+        
+        u = 2 * (l1 - 1) if l1 > 0 else 2 * (-l1 - 1) + 1
+        v = 2 * (l2 - 1) if l2 > 0 else 2 * (-l2 - 1) + 1
+        
+        # ~u -> v
+        neg_u = u ^ 1
+        adj[neg_u].append(v)
+        rev_adj[v].append(neg_u)
+        
+        # ~v -> u
+        neg_v = v ^ 1
+        adj[neg_v].append(u)
+        rev_adj[u].append(neg_v)
+        
+    # Kosaraju's algorithm
+    order = []
+    visited = [False] * (2 * n)
+    for i in range(2 * n):
+        if not visited[i]:
+            stack = [(i, 0)]
+            visited[i] = True
+            while stack:
+                u, edge_idx = stack[-1]
+                if edge_idx < len(adj[u]):
+                    stack[-1] = (u, edge_idx + 1)
+                    nxt = adj[u][edge_idx]
+                    if not visited[nxt]:
+                        visited[nxt] = True
+                        stack.append((nxt, 0))
+                else:
+                    order.append(u)
+                    stack.pop()
+                    
+    scc = [-1] * (2 * n)
+    num_scc = 0
+    for i in reversed(order):
+        if scc[i] == -1:
+            scc[i] = num_scc
+            stack = [i]
+            while stack:
+                u = stack.pop()
+                for nxt in rev_adj[u]:
+                    if scc[nxt] == -1:
+                        scc[nxt] = num_scc
+                        stack.append(nxt)
+            num_scc += 1
+            
+    res = [0] * n
+    for i in range(n):
+        if scc[2 * i] == scc[2 * i + 1]:
+            print("NO")
+            return
+        res[i] = 1 if scc[2 * i] > scc[2 * i + 1] else 0
+        
+    print("YES")
+    print(*(res))
+
+if __name__ == '__main__':
+    main()

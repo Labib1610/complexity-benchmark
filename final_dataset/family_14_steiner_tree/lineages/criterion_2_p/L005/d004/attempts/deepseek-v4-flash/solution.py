@@ -1,0 +1,49 @@
+import sys
+from collections import deque
+
+input = sys.stdin.readline
+
+n, m, t = map(int, input().split())
+critical = set(map(int, input().split()))
+
+adj = [[] for _ in range(n + 1)]
+for _ in range(m):
+    u, v, w = map(int, input().split())
+    adj[u].append((v, w))
+    adj[v].append((u, w))
+
+if t <= 1:
+    print(0)
+    sys.exit()
+
+degree = [len(adj[i]) for i in range(n + 1)]
+is_critical = [False] * (n + 1)
+for c in critical:
+    is_critical[c] = True
+
+# Remove non-critical leaves
+q = deque()
+for i in range(1, n + 1):
+    if degree[i] == 1 and not is_critical[i]:
+        q.append(i)
+
+removed = [False] * (n + 1)
+while q:
+    u = q.popleft()
+    removed[u] = True
+    for v, w in adj[u]:
+        if not removed[v]:
+            degree[v] -= 1
+            if degree[v] == 1 and not is_critical[v]:
+                q.append(v)
+
+# Sum weights of edges where both endpoints are not removed
+total = 0
+for u in range(1, n + 1):
+    if removed[u]:
+        continue
+    for v, w in adj[u]:
+        if u < v and not removed[v]:
+            total += w
+
+print(total)

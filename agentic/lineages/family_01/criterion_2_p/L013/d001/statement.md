@@ -1,21 +1,20 @@
-# Magnetic Resonance Equilibrium
+# Problem B — Asset Hedging
 
-Time limit: 1 s
-Memory limit: 256 MB
+Time limit: 1 s   Memory limit: 256 MB
 
-A particle accelerator contains $n$ magnetic containment fields. Each field features a phase switch that must be set to position 1 or position 2. 
+A wealth management firm is restructuring its holdings by dividing exactly $n$ financial assets into two distinct investment vehicles: Portfolio 1 and Portfolio 2. You are responsible for allocating each of the $n$ assets into exactly one of these two portfolios.
 
-The accelerator is equipped with $m$ phase comparators. Each comparator links two specific fields and continuously monitors their switch positions. If a comparator reads position 1 from both of its linked fields, it triggers a low-band system halt. If it reads position 2 from both of its linked fields, it triggers a high-band system halt. A comparator remains stable as long as neither halt condition is met.
+To minimize exposure to market volatility, the firm's analysts have identified $m$ pairs of assets that exhibit extreme correlation. A strict hedging mandate is enforced for these pairs: for any identified pair of assets, if one asset is allocated to Portfolio 1, the other must be placed in Portfolio 2. Conversely, if one is allocated to Portfolio 2, the other must be placed in Portfolio 1. 
 
-Your task is to determine whether there is a switch configuration for all $n$ fields that keeps every comparator stable. If multiple such configurations exist, the safety override protocol requires the one that is lexicographically smallest (i.e., the sequence of switch positions $s_1, s_2, \dots, s_n$ must be as small as possible when compared element by element starting from the first field).
+Determine whether it is possible to allocate all $n$ assets into the two portfolios such that every hedging mandate is perfectly satisfied. If a valid allocation exists, you must provide it. In the event that multiple valid allocations are possible, you must select the one that is lexicographically smallest when expressed as a sequence of $n$ portfolio identifiers (each being either 1 or 2).
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$).
-Each of the next $m$ lines contains two integers $u$ and $v$, indicating that a phase comparator links field $u$ and field $v$.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$), representing the number of assets and the number of correlated asset pairs, respectively. Assets are numbered from 1 to $n$.
+Each of the next $m$ lines contains two integers $u$ and $v$, representing a pair of assets subject to the hedging mandate.
 
 ## Output
-If no stable configuration exists, print a single line containing `NO`.
-Otherwise, print `YES` on the first line. On the second line, print $n$ integers $s_1, \dots, s_n$ (each being 1 or 2) representing the lexicographically smallest stable switch configuration.
+If no valid allocation exists that satisfies all hedging mandates, print a single line containing `NO`.
+Otherwise, print `YES` on the first line. On the second line, print $n$ integers $s_1, s_2, \dots, s_n$ (where each $s_i \in \{1, 2\}$) representing the assigned portfolios for assets 1 through $n$. If there are multiple valid allocations, output the sequence that is lexicographically smallest.
 
 ## Example 1
 Input:

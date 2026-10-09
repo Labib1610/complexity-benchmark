@@ -1,0 +1,320 @@
+import sys
+from collections import defaultdict, deque
+
+def read_input():
+    n, m = map(int, sys.stdin.readline().split())
+    clauses = []
+    for _ in range(m):
+        clause = list(map(int, sys.stdin.readline().split()))
+        clauses.append(clause)
+    return n, m, clauses
+
+def solve_2sat(n, clauses):
+    # Number of variables: 1 to n (positive) and -1 to -n (negations)
+    # We'll map variable x (1-based) to node 2*x and ~x to node 2*x+1
+    # Actually, let's use a clearer mapping:
+    # For variable i (1-indexed):
+    # Node 2*i represents variable i being True (mode 1)
+    # Node 2*i+1 represents variable i being False (mode 0)
+    
+    # But to avoid confusion with signs in the input, let's redefine:
+    # Variable i (1 to n): 
+    # Positive literal (i) means mode 1 => node 2*i
+    # Negative literal (-i) means mode 0 => node 2*i+1
+    # So for implication graph:
+    # (~a OR b) is equivalent to (a => b) and (~b => ~a)
+    
+    # Each variable has two nodes: 2*i (True), 2*i+1 (False)
+    adj = defaultdict(list)
+    rev_adj = defaultdict(list)
+    
+    # Convert 3-SAT to 2-SAT by breaking into pairs
+    # A 3-clause (a OR b OR c) can be converted to (a OR b) AND (b OR c) etc.
+    # But actually, we can convert it properly:
+    # (a OR b OR c) is equivalent to (a OR b OR new_var) AND (~new_var OR c)
+    # But there's a simpler way: for each 3-clause, add implications
+    
+    # Let's think differently. For a clause (a OR b OR c):
+    # It's false only when all are false.
+    # So we need at least one to be true.
+    # This is equivalent to saying:
+    # If ~a and ~b then c must be true
+    # If ~a and ~c then b must be true  
+    # If ~b and ~c then a must be true
+    
+    # So for (~a AND ~b) => c, which is (~(~a AND ~b)) OR c = (a OR b OR c)
+    # Which is equivalent to (~a => b OR c) = (a OR b OR c)
+    # Hmm, let's just add edges directly.
+    
+    # For clause (a OR b OR c), it's equivalent to:
+    # (~a => b OR c) which means (~a => b) OR (~a => c)
+    # But in implication graph, we want to represent CNF.
+    # Better approach: convert 3-CNF to 2-CNF by introducing new variables.
+    
+    # Simpler: for each 3-clause (a OR b OR c), introduce a new variable y
+    # And replace with (a OR b OR y) AND (~y OR c)
+    # But (a OR b OR y) still needs handling.
+    # Actually, let's do it step by step:
+    # (a OR b OR c) is equivalent to (a OR (b OR c))
+    # Introduce z <=> (b OR c), so we have (a OR z) AND (z => (b OR c))
+    # (z => (b OR c)) is (~z OR b OR c) - still 3-clause
+    # This isn't helping...
+    
+    # Let's go back to the direct approach for 3-SAT:
+    # For each 3-clause (a OR b OR c), the only forbidden assignment is (F,F,F)
+    # All other 7 assignments are okay.
+    # In implication graph for 2-SAT, we can only express binary implications.
+    
+    # Alternative: enumerate all forbidden combinations and derive implications.
+    # For (a OR b OR c) to be false: a=F, b=F, c=F
+    # To prevent this, we can say: if a=F and b=F, then c=T
+    # if a=F and c=F, then b=T
+    # if b=F and c=F, then a=T
+    
+    # These are ternary constraints. We can simulate them with auxiliary variables,
+    # but that complicates things.
+    
+    # Wait, let's reframe the problem. 
+    # Each clause is (l1 OR l2 OR l3) where li is a literal (pos or neg variable).
+    # This is a 3-SAT instance. But we're asked to solve it.
+    
+    # However, note that 3-SAT is NP-complete, but given the small constraints,
+    # maybe we can try all 2^n possibilities? No, 2^90 is too big.
+    
+    # But wait! Maybe the problem expects us to model it as 2-SAT by some transformation?
+    # Or perhaps there's a special structure?
+    
+    # Looking at examples:
+    # Example 1: clauses [1 2 3] [-1 2 -3]
+    # First clause: var1=1 OR var2=1 OR var3=1
+    # Second clause: var1=0 OR var2=1 OR var3=0
+    
+    # Let's think of this as: each clause is a disjunction of literals.
+    # We want to find an assignment satisfying all clauses.
+    
+    # Since direct 3-SAT solving is hard, and the problem mentions "redundancy",
+    # maybe most instances are solvable or have special properties.
+    
+    # Let's attempt to build an implication graph for 2-SAT solver,
+    # and see how we can handle 3-clauses.
+    
+    # For a 3-clause (a OR b OR c), it's false only when a=F AND b=F AND c=F.
+    # To encode this in implication graph (which handles 2-SAT):
+    # We can split it: introduce a new variable y.
+    # Replace (a OR b OR c) with (a OR b OR y) AND (~y OR c).
+    # But (a OR b OR y) is still problematic.
+    
+    # Another idea: for (a OR b OR c), add constraints that prevent F,F,F:
+    # That is, if two are false, the third must be true.
+    # So: (~a AND ~b) => c  which is (a OR b OR c)
+    # In implication graph: ~a => (b OR c) and ~b => (a OR c) and ~c => (a OR b)
+    # But these are still not binary implications.
+    
+    # Hmm. What if we convert to 2-SAT by adding edges that capture part of the logic?
+    # For (a OR b OR c), we know that if ~a and ~b, then c.
+    # So we can add: ~a => (b OR c). But again, not binary.
+    
+    # Let's try a different approach. Model it as finding strongly connected components.
+    # But for 3-SAT, this gets complex.
+    
+    # Maybe I should look up how to reduce 3-SAT to 2-SAT... but that's generally not possible
+    # unless P=NP.
+    
+    # Wait, let me re-read the problem. It says "determine whether ... a single global configuration exists".
+    # So we need to solve the satisfiability problem for these clauses.
+    
+    # Given that n <= 90, trying all assignments is impossible.
+    # But m <= 400, so not too many constraints.
+    
+    # Perhaps the intended solution is to use a SAT solver approach, like 2-SAT extended,
+    # or to recognize that the structure allows for polynomial solution.
+    
+    # Let me try to implement a heuristic or greedy approach, or look for contradictions.
+    
+    # Actually, let's try to model this properly.
+    # Variables: x1, ..., xn taking values 0 or 1.
+    # Literals: xi (means xi=1) and -xi (means xi=0).
+    # Clauses: disjunctions of 3 literals.
+    # Want: assignment satisfying all clauses.
+    
+    # This is exactly 3-SAT. But since it's a competitive programming problem,
+    # there must be a way to solve it efficiently for the given constraints.
+    
+    # Maybe the instances are structured or mostly satisfiable.
+    
+    # Let's try a local search or constraint satisfaction approach.
+    # But that might not guarantee finding a solution if one exists.
+    
+    # Alternatively, implement a simple backtracking solver with pruning.
+    
+    # But given time limit 2s and n up to 90, even smart backtracking might not work.
+    
+    # Wait, what if we model it as an implication graph after all?
+    # For each 3-clause (a OR b OR c), consider that it's only false when a=F, b=F, c=F.
+    # So we must avoid that combination.
+    
+    # One approximation: for each such clause, add edges representing necessary implications.
+    # For example, from "a=F and b=F" infer "c=T".
+    # But in implication graphs, we deal with single literals implying others.
+    
+    # Let's think of it this way:
+    # Clause (a OR b OR c) means at least one literal is true.
+    # The only bad case is all false.
+    # So if we know two are false, the third must be true.
+    
+    # Add implications:
+    # (~a AND ~b) => c   becomes  ~a => (b OR c) 
+    # But we want binary implications. We can write:
+    # ~a => (b OR c) is equivalent to (~a => b) OR (~a => c)
+    # But in implication graph, we can't express OR between implications.
+    
+    # What we CAN do is:
+    # From (~a AND ~b) => c, we get:
+    # ~a => (b OR c) and ~b => (a OR c)
+    # But still not binary.
+    
+    # Hmm. What about adding both implications separately?
+    # ~a => (b OR c)... let's pick one: ~a => b or ~a => c. 
+    # Say we add ~a => b and ~a => c. This is stronger than required.
+    # It says if a is false, then both b and c must be true.
+    # But original clause only requires at least one of b,c to be true if a is false.
+    
+    # This over-constrains the problem, potentially making solvable instances unsolvable.
+    
+    # So this approach won't work.
+    
+    # Let's step back. Maybe I should implement a simple randomized or heuristic solver.
+    # Or look for structural properties.
+    
+    # Actually, let me try a different tack. Implement a basic DPLL-style solver.
+    
+    def var_index(lit):
+        return abs(lit)
+    
+    def var_value(lit, assignment):
+        var = abs(lit)
+        val = assignment[var]
+        if lit < 0:
+            val = 1 - val
+        return val
+    
+    def is_satisfied(clause, assignment):
+        return any(var_value(lit, assignment) == 1 for lit in clause)
+    
+    def find_unsatisfied_clause(clauses, assignment):
+        for clause in clauses:
+            if not is_satisfied(clause, assignment):
+                return clause
+        return None
+    
+    # Simple greedy + backtracking solver
+    def solve():
+        assignment = [0] * (n + 1)  # 1-indexed
+        decision_level = 0
+        trail = []  # (var, value, decision_level)
+        decisions = []  # list of (var, value) at each decision level
+        
+        while True:
+            # Unit propagation
+            changed = True
+            while changed:
+                changed = False
+                for clause in clauses:
+                    unset_count = 0
+                    last_unset = None
+                    satisfied = False
+                    for lit in clause:
+                        var = abs(lit)
+                        if assignment[var] == 0:  # unassigned
+                            unset_count += 1
+                            last_unset = lit
+                        elif var_value(lit, assignment) == 1:
+                            satisfied = True
+                            break
+                    
+                    if satisfied:
+                        continue
+                    
+                    if unset_count == 0:
+                        # Conflict - all literals are false
+                        # Backtrack
+                        if decision_level == 0:
+                            return None  # UNSAT
+                        
+                        # Backjump - simple version
+                        # Undo assignments until previous decision level
+                        while trail and trail[-1][2] == decision_level:
+                            var, _, _ = trail.pop()
+                            assignment[var] = 0
+                        
+                        decision_level -= 1
+                        if not decisions or len(decisions) <= decision_level:
+                            return None
+                        
+                        # Flip the decision
+                        var, old_val = decisions[decision_level]
+                        new_val = 1 - old_val
+                        assignment[var] = new_val
+                        trail.append((var, new_val, decision_level))
+                        decisions[decision_level] = (var, new_val)
+                        changed = True
+                        break
+                    
+                    if unset_count == 1:
+                        # Unit clause
+                        lit = last_unset
+                        var = abs(lit)
+                        val = 1 if lit > 0 else 0
+                        if assignment[var] == 0:
+                            assignment[var] = val
+                            trail.append((var, val, decision_level))
+                            changed = True
+            
+            # Check if done
+            unsat_clause = find_unsatisfied_clause(clauses, assignment)
+            if unsat_clause is None:
+                # Satisfying assignment found
+                return assignment
+            
+            # Make a decision
+            var_to_decide = None
+            for i in range(1, n + 1):
+                if assignment[i] == 0:
+                    var_to_decide = i
+                    break
+            
+            if var_to_decide is None:
+                # All variables assigned but some clauses unsatisfied
+                # Should have been caught earlier, but just in case
+                return None
+            
+            # Decide var = 1 (can try 0 later if backtrack)
+            assignment[var_to_decide] = 1
+            trail.append((var_to_decide, 1, decision_level))
+            decisions = decisions[:decision_level] + [(var_to_decide, 1)]
+            decision_level += 1
+        
+        return assignment
+    
+    # Run the solver
+    result = solve()
+    return result
+
+def main():
+    n, m, clauses = read_input()
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(["0"] * n))
+        return
+    
+    assignment = solve_2sat(n, clauses)
+    
+    if assignment is None:
+        print("NO")
+    else:
+        print("YES")
+        print(" ".join(str(assignment[i]) for i in range(1, n + 1)))
+
+if __name__ == "__main__":
+    main()

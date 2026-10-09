@@ -1,0 +1,78 @@
+import sys
+import collections
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    
+    it = iter(data)
+    try:
+        n = int(next(it))
+        M = int(next(it))
+        T = int(next(it))
+        m = int(next(it))
+    except StopIteration:
+        return
+    
+    adj = [[] for _ in range(n + 1)]
+    in_degree = [0] * (n + 1)
+    
+    for _ in range(m):
+        a = int(next(it))
+        b = int(next(it))
+        adj[a].append(b)
+        in_degree[b] += 1
+    
+    # Kahn's algorithm for topological sort and computing longest paths
+    q = collections.deque()
+    dist = [0] * (n + 1)  # dist[i] = max week unit i must be at least
+    
+    for i in range(1, n + 1):
+        if in_degree[i] == 0:
+            q.append(i)
+            dist[i] = 1
+    
+    topo_order = []
+    while q:
+        u = q.popleft()
+        topo_order.append(u)
+        for v in adj[u]:
+            if dist[v] < dist[u] + 1:
+                dist[v] = dist[u] + 1
+            in_degree[v] -= 1
+            if in_degree[v] == 0:
+                q.append(v)
+    
+    if len(topo_order) != n:
+        print("NO")
+        return
+    
+    # Check if any unit needs a week > T
+    max_week_needed = max(dist[1:n+1])
+    if max_week_needed > T:
+        print("NO")
+        return
+    
+    # Distribute early: schedule as early as possible subject to constraints.
+    # For unit u, earliest week is max(dist from topo) and must be > all predecessors' weeks.
+    # The 'dist' computed above is exactly this earliest required week.
+    week = [0] * (n + 1)
+    for u in topo_order:
+        week[u] = dist[u]
+    
+    # Check capacity constraints
+    week_counts = [0] * (T + 1)
+    for i in range(1, n + 1):
+        week_counts[week[i]] += 1
+    
+    for w in range(1, T + 1):
+        if week_counts[w] > M:
+            print("NO")
+            return
+    
+    print("YES")
+    print(' '.join(map(str, week[1:])))
+
+if __name__ == "__main__":
+    solve()

@@ -1,0 +1,75 @@
+# Connecting the Critical Facilities
+
+Time limit: 2 s   Memory limit: 256 MB
+
+## Description
+
+A large industrial complex consists of $n$ facilities, numbered 1 to $n$. A specific subset of $t$ facilities are designated as critical operations centers. There are $m$ potential communication links that can be constructed between certain pairs of facilities, each requiring a specific construction cost.
+
+Your objective is to select a subset of these links to build so that all $t$ critical facilities can communicate with one another, either directly or by routing through other intermediate facilities. You must achieve this requirement at the minimum possible total construction cost.
+
+The complex's blueprint guarantees that the proposed links are capable of integrating all $n$ facilities into a single unified network if every link were to be built. Furthermore, the total number of proposed links $m$ is strictly regulated to be exactly one less than the total number of facilities $n$.
+
+## Input
+
+The first line contains three integers $n$, $m$, and $t$ ($1 \le t \le n$, $1 \le n \le 200000$).
+The second line contains $t$ distinct integers: the identifiers of the critical facilities.
+Each of the next $m$ lines contains three integers $u$, $v$, and $w$ ($1 \le u, v \le n$, $u \neq v$, $1 \le w \le 1000000$), representing a potential link between facility $u$ and facility $v$ with a construction cost of $w$. 
+
+## Output
+
+Print a single integer: the minimum total cost to ensure all critical facilities are interconnected.
+
+## Examples
+
+### Example 1
+
+**Input**
+```
+4 3 2
+1 4
+1 2 5
+2 3 1
+3 4 2
+```
+
+**Output**
+```
+8
+```
+
+### Example 2
+
+**Input**
+```
+5 4 1
+3
+1 2 4
+2 3 6
+3 4 2
+4 5 9
+```
+
+**Output**
+```
+0
+```
+
+### Example 3
+
+**Input**
+```
+3 2 3
+1 2 3
+1 2 4
+2 3 5
+```
+
+**Output**
+```
+9
+```
+
+## Note
+
+In Example 1, the critical facilities 1 and 4 are integrated by building the links that join 1 to 2, 2 to 3, and 3 to 4, for a total cost of 5 + 1 + 2 = 8. In Example 2, there is only one critical facility, so no links need to be constructed.

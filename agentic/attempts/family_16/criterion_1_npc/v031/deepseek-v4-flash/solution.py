@@ -1,0 +1,64 @@
+import sys
+
+def can_finish(j, m, dishes, max_time):
+    # Each dish: list of (workstation, duration)
+    # We'll simulate with earliest start times
+    # For each dish, track next step index and time when it becomes available
+    dish_step = [0] * j
+    dish_avail = [0] * j
+    # Workstation availability times
+    ws_avail = [0] * m
+    
+    # We'll try to schedule steps in order of time
+    # Use a priority queue of (time, dish_index)
+    import heapq
+    heap = []
+    for i in range(j):
+        heapq.heappush(heap, (0, i))
+    
+    while heap:
+        t, d = heapq.heappop(heap)
+        if t > max_time:
+            return False
+        if dish_step[d] >= len(dishes[d]):
+            continue
+        ws, dur = dishes[d][dish_step[d]]
+        start = max(t, dish_avail[d], ws_avail[ws-1])
+        if start + dur > max_time:
+            return False
+        # schedule
+        dish_avail[d] = start + dur
+        ws_avail[ws-1] = start + dur
+        dish_step[d] += 1
+        if dish_step[d] < len(dishes[d]):
+            heapq.heappush(heap, (dish_avail[d], d))
+    return True
+
+def main():
+    data = sys.stdin.read().strip().split()
+    idx = 0
+    j = int(data[idx]); idx += 1
+    m = int(data[idx]); idx += 1
+    dishes = []
+    total_time = 0
+    for _ in range(j):
+        o = int(data[idx]); idx += 1
+        steps = []
+        for _ in range(o):
+            ws = int(data[idx]); idx += 1
+            dur = int(data[idx]); idx += 1
+            steps.append((ws, dur))
+            total_time += dur
+        dishes.append(steps)
+    
+    lo, hi = 0, total_time
+    while lo < hi:
+        mid = (lo + hi) // 2
+        if can_finish(j, m, dishes, mid):
+            hi = mid
+        else:
+            lo = mid + 1
+    print(lo)
+
+if __name__ == "__main__":
+    main()

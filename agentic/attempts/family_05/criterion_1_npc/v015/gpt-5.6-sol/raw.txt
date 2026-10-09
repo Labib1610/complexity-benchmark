@@ -1,0 +1,248 @@
+```python
+import sys
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+
+    k, t = data[0], data[1]
+    xs = [0] * t
+    ys = [0] * t
+    zs = [0] * t
+
+    column_count = 3 * k
+
+    L = list(range(column_count + 1))
+    R = list(range(column_count + 1))
+    U = list(range(column_count + 1))
+    D = list(range(column_count + 1))
+    C = list(range(column_count + 1))
+    S = [0] * (column_count + 1)
+    row_id = [-1] * (column_count + 1)
+
+    for i in range(column_count + 1):
+        L[i] = i - 1
+        R[i] = i + 1
+    L[0] = column_count
+    R[column_count] = 0
+
+    p = 2
+    for rid in range(t):
+        x = data[p] - 1
+        y = data[p + 1] - 1
+        z = data[p + 2] - 1
+        p += 3
+
+        xs[rid] = x
+        ys[rid] = y
+        zs[rid] = z
+
+        cols = (x + 1, k + y + 1, 2 * k + z + 1)
+        nodes = []
+
+        for col in cols:
+            node = len(L)
+            nodes.append(node)
+
+            L.append(node)
+            R.append(node)
+            U.append(U[col])
+            D.append(col)
+            C.append(col)
+            row_id.append(rid)
+
+            D[U[col]] = node
+            U[col] = node
+            S[col] += 1
+
+        a, b, c = nodes
+        L[a], R[a] = c, b
+        L[b], R[b] = a, c
+        L[c], R[c] = b, a
+
+    def cover(col):
+        R[L[col]] = R[col]
+        L[R[col]] = L[col]
+
+        i = D[col]
+        while i != col:
+            j = R[i]
+            while j != i:
+                D[U[j]] = D[j]
+                U[D[j]] = U[j]
+                S[C[j]] -= 1
+                j = R[j]
+            i = D[i]
+
+    def uncover(col):
+        i = U[col]
+        while i != col:
+            j = L[i]
+            while j != i:
+                S[C[j]] += 1
+                D[U[j]] = j
+                U[D[j]] = j
+                j = L[j]
+            i = U[i]
+
+        R[L[col]] = col
+        L[R[col]] = col
+
+    full_mask = (1 << k) - 1
+
+    def has_perfect_matching(adj, left_mask, right_mask):
+        vertices = []
+        union = 0
+        bits = left_mask
+        while bits:
+            bit = bits & -bits
+            v = bit.bit_length() - 1
+            available = adj[v] & right_mask
+            if available == 0:
+                return False
+            union |= available
+            vertices.append(v)
+            bits ^= bit
+
+        if union.bit_count() < len(vertices):
+            return False
+
+        vertices.sort(key=lambda v: (adj[v] & right_mask).bit_count())
+        match = [-1] * k
+        seen = [0] * k
+        token = 0
+
+        sys.setrecursionlimit(1000000)
+
+        def augment(v, mark):
+            choices = adj[v] & right_mask
+            while choices:
+                bit = choices & -choices
+                r = bit.bit_length() - 1
+                choices ^= bit
+                if seen[r] == mark:
+                    continue
+                seen[r] = mark
+                if match[r] == -1 or augment(match[r], mark):
+                    match[r] = v
+                    return True
+            return False
+
+        for v in vertices:
+            token += 1
+            if not augment(v, token):
+                return False
+        return True
+
+    def projection_check(mx, my, mz):
+        ux = full_mask ^ mx
+        uy = full_mask ^ my
+        uz = full_mask ^ mz
+
+        xy = [0] * k
+        xz = [0] * k
+        yz = [0] * k
+
+        for rid in range(t):
+            x = xs[rid]
+            y = ys[rid]
+            z = zs[rid]
+            if ((mx >> x) & 1) or ((my >> y) & 1) or ((mz >> z) & 1):
+                continue
+            xy[x] |= 1 << y
+            xz[x] |= 1 << z
+            yz[y] |= 1 << z
+
+        return (
+            has_perfect_matching(xy, ux, uy)
+            and has_perfect_matching(xz, ux, uz)
+            and has_perfect_matching(yz, uy, uz)
+        )
+
+    solution = []
+    failed = set()
+    memo_limit = 500000
+
+    def search(mx, my, mz):
+        if R[0] == 0:
+            return True
+
+        key = mx | (my << k) | (mz << (2 * k))
+        if key in failed:
+            return False
+
+        col = R[0]
+        best_size = S[col]
+        c = R[col]
+        while c != 0:
+            if S[c] < best_size:
+                col = c
+                best_size = S[c]
+                if best_size == 0:
+                    break
+            c = R[c]
+
+        if best_size == 0:
+            if len(failed) < memo_limit:
+                failed.add(key)
+            return False
+
+        if not projection_check(mx, my, mz):
+            if len(failed) < memo_limit:
+                failed.add(key)
+            return False
+
+        cover(col)
+
+        candidates = []
+        r = D[col]
+        while r != col:
+            a = R[r]
+            b = R[a]
+            score = S[C[a]] * S[C[b]]
+            candidates.append((score, r))
+            r = D[r]
+        candidates.sort(key=lambda item: item[0])
+
+        for _, r in candidates:
+            rid = row_id[r]
+            solution.append(rid)
+
+            j = R[r]
+            while j != r:
+                cover(C[j])
+                j = R[j]
+
+            if search(
+                mx | (1 << xs[rid]),
+                my | (1 << ys[rid]),
+                mz | (1 << zs[rid])
+            ):
+                uncover(col)
+                return True
+
+            j = L[r]
+            while j != r:
+                uncover(C[j])
+                j = L[j]
+
+            solution.pop()
+
+        uncover(col)
+
+        if len(failed) < memo_limit:
+            failed.add(key)
+        return False
+
+    if search(0, 0, 0):
+        out = ["YES"]
+        for rid in solution:
+            out.append(f"{xs[rid] + 1} {ys[rid] + 1} {zs[rid] + 1}")
+        sys.stdout.write("\n".join(out))
+    else:
+        sys.stdout.write("NO")
+
+if __name__ == "__main__":
+    main()
+```

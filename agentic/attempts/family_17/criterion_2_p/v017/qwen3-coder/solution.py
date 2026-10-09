@@ -1,0 +1,53 @@
+from collections import defaultdict, deque
+
+def solve():
+    q, t = map(int, input().split())
+    
+    # Build adjacency list for bipartite graph
+    # Left side: ground arrays (1 to q)
+    # Right side: orbital relays (1 to q), but we'll use indices 1 to q for relays too
+    adj = defaultdict(list)
+    edges = []
+    
+    for _ in range(t):
+        a, b = map(int, input().split())
+        relay_id = b - q  # Convert relay ID from (q+1 to 2q) to (1 to q)
+        adj[a].append(relay_id)
+        edges.append((a, relay_id))
+    
+    # Implement Hopcroft-Karp algorithm for maximum bipartite matching
+    # Or use a simpler approach with DFS for augmenting paths
+    
+    match_relay = [0] * (q + 1)  # match_relay[relay] = array matched to this relay
+    match_array = [0] * (q + 1)  # match_array[array] = relay matched to this array
+    
+    def dfs(u, visited):
+        for v in adj[u]:
+            if visited[v]:
+                continue
+            visited[v] = True
+            
+            # If relay v is unmatched or we can find augmenting path
+            if match_relay[v] == 0 or dfs(match_relay[v], visited):
+                match_relay[v] = u
+                match_array[u] = v
+                return True
+        return False
+    
+    matching = 0
+    for u in range(1, q + 1):
+        visited = [False] * (q + 1)
+        if dfs(u, visited):
+            matching += 1
+    
+    if matching != q:
+        print("NO")
+        return
+    
+    print("YES")
+    for i in range(1, q + 1):
+        # Convert back to original relay IDs
+        relay_original_id = match_array[i] + q
+        print(i, relay_original_id)
+
+solve()

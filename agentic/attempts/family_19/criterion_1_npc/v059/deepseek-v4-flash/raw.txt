@@ -1,0 +1,242 @@
+We can model this as a **multi-commodity flow** problem, but since the number of operations and channels is small enough, we can solve it with **linear programming** or a **max-flow** formulation per operation while respecting shared capacities.
+
+A practical approach:  
+- Treat each operation as a separate flow that must send `d_i` units from `s_i` to `t_i`.  
+- All flows share the same edge capacities.  
+- This is a **feasibility problem** for multi-commodity flow, which is NP-hard in general, but here we can use an **integer linear programming (ILP)** solver if available, or a **linear programming relaxation** with integer rounding if the numbers are small.
+
+Since we cannot rely on external libraries, we can implement a **simplex** or use **network simplex** for each commodity iteratively, but that’s complex.
+
+Given the constraints are not specified, a safe approach is to use **linear programming with scipy** if allowed, but since we must output pure Python, we can implement a simple **max-flow with capacity sharing** using **binary search on flow values**? That doesn’t work directly.
+
+A better approach:  
+We can treat it as a **circulation problem** with lower bounds and capacities, and solve using **max-flow** on a transformed graph.  
+For each operation, we add a super source and sink, and we enforce that the total flow on each edge from all operations ≤ capacity.
+
+This is still multi-commodity, but we can solve it by **iterative feasibility check** using **linear programming** via the **simplex method** implemented manually.
+
+Given the time, I’ll implement a **linear programming solver** using the **simplex method** for the feasibility problem.  
+We’ll have variables `x_{i,j}` = flow of operation i on channel j.  
+Constraints:  
+- For each channel j: sum_i x_{i,j} ≤ cap_j  
+- For each operation i and each node v (not s_i or t_i): sum of incoming x_{i,*} = sum of outgoing x_{i,*}  
+- For s_i: outgoing - incoming = d_i  
+- For t_i: incoming - outgoing = d_i  
+- x_{i,j} ≥ 0 and integer.
+
+We can solve the LP relaxation and then check if the solution is integral (or round if possible).  
+Since the problem is small, we can use the **simplex** with integer rounding.
+
+I’ll implement a basic **simplex** for feasibility with non-negative variables and equality constraints.
+
+```python
+import sys
+import math
+
+def solve():
+    input_data = sys.stdin.read().strip().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    k = int(next(it))
+    
+    ops = []
+    for _ in range(k):
+        s = int(next(it)) - 1
+        t = int(next(it)) - 1
+        d = int(next(it))
+        ops.append((s, t, d))
+    
+    edges = []
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        cap = int(next(it))
+        edges.append((u, v, cap))
+    
+    # Variables: x_{i,j} for i in 0..k-1, j in 0..m-1
+    num_vars = k * m
+    
+    # We'll build constraints in form A x = b, x >= 0
+    # We'll use simplex for feasibility: add artificial variables.
+    
+    # Constraints:
+    # 1) For each edge j: sum_i x_{i,j} <= cap_j  ->  sum_i x_{i,j} + slack = cap_j
+    # 2) For each operation i and each node v (not s_i,t_i): inflow - outflow = 0
+    # 3) For s_i: outflow - inflow = d_i
+    # 4) For t_i: inflow - outflow = d_i
+    
+    # Build incidence for each operation
+    # For each op i, we have flow on edges.
+    # For node v: sum_{edges into v} x_{i,e} - sum_{edges out of v} x_{i,e} = b_i(v)
+    # where b_i(v) = -d_i if v == s_i, +d_i if v == t_i, 0 otherwise.
+    
+    constraints = []  # each is (coeffs list length num_vars, rhs)
+    
+    # Edge capacity constraints
+    for j in range(m):
+        coeff = [0]*num_vars
+        for i in range(k):
+            coeff[i*m + j] = 1
+        constraints.append((coeff, edges[j][2]))
+    
+    # Node balance constraints for each op
+    for i in range(k):
+        s, t, d = ops[i]
+        for v in range(n):
+            coeff = [0]*num_vars
+            # incoming edges
+            for j, (u, w, cap) in enumerate(edges):
+                if w == v:
+                    coeff[i*m + j] += 1
+                if u == v:
+                    coeff[i*m + j] -= 1
+            rhs = 0
+            if v == s:
+                rhs = -d
+            elif v == t:
+                rhs = d
+            # Only add if not all zero (or always add, but skip trivial)
+            if any(c != 0 for c in coeff) or rhs != 0:
+                constraints.append((coeff, rhs))
+    
+    # Now we have constraints: A x = b, x >= 0
+    # We'll use simplex with artificial variables to find feasible solution.
+    
+    num_constraints = len(constraints)
+    A = []
+    b = []
+    for coeff, rhs in constraints:
+        A.append(coeff)
+        b.append(rhs)
+    
+    # Add slack/surplus? Actually we have equalities, so we add artificial variables.
+    # We'll use two-phase simplex.
+    
+    # Phase 1: minimize sum of artificial variables.
+    # Add artificial var for each constraint.
+    
+    # Build tableau
+    # Columns: original vars + artificial vars
+    total_cols = num_vars + num_constraints
+    tableau = []
+    basis = []
+    for i in range(num_constraints):
+        row = [0.0]*(total_cols+1)  # +1 for RHS
+        for j in range(num_vars):
+            row[j] = A[i][j]
+        # artificial variable
+        row[num_vars + i] = 1.0
+        row[-1] = b[i]
+        tableau.append(row)
+        basis.append(num_vars + i)
+    
+    # Objective for phase 1: minimize sum of artificials -> maximize -sum artificials
+    obj = [0.0]*(total_cols+1)
+    for i in range(num_constraints):
+        obj[num_vars + i] = -1.0
+    # We'll convert to standard max: we want max -sum(art) => we can set obj row.
+    
+    # Simplex implementation
+    def simplex(tableau, basis, obj):
+        # obj is list length total_cols+1, last is constant (0)
+        # We'll add obj row to tableau
+        m_rows = len(tableau)
+        n_cols = len(tableau[0])-1
+        # Add objective row
+        tab = [row[:] for row in tableau]
+        tab.append(obj[:])
+        # Make sure obj row has zeros in basis columns
+        for i, bvar in enumerate(basis):
+            if bvar < n_cols:
+                # subtract multiple of row i
+                coeff = tab[-1][bvar]
+                if coeff != 0:
+                    for j in range(n_cols+1):
+                        tab[-1][j] -= coeff * tab[i][j]
+        # Now run simplex
+        while True:
+            # Find entering column: most negative in obj row (excluding last)
+            pivot_col = -1
+            min_val = -1e-12
+            for j in range(n_cols):
+                if tab[-1][j] < min_val:
+                    min_val = tab[-1][j]
+                    pivot_col = j
+            if pivot_col == -1:
+                break
+            # Find leaving row: min ratio test
+            pivot_row = -1
+            min_ratio = float('inf')
+            for i in range(m_rows):
+                if tab[i][pivot_col] > 1e-12:
+                    ratio = tab[i][-1] / tab[i][pivot_col]
+                    if ratio < min_ratio:
+                        min_ratio = ratio
+                        pivot_row = i
+            if pivot_row == -1:
+                return None  # unbounded
+            # Pivot
+            pivot_val = tab[pivot_row][pivot_col]
+            for j in range(n_cols+1):
+                tab[pivot_row][j] /= pivot_val
+            for i in range(m_rows+1):
+                if i != pivot_row:
+                    factor = tab[i][pivot_col]
+                    if factor != 0:
+                        for j in range(n_cols+1):
+                            tab[i][j] -= factor * tab[pivot_row][j]
+            basis[pivot_row] = pivot_col
+        return tab, basis
+    
+    # Phase 1
+    res = simplex(tableau, basis, obj)
+    if res is None:
+        print("NO")
+        return
+    tab, basis = res
+    # Check if objective value is 0 (within tolerance)
+    obj_val = tab[-1][-1]
+    if abs(obj_val) > 1e-8:
+        print("NO")
+        return
+    
+    # Phase 2: remove artificial variables, set objective to 0 (feasibility only)
+    # We just need any feasible solution, so we can stop here.
+    # Extract x values
+    x = [0.0]*num_vars
+    for i, bvar in enumerate(basis):
+        if bvar < num_vars:
+            x[bvar] = tab[i][-1]
+    
+    # Check integrality
+    for val in x:
+        if abs(val - round(val)) > 1e-6:
+            # Try rounding? But we need exact integer solution.
+            # Since problem likely has integer solution if feasible, we can round.
+            pass
+    
+    # Round to nearest integer
+    x_int = [int(round(v)) for v in x]
+    
+    # Verify constraints
+    for coeff, rhs in constraints:
+        s = sum(coeff[j]*x_int[j] for j in range(num_vars))
+        if abs(s - rhs) > 1e-6:
+            print("NO")
+            return
+    for j in range(m):
+        s = sum(x_int[i*m+j] for i in range(k))
+        if s > edges[j][2]:
+            print("NO")
+            return
+    
+    print("YES")
+    for i in range(k):
+        print(' '.join(str(x_int[i*m+j]) for j in range(m)))
+
+if __name__ == "__main__":
+    solve()
+```

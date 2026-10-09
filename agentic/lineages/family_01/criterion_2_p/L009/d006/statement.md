@@ -1,32 +1,26 @@
-# Problem B — Harmonic Stability
+# Problem B — Factory Tuning
 
-Time limit: 1 s
-Memory limit: 256 MB
+Time limit: 1 s   Memory limit: 256 MB
 
-You are configuring $n$ resonance crystals in a laboratory. Each crystal $i$ must be tuned to a frequency multiplier $p_i$ of either 1 or 2.
+The factory requires each of its $n$ machines to be set to a power mode $s_i \in \{1, 2\}$. There are $m$ interference links between specific pairs of machines.
 
-To determine how the crystals interact, we define two base configurations:
-- $A_1 = [1, 2, 3]$
-- $A_2 = [2, 1, 3]$
+To evaluate a configuration of power modes, the factory calculates two types of potentials:
+- For each machine $i$, its *node potential* is defined as $d_i \cdot s_i^2$, where $d_i$ is the number of interference links connected to machine $i$.
+- For each interference link between machine $u$ and machine $v$, its *edge potential* is defined as $2 \cdot s_u \cdot s_v$.
 
-For each crystal $i$, assigning it a frequency multiplier $p_i$ gives it the configuration array $V_i = A_{p_i}$. 
+The system's *total harmonic potential* is the sum of the node potentials of all $n$ machines, minus the sum of the edge potentials of all $m$ links.
 
-The setup contains $m$ harmonic bridges. Each bridge connects exactly two specific crystals. 
-When a bridge connects crystal $u$ and crystal $v$, their configurations interact to form a combined array $C$ of length 3, defined by:
-$C[k] = V_u[V_v[k]]$ for each index $k \in \{1, 2, 3\}$.
-(Note that the arrays are 1-indexed, so $V_v[k]$ is a value in $\{1, 2, 3\}$ which is then used as an index into $V_u$).
+A legacy controller accepts the configuration if and only if the total harmonic potential is exactly equal to $m$.
 
-To maintain structural stability, the array $C$ for every single bridge in the setup must contain exactly one inversion. An inversion in an array $X$ is a pair of indices $(i, j)$ such that $1 \le i < j \le 3$ and $X[i] > X[j]$.
-
-You must assign a frequency multiplier to each of the $n$ crystals so that the entire setup is perfectly stable. If no such assignment is possible, you must report it.
+You must assign a power mode to every machine such that the configuration is accepted by the controller.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$).
-Each of the next $m$ lines contains two integers $u$ and $v$ — the two crystals connected by a single harmonic bridge.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$).
+Each of the next $m$ lines contains two integers $u$ and $v$ — a linked pair of machines.
 
 ## Output
-If no valid tuning assignment exists, print a single line containing `NO`.
-Otherwise, print `YES` on the first line, followed by a second line containing $n$ integers $p_1, \dots, p_n$ (each $p_i \in \{1, 2\}$), where $p_i$ is the frequency multiplier assigned to crystal $i$. If there are multiple valid assignments, output the one that is lexicographically smallest.
+If no valid assignment of modes exists, print a single line NO.
+Otherwise print YES, then a second line with $n$ integers $s_1 \dots s_n$ (each in $\{1,2\}$), representing the lexicographically smallest valid assignment. (An assignment $s$ is lexicographically smaller than $t$ if at the first index $i$ where they differ, $s_i < t_i$.)
 
 ## Example 1
 Input:

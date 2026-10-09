@@ -1,0 +1,228 @@
+```python
+import sys
+from collections import defaultdict
+import heapq
+
+def find(parent, x):
+    if parent[x] != x:
+        parent[x] = find(parent, parent[x])
+    return parent[x]
+
+def union(parent, rank, x, y):
+    px, py = find(parent, x), find(parent, y)
+    if px == py:
+        return False
+    if rank[px] < rank[py]:
+        px, py = py, px
+    parent[py] = px
+    if rank[px] == rank[py]:
+        rank[px] += 1
+    return True
+
+def kruskal(n, edges, targets):
+    if len(targets) <= 1:
+        return 0
+    
+    # Create a mapping from target nodes to indices
+    target_indices = {v: i for i, v in enumerate(targets)}
+    num_targets = len(targets)
+    
+    # We need to connect all target nodes with minimal cost
+    # This is essentially finding the Minimum Spanning Tree of the target nodes
+    # But we're working on a tree structure already given
+    
+    # Use Union-Find to track connected components of targets
+    parent = list(range(n+1))
+    rank = [0] * (n+1)
+    
+    # Sort edges by weight
+    edges.sort(key=lambda x: x[2])
+    
+    cost = 0
+    components = num_targets
+    
+    for u, v, w in edges:
+        pu, pv = find(parent, u), find(parent, v)
+        if pu != pv:
+            # Check if either u or v is a target
+            u_is_target = u in target_indices
+            v_is_target = v in target_indices
+            
+            # Count how many unique target components are connected by this edge
+            target_components_in_u = set()
+            target_components_in_v = set()
+            
+            # For efficiency, we'll use a different approach
+            # We want to find the minimum cost to connect all targets
+            # Since the original graph is a tree, we can think of this as 
+            # finding the minimum Steiner tree on the targets
+            
+            # Actually, let's reframe:
+            # The original graph is a tree with n-1 edges
+            # We want to keep a subset of edges such that all targets are connected
+            # This means we want the minimum spanning tree of the subgraph induced by targets
+            # But since we're on a tree, it's just connecting all targets with minimal cost edges
+            
+            # Better approach:
+            # Run Kruskal but only care about connections between target components
+            # Each target starts in its own component
+            # When we connect two components that both contain targets, we reduce target components by 1
+            
+            # Let's track which "super-nodes" contain targets
+            # Initially each target is its own super-node
+            
+            # Actually simplest way:
+            # Run Kruskal until all targets are in one component
+            # Since original graph is a tree, MST will give us the minimal way to connect targets
+            
+            # But wait, we don't need full MST, we need Steiner tree
+            # However, since we're on a tree, the solution is to take all edges on paths between targets
+            # But we want minimum cost, so we want to find the minimal way to connect all targets
+            
+            # Simpler approach for tree:
+            # Root the tree at some node, then for each target, find path to root
+            # Take union of all such paths, that gives us the subtree connecting all targets
+            # Cost is sum of weights in that subtree
+            
+            # Even simpler for implementation:
+            # Use the fact that when running Kruskal, as soon as we have connected all targets into one 
+            # component, we can stop
+            
+            # So let's maintain a set of which target components each node belongs to
+            # This is getting complex, let's do the standard approach for Steiner tree on tree:
+            
+            # 1. Root the tree at some node
+            # 2. Find all nodes that are needed (those on paths between any two targets)
+            # 3. The minimal cost is the sum of edges in the subtree induced by targets
+            
+            # But let's try the Kruskal approach correctly:
+            
+            # Map each node to the set of target ids it connects to (in its component)
+            # When we merge components, we merge their target sets
+            # Stop when all targets are in one component
+            
+            # Initialize: each target node has its own target id
+            if 'target_owner' not in locals():
+                target_owner = {}  # node -> set of target values it "owns"
+                for t in targets:
+                    target_owner[t] = {t}
+                    
+            # Check what targets are in u's and v's components
+            targets_in_u = target_owner.get(find(parent, u), set())
+            targets_in_v = target_owner.get(find(parent, v), set())
+            
+            if targets_in_u or targets_in_v:
+                union_success = union(parent, rank, u, v)
+                if union_success:
+                    cost += w
+                    # Update the new root with combined targets
+                    root_u = find(parent, u)
+                    new_targets = targets_in_u | targets_in_v
+                    target_owner[root_u] = new_targets
+                    
+                    # If we've connected all targets, we're done
+                    if len(new_targets) == num_targets:
+                        return cost
+                else:
+                    # Already connected, skip
+                    pass
+            else:
+                # Neither component has targets, just union them
+                union(parent, rank, u, v)
+                
+    return cost
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    idx = 0
+    n = int(data[idx])
+    idx += 1
+    m = int(data[idx])
+    idx += 1
+    t = int(data[idx])
+    idx += 1
+    
+    targets = []
+    for _ in range(t):
+        targets.append(int(data[idx]))
+        idx += 1
+        
+    edges = []
+    for _ in range(m):
+        u = int(data[idx])
+        idx += 1
+        v = int(data[idx])
+        idx += 1
+        w = int(data[idx])
+        idx += 1
+        edges.append((u, v, w))
+        
+    if t <= 1:
+        print(0)
+        return
+        
+    # For a tree, to connect all targets minimally, 
+    # we need to find the minimal subtree that spans all targets
+    # This is the Steiner tree problem on a tree
+    
+    # Efficient algorithm for Steiner tree on tree:
+    # 1. Root tree at any node
+    # 2. For each node, compute if it's in the minimal subtree
+    # 3. A node is in the subtree if it contains a target or has >= 2 children that lead to targets
+    
+    # But let's implement a simpler approach:
+    # Build adjacency list representation of the tree
+    adj = defaultdict(list)
+    for u, v, w in edges:
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+        
+    # Find one target to start BFS from
+    start = targets[0]
+    
+    # BFS to get parents and distances from start
+    from collections import deque
+    parent_edge = [-1] * (n+1)  # parent_edge[i] = (parent_node, edge_weight)
+    visited = [False] * (n+1)
+    queue = deque([start])
+    visited[start] = True
+    
+    while queue:
+        u = queue.popleft()
+        for v, w in adj[u]:
+            if not visited[v]:
+                visited[v] = True
+                parent_edge[v] = (u, w)
+                queue.append(v)
+                
+    # Now for each target, trace path back to start and mark edges as needed
+    edge_used = set()  # Set of (min(u,v), max(u,v)) to identify unique edges
+    
+    target_set = set(targets)
+    for target in targets:
+        # Trace path from target to start
+        current = target
+        while current != start and parent_edge[current] != -1:
+            parent_node, edge_weight = parent_edge[current]
+            edge_key = (min(current, parent_node), max(current, parent_node))
+            edge_used.add(edge_key)
+            current = parent_node
+            
+    # Calculate total cost of used edges
+    total_cost = 0
+    edge_dict = {}  # Map edge key to weight
+    for u, v, w in edges:
+        edge_key = (min(u, v), max(u, v))
+        edge_dict[edge_key] = w
+        
+    for edge_key in edge_used:
+        total_cost += edge_dict[edge_key]
+        
+    print(total_cost)
+
+if __name__ == "__main__":
+    main()
+```

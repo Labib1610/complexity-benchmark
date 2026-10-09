@@ -1,0 +1,90 @@
+import sys
+sys.setrecursionlimit(10000)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    adj = [0] * n
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+
+    # order vertices by degree descending for better pruning
+    order = sorted(range(n), key=lambda x: adj[x].bit_count(), reverse=True)
+    pos_in_order = [0] * n
+    for i, v in enumerate(order):
+        pos_in_order[v] = i
+
+    # remap adjacency to order indices
+    adj_order = [0] * n
+    for i, v in enumerate(order):
+        bits = adj[v]
+        # keep only bits of vertices that appear later in order
+        mask = 0
+        while bits:
+            lsb = bits & -bits
+            u = (lsb.bit_length() - 1)
+            mask |= 1 << pos_in_order[u]
+            bits ^= lsb
+        adj_order[i] = mask
+
+    colors = [-1] * n
+    limit = 45  # max vertices per greenhouse
+    cnt = [0, 0, 0]
+    found = False
+
+    def dfs(idx: int):
+        nonlocal found
+        if found:
+            return
+        if idx == n:
+            found = True
+            return
+        # try colors
+        neigh_mask = adj_order[idx]
+        # compute which colors are forbidden by already colored neighbors
+        forbidden = 0
+        for c in range(3):
+            # check if any neighbor already colored c
+            # we can test by iterating neighbors already assigned
+            pass
+        # simple loop over previous vertices
+        for prev in range(idx):
+            if (neigh_mask >> prev) & 1:
+                c = colors[prev]
+                if c != -1:
+                    forbidden |= 1 << c
+        for c in range(3):
+            if (forbidden >> c) & 1:
+                continue
+            if cnt[c] >= limit:
+                continue
+            colors[idx] = c
+            cnt[c] += 1
+            dfs(idx + 1)
+            if found:
+                return
+            cnt[c] -= 1
+            colors[idx] = -1
+
+    dfs(0)
+
+    if not found:
+        print("NO")
+        return
+
+    # translate back to original vertex order
+    ans = [0] * n
+    for i, v in enumerate(order):
+        ans[v] = colors[i] + 1
+    print("YES")
+    print(' '.join(map(str, ans)))
+
+if __name__ == "__main__":
+    solve()

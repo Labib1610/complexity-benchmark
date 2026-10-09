@@ -1,49 +1,54 @@
 def solve():
     import sys
-    input = sys.stdin.read
-    data = input().split()
+    from collections import defaultdict
     
-    n = int(data[0])
-    m = int(data[1])
+    n, m = map(int, sys.stdin.readline().split())
     
-    # Create adjacency list
-    adj = [[] for _ in range(n + 1)]
-    index = 2
+    if m == 0:
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
+    
+    # Build adjacency list
+    adj = defaultdict(set)
+    edges = []
     for _ in range(m):
-        u = int(data[index])
-        v = int(data[index + 1])
-        adj[u].append(v)
-        adj[v].append(u)
-        index += 2
+        u, v = map(int, sys.stdin.readline().split())
+        u -= 1  # Convert to 0-indexed
+        v -= 1
+        adj[u].add(v)
+        adj[v].add(u)
+        edges.append((u, v))
     
-    # Try all possible colorings in lexicographical order
-    # Use backtracking with early termination
-    coloring = [0] * (n + 1)  # 0 means uncolored, 1,2,3 are the colors
+    # Try all 3-colorings
+    # We'll use backtracking
+    color = [-1] * n  # -1 means uncolored
     
-    def is_valid(node, color):
-        # Check if assigning 'color' to 'node' conflicts with neighbors
+    def is_valid(node, c):
         for neighbor in adj[node]:
-            if coloring[neighbor] == color:
+            if color[neighbor] == c:
                 return False
         return True
     
     def backtrack(node):
-        if node > n:
+        if node == n:
             return True
             
-        for color in range(1, 4):
-            if is_valid(node, color):
-                coloring[node] = color
+        if color[node] != -1:
+            return backtrack(node + 1)
+            
+        for c in range(3):
+            if is_valid(node, c):
+                color[node] = c
                 if backtrack(node + 1):
                     return True
-                coloring[node] = 0  # backtrack
-                
+                color[node] = -1
         return False
     
-    # Start backtracking from node 1
-    if backtrack(1):
+    # Start with node 0
+    if backtrack(0):
         print("YES")
-        print(' '.join(map(str, coloring[1:])))
+        print(" ".join(str(c + 1) for c in color))
     else:
         print("NO")
 

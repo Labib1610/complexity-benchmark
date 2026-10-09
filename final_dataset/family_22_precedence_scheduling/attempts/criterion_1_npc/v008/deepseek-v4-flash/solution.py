@@ -1,0 +1,67 @@
+from collections import deque
+import sys
+
+def solve():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    M = int(next(it))
+    T = int(next(it))
+    m = int(next(it))
+    
+    adj = [[] for _ in range(n)]
+    indeg = [0] * n
+    for _ in range(m):
+        a = int(next(it)) - 1
+        b = int(next(it)) - 1
+        adj[a].append(b)
+        indeg[b] += 1
+    
+    # earliest start times
+    earliest = [1] * n
+    q = deque([i for i in range(n) if indeg[i] == 0])
+    processed = 0
+    while q:
+        u = q.popleft()
+        processed += 1
+        for v in adj[u]:
+            earliest[v] = max(earliest[v], earliest[u] + 1)
+            indeg[v] -= 1
+            if indeg[v] == 0:
+                q.append(v)
+    
+    if processed != n:
+        print("NO")
+        return
+    
+    # Check if earliest times exceed deadline
+    if max(earliest) > T:
+        print("NO")
+        return
+    
+    # Now assign slots: try to place tasks as early as possible
+    # but respect capacity M per slot
+    slot_count = [0] * (T + 1)
+    assignment = [0] * n
+    
+    # We'll process tasks in order of earliest start time
+    order = sorted(range(n), key=lambda x: earliest[x])
+    
+    for u in order:
+        # find earliest slot >= earliest[u] with capacity
+        s = earliest[u]
+        while s <= T and slot_count[s] >= M:
+            s += 1
+        if s > T:
+            print("NO")
+            return
+        assignment[u] = s
+        slot_count[s] += 1
+    
+    print("YES")
+    print(" ".join(map(str, assignment)))
+
+if __name__ == "__main__":
+    solve()

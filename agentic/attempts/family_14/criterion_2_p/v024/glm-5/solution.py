@@ -1,0 +1,65 @@
+import sys
+import heapq
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    iterator = iter(input_data)
+    try:
+        n = int(next(iterator))
+        m = int(next(iterator))
+        t = int(next(iterator))
+    except StopIteration:
+        return
+    
+    terminals = set()
+    for _ in range(t):
+        try:
+            terminals.add(int(next(iterator)))
+        except StopIteration:
+            break
+            
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        try:
+            u = int(next(iterator))
+            v = int(next(iterator))
+            w = int(next(iterator))
+            adj[u].append((v, w))
+            adj[v].append((u, w))
+        except StopIteration:
+            break
+
+    # Prim's algorithm starting from all terminals
+    total_cost = 0
+    visited = [False] * (n + 1)
+    min_edge = [float('inf')] * (n + 1)
+    heap = []
+    
+    for u in terminals:
+        min_edge[u] = 0
+        heapq.heappush(heap, (0, u))
+        
+    nodes_in_mst = 0
+    
+    while heap and nodes_in_mst < n:
+        w, u = heapq.heappop(heap)
+        
+        if visited[u]:
+            continue
+            
+        visited[u] = True
+        total_cost += w
+        nodes_in_mst += 1
+        
+        for v, weight in adj[u]:
+            if not visited[v] and weight < min_edge[v]:
+                min_edge[v] = weight
+                heapq.heappush(heap, (weight, v))
+                
+    print(total_cost)
+
+if __name__ == '__main__':
+    solve()

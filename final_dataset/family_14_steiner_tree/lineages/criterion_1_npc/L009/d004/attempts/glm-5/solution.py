@@ -1,0 +1,72 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    idx = 0
+    n = int(data[idx]); idx += 1
+    m = int(data[idx]); idx += 1
+    t = int(data[idx]); idx += 1
+    
+    critical = []
+    for _ in range(t):
+        critical.append(int(data[idx]) - 1)
+        idx += 1
+    
+    edges = []
+    for _ in range(m):
+        u = int(data[idx]) - 1; idx += 1
+        v = int(data[idx]) - 1; idx += 1
+        w = int(data[idx]); idx += 1
+        edges.append((u, v, w))
+    
+    if t <= 1:
+        print(0)
+        return
+    
+    # Sort edges by weight for Kruskal-like processing
+    edges.sort(key=lambda x: x[2])
+    
+    parent = list(range(n))
+    rank = [0] * n
+    
+    def find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+    
+    def union(x, y):
+        rx, ry = find(x), find(y)
+        if rx == ry:
+            return False
+        if rank[rx] < rank[ry]:
+            parent[rx] = ry
+        elif rank[rx] > rank[ry]:
+            parent[ry] = rx
+        else:
+            parent[ry] = rx
+            rank[rx] += 1
+        return True
+    
+    # Process edges in order of increasing weight
+    # For each edge, if it connects two different components, add it
+    # Stop when all critical nodes are in the same component
+    total = 0
+    for u, v, w in edges:
+        if union(u, v):
+            total += w
+            # Check if all critical nodes are connected
+            root = find(critical[0])
+            all_connected = True
+            for c in critical[1:]:
+                if find(c) != root:
+                    all_connected = False
+                    break
+            if all_connected:
+                break
+    
+    print(total)
+
+solve()

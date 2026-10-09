@@ -1,0 +1,93 @@
+import sys
+from itertools import combinations
+
+def solve():
+    input = sys.stdin.readline
+    n, m, k = map(int, input().split())
+    adj = [0] * n
+    for _ in range(m):
+        u, v = map(int, input().split())
+        u -= 1
+        v -= 1
+        adj[u] |= (1 << v)
+        adj[v] |= (1 << u)
+    
+    # Split vertices into two halves
+    half = n // 2
+    left = list(range(half))
+    right = list(range(half, n))
+    
+    # Precompute independent sets for left half
+    left_sets = []  # list of (mask, size)
+    for mask in range(1 << len(left)):
+        ok = True
+        for i in range(len(left)):
+            if mask & (1 << i):
+                for j in range(i+1, len(left)):
+                    if mask & (1 << j):
+                        if adj[left[i]] & (1 << left[j]):
+                            ok = False
+                            break
+                if not ok:
+                    break
+        if ok:
+            left_sets.append((mask, bin(mask).count("1")))
+    
+    # Precompute independent sets for right half
+    right_sets = []  # list of (mask, size)
+    for mask in range(1 << len(right)):
+        ok = True
+        for i in range(len(right)):
+            if mask & (1 << i):
+                for j in range(i+1, len(right)):
+                    if mask & (1 << j):
+                        if adj[right[i]] & (1 << right[j]):
+                            ok = False
+                            break
+                if not ok:
+                    break
+        if ok:
+            right_sets.append((mask, bin(mask).count("1")))
+    
+    # For each left set, store the maximum size for each mask of "forbidden" right vertices
+    # Actually we need to combine: left set L and right set R are compatible if no edge between them.
+    # For each left set, we can compute which right vertices are forbidden.
+    # Then we need to find a right independent set that avoids those forbidden vertices.
+    
+    # Build a map from forbidden mask -> max size of right independent set that avoids them
+    # But right independent sets are already computed; we can just check compatibility directly.
+    
+    # For each left set, find a compatible right set of needed size
+    for lmask, lsize in left_sets:
+        if lsize > k:
+            continue
+        need = k - lsize
+        if need < 0:
+            continue
+        # Compute forbidden right vertices
+        forbidden = 0
+        for i in range(len(left)):
+            if lmask & (1 << i):
+                # add all right neighbors of left[i]
+                for j in range(len(right)):
+                    if adj[left[i]] & (1 << right[j]):
+                        forbidden |= (1 << j)
+        # Now find a right independent set of size 'need' that doesn't use forbidden
+        for rmask, rsize in right_sets:
+            if rsize == need and (rmask & forbidden) == 0:
+                # Found
+                chosen = []
+                for i in range(len(left)):
+                    if lmask & (1 << i):
+                        chosen.append(left[i] + 1)
+                for j in range(len(right)):
+                    if rmask & (1 << j):
+                        chosen.append(right[j] + 1)
+                print("YES")
+                print(" ".join(map(str, chosen)))
+                return
+    
+    print("NO")
+
+if __name__ == "__main__":
+    solve()

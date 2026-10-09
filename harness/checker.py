@@ -16,6 +16,7 @@ class CaseVerdict:
     verdict: str          # PASS | WRONG_ANSWER | TLE | RUNTIME_ERROR | MLE
     elapsed_s: float = 0.0
     reason: str = ""
+    stdout: str = ""      # audit B7: the program's real stdout (for objective scoring)
 
 
 @dataclass
@@ -26,6 +27,8 @@ class ProblemVerdict:
     overall: str          # PASS | WRONG_ANSWER | TLE | RUNTIME_ERROR | MLE
     cases: list[CaseVerdict] = field(default_factory=list)
     first_failure: str | None = None
+    declared_limit_s: float = 0.0     # audit B1: the statement's time_limit_s
+    effective_limit_s: float = 0.0    # what was actually enforced (never > declared)
 
 
 def normalize(s: str) -> str:
@@ -68,7 +71,7 @@ def judge_case(
         verdict = "PASS" if ok else "WRONG_ANSWER"
         reason = "" if ok else f"expected: {normalize(expected)!r} got: {normalize(produced)!r}"
         return CaseVerdict(name=test_case.name, verdict=verdict,
-                           elapsed_s=run_result.elapsed_s, reason=reason)
+                           elapsed_s=run_result.elapsed_s, reason=reason, stdout=produced)
 
     if judge_mode == "custom":
         if criterion.validator_path is None:
@@ -78,7 +81,7 @@ def judge_case(
         ok, reason = judge_custom(criterion.validator_path, input_text, produced)
         return CaseVerdict(name=test_case.name,
                            verdict="PASS" if ok else "WRONG_ANSWER",
-                           elapsed_s=run_result.elapsed_s, reason=reason)
+                           elapsed_s=run_result.elapsed_s, reason=reason, stdout=produced)
 
     return CaseVerdict(name=test_case.name, verdict="RUNTIME_ERROR",
                        reason=f"unknown judge mode: {judge_mode!r}")
@@ -88,9 +91,25 @@ def judge_problem(
     criterion: Criterion,
     solution_path: Path | str,
     timeout_override: float | None = None,
+    allow_expand: bool = False,
 ) -> ProblemVerdict:
-    timeout = timeout_override if timeout_override is not None \
-        else criterion.meta.get("time_limit_s", 10)
+    # Audit B1: the declared per-task limit is authoritative. A caller-supplied override may
+    # only TIGHTEN it (min), never expand it. This is the single choke point through which the
+    # main run, time-budget study, agentic hardening, and gate H5 all flow -- so enforcing it
+    # here fixes every path at once (a 600s or 300s override can no longer turn a 2s task into
+    # a 600s pass).
+    #
+    # The ONLY exception is offline oracle validation (harness/reference_check.py), which must be
+    # allowed to run the trusted reference well past the model deadline to produce/verify the
+    # answer key. That caller passes allow_expand=True; it never feeds a model pass/fail. All
+    # model-facing callers leave allow_expand=False so the tightening is mandatory.
+    declared = criterion.meta.get("time_limit_s", 10)
+    if timeout_override is None:
+        timeout = declared
+    elif allow_expand:
+        timeout = timeout_override
+    else:
+        timeout = min(declared, timeout_override)
     memory_limit_mb = criterion.meta.get("memory_limit_mb", 256)
     class_label = criterion.meta.get("class", "UNKNOWN")
 
@@ -118,4 +137,6 @@ def judge_problem(
         overall=overall,
         cases=case_verdicts,
         first_failure=first_failure,
+        declared_limit_s=declared,
+        effective_limit_s=timeout,
     )

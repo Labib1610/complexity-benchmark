@@ -1,0 +1,40 @@
+import sys
+
+def main():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    j = int(data[0])
+    manuscripts = []
+    idx = 1
+    for _ in range(j):
+        p1 = int(data[idx])
+        p2 = int(data[idx+1])
+        idx += 2
+        manuscripts.append((p1, p2))
+    
+    # Johnson's rule sorting
+    first = []
+    second = []
+    for p1, p2 in manuscripts:
+        if p1 < p2:
+            first.append((p1, p2))
+        else:
+            second.append((p1, p2))
+    
+    first.sort(key=lambda x: x[0])
+    second.sort(key=lambda x: x[1], reverse=True)
+    order = first + second
+    
+    time_calligrapher = 0
+    time_bookbinder = 0
+    for p1, p2 in order:
+        time_calligrapher += p1
+        if time_bookbinder < time_calligrapher:
+            time_bookbinder = time_calligrapher
+        time_bookbinder += p2
+    
+    print(time_bookbinder)
+
+if __name__ == "__main__":
+    main()

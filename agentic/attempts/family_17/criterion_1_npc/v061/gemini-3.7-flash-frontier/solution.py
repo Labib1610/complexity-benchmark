@@ -1,0 +1,150 @@
+import sys
+
+# Increase recursion depth for deep search trees (q <= 200)
+sys.setrecursionlimit(20000)
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+
+    q = int(input_data[0])
+    t = int(input_data[1])
+    n_items = 3 * q
+
+    triples = []
+    idx = 2
+    for _ in range(t):
+        a = int(input_data[idx])
+        b = int(input_data[idx + 1])
+        c = int(input_data[idx + 2])
+        idx += 3
+        triples.append((a, b, c))
+
+    # DLX structures
+    # Total column headers: n_items (1 to n_items), plus root (0)
+    # Each triple creates 3 nodes
+    max_nodes = n_items + 1 + 3 * t + 10
+
+    L = [0] * max_nodes
+    R = [0] * max_nodes
+    U = [0] * max_nodes
+    D = [0] * max_nodes
+    C = [0] * max_nodes
+    row_id = [0] * max_nodes
+    col_sz = [0] * (n_items + 1)
+
+    # Initialize column headers
+    for i in range(n_items + 1):
+        L[i] = (i - 1 + n_items + 1) % (n_items + 1)
+        R[i] = (i + 1) % (n_items + 1)
+        U[i] = i
+        D[i] = i
+
+    node_count = n_items
+
+    for r_idx, (a, b, c) in enumerate(triples):
+        first_node = node_count + 1
+        cols = (a, b, c)
+        for k in range(3):
+            node_count += 1
+            col = cols[k]
+            C[node_count] = col
+            row_id[node_count] = r_idx
+            col_sz[col] += 1
+
+            # Insert into vertical column list (at the bottom)
+            U[node_count] = U[col]
+            D[node_count] = col
+            D[U[col]] = node_count
+            U[col] = node_count
+
+            # Insert into horizontal row list
+            if k == 0:
+                L[node_count] = node_count
+                R[node_count] = node_count
+            else:
+                L[node_count] = L[first_node]
+                R[node_count] = first_node
+                R[L[first_node]] = node_count
+                L[first_node] = node_count
+
+    def cover(c):
+        L[R[c]] = L[c]
+        R[L[c]] = R[c]
+        i = D[c]
+        while i != c:
+            j = R[i]
+            while j != i:
+                U[D[j]] = U[j]
+                D[U[j]] = D[j]
+                col_sz[C[j]] -= 1
+                j = R[j]
+            i = D[i]
+
+    def uncover(c):
+        i = U[c]
+        while i != c:
+            j = L[i]
+            while j != i:
+                col_sz[C[j]] += 1
+                U[D[j]] = j
+                D[U[j]] = j
+                j = L[j]
+            i = U[i]
+        L[R[c]] = c
+        R[L[c]] = c
+
+    solution = []
+
+    def search():
+        if R[0] == 0:
+            return True
+
+        # Choose column with minimum size (MRV heuristic)
+        c = R[0]
+        min_sz = col_sz[c]
+        cur = R[c]
+        while cur != 0:
+            if col_sz[cur] < min_sz:
+                min_sz = col_sz[cur]
+                c = cur
+            cur = R[cur]
+
+        if min_sz == 0:
+            return False
+
+        cover(c)
+        r = D[c]
+        while r != c:
+            solution.append(row_id[r])
+            j = R[r]
+            while j != r:
+                cover(C[j])
+                j = R[j]
+
+            if search():
+                return True
+
+            solution.pop()
+            j = L[r]
+            while j != r:
+                uncover(C[j])
+                j = L[j]
+
+            r = D[r]
+
+        uncover(c)
+        return False
+
+    if search():
+        out = ["YES"]
+        for r in solution:
+            a, b, c = triples[r]
+            out.append(f"{a} {b} {c}")
+        print("\n".join(out))
+    else:
+        print("NO")
+
+if __name__ == '__main__':
+    solve()

@@ -1,59 +1,52 @@
 import sys
-from collections import deque
 
 def solve() -> None:
-    data = sys.stdin.read().strip().split()
+    data = list(map(int, sys.stdin.buffer.read().split()))
     if not data:
         return
-    it = iter(data)
-    n = int(next(it))
-    m = int(next(it))
+    n, m = data[0], data[1]
     adj = [[] for _ in range(n + 1)]
+    it = 2
     for _ in range(m):
-        u = int(next(it)); v = int(next(it))
+        u = data[it]; v = data[it + 1]; it += 2
         adj[u].append(v)
         adj[v].append(u)
 
-    color = [-1] * (n + 1)          # temporary 0/1 colors
-    answer = [0] * (n + 1)          # final 1/2 values
+    colour = [-1] * (n + 1)          # -1 = unvisited, 0/1 = two colours
+    ans = [0] * (n + 1)             # final values 1 or 2
 
+    stack = []
     for start in range(1, n + 1):
-        if color[start] != -1:
+        if colour[start] != -1:
             continue
-        # BFS this component
-        q = deque([start])
-        color[start] = 0
-        comp = [start]
-        bip = True
-        while q:
-            u = q.popleft()
-            cu = color[u]
-            for v in adj[u]:
-                if color[v] == -1:
-                    color[v] = cu ^ 1
-                    q.append(v)
-                    comp.append(v)
-                elif color[v] == cu:
-                    bip = False
-                    break
-            if not bip:
-                break
-        if not bip:
-            print("NO")
-            return
+        # new component
+        component = []
+        min_v = start
+        colour[start] = 0
+        stack.append(start)
 
-        # decide orientation: make smallest index node have final value 1
-        min_node = min(comp)
-        if color[min_node] == 1:          # need to flip
-            for v in comp:
-                color[v] ^= 1
+        while stack:
+            v = stack.pop()
+            component.append(v)
+            if v < min_v:
+                min_v = v
+            cv = colour[v]
+            for nb in adj[v]:
+                if colour[nb] == -1:
+                    colour[nb] = cv ^ 1
+                    stack.append(nb)
+                elif colour[nb] == cv:
+                    sys.stdout.write("NO")
+                    return
 
-        # set final answer
-        for v in comp:
-            answer[v] = 1 if color[v] == 0 else 2
+        flip = colour[min_v]          # 0 -> keep, 1 -> invert
+        for v in component:
+            final = colour[v] ^ flip
+            ans[v] = 1 if final == 0 else 2
 
-    print("YES")
-    print(' '.join(str(answer[i]) for i in range(1, n + 1)))
+    # all vertices processed without conflict
+    out = ["YES", " ".join(str(ans[i]) for i in range(1, n + 1))]
+    sys.stdout.write("\n".join(out))
 
 if __name__ == "__main__":
     solve()

@@ -1,0 +1,184 @@
+import sys
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+
+    n, m = data[0], data[1]
+    adj = [0] * n
+
+    pos = 2
+    for _ in range(m):
+        u = data[pos] - 1
+        v = data[pos + 1] - 1
+        pos += 2
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+
+    def bipartite(mask):
+        left = 0
+        right = 0
+        remaining = mask
+
+        while remaining:
+            start = remaining & -remaining
+            remaining ^= start
+            left |= start
+            frontier = start
+            parity = 0
+
+            while frontier:
+                neighbors = 0
+                bits = frontier
+                while bits:
+                    bit = bits & -bits
+                    bits ^= bit
+                    neighbors |= adj[bit.bit_length() - 1]
+                neighbors &= mask
+
+                if parity == 0:
+                    if neighbors & left:
+                        return None
+                    new_vertices = neighbors & ~(left | right)
+                    right |= new_vertices
+                else:
+                    if neighbors & right:
+                        return None
+                    new_vertices = neighbors & ~(left | right)
+                    left |= new_vertices
+
+                remaining &= ~new_vertices
+                frontier = new_vertices
+                parity ^= 1
+
+        return left, right
+
+    all_vertices = (1 << n) - 1
+    unseen = all_vertices
+    components = []
+
+    while unseen:
+        start = unseen & -unseen
+        unseen ^= start
+        component = start
+        frontier = start
+
+        while frontier:
+            neighbors = 0
+            bits = frontier
+            while bits:
+                bit = bits & -bits
+                bits ^= bit
+                neighbors |= adj[bit.bit_length() - 1]
+            neighbors &= unseen
+            unseen &= ~neighbors
+            component |= neighbors
+            frontier = neighbors
+
+        components.append(component)
+
+    colors = [0] * n
+    sys.setrecursionlimit(10000)
+
+    for component in components:
+        direct = bipartite(component)
+        if direct is not None:
+            left, right = direct
+            bits = left
+            while bits:
+                bit = bits & -bits
+                bits ^= bit
+                colors[bit.bit_length() - 1] = 2
+            bits = right
+            while bits:
+                bit = bits & -bits
+                bits ^= bit
+                colors[bit.bit_length() - 1] = 3
+            continue
+
+        complement_adj = [0] * n
+        bits = component
+        while bits:
+            bit = bits & -bits
+            bits ^= bit
+            v = bit.bit_length() - 1
+            complement_adj[v] = component & ~(adj[v] | bit)
+
+        found = None
+
+        def search(selected, candidates, excluded):
+            nonlocal found
+            if found is not None:
+                return
+
+            forced_remainder = component & ~(selected | candidates)
+            partition = bipartite(forced_remainder)
+            if partition is None:
+                return
+
+            if candidates == 0:
+                found = (selected, partition[0], partition[1])
+                return
+
+            union = candidates | excluded
+            pivot = -1
+            best_count = -1
+            bits_union = union
+
+            while bits_union:
+                bit = bits_union & -bits_union
+                bits_union ^= bit
+                v = bit.bit_length() - 1
+                count = (candidates & complement_adj[v]).bit_count()
+                if count > best_count:
+                    best_count = count
+                    pivot = v
+
+            choices = candidates & ~complement_adj[pivot]
+
+            while choices and found is None:
+                bit = choices & -choices
+                choices ^= bit
+                v = bit.bit_length() - 1
+
+                search(
+                    selected | bit,
+                    candidates & complement_adj[v],
+                    excluded & complement_adj[v]
+                )
+
+                candidates ^= bit
+                excluded |= bit
+
+        search(0, component, 0)
+
+        if found is None:
+            print("NO")
+            return
+
+        independent, left, right = found
+
+        bits = independent
+        while bits:
+            bit = bits & -bits
+            bits ^= bit
+            colors[bit.bit_length() - 1] = 1
+
+        bits = left
+        while bits:
+            bit = bits & -bits
+            bits ^= bit
+            colors[bit.bit_length() - 1] = 2
+
+        bits = right
+        while bits:
+            bit = bits & -bits
+            bits ^= bit
+            colors[bit.bit_length() - 1] = 3
+
+    print("YES")
+    print(*colors)
+
+if __name__ == "__main__":
+    main()

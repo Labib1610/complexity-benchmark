@@ -1,0 +1,112 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    num_nodes = 2 * n
+    adj = [[] for _ in range(num_nodes)]
+    
+    idx = 2
+    for _ in range(m):
+        v1 = int(input_data[idx])
+        v2 = int(input_data[idx + 1])
+        idx += 2
+        
+        # Convert to 0-indexed literal representation
+        # x_k (k from 1 to n): positive is 2*(k-1), negative is 2*(k-1) + 1
+        if v1 > 0:
+            lit1 = 2 * (v1 - 1)
+            neg1 = 2 * (v1 - 1) + 1
+        else:
+            lit1 = 2 * (-v1 - 1) + 1
+            neg1 = 2 * (-v1 - 1)
+            
+        if v2 > 0:
+            lit2 = 2 * (v2 - 1)
+            neg2 = 2 * (v2 - 1) + 1
+        else:
+            lit2 = 2 * (-v2 - 1) + 1
+            neg2 = 2 * (-v2 - 1)
+            
+        # (lit1 or lit2) is equivalent to:
+        # not lit1 -> lit2
+        # not lit2 -> lit1
+        adj[neg1].append(lit2)
+        adj[neg2].append(lit1)
+
+    # Tarjan's algorithm (iterative to avoid recursion depth issues)
+    sys.setrecursionlimit(300000)
+    
+    tin = [-1] * num_nodes
+    low = [-1] * num_nodes
+    on_stack = [False] * num_nodes
+    scc = [-1] * num_nodes
+    stack = []
+    timer = 0
+    scc_cnt = 0
+
+    # Iterative Tarjan's SCC
+    for start in range(num_nodes):
+        if tin[start] != -1:
+            continue
+        
+        call_stack = [(start, 0)]
+        tin[start] = low[start] = timer
+        timer += 1
+        stack.append(start)
+        on_stack[start] = True
+        
+        while call_stack:
+            u, edge_idx = call_stack[-1]
+            
+            if edge_idx < len(adj[u]):
+                v = adj[u][edge_idx]
+                call_stack[-1] = (u, edge_idx + 1)
+                
+                if tin[v] == -1:
+                    tin[v] = low[v] = timer
+                    timer += 1
+                    stack.append(v)
+                    on_stack[v] = True
+                    call_stack.append((v, 0))
+                elif on_stack[v]:
+                    if tin[v] < low[u]:
+                        low[u] = tin[v]
+            else:
+                call_stack.pop()
+                if call_stack:
+                    p = call_stack[-1][0]
+                    if low[u] < low[p]:
+                        low[p] = low[u]
+                        
+                if low[u] == tin[u]:
+                    while True:
+                        w = stack.pop()
+                        on_stack[w] = False
+                        scc[w] = scc_cnt
+                        if w == u:
+                            break
+                    scc_cnt += 1
+
+    assignment = [0] * n
+    for i in range(n):
+        pos = 2 * i
+        neg = 2 * i + 1
+        if scc[pos] == scc[neg]:
+            print("NO")
+            return
+        if scc[pos] < scc[neg]:
+            assignment[i] = 1
+        else:
+            assignment[i] = 0
+
+    print("YES")
+    print(*(assignment))
+
+if __name__ == '__main__':
+    solve()

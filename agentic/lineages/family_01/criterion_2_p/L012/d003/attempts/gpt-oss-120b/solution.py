@@ -1,5 +1,5 @@
 import sys
-from collections import deque
+sys.setrecursionlimit(1 << 25)
 
 def solve() -> None:
     data = sys.stdin.read().strip().split()
@@ -8,43 +8,40 @@ def solve() -> None:
     it = iter(data)
     n = int(next(it))
     m = int(next(it))
-    g = [[] for _ in range(n + 1)]
+    adj = [[] for _ in range(n + 1)]
     for _ in range(m):
         u = int(next(it)); v = int(next(it))
-        g[u].append(v)
-        g[v].append(u)
+        adj[u].append(v)
+        adj[v].append(u)
 
-    colour = [-1] * (n + 1)          # -1 unvisited, 0/1 bipartite colour
+    colour = [-1] * (n + 1)          # 0 / 1
     ans = [0] * (n + 1)
+    from collections import deque
 
     for start in range(1, n + 1):
         if colour[start] != -1:
             continue
-        # BFS this component
+        # new component
         q = deque([start])
         colour[start] = 0
         comp = [start]
+        ok = True
         while q:
-            x = q.popleft()
-            cx = colour[x]
-            for y in g[x]:
-                if colour[y] == -1:
-                    colour[y] = cx ^ 1
-                    q.append(y)
-                    comp.append(y)
-                elif colour[y] == cx:
+            u = q.popleft()
+            for v in adj[u]:
+                if colour[v] == -1:
+                    colour[v] = colour[u] ^ 1
+                    q.append(v)
+                    comp.append(v)
+                elif colour[v] == colour[u]:
                     print("NO")
                     return
-        # decide mapping so that smallest index gets amplitude 1
-        p = min(comp)
-        if colour[p] == 0:
-            for v in comp:
-                ans[v] = 1 if colour[v] == 0 else 2
-        else:
-            for v in comp:
-                ans[v] = 1 if colour[v] == 1 else 2
+        # assign values: colour of start gets 1
+        col_start = colour[start]
+        for v in comp:
+            ans[v] = 1 if colour[v] == col_start else 2
 
-    # all components processed
+    # all done
     print("YES")
     print(' '.join(str(ans[i]) for i in range(1, n + 1)))
 

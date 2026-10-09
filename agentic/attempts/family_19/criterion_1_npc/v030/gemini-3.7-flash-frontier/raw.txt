@@ -1,0 +1,92 @@
+```python
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    k = int(input_data[2])
+    
+    idx = 3
+    requests = []
+    for _ in range(k):
+        s = int(input_data[idx]) - 1
+        t = int(input_data[idx+1]) - 1
+        d = int(input_data[idx+2])
+        requests.append((s, t, d))
+        idx += 3
+        
+    edges = []
+    for _ in range(m):
+        u = int(input_data[idx]) - 1
+        v = int(input_data[idx+1]) - 1
+        c = int(input_data[idx+2])
+        edges.append((u, v, c))
+        idx += 3
+
+    import numpy as np
+    from scipy.optimize import milp, LinearConstraint, Bounds
+    from scipy.sparse import dok_matrix
+
+    num_vars = k * m
+    c_obj = np.zeros(num_vars)
+    
+    ub = np.zeros(num_vars)
+    for i in range(k):
+        for e in range(m):
+            ub[i * m + e] = min(requests[i][2], edges[e][2])
+    lb = np.zeros(num_vars)
+    bounds = Bounds(lb, ub)
+    integrality = np.ones(num_vars)
+    
+    total_constraints = k * n + m
+    A = dok_matrix((total_constraints, num_vars), dtype=float)
+    lhs = np.zeros(total_constraints)
+    rhs = np.zeros(total_constraints)
+    
+    row = 0
+    for i in range(k):
+        s_i, t_i, d_i = requests[i]
+        for node in range(n):
+            for e in range(m):
+                u, v, _ = edges[e]
+                if u == node:
+                    A[row, i * m + e] += 1.0
+                if v == node:
+                    A[row, i * m + e] -= 1.0
+            if node == s_i:
+                lhs[row] = d_i
+                rhs[row] = d_i
+            elif node == t_i:
+                lhs[row] = -d_i
+                rhs[row] = -d_i
+            else:
+                lhs[row] = 0.0
+                rhs[row] = 0.0
+            row += 1
+            
+    for e in range(m):
+        for i in range(k):
+            A[row, i * m + e] = 1.0
+        lhs[row] = 0.0
+        rhs[row] = edges[e][2]
+        row += 1
+        
+    constraints = LinearConstraint(A.tocsc(), lhs, rhs)
+    res = milp(c=c_obj, integrality=integrality, bounds=bounds, constraints=constraints)
+    
+    if res.success:
+        print("YES")
+        x = np.round(res.x).astype(int)
+        for i in range(k):
+            row_vals = x[i * m : (i + 1) * m]
+            print(*(int(v) for v in row_vals))
+    else:
+        print("NO")
+
+if __name__ == '__main__':
+    solve()
+```

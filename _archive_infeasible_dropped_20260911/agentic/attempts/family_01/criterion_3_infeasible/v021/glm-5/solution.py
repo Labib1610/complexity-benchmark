@@ -1,0 +1,40 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [set() for _ in range(n + 1)]
+    
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        adj[u].add(v)
+        adj[v].add(u)
+    
+    # Convert to sorted lists for deterministic iteration
+    adj_lists = [sorted(adj[i]) for i in range(n + 1)]
+    
+    for a in range(1, n + 1):
+        neighbors_a = adj_lists[a]
+        len_a = len(neighbors_a)
+        # Iterate through pairs of neighbors of a
+        for i in range(len_a):
+            b = neighbors_a[i]
+            if b <= a:
+                continue
+            for j in range(i + 1, len_a):
+                c = neighbors_a[j]
+                if c <= b:
+                    continue
+                # Check if b and c are connected
+                if c in adj[b]:
+                    print(a, b, c)
+                    return
+
+if __name__ == "__main__":
+    solve()

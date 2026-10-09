@@ -1,0 +1,227 @@
+**Solution Explanation**
+
+The problem asks for a *perfect matching* in a bipartite graph:
+
+* left part – operators `1 … q`
+* right part – vehicles `q+1 … 2q` (we renumber them to `1 … q` by subtracting `q`)
+* an edge `(a,b)` exists iff the pair is certified.
+
+We have to decide whether a perfect matching exists and, if it does, output one.
+
+The classic algorithm for maximum bipartite matching in `O(E·√V)` is **Hopcroft‑Karp**.
+With `V = 2·q ≤ 2·10⁵` and `E ≤ 4·10⁵` it easily fits into the limits.
+
+
+
+--------------------------------------------------------------------
+
+#### Algorithm
+```
+read q, t
+build adjacency list G[1…q]   // only from operators to vehicles (renumbered)
+
+pairU[1…q] = 0   // matched vehicle for each operator, 0 = free
+pairV[1…q] = 0   // matched operator for each vehicle
+dist[1…q]
+
+function bfs():
+    queue = empty
+    for each u in 1…q:
+        if pairU[u] == 0:   // free vertex
+            dist[u] = 0
+            push u
+        else:
+            dist[u] = INF
+    dist0 = INF               // distance to a free vertex on the right side
+    while queue not empty:
+        u = pop
+        if dist[u] < dist0:
+            for each v in G[u]:
+                if pairV[v] == 0:          // free on right side
+                    dist0 = dist[u] + 1
+                else if dist[pairV[v]] == INF:
+                    dist[pairV[v]] = dist[u] + 1
+                    push pairV[v]
+    return dist0 != INF
+
+function dfs(u):
+    for each v in G[u]:
+        if pairV[v] == 0 or (dist[pairV[v]] == dist[u] + 1 and dfs(pairV[v])):
+            pairU[u] = v
+            pairV[v] = u
+            return True
+    dist[u] = INF
+    return False
+
+matching = 0
+while bfs():
+    for each u in 1…q:
+        if pairU[u] == 0 and dfs(u):
+            matching += 1
+
+if matching == q:
+    print "YES"
+    for u = 1 … q:
+        print u, pairU[u] + q          // restore original vehicle id
+else:
+    print "NO"
+```
+
+--------------------------------------------------------------------
+
+#### Correctness Proof  
+
+We prove that the algorithm prints `YES` and a correct roster iff such a roster exists.
+
+---
+
+##### Lemma 1  
+During the execution of Hopcroft‑Karp, `pairU` and `pairV` always describe a **matching** (no vertex is incident to more than one selected edge).
+
+**Proof.**  
+Initially all entries are `0` → empty matching.  
+Both `bfs` and `dfs` only modify `pairU[u]` and `pairV[v]` together, assigning each other to each other.
+Before an assignment we check that `v` is either free (`pairV[v]==0`) or we will re‑match the previously matched operator `pairV[v]` via a recursive `dfs`. Thus a vertex never ends up matched to two different partners. ∎
+
+
+
+##### Lemma 2  
+Each phase (one `bfs` + subsequent `dfs` calls) increases the size of the matching by the maximum possible number of **shortest augmenting paths** (paths whose length equals the distance found by `bfs`).
+
+**Proof.**  
+Standard property of Hopcroft‑Karp: `bfs` computes the layered graph consisting of all shortest augmenting paths. `dfs` searches only along edges that respect the layering (`dist` values). Every successful `dfs` finds a vertex‑disjoint augmenting path, and because the search never uses edges that would create longer paths, the set of found paths is maximal among shortest ones. ∎
+
+
+
+##### Lemma 3  
+When the algorithm terminates (`bfs` returns false) the current matching is **maximum**.
+
+**Proof.**  
+If `bfs` fails, there is no augmenting path at all (the layered graph does not reach a free right vertex). By Berge’s theorem a matching without augmenting paths is maximum. ∎
+
+
+
+##### Lemma 4  
+If the algorithm outputs `YES`, the printed edges form a perfect matching (every operator and every vehicle appears exactly once).
+
+**Proof.**  
+`YES` is printed only when `matching == q`. By Lemma&nbsp;1 the stored edges are a matching, and its size equals the number of operators, therefore every operator is matched. Because the matching size also equals the number of vehicles, every vehicle is matched as well. The printed edges are exactly those pairs. ∎
+
+
+
+##### Lemma 5  
+If a perfect matching exists, the algorithm will output `YES`.
+
+**Proof.**  
+A perfect matching has size `q`. By Lemma&nbsp;3 the algorithm ends with a *maximum* matching. Since a matching of size `q` exists, the maximum size is at least `q`; but a matching cannot be larger than `q` (there are only `q` vertices on each side). Hence the algorithm’s final matching size is exactly `q`, and it prints `YES`. ∎
+
+
+
+##### Theorem  
+The algorithm prints `YES` followed by a valid deployment roster **iff** such a roster exists; otherwise it prints `NO`.
+
+**Proof.**  
+*If* part: by Lemma&nbsp;5 a perfect matching ⇒ algorithm prints `YES`. By Lemma&nbsp;4 the printed roster is valid.  
+*Only‑if* part: if algorithm prints `YES`, Lemma&nbsp;4 guarantees a perfect matching, thus a roster exists. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### Complexity Analysis  
+
+*`bfs`* runs in `O(E)` time.  
+*`dfs`* visits each edge at most once per phase, also `O(E)`.  
+Number of phases ≤ `O(√V)` (standard Hopcroft‑Karp bound).  
+
+Total time: `O(E·√V) ≤ 4·10⁵·√(2·10⁵) ≈ 1.8·10⁸` operations – well within 2 s in Python with efficient implementation.
+
+Memory:
+
+* adjacency list: `O(E)`
+* arrays `pairU`, `pairV`, `dist`: `O(V)`
+
+Overall ≤ a few MB, far below 256 MB.
+
+
+
+--------------------------------------------------------------------
+
+#### Reference Implementation  (Python 3)
+
+```python
+import sys
+from collections import deque
+
+def solve() -> None:
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    it = iter(data)
+    q = int(next(it))
+    t = int(next(it))
+
+    G = [[] for _ in range(q + 1)]          # 1‑based left side
+    for _ in range(t):
+        a = int(next(it))
+        b = int(next(it))
+        # right side index 1..q
+        G[a].append(b - q)
+
+    pairU = [0] * (q + 1)   # operator -> vehicle (renumbered)
+    pairV = [0] * (q + 1)   # vehicle -> operator
+    dist = [0] * (q + 1)
+    INF = 10 ** 9
+
+    def bfs() -> bool:
+        dq = deque()
+        for u in range(1, q + 1):
+            if pairU[u] == 0:
+                dist[u] = 0
+                dq.append(u)
+            else:
+                dist[u] = INF
+        found = False
+        while dq:
+            u = dq.popleft()
+            for v in G[u]:
+                pu = pairV[v]
+                if pu == 0:
+                    found = True          # we reached a free right vertex
+                elif dist[pu] == INF:
+                    dist[pu] = dist[u] + 1
+                    dq.append(pu)
+        return found
+
+    sys.setrecursionlimit(1 << 25)
+
+    def dfs(u: int) -> bool:
+        for v in G[u]:
+            pu = pairV[v]
+            if pu == 0 or (dist[pu] == dist[u] + 1 and dfs(pu)):
+                pairU[u] = v
+                pairV[v] = u
+                return True
+        dist[u] = INF
+        return False
+
+    matching = 0
+    while bfs():
+        for u in range(1, q + 1):
+            if pairU[u] == 0 and dfs(u):
+                matching += 1
+
+    out = []
+    if matching == q:
+        out.append(b"YES")
+        for u in range(1, q + 1):
+            out.append(f"{u} {pairU[u] + q}".encode())
+    else:
+        out.append(b"NO")
+    sys.stdout.buffer.write(b"\n".join(out))
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above and conforms to the required input‑output format.

@@ -1,0 +1,135 @@
+from collections import defaultdict
+import sys
+
+def solve():
+    n, m = map(int, sys.stdin.readline().split())
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(["0"] * n))
+        return
+    
+    # For each constraint, we have a clause with 3 literals
+    # This is a 3-SAT problem
+    clauses = []
+    for _ in range(m):
+        clause = list(map(int, sys.stdin.readline().split()))
+        clauses.append(clause)
+    
+    # Try all possible assignments
+    # Since n can be up to 90, we can't brute force 2^90
+    # But we can use the fact that each clause has 3 literals
+    # and there are at most 400 clauses
+    
+    # Let's try a different approach - since n <= 90 and m <= 400
+    # We can use a randomized algorithm or backtracking with pruning
+    
+    # Let's implement a simple backtracking with unit propagation
+    
+    def var_index(x):
+        return abs(x) - 1
+    
+    def var_value(x, assignment):
+        if x > 0:
+            return assignment[var_index(x)]
+        else:
+            return 1 - assignment[var_index(-x)]
+    
+    # Convert to CNF representation
+    # We'll use a simple backtracking approach
+    
+    def is_satisfied(clauses, assignment):
+        for clause in clauses:
+            satisfied = False
+            for literal in clause:
+                if var_value(literal, assignment) == 1:
+                    satisfied = True
+                    break
+            if not satisfied:
+                return False
+        return True
+    
+    # Try all assignments - not feasible for large n
+    # Let's implement a smarter backtracking
+    
+    def backtrack(assignment, clauses):
+        # Unit propagation
+        changed = True
+        while changed:
+            changed = False
+            new_clauses = []
+            for clause in clauses:
+                unknown_count = 0
+                unknown_literal = 0
+                satisfied = False
+                for literal in clause:
+                    var_idx = var_index(literal)
+                    if assignment[var_idx] != -1:  # assigned
+                        if var_value(literal, assignment) == 1:
+                            satisfied = True
+                            break
+                    else:  # unassigned
+                        unknown_count += 1
+                        unknown_literal = literal
+                
+                if satisfied:
+                    continue  # clause is satisfied, ignore it
+                
+                if unknown_count == 0:
+                    return False  # unsatisfiable
+                
+                if unknown_count == 1:
+                    # Unit clause - force assignment
+                    var_idx = var_index(unknown_literal)
+                    if unknown_literal > 0:
+                        if assignment[var_idx] == 0:  # conflict
+                            return False
+                        assignment[var_idx] = 1
+                    else:
+                        if assignment[var_idx] == 1:  # conflict
+                            return False
+                        assignment[var_idx] = 0
+                    changed = True
+                else:
+                    new_clauses.append(clause)
+            clauses = new_clauses
+        
+        # Find next unassigned variable
+        next_var = -1
+        for i in range(n):
+            if assignment[i] == -1:
+                next_var = i
+                break
+        
+        if next_var == -1:
+            return True  # all assigned and satisfied
+        
+        # Try setting to 1
+        assignment[next_var] = 1
+        if backtrack(assignment[:], clauses):
+            return True
+        
+        # Try setting to 0
+        assignment[next_var] = 0
+        if backtrack(assignment[:], clauses):
+            return True
+        
+        return False
+    
+    # Initialize assignment: -1 means unassigned
+    assignment = [-1] * n
+    
+    # Make a copy of clauses for manipulation
+    clauses_copy = [clause[:] for clause in clauses]
+    
+    if backtrack(assignment, clauses_copy):
+        # Find a complete assignment
+        for i in range(n):
+            if assignment[i] == -1:
+                assignment[i] = 0  # default to 0
+        print("YES")
+        print(" ".join(str(x) for x in assignment))
+    else:
+        print("NO")
+
+solve()

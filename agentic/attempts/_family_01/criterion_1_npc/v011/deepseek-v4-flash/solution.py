@@ -1,0 +1,50 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.read().strip().split()
+    if not input_data:
+        return
+    n, m = int(input_data[0]), int(input_data[1])
+    edges = []
+    idx = 2
+    for _ in range(m):
+        u = int(input_data[idx]) - 1
+        v = int(input_data[idx+1]) - 1
+        idx += 2
+        edges.append((u, v))
+    
+    adj = [[] for _ in range(n)]
+    for u, v in edges:
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    color = [-1] * n
+    
+    # Sort vertices by degree descending for better pruning
+    vertices = list(range(n))
+    vertices.sort(key=lambda x: -len(adj[x]))
+    
+    def backtrack(pos):
+        if pos == n:
+            return True
+        v = vertices[pos]
+        used = [False] * 4
+        for u in adj[v]:
+            if color[u] != -1:
+                used[color[u]] = True
+        for c in range(1, 4):
+            if not used[c]:
+                color[v] = c
+                if backtrack(pos + 1):
+                    return True
+                color[v] = -1
+        return False
+    
+    if backtrack(0):
+        print("YES")
+        print(" ".join(str(color[i]) for i in range(n)))
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()

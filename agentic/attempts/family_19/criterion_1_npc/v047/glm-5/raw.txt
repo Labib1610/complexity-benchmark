@@ -1,0 +1,335 @@
+```python
+import sys
+
+def solve():
+    data = sys.stdin.read().split()
+    it = iter(data)
+    try:
+        n = int(next(it))
+        m = int(next(it))
+        k = int(next(it))
+    except StopIteration:
+        return
+
+    orders = []
+    for _ in range(k):
+        s = int(next(it))
+        t = int(next(it))
+        d = int(next(it))
+        orders.append((s, t, d))
+
+    edges = []
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        c = int(next(it))
+        edges.append((u, v, c))
+
+    # Build flow network
+    # Nodes: 1..n are grid centers
+    # Source: n+1, Super-sink: n+2
+    # For order i (0-indexed), intermediate node: n+3+i
+    
+    source = n + 1
+    sink = n + 2
+    total_nodes = n + 3 + k
+    offset = n + 3  # base index for order sink nodes
+
+    cap = [[[0, 0, 0] for _ in range(total_nodes + 1)] for _ in range(total_nodes + 1)]
+    adj = [[] for _ in range(total_nodes + 1)]
+
+    def add_edge(u, v, capacity, id1=-1, id2=-1):
+        # forward edge: id1 for tracking flow, reverse edge: id2
+        adj[u].append(v)
+        cap[u][v] = [capacity, 0, id1]
+        
+        adj[v].append(u)
+        cap[v][u] = [0, 0, id2]
+
+    # Connect source to origins and destinations to sink
+    for i, (s, t, d) in enumerate(orders):
+        order_node = offset + i
+        # Source to order_node
+        add_edge(source, order_node, d)
+        # Order origin to order_node
+        add_edge(order_node, s, d)
+        # Order destination to super-sink (via order_node aggregation not needed strictly, 
+        # but we connect order_node to grid-sink to force flow through destination)
+        # Wait, the logic: 
+        # Flow: source -> order_node -> origin -> ... -> destination -> order_node -> sink?
+        # No. Split order_node into source-side and sink-side. 
+        # Let's use the structure defined previously:
+        # source -> order_node_out. order_node_out -> s. t -> order_node_in. order_node_in -> sink.
+        # Nodes allocated: order_node is order_node_out. Let's add order_node_in.
+        # This is getting complex. Let's double the nodes 0..k-1 for in/out? 
+        # Actually simpler: source -> order_node. order_node -> s. t -> order_node. order_node -> sink.
+        # But this allows s -> order_node -> sink without passing through t.
+        # So we must separate.
+        
+        # Implementation:
+        # u_out = offset + i
+        # u_in = offset + k + i
+        # add_edge(source, u_out, d)
+        # add_edge(u_out, s, d)
+        # add_edge(t, u_in, d)
+        # add_edge(u_in, sink, d)
+        pass
+        
+    # Re-defined structure with in/out separation for orders
+    u_out_start = n + 3
+    u_in_start = n + 3 + k
+    
+    total_nodes = n + 3 + 2 * k
+    cap = [[[0, 0] for _ in range(total_nodes + 1)] for _ in range(total_nodes + 1)]
+    adj = [[] for _ in range(total_nodes + 1)]
+    
+    source = n + 1
+    sink = n + 2
+    
+    def add_edge(u, v, capacity, edge_id=None):
+        adj[u].append(v)
+        adj[v].append(u)
+        cap[u][v] = [capacity, edge_id]
+        cap[v][u] = [0, None]
+
+    for i, (s, t, d) in enumerate(orders):
+        u_out = u_out_start + i
+        u_in = u_in_start + i
+        
+        add_edge(source, u_out, d)
+        add_edge(u_out, s, d)
+        add_edge(t, u_in, d)
+        add_edge(u_in, sink, d)
+        
+    # Add grid edges
+    for j, (u, v, c) in enumerate(edges):
+        add_edge(u, v, c, j)
+
+    # Dinic's Algorithm
+    level = [0] * (total_nodes + 1)
+    ptr = [0] * (total_nodes + 1)
+    
+    def bfs():
+        for i in range(total_nodes + 1):
+            level[i] = -1
+        level[source] = 0
+        queue = [source]
+        head = 0
+        while head < len(queue):
+            u = queue[head]
+            head += 1
+            for v in adj[u]:
+                if level[v] == -1 and cap[u][v][0] > 0:
+                    level[v] = level[u] + 1
+                    queue.append(v)
+        return level[sink] != -1
+
+    def dfs(u, flow):
+        if u == sink:
+            return flow
+        for i in range(ptr[u], len(adj[u])):
+            ptr[u] = i
+            v = adj[u][i]
+            if level[v] == level[u] + 1 and cap[u][v][0] > 0:
+                pushed = dfs(v, min(flow, cap[u][v][0]))
+                if pushed:
+                    cap[u][v][0] -= pushed
+                    cap[v][u][0] += pushed
+                    return pushed
+        return 0
+
+    max_flow = 0
+    while bfs():
+        ptr = [0] * (total_nodes + 1)
+        while True:
+            pushed = dfs(source, 10**18)
+            if not pushed:
+                break
+            max_flow += pushed
+
+    total_demand = sum(d for _, _, d in orders)
+    
+    if max_flow != total_demand:
+        print("NO")
+        return
+
+    print("YES")
+    
+    # Extract results for each order
+    # Order i corresponds to u_out = u_out_start + i. 
+    # We need flow on edges (u_out + k + i ? No.)
+    # Recalculate indices used.
+    # Structure: source -> u_out_i -> s_i -> ... -> t_i -> u_in_i -> sink
+    # Wait, u_out -> s. t -> u_in. 
+    # But u_out and u_in are just intermediate connectors.
+    # The flow from s_i to the rest of the grid is on the edge (u_out_i, s_i).
+    # But (u_out_i, s_i) carries flow *out* of s.
+    # Conservation: (u_out_i, s_i) flow = flow leaving s.
+    # This flow enters s from u_out_i. Then s must send it out through grid edges.
+    # Finally, flow enters t_i from grid, then goes to u_in_i.
+    
+    # Solution extraction:
+    # For Order i:
+    #   It contributes flow to grid edges.
+    #   How much flow of Order i is on edge j?
+    #   This is Multi-Commodity Flow. Decomposition is needed.
+    #   We pushed flow in a merged network.
+    #   We need to find cycles/paths to decompose.
+    
+    flow_cap = [[cap[u][v][0] for v in range(total_nodes + 1)] for u in range(total_nodes + 1)]
+    
+    results = [[0] * m for _ in range(k)]
+    
+    # Decomposition
+    for i in range(k):
+        u_out = u_out_start + i
+        u_in = u_in_start + i
+        s, t, _ = orders[i]
+        
+        # We need to trace flow from s to t
+        # Actually, flow enters s from u_out. 
+        # Let's trace from the virtual source of this order.
+        # But u_out connects to s. 
+        # We want to find paths from s to t.
+        # However, some capacity on edge j might be shared.
+        # But we have the residual graph. 
+        # The total flow on edge j is sum of flows. 
+        # We need to split it.
+        
+        # Algorithm: 
+        # Find a path from u_out to u_in in the residual graph using only edges that have flow?
+        # No, in the residual graph, 
+        # if original edge (u, v) had capacity C and flow f, then:
+        # forward edge (u, v) has cap C - f
+        # backward edge (v, u) has cap f
+        # To find flow belonging to a path, we BFS using backward edges (or forward edges that have flow > 0)?
+        # Actually, we just need to find *any* path from u_out to u_in using edges with flow > 0.
+        # Wait, u_out -> s is a special edge. s -> ... -> t uses grid edges. t -> u_in is special.
+        # So we find path from u_out to u_in.
+        # On this path, for each grid edge (u, v) (which corresponds to input edge j), 
+        # we reduce the flow by 1 (push back on backward edge).
+        # And record this 1 unit for order i on edge j.
+        
+        demand = orders[i][2]
+        while demand > 0:
+            # BFS to find a path from u_out to u_in
+            q = [u_out]
+            from_node = [-1] * (total_nodes + 1)
+            from_node[u_out] = u_out
+            
+            head = 0
+            found = False
+            while head < len(q):
+                curr = q[head]
+                head += 1
+                if curr == u_in:
+                    found = True
+                    break
+                
+                for neighbor in adj[curr]:
+                    # We can traverse if there is flow on this edge.
+                    # In residual graph, capacity of reverse edge represents flow on forward edge.
+                    # cap[curr][neighbor] is residual capacity.
+                    # If we pushed flow, reverse edge has capacity > 0.
+                    # Wait. Original edge (u, v) with flow f:
+                    # cap[u][v] becomes C - f
+                    # cap[v][u] becomes f
+                    # So we traverse (v, u) to cancel flow?
+                    # No, we want to track the flow that was sent.
+                    # The sent flow is on forward edges.
+                    # We need to follow the path of *sent* flow.
+                    # So we check if the reverse capacity (flow) > 0?
+                    # If original edge is (u, v), we sent flow this way.
+                    # Currently, cap[u][v] is residual. cap[v][u] is flow.
+                    # If we want to follow the flow from origin to dest, we should follow edges where flow > 0.
+                    # i.e. cap[neighbor][curr] > 0 (reverse edge has capacity).
+                    # This means we actually traverse backwards in the residual graph?
+                    # Let's verify.
+                    # Path: u_out -> s -> ... -> t -> u_in.
+                    # Edges: (u_out, s), (s, next), ..., (prev, t), (t, u_in).
+                    # Flow exists on these edges.
+                    # In residual graph:
+                    # cap[s][u_out] > 0 (flow on u_out->s)
+                    # cap[next][s] > 0 (flow on s->next)
+                    # ...
+                    # cap[u_in][t] > 0 (flow on t->u_in)
+                    # So to go from u_out to u_in following the flow, we must go AGAINST the residual edges?
+                    # No. 
+                    # Residual edge exists where flow exists.
+                    # Residual edge is V->U if flow is U->V.
+                    # So if I'm at U, and I want to go to V, and there is flow U->V, then residual has V->U.
+                    # To follow flow U->V, I look for neighbor V such that cap[V][U] > 0.
+                    # Wait, this is confusing.
+                    
+                    # Alternative view:
+                    # The `cap` array now stores residual capacities.
+                    # Original edge (u,v) with flow f.
+                    # cap[u][v] = C - f
+                    # cap[v][u] = f
+                    # I am at `u`. I want to see if flow went `u->v`.
+                    # This is true if cap[v][u] > 0.
+                    # If I traverse this way, I am effectively moving forward along the flow, 
+                    # but I am checking the reverse residual edge.
+                    
+                    # Let's try to trace simply:
+                    # We want to find a path u_out -> ... -> u_in.
+                    # In the flow network, u_out -> s -> ... -> t -> u_in.
+                    # In the residual graph, we have arcs backwards.
+                    # We can find a path from u_out to u_in using ONLY reverse edges of the flow?
+                    # No. 
+                    # We can just run a BFS on the graph where edge (u, v) exists if `flow(u, v) > 0`.
+                    # `flow(u, v)` is stored as `cap[v][u]` (reverse residual capacity).
+                    # So from `curr`, we can go to `neighbor` if `cap[neighbor][curr] > 0`.
+                    # This means flow went `curr -> neighbor`.
+                    # Let's use this.
+                    
+                    if cap[neighbor][curr][0] > 0 and from_node[neighbor] == -1:
+                        from_node[neighbor] = curr
+                        q.append(neighbor)
+            
+            if not found:
+                # Should not happen if flow is correct
+                # But handling just in case
+                print("NO")
+                return
+
+            # Reconstruct path
+            path = []
+            curr = u_in
+            while curr != u_out:
+                prev = from_node[curr]
+                path.append((prev, curr))
+                curr = prev
+            
+            path.reverse() # u_out -> ... -> u_in
+            
+            # Augment this path for decomposition (reduce flow by 1)
+            for u, v in path:
+                # We are traversing u -> v.
+                # This means flow exists u -> v.
+                # We decrement flow.
+                # In residual terms, we push flow BACK.
+                # So we add to cap[u][v] and subtract from cap[v][u].
+                # i.e. increase residual cap on forward edge, decrease on reverse.
+                
+                # But wait, in our check `cap[neighbor][curr] > 0` (neighbor=v, curr=u),
+                # this checked `cap[v][u] > 0`.
+                # So flow is u->v.
+                # We restore one unit: cap[u][v] += 1, cap[v][u] -= 1.
+                
+                cap[u][v][0] += 1
+                cap[v][u][0] -= 1
+                
+                # If this edge corresponds to a grid corridor, update result
+                if cap[v][u][1] is not None:
+                    edge_id = cap[v][u][1]
+                    results[i][edge_id] += 1
+            
+            demand -= 1
+
+    for i in range(k):
+        print(*(results[i]))
+
+if __name__ == '__main__':
+    solve()
+```

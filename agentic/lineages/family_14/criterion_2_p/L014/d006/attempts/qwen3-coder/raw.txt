@@ -1,0 +1,140 @@
+```python
+import sys
+from collections import defaultdict, deque
+
+def main():
+    import sys
+    sys.setrecursionlimit(1 << 25)
+    
+    n, m, t = map(int, sys.stdin.readline().split())
+    if t <= 1:
+        print(0)
+        return
+        
+    key_holders = list(map(int, sys.stdin.readline().split()))
+    key_set = set(key_holders)
+    
+    # Build graph
+    adj = [[] for _ in range(n + 1)]
+    edges = []
+    for _ in range(m):
+        u, v, w = map(int, sys.stdin.readline().split())
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+        edges.append((w, u, v))
+    
+    # BFS from each key holder to compute distances and parents
+    dist = {}
+    parent = {}
+    tree_edges = set()
+    
+    for k in key_holders:
+        d = [-1] * (n + 1)
+        p = [-1] * (n + 1)
+        d[k] = 0
+        queue = deque([k])
+        while queue:
+            u = queue.popleft()
+            for v, w in adj[u]:
+                if d[v] == -1:
+                    d[v] = d[u] + 1
+                    p[v] = u
+                    queue.append(v)
+        dist[k] = d
+        parent[k] = p
+    
+    # For each edge, check if it's needed
+    # An edge (u,v) is needed if there exists a key pair such that all paths between them use this edge
+    # In a tree, for any two nodes, the path is unique
+    # So we need to find which edges are on paths between key holders
+    
+    # We can do this by building a subtree that connects all key holders (Steiner tree)
+    # But since the whole graph is a tree (m = n-1), we just need to find the minimal subtree connecting all key holders
+    
+    # Let's build the minimum Steiner tree
+    # We'll use the fact that in a tree, the minimal connected subgraph containing all terminals 
+    # is the union of paths between all pairs of terminals
+    
+    # But better approach: find the minimal subtree that spans all key vertices
+    # This is the Steiner tree on a tree, which can be found by:
+    # 1. Take all leaves that are not terminals and remove them iteratively
+    # 2. The remaining tree is the minimal Steiner tree
+    
+    # However, we can also think differently:
+    # Since the whole graph is already a tree (m=n-1), we need to find the minimal subtree that connects all key holders
+    # That is exactly the subtree induced by all key holders
+    # Which means we take the union of all paths between key holders
+    
+    # But even simpler: since it's a tree, the Steiner tree is just the union of paths
+    # We can find all edges that lie on paths between any two key holders
+    
+    # Let's mark all nodes that are on some path between two key holders
+    # Do BFS from all key holders at once to build a "multi-source" BFS tree
+    # Then for each non-key node that is not on a shortest path between any two keys, we don't need edges to it
+    # Actually, let's think of it this way:
+    # In the final solution, we want the minimal cost. Since we're in a tree, and we must include ALL paths between key pairs,
+    # the minimal set of edges is exactly those that appear on ANY path between two key holders.
+    
+    # So we can:
+    # 1. Root the tree at one key vertex
+    # 2. Find the minimal subtree spanning all key vertices
+    
+    # Let's root at first key holder
+    root = key_holders[0]
+    d = [-1] * (n + 1)
+    p = [-1] * (n + 1)
+    d[root] = 0
+    queue = deque([root])
+    while queue:
+        u = queue.popleft()
+        for v, w in adj[u]:
+            if d[v] == -1:
+                d[v] = d[u] + 1
+                p[v] = u
+                queue.append(v)
+                
+    # Now we have a BFS tree rooted at root
+    # We want to find the minimal subtree containing all key vertices
+    # Mark all vertices that are ancestors of key vertices
+    # Actually, let's use the standard algorithm for Steiner tree on a tree:
+    # 1. Root the tree at any node
+    # 2. For each node, compute if its subtree contains any key vertex
+    # 3. The edges in the minimal Steiner tree are those where both endpoints' subtrees contain at least one key
+    
+    # Let's implement this
+    # First, build the tree with parent pointers
+    children = [[] for _ in range(n + 1)]
+    for i in range(1, n + 1):
+        if p[i] != -1:
+            children[p[i]].append(i)
+            
+    # has_key[u] will be True if subtree of u contains a key vertex
+    has_key = [False] * (n + 1)
+    for k in key_holders:
+        has_key[k] = True
+        
+    # Post-order traversal to compute has_key
+    def dfs(u):
+        for v in children[u]:
+            dfs(v)
+            if has_key[v]:
+                has_key[u] = True
+                
+    dfs(root)
+    
+    # Now collect all edges where both endpoints have has_key = True
+    # These are the edges of the minimal Steiner tree
+    total_cost = 0
+    for u in range(1, n + 1):
+        if has_key[u]:
+            for v, w in adj[u]:
+                # To avoid double counting, only consider edges going to children
+                # And only if child also has_key
+                if v in children[u] and has_key[v]:
+                    total_cost += w
+                    
+    print(total_cost)
+
+if __name__ == "__main__":
+    main()
+```

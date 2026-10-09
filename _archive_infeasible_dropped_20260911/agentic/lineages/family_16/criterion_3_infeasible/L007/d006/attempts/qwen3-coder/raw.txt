@@ -1,0 +1,170 @@
+```python
+import sys
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    j = int(data[0])
+    T = int(data[1])
+    
+    pulses = []
+    for i in range(j):
+        p1 = int(data[2 + 2*i])
+        p2 = int(data[3 + 2*i])
+        pulses.append((p1, p2))
+    
+    # Check JOB condition for each item
+    for i in range(j):
+        p1, p2 = pulses[i]
+        # For JOB i to be possible:
+        # We need to place two pulses of width p1 and p2 in [0, T]
+        # such that their cross-correlation is zero for all negative lags.
+        # This means the pulse s_{i,2} must not start before s_{i,1} starts.
+        # So k_{i,1} <= k_{i,2}
+        # Also, both pulses must be within [0,T]:
+        # 0 <= k_{i,1} <= T - p1
+        # 0 <= k_{i,2} <= T - p2
+        # And k_{i,1} <= k_{i,2}
+        # For this to be impossible, there should be no way to choose such k's
+        # But actually, we can always choose k_{i,1} = 0 and k_{i,2} = 0
+        # Then the cross-correlation for tau<0 is zero because s_{i,1}(t)=0 for t<0 
+        # and s_{i,2}(t+tau)=0 for t+tau<0 => t<-tau => t<0 (since tau<0)
+        # Actually, let's think more carefully.
+        # R_i(tau) = integral from -inf to inf of s_{i,1}(t) * s_{i,2}(t+tau) dt
+        # s_{i,1}(t) = 1 if t in [k1, k1+p1], 0 else
+        # s_{i,2}(t+tau) = 1 if t+tau in [k2, k2+p2] i.e., t in [k2-tau, k2+p2-tau], 0 else
+        # So the product is 1 when t in [k1, k1+p1] AND t in [k2-tau, k2+p2-tau]
+        # The intersection is [max(k1,k2-tau), min(k1+p1, k2+p2-tau)]
+        # For the integral to be > 0, we need max(k1,k2-tau) < min(k1+p1, k2+p2-tau)
+        # We want this to be 0 for ALL tau < 0
+        # That means for all tau < 0, either:
+        # (1) max(k1, k2-tau) >= min(k1+p1, k2+p2-tau), or
+        # (2) the intersection interval is empty or outside the integration range where both are nonzero
+        # But since we're integrating over all t, and both pulses are rects, it suffices to ensure:
+        # For all tau < 0, the overlap is zero.
+        # The overlap is non-zero if there exists t such that:
+        # t >= k1 and t <= k1+p1 and t >= k2-tau and t <= k2+p2-tau
+        # Rearranging: t >= max(k1, k2-tau) and t <= min(k1+p1, k2+p2-tau)
+        # For overlap to exist: max(k1, k2-tau) <= min(k1+p1, k2+p2-tau)
+        # We want this to be false for ALL tau < 0
+        # Let's consider when max(k1, k2-tau) <= min(k1+p1, k2+p2-tau) can hold.
+        # Case 1: k1 <= k2-tau => tau <= k2-k1
+        #         In this case, max = k2-tau, min = min(k1+p1, k2+p2-tau)
+        #         So we need k2-tau <= min(k1+p1, k2+p2-tau)
+        #         Which gives k2-tau <= k1+p1 => tau >= k2-k1-p1
+        #         And k2-tau <= k2+p2-tau => 0 <= p2 (always true)
+        #         So in case k1 <= k2-tau, we have tau in [k2-k1-p1, k2-k1]
+        # Case 2: k1 > k2-tau => tau > k2-k1
+        #         In this case, max = k1, min = min(k1+p1, k2+p2-tau)
+        #         So we need k1 <= min(k1+p1, k2+p2-tau)
+        #         Always k1 <= k1+p1. Need k1 <= k2+p2-tau => tau <= k2+p2-k1
+        #         So in case k1 > k2-tau, we have tau <= k2+p2-k1
+        # Overall, overlap occurs when:
+        # Either (tau in [k2-k1-p1, k2-k1]) or (tau <= k2+p2-k1)
+        # But we also have the constraint tau < 0
+        # We want NO overlap for ANY tau < 0
+        # So we want the set of tau where overlap occurs intersected with tau<0 to be empty
+        # Overlap taus: Union of [k2-k1-p1, k2-k1] and (-inf, k2+p2-k1]
+        # Intersect with tau<0:
+        # [k2-k1-p1, k2-k1] intersect (-inf,0) = [k2-k1-p1, min(k2-k1, 0)]
+        # (-inf, k2+p2-k1] intersect (-inf,0) = (-inf, min(k2+p2-k1, 0)]
+        # For no overlap for tau<0, we need both these intersections to be empty
+        # First: [k2-k1-p1, min(k2-k1, 0)] = empty
+        # This happens when k2-k1-p1 > min(k2-k1, 0)
+        # If k2-k1 <= 0, then min = k2-k1, so need k2-k1-p1 > k2-k1 => -p1 > 0 => impossible
+        # If k2-k1 > 0, then min = 0, so need k2-k1-p1 > 0 => k2-k1 > p1
+        # Second: (-inf, min(k2+p2-k1, 0)] = empty
+        # This happens when min(k2+p2-k1, 0) < -inf => never
+        # Or more precisely, for the intersection with tau<0 to be empty,
+        # we need min(k2+p2-k1, 0) < the lower bound of the other interval, which is -inf
+        # Wait, that's not right. The intersection is empty if the set of taus with overlap has no intersection with tau<0
+        # Set of overlap taus: S = [k2-k1-p1, k2-k1] U (-inf, k2+p2-k1]
+        # We can simplify this union.
+        # If k2+p2-k1 >= k2-k1-p1, then S = (-inf, max(k2-k1, k2+p2-k1)] = (-inf, k2+p2-k1]
+        # If k2+p2-k1 < k2-k1-p1, then S = [k2-k1-p1, k2-k1] U (-inf, k2+p2-k1] = (-inf, k2+p2-k1] U [k2-k1-p1, k2-k1]
+        # In either case, S contains (-inf, k2+p2-k1]
+        # So S intersect (-inf, 0) contains (-inf, min(k2+p2-k1, 0)]
+        # For this to be empty, we need min(k2+p2-k1, 0) < -M for all M, which is impossible.
+        # Wait, I think I'm overcomplicating this.
+        # The requirement is that R_i(tau) = 0 for ALL tau < 0
+        # R_i(tau) = measure of {t : t in [k1,k1+p1] and t in [k2-tau, k2+p2-tau]}
+        # This is the length of intersection of [k1, k1+p1] and [k2-tau, k2+p2-tau]
+        # We want this intersection length to be 0 for ALL tau < 0
+        # The intersection is [max(k1, k2-tau), min(k1+p1, k2+p2-tau)]
+        # Length = max(0, min(k1+p1, k2+p2-tau) - max(k1, k2-tau))
+        # We want this to be 0 for all tau < 0
+        # That is, for all tau < 0: min(k1+p1, k2+p2-tau) <= max(k1, k2-tau)
+        # Let's fix k1, k2 and see what this means.
+        # min(k1+p1, k2+p2-tau) <= max(k1, k2-tau) for all tau < 0
+        # This seems complicated. Maybe there's a simpler characterization.
+        # What if we try specific values?
+        # Suppose k1 = 0, k2 = 0. Then for tau < 0:
+        # min(p1, p2-tau) <= max(0, -tau) = -tau (since tau < 0)
+        # We need min(p1, p2-tau) <= -tau for all tau < 0
+        # Since tau < 0, -tau > 0
+        # min(p1, p2-tau): as tau -> -inf, p2-tau -> +inf, so min -> p1
+        # For large negative tau, we need p1 <= -tau, which will fail for tau < -p1
+        # So choosing k1=k2=0 doesn't work in general.
+        # What about k1 = 0, k2 = p1?
+        # Then for tau < 0:
+        # min(p1, p2-tau+p1) <= max(0, p1-tau)
+        # min(p1, p1+p2-tau) = p1 (since p1+p2-tau > p1 for tau < 0)
+        # max(0, p1-tau) = p1-tau (since tau < 0 => p1-tau > p1 >= 0)
+        # So we need p1 <= p1-tau => 0 <= -tau => tau <= 0
+        # Since we're considering tau < 0, this holds.
+        # What about other tau >= 0? We don't care.
+        # So for tau < 0: p1 <= p1-tau holds since tau < 0
+        # Thus, choosing k1 = 0, k2 = p1 works to satisfy Non-negative Lag.
+        # We also need both pulses to be in [0, T]:
+        # 0 <= k1 <= T-p1 => 0 <= 0 <= T-p1 => p1 <= T
+        # 0 <= k2 <= T-p2 => 0 <= p1 <= T-p2 => p1+p2 <= T
+        # So if p1+p2 <= T, we can satisfy Bounded Support and Non-negative Lag for item i.
+        # Therefore, JOB i is impossible only if p1 + p2 > T.
+        
+        if p1 + p2 > T:
+            print(f"JOB {i+1}")
+            return
+    
+    # If all JOBs are possible, check LOADs
+    # For LOAD c, we need to place j pulses of width pulses[i][c-1] in [0,T]
+    # such that they are pairwise orthogonal.
+    # Two pulses P(t; k1, w1) and P(t; k2, w2) are orthogonal if their
+    # intersection has measure 0, i.e., if [k1, k1+w1] and [k2, k2+w2] intersect in a set of measure 0.
+    # This happens iff [k1, k1+w1] and [k2, k2+w2] do not overlap in an interval,
+    # i.e., either k1+w1 <= k2 or k2+w2 <= k1.
+    # So we need to place j intervals of given widths inside [0,T] such that
+    # no two intervals overlap in positive measure.
+    # This is equivalent to placing j non-overlapping intervals of total width sum(w_i)
+    # into an interval of length T.
+    # The minimum space needed is sum(w_i) + (j-1) * 1 = sum(w_i) + j - 1
+    # (assuming we need at least 1 unit gap between intervals)
+    # Wait, actually, intervals can touch at endpoints and still be orthogonal.
+    # Two intervals [a,b] and [c,d] are orthogonal if their intersection has measure 0.
+    # Measure 0 means the intersection is either empty or consists of points only.
+    # So [a,b] and [c,d] are orthogonal if |[a,b] intersect [c,d]| = 0
+    # This happens iff b <= c or d <= a (they don't overlap) or b=c or d=a (touch at point)
+    # But in our case, if we place intervals [k_i, k_i + w_i], and we want all pairs orthogonal,
+    # we can arrange them so that they don't overlap at all.
+    # Minimum total length needed to place j non-overlapping intervals of lengths w_1,...,w_j
+    # is w_1 + ... + w_j.
+    # We also need 0 <= k_i <= T - w_i for all i.
+    # So we can place them in order: k_1 = 0, k_2 = w_1, k_3 = w_1 + w_2, etc.
+    # Total support would be from 0 to w_1 + ... + w_j
+    # We need w_1 + ... + w_j <= T
+    # If this fails, then LOAD c is impossible.
+    
+    sum_p1 = sum(pulses[i][0] for i in range(j))
+    sum_p2 = sum(pulses[i][1] for i in range(j))
+    
+    if sum_p1 > T:
+        print("LOAD 1")
+        return
+    if sum_p2 > T:
+        print("LOAD 2")
+        return
+
+if __name__ == "__main__":
+    main()
+```

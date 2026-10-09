@@ -1,0 +1,208 @@
+import sys
+from collections import deque
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    _ = int(next(it))  # always 1
+    s = int(next(it))
+    t = int(next(it))
+    d = int(next(it))
+    
+    edges = []
+    adj = [[] for _ in range(n + 1)]
+    for i in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        cap = int(next(it))
+        edges.append((u, v, cap))
+        adj[u].append((v, i))
+        adj[v].append((u, i))
+    
+    # Build level graph
+    level = [-1] * (n + 1)
+    q = deque([s])
+    level[s] = 0
+    while q:
+        u = q.popleft()
+        for v, i in adj[u]:
+            _, _, cap = edges[i]
+            if u == edges[i][0]:
+                # forward edge
+                if cap > 0 and level[v] < 0:
+                    level[v] = level[u] + 1
+                    q.append(v)
+            else:
+                # backward edge
+                if cap < edges[i][2] and level[v] < 0:
+                    level[v] = level[u] + 1
+                    q.append(v)
+    
+    if level[t] < 0:
+        print("NO")
+        return
+    
+    # Find augmenting paths using DFS with level graph
+    flow = [0] * m
+    it_ptr = [0] * (n + 1)
+    
+    def dfs(u, f):
+        if u == t:
+            return f
+        for idx in range(it_ptr[u], len(adj[u])):
+            it_ptr[u] = idx
+            v, i = adj[u][idx]
+            eu, ev, cap = edges[i]
+            if u == eu:
+                # forward edge
+                if cap > 0 and level[v] == level[u] + 1:
+                    ret = dfs(v, min(f, cap))
+                    if ret > 0:
+                        edges[i] = (eu, ev, cap - ret)
+                        return ret
+            else:
+                # backward edge
+                if cap < edges[i][2] and level[v] == level[u] + 1:
+                    ret = dfs(v, min(f, edges[i][2] - cap))
+                    if ret > 0:
+                        edges[i] = (eu, ev, cap + ret)
+                        return ret
+        return 0
+    
+    total_flow = 0
+    while True:
+        # BFS to build level graph
+        level = [-1] * (n + 1)
+        q = deque([s])
+        level[s] = 0
+        while q:
+            u = q.popleft()
+            for v, i in adj[u]:
+                eu, ev, cap = edges[i]
+                if u == eu:
+                    if cap > 0 and level[v] < 0:
+                        level[v] = level[u] + 1
+                        q.append(v)
+                else:
+                    if cap < edges[i][2] and level[v] < 0:
+                        level[v] = level[u] + 1
+                        q.append(v)
+        
+        if level[t] < 0:
+            break
+        
+        it_ptr = [0] * (n + 1)
+        while True:
+            pushed = dfs(s, d - total_flow)
+            if pushed == 0:
+                break
+            total_flow += pushed
+            if total_flow == d:
+                break
+        if total_flow == d:
+            break
+    
+    if total_flow == d:
+        print("YES")
+        result = []
+        for i in range(m):
+            eu, ev, cap = edges[i]
+            original_cap = edges[i][2] if 'original_cap' not in dir() else edges[i][2]
+            # We need original capacity, but we modified edges
+            # Actually we stored (u, v, remaining_cap), so flow = original - remaining
+            # But we don't have original stored. Let's fix this.
+            pass
+        
+        # Re-read to get original capacities
+        # Actually, let's restructure: store edges with original cap and current flow
+        pass
+    
+    # Let me rewrite with cleaner state management
+    pass
+
+def solve2():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    _ = int(next(it))
+    s = int(next(it))
+    t = int(next(it))
+    d = int(next(it))
+    
+    # Edge structure: (to, rev, cap, original_cap, is_original)
+    # We'll use adjacency list for Dinic
+    graph = [[] for _ in range(n + 1)]
+    edge_info = []  # (u, v, original_cap)
+    
+    for i in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        cap = int(next(it))
+        edge_info.append((u, v, cap))
+        # Forward edge
+        graph[u].append([v, len(graph[v]), cap, cap])
+        # Backward edge
+        graph[v].append([u, len(graph[u]) - 1, 0, 0])
+    
+    level = [-1] * (n + 1)
+    it_ptr = [0] * (n + 1)
+    
+    def bfs():
+        nonlocal level
+        level = [-1] * (n + 1)
+        q = deque([s])
+        level[s] = 0
+        while q:
+            u = q.popleft()
+            for v, rev, cap, orig in graph[u]:
+                if cap > 0 and level[v] < 0:
+                    level[v] = level[u] + 1
+                    q.append(v)
+        return level[t] >= 0
+    
+    def dfs(u, f):
+        if u == t:
+            return f
+        for i in range(it_ptr[u], len(graph[u])):
+            it_ptr[u] = i
+            v, rev, cap, orig = graph[u][i]
+            if cap > 0 and level[v] == level[u] + 1:
+                ret = dfs(v, min(f, cap))
+                if ret > 0:
+                    graph[u][i][2] -= ret
+                    graph[v][rev][2] += ret
+                    return ret
+        return 0
+    
+    total_flow = 0
+    while bfs() and total_flow < d:
+        it_ptr = [0] * (n + 1)
+        while True:
+            pushed = dfs(s, d - total_flow)
+            if pushed == 0:
+                break
+            total_flow += pushed
+            if total_flow == d:
+                break
+    
+    if total_flow == d:
+        print("YES")
+        result = []
+        for u, v, orig_cap in edge_info:
+            # Find the flow on this edge
+            for edge in graph[u]:
+                if edge[3] == orig_cap:  # original cap matches
+                    result.append(orig_cap - edge[2])
+                    break
+        print(' '.join(map(str, result)))
+    else:
+        print("NO")
+
+solve2()

@@ -1,0 +1,71 @@
+import sys
+from functools import cmp_to_key
+
+def compare_components(c1, c2):
+    # c1 = (p1, p2, index)
+    # c2 = (p1, p2, index)
+    
+    # If one's p1 <= other's p2, we know the order
+    if c1[0] <= c2[1]:
+        return -1  # c1 should come before c2
+    elif c2[0] <= c1[1]:
+        return 1   # c2 should come before c1
+    else:
+        # Otherwise, sort by p1 - p2 descending
+        diff1 = c1[0] - c1[1]
+        diff2 = c2[0] - c2[1]
+        if diff1 > diff2:
+            return -1
+        elif diff1 < diff2:
+            return 1
+        else:
+            return 0
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    j = int(data[0])
+    components = []
+    idx = 1
+    for i in range(j):
+        p1 = int(data[idx])
+        p2 = int(data[idx+1])
+        components.append((p1, p2))
+        idx += 2
+    
+    # Sort components with custom comparator
+    # Convert to list with indices for stable sorting if needed
+    indexed_components = [(components[i][0], components[i][1], i) for i in range(j)]
+    
+    # Use greedy approach: sort by p1 - p2 in descending order
+    # But respect the constraint that if a.p1 <= b.p2, then a comes before b
+    
+    def cmp(a, b):
+        if a[0] <= b[1]:
+            return -1
+        if b[0] <= a[1]:
+            return 1
+        diff_a = a[0] - a[1]
+        diff_b = b[0] - b[1]
+        if diff_a > diff_b:
+            return -1
+        elif diff_a < diff_b:
+            return 1
+        else:
+            return 0
+            
+    sorted_components = sorted(indexed_components, key=cmp_to_key(cmp))
+    
+    # Calculate Y_j
+    X = 0
+    Y = 0
+    for p1, p2, _ in sorted_components:
+        X += p1
+        Y = max(X, Y) + p2
+        
+    print(Y)
+
+if __name__ == "__main__":
+    main()

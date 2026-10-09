@@ -1,8 +1,11 @@
 import sys
 from collections import defaultdict, deque
 
-def solve():
-    n, m = map(int, input().split())
+def main():
+    import sys
+    sys.setrecursionlimit(1 << 25)
+    
+    n, m = map(int, sys.stdin.readline().split())
     
     if m == 0:
         print("YES")
@@ -10,42 +13,43 @@ def solve():
         return
     
     # Build adjacency list
-    graph = defaultdict(list)
+    adj = defaultdict(list)
     for _ in range(m):
-        u, v = map(int, input().split())
-        graph[u].append(v)
-        graph[v].append(u)
+        u, v = map(int, sys.stdin.readline().split())
+        adj[u].append(v)
+        adj[v].append(u)
     
-    # Color assignment: 0 means unvisited, 1 and 2 are the two colors
+    # Color array: 0 = unvisited, 1 and 2 are colors
     color = [0] * (n + 1)
     
-    # Check if bipartite using BFS for each connected component
-    for start in range(1, n + 1):
-        if color[start] == 0:
-            queue = deque([start])
-            color[start] = 1
+    # Check if bipartite using BFS
+    def bfs(start):
+        queue = deque()
+        queue.append(start)
+        color[start] = 1
+        
+        while queue:
+            node = queue.popleft()
+            current_color = color[node]
+            next_color = 2 if current_color == 1 else 1
             
-            while queue:
-                node = queue.popleft()
-                current_color = color[node]
-                
-                for neighbor in graph[node]:
-                    if color[neighbor] == 0:
-                        color[neighbor] = 3 - current_color  # Flip between 1 and 2
-                        queue.append(neighbor)
-                    elif color[neighbor] == current_color:
-                        print("NO")
-                        return
+            for neighbor in adj[node]:
+                if color[neighbor] == 0:
+                    color[neighbor] = next_color
+                    queue.append(neighbor)
+                elif color[neighbor] == current_color:
+                    return False
+        return True
     
-    # If we reach here, the graph is bipartite
-    print("YES")
-    result = []
+    # Process each connected component
     for i in range(1, n + 1):
         if color[i] == 0:
-            result.append("1")
-        else:
-            result.append(str(color[i]))
+            if not bfs(i):
+                print("NO")
+                return
     
-    print(" ".join(result))
+    print("YES")
+    print(" ".join(str(color[i]) for i in range(1, n + 1)))
 
-solve()
+if __name__ == "__main__":
+    main()

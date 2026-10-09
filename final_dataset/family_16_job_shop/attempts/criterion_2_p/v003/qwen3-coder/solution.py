@@ -1,0 +1,27 @@
+import sys
+import threading
+
+def main():
+    import sys
+    j = int(sys.stdin.readline())
+    assets = []
+    for _ in range(j):
+        p1, p2 = map(int, sys.stdin.readline().split())
+        assets.append((p1, p2))
+    
+    # Sort by p2 descending (rendering time), then by p1 ascending (drafting time) if tie
+    # This is the optimal strategy: process assets with larger rendering times first
+    assets.sort(key=lambda x: (-x[1], x[0]))
+    
+    drafting_time = 0
+    max_finish_time = 0
+    
+    for p1, p2 in assets:
+        drafting_time += p1
+        finish_time = drafting_time + p2
+        if finish_time > max_finish_time:
+            max_finish_time = finish_time
+    
+    print(max_finish_time)
+
+threading.Thread(target=main).start()

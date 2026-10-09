@@ -1,0 +1,97 @@
+We can model this as a graph problem:  
+- Each variable is a node.  
+- Each constraint \( x_u = x_v \) with cost \( w \) is an edge between \( u \) and \( v \).  
+- Applying constraints means we are merging nodes into connected components.  
+- The projection dimension on the target axes is exactly 1 if and only if all target nodes are in the same connected component.  
+
+So the problem reduces to:  
+Find the minimum total cost to connect all target nodes (possibly through other nodes) using the given edges.
+
+This is exactly the **Steiner tree** problem, but with a small number of target nodes (\( t \leq 10 \)), so we can solve it with **bitmask DP** over subsets of targets.
+
+---
+
+### Approach
+
+1. Build a graph with \( n \) nodes and \( m \) edges.
+2. Compute all-pairs shortest paths (Floyd–Warshall or Dijkstra from each node).
+3. Let `dp[mask][v]` = minimum cost to connect the target nodes in `mask` and end at node `v`.
+4. Initialize: for each target node `i`, `dp[1 << i][target[i]] = 0`.
+5. Transition:
+   - Merge two subsets: `dp[mask1 | mask2][v] = min(dp[mask1][v] + dp[mask2][v])`
+   - Move along shortest paths: `dp[mask][v] = min(dp[mask][u] + dist[u][v])`
+6. Answer is `min(dp[(1 << t) - 1][v])` for any `v`.
+
+---
+
+```python
+import sys
+import heapq
+
+def solve():
+    input = sys.stdin.readline
+    n, m, t = map(int, input().split())
+    targets = list(map(int, input().split()))
+    targets = [x - 1 for x in targets]  # 0-based
+
+    INF = 10**18
+    dist = [[INF] * n for _ in range(n)]
+    for i in range(n):
+        dist[i][i] = 0
+
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u, v, w = map(int, input().split())
+        u -= 1
+        v -= 1
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+
+    # Dijkstra from each node to get all-pairs shortest paths
+    for s in range(n):
+        d = [INF] * n
+        d[s] = 0
+        pq = [(0, s)]
+        while pq:
+            du, u = heapq.heappop(pq)
+            if du != d[u]:
+                continue
+            for v, w in adj[u]:
+                nd = du + w
+                if nd < d[v]:
+                    d[v] = nd
+                    heapq.heappush(pq, (nd, v))
+        dist[s] = d
+
+    # DP over subsets
+    full_mask = (1 << t) - 1
+    dp = [[INF] * n for _ in range(1 << t)]
+
+    for i in range(t):
+        dp[1 << i][targets[i]] = 0
+
+    for mask in range(1 << t):
+        # Merge subsets
+        sub = (mask - 1) & mask
+        while sub:
+            other = mask ^ sub
+            if other < sub:  # avoid duplicate work
+                for v in range(n):
+                    dp[mask][v] = min(dp[mask][v], dp[sub][v] + dp[other][v])
+            sub = (sub - 1) & mask
+
+        # Relax via shortest paths
+        for u in range(n):
+            if dp[mask][u] < INF:
+                for v in range(n):
+                    if dist[u][v] < INF:
+                        nd = dp[mask][u] + dist[u][v]
+                        if nd < dp[mask][v]:
+                            dp[mask][v] = nd
+
+    ans = min(dp[full_mask])
+    print(ans)
+
+if __name__ == "__main__":
+    solve()
+```

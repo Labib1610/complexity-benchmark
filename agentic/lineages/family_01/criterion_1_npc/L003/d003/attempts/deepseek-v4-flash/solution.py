@@ -1,49 +1,44 @@
 import sys
 
 def solve():
-    input = sys.stdin.readline
-    n, m = map(int, input().split())
+    input_data = sys.stdin.read().strip().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    
     adj = [[] for _ in range(n)]
     for _ in range(m):
-        u, v = map(int, input().split())
-        u -= 1
-        v -= 1
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
         adj[u].append(v)
         adj[v].append(u)
     
-    # Precompute conflict masks for each worker
-    conflict_mask = [0] * n
-    for i in range(n):
-        mask = 0
-        for j in adj[i]:
-            mask |= (1 << j)
-        conflict_mask[i] = mask
+    colors = [0] * n  # 0 = uncolored, 1,2,3 = colors
     
-    # We'll store assignment as list of ints 0,1,2 (shift-1)
-    assignment = [-1] * n
+    # Sort vertices by degree for better pruning
+    order = sorted(range(n), key=lambda x: len(adj[x]), reverse=True)
     
-    # DFS with backtracking
-    def dfs(idx):
+    def backtrack(idx):
         if idx == n:
             return True
-        # Try shifts 1,2,3 (0,1,2 internally)
-        for shift in range(3):
-            # Check conflicts with already assigned
-            ok = True
-            for j in adj[idx]:
-                if assignment[j] == shift:
-                    ok = False
-                    break
-            if ok:
-                assignment[idx] = shift
-                if dfs(idx + 1):
+        v = order[idx]
+        used = [False] * 4
+        for nb in adj[v]:
+            if colors[nb] != 0:
+                used[colors[nb]] = True
+        for c in range(1, 4):
+            if not used[c]:
+                colors[v] = c
+                if backtrack(idx + 1):
                     return True
-                assignment[idx] = -1
+                colors[v] = 0
         return False
     
-    if dfs(0):
+    if backtrack(0):
         print("YES")
-        print(" ".join(str(x + 1) for x in assignment))
+        print(" ".join(str(colors[i]) for i in range(n)))
     else:
         print("NO")
 

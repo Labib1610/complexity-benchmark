@@ -1,0 +1,73 @@
+import sys
+import heapq
+
+def solve():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    s = int(next(it))
+    t = int(next(it))
+    B = int(next(it))
+    
+    adj = [[] for _ in range(n + 1)]
+    edges = []
+    for i in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        w = int(next(it))
+        adj[u].append((v, w, i))
+        adj[v].append((u, w, i))
+        edges.append((u, v, w))
+    
+    INF = 10**18
+    dist = [INF] * (n + 1)
+    dist[s] = 0
+    pq = [(0, s)]
+    
+    while pq:
+        d, u = heapq.heappop(pq)
+        if d > dist[u]:
+            continue
+        for v, w, _ in adj[u]:
+            if dist[v] > d + w:
+                dist[v] = d + w
+                heapq.heappush(pq, (dist[v], v))
+    
+    if dist[t] == INF:
+        print("YES")
+        print(0)
+        return
+    
+    if dist[t] > B:
+        print("NO")
+        return
+    
+    parent = [(-1, -1)] * (n + 1)
+    pq = [(0, s)]
+    
+    while pq:
+        d, u = heapq.heappop(pq)
+        if d > dist[u]:
+            continue
+        for v, w, idx in adj[u]:
+            if dist[v] == d + w and parent[v][0] == -1:
+                parent[v] = (u, idx)
+                heapq.heappush(pq, (dist[v], v))
+    
+    cut_edges = set()
+    curr = t
+    while parent[curr][0] != -1:
+        cut_edges.add(parent[curr][1])
+        curr = parent[curr][0]
+    
+    print("YES")
+    print(len(cut_edges))
+    for idx in cut_edges:
+        u, v, _ = edges[idx]
+        print(u, v)
+
+if __name__ == "__main__":
+    solve()

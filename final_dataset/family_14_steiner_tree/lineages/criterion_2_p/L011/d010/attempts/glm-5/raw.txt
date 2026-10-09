@@ -1,0 +1,180 @@
+Looking at this problem:
+
+- We have a tree (m = n-1) with n nodes and t critical nodes
+- We can seal non-critical nodes one at a time, but after each sealing the remaining graph must stay connected
+- We want to minimize the total cost of remaining edges
+
+Key insight: We can seal a non-critical leaf node safely (removing it keeps the tree connected). After sealing, its neighbor might become a new leaf. We can keep sealing non-critical leaves until all remaining non-critical nodes are "blocked" (their removal would disconnect critical nodes).
+
+The remaining structure is the minimal subtree connecting all critical nodes (the Steiner tree on the critical nodes). Any edge not on a path between two critical nodes can be removed by sealing the non-critical leaf it connects to.
+
+So the answer is the sum of edge weights in the minimal subtree connecting all critical nodes.
+
+To find this: root the tree at a critical node, do DFS, and count for each node how many critical nodes are in its subtree. An edge (parent, child) is part of the Steiner tree if the child's subtree contains at least one critical node AND not all critical nodes are in that subtree (i.e., there's at least one critical node outside).
+
+```python
+import sys
+from sys import setrecursionlimit
+
+def solve():
+    input_data = sys.stdin.buffer.read().split()
+    idx = 0
+    n = int(input_data[idx]); idx += 1
+    m = int(input_data[idx]); idx += 1
+    t = int(input_data[idx]); idx += 1
+    
+    critical = [False] * (n + 1)
+    for i in range(t):
+        c = int(input_data[idx]); idx += 1
+        critical[c] = True
+    
+    adj = [[] for _ in range(n + 1)]
+    edges = []
+    for i in range(m):
+        u = int(input_data[idx]); idx += 1
+        v = int(input_data[idx]); idx += 1
+        w = int(input_data[idx]); idx += 1
+        adj[u].append((v, w, i))
+        adj[v].append((u, w, i))
+        edges.append((u, v, w))
+    
+    # Find a critical node to root
+    root = 1
+    for i in range(1, n + 1):
+        if critical[i]:
+            root = i
+            break
+    
+    parent_edge = [None] * (n + 1)  # (edge_index, weight)
+    order = []
+    stack = [root]
+    parent = [0] * (n + 1)
+    visited = [False] * (n + 1)
+    visited[root] = True
+    
+    while stack:
+        u = stack.pop()
+        order.append(u)
+        for v, w, e in adj[u]:
+            if not visited[v]:
+                visited[v] = True
+                parent[v] = u
+                parent_edge[v] = (e, w)
+                stack.append(v)
+    
+    # Count critical nodes in subtree
+    cnt = [0] * (n + 1)
+    for u in order:
+        if critical[u]:
+            cnt[u] = 1
+    
+    for u in reversed(order):
+        if parent[u] != 0:
+            cnt[parent[u]] += cnt[u]
+    
+    # Sum edges that are on path between critical nodes
+    total = 0
+    for u in range(1, n + 1):
+        if u == root:
+            continue
+        if parent_edge[u] is not None:
+            c = cnt[u]
+            if c > 0 and c < t:
+                total += parent_edge[u][1]
+    
+    print(total)
+
+solve()
+```
+
+Let me verify with examples:
+
+**Example 1**: n=4, critical={1,4}, edges: 1-2(5), 2-3(1), 3-4(2)
+- Root at 1. Tree: 1→2→3→4
+- cnt[4]=1, cnt[3]=1, cnt[2]=1, cnt[1]=2
+- Edge 1-2: cnt[2]=1, 0<1<2 ✓ → +5
+- Edge 2-3: cnt[3]=1, 0<1<2 ✓ → +1
+- Edge 3-4: cnt[4]=1, 0<1<2 ✓ → +2
+- Total = 8 ✓
+
+**Example 2**: n=5, critical={3}, edges: 1-2(4), 2-3(6), 3-4(2), 4-5(9)
+- Root at 3. cnt[3]=1, t=1
+- All edges have cnt either 0 or 1 (=t), so none qualify
+- Total = 0 ✓
+
+**Example 3**: n=3, critical={1,2,3}, edges: 1-2(4), 2-3(5)
+- Root at 1. Tree: 1→2→3
+- cnt[3]=1, cnt[2]=2, cnt[1]=3
+- Edge 1-2: cnt[2]=2, 0<2<3 ✓ → +4
+- Edge 2-3: cnt[3]=1, 0<1<3 ✓ → +5
+- Total = 9 ✓
+
+All examples pass. The solution is O(n) time and space.
+
+```python
+import sys
+
+def solve():
+    input_data = sys.stdin.buffer.read().split()
+    idx = 0
+    n = int(input_data[idx]); idx += 1
+    m = int(input_data[idx]); idx += 1
+    t = int(input_data[idx]); idx += 1
+    
+    critical = [False] * (n + 1)
+    for i in range(t):
+        c = int(input_data[idx]); idx += 1
+        critical[c] = True
+    
+    adj = [[] for _ in range(n + 1)]
+    for i in range(m):
+        u = int(input_data[idx]); idx += 1
+        v = int(input_data[idx]); idx += 1
+        w = int(input_data[idx]); idx += 1
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+    
+    root = 1
+    for i in range(1, n + 1):
+        if critical[i]:
+            root = i
+            break
+    
+    parent_edge_w = [0] * (n + 1)
+    order = []
+    stack = [root]
+    parent = [0] * (n + 1)
+    visited = [False] * (n + 1)
+    visited[root] = True
+    
+    while stack:
+        u = stack.pop()
+        order.append(u)
+        for v, w in adj[u]:
+            if not visited[v]:
+                visited[v] = True
+                parent[v] = u
+                parent_edge_w[v] = w
+                stack.append(v)
+    
+    cnt = [0] * (n + 1)
+    for u in order:
+        if critical[u]:
+            cnt[u] = 1
+    
+    for u in reversed(order):
+        if parent[u] != 0:
+            cnt[parent[u]] += cnt[u]
+    
+    total = 0
+    for u in range(1, n + 1):
+        if u == root:
+            continue
+        c = cnt[u]
+        if c > 0 and c < t:
+            total += parent_edge_w[u]
+    
+    print(total)
+
+solve()
+```

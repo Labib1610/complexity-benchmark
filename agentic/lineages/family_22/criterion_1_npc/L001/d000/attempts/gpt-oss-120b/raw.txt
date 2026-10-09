@@ -1,0 +1,365 @@
+**Solution Explanation**
+
+For every dish we have to choose a serving number `time[d]`  
+
+* `1 ≤ time[d] ≤ T`
+* at most `M` dishes may obtain the same `time`
+* for every rule `a → b` we need `time[a] < time[b]`
+
+The dishes together with the rules form a directed acyclic graph (DAG) –
+otherwise the answer is impossible.
+
+
+
+--------------------------------------------------------------------
+
+#### 1.   Earliest and latest possible serving numbers  
+
+For a dish `v`
+
+* `earliest[v]` – the smallest serving number that can be given to `v`
+  respecting all predecessors.
+* `latest[v]`   – the largest serving number that can be given to `v`
+  while still leaving enough later servings for all its successors.
+
+Both values are obtained by a single topological order.
+
+```
+earliest[v] = 1 + max( earliest[u] ) over all edges u → v
+```
+
+If a vertex has no predecessor, `earliest = 1`.
+
+For the latest values we look from the end of the banquet.
+Let `len_to_end[v]` be the length (in vertices) of the longest directed
+path that starts in `v`.
+
+```
+len_to_end[v] = 1 + max( len_to_end[w] ) over all edges v → w
+```
+
+If `v` has no outgoing edge, `len_to_end = 1`.
+
+If the longest path that starts in `v` needs `len_to_end[v]` servings,
+the last vertex of that path must be placed at most at serving `T`,
+therefore the first one (`v`) may be placed at most at
+
+```
+latest[v] = T - (len_to_end[v] - 1)
+```
+
+If for some vertex `earliest[v] > latest[v]` the constraints are already
+contradictory → answer `NO`.
+
+--------------------------------------------------------------------
+
+#### 2.   Reducing to “interval scheduling on parallel machines”
+
+Now each dish `v` may be placed at any integer time inside the **interval**
+
+```
+[ earliest[v] , latest[v] ]          (inclusive)
+```
+
+All intervals are *contiguous*.
+We have `M` identical “machines” (the `M` places inside one serving) and
+`T` time slots.
+The problem is exactly:
+
+*schedule all jobs, each needs one unit of a machine, respecting its
+interval, at most `M` jobs per time slot.*
+
+For this classic problem the **Earliest‑Deadline‑First (EDF) greedy**
+algorithm is optimal:
+
+```
+process jobs in non‑decreasing order of latest (deadline)
+assign each job to the earliest still free time ≥ its earliest
+```
+
+If the algorithm ever cannot find a free time inside the job’s interval,
+no feasible schedule exists.
+
+--------------------------------------------------------------------
+
+#### 3.   Finding the earliest free time – Disjoint Set Union
+
+`T` can be up to 10⁵ (or larger), we need `O(log* T)` per assignment.
+
+Maintain
+
+```
+cap[t]   – remaining free places in time t   (initially M)
+parent[t] – the smallest time ≥ t that still has cap > 0
+```
+
+`find(t)` returns `parent[t]` with path compression.
+When we put a job into time `x`
+
+```
+cap[x] -= 1
+if cap[x] == 0:   parent[x] = find(x+1)   # skip this full slot
+```
+
+Thus `find(earliest)` gives the earliest time that still has a free place.
+
+--------------------------------------------------------------------
+
+#### 4.   Algorithm
+```
+read input
+build adjacency lists, indegrees
+topological order (Kahn)
+    compute earliest[]
+reverse topological order
+    compute len_to_end[]
+    compute latest[] = T - (len_to_end-1)
+
+if any earliest > latest : print NO and exit
+
+make list jobs = (latest, earliest, id) for all dishes
+sort jobs by latest
+
+initialise cap[1..T] = M
+initialise parent[t] = t   (and parent[T+1] = T+1 as sentinel)
+
+for each (latest, earliest, id) in jobs:
+        t = find(earliest)
+        if t > latest or t > T:   print NO and exit
+        assign[id] = t
+        cap[t] -= 1
+        if cap[t] == 0: parent[t] = find(t+1)
+
+print YES and the assignments
+```
+
+All operations are linear or `α(T)` (inverse Ackermann) per job,
+well inside the limits.
+
+--------------------------------------------------------------------
+
+#### 5.   Correctness Proof  
+
+We prove that the algorithm prints `YES` with a valid assignment
+iff such an assignment exists.
+
+---
+
+##### Lemma 1  
+For every dish `v` any feasible schedule must place it at a time
+`time[v]` with `earliest[v] ≤ time[v] ≤ latest[v]`.
+
+**Proof.**  
+`earliest[v]` is defined as `1 + max earliest` of its predecessors,
+hence any predecessor needs a strictly smaller time, therefore
+`time[v]` cannot be smaller than `earliest[v]`.  
+Similarly, `len_to_end[v]` is the length of the longest directed path
+starting at `v`. The last vertex of that path needs a time ≤ `T`,
+so the first one (`v`) cannot be later than `T-(len_to_end[v]-1)=latest[v]`. ∎
+
+
+
+##### Lemma 2  
+If the greedy EDF algorithm (processing jobs by non‑decreasing deadline
+and always using the earliest still free time) fails for some job,
+then **no** schedule respecting all intervals and the capacity `M`
+exists.
+
+**Proof.**  
+Consider the moment the algorithm fails on job `j` with interval
+`[L,R]`. All times `t` with `L ≤ t ≤ R` are already full, i.e. each of
+them already contains `M` jobs whose deadlines are **≤** `R`
+(because they were processed earlier).  
+Any feasible schedule must also place those already scheduled jobs
+somewhere in `[L,R]` (they cannot be moved later, their deadline is `R`),
+hence they already occupy the whole capacity of the interval.
+Job `j` would need one more place inside the same interval – impossible.
+∎
+
+
+
+##### Lemma 3  
+When the algorithm assigns a job `j` to time `t = find(L)`,
+the assignment respects all precedence constraints.
+
+**Proof.**  
+By Lemma&nbsp;1 every predecessor `p` of `j` has `latest[p] < latest[j]`
+(because there is a directed edge `p → j`).  
+Jobs are processed in non‑decreasing order of `latest`, therefore all
+predecessors are already assigned before `j`.  
+When a predecessor `p` was assigned, it received a time `time[p]`
+that is **≤** its own `latest[p]` and also **≥** its `earliest[p]`.
+Since `latest[p] < latest[j] ≤ R` and the algorithm always uses the
+earliest free time, we have `time[p] < t`.  
+Thus `time[p] < time[j]` for every predecessor, satisfying the strict
+order requirement. ∎
+
+
+
+##### Lemma 4  
+If the algorithm finishes without failure, the produced assignment
+satisfies all problem constraints.
+
+**Proof.**  
+*Capacity*: a time slot receives a new job only while `cap[t] > 0`;
+after each assignment `cap[t]` is decreased, and when it reaches `0`
+the slot is removed from future consideration. Hence at most `M` jobs
+receive the same time.
+
+*Intervals*: a job is assigned to `t = find(L)`. By definition of `find`,
+`t` is the smallest time ≥ `L` that still has free capacity, therefore
+`L ≤ t`. The algorithm also checks `t ≤ R` (its deadline), so the interval
+condition holds.
+
+*Precedence*: follows from Lemma&nbsp;3. ∎
+
+
+
+##### Lemma 5  
+If a feasible schedule exists, the algorithm never fails.
+
+**Proof.**  
+Assume a feasible schedule exists but the algorithm fails on some job
+`j` with interval `[L,R]`. By Lemma&nbsp;2 this would make any schedule
+impossible, contradicting the assumption. ∎
+
+
+
+##### Theorem  
+The program outputs  
+
+*`YES` and a correct assignment* **iff** a feasible assignment exists;  
+otherwise it outputs `NO`.
+
+**Proof.**  
+
+*If part*:  
+When the program prints `YES`, it has completed the greedy scheduling
+without failure. By Lemma&nbsp;4 the produced assignment satisfies all
+requirements, therefore a feasible assignment exists.
+
+*Only‑if part*:  
+Suppose a feasible assignment exists.
+Lemma&nbsp;1 guarantees all jobs have non‑empty intervals, otherwise no
+schedule could exist. The greedy algorithm is then applied.
+By Lemma&nbsp;5 it cannot fail, thus the program reaches the end and
+prints `YES`. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### 6.   Complexity Analysis  
+
+*Topological sorting* : `O(n + m)`  
+*Computing earliest / latest* : `O(n + m)`  
+*Sorting jobs* : `O(n log n)`  
+*Greedy scheduling* : each `find`/union is `α(T)`, total `O(n α(T))`.
+
+Overall  
+
+```
+Time   : O( n log n + m )
+Memory : O( n + m + T )
+```
+
+Both satisfy the limits (`n, m, T ≤ 2·10⁵` easily fit into 256 MB).
+
+--------------------------------------------------------------------
+
+#### 7.   Reference Implementation  (Python 3)
+
+```python
+import sys
+sys.setrecursionlimit(1 << 25)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    M = int(next(it))
+    T = int(next(it))
+    m = int(next(it))
+
+    adj = [[] for _ in range(n)]
+    radj = [[] for _ in range(n)]
+    indeg = [0] * n
+    for _ in range(m):
+        a = int(next(it)) - 1
+        b = int(next(it)) - 1
+        adj[a].append(b)
+        radj[b].append(a)
+        indeg[b] += 1
+
+    # Kahn topological order
+    from collections import deque
+    q = deque([i for i in range(n) if indeg[i] == 0])
+    topo = []
+    while q:
+        v = q.popleft()
+        topo.append(v)
+        for to in adj[v]:
+            indeg[to] -= 1
+            if indeg[to] == 0:
+                q.append(to)
+    if len(topo) != n:
+        print("NO")
+        return
+
+    # earliest
+    earliest = [1] * n
+    for v in topo:
+        for to in adj[v]:
+            if earliest[to] < earliest[v] + 1:
+                earliest[to] = earliest[v] + 1
+
+    # longest path to end (len_to_end)
+    len_to_end = [1] * n
+    for v in reversed(topo):
+        for to in adj[v]:
+            if len_to_end[v] < len_to_end[to] + 1:
+                len_to_end[v] = len_to_end[to] + 1
+
+    latest = [0] * n
+    for v in range(n):
+        latest[v] = T - (len_to_end[v] - 1)
+        if earliest[v] > latest[v]:
+            print("NO")
+            return
+
+    # jobs list
+    jobs = [(latest[i], earliest[i], i) for i in range(n)]
+    jobs.sort()  # by latest
+
+    # DSU for next free time
+    parent = list(range(T + 2))   # 1..T, T+1 sentinel
+    cap = [M] * (T + 2)
+
+    def find(x: int) -> int:
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    assign = [0] * n
+    for dl, el, idx in jobs:
+        t = find(el)
+        if t > dl or t > T:
+            print("NO")
+            return
+        assign[idx] = t
+        cap[t] -= 1
+        if cap[t] == 0:
+            parent[t] = find(t + 1)
+
+    print("YES")
+    print(' '.join(str(assign[i]) for i in range(n)))
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above
+and conforms to the required input‑output format.

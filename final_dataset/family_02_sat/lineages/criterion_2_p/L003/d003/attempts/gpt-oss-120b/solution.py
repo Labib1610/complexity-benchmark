@@ -1,0 +1,91 @@
+import sys
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+
+    N = 2 * n  # each variable: true = 2*i, false = 2*i+1
+    g = [[] for _ in range(N)]
+    rg = [[] for _ in range(N)]
+
+    def lit(v: int) -> int:
+        """return node index for literal v (positive -> xi, negative -> ¬xi)"""
+        if v > 0:
+            return 2 * (v - 1)          # xi true
+        else:
+            return 2 * (-v - 1) ^ 1     # xi false
+
+    def add_imp(u: int, v: int):
+        g[u].append(v)
+        rg[v].append(u)
+
+    for _ in range(m):
+        a = int(next(it))
+        b = int(next(it))
+        la = lit(a)
+        lb = lit(b)
+        na = la ^ 1
+        nb = lb ^ 1
+        # (a ∨ b) => (¬a → b) and (¬b → a)
+        add_imp(na, lb)
+        add_imp(nb, la)
+
+    sys.setrecursionlimit(1 << 25)
+    visited = [False] * N
+    order = []
+
+    def dfs(v: int):
+        stack = [(v, 0)]
+        while stack:
+            v, state = stack.pop()
+            if state == 0:
+                if visited[v]:
+                    continue
+                visited[v] = True
+                stack.append((v, 1))
+                for to in g[v]:
+                    if not visited[to]:
+                        stack.append((to, 0))
+            else:
+                order.append(v)
+
+    for v in range(N):
+        if not visited[v]:
+            dfs(v)
+
+    comp = [-1] * N
+    cid = 0
+
+    def rdfs(v: int, label: int):
+        stack = [v]
+        while stack:
+            x = stack.pop()
+            if comp[x] != -1:
+                continue
+            comp[x] = label
+            for to in rg[x]:
+                if comp[to] == -1:
+                    stack.append(to)
+
+    for v in reversed(order):
+        if comp[v] == -1:
+            rdfs(v, cid)
+            cid += 1
+
+    assignment = [0] * n
+    for i in range(n):
+        if comp[2*i] == comp[2*i ^ 1]:
+            print("NO")
+            return
+        # component with larger id comes earlier in topological order
+        assignment[i] = 1 if comp[2*i] > comp[2*i ^ 1] else 0
+
+    print("YES")
+    print(' '.join(map(str, assignment)))
+
+if __name__ == "__main__":
+    solve()

@@ -1,0 +1,153 @@
+```python
+import sys
+from collections import deque
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    M = int(input_data[1])
+    T = int(input_data[2])
+    m = int(input_data[3])
+    
+    adj = [[] for _ in range(n + 1)]
+    rev_adj = [[] for _ in range(n + 1)]
+    in_degree = [0] * (n + 1)
+    
+    idx = 4
+    for _ in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx + 1])
+        idx += 2
+        adj[u].append(v)
+        rev_adj[v].append(u)
+        in_degree[v] += 1
+
+    if n > M * T:
+        print("NO")
+        return
+
+    # Topological sort to detect cycles and get order
+    q = deque([i for i in range(1, n + 1) if in_degree[i] == 0])
+    topo_order = []
+    while q:
+        u = q.popleft()
+        topo_order.append(u)
+        for v in adj[u]:
+            in_degree[v] -= 1
+            if in_degree[v] == 0:
+                q.append(v)
+                
+    if len(topo_order) < n:
+        print("NO")
+        return
+
+    # Compute ASAP
+    asap = [1] * (n + 1)
+    for u in topo_order:
+        for v in adj[u]:
+            if asap[u] + 1 > asap[v]:
+                asap[v] = asap[u] + 1
+
+    # Compute ALAP and height
+    alap = [T] * (n + 1)
+    height = [1] * (n + 1)
+    for u in reversed(topo_order):
+        for v in adj[u]:
+            if alap[v] - 1 < alap[u]:
+                alap[u] = alap[v] - 1
+            if height[v] + 1 > height[u]:
+                height[u] = height[v] + 1
+
+    for i in range(1, n + 1):
+        if asap[i] > alap[i] or alap[i] < 1 or asap[i] > T:
+            print("NO")
+            return
+
+    # Backtracking / Search
+    # State: term t, current in_degree_left for each node, assigned term for each node
+    cur_in_deg = [len(rev_adj[i]) for i in range(n + 1)]
+    assigned_term = [0] * (n + 1)
+    
+    # Priority for tie-breaking: lower alap, higher height, higher out-degree
+    priority = [0] * (n + 1)
+    for i in range(1, n + 1):
+        priority[i] = (alap[i], -height[i], -len(adj[i]), i)
+
+    def dfs(t, remaining_count):
+        if remaining_count == 0:
+            return True
+        if t > T:
+            return False
+        
+        # Check if any unscheduled node has ALAP < t
+        # Also check if remaining nodes cannot fit in remaining terms
+        if remaining_count > (T - t + 1) * M:
+            return False
+        
+        # Find all ready nodes
+        ready = []
+        mandatory = []
+        for i in range(1, n + 1):
+            if assigned_term[i] == 0:
+                if alap[i] < t:
+                    return False
+                if cur_in_deg[i] == 0:
+                    if alap[i] == t:
+                        mandatory.append(i)
+                    else:
+                        ready.append(i)
+                else:
+                    if alap[i] == t:
+                        # Cannot be scheduled in time!
+                        return False
+
+        if len(mandatory) > M:
+            return False
+
+        slots_left = M - len(mandatory)
+        ready.sort(key=lambda x: priority[x])
+
+        # If total ready + mandatory <= M, we can just take all of them
+        if len(mandatory) + len(ready) <= M:
+            chosen_combos = [mandatory + ready]
+        else:
+            # We must take all mandatory, and choose `slots_left` from `ready`
+            # Greedily prioritize the top candidates
+            best_ready = ready[:slots_left]
+            chosen_combos = [mandatory + best_ready]
+            
+            # If search might need alternative branch:
+            if len(ready) > slots_left and slots_left > 0:
+                # Add a few alternative combinations if needed
+                for i in range(min(len(ready) - slots_left, 2)):
+                    alt = mandatory + ready[:slots_left - 1] + [ready[slots_left + i]]
+                    chosen_combos.append(alt)
+
+        for chosen in chosen_combos:
+            for u in chosen:
+                assigned_term[u] = t
+                for v in adj[u]:
+                    cur_in_deg[v] -= 1
+            
+            if dfs(t + 1, remaining_count - len(chosen)):
+                return True
+            
+            for u in chosen:
+                assigned_term[u] = 0
+                for v in adj[u]:
+                    cur_in_deg[v] += 1
+
+        return False
+
+    if dfs(1, n):
+        print("YES")
+        print(*(assigned_term[i] for i in range(1, n + 1)))
+    else:
+        print("NO")
+
+if __name__ == '__main__':
+    solve()
+```

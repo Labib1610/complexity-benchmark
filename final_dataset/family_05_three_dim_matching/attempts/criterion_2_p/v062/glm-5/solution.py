@@ -1,0 +1,86 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    k = int(data[0])
+    t = int(data[1])
+    
+    # Group states by principal number p
+    # Since each p has a unique a, we can map p -> a, and p -> list of m values
+    p_to_a = {}
+    p_to_ms = {}
+    
+    idx = 2
+    for _ in range(t):
+        p = int(data[idx]); a = int(data[idx+1]); m = int(data[idx+2])
+        idx += 3
+        p_to_a[p] = a
+        if p not in p_to_ms:
+            p_to_ms[p] = []
+        p_to_ms[p].append(m)
+    
+    # We need to select exactly k states, one for each p from 1 to k
+    # Each selected state has (p, a_p, m) where a_p is fixed for p
+    # The a_p values must be a permutation of 1..k
+    # The m values must be a permutation of 1..k
+    
+    # First, check that we have states for all p in 1..k
+    # and that the a values form a permutation of 1..k
+    a_set = set()
+    valid_p = True
+    for p in range(1, k+1):
+        if p not in p_to_a:
+            valid_p = False
+            break
+        a_set.add(p_to_a[p])
+    
+    if not valid_p or len(a_set) != k:
+        print("NO")
+        return
+    
+    # Now we need to select one m from each p's list such that
+    # the selected m values form a permutation of 1..k
+    # This is a bipartite matching problem: p on left, m on right
+    # Edge from p to m if m is in p_to_ms[p]
+    
+    # Build adjacency list
+    adj = [[] for _ in range(k+1)]
+    for p in range(1, k+1):
+        for m in p_to_ms[p]:
+            adj[p].append(m)
+    
+    # Hopcroft-Karp or simple augmenting path matching
+    # Since k <= 1200, O(k * E) should be fine
+    match_m = [0] * (k+1)  # match_m[m] = p
+    match_p = [0] * (k+1)  # match_p[p] = m
+    
+    def augment(p, visited):
+        for m in adj[p]:
+            if visited[m]:
+                continue
+            visited[m] = True
+            if match_m[m] == 0 or augment(match_m[m], visited):
+                match_m[m] = p
+                match_p[p] = m
+                return True
+        return False
+    
+    result = 0
+    for p in range(1, k+1):
+        visited = [False] * (k+1)
+        if augment(p, visited):
+            result += 1
+        else:
+            break
+    
+    if result != k:
+        print("NO")
+        return
+    
+    print("YES")
+    for p in range(1, k+1):
+        print(f"{p} {p_to_a[p]} {match_p[p]}")
+
+solve()

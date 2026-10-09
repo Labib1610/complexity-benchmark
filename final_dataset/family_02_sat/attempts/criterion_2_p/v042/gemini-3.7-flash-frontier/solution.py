@@ -1,0 +1,90 @@
+import sys
+
+# Increase recursion depth just in case, though we will write an iterative Kosaraju's algorithm
+sys.setrecursionlimit(500000)
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    def to_lit(c):
+        if c > 0:
+            return 2 * (c - 1)
+        else:
+            return 2 * (-c - 1) + 1
+
+    num_vars = 2 * n
+    adj = [[] for _ in range(num_vars)]
+    radj = [[] for _ in range(num_vars)]
+    
+    idx = 2
+    for _ in range(m):
+        c1 = int(input_data[idx])
+        c2 = int(input_data[idx + 1])
+        idx += 2
+        
+        lit1 = to_lit(c1)
+        lit2 = to_lit(c2)
+        
+        # (lit1 or lit2) => (~lit1 -> lit2) and (~lit2 -> lit1)
+        nlit1 = lit1 ^ 1
+        nlit2 = lit2 ^ 1
+        
+        adj[nlit1].append(lit2)
+        adj[nlit2].append(lit1)
+        
+        radj[lit2].append(nlit1)
+        radj[lit1].append(nlit2)
+
+    # Pass 1: find post-order
+    visited = [False] * num_vars
+    order = []
+    
+    for i in range(num_vars):
+        if not visited[i]:
+            stack = [(i, 0)]
+            visited[i] = True
+            while stack:
+                u, edge_idx = stack[-1]
+                if edge_idx < len(adj[u]):
+                    stack[-1] = (u, edge_idx + 1)
+                    v = adj[u][edge_idx]
+                    if not visited[v]:
+                        visited[v] = True
+                        stack.append((v, 0))
+                else:
+                    stack.pop()
+                    order.append(u)
+
+    # Pass 2: assign SCCs in reverse order
+    scc = [-1] * num_vars
+    scc_count = 0
+    
+    for u in reversed(order):
+        if scc[u] == -1:
+            stack = [u]
+            scc[u] = scc_count
+            while stack:
+                curr = stack.pop()
+                for v in radj[curr]:
+                    if scc[v] == -1:
+                        scc[v] = scc_count
+                        stack.append(v)
+            scc_count += 1
+
+    ans = [0] * n
+    for i in range(n):
+        if scc[2 * i] == scc[2 * i + 1]:
+            print("NO")
+            return
+        ans[i] = 1 if scc[2 * i] > scc[2 * i + 1] else 0
+
+    print("YES")
+    print(*(ans))
+
+if __name__ == '__main__':
+    solve()

@@ -46,6 +46,75 @@ def gen_3dm(k, t, seed, perfect=None):
 
 
 # --- criterion 2: bipartite matching ----------------------------------------
+def _emit_3dm(k, triples):
+    lines = [f"{k} {len(triples)}"]
+    lines += [f"{x} {y} {z}" for (x, y, z) in triples]
+    return "\n".join(lines) + "\n"
+
+
+def gen_functional_3dm(k, seed, feasible=True):
+    """UNIFIED triple schema (audit B4): 3-dimensional matching where each specialist is tied to
+    exactly one machine and the machines are all distinct (a bijection X->Y). Only the time slot is
+    free, so the problem reduces to bipartite matching between specialists and slots. feasible=True
+    plants a perfect specialist<->slot matching; feasible=False creates a Hall violation (two
+    specialists compete for a single slot), so no valid plan exists."""
+    rng = random.Random(seed * 2_000_003 + 7)
+    Yperm = list(range(1, k + 1)); rng.shuffle(Yperm)   # Y[x] = machine of specialist x (bijection)
+    Y = {x: Yperm[x - 1] for x in range(1, k + 1)}
+    triples = []
+    seen = set()
+
+    def add(x, z):
+        if (x, z) not in seen and 1 <= z <= k:
+            seen.add((x, z)); triples.append((x, Y[x], z))
+
+    if feasible:
+        Zperm = list(range(1, k + 1)); rng.shuffle(Zperm)
+        for x in range(1, k + 1):
+            add(x, Zperm[x - 1])                        # the planted perfect matching
+        for x in range(1, k + 1):                       # extra slot options
+            for _ in range(rng.randint(0, 2)):
+                add(x, rng.randint(1, k))
+    else:
+        blocked = rng.sample(range(1, k + 1), 2) if k >= 2 else [1]
+        slot = rng.randint(1, k)
+        for x in range(1, k + 1):
+            if x in blocked:
+                add(x, slot)                            # both blocked specialists share ONE slot
+            else:
+                add(x, x)
+                for _ in range(rng.randint(0, 2)):
+                    z = rng.randint(1, k)
+                    if z != slot:
+                        add(x, z)
+    rng.shuffle(triples)
+    return _emit_3dm(k, triples)
+
+
+def gen_missing_specialist(k, seed, at="high"):
+    """UNIFIED triple schema (audit B5 certificate arm): exactly one specialist appears in NO allowed
+    crew, so it can never be covered. Certificate = the smallest such specialist. `at` places the
+    uncovered specialist (high/low/<int>) so no positional constant works."""
+    rng = random.Random(seed * 3_000_003 + 5)
+    if at == "high":
+        miss = k
+    elif at == "low":
+        miss = 1
+    else:
+        miss = int(at)
+    triples = []
+    seen = set()
+    for x in range(1, k + 1):
+        if x == miss:
+            continue
+        for _ in range(rng.randint(1, 3)):
+            y = rng.randint(1, k); z = rng.randint(1, k)
+            if (x, y, z) not in seen:
+                seen.add((x, y, z)); triples.append((x, y, z))
+    rng.shuffle(triples)
+    return _emit_3dm(k, triples)
+
+
 def gen_bipartite(k, e, seed, mode="perfect"):
     """k workers / k tasks, e allowed (worker,task) pairs.
 
@@ -151,15 +220,19 @@ def main():
     p.add_argument("--perfect", default="")             # criterion 1: yes/no/(blank)
     p.add_argument("--mode", default="perfect")          # criterion 2: perfect/hard/no
     p.add_argument("--empty", default="high")            # criterion 3: high/low/<int>
+    p.add_argument("--kind", default="yes")              # criterion 2 (unified 3DM): yes/no
+    p.add_argument("--at", default="high")               # criterion 3 (unified 3DM): high/low/<int>
     args = p.parse_args()
 
     if args.criterion == 1:
         pf = {"yes": True, "no": False, "": None}[args.perfect]
         out = gen_3dm(args.k, args.t, args.seed, perfect=pf)
     elif args.criterion == 2:
-        out = gen_bipartite(args.k, args.e, args.seed, mode=args.mode)
+        # audit B4: unified 3DM with the functional promise (triple schema), not bipartite pairs.
+        out = gen_functional_3dm(args.k, args.seed, feasible=(args.kind == "yes"))
     else:
-        out = gen_empty_row(args.k, args.e, args.seed, empty=args.empty)
+        # audit B4/B5: unified 3DM missing-specialist certificate (triple schema).
+        out = gen_missing_specialist(args.k, args.seed, at=args.at)
 
     import sys
     sys.stdout.write(out)

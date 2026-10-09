@@ -1,0 +1,120 @@
+import sys
+from collections import deque
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    idx = 0
+    n = int(data[idx]); idx += 1
+    m = int(data[idx]); idx += 1
+    _ = int(data[idx]); idx += 1
+    s = int(data[idx]); idx += 1
+    t = int(data[idx]); idx += 1
+    d = int(data[idx]); idx += 1
+
+    edges = []
+    adj = [[] for _ in range(n + 1)]
+    for i in range(m):
+        u = int(data[idx]); idx += 1
+        v = int(data[idx]); idx += 1
+        cap = int(data[idx]); idx += 1
+        edges.append((u, v, cap))
+        adj[u].append((v, i))
+        adj[v].append((u, i))
+
+    # Build flow network with lower bounds
+    # Edge i: lower bound 0, upper bound cap
+    # Node s: supply d, node t: demand d
+    # Super source S = n+1, super sink T = n+2
+    S = n + 1
+    T = n + 2
+    N = n + 2
+
+    head = [-1] * N
+    to = []
+    nxt = []
+    cap_arr = []
+
+    def add_edge(u, v, c):
+        head[u] = len(to)
+        to.append(v)
+        nxt.append(head[u])
+        cap_arr.append(c)
+        head[v] = len(to)
+        to.append(u)
+        nxt.append(head[v])
+        cap_arr.append(0)
+
+    # Map original edge i to its forward arc index in flow network
+    edge_arc = [0] * m
+    for i in range(m):
+        u, v, c = edges[i]
+        add_edge(u, v, c)
+        edge_arc[i] = len(to) - 2  # forward arc index
+
+    # Add edge from super source to t with capacity d (supply d at t)
+    add_edge(S, t, d)
+    # Add edge from s to super sink with capacity d (demand d at s)
+    add_edge(s, T, d)
+    # Add edge from t to s with infinite capacity
+    INF = 10**18
+    add_edge(t, s, INF)
+
+    # Dinic's max flow from S to T
+    def bfs():
+        level = [-1] * N
+        level[S] = 0
+        q = deque([S])
+        while q:
+            u = q.popleft()
+            e = head[u]
+            while e != -1:
+                v = to[e]
+                if cap_arr[e] > 0 and level[v] < 0:
+                    level[v] = level[u] + 1
+                    q.append(v)
+                e = nxt[e]
+        return level
+
+    def dfs(u, pushed, level, it):
+        if u == T:
+            return pushed
+        while it[u] != -1:
+            e = it[u]
+            v = to[e]
+            if cap_arr[e] > 0 and level[v] == level[u] + 1:
+                d_push = min(pushed, cap_arr[e])
+                tr = dfs(v, d_push, level, it)
+                if tr > 0:
+                    cap_arr[e] -= tr
+                    cap_arr[e ^ 1] += tr
+                    return tr
+            it[u] = nxt[e]
+        return 0
+
+    flow = 0
+    while True:
+        level = bfs()
+        if level[T] < 0:
+            break
+        it = head[:]
+        while True:
+            f = dfs(S, INF, level, it)
+            if f == 0:
+                break
+            flow += f
+
+    # Check if all edges from S are saturated
+    # Edge from S to t is at index (2*m), its capacity should be 0
+    # Edge from s to T is at index (2*m + 2), its reverse capacity should be d
+    if cap_arr[2 * m] == 0 and cap_arr[2 * m + 3] == d:
+        out = []
+        for i in range(m):
+            arc = edge_arc[i]
+            # Flow on edge = original capacity - remaining capacity
+            f = edges[i][2] - cap_arr[arc]
+            out.append(str(f))
+        sys.stdout.write("YES\n" + " ".join(out) + "\n")
+    else:
+        sys.stdout.write("NO\n")
+
+solve()

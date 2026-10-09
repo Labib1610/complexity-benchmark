@@ -1,0 +1,302 @@
+**Solution Explanation**
+
+The problem is a classic *2‑SAT* instance.
+
+* each gene `i` has a Boolean variable `x_i`  
+  `x_i = 1` – gene `i` is activated, `x_i = 0` – suppressed.
+* a constraint contains two literals, e.g. `5` (means `x_5 = 1`) or `-3`
+  (means `x_3 = 0`).  
+  The constraint is satisfied iff at least one of its literals is true,
+  i.e. it is the clause `(ℓ₁ ∨ ℓ₂)`.
+
+A 2‑SAT formula is satisfiable iff its implication graph does **not**
+contain a variable and its negation in the same strongly connected
+component (SCC).  
+If it is satisfiable, a concrete assignment can be obtained from the
+topological order of the SCCs.
+
+The limits (`n ≤ 10⁵`, `m ≤ 2·10⁵`) are easily handled by a linear‑time
+SCC algorithm (Kosaraju or Tarjan).  
+We use Kosaraju because it is simple and fits into the memory limit.
+
+--------------------------------------------------------------------
+
+#### 1.   Graph construction  
+
+For each variable `i` we create two vertices  
+
+```
+idx = i-1
+true  vertex  = 2*idx
+false vertex  = 2*idx + 1
+```
+
+A literal `ℓ` is mapped to a vertex:
+
+```
+if ℓ > 0 :   lit(ℓ) = true vertex of variable ℓ
+else       : lit(ℓ) = false vertex of variable -ℓ
+```
+
+Negation of a vertex `v` is `v ^ 1` (flips the last bit).
+
+Clause `(a ∨ b)` is transformed into two implications  
+
+```
+¬a → b
+¬b → a
+```
+
+and the corresponding directed edges are added to the graph.
+We also build the reversed graph simultaneously (needed for Kosaraju).
+
+The total number of vertices is `2·n` ( ≤ 2·10⁵ ), the total number of
+edges is `2·m` ( ≤ 4·10⁵ ), well inside the limits.
+
+--------------------------------------------------------------------
+
+#### 2.   Kosaraju SCC
+
+*First pass* – DFS on the original graph, storing vertices in order of
+completion (`order` list).
+
+*Second pass* – DFS on the reversed graph, processing vertices in
+reverse `order`. All vertices reached in one DFS belong to the same SCC;
+they receive the same component id (`comp[v]`). Component ids are
+assigned incrementally, therefore a component discovered later gets a
+larger id – this is exactly the reverse topological order of the SCC
+condensation DAG.
+
+Both DFS traversals are implemented recursively; the recursion depth is
+at most `2·n` ( ≤ 2·10⁵ ), safe after raising the recursion limit.
+
+--------------------------------------------------------------------
+
+#### 3.   Checking satisfiability and building an assignment  
+
+For each variable `i`
+
+```
+if comp[true(i)] == comp[false(i)] → unsatisfiable
+else
+    assign x_i = 1  iff  comp[true(i)] > comp[false(i)]
+```
+
+Why does the comparison work?  
+In Kosaraju, a component with a larger id appears **earlier** in a
+topological order of the condensation graph, i.e. it cannot reach a
+component with a smaller id. The standard rule `comp[true] > comp[false]`
+therefore yields a satisfying assignment.
+
+--------------------------------------------------------------------
+
+#### 4.   Correctness Proof  
+
+We prove that the algorithm outputs `YES` and a correct assignment
+iff such an assignment exists.
+
+---
+
+##### Lemma 1  
+For every clause `(a ∨ b)` the added edges `¬a → b` and `¬b → a`
+are logically equivalent to the clause: any assignment satisfies the
+clause **iff** it satisfies both implications.
+
+**Proof.**  
+If the clause is satisfied, at least one literal is true.
+*If `a` is true* then `¬a` is false, so `¬a → b` holds trivially.
+*If `a` is false* then `b` must be true (otherwise the clause would be
+false), and `¬a` is true, therefore the implication forces `b` true.
+The same reasoning holds for the second implication. Conversely,
+if both implications hold and the clause were false, both `a` and `b`
+would be false, making `¬a` true and `¬a → b` false – contradiction. ∎
+
+
+
+##### Lemma 2  
+If a variable `x` and its negation `¬x` belong to the same SCC,
+the formula is unsatisfiable.
+
+**Proof.**  
+Inside an SCC there is a directed path `x →* ¬x` and also `¬x →* x`.
+Thus the graph contains the implications `x ⇒ ¬x` and `¬x ⇒ x`,
+which together force `x` to be both true and false in any assignment.
+Hence no assignment can satisfy all implications, and by Lemma&nbsp;1
+cannot satisfy the original formula. ∎
+
+
+
+##### Lemma 3  
+If for every variable `x` the vertices `x` and `¬x` are in different SCCs,
+the assignment defined by  
+
+```
+x = 1  iff  comp[x] > comp[¬x]
+```
+
+satisfies all implications.
+
+**Proof.**  
+Consider any implication `p → q`. In the condensation DAG there is an
+edge from `comp[p]` to `comp[q]`. Topological order guarantees
+`comp[p] ≤ comp[q]`.  
+Two cases:
+
+* `comp[p] = comp[q]` – then `p` and `q` are in the same SCC, and the
+  assignment gives them the same truth value, so the implication holds.
+* `comp[p] < comp[q]` – then `comp[p]` is smaller, therefore
+  `comp[p]` gets a **smaller** id than `comp[q]`. By the assignment rule,
+  `p` is false (`comp[p]` not larger than its negation) or `q` is true
+  (`comp[q]` larger than its negation). In both sub‑cases the implication
+  `p → q` is true.
+
+Thus every implication is satisfied. ∎
+
+
+
+##### Lemma 4  
+If all implications are satisfied, the original 2‑SAT formula is
+satisfied.
+
+**Proof.**  
+By Lemma&nbsp;1 each clause is equivalent to its two implications.
+If both implications are true, the clause is true. ∎
+
+
+
+##### Theorem  
+The algorithm outputs  
+
+* `NO` **iff** the given set of constraints is unsatisfiable;
+* otherwise `YES` and a configuration that satisfies all constraints.
+
+**Proof.**  
+
+*If the algorithm prints `NO`.*  
+That happens exactly when some variable and its negation share an SCC.
+By Lemma&nbsp;2 the formula is unsatisfiable.
+
+*If the algorithm prints `YES`.*  
+Then for every variable the two literals lie in different SCCs.
+The algorithm uses the assignment of Lemma&nbsp;3, which satisfies all
+implications, and by Lemma&nbsp;4 also satisfies all original clauses.
+Hence the printed configuration is valid.
+
+*Conversely*, if the formula is unsatisfiable, any SCC containing a
+variable together with its negation must exist (otherwise Lemma&nbsp;3
+would give a satisfying assignment). The algorithm would detect it and
+output `NO`. If the formula is satisfiable, no such SCC exists, the
+algorithm reaches the assignment step and outputs a valid configuration.
+∎
+
+
+
+--------------------------------------------------------------------
+
+#### 5.   Complexity Analysis  
+
+*Vertices*: `2n`  
+*Edges*: `2m`
+
+*Building the graph*: `O(n + m)` time, `O(n + m)` memory.  
+*Kosaraju* (two DFS passes): `O(n + m)` time, `O(n + m)` memory.  
+*Assignment*: `O(n)` time.
+
+Overall  
+
+```
+Time   :  O(n + m)   ≤ 3·10⁵ operations
+Memory :  O(n + m)   ≤ 6·10⁵ integers  (well below 256 MB)
+```
+
+Both satisfy the limits easily.
+
+--------------------------------------------------------------------
+
+#### 6.   Reference Implementation  (Python 3)
+
+```python
+import sys
+
+sys.setrecursionlimit(1_000_000)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+
+    N = 2 * n                     # total vertices
+    g = [[] for _ in range(N)]   # forward graph
+    rg = [[] for _ in range(N)]  # reversed graph
+
+    def lit(x: int) -> int:
+        """return vertex index of literal x (positive -> true, negative -> false)"""
+        v = abs(x) - 1
+        if x > 0:
+            return 2 * v          # true
+        else:
+            return 2 * v + 1      # false
+
+    for _ in range(m):
+        a = int(next(it))
+        b = int(next(it))
+        A = lit(a)
+        B = lit(b)
+        NA = A ^ 1                 # negation
+        NB = B ^ 1
+        # ¬a → b
+        g[NA].append(B)
+        rg[B].append(NA)
+        # ¬b → a
+        g[NB].append(A)
+        rg[A].append(NB)
+
+    visited = [False] * N
+    order = []
+
+    def dfs(v: int):
+        visited[v] = True
+        for to in g[v]:
+            if not visited[to]:
+                dfs(to)
+        order.append(v)
+
+    for v in range(N):
+        if not visited[v]:
+            dfs(v)
+
+    comp = [-1] * N
+    cur = 0
+
+    def rdfs(v: int, cid: int):
+        comp[v] = cid
+        for to in rg[v]:
+            if comp[to] == -1:
+                rdfs(to, cid)
+
+    for v in reversed(order):
+        if comp[v] == -1:
+            rdfs(v, cur)
+            cur += 1
+
+    assignment = [0] * n
+    for i in range(n):
+        t = 2 * i
+        f = t + 1
+        if comp[t] == comp[f]:
+            print("NO")
+            return
+        assignment[i] = 1 if comp[t] > comp[f] else 0
+
+    print("YES")
+    print(' '.join(map(str, assignment)))
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above and
+conforms to the required input‑output format.

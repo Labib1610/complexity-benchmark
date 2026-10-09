@@ -1,0 +1,39 @@
+import sys
+
+
+def main():
+    input = sys.stdin.read
+    data = input().split()
+    if not data:
+        return
+
+    n = int(data[0])
+    m = int(data[1])
+
+    mask = [0] * (n + 1)
+    edges = []
+
+    idx = 2
+    for _ in range(m):
+        u = int(data[idx])
+        v = int(data[idx + 1])
+        idx += 2
+        mask[u] |= 1 << v
+        mask[v] |= 1 << u
+        if u > v:
+            u, v = v, u
+        edges.append((u, v))
+
+    edges.sort()
+
+    for u, v in edges:
+        common = (mask[u] & mask[v]) >> (v + 1)
+        if common:
+            lowest_bit = common & -common
+            c = v + 1 + lowest_bit.bit_length() - 1
+            print(f"{u} {v} {c}")
+            return
+
+
+if __name__ == "__main__":
+    main()

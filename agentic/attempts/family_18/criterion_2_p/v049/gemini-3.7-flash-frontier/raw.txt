@@ -1,0 +1,258 @@
+```python
+import sys
+import time
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    B = int(input_data[2])
+    
+    if n == 1:
+        print("YES")
+        print("1")
+        return
+        
+    adj = [[] for _ in range(n)]
+    edges = []
+    idx = 3
+    for _ in range(m):
+        u = int(input_data[idx]) - 1
+        v = int(input_data[idx+1]) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+        edges.append((u, v))
+        idx += 2
+
+    # Exact DP for small n
+    if n <= 18:
+        adj_mask = [0] * n
+        for u, v in edges:
+            adj_mask[u] |= (1 << v)
+            adj_mask[v] |= (1 << u)
+            
+        N = 1 << n
+        dp = [float('inf')] * N
+        cut = [0] * N
+        parent = [-1] * N
+        
+        dp[0] = 0
+        cut[0] = 0
+        
+        for mask in range(N):
+            cur_cut = cut[mask]
+            cur_dp = dp[mask]
+            if cur_dp > B and cur_dp != float('inf'):
+                continue
+            for v in range(n):
+                if not (mask & (1 << v)):
+                    nmask = mask | (1 << v)
+                    # number of neighbors of v in mask
+                    in_mask = (adj_mask[v] & mask).bit_count()
+                    # neighbors of v outside mask
+                    out_mask = len(adj[v]) - in_mask
+                    ncut = cur_cut - in_mask + out_mask
+                    if cur_dp + ncut < dp[nmask]:
+                        dp[nmask] = cur_dp + ncut
+                        cut[nmask] = ncut
+                        parent[nmask] = v
+
+        if dp[N - 1] <= B:
+            print("YES")
+            order = []
+            curr = N - 1
+            while curr > 0:
+                v = parent[curr]
+                order.append(v)
+                curr ^= (1 << v)
+            order.reverse()
+            ans = [0] * n
+            for pos, v in enumerate(order, 1):
+                ans[v] = pos
+            print(*(ans))
+            return
+        else:
+            print("NO")
+            return
+
+    # For larger n: Centroid Divide and Conquer + DFS Heuristics + Local Search
+    start_time = time.time()
+    
+    def get_cost(order):
+        pos = [0] * n
+        for p, u in enumerate(order, 1):
+            pos[u] = p
+        cost = 0
+        for u, v in edges:
+            cost += abs(pos[u] - pos[v])
+        return cost, pos
+
+    best_cost = float('inf')
+    best_pos = None
+
+    def update_best(order):
+        nonlocal best_cost, best_pos
+        cost, pos = get_cost(order)
+        if cost < best_cost:
+            best_cost = cost
+            best_pos = pos
+        return cost <= B
+
+    # Heuristic 1: Centroid Divide & Conquer Layout
+    visited = [False] * n
+    sz = [0] * n
+
+    def get_sizes(u, p):
+        sz[u] = 1
+        for v in adj[u]:
+            if v != p and not visited[v]:
+                get_sizes(v, u)
+                sz[u] += sz[v]
+
+    def get_centroid(u, p, total_sz):
+        for v in adj[u]:
+            if v != p and not visited[v]:
+                if sz[v] > total_sz // 2:
+                    return get_centroid(v, u, total_sz)
+        return u
+
+    def decompose(root):
+        get_sizes(root, -1)
+        c = get_centroid(root, -1, sz[root])
+        visited[c] = True
+        
+        comps = []
+        for v in adj[c]:
+            if not visited[v]:
+                comp_nodes = []
+                def collect(curr, parent):
+                    comp_nodes.append(curr)
+                    for nxt in adj[curr]:
+                        if nxt != parent and not visited[nxt]:
+                            collect(nxt, curr)
+                collect(v, c)
+                comps.append((len(comp_nodes), v))
+        
+        # Partition comps into left and right to balance size
+        comps.sort(key=lambda x: x[0], reverse=True)
+        left_roots = []
+        right_roots = []
+        left_sz, right_sz = 0, 0
+        for s, r in comps:
+            if left_sz <= right_sz:
+                left_roots.append(r)
+                left_sz += s
+            else:
+                right_roots.append(r)
+                right_sz += s
+                
+        left_order = []
+        for r in left_roots:
+            left_order.extend(decompose(r))
+            
+        right_order = []
+        for r in right_roots:
+            right_order.extend(decompose(r))
+            
+        return left_order + [c] + right_order
+
+    order_cdc = decompose(0)
+    if update_best(order_cdc):
+        print("YES")
+        print(*best_pos)
+        return
+
+    # Heuristic 2: DFS traversals from multiple candidates
+    # Find diameter endpoints
+    def bfs(start):
+        dist = [-1] * n
+        dist[start] = 0
+        q = [start]
+        for u in q:
+            for v in adj[u]:
+                if dist[v] == -1:
+                    dist[v] = dist[u] + 1
+                    q.append(v)
+        far_node = max(range(n), key=lambda x: dist[x])
+        return far_node, dist
+
+    end1, _ = bfs(0)
+    end2, dist = bfs(end1)
+    
+    roots = list(set([0, end1, end2, max(range(n), key=lambda x: len(adj[x]))]))
+
+    for r in roots:
+        for sort_key in [None, 1, -1]:
+            vis = [False] * n
+            dfs_order = []
+            
+            # compute subtree sizes if needed
+            sub_sz = [0] * n
+            if sort_key is not None:
+                def calc_sz(u, p):
+                    sub_sz[u] = 1
+                    for v in adj[u]:
+                        if v != p:
+                            calc_sz(v, u)
+                            sub_sz[u] += sub_sz[v]
+                calc_sz(r, -1)
+
+            def dfs(u, p):
+                vis[u] = True
+                dfs_order.append(u)
+                neighbors = [v for v in adj[u] if v != p]
+                if sort_key == 1:
+                    neighbors.sort(key=lambda x: sub_sz[x])
+                elif sort_key == -1:
+                    neighbors.sort(key=lambda x: sub_sz[x], reverse=True)
+                for v in neighbors:
+                    if not vis[v]:
+                        dfs(v, u)
+            
+            dfs(r, -1)
+            if update_best(dfs_order):
+                print("YES")
+                print(*best_pos)
+                return
+
+    # Local Search refinement
+    current_order = list(order_cdc)
+    curr_cost = best_cost
+    
+    # 2-opt / swap local search
+    import random
+    while time.time() - start_time < 4.2:
+        improved = False
+        for _ in range(500):
+            i = random.randint(0, n - 1)
+            j = random.randint(0, n - 1)
+            if i == j:
+                continue
+            current_order[i], current_order[j] = current_order[j], current_order[i]
+            cost, pos = get_cost(current_order)
+            if cost < curr_cost:
+                curr_cost = cost
+                improved = True
+                if cost < best_cost:
+                    best_cost = cost
+                    best_pos = pos
+                    if best_cost <= B:
+                        print("YES")
+                        print(*best_pos)
+                        return
+            else:
+                # revert
+                current_order[i], current_order[j] = current_order[j], current_order[i]
+
+    if best_cost <= B:
+        print("YES")
+        print(*best_pos)
+    else:
+        print("NO")
+
+if __name__ == '__main__':
+    solve()
+```

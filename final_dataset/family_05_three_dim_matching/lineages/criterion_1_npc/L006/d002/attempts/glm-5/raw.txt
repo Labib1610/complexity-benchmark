@@ -1,0 +1,387 @@
+Looking at this problem, I need to find k protocols where each protocol uses distinct raw materials, catalysts, and finishing treatments (all three must be permutations of 1..k).
+
+This is a 3-dimensional matching problem. With k ≤ 22, I'll use a meet-in-the-middle approach combined with DP over subsets.
+
+**Approach:**
+1. Group protocols by raw material m. For each m, I have a list of (c, f) pairs.
+2. Use meet-in-the-middle: split materials into two halves A and B.
+3. For half A: enumerate all ways to assign materials in A to distinct catalysts, tracking which catalysts are used. For each subset of catalysts used, store the corresponding finishing treatment assignment (as a bitmask).
+4. For half B: similarly enumerate, but track which catalysts are NOT used (complement).
+5. For each subset S of catalysts used by A, I need B to use exactly the complement. Among all valid B assignments using catalysts in complement, I need to find one where the finishing treatments don't conflict with A's assignment.
+
+For the finishing treatment matching, I use a DP: for each subset T of finishing treatments used by B, check if there's a valid B assignment. Then for A's assignment with finishing mask F_A, I need B to use finishing treatments in complement of F_A.
+
+I store for A: `dpA[S]` = set of possible finishing masks F_A (as a frozenset or list).
+For B: `dpB[S]` = set of possible finishing masks F_B.
+
+Then for each S, check if there's F_A in dpA[S] and F_B in dpB[complement] with F_A | F_B = full mask and F_A & F_B = 0.
+
+To reconstruct, I store parent pointers.
+
+Given k ≤ 22, the catalyst subset can be up to 2^22 which is 4M - manageable but tight. Let me use bitmasks and be careful with memory.
+
+Actually, storing sets of finishing masks could blow up. Let me think differently - for each catalyst subset S, store just ONE valid (finishing_mask, assignment) for A, and for B store a dict from finishing_mask to assignment. Then iterate.
+
+Let me implement carefully:
+
+```python
+import sys
+from collections import defaultdict
+
+def solve():
+    input_data = sys.stdin.buffer.read().split()
+    idx = 0
+    k = int(input_data[idx]); idx += 1
+    t = int(input_data[idx]); idx += 1
+    
+    protocols_by_m = [[] for _ in range(k+1)]
+    for _ in range(t):
+        m = int(input_data[idx]); idx += 1
+        c = int(input_data[idx]); idx += 1
+        f = int(input_data[idx]); idx += 1
+        protocols_by_m[m].append((c-1, f-1))  # 0-indexed
+    
+    # Split materials 1..k into two halves
+    half = k // 2
+    A_mats = list(range(1, half+1))
+    B_mats = list(range(half+1, k+1))
+    
+    full_catalyst = (1 << k) - 1
+    full_finish = (1 << k) - 1
+    
+    # For A: enumerate assignments, store dpA[S_catalyst] = list of (F_finish, assignment_tuple)
+    # assignment_tuple: for each material in A_mats, which (c,f) chosen
+    
+    # To save memory, store dpA[S] = dict {F_finish: assignment}
+    # But could be large. Let's store dpA[S] = first found (F_finish, assignment)
+    # and dpB[S] = dict {F_finish: assignment}
+    
+    # Actually we need to match: A uses catalyst set S, B uses catalyst set ~S & full
+    # A uses finish set F_A, B uses finish set ~F_A & full
+    # So for each S, for each F_A in dpA[S], check if (~F_A & full) in dpB[~S & full]
+    
+    # Store dpA[S] as a set of F_A values (with one assignment stored per F_A)
+    # Store dpB[S] as a set of F_B values (with one assignment stored per F_B)
+    
+    def enumerate_half(mats):
+        # Returns dict: catalyst_mask -> dict {finish_mask -> assignment}
+        # assignment is tuple of (c, f) for each material in mats
+        result = defaultdict(dict)
+        n = len(mats)
+        if n == 0:
+            result[0] = {0: ()}
+            return result
+        
+        # DFS
+        # stack: (i, catalyst_mask, finish_mask, assignment)
+        # We want to collect for each (catalyst_mask, finish_mask) one assignment
+        # But storing all could be too much. Let's just store one per finish_mask per catalyst_mask.
+        
+        # Use iterative or recursive DFS
+        sys.setrecursionlimit(10000)
+        
+        def dfs(i, cmask, fmask, assign):
+            if i == n:
+                if fmask not in result[cmask]:
+                    result[cmask][fmask] = tuple(assign)
+                return
+            m = mats[i]
+            for (c, f) in protocols_by_m[m]:
+                cb = 1 << c
+                fb = 1 << f
+                if cmask & cb: continue
+                if fmask & fb: continue
+                assign.append((c, f))
+                dfs(i+1, cmask | cb, fmask | fb, assign)
+                assign.pop()
+        
+        dfs(0, 0, 0, [])
+        return result
+    
+    dpA = enumerate_half(A_mats)
+    dpB = enumerate_half(B_mats)
+    
+    # Now try to match
+    for cmask_A, finish_dict_A in dpA.items():
+        cmask_B = full_catalyst & ~cmask_A
+        if cmask_B not in dpB: continue
+        finish_dict_B = dpB[cmask_B]
+        for fmask_A, assign_A in finish_dict_A.items():
+            fmask_B_needed = full_finish & ~fmask_A
+            if fmask_B_needed in finish_dict_B:
+                assign_B = finish_dict_B[fmask_B_needed]
+                # Reconstruct
+                print("YES")
+                out = []
+                for i, m in enumerate(A_mats):
+                    c, f = assign_A[i]
+                    out.append(f"{m} {c+1} {f+1}")
+                for i, m in enumerate(B_mats):
+                    c, f = assign_B[i]
+                    out.append(f"{m} {c+1} {f+1}")
+                print("\n".join(out))
+                return
+    
+    print("NO")
+
+solve()
+```
+
+Wait, there's an issue: storing all finish masks per catalyst mask could blow up exponentially. In the worst case, for a single catalyst mask there could be many finish masks. But since each material contributes one (c,f) and they're distinct, the number of finish masks per catalyst mask is bounded by the number of ways to assign, which could still be large.
+
+However, with k=22 and half=11, the DFS explores at most product of (number of protocols per material) which could be large. But we only store ONE assignment per (catalyst_mask, finish_mask) pair, and the number of distinct (catalyst_mask, finish_mask) pairs is bounded by 2^k * 2^k = 2^44 which is too much.
+
+Let me reconsider. The key insight: for each catalyst_mask, we only need to store finish masks. The number of distinct catalyst_masks is 2^11 = 2048 for each half. For each catalyst_mask, the number of finish masks is bounded by the number of valid assignments, which in worst case could be large but practically with the constraint that each material has limited protocols...
+
+Actually, the total number of (catalyst_mask, finish_mask) pairs stored is bounded by the total number of valid partial assignments, which is at most the product of protocol counts per material. With k=22 and t up to k^3 = 10648, each material could have up to k^2 = 484 protocols. Product could be huge.
+
+But we only store ONE assignment per (catalyst_mask, finish_mask). The number of distinct (catalyst_mask, finish_mask) pairs is at most 2^k * 2^k but also bounded by number of DFS leaf nodes. With half=11, 2^11 * 2^11 = 4M which is manageable.
+
+Actually the number of distinct (catalyst_mask, finish_mask) is at most 2^22 = 4M per half, and we store one assignment each. This should be OK.
+
+But the DFS itself could explore many paths. Let me add memoization or just let it run - with 5 second time limit it should be fine for the constraint sizes.
+
+Let me also handle the edge case where B_mats is empty (k=1, half=0... no, half = 1//2 = 0, A_mats = range(1,1) = empty, B_mats = range(1,2) = [1]). That's fine.
+
+Actually wait, if k=1, half=0, A_mats=[], B_mats=[1]. dpA = {0: {0: ()}}. dpB enumerates material 1. Then cmask_A=0, cmask_B = full = 1. If material 1 has a protocol, dpB[1] has some finish mask. fmask_A=0, fmask_B_needed = 1. Should match. Good.
+
+Let me refine the code to handle empty halves properly and ensure correctness.
+
+```python
+import sys
+from collections import defaultdict
+
+def solve():
+    input_data = sys.stdin.buffer.read().split()
+    idx = 0
+    k = int(input_data[idx]); idx += 1
+    t = int(input_data[idx]); idx += 1
+    
+    protocols_by_m = [[] for _ in range(k+1)]
+    for _ in range(t):
+        m = int(input_data[idx]); idx += 1
+        c = int(input_data[idx]); idx += 1
+        f = int(input_data[idx]); idx += 1
+        protocols_by_m[m].append((c-1, f-1))
+    
+    half = k // 2
+    A_mats = list(range(1, half+1))
+    B_mats = list(range(half+1, k+1))
+    
+    full_catalyst = (1 << k) - 1
+    full_finish = (1 << k) - 1
+    
+    def enumerate_half(mats):
+        result = defaultdict(dict)
+        n = len(mats)
+        
+        def dfs(i, cmask, fmask, assign):
+            if i == n:
+                if fmask not in result[cmask]:
+                    result[cmask][fmask] = tuple(assign)
+                return
+            m = mats[i]
+            for (c, f) in protocols_by_m[m]:
+                cb = 1 << c
+                fb = 1 << f
+                if cmask & cb: continue
+                if fmask & fb: continue
+                assign.append((c, f))
+                dfs(i+1, cmask | cb, fmask | fb, assign)
+                assign.pop()
+        
+        if n == 0:
+            result[0][0] = ()
+        else:
+            dfs(0, 0, 0, [])
+        return result
+    
+    dpA = enumerate_half(A_mats)
+    dpB = enumerate_half(B_mats)
+    
+    for cmask_A, finish_dict_A in dpA.items():
+        cmask_B = full_catalyst & ~cmask_A
+        if cmask_B not in dpB: continue
+        finish_dict_B = dpB[cmask_B]
+        for fmask_A, assign_A in finish_dict_A.items():
+            fmask_B_needed = full_finish & ~fmask_A
+            if fmask_B_needed in finish_dict_B:
+                assign_B = finish_dict_B[fmask_B_needed]
+                print("YES")
+                out = []
+                for i, m in enumerate(A_mats):
+                    c, f = assign_A[i]
+                    out.append(f"{m} {c+1} {f+1}")
+                for i, m in enumerate(B_mats):
+                    c, f = assign_B[i]
+                    out.append(f"{m} {c+1} {f+1}")
+                print("\n".join(out))
+                return
+    
+    print("NO")
+
+solve()
+```
+
+This should work. The time complexity is dominated by the DFS which explores valid partial assignments, and the matching loop which iterates over stored pairs. With k ≤ 22 and the meet-in-the-middle split, this should be efficient enough.
+
+Let me verify with the examples:
+- Example 1: k=2, protocols: (1,1,1),(1,2,2),(2,2,2). A_mats=[1], B_mats=[2]. dpA: material 1 has (0,0) and (1,1) [0-indexed]. So dpA[{0}] = {1: ((0,0),)}, dpA[{1}] = {2: ((1,1),)}. dpB: material 2 has (1,1). dpB[{1}] = {2: ((1,1),)}. Match: cmask_A=0 (from dpA? No, dpA has keys {0} and {1} as bitmasks). Wait, c=0 means bit 0, c=1 means bit 1. So (0,0) -> cmask=1, fmask=1. (1,1) -> cmask=2, fmask=2. dpA = {1: {1: ((0,0),)}, 2: {2: ((1,1),)}}. dpB: material 2 has (1,1) -> cmask=2, fmask=2. dpB = {2: {2: ((1,1),)}}. Match cmask_A=1: cmask_B = 3 & ~1 = 2. dpB[2] exists. fmask_A=1, fmask_B_needed = 3 & ~1 = 2. dpB[2][2] exists. assign_A=((0,0),), assign_B=((1,1),). Output: "1 1 1" and "2 2 2". Correct!
+
+- Example 2: k=2, protocols (1,1,1),(2,1,2). A_mats=[1], B_mats=[2]. dpA: material 1 has (0,0) -> cmask=1, fmask=1. dpA={1:{1:((0,0),)}}. dpB: material 2 has (0,1) -> cmask=1, fmask=2. dpB={1:{2:((0,1),)}}. Match cmask_A=1: cmask_B = 3&~1 = 2. dpB[2] doesn't exist. No match. Output "NO". Correct!
+
+The solution looks correct. Let me finalize it.
+
+```python
+import sys
+from collections import defaultdict
+
+def solve():
+    input_data = sys.stdin.buffer.read().split()
+    idx = 0
+    k = int(input_data[idx]); idx += 1
+    t = int(input_data[idx]); idx += 1
+    
+    protocols_by_m = [[] for _ in range(k+1)]
+    for _ in range(t):
+        m = int(input_data[idx]); idx += 1
+        c = int(input_data[idx]); idx += 1
+        f = int(input_data[idx]); idx += 1
+        protocols_by_m[m].append((c-1, f-1))
+    
+    half = k // 2
+    A_mats = list(range(1, half+1))
+    B_mats = list(range(half+1, k+1))
+    
+    full_catalyst = (1 << k) - 1
+    full_finish = (1 << k) - 1
+    
+    def enumerate_half(mats):
+        result = defaultdict(dict)
+        n = len(mats)
+        
+        def dfs(i, cmask, fmask, assign):
+            if i == n:
+                if fmask not in result[cmask]:
+                    result[cmask][fmask] = tuple(assign)
+                return
+            m = mats[i]
+            for (c, f) in protocols_by_m[m]:
+                cb = 1 << c
+                fb = 1 << f
+                if cmask & cb: continue
+                if fmask & fb: continue
+                assign.append((c, f))
+                dfs(i+1, cmask | cb, fmask | fb, assign)
+                assign.pop()
+        
+        if n == 0:
+            result[0][0] = ()
+        else:
+            dfs(0, 0, 0, [])
+        return result
+    
+    dpA = enumerate_half(A_mats)
+    dpB = enumerate_half(B_mats)
+    
+    for cmask_A, finish_dict_A in dpA.items():
+        cmask_B = full_catalyst & ~cmask_A
+        if cmask_B not in dpB: continue
+        finish_dict_B = dpB[cmask_B]
+        for fmask_A, assign_A in finish_dict_A.items():
+            fmask_B_needed = full_finish & ~fmask_A
+            if fmask_B_needed in finish_dict_B:
+                assign_B = finish_dict_B[fmask_B_needed]
+                print("YES")
+                out = []
+                for i, m in enumerate(A_mats):
+                    c, f = assign_A[i]
+                    out.append(f"{m} {c+1} {f+1}")
+                for i, m in enumerate(B_mats):
+                    c, f = assign_B[i]
+                    out.append(f"{m} {c+1} {f+1}")
+                print("\n".join(out))
+                return
+    
+    print("NO")
+
+solve()
+```
+
+This should be the final solution. Let me make sure the recursion depth is OK - with k=22, half=11, recursion depth is at most 11, which is fine.
+
+```python
+import sys
+from collections import defaultdict
+
+def solve():
+    input_data = sys.stdin.buffer.read().split()
+    idx = 0
+    k = int(input_data[idx]); idx += 1
+    t = int(input_data[idx]); idx += 1
+    
+    protocols_by_m = [[] for _ in range(k+1)]
+    for _ in range(t):
+        m = int(input_data[idx]); idx += 1
+        c = int(input_data[idx]); idx += 1
+        f = int(input_data[idx]); idx += 1
+        protocols_by_m[m].append((c-1, f-1))
+    
+    half = k // 2
+    A_mats = list(range(1, half+1))
+    B_mats = list(range(half+1, k+1))
+    
+    full_catalyst = (1 << k) - 1
+    full_finish = (1 << k) - 1
+    
+    def enumerate_half(mats):
+        result = defaultdict(dict)
+        n = len(mats)
+        
+        def dfs(i, cmask, fmask, assign):
+            if i == n:
+                if fmask not in result[cmask]:
+                    result[cmask][fmask] = tuple(assign)
+                return
+            m = mats[i]
+            for (c, f) in protocols_by_m[m]:
+                cb = 1 << c
+                fb = 1 << f
+                if cmask & cb: continue
+                if fmask & fb: continue
+                assign.append((c, f))
+                dfs(i+1, cmask | cb, fmask | fb, assign)
+                assign.pop()
+        
+        if n == 0:
+            result[0][0] = ()
+        else:
+            dfs(0, 0, 0, [])
+        return result
+    
+    dpA = enumerate_half(A_mats)
+    dpB = enumerate_half(B_mats)
+    
+    for cmask_A, finish_dict_A in dpA.items():
+        cmask_B = full_catalyst & ~cmask_A
+        if cmask_B not in dpB: continue
+        finish_dict_B = dpB[cmask_B]
+        for fmask_A, assign_A in finish_dict_A.items():
+            fmask_B_needed = full_finish & ~fmask_A
+            if fmask_B_needed in finish_dict_B:
+                assign_B = finish_dict_B[fmask_B_needed]
+                print("YES")
+                out = []
+                for i, m in enumerate(A_mats):
+                    c, f = assign_A[i]
+                    out.append(f"{m} {c+1} {f+1}")
+                for i, m in enumerate(B_mats):
+                    c, f = assign_B[i]
+                    out.append(f"{m} {c+1} {f+1}")
+                print("\n".join(out))
+                return
+    
+    print("NO")
+
+solve()
+```

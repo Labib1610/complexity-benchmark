@@ -1,0 +1,63 @@
+def solve():
+    import sys
+    from itertools import product
+    
+    input = sys.stdin.read
+    data = input().split()
+    
+    n, m = int(data[0]), int(data[1])
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
+        
+    edges = []
+    index = 2
+    for _ in range(m):
+        u = int(data[index]) - 1
+        v = int(data[index+1]) - 1
+        edges.append((u, v))
+        index += 2
+    
+    # Try all 3^n assignments
+    # But we want the lexicographically smallest one
+    # So we can do backtracking with early termination
+    
+    # More efficient: this is a graph coloring problem with 3 colors
+    # We want to check if the graph is 3-colorable
+    
+    # Build adjacency list
+    adj = [[] for _ in range(n)]
+    for u, v in edges:
+        adj[u].append(v)
+        adj[v].append(u)
+        
+    # color[i] will store the color (1,2,3) of node i, or 0 if unassigned
+    color = [0] * n
+    
+    def is_safe(node, c):
+        for neighbor in adj[node]:
+            if color[neighbor] == c:
+                return False
+        return True
+    
+    def backtrack(node):
+        if node == n:
+            return True
+            
+        for c in range(1, 4):
+            if is_safe(node, c):
+                color[node] = c
+                if backtrack(node + 1):
+                    return True
+                color[node] = 0
+        return False
+    
+    if backtrack(0):
+        print("YES")
+        print(" ".join(map(str, color)))
+    else:
+        print("NO")
+
+solve()

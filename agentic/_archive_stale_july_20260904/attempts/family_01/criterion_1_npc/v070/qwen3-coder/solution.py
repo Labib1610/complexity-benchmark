@@ -1,0 +1,55 @@
+def solve():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    # Build adjacency list
+    adj = [[] for _ in range(n + 1)]
+    idx = 2
+    for _ in range(m):
+        u = int(data[idx])
+        v = int(data[idx + 1])
+        adj[u].append(v)
+        adj[v].append(u)
+        idx += 2
+    
+    # Try all 3^40 combinations using backtracking with pruning
+    # But since n <= 40, and we need lex smallest, we can do iterative deepening or just backtrack smartly
+    # We'll use backtracking that tries colors 1,2,3 in order for lex smallest
+    
+    color = [0] * (n + 1)  # color[i] is the phase of vehicle i
+    
+    def is_safe(node, c):
+        for neighbor in adj[node]:
+            if color[neighbor] == c:
+                return False
+        return True
+    
+    def backtrack(node):
+        if node > n:
+            return True
+            
+        for c in [1, 2, 3]:
+            if is_safe(node, c):
+                color[node] = c
+                if backtrack(node + 1):
+                    return True
+                color[node] = 0
+        return False
+    
+    # This approach might be too slow for n=40 in worst case
+    # Let's think differently - this is a graph 3-coloring problem
+    # For small n, backtracking should work, but let's optimize:
+    # Try to prune search space early
+    
+    # Actually, let's just implement basic backtracking and see
+    if backtrack(1):
+        print("YES")
+        print(' '.join(map(str, color[1:])))
+    else:
+        print("NO")
+
+solve()

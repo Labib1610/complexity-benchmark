@@ -1,0 +1,306 @@
+**Solution Explanation**
+
+For every light `i` we have a Boolean variable  
+
+```
+xi = 1   … light i is warm
+xi = 0   … light i is cool
+```
+
+A rule contains three literals, e.g. `+5 –2 3`.  
+It is satisfied iff at least one of the three literals is true, i.e.
+
+```
+(x5 = 1)  OR  (x2 = 0)  OR  (x3 = 1)
+```
+
+Thus the whole manifesto is a 3‑CNF formula.  
+`n ≤ 90 ,  m ≤ 400` – small enough to solve with a classic DPLL
+back‑tracking SAT solver with unit propagation.
+
+--------------------------------------------------------------------
+
+#### 1.   Data structures
+
+* `clauses` – list of clauses, each clause is a list of three pairs
+  `(var, wanted_value)` where `var` is `0 … n‑1` and `wanted_value` is
+  `0` (cool) or `1` (warm).
+
+* `assign` – length `n` list, `-1` = unassigned, otherwise `0/1`.
+
+* For each variable we store the list of clause indices it occurs in
+  (`occ[var]`).  It is used for fast propagation.
+
+--------------------------------------------------------------------
+
+#### 2.   Unit propagation
+
+```
+propagate(stack):
+    while stack not empty:
+        v = stack.pop()
+        for each clause c containing v:
+            evaluate c:
+                - if already satisfied → continue
+                - count unassigned literals, remember the last one
+                - if 0 unassigned → conflict → return False
+                - if 1 unassigned → the last literal must become true
+                  assign it, push it onto the stack
+    return True
+```
+
+The function returns `False` as soon as a clause becomes unsatisfied,
+otherwise `True`.  
+All assignments performed inside the function are recorded in a
+`trail` list (global) so that they can be undone when back‑tracking.
+
+--------------------------------------------------------------------
+
+#### 3.   Choosing the next variable
+
+A simple heuristic works well for the given limits:
+
+* pick the unassigned variable that appears in the largest number of
+  clauses (pre‑computed degree).
+
+--------------------------------------------------------------------
+
+#### 4.   Recursive DPLL
+
+```
+dfs():
+    if all variables assigned → success
+    v = choose_unassigned()
+    for value in (0,1):
+        assign v = value, push v on a local stack
+        if propagate(local stack):
+            if dfs(): return True
+        undo all assignments done in this branch
+    return False
+```
+
+Undoing is done by popping the global `trail` until its size returns to
+the value it had before the branch started.
+
+--------------------------------------------------------------------
+
+#### 5.   Correctness Proof  
+
+We prove that the algorithm prints `YES` and a satisfying assignment
+iff such an assignment exists.
+
+---
+
+##### Lemma 1 (Propagation soundness)  
+During `propagate` every forced assignment (unit clause) is logically
+necessary: any complete assignment extending the current partial one
+must set that literal to true, otherwise the clause would be false.
+
+**Proof.** A clause with exactly one unassigned literal `ℓ` and the other
+two literals already false can only become true by setting `ℓ` true.
+∎
+
+
+
+##### Lemma 2 (Propagation completeness)  
+If after propagation no clause is unsatisfied and no unit clause exists,
+the current partial assignment can be extended to a full assignment
+*iff* the original formula is satisfiable.
+
+**Proof.** The propagation only removed assignments that are forced
+(Lemma&nbsp;1). Removing forced literals does not change satisfiability:
+any satisfying total assignment can be modified to satisfy the forced
+literal as well, and conversely any total assignment that satisfies the
+reduced formula also satisfies the original one because all forced
+literals are true. ∎
+
+
+
+##### Lemma 3 (Branching correctness)  
+When the algorithm tries both possible values for a chosen variable `v`,
+at least one branch leads to a satisfying total assignment
+*iff* such an assignment exists extending the current partial one.
+
+**Proof.** Any total satisfying assignment must assign either `0` or `1`
+to `v`. The algorithm explores both possibilities, therefore the
+satisfying assignment is contained in one of the two recursive calls.
+Conversely, if a recursive call returns success, the assignments made
+inside it together with the earlier ones form a total satisfying
+assignment. ∎
+
+
+
+##### Lemma 4 (DFS explores exactly the search space of all
+assignments consistent with propagation)  
+
+**Proof.** Induction on recursion depth.
+*Base*: depth 0 – the empty assignment, after initial propagation,
+contains exactly the assignments forced by the original formula.  
+
+*Induction step*: assume the invariant holds for depth `d`.  
+At depth `d` the algorithm picks an unassigned variable `v` and creates
+two child nodes, each extending the current partial assignment with
+`v = 0` or `v = 1` and then runs propagation. By Lemma&nbsp;1 the
+propagation adds exactly the literals forced by the new partial
+assignment, therefore each child node represents precisely the set of
+assignments that extend the parent assignment with the chosen value for
+`v`. ∎
+
+
+
+##### Lemma 5 (If the algorithm prints `YES`, the printed assignment
+satisfies all clauses)  
+
+**Proof.** The algorithm prints `YES` only after `dfs` returns success.
+Success means a leaf of the search tree where every variable is assigned
+and no clause is unsatisfied (checked during propagation). Hence the
+produced assignment satisfies every clause. ∎
+
+
+
+##### Lemma 6 (If a satisfying assignment exists, the algorithm prints
+`YES`)  
+
+**Proof.** Let `A` be any satisfying assignment.
+During the search, by Lemma&nbsp;4 the algorithm explores all
+assignments that are consistent with propagation. At each branching
+node the value of the variable in `A` is one of the two tried values,
+so the branch following that value remains compatible with `A`. By
+induction the path that always follows the value of `A` is never pruned
+by a conflict, because `A` never makes a clause false. Consequently the
+leaf corresponding to `A` is reached and `dfs` returns success. ∎
+
+
+
+##### Theorem  
+The program outputs  
+
+* `NO` iff the manifesto is unsatisfiable,  
+
+* otherwise `YES` and a binary vector that satisfies every rule.
+
+**Proof.** Directly from Lemma&nbsp;5 and Lemma&nbsp;6. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### 6.   Complexity Analysis  
+
+*Propagation* touches each clause at most once per assigned variable,
+so its total cost over the whole search tree is `O(m·n)`.
+
+The worst‑case search tree size is `2^n`, but with unit propagation and
+the heuristic the explored part is tiny for the given limits
+(`n ≤ 90, m ≤ 400`). In practice the program finishes well within the
+2 seconds limit.
+
+Memory consumption:
+
+* `clauses` – `O(m)`  
+* `occ` – `O(m·3)`  
+* `assign`, `trail` – `O(n)`
+
+All together far below the 256 MB limit.
+
+--------------------------------------------------------------------
+
+#### 7.   Reference Implementation  (Python 3)
+
+```python
+import sys
+sys.setrecursionlimit(10000)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+
+    clauses = []                     # list of list of (var, val)
+    occ = [[] for _ in range(n)]    # clause indices per variable
+    for idx in range(m):
+        lits = []
+        for _ in range(3):
+            x = int(next(it))
+            var = abs(x) - 1
+            val = 1 if x > 0 else 0
+            lits.append((var, val))
+            occ[var].append(idx)
+        clauses.append(lits)
+
+    assign = [-1] * n                # -1 unassigned, else 0/1
+    trail = []                       # stack of assigned variables (for undo)
+
+    # ---------- propagation ----------
+    def propagate(stack):
+        while stack:
+            v = stack.pop()
+            for cid in occ[v]:
+                clause = clauses[cid]
+                satisfied = False
+                unassigned_cnt = 0
+                last_unassigned = None
+                for var, want in clause:
+                    a = assign[var]
+                    if a == -1:
+                        unassigned_cnt += 1
+                        last_unassigned = (var, want)
+                    elif a == want:
+                        satisfied = True
+                        break
+                if satisfied:
+                    continue
+                if unassigned_cnt == 0:
+                    return False          # conflict
+                if unassigned_cnt == 1:
+                    var, want = last_unassigned
+                    if assign[var] == -1:
+                        assign[var] = want
+                        trail.append(var)
+                        stack.append(var)
+        return True
+
+    # ---------- variable ordering ----------
+    degree = [len(occ[i]) for i in range(n)]
+    order = sorted(range(n), key=lambda x: -degree[x])
+
+    def choose_var():
+        for v in order:
+            if assign[v] == -1:
+                return v
+        return -1
+
+    # ---------- DPLL ----------
+    def dfs() -> bool:
+        # check if all assigned
+        if all(a != -1 for a in assign):
+            return True
+        v = choose_var()
+        saved_trail_len = len(trail)
+        for val in (0, 1):
+            assign[v] = val
+            trail.append(v)
+            if propagate([v]):
+                if dfs():
+                    return True
+            # undo
+            while len(trail) > saved_trail_len:
+                u = trail.pop()
+                assign[u] = -1
+        return False
+
+    if dfs():
+        out = ['YES', ' '.join(str(assign[i]) for i in range(n))]
+        sys.stdout.write('\n'.join(out))
+    else:
+        sys.stdout.write('NO')
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above and
+conforms to the required input‑output format.

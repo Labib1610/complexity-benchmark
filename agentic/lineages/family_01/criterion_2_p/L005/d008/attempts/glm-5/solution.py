@@ -1,0 +1,71 @@
+import sys
+from collections import deque
+
+def solve():
+    input_data = sys.stdin.buffer.read().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+
+    color = [0] * n
+    possible = True
+
+    for s in range(n):
+        if color[s] != 0:
+            continue
+        # BFS to 2-color the component
+        color[s] = 1
+        q = deque([s])
+        comp = [s]
+        while q:
+            u = q.popleft()
+            for v in adj[u]:
+                if color[v] == 0:
+                    color[v] = 3 - color[u]
+                    q.append(v)
+                    comp.append(v)
+                elif color[v] == color[u]:
+                    possible = False
+                    break
+            if not possible:
+                break
+        if not possible:
+            break
+        # Check if flipping this component gives lexicographically smaller result
+        # Flipping means color 1 -> 2 and color 2 -> 1
+        # We want as many leading 1's as possible, so flip if the first node in component is 2
+        # Actually we want lexicographically smallest overall, so for each component,
+        # if the smallest-indexed node has color 2, flip the whole component.
+        # Since we process in increasing order, the first node we see in comp is the smallest index.
+        if color[s] == 2:
+            for u in comp:
+                color[u] = 3 - color[u]
+
+    if not possible:
+        sys.stdout.write("NO\n")
+        return
+
+    # Verify the condition: for each node i, sum of neighbors' colors + k_i * c_i = 3 * k_i
+    # This is equivalent to: for each edge (u,v), c_u + c_v = 3, which is satisfied by 2-coloring with 1 and 2.
+    # But let's double check with the actual condition to be safe.
+    # Actually the condition per node: sum_{v in N(i)} c_v + k_i * c_i = 3 k_i
+    # => sum_{v in N(i)} c_v = k_i * (3 - c_i)
+    # If c_i = 1, sum of neighbors = 2 k_i => each neighbor must be 2 on average, but since each is 1 or 2,
+    # and edges are 2-colored, each neighbor is 2. So sum = 2 k_i. OK.
+    # If c_i = 2, sum of neighbors = k_i => each neighbor is 1. OK.
+    # So any valid 2-coloring satisfies the condition. And if not bipartite, impossible.
+    # So we just need lexicographically smallest 2-coloring.
+
+    sys.stdout.write("YES\n")
+    sys.stdout.write(" ".join(str(color[i]) for i in range(n)) + "\n")
+
+if __name__ == "__main__":
+    solve()

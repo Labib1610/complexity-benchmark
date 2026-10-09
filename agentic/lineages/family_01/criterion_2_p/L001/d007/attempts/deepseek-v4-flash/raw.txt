@@ -1,17 +1,15 @@
-We can model each monomer as a node in a graph, and each bond as an edge.  
-The condition that two intervals intersect at exactly one point means:
+We can model this as a bipartite graph problem.  
 
-- If monomer `u` is assigned interval `[0,1]` (choice 1) and monomer `v` is assigned `[1,2]` (choice 2), they intersect at exactly `1`.
-- If both are assigned the same interval, they overlap over a range of length 1, which is invalid.
+Each link forces the two connected servers to have different types, because:
 
-So the problem reduces to:  
-Assign each node a value in `{1, 2}` such that every edge connects nodes with different values.  
-This is exactly a **bipartite graph** check. If the graph is not bipartite, output `NO`.  
-If it is bipartite, we need the lexicographically smallest assignment.
+- If \( D_{i,j} = 1 \), then \( T_i = 2 \) and \( T_j = 1 \).
+- If \( D_{i,j} = -1 \), then \( T_i = 1 \) and \( T_j = 2 \).
 
-To get the lexicographically smallest assignment, we can do a BFS/DFS coloring, but with a greedy priority:  
-We try to assign `1` to node 1 if possible, then node 2, etc.  
-This can be done by processing nodes in order and if a node is uncolored, assign it `1` and BFS/DFS to color its component consistently.
+So the graph must be bipartite. If it is not, output `NO`.  
+If it is bipartite, we can color it with two colors (types 1 and 2).  
+To get the lexicographically smallest assignment, we try to assign type 1 to as many early servers as possible, which means we should start BFS/DFS from each unvisited node with type 1, but if that causes a conflict, we try type 2.
+
+Here’s the implementation:
 
 ```python
 import sys
@@ -31,6 +29,7 @@ for _ in range(m):
 color = [-1] * n
 
 def bfs(start):
+    # try starting with color 0 (type 1)
     q = deque([start])
     color[start] = 0
     while q:
@@ -45,43 +44,40 @@ def bfs(start):
 
 for i in range(n):
     if color[i] == -1:
-        # Try to assign 0 (choice 1) to this node
-        # But we must check if assigning 0 leads to conflict
-        # We'll do a temporary BFS with color[i]=0
-        # If conflict, try color[i]=1
-        # Since we process in order, this gives lexicographically smallest
-        tmp_color = color[:]
-        tmp_color[i] = 0
+        if not bfs(i):
+            print("NO")
+            sys.exit()
+
+# Now we have a valid bipartite coloring, but we need lexicographically smallest.
+# We can try flipping colors in each connected component if it improves lexicographic order.
+visited = [False] * n
+for i in range(n):
+    if not visited[i]:
+        # collect component
+        comp = []
         q = deque([i])
-        ok = True
+        visited[i] = True
         while q:
             u = q.popleft()
+            comp.append(u)
             for v in adj[u]:
-                if tmp_color[v] == -1:
-                    tmp_color[v] = tmp_color[u] ^ 1
+                if not visited[v]:
+                    visited[v] = True
                     q.append(v)
-                elif tmp_color[v] == tmp_color[u]:
-                    ok = False
-                    break
-            if not ok:
-                break
-        if ok:
-            color = tmp_color
-        else:
-            # assign 1
-            color[i] = 1
-            q = deque([i])
-            while q:
-                u = q.popleft()
-                for v in adj[u]:
-                    if color[v] == -1:
-                        color[v] = color[u] ^ 1
-                        q.append(v)
-                    elif color[v] == color[u]:
-                        print("NO")
-                        sys.exit()
+        # count how many would be type 1 if we keep current coloring
+        cnt1 = sum(1 for u in comp if color[u] == 0)
+        cnt2 = len(comp) - cnt1
+        # If flipping gives more type 1s at smaller indices, flip
+        # Actually we want lexicographically smallest, so we compare sequences.
+        # We can just try flipping and see if it's better.
+        # Since components are independent, we can decide per component.
+        # For lexicographic smallest, we want earliest index to be 1 if possible.
+        # So if the smallest index in comp currently has color 1, flip.
+        min_idx = min(comp)
+        if color[min_idx] == 1:
+            for u in comp:
+                color[u] ^= 1
 
-# If we reach here, graph is bipartite
 print("YES")
 print(' '.join(str(c + 1) for c in color))
 ```

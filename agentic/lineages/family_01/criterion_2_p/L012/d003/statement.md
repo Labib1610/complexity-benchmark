@@ -1,21 +1,20 @@
-# Asymmetric Dipole Arrays
+# Problem B — Power Scaling
 
-Time limit: 1 s
-Memory limit: 256 MB
+Time limit: 1 s   Memory limit: 256 MB
 
-You are configuring an array of $n$ electromagnetic emitters. You must assign each emitter a base amplitude, chosen from the integer values $s_i \in \{1, 2\}$.
+A manufacturing facility employs $n$ robotic welders, which are identified by integers from 1 to $n$. The facility requires each welder to be configured with a calibration mode of exactly 1 or 2.
 
-The array contains $m$ critical interference corridors, each connecting a specific pair of emitters. To maintain a stable standing wave, any two emitters $(u, v)$ connected by a corridor must form an asymmetric dipole. This requires that the amplitude of one emitter in the pair is exactly twice the amplitude of the other emitter. 
+Over time, management has installed $m$ shared power buses. Each bus connects two specific welders. A strict operational rule dictates that to prevent electrical overload, the product of the calibration modes of any two welders connected by a shared bus must evaluate to exactly 2.
 
-You need to determine if it is possible to assign a valid amplitude to every emitter in the array without violating the dipole constraint on any corridor. If there are multiple valid ways to configure the array, you must output the configuration where the sequence of amplitudes $(s_1, s_2, \dots, s_n)$ is lexicographically smallest. (A sequence $A$ is lexicographically smaller than $B$ if $A$ has a smaller value at the first index where the two sequences differ.)
+Your task is to determine whether the entire set of welders can be configured in complete compliance with this operational rule. If a compliant configuration exists, you must provide the specific configuration sequence $s_1, s_2, \dots, s_n$ (where each $s_i \in \{1, 2\}$ is the calibration mode assigned to welder $i$) that is lexicographically smallest. 
 
 ## Input
-The first line provides two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$), which denote the total number of emitters and the number of critical corridors, respectively.
-The following $m$ lines each contain two integers $u$ and $v$ ($1 \le u, v \le n$), specifying a critical corridor between emitter $u$ and emitter $v$.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$).
+Each of the next $m$ lines contains two integers $u$ and $v$ — representing the two welders connected by a shared power bus.
 
 ## Output
-If there is no way to assign amplitudes that satisfies all corridor constraints, output a single line with the word `NO`.
-If a valid configuration exists, output `YES` on the first line. On the second line, output $n$ integers $s_1, s_2, \ldots, s_n$ (where each $s_i \in \{1, 2\}$), representing the lexicographically smallest valid assignment of base amplitudes.
+If there is no way to assign the calibration modes without violating the operational rule, print a single line containing NO.
+Otherwise, print YES on the first line. On the second line, print $n$ space-separated integers $s_1, s_2, \dots, s_n$ (each either 1 or 2), representing the lexicographically smallest valid configuration sequence.
 
 ## Example 1
 Input:

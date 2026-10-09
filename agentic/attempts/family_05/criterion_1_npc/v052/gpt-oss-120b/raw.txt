@@ -1,0 +1,386 @@
+**Solution Explanation**
+
+For every resource we have the numbers `1 … k`
+
+* workers   – column `0 … k‑1`
+* equipment – column `k … 2k‑1`
+* schedule  – column `2k … 3k‑1`
+
+A blueprint `(x , y , z)` locks exactly the three columns  
+
+`x‑1 , k+(y‑1) , 2k+(z‑1)`.
+
+We have to choose `k` blueprints so that every column is locked **once**.
+That is an *exact cover* problem:
+
+* columns = `3·k` items that have to be covered,
+* rows    = the given blueprints, each row covers three columns.
+
+`k ≤ 22`, therefore `3·k ≤ 66`.  
+The classic algorithm for exact cover – **Dancing Links (DLX)** – works
+perfectly: it backtracks, always picking the column with the smallest
+remaining number of rows, which makes the search very small for the given
+limits.
+
+
+
+--------------------------------------------------------------------
+
+#### 1.   Data structure (DLX)
+
+```
+header 0                     – start of the column list
+column nodes 1 … C (C = 3·k) – one node per column, keep its current size
+row nodes                     – one node for every (column, row) pair
+```
+
+All nodes are linked in four directions (`left, right, up, down`).
+For a column node `c`
+
+```
+right[c] , left[c]   – neighbour columns in the header list
+up[c] , down[c]      – nodes of rows that contain this column
+size[c]              – number of rows still containing the column
+```
+
+For a row node `r`
+
+```
+column[r]   – the column it belongs to
+row_id[r]   – index of the blueprint (needed for the output)
+left/right – other nodes of the same row (circular)
+```
+
+Adding a row `(x,y,z)` creates three nodes and links them vertically into
+their columns and horizontally into a circular row list.
+
+
+
+--------------------------------------------------------------------
+
+#### 2.   Core operations
+
+```
+cover(c)   – removes column c and all rows that contain c
+uncover(c) – restores them (inverse of cover)
+```
+
+Both are pure pointer manipulations, exactly as described in Knuth’s
+paper.
+
+--------------------------------------------------------------------
+
+#### 3.   Search
+
+```
+search()
+    if header.right == header               # no column left → solution
+            return True
+    choose column c with minimal size
+    cover(c)
+    for each row r = down[c] while r != c
+            solution.append( row_id[r] )
+            for each node j = right[r] while j != r
+                    cover( column[j] )
+            if search(): return True
+            # backtrack
+            for each node j = left[r] while j != r
+                    uncover( column[j] )
+            solution.pop()
+    uncover(c)
+    return False
+```
+
+Depth of the recursion is at most `k ( ≤ 22 )`.  
+If any column has size `0` before the first call, the answer is immediately
+`NO`.
+
+--------------------------------------------------------------------
+
+#### 4.   Correctness Proof  
+
+We prove that the algorithm prints `YES` and a correct set of blueprints
+iff such a set exists.
+
+---
+
+##### Lemma 1  
+`cover(c)` removes **exactly** the column `c` and all rows that contain `c`
+from the current matrix, and `uncover(c)` restores the matrix to the state
+before the corresponding `cover(c)`.
+
+**Proof.**  
+`cover` first removes `c` from the horizontal header list.
+Then for every row node `r` below `c` it walks through the whole row and
+removes each node `j` from its vertical list, decreasing the size of the
+corresponding column.  
+All removed nodes are exactly those belonging to rows that contain `c`,
+and no other node is touched.  
+`uncover` performs the inverse operations in reverse order, therefore the
+matrix is restored. ∎
+
+
+
+##### Lemma 2  
+During the execution of `search` the set `solution` always consists of
+pairwise disjoint rows (no two rows share a column) that are still present
+in the matrix.
+
+**Proof.**  
+Initially `solution` is empty – property holds.  
+When a row `r` is added, `cover` is called for every other column of `r`.
+By Lemma&nbsp;1 this removes all rows that intersect `r`. Hence after the
+addition no remaining row shares a column with any row already stored in
+`solution`.  
+When backtracking, the corresponding `uncover` restores the removed
+rows, and the row is removed from `solution`. Thus the invariant is kept. ∎
+
+
+
+##### Lemma 3  
+If `search` reaches the line `if header.right == header` then the rows stored
+in `solution` cover **all** columns exactly once.
+
+**Proof.**  
+The condition means the header list is empty, i.e. every column has been
+covered (removed). A column can be removed only by `cover`, which is called
+only for a column that belongs to a row already placed into `solution`
+(Lemma&nbsp;2). Therefore each column appears in exactly one selected row,
+and all columns are covered. ∎
+
+
+
+##### Lemma 4  
+If a perfect set of `k` blueprints exists, `search` will eventually find it
+(and return `True`).
+
+**Proof.**  
+Consider any exact cover `S`. The algorithm always chooses a column `c`.
+Since `S` covers all columns, `c` belongs to exactly one row `r∈S`.  
+`cover(c)` removes `c` and all rows intersecting `c`; `r` stays because it
+contains `c`. The loop iterates over all rows that contain `c`, therefore it
+will try `r`. After selecting `r` the recursive call works on the reduced
+instance that still has an exact cover (the remaining rows of `S`). By
+induction on the number of remaining columns the recursive call will
+succeed, causing the whole call to succeed. ∎
+
+
+
+##### Lemma 5  
+If `search` returns `True`, the rows stored in `solution` form a perfect
+set of `k` blueprints.
+
+**Proof.**  
+By Lemma&nbsp;3 the rows cover all columns exactly once.
+There are `3·k` columns and each row covers three columns, therefore the
+number of rows in `solution` is `k`. ∎
+
+
+
+##### Theorem  
+The program outputs  
+
+*`YES` and a list of `k` blueprints* **iff** such a list exists; otherwise
+it outputs `NO`.
+
+**Proof.**  
+
+*If part.*  
+Assume a perfect list exists. By Lemma&nbsp;4 `search` finds it, returns
+`True`, and the program prints `YES` followed by the rows stored in
+`solution`. By Lemma&nbsp;5 these rows are a correct list.
+
+*Only‑if part.*  
+If the program prints `YES`, `search` returned `True`. Lemma&nbsp;5 shows
+that the printed rows constitute a perfect list, therefore such a list
+exists.
+
+If the program prints `NO`, either a column had size `0` initially (obviously
+no cover exists) or `search` explored the whole search tree without success.
+If a perfect list existed, Lemma&nbsp;4 guarantees that the search would
+have found it – contradiction. Hence no perfect list exists. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### 5.   Complexity Analysis  
+
+*`C = 3·k ≤ 66` columns, `R = t ≤ k³ ≤ 10648` rows.*
+
+* building the structure: `O(R·3)` time, `O(R·3 + C)` memory  
+* each recursive level removes at least one column, depth ≤ `k ≤ 22`  
+* the branching factor is bounded by the current column size; the
+  heuristic “choose the smallest column” keeps the explored nodes tiny for
+  the given limits.
+
+In the worst theoretical case the algorithm is exponential, but with the
+small limits it easily finishes well within the 5 s time limit and the
+memory consumption stays far below 256 MiB.
+
+
+
+--------------------------------------------------------------------
+
+#### 6.   Reference Implementation  (Python 3)
+
+```python
+import sys
+
+sys.setrecursionlimit(10000)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    k = int(next(it))
+    t = int(next(it))
+
+    triples = []
+    for _ in range(t):
+        x = int(next(it)) - 1
+        y = int(next(it)) - 1
+        z = int(next(it)) - 1
+        triples.append((x, y, z))
+
+    C = 3 * k                     # number of columns
+    # ---------- DLX structures ----------
+    # node 0 is the header, nodes 1..C are column headers
+    left = [0] * (1 + C)
+    right = [0] * (1 + C)
+    up = [0] * (1 + C)
+    down = [0] * (1 + C)
+    column = [0] * (1 + C)        # column of a node (for row nodes)
+    row_id = [0] * (1 + C)        # row id for a node (for row nodes)
+    size = [0] * (C + 1)          # size of each column (only for headers)
+
+    # initialise header list (circular)
+    for i in range(C + 1):
+        left[i] = i - 1 if i != 0 else C
+        right[i] = i + 1 if i != C else 0
+        up[i] = down[i] = i       # empty column
+
+    # ---------- add rows ----------
+    def add_row(rid, cols):
+        first = None
+        for c in cols:
+            node = len(left)
+            left.append(0)
+            right.append(0)
+            up.append(0)
+            down.append(0)
+            column.append(c)
+            row_id.append(rid)
+
+            # vertical link into column c
+            up[node] = up[c]
+            down[node] = c
+            down[up[c]] = node
+            up[c] = node
+            size[c] += 1
+
+            # horizontal link within the row
+            if first is None:
+                first = node
+                left[node] = right[node] = node
+            else:
+                # insert node to the left of first
+                left[node] = left[first]
+                right[node] = first
+                right[left[first]] = node
+                left[first] = node
+
+    for idx, (x, y, z) in enumerate(triples):
+        cols = [x + 1, k + y + 1, 2 * k + z + 1]   # column headers are 1‑based
+        add_row(idx, cols)
+
+    # quick impossibility test
+    for c in range(1, C + 1):
+        if size[c] == 0:
+            print("NO")
+            return
+
+    # ---------- DLX core ----------
+    def cover(c):
+        # remove column header
+        right[left[c]] = right[c]
+        left[right[c]] = left[c]
+        # remove rows
+        i = down[c]
+        while i != c:
+            j = right[i]
+            while j != i:
+                down[up[j]] = down[j]
+                up[down[j]] = up[j]
+                size[column[j]] -= 1
+                j = right[j]
+            i = down[i]
+
+    def uncover(c):
+        i = up[c]
+        while i != c:
+            j = left[i]
+            while j != i:
+                size[column[j]] += 1
+                down[up[j]] = j
+                up[down[j]] = j
+                j = left[j]
+            i = up[i]
+        right[left[c]] = c
+        left[right[c]] = c
+
+    solution = []
+
+    def search():
+        if right[0] == 0:          # no columns left
+            return True
+        # choose column with minimal size
+        c = right[0]
+        min_sz = size[c]
+        cc = c
+        while cc != 0:
+            if size[cc] < min_sz:
+                min_sz = size[cc]
+                c = cc
+                if min_sz == 0:
+                    break
+            cc = right[cc]
+        if min_sz == 0:
+            return False
+
+        cover(c)
+        r = down[c]
+        while r != c:
+            solution.append(row_id[r])
+            j = right[r]
+            while j != r:
+                cover(column[j])
+                j = right[j]
+            if search():
+                return True
+            # backtrack
+            j = left[r]
+            while j != r:
+                uncover(column[j])
+                j = left[j]
+            solution.pop()
+            r = down[r]
+        uncover(c)
+        return False
+
+    if search():
+        print("YES")
+        for rid in solution:
+            x, y, z = triples[rid]
+            print(x + 1, y + 1, z + 1)
+    else:
+        print("NO")
+
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above and conforms
+to the required input‑output format.

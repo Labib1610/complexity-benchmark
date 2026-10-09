@@ -1,0 +1,72 @@
+import sys
+
+def solve():
+    input = sys.stdin.readline
+    k, t = map(int, input().split())
+    pool = []
+    for _ in range(t):
+        x, y, z = map(int, input().split())
+        pool.append((x, y, z))
+    
+    # Build bipartite graph: left = (x,y), right = z
+    left_nodes = {}
+    right_nodes = set()
+    edges = []
+    for x, y, z in pool:
+        if (x, y) not in left_nodes:
+            left_nodes[(x, y)] = len(left_nodes)
+        right_nodes.add(z)
+        edges.append((left_nodes[(x, y)], z))
+    
+    # Map right nodes to indices
+    right_index = {z: i for i, z in enumerate(sorted(right_nodes))}
+    n_left = len(left_nodes)
+    n_right = len(right_nodes)
+    
+    adj = [[] for _ in range(n_left)]
+    for l, z in edges:
+        adj[l].append(right_index[z])
+    
+    # Maximum bipartite matching
+    match_right = [-1] * n_right
+    match_left = [-1] * n_left
+    
+    def dfs(u, visited):
+        for v in adj[u]:
+            if not visited[v]:
+                visited[v] = True
+                if match_right[v] == -1 or dfs(match_right[v], visited):
+                    match_right[v] = u
+                    match_left[u] = v
+                    return True
+        return False
+    
+    matching_size = 0
+    for u in range(n_left):
+        visited = [False] * n_right
+        if dfs(u, visited):
+            matching_size += 1
+    
+    if matching_size < k:
+        print("NO")
+        return
+    
+    # Reconstruct matching of size k
+    # We need exactly k edges, so pick any k from the matching
+    # But we must ensure they are distinct in all coordinates.
+    # Since matching ensures distinct (x,y) and distinct z, it's valid.
+    # We'll output the first k matched pairs.
+    result = []
+    for (x, y), l in left_nodes.items():
+        if match_left[l] != -1:
+            z = [key for key, val in right_index.items() if val == match_left[l]][0]
+            result.append((x, y, z))
+            if len(result) == k:
+                break
+    
+    print("YES")
+    for x, y, z in result:
+        print(x, y, z)
+
+if __name__ == "__main__":
+    solve()

@@ -1,0 +1,70 @@
+import sys
+from collections import defaultdict
+
+def main():
+    import sys
+    sys.setrecursionlimit(1 << 25)
+    
+    S, T, m = map(int, sys.stdin.readline().split())
+    
+    if m == 0:
+        print("YES")
+        return
+    
+    streams = []
+    source_deg = [0] * (S + 1)
+    dest_deg = [0] * (T + 1)
+    
+    for _ in range(m):
+        u, v = map(int, sys.stdin.readline().split())
+        streams.append((u, v))
+        source_deg[u] += 1
+        dest_deg[v] += 1
+    
+    D = max(max(source_deg), max(dest_deg)) if m > 0 else 0
+    
+    # For each source, we'll keep track of which destinations it's connected to
+    # And for each destination, which sources connect to it
+    source_to_dest = defaultdict(list)
+    dest_to_source = defaultdict(list)
+    
+    for i in range(m):
+        u, v = streams[i]
+        source_to_dest[u].append((v, i))
+        dest_to_source[v].append((u, i))
+    
+    # We'll assign colors (frequencies) to edges
+    # color_used_at_source[u][c] = whether color c is used by source u
+    # color_used_at_dest[v][c] = whether color c is used by destination v
+    color_assigned = [0] * m  # 1-based indexing in problem, but we use 0-based for array
+    
+    # For efficiency, for each node, maintain a set of forbidden colors
+    source_forbidden = defaultdict(set)
+    dest_forbidden = defaultdict(set)
+    
+    # Process streams in order
+    for i in range(m):
+        u, v = streams[i]
+        
+        # Find the first color from 1 to D that is not forbidden
+        forbidden = source_forbidden[u] | dest_forbidden[v]
+        c = 1
+        while c in forbidden and c <= D:
+            c += 1
+        
+        if c > D:
+            # This shouldn't happen according to problem statement
+            # But just in case, wrap around or take last
+            c = 1
+            while c in forbidden:
+                c += 1
+                
+        color_assigned[i] = c
+        source_forbidden[u].add(c)
+        dest_forbidden[v].add(c)
+    
+    print("YES")
+    print(' '.join(map(str, color_assigned)))
+
+if __name__ == "__main__":
+    main()

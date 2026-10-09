@@ -1,20 +1,16 @@
-# Problem B — Day and Night
+# Problem B — Factory Tuning
 
 Time limit: 1 s   Memory limit: 256 MB
 
-A manufacturing plant is organizing its $n$ staff members into two daily routines, identified as routine 1 and routine 2. 
-
-There are $m$ specialized machines. Each machine is the joint responsibility of a specific pair of staff members. A machine's daily cycle requires two steps: a calibration phase, which must be overseen during routine 1, and a production phase, which must be overseen during routine 2. A phase is successfully overseen if at least one of the machine's responsible staff members is assigned to the designated routine for that phase.
-
-You must assign each staff member to exactly one routine (either routine 1 or routine 2) so that both the calibration and production phases are successfully overseen for all $m$ machines, or report that no such arrangement is possible.
+The factory requires each of its $n$ machines to be set to a power mode of either 1 or 2. There are $m$ interference links between specific pairs of machines. A legacy controller accepts a link only when the modes $x$ and $y$ of the two connected machines satisfy the equation $3xy = 2(x + y)$. You must assign a power mode to every machine such that all $m$ links are accepted by the controller.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$).
-Each of the next $m$ lines contains two integers $u$ and $v$ — the two staff members responsible for a single machine.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$).
+Each of the next $m$ lines contains two integers $u$ and $v$ — a linked pair of machines.
 
 ## Output
-If no valid routine assignment exists, print a single line containing `NO`.
-Otherwise, print `YES` on the first line, followed by a second line containing $n$ integers $r_1, \dots, r_n$ (each $r_i \in \{1, 2\}$), where $r_i$ is the routine assigned to staff member $i$. If there are multiple valid assignments, output the one that is lexicographically smallest.
+If no valid assignment of modes exists, print a single line NO.
+Otherwise print YES, then a second line with $n$ integers $s_1 \dots s_n$ (each in $\{1,2\}$), representing the lexicographically smallest valid assignment.
 
 ## Example 1
 Input:

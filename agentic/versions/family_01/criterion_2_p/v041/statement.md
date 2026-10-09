@@ -1,21 +1,21 @@
-# Problem B — Load Balancing
+# System Update Deployment
 
 Time limit: 1 s
 Memory limit: 256 MB
 
-A distributed network consists of $n$ processing units. You must assign each unit a load setting, which must be either 1 or 2.
+You are deploying a software update to $n$ servers, numbered 1 through $n$. For each server, you must select an update window, which is specified by the integer 1 or 2.
 
-The network has $m$ synchronization links. Each link connects a specific pair of processing units. To maintain system stability, every pair of units connected by a synchronization link must have a combined load setting (the sum of their individual load settings) exactly equal to 3.
+Certain pairs of servers share redundant resources and will cause a system failure if they reboot during the same update window. You are provided with $m$ such pairs. Your objective is to assign an update window to every server such that no two servers in any given pair are assigned the same window.
 
-Determine a valid assignment of load settings for all $n$ units, or determine that no such assignment is possible.
+Determine if a safe deployment plan exists. If it does, output the plan. If multiple safe plans exist, you must output the plan where the sequence of window assignments $s_1, s_2, \dots, s_n$ is lexicographically smallest.
 
 ## Input
 The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$).
-Each of the next $m$ lines contains two integers $u$ and $v$ — a pair of processing units connected by a synchronization link.
+Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$), indicating that server $u$ and server $v$ cannot be assigned the same update window.
 
 ## Output
-If no stable assignment exists, print a single line NO.
-Otherwise print YES, followed by a second line containing $n$ integers $s_1 \dots s_n$ (each either 1 or 2), representing the lexicographically smallest valid sequence of load settings.
+If no safe deployment plan exists, print a single line containing `NO`.
+Otherwise, print `YES` on the first line. On the second line, print $n$ integers $s_1, s_2, \dots, s_n$ (where each $s_i \in \{1, 2\}$), representing the lexicographically smallest safe sequence of update windows.
 
 ## Example 1
 Input:

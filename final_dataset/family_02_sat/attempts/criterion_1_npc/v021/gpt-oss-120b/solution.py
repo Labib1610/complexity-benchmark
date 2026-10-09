@@ -1,0 +1,79 @@
+import sys
+sys.setrecursionlimit(10000)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    clauses = []
+    for _ in range(m):
+        l1 = int(next(it)); l2 = int(next(it)); l3 = int(next(it))
+        clauses.append((l1, l2, l3))
+
+    # assignment: -1 unassigned, 0 false, 1 true
+    assign = [-1] * (n + 1)
+
+    # helper to get literal value under current assign
+    def lit_val(lit):
+        v = abs(lit)
+        a = assign[v]
+        if a == -1:
+            return None
+        return a if lit > 0 else 1 - a
+
+    # unit propagation
+    def propagate():
+        changed = True
+        while changed:
+            changed = False
+            for c in clauses:
+                vals = [lit_val(l) for l in c]
+                if any(v == 1 for v in vals):
+                    continue  # clause already satisfied
+                # count unassigned
+                unassigned = [c[i] for i, v in enumerate(vals) if v is None]
+                if not unassigned:
+                    return False  # conflict, all false
+                if len(unassigned) == 1:
+                    lit = unassigned[0]
+                    var = abs(lit)
+                    needed = 1 if lit > 0 else 0
+                    if assign[var] == -1:
+                        assign[var] = needed
+                        changed = True
+                    elif assign[var] != needed:
+                        return False
+        return True
+
+    # recursive DPLL
+    def dpll():
+        if not propagate():
+            return False
+        # check if all assigned
+        if all(v != -1 for v in assign[1:]):
+            return True
+        # choose variable (first unassigned)
+        var = next(i for i in range(1, n + 1) if assign[i] == -1)
+        # try 0 then 1
+        saved = assign[:]
+        assign[var] = 0
+        if dpll():
+            return True
+        assign[:] = saved
+        assign[var] = 1
+        if dpll():
+            return True
+        assign[:] = saved
+        return False
+
+    if dpll():
+        print("YES")
+        print(' '.join(str(assign[i]) for i in range(1, n + 1)))
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()

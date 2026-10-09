@@ -1,0 +1,59 @@
+import sys
+from heapq import heappush, heappop
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    t = int(next(it))
+    
+    core = [int(next(it)) for _ in range(t)]
+    core_set = set(core)
+    
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        w = int(next(it))
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+    
+    if t <= 1:
+        print(0)
+        return
+    
+    # Prim's algorithm for Steiner tree (heuristic)
+    INF = float('inf')
+    in_tree = [False] * (n + 1)
+    min_edge = [INF] * (n + 1)
+    
+    # Start from first core node
+    start = core[0]
+    min_edge[start] = 0
+    heap = [(0, start)]
+    
+    total_cost = 0
+    cores_in_tree = 0
+    
+    while heap and cores_in_tree < t:
+        cost, u = heappop(heap)
+        if in_tree[u]:
+            continue
+        in_tree[u] = True
+        total_cost += cost
+        
+        if u in core_set:
+            cores_in_tree += 1
+        
+        for v, w in adj[u]:
+            if not in_tree[v] and w < min_edge[v]:
+                min_edge[v] = w
+                heappush(heap, (w, v))
+    
+    print(total_cost)
+
+if __name__ == "__main__":
+    solve()

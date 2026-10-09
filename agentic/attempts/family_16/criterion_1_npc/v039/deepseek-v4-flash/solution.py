@@ -1,0 +1,97 @@
+import sys
+from functools import lru_cache
+
+def solve():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    j = int(next(it))
+    m = int(next(it))
+    
+    comps = []
+    for _ in range(j):
+        o = int(next(it))
+        tests = []
+        for _ in range(o):
+            fac = int(next(it)) - 1
+            dur = int(next(it))
+            tests.append((fac, dur))
+        comps.append(tests)
+    
+    # state: tuple of (idx, facility_free_time) for each component
+    # Actually we maintain the next test index for each component,
+    # and the earliest start time for each facility.
+    
+    # DP state: (tuple of next indices, tuple of facility available times)
+    # We sort facility times? No need, they are m separate.
+    
+    # We'll do a DFS that schedules one test at a time, choosing a component
+    # whose next test can start.
+    
+    @lru_cache(None)
+    def dfs(state):
+        # state = (next_idx_tuple, facility_times_tuple)
+        idxs = list(state[0])
+        fac_times = list(state[1])
+        
+        # if all done
+        if all(idx == len(comps[i]) for i, idx in enumerate(idxs)):
+            return max(fac_times) if fac_times else 0
+        
+        best = float('inf')
+        for i in range(j):
+            if idxs[i] < len(comps[i]):
+                fac, dur = comps[i][idxs[i]]
+                start = max(fac_times[fac], 0)  # can start when facility free
+                # Actually also must wait for previous test of same component
+                # but facility time already ensures facility constraint,
+                # and previous finish time is implicitly accounted because
+                # the component's next test is scheduled after previous finishes
+                # In this approach, we need to track component finish time?
+                # Let's also track component finish times, not just next index.
+                # Better: state includes current finish time for each component.
+                # But we can incorporate it: the component can only start when
+                # both its own finish time and facility availability are done.
+                pass
+    
+    # The above is incomplete; we need a better representation.
+    
+    # Represent state as:
+    # tuple of (stage, finish_time) for each component
+    # and tuple of facility availability times.
+    # Since j<=10, m<=10, total tests <=50.
+    
+    @lru_cache(None)
+    def dfs(comp_state, fac_state):
+        # comp_state: tuple (stage_index, component_ready_time)
+        # fac_state: tuple of availability times for facilities
+        comp = list(comp_state)
+        facs = list(fac_state)
+        
+        # If all components done
+        if all(stage == len(comps[i]) for i, (stage, _) in enumerate(comp)):
+            return max(facs) if facs else 0
+        
+        best = float('inf')
+        for i in range(j):
+            stage, ready = comp[i]
+            if stage < len(comps[i]):
+                fac, dur = comps[i][stage]
+                start = max(facs[fac], ready)
+                finish = start + dur
+                # new states
+                new_comp = comp[:]
+                new_facs = facs[:]
+                new_comp[i] = (stage + 1, finish)
+                new_facs[fac] = finish
+                best = min(best, dfs(tuple(new_comp), tuple(new_facs)))
+        return best
+    
+    initial_comp = tuple((0, 0) for _ in range(j))
+    initial_fac = tuple(0 for _ in range(m))
+    ans = dfs(initial_comp, initial_fac)
+    print(ans)
+
+if __name__ == "__main__":
+    solve()

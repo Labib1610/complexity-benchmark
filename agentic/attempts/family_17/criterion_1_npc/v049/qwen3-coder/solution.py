@@ -1,0 +1,93 @@
+from collections import defaultdict
+
+def solve():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    q = int(data[0])
+    t = int(data[1])
+    
+    units = []
+    index = 2
+    for i in range(t):
+        a = int(data[index])
+        b = int(data[index+1])
+        c = int(data[index+2])
+        units.append((a, b, c))
+        index += 3
+    
+    # Try to find a matching that covers all 3q operators
+    # This is essentially a exact cover problem - we can model it as finding a perfect matching
+    # We'll use backtracking with pruning
+    
+    # Build a graph where each node is an operator and edges represent valid units
+    # But actually, better approach: try to build a set cover
+    
+    # Each unit covers 3 operators
+    # We need exactly q units to cover 3q operators
+    
+    # Use backtracking approach
+    def backtrack(unit_idx, selected_units, covered_operators):
+        # If we've covered all operators
+        if len(covered_operators) == 3 * q:
+            return selected_units[:]
+        
+        # If we've selected q units but haven't covered all operators
+        if len(selected_units) == q:
+            return None
+            
+        # If remaining operators can't be covered by remaining units
+        remaining_ops = 3 * q - len(covered_operators)
+        remaining_units = t - unit_idx
+        if remaining_units * 3 < remaining_ops:
+            return None
+            
+        # Pruning: if even with all remaining units we can't make it
+        needed_units = (remaining_ops + 2) // 3  # Ceiling division
+        if remaining_units < needed_units:
+            return None
+        
+        # Try including current unit
+        if unit_idx < t:
+            unit = units[unit_idx]
+            a, b, c = unit
+            
+            # Check if this unit conflicts with already covered operators
+            if a not in covered_operators and b not in covered_operators and c not in covered_operators:
+                # Include this unit
+                selected_units.append(unit)
+                covered_operators.add(a)
+                covered_operators.add(b)
+                covered_operators.add(c)
+                
+                result = backtrack(unit_idx + 1, selected_units, covered_operators)
+                if result is not None:
+                    return result
+                    
+                # Backtrack
+                selected_units.pop()
+                covered_operators.remove(a)
+                covered_operators.remove(b)
+                covered_operators.remove(c)
+            
+            # Try skipping current unit
+            result = backtrack(unit_idx + 1, selected_units, covered_operators)
+            if result is not None:
+                return result
+                
+        return None
+    
+    # Optimization: sort units by some heuristic?
+    # Or just try direct backtracking
+    
+    result = backtrack(0, [], set())
+    
+    if result is not None:
+        print("YES")
+        for unit in result:
+            print(unit[0], unit[1], unit[2])
+    else:
+        print("NO")
+
+solve()

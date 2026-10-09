@@ -1,0 +1,32 @@
+import sys
+from collections import defaultdict
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    # Build adjacency list
+    adj = [set() for _ in range(n + 1)]
+    index = 2
+    for _ in range(m):
+        u = int(data[index])
+        v = int(data[index + 1])
+        adj[u].add(v)
+        adj[v].add(u)
+        index += 2
+    
+    # Find the lexicographically smallest triangle
+    for a in range(1, n + 1):
+        for b in range(a + 1, n + 1):
+            if b in adj[a]:  # a and b are incompatible
+                for c in range(b + 1, n + 1):
+                    if c in adj[a] and c in adj[b]:  # a,c and b,c are incompatible
+                        print(a, b, c)
+                        return
+
+if __name__ == "__main__":
+    main()

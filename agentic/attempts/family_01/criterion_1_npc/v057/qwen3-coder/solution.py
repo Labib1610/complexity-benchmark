@@ -1,52 +1,75 @@
 def solve():
     import sys
-    from collections import defaultdict
-
-    # Read input
-    n, m = map(int, sys.stdin.readline().split())
-    conflicts = []
-    graph = defaultdict(set)
-    for _ in range(m):
-        u, v = map(int, sys.stdin.readline().split())
-        conflicts.append((u, v))
-        graph[u].add(v)
-        graph[v].add(u)
-
-    # Special case: no modules
-    if n == 0:
+    from collections import defaultdict, deque
+    
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    if m == 0:
         print("YES")
+        print(" ".join(["1"] * n))
         return
-
-    # Try all possible assignments in lexicographical order
-    # We'll use backtracking with pruning
-    assignment = [0] * (n + 1)  # assignment[i] = band for module i (1-indexed)
-
-    def is_valid(module, band):
-        # Check if assigning 'band' to 'module' conflicts with neighbors
-        for neighbor in graph[module]:
-            if assignment[neighbor] == band:
+    
+    edges = []
+    graph = defaultdict(list)
+    index = 2
+    for _ in range(m):
+        u = int(data[index]) - 1
+        v = int(data[index+1]) - 1
+        edges.append((u, v))
+        graph[u].append(v)
+        graph[v].append(u)
+        index += 2
+    
+    # Try to 3-color the graph
+    color = [-1] * n  # -1 means uncolored, 0,1,2 are the three colors
+    
+    # Check if graph is 3-colorable
+    def is_safe(node, c):
+        for neighbor in graph[node]:
+            if color[neighbor] == c:
                 return False
         return True
-
-    def backtrack(module):
-        if module > n:
-            return True  # All modules assigned
-
-        # Try bands 1, 2, 3 in order for lex smallest
-        for band in [1, 2, 3]:
-            if is_valid(module, band):
-                assignment[module] = band
-                if backtrack(module + 1):
-                    return True
-                # No need to undo assignment since we return immediately when found
-
-        return False  # No valid band found for this module
-
-    # Start backtracking from module 1
-    if backtrack(1):
-        print("YES")
-        print(' '.join(map(str, assignment[1:])))
-    else:
-        print("NO")
+    
+    def dfs(node):
+        for c in [0, 1, 2]:
+            if is_safe(node, c):
+                color[node] = c
+                for neighbor in graph[node]:
+                    if color[neighbor] == -1:
+                        if not dfs(neighbor):
+                            color[node] = -1
+                            return False
+                return True
+        return False
+    
+    # Try coloring all components
+    for i in range(n):
+        if color[i] == -1:
+            # Try to start coloring with color 0
+            color[i] = 0
+            for neighbor in graph[i]:
+                if color[neighbor] == -1:
+                    if not dfs(neighbor):
+                        print("NO")
+                        return
+            # Check if current component is valid
+            # We need to verify no two adjacent nodes have same color
+            for u, v in edges:
+                if color[u] == color[v]:
+                    print("NO")
+                    return
+    
+    # Verify the coloring is valid
+    for u, v in edges:
+        if color[u] == color[v]:
+            print("NO")
+            return
+            
+    print("YES")
+    print(" ".join(str(c+1) for c in color))
 
 solve()

@@ -1,0 +1,104 @@
+import sys
+from itertools import permutations
+from collections import deque
+
+def solve():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    B = int(next(it))
+    edges = []
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        edges.append((u, v))
+        adj[u].append(v)
+        adj[v].append(u)
+
+    # cost function
+    def cost(perm):
+        pos = [0]*n
+        for i, p in enumerate(perm):
+            pos[p] = i
+        total = 0
+        for u, v in edges:
+            total += abs(pos[u] - pos[v])
+        return total
+
+    # Exact for small n
+    if n <= 8:
+        best_perm = None
+        best_cost = float('inf')
+        for perm in permutations(range(n)):
+            c = cost(perm)
+            if c < best_cost:
+                best_cost = c
+                best_perm = perm
+                if c <= B:
+                    break
+        if best_cost <= B:
+            # output 1-indexed
+            print("YES")
+            print(' '.join(str(p+1) for p in best_perm))
+        else:
+            print("NO")
+        return
+
+    # Heuristic for larger n
+    # Initial: BFS ordering from node 0
+    visited = [False]*n
+    order = []
+    q = deque([0])
+    visited[0] = True
+    while q:
+        u = q.popleft()
+        order.append(u)
+        for v in adj[u]:
+            if not visited[v]:
+                visited[v] = True
+                q.append(v)
+    # Add any disconnected nodes
+    for i in range(n):
+        if not visited[i]:
+            order.append(i)
+    perm = order[:]  # current best
+
+    best_cost = cost(perm)
+    improved = True
+    # Local search: try swapping any two positions
+    while improved:
+        improved = False
+        for i in range(n):
+            for j in range(i+1, n):
+                # swap
+                perm[i], perm[j] = perm[j], perm[i]
+                c = cost(perm)
+                if c < best_cost:
+                    best_cost = c
+                    improved = True
+                else:
+                    # swap back
+                    perm[i], perm[j] = perm[j], perm[i]
+        # Also try reversing segments (2-opt style)
+        for i in range(n):
+            for j in range(i+1, n):
+                perm[i:j+1] = reversed(perm[i:j+1])
+                c = cost(perm)
+                if c < best_cost:
+                    best_cost = c
+                    improved = True
+                else:
+                    perm[i:j+1] = reversed(perm[i:j+1])
+
+    if best_cost <= B:
+        print("YES")
+        print(' '.join(str(p+1) for p in perm))
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()

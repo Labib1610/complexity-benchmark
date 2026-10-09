@@ -1,0 +1,116 @@
+import sys
+sys.setrecursionlimit(10000)
+
+def solve():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # Check if graph is bipartite and get 2-coloring
+    color = [-1] * n
+    is_bipartite = True
+    
+    for i in range(n):
+        if color[i] == -1:
+            color[i] = 0
+            stack = [i]
+            while stack:
+                u = stack.pop()
+                for v in adj[u]:
+                    if color[v] == -1:
+                        color[v] = 1 - color[u]
+                        stack.append(v)
+                    elif color[v] == color[u]:
+                        is_bipartite = False
+                        break
+                if not is_bipartite:
+                    break
+        if not is_bipartite:
+            break
+    
+    if not is_bipartite:
+        print("NO")
+        return
+    
+    # Group vertices by their color in each connected component
+    # We need to track which component each vertex belongs to
+    comp_id = [-1] * n
+    comp_count = 0
+    for i in range(n):
+        if comp_id[i] == -1:
+            stack = [i]
+            comp_id[i] = comp_count
+            while stack:
+                u = stack.pop()
+                for v in adj[u]:
+                    if comp_id[v] == -1:
+                        comp_id[v] = comp_count
+                        stack.append(v)
+            comp_count += 1
+    
+    # For each component, we have two groups (color 0 and color 1)
+    # We need to assign each group to a rotation such that groups in the same component
+    # get different rotations
+    # This is equivalent to 2-coloring a new graph where each group is a node
+    # and edges connect groups within the same component
+    
+    # Create list of groups: (component, color)
+    groups = []
+    group_index = {}  # maps (comp, color) to index in groups
+    for i in range(n):
+        key = (comp_id[i], color[i])
+        if key not in group_index:
+            group_index[key] = len(groups)
+            groups.append(key)
+    
+    num_groups = len(groups)
+    
+    # Build conflict graph between groups
+    # Two groups conflict if they are in the same component (must have different rotations)
+    conflict_adj = [[] for _ in range(num_groups)]
+    for i in range(num_groups):
+        for j in range(i + 1, num_groups):
+            if groups[i][0] == groups[j][0]:  # same component
+                conflict_adj[i].append(j)
+                conflict_adj[j].append(i)
+    
+    # Try to 3-color the conflict graph
+    rotation = [0] * num_groups
+    
+    def dfs(idx):
+        if idx == num_groups:
+            return True
+        for r in range(1, 4):
+            valid = True
+            for neighbor in conflict_adj[idx]:
+                if neighbor < idx and rotation[neighbor] == r:
+                    valid = False
+                    break
+            if valid:
+                rotation[idx] = r
+                if dfs(idx + 1):
+                    return True
+        return False
+    
+    if dfs(0):
+        # Build answer
+        answer = [0] * n
+        for i in range(n):
+            key = (comp_id[i], color[i])
+            answer[i] = rotation[group_index[key]]
+        print("YES")
+        print(" ".join(map(str, answer)))
+    else:
+        print("NO")
+
+solve()

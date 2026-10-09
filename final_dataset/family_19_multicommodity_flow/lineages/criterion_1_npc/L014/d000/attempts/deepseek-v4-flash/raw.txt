@@ -1,0 +1,99 @@
+We can model this as a **multi-commodity flow** problem, but since the constraints are small enough, we can solve it using **linear programming** or **integer programming** via a library like `scipy` or `pulp`.  
+
+However, to keep it self-contained and avoid external dependencies, we can use a **max-flow** approach per commodity with capacity sharing, but that’s tricky because capacities are shared.  
+
+A simpler approach: since the problem is small (likely n, m, k ≤ 10–20), we can use **integer linear programming** with `pulp` or `scipy.optimize.milp`.  
+
+Here’s a solution using `scipy.optimize.milp`:
+
+```python
+import sys
+import numpy as np
+from scipy.optimize import milp, LinearConstraint, Bounds
+
+def solve():
+    input_data = sys.stdin.read().strip().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    k = int(next(it))
+    
+    contracts = []
+    for _ in range(k):
+        s = int(next(it)) - 1
+        t = int(next(it)) - 1
+        d = int(next(it))
+        contracts.append((s, t, d))
+    
+    edges = []
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        c = int(next(it))
+        edges.append((u, v, c))
+    
+    # Variables: x[i][j] = flow of contract i on edge j
+    # Total variables = k * m
+    num_vars = k * m
+    
+    # Objective: minimize 0 (feasibility only)
+    c_vec = np.zeros(num_vars)
+    
+    # Bounds: 0 <= x <= capacity for each edge (shared)
+    lower = np.zeros(num_vars)
+    upper = np.zeros(num_vars)
+    for i in range(k):
+        for j in range(m):
+            upper[i*m + j] = edges[j][2]
+    
+    constraints = []
+    
+    # Flow conservation for each contract and each node
+    # For each contract i, for each node v:
+    # sum_out - sum_in = d_i if v == source
+    # sum_out - sum_in = -d_i if v == sink
+    # sum_out - sum_in = 0 otherwise
+    
+    for i in range(k):
+        s, t, d = contracts[i]
+        for v in range(n):
+            row = np.zeros(num_vars)
+            for j, (u, w, cap) in enumerate(edges):
+                if u == v:
+                    row[i*m + j] += 1
+                if w == v:
+                    row[i*m + j] -= 1
+            if v == s:
+                constraints.append(LinearConstraint(row, d, d))
+            elif v == t:
+                constraints.append(LinearConstraint(row, -d, -d))
+            else:
+                constraints.append(LinearConstraint(row, 0, 0))
+    
+    # Edge capacity constraints: sum over all contracts on each edge <= cap
+    for j in range(m):
+        row = np.zeros(num_vars)
+        for i in range(k):
+            row[i*m + j] = 1
+        constraints.append(LinearConstraint(row, -np.inf, edges[j][2]))
+    
+    # Solve MILP
+    res = milp(c=c_vec, constraints=constraints, bounds=Bounds(lower, upper), integrality=np.ones(num_vars))
+    
+    if not res.success:
+        print("NO")
+        return
+    
+    x = res.x
+    print("YES")
+    for i in range(k):
+        line = []
+        for j in range(m):
+            line.append(int(round(x[i*m + j])))
+        print(" ".join(map(str, line)))
+
+if __name__ == "__main__":
+    solve()
+```

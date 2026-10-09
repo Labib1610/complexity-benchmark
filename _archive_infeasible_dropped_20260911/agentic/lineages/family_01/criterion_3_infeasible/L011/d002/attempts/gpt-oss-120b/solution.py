@@ -1,0 +1,41 @@
+import sys
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+
+    adj = [0] * (n + 1)          # bit i-1 corresponds to vertex i
+    edges = []
+
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        if u == v:
+            continue
+        if u > v:
+            u, v = v, u
+        edges.append((u, v))
+        bit_u = 1 << (u - 1)
+        bit_v = 1 << (v - 1)
+        adj[u] |= bit_v
+        adj[v] |= bit_u
+
+    edges.sort()                 # lexicographic order by (a,b)
+
+    for a, b in edges:
+        common = adj[a] & adj[b]          # vertices adjacent to both a and b
+        # we need c > b
+        mask = common >> b                # shift so that bit 0 corresponds to vertex b+1
+        if mask:
+            lsb = mask & -mask
+            pos = lsb.bit_length() - 1    # position of least significant set bit
+            c = b + 1 + pos
+            sys.stdout.write(f"{a} {b} {c}")
+            return
+
+if __name__ == "__main__":
+    solve()

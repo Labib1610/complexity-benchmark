@@ -3,62 +3,99 @@ from collections import deque
 
 
 def main():
+    sys.setrecursionlimit(300000)
     data = sys.stdin.buffer.read().split()
     idx = 0
-    nA = int(data[idx]); idx += 1
-    nB = int(data[idx]); idx += 1
+    n = int(data[idx]); idx += 1
     m = int(data[idx]); idx += 1
-
-    adj = [[] for _ in range(nA + 1)]
+    k = int(data[idx]); idx += 1
+    adj = [[] for _ in range(n + 1)]
     for _ in range(m):
-        a = int(data[idx]); b = int(data[idx + 1]); idx += 2
-        adj[a].append(b)
+        u = int(data[idx]); v = int(data[idx + 1]); idx += 2
+        adj[u].append(v); adj[v].append(u)
 
-    # Hopcroft-Karp maximum matching between the two campuses. The largest group
-    # with no internal connection (maximum independent set) has size
-    # (nA + nB) - maxMatching by König's theorem.
+    # 2-colour the graph to recover the bipartition (the input is guaranteed bipartite). Side A =
+    # colour 0, side B = colour 1; isolated vertices default to side A.
+    color = [-1] * (n + 1)
+    for s in range(1, n + 1):
+        if color[s] != -1:
+            continue
+        color[s] = 0
+        q = deque([s])
+        while q:
+            u = q.popleft()
+            for w in adj[u]:
+                if color[w] == -1:
+                    color[w] = color[u] ^ 1
+                    q.append(w)
+
+    A = [v for v in range(1, n + 1) if color[v] == 0]
+    # Hopcroft-Karp maximum matching between A (colour 0) and B (colour 1).
     INF = float("inf")
-    pair_u = [0] * (nA + 1)
-    pair_v = [0] * (nB + 1)
-    dist = [0] * (nA + 1)
+    matchA = {u: 0 for u in A}          # A-vertex -> matched B-vertex (0 = none)
+    matchB = [0] * (n + 1)              # B-vertex -> matched A-vertex
+    dist = {}
 
     def bfs():
         q = deque()
-        for u in range(1, nA + 1):
-            if pair_u[u] == 0:
-                dist[u] = 0
-                q.append(u)
+        for u in A:
+            if matchA[u] == 0:
+                dist[u] = 0; q.append(u)
             else:
                 dist[u] = INF
-        reachable_free = False
+        found = False
         while q:
             u = q.popleft()
-            for v in adj[u]:
-                w = pair_v[v]
-                if w == 0:
-                    reachable_free = True
-                elif dist[w] == INF:
-                    dist[w] = dist[u] + 1
-                    q.append(w)
-        return reachable_free
+            for w in adj[u]:            # w on side B
+                x = matchB[w]
+                if x == 0:
+                    found = True
+                elif dist.get(x, INF) == INF:
+                    dist[x] = dist[u] + 1; q.append(x)
+        return found
 
     def dfs(u):
-        for v in adj[u]:
-            w = pair_v[v]
-            if w == 0 or (dist[w] == dist[u] + 1 and dfs(w)):
-                pair_u[u] = v
-                pair_v[v] = u
+        for w in adj[u]:
+            x = matchB[w]
+            if x == 0 or (dist.get(x, INF) == dist[u] + 1 and dfs(x)):
+                matchA[u] = w; matchB[w] = u
                 return True
         dist[u] = INF
         return False
 
-    matching = 0
     while bfs():
-        for u in range(1, nA + 1):
-            if pair_u[u] == 0 and dfs(u):
-                matching += 1
+        for u in A:
+            if matchA[u] == 0:
+                dfs(u)
 
-    print((nA + nB) - matching)
+    # König: Z = vertices reachable from unmatched A via alternating paths (A->B on non-matching
+    # edges, B->A on matching edges). Min vertex cover = (A \ Z) U (B ∩ Z);
+    # max independent set = (A ∩ Z) U (B \ Z).
+    visA = {u: False for u in A}
+    visB = [False] * (n + 1)
+    q = deque()
+    for u in A:
+        if matchA[u] == 0:
+            visA[u] = True; q.append(u)
+    while q:
+        u = q.popleft()
+        for w in adj[u]:               # B side
+            if matchA[u] == w:
+                continue               # skip the matching edge on A->B step
+            if not visB[w]:
+                visB[w] = True
+                x = matchB[w]
+                if x != 0 and not visA.get(x, False):
+                    visA[x] = True; q.append(x)
+
+    mis = [u for u in A if visA[u]] + [v for v in range(1, n + 1)
+                                       if color[v] == 1 and not visB[v]]
+
+    if k <= len(mis):
+        sys.stdout.write("YES\n")
+        sys.stdout.write(" ".join(map(str, sorted(mis[:k]))) + "\n")
+    else:
+        sys.stdout.write("NO\n")
 
 
 main()

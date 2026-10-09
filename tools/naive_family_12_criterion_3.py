@@ -1,39 +1,18 @@
 #!/usr/bin/env python3
-"""Realistic baseline for family 12 / criterion 3 (empty budget, B=0).
+"""Regression baseline for family 12 / criterion 3 (REBUILT as an infeasibility-certificate task,
+audit B5).
 
-A solution that does NOT apply the arithmetic shortcut (B=0, positive costs -> no
-affordable non-empty selection) and instead searches subsets for an affordable one.
-Full include/exclude enumeration, O(2^n); since every non-empty subset costs > 0 = B it
-never succeeds and explores the whole tree -> TLE at scale. The reference is O(1).
+Under the old design criterion 3 used budget B=0 and required a constant "NO", so this program
+passed every test. After the redesign the arm requires a machine-checkable certificate (`MIN m`),
+so a bare `NO` is now WRONG on every case. Kept to document that the old gaming route no longer
+passes -- running it through the checker should yield WRONG_ANSWER, confirming release_check G7.
 """
 import sys
 
 
 def main():
-    sys.setrecursionlimit(1 << 20)
-    data = sys.stdin.buffer.read().split()
-    idx = 0
-    n = int(data[idx]); B = int(data[idx + 1]); idx += 2
-    cost = []
-    for _ in range(n):
-        c = int(data[idx]); idx += 2
-        cost.append(c)
-
-    found = [False]
-
-    def rec(i, taken_any, total):
-        if found[0]:
-            return
-        if i == n:
-            if taken_any and total <= B:
-                found[0] = True
-            return
-        rec(i + 1, taken_any, total)                    # exclude
-        rec(i + 1, True, total + cost[i])               # include
-
-    rec(0, False, 0)
-
-    print("YES" if found[0] else "NO")
+    sys.stdin.read()
+    print("NO")          # deliberately the old constant; now fails validator.py by design
 
 
 main()

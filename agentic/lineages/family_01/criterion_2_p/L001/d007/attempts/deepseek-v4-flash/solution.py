@@ -15,6 +15,7 @@ for _ in range(m):
 color = [-1] * n
 
 def bfs(start):
+    # try starting with color 0 (type 1)
     q = deque([start])
     color[start] = 0
     while q:
@@ -29,42 +30,39 @@ def bfs(start):
 
 for i in range(n):
     if color[i] == -1:
-        # Try to assign 0 (choice 1) to this node
-        # But we must check if assigning 0 leads to conflict
-        # We'll do a temporary BFS with color[i]=0
-        # If conflict, try color[i]=1
-        # Since we process in order, this gives lexicographically smallest
-        tmp_color = color[:]
-        tmp_color[i] = 0
+        if not bfs(i):
+            print("NO")
+            sys.exit()
+
+# Now we have a valid bipartite coloring, but we need lexicographically smallest.
+# We can try flipping colors in each connected component if it improves lexicographic order.
+visited = [False] * n
+for i in range(n):
+    if not visited[i]:
+        # collect component
+        comp = []
         q = deque([i])
-        ok = True
+        visited[i] = True
         while q:
             u = q.popleft()
+            comp.append(u)
             for v in adj[u]:
-                if tmp_color[v] == -1:
-                    tmp_color[v] = tmp_color[u] ^ 1
+                if not visited[v]:
+                    visited[v] = True
                     q.append(v)
-                elif tmp_color[v] == tmp_color[u]:
-                    ok = False
-                    break
-            if not ok:
-                break
-        if ok:
-            color = tmp_color
-        else:
-            # assign 1
-            color[i] = 1
-            q = deque([i])
-            while q:
-                u = q.popleft()
-                for v in adj[u]:
-                    if color[v] == -1:
-                        color[v] = color[u] ^ 1
-                        q.append(v)
-                    elif color[v] == color[u]:
-                        print("NO")
-                        sys.exit()
+        # count how many would be type 1 if we keep current coloring
+        cnt1 = sum(1 for u in comp if color[u] == 0)
+        cnt2 = len(comp) - cnt1
+        # If flipping gives more type 1s at smaller indices, flip
+        # Actually we want lexicographically smallest, so we compare sequences.
+        # We can just try flipping and see if it's better.
+        # Since components are independent, we can decide per component.
+        # For lexicographic smallest, we want earliest index to be 1 if possible.
+        # So if the smallest index in comp currently has color 1, flip.
+        min_idx = min(comp)
+        if color[min_idx] == 1:
+            for u in comp:
+                color[u] ^= 1
 
-# If we reach here, graph is bipartite
 print("YES")
 print(' '.join(str(c + 1) for c in color))

@@ -1,0 +1,122 @@
+import sys
+from collections import defaultdict, deque
+
+def main():
+    import sys
+    sys.setrecursionlimit(1 << 25)
+    
+    n, m, k = map(int, sys.stdin.readline().split())
+    
+    adj = defaultdict(set)
+    edges = []
+    
+    for _ in range(m):
+        u, v = map(int, sys.stdin.readline().split())
+        adj[u].add(v)
+        adj[v].add(u)
+        edges.append((u, v))
+    
+    if m == 0:
+        print("YES")
+        print(' '.join(map(str, range(1, k+1))))
+        return
+    
+    # Since the graph is bipartite, we can 2-color it
+    color = [-1] * (n + 1)
+    camp1 = []
+    camp2 = []
+    
+    def bfs(start):
+        queue = deque()
+        queue.append(start)
+        color[start] = 0
+        camp1.append(start)
+        
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if color[v] == -1:
+                    color[v] = 1 - color[u]
+                    if color[v] == 0:
+                        camp1.append(v)
+                    else:
+                        camp2.append(v)
+                    queue.append(v)
+                elif color[v] == color[u]:
+                    # Should not happen as per problem statement
+                    return False
+        return True
+    
+    visited = [False] * (n + 1)
+    for i in range(1, n + 1):
+        if color[i] == -1:
+            if not bfs(i):
+                # This should not happen according to problem statement
+                print("NO")
+                return
+    
+    # Now we have two camps: camp1 and camp2
+    # In each camp, no two users are friends (since all edges go between camps)
+    # So we can pick up to min(k, len(camp)) users from each camp
+    
+    if len(camp1) >= k:
+        print("YES")
+        print(' '.join(map(str, camp1[:k])))
+        return
+    elif len(camp2) >= k:
+        print("YES")
+        print(' '.join(map(str, camp2[:k])))
+        return
+    else:
+        # We can take all users from the smaller camp and some from the larger
+        # But we need to make sure total is exactly k
+        size1 = len(camp1)
+        size2 = len(camp2)
+        
+        if size1 + size2 < k:
+            print("NO")
+            return
+            
+        # Since we want exactly k, and we can take any subset from each camp
+        # We just need k <= size1 + size2, which we checked
+        # And we prefer to take from the larger camp to reach k
+        if size1 >= k:
+            print("YES")
+            print(' '.join(map(str, camp1[:k])))
+        elif size2 >= k:
+            print("YES")
+            print(' '.join(map(str, camp2[:k])))
+        else:
+            # Take all from one camp and the rest from the other
+            if size1 + size2 >= k:
+                # We can take all from camp1 and (k - size1) from camp2
+                # Or all from camp2 and (k - size2) from camp1
+                if size1 >= k:
+                    print("YES")
+                    print(' '.join(map(str, camp1[:k])))
+                elif size2 >= k:
+                    print("YES")
+                    print(' '.join(map(str, camp2[:k])))
+                else:
+                    # Take all from smaller camp and rest from larger
+                    if size1 <= size2:
+                        # Take all of camp1 and (k - size1) from camp2
+                        if size1 + size2 >= k:
+                            selected = camp1 + camp2[:k - size1]
+                            print("YES")
+                            print(' '.join(map(str, selected)))
+                        else:
+                            print("NO")
+                    else:
+                        # Take all of camp2 and (k - size2) from camp1
+                        if size1 + size2 >= k:
+                            selected = camp2 + camp1[:k - size2]
+                            print("YES")
+                            print(' '.join(map(str, selected)))
+                        else:
+                            print("NO")
+            else:
+                print("NO")
+
+if __name__ == "__main__":
+    main()

@@ -1,7 +1,10 @@
 import sys
 from collections import defaultdict, deque
 
-def solve():
+def main():
+    import sys
+    sys.setrecursionlimit(1 << 25)
+    
     n, m = map(int, sys.stdin.readline().split())
     
     if m == 0:
@@ -9,91 +12,89 @@ def solve():
         print(" ".join(["1"] * n))
         return
     
-    # Build adjacency list
-    adj = defaultdict(list)
+    # Build graph
+    adj = [[] for _ in range(n + 1)]
     edges = []
-    
-    for _ in range(m):
+    for i in range(m):
         u, v = map(int, sys.stdin.readline().split())
-        adj[u].append(v)
-        adj[v].append(u)
+        adj[u].append((v, i))
+        adj[v].append((u, i))
         edges.append((u, v))
     
-    # Check if solution exists and find it
-    # For each edge (u,v), we need s_u^2 + s_v^2 = 5
-    # Since s_u, s_v ∈ {1,2}, we have possible sums:
-    # 1^2 + 1^2 = 2
-    # 1^2 + 2^2 = 5
-    # 2^2 + 1^2 = 5
-    # 2^2 + 2^2 = 8
-    # So we need exactly one of s_u, s_v to be 1 and the other to be 2
+    # For each component, we need to check bipartiteness
+    color = [-1] * (n + 1)
+    comp = [0] * (n + 1)
+    comp_id = 1
     
-    # This means the graph must be bipartite
-    # Each connected component must be bipartite
-    
-    color = [0] * (n + 1)  # 0: unvisited, 1: color 1, -1: color -1
-    
-    # Check if bipartite and assign states
-    for start in range(1, n + 1):
-        if color[start] == 0:
-            queue = deque([start])
-            color[start] = 1
-            
-            while queue:
-                node = queue.popleft()
-                current_color = color[node]
-                
-                for neighbor in adj[node]:
-                    if color[neighbor] == 0:
-                        color[neighbor] = -current_color
-                        queue.append(neighbor)
-                    elif color[neighbor] == current_color:
-                        print("NO")
-                        return
-    
-    # Construct the lexicographically smallest solution
-    # We want s_i = 1 if color[i] = 1, s_i = 2 if color[i] = -1
-    # But we also want lexicographically smallest, so:
-    # Assign s_i = 1 if color[i] = 1, s_i = 2 if color[i] = -1
-    # OR assign s_i = 2 if color[i] = 1, s_i = 1 if color[i] = -1
-    # Choose the one that gives lexicographically smaller sequence
-    
-    # To get lexicographically smallest, we prefer s_1 = 1 if possible
-    result = [0] * (n + 1)
+    # Check if the graph is bipartite
+    bipartite = True
+    components = []
     
     for i in range(1, n + 1):
-        if color[i] == 0:
-            result[i] = 1  # Isolated vertex, can be either 1 or 2, choose 1 for lex smallest
-        elif color[i] == 1:
-            result[i] = 1
-        else:
-            result[i] = 2
+        if color[i] == -1:
+            queue = deque()
+            queue.append(i)
+            color[i] = 0
+            comp[i] = comp_id
+            nodes = [i]
+            
+            while queue:
+                u = queue.popleft()
+                for v, _ in adj[u]:
+                    if color[v] == -1:
+                        color[v] = color[u] ^ 1
+                        comp[v] = comp_id
+                        queue.append(v)
+                        nodes.append(v)
+                    elif color[v] == color[u]:
+                        bipartite = False
+                        break
+                if not bipartite:
+                    break
+            
+            components.append(nodes)
+            comp_id += 1
+            if not bipartite:
+                break
     
-    # But we need to check if this satisfies the constraint
-    # Let's verify with first edge
-    valid = True
-    for u, v in edges:
-        if result[u]**2 + result[v]**2 != 5:
-            valid = False
-            break
+    if not bipartite:
+        print("NO")
+        return
     
-    if not valid:
-        # Try the other assignment
-        for i in range(1, n + 1):
-            if color[i] == 0:
-                result[i] = 2
-            elif color[i] == 1:
-                result[i] = 2
-            else:
-                result[i] = 1
+    # For each component, assign modes based on bipartition
+    # We want lexicographically smallest assignment
+    # Color 0 -> mode 1, Color 1 -> mode 2 to get lex smallest
+    result = [0] * (n + 1)
+    
+    for nodes in components:
+        # Determine which coloring gives lexicographically smaller result
+        # Try both assignments and pick the better one
+        option1 = {}
+        option2 = {}
         
-        # Verify again
-        for u, v in edges:
-            if result[u]**2 + result[v]**2 != 5:
-                print("NO")
-                return
+        first_node = min(nodes)
+        
+        for node in nodes:
+            option1[node] = 1 if color[node] == 0 else 2
+            option2[node] = 1 if color[node] == 1 else 2
+        
+        # Compare which one is lexicographically smaller at the first node
+        if option1[first_node] < option2[first_node]:
+            chosen = option1
+        elif option1[first_node] > option2[first_node]:
+            chosen = option2
+        else:
+            # Need to compare further, but since it's bipartite and we're just swapping,
+            # we can decide based on the pattern. To get lex smallest, we prefer 1 over 2
+            # at the earliest position. Since first_node is the minimum, and we've already
+            # compared, we stick with option1 if equal.
+            chosen = option1
+            
+        for node in nodes:
+            result[node] = chosen[node]
     
     print("YES")
     print(" ".join(map(str, result[1:])))
 
-solve()
+if __name__ == "__main__":
+    main()

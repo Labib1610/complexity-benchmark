@@ -1,21 +1,20 @@
-# Orbital Array Equilibrium
+# Problem B — Asset Hedging
 
-Time limit: 1 s
-Memory limit: 256 MB
+Time limit: 1 s   Memory limit: 256 MB
 
-An orbital array contains $n$ synchronization nodes. Each node must be configured with a resonance tier of either 1 or 2. 
+A financial institution is allocating a portfolio of $n$ assets into two separate investment pools, labeled as Vehicle 1 and Vehicle 2. Every single asset must be placed into exactly one of these two vehicles.
 
-The array is stabilized by $m$ harmonic tethers. Each tether connects two specific nodes and continuously monitors their resonance tiers. To maintain equilibrium, a tether requires a precise relationship between its endpoints. It remains balanced if and only if the product of the resonance tiers of its two connected nodes, plus the sum of their resonance tiers, equals exactly 5. If any tether detects that its monitored nodes do not satisfy this condition, it triggers a system halt.
+Due to extreme market correlation, risk analysts have identified $m$ specific pairs of assets that require careful handling. To comply with the institution's hedging policy, every flagged pair must be split: exactly one asset from each such pair must be placed into Vehicle 1.
 
-Your task is to determine whether there is an assignment of resonance tiers for all $n$ nodes that keeps every tether balanced. If multiple such assignments exist, the safety override protocol requires the one that is lexicographically smallest (i.e., the sequence of resonance tiers $s_1, s_2, \dots, s_n$ must be as small as possible when compared element by element starting from the first node).
+Your objective is to find a complete allocation of the $n$ assets that strictly respects all $m$ hedging policies. If such an allocation is possible, you must output it. In cases where multiple valid allocations exist, you must choose the one that yields the lexicographically smallest sequence of $n$ vehicle identifiers (using 1s and 2s).
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$).
-Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$), indicating that a harmonic tether connects node $u$ and node $v$.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$), indicating the total number of assets and the number of flagged asset pairs. The assets are indexed from 1 to $n$.
+The following $m$ lines each contain two integers $u$ and $v$, specifying a pair of assets that falls under the hedging policy.
 
 ## Output
-If no balanced assignment exists, print a single line containing `NO`.
-Otherwise, print `YES` on the first line. On the second line, print $n$ integers $s_1, \dots, s_n$ (each being 1 or 2) representing the lexicographically smallest balanced assignment.
+If no allocation can satisfy all hedging policies, print a single line containing `NO`.
+Otherwise, print `YES` on the first line. On the second line, output $n$ integers $s_1, s_2, \dots, s_n$ (where each $s_i \in \{1, 2\}$) denoting the assigned vehicles for assets 1 through $n$. If there are multiple valid allocations, output the sequence that is lexicographically smallest.
 
 ## Example 1
 Input:

@@ -1,0 +1,256 @@
+```python
+import sys
+from collections import defaultdict, deque
+
+def find_min_edge_cut(graph, n, source, sink):
+    # Find minimum edge cut between source and sink using BFS-based approach
+    # This is a simplified version for unweighted graphs
+    # For weighted graphs, we'd need to use max-flow min-cut
+    visited = [False] * (n + 1)
+    parent = [-1] * (n + 1)
+    queue = deque([source])
+    visited[source] = True
+    
+    while queue:
+        u = queue.popleft()
+        for v in graph[u]:
+            if not visited[v] and graph[u][v] > 0:  # Edge has capacity
+                visited[v] = True
+                parent[v] = u
+                queue.append(v)
+                if v == sink:
+                    break
+    
+    return visited[sink]
+
+def bfs_check_connectivity(graph, n, start, targets, exclude_edges):
+    visited = [False] * (n + 1)
+    queue = deque([start])
+    visited[start] = True
+    
+    while queue:
+        u = queue.popleft()
+        for v in graph[u]:
+            if (u, v) in exclude_edges or (v, u) in exclude_edges:
+                continue
+            if not visited[v]:
+                visited[v] = True
+                queue.append(v)
+    
+    for target in targets:
+        if target != start and visited[target]:
+            return True
+    return False
+
+def solve():
+    input = sys.stdin.read
+    data = input().split()
+    
+    idx = 0
+    n = int(data[idx])
+    idx += 1
+    m = int(data[idx])
+    idx += 1
+    k = int(data[idx])
+    idx += 1
+    B = int(data[idx])
+    idx += 1
+    
+    catalysts = []
+    for i in range(k):
+        catalysts.append(int(data[idx]))
+        idx += 1
+    
+    edges = []
+    graph = defaultdict(dict)
+    edge_list = []
+    
+    for i in range(m):
+        u = int(data[idx])
+        idx += 1
+        v = int(data[idx])
+        idx += 1
+        w = int(data[idx])
+        idx += 1
+        
+        edges.append((u, v, w))
+        edge_list.append((u, v))
+        if v not in graph[u]:
+            graph[u][v] = 0
+        if u not in graph[v]:
+            graph[v][u] = 0
+        graph[u][v] += w
+        graph[v][u] += w
+    
+    # Try all combinations of edges with total cost <= B
+    # But since m can be up to 1000, we need a smarter approach
+    
+    # We want to disconnect all pairs of catalyst nodes
+    # This is equivalent to finding a multi-way cut
+    
+    # For small k, we can try to separate each pair
+    if k <= 1:
+        print("YES")
+        print(0)
+        return
+    
+    # Use a greedy approach - find minimum cuts between pairs
+    required_cuts = set()
+    total_cost = 0
+    capped_edges = []
+    
+    # Create adjacency list without weights for connectivity check
+    adj = defaultdict(list)
+    for u, v, w in edges:
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # Check if already disconnected
+    already_disconnected = True
+    for i in range(len(catalysts)):
+        for j in range(i+1, len(catalysts)):
+            if bfs_check_connectivity(adj, n, catalysts[i], [catalysts[j]], set()):
+                already_disconnected = False
+                break
+        if not already_disconnected:
+            break
+    
+    if already_disconnected:
+        print("YES")
+        print(0)
+        return
+    
+    # Try a different approach: model as a flow network
+    # Add super source connected to all catalysts except last
+    # Add super sink connected to the last catalyst
+    # Find minimum cut
+    
+    # Simplified approach: try to find a solution greedily
+    
+    # Sort edges by weight
+    edges_with_index = [(edges[i][2], i, edges[i][0], edges[i][1]) for i in range(len(edges))]
+    edges_with_index.sort()
+    
+    # Try to build a solution incrementally
+    current_capped = set()
+    current_cost = 0
+    
+    # Keep checking if all catalysts are disconnected
+    def are_catalysts_disconnected():
+        # Build graph without capped edges
+        temp_adj = defaultdict(list)
+        for u, v in edge_list:
+            if (u, v) not in current_capped and (v, u) not in current_capped:
+                temp_adj[u].append(v)
+                temp_adj[v].append(u)
+        
+        # Check connectivity between any pair of catalysts
+        for i in range(len(catalysts)):
+            for j in range(i+1, len(catalysts)):
+                visited = [False] * (n + 1)
+                queue = deque([catalysts[i]])
+                visited[catalysts[i]] = True
+                found = False
+                
+                while queue and not found:
+                    node = queue.popleft()
+                    for neighbor in temp_adj[node]:
+                        if not visited[neighbor]:
+                            if neighbor == catalysts[j]:
+                                found = True
+                                break
+                            visited[neighbor] = True
+                            queue.append(neighbor)
+                
+                if found:
+                    return False
+        return True
+    
+    # Greedy algorithm: add cheapest edges until disconnected
+    for weight, idx, u, v in edges_with_index:
+        if current_cost + weight > B:
+            continue
+            
+        current_capped.add((u, v))
+        current_cost += weight
+        
+        if are_catalysts_disconnected():
+            print("YES")
+            print(len(current_capped))
+            for edge in current_capped:
+                print(edge[0], edge[1])
+            return
+    
+    # If that doesn't work, try another approach
+    # Model as hitting set problem - find minimum cost set of edges
+    # that covers all paths between catalyst pairs
+    
+    # Brute force for small inputs
+    if m <= 20:
+        # Try all subsets
+        best_cost = B + 1
+        best_solution = None
+        
+        for mask in range(1 << m):
+            cost = 0
+            selected_edges = []
+            edge_set = set()
+            
+            for i in range(m):
+                if mask & (1 << i):
+                    u, v, w = edges[i]
+                    cost += w
+                    selected_edges.append((u, v))
+                    edge_set.add((u, v))
+                    edge_set.add((v, u))
+            
+            if cost > B:
+                continue
+                
+            # Check if this selection disconnects all catalysts
+            disconnected = True
+            temp_adj = defaultdict(list)
+            for u, v in edge_list:
+                if (u, v) not in edge_set:
+                    temp_adj[u].append(v)
+                    temp_adj[v].append(u)
+            
+            for i in range(len(catalysts)):
+                for j in range(i+1, len(catalysts)):
+                    # BFS to check connectivity
+                    visited = [False] * (n + 1)
+                    queue = deque([catalysts[i]])
+                    visited[catalysts[i]] = True
+                    found = False
+                    
+                    while queue and not found:
+                        node = queue.popleft()
+                        for neighbor in temp_adj[node]:
+                            if not visited[neighbor]:
+                                if neighbor == catalysts[j]:
+                                    found = True
+                                    break
+                                visited[neighbor] = True
+                                queue.append(neighbor)
+                    
+                    if found:
+                        disconnected = False
+                        break
+                if not disconnected:
+                    break
+            
+            if disconnected and cost < best_cost:
+                best_cost = cost
+                best_solution = selected_edges
+        
+        if best_solution is not None:
+            print("YES")
+            print(len(best_solution))
+            for u, v in best_solution:
+                print(u, v)
+            return
+    
+    print("NO")
+
+solve()
+```

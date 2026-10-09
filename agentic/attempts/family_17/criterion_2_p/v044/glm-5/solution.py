@@ -1,0 +1,125 @@
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    q = int(data[0])
+    t = int(data[1])
+    edges = []
+    idx = 2
+    for _ in range(t):
+        a = int(data[idx]); b = int(data[idx+1])
+        idx += 2
+        edges.append((a, b))
+
+    N = 2 * q
+    head = [-1] * (N + 1)
+    to = []
+    nxt = []
+    for i, (a, b) in enumerate(edges):
+        to.append(b); nxt.append(head[a]); head[a] = i
+        to.append(a); nxt.append(head[b]); head[b] = i + t
+
+    match = [-1] * (N + 1)
+    parent = [-1] * (N + 1)
+    base = list(range(N + 1))
+    in_blossom = [False] * (N + 1)
+    in_queue = [False] * (N + 1)
+    queue = []
+
+    for u in range(1, N + 1):
+        if match[u] != -1:
+            continue
+        for x in range(1, N + 1):
+            parent[x] = -1
+            base[x] = x
+            in_blossom[x] = False
+            in_queue[x] = False
+        queue.clear()
+        parent[u] = u
+        in_queue[u] = True
+        queue.append(u)
+        found = False
+        qi = 0
+        while qi < len(queue) and not found:
+            v = queue[qi]; qi += 1
+            e = head[v]
+            while e != -1:
+                w = to[e]
+                if base[v] == base[w] or match[v] == w:
+                    e = nxt[e]
+                    continue
+                if parent[w] == -1:
+                    parent[w] = v
+                    if match[w] == -1:
+                        cur = w
+                        while cur != u:
+                            p = parent[cur]
+                            pp = match[p]
+                            match[cur] = p
+                            match[p] = cur
+                            cur = pp
+                        match[u] = match[u]
+                        found = True
+                        break
+                    else:
+                        nw = match[w]
+                        parent[nw] = w
+                        in_queue[nw] = True
+                        queue.append(nw)
+                else:
+                    lca = -1
+                    bv = base[v]; bw = base[w]
+                    visited = set()
+                    while bv != bw:
+                        if bv > bw:
+                            visited.add(bv)
+                            bv = base[parent[match[bv]]]
+                        else:
+                            if bw in visited:
+                                lca = bw
+                                break
+                            visited.add(bw)
+                            bw = base[parent[match[bw]]]
+                    if lca == -1:
+                        lca = bv
+                    stack = []
+                    x = base[v]
+                    while x != lca:
+                        stack.append(x)
+                        x = base[parent[match[x]]]
+                    x = base[w]
+                    while x != lca:
+                        stack.append(x)
+                        x = base[parent[match[x]]]
+                    for x in stack:
+                        in_blossom[x] = True
+                        bx = base[x]
+                        if bx != x:
+                            base[bx] = lca
+                        base[x] = lca
+                        if not in_queue[x]:
+                            in_queue[x] = True
+                            queue.append(x)
+                e = nxt[e]
+            if found:
+                break
+
+    cnt = 0
+    for i in range(1, N + 1):
+        if match[i] != -1:
+            cnt += 1
+    if cnt != N:
+        sys.stdout.write("NO\n")
+        return
+
+    sys.stdout.write("YES\n")
+    out = []
+    for i, (a, b) in enumerate(edges):
+        if match[a] == b:
+            out.append(f"{a} {b}")
+    sys.stdout.write("\n".join(out))
+    sys.stdout.write("\n")
+
+solve()

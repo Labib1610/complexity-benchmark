@@ -1,0 +1,103 @@
+import sys
+from collections import defaultdict, deque
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
+    
+    edges = []
+    adj = [[] for _ in range(n+1)]
+    edge_indices = defaultdict(list)
+    
+    idx = 2
+    for i in range(m):
+        u = int(data[idx])
+        v = int(data[idx+1])
+        idx += 2
+        edges.append((u, v))
+        adj[u].append((v, i))
+        adj[v].append((u, i))
+        edge_indices[(u,v)].append(i)
+        edge_indices[(v,u)].append(i)
+    
+    # The complex numbers:
+    c1 = 1 + 1j
+    c2 = 1 - 1j
+    vals = [None, c1, c2]
+    
+    # For each edge (u,v), we compute Im(signature[u] * signature[v])
+    # We want the sum of squares of these imaginary parts to be 0.
+    # Since all terms are non-negative reals, this happens iff each term is 0.
+    # So for every edge, Im(sig_u * sig_v) = 0.
+    
+    # Let's compute what Im(c_i * c_j) is for all i,j in {1,2}:
+    # c1*c1 = (1+i)(1+i) = 1 + 2i -1 = 2i --> Im = 2
+    # c1*c2 = (1+i)(1-i) = 1 -i +i +1 = 2 --> Im = 0
+    # c2*c1 = (1-i)(1+i) = 1 +i -i +1 = 2 --> Im = 0
+    # c2*c2 = (1-i)(1-i) = 1 -2i -1 = -2i --> Im = -2
+    
+    # So Im(c_i * c_j) = 0 iff (i,j) = (1,2) or (2,1)
+    # This means for every edge (u,v), s_u != s_v is required for validity.
+    # Hence, the graph must be bipartite and we must 2-color it.
+    
+    color = [0] * (n+1)  # 0: unvisited, 1 and 2: colors
+    
+    # Check if the graph is bipartite
+    visited = [False] * (n+1)
+    
+    for start in range(1, n+1):
+        if not visited[start]:
+            queue = deque()
+            queue.append(start)
+            color[start] = 1
+            visited[start] = True
+            
+            while queue:
+                u = queue.popleft()
+                c = color[u]
+                for v, e_idx in adj[u]:
+                    if not visited[v]:
+                        visited[v] = True
+                        color[v] = 3 - c  # flips color between 1 and 2
+                        queue.append(v)
+                    elif color[v] == c:
+                        print("NO")
+                        return
+    
+    # If bipartite, assign colors as states
+    # But we need lexicographically smallest assignment
+    # That means we should try color 1 for earlier nodes first
+    # Since we did BFS from low to high, and always started with color 1,
+    # the coloring already gives us a lex-min solution under the constraint.
+    
+    # But actually, we can just assign color 1 and 2 directly as states
+    # because the bipartition itself ensures the constraint.
+    # And our BFS ensures that among valid colorings respecting the bipartition,
+    # starting node gets color 1, which leads to lex-min.
+    
+    # Just double-checking: for each edge, s_u != s_v => Im=0 => valid
+    # So any proper 2-coloring works.
+    
+    # Our algorithm produces a valid 2-coloring if possible.
+    # Now produce the result:
+    res = []
+    for i in range(1, n+1):
+        if color[i] == 0:
+            res.append(1)  # isolated node, assign 1
+        else:
+            res.append(color[i])
+    
+    print("YES")
+    print(" ".join(map(str, res)))
+
+if __name__ == "__main__":
+    main()

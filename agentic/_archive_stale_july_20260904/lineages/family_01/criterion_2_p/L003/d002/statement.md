@@ -1,0 +1,45 @@
+# Problem B — Machine Modes
+
+Time limit: 1 s   Memory limit: 256 MB
+
+A manufacturing process relies on $n$ machines. You must assign each machine a configuration state of either 1 or 2. 
+
+The system has $m$ bidirectional exchange lines between specific pairs of machines. An exchange line between machine $u$ and machine $v$ is considered balanced if transferring a workload from $u$ to $v$ scales the workload's processing time by a factor of either 0.5 or 2.0. This scaling factor from $u$ to $v$ is calculated as the configuration state of $u$ divided by the configuration state of $v$. 
+
+Determine a valid configuration state for each machine so that all exchange lines are balanced, or report if this is impossible.
+
+## Input
+The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$).
+Each of the next $m$ lines contains two integers $u$ and $v$, representing an exchange line between machine $u$ and machine $v$.
+
+## Output
+If no balanced assignment exists, print a single line NO.
+Otherwise print YES, followed by a second line containing $n$ integers $s_1 \dots s_n$ (each either 1 or 2). This sequence must be the lexicographically smallest valid assignment.
+
+## Example 1
+Input:
+```
+4 4
+1 2
+2 3
+3 4
+1 4
+```
+Output:
+```
+YES
+1 2 1 2
+```
+
+## Example 2
+Input:
+```
+3 3
+1 2
+1 3
+2 3
+```
+Output:
+```
+NO
+```

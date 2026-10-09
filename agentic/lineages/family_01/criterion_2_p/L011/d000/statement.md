@@ -1,22 +1,18 @@
-# Diophantine Feasibility
+# Phase Configuration
 
 Time limit: 1 s   Memory limit: 256 MB
 
-You are analyzing a system of linear constraints over a discrete set of variables. The model consists of a state vector $X = (x_1, x_2, \dots, x_n)$ in an $n$-dimensional space. 
+A manufacturing plant operates continuously through two distinct production phases, labeled 1 and 2. The facility houses $n$ industrial machines. Due to the electrical wiring, $m$ specific pairs of machines are connected to the same local power sub-panel. If two machines sharing a sub-panel are active during the same production phase, they will overload the circuit. Consequently, such pairs must be scheduled in different phases.
 
-Every variable is subject to the strict domain bound $x_i \in \{1, 2\}$. Consequently, the global configuration space contains exactly $2^n$ potential state vectors.
-
-The system is restricted by a set of $m$ equations. Each equation is defined by a pair of variable indices $(u, v)$ and specifies that the sum of these two variables must be exactly 3. 
-
-Your objective is to evaluate the system and find a feasible state vector $X$ that satisfies all $m$ equations simultaneously. Because multiple feasible state vectors may exist in the space, you must output the lexicographically smallest valid vector. If the system of equations has no solution within the specified domain, you must report that it is impossible.
+You must determine whether it is possible to assign each machine to exactly one of the two phases without causing any power overloads. If a safe configuration is possible, the plant's automated control system requires a standardized output. Specifically, the resulting sequence of $n$ phase assignments must be lexicographically smallest, meaning that the system prefers placing machines in phase 1 over phase 2, prioritizing the machine with the lowest ID, then the second lowest, and so forth.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$).
-Each of the following $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$), representing the constraint $x_u + x_v = 3$.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$), representing the number of machines and the number of shared sub-panel connections.
+The following $m$ lines each contain two integers $u$ and $v$ ($1 \le u, v \le n$), indicating that machine $u$ and machine $v$ share a power sub-panel.
 
 ## Output
-If there is no state vector satisfying all equations, print a single line containing `NO`.
-Otherwise, print `YES` on the first line, followed by a second line containing $n$ integers $x_1, x_2, \dots, x_n$ (each in $\{1, 2\}$), representing the lexicographically smallest valid state vector.
+If there is no way to assign the phases without an overload, output a single line containing `NO`.
+If a safe assignment exists, output `YES` on the first line. On the second line, output $n$ space-separated integers, where the $i$-th integer (either 1 or 2) represents the phase assigned to machine $i$. This sequence must be the lexicographically smallest valid assignment.
 
 ## Example 1
 Input:

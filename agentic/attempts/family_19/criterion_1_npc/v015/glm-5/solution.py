@@ -1,0 +1,256 @@
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    idx = 0
+    n = int(data[idx]); idx += 1
+    m = int(data[idx]); idx += 1
+    k = int(data[idx]); idx += 1
+
+    contracts = []
+    for _ in range(k):
+        s = int(data[idx]) - 1; idx += 1
+        t = int(data[idx]) - 1; idx += 1
+        d = int(data[idx]); idx += 1
+        contracts.append((s, t, d))
+
+    edges = []
+    for _ in range(m):
+        u = int(data[idx]) - 1; idx += 1
+        v = int(data[idx]) - 1; idx += 1
+        c = int(data[idx]); idx += 1
+        edges.append((u, v, c))
+
+    # Node indexing:
+    # For each contract i and terminal v: node index = i * n + v
+    # Super source: k * n
+    # Super sink: k * n + 1
+    total_nodes = k * n + 2
+    super_source = k * n
+    super_sink = k * n + 1
+
+    # Dinic's algorithm
+    class Edge:
+        __slots__ = ('to', 'cap', 'rev')
+        def __init__(self, to, cap, rev):
+            self.to = to
+            self.cap = cap
+            self.rev = rev
+
+    graph = [[] for _ in range(total_nodes)]
+
+    def add_edge(fr, to, cap):
+        forward = Edge(to, cap, len(graph[to]))
+        backward = Edge(fr, 0, len(graph[fr]))
+        graph[fr].append(forward)
+        graph[to].append(backward)
+
+    # Contract edges: each contract can use each rail segment
+    # Capacity per contract per edge = min(d_i, c_j)
+    for i, (s, t, d) in enumerate(contracts):
+        for j, (u, v, c) in enumerate(edges):
+            cap = min(d, c)
+            if cap > 0:
+                add_edge(i * n + u, i * n + v, cap)
+
+    # Super source to contract origins
+    for i, (s, t, d) in enumerate(contracts):
+        add_edge(super_source, i * n + s, d)
+
+    # Contract destinations to super sink
+    for i, (s, t, d) in enumerate(contracts):
+        add_edge(i * n + t, super_sink, d)
+
+    # Shared edge capacity nodes
+    # For each rail segment j, create a node: k * n + 2 + j
+    edge_cap_nodes_start = k * n + 2
+    for j, (u, v, c) in enumerate(edges):
+        node = edge_cap_nodes_start + j
+        add_edge(node, super_sink, c)
+
+    # For each contract i and edge j, connect contract's destination terminal to edge cap node
+    # This enforces shared capacity: flow through edge j for contract i must go through node
+    # which has total capacity c_j
+    # But we need to be careful: the flow conservation at terminal v for contract i
+    # The edge from i*n+v to edge_cap_node has capacity = min(d_i, c_j)
+    # Then edge_cap_node to super_sink has capacity c_j (shared)
+    # But this would mean all flow through edge j goes to sink, not to v's downstream
+    
+    # Actually, the correct modeling is:
+    # For each edge j (u->v) with capacity c_j:
+    #   For each contract i, the flow on edge j for contract i is x_{i,j}
+    #   Constraint: sum_i x_{i,j} <= c_j
+    #   Flow conservation for contract i at each node
+    
+    # The standard way: create a node for each (contract, edge) pair
+    # But that's what we already have with i*n+u -> i*n+v
+    
+    # To enforce shared capacity, we need to limit sum of flows across contracts on edge j
+    # One way: replace edge i*n+u -> i*n+v with i*n+u -> cap_node_j -> i*n+v
+    # But cap_node_j is shared, so flow from different contracts through it would mix
+    # and the capacity constraint would be enforced
+    
+    # Let me redo this properly
+    
+    # Reset graph
+    graph = [[] for _ in range(total_nodes + m)]
+    
+    def add_edge2(fr, to, cap):
+        forward = Edge(to, cap, len(graph[to]))
+        backward = Edge(fr, 0, len(graph[fr]))
+        graph[fr].append(forward)
+        graph[to].append(backward)
+    
+    # For each contract i and edge j: i*n+u -> cap_node -> i*n+v
+    # cap_node is shared across contracts for edge j
+    # But we need to track per-contract flow on each edge
+    
+    # Actually, we can't easily track per-contract flow if we share the node
+    # because the flow gets mixed.
+    
+    # Alternative: use the node for each (contract, edge) but connect to a shared capacity node
+    # i*n+u -> (i,j)_node -> i*n+v  with capacity min(d_i, c_j)
+    # (i,j)_node -> cap_node_j with capacity infinity
+    # cap_node_j -> sink with capacity c_j
+    # But this doesn't work because flow through (i,j)_node goes to both i*n+v and cap_node_j
+    
+    # The correct approach for multi-commodity with shared edge capacities:
+    # Since all commodities share the same source-sink structure (super source/sink),
+    # we can model it as:
+    # - For edge j with capacity c_j, create edge_cap_node_j
+    # - For contract i, edge j: i*n+u -> edge_cap_node_j (cap = min(d_i, c_j))
+    #                          edge_cap_node_j -> i*n+v (cap = min(d_i, c_j))
+    # - The edge_cap_node_j has total inflow limited by... no, that's not enforced
+    
+    # Actually, the node itself doesn't limit flow. We need edge capacity.
+    # The trick: edge_cap_node_j -> i*n+v has capacity min(d_i, c_j) for each i
+    # But the inflow to edge_cap_node_j from all contracts is sum of x_{i,j}
+    # and outflow is also sum of x_{i,j}. The node doesn't limit.
+    
+    # To limit sum_i x_{i,j} <= c_j, we can split the edge:
+    # i*n+u -> edge_cap_node_j_in (cap = min(d_i, c_j))
+    # edge_cap_node_j_in -> edge_cap_node_j_out (cap = c_j, shared)
+    # edge_cap_node_j_out -> i*n+v (cap = min(d_i, c_j))
+    
+    # But the middle edge is shared, so it limits total flow.
+    # However, we can't track which contract's flow goes through because it's mixed.
+    
+    # Wait, but we CAN track it if we look at the residual graph after max flow.
+    # The flow on i*n+u -> edge_cap_node_j_in tells us x_{i,j}
+    # because that edge is specific to contract i.
+    
+    # Let me implement this approach.
+    
+    total_nodes2 = k * n + 2 + 2 * m  # contract nodes + super source/sink + edge split nodes
+    graph = [[] for _ in range(total_nodes2)]
+    
+    def add_edge3(fr, to, cap):
+        if cap <= 0:
+            return
+        forward = Edge(to, cap, len(graph[to]))
+        backward = Edge(fr, 0, len(graph[fr]))
+        graph[fr].append(forward)
+        graph[to].append(backward)
+    
+    super_source = k * n
+    super_sink = k * n + 1
+    edge_in_start = k * n + 2
+    edge_out_start = k * n + 2 + m
+    
+    # Super source to contract origins
+    for i, (s, t, d) in enumerate(contracts):
+        add_edge3(super_source, i * n + s, d)
+    
+    # Contract destinations to super sink
+    for i, (s, t, d) in enumerate(contracts):
+        add_edge3(i * n + t, super_sink, d)
+    
+    # For each edge j: edge_in_j -> edge_out_j with capacity c_j (shared)
+    for j, (u, v, c) in enumerate(edges):
+        add_edge3(edge_in_start + j, edge_out_start + j, c)
+    
+    # For each contract i and edge j:
+    # i*n+u -> edge_in_j (cap = min(d_i, c_j))
+    # edge_out_j -> i*n+v (cap = min(d_i, c_j))
+    edge_flows = {}  # (i, j) -> index of edge from i*n+u to edge_in_j in graph
+    for i, (s, t, d) in enumerate(contracts):
+        for j, (u, v, c) in enumerate(edges):
+            cap = min(d, c)
+            if cap > 0:
+                src = i * n + u
+                ein = edge_in_start + j
+                eout = edge_out_start + j
+                dst = i * n + v
+                # Track the edge from src to ein to read flow later
+                edge_flows[(i, j)] = (src, len(graph[src]))
+                add_edge3(src, ein, cap)
+                add_edge3(eout, dst, cap)
+    
+    # Dinic's max flow
+    from collections import deque
+    
+    def bfs_level():
+        level = [-1] * total_nodes2
+        level[super_source] = 0
+        q = deque([super_source])
+        while q:
+            node = q.popleft()
+            for e in graph[node]:
+                if e.cap > 0 and level[e.to] < 0:
+                    level[e.to] = level[node] + 1
+                    q.append(e.to)
+        return level
+    
+    def dfs_flow(node, pushed, level, it):
+        if node == super_sink:
+            return pushed
+        while it[node] < len(graph[node]):
+            e = graph[node][it[node]]
+            if e.cap > 0 and level[e.to] == level[node] + 1:
+                tr = dfs_flow(e.to, min(pushed, e.cap), level, it)
+                if tr > 0:
+                    e.cap -= tr
+                    graph[e.to][e.rev].cap += tr
+                    return tr
+            it[node] += 1
+        return 0
+    
+    total_flow = 0
+    total_demand = sum(d for _, _, d in contracts)
+    
+    while True:
+        level = bfs_level()
+        if level[super_sink] < 0:
+            break
+        it = [0] * total_nodes2
+        while True:
+            f = dfs_flow(super_source, float('inf'), level, it)
+            if f == 0:
+                break
+            total_flow += f
+    
+    if total_flow < total_demand:
+        print("NO")
+        return
+    
+    print("YES")
+    for i, (s, t, d) in enumerate(contracts):
+        row = []
+        for j, (u, v, c) in enumerate(edges):
+            if (i, j) in edge_flows:
+                src, eidx = edge_flows[(i, j)]
+                # The flow is the original capacity minus remaining capacity
+                # But we need the original capacity
+                e = graph[src][eidx]
+                # Original cap = e.cap + flow
+                # flow = original_cap - e.cap
+                # We stored the edge, but cap has been modified
+                # The reverse edge's cap = flow
+                rev_e = graph[e.to][e.rev]
+                flow = rev_e.cap
+                row.append(str(flow))
+            else:
+                row.append("0")
+        print(" ".join(row))
+
+solve()

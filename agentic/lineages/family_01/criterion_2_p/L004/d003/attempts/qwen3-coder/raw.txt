@@ -4,102 +4,94 @@ from collections import defaultdict, deque
 
 def main():
     import sys
-    sys.setrecursionlimit(1 << 25)
+    input = sys.stdin.read
+    data = input().split()
     
-    n, m = map(int, sys.stdin.readline().split())
+    n = int(data[0])
+    m = int(data[1])
     
-    if m == 0:
-        print("YES")
-        print(" ".join(["1"] * n))
-        return
-    
-    # Build adjacency list
-    adj = defaultdict(list)
     edges = []
+    adj = [[] for _ in range(n + 1)]
+    index = 2
     for _ in range(m):
-        u, v = map(int, sys.stdin.readline().split())
+        u = int(data[index])
+        v = int(data[index + 1])
+        edges.append((u, v))
         adj[u].append(v)
         adj[v].append(u)
-        edges.append((u, v))
+        index += 2
+
+    # Check the orbital equilibrium equation for possible assignments
+    # s_u and s_v can be 1 or 2
+    valid_pairs = set()
+    for s1 in [1, 2]:
+        for s2 in [1, 2]:
+            if s1**3 + s2**3 + (s1 * s2)**2 == 13:
+                valid_pairs.add((s1, s2))
+                valid_pairs.add((s2, s1))
+
+    # For each edge, the pair of values must be in valid_pairs
+    # This defines a 2-SAT problem
     
-    # The constraint is x^3 + y^3 = 9 where x,y in {1,2}
-    # 1^3 = 1, 2^3 = 8
-    # So 1^3 + 2^3 = 9 and 2^3 + 1^3 = 9
-    # This means connected nodes must have different assignments
+    # We'll model this as a graph coloring problem (since we only have 2 colors)
+    # and check if the graph is bipartite. But we need to be more careful.
+    # Actually, it's a constraint satisfaction problem.
     
-    # This is a bipartite graph check
-    color = {}
+    # Let's think of it this way:
+    # Each satellite can be assigned 1 or 2.
+    # For each edge (u,v), the pair (s_u, s_v) must be in valid_pairs.
     
-    # Check each component
-    nodes = set(adj.keys())
-    all_nodes = set(range(1, n+1))
+    # Valid pairs are: (1,2) and (2,1) only.
+    # Because:
+    # 1,1: 1+1+1 = 3 != 13
+    # 1,2: 1+8+4 = 13 OK
+    # 2,1: 8+1+4 = 13 OK
+    # 2,2: 8+8+16 = 32 != 13
     
-    for start in all_nodes:
-        if start not in color:
-            # BFS to check bipartiteness and assign colors
+    # So adjacent satellites must have different values.
+    # This is a bipartite graph check.
+    
+    # Build the graph
+    graph = [[] for _ in range(n + 1)]
+    for u, v in edges:
+        graph[u].append(v)
+        graph[v].append(u)
+    
+    # Color the graph with BFS to check bipartiteness and get the lexicographically smallest coloring
+    color = [-1] * (n + 1)  # -1: unvisited, 0: color 1, 1: color 2
+    
+    for i in range(1, n + 1):
+        if color[i] == -1:
+            # Start BFS with color 0 (which corresponds to value 1)
             queue = deque()
-            queue.append(start)
-            color[start] = 1
+            queue.append(i)
+            color[i] = 0
             
             while queue:
-                u = queue.popleft()
-                current_color = color[u]
-                next_color = 2 if current_color == 1 else 1
+                node = queue.popleft()
+                current_color = color[node]
+                next_color = 1 - current_color
                 
-                for v in adj[u]:
-                    if v not in color:
-                        color[v] = next_color
-                        queue.append(v)
-                    elif color[v] != next_color:
+                for neighbor in graph[node]:
+                    if color[neighbor] == -1:
+                        color[neighbor] = next_color
+                        queue.append(neighbor)
+                    elif color[neighbor] == current_color:
+                        # Conflict: not bipartite
                         print("NO")
                         return
     
-    # If we reach here, it's bipartite
-    # We need the lexicographically smallest assignment
-    # That means we want as many 1's as possible at the beginning
-    # In our coloring, we used 1 and 2. To make it lex smallest,
-    # we should ensure that color 1 is assigned to the lower indexed nodes when possible
-    
-    # Actually, our BFS already ensures a valid 2-coloring
-    # To get lexicographically smallest, we can just ensure that
-    # node 1 (if present) gets color 1
-    # But since we're processing nodes in order, and assigning 1 first,
-    # the result should already be lex smallest
-    
-    # Let's re-do the coloring to ensure lex smallest
-    color = {}
-    for start in range(1, n+1):
-        if start not in color:
-            # Start with color 1
-            queue = deque()
-            queue.append(start)
-            color[start] = 1
-            
-            while queue:
-                u = queue.popleft()
-                current_color = color[u]
-                next_color = 2 if current_color == 1 else 1
-                
-                # Process neighbors in sorted order for consistency
-                for v in sorted(adj[u]):
-                    if v not in color:
-                        color[v] = next_color
-                        queue.append(v)
-                    elif color[v] != next_color:
-                        print("NO")
-                        return
-    
-    # All nodes including isolated ones should be assigned
+    # If we reach here, a valid coloring exists
+    # Convert color 0 -> 1, color 1 -> 2 to get the actual values
     result = []
-    for i in range(1, n+1):
-        if i not in color:
-            # Isolated node - assign 1 for lex smallest
+    for i in range(1, n + 1):
+        if color[i] == 0:
             result.append('1')
         else:
-            result.append(str(color[i]))
+            result.append('2')
     
     print("YES")
-    print(" ".join(result))
+    print(' '.join(result))
 
 if __name__ == "__main__":
     main()

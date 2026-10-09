@@ -14,45 +14,40 @@ def solve() -> None:
         adj[u].append(v)
         adj[v].append(u)
 
-    color = [-1] * (n + 1)          # 0/1 bipartite color
-    comp_first = []                 # first vertex (smallest index) of each component
-    comp_id = [-1] * (n + 1)
+    colour = [-1] * (n + 1)          # 0 / 1 bipartite colour
+    answer = [0] * (n + 1)           # final c_i (1 or 2)
 
     from collections import deque
-    comp_cnt = 0
-    for v in range(1, n + 1):
-        if color[v] != -1:
+
+    for start in range(1, n + 1):
+        if colour[start] != -1:
             continue
-        # start new component, v is the smallest index in it
-        comp_first.append(v)
-        q = deque([v])
-        color[v] = 0
-        comp_id[v] = comp_cnt
+        # BFS this component
+        q = deque([start])
+        colour[start] = 0
+        comp = [start]
         while q:
-            x = q.popleft()
-            for y in adj[x]:
-                if color[y] == -1:
-                    color[y] = color[x] ^ 1
-                    comp_id[y] = comp_cnt
-                    q.append(y)
-                elif color[y] == color[x]:
+            v = q.popleft()
+            for to in adj[v]:
+                if colour[to] == -1:
+                    colour[to] = colour[v] ^ 1
+                    q.append(to)
+                    comp.append(to)
+                elif colour[to] == colour[v]:
                     print("NO")
                     return
-        comp_cnt += 1
+        # decide orientation: smallest index gets c=1
+        v0 = min(comp)
+        flip = (colour[v0] == 1)   # if its colour is 1 we need to flip
+        for v in comp:
+            if flip:
+                answer[v] = 1 if colour[v] == 1 else 2
+            else:
+                answer[v] = 1 if colour[v] == 0 else 2
 
-    # construct answer with minimal lexicographic order
-    ans = [0] * (n + 1)
-    for i in range(1, n + 1):
-        cid = comp_id[i]
-        first = comp_first[cid]
-        # parity of first vertex should map to state 1
-        if color[i] == color[first]:
-            ans[i] = 1
-        else:
-            ans[i] = 2
-
+    # output
     print("YES")
-    print(' '.join(str(ans[i]) for i in range(1, n + 1)))
+    print(' '.join(str(answer[i]) for i in range(1, n + 1)))
 
 if __name__ == "__main__":
     solve()

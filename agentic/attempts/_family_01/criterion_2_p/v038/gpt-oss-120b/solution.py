@@ -1,0 +1,59 @@
+import sys
+from collections import deque
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(next(it)); v = int(next(it))
+        adj[u].append(v)
+        adj[v].append(u)
+
+    color = [0] * (n + 1)          # 0 = uncolored, 1 or 2 = answer
+    side = [0] * (n + 1)           # temporary 0/1 within component
+
+    for start in range(1, n + 1):
+        if color[start]:
+            continue
+        # BFS this component, using side 0/1
+        q = deque([start])
+        side[start] = 0
+        comp_nodes = [start]
+        ok = True
+        while q:
+            u = q.popleft()
+            for v in adj[u]:
+                if side[v] == 0 and color[v] == 0 and v != start:
+                    # not visited in this component yet
+                    side[v] = 1 - side[u]
+                    q.append(v)
+                    comp_nodes.append(v)
+                elif side[v] == 0 and v == start:
+                    # edge to start, already has side 0, check parity
+                    if side[u] == side[v]:
+                        ok = False
+                        break
+                else:
+                    # already assigned side in this component
+                    if side[v] == side[u]:
+                        ok = False
+                        break
+            if not ok:
+                break
+        if not ok:
+            print("NO")
+            return
+        # assign answer: smallest index (start) must get 1, which corresponds to side 0
+        for node in comp_nodes:
+            color[node] = 1 if side[node] == 0 else 2
+
+    print("YES")
+    print(' '.join(str(color[i]) for i in range(1, n + 1)))
+
+if __name__ == "__main__":
+    solve()

@@ -1,23 +1,25 @@
-# Problem B — Microservice Capacity Scaling
+# Orbital Resonance
 
 Time limit: 1 s
 Memory limit: 256 MB
 
-A backend architecture consists of $n$ microservices. You must assign each microservice a replication factor of either 1 or 2.
+A deep space communications network consists of $n$ relay satellites, numbered 1 through $n$. Within this network, there are $m$ known proximity hazards. Each hazard involves a specific pair of satellites that are physically too close to one another.
 
-The system processes $m$ synchronous workflows. Each workflow depends on a specific pair of microservices. The total capacity of a workflow is calculated as the product of the replication factors of the two microservices involved.
+To stabilize the network, every satellite $i$ must be assigned a tuning parameter $s_i \in \{1, 2\}$. 
 
-To meet strict latency requirements without causing resource contention, every workflow must have a total capacity of exactly 2.
+For the network to be safe, the assignments must satisfy a strict pairwise interference rule. For every listed hazard pair $(u, v)$, the assigned values must be different ($s_u \neq s_v$). 
 
-Determine if it is possible to assign a valid replication factor to all $n$ microservices such that all $m$ workflows have a capacity of exactly 2.
+Your task is to determine if there is a valid configuration of tuning parameters for all $n$ satellites that prevents any system-wide failures. If such a configuration is possible, you must output it. 
+
+Among all valid assignments $s_1, s_2, \dots, s_n$, output the lexicographically smallest sequence. (A sequence $A$ is lexicographically smaller than sequence $B$ if, at the first index $i$ where they differ, $A_i < B_i$).
 
 ## Input
 The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$).
-Each of the next $m$ lines contains two integers $u$ and $v$ — the indices of the two microservices that a workflow depends on.
+Each of the next $m$ lines contains two integers $u$ and $v$ — a proximity hazard between satellite $u$ and satellite $v$.
 
 ## Output
-If no valid assignment is possible, print a single line `NO`.
-Otherwise, print `YES` on the first line. On the second line, print $n$ integers $z_1 \dots z_n$ (where each $z_i \in \{1,2\}$) representing the valid assignment. If multiple valid assignments exist, output the lexicographically smallest sequence $z_1 \dots z_n$.
+If no safe configuration exists, print a single line containing `NO`.
+Otherwise, print `YES` on the first line. On the second line, print $n$ integers $s_1, \dots, s_n$ (each being either 1 or 2), representing the tuning parameter assigned to each satellite from 1 to $n$. This sequence must be the lexicographically smallest valid assignment.
 
 ## Example 1
 Input:

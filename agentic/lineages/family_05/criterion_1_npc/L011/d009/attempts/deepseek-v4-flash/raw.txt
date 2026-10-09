@@ -1,0 +1,821 @@
+<think>
+.
+</think>
+We need exactly k valid configurations such that:
+
+- The x-values are all distinct (so that the Vandermonde matrix is non‑singular).
+- The y-values are all distinct.
+- The z-values are all distinct.
+
+So essentially we need to select k triples `(x, y, z)` from the given list such that x values are a permutation of 1..k (or any set of k distinct integers between 1 and k), same for y and z.
+
+Because k ≤ 22, the number of distinct x-values, y-values, z-values possible is exactly k. So for each coordinate, we need all k different values exactly once.
+
+This becomes a 3D matching / exact cover problem: we have at most k^3 possible triples, but t is up to k^3 = 10648 for k=22. That is small enough for a backtracking + pruning approach, or we can model it as a bipartite / tripartite perfect matching and use max flow or Hall's theorem.
+
+But k=22, we can also do backtracking with pruning by matching on coordinates.
+
+Observation: For a valid set, each of x, y, z must be a permutation of 1..k. So for each position i (1..k), we need to pick a triple with x = i, y = something, z = something, and all y and z distinct.
+
+This is a 3D matching: we need a perfect matching in a 3-partite hypergraph. Since k is small, we can do backtracking with heuristics.
+
+But we can also model as a flow: Choose k triples such that each x appears once, each y once, each z once.
+
+We can do a bipartite matching twice:
+
+For each x = i (i=1..k), we need to assign a y and a z. We can think of assigning y and z for each x.
+
+Alternative: for each x, we have a set of possible (y,z) pairs. We need to pick for each x a distinct y and distinct z.
+
+This is like a 2D assignment problem: match x to y and z simultaneously. We can do backtracking with pruning.
+
+Since k ≤ 22 and t ≤ k^3 ~ 10k, the search space is manageable if we do assignment per x.
+
+Let's solve with backtracking:
+
+- For each x value 1..k, store list of (y,z) available.
+- Then we need to assign to each x a pair (y,z) such that all y distinct and all z distinct.
+
+This is like 3D matching. Backtracking: assign x in order of how many options they have (most constrained first). We maintain sets used_y, used_z.
+
+We can also prune: if for any unused x, it has 0 options, fail.
+
+Complexity: worst k = 22, each x may have up to k^2 options, backtracking may be heavy, but with pruning and ordering that may be OK.
+
+But we can do better: This is equivalent to checking if a 3-partite hypergraph has a perfect matching. For k=22, we could use a reduction to bipartite matching with Hall's condition: For each subset of x's, we'd need enough y and z... Not trivial.
+
+Alternatively, we can treat as: we need a permutation π_y and π_z such that for each i, (i, π_y(i), π_z(i)) is in the list. This is like finding two permutations.
+
+We can try backtracking over x's; for each x, try any (y,z) that are still unused. Prune by checking if remaining x's can be matched (i.e., for each x, how many options left).
+
+Actually, we can model as bipartite matching for each step: permute y and z.
+
+Another idea: Since we only need to output any valid set, we can use a brute force randomization: repeatedly shuffle and try to fill? But we must be correct.
+
+Let's think: Is there always a solution if for each distinct triple? Not necessarily. Example 2 shows NO.
+
+We can solve with network flow: Model as 3 layers: x-nodes (1..k), y-nodes (1..k), z-nodes (1..k). For each triple (x,y,z), add an edge? But need each hyperedge selects one from each. This is a 3-partite 3D matching, which is NP-hard in general, but for k=22 and t ≤ k^3, the small size allows backtracking.
+
+But perhaps the problem setter expects a clever mathematical observation: The matrices F, M, E are Vandermonde, their determinants are non‑zero iff the corresponding values are distinct. So we need triples with all x distinct, all y distinct, all z distinct. Since each value 1..k appears exactly once, we need a permutation of (1..k) each dimension. So it's a Latin square problem: arranging k triples.
+
+But maybe there is always a solution? Not always, example 2.
+
+We could treat this as: For each x = i, we need to assign a y and z such that the mapping is a bijection between x and y, and between x and z. That is: choose permutations π and σ such that for each i, triple (i, π(i), σ(i)) is in the set.
+
+So we have a set of allowed pairs (π(i), σ(i)) for each i, and we need to pick one pair for each i such that π is bijective and σ is bijective. That is exactly a 3D matching.
+
+One can brute force: generate all permutations? Too many for k=22.
+
+Better: Use backtracking with a feasibility check via bipartite matching at each step:
+
+- At step, we have already chosen for some x's, with certain y and z used.
+- For the remaining x's, we need to check if there exists a matching such that each remaining x can be assigned a y (among free y) and a z (among free z) with at least one triple.
+
+We can do that by constructing a bipartite graph between remaining x's and remaining y's (edge if there exists at least one z free such that (x,y,z) exists). Then find a maximum matching. If maximum matching size is less than number of remaining x's, prune. Similarly for z.
+
+Actually, we can combine: For each x, and each free y, does there exist at least one free z? If we match x to y, we later will need to assign a z to that combination. But we can do a more thorough check: for the remaining x's and free y's and free z's, we can check if there is a feasible assignment for both. That is a bipartite matching of x to (y,z) pairs? That's still 3D.
+
+We can just backtrack. With k ≤ 22 and t ≤ k^3 ~ 10648, but each x may have up to 484 (y,z) pairs (since k^2 = 484). 22 * 484 = 10648 total triples. Backtracking with ordering and pruning should be fast enough because we rarely explore many nodes.
+
+Let's write a recursive function:
+
+- Input lists of (y,z) for each x-value.
+- Use arrays `used_y` and `used_z` size k+1.
+- We'll choose x order sorted by number of available pairs (least first). We'll maintain an index order.
+
+At each step:
+
+Pick next x (=xi).
+For each pair (y,z) in sorted list (maybe with some heuristic, e.g., pairs that are constrained Y/Z first), if used_y[y]==0 and used_z[z]==0, set used and recurse.
+
+But we need to ensure that we eventually assign all x. We'll backtrack.
+
+Time: Worst case may be high, but for k=22 it's probably okay because typical tests will have many triples and prune early.
+
+We can improve with a check: For remaining unused x, count how many distinct unused y are possible; if count < remaining count, prune. Similarly for z. That is easy.
+
+Also we can check if for each x, if it has any pair (y,z) both unused.
+
+Let's code.
+
+Pseudo:
+
+```
+k, t = map(int, input().split())
+triples_by_x = [[] for _ in range(k+1)]  # 1..k
+for _ in range(t):
+    x,y,z = map(int, input().split())
+    triples_by_x[x].append((y,z))
+
+# Pre-sort each list, maybe by number of options y and z? We can just iterate all.
+
+used_y = [0]*(k+1)
+used_z = [0]*(k+1)
+chosen = [None]*(k+1)  # chosen[x] = (y,z)
+
+# Order x by number of available pairs (heuristic)
+order = [x for x in range(1,k+1) if triples_by_x[x]]  # But we need all x must have at least one pair, else NO.
+
+# We'll need to assign exactly k; but note: x can be any 1..k, but we need exactly k distinct x-values. Since we must use exactly k configurations, and x must be distinct. Since values 1..k, using all is necessary. So every x=1..k must be selected exactly once. So indeed for each i, we must choose a triple with x=i. If any i has no triples, NO.
+
+# So order is list of x from 1 to k, maybe sorted by number of available pairs.
+
+# We'll sort order by len(triples_by_x[x]) ascending to try constrained first.
+
+# But also, there may be only k-1 distinct x-values? Actually total triples t may be less than k; then impossible. Also if any x missing, impossible.
+
+# So check: for x from 1..k, if list empty => NO.
+
+# Now backtracking.
+
+We'll implement recursion.
+
+To prune at each step:
+- Count remaining = len(remaining_x)
+- For any remaining x, if no pair (y,z) both unused, fail.
+- Also count distinct unused y that can be used by remaining x's; if less than len(rem) => fail. Similarly for z.
+
+But we can compute quickly.
+
+Simpler: use when trying a pair, we ensure it's free. In recursion, before each attempt, we could compute for every unused x the number of options (with both y,z free). If any has 0, return False.
+
+Complexity: At each recursion, we iterate over pairs of one x. Worst-case might be large, but k=22 and each x has up to 22^2=484 pairs. But many would be eliminated because y or z used. This should be fast enough.
+
+But to be safe, we can add a more advanced pruning: bipartite matching between remaining x and y ignoring z? Let's see.
+
+We could do: Build a bipartite graph between remaining x and remaining y, where edge if there exists z free such that (x,y,z) exists. Then if max matching size < remaining number, fail. Similarly for z. That is a necessary condition. It can be computed once per recursion.
+
+But need to also include the z for that y at that point? Actually, existence of a free z for each (x,y) pair is not enough because z assignments cannot conflict. But checking the number of distinct free y's that can be paired with some free z may give a bound.
+
+Actually, a stronger test: For the remaining set, we need to pick a perfect matching in a bipartite graph between remaining x and remaining y, with edge if there exists at least one free z, and also later z's must be matched. But we can do a bipartite matching between remaining x and remaining y, edge if some free z exists, then check if size == m. If it's less, prune. Similarly for z.
+
+However, even if both pass, still may fail, but it's enough.
+
+Since k is small, we can implement this at each recursion. But we also need to account for y and z together. Let's just do simple pruning.
+
+Let's implement:
+
+```
+def solve():
+    import sys
+    sys.setrecursionlimit(10000)
+    k,t = map(int,input().split())
+    triples = [[] for _ in range(k+1)]
+    for _ in range(t):
+        x,y,z = map(int,input().split())
+        if 1<=x<=k and 1<=y<=k and 1<=z<=k:
+            triples[x].append((y,z))
+    # Check all x non-empty
+    for x in range(1,k+1):
+        if not triples[x]:
+            print("NO")
+            return
+    used_y=[False]*(k+1)
+    used_z=[False]*(k+1)
+    chosen=[None]*(k+1)
+    # order by options count
+    order = [x for x in range(1,k+1)]
+    order.sort(key=lambda x: (len(triples[x]), x))
+    # But in backtracking we need to assign x's in that order.
+    def dfs(idx):
+        # idx is index in order list
+        if idx == k:
+            # all assigned
+            return True
+        x = order[idx]
+        # If any pair (y,z) in triples[x] with both free
+        # Quick prune: any remaining x has no pair? Not needed because we assign now.
+        # But we can prune before trying: compute for remaining including current? Actually current is now.
+        # We can try all pairs.
+        # Sort maybe trying pairs with least available y/z?
+        # Let's just iterate in order of (y,z)
+        for y,z in triples[x]:
+            if not used_y[y] and not used_z[z]:
+                used_y[y]=True
+                used_z[z]=True
+                chosen[x]=(y,z)
+                # Prune: check if any remaining x has no pair (both free). But we can just do quick check:
+                if dfs(idx+1):
+                    return True
+                used_y[y]=False
+                used_z[z]=False
+                chosen[x]=None
+        return False
+    # But we also need to avoid x that has no pairs free eventually. We'll let recursion handle.
+
+But this naive DFS might be too slow for worst case. Let's add a quick check before each call:
+
+At step idx, the remaining x's are order[idx:]. We can compute for each remaining x if it has at least one free (y,z). Also, count total distinct free y that are reachable from remaining x's, etc.
+
+Let's write a helper that given used_y, used_z, sees if there is any remaining x with zero free pairs.
+
+So modify:
+
+def dfs(idx):
+    if idx == k: return True
+    x = order[idx]
+    # Check if remaining x's after this (including this) have a possible pair.
+    # Actually before looping we can check if any x in order[idx:] has no free option. That is easy:
+    for xx in order[idx:]:
+        # any pair with y,z free?
+        possible = False
+        for y,z in triples[xx]:
+            if not used_y[y] and not used_z[z]:
+                possible=True; break
+        if not possible:
+            return False
+    # Then iterate pairs...
+    for y,z in triples[x]:
+        if not used_y[y] and not used_z[z]:
+            used_y[y]=True; used_z[z]=True
+            if dfs(idx+1): return True
+            used_y[y]=False; used_z[z]=False
+    return False
+
+This will prune early.
+
+We can also add the bipartite matching check for stronger pruning: For remaining set R, for each unused y, if there exists at least one x in R with some (x,y,z) and that z also free, we can see if there is a perfect matching between R and Y. But we might not need.
+
+Let's estimate worst-case. If t = k^3 = 10648, each x has 22*22=484 tuples. At first step, we try up to 484. At each subsequent, options reduce but still maybe many. Depth 22, could be huge if we try all combinations. Need pruning.
+
+Add maximum bipartite matching prune.
+
+We can use Kuhn's algorithm for bipartite matching (K up to 22). At each recursion, for remaining xs and remaining ys:
+
+- Build adjacency for each remaining x to each unused y if there is at least one (y,z) in triples[x] with z also unused. But need to know if any z exists for that (x,y) that is unused currently.
+- Then if maximum matching size < len(R), prune.
+- Similarly build for z: match x to z, with condition existence of a free y.
+
+This prune is cheap (at most 20 nodes each side) and will drastically reduce backtracking.
+
+Let's implement.
+
+In dfs at idx:
+- R = order[idx:]
+- if len(R)==0: return True.
+- Check for each x in R, there is at least one pair (y,z) both unused. That is necessary.
+- Now for remaining Y: set of y that are not used_y. For each x in R, adjacent to any y in Y_free if there exists some z with z not used_z_? Actually we should require both y and z free. So we need to compute adjacency: for each x and each y, check if there exists any z in such that not used_z[z] and (y,z) in triples[x]. If yes, edge.
+
+Do bipartite matching between x (size m) and y (size at most m). If maximum matching size < m, prune.
+
+- Similarly for z.
+
+If both pass, continue.
+
+This prune is stronger.
+
+Implementation details:
+
+We'll maintain lists of unused y, unused z? We can just iterate over 1..k.
+
+But each DFS call would recompute bipartite matching from scratch. With k=22, that's fine.
+
+Implement function `max_matching_left` for given adjacency list of left (x) to right (ys) or z.
+
+We'll use Hopcroft-Karp? Since size ≤22, simple augmenting path DFS is fine.
+
+We'll write a helper:
+
+def bpm(u, seen, matchR):
+    for v in adj[u]:
+        if not seen[v]:
+            seen[v]=True
+            if matchR[v]==-1 or bpm(matchR[v], seen, matchR):
+                matchR[v]=u
+                return True
+    return False
+
+In DFS, we need to assign min(x) maybe.
+
+But we can do inline.
+
+Also, since m ≤ 22, adjacency can be computed as boolean arrays.
+
+I'll implement function `check_possible(idx)` that performs the prune:
+
+- Unused y = [y for y in range(1,k+1) if not used_y[y]]
+- Unused z similarly.
+- For each x in order[idx:]:
+   - For each y in unused_y:
+        if any (y,z) with z unpainted? Actually both unused, so z in unused_z.
+        for z in unused_z:
+            if (y,z) in set_triples[x]: -> edge exists.
+   But we need to check: For bipartite matching of x to y, edge if exists a z in unused_z such that (y,z) in triples[x]. That is what we said.
+
+But careful: If we match x to y, we will later still need to assign some z. For Hall's condition on x to y, we ignore z constraint, but if no such edge, fail. Similarly for z. So that's fine.
+
+Let's implement with sets for fast:
+
+- `set_by_x[x][y] = set of z's available`. But we need to check quickly if there is any z in unused_z that also is in that set. We can precompute as list of sets.
+
+We'll convert triples_by_x[x] to list of (y,z). To check if edge exists, we could precompute a boolean table `has[x][y][z]`? That's 22^3=10648, okay.
+
+We'll create a 3D list `has = [[[False]*(k+1) for _ in range(k+1)] for _ in range(k+1)]` but k=22 so 23*23*23 = 12167, fine. But memory is okay. But we need to map indices. Simpler: store set of (y,z) for each x, but for checking existence of an edge for given x,y,z with z unused we can quickly check membership in set of pairs. For BPM we just need for a given x and y, if there exists any z in unused_z. That can be done by iterating over all z in unused_z (size ≤22) and checking if (y,z) in pair_set[x]. That's fine.
+
+We'll store `pairs_by_x[x]` as a set of (y,z).
+
+So in prune:
+
+def feasible_prune(idx):
+    rem = order[idx:]
+    m = len(rem)
+    if m == 0: return True
+    unused_y = [y for y in range(1,k+1) if not used_y[y]]
+    unused_z = [z for z in range(1,k+1) if not used_z[z]]
+    # Check each x has at least one option
+    for x in rem:
+        ok=False
+        for y,z in pairs_by_x[x]:
+            if not used_y[y] and not used_z[z]:
+                ok=True; break
+        if not ok: return False
+    # check matching for y
+    # build adjacency for each x in rem (index 0..m-1) to y nodes.
+    # y nodes = unused_y, we need mapping y->index. We'll just use actual y values and match size k. But we can use position mapping.
+    y_pos = {}
+    for i,y in enumerate(unused_y):
+        y_pos[y]=i
+    adj = [[] for _ in range(m)]
+    for i,x in enumerate(rem):
+        for y in unused_y:
+            # check if exists z in unused_z such that (y,z) in pairs_by_x[x]
+            for z in unused_z:
+                if (y,z) in pairs_by_x[x]:
+                    adj[i].append(y_pos[y])
+                    break
+    # maximum matching from x to y
+    match = [-1]*len(unused_y)
+    def bpm(u, seen):
+        for v in adj[u]:
+            if not seen[v]:
+                seen[v]=True
+                if match[v]==-1 or bpm(match[v], seen):
+                    match[v]=u
+                    return True
+        return False
+    count=0
+    for u in range(m):
+        seen=[False]*len(unused_y)
+        if bpm(u, seen): count+=1
+    if count < m: return False
+
+    # Similarly for z
+    z_pos = {}
+    for i,z in enumerate(unused_z):
+        z_pos[z]=i
+    adj_z = [[] for _ in range(m)]
+    for i,x in enumerate(rem):
+        for z in unused_z:
+            for y in unused_y:
+                if (y,z) in pairs_by_x[x]:
+                    adj_z[i].append(z_pos[z])
+                    break
+    match_z = [-1]*len(unused_z)
+    def bpm2(u, seen):
+        for v in adj_z[u]:
+            if not seen[v]:
+                seen[v]=True
+                if match_z[v]==-1 or bpm2(match_z[v], seen):
+                    match_z[v]=u
+                    return True
+        return False
+    count2=0
+    for u in range(m):
+        seen=[False]*len(unused_z)
+        if bpm2(u, seen): count2+=1
+    if count2 < m: return False
+    return True
+
+Then in dfs:
+
+def dfs(idx):
+    if idx == k: return True
+    if not feasible_prune(idx): return False
+    x = order[idx]
+    # Optional: sort triples[x] maybe by number of free y's/z's, any is fine.
+    for y,z in pairs_by_x[x]:
+        if not used_y[y] and not used_z[z]:
+            used_y[y]=True; used_z[z]=True
+            chosen[x]=(y,z)
+            if dfs(idx+1): return True
+            used_y[y]=False; used_z[z]=False
+            chosen[x]=None
+    return False
+
+But careful: feasible_prune is called at the beginning of dfs; but also before exploring that current x has any option (since it checks for each x including current). The loop will try all options. So ok.
+
+Note: The ordering: we might want to reorder x dynamically based on number of possible options after usage. But the order is fixed at start by number of pairs. We could improve by always picking next the x with fewest available pairs (which can change). But that is more complex. However, static ordering with prune seems okay.
+
+But there is a subtle issue: The bipartite matching prune uses only that for each x, there is some edge to some y, but after matching x to y, we still have to assign z. But that's fine, as the prune is necessary condition.
+
+Let's test with Example 2: k=2,t=2: triples: (1,1,1), (2,1,2). pairs_by_x[1]={(1,1)}, pairs_by_x[2]={(1,2)}. order sorted by len: both 1. dfs idx=0, feasible prune: rem=[1,2], unused y=[1,2], unused z=[1,2]. For x=1, x=2 each have pair. BPM y: x1->y1 (z1), x2->y1 (z2). adj for y: both x can match to y1 but not y2. m=2, only one y, count1=1 <2 -> prune, false. So NO.
+
+Example 1: k=2, t=3: triples (1,1,1), (1,2,2), (2,2,2). pairs x1: {(1,1),(2,2)}, x2:{(2,2)}. order x2 then x1 (since x2 len=1, x1 len=2). dfs idx=0: feasible true. Try x2 pair (2,2) -> used y2,z2. dfs idx=1: x1 remaining, fe: unused y: 1; all remaining x? just x1, pairs have (2,2) but y2 used so not; but (1,1) free. So try (1,1) succeeds.
+
+So good.
+
+Potential performance: At each DFS, we run bipartite matching twice. That's cheap.
+
+But do we call feasible_prune before trying options and inside recursion, it will compute again. Fine.
+
+One more: Since k=22, the recursion depth 22, fine.
+
+Edge cases:
+- k=1: trivial.
+- t=0 and k>0 -> NO.
+
+We now implement.
+
+But to make BPM faster, we can implement simple.
+
+Let's code:
+
+```python
+import sys
+sys.setrecursionlimit(10000)
+
+def solve():
+    input = sys.stdin.readline
+    k, t = map(int, input().split())
+    pairs_by_x = [set() for _ in range(k+1)]
+    for _ in range(t):
+        x,y,z = map(int, input().split())
+        # x,y,z in 1..k as per constraints
+        pairs_by_x[x].add((y,z))
+    # check each x has at least one
+    for x in range(1,k+1):
+        if not pairs_by_x[x]:
+            print("NO")
+            return
+    # order x by length
+    order = list(range(1,k+1))
+    order.sort(key=lambda x: (len(pairs_by_x[x]), x))
+    used_y = [False]*(k+1)
+    used_z = [False]*(k+1)
+    chosen = [None]*(k+1)
+
+    def feasible(idx):
+        # prune at this state
+        rem = order[idx:]
+        m = len(rem)
+        if m == 0:
+            return True
+        unused_y = [y for y in range(1,k+1) if not used_y[y]]
+        unused_z = [z for z in range(1,k+1) if not used_z[z]]
+        # check each x has at least one option
+        for x in rem:
+            ok = False
+            for y,z in pairs_by_x[x]:
+                if not used_y[y] and not used_z[z]:
+                    ok = True
+                    break
+            if not ok:
+                return False
+        # matching y
+        y_pos = {y:i for i,y in enumerate(unused_y)}
+        adj = []
+        for x in rem:
+            edges = []
+            # for each unused y, if any z in unused_z with (y,z) in pairs
+            for y in unused_y:
+                # any z unused_z in pair set? We can check each z.
+                for z in unused_z:
+                    if (y,z) in pairs_by_x[x]:
+                        edges.append(y_pos[y])
+                        break
+            adj.append(edges)
+        match = [-1]*len(unused_y)
+        # iterate all nodes
+        def bpm(u, seen):
+            for v in adj[u]:
+                if not seen[v]:
+                    seen[v]=True
+                    if match[v]==-1 or bpm(match[v], seen):
+                        match[v]=u
+                        return True
+            return False
+        cnt = 0
+        for u in range(m):
+            seen = [False]*len(unused_y)
+            if bpm(u, seen):
+                cnt += 1
+            else:
+                # break early
+                return False
+        if cnt < m:
+            return False
+        # matching for z
+        z_pos = {z:i for i,z in enumerate(unused_z)}
+        adj_z = []
+        for x in rem:
+            edges_z = []
+            for z in unused_z:
+                # check any unused y with (y,z)
+                for y in unused_y:
+                    if (y,z) in pairs_by_x[x]:
+                        edges_z.append(z_pos[z])
+                        break
+            adj_z.append(edges_z)
+        match_z = [-1]*len(unused_z)
+        def bpm2(u, seen):
+            for v in adj_z[u]:
+                if not seen[v]:
+                    seen[v]=True
+                    if match_z[v]==-1 or bpm2(match_z[v], seen):
+                        match_z[v]=u
+                        return True
+            return False
+        cnt2 = 0
+        for u in range(m):
+            seen = [False]*len(unused_z)
+            if bpm2(u, seen):
+                cnt2 += 1
+            else:
+                return False
+        if cnt2 < m:
+            return False
+        return True
+
+    def dfs(idx):
+        if idx == k:
+            return True
+        if not feasible(idx):
+            return False
+        x = order[idx]
+        # optional: sort options by the number of available y's/z's? not needed.
+        for y,z in pairs_by_x[x]:
+            if not used_y[y] and not used_z[z]:
+                used_y[y] = True
+                used_z[z] = True
+                chosen[x] = (y,z)
+                if dfs(idx+1):
+                    return True
+                chosen[x] = None
+                used_y[y] = False
+                used_z[z] = False
+        return False
+
+    if dfs(0):
+        print("YES")
+        out = []
+        # output any order, but we have chosen per x
+        for x in range(1,k+1):
+            y,z = chosen[x]
+            out.append(f"{x} {y} {z}")
+        print("\n".join(out))
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()
+```
+
+But note: In feasible, we call `bpm(u, seen)` and if it finds matching, ok. But if at some u it fails, we return False immediately (since if a left node can't be matched, max matching < m). Good.
+
+One nuance: In bpm, we need to use recursion. Set recursion limit higher.
+
+Also, in feasible, for each unused_y we append edge if exists some z. But we were adding `break` after appending (only once). Good.
+
+Now, is the pruning exact? It's necessary but not sufficient, so fine.
+
+Let's test quickly with example.
+
+Also, there may be issue with duplicates? Problem says distinct configurations, so no duplicate triples. So set is okay.
+
+Let's ensure we output YES and k lines. If chosen list has None for some x, but if dfs returns true, all assigned.
+
+Potential performance: For k=22 and many triples, the DFS might still explore many nodes because feasible prune may pass often. But with maximum matching check, likely good.
+
+Alternative approach: Since k ≤ 22, we can also use a maximum matching over hypergraph via search. The above should pass.
+
+Let's also think if there's a purely polynomial algorithm: This is 3D matching, which is NP-hard. But small k.
+
+We need to be careful about time limit 5s. In worst case, with t = k^3 ~ 10648, each DFS node doing two matchings of size ≤22, that's cheap. But recursion branching might blow up. Let's estimate worst-case: If there is a solution, the DFS will find it quickly with pruning. If no solution, it might try many combinations. But the feasible prune should cut hard if we have a hard constraint.
+
+However, consider a case where there are many triples but no solution, and the pruning is weak. For instance, if for each x, we have all possible (y,z), then of course a solution exists (just pick any permutation). So it won't fail. If there is no solution, then some constraints reduce. The worst no-solution case could cause huge branching.
+
+Let's think of a tricky no-solution: Maybe t is complete except one triple missing, making it impossible. But like a near-perfect Latin square. Number of combinations could be large. But BPM prune may not catch it.
+
+Here is an example: k=3, triples are all (x,y,z) with y≠z? Hmm.
+
+But since k is small, perhaps we can use a smarter method: Enumerate all permutations of y and z? k! = 22! is huge. No.
+
+Alternative: Use integer programming? No.
+
+But maybe there is a known approach: We can reduce to a bipartite matching problem in 3-partite hypergraph via normal form? There is a theorem: For each x, we need distinct y,z. This is equivalent to finding a Latin square of order k where certain cells are not allowed. This can be solved via bipartite matching between positions (x) and y, and then assign z via matching between (x,y) and z, but that is not trivial because z assignment depends on y assignment.
+
+But we can do a bipartite matching on x-y: For each x, assign a y, such that there exists a z for that (x,y) and later z distinct. This is a matching in a bipartite graph where edge (x,y) is allowed if at least one z. Then after we find an assignment of x->y, we match x->z subject to same x? Actually after x->y assigned, we need to assign z such that for each x, there is a triple (x,y(x),z) with z free. That is a matching of x to z, but the edge depends on y(x). So it's not pure bipartite between x and y.
+
+Never mind, backtracking acceptable.
+
+We can also use a library for bipartite matching in our feasible function, but simple recursion is fine.
+
+Let's double-check `feasible`: It uses `unused_y` and `unused_z` lists. We assumed all x in rem have their turn, but after we choose for current x, the used flags updated before recursion, `feasible` is called with those.
+
+One subtle bug: In feasible, the for loop over x in rem, it checks if each has at least one option with both y and z free. That is correct.
+
+But the bipartite match for y uses all unused y, but it does not consider that the z assigned later must be distinct; however, it's a necessary condition.
+
+Also in matching for z we similarly.
+
+Now, there might be a bug: In the matching adj for y, we append `y_pos[y]` if any z unused_z with (y,z) in pairs. But later, after we match an x to a y, we will need to assign a z that is unused for that pair. The feasible doesn't guarantee that the y assigned to x has a z that doesn't conflict with other assignments. That's okay; it's only a prune.
+
+But could there be a case where feasible passes but there is no solution? Yes, then we rely on backtracking to eventually fail. Could that lead to exponential time? Possibly.
+
+Let's see whether we can make the prune not miss much. Perhaps we can do a more global check: For each assignment choices, we need to find a perfect matching in a 3-partite graph. There's a known algorithm using max flow with bounds; but too complex.
+
+Given constraints, I'm inclined that the simple pruning passes.
+
+We can also add an additional heuristic: Order the triples for each x such that pair with y or z that are "rarest" first, to find a solution faster.
+
+But for no-solution, the branch factor remains.
+
+Let's test some potential worst case manually:
+
+Case k=4, triples: all (x,y,z) except exactly one specific combination missing for each possible permutation? That would make it essentially impossible. But the DFS might try many.
+
+Yet, with the matching prune, if no solution, the prune will often fail early. Because if we try to assign for x's sequentially, the remaining set will quickly be impossible to match.
+
+I think this will be accepted.
+
+We could also improve by using bitmask DP? k≤22, 2^k = 4 million, too big for 22, but maybe for k=22, 4 million states, DP over subsets? DP would be something like: is there a matching for x-set S to y-set? Not enough.
+
+Another approach: Since k ≤ 22, we can formulate as exact cover problem with 3 dimensions, use algorithm X with dancing links. With t ≤ 10648, maybe. But overkill.
+
+Let's finalize this solution.
+
+Double-check input reading: Use sys.stdin.read().split() to speed up.
+
+We'll write:
+
+data = sys.stdin.read().split()
+it = iter(data)
+k = int(next(it)); t = int(next(it))
+for _ in range(t): x=int(next(it)); ...
+
+Implement final.
+
+Output: If YES, take chosen per x from 1..k. Since each x appears exactly once in chosen. Print.
+
+Let's produce final answer block.
+
+But wait: The problem says choose exactly k configurations from approved list. We select based on x uniqueness, y uniqueness, z uniqueness. Does it require that all x values are distinct? Yes, because determinant of Vandermonde matrix is non-zero iff the xi's are pairwise distinct, as any repeated value yields two equal rows. Since there are k rows, and xi∈[1,k], distinct means each value 1..k appears exactly once. So my assumption correct.
+
+Now final.
+
+One more note: In feasible function, we compute `unused_y` and `unused_z` each call, O(k). Fine.
+
+Let's also ensure we don't have recursion depth issues: dfs depth = k ≤22, no problem.
+
+Now, write code```python
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    it = iter(data)
+    k = int(next(it))
+    t = int(next(it))
+
+    pairs_by_x = [set() for _ in range(k + 1)]
+    for _ in range(t):
+        x = int(next(it))
+        y = int(next(it))
+        z = int(next(it))
+        pairs_by_x[x].add((y, z))
+
+    # Every value 1..k must appear as an x-coordinate in the selected set.
+    for x in range(1, k + 1):
+        if not pairs_by_x[x]:
+            print("NO")
+            return
+
+    # Process the most constrained x first.
+    order = list(range(1, k + 1))
+    order.sort(key=lambda x: (len(pairs_by_x[x]), x))
+
+    used_y = [False] * (k + 1)
+    used_z = [False] * (k + 1)
+    chosen = [None] * (k + 1)
+
+    def feasible(idx):
+        """Prune: necessary condition for remaining x's."""
+        rem = order[idx:]
+        m = len(rem)
+        if m == 0:
+            return True
+
+        unused_y = [y for y in range(1, k + 1) if not used_y[y]]
+        unused_z = [z for z in range(1, k + 1) if not used_z[z]]
+
+        # Each remaining x needs at least one free pair.
+        for x in rem:
+            ok = False
+            for y, z in pairs_by_x[x]:
+                if not used_y[y] and not used_z[z]:
+                    ok = True
+                    break
+            if not ok:
+                return False
+
+        # 1) Remaining x must be matchable with distinct unused y's.
+        y_pos = {y: i for i, y in enumerate(unused_y)}
+        adj_y = []
+        for x in rem:
+            edges = []
+            for y in unused_y:
+                for z in unused_z:
+                    if (y, z) in pairs_by_x[x]:
+                        edges.append(y_pos[y])
+                        break
+            adj_y.append(edges)
+
+        match_y = [-1] * len(unused_y)
+
+        def bpm_y(u, seen):
+            for v in adj_y[u]:
+                if not seen[v]:
+                    seen[v] = True
+                    if match_y[v] == -1 or bpm_y(match_y[v], seen):
+                        match_y[v] = u
+                        return True
+            return False
+
+        cnt_y = 0
+        for u in range(m):
+            seen = [False] * len(unused_y)
+            if bpm_y(u, seen):
+                cnt_y += 1
+            else:
+                return False
+        if cnt_y < m:
+            return False
+
+        # 2) Similarly for unused z's.
+        z_pos = {z: i for i, z in enumerate(unused_z)}
+        adj_z = []
+        for x in rem:
+            edges = []
+            for z in unused_z:
+                for y in unused_y:
+                    if (y, z) in pairs_by_x[x]:
+                        edges.append(z_pos[z])
+                        break
+            adj_z.append(edges)
+
+        match_z = [-1] * len(unused_z)
+
+        def bpm_z(u, seen):
+            for v in adj_z[u]:
+                if not seen[v]:
+                    seen[v] = True
+                    if match_z[v] == -1 or bpm_z(match_z[v], seen):
+                        match_z[v] = u
+                        return True
+            return False
+
+        cnt_z = 0
+        for u in range(m):
+            seen = [False] * len(unused_z)
+            if bpm_z(u, seen):
+                cnt_z += 1
+            else:
+                return False
+        if cnt_z < m:
+            return False
+
+        return True
+
+    def dfs(idx):
+        if idx == k:
+            return True
+        if not feasible(idx):
+            return False
+
+        x = order[idx]
+        for y, z in pairs_by_x[x]:
+            if not used_y[y] and not used_z[z]:
+                used_y[y] = True
+                used_z[z] = True
+                chosen[x] = (y, z)
+                if dfs(idx + 1):
+                    return True
+                chosen[x] = None
+                used_y[y] = False
+                used_z[z] = False
+        return False
+
+    if dfs(0):
+        out = ["YES"]
+        for x in range(1, k + 1):
+            y, z = chosen[x]
+            out.append(f"{x} {y} {z}")
+        print("\n".join(out))
+    else:
+        print("NO")
+
+
+if __name__ == "__main__":
+    solve()
+```

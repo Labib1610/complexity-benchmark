@@ -1,40 +1,50 @@
 def solve():
     import sys
-    from itertools import product
-
-    input = sys.stdin.read
-    data = input().split()
+    from collections import defaultdict, deque
     
-    n = int(data[0])
-    m = int(data[1])
+    n, m = map(int, sys.stdin.readline().split())
     
-    # Build adjacency list for conflicts
-    adj = [[] for _ in range(n + 1)]
-    idx = 2
+    if m == 0:
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
+    
+    # Build adjacency list
+    adj = defaultdict(list)
+    edges = []
     for _ in range(m):
-        u = int(data[idx])
-        v = int(data[idx + 1])
+        u, v = map(int, sys.stdin.readline().split())
         adj[u].append(v)
         adj[v].append(u)
-        idx += 2
+        edges.append((u, v))
     
-    # Try all possible assignments in lexicographical order
-    for assignment in product([1, 2, 3], repeat=n):
-        valid = True
-        # Check each technician against its neighbors
-        for i in range(1, n + 1):
-            for neighbor in adj[i]:
-                # Only check once per edge (i < neighbor)
-                if i < neighbor and assignment[i - 1] == assignment[neighbor - 1]:
-                    valid = False
-                    break
-            if not valid:
-                break
-        if valid:
-            print("YES")
-            print(' '.join(map(str, assignment)))
-            return
+    # Check if the graph is 3-colorable using backtracking
+    color = [0] * (n + 1)  # color[i] represents the color of node i (1, 2, or 3)
+    
+    def is_safe(node, c):
+        for neighbor in adj[node]:
+            if color[neighbor] == c:
+                return False
+        return True
+    
+    def backtrack(node):
+        if node > n:
+            return True
             
-    print("NO")
+        for c in range(1, 4):
+            if is_safe(node, c):
+                color[node] = c
+                if backtrack(node + 1):
+                    return True
+                color[node] = 0
+                
+        return False
+    
+    # Start backtracking from node 1
+    if backtrack(1):
+        print("YES")
+        print(" ".join(map(str, color[1:])))
+    else:
+        print("NO")
 
 solve()

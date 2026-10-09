@@ -1,0 +1,138 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    n = int(data[0]); m = int(data[1]); k = int(data[2])
+    adj = [0] * (n + 1)
+    idx = 3
+    for _ in range(m):
+        u = int(data[idx]); v = int(data[idx+1]); idx += 2
+        adj[u] |= (1 << v)
+        adj[v] |= (1 << u)
+    
+    if k == 1:
+        print("YES")
+        print(1)
+        return
+    
+    # Find a maximum independent set using branch-and-bound.
+    # State: (R, P, X) where R is current set, P candidates, X excluded.
+    # We use bitmasks; vertices are 1..n.
+    
+    best_size = 0
+    best_set = 0
+    target = k
+    
+    # Precompute neighbor masks including self for quick P \ N(v)
+    adj_self = [0] * (n + 1)
+    for v in range(1, n+1):
+        adj_self[v] = adj[v] | (1 << v)
+    
+    # Order vertices by degree for better pruning
+    verts = list(range(1, n+1))
+    verts.sort(key=lambda v: bin(adj[v]).count('1'))
+    
+    # Map vertex to its bit
+    def bit(v):
+        return 1 << v
+    
+    # Iterative stack-based Tomita-style MIS
+    # Each frame: (R, P, X, phase, iterator_state)
+    # We'll use recursion with sys.setrecursionlimit since n<=46
+    
+    sys.setrecursionlimit(10000)
+    
+    found = [None]
+    
+    def expand(R, P, X):
+        nonlocal best_size, best_set
+        if found[0] is not None:
+            return
+        if P == 0 and X == 0:
+            sz = bin(R).count('1')
+            if sz > best_size:
+                best_size = sz
+                best_set = R
+                if sz >= target:
+                    # extract vertices
+                    verts = []
+                    rr = R
+                    while rr:
+                        b = rr & (-rr)
+                        verts.append(b.bit_length() - 1)
+                        rr ^= b
+                    found[0] = verts
+            return
+        
+        # Bound: |R| + |P| can't exceed best, but we want >= target
+        szR = bin(R).count('1')
+        szP = bin(P).count('1')
+        if szR + szP < target:
+            return
+        
+        # Choose pivot u in P|X maximizing |P ∩ N(u)|
+        PU = P | X
+        if PU == 0:
+            return
+        # pick pivot
+        pivot = -1
+        best_cnt = -1
+        pp = PU
+        while pp:
+            b = pp & (-pp)
+            v = b.bit_length() - 1
+            cnt = bin(P & adj[v]).count('1')
+            if cnt > best_cnt:
+                best_cnt = cnt
+                pivot = v
+            pp ^= b
+        
+        # Candidates: P \ N(pivot)
+        if pivot != -1:
+            cand = P & ~adj[pivot]
+        else:
+            cand = P
+        
+        if cand == 0:
+            # all candidates are neighbors of pivot, but P not empty
+            cand = P
+        
+        # Iterate candidates
+        cc = cand
+        while cc:
+            b = cc & (-cc)
+            v = b.bit_length() - 1
+            cc ^= b
+            if found[0] is not None:
+                return
+            Rn = R | b
+            Pn = P & ~adj_self[v]
+            Xn = X & ~adj_self[v]
+            expand(Rn, Pn, Xn)
+            P ^= b
+            X |= b
+    
+    P0 = 0
+    for v in range(1, n+1):
+        P0 |= (1 << v)
+    
+    expand(0, P0, 0)
+    
+    if found[0] is not None and len(found[0]) >= k:
+        print("YES")
+        print(' '.join(map(str, found[0][:k])))
+    elif best_size >= k:
+        verts = []
+        rr = best_set
+        while rr:
+            b = rr & (-rr)
+            verts.append(b.bit_length() - 1)
+            rr ^= b
+        print("YES")
+        print(' '.join(map(str, verts[:k])))
+    else:
+        print("NO")
+
+solve()

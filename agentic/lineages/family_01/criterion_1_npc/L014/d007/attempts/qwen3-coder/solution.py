@@ -1,21 +1,7 @@
 from itertools import product
 
-def compute_interaction(fu, fv):
-    diff = fu - fv
-    return 2 * (diff ** 4) - 10 * (diff ** 2) + 4
-
-def is_valid_assignment(n, edges, assignment):
-    total = 0
-    for u, v in edges:
-        total += compute_interaction(assignment[u-1], assignment[v-1])
-    return total == -4 * len(edges)
-
 def solve():
-    import sys
-    input_lines = sys.stdin.read().splitlines()
-    
-    line1 = list(map(int, input_lines[0].split()))
-    n, m = line1[0], line1[1]
+    n, m = map(int, input().split())
     
     if m == 0:
         print("YES")
@@ -23,13 +9,29 @@ def solve():
         return
     
     edges = []
-    for i in range(1, m+1):
-        u, v = map(int, input_lines[i].split())
-        edges.append((u, v))
+    for _ in range(m):
+        u, v = map(int, input().split())
+        edges.append((u-1, v-1))  # Convert to 0-indexed
     
-    # Try all possible assignments in lexicographical order
+    # For each edge, precompute which combinations of clock speeds (x,y) cause resonance
+    forbidden = [set() for _ in range(m)]
+    
+    for i, (u, v) in enumerate(edges):
+        for x, y in product([1, 2, 3], repeat=2):
+            V_u = x * ((u + v) * x - 2 * u * y)
+            V_w = y * ((u + v) * y - 2 * v * x)
+            if V_u + V_w == 0:
+                forbidden[i].add((x, y))
+    
+    # Try all possible assignments
     for assignment in product([1, 2, 3], repeat=n):
-        if is_valid_assignment(n, edges, assignment):
+        valid = True
+        for i, (u, v) in enumerate(edges):
+            x, y = assignment[u], assignment[v]
+            if (x, y) in forbidden[i] or (y, x) in forbidden[i]:
+                valid = False
+                break
+        if valid:
             print("YES")
             print(" ".join(map(str, assignment)))
             return

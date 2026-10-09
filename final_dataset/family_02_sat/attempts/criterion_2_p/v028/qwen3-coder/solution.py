@@ -1,0 +1,114 @@
+import sys
+sys.setrecursionlimit(10**6)
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    clauses = []
+    index = 2
+    for _ in range(m):
+        l1 = int(data[index])
+        l2 = int(data[index+1])
+        clauses.append((l1, l2))
+        index += 2
+    
+    # Build implication graph
+    # Variables: 1 to n (Humid), -1 to -n (Arid)
+    # Nodes: 0 to 2*n - 1
+    # Node i represents variable i+1, Node i+n represents negation of variable i+1
+    
+    adj = [[] for _ in range(2 * n)]
+    rev_adj = [[] for _ in range(2 * n)]
+    
+    # For each clause (a OR b), we add edges (!a -> b) and (!b -> a)
+    for l1, l2 in clauses:
+        # Convert literals to node indices
+        # l1 positive: l1, negative: -l1
+        # Node for l1: l1-1 if l1>0, else n + (-l1-1) = n - l1 - 1
+        # Node for !l1: n + (l1-1) if l1>0, else -l1-1
+        
+        if l1 > 0:
+            node_not_l1 = n + l1 - 1
+            node_l1 = l1 - 1
+        else:
+            node_not_l1 = -l1 - 1
+            node_l1 = n + (-l1 - 1)
+            
+        if l2 > 0:
+            node_not_l2 = n + l2 - 1
+            node_l2 = l2 - 1
+        else:
+            node_not_l2 = -l2 - 1
+            node_l2 = n + (-l2 - 1)
+        
+        # Add implications: (!l1 -> l2) and (!l2 -> l1)
+        adj[node_not_l1].append(node_l2)
+        adj[node_not_l2].append(node_l1)
+        rev_adj[node_l2].append(node_not_l1)
+        rev_adj[node_l1].append(node_not_l2)
+    
+    # Kosaraju's algorithm for SCC
+    visited = [False] * (2 * n)
+    order = []
+    
+    def dfs1(u):
+        visited[u] = True
+        for v in adj[u]:
+            if not visited[v]:
+                dfs1(v)
+        order.append(u)
+    
+    for i in range(2 * n):
+        if not visited[i]:
+            dfs1(i)
+    
+    visited = [False] * (2 * n)
+    scc_id = [-1] * (2 * n)
+    scc_count = 0
+    
+    def dfs2(u):
+        visited[u] = True
+        scc_id[u] = scc_count
+        for v in rev_adj[u]:
+            if not visited[v]:
+                dfs2(v)
+    
+    while order:
+        u = order.pop()
+        if not visited[u]:
+            dfs2(u)
+            scc_count += 1
+    
+    # Check for contradiction
+    for i in range(n):
+        if scc_id[i] == scc_id[n + i]:
+            print("NO")
+            return
+    
+    # Assign values
+    assignment = [-1] * n
+    # Process SCCs in reverse topological order
+    # We can do this by processing scc_id in decreasing order
+    scc_order = list(range(scc_count))
+    # Sort nodes by their scc_id in decreasing order
+    node_scc_pairs = [(scc_id[i], i) for i in range(2 * n)]
+    node_scc_pairs.sort(reverse=True)
+    
+    for _, node in node_scc_pairs:
+        var = node % n
+        if assignment[var] == -1:
+            if node < n:
+                assignment[var] = 0  # Arid
+            else:
+                assignment[var] = 1  # Humid
+    
+    print("YES")
+    print(' '.join(map(str, assignment)))
+
+if __name__ == "__main__":
+    main()

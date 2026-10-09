@@ -1,0 +1,158 @@
+import sys
+
+# Increase recursion depth for deep trees
+sys.setrecursionlimit(300000)
+
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+
+    n = int(input_data[0])
+    m = int(input_data[1])
+    B = int(input_data[2])
+
+    if n == 1:
+        if B >= 0:
+            print("YES")
+            print("1")
+        else:
+            print("NO")
+        return
+
+    adj = [[] for _ in range(n + 1)]
+    edges = []
+    idx = 3
+    for _ in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx + 1])
+        idx += 2
+        adj[u].append(v)
+        adj[v].append(u)
+        edges.append((u, v))
+
+    def evaluate_root(root):
+        # Compute subtree sizes
+        parent = [0] * (n + 1)
+        children = [[] for _ in range(n + 1)]
+        order = []
+        stack = [root]
+        parent[root] = -1
+
+        while stack:
+            u = stack.pop()
+            order.append(u)
+            for v in adj[u]:
+                if v != parent[u]:
+                    parent[v] = u
+                    children[u].append(v)
+                    stack.append(v)
+
+        sz = [1] * (n + 1)
+        for u in reversed(order):
+            for v in children[u]:
+                sz[u] += sz[v]
+
+        # Order children by subtree size ascending
+        for u in range(1, n + 1):
+            children[u].sort(key=lambda x: sz[x])
+
+        # Build layout
+        layout = []
+
+        def layout_subtree(u, dir_left):
+            if dir_left:  # root on left
+                layout.append(u)
+                for v in children[u]:
+                    layout_subtree(v, True)
+            else:  # root on right
+                for v in reversed(children[u]):
+                    layout_subtree(v, False)
+                layout.append(u)
+
+        # For root, alternate children left and right
+        root_children = children[root]
+        left_children = root_children[0::2]
+        right_children = root_children[1::2]
+
+        for v in reversed(left_children):
+            layout_subtree(v, False)
+
+        layout.append(root)
+
+        for v in right_children:
+            layout_subtree(v, True)
+
+        # Compute positions
+        pos = [0] * (n + 1)
+        for p, u in enumerate(layout, 1):
+            pos[u] = p
+
+        cost = 0
+        for u, v in edges:
+            cost += abs(pos[u] - pos[v])
+
+        return cost, pos
+
+    # Find centroids to prioritize
+    # Compute sizes from arbitrary root 1
+    parent = [0] * (n + 1)
+    order = []
+    stack = [1]
+    parent[1] = -1
+    while stack:
+        u = stack.pop()
+        order.append(u)
+        for v in adj[u]:
+            if v != parent[u]:
+                parent[v] = u
+                stack.append(v)
+
+    sz = [1] * (n + 1)
+    for u in reversed(order):
+        for v in adj[u]:
+            if v != parent[u]:
+                sz[u] += sz[v]
+
+    centroids = []
+    for u in range(1, n + 1):
+        max_c = n - sz[u]
+        for v in adj[u]:
+            if v != parent[u]:
+                max_c = max(max_c, sz[v])
+        if max_c <= n // 2:
+            centroids.append(u)
+
+    best_cost = float("inf")
+    best_pos = None
+
+    candidates = centroids[:]
+    if n <= 1000:
+        candidates = list(range(1, n + 1))
+    else:
+        # Add high degree nodes
+        deg_nodes = sorted(range(1, n + 1), key=lambda x: len(adj[x]), reverse=True)
+        seen = set(candidates)
+        for u in deg_nodes[:50]:
+            if u not in seen:
+                candidates.append(u)
+                seen.add(u)
+
+    for r in candidates:
+        cost, pos = evaluate_root(r)
+        if cost < best_cost:
+            best_cost = cost
+            best_pos = pos
+            if best_cost <= B:
+                break
+
+    if best_cost <= B:
+        print("YES")
+        print(*(best_pos[1:]))
+    else:
+        print("NO")
+
+
+if __name__ == "__main__":
+    solve()

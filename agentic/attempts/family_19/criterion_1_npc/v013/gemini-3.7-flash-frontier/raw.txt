@@ -1,0 +1,261 @@
+```python
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    iterator = iter(input_data)
+    n = int(next(iterator))
+    m = int(next(iterator))
+    k = int(next(iterator))
+    
+    products = []
+    for _ in range(k):
+        s = int(next(iterator)) - 1
+        t = int(next(iterator)) - 1
+        d = int(next(iterator))
+        products.append((s, t, d))
+        
+    edges = []
+    for _ in range(m):
+        u = int(next(iterator)) - 1
+        v = int(next(iterator)) - 1
+        c = int(next(iterator))
+        edges.append((u, v, c))
+
+    # We formulate this as an Integer Linear Program (ILP):
+    # Variables: x_{p, e} for p in 0..k-1, e in 0..m-1
+    # Total integer variables = k * m
+    # Flow conservation: for each product p and node u:
+    #   sum_{e: out(u)} x_{p, e} - sum_{e: in(u)} x_{p, e} = d_p if u=s_p, -d_p if u=t_p, 0 otherwise
+    # Capacity: for each edge e:
+    #   sum_p x_{p, e} <= c_e
+    # x_{p, e} >= 0, integer
+
+    num_vars = k * m
+    
+    # Check trivial case
+    for s, t, d in products:
+        if s == t and d > 0:
+            pass # handled naturally
+            
+    # Simplex / Branch and Bound implementation
+    # Let's set up the LP:
+    # min 0 (feasibility)
+    # Ax = b, l <= x <= u
+    
+    # We can write a Two-Phase Simplex or use a Branch and Bound search.
+    # To be fast and robust, let's implement a standard Simplex tableau.
+    
+    # Equalities: k * n
+    # Inequalities: m (converted to equalities with slack variables)
+    # Total base variables = num_vars + m (slacks)
+    
+    eq_rows = []
+    rhs = []
+    
+    # 1. Flow conservation
+    for p in range(k):
+        s_p, t_p, d_p = products[p]
+        for u in range(n):
+            if u == n - 1:
+                # Redundant conservation equation can be omitted, but keeping it is fine.
+                pass
+            row = [0.0] * (num_vars + m)
+            for e in range(m):
+                u_e, v_e, _ = edges[e]
+                if u_e == u:
+                    row[p * m + e] += 1.0
+                if v_e == u:
+                    row[p * m + e] -= 1.0
+            val = 0.0
+            if u == s_p:
+                val += d_p
+            if u == t_p:
+                val -= d_p
+            eq_rows.append(row)
+            rhs.append(val)
+            
+    # 2. Capacity constraints: sum_p x_{p, e} + slack_e = c_e
+    for e in range(m):
+        row = [0.0] * (num_vars + m)
+        for p in range(k):
+            row[p * m + e] = 1.0
+        row[num_vars + e] = 1.0
+        eq_rows.append(row)
+        rhs.append(float(edges[e][2]))
+
+    # Now we have Ax = b, x >= 0.
+    # We will also have upper/lower bound constraints during branch and bound.
+    # Since variable bounds change during B&B, it's convenient to add bound constraints as inequalities.
+    
+    total_vars = num_vars + m
+    
+    def solve_lp(extra_bounds):
+        # extra_bounds: list of (var_idx, '<=' or '>=', val)
+        # We solve Phase I to find feasible solution.
+        # Construct tableau
+        # All original constraints are equalities.
+        # Bounds are added with slacks / surplus.
+        
+        A = [r[:] for r in eq_rows]
+        b = rhs[:]
+        
+        cur_vars = total_vars
+        for var_idx, op, val in extra_bounds:
+            row = [0.0] * cur_vars
+            if op == '<=':
+                row[var_idx] = 1.0
+                # add slack
+                for r in A:
+                    r.append(0.0)
+                row.append(1.0)
+                cur_vars += 1
+                A.append(row)
+                b.append(float(val))
+            elif op == '>=':
+                row[var_idx] = 1.0
+                # add surplus (subtract slack)
+                for r in A:
+                    r.append(0.0)
+                row.append(-1.0)
+                cur_vars += 1
+                A.append(row)
+                b.append(float(val))
+
+        num_rows = len(A)
+        # Make all b >= 0
+        for i in range(num_rows):
+            if b[i] < -1e-9:
+                for j in range(cur_vars):
+                    A[i][j] = -A[i][j]
+                b[i] = -b[i]
+
+        # Phase I: add artificial variables for each row
+        # Tableau size: (num_rows + 1) x (cur_vars + num_rows + 1)
+        tab = []
+        for i in range(num_rows):
+            tab_row = A[i] + [0.0] * num_rows + [b[i]]
+            tab_row[cur_vars + i] = 1.0
+            tab.append(tab_row)
+        
+        # Objective row for Phase I: min sum of artificials
+        # Initially, cost is sum of artificials = sum_{i} (b[i] - sum_j A[i][j] x_j)
+        cost_row = [0.0] * (cur_vars + num_rows + 1)
+        for i in range(num_rows):
+            for j in range(cur_vars):
+                cost_row[j] -= tab[i][j]
+            cost_row[-1] -= tab[i][-1]
+        tab.append(cost_row)
+
+        basis = [cur_vars + i for i in range(num_rows)]
+
+        # Simplex Phase I
+        def pivot(r, c):
+            inv = 1.0 / tab[r][c]
+            for j in range(len(tab[0])):
+                tab[r][j] *= inv
+            for i in range(len(tab)):
+                if i != r:
+                    factor = tab[i][c]
+                    if abs(factor) > 1e-12:
+                        for j in range(len(tab[0])):
+                            tab[i][j] -= factor * tab[r][j]
+            basis[r] = c
+
+        # Phase I iteration
+        max_iters = 5000
+        for _ in range(max_iters):
+            # Find entering variable
+            c = -1
+            min_val = -1e-7
+            for j in range(cur_vars + num_rows):
+                if tab[-1][j] < min_val:
+                    min_val = tab[-1][j]
+                    c = j
+            if c == -1:
+                break
+            # Find leaving variable
+            r = -1
+            min_ratio = 1e18
+            for i in range(num_rows):
+                if tab[i][c] > 1e-9:
+                    ratio = tab[i][-1] / tab[i][c]
+                    if ratio < min_ratio:
+                        min_ratio = ratio
+                        r = i
+            if r == -1:
+                return None # Unbounded, but artificial obj shouldn't be
+            pivot(r, c)
+
+        if abs(tab[-1][-1]) > 1e-5:
+            return None # Infeasible
+
+        # Feasible solution found
+        sol = [0.0] * cur_vars
+        for i in range(num_rows):
+            if basis[i] < cur_vars:
+                sol[basis[i]] = tab[i][-1]
+                
+        return sol[:num_vars]
+
+    # Branch and Bound
+    best_sol = None
+
+    def branch_and_bound(bounds):
+        nonlocal best_sol
+        if best_sol is not None:
+            return
+        
+        sol = solve_lp(bounds)
+        if sol is None:
+            return
+        
+        # Check if all x are integers
+        most_fractional_idx = -1
+        max_frac = 0.0
+        
+        for idx in range(num_vars):
+            val = sol[idx]
+            frac = abs(val - round(val))
+            if frac > 1e-4:
+                if frac > max_frac:
+                    max_frac = frac
+                    most_fractional_idx = idx
+                    
+        if most_fractional_idx == -1:
+            best_sol = [int(round(x)) for x in sol]
+            return
+        
+        var_idx = most_fractional_idx
+        var_val = sol[var_idx]
+        floor_val = int(var_val)
+        ceil_val = floor_val + 1
+        
+        # Branch on floor first or ceil first depending on proximity
+        if var_val - floor_val < ceil_val - var_val:
+            branch_and_bound(bounds + [(var_idx, '<=', floor_val)])
+            if best_sol is not None:
+                return
+            branch_and_bound(bounds + [(var_idx, '>=', ceil_val)])
+        else:
+            branch_and_bound(bounds + [(var_idx, '>=', ceil_val)])
+            if best_sol is not None:
+                return
+            branch_and_bound(bounds + [(var_idx, '<=', floor_val)])
+
+    branch_and_bound([])
+
+    if best_sol is not None:
+        print("YES")
+        for p in range(k):
+            row_sol = [best_sol[p * m + e] for e in range(m)]
+            print(*(max(0, x) for x in row_sol))
+    else:
+        print("NO")
+
+if __name__ == '__main__':
+    solve()
+```

@@ -4,6 +4,11 @@ from collections import defaultdict, deque
 def solve():
     n, m = map(int, input().split())
     
+    if m == 0:
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
+    
     # Build adjacency list
     adj = defaultdict(list)
     for _ in range(m):
@@ -14,7 +19,7 @@ def solve():
     # Color array: 0 = unvisited, 1 = color 1, 2 = color 2
     color = [0] * (n + 1)
     
-    # Check if bipartite using BFS
+    # Check if bipartite using BFS for each connected component
     for start in range(1, n + 1):
         if color[start] == 0:
             queue = deque([start])
@@ -39,7 +44,6 @@ def solve():
             result.append("1")
         else:
             result.append(str(color[i]))
-    
     print(" ".join(result))
 
 solve()

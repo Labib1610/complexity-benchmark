@@ -1,0 +1,107 @@
+import sys
+from collections import deque
+
+input = sys.stdin.readline
+
+def hopcroft_karp(n, m, adj, left_size):
+    INF = 10**9
+    pair_u = [-1] * (left_size + 1)
+    pair_v = [-1] * (n + 1)
+    dist = [0] * (left_size + 1)
+
+    def bfs():
+        q = deque()
+        for u in range(1, left_size + 1):
+            if pair_u[u] == -1:
+                dist[u] = 0
+                q.append(u)
+            else:
+                dist[u] = INF
+        found = False
+        while q:
+            u = q.popleft()
+            for v in adj[u]:
+                pu = pair_v[v]
+                if pu != -1 and dist[pu] == INF:
+                    dist[pu] = dist[u] + 1
+                    q.append(pu)
+                elif pu == -1:
+                    found = True
+        return found
+
+    def dfs(u):
+        for v in adj[u]:
+            pu = pair_v[v]
+            if pu == -1 or (dist[pu] == dist[u] + 1 and dfs(pu)):
+                pair_u[u] = v
+                pair_v[v] = u
+                return True
+        dist[u] = INF
+        return False
+
+    matching = 0
+    while bfs():
+        for u in range(1, left_size + 1):
+            if pair_u[u] == -1 and dfs(u):
+                matching += 1
+    return matching
+
+def main():
+    n, m, k = map(int, input().split())
+    adj = [[] for _ in range(n + 1)]
+    color = [-1] * (n + 1)
+    graph = [[] for _ in range(n + 1)]
+
+    edges = []
+    for _ in range(m):
+        u, v = map(int, input().split())
+        edges.append((u, v))
+        graph[u].append(v)
+        graph[v].append(u)
+
+    # Bipartite coloring
+    for i in range(1, n + 1):
+        if color[i] == -1:
+            color[i] = 0
+            q = deque([i])
+            while q:
+                u = q.popleft()
+                for w in graph[u]:
+                    if color[w] == -1:
+                        color[w] = color[u] ^ 1
+                        q.append(w)
+
+    left_nodes = [i for i in range(1, n + 1) if color[i] == 0]
+    right_nodes = [i for i in range(1, n + 1) if color[i] == 1]
+
+    left_id = {node: idx + 1 for idx, node in enumerate(left_nodes)}
+    right_id = {node: idx + 1 for idx, node in enumerate(right_nodes)}
+
+    left_size = len(left_nodes)
+    adj_left = [[] for _ in range(left_size + 1)]
+
+    for u, v in edges:
+        if color[u] == 0:
+            adj_left[left_id[u]].append(right_id[v])
+        else:
+            adj_left[left_id[v]].append(right_id[u])
+
+    max_matching = hopcroft_karp(n, m, adj_left, left_size)
+
+    max_independent = n - max_matching
+    if k > max_independent:
+        print("NO")
+        return
+
+    # We can always pick k nodes from the larger side of the bipartition
+    # because same side has no conflicts.
+    if len(left_nodes) >= k:
+        chosen = left_nodes[:k]
+    else:
+        chosen = left_nodes + right_nodes[:k - len(left_nodes)]
+
+    print("YES")
+    print(" ".join(map(str, chosen)))
+
+if __name__ == "__main__":
+    main()

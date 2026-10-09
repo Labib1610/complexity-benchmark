@@ -1,125 +1,41 @@
 import sys
 
 def solve():
-    data = sys.stdin.read().strip().split()
+    data = sys.stdin.read().split()
     if not data:
         return
-    it = iter(data)
-    n = int(next(it))
-    m = int(next(it))
-    adj = [0] * n
+    n = int(data[0])
+    m = int(data[1])
+    adj = [set() for _ in range(n)]
+    idx = 2
     for _ in range(m):
-        u = int(next(it)) - 1
-        v = int(next(it)) - 1
-        adj[u] |= (1 << v)
-        adj[v] |= (1 << u)
-    
-    FULL = (1 << n) - 1
+        u = int(data[idx]) - 1
+        v = int(data[idx+1]) - 1
+        idx += 2
+        adj[u].add(v)
+        adj[v].add(u)
+
     color = [0] * n
-    
-    def is_bipartite(mask):
-        local_color = {}
-        nodes = [i for i in range(n) if mask & (1 << i)]
-        for s in nodes:
-            if s in local_color:
-                continue
-            local_color[s] = 0
-            stack = [s]
-            while stack:
-                u = stack.pop()
-                for v in range(n):
-                    if (mask & (1 << v)) and (adj[u] & (1 << v)):
-                        if v not in local_color:
-                            local_color[v] = local_color[u] ^ 1
-                            stack.append(v)
-                        elif local_color[v] == local_color[u]:
-                            return False
-        return True
-    
-    def build_bipartition(mask):
-        local_color = {}
-        nodes = [i for i in range(n) if mask & (1 << i)]
-        for s in nodes:
-            if s in local_color:
-                continue
-            local_color[s] = 0
-            stack = [s]
-            while stack:
-                u = stack.pop()
-                for v in range(n):
-                    if (mask & (1 << v)) and (adj[u] & (1 << v)):
-                        if v not in local_color:
-                            local_color[v] = local_color[u] ^ 1
-                            stack.append(v)
-        return local_color
-    
-    def check(c1, c2, c3):
-        for i in range(n):
-            ci = color[i]
-            for j in range(i+1, n):
-                if adj[i] & (1 << j):
-                    if color[j] == ci:
-                        return False
-        return True
-    
-    def assign(idx, s1, s2, s3):
-        if idx == n:
+
+    def backtrack(pos):
+        if pos == n:
             return True
-        remaining = FULL ^ s1 ^ s2 ^ s3
-        for c in range(3):
-            if c == 0:
-                if s1 == 0:
-                    new_s1 = 0
-                else:
-                    new_s1 = s1
-                conflict = False
-                for j in range(idx):
-                    if color[j] == 0 and (adj[idx] & (1 << j)):
-                        conflict = True
-                        break
-                if conflict:
-                    continue
-                new_s1 = s1 | (1 << idx)
-                color[idx] = 0
-                if assign(idx + 1, new_s1, s2, s3):
+        for c in (1, 2, 3):
+            ok = True
+            for nb in adj[pos]:
+                if nb < pos and color[nb] == c:
+                    ok = False
+                    break
+            if ok:
+                color[pos] = c
+                if backtrack(pos + 1):
                     return True
-            elif c == 1:
-                if s2 == 0:
-                    new_s2 = 0
-                else:
-                    new_s2 = s2
-                conflict = False
-                for j in range(idx):
-                    if color[j] == 1 and (adj[idx] & (1 << j)):
-                        conflict = True
-                        break
-                if conflict:
-                    continue
-                new_s2 = s2 | (1 << idx)
-                color[idx] = 1
-                if assign(idx + 1, s1, new_s2, s3):
-                    return True
-            else:
-                if s3 == 0:
-                    new_s3 = 0
-                else:
-                    new_s3 = s3
-                conflict = False
-                for j in range(idx):
-                    if color[j] == 2 and (adj[idx] & (1 << j)):
-                        conflict = True
-                        break
-                if conflict:
-                    continue
-                new_s3 = s3 | (1 << idx)
-                color[idx] = 2
-                if assign(idx + 1, s1, s2, new_s3):
-                    return True
+                color[pos] = 0
         return False
-    
-    if assign(0, 0, 0, 0):
+
+    if backtrack(0):
         print("YES")
-        print(' '.join(str(c + 1) for c in color))
+        print(" ".join(map(str, color)))
     else:
         print("NO")
 

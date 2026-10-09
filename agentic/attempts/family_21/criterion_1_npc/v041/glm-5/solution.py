@@ -1,0 +1,109 @@
+import sys
+from collections import deque
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    k = int(next(it))
+    B = int(next(it))
+    
+    primary = []
+    for _ in range(k):
+        primary.append(int(next(it)))
+    
+    edges = []
+    adj = [[] for _ in range(n + 1)]
+    for i in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        w = int(next(it))
+        edges.append((u, v, w, i + 1))
+        adj[u].append((v, i))
+        adj[v].append((u, i))
+    
+    is_primary = [False] * (n + 1)
+    for p in primary:
+        is_primary[p] = True
+    
+    # BFS to find minimum cut edges
+    # Build level graph from primary nodes
+    level = [-1] * (n + 1)
+    q = deque()
+    for p in primary:
+        level[p] = 0
+        q.append(p)
+    
+    cut_edges = []
+    while q:
+        u = q.popleft()
+        for v, edge_idx in adj[u]:
+            if level[v] == -1:
+                level[v] = level[u] + 1
+                q.append(v)
+            elif level[v] == level[u] + 1:
+                # This edge goes from level[u] to level[v] where level[v] = level[u] + 1
+                # It's a potential cut edge
+                pass
+    
+    # Find edges that go between different levels
+    for u, v, w, idx in edges:
+        if level[u] != -1 and level[v] != -1 and abs(level[u] - level[v]) == 1:
+            cut_edges.append((w, u, v, idx))
+    
+    # Sort by weight and greedily select
+    cut_edges.sort()
+    total = 0
+    selected = []
+    for w, u, v, idx in cut_edges:
+        if total + w <= B:
+            total += w
+            selected.append((u, v))
+        else:
+            break
+    
+    # Check if this is sufficient
+    # We need to verify that removing selected edges disconnects all primary habitats
+    # Build graph without selected edges
+    blocked = set()
+    for u, v in selected:
+        blocked.add((min(u, v), max(u, v)))
+    
+    adj2 = [[] for _ in range(n + 1)]
+    for u, v, w, idx in edges:
+        if (min(u, v), max(u, v)) not in blocked:
+            adj2[u].append(v)
+            adj2[v].append(u)
+    
+    # Check connectivity among primary habitats
+    visited = [False] * (n + 1)
+    start = primary[0]
+    visited[start] = True
+    q = deque([start])
+    while q:
+        u = q.popleft()
+        for v in adj2[u]:
+            if not visited[v]:
+                visited[v] = True
+                q.append(v)
+    
+    # Check if any other primary is reachable
+    isolated = True
+    for p in primary[1:]:
+        if visited[p]:
+            isolated = False
+            break
+    
+    if isolated and total <= B:
+        print("YES")
+        print(len(selected))
+        for u, v in selected:
+            print(u, v)
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()

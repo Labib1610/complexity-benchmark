@@ -1,0 +1,137 @@
+import sys
+import heapq
+from collections import defaultdict
+
+def find(parent, x):
+    if parent[x] != x:
+        parent[x] = find(parent, parent[x])
+    return parent[x]
+
+def union(parent, rank, x, y):
+    px, py = find(parent, x), find(parent, y)
+    if px == py:
+        return False
+    if rank[px] < rank[py]:
+        px, py = py, px
+    parent[py] = px
+    if rank[px] == rank[py]:
+        rank[px] += 1
+    return True
+
+def kruskal(n, edges, must_connect):
+    parent = list(range(n + 1))
+    rank = [0] * (n + 1)
+    
+    # Sort edges by weight
+    edges.sort(key=lambda x: x[2])
+    
+    total_cost = 0
+    connected_components = n
+    
+    for u, v, w in edges:
+        if union(parent, rank, u, v):
+            total_cost += w
+            connected_components -= 1
+            # Check if all must_connect nodes are in the same component
+            if connected_components <= 1:
+                break
+    
+    # Check if all must_connect nodes are connected
+    if len(must_connect) > 1:
+        root = find(parent, must_connect[0])
+        for node in must_connect[1:]:
+            if find(parent, node) != root:
+                return float('inf')  # Not all must_connect nodes are connected
+    
+    return total_cost
+
+def solve():
+    n, m, t = map(int, sys.stdin.readline().split())
+    primary_anchors = list(map(int, sys.stdin.readline().split()))
+    
+    edges = []
+    for _ in range(m):
+        u, v, w = map(int, sys.stdin.readline().split())
+        edges.append((u, v, w))
+    
+    # If there's only one primary anchor, no connections needed
+    if t <= 1:
+        return 0
+    
+    # Try all possible subsets of nodes that include all primary anchors
+    # We'll use a modified approach: create a new "super node" connected to all primary anchors with 0 cost
+    # Then find the MST of the extended graph
+    
+    # Add edges from a virtual node (0) to all primary anchors with cost 0
+    extended_edges = edges[:]
+    for anchor in primary_anchors:
+        extended_edges.append((0, anchor, 0))
+    
+    parent = list(range(n + 2))  # +2 for node 0 (virtual) and possible extra
+    rank = [0] * (n + 2)
+    
+    # Sort all edges by weight
+    extended_edges.sort(key=lambda x: x[2])
+    
+    total_cost = 0
+    connected_count = 0  # Count how many primary anchors are connected to virtual node
+    
+    # We need to connect all primary anchors to the virtual node
+    primary_set = set(primary_anchors)
+    connected_to_virtual = set()
+    
+    for u, v, w in extended_edges:
+        # If this is a virtual connection
+        if u == 0 and v in primary_set and v not in connected_to_virtual:
+            union(parent, rank, u, v)
+            total_cost += w
+            connected_to_virtual.add(v)
+            connected_count += 1
+            if connected_count == len(primary_anchors):
+                break
+        elif v == 0 and u in primary_set and u not in connected_to_virtual:
+            union(parent, rank, u, v)
+            total_cost += w
+            connected_to_virtual.add(u)
+            connected_count += 1
+            if connected_count == len(primary_anchors):
+                break
+        # Regular edge
+        elif u != 0 and v != 0:
+            if union(parent, rank, u, v):
+                total_cost += w
+                # Check if this edge connects two components that contain primary anchors
+                # This is handled by the MST property
+    
+    # Actually, let's use a cleaner approach
+    # Create a complete graph where we want to connect all primary anchors with minimum cost
+    # This is essentially a Steiner tree problem, but with small t (<=10), we can try all approaches
+    
+    # Better approach: since t <= 10, we can consider all possible ways to connect the primary anchors
+    # But even simpler: run Kruskal's algorithm and stop when all primary anchors are connected
+    
+    parent = list(range(n + 1))
+    rank = [0] * (n + 1)
+    
+    # Sort edges by weight
+    edges.sort(key=lambda x: x[2])
+    
+    total_cost = 0
+    connected_components = {anchor: anchor for anchor in primary_anchors}
+    
+    # Count how many distinct components the primary anchors are in
+    def get_component_count():
+        roots = set()
+        for anchor in primary_anchors:
+            roots.add(find(parent, anchor))
+        return len(roots)
+    
+    for u, v, w in edges:
+        if union(parent, rank, u, v):
+            total_cost += w
+            if get_component_count() == 1:
+                break
+    
+    return total_cost
+
+print(solve())

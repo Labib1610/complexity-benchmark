@@ -8,46 +8,34 @@ def solve() -> None:
     it = iter(data)
     n = int(next(it))
     m = int(next(it))
-    adj = [[] for _ in range(n + 1)]
+    adj = [[] for _ in range(n)]
     for _ in range(m):
-        u = int(next(it)); v = int(next(it))
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
         adj[u].append(v)
         adj[v].append(u)
 
-    part = [-1] * (n + 1)          # 0 or 1 partition
-    ans = [0] * (n + 1)            # final rule numbers (1 or 2)
-
-    for start in range(1, n + 1):
-        if part[start] != -1:
+    colour = [-1] * n          # -1 = unvisited, 0 or 1 otherwise
+    for start in range(n):
+        if colour[start] != -1:
             continue
-        # BFS this component
+        colour[start] = 0      # smallest vertex of component gets 0
         q = deque([start])
-        part[start] = 0
-        comp_nodes = [start]
-        min_node = start
-        ok = True
         while q:
             u = q.popleft()
-            if u < min_node:
-                min_node = u
-            for v in adj[u]:
-                if part[v] == -1:
-                    part[v] = part[u] ^ 1
-                    q.append(v)
-                    comp_nodes.append(v)
-                elif part[v] == part[u]:
+            cu = colour[u]
+            for w in adj[u]:
+                if colour[w] == -1:
+                    colour[w] = cu ^ 1
+                    q.append(w)
+                elif colour[w] == cu:
                     print("NO")
                     return
-        # decide orientation so that min_node gets rule 1
-        if part[min_node] == 0:
-            for v in comp_nodes:
-                ans[v] = 1 if part[v] == 0 else 2
-        else:
-            for v in comp_nodes:
-                ans[v] = 1 if part[v] == 1 else 2
 
+    # all good
     print("YES")
-    print(' '.join(str(ans[i]) for i in range(1, n + 1)))
+    out = [str(c + 1) for c in colour]
+    print(' '.join(out))
 
 if __name__ == "__main__":
     solve()

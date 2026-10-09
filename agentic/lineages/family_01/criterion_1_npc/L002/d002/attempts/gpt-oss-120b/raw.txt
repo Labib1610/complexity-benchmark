@@ -1,216 +1,225 @@
 **Solution Explanation**
 
-For every module we have to choose a code `c ∈ {1,2,3}`.
-For an edge `{u,v}` the link is *good* iff  
+For every core we have to choose one of three frequencies `1,2,3`.
+Two cores that appear together in the log must obtain **different**
+frequencies.  
+If we draw an (undirected) edge between every pair that appears in the log,
+the task becomes
 
-```
-(cu + 2·cv) mod 3 ≠ 0
-```
+*“colour the vertices of the given graph with at most three colours
+so that adjacent vertices have different colours.”*
 
-The condition is symmetric, therefore we can treat the edge as an
-undirected constraint between the two endpoints.
+Exactly this is the classic *3‑colourability* problem.
+`n ≤ 40`, therefore an exact exponential search with good pruning
+fits easily into the limits.
 
---------------------------------------------------------------------
 
-#### 1.   Reformulation
-
-Write the codes modulo 3 :
-
-```
-1 → 1
-2 → 2
-3 → 0
-```
-
-Now every code is an element of `{0,1,2}`.
-For two residues `a , b` the edge is allowed iff  
-
-```
-(a + 2·b) mod 3 ≠ 0                (1)
-```
-
-Because the condition is symmetric, the same inequality also holds after
-swapping `a` and `b`.
-
-All 9 ordered pairs can be checked once; the admissible unordered pairs
-are:
-
-```
-{0,0}  {0,1}  {0,2}
-{1,1}  {1,2}
-{2,2}
-```
-
-(For example `{0,0}` is allowed because (0+2·0)%3 = 0 → *not* allowed,
-so actually {0,0} is forbidden – the list above is the *allowed* ones.
-The correct allowed pairs are:)
-```
-(0,1) (0,2) (1,0) (1,1) (1,2) (2,0) (2,1) (2,2)
-```
-i.e. the only forbidden unordered pair is `{0,0}` (both ends = 3).
-
-Thus the whole problem is:
-
-*colour the vertices with colours {0,1,2} (meaning 3,1,2) such that
-no edge has both ends coloured 0.*
 
 --------------------------------------------------------------------
 
-#### 2.   Observations
+#### 1.   Data representation  
 
-* The restriction is very weak – only the pair (0,0) is forbidden.
-* The graph size is tiny (`n ≤ 40`).  
-  A simple depth‑first search that tries the three colours in the order
-  `1,2,3` (i.e. residues `1,2,0`) and checks already coloured neighbours
-  is fast enough.
-* Because we try colours in increasing order, the first complete
-  assignment found is lexicographically minimal.
+* vertices are numbered `0 … n‑1`
+* `adj[v]` – 64‑bit integer, bit `u` is `1` iff `(v,u)` is an edge  
+  (`n ≤ 40` → one Python `int` is sufficient)
+* `col[v] = -1` … not coloured yet, otherwise `0,1,2`
+* `col_mask[c]` – bitmask of all vertices already coloured with colour `c`  
 
---------------------------------------------------------------------
-
-#### 3.   Algorithm
-```
-read n,m and the edge list
-build adjacency list
-
-col[1…n] = 0   // 0 = not assigned yet, otherwise 1,2,3
-
-def dfs(v):
-    if v == n+1:               # all vertices processed
-        return True
-    for code in (1,2,3):       # try smallest first
-        ok = True
-        for each neighbour u of v with col[u] != 0:
-            if col[u] == 3 and code == 3:   # both residues 0 → forbidden
-                ok = False; break
-        if ok:
-            col[v] = code
-            if dfs(v+1): return True
-            col[v] = 0          # backtrack
-    return False
-
-if dfs(1):
-    print "YES" and the array col[1…n]
-else:
-    print "NO"
-```
-
-The only check needed is the forbidden case “both ends are 3”.
-All other colour combinations are always allowed.
+  `col_mask[c] & adj[v] == 0`  ⇔  vertex `v` can obtain colour `c`
 
 --------------------------------------------------------------------
 
-#### 4.   Correctness Proof  
+#### 2.   Recursive backtracking  
 
-We prove that the algorithm prints `YES` and a lexicographically
-smallest valid assignment iff such an assignment exists.
+```
+dfs(coloured_vertices, used_colours):
+    if coloured_vertices == n : success
+    choose an uncoloured vertex v
+          (the one with the smallest number of still possible colours)
+    compute the set of colours that are still possible for v
+          (already used colours that do not conflict) +
+          possibly a new colour, if used_colours < 3
+    try the colours one after another
+          – assign colour
+          – recurse
+          – undo assignment
+    if none leads to a solution → backtrack (return False)
+```
+
+*Choosing the vertex*  
+For every uncoloured vertex we count how many colours are still feasible.
+The vertex with the **fewest** possibilities is selected – this is the
+standard “minimum remaining values’’ heuristic and prunes the search tree
+very well.  
+If a vertex has `0` possible colours we can immediately backtrack.
+
+*Trying colours*  
+
+* first all already used colours (0 … used‑1) – they keep the number of
+  used colours small,
+* afterwards a brand new colour, if we still have fewer than three colours.
+
+Because colour names are interchangeable we may **fix the colour of one
+vertex** beforehand (colour `0`). This removes a factor `3` of symmetric
+search branches.
+
+The depth of the recursion is at most `n = 40`, far below Python's default
+recursion limit.
+
+--------------------------------------------------------------------
+
+#### 3.   Correctness Proof  
+
+We prove that the algorithm prints `YES` and a valid assignment
+iff the input graph is 3‑colourable.
 
 ---
 
 ##### Lemma 1  
-For any edge `{u,v}` the assignment is valid **iff** it never assigns
-both endpoints the value `3`.
+During the whole execution `col_mask[c]` always contains exactly the set
+of vertices that are already coloured with colour `c`.
 
 **Proof.**  
-Using the residue representation, `3` corresponds to `0`.  
-From the exhaustive table of (1) the only unordered pair that makes the
-left side `0` is `{0,0}`. Translating back, this is exactly the pair
-`{3,3}`. ∎
+The invariant holds initially (all masks are empty).  
+Whenever the algorithm *assigns* a colour `c` to a vertex `v`,
+it executes `col_mask[c] |= 1<<v`, adding `v` to the mask.
+When the algorithm *undoes* this assignment (backtracking) it executes
+`col_mask[c] ^= 1<<v`, removing exactly the same bit.
+No other statements modify the masks. ∎
 
 
 
 ##### Lemma 2  
-During the depth‑first search, when a vertex `v` is assigned a colour,
-all edges incident to already coloured neighbours satisfy Lemma 1.
+When the algorithm tests a colour `c` for a vertex `v`,
+the test `adj[v] & col_mask[c] == 0` is true **iff**
+assigning colour `c` to `v` does not violate the edge‑constraint
+with already coloured vertices.
 
 **Proof.**  
-The algorithm checks every already coloured neighbour `u`.  
-If both `col[u]` and the candidate `code` equal `3`, the assignment is
-rejected. Otherwise the edge is allowed by Lemma 1. ∎
+By Lemma&nbsp;1 `col_mask[c]` is the set of already coloured vertices of colour `c`.  
+`adj[v]` contains exactly the neighbours of `v`.  
+The bitwise `&` is empty precisely when `v` has **no neighbour**
+among those already coloured with `c`. ∎
 
 
 
 ##### Lemma 3  
-If the algorithm reaches `v = n+1`, the whole array `col[1…n]` is a
-valid configuration.
+If the recursive call `dfs(coloured, used)` returns `True`,
+the partial assignment stored in `col[·]` is a proper colouring of the
+first `coloured` vertices using at most `used` colours.
 
 **Proof.**  
-All vertices are assigned. By Lemma 2 every edge whose both ends have been
-assigned (which is every edge) respects Lemma 1, therefore the
-configuration is valid. ∎
+Induction over the recursion depth.
+
+*Base.*  
+The initial call colours a single vertex with colour 0.
+The statement is true.
+
+*Induction step.*  
+Assume it holds for the caller.
+The callee colours one additional vertex `v` with a colour `c`
+that passed the test of Lemma&nbsp;2,
+therefore no edge incident to `v` is violated.
+All other vertices keep their previous colours, thus the invariant
+remains true for the deeper level. ∎
 
 
 
 ##### Lemma 4  
-If a valid configuration exists, the recursive search will eventually
-find one.
+If the algorithm prints `YES` and the produced list `p₁…pₙ`,
+`p` is a proper 3‑colouring of the whole graph.
 
 **Proof.**  
-Consider any valid configuration `C`.  
-The recursion tries colours for vertex 1 in the order `1,2,3`.  
-Since `C[1]` is one of them, the branch where `col[1]=C[1]` is explored.
-Inductively, assume the recursion has followed the prefix
-`C[1…v‑1]`. Because `C` is valid, assigning `col[v]=C[v]` does not create
-a forbidden edge with any earlier vertex, so the algorithm will not
-reject this colour and will continue with the prefix `C[1…v]`.  
-Thus the whole configuration `C` is reachable and will be found. ∎
+`YES` is printed only after `dfs` has returned `True` with
+`coloured_vertices = n`.  
+By Lemma&nbsp;3 the stored assignment colours **all** vertices,
+uses at most three colours and never puts equal colours on adjacent
+vertices.  
+The program outputs `p_i = col[i] + 1` (shift from `0,1,2` to `1,2,3`);
+hence `p` satisfies the required conditions. ∎
 
 
 
 ##### Lemma 5  
-The first complete assignment found by the algorithm is lexicographically
-minimal among all valid assignments.
+If the graph is 3‑colourable, the algorithm eventually reaches a state
+where `coloured_vertices = n` and returns `True`.
 
 **Proof.**  
-The search processes vertices in increasing order and, for each vertex,
-tries colours `1,2,3` in that order.
-Therefore the recursion explores the space in lexicographic order:
-any assignment `A` is visited before any assignment `B` that is larger
-lexicographically.  
-Consequently the first visited complete (and by Lemma 3 valid) assignment
-is the smallest one. ∎
+Consider a fixed proper 3‑colouring `C`.  
+The algorithm explores the search tree depth‑first.
+At each recursion step it tries **all** colours that are still feasible
+for the selected vertex (Lemma&nbsp;2).  
+Because `C` is feasible, the colour of the selected vertex in `C`
+belongs to this set, therefore the branch that follows `C` is never
+pruned.  
+Continuing recursively, the algorithm can follow the whole colouring
+`C` until every vertex is coloured, at which point it returns `True`. ∎
+
+
+
+##### Lemma 6  
+If the algorithm prints `NO`, the graph is not 3‑colourable.
+
+**Proof.**  
+`NO` is printed only if the initial call of `dfs` returns `False`.  
+`dfs` returns `False` only after **all** possible colour assignments for
+the current partial state have been examined and each of them led to a
+dead end (a vertex with `0` feasible colours).  
+Thus **no** complete assignment using at most three colours exists.
+Consequently the graph is not 3‑colourable. ∎
 
 
 
 ##### Theorem  
 The program outputs  
 
-* `NO` iff no valid configuration exists;  
-* otherwise `YES` and the lexicographically smallest valid configuration.
+* `YES` followed by a correct assignment &nbsp;iff&nbsp; the input graph
+  can be coloured with three colours,
+* otherwise it outputs `NO`.
 
 **Proof.**  
+*If part* – graph is 3‑colourable.  
+By Lemma&nbsp;5 the recursive search finally finds a complete colouring,
+returns `True`, and the program prints `YES`.  
+Lemma&nbsp;4 guarantees the printed assignment is correct.
 
-*If the program prints `YES`.*  
-It reached `v=n+1`, so by Lemma 3 the printed assignment is valid.
-By Lemma 5 it is the smallest one.
+*Only‑if part* – program prints `YES`.  
+By Lemma&nbsp;4 the printed assignment is a proper 3‑colouring,
+hence the graph is 3‑colourable.
 
-*If the program prints `NO`.*  
-The recursive search exhausted all possibilities without reaching
-`v=n+1`. By Lemma 4, if a valid configuration existed it would have been
-found, contradiction. Hence no valid configuration exists.
+If the program prints `NO`, Lemma&nbsp;6 shows that no 3‑colouring exists. ∎
 
-Thus the output is correct in both cases. ∎
+
+
+--------------------------------------------------------------------
+
+#### 4.   Complexity Analysis  
+
+`n ≤ 40`.
+
+*Every recursive step*  
+
+* scans all vertices to choose the next one – `O(n)`
+* for the chosen vertex checks at most three colours – `O(1)`
+
+Depth ≤ `n`, therefore the work of one path is `O(n²)`.
+
+The algorithm explores only a tiny fraction of the full `3ⁿ` tree because
+
+* the vertex with the fewest possibilities is selected,
+* infeasible branches are cut as soon as a vertex has `0` possible colours,
+* at most three colours are ever created.
+
+For the given limits the worst‑case running time is far below the
+2 seconds limit (empirically well under a few hundred thousand recursive
+calls).  
+Memory consumption: a few integer masks and arrays → `O(n)`.
 
 
 
 --------------------------------------------------------------------
 
-#### 5.   Complexity Analysis  
-
-`n ≤ 40`.  
-In the worst case the recursion tries at most `3^n` branches, but the
-only pruning is the forbidden pair `{3,3}`.
-Even the full search is far below the limit (`3^40 ≈ 1.2·10^19`) is
-theoretical; in practice the branching factor is close to 3 and the
-search finishes instantly for `n = 40` (the constraint is extremely
-weak, many assignments are valid, the first one is found quickly).
-
-The work per recursive call is `O(deg(v))` to check neighbours.
-Overall time is well under the 2 seconds limit, memory usage is `O(n+m)`.
-
---------------------------------------------------------------------
-
-#### 6.   Reference Implementation  (Python 3)
+#### 5.   Reference Implementation  (Python 3)
 
 ```python
 import sys
@@ -223,38 +232,87 @@ def solve() -> None:
     it = iter(data)
     n = int(next(it))
     m = int(next(it))
-    adj = [[] for _ in range(n)]
+
+    adj = [0] * n
     for _ in range(m):
         u = int(next(it)) - 1
         v = int(next(it)) - 1
-        adj[u].append(v)
-        adj[v].append(u)
+        if u == v:
+            continue
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
 
-    col = [0] * n          # 0 = unassigned, otherwise 1,2,3
+    # degree list, choose a vertex with maximal degree as start
+    start = max(range(n), key=lambda x: adj[x].bit_count())
 
-    def dfs(v: int) -> bool:
-        if v == n:
+    col = [-1] * n               # -1 = uncoloured, else 0,1,2
+    col_mask = [0, 0, 0]         # bitmask for each colour
+
+    # fix colour of start vertex to 0 (break symmetry)
+    col[start] = 0
+    col_mask[0] = 1 << start
+
+    # ---------- recursive search ----------
+    def dfs(coloured_cnt: int, used: int) -> bool:
+        if coloured_cnt == n:
             return True
-        for code in (1, 2, 3):          # try smallest first
-            ok = True
-            if code == 3:               # only need to check when both are 3
-                for nb in adj[v]:
-                    if col[nb] == 3:
-                        ok = False
-                        break
-            # if code != 3, no forbidden pair can appear
-            if ok:
-                col[v] = code
-                if dfs(v + 1):
+
+        # choose vertex with minimum remaining colours
+        v = -1
+        best_options = 4
+        options_mask = 0
+        for i in range(n):
+            if col[i] != -1:
+                continue
+            mask = 0
+            # existing colours
+            for c in range(used):
+                if (adj[i] & col_mask[c]) == 0:
+                    mask |= 1 << c
+            # possible new colour
+            if used < 3:
+                mask |= 1 << used
+            cnt = mask.bit_count()
+            if cnt == 0:               # dead end
+                return False
+            if cnt < best_options:
+                best_options = cnt
+                v = i
+                options_mask = mask
+                if cnt == 1:
+                    break
+
+        # try existing colours first
+        for c in range(used):
+            if (options_mask >> c) & 1:
+                col[v] = c
+                col_mask[c] |= 1 << v
+                if dfs(coloured_cnt + 1, used):
                     return True
-                col[v] = 0
+                col_mask[c] ^= 1 << v
+                col[v] = -1
+
+        # try a new colour
+        if used < 3 and ((options_mask >> used) & 1):
+            c = used
+            col[v] = c
+            col_mask[c] |= 1 << v
+            if dfs(coloured_cnt + 1, used + 1):
+                return True
+            col_mask[c] ^= 1 << v
+            col[v] = -1
+
         return False
 
-    if dfs(0):
-        out = ['YES', ' '.join(str(c) for c in col)]
-        sys.stdout.write('\n'.join(out))
+    possible = dfs(1, 1)
+
+    if not possible:
+        print("NO")
     else:
-        sys.stdout.write('NO')
+        print("YES")
+        # convert 0,1,2 to 1,2,3
+        ans = [str(col[i] + 1) for i in range(n)]
+        print(" ".join(ans))
 
 if __name__ == "__main__":
     solve()

@@ -8,43 +8,48 @@ def solve() -> None:
     it = iter(data)
     n = int(next(it))
     m = int(next(it))
-    adj = [[] for _ in range(n)]
+    adj = [[] for _ in range(n + 1)]
     for _ in range(m):
-        u = int(next(it)) - 1
-        v = int(next(it)) - 1
+        u = int(next(it)); v = int(next(it))
         adj[u].append(v)
         adj[v].append(u)
 
-    color = [-1] * n          # 0 or 1
-    for i in range(n):
-        if color[i] != -1:
+    col = [-1] * (n + 1)          # provisional 0/1
+    ans = [0] * (n + 1)
+
+    for start in range(1, n + 1):
+        if col[start] != -1:
             continue
         # BFS this component
-        q = deque([i])
-        color[i] = 0
-        comp = [i]
+        q = deque([start])
+        col[start] = 0
+        comp = [start]
         ok = True
-        while q:
+        while q and ok:
             u = q.popleft()
+            cu = col[u]
             for v in adj[u]:
-                if color[v] == -1:
-                    color[v] = color[u] ^ 1
+                if col[v] == -1:
+                    col[v] = cu ^ 1
                     q.append(v)
                     comp.append(v)
-                elif color[v] == color[u]:
-                    print("NO")
-                    return
-        # decide flip to make smallest index = 1
-        min_idx = min(comp)
-        if color[min_idx] == 1:          # currently 1, need flip
-            for v in comp:
-                color[v] ^= 1
+                elif col[v] == cu:
+                    ok = False
+                    break
+        if not ok:
+            print("NO")
+            return
+        # decide mapping to 1/2
+        smallest = min(comp)
+        if col[smallest] == 0:
+            map0, map1 = 1, 2
+        else:
+            map0, map1 = 2, 1
+        for v in comp:
+            ans[v] = map0 if col[v] == 0 else map1
 
-    # all components bipartite
     print("YES")
-    # map 0->1, 1->2
-    res = ['1' if c == 0 else '2' for c in color]
-    print(' '.join(res))
+    print(' '.join(str(ans[i]) for i in range(1, n + 1)))
 
 if __name__ == "__main__":
     solve()

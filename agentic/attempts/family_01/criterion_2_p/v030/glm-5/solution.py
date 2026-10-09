@@ -1,41 +1,59 @@
 import sys
-from sys import setrecursionlimit
+from collections import deque
 
-def solve():
-    input_data = sys.stdin.buffer.read().split()
-    if not input_data:
-        return
-    it = iter(input_data)
-    n = int(next(it))
-    m = int(next(it))
+def main():
+    data = sys.stdin.buffer.read().split()
+    idx = 0
+    n = int(data[idx]); idx += 1
+    m = int(data[idx]); idx += 1
     
-    adj = [[] for _ in range(n + 1)]
-    for _ in range(m):
-        u = int(next(it))
-        v = int(next(it))
-        adj[u].append(v)
-        adj[v].append(u)
+    # Build adjacency list using arrays (CSR format) for speed
+    us = [0] * m
+    vs = [0] * m
+    deg = [0] * (n + 1)
+    for i in range(m):
+        u = int(data[idx]); idx += 1
+        v = int(data[idx]); idx += 1
+        us[i] = u
+        vs[i] = v
+        deg[u] += 1
+        deg[v] += 1
     
-    color = [0] * (n + 1)
+    # CSR
+    start = [0] * (n + 2)
+    for i in range(1, n + 1):
+        start[i + 1] = start[i] + deg[i]
+    pos = start[:]  # copy for filling; pos[i] is next slot for vertex i... careful with indices
+    adj = [0] * (2 * m)
+    for i in range(m):
+        u = us[i]
+        v = vs[i]
+        adj[pos[u]] = v
+        pos[u] += 1
+        adj[pos[v]] = u
+        pos[v] += 1
     
-    for start in range(1, n + 1):
-        if color[start] != 0:
+    color = [0] * (n + 1)  # 0 = uncolored, 1 or 2
+    
+    for s in range(1, n + 1):
+        if color[s] != 0:
             continue
-        stack = [start]
-        color[start] = 1
+        color[s] = 1
+        stack = [s]
         while stack:
             u = stack.pop()
-            for v in adj[u]:
-                if color[v] == 0:
-                    color[v] = 3 - color[u]
-                    stack.append(v)
-                elif color[v] == color[u]:
+            cu = color[u]
+            for j in range(start[u], start[u + 1]):
+                w = adj[j]
+                if color[w] == 0:
+                    color[w] = 3 - cu
+                    stack.append(w)
+                elif color[w] == cu:
                     print("NO")
                     return
     
     print("YES")
-    print(' '.join(str(color[i]) for i in range(1, n + 1)))
+    sys.stdout.write(' '.join(map(str, color[1:])))
+    sys.stdout.write('\n')
 
-if __name__ == "__main__":
-    setrecursionlimit(1 << 25)
-    solve()
+main()

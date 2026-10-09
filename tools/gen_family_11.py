@@ -46,6 +46,90 @@ def gen_setcover(u, s, k, seed, coverable=True):
 
 
 # --- criterion 2: size-2 sets = edge cover (König/Gallai) ------------------------
+def _bip_matching(u, adj):
+    """Max matching of a bipartite graph on skills 1..u (adj: skill -> [neighbors]). Hopcroft-Karp."""
+    from collections import deque
+    color = [-1] * (u + 1)
+    for st in range(1, u + 1):
+        if color[st] != -1:
+            continue
+        color[st] = 0; q = deque([st])
+        while q:
+            x = q.popleft()
+            for y in adj[x]:
+                if color[y] == -1:
+                    color[y] = color[x] ^ 1; q.append(y)
+    A = [v for v in range(1, u + 1) if color[v] == 0]
+    INF = float("inf"); matchA = {v: 0 for v in A}; matchB = [0] * (u + 1); dist = {}
+
+    def bfs():
+        q = deque()
+        for v in A:
+            if matchA[v] == 0:
+                dist[v] = 0; q.append(v)
+            else:
+                dist[v] = INF
+        found = False
+        while q:
+            x = q.popleft()
+            for y in adj[x]:
+                w = matchB[y]
+                if w == 0:
+                    found = True
+                elif dist.get(w, INF) == INF:
+                    dist[w] = dist[x] + 1; q.append(w)
+        return found
+
+    def dfs(x):
+        for y in adj[x]:
+            w = matchB[y]
+            if w == 0 or (dist.get(w, INF) == dist[x] + 1 and dfs(w)):
+                matchA[x] = y; matchB[y] = x; return True
+        dist[x] = INF; return False
+
+    matching = 0
+    while bfs():
+        for v in A:
+            if matchA[v] == 0 and dfs(v):
+                matching += 1
+    return matching
+
+
+def gen_setcover_edgecover(u, seed, kind):
+    """UNIFIED schema (audit B4): set cover where every set has exactly 2 skills, emitted as
+    `u s k` + s lines `2 a b`, exactly like criterion 1. The skills split into two groups (front
+    1..a, back a+1..u) and each set joins one from each -- so minimum cover = minimum edge cover =
+    u - max matching (Gallai). Every skill appears (no isolated). kind='yes' -> k = min cover;
+    kind='no' -> k = min cover - 1."""
+    rng = random.Random(seed * 2_000_003 + 7)
+    a = max(1, u // 2); b = u - a
+    if b == 0:
+        a = max(1, u - 1); b = u - a
+    sets = []; seen = set(); adj = [[] for _ in range(u + 1)]
+
+    def add(x, y):
+        key = (x, y)
+        if key in seen:
+            return
+        seen.add(key); sets.append((x, y))
+        adj[x].append(y); adj[y].append(x)
+
+    for x in range(1, a + 1):                 # every front skill gets an edge
+        add(x, a + rng.randint(1, b))
+    for y in range(1, b + 1):                 # every back skill gets an edge
+        add(rng.randint(1, a), a + y)
+    extra = rng.randint(0, max(1, u // 2))    # a few extra choices
+    for _ in range(extra):
+        add(rng.randint(1, a), a + rng.randint(1, b))
+
+    min_ec = u - _bip_matching(u, adj)
+    k = min_ec if kind == "yes" else max(0, min_ec - 1)
+    rng.shuffle(sets)
+    lines = [f"{u} {len(sets)} {k}"]
+    lines += [f"2 {x} {y}" for (x, y) in sets]
+    return "\n".join(lines) + "\n"
+
+
 def gen_size2_sets(uA, uB, s, seed, mode="hard"):
     """Each consultant is an edge (frontend a, backend b). mode='hard' -> lower-triangular
     staircase (a connects to b in 1..min(a,uB)), forcing Kuhn's O(V*E) long augmenting
@@ -115,13 +199,15 @@ def main():
     p.add_argument("--coverable", default="yes")
     p.add_argument("--mode", default="hard")
     p.add_argument("--at", default="high")
+    p.add_argument("--kind", default="yes")   # criterion 2 (unified): yes|no
     args = p.parse_args()
 
     if args.criterion == 1:
         out = gen_setcover(args.u, args.s, args.k, args.seed,
                            coverable=(args.coverable.lower() in ("yes", "y", "1", "true")))
     elif args.criterion == 2:
-        out = gen_size2_sets(args.uA, args.uB, args.s, args.seed, mode=args.mode)
+        # audit B4: unified set-cover decision + witness with 2-element sets (= edge cover, schema u s k).
+        out = gen_setcover_edgecover(args.u, args.seed, args.kind)
     else:
         out = gen_uncoverable(args.u, args.s, args.seed, at=args.at)
 

@@ -1,0 +1,149 @@
+import sys
+sys.setrecursionlimit(10000)
+
+def solve():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    k = int(next(it))
+    
+    adj = [0] * (n + 1)
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        adj[u] |= 1 << (v - 1)
+        adj[v] |= 1 << (u - 1)
+    
+    # Greedy selection: repeatedly pick vertex with minimum degree in remaining graph
+    remaining = (1 << n) - 1
+    result = []
+    
+    while remaining and len(result) < k:
+        # Find vertex with minimum degree in remaining graph
+        best_v = -1
+        best_deg = n + 1
+        mask = remaining
+        while mask:
+            v = (mask & -mask).bit_length()
+            mask ^= 1 << (v - 1)
+            deg = bin(adj[v] & remaining).count('1')
+            if deg < best_deg:
+                best_deg = deg
+                best_v = v
+        
+        result.append(best_v)
+        # Remove best_v and its neighbors from remaining
+        remaining &= ~adj[best_v]
+        remaining &= ~(1 << (best_v - 1))
+    
+    if len(result) >= k:
+        print("YES")
+        print(' '.join(map(str, result[:k])))
+        return
+    
+    # Greedy failed, use meet-in-the-middle
+    half = n // 2
+    
+    # Left half: vertices 1..half
+    left_size = half
+    left_adj = [0] * left_size
+    for i in range(left_size):
+        for j in range(left_size):
+            if adj[i + 1] & (1 << j):
+                left_adj[i] |= 1 << j
+    
+    # Right half: vertices half+1..n
+    right_size = n - half
+    right_adj = [0] * right_size
+    for i in range(right_size):
+        for j in range(right_size):
+            if adj[half + 1 + i] & (1 << (half + j)):
+                right_adj[i] |= 1 << j
+    
+    # Cross edges: for each left vertex, which right vertices are neighbors
+    cross = [0] * left_size
+    for i in range(left_size):
+        for j in range(right_size):
+            if adj[i + 1] & (1 << (half + j)):
+                cross[i] |= 1 << j
+    
+    # Enumerate all independent sets in left half
+    left_sets = [[] for _ in range(left_size + 1)]
+    left_sets[0].append(0)
+    
+    for i in range(left_size):
+        forbidden = left_adj[i] | (1 << i)
+        for sz in range(i, -1, -1):
+            for s in left_sets[sz]:
+                ns = s | (1 << i)
+                if (s & forbidden) == 0:
+                    left_sets[sz + 1].append(ns)
+    
+    # Enumerate all independent sets in right half
+    right_sets = [[] for _ in range(right_size + 1)]
+    right_sets[0].append(0)
+    
+    for i in range(right_size):
+        forbidden = right_adj[i] | (1 << i)
+        for sz in range(i, -1, -1):
+            for s in right_sets[sz]:
+                ns = s | (1 << i)
+                if (s & forbidden) == 0:
+                    right_sets[sz + 1].append(ns)
+    
+    # For each right set, compute forbidden mask for left
+    right_forbidden = [0] * (1 << right_size)
+    for mask in range(1, 1 << right_size):
+        lsb = mask & -mask
+        j = (lsb.bit_length() - 1)
+        prev = mask ^ lsb
+        fb = 0
+        for i in range(left_size):
+            if cross[i] & mask:
+                fb |= 1 << i
+        right_forbidden[mask] = fb
+    
+    # Try to find k = left_sz + right_sz
+    for left_sz in range(min(k, left_size) + 1):
+        right_sz = k - left_sz
+        if right_sz < 0 or right_sz > right_size:
+            continue
+        
+        for left_mask in left_sets[left_sz]:
+            # Find right_mask of size right_sz with no conflict
+            needed = right_sz
+            # right_mask must not intersect with neighbors of left_mask
+            forbidden_right = 0
+            mask = left_mask
+            while mask:
+                lsb = mask & -mask
+                i = (lsb.bit_length() - 1)
+                forbidden_right |= cross[i]
+                mask ^= lsb
+            
+            for right_mask in right_sets[right_sz]:
+                if (right_mask & forbidden_right) == 0:
+                    # Found solution
+                    ans = []
+                    mask = left_mask
+                    while mask:
+                        lsb = mask & -mask
+                        i = (lsb.bit_length() - 1)
+                        ans.append(i + 1)
+                        mask ^= lsb
+                    mask = right_mask
+                    while mask:
+                        lsb = mask & -mask
+                        j = (lsb.bit_length() - 1)
+                        ans.append(half + 1 + j)
+                        mask ^= lsb
+                    print("YES")
+                    print(' '.join(map(str, ans)))
+                    return
+    
+    print("NO")
+
+solve()

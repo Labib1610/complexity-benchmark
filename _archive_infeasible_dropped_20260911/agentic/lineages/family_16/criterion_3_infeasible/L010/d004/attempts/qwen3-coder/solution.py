@@ -1,0 +1,47 @@
+import sys
+import threading
+
+def main():
+    import sys
+    j, T = map(int, sys.stdin.readline().split())
+    motifs = []
+    for _ in range(j):
+        p1, p2 = map(int, sys.stdin.readline().split())
+        motifs.append((p1, p2))
+    
+    # Check Motif Span Invariant
+    for i in range(j):
+        p1, p2 = motifs[i]
+        # For a single motif, the minimum span required is p1 + p2
+        # If p1 + p2 > T, then it's impossible for this motif
+        if p1 + p2 > T:
+            print(f"JOB {i+1}")
+            return
+    
+    # Check Alpha Channel Invariant
+    # Sort alpha phases in descending order to place the largest first (greedy)
+    alpha_lengths = sorted([p1 for p1, _ in motifs], reverse=True)
+    # Use greedy algorithm to try to place alphas
+    # We place each interval as early as possible
+    current_end = 0
+    for length in alpha_lengths:
+        if current_end + length > T:
+            print("LOAD 1")
+            return
+        current_end += length
+    
+    # Check Beta Channel Invariant
+    # Same approach for betas
+    beta_lengths = sorted([p2 for _, p2 in motifs], reverse=True)
+    current_end = 0
+    for length in beta_lengths:
+        if current_end + length > T:
+            print("LOAD 2")
+            return
+        current_end += length
+
+    # This shouldn't happen according to problem statement
+    # But just in case, we'll default to LOAD 1
+    print("LOAD 1")
+
+threading.Thread(target=main).start()

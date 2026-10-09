@@ -1,21 +1,18 @@
-# Problem A — Scheduling Pipeline: Phase 2
+# Problem A — Shift Assignment Module
 
 Time limit: 2 s   Memory limit: 256 MB
 
-A factory's automated management software operates in three phases. 
-In Phase 1, the HR module collects data on n workers and identifies pairs of workers who have interpersonal conflicts. 
+A factory's automated scheduling pipeline consists of three stages. First, the human resources department collects reports of interpersonal conflicts among the n workers. Second, the shift assignment module must allocate every worker to exactly one of the three operational shifts (labeled 1, 2, and 3) so that no conflicting pair shares a shift. Finally, the payroll system processes the resulting schedule to calculate shift differentials.
 
-Your task is to implement Phase 2: the shift assignment module. The factory runs three shifts labeled 1, 2, and 3. You must assign every worker to exactly one of the three shifts so that no conflicting pair shares a shift. 
-
-In Phase 3, the payroll module will take your assignment and generate the daily timetables. To ensure Phase 3 behaves predictably, if multiple valid assignments exist, you must provide the lexicographically smallest sequence of shift assignments (comparing the shift of worker 1 first, then worker 2, and so on). If no valid assignment is possible, Phase 2 must report that it is impossible so the software can alert management.
+Your task is to implement the second stage: given the conflict reports from the first stage, assign the shifts or report that a valid schedule is impossible.
 
 ## Input
-The first line contains two integers n and m — the number of workers and the number of conflict pairs identified in Phase 1 (1 ≤ n ≤ 40, 0 ≤ m ≤ n·(n−1)/2).
+The first line contains two integers n and m — the number of workers and the number of conflict pairs (1 ≤ n ≤ 40, 0 ≤ m ≤ n·(n−1)/2).
 Each of the next m lines contains two integers u v — a conflicting pair.
 
 ## Output
-If no valid assignment exists, print a single line NO.
-Otherwise print YES on the first line. On the second line print n integers s₁ s₂ … sₙ (each in {1,2,3}), where sᵢ is the shift of worker i. Among all valid assignments output the lexicographically smallest sequence.
+If no valid assignment exists for the payroll system to process, print a single line NO.
+Otherwise print YES on the first line. On the second line print n integers s₁ s₂ … sₙ (each in {1,2,3}), where sᵢ is the shift of worker i. Any valid assignment is accepted.
 
 ## Example 1
 Input:

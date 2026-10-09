@@ -1,0 +1,245 @@
+```python
+import sys
+
+# Increase recursion depth just in case
+sys.setrecursionlimit(2000000)
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    nL = int(input_data[0])
+    nR = int(input_data[1])
+    m = int(input_data[2])
+    
+    if m == 0:
+        print("YES")
+        print()
+        return
+
+    degL = [0] * (nL + 1)
+    degR = [0] * (nR + 1)
+    
+    idx = 3
+    edges = []
+    for i in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx+1])
+        idx += 2
+        edges.append((u, v, i))
+        degL[u] += 1
+        degR[v] += 1
+        
+    Delta = max(max(degL), max(degR))
+    if Delta == 0:
+        print("YES")
+        print(" ".join(["1"] * m))
+        return
+
+    # Step 1: Merge vertices with degree < Delta
+    # For left side:
+    left_groups = []
+    cur_group = []
+    cur_deg = 0
+    for u in range(1, nL + 1):
+        if degL[u] == 0:
+            continue
+        if cur_deg + degL[u] <= Delta:
+            cur_group.append(u)
+            cur_deg += degL[u]
+        else:
+            if cur_group:
+                left_groups.append(cur_group)
+            cur_group = [u]
+            cur_deg = degL[u]
+    if cur_group:
+        left_groups.append(cur_group)
+        
+    # For right side:
+    right_groups = []
+    cur_group = []
+    cur_deg = 0
+    for v in range(1, nR + 1):
+        if degR[v] == 0:
+            continue
+        if cur_deg + degR[v] <= Delta:
+            cur_group.append(v)
+            cur_deg += degR[v]
+        else:
+            if cur_group:
+                right_groups.append(cur_group)
+            cur_group = [v]
+            cur_deg = degR[v]
+    if cur_group:
+        right_groups.append(cur_group)
+        
+    # Map each original vertex to its merged ID
+    left_map = [0] * (nL + 1)
+    for gid, grp in enumerate(left_groups):
+        for u in grp:
+            left_map[u] = gid
+            
+    right_map = [0] * (nR + 1)
+    for gid, grp in enumerate(right_groups):
+        for v in grp:
+            right_map[v] = gid
+
+    # Balance group counts
+    num_L = len(left_groups)
+    num_R = len(right_groups)
+    num_V = max(num_L, num_R)
+
+    # Build multigraph adjacency
+    cur_degL = [0] * num_V
+    cur_degR = [0] * num_V
+    
+    # Graph edges: (u, v, original_edge_idx)
+    # original_edge_idx = -1 for dummy edges
+    g_edges_u = []
+    g_edges_v = []
+    g_edges_id = []
+    
+    for u, v, e_idx in edges:
+        gu = left_map[u]
+        gv = right_map[v]
+        g_edges_u.append(gu)
+        g_edges_v.append(gv)
+        g_edges_id.append(e_idx)
+        cur_degL[gu] += 1
+        cur_degR[gv] += 1
+        
+    # Add dummy edges to make every vertex have degree Delta
+    pL = 0
+    pR = 0
+    while pL < num_V and pR < num_V:
+        while pL < num_V and cur_degL[pL] == Delta:
+            pL += 1
+        while pR < num_V and cur_degR[pR] == Delta:
+            pR += 1
+        if pL < num_V and pR < num_V:
+            add = min(Delta - cur_degL[pL], Delta - cur_degR[pR])
+            for _ in range(add):
+                g_edges_u.append(pL)
+                g_edges_v.append(pR)
+                g_edges_id.append(-1)
+            cur_degL[pL] += add
+            cur_degR[pR] += add
+
+    edge_color = [0] * m
+
+    # Recursive function to color a d-regular bipartite graph
+    def color_regular(edge_indices, d, color_offset):
+        if d == 1:
+            for e in edge_indices:
+                eid = g_edges_id[e]
+                if eid != -1:
+                    edge_color[eid] = color_offset + 1
+            return
+
+        if d % 2 == 1:
+            # Find a perfect matching using augmenting paths
+            # Build adjacency for the current subgraph
+            adj = [[] for _ in range(num_V)]
+            for e in edge_indices:
+                u = g_edges_u[e]
+                adj[u].append(e)
+
+            match_L = [-1] * num_V
+            match_R = [-1] * num_V
+            edge_of_R = [-1] * num_V
+
+            vis_token = 0
+            visited = [0] * num_V
+
+            def dfs(u):
+                visited[u] = vis_token
+                for e in adj[u]:
+                    v = g_edges_v[e]
+                    w = match_R[v]
+                    if w == -1 or (visited[w] != vis_token and dfs(w)):
+                        match_L[u] = v
+                        match_R[v] = u
+                        edge_of_R[v] = e
+                        return True
+                return False
+
+            for u in range(num_V):
+                vis_token += 1
+                dfs(u)
+
+            matching_edges = []
+            remaining_edges = []
+            is_matched = [False] * len(g_edges_u)
+            for v in range(num_V):
+                e = edge_of_R[v]
+                is_matched[e] = True
+                matching_edges.append(e)
+
+            for e in edge_indices:
+                if is_matched[e]:
+                    pass
+                else:
+                    remaining_edges.append(e)
+
+            # Assign color_offset + d to the matching
+            for e in matching_edges:
+                eid = g_edges_id[e]
+                if eid != -1:
+                    edge_color[eid] = color_offset + d
+
+            color_regular(remaining_edges, d - 1, color_offset)
+            return
+
+        # d is even: Euler tour split
+        # Build adjacency with edge index and other endpoint
+        # Left vertices: 0..num_V-1, Right vertices: num_V..2*num_V-1
+        adj = [[] for _ in range(2 * num_V)]
+        for e in edge_indices:
+            u = g_edges_u[e]
+            v = g_edges_v[e] + num_V
+            adj[u].append((v, e))
+            adj[v].append((u, e))
+
+        used_edge = [False] * len(g_edges_u)
+        pos = [0] * (2 * num_V)
+
+        sub1 = []
+        sub2 = []
+
+        for start_node in range(2 * num_V):
+            if pos[start_node] < len(adj[start_node]):
+                # Hierholzer's algorithm to find Eulerian cycle
+                stack = [start_node]
+                cycle_edges = []
+                while stack:
+                    curr = stack[-1]
+                    while pos[curr] < len(adj[curr]) and used_edge[adj[curr][pos[curr]][1]]:
+                        pos[curr] += 1
+                    if pos[curr] < len(adj[curr]):
+                        nxt, e = adj[curr][pos[curr]]
+                        pos[curr] += 1
+                        used_edge[e] = True
+                        stack.append(nxt)
+                        cycle_edges.append(e)
+                    else:
+                        stack.pop()
+                
+                for i, e in enumerate(cycle_edges):
+                    if i % 2 == 0:
+                        sub1.append(e)
+                    else:
+                        sub2.append(e)
+
+        color_regular(sub1, d // 2, color_offset)
+        color_regular(sub2, d // 2, color_offset + d // 2)
+
+    initial_edges = list(range(len(g_edges_u)))
+    color_regular(initial_edges, Delta, 0)
+
+    print("YES")
+    print(" ".join(map(str, edge_color)))
+
+if __name__ == '__main__':
+    solve()
+```

@@ -1,23 +1,21 @@
-# Thermal Equilibrium
+# Problem B — Harmonized Frequencies
 
-Time limit: 1 s   Memory limit: 256 MB
+Time limit: 1 s
+Memory limit: 256 MB
 
-A factory processes $n$ chemical batches. Each batch $i$ (from $1$ to $n$) must be assigned a stability tier $s_i$, which must be chosen from the set $\{1, 2\}$.
+A manufacturing plant operates $n$ robotic assembly arms. Each arm must be configured to an integer operational frequency multiplier, which must be chosen from the set $\{1, 2\}$. 
 
-The factory's safety log contains $m$ records of linked batch pairs that interact with each other. For every linked pair of batches $u$ and $v$, the sum of their assigned stability tiers must be exactly $3$ to maintain thermal equilibrium ($s_u + s_v = 3$). If this condition is not met for any linked pair, a dangerous reaction will occur.
+The facility has identified $m$ specific pairs of arms that share physical workspace. To avoid resonant vibrations that lead to collisions, any pair of arms that share workspace must be configured such that the product of their frequency multipliers is exactly $2$. 
 
-Your task is to determine whether it is possible to assign a stability tier to every batch such that thermal equilibrium is maintained across all linked pairs. 
-
-If a safe assignment exists, you must provide it. Because there may be multiple valid assignments, the factory requires the lexicographically smallest sequence of stability tiers. A sequence of stability tiers $s_1, \dots, s_n$ is lexicographically smaller than another valid sequence $t_1, \dots, t_n$ if, at the first batch index $i$ where they differ, $s_i < t_i$.
+Determine a valid frequency multiplier for each assembly arm so that all shared workspace constraints are satisfied. If no such configuration exists, you must report it.
 
 ## Input
-The first line contains two integers $n$ and $m$. The facility's operational requirements dictate a minimum of $1$ batch and a maximum capacity of $2 \cdot 10^5$ batches, which bounds $n$. The safety log can be completely empty (a minimum of $0$ linked pairs) or hold up to a maximum storage limit of $2 \cdot 10^5$ pairs, which bounds $m$.
-
-Each of the next $m$ lines contains two integers $u$ and $v$ — the indices of a pair of batches that are linked and must satisfy the equilibrium condition.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$), representing the number of assembly arms and the number of shared workspace pairs, respectively.
+Each of the next $m$ lines contains two integers $u$ and $v$ — a pair of arms that share physical workspace.
 
 ## Output
-If there is no way to assign the stability tiers $1$ and $2$ to all batches while maintaining equilibrium for all linked pairs, print a single line containing `NO`.
-Otherwise, print `YES` on the first line. On the second line, print $n$ integers $s_1 \dots s_n$ (each in $\{1,2\}$), representing the lexicographically smallest safe assignment.
+If no valid configuration exists, print a single line NO.
+Otherwise print YES, followed by a second line containing $n$ integers $s_1 \dots s_n$ (where each $s_i \in \{1,2\}$), representing the frequency multiplier assigned to each arm. If multiple valid configurations exist, output the one that is lexicographically smallest.
 
 ## Example 1
 Input:

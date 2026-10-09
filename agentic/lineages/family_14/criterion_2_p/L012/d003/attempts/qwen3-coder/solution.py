@@ -1,0 +1,58 @@
+import sys
+from collections import defaultdict, deque
+
+def main():
+    import sys
+    sys.setrecursionlimit(1 << 25)
+    
+    n, m, t = map(int, sys.stdin.readline().split())
+    auditing = list(map(int, sys.stdin.readline().split()))
+    
+    if t <= 1:
+        print(0)
+        return
+
+    # Build the tree
+    adj = [[] for _ in range(n + 1)]
+    edges = []
+    for _ in range(m):
+        u, v, w = map(int, sys.stdin.readline().split())
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+        edges.append((u, v, w))
+
+    # We need to find the minimal subtree that connects all auditing offices
+    # This is the Steiner tree problem on a tree, which can be solved efficiently
+    
+    # Mark which nodes are auditing offices
+    is_auditing = [False] * (n + 1)
+    for node in auditing:
+        is_auditing[node] = True
+
+    # We'll do a DFS to compute the minimum cost
+    # For each subtree, we track:
+    # - whether it contains any auditing office
+    # - the total cost of edges needed within this subtree to connect its auditing offices
+    
+    def dfs(u, parent):
+        # Returns (has_audit, cost)
+        has_audit = is_auditing[u]
+        total_cost = 0
+        
+        for v, w in adj[u]:
+            if v == parent:
+                continue
+            child_has_audit, child_cost = dfs(v, u)
+            if child_has_audit:
+                total_cost += child_cost + w
+                has_audit = True
+                
+        return has_audit, total_cost
+
+    # Start DFS from an arbitrary node, say auditing[0]
+    root = auditing[0]
+    _, result = dfs(root, -1)
+    print(result)
+
+if __name__ == "__main__":
+    main()

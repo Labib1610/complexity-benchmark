@@ -1,0 +1,142 @@
+import sys
+from collections import defaultdict, deque
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    dependencies = []
+    idx = 2
+    for _ in range(m):
+        c1 = int(data[idx])
+        c2 = int(data[idx+1])
+        idx += 2
+        dependencies.append((c1, c2))
+    
+    # Create implication graph for 2-SAT
+    # Variables: x1, x2, ..., xn (xi = 1 means active, xi = 0 means dormant)
+    # For each variable xi, we have nodes: xi (2*i) and not xi (2*i + 1)
+    # But let's use a more standard approach:
+    # Node 2*i represents variable i being true (active)
+    # Node 2*i + 1 represents variable i being false (dormant)
+    
+    # Actually, let's reindex from 0: variable 0 to n-1
+    # Node 2*i: xi is True (active)
+    # Node 2*i + 1: xi is False (dormant)
+    
+    adj = defaultdict(list)
+    rev_adj = defaultdict(list)
+    
+    # For each dependency (c1 or c2), we add implications
+    # (not c1) => c2  and (not c2) => c1
+    
+    for c1, c2 in dependencies:
+        # Convert to 0-based indexing and determine if negated
+        # c1: if positive, then var = c1-1, sign = True (active)
+        #     if negative, then var = -c1-1, sign = False (dormant)
+        
+        if c1 > 0:
+            var1 = c1 - 1
+            sign1 = True  # active
+        else:
+            var1 = -c1 - 1
+            sign1 = False  # dormant
+            
+        if c2 > 0:
+            var2 = c2 - 1
+            sign2 = True
+        else:
+            var2 = -c2 - 1
+            sign2 = False
+            
+        # Nodes:
+        # var1 True: 2*var1
+        # var1 False: 2*var1 + 1
+        # var2 True: 2*var2
+        # var2 False: 2*var2 + 1
+        
+        # The clause (var1 == sign1) OR (var2 == sign2) is equivalent to:
+        # (var1 != sign1) => (var2 == sign2)
+        # (var2 != sign2) => (var1 == sign1)
+        
+        # (var1 is False) => (var2 is True if sign2 else False)
+        # (var1 is True) => (var2 is False if sign2 else True)
+        # (var2 is False) => (var1 is True if sign1 else False)
+        # (var2 is True) => (var1 is False if sign1 else True)
+        
+        node_not_c1 = 2 * var1 + (0 if sign1 else 1)
+        node_c2 = 2 * var2 + (1 if sign2 else 0)
+        adj[node_not_c1].append(node_c2)
+        rev_adj[node_c2].append(node_not_c1)
+        
+        node_not_c2 = 2 * var2 + (0 if sign2 else 1)
+        node_c1 = 2 * var1 + (1 if sign1 else 0)
+        adj[node_not_c2].append(node_c1)
+        rev_adj[node_c1].append(node_not_c2)
+    
+    # Now run Kosaraju's algorithm to find strongly connected components
+    visited = [False] * (2 * n)
+    order = []
+    
+    def dfs1(u):
+        visited[u] = True
+        for v in adj[u]:
+            if not visited[v]:
+                dfs1(v)
+        order.append(u)
+    
+    for i in range(2 * n):
+        if not visited[i]:
+            dfs1(i)
+    
+    # Transpose graph and do DFS in reverse order
+    visited = [False] * (2 * n)
+    scc_id = [-1] * (2 * n)
+    scc_count = 0
+    
+    def dfs2(u):
+        visited[u] = True
+        scc_id[u] = scc_count
+        for v in rev_adj[u]:
+            if not visited[v]:
+                dfs2(v)
+    
+    while order:
+        u = order.pop()
+        if not visited[u]:
+            dfs2(u)
+            scc_count += 1
+    
+    # Check if any variable and its negation are in the same SCC
+    for i in range(n):
+        if scc_id[2*i] == scc_id[2*i + 1]:
+            print("NO")
+            return
+    
+    # Otherwise, a solution exists. Reconstruct it.
+    # In the toposort of SCCs, assign values based on last occurrence
+    assignment = [-1] * n
+    
+    # Process SCCs in topological order (reverse of finishing times)
+    # We already have scc_id. Let's get the order of SCCs
+    scc_nodes = [[] for _ in range(scc_count)]
+    for i in range(2 * n):
+        scc_nodes[scc_id[i]].append(i)
+    
+    # Assign truth values
+    for comp in range(scc_count):
+        for node in scc_nodes[comp]:
+            var = node // 2
+            is_true = (node % 2 == 0)
+            if assignment[var] == -1:
+                assignment[var] = 1 if is_true else 0
+                
+    print("YES")
+    print(' '.join(str(x) for x in assignment))
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,67 @@
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    adj = [set() for _ in range(n + 1)]
+    edges = []
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        if u > v:
+            u, v = v, u
+        adj[u].add(v)
+        adj[v].add(u)
+        edges.append((u, v))
+
+    best = None
+
+    # Case 1: a-b edge, c reacts with both a and b
+    for a, b in edges:
+        if a > b:
+            a, b = b, a
+        if len(adj[a]) > len(adj[b]):
+            small, large = b, a
+        else:
+            small, large = a, b
+        for c in adj[small]:
+            if c != large and c in adj[large]:
+                cand = (a, b, c)
+                if best is None or cand < best:
+                    best = cand
+
+    # Case 2: a-c edge, b reacts with both a and c
+    for a, c in edges:
+        if a > c:
+            a, c = c, a
+        if len(adj[a]) > len(adj[c]):
+            small, large = c, a
+        else:
+            small, large = a, c
+        for b in adj[small]:
+            if b != large and b in adj[large]:
+                cand = (a, b, c)
+                if best is None or cand < best:
+                    best = cand
+
+    # Case 3: b-c edge, a reacts with both b and c
+    for b, c in edges:
+        if b > c:
+            b, c = c, b
+        if len(adj[b]) > len(adj[c]):
+            small, large = c, b
+        else:
+            small, large = b, c
+        for a in adj[small]:
+            if a != large and a in adj[large]:
+                cand = (a, b, c)
+                if best is None or cand < best:
+                    best = cand
+
+    print(best[0], best[1], best[2])
+
+solve()

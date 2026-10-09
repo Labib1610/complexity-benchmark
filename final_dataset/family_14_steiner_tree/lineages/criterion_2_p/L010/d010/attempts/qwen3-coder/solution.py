@@ -1,0 +1,218 @@
+import sys
+from collections import defaultdict
+import heapq
+
+def find_parent(parent, x):
+    if parent[x] != x:
+        parent[x] = find_parent(parent, parent[x])
+    return parent[x]
+
+def union(parent, rank, x, y):
+    px, py = find_parent(parent, x), find_parent(parent, y)
+    if px == py:
+        return False
+    if rank[px] < rank[py]:
+        px, py = py, px
+    parent[py] = px
+    if rank[px] == rank[py]:
+        rank[px] += 1
+    return True
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    idx = 0
+    n = int(data[idx])
+    idx += 1
+    m = int(data[idx])
+    idx += 1
+    t = int(data[idx])
+    idx += 1
+    
+    critical = list(map(int, data[idx:idx+t]))
+    idx += t
+    
+    # Convert to 0-indexed
+    critical = [c-1 for c in critical]
+    
+    edges = []
+    for _ in range(m):
+        u = int(data[idx]) - 1
+        idx += 1
+        v = int(data[idx]) - 1
+        idx += 1
+        w = int(data[idx])
+        idx += 1
+        edges.append((w, u, v))
+    
+    if t <= 1:
+        print(0)
+        return
+    
+    # Sort edges by weight
+    edges.sort()
+    
+    # Create a graph with only critical nodes
+    # We want to find the minimum spanning tree that connects all critical nodes
+    # This is the Steiner tree problem, but we can solve it efficiently for this case
+    
+    # Use the fact that we need to connect all critical nodes
+    # The optimal solution is to find the MST of the complete graph on critical nodes
+    # where edge weights are shortest path distances in the original graph
+    
+    # But since the original graph's edges form a basis (a tree), 
+    # the Steiner tree is just the MST of the subgraph induced by critical nodes
+    # in the original tree.
+    
+    # So we build the original tree and then find the MST that spans all critical nodes
+    
+    # Build the graph
+    graph = defaultdict(list)
+    for w, u, v in edges:
+        graph[u].append((v, w))
+        graph[v].append((u, w))
+    
+    # Find the subtree that spans all critical nodes
+    # We can do this by finding the minimal subtree that contains all critical nodes
+    # This is equivalent to finding the Steiner tree on a tree, which can be solved
+    # by taking the union of paths between all pairs of critical nodes and then
+    # finding the MST of the resulting graph
+    
+    # But there's a simpler approach for a tree:
+    # The minimum cost to connect all critical nodes is the cost of the edges
+    # in the subtree formed by the critical nodes
+    
+    # Mark critical nodes
+    is_critical = [False] * n
+    for c in critical:
+        is_critical[c] = True
+    
+    # We can use the fact that the constraints form a tree (since m = n-1 and they form a basis)
+    # So we just need to find the minimum subtree that connects all critical nodes
+    
+    # Build the tree from edges
+    parent = list(range(n))
+    rank = [0] * n
+    
+    # We'll use a different approach:
+    # Since the given edges form a tree, we can find the minimal subtree that spans all critical nodes
+    # by including an edge only if it connects two components that both contain at least one critical node
+    
+    # But actually, the simpler approach is:
+    # Since we have a tree, the Steiner tree is the union of paths between critical nodes
+    # But the minimum cost is achieved by the MST of the subgraph induced by critical nodes
+    # where distances are path distances in the tree
+    
+    # Let's build the complete graph on critical nodes with shortest path distances
+    # and then find its MST
+    
+    # First, let's build the tree properly
+    tree_edges = []
+    tree = [[] for _ in range(n)]
+    for w, u, v in edges:
+        tree[u].append((v, w))
+        tree[v].append((u, w))
+        tree_edges.append((w, u, v))
+    
+    # Function to compute distance and path between two nodes in the tree
+    def bfs_dist(start, end):
+        if start == end:
+            return 0, []
+        queue = [(start, 0, [])]
+        visited = [False] * n
+        visited[start] = True
+        while queue:
+            node, dist, path = queue.pop(0)
+            for neighbor, weight in tree[node]:
+                if not visited[neighbor]:
+                    new_path = path + [(node, neighbor, weight)]
+                    if neighbor == end:
+                        return dist + weight, new_path
+                    visited[neighbor] = True
+                    queue.append((neighbor, dist + weight, new_path))
+        return float('inf'), []
+    
+    # For small number of critical nodes, we can compute all pairwise distances
+    # But for large t, this is too expensive
+    # Let's think differently
+    
+    # Since we have a tree, the Steiner tree for critical nodes can be found as follows:
+    # 1. Root the tree at any node
+    # 2. Find the minimal subtree that contains all critical nodes
+    # 3. The cost is the sum of weights of edges in this subtree
+    
+    # The minimal subtree containing all critical nodes is the union of paths
+    # from root to each critical node, but we need to avoid double counting
+    
+    # Better approach: 
+    # The edges needed are exactly those in the subtree of the original tree
+    # that contains all critical nodes. This subtree can be found by:
+    # 1. Marking all critical nodes
+    # 2. For each non-critical node, if it has at least one marked descendant and 
+    #    will have at least two marked "branches" passing through it, then mark it
+    # 3. But actually, we just need to find the minimal connected subtree containing all critical nodes
+    
+    # Even simpler: 
+    # In a tree, the minimal connected subgraph containing a set of nodes
+    # is the union of paths between them. But the minimum cost is just
+    # the sum of edge weights in the subtree formed by taking the union of 
+    # paths from one critical node to all others.
+    
+    # Most direct approach:
+    # Since the constraints form a tree, and we need to span all critical variables,
+    # we need to find the minimum subtree that contains all critical nodes.
+    # This is a classic problem solvable by:
+    # 1. Rooting the tree
+    # 2. Finding the lowest common ancestor (LCA) structure
+    # 3. Marking nodes that are critical or have critical descendants
+    # 4. The edges in the minimal subtree are those connecting marked nodes
+    
+    # But let's use Union-Find approach:
+    # Process edges in order of increasing weight
+    # For each edge, if it connects two components that each contain at least one critical node,
+    # and together they contain more critical nodes than either alone, include the edge
+    
+    # Initialize: each node is its own component
+    # Each component tracks how many critical nodes it contains
+    comp_critical_count = [0] * n
+    for c in critical:
+        comp_critical_count[c] = 1
+    
+    parent_comp = list(range(n))
+    rank_comp = [0] * n
+    
+    def find(u):
+        if parent_comp[u] != u:
+            parent_comp[u] = find(parent_comp[u])
+        return parent_comp[u]
+    
+    def unite(u, v):
+        pu, pv = find(u), find(v)
+        if pu == pv:
+            return False
+        if rank_comp[pu] < rank_comp[pv]:
+            pu, pv = pv, pu
+        parent_comp[pv] = pu
+        comp_critical_count[pu] += comp_critical_count[pv]
+        if rank_comp[pu] == rank_comp[pv]:
+            rank_comp[pu] += 1
+        return True
+    
+    total_cost = 0
+    critical_set = set(critical)
+    critical_count = len(critical_set)
+    
+    for w, u, v in edges:
+        cu, cv = comp_critical_count[find(u)], comp_critical_count[find(v)]
+        if cu > 0 and cv > 0 and (cu < critical_count or cv < critical_count):
+            if unite(u, v):
+                total_cost += w
+                if comp_critical_count[find(u)] == critical_count:
+                    break
+    
+    print(total_cost)
+
+if __name__ == "__main__":
+    main()

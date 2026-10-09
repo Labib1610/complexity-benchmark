@@ -1,0 +1,249 @@
+**Solution Explanation**
+
+The problem asks for a perfect matching in a bipartite graph:
+
+* left part – power modules `1 … q`
+* right part – habitation modules `q+1 … 2q`
+* an edge `(a,b)` (with `a ≤ q < b`) means the two modules can be paired.
+
+We have to decide whether a matching that covers **all** `q` left vertices (and therefore also all right vertices) exists, and output one such matching.
+
+The classic algorithm for maximum bipartite matching in `O(E·√V)` is **Hopcroft‑Karp**.
+With `V = 2q ≤ 2·10⁵` and `E ≤ 4·10⁵` it easily fits into the limits.
+
+
+
+--------------------------------------------------------------------
+
+#### Algorithm
+```
+read q, t
+build adjacency list G[1…q]   // only from left to right
+
+pairU[1…q] = 0   // matched right vertex, 0 = free
+pairV[q+1…2q] = 0   // matched left vertex, 0 = free
+dist[1…q]
+
+function bfs():
+    queue all free left vertices, set their dist = 0
+    others dist = INF
+    dist0 = INF                     // distance to a free right vertex
+    while queue not empty:
+        u = pop
+        if dist[u] < dist0:
+            for v in G[u]:
+                if pairV[v] == 0:          // free right vertex
+                    dist0 = dist[u] + 1
+                else if dist[pairV[v]] == INF:
+                    dist[pairV[v]] = dist[u] + 1
+                    push(pairV[v])
+    return dist0 != INF
+
+function dfs(u):
+    for v in G[u]:
+        if pairV[v] == 0 or (dist[pairV[v]] == dist[u] + 1 and dfs(pairV[v])):
+            pairU[u] = v
+            pairV[v] = u
+            return True
+    dist[u] = INF
+    return False
+
+matching = 0
+while bfs():
+    for each left vertex u that is free:
+        if dfs(u): matching += 1
+
+if matching == q:
+    print YES and the pairs (u, pairU[u])
+else:
+    print NO
+```
+
+The algorithm repeatedly builds layered BFS levels from all currently free left vertices,
+then finds many vertex‑disjoint augmenting paths by DFS limited to those layers.
+Each phase increases the matching size by at least one and the number of phases is `O(√V)`.
+
+--------------------------------------------------------------------
+
+#### Correctness Proof  
+
+We prove that the algorithm outputs `YES` with a perfect matching iff such a matching exists.
+
+---
+
+##### Lemma 1  
+After each execution of `bfs`, `dist[u]` equals the length of the shortest alternating
+path (edges alternating unmatched / matched) from any free left vertex to `u`.
+If no such path exists, `dist[u] = INF`.
+
+**Proof.** `bfs` starts with all free left vertices at distance `0`.  
+Whenever it traverses an edge `u – v`:
+* if `v` is free on the right, we have found an alternating path ending at a free right vertex,
+  and we record its length in `dist0`.
+* otherwise `v` is matched to some left vertex `u' = pairV[v]`. The path can be continued
+  through the matched edge `v – u'`. We set `dist[u'] = dist[u] + 1` and enqueue `u'`.  
+Thus the BFS explores exactly the alternating edges in increasing order of length,
+hence the first time a vertex is reached its distance is minimal. ∎
+
+
+
+##### Lemma 2  
+`dfs(u)` returns `True` **iff** there exists an augmenting path starting at `u`
+whose length equals `dist[u]` (the shortest possible length from Lemma&nbsp;1).
+
+**Proof.** `dfs` only follows edges that respect the layering:
+* it may go to a free right vertex (which ends the augmenting path), or
+* to a matched right vertex `v` and then to its partner `u' = pairV[v]` **only** if
+  `dist[u'] = dist[u] + 1`.  
+Therefore any recursive call follows the BFS layers, guaranteeing the total length
+equals `dist[u]`. Conversely, any shortest augmenting path respects these layers,
+so the recursive search will be able to follow it and succeed. ∎
+
+
+
+##### Lemma 3  
+One phase (`bfs` + all possible `dfs`) increases the size of the matching by the
+maximum number of vertex‑disjoint shortest augmenting paths.
+
+**Proof.** By Lemma&nbsp;2 each successful `dfs` finds a vertex‑disjoint augmenting path
+of minimal length. The DFS calls are started from all free left vertices, and each
+vertex is used at most once because after a successful augmentation the involved
+vertices become matched and are never visited again in the same phase.
+Thus the set of found paths is a maximal collection of vertex‑disjoint shortest
+augmenting paths. ∎
+
+
+
+##### Lemma 4  
+If after a phase no augmenting path exists, the current matching is maximum.
+
+**Proof.** `bfs` returns `False` exactly when there is **no** free right vertex reachable
+by an alternating path, i.e. no augmenting path at all. By the classic theorem of
+Berge, a matching without augmenting paths is maximum. ∎
+
+
+
+##### Lemma 5  
+If a perfect matching exists, the algorithm will eventually find a matching of size `q`.
+
+**Proof.** Let `M*` be a perfect matching. While the algorithm’s current matching `M`
+has size `< q`, there exists an augmenting path (take the symmetric difference of `M`
+and `M*`). Hence `bfs` will succeed, and by Lemma&nbsp;3 the phase increases the size of
+`M`. The size can increase at most `q` times, so after finitely many phases we reach
+size `q`. ∎
+
+
+
+##### Theorem  
+The algorithm prints `YES` and a list of `q` pairs **iff** a perfect matching using
+only the given certified combinations exists; otherwise it prints `NO`.
+
+**Proof.**  
+*If the algorithm prints `YES`*: it has found a matching of size `q`. By construction
+each edge belongs to the input list, and each vertex appears exactly once, so this
+is a valid perfect matching.
+
+*If a perfect matching exists*: by Lemma&nbsp;5 the algorithm will enlarge its matching
+until size `q`. Then it prints `YES`.  
+
+If no perfect matching exists, the algorithm stops when `bfs` fails.
+By Lemma&nbsp;4 the current matching is maximum and its size `< q`, so the algorithm
+outputs `NO`. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### Complexity Analysis  
+
+*`bfs`* runs in `O(E)` time.  
+*`dfs`* over one phase also touches each edge at most once, so `O(E)`.  
+The number of phases is `O(√V)` (standard Hopcroft‑Karp bound).  
+
+```
+Time   : O(E·√V) ≤ 4·10⁵ · √(2·10⁵)  < 2·10⁸  (well inside 2 s in Python)
+Memory : O(V + E)  ≤  (2·10⁵ + 4·10⁵) integers  ≈ 5 MB
+```
+
+--------------------------------------------------------------------
+
+#### Reference Implementation  (Python 3)
+
+```python
+import sys
+from collections import deque
+
+def solve() -> None:
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    it = iter(data)
+    q = int(next(it))
+    t = int(next(it))
+
+    n_left = q
+    n_right = q  # vertices q+1 .. 2q, we will index them by their actual numbers
+
+    G = [[] for _ in range(n_left + 1)]  # 1‑based left vertices
+    for _ in range(t):
+        a = int(next(it))
+        b = int(next(it))
+        G[a].append(b)
+
+    pairU = [0] * (n_left + 1)          # left -> right
+    pairV = [0] * (2 * q + 1)           # right -> left
+    dist = [0] * (n_left + 1)
+    INF = 10 ** 9
+
+    def bfs() -> bool:
+        qd = deque()
+        for u in range(1, n_left + 1):
+            if pairU[u] == 0:
+                dist[u] = 0
+                qd.append(u)
+            else:
+                dist[u] = INF
+        found = False
+        while qd:
+            u = qd.popleft()
+            for v in G[u]:
+                pu = pairV[v]
+                if pu == 0:
+                    found = True          # we can reach a free right vertex
+                elif dist[pu] == INF:
+                    dist[pu] = dist[u] + 1
+                    qd.append(pu)
+        return found
+
+    sys.setrecursionlimit(1 << 25)
+
+    def dfs(u: int) -> bool:
+        for v in G[u]:
+            pu = pairV[v]
+            if pu == 0 or (dist[pu] == dist[u] + 1 and dfs(pu)):
+                pairU[u] = v
+                pairV[v] = u
+                return True
+        dist[u] = INF
+        return False
+
+    matching = 0
+    while bfs():
+        for u in range(1, n_left + 1):
+            if pairU[u] == 0 and dfs(u):
+                matching += 1
+
+    out = []
+    if matching == q:
+        out.append(b"YES")
+        for u in range(1, n_left + 1):
+            out.append(f"{u} {pairU[u]}".encode())
+    else:
+        out.append(b"NO")
+    sys.stdout.buffer.write(b"\n".join(out))
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above and conforms to the required I/O format.

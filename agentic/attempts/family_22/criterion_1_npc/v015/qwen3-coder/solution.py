@@ -1,0 +1,60 @@
+from collections import defaultdict, deque
+
+def solve():
+    n, M, T, m = map(int, input().split())
+    
+    # Build graph and in-degree count
+    graph = defaultdict(list)
+    in_degree = [0] * (n + 1)
+    
+    for _ in range(m):
+        a, b = map(int, input().split())
+        graph[a].append(b)
+        in_degree[b] += 1
+    
+    # Topological sort with level tracking
+    queue = deque()
+    for i in range(1, n + 1):
+        if in_degree[i] == 0:
+            queue.append(i)
+    
+    # Schedule components by shift
+    schedule = [0] * (n + 1)
+    current_shift = 1
+    components_scheduled = 0
+    
+    while current_shift <= T:
+        # Available workbenches in this shift
+        workbenches_used = 0
+        next_queue = deque()
+        
+        # Process components that can be scheduled in current shift
+        while queue and workbenches_used < M:
+            component = queue.popleft()
+            schedule[component] = current_shift
+            components_scheduled += 1
+            workbenches_used += 1
+            
+            # Update dependencies
+            for neighbor in graph[component]:
+                in_degree[neighbor] -= 1
+                if in_degree[neighbor] == 0:
+                    next_queue.append(neighbor)
+        
+        # Add remaining components back to queue for next shift
+        while queue:
+            next_queue.append(queue.popleft())
+            
+        queue = next_queue
+        current_shift += 1
+        
+        if components_scheduled == n:
+            break
+    
+    if components_scheduled == n:
+        print("YES")
+        print(*schedule[1:])
+    else:
+        print("NO")
+
+solve()

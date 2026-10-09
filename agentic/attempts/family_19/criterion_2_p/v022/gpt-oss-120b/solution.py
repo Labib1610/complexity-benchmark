@@ -1,0 +1,105 @@
+import sys
+sys.setrecursionlimit(1 << 25)
+
+def solve() -> None:
+    data = list(map(int, sys.stdin.read().strip().split()))
+    if not data:
+        return
+    it = iter(data)
+    n = next(it); m = next(it); _ = next(it)  # third value unused
+    s = next(it) - 1
+    t = next(it) - 1
+    d = next(it)
+    edges_input = []
+    for _ in range(m):
+        u = next(it) - 1
+        v = next(it) - 1
+        c = next(it)
+        edges_input.append((u, v, c))
+
+    # Dinic
+    N = n
+    adj = [[] for _ in range(N)]
+
+    class Edge:
+        __slots__ = ('to', 'rev', 'cap', 'orig')
+        def __init__(self, to, rev, cap, orig=False):
+            self.to = to
+            self.rev = rev
+            self.cap = cap
+            self.orig = orig  # marks original edge for result extraction
+
+    def add_edge(fr, to, cap, orig=False):
+        fwd = Edge(to, len(adj[to]), cap, orig)
+        rev = Edge(fr, len(adj[fr]), 0)
+        adj[fr].append(fwd)
+        adj[to].append(rev)
+
+    # store reference to original edges
+    edge_refs = []
+    for (u, v, c) in edges_input:
+        add_edge(u, v, c, orig=True)
+        edge_refs.append(adj[u][-1])  # the forward edge just added
+
+    level = [0]*N
+    it_ptr = [0]*N
+
+    from collections import deque
+    def bfs():
+        for i in range(N):
+            level[i] = -1
+        q = deque([s])
+        level[s] = 0
+        while q:
+            v = q.popleft()
+            for e in adj[v]:
+                if e.cap and level[e.to] < 0:
+                    level[e.to] = level[v] + 1
+                    q.append(e.to)
+        return level[t] >= 0
+
+    def dfs(v, f):
+        if v == t:
+            return f
+        for i in range(it_ptr[v], len(adj[v])):
+            e = adj[v][i]
+            if e.cap and level[v] < level[e.to]:
+                ret = dfs(e.to, min(f, e.cap))
+                if ret:
+                    e.cap -= ret
+                    adj[e.to][e.rev].cap += ret
+                    return ret
+            it_ptr[v] += 1
+        return 0
+
+    flow = 0
+    INF = 10**18
+    while flow < d and bfs():
+        it_ptr = [0]*N
+        while flow < d:
+            pushed = dfs(s, d - flow)
+            if not pushed:
+                break
+            flow += pushed
+
+    if flow < d:
+        print("NO")
+        return
+
+    # retrieve flows on original edges
+    result = []
+    for e in edge_refs:
+        used = e.cap  # remaining capacity
+        # original capacity was stored nowhere, but we know upper bound = used + flow_on_edge
+        # flow = original_cap - remaining_cap
+        # original_cap = e.cap + reverse.cap
+        rev = adj[e.to][e.rev]
+        orig_cap = e.cap + rev.cap
+        flow_on_edge = rev.cap  # amount sent forward
+        result.append(str(flow_on_edge))
+
+    print("YES")
+    print(' '.join(result))
+
+if __name__ == "__main__":
+    solve()

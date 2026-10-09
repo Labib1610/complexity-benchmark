@@ -1,0 +1,84 @@
+import sys
+from collections import deque
+
+input = sys.stdin.readline
+
+def solve():
+    nL, nR, m = map(int, input().split())
+    edges = []
+    degL = [0] * (nL + 1)
+    degR = [0] * (nR + 1)
+    for _ in range(m):
+        u, v = map(int, input().split())
+        edges.append((u, v))
+        degL[u] += 1
+        degR[v] += 1
+
+    delta = max(max(degL), max(degR), 1)
+    # adjacency list for left side: each edge index
+    adjL = [[] for _ in range(nL + 1)]
+    adjR = [[] for _ in range(nR + 1)]
+    for idx, (u, v) in enumerate(edges):
+        adjL[u].append((v, idx))
+        adjR[v].append((u, idx))
+
+    color = [0] * m
+
+    # For each left vertex, we try to color its incident edges
+    for u in range(1, nL + 1):
+        used = [False] * (delta + 1)
+        for v, idx in adjL[u]:
+            if color[idx] != 0:
+                used[color[idx]] = True
+        # find smallest free color
+        c = 1
+        while c <= delta and used[c]:
+            c += 1
+        # color all edges of u with distinct colors
+        # We'll use a standard augmenting path approach
+        for v, idx in adjL[u]:
+            if color[idx] == 0:
+                # find free color for this edge
+                cu = c
+                cv = 1
+                while cv <= delta and any(color[j] == cv for j, _ in adjR[v]):
+                    cv += 1
+                # now color edge (u,v) with cu, and fix conflicts
+                color[idx] = cu
+                # resolve conflicts on right side
+                while True:
+                    # find edge on right v with color cu
+                    conflict = None
+                    for j, _ in adjR[v]:
+                        if color[j] == cu:
+                            conflict = j
+                            break
+                    if conflict is None:
+                        break
+                    # recolor conflict edge
+                    u2, v2 = edges[conflict]
+                    color[conflict] = cv
+                    # now move to left side u2, find conflict with cv
+                    conflict2 = None
+                    for j, _ in adjL[u2]:
+                        if color[j] == cv:
+                            conflict2 = j
+                            break
+                    if conflict2 is None:
+                        break
+                    # continue with new conflict
+                    cu, cv = cv, cu
+                    v = edges[conflict2][1]
+                    color[conflict2] = cu
+                    # loop continues
+                # after resolving, move to next edge
+                # update used colors for u
+                used[color[idx]] = True
+                while c <= delta and used[c]:
+                    c += 1
+
+    print("YES")
+    print(" ".join(map(str, color)))
+
+if __name__ == "__main__":
+    solve()

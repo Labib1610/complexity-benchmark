@@ -1,0 +1,161 @@
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    q = int(data[0])
+    t = int(data[1])
+    triples = []
+    idx = 2
+    for _ in range(t):
+        a = int(data[idx]); b = int(data[idx+1]); c = int(data[idx+2])
+        idx += 3
+        triples.append((a, b, c))
+    
+    n = 3 * q
+    # Build adjacency: for each pair, list of triple indices
+    pair_to_triples = {}
+    for ti, (a, b, c) in enumerate(triples):
+        for x, y in ((a, b), (a, c), (b, c)):
+            key = (x, y) if x < y else (y, x)
+            pair_to_triples.setdefault(key, []).append(ti)
+    
+    # We need exact cover of n elements using q triples.
+    # Use DLX-like backtracking with constraint propagation.
+    
+    # For each element, which triples cover it
+    elem_to_triples = [[] for _ in range(n + 1)]
+    for ti, (a, b, c) in enumerate(triples):
+        elem_to_triples[a].append(ti)
+        elem_to_triples[b].append(ti)
+        elem_to_triples[c].append(ti)
+    
+    # State
+    chosen = []
+    used_triple = [False] * t
+    covered = [False] * (n + 1)
+    remaining = n
+    
+    # For pruning: count available triples per element
+    avail_count = [0] * (n + 1)
+    for e in range(1, n + 1):
+        avail_count[e] = len(elem_to_triples[e])
+    
+    # Order elements by availability (MRV)
+    # We'll pick the uncovered element with fewest available triples
+    
+    def select_element():
+        best = -1
+        best_cnt = 10**9
+        for e in range(1, n + 1):
+            if not covered[e]:
+                cnt = avail_count[e]
+                if cnt < best_cnt:
+                    best_cnt = cnt
+                    best = e
+                    if cnt <= 1:
+                        return best
+        return best
+    
+    def cover_triple(ti):
+        a, b, c = triples[ti]
+        newly = []
+        for e in (a, b, c):
+            if not covered[e]:
+                covered[e] = True
+                newly.append(e)
+                # decrement avail_count for all triples covering e
+                for tj in elem_to_triples[e]:
+                    avail_count[tj]  # no, avail_count is per element
+        # Actually avail_count is per element, need to decrement for elements
+        # Let me redo: when element e becomes covered, for all other uncovered elements
+        # that share a triple with e, their avail_count decreases? No.
+        # avail_count[e] = number of triples that can still cover e (not used, e uncovered)
+        # When we choose a triple, elements become covered. For uncovered elements,
+        # their avail_count should reflect triples not yet used.
+        # Simpler: recompute or maintain properly.
+        return newly
+    
+    # Let me use a cleaner approach with proper DLX-style.
+    
+    # Reset
+    chosen = []
+    used_triple = [False] * t
+    covered = [False] * (n + 1)
+    remaining = n
+    
+    # avail[e] = list of triple indices not used that cover e and whose all elements uncovered
+    # Too expensive to maintain lists. Use counts with lazy validation.
+    
+    def get_avail(e):
+        cnt = 0
+        for ti in elem_to_triples[e]:
+            if not used_triple[ti]:
+                a, b, c = triples[ti]
+                if not covered[a] and not covered[b] and not covered[c]:
+                    cnt += 1
+        return cnt
+    
+    def backtrack():
+        nonlocal remaining
+        if remaining == 0:
+            return True
+        if len(chosen) == q:
+            return False
+        
+        # Select element with minimum available triples
+        best_e = -1
+        best_cnt = 10**9
+        for e in range(1, n + 1):
+            if not covered[e]:
+                cnt = get_avail(e)
+                if cnt < best_cnt:
+                    best_cnt = cnt
+                    best_e = e
+                    if cnt == 0:
+                        return False
+                    if cnt == 1:
+                        break
+        
+        if best_e == -1:
+            return True  # all covered
+        
+        if best_cnt == 0:
+            return False
+        
+        # Try each triple covering best_e
+        candidates = []
+        for ti in elem_to_triples[best_e]:
+            if not used_triple[ti]:
+                a, b, c = triples[ti]
+                if not covered[a] and not covered[b] and not covered[c]:
+                    candidates.append(ti)
+        
+        for ti in candidates:
+            a, b, c = triples[ti]
+            used_triple[ti] = True
+            covered[a] = covered[b] = covered[c] = True
+            remaining -= 3
+            chosen.append(ti)
+            
+            if backtrack():
+                return True
+            
+            chosen.pop()
+            remaining += 3
+            covered[a] = covered[b] = covered[c] = False
+            used_triple[ti] = False
+        
+        return False
+    
+    if backtrack():
+        out = ["YES"]
+        for ti in chosen:
+            a, b, c = triples[ti]
+            out.append(f"{a} {b} {c}")
+        sys.stdout.write("\n".join(out) + "\n")
+    else:
+        sys.stdout.write("NO\n")
+
+solve()

@@ -1,0 +1,32 @@
+import sys
+
+data = list(map(int, sys.stdin.buffer.read().split()))
+n, m = data[0], data[1]
+
+adj = [0] * n
+p = 2
+for _ in range(m):
+    u = data[p] - 1
+    v = data[p + 1] - 1
+    p += 2
+    if u != v:
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+
+full_mask = (1 << n) - 1
+above = [full_mask ^ ((1 << (i + 1)) - 1) for i in range(n)]
+
+for a in range(n):
+    candidates_b = adj[a] & above[a]
+    while candidates_b:
+        b_bit = candidates_b & -candidates_b
+        b = b_bit.bit_length() - 1
+
+        common = adj[a] & adj[b] & above[b]
+        if common:
+            c_bit = common & -common
+            c = c_bit.bit_length() - 1
+            print(a + 1, b + 1, c + 1)
+            sys.exit()
+
+        candidates_b ^= b_bit

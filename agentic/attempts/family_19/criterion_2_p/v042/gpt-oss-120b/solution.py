@@ -1,0 +1,90 @@
+import sys
+sys.setrecursionlimit(1 << 25)
+
+class Dinic:
+    def __init__(self, n):
+        self.n = n
+        self.adj = [[] for _ in range(n)]
+
+    def add_edge(self, u, v, cap, idx=-1):
+        fwd = [v, cap, None, idx]   # to, cap, rev, idx
+        rev = [u, 0, fwd, -1]
+        fwd[2] = rev
+        self.adj[u].append(fwd)
+        self.adj[v].append(rev)
+
+    def bfs(self, s, t, level):
+        from collections import deque
+        q = deque([s])
+        level[:] = [-1] * self.n
+        level[s] = 0
+        while q:
+            v = q.popleft()
+            for to, cap, rev, idx in self.adj[v]:
+                if cap and level[to] == -1:
+                    level[to] = level[v] + 1
+                    q.append(to)
+        return level[t] != -1
+
+    def dfs(self, v, t, f, level, it):
+        if v == t:
+            return f
+        for i in range(it[v], len(self.adj[v])):
+            it[v] = i
+            to, cap, rev, idx = self.adj[v][i]
+            if cap and level[v] + 1 == level[to]:
+                ret = self.dfs(to, t, min(f, cap), level, it)
+                if ret:
+                    self.adj[v][i][1] -= ret
+                    rev[1] += ret
+                    return ret
+        return 0
+
+    def max_flow(self, s, t, limit):
+        flow = 0
+        level = [0]*self.n
+        while flow < limit and self.bfs(s, t, level):
+            it = [0]*self.n
+            while flow < limit:
+                pushed = self.dfs(s, t, limit - flow, level, it)
+                if not pushed:
+                    break
+                flow += pushed
+        return flow
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it)); m = int(next(it)); _ = next(it)  # currency count ignored
+    s = int(next(it)) - 1
+    t = int(next(it)) - 1
+    d = int(next(it))
+    dinic = Dinic(n)
+    orig_caps = [0]*m
+    for i in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        cap = int(next(it))
+        orig_caps[i] = cap
+        dinic.add_edge(u, v, cap, i)
+
+    flow = dinic.max_flow(s, t, d)
+    if flow < d:
+        print("NO")
+        return
+
+    # retrieve flows on original edges
+    res = [0]*m
+    for u in range(n):
+        for to, cap, rev, idx in dinic.adj[u]:
+            if idx >= 0:  # original edge
+                used = orig_caps[idx] - cap
+                res[idx] = used
+
+    print("YES")
+    print(' '.join(map(str, res)))
+
+if __name__ == "__main__":
+    solve()

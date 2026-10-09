@@ -1,0 +1,75 @@
+from itertools import combinations
+
+def solve():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    k = int(data[0])
+    t = int(data[1])
+    
+    trios = []
+    index = 2
+    for _ in range(t):
+        s = int(data[index])
+        c = int(data[index+1])
+        f = int(data[index+2])
+        trios.append((s, c, f))
+        index += 3
+    
+    # We need to find a subset of k trios such that all starters, centerpieces, and finales are distinct
+    # This is equivalent to finding a matching in a 3-dimensional bipartite graph
+    # We can try all combinations of k trios from the t available ones
+    
+    # For small k (up to 22), we can use a backtracking approach or try all combinations
+    # Since k is small and we're looking for exactly k trios, we can try combinations
+    
+    # However, trying all C(t, k) combinations might be too much
+    # Let's use a more efficient approach: build a graph and find a perfect matching
+    # But since this is a tripartite 3-uniform hypergraph matching, it's NP-hard in general
+    # For the given constraints, we can try a backtracking solution
+    
+    # Let's model this as an exact cover problem or use backtracking
+    
+    def backtrack(pos, selected, used_s, used_c, used_f):
+        if len(selected) == k:
+            return selected[:]
+        if pos == t:
+            return None
+            
+        # Try not taking current trio
+        res = backtrack(pos + 1, selected, used_s, used_c, used_f)
+        if res is not None:
+            return res
+            
+        # Try taking current trio if possible
+        s, c, f = trios[pos]
+        if s not in used_s and c not in used_c and f not in used_f:
+            selected.append(trios[pos])
+            used_s.add(s)
+            used_c.add(c)
+            used_f.add(f)
+            
+            res = backtrack(pos + 1, selected, used_s, used_c, used_f)
+            
+            # Backtrack
+            selected.pop()
+            used_s.remove(s)
+            used_c.remove(c)
+            used_f.remove(f)
+            
+            if res is not None:
+                return res
+        
+        return None
+    
+    result = backtrack(0, [], set(), set(), set())
+    
+    if result is None:
+        print("NO")
+    else:
+        print("YES")
+        for trio in result:
+            print(trio[0], trio[1], trio[2])
+
+solve()

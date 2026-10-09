@@ -1,0 +1,113 @@
+import sys
+import heapq
+from collections import defaultdict
+import itertools
+
+def dijkstra(graph, start, n):
+    dist = [float('inf')] * (n + 1)
+    dist[start] = 0
+    pq = [(0, start)]
+    
+    while pq:
+        d, u = heapq.heappop(pq)
+        if d > dist[u]:
+            continue
+        for v, w in graph[u]:
+            if dist[u] + w < dist[v]:
+                dist[v] = dist[u] + w
+                heapq.heappush(pq, (dist[v], v))
+    
+    return dist
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    idx = 0
+    n = int(data[idx])
+    idx += 1
+    m = int(data[idx])
+    idx += 1
+    t = int(data[idx])
+    idx += 1
+    
+    regulated = list(map(int, data[idx:idx+t]))
+    idx += t
+    
+    graph = defaultdict(list)
+    
+    for _ in range(m):
+        u = int(data[idx])
+        idx += 1
+        v = int(data[idx])
+        idx += 1
+        w = int(data[idx])
+        idx += 1
+        graph[u].append((v, w))
+        graph[v].append((u, w))
+    
+    # If there's only one regulated database, cost is 0
+    if t <= 1:
+        print(0)
+        return
+    
+    # Compute shortest paths from each regulated node to all nodes
+    distances = {}
+    for r in regulated:
+        distances[r] = dijkstra(graph, r, n)
+    
+    # Create a complete graph on regulated nodes with edge weights as shortest path distances
+    # Then find the minimum spanning tree of this graph
+    
+    # Generate all pairs of regulated nodes
+    regulated_pairs = list(itertools.combinations(regulated, 2))
+    
+    # Create edges for MST: (weight, u, v)
+    edges = []
+    for u, v in regulated_pairs:
+        weight = distances[u][v]
+        edges.append((weight, u, v))
+    
+    # Kruskal's algorithm for MST
+    edges.sort()
+    
+    # Union-Find data structure
+    parent = {}
+    rank = {}
+    
+    def find(x):
+        if parent[x] != x:
+            parent[x] = find(parent[x])
+        return parent[x]
+    
+    def union(x, y):
+        px, py = find(x), find(y)
+        if px == py:
+            return False
+        if rank[px] < rank[py]:
+            px, py = py, px
+        parent[py] = px
+        if rank[px] == rank[py]:
+            rank[px] += 1
+        return True
+    
+    # Initialize Union-Find
+    for r in regulated:
+        parent[r] = r
+        rank[r] = 0
+    
+    mst_cost = 0
+    edges_used = 0
+    
+    for weight, u, v in edges:
+        if union(u, v):
+            mst_cost += weight
+            edges_used += 1
+            if edges_used == t - 1:
+                break
+    
+    print(mst_cost)
+
+if __name__ == "__main__":
+    main()

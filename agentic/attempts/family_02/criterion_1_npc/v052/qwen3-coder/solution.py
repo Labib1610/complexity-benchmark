@@ -1,0 +1,112 @@
+from collections import defaultdict
+import sys
+
+def solve():
+    n, m = map(int, input().split())
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(["0"] * n))
+        return
+    
+    # For each interlock, we have a clause (at least one of three literals must be true)
+    # This is a 3-SAT variant where each clause is an OR of 3 literals
+    # We'll use a 2-SAT approach by converting each 3-clause to equivalent 2-clauses
+    
+    # However, let's try a different approach: brute force with pruning since n <= 90 but m <= 400
+    # Actually, with n up to 90, brute force is not feasible (2^90 is too large)
+    
+    # Let's model this as a 3-SAT problem and use a SAT solver approach or backtracking with pruning
+    
+    # Each interlock is a clause: (x1 OR x2 OR x3) where xi is a literal
+    clauses = []
+    for _ in range(m):
+        line = list(map(int, input().split()))
+        clause = []
+        for lit in line:
+            var = abs(lit)
+            sign = 1 if lit > 0 else 0  # 1 for engaged (True), 0 for isolated (False)
+            clause.append((var, sign))
+        clauses.append(clause)
+    
+    # Try to solve with backtracking
+    assignment = [None] * (n + 1)  # index 0 unused, vars are 1-indexed
+    
+    def is_clause_satisfied(clause):
+        for var, sign in clause:
+            if assignment[var] is not None:
+                if assignment[var] == sign:
+                    return True
+        return False
+    
+    def unit_propagation():
+        changed = True
+        while changed:
+            changed = False
+            for clause in clauses:
+                unknown_count = 0
+                unknown_literal = None
+                satisfied = False
+                
+                for var, sign in clause:
+                    if assignment[var] is not None:
+                        if assignment[var] == sign:
+                            satisfied = True
+                            break
+                    else:
+                        unknown_count += 1
+                        unknown_literal = (var, sign)
+                
+                if satisfied:
+                    continue
+                    
+                if unknown_count == 0:
+                    return False  # Conflict: clause is unsatisfiable
+                    
+                if unknown_count == 1:
+                    var, sign = unknown_literal
+                    assignment[var] = sign
+                    changed = True
+        
+        return True
+    
+    def backtrack(var_index):
+        if var_index > n:
+            # Check if all clauses are satisfied
+            for clause in clauses:
+                satisfied = False
+                for var, sign in clause:
+                    if assignment[var] == sign:
+                        satisfied = True
+                        break
+                if not satisfied:
+                    return False
+            return True
+            
+        # Try setting variable to 1 (engaged)
+        assignment[var_index] = 1
+        if unit_propagation():
+            if backtrack(var_index + 1):
+                return True
+                
+        # Backtrack and try 0 (isolated)
+        assignment[var_index] = 0
+        if unit_propagation():
+            if backtrack(var_index + 1):
+                return True
+                
+        # Undo assignment
+        assignment[var_index] = None
+        return False
+    
+    # Start solving
+    if unit_propagation() and backtrack(1):
+        print("YES")
+        result = []
+        for i in range(1, n + 1):
+            result.append(str(assignment[i]))
+        print(" ".join(result))
+    else:
+        print("NO")
+
+solve()

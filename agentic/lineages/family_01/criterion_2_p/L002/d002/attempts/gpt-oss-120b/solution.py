@@ -1,52 +1,53 @@
 import sys
-from collections import deque
+sys.setrecursionlimit(1 << 25)
 
 def solve() -> None:
-    data = sys.stdin.buffer.read().split()
+    data = sys.stdin.read().strip().split()
     if not data:
         return
     it = iter(data)
-    n = int(next(it))
-    m = int(next(it))
-
-    adj = [[] for _ in range(n + 1)]
+    n = int(next(it)); m = int(next(it))
+    g = [[] for _ in range(n + 1)]
     for _ in range(m):
         u = int(next(it)); v = int(next(it))
-        adj[u].append(v)
-        adj[v].append(u)
+        g[u].append(v)
+        g[v].append(u)
 
-    color = [-1] * (n + 1)          # 0 / 1 during BFS
-    answer = [0] * (n + 1)          # final frequencies 1 / 2
+    color = [-1] * (n + 1)          # 0 or 1 for bipartition
+    ans = [0] * (n + 1)             # final values 1 or 2
+    from collections import deque
 
     for start in range(1, n + 1):
         if color[start] != -1:
             continue
-        # BFS of a new component
+        # BFS this component
         q = deque([start])
         color[start] = 0
-        comp = [start]
+        comp_nodes = [start]
+        ok = True
         while q:
             u = q.popleft()
-            cu = color[u]
-            for v in adj[u]:
+            for v in g[u]:
                 if color[v] == -1:
-                    color[v] = cu ^ 1
+                    color[v] = color[u] ^ 1
                     q.append(v)
-                    comp.append(v)
-                elif color[v] == cu:
-                    # not bipartite
-                    sys.stdout.write("NO")
+                    comp_nodes.append(v)
+                elif color[v] == color[u]:
+                    print("NO")
                     return
-        # decide orientation: smallest index gets frequency 1
-        minv = min(comp)
-        flip = (color[minv] == 1)   # need to invert colours?
-        for v in comp:
-            final = color[v] ^ flip   # 0 -> freq 1, 1 -> freq 2
-            answer[v] = 1 if final == 0 else 2
+        # decide orientation for lexicographically smallest sequence
+        min_node = min(comp_nodes)
+        if color[min_node] == 0:
+            # map 0->1, 1->2
+            for v in comp_nodes:
+                ans[v] = 1 if color[v] == 0 else 2
+        else:
+            # map 0->2, 1->1
+            for v in comp_nodes:
+                ans[v] = 2 if color[v] == 0 else 1
 
-    out = ["YES"]
-    out.append(' '.join(str(answer[i]) for i in range(1, n + 1)))
-    sys.stdout.write('\n'.join(out))
+    print("YES")
+    print(' '.join(str(ans[i]) for i in range(1, n + 1)))
 
 if __name__ == "__main__":
     solve()

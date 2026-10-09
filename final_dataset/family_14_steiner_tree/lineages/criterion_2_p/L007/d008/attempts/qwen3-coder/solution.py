@@ -1,0 +1,176 @@
+import sys
+from collections import defaultdict
+import heapq
+
+def find_mst_with_terminals(n, edges, terminals):
+    if len(terminals) <= 1:
+        return 0
+    
+    # Build the graph
+    graph = defaultdict(list)
+    for u, v, w in edges:
+        graph[u].append((v, w))
+        graph[v].append((u, w))
+    
+    # Prim's algorithm to find MST that connects all terminals
+    # We treat this as a Steiner tree problem, but since the transition vectors
+    # form a spanning tree of the complete graph, we can find the minimal subtree
+    # that connects all terminals.
+    
+    # First, build the tree from the given edges
+    tree = defaultdict(list)
+    for u, v, w in edges:
+        tree[u].append((v, w))
+        tree[v].append((u, w))
+    
+    # Find the minimum subtree that spans all terminals
+    # This is essentially finding the minimal connected subgraph containing all terminals
+    
+    # Use a modified Prim's algorithm:
+    # Start with one terminal, and grow the tree by adding the cheapest edge
+    # that connects a new node to the current tree, until all terminals are included
+    
+    terminal_set = set(terminals)
+    visited = set()
+    min_cost = 0
+    
+    # Start with the first terminal
+    start = terminals[0]
+    visited.add(start)
+    
+    # Priority queue: (weight, node)
+    pq = []
+    
+    # Add all edges from the starting node
+    for neighbor, weight in tree[start]:
+        heapq.heappush(pq, (weight, neighbor))
+    
+    # While we haven't visited all terminals
+    while len(visited & terminal_set) < len(terminal_set):
+        # Find the cheapest edge to a new node
+        while pq:
+            weight, node = heapq.heappop(pq)
+            if node not in visited:
+                visited.add(node)
+                min_cost += weight
+                # Add all edges from this new node
+                for neighbor, edge_weight in tree[node]:
+                    if neighbor not in visited:
+                        heapq.heappush(pq, (edge_weight, neighbor))
+                break
+        else:
+            # No more edges, but not all terminals visited
+            # This shouldn't happen given the problem constraints
+            break
+    
+    return min_cost
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    idx = 0
+    n = int(data[idx])
+    idx += 1
+    m = int(data[idx])
+    idx += 1
+    t = int(data[idx])
+    idx += 1
+    
+    terminals = []
+    for _ in range(t):
+        terminals.append(int(data[idx]))
+        idx += 1
+    
+    edges = []
+    for _ in range(m):
+        u = int(data[idx])
+        idx += 1
+        v = int(data[idx])
+        idx += 1
+        w = int(data[idx])
+        idx += 1
+        edges.append((u, v, w))
+    
+    # Special case: if there's 0 or 1 terminal, cost is 0
+    if t <= 1:
+        print(0)
+        return
+    
+    # Build adjacency list for the tree
+    adj = defaultdict(list)
+    for u, v, w in edges:
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+    
+    # Find the minimum spanning tree that connects all terminals
+    # This is the Steiner tree problem, but we can solve it efficiently
+    # because we're looking for a subtree of the given tree
+    
+    # Use a different approach: find the minimal subtree containing all terminals
+    # by doing a BFS/DFS from all terminals and finding the minimal connected component
+    
+    # Actually, let's think differently:
+    # The transition vectors form a basis for the space where sum of coordinates is 0
+    # To generate all e_a - e_b for a,b in T, we need a spanning tree on T
+    # But we're constrained to use a subset of the given edges
+    # So we need to find the minimum cost subtree of the given tree that connects all terminals
+    
+    # Build the tree structure
+    tree_edges = edges
+    
+    # Find the minimum cost to connect all terminals
+    # This is the minimum Steiner tree problem on a tree, which can be solved efficiently
+    
+    # For a tree, the minimum Steiner tree is found by:
+    # 1. Consider the subtree induced by the terminals
+    # 2. The cost is the sum of weights of edges in this subtree
+    
+    # Find the minimal subtree that spans all terminals
+    # by finding all edges on paths between terminal pairs
+    
+    # More efficient approach:
+    # Root the tree at some node, compute for each node whether its subtree contains a terminal
+    # Then the Steiner tree consists of edges where both endpoints have terminals in their subtrees
+    
+    # Let's implement a cleaner solution:
+    
+    # Build adjacency list
+    adj_list = defaultdict(list)
+    for u, v, w in edges:
+        adj_list[u].append((v, w))
+        adj_list[v].append((u, w))
+    
+    terminal_set = set(terminals)
+    
+    # If only one or zero terminals, no cost needed
+    if len(terminal_set) <= 1:
+        print(0)
+        return
+    
+    # Function to find the minimum subtree containing all terminals
+    def dfs(node, parent):
+        # Returns (has_terminal, cost)
+        has_terminal = node in terminal_set
+        total_cost = 0
+        terminal_count = 1 if has_terminal else 0
+        
+        for neighbor, weight in adj_list[node]:
+            if neighbor == parent:
+                continue
+            child_has_terminal, child_cost, child_terminal_count = dfs(neighbor, node)
+            if child_has_terminal:
+                total_cost += child_cost + weight
+                terminal_count += child_terminal_count
+                has_terminal = True
+        
+        return has_terminal, total_cost, terminal_count
+    
+    # Try rooting at the first terminal
+    root = terminals[0]
+    _, cost, _ = dfs(root, -1)
+    print(cost)
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,323 @@
+import sys
+from collections import deque
+from itertools import permutations
+
+sys.setrecursionlimit(1000000)
+
+data = list(map(int, sys.stdin.buffer.read().split()))
+if len(data) < 2:
+    sys.exit()
+
+n, m = data[0], data[1]
+edges = []
+adj = [[] for _ in range(n)]
+
+p = 2
+valid = (m * 2 == 3 * n and len(data) == 2 + 2 * m)
+
+for eid in range(m):
+    u = data[p] - 1
+    v = data[p + 1] - 1
+    p += 2
+    if not (0 <= u < n and 0 <= v < n) or u == v:
+        valid = False
+    edges.append((u, v))
+    if 0 <= u < n and 0 <= v < n:
+        adj[u].append((v, eid))
+        adj[v].append((u, eid))
+
+if not valid or any(len(adj[v]) != 3 for v in range(n)):
+    print("NO")
+    sys.exit()
+
+# Bridges make a cubic graph impossible to 3-edge-color.
+tin = [-1] * n
+low = [0] * n
+timer = 0
+has_bridge = False
+
+def bridge_dfs(v, parent_eid):
+    global timer, has_bridge
+    tin[v] = low[v] = timer
+    timer += 1
+    for to, eid in adj[v]:
+        if eid == parent_eid:
+            continue
+        if tin[to] == -1:
+            bridge_dfs(to, eid)
+            low[v] = min(low[v], low[to])
+            if low[to] > tin[v]:
+                has_bridge = True
+        else:
+            low[v] = min(low[v], tin[to])
+
+for s in range(n):
+    if tin[s] == -1:
+        bridge_dfs(s, -1)
+
+if has_bridge:
+    print("NO")
+    sys.exit()
+
+# Find connected components and test bipartiteness.
+components = []
+side = [-1] * n
+
+for start in range(n):
+    if side[start] != -1:
+        continue
+    q = deque([start])
+    side[start] = 0
+    comp = []
+    bipartite = True
+    while q:
+        v = q.popleft()
+        comp.append(v)
+        for to, _ in adj[v]:
+            if side[to] == -1:
+                side[to] = side[v] ^ 1
+                q.append(to)
+            elif side[to] == side[v]:
+                bipartite = False
+    components.append((comp, bipartite))
+
+answer = [0] * m
+
+# Cubic bipartite components can be decomposed into three perfect matchings.
+def color_bipartite(comp):
+    left = [v for v in comp if side[v] == 0]
+    active = [False] * m
+    for v in comp:
+        for _, eid in adj[v]:
+            active[eid] = True
+
+    for color in range(1, 4):
+        pair_u = [-1] * n
+        pair_v = [-1] * n
+        match_edge = [-1] * n
+        dist = [-1] * n
+
+        def bfs():
+            q = deque()
+            found = False
+            for u in left:
+                if pair_u[u] == -1:
+                    dist[u] = 0
+                    q.append(u)
+                else:
+                    dist[u] = -1
+            while q:
+                u = q.popleft()
+                for v, eid in adj[u]:
+                    if not active[eid]:
+                        continue
+                    pu = pair_v[v]
+                    if pu == -1:
+                        found = True
+                    elif dist[pu] == -1:
+                        dist[pu] = dist[u] + 1
+                        q.append(pu)
+            return found
+
+        def dfs(u):
+            for v, eid in adj[u]:
+                if not active[eid]:
+                    continue
+                pu = pair_v[v]
+                if pu == -1 or (dist[pu] == dist[u] + 1 and dfs(pu)):
+                    pair_u[u] = v
+                    pair_v[v] = u
+                    match_edge[u] = eid
+                    return True
+            dist[u] = -1
+            return False
+
+        matched = 0
+        while bfs():
+            for u in left:
+                if pair_u[u] == -1 and dfs(u):
+                    matched += 1
+
+        if matched != len(left):
+            return False
+
+        for u in left:
+            eid = match_edge[u]
+            if eid < 0:
+                return False
+            answer[eid] = color
+            active[eid] = False
+
+    return True
+
+# Domain CSP for non-bipartite components.
+perms = list(permutations(range(3)))
+FULL = (1 << 6) - 1
+
+slot_color_mask = [[0] * 3 for _ in range(3)]
+for pi, perm in enumerate(perms):
+    for slot in range(3):
+        slot_color_mask[slot][perm[slot]] |= 1 << pi
+
+allow_mask = [[0] * 8 for _ in range(3)]
+for slot in range(3):
+    for colors in range(8):
+        mask = 0
+        for c in range(3):
+            if colors & (1 << c):
+                mask |= slot_color_mask[slot][c]
+        allow_mask[slot][colors] = mask
+
+projection = [[0] * 64 for _ in range(3)]
+for slot in range(3):
+    for mask in range(64):
+        colors = 0
+        for c in range(3):
+            if mask & slot_color_mask[slot][c]:
+                colors |= 1 << c
+        projection[slot][mask] = colors
+
+edge_slot_u = [0] * m
+edge_slot_v = [0] * m
+for v in range(n):
+    for slot, (_, eid) in enumerate(adj[v]):
+        u, w = edges[eid]
+        if v == u:
+            edge_slot_u[eid] = slot
+        else:
+            edge_slot_v[eid] = slot
+
+domains = [FULL] * n
+
+def slot_at(eid, v):
+    return edge_slot_u[eid] if edges[eid][0] == v else edge_slot_v[eid]
+
+def color_nonbipartite(comp):
+    trail = []
+
+    def propagate(initial):
+        q = deque(initial)
+        in_q = set(initial)
+        while q:
+            x = q.popleft()
+            in_q.discard(x)
+            dx = domains[x]
+            if dx == 0:
+                return False
+
+            for y, eid in adj[x]:
+                sx = slot_at(eid, x)
+                sy = slot_at(eid, y)
+                possible_colors = projection[sx][dx]
+                old = domains[y]
+                new = old & allow_mask[sy][possible_colors]
+                if new != old:
+                    trail.append((y, old))
+                    domains[y] = new
+                    if new == 0:
+                        return False
+                    if y not in in_q:
+                        in_q.add(y)
+                        q.append(y)
+        return True
+
+    root = comp[0]
+    domains[root] = 1  # permutation (0, 1, 2)
+    if not propagate([root]):
+        return False
+    trail.clear()
+
+    def rollback(mark):
+        while len(trail) > mark:
+            v, old = trail.pop()
+            domains[v] = old
+
+    def search():
+        best_v = -1
+        best_slot = -1
+        best_colors = 0
+        best_key = (4, 7)
+
+        for v in comp:
+            d = domains[v]
+            if d == 0:
+                return False
+            if d & (d - 1) == 0:
+                continue
+            for slot in range(3):
+                colors = projection[slot][d]
+                cnt = colors.bit_count()
+                if cnt <= 1:
+                    continue
+                largest = 0
+                for c in range(3):
+                    if colors & (1 << c):
+                        largest = max(largest, (d & slot_color_mask[slot][c]).bit_count())
+                key = (cnt, largest)
+                if key < best_key:
+                    best_key = key
+                    best_v = v
+                    best_slot = slot
+                    best_colors = colors
+
+        if best_v == -1:
+            return True
+
+        current = domains[best_v]
+        choices = []
+        for c in range(3):
+            if best_colors & (1 << c):
+                restricted = current & slot_color_mask[best_slot][c]
+                choices.append((restricted.bit_count(), restricted))
+        choices.sort()
+
+        for _, restricted in choices:
+            mark = len(trail)
+            trail.append((best_v, domains[best_v]))
+            domains[best_v] = restricted
+            if propagate([best_v]) and search():
+                return True
+            rollback(mark)
+
+        return False
+
+    if not search():
+        return False
+
+    for v in comp:
+        d = domains[v]
+        if d == 0 or d & (d - 1):
+            return False
+        pi = d.bit_length() - 1
+        perm = perms[pi]
+        for slot, (_, eid) in enumerate(adj[v]):
+            c = perm[slot] + 1
+            if answer[eid] == 0:
+                answer[eid] = c
+            elif answer[eid] != c:
+                return False
+
+    return True
+
+for comp, bipartite in components:
+    if bipartite:
+        if not color_bipartite(comp):
+            print("NO")
+            sys.exit()
+    else:
+        if not color_nonbipartite(comp):
+            print("NO")
+            sys.exit()
+
+# Final verification.
+seen = [[False] * 4 for _ in range(n)]
+for eid, (u, v) in enumerate(edges):
+    c = answer[eid]
+    if c < 1 or c > 3 or seen[u][c] or seen[v][c]:
+        print("NO")
+        sys.exit()
+    seen[u][c] = True
+    seen[v][c] = True
+
+print("YES")
+print(*answer)

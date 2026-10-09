@@ -1,39 +1,33 @@
-import sys
+n, m = map(int, input().split())
+adj = [[] for _ in range(n)]
+for _ in range(m):
+    u, v = map(int, input().split())
+    u -= 1
+    v -= 1
+    adj[u].append(v)
+    adj[v].append(u)
 
-def solve():
-    input = sys.stdin.readline
-    n, m = map(int, input().split())
-    adj = [[] for _ in range(n)]
-    for _ in range(m):
-        u, v = map(int, input().split())
-        u -= 1
-        v -= 1
-        adj[u].append(v)
-        adj[v].append(u)
+color = [0] * n
 
-    color = [0] * n  # 0 = unassigned, 1,2,3 = shifts
+def is_safe(v, c):
+    for u in adj[v]:
+        if color[u] == c:
+            return False
+    return True
 
-    def backtrack(idx):
-        if idx == n:
-            return True
-        for c in (1, 2, 3):
-            ok = True
-            for nb in adj[idx]:
-                if color[nb] == c:
-                    ok = False
-                    break
-            if ok:
-                color[idx] = c
-                if backtrack(idx + 1):
-                    return True
-                color[idx] = 0
-        return False
+def solve(v):
+    if v == n:
+        return True
+    for c in range(1, 4):
+        if is_safe(v, c):
+            color[v] = c
+            if solve(v + 1):
+                return True
+            color[v] = 0
+    return False
 
-    if backtrack(0):
-        print("YES")
-        print(" ".join(map(str, color)))
-    else:
-        print("NO")
-
-if __name__ == "__main__":
-    solve()
+if solve(0):
+    print("YES")
+    print(" ".join(str(c) for c in color))
+else:
+    print("NO")

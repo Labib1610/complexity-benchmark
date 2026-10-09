@@ -1,0 +1,38 @@
+from itertools import product
+
+def solve():
+    n, m = map(int, input().split())
+    
+    # If no conditions, any sequence works
+    if m == 0:
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
+    
+    # Read all conditions
+    conditions = []
+    for _ in range(m):
+        u, v = map(int, input().split())
+        conditions.append((u-1, v-1))  # Convert to 0-based indexing
+    
+    # For a quadratic z^2 - (a+b)z + ab = 0 to have two distinct real roots,
+    # the discriminant must be positive: (a+b)^2 - 4ab > 0
+    # This simplifies to (a-b)^2 > 0, which means a ≠ b
+    # So C[u] and C[v] must be different for each condition
+    
+    # Try all possible sequences of length n with values from {1,2,3}
+    for seq in product([1, 2, 3], repeat=n):
+        valid = True
+        for u, v in conditions:
+            if seq[u] == seq[v]:
+                valid = False
+                break
+        
+        if valid:
+            print("YES")
+            print(" ".join(map(str, seq)))
+            return
+    
+    print("NO")
+
+solve()

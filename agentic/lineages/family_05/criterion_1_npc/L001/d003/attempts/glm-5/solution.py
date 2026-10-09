@@ -1,0 +1,69 @@
+import sys
+
+def main():
+    input_data = sys.stdin.buffer.read().split()
+    idx = 0
+    k = int(input_data[idx]); idx += 1
+    t = int(input_data[idx]); idx += 1
+    
+    tech_options = [[] for _ in range(k + 1)]
+    for _ in range(t):
+        x = int(input_data[idx]); idx += 1
+        y = int(input_data[idx]); idx += 1
+        z = int(input_data[idx]); idx += 1
+        tech_options[x].append((y - 1, z - 1))  # 0-indexed
+    
+    full = 1 << k
+    INF = full + 1
+    
+    # dp[core_mask] = bay_mask used, or INF if unreachable
+    dp = [INF] * full
+    dp[0] = 0
+    # parent[core_mask] = (prev_core_mask, bay_bit, core_bit, tech_index)
+    parent = [None] * full
+    
+    for tech in range(1, k + 1):
+        new_dp = [INF] * full
+        new_parent = [None] * full
+        options = tech_options[tech]
+        if not options:
+            print("NO")
+            return
+        for cmask in range(full):
+            bm = dp[cmask]
+            if bm >= INF:
+                continue
+            for (bay, core) in options:
+                bay_bit = 1 << bay
+                if bm & bay_bit:
+                    continue
+                core_bit = 1 << core
+                if cmask & core_bit:
+                    continue
+                ncmask = cmask | core_bit
+                nbm = bm | bay_bit
+                if nbm < new_dp[ncmask]:
+                    new_dp[ncmask] = nbm
+                    new_parent[ncmask] = (cmask, bay_bit, core_bit, tech)
+        dp = new_dp
+        parent = new_parent
+    
+    if dp[full - 1] >= INF:
+        print("NO")
+        return
+    
+    # Reconstruct
+    result = []
+    cmask = full - 1
+    while cmask != 0:
+        pmask, bay_bit, core_bit, tech = parent[cmask]
+        bay = bay_bit.bit_length() - 1
+        core = core_bit.bit_length() - 1
+        result.append((tech, bay + 1, core + 1))
+        cmask = pmask
+    
+    print("YES")
+    for r in result:
+        print(f"{r[0]} {r[1]} {r[2]}")
+
+main()

@@ -1,0 +1,23 @@
+import sys
+
+def solve() -> None:
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    _ = next(it)  # k, always 0
+    has_edge = [False] * (n + 1)
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        has_edge[u] = True
+        has_edge[v] = True
+    for i in range(1, n + 1):
+        if not has_edge[i]:
+            sys.stdout.write(str(i))
+            return
+
+if __name__ == "__main__":
+    solve()

@@ -1,0 +1,215 @@
+Looking at this problem, I need to find three registries {x1, x2, x3} where exactly 3 of the m pulses have both registries within this set. This means all 3 possible edges among the three vertices must exist (forming a triangle), and no other edges connect to vertices outside this triangle from these three vertices... wait, that's not quite right.
+
+Let me reconsider: "exactly three of the m pulses have both of their involved registries within this set." So among all pulses, exactly 3 have both endpoints in {x1,x2,x3}. Since there are only 3 possible pairs among 3 vertices, and no duplicate pairs, this means all 3 pairs must be edges (a triangle), AND no vertex in the triangle can have edges to vertices outside the triangle... no wait, that's also not right.
+
+Actually, if we have a triangle {a,b,c}, and vertex a also connects to vertex d outside, then the pulse (a,d) has one endpoint inside and one outside, so it doesn't count. So the condition is simply: {x1,x2,x3} forms a triangle (all 3 edges exist), and that's it - because any edge with exactly one endpoint in the set doesn't count, and edges with both endpoints outside don't count.
+
+So I need to find a triangle in the graph, and output the lexicographically smallest one.
+
+With n ≤ 2000 and m ≤ 200000, I can use the standard triangle-finding approach: for each vertex, check pairs of its neighbors. To find the lexicographically smallest triangle, I iterate vertices in order and for each vertex, check if any two of its neighbors (that come after it) are connected.
+
+```python
+import sys
+
+def solve():
+    input_data = sys.stdin.buffer.read().split()
+    idx = 0
+    n = int(input_data[idx]); idx += 1
+    m = int(input_data[idx]); idx += 1
+    
+    adj = [set() for _ in range(n + 1)]
+    edges = []
+    for _ in range(m):
+        u = int(input_data[idx]); idx += 1
+        v = int(input_data[idx]); idx += 1
+        if u > v:
+            u, v = v, u
+        adj[u].add(v)
+        adj[v].add(u)
+    
+    # Find lexicographically smallest triangle
+    # Iterate x1 from 1 to n, then x2 from x1+1, check if x2 is neighbor of x1
+    # then for each x3 > x2 that is neighbor of both x1 and x2
+    for x1 in range(1, n + 1):
+        neighbors_x1 = sorted(v for v in adj[x1] if v > x1)
+        neighbor_set_x1 = adj[x1]
+        for i in range(len(neighbors_x1)):
+            x2 = neighbors_x1[i]
+            for j in range(i + 1, len(neighbors_x1)):
+                x3 = neighbors_x1[j]
+                if x3 in adj[x2]:
+                    print(f"{x1} {x2} {x3}")
+                    return
+
+solve()
+```
+
+Wait, this could be O(n * d^2) where d is max degree. With m up to 200000, d could be up to 1999, making this up to 2000 * 2000^2 = 8 billion operations in the worst case. That's too slow.
+
+Let me use a better approach. For finding any triangle efficiently, we can orient edges from lower to higher degree (breaking ties by ID), then each vertex checks pairs of its out-neighbors. This guarantees O(m^{3/2}) time.
+
+But I need the lexicographically smallest triangle. Let me think... I can find all triangles but that might be too many. 
+
+Alternative: Since I need lex smallest, iterate x1 from 1 upward. For each x1, I need to find the smallest x2 > x1 adjacent to x1, and smallest x3 > x2 adjacent to both x1 and x2. 
+
+For a fixed x1, checking all pairs of neighbors is O(d^2). The sum of d^2 over all vertices could be large, but if I stop early (as soon as I find the first valid triangle for the smallest x1), it might be okay in practice but worst case is bad.
+
+Let me use the degree-orientation trick but collect all triangles, then pick the lex smallest. Actually, the number of triangles could be large too.
+
+Better approach: For each x1 in order, use the orientation trick restricted to finding triangles involving x1 as the smallest vertex. Actually, let me just try the straightforward approach with an optimization: for each x1, sort neighbors greater than x1, and for each pair check connectivity. To speed up, use adjacency as sets (O(1) lookup). The key insight is that we stop at the first x1 that yields a triangle, and for that x1 we find the lex smallest.
+
+The worst case is when there's no triangle until x1 is large, but the problem guarantees a triangle exists. Still, worst case could have x1 = n-2 with high degree vertices.
+
+Let me use the oriented approach to find all triangles efficiently, then pick lex smallest:
+
+```python
+import sys
+
+def solve():
+    input_data = sys.stdin.buffer.read().split()
+    idx = 0
+    n = int(input_data[idx]); idx += 1
+    m = int(input_data[idx]); idx += 1
+    
+    deg = [0] * (n + 1)
+    edges = []
+    for _ in range(m):
+        u = int(input_data[idx]); idx += 1
+        v = int(input_data[idx]); idx += 1
+        if u > v:
+            u, v = v, u
+        edges.append((u, v))
+        deg[u] += 1
+        deg[v] += 1
+    
+    # Orient edge from lower (deg, id) to higher
+    adj = [[] for _ in range(n + 1)]
+    adj_set = [set() for _ in range(n + 1)]
+    for u, v in edges:
+        if (deg[u], u) < (deg[v], v):
+            adj[u].append(v)
+        else:
+            adj[v].append(u)
+        adj_set[u].add(v)
+        adj_set[v].add(u)
+    
+    best = None
+    # Find triangles using oriented graph
+    for u in range(1, n + 1):
+        for v in adj[u]:
+            for w in adj[u]:
+                if v < w and w in adj_set[v]:
+                    tri = (min(u,v,w), sorted([u,v,w])[1], max(u,v,w))
+                    # Actually need sorted
+                    a, b, c = sorted([u, v, w])
+                    if best is None or (a, b, c) < best:
+                        best = (a, b, c)
+    
+    print(f"{best[0]} {best[1]} {best[2]}")
+
+solve()
+```
+
+Hmm, but this iterates all pairs of out-neighbors which is bounded by O(m^{3/2}) total. But storing all triangles could be expensive. Let me just track the best.
+
+Actually, the double loop `for v in adj[u]: for w in adj[u]` is O(out_deg^2) per vertex, and the sum is bounded by O(m^{3/2}). This should work.
+
+Let me refine:
+
+```python
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    idx = 0
+    n = int(data[idx]); idx += 1
+    m = int(data[idx]); idx += 1
+    
+    deg = [0] * (n + 1)
+    edge_list = []
+    for _ in range(m):
+        u = int(data[idx]); idx += 1
+        v = int(data[idx]); idx += 1
+        edge_list.append((u, v))
+        deg[u] += 1
+        deg[v] += 1
+    
+    adj = [[] for _ in range(n + 1)]
+    adj_set = [set() for _ in range(n + 1)]
+    for u, v in edge_list:
+        if (deg[u], u) <= (deg[v], v):
+            adj[u].append(v)
+        else:
+            adj[v].append(u)
+        adj_set[u].add(v)
+        adj_set[v].add(u)
+    
+    best = None
+    for s in range(1, n + 1):
+        out = adj[s]
+        for i in range(len(out)):
+            v = out[i]
+            for j in range(i + 1, len(out)):
+                w = out[j]
+                if w in adj_set[v]:
+                    tri = tuple(sorted([s, v, w]))
+                    if best is None or tri < best:
+                        best = tri
+    
+    print(f"{best[0]} {best[1]} {best[2]}")
+
+solve()
+```
+
+This should work within time limits. Let me verify with the examples.
+
+Example 1: edges (1,2),(1,3),(2,3),(2,4),(3,4). Triangle {1,2,3} exists. Output: 1 2 3. ✓
+
+Example 2: edges (1,2),(1,4),(2,4),(3,4),(3,5),(4,5). Triangles: {1,2,4} and {3,4,5}. Lex smallest is {1,2,4}. ✓
+
+The solution looks correct. Let me finalize it.
+
+```python
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    idx = 0
+    n = int(data[idx]); idx += 1
+    m = int(data[idx]); idx += 1
+    
+    deg = [0] * (n + 1)
+    edge_list = []
+    for _ in range(m):
+        u = int(data[idx]); idx += 1
+        v = int(data[idx]); idx += 1
+        edge_list.append((u, v))
+        deg[u] += 1
+        deg[v] += 1
+    
+    adj = [[] for _ in range(n + 1)]
+    adj_set = [set() for _ in range(n + 1)]
+    for u, v in edge_list:
+        if (deg[u], u) <= (deg[v], v):
+            adj[u].append(v)
+        else:
+            adj[v].append(u)
+        adj_set[u].add(v)
+        adj_set[v].add(u)
+    
+    best = None
+    for s in range(1, n + 1):
+        out = adj[s]
+        for i in range(len(out)):
+            v = out[i]
+            for j in range(i + 1, len(out)):
+                w = out[j]
+                if w in adj_set[v]:
+                    tri = tuple(sorted((s, v, w)))
+                    if best is None or tri < best:
+                        best = tri
+    
+    print(f"{best[0]} {best[1]} {best[2]}")
+
+solve()
+```

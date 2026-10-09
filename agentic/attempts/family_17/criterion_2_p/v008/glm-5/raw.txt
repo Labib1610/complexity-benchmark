@@ -1,0 +1,275 @@
+This is a bipartite perfect matching problem. We have q controllers (badges 1..q) and q platforms (badges q+1..2q). We need to find a perfect matching in the bipartite graph given by t allowed pairs.
+
+Constraints: q ≤ 100000, t ≤ 400000. Time limit 2s.
+
+Hopcroft-Karp algorithm is the standard approach: O(E √V) = 400000 * sqrt(200000) ≈ 400000 * 450 ≈ 1.8e8 operations. In Python that might be too slow if implemented naively. We need an efficient implementation.
+
+Let me think about how to implement Hopcroft-Karp efficiently in Python.
+
+Standard Hopcroft-Karp:
+- BFS phase: build layers from free left vertices, find minimal augmenting path length.
+- DFS phase: find vertex-disjoint augmenting paths.
+
+With q up to 1e5 and t up to 4e5, we need a fast implementation. Python's recursion is slow, so we should implement DFS iteratively or use an iterative approach.
+
+Alternative: Use a simple augmenting path approach (Kuhn's algorithm) with heuristics. Kuhn's is O(V*E) = 1e5 * 4e5 = 4e10 worst case — too slow. But with random ordering heuristics it often works. However worst case could be bad.
+
+Hopcroft-Karp in Python with adjacency lists as arrays... Let me think about the implementation carefully.
+
+One common trick: represent adjacency using CSR (compressed sparse row) arrays for speed. Use arrays (lists) for match_left, match_right, dist, etc.
+
+Let me write Hopcroft-Karp iteratively:
+
+```python
+import sys
+from collections import deque
+
+def main():
+    data = sys.stdin.buffer.read().split()
+    idx = 0
+    q = int(data[idx]); idx += 1
+    t = int(data[idx]); idx += 1
+    
+    n_left = q
+    n_right = q
+    
+    # Read edges
+    # Build CSR
+    deg = [0] * (n_left + 1)
+    us = [0] * t
+    vs = [0] * t
+    for i in range(t):
+        a = int(data[idx]); idx += 1
+        b = int(data[idx]); idx += 1
+        us[i] = a
+        vs[i] = b - q  # right vertex index 1..q
+        deg[a] += 1
+    
+    # CSR
+    start = [0] * (n_left + 2)
+    for i in range(1, n_left + 1):
+        start[i+1] = start[i] + deg[i]
+    # start[i] gives beginning index for vertex i... let me define start[v] = offset for v
+    adj = [0] * t
+    pos = start[:]  # copy... careful with indexing
+    # Actually let me define: start[v] for v in 1..n_left is the start offset; start[v+1] is end.
+    fill = start[1:n_left+1]  # hmm
+```
+
+Let me be careful. Define offsets array `off` of length n_left+2 where off[v] is the start of v's edges, off[v+1] the end. So off[1] = 0, off[v+1] = off[v] + deg[v].
+
+Then fill: ptr = off copy (positions), for each edge i: adj[ptr[u]] = v; ptr[u] += 1.
+
+Hopcroft-Karp:
+
+```python
+INF = float('inf')
+matchL = [0] * (n_left + 1)   # 0 = unmatched; matched right vertex
+matchR = [0] * (n_right + 1)  # 0 = unmatched; matched left vertex
+dist = [0] * (n_left + 1)
+
+def bfs():
+    dq = deque()
+    for u in range(1, n_left + 1):
+        if matchL[u] == 0:
+            dist[u] = 0
+            dq.append(u)
+        else:
+            dist[u] = -1
+    found_free = False
+    while dq:
+        u = dq.popleft()
+        for i in range(off[u], off[u+1]):
+            v = adj[i]
+            w = matchR[v]
+            if w == 0:
+                found_free = True
+            elif dist[w] == -1:
+                dist[w] = dist[u] + 1
+                dq.append(w)
+    return found_free
+```
+
+Wait, standard HK: dist is on left vertices. BFS from free left vertices. For edge (u, v), w = matchR[v]; if w is free (0), then we found an augmenting path endpoint — set a flag; else if dist[w] unset, dist[w] = dist[u]+1.
+
+Actually the standard formulation: dist[0] (NIL) handling. Let me use the version where dist[u] = -1 means unvisited, and we track whether we reached a free right vertex. The DFS then only follows edges to v where matchR[v] != 0 and dist[matchR[v]] == dist[u]+1, or matchR[v] == 0 (which means we can augment). Hmm, but to make paths vertex-disjoint and shortest, the standard approach:
+
+BFS: dist over left vertices. dist[u]=0 for free u. For each u popped, for each neighbor v, let w = matchR[v]. If w == NIL: dist[NIL] would be dist[u]+1 conceptually; we record the shortest augmenting path length implicitly. Else if dist[w] == -1: dist[w] = dist[u]+1, push w.
+
+DFS (iterative): try to find augmenting path from each free u, following only edges (u,v) where matchR[v] != 0 and dist[matchR[v]] == dist[u]+1, or matchR[v] == 0 (then augment). After augmenting, mark vertices as used (dist = -2 or something) to ensure vertex-disjointness... Actually in standard HK, the DFS marks dist[u] = -1 (or sets it) when the search from u fails, and matched vertices on successful paths get their matchL changed so they won't be reused. Hmm, actually the vertex-disjointness in HK comes from the fact that once a left vertex is used in an augmenting path, its matchL changes... no wait.
+
+Let me recall the standard Hopcroft-Karp implementation:
+
+```python
+def dfs(u):
+    for v in adj[u]:
+        w = matchR[v]
+        if w == 0 or (dist[w] == dist[u] + 1 and dfs(w)):
+            matchL[u] = v
+            matchR[v] = u
+            return True
+    dist[u] = -1  # hmm, some implementations do this
+    return False
+```
+
+Hmm, but for vertex-disjointness: after an augmenting path is found, the left vertices on the path get matched to new right vertices. In the DFS, a left vertex u that is currently matched (reached via BFS layers) — when DFS(u) succeeds, u gets rematched. Could u be part of another augmenting path in the same phase? If u is on a successful path, then matchL[u] changed. Another DFS from a different free vertex could reach u via some edge... but dist[u] is still set. Hmm, in the standard implementation, the check `dist[w] == dist[u]+1` — after u is rematched, could another path go through u? Yes potentially, which would break vertex-disjointness but not correctness? Actually it could break correctness of the "shortest augmenting path" property but the algorithm remains correct as long as each augmenting path found is valid (alternating). Hmm, wait — if u was on a successful augmenting path and then another DFS reaches u via edge (u', v') where matchR[v'] == u... but after rematching, matchR[v'] for the old partner... Let me think.
+
+Actually, the standard HK implementation marks visited vertices during DFS to prevent reuse. A common approach: in DFS, when we visit u, we set dist[u] = INF (or -1) at the start or when failing. Let me look at a well-known implementation:
+
+```python
+INF = 10**9
+
+def hopcroft_karp(n, adj):
+    matchL = [0]*(n+1)
+    matchR = [0]*(n+1)
+    dist = [0]*(n+1)
+    
+    def bfs():
+        queue = deque()
+        for u in range(1, n+1):
+            if matchL[u] == 0:
+                dist[u] = 0
+                queue.append(u)
+            else:
+                dist[u] = INF
+        dist[0] = INF
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                w = matchR[v]
+                if dist[w] == INF:
+                    dist[w] = dist[u] + 1
+                    if w:  # w != 0
+                        queue.append(w)
+        return dist[0] != INF
+    
+    def dfs(u):
+        for v in adj[u]:
+            w = matchR[v]
+            if dist[w] == dist[u] + 1 and (w == 0 or dfs(w)):
+                matchL[u] = v
+                matchR[v] = u
+                return True
+        dist[u] = INF
+        return False
+    ...
+```
+
+Here dist[0] represents the NIL. When a free right vertex v is found (matchR[v] == 0, i.e., w == 0), dist[0] gets set to dist[u]+1 (first time). The condition `dist[w] == dist[u]+1` with w==0 ensures we only augment at the shortest level. And `dist[u] = INF` after failing prevents revisiting u in this phase. But what about successful paths — vertices on successful paths keep their dist values, so another DFS could route through them? Hmm, if u is on a successful path, then matchL[u] != 0 now... but u could still be reached via the DFS condition: from u', edge to v, w = matchR[v] = u (u is now matched to v). dist[u] == dist[u']+1 could hold, and dfs(u) would be called. Then u tries to find an augmenting path... u's edges: for each v'' adjacent to u, w'' = matchR[v'']. If u is matched to v, then matchR[v] == u, and dist[u] == dist[u]+1 is false, so edge to v won't be followed (unless dist check fails). Other edges v'' with matchR[v''] = w'' where dist[w''] == dist[u]+1 — possible. So u could be re-matched along another path, breaking the previous path? No wait — if dfs(u) succeeds from u', then matchL[u] = v'' (new), matchR[v''] = u. But matchR[v] still equals u! That's a problem: u would be matched to both v and v''. Hmm, no — when dfs(u) succeeds via v'', it sets matchL[u] = v'' and matchR[v''] = u, but the old matchR[v] = u remains, corrupting the matching.
+
+Wait, but in the DFS, when we call dfs(w) where w = matchR[v], and it succeeds, we set matchL[u'] = v and matchR[v] = u'. So the old left partner of v (which is w=u) gets... hmm, w's matchL[w] still points to v. That's the corruption. Let me re-examine: in augmenting along a path, each left vertex on the path gets rematched to the right vertex of the edge used to enter it... Let me trace: path is u0 (free) - v1 - u1 - v2 - u2 - ... - vk (free), where u1 = matchR[v1], u2 = matchR[v2], etc. DFS from u0: edge (u0, v1), w = u1, dfs(u1) recursively. Inside dfs(u1): edge (u1, v2), w = u2, dfs(u2)... eventually dfs(uk-1) finds edge to free vk: matchL[uk-1] = vk, matchR[vk] = uk-1, return True. Then back in dfs(u1) frame... wait no. Let me redo: dfs(u0) calls dfs(u1) after checking edge (u0,v1). Inside dfs(u1), it finds edge (u1, v2) with w=u2, calls dfs(u2). Suppose dfs(u2) succeeds: matchL[u2] = v3 (some free or whatever), matchR[v3] = u2. Hmm wait, I need to be careful about which edge gets assigned.
+
+In dfs(u): for v in adj[u]: w = matchR[v]; if dist[w] == dist[u]+1 and (w == 0 or dfs(w)): matchL[u] = v; matchR[v] = u; return True.
+
+So when dfs(u) succeeds via edge (u, v): the recursive call dfs(w) where w = matchR[v] has already rematched w to some other right vertex (in the deeper recursion). Then u takes v. So the reassignment cascades correctly: w gives up v and takes something else deeper. So matchR[v] = u overwrites the old matchR[v] = w, and w's matchL[w] was already overwritten in the deeper recursion. So no corruption along a single augmenting path. 
+
+Now the concern: could a left vertex u be visited twice in the same phase, once successfully and once again? After dfs(u) succeeds, dist[u] is unchanged (still dist[u] from BFS). If another DFS from a different free root reaches u via edge (u', v) with matchR[v] == u and dist[u] == dist[u']+1, then dfs(u) is called again. Inside, u scans its edges for v'' with matchR[v''] = w'' where dist[w''] == dist[u]+1 and dfs(w'') succeeds. If it succeeds, u gets rematched to v'', and matchR[v''] = u. But u's previous right partner v (from the earlier successful path) still has matchR[v] = u. And u's matchL[u] = v''. So now matchR[v] = u and matchR[v''] = u — u matched to two right vertices. Corruption!
+
+Hmm wait, but is that actually possible in HK? Let me think about whether the dist condition prevents it. After the first successful path through u, u is matched (it was matched before too, since it was reached as matchR[v] for some v). Hmm, u was matched before the phase started (to some v0), and after the successful path, u is matched to a different right vertex. The BFS dist values are from the start of the phase.
+
+Actually, I recall that in the standard HK implementation, this issue is handled: the DFS marks vertices as visited. Let me check the classic implementation from e-maxx / competitive programming:
+
+```
+bool try_kuhn(int u) ...
+```
+
+No, that's Kuhn. The classic HK:
+
+```cpp
+bool bfs() {
+    queue<int> q;
+    for (int u = 1; u <= n; u++) {
+        if (!matchL[u]) { dist[u] = 0; q.push(u); }
+        else dist[u] = INF;
+    }
+    dist[NIL] = INF;
+    while (!q.empty()) {
+        int u = q.front(); q.pop();
+        if (dist[u] < dist[NIL]) {
+            for (int v : adj[u]) {
+                int w = matchR[v];
+                if (dist[w] == INF) {
+                    dist[w] = dist[u] + 1;
+                    if (w != NIL) q.push(w);
+                }
+            }
+        }
+    }
+    return dist[NIL] != INF;
+}
+
+bool dfs(int u) {
+    if (u == NIL) return true;
+    for (int v : adj[u]) {
+        int w = matchR[v];
+        if (dist[w] == dist[u] + 1 && dfs(w)) {
+            matchL[u] = v;
+            matchR[v] = u;
+            return true;
+        }
+    }
+    dist[u] = INF;
+    return false;
+}
+```
+
+Note: here dfs(NIL) returns true, and the condition is dist[w] == dist[u]+1 where w can be NIL. The key: `dist[u] = INF` is set when dfs(u) fails. But when dfs(u) succeeds, dist[u] is not reset. So can u be visited again after success?
+
+Hmm, in this formulation, when dfs(u) succeeds, u is rematched. For u to be visited again, some dfs(u') must find edge (u', v) with matchR[v] == u and dist[u] == dist[u']+1. Since dist[u] is unchanged, this is possible in principle. But then dfs(u) is called again, and it scans u's edges. Note that the edge (u, v) — wait, v here is u's OLD right partner? No: matchR[v] == u means v is u's current partner. In dfs(u), the loop looks at edges (u, v'') and checks dist[matchR[v'']] == dist[u]+1. The edge to its current partner v: matchR[v] == u, dist[u] == dist[u]+1 is false (dist[u] < dist[u]+1), so that edge is skipped. Other edges could lead to success, causing double-matching as I described.
+
+Hmm wait, but actually let me reconsider. Is it truly possible for a left vertex to be on two augmenting paths in the same phase in HK? The theory says the DFS phase finds a maximal set of vertex-disjoint shortest augmenting paths. The implementation achieves vertex-disjointness how?
+
+Let me think again. After dfs(u) succeeds via edge (u, v): matchR[v] = u, matchL[u] = v. For another dfs(u') to reach u, it needs edge (u', v''') with matchR[v'''] == u. But matchR[v'''] == u means v''' is currently matched to u — v''' = v (u's new partner). So u' must have an edge to v, u's current partner. Then dfs(u) is called. Inside dfs(u), it looks for edges (u, x) with dist[matchR[x]] == dist[u]+1. Note matchR[v] == u and dist[u] != dist[u]+1, so edge (u,v) is skipped. For dfs(u) to succeed again, it needs some other edge (u, x), x != v, with matchR[x] = w, dist[w] == dist[u]+1, and dfs(w) succeeding. If that happens, u gets rematched to x, and matchR[v] remains u — corruption (u matched to both v and x from matchR's perspective; matchL[u] = x).
+
+Hmm, so is the classic implementation buggy? Let me think more carefully... Actually wait. I think I'm misremembering; let me reconsider. In the classic implementation, after dfs(u) succeeds, is there something preventing re-entry? 
+
+Hmm, let me think about the structure. dist values: dist[u] is the BFS layer of u. In the DFS, we only move from layer d to layer d+1 (via matched edges from right to left: from u at layer d, edge to v, then w = matchR[v] at layer d+1). Augmenting happens when w == NIL (dist[NIL] == dist[u]+1).
+
+Claim: if dfs(u) succeeds, then u is on an augmenting path found in this phase. For u to be on a second augmenting path, the second path must enter u via u's current matched edge. But hold on — after the first path, u's matched edge changed. The second path enters u via edge (u', v) where matchR[v] == u, i.e., v is u's partner AFTER the first augmentation. The first path used u via edge... let me think about the first path: it entered u via edge (u0, v0) where matchR[v0] == u (u's partner before), and left u via edge (u, v1) where the deeper recursion matched u to v1. So after the first path, u's partner is v1.
+
+Second path enters u via v1 (u's new partner). For the second path to also use u, it must leave via some edge (u, v2) with dist[matchR[v2]] == dist[u]+1 and dfs succeeding. But here's the thing: dist[matchR[v2]] — matchR[v2] is the current partner of v2. Hmm.
+
+Actually, you know what — I recall that the standard implementation IS correct, and the reason is subtle. Let me look it up mentally... The Wikipedia implementation of Hopcroft-Karp:
+
+```python
+def bfs():
+    for u in range(1, n+1):
+        if pair_u[u] == NIL:
+            dist[u] = 0
+            queue.append(u)
+        else:
+            dist[u] = INF
+    dist[NIL] = INF
+    while queue:
+        u = queue.popleft()
+        if dist[u] < dist[NIL]:
+            for v in adj[u]:
+                if dist[pair_v[v]] == INF:
+                    dist[pair_v[v]] = dist[u] + 1
+                    queue.append(pair_v[v])
+    return dist[NIL] != INF
+
+def dfs(u):
+    if u != NIL:
+        for v in adj[u]:
+            if dist[pair_v[v]] == dist[u] + 1:
+                if dfs(pair_v[v]):
+                    pair_v[v] = u
+                    pair_u[u] = v
+                    return True
+        dist[u] = INF
+        return False
+    return True
+```
+
+Same structure. Hmm. So the question of vertex-disjointness: I believe the correctness argument is that the DFS phase finds vertex-disjoint paths because... hmm.
+
+OK here's the thing. Let me think about whether double-visit can actually cause corruption, or whether it's prevented by the dist layering.
+
+Suppose dfs(u) succeeds via edge (u, v1) — meaning before that, deeper recursion succeeded, and u was previously matched to v0 (the edge by which the path entered u). After: matchL[u] = v1, matchR[v1] = u, matchR[v0] = u still?? Wait no! Let me re-trace. dfs(u) is called from dfs(u_prev) which examined edge (u_prev, v0) with matchR[v0] == u. Inside dfs(u), it finds edge (u, v1) with w1 = matchR[v1], dist[w1] == dist[u]+1, and dfs(w1) succeeds. Then matchL[u] = v1, matchR[v1] = u. Note matchR[v0] was u and is NOT changed by dfs(u) — it's changed by dfs(u_prev) AFTER dfs(u) returns true: matchR[v0] = u_prev, matchL[u_prev] = v0. So the cascade: each left vertex on the path gives its old partner to the previous left vertex. Good, no corruption within one path.
+
+Now the double-visit scenario: after the first path, u's partner is v1. Second path: dfs(u') examines edge (u', v1), matchR[v1] == u, dist[u] == dist[u']+1, calls dfs(u). Inside dfs(u): scans edges (u, x). For x = v1: matchR[v1] == u, dist[u] == dist[u]+1? No. Skip. For other x: w = matchR[x]. If dist[w] == dist[u]+1 and dfs(w) succeeds, then matchL[u] = x, matchR[x] = u. But matchR[v1] == u still (it's only overwritten by dfs(u') after dfs(u) returns true: matchR[v1] = u'). Oh wait! dfs(u') sets matchR[v1] = u' after dfs(u) returns true. So matchR[v1] = u' — that's fine, u' takes over v1. And matchR[x] = u, matchL[u] = x. So actually there's no corruption! The cascade handles it: u gives up v1 to u' and takes x. 
+
+Hmm interesting. So the "corruption" I worried about doesn't happen because the caller overwrites matchR[v] after the recursive call. The matching remains consistent: matchR[v1] = u', matchL[u'] = v1; matchR[x] = u, matchL[u] = x. The invariant matchR[matchL[u]] == u is maintained as long as each dfs call that succeeds properly reassigns. Let me verify the invariant: after dfs(u) succeeds via edge (u, x): matchL[u] = x, matchR[x] = u. ✓. The old partner v1 of u: matchR[v1] was u; the caller (dfs(u')) will set matchR[v1] = u' and matchL[u'] = v1. ✓. But wait — what if dfs(u) succeeds but the CALLER dfs(u') then FAILS? No — if dfs(u) returns true, dfs(u') immediately sets matchL[u'] = v1, matchR[v1] = u' and returns true. The success propagates all the way up. So any successful dfs chain results in a full augmenting path being applied. ✓.
+
+But hold on — there's still a subtle issue: what if dfs(u) succeeds, and later another dfs(u'') reaches u again and dfs(u) succeeds again — that's fine per above (u just gets rematched again, cascade works). What if dfs(u) succeeds the first time, and the second time dfs(u) FAILS?

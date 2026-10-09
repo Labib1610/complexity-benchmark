@@ -1,19 +1,18 @@
-# Channel Allocation
+# Problem B — Day and Night
 
-Time limit: 1 s
-Memory limit: 256 MB
+Time limit: 1 s   Memory limit: 256 MB
 
-A fleet of $n$ autonomous surveying vessels must each be assigned to one of two communication channels, designated as channel 1 and channel 2. During the survey, certain pairs of vessels will operate in close proximity. If two vessels in close proximity broadcast on the same channel, their signals will interfere. You are given $m$ records of such vessel pairs.
+A manufacturing facility employs $n$ workers, who are identified by integers from 1 to $n$. The facility operates continuously by utilizing exactly two distinct work periods: shift 1 and shift 2. Over time, management has compiled a list of $m$ specific pairs of workers who cannot collaborate effectively. A strict operational rule dictates that any two workers who form one of these incompatible pairs must be assigned to completely different work periods.
 
-Your task is to assign a channel to every vessel such that no two vessels in close proximity share the same channel, or determine that this is impossible. If there are multiple valid ways to assign the channels, you must output the configuration that produces the lexicographically smallest sequence of channel assignments for vessels 1 through $n$.
+Your task is to determine whether the entire workforce can be distributed between the two shifts in complete compliance with this operational rule. If a compliant distribution exists, you must provide the specific assignment sequence $s_1, s_2, \dots, s_n$ (where each $s_i \in \{1, 2\}$ is the shift assigned to worker $i$) that is lexicographically smallest. If no such distribution is possible, you must report that it cannot be done.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$), representing the number of vessels and the number of proximity records.
-Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$), indicating that vessel $u$ and vessel $v$ will operate in close proximity.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$).
+Each of the next $m$ lines contains two integers $u$ and $v$ — representing a pair of workers who cannot collaborate.
 
 ## Output
-If no assignment can prevent all interference, print a single line containing `NO`.
-Otherwise, print `YES` on the first line. On the second line, print $n$ integers $s_1, \ldots, s_n$ (each $s_i \in \{1, 2\}$), representing the lexicographically smallest valid channel assignment.
+If there is no way to assign the shifts without violating the operational rule, print a single line containing NO.
+Otherwise, print YES on the first line. On the second line, print $n$ space-separated integers $s_1, s_2, \dots, s_n$ (each either 1 or 2), representing the lexicographically smallest valid assignment of shifts.
 
 ## Example 1
 Input:

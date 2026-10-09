@@ -1,0 +1,105 @@
+import sys
+sys.setrecursionlimit(300000)
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    # Build implication graph
+    # Node 2*i represents hub i+1 is ACTIVE (1)
+    # Node 2*i+1 represents hub i+1 is DORMANT (0)
+    # Total 2*n nodes
+    N = 2 * n
+    adj = [[] for _ in range(N)]
+    radj = [[] for _ in range(N)]
+    
+    for _ in range(m):
+        l1 = int(next(it))
+        l2 = int(next(it))
+        
+        # Determine nodes for each condition
+        # l > 0: hub l is ACTIVE -> node 2*(l-1)
+        # l < 0: hub |l| is DORMANT -> node 2*(|l|-1)+1
+        def get_node(x):
+            if x > 0:
+                return 2 * (x - 1)
+            else:
+                return 2 * ((-x) - 1) + 1
+        
+        u = get_node(l1)
+        v = get_node(l2)
+        
+        # Clause (u OR v): add edges (not u -> v) and (not v -> u)
+        nu = u ^ 1
+        nv = v ^ 1
+        
+        adj[nu].append(v)
+        adj[nv].append(u)
+        radj[v].append(nu)
+        radj[u].append(nv)
+    
+    # Kosaraju's algorithm for SCC
+    visited = [False] * N
+    order = []
+    
+    def dfs1(u):
+        stack = [(u, 0)]
+        while stack:
+            node, idx = stack[-1]
+            if not visited[node]:
+                visited[node] = True
+            if idx < len(adj[node]):
+                neighbor = adj[node][idx]
+                stack[-1] = (node, idx + 1)
+                if not visited[neighbor]:
+                    stack.append((neighbor, 0))
+            else:
+                stack.pop()
+                order.append(node)
+    
+    for i in range(N):
+        if not visited[i]:
+            dfs1(i)
+    
+    comp = [-1] * N
+    cid = 0
+    
+    def dfs2(u, label):
+        stack = [u]
+        while stack:
+            node = stack.pop()
+            if comp[node] == -1:
+                comp[node] = label
+                for neighbor in radj[node]:
+                    if comp[neighbor] == -1:
+                        stack.append(neighbor)
+    
+    for u in reversed(order):
+        if comp[u] == -1:
+            dfs2(u, cid)
+            cid += 1
+    
+    # Check for contradiction: x and not x in same SCC
+    for i in range(n):
+        if comp[2*i] == comp[2*i+1]:
+            print("NO")
+            return
+    
+    # Construct assignment
+    # If comp[x] > comp[not x], then x must be true
+    assignment = [0] * n
+    for i in range(n):
+        if comp[2*i] > comp[2*i+1]:
+            assignment[i] = 1
+        else:
+            assignment[i] = 0
+    
+    print("YES")
+    print(' '.join(map(str, assignment)))
+
+if __name__ == "__main__":
+    solve()

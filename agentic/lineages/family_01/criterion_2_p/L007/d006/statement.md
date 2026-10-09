@@ -1,30 +1,25 @@
-# Problem B — Resonant Foundations
+# Problem B — Network Configurations
 
 Time limit: 1 s
 Memory limit: 256 MB
 
-The structural integrity of a new skyscraper depends on $n$ primary load-bearing pillars, numbered 1 to $n$. The engineering firm must select a concrete composite grade for each pillar. The approved composite grades are exactly 1 and 2.
+A communication grid consists of $n$ radio towers. The available protocol suite consists of exactly two protocols, designated 1 and 2. 
+You need to assign each tower $i$ a primary active protocol $f_i \in \{1, 2\}$. The protocol not chosen by tower $i$ automatically becomes its inactive backup protocol.
 
-To mitigate wind-induced vibrations, the design includes $m$ acoustic dampeners. Each dampener spans between a specific pair of pillars. A dampener's ability to properly distribute stress depends on the characteristic vectors of the two pillars it connects.
+There are $m$ critical links between specific pairs of towers. 
 
-For a pillar $i$ with composite grade $c_i$, its 3D characteristic vector $\vec{v}_i$ is defined as:
-* If $c_i = 1$, $\vec{v}_i = (1, 2, 3)$.
-* If $c_i = 2$, $\vec{v}_i = (3, 1, 2)$.
+To establish a successful bidirectional handshake across a critical link between tower $u$ and tower $v$, the hardware requires a strict cross-protocol allocation. Specifically, the primary active protocol of tower $u$ must exactly match the inactive backup protocol of tower $v$. (Because the link is symmetric, this simultaneously ensures the primary active protocol of tower $v$ matches the inactive backup protocol of tower $u$).
 
-For any dampener connecting pillar $u$ and pillar $v$, its stress dissipation factor is defined as the squared magnitude of the cross product of their characteristic vectors, i.e., $\|\vec{v}_u \times \vec{v}_v\|^2$. 
-*(Note: The cross product of $\vec{A} = (a_1, a_2, a_3)$ and $\vec{B} = (b_1, b_2, b_3)$ is $(a_2 b_3 - a_3 b_2, a_3 b_1 - a_1 b_3, a_1 b_2 - a_2 b_1)$, and the squared magnitude of a vector $(x, y, z)$ is $x^2 + y^2 + z^2$.)*
-
-The skyscraper's vibration control system is considered safe if and only if the sum of the stress dissipation factors across all $m$ dampeners is exactly $75m$.
-
-Your task is to determine if there is a safe composite selection for all $n$ pillars. If multiple safe selections exist, the procurement system requires the one that is lexicographically smallest when represented as a sequence of $n$ composite grades.
+Determine if a valid assignment of primary protocols exists for all towers such that all critical links successfully establish their handshakes. If no such assignment is possible, report impossibility.
 
 ## Input
 The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$).
-Each of the next $m$ lines contains two integers $u$ and $v$ — the indices of the two pillars spanned by a dampener.
+Each of the next $m$ lines contains two integers $u$ and $v$ — a pair of towers connected by a critical link.
 
 ## Output
-If no safe selection exists, print a single line `NO`.
-Otherwise print `YES`, then a second line with $n$ integers $c_1 \dots c_n$ (each being 1 or 2), representing the lexicographically smallest safe selection.
+If no valid assignment exists, print a single line NO.
+Otherwise print YES, then a second line with $n$ integers $f_1 \dots f_n$ (each in $\{1,2\}$). 
+If multiple valid assignments exist, you must resolve ties by choosing the assignment that assigns the smallest possible protocol to tower 1. If ties remain, among those, choose the one that assigns the smallest possible protocol to tower 2, and continue this sequential preference for smaller protocols up to tower $n$ (this is equivalent to the lexicographically smallest valid assignment).
 
 ## Example 1
 Input:

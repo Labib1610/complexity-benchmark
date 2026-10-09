@@ -1,0 +1,116 @@
+import sys
+from collections import deque
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    q = int(next(it))
+    t = int(next(it))
+    
+    # Controllers: 1..q, Platforms: q+1..2q
+    # We'll use 0-based indexing internally for arrays
+    # Controllers: 0..q-1, Platforms: q..2q-1 (in 0-based)
+    # But for output we need 1-based
+    
+    n_left = q
+    n_right = q
+    total_nodes = n_left + n_right + 2
+    source = 0
+    sink = total_nodes - 1
+    
+    # Build adjacency list for Dinic's algorithm
+    adj = [[] for _ in range(total_nodes)]
+    capacity = []
+    
+    def add_edge(u, v, cap):
+        adj[u].append(len(capacity))
+        capacity.append([v, cap, 0])  # to, capacity, flow
+        adj[v].append(len(capacity))
+        capacity.append([u, 0, 0])    # reverse edge
+    
+    # Source to controllers (1..q in 1-based -> 1..q in our graph)
+    for i in range(1, n_left + 1):
+        add_edge(source, i, 1)
+    
+    # Platforms to sink (q+1..2q in 1-based -> n_left+1..n_left+n_right in our graph)
+    for j in range(n_left + 1, n_left + n_right + 1):
+        add_edge(j, sink, 1)
+    
+    # Read edges and add them
+    edges_info = []
+    for _ in range(t):
+        a = int(next(it))
+        b = int(next(it))
+        # a is controller (1..q), b is platform (q+1..2q)
+        # In our graph: a stays as a, b stays as b
+        edges_info.append((a, b))
+        add_edge(a, b, 1)
+    
+    # Dinic's algorithm
+    level = [0] * total_nodes
+    ptr = [0] * total_nodes
+    
+    def bfs():
+        nonlocal level
+        level = [-1] * total_nodes
+        level[source] = 0
+        queue = deque([source])
+        while queue:
+            u = queue.popleft()
+            for edge_idx in adj[u]:
+                v, cap, flow = capacity[edge_idx]
+                if cap > flow and level[v] == -1:
+                    level[v] = level[u] + 1
+                    queue.append(v)
+        return level[sink] != -1
+    
+    def dfs(u, pushed):
+        if pushed == 0 or u == sink:
+            return pushed
+        for i in range(ptr[u], len(adj[u])):
+            ptr[u] = i
+            edge_idx = adj[u][i]
+            v, cap, flow = capacity[edge_idx]
+            if level[v] != level[u] + 1:
+                continue
+            tr = dfs(v, min(pushed, cap - flow))
+            if tr != 0:
+                capacity[edge_idx][2] += tr
+                capacity[edge_idx ^ 1][2] -= tr
+                return tr
+        return 0
+    
+    max_flow = 0
+    while bfs():
+        ptr = [0] * total_nodes
+        while True:
+            pushed = dfs(source, float('inf'))
+            if pushed == 0:
+                break
+            max_flow += pushed
+    
+    if max_flow != q:
+        print("NO")
+        return
+    
+    print("YES")
+    
+    # Find the matching edges
+    # For each controller, find which platform it's matched to
+    matching = [0] * (q + 1)  # matching[a] = b if matched
+    
+    for a in range(1, q + 1):
+        for edge_idx in adj[a]:
+            v, cap, flow = capacity[edge_idx]
+            # We only care about edges to platforms (not back to source)
+            if v > q and v <= 2 * q and flow == 1:
+                matching[a] = v
+                break
+    
+    for a in range(1, q + 1):
+        print(f"{a} {matching[a]}")
+
+if __name__ == "__main__":
+    solve()

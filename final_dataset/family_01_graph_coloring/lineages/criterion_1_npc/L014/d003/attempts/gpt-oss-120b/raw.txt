@@ -1,0 +1,99 @@
+```python
+import sys
+
+sys.setrecursionlimit(10000)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    adj = [set() for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u].add(v)
+        adj[v].add(u)
+
+    # domain bitmask: bit 0->color1, bit1->color2, bit2->color3
+    ALL = 0b111
+    domain = [ALL] * n
+    assign = [-1] * n  # -1 unassigned, else 0/1/2
+
+    # order vertices by degree for tie-breaking
+    degree = [len(adj[i]) for i in range(n)]
+
+    # MRV selection
+    def select_vertex():
+        v = -1
+        best = 4  # more than max colors
+        for i in range(n):
+            if assign[i] == -1:
+                cnt = domain[i].bit_count()
+                if cnt < best or (cnt == best and degree[i] > degree[v]):
+                    best = cnt
+                    v = i
+        return v
+
+    # propagate assignment of color c (0/1/2) to vertex v
+    def propagate(v, c, changes):
+        # assign
+        assign[v] = c
+        # remove all colors from domain except c
+        old = domain[v]
+        domain[v] = 1 << c
+        changes.append((v, old))
+        # neighbors cannot use c
+        mask = ~(1 << c) & ALL
+        for u in adj[v]:
+            if assign[u] == -1:
+                if domain[u] & (1 << c):
+                    old_u = domain[u]
+                    domain[u] &= mask
+                    changes.append((u, old_u))
+                    if domain[u] == 0:
+                        return False
+        return True
+
+    def undo(changes):
+        for v, old in reversed(changes):
+            if assign[v] != -1 and domain[v] == (1 << assign[v]) and old != domain[v]:
+                # was a neighbor reduction, keep assign unchanged
+                pass
+            assign[v] = -1 if old != (1 << assign[v]) else assign[v]
+            domain[v] = old
+
+    def dfs():
+        # check if all assigned
+        if all(a != -1 for a in assign):
+            return True
+        v = select_vertex()
+        possible = domain[v]
+        # try each color
+        for c in range(3):
+            if possible & (1 << c):
+                changes = []
+                ok = propagate(v, c, changes)
+                if ok and dfs():
+                    return True
+                # revert
+                for vv, old in reversed(changes):
+                    domain[vv] = old
+                    if assign[vv] != -1 and old != (1 << assign[vv]):
+                        # neighbor domain restored, keep assign unchanged
+                        pass
+                assign[v] = -1
+        return False
+
+    # quick check: if any vertex has degree > 2* (colors-1)? not needed
+    if dfs():
+        print("YES")
+        print(' '.join(str(assign[i] + 1) for i in range(n)))
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()
+```

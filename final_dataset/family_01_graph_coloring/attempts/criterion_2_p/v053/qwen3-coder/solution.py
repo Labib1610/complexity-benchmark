@@ -1,0 +1,59 @@
+import sys
+from collections import defaultdict, deque
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    edges = []
+    index = 2
+    for _ in range(m):
+        u = int(data[index])
+        v = int(data[index+1])
+        edges.append((u-1, v-1))  # Convert to 0-based indexing
+        index += 2
+    
+    # Build adjacency list
+    adj = [[] for _ in range(n)]
+    for u, v in edges:
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # Color array: -1 unvisited, 0 color0, 1 color1
+    color = [-1] * n
+    queue = deque()
+    
+    # Check bipartiteness using BFS for each component
+    for start in range(n):
+        if color[start] == -1:
+            queue.append(start)
+            color[start] = 0
+            while queue:
+                u = queue.popleft()
+                current_color = color[u]
+                next_color = 1 - current_color
+                for v in adj[u]:
+                    if color[v] == -1:
+                        color[v] = next_color
+                        queue.append(v)
+                    elif color[v] != next_color:
+                        print("NO")
+                        return
+    
+    # If bipartite, construct lexicographically smallest coloring
+    result = [0] * n
+    for i in range(n):
+        if color[i] == 0:
+            result[i] = 1
+        else:
+            result[i] = 2
+            
+    print("YES")
+    print(' '.join(map(str, result)))
+
+if __name__ == "__main__":
+    main()

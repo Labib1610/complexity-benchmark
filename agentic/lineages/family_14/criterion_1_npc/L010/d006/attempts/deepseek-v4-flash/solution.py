@@ -1,0 +1,104 @@
+import sys
+import heapq
+
+input = sys.stdin.readline
+
+n, m, t = map(int, input().split())
+targets = list(map(int, input().split()))
+target_set = set(targets)
+
+# Build adjacency list
+graph = [[] for _ in range(n + 1)]
+for _ in range(m):
+    u, v, w = map(int, input().split())
+    graph[u].append((v, w))
+    graph[v].append((u, w))
+
+# If only one target, cost is 0
+if t == 1:
+    print(0)
+    sys.exit()
+
+# Dijkstra from each target to all nodes
+INF = 10**18
+dist = [[INF] * (n + 1) for _ in range(t)]
+for i, start in enumerate(targets):
+    d = dist[i]
+    d[start] = 0
+    pq = [(0, start)]
+    while pq:
+        du, u = heapq.heappop(pq)
+        if du != d[u]:
+            continue
+        for v, w in graph[u]:
+            if d[v] > du + w:
+                d[v] = du + w
+                heapq.heappush(pq, (d[v], v))
+
+# DP over subsets of targets
+# dp[mask][i] = min cost to connect targets in mask, ending at target i
+dp = [[INF] * t for _ in range(1 << t)]
+for i in range(t):
+    dp[1 << i][i] = 0
+
+for mask in range(1 << t):
+    for i in range(t):
+        if dp[mask][i] == INF:
+            continue
+        # Try to connect to another target
+        for j in range(t):
+            if not (mask & (1 << j)):
+                nmask = mask | (1 << j)
+                cost = dist[i][targets[j]]
+                if dp[nmask][j] > dp[mask][i] + cost:
+                    dp[nmask][j] = dp[mask][i] + cost
+        # Try to merge two subsets
+        sub = (mask - 1) & mask
+        while sub:
+            other = mask ^ sub
+            if sub > other:  # avoid double work
+                sub = (sub - 1) & mask
+                continue
+            for i in range(t):
+                if not (mask & (1 << i)):
+                    continue
+                for j in range(t):
+                    if not (other & (1 << j)):
+                        continue
+                    # merge cost is min over connecting i and j
+                    # but we already have dp for sub and other
+                    pass
+            sub = (sub - 1) & mask
+
+# The above merging is tricky; simpler: use standard Steiner DP
+# dp[mask][v] = min cost to connect targets in mask with tree rooted at v
+dp2 = [[INF] * (n + 1) for _ in range(1 << t)]
+for i, target in enumerate(targets):
+    dp2[1 << i][target] = 0
+
+for mask in range(1 << t):
+    # merge subsets
+    sub = (mask - 1) & mask
+    while sub:
+        other = mask ^ sub
+        if sub < other:
+            for v in range(1, n + 1):
+                dp2[mask][v] = min(dp2[mask][v], dp2[sub][v] + dp2[other][v])
+        sub = (sub - 1) & mask
+    # relax via Dijkstra
+    pq = []
+    for v in range(1, n + 1):
+        if dp2[mask][v] < INF:
+            heapq.heappush(pq, (dp2[mask][v], v))
+    while pq:
+        du, u = heapq.heappop(pq)
+        if du != dp2[mask][u]:
+            continue
+        for v, w in graph[u]:
+            if dp2[mask][v] > du + w:
+                dp2[mask][v] = du + w
+                heapq.heappush(pq, (dp2[mask][v], v))
+
+full_mask = (1 << t) - 1
+ans = min(dp2[full_mask][v] for v in range(1, n + 1))
+print(ans)

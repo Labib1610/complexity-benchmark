@@ -1,0 +1,70 @@
+import sys
+
+def main():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    nL = int(input_data[0])
+    nR = int(input_data[1])
+    m = int(input_data[2])
+    
+    if m == 0:
+        print("YES")
+        print()
+        return
+
+    edge_at = [dict() for _ in range(nL + nR + 1)]
+    ans = [0] * m
+    
+    idx = 3
+    for e_idx in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx + 1]) + nL
+        idx += 2
+        
+        u_dict = edge_at[u]
+        v_dict = edge_at[v]
+        
+        c1 = 1
+        while c1 in u_dict:
+            c1 += 1
+            
+        c2 = 1
+        while c2 in v_dict:
+            c2 += 1
+            
+        if c1 == c2:
+            u_dict[c1] = (v, e_idx)
+            v_dict[c1] = (u, e_idx)
+            ans[e_idx] = c1
+            continue
+        
+        p_edges = []
+        curr = v
+        c = c1
+        while c in edge_at[curr]:
+            nxt, e = edge_at[curr][c]
+            p_edges.append((curr, nxt, e, c))
+            curr = nxt
+            c = c2 if c == c1 else c1
+            
+        for cur_node, nxt_node, e, col in p_edges:
+            del edge_at[cur_node][col]
+            del edge_at[nxt_node][col]
+            
+        for cur_node, nxt_node, e, col in p_edges:
+            ncol = c2 if col == c1 else c1
+            ans[e] = ncol
+            edge_at[cur_node][ncol] = (nxt_node, e)
+            edge_at[nxt_node][ncol] = (cur_node, e)
+            
+        edge_at[u][c1] = (v, e_idx)
+        edge_at[v][c1] = (u, e_idx)
+        ans[e_idx] = c1
+        
+    print("YES")
+    print(*(ans[i] for i in range(m)))
+
+if __name__ == '__main__':
+    main()

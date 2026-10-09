@@ -14,41 +14,42 @@ def solve() -> None:
         adj[u].append(v)
         adj[v].append(u)
 
-    parity = [-1] * (n + 1)          # temporary 0/1 inside component
-    answer = [0] * (n + 1)           # final 1/2
+    color = [-1] * (n + 1)          # 0/1 bipartite colors
+    ans = [0] * (n + 1)             # final 1/2 values
 
     for start in range(1, n + 1):
-        if parity[start] != -1:
+        if color[start] != -1:
             continue
         # BFS this component
         q = deque([start])
-        parity[start] = 0
-        comp = [start]
+        color[start] = 0
+        comp_nodes = [start]
         ok = True
         while q:
             u = q.popleft()
-            pu = parity[u]
             for v in adj[u]:
-                if parity[v] == -1:
-                    parity[v] = pu ^ 1
+                if color[v] == -1:
+                    color[v] = color[u] ^ 1
                     q.append(v)
-                    comp.append(v)
-                elif parity[v] == pu:
-                    # not bipartite
-                    print("NO")
-                    return
-        # decide orientation for lexicographically smallest result
-        vmin = min(comp)
-        if parity[vmin] == 0:
-            for x in comp:
-                answer[x] = 1 if parity[x] == 0 else 2
-        else:
-            for x in comp:
-                answer[x] = 1 if parity[x] == 1 else 2
+                    comp_nodes.append(v)
+                elif color[v] == color[u]:
+                    ok = False
+                    break
+            if not ok:
+                break
+        if not ok:
+            print("NO")
+            return
 
-    # all components processed successfully
-    out = ["YES", " ".join(str(answer[i]) for i in range(1, n + 1))]
-    sys.stdout.write("\n".join(out))
+        # decide flip so that smallest index gets final value 1
+        min_node = min(comp_nodes)
+        flip = (color[min_node] == 1)   # if its current color is 1, we need to invert
+        for v in comp_nodes:
+            final = (color[v] ^ flip)    # 0 -> 1, 1 -> 2 after mapping
+            ans[v] = 1 if final == 0 else 2
+
+    print("YES")
+    print(' '.join(str(ans[i]) for i in range(1, n + 1)))
 
 if __name__ == "__main__":
     solve()

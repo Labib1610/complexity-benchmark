@@ -1,0 +1,37 @@
+def solve():
+    import sys
+    from itertools import combinations
+    
+    # Read input
+    n, m, k = map(int, sys.stdin.readline().split())
+    
+    # Read edges and build adjacency set for quick lookup
+    edges = set()
+    for _ in range(m):
+        u, v = map(int, sys.stdin.readline().split())
+        edges.add((min(u, v), max(u, v)))  # Normalize edge representation
+    
+    # Generate all possible k-subsets of nodes
+    nodes = list(range(1, n + 1))
+    
+    # Check each combination of k nodes
+    for combo in combinations(nodes, k):
+        # Check if this subset forms an independent set
+        valid = True
+        for i in range(len(combo)):
+            for j in range(i + 1, len(combo)):
+                u, v = combo[i], combo[j]
+                if (min(u, v), max(u, v)) in edges:
+                    valid = False
+                    break
+            if not valid:
+                break
+        
+        if valid:
+            print("YES")
+            print(" ".join(map(str, combo)))
+            return
+    
+    print("NO")
+
+solve()

@@ -1,0 +1,85 @@
+import sys
+
+# Increase recursion depth just in case
+sys.setrecursionlimit(10000)
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    q = int(input_data[0])
+    t = int(input_data[1])
+    
+    triplets = []
+    idx = 2
+    for _ in range(t):
+        a = int(input_data[idx])
+        b = int(input_data[idx+1])
+        c = int(input_data[idx+2])
+        triplets.append((a, b, c))
+        idx += 3
+        
+    n_zones = 3 * q
+    zone_triplets = [[] for _ in range(n_zones + 1)]
+    for i, (a, b, c) in enumerate(triplets):
+        zone_triplets[a].append(i)
+        zone_triplets[b].append(i)
+        zone_triplets[c].append(i)
+        
+    covered = [False] * (n_zones + 1)
+    solution = []
+    
+    # Exact cover using backtracking with MRV heuristic
+    def search(remaining_zones):
+        if remaining_zones == 0:
+            return True
+        
+        # Find uncovered zone with minimum number of valid candidate triplets
+        best_zone = -1
+        min_candidates = float('inf')
+        best_cand_list = None
+        
+        for z in range(1, n_zones + 1):
+            if not covered[z]:
+                # Count valid triplets for zone z
+                valid_triplets = []
+                for trip_idx in zone_triplets[z]:
+                    a, b, c = triplets[trip_idx]
+                    if not covered[a] and not covered[b] and not covered[c]:
+                        valid_triplets.append(trip_idx)
+                
+                num_cands = len(valid_triplets)
+                if num_cands == 0:
+                    return False
+                if num_cands < min_candidates:
+                    min_candidates = num_cands
+                    best_zone = z
+                    best_cand_list = valid_triplets
+                    if min_candidates == 1:
+                        break
+        
+        for trip_idx in best_cand_list:
+            a, b, c = triplets[trip_idx]
+            if not covered[a] and not covered[b] and not covered[c]:
+                covered[a] = covered[b] = covered[c] = True
+                solution.append(trip_idx)
+                
+                if search(remaining_zones - 3):
+                    return True
+                
+                solution.pop()
+                covered[a] = covered[b] = covered[c] = False
+                
+        return False
+
+    if search(n_zones):
+        print("YES")
+        for trip_idx in solution:
+            a, b, c = triplets[trip_idx]
+            print(f"{a} {b} {c}")
+    else:
+        print("NO")
+
+if __name__ == '__main__':
+    solve()

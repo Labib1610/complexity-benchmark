@@ -1,23 +1,22 @@
-# Problem A — Shift Distribution
+# Acoustic Levitation Arrays
 
-Time limit: 2 s
-Memory limit: 256 MB
+Time limit: 2 s   Memory limit: 256 MB
 
-A manufacturing plant employs $n$ workers. To maintain continuous production, the plant operates on three daily shifts, labeled 1, 2, and 3. Each worker must be scheduled for exactly one of these three shifts. 
+You are tasked with tuning an acoustic levitation array consisting of $n$ wave emitters. The acoustic chamber is equipped with a maximum of 40 mounting slots, so the number of emitters will never exceed this capacity. For the system to function, every emitter must be assigned a phase offset. The hardware allows exactly three distinct offset modes, identified by the numeric codes 1, 2, and 3.
 
-Due to historical disagreements, certain pairs of distinct workers cannot be scheduled together. You are given a log of these incompatibilities. If two workers appear together in a conflict record, they are forbidden from sharing the same shift. The conflict logs can form dense, highly interconnected webs of restrictions. The evaluation tests include full-capacity scenarios with intricate conflict structures designed to test the efficiency of your scheduling method, so your approach must be capable of processing demanding configurations.
+Due to the geometry of the system, certain pairs of emitters project sound waves that converge at shared focal points. In total, there are $m$ such pairs. When a pair of emitters targets the same focal point, their acoustic outputs interact. This interaction is modeled by a $2 \times 2$ interference matrix, where the first row contains the numeric codes assigned to the two emitters, and the second row contains the value 1 in both positions. 
 
-Your task is to determine whether it is possible to schedule all $n$ workers into the three shifts without violating any conflict restrictions. If a valid schedule exists, you must find the one that minimizes the objective function $\sum_{i=1}^n s_i \cdot 4^{n-i}$, where $s_i$ is the shift number assigned to worker $i$.
+If this matrix is singular (meaning its determinant is exactly zero), the waves resonate and the interference becomes perfectly constructive. This causes a localized pressure spike that destroys the levitated specimen. Therefore, for the system to operate safely, the interference matrix for the codes assigned to any two emitters that share a focal point must be invertible.
+
+You must determine whether it is possible to assign a safe phase offset code to all $n$ emitters given the list of interacting pairs.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$). The workforce size $n$ is at least 1 and is bounded by the plant's maximum capacity of exactly 40 workstations. The integer $m$ represents the total number of conflict records.
-
-Each of the following $m$ lines contains two integers $u$ and $v$ — a pair of distinct workers who cannot be assigned to the same shift.
+The first line contains two integers $n$ and $m$ — the number of emitters and the number of interacting emitter pairs ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$). Emitters are indexed from $1$ to $n$.
+Each of the subsequent $m$ lines provides two integers $u$ and $v$ ($1 \le u, v \le n$), specifying that emitter $u$ and emitter $v$ share a focal point.
 
 ## Output
-If there is no valid way to assign the shifts, output a single line containing `NO`.
-
-If a valid assignment is possible, output `YES` on the first line. On the second line, output $n$ integers $s_1, s_2, \dots, s_n$ ($s_i \in \{1, 2, 3\}$), where $s_i$ is the shift assigned to worker $i$. If multiple valid assignments exist, output the sequence $s_1, s_2, \dots, s_n$ that minimizes the value of $\sum_{i=1}^n s_i \cdot 4^{n-i}$.
+If a safe tuning is impossible, output a single line containing NO.
+If a valid tuning exists, output YES on the first line. On the second line, output $n$ space-separated integers $p_1, p_2, \dots, p_n$ (where each $p_i \in \{1, 2, 3\}$), representing the offset code assigned to emitter $i$. Any valid array configuration will be accepted.
 
 ## Example 1
 Input:

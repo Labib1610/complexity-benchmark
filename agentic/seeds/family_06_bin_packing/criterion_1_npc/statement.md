@@ -4,20 +4,17 @@ Time limit: 5 s   Memory limit: 256 MB
 
 ## Description
 
-A shipment has **n** indivisible items, item **i** weighing **w[i]**. You have **k** containers, each with the same weight capacity **C**. Each item must be placed whole into exactly one container, and the total weight in any container may not exceed **C**.
-
-Determine whether all items can be loaded into the **k** containers, and if so report a valid loading.
+A dispatch bay must load **n** indivisible parcels, parcel i of weight w[i], into identical containers of capacity **C**. Each parcel goes wholly into one container and no container may exceed C. The bay wants to minimise how many containers leave the dock, and must report that minimum together with a loading achieving it. Parcel shapes, loading order, and handling time are irrelevant; only weights and capacity bind. Filling containers greedily rarely reaches the true minimum, because a locally sensible placement can waste capacity a different grouping would have used. Report the fewest containers needed and one valid assignment achieving it.
 
 ## Input
 
-The first line contains three integers **n**, **k**, and **C** (1 ≤ n ≤ 28, 1 ≤ k ≤ 18, 1 ≤ C ≤ 1 000 000 000).
+The first line contains two integers **n** and **C** (1 ≤ n ≤ 28, 1 ≤ C ≤ 1 000 000 000).
 The second line contains **n** integers **w[1] … w[n]** (1 ≤ w[i] ≤ C), the item weights.
 
 ## Output
 
-If all items can be loaded, print `YES` on the first line, then on the second line print **n** integers where the i-th integer is the container number (from 1 to k) holding item i. Any loading in which no container's total weight exceeds C is accepted.
-
-If the items cannot be loaded into k containers, print `NO`.
+On the first line print the minimum number of containers needed.
+On the second line print **n** integers where the i-th integer is the container number (from 1 to that minimum) holding item i. Any loading that uses the minimum number of containers and never exceeds capacity C is accepted.
 
 ## Examples
 
@@ -25,13 +22,13 @@ If the items cannot be loaded into k containers, print `NO`.
 
 **Input**
 ```
-4 2 10
+4 10
 6 5 4 5
 ```
 
 **Output**
 ```
-YES
+2
 1 2 1 2
 ```
 
@@ -39,29 +36,30 @@ YES
 
 **Input**
 ```
-3 2 10
+3 10
 7 7 7
 ```
 
 **Output**
 ```
-NO
+3
+1 2 3
 ```
 
 ### Example 3
 
 **Input**
 ```
-1 1 5
+1 5
 5
 ```
 
 **Output**
 ```
-YES
+1
 1
 ```
 
 ## Note
 
-In Example 1, containers hold {6, 4} = 10 and {5, 5} = 10, both within capacity. In Example 2, three weight-7 items cannot share two capacity-10 containers.
+In Example 1, two containers suffice: {6, 4} = 10 and {5, 5} = 10. In Example 2, three weight-7 items cannot share a capacity-10 container, so three containers are needed.

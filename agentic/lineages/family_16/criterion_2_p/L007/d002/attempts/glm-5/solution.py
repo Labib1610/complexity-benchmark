@@ -1,0 +1,42 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    j = int(next(it))
+    manuscripts = []
+    for _ in range(j):
+        p1 = int(next(it))
+        p2 = int(next(it))
+        manuscripts.append((p1, p2))
+    
+    # Sort by Johnson's rule:
+    # Group A: p1 <= p2, sort by p1 ascending
+    # Group B: p1 > p2, sort by p2 descending
+    group_a = []
+    group_b = []
+    for p1, p2 in manuscripts:
+        if p1 <= p2:
+            group_a.append((p1, p2))
+        else:
+            group_b.append((p1, p2))
+    
+    group_a.sort(key=lambda x: x[0])
+    group_b.sort(key=lambda x: x[1], reverse=True)
+    
+    order = group_a + group_b
+    
+    # Simulate the flow shop
+    time_calligrapher = 0
+    time_bookbinder = 0
+    for p1, p2 in order:
+        time_calligrapher += p1
+        # Bookbinder starts when both: calligrapher finishes this job, and bookbinder finishes previous
+        time_bookbinder = max(time_calligrapher, time_bookbinder) + p2
+    
+    print(time_bookbinder)
+
+if __name__ == "__main__":
+    solve()

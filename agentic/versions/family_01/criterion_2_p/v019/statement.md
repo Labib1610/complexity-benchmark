@@ -1,20 +1,20 @@
-# Mechanism Design
+# Problem B — Genetic Modification Protocols
 
 Time limit: 1 s   Memory limit: 256 MB
 
-You are assembling a mechanical system consisting of $n$ gears, numbered 1 through $n$. Each gear will spin continuously in one of two directions: 1 (clockwise) or 2 (counter-clockwise).
+You are designing a genetic therapy involving $n$ target genes, numbered 1 through $n$. Each gene must be treated with exactly one of two available enzymes, designated as Enzyme 1 and Enzyme 2.
 
-The system includes $m$ direct engagements between pairs of gears. Whenever two gears are engaged with each other, they must spin in opposite directions to prevent the mechanism from jamming.
+Through clinical trials, you have identified $m$ epistatic interactions between specific pairs of genes. If two genes that share an epistatic interaction are treated with the exact same enzyme, the combined effect produces a toxic response. Therefore, every interacting pair must be treated with different enzymes.
 
-Determine if it is possible to assign a spin direction to every gear such that no two engaged gears spin in the same direction. If it is impossible, report it. If it is possible, and there are multiple valid configurations, you must provide the configuration that is lexicographically smallest when written as a sequence of $n$ integers.
+Determine if there is a safe treatment plan for all $n$ genes. If multiple safe plans exist, you must output the unique plan that prioritizes Enzyme 1. Specifically, if you compare the correct plan to any other valid treatment plan gene by gene starting from gene 1, the correct plan will always feature Enzyme 1 at the first gene where the two plans differ.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$).
-Each of the following $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$), indicating that gear $u$ and gear $v$ are engaged with each other.
+The first line provides two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$), representing the number of genes and the number of epistatic interactions.
+Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$), indicating that gene $u$ and gene $v$ share an epistatic interaction.
 
 ## Output
-If the mechanism will inevitably jam, print a single line containing `NO`.
-Otherwise, print `YES` on the first line. On the second line, print $n$ space-separated integers $s_1, s_2, \dots, s_n$ (each in $\{1, 2\}$), representing the spin directions of gears 1 through $n$ in the lexicographically smallest valid configuration.
+If there is no safe treatment plan that avoids all toxic responses, output a single line containing `NO`.
+If a safe plan is possible, output `YES` on the first line. On the second line, output $n$ integers separated by spaces, where the $i$-th integer (either 1 or 2) represents the enzyme assigned to gene $i$. This sequence must satisfy the priority condition described above.
 
 ## Example 1
 Input:

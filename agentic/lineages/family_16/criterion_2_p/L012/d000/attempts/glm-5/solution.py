@@ -1,0 +1,36 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    j = int(next(it))
+    group1 = []
+    group2 = []
+    for _ in range(j):
+        p1 = int(next(it))
+        p2 = int(next(it))
+        if p1 <= p2:
+            group1.append((p1, p2))
+        else:
+            group2.append((p1, p2))
+    
+    # Sort group1 by p1 ascending
+    group1.sort(key=lambda x: x[0])
+    # Sort group2 by p2 descending
+    group2.sort(key=lambda x: -x[1])
+    
+    # Process in order: group1 then group2
+    time_translator = 0
+    time_proofreader = 0
+    for p1, p2 in group1:
+        time_translator += p1
+        time_proofreader = max(time_translator, time_proofreader) + p2
+    for p1, p2 in group2:
+        time_translator += p1
+        time_proofreader = max(time_translator, time_proofreader) + p2
+    
+    print(time_proofreader)
+
+solve()

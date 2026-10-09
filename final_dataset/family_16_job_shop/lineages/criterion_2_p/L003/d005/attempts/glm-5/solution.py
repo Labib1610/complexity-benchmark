@@ -1,0 +1,29 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    j = int(next(it))
+    datasets = []
+    for _ in range(j):
+        p1 = int(next(it))
+        p2 = int(next(it))
+        datasets.append((p1, p2))
+    
+    # Sort by p2 descending (Johnson's rule for this case)
+    datasets.sort(key=lambda x: -x[1])
+    
+    total_p1 = 0
+    total_time = 0
+    
+    for p1, p2 in datasets:
+        total_p1 += p1
+        # Transformation finishes at max(previous finish time, extraction finish time) + p2
+        total_time = max(total_time, total_p1) + p2
+    
+    print(total_time)
+
+if __name__ == "__main__":
+    solve()

@@ -1,0 +1,84 @@
+import sys
+sys.setrecursionlimit(10000)
+
+def solve():
+    input = sys.stdin.readline
+    n, m = map(int, input().split())
+    edges = []
+    adj = [[] for _ in range(n)]
+    for i in range(m):
+        u, v = map(int, input().split())
+        u -= 1
+        v -= 1
+        edges.append((u, v))
+        adj[u].append((v, i))
+        adj[v].append((u, i))
+
+    # Check if graph is connected
+    visited = [False] * n
+    stack = [0]
+    visited[0] = True
+    while stack:
+        u = stack.pop()
+        for v, _ in adj[u]:
+            if not visited[v]:
+                visited[v] = True
+                stack.append(v)
+    if not all(visited):
+        print("NO")
+        return
+
+    # Find bridges using Tarjan's algorithm
+    tin = [-1] * n
+    low = [-1] * n
+    timer = [0]
+    bridges = set()
+
+    def dfs(v, p_edge):
+        tin[v] = low[v] = timer[0]
+        timer[0] += 1
+        for to, eid in adj[v]:
+            if eid == p_edge:
+                continue
+            if tin[to] != -1:
+                low[v] = min(low[v], tin[to])
+            else:
+                dfs(to, eid)
+                low[v] = min(low[v], low[to])
+                if low[to] > tin[v]:
+                    bridges.add(eid)
+
+    dfs(0, -1)
+    if bridges:
+        print("NO")
+        return
+
+    # 3-edge-coloring via backtracking
+    color = [-1] * m
+    # For each vertex, track used colors
+    used = [0] * n  # bitmask of used colors (bits 0,1,2)
+
+    def backtrack(eid):
+        if eid == m:
+            return True
+        u, v = edges[eid]
+        for c in range(3):
+            if not (used[u] & (1 << c)) and not (used[v] & (1 << c)):
+                color[eid] = c
+                used[u] |= (1 << c)
+                used[v] |= (1 << c)
+                if backtrack(eid + 1):
+                    return True
+                used[u] &= ~(1 << c)
+                used[v] &= ~(1 << c)
+                color[eid] = -1
+        return False
+
+    if backtrack(0):
+        print("YES")
+        print(" ".join(str(c + 1) for c in color))
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()

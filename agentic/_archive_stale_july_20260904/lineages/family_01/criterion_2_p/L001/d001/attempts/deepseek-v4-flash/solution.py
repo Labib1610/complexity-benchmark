@@ -1,0 +1,68 @@
+import sys
+from collections import deque
+
+input = sys.stdin.readline
+
+n, m = map(int, input().split())
+adj = [[] for _ in range(n)]
+for _ in range(m):
+    u, v = map(int, input().split())
+    u -= 1
+    v -= 1
+    adj[u].append(v)
+    adj[v].append(u)
+
+color = [-1] * n
+
+for start in range(n):
+    if color[start] != -1:
+        continue
+    color[start] = 0
+    q = deque([start])
+    while q:
+        u = q.popleft()
+        for v in adj[u]:
+            if color[v] == -1:
+                color[v] = 1 - color[u]
+                q.append(v)
+            elif color[v] == color[u]:
+                print("NO")
+                sys.exit()
+
+# Now we have a valid 2-coloring, but we need lexicographically smallest.
+# We can flip colors in each connected component if it makes the sequence smaller.
+# For each component, check if flipping gives smaller lexicographic order.
+
+visited = [False] * n
+for i in range(n):
+    if visited[i]:
+        continue
+    # collect component
+    comp = []
+    q = deque([i])
+    visited[i] = True
+    while q:
+        u = q.popleft()
+        comp.append(u)
+        for v in adj[u]:
+            if not visited[v]:
+                visited[v] = True
+                q.append(v)
+    # Try both colorings for this component
+    # Current coloring: color as is
+    # Alternative: flip 0<->1
+    # Compare lexicographically
+    current = [color[x] for x in comp]
+    flipped = [1 - color[x] for x in comp]
+    # We need to compare based on original indices order
+    comp_sorted = sorted(comp)
+    cur_seq = [color[x] for x in comp_sorted]
+    flip_seq = [1 - color[x] for x in comp_sorted]
+    if flip_seq < cur_seq:
+        for x in comp:
+            color[x] = 1 - color[x]
+
+# Output
+res = [color[i] + 1 for i in range(n)]
+print("YES")
+print(" ".join(map(str, res)))

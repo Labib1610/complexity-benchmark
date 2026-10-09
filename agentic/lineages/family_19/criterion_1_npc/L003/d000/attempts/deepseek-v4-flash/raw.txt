@@ -1,0 +1,119 @@
+We can model this as a **multi-commodity flow** problem, but since the graph is small enough (n, m, k are not given explicitly, but typical for such problems), we can solve it using **linear programming** or **integer programming** with a library like `scipy` or `pulp`.  
+
+However, since we must output exact integer flows, we can use `scipy.optimize.linprog` with integer constraints via `milp` (available in newer scipy versions).  
+
+Here’s the plan:  
+- Variables: for each item type i and each link j, a non-negative integer variable x[i][j].  
+- Constraints:  
+  - For each link j: sum over i of x[i][j] ≤ limit[j].  
+  - For each item type i and each intermediate station v (not source or target): inflow = outflow.  
+  - For source: outflow − inflow = d_i.  
+  - For target: inflow − outflow = d_i.  
+- Objective: any feasible solution (e.g., minimize 0).  
+
+We’ll use `scipy.optimize.milp` to solve.  
+
+```python
+import sys
+import numpy as np
+from scipy.optimize import milp, LinearConstraint, Bounds
+
+def main():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    k = int(next(it))
+    
+    items = []
+    for _ in range(k):
+        s = int(next(it)) - 1
+        t = int(next(it)) - 1
+        d = int(next(it))
+        items.append((s, t, d))
+    
+    edges = []
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        lim = int(next(it))
+        edges.append((u, v, lim))
+    
+    # Build incidence matrix for each item type
+    # Variables: x[i][j] for i in 0..k-1, j in 0..m-1
+    # Total variables = k*m
+    num_vars = k * m
+    
+    # Constraints:
+    # 1) Link capacity: for each link j, sum_i x[i][j] <= limit[j]
+    # 2) Flow conservation for each item type and each node
+    
+    constraints = []
+    lb = []
+    ub = []
+    
+    # Link capacity constraints
+    for j in range(m):
+        row = np.zeros(num_vars)
+        for i in range(k):
+            row[i*m + j] = 1
+        constraints.append(row)
+        lb.append(-np.inf)
+        ub.append(edges[j][2])
+    
+    # Flow conservation constraints
+    for i in range(k):
+        s, t, d = items[i]
+        # For each node v
+        for v in range(n):
+            row = np.zeros(num_vars)
+            # inflow - outflow
+            for j, (u, w, _) in enumerate(edges):
+                if w == v:
+                    row[i*m + j] += 1  # inflow
+                if u == v:
+                    row[i*m + j] -= 1  # outflow
+            if v == s:
+                # outflow - inflow = d  => inflow - outflow = -d
+                lb.append(-d)
+                ub.append(-d)
+            elif v == t:
+                # inflow - outflow = d
+                lb.append(d)
+                ub.append(d)
+            else:
+                lb.append(0)
+                ub.append(0)
+            constraints.append(row)
+    
+    A = np.array(constraints)
+    lc = LinearConstraint(A, np.array(lb), np.array(ub))
+    
+    # Objective: all zeros (feasibility only)
+    c = np.zeros(num_vars)
+    
+    # Bounds: all variables >= 0, integer
+    bounds = Bounds(np.zeros(num_vars), np.full(num_vars, np.inf))
+    
+    integrality = np.ones(num_vars)  # all integer
+    
+    res = milp(c=c, constraints=lc, bounds=bounds, integrality=integrality)
+    
+    if not res.success:
+        print("NO")
+        return
+    
+    x = res.x
+    # Output
+    print("YES")
+    for i in range(k):
+        row = []
+        for j in range(m):
+            row.append(str(int(round(x[i*m + j]))))
+        print(" ".join(row))
+
+if __name__ == "__main__":
+    main()
+```

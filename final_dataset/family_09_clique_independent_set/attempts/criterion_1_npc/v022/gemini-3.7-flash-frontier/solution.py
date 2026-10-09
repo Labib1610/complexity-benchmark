@@ -1,0 +1,84 @@
+import sys
+
+# Increase recursion depth just in case
+sys.setrecursionlimit(2000)
+
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+
+    n = int(input_data[0])
+    m = int(input_data[1])
+    k = int(input_data[2])
+
+    if k == 0:
+        print("YES")
+        print()
+        return
+
+    adj = [0] * n
+    idx = 3
+    for _ in range(m):
+        u = int(input_data[idx]) - 1
+        v = int(input_data[idx + 1]) - 1
+        idx += 2
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+
+    found = None
+
+    def search(cands, current):
+        nonlocal found
+        if found is not None:
+            return
+        if len(current) == k:
+            found = list(current)
+            return
+        if len(current) + cands.bit_count() < k:
+            return
+
+        # Choose pivot in cands with minimum degree in cands to minimize branching factor
+        pivot = -1
+        min_deg = n + 1
+        temp = cands
+        while temp:
+            lsb = temp & -temp
+            u = lsb.bit_length() - 1
+            deg = (cands & adj[u]).bit_count()
+            if deg < min_deg:
+                min_deg = deg
+                pivot = u
+            temp ^= lsb
+
+        branch_cands = (cands & adj[pivot]) | (1 << pivot)
+        rem = cands
+
+        while branch_cands:
+            lsb = branch_cands & -branch_cands
+            v = lsb.bit_length() - 1
+            branch_cands ^= lsb
+
+            current.append(v + 1)
+            search(rem & ~adj[v] & ~(1 << v), current)
+            current.pop()
+
+            if found is not None:
+                return
+
+            rem ^= 1 << v
+            if len(current) + rem.bit_count() < k:
+                return
+
+    search((1 << n) - 1, [])
+
+    if found is not None:
+        print("YES")
+        print(*(found))
+    else:
+        print("NO")
+
+
+if __name__ == "__main__":
+    solve()

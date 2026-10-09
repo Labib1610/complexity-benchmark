@@ -1,0 +1,28 @@
+import sys
+
+def solve():
+    input = sys.stdin.readline
+    j = int(input())
+    effects = []
+    for _ in range(j):
+        p1, p2 = map(int, input().split())
+        effects.append((p1, p2))
+    
+    # Sort by lighting time descending
+    effects.sort(key=lambda x: x[1], reverse=True)
+    
+    prefix_geom = 0
+    suffix_light = sum(p2 for _, p2 in effects)
+    ans = float('inf')
+    
+    for i in range(j):
+        prefix_geom += effects[i][0]
+        suffix_light -= effects[i][1]
+        total = prefix_geom + suffix_light
+        if total < ans:
+            ans = total
+    
+    print(ans)
+
+if __name__ == "__main__":
+    solve()

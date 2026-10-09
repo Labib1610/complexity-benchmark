@@ -1,0 +1,40 @@
+import sys
+
+def solve():
+    input = sys.stdin.readline
+    n, m = map(int, input().split())
+    adj = [set() for _ in range(n)]
+    for _ in range(m):
+        u, v = map(int, input().split())
+        u -= 1
+        v -= 1
+        adj[u].add(v)
+        adj[v].add(u)
+
+    color = [0] * n  # 0 = uncolored, 1..3 = colors
+
+    # Sort vertices by degree (largest first) for better pruning
+    vertices = list(range(n))
+    vertices.sort(key=lambda x: len(adj[x]), reverse=True)
+
+    def backtrack(idx):
+        if idx == n:
+            return True
+        v = vertices[idx]
+        used = {color[nei] for nei in adj[v] if color[nei] != 0}
+        for c in range(1, 4):
+            if c not in used:
+                color[v] = c
+                if backtrack(idx + 1):
+                    return True
+                color[v] = 0
+        return False
+
+    if backtrack(0):
+        print("YES")
+        print(" ".join(str(color[i]) for i in range(n)))
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()

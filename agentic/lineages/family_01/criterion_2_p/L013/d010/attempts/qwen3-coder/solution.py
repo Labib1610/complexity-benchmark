@@ -1,0 +1,126 @@
+import sys
+from collections import defaultdict, deque
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n, m = int(data[0]), int(data[1])
+    edges = []
+    index = 2
+    adj = [[] for _ in range(n + 1)]
+    
+    for _ in range(m):
+        u = int(data[index])
+        v = int(data[index + 1])
+        index += 2
+        edges.append((u, v))
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # We model this as a 2-SAT problem.
+    # Each gear i has two variables: p[i] = 1 (represented as node 2*i - 1) and p[i] = 2 (node 2*i)
+    # For each constraint p[u] * p[v] = 2, we need:
+    # If p[u]=1, then p[v]=2
+    # If p[u]=2, then p[v]=1
+    # Similarly for p[v].
+    
+    # Build implication graph
+    # Nodes: 1..2*n where 2*i-1 represents p[i]=1, 2*i represents p[i]=2
+    
+    graph = defaultdict(list)
+    reverse_graph = defaultdict(list)
+    
+    def add_implication(x, y):
+        graph[x].append(y)
+        reverse_graph[y].append(x)
+    
+    for u, v in edges:
+        # p[u]*p[v] = 2 means:
+        # if p[u] = 1 => p[v] = 2
+        # if p[u] = 2 => p[v] = 1
+        # if p[v] = 1 => p[u] = 2
+        # if p[v] = 2 => p[u] = 1
+        
+        # u=1 -> v=2 : node 2*u-1 -> 2*v
+        add_implication(2*u - 1, 2*v)
+        # u=2 -> v=1 : node 2*u -> 2*v-1
+        add_implication(2*u, 2*v - 1)
+        # v=1 -> u=2 : node 2*v-1 -> 2*u
+        add_implication(2*v - 1, 2*u)
+        # v=2 -> u=1 : node 2*v -> 2*u-1
+        add_implication(2*v, 2*u - 1)
+        
+    # Now perform Kosaraju's algorithm to find strongly connected components
+    
+    visited = [False] * (2 * n + 1)
+    order = []
+    
+    def dfs1(node):
+        visited[node] = True
+        for neighbor in graph[node]:
+            if not visited[neighbor]:
+                dfs1(neighbor)
+        order.append(node)
+    
+    # First pass of DFS on original graph
+    for i in range(1, 2 * n + 1):
+        if not visited[i]:
+            dfs1(i)
+    
+    # Second pass on transpose graph to get SCCs
+    visited = [False] * (2 * n + 1)
+    scc_id = [0] * (2 * n + 1)
+    scc_count = 0
+    
+    def dfs2(node, cid):
+        visited[node] = True
+        scc_id[node] = cid
+        for neighbor in reverse_graph[node]:
+            if not visited[neighbor]:
+                dfs2(neighbor, cid)
+    
+    # Process nodes in reverse post-order
+    for node in reversed(order):
+        if not visited[node]:
+            scc_count += 1
+            dfs2(node, scc_count)
+    
+    # Check for contradictions: variable and its negation should not be in same SCC
+    for i in range(1, n + 1):
+        var1 = 2 * i - 1  # p[i] = 1
+        var2 = 2 * i      # p[i] = 2
+        if scc_id[var1] == scc_id[var2]:
+            print("NO")
+            return
+    
+    # Extract solution: among the two choices for each variable, pick the one in the later SCC (in topological order)
+    # But since we want lexicographically smallest assignment, we prefer p[i]=1 if possible.
+    # So we check which component comes first in topological order.
+    
+    # Create mapping from SCC id to topological order (reverse of finishing times in first DFS)
+    topo_order = {}
+    topo_index = len(order)
+    for node in order:
+        topo_index -= 1
+        if scc_id[node] not in topo_order:
+            topo_order[scc_id[node]] = topo_index
+            
+    result = [0] * (n + 1)
+    for i in range(1, n + 1):
+        id1 = scc_id[2*i - 1]  # p[i] = 1
+        id2 = scc_id[2*i]      # p[i] = 2
+        ord1 = topo_order[id1]
+        ord2 = topo_order[id2]
+        # Choose the value corresponding to earlier topological order (which will be set to true in 2-SAT)
+        if ord1 < ord2:
+            result[i] = 1
+        else:
+            result[i] = 2
+            
+    print("YES")
+    print(' '.join(map(str, result[1:])))
+
+if __name__ == "__main__":
+    main()

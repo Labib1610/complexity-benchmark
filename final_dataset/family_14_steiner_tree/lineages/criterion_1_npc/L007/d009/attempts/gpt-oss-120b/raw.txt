@@ -1,0 +1,285 @@
+**Solution Explanation**
+
+For a set of transpositions we look at the undirected graph whose edges are the
+chosen transpositions.
+The transpositions generate the whole symmetric group on a set of vertices
+*iff* the vertices are connected in this graph  
+(standard fact: adjacent transpositions of a connected graph generate all
+permutations of its vertices).
+
+Therefore the requirement
+
+*“any function indifferent to all chosen transpositions is also indifferent to
+every swap of two priority coordinates”*
+
+is equivalent to
+
+*“all priority coordinates belong to the same connected component of the
+chosen edges”.*
+
+So we have to pick a minimum‑weight set of edges that connects the given
+`t ( ≤ 10 )` terminal vertices – the **Steiner tree** problem on an undirected
+graph with `n ≤ 100`.
+
+The classic exact DP (Dreyfus‑Wagner) solves it in  
+
+```
+O( 3^t · n + 2^t · m )
+```
+
+which is easily fast for the limits (`t ≤ 10`).
+
+--------------------------------------------------------------------
+
+#### 1.   DP definition  
+
+`term[i]` – the i‑th priority vertex, `i = 0 … t‑1`  
+`FULL = (1<<t) - 1`
+
+`dp[mask][v]` – minimal total weight of a tree that
+
+* connects all terminals whose bits are set in `mask`
+* and whose **root** (any vertex of the tree) is `v`
+
+`mask = 0` is never used.
+
+--------------------------------------------------------------------
+
+#### 2.   Initialisation  
+
+For every terminal `i`
+
+```
+mask = 1<<i
+dp[mask][v] = 0   if v == term[i]
+dp[mask][v] = INF otherwise
+```
+
+--------------------------------------------------------------------
+
+#### 3.   DP transition  
+
+For a fixed `mask ( > 0 )` we first try to split it into two non‑empty
+disjoint parts `s` and `mask ^ s`.  
+If both parts already have trees rooted at the same vertex `v`,
+their union is also a tree rooted at `v`.
+
+```
+dp[mask][v] = min over non‑empty proper submask s of mask
+              ( dp[s][v] + dp[mask ^ s][v] )
+```
+
+After this “merge” step we still may improve the tree by moving the root
+through an edge.  
+That is a shortest‑path relaxation on the original graph:
+
+```
+run Dijkstra (or SPFA) with initial distances = dp[mask][*]
+and edge weight w(u,v)
+=> new dp[mask][*] are the shortest distances from any vertex that already
+   had a tree for this mask.
+```
+
+Processing masks in increasing order of their integer value guarantees that
+when we handle `mask` all its proper submasks have already been completely
+computed (including their Dijkstra relaxations).
+
+--------------------------------------------------------------------
+
+#### 4.   Result  
+
+The Steiner tree may end at any vertex, therefore
+
+```
+answer = min_v dp[FULL][v]
+```
+
+If `t ≤ 1` there is no pair to enforce, the answer is `0`.
+
+--------------------------------------------------------------------
+
+#### 5.   Correctness Proof  
+
+We prove that the algorithm returns the minimum possible total penalty.
+
+---
+
+##### Lemma 1  
+For any `mask` and vertex `v`, after the algorithm finishes processing this
+`mask`, `dp[mask][v]` equals the minimum weight of a tree that
+
+* connects exactly the terminals of `mask`
+* contains `v`
+* and whose total weight is the sum of its edges.
+
+**Proof.** Induction over the number of bits in `mask`.
+
+*Base* `|mask| = 1`.  
+Initialisation sets `dp[mask][v] = 0` for the terminal itself and `INF`
+otherwise. The subsequent Dijkstra computes the shortest paths from that
+terminal, i.e. the cheapest way to reach any vertex `v` with a tree consisting
+of a single path – exactly the definition.
+
+*Induction step.* Assume the statement true for all proper submasks of `mask`.  
+First the merge step considers every partition `mask = s ∪ (mask\ s)` with
+disjoint non‑empty `s`. By induction `dp[s][v]` and `dp[mask\ s][v]` are optimal
+trees for the two parts that both contain `v`. Their union is a tree for the
+whole `mask` still containing `v`, weight the sum, therefore the minimum over
+all partitions is a lower bound for the optimum.
+
+After the merge step we run Dijkstra with these values as sources.
+Dijkstra adds any number of edges to the tree, always keeping the tree
+connected and containing `v`. The shortest‑path distances are exactly the
+minimum possible additional cost to reach each vertex, hence after Dijkstra
+`dp[mask][v]` is the optimum for `mask`. ∎
+
+
+
+##### Lemma 2  
+For the full mask `FULL`, `min_v dp[FULL][v]` equals the minimum total weight of
+a set of edges that connects all priority vertices (a Steiner tree).
+
+**Proof.** By Lemma&nbsp;1 each `dp[FULL][v]` is the cheapest tree connecting all
+terminals and containing `v`. The cheapest among them is therefore the cheapest
+tree connecting all terminals, regardless of which vertex we declare as root.
+∎
+
+
+
+##### Lemma 3  
+A set of edges guarantees the required indifference property **iff** it
+connects all priority vertices.
+
+**Proof.**  
+*If* the edges connect the priority vertices, the graph on all vertices is
+connected on that set, thus the transpositions generate the full symmetric
+group on the priority set, so any function invariant under the chosen
+transpositions is also invariant under any swap of two priority vertices.
+
+*Only‑if* the edges leave two priority vertices in different connected
+components, the transposition of those two vertices cannot be expressed as a
+product of the chosen transpositions (they act on disjoint components). A
+function that depends only on whether the two coordinates are equal distinguishes
+the two components, hence is invariant under all chosen transpositions but not
+under swapping the two priority vertices. ∎
+
+
+
+##### Lemma 4  
+The weight output by the algorithm is achievable and satisfies the problem
+condition.
+
+**Proof.** By Lemma&nbsp;2 the algorithm outputs the weight of a minimum Steiner
+tree `S`. `S` connects all priority vertices, therefore by Lemma&nbsp;3 it
+fulfills the required condition. ∎
+
+
+
+##### Lemma 5  
+No solution with smaller total penalty exists.
+
+**Proof.** Any feasible solution must connect all priority vertices
+(Lemma&nbsp;3), i.e. its edge set is a Steiner tree. Its weight is at least the
+minimum Steiner tree weight, which is exactly the algorithm’s output
+(Lemma&nbsp;2). ∎
+
+
+
+##### Theorem  
+The algorithm prints the minimum possible total penalty.
+
+**Proof.** From Lemma&nbsp;4 the algorithm’s output is feasible.
+From Lemma&nbsp;5 no cheaper feasible solution exists.
+Hence the output is optimal. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### 6.   Complexity Analysis  
+
+```
+states : 2^t  masks   ( ≤ 1024 )
+for each mask:
+    combine step   O( number of submasks * n )  → total O(3^t * n)
+    Dijkstra       O( m log n )
+overall: O( 3^t · n + 2^t · m log n )
+with n ≤ 100, m ≤ 4950, t ≤ 10  → well below the limits.
+Memory: 2^t · n  integers  ≤ 1024·100 ≈ 1e5.
+```
+
+--------------------------------------------------------------------
+
+#### 7.   Reference Implementation  (Python 3)
+
+```python
+import sys
+import heapq
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    t = int(next(it))
+    terminals = [int(next(it)) - 1 for _ in range(t)]
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        w = int(next(it))
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+
+    if t <= 1:
+        print(0)
+        return
+
+    INF = 10**18
+    FULL = (1 << t) - 1
+    dp = [[INF] * n for _ in range(1 << t)]
+
+    # initialise singletons
+    for i, term in enumerate(terminals):
+        mask = 1 << i
+        dp[mask][term] = 0
+
+    # process masks
+    for mask in range(1, FULL + 1):
+        # combine submasks
+        sub = (mask - 1) & mask
+        while sub:
+            other = mask ^ sub
+            # to avoid duplicate work we can enforce sub < other, but not needed
+            for v in range(n):
+                val = dp[sub][v] + dp[other][v]
+                if val < dp[mask][v]:
+                    dp[mask][v] = val
+            sub = (sub - 1) & mask
+
+        # Dijkstra to propagate through edges
+        heap = [(dp[mask][v], v) for v in range(n) if dp[mask][v] < INF]
+        heapq.heapify(heap)
+        dist = dp[mask]
+        while heap:
+            d, u = heapq.heappop(heap)
+            if d != dist[u]:
+                continue
+            for v, w in adj[u]:
+                nd = d + w
+                if nd < dist[v]:
+                    dist[v] = nd
+                    heapq.heappush(heap, (nd, v))
+
+    ans = min(dp[FULL])
+    print(ans)
+
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above and conforms
+to the required input‑output format.

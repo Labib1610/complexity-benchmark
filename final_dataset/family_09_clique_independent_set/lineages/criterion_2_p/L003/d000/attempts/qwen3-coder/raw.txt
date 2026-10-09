@@ -1,0 +1,288 @@
+```python
+import sys
+from collections import defaultdict, deque
+
+def read_input():
+    n, m, k = map(int, sys.stdin.readline().split())
+    edges = []
+    for _ in range(m):
+        u, v = map(int, sys.stdin.readline().split())
+        edges.append((u, v))
+    return n, m, k, edges
+
+def build_graph(n, edges):
+    graph = defaultdict(list)
+    for u, v in edges:
+        graph[u].append(v)
+        graph[v].append(u)
+    return graph
+
+def bipartite_partition(n, graph):
+    color = [0] * (n + 1)  # 0: unvisited, 1: set A, -1: set B
+    for start in range(1, n + 1):
+        if color[start] == 0:
+            queue = deque([start])
+            color[start] = 1
+            while queue:
+                node = queue.popleft()
+                for neighbor in graph[node]:
+                    if color[neighbor] == 0:
+                        color[neighbor] = -color[node]
+                        queue.append(neighbor)
+                    elif color[neighbor] == color[node]:
+                        return None, None  # Not bipartite
+    set_a = [i for i in range(1, n + 1) if color[i] == 1]
+    set_b = [i for i in range(1, n + 1) if color[i] == -1]
+    return set_a, set_b
+
+def find_maximum_independent_set(set_a, set_b, graph, k):
+    # Build adjacency sets for efficient lookup
+    adj = defaultdict(set)
+    for node in set_a:
+        for neighbor in graph[node]:
+            adj[node].add(neighbor)
+    
+    # Greedy approach: try to take as many nodes as possible
+    # Since it's bipartite, we can take all nodes from one side 
+    # that don't have neighbors in the other side
+    
+    # But since we need exactly k, let's think differently
+    # In a bipartite graph, maximum independent set = total nodes - maximum matching
+    # But we want exactly k nodes that form an independent set
+    
+    # Let's try greedy: take nodes from one partition that have fewest conflicts
+    # Actually, simpler approach:
+    # Try taking all of A, see if we can add some from B without conflicts
+    # Or vice versa
+    
+    # Since we're looking for exactly k, we can check:
+    # Can we take i nodes from A and (k-i) nodes from B?
+    # For this to work, the (k-i) nodes from B must not conflict with any of the i nodes from A
+    
+    # More efficient: 
+    # For each node in A, find its neighbors in B
+    # Same for B
+    
+    adj_a_to_b = defaultdict(set)
+    adj_b_to_a = defaultdict(set)
+    
+    for a in set_a:
+        for b in graph[a]:
+            adj_a_to_b[a].add(b)
+    
+    for b in set_b:
+        for a in graph[b]:
+            adj_b_to_a[b].add(a)
+            
+    set_a_set = set(set_a)
+    set_b_set = set(set_b)
+    
+    # Try all combinations where we take x from A and (k-x) from B
+    # This might be too slow, so let's optimize
+    
+    # Better approach:
+    # Since the graph is bipartite, we can model this as:
+    # Take a subset S of vertices such that no two in S are adjacent, and |S| = k
+    # This is finding an independent set of size exactly k
+    
+    # In a bipartite graph:
+    # Nodes can be partitioned into A and B
+    # We can take nodes from A and B, but not connected ones
+    
+    # Greedy approach:
+    # Try taking nodes from A that have no neighbors in B, and vice versa
+    # But we still need exactly k
+    
+    # Let's use a different approach:
+    # Try taking i nodes from A, j nodes from B, where i+j=k
+    # The nodes taken from A should not connect to any taken from B
+    
+    # For efficiency, let's precompute neighbors
+    # For each node in A, which nodes in B does it connect to
+    # For each node in B, which nodes in A does it connect to
+    
+    # Then we can do: for each subset of A of size i, check if there's a subset of B of size k-i 
+    # that doesn't conflict
+    
+    # That's still exponential. Let's think of polynomial approach.
+    
+    # Key insight: in bipartite graph, maximum independent set has size = N - (size of minimum vertex cover)
+    # By Konig's theorem: in bipartite graphs, size of minimum vertex cover = size of maximum matching
+    # So max independent set size = N - max matching size
+    
+    # But we want EXACTLY k, not maximum.
+    
+    # Simpler approach for implementation:
+    # Try greedy selection:
+    # Sort nodes by degree ascending (least connected first)
+    # Try to add them one by one if they don't conflict with already selected
+    
+    all_nodes = list(range(1, n+1))
+    degrees = {i: len(graph[i]) for i in all_nodes}
+    
+    # Try greedy from both sides
+    def try_greedy(nodes_list):
+        selected = set()
+        nodes_sorted = sorted(nodes_list, key=lambda x: degrees[x])
+        
+        for node in nodes_sorted:
+            # Check if adding this node conflicts with any selected
+            conflict = False
+            for neighbor in graph[node]:
+                if neighbor in selected:
+                    conflict = True
+                    break
+            if not conflict:
+                selected.add(node)
+                if len(selected) == k:
+                    return list(selected)
+        return None if len(selected) != k else list(selected)
+    
+    # Try from set_a
+    result = try_greedy(set_a + set_b)
+    if result and len(result) == k:
+        return result
+        
+    # If that didn't work, try more systematically for small cases
+    # But given constraints, we need something better
+    
+    # Let's go back to trying combinations of taking i from A and k-i from B
+    # But make it efficient by preprocessing
+    
+    # Create forbidden sets
+    forbidden_with_a = defaultdict(set)
+    for a in set_a:
+        for b in graph[a]:
+            forbidden_with_a[a].add(b)
+            
+    forbidden_with_b = defaultdict(set)
+    for b in set_b:
+        for a in graph[b]:
+            forbidden_with_b[b].add(a)
+    
+    # Try taking i from A and (k-i) from B
+    # For small k values, this could work
+    
+    if k <= 20:  # Small enough to brute force subsets
+        from itertools import combinations
+        # Try all subsets of size k
+        # But even C(n,k) might be too large
+        
+        # Better: since bipartite, try combinations from A and B
+        for i in range(min(k+1, len(set_a)+1)):
+            j = k - i
+            if j > len(set_b):
+                continue
+            if j < 0:
+                continue
+                
+            # Try all combinations of i nodes from A
+            # For each, find how many nodes in B are blocked
+            # Then see if we can pick j nodes from unblocked B nodes
+            
+            # This is getting complex. Let's implement a cleaner solution.
+            
+            # Final approach: greedy with verification
+            # Since time allows, and given the structure, let's do:
+            # Try greedy multiple times with different orderings
+            
+    # Simplest working approach:
+    # Since graph is bipartite, we can sort of "color" it
+    # And then greedily pick nodes ensuring no conflicts
+    
+    def greedy_independent_set(target_size):
+        # Sort by degree ascending
+        nodes_by_degree = sorted(all_nodes, key=lambda x: degrees[x])
+        selected = set()
+        
+        for node in nodes_by_degree:
+            # Check if node conflicts with any selected
+            has_conflict = False
+            for neighbor in graph[node]:
+                if neighbor in selected:
+                    has_conflict = True
+                    break
+            if not has_conflict:
+                selected.add(node)
+                if len(selected) == target_size:
+                    return list(selected)
+                    
+        return list(selected) if len(selected) == target_size else None
+    
+    return greedy_independent_set(k)
+
+def solve():
+    n, m, k, edges = read_input()
+    graph = build_graph(n, edges)
+    
+    # Since the problem states conflicts only happen between two grids,
+    # the graph is bipartite
+    set_a, set_b = bipartite_partition(n, graph)
+    
+    if set_a is None:  # Should not happen per problem statement
+        print("NO")
+        return
+        
+    # Now find an independent set of size exactly k
+    # Independent set: no two nodes are adjacent
+    
+    # Greedy approach
+    degrees = {i: len(graph[i]) for i in range(1, n+1)}
+    nodes_sorted = sorted(range(1, n+1), key=lambda x: degrees[x])
+    
+    selected = set()
+    for node in nodes_sorted:
+        # Check if node conflicts with any selected
+        conflict = False
+        for neighbor in graph[node]:
+            if neighbor in selected:
+                conflict = True
+                break
+        if not conflict:
+            selected.add(node)
+            if len(selected) == k:
+                print("YES")
+                print(' '.join(map(str, selected)))
+                return
+                
+    # If greedy didn't work, try reverse order
+    nodes_sorted.reverse()
+    selected = set()
+    for node in nodes_sorted:
+        conflict = False
+        for neighbor in graph[node]:
+            if neighbor in selected:
+                conflict = True
+                break
+        if not conflict:
+            selected.add(node)
+            if len(selected) == k:
+                print("YES")
+                print(' '.join(map(str, selected)))
+                return
+    
+    # Last resort: try random permutations for small k
+    if k <= 20 and n <= 1000:
+        import random
+        for _ in range(100):  # Try 100 random orders
+            nodes_shuffled = list(range(1, n+1))
+            random.shuffle(nodes_shuffled)
+            selected = set()
+            for node in nodes_shuffled:
+                conflict = False
+                for neighbor in graph[node]:
+                    if neighbor in selected:
+                        conflict = True
+                        break
+                if not conflict:
+                    selected.add(node)
+                    if len(selected) == k:
+                        print("YES")
+                        print(' '.join(map(str, selected)))
+                        return
+    
+    print("NO")
+
+if __name__ == "__main__":
+    solve()
+```

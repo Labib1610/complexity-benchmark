@@ -14,9 +14,11 @@ for _ in range(m):
 
 color = [-1] * n
 
-def bfs(start):
+for start in range(n):
+    if color[start] != -1:
+        continue
+    color[start] = 0  # 0 means schedule 1, 1 means schedule 2
     q = deque([start])
-    color[start] = 0  # shift 1
     while q:
         u = q.popleft()
         for v in adj[u]:
@@ -24,42 +26,8 @@ def bfs(start):
                 color[v] = color[u] ^ 1
                 q.append(v)
             elif color[v] == color[u]:
-                return False
-    return True
-
-for i in range(n):
-    if color[i] == -1:
-        if not bfs(i):
-            print("NO")
-            sys.exit()
-
-# Now we have a valid bipartite coloring, but we need lexicographically smallest.
-# We can try to flip colors in each connected component if it makes earlier indices smaller.
-visited = [False] * n
-for i in range(n):
-    if not visited[i]:
-        # collect component
-        comp = []
-        q = deque([i])
-        visited[i] = True
-        while q:
-            u = q.popleft()
-            comp.append(u)
-            for v in adj[u]:
-                if not visited[v]:
-                    visited[v] = True
-                    q.append(v)
-        # Try both colorings for this component
-        # current coloring from BFS is color[]
-        # Option 1: keep as is
-        # Option 2: flip all colors in comp
-        # Choose the one that gives smaller assignment for smallest index in comp
-        comp.sort()
-        first = comp[0]
-        # If first is already 0, keep; else flip
-        if color[first] == 1:
-            for u in comp:
-                color[u] ^= 1
+                print("NO")
+                sys.exit()
 
 print("YES")
-print(' '.join(str(c + 1) for c in color))
+print(" ".join(str(c + 1) for c in color))

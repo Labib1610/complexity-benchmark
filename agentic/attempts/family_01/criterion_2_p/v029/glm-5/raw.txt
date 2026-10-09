@@ -1,37 +1,1190 @@
+<think>
+below.
+</think>
+We need to solve a 2-coloring problem (bipartite check) with the additional requirement of lexicographically smallest valid designation.
+
+The graph has n vertices and m edges. We need to 2-color it so that adjacent vertices get different colors (roles 1 and 2), and among all valid colorings, output the lexicographically smallest one.
+
+Key insight: In each connected component, once we fix the color of one vertex, the entire component's coloring is determined (since it's a proper 2-coloring, each component has exactly 2 possible colorings, which are complements of each other — assuming the component is bipartite; if not bipartite, answer is NO).
+
+Wait, is that true? In a connected bipartite graph, the 2-coloring is unique up to swapping colors. Yes — for a connected graph, a proper 2-coloring is determined by the color of one vertex (BFS/DFS assigns colors based on parity of distance... actually, in a connected bipartite graph, the bipartition is unique). So each connected component has exactly 2 valid colorings (swap of each other), unless the component is a single vertex with no edges — then both colorings are the same? No wait, a single vertex: coloring it 1 or 2 — both are valid, and they're different. Hmm, but for a single isolated vertex, the two "colorings" are color 1 and color 2, which are distinct. For a component with at least one edge, the two colorings are complements.
+
+So for lexicographic smallest: for each component, we want to choose the assignment that makes the smallest vertex in the component get color 1 (since the coloring is determined by the smallest vertex's color, and making the smallest vertex 1 is better lexicographically... wait, need to be careful).
+
+Actually, let's think. For each connected component, the coloring is determined up to complement. The lexicographically smallest overall assignment: process components independently since they don't interact. For each component, we choose between coloring C and its complement. The lexicographically smallest choice for the whole string: since components occupy disjoint sets of positions, we can minimize each component's contribution independently. For a component, comparing C vs complement(C): the first position (smallest vertex index) where they differ... they differ everywhere actually (complement). So the first vertex of the component (smallest index) has color c in C and 3-c in complement. To minimize lexicographically, we want the smallest-indexed vertex in the component to have color 1. So: for each component, assign color 1 to its smallest-index vertex, then propagate.
+
+Wait, but is that right? Lexicographic comparison of the full string: positions are 1..n. Component A occupies some set of positions, component B another disjoint set. The string is the concatenation over positions 1..n. To minimize lexicographically, we minimize position by position. For the smallest position in a component, we want it to be 1 if possible. Since the component's coloring is fully determined by any single vertex's color, setting the smallest vertex to 1 determines everything. And that's always possible (both choices are valid colorings). So yes: for each component, set the minimum-index vertex to 1, propagate via BFS/DFS.
+
+But wait — there's a subtlety. Is it possible that setting the smallest vertex of a component to 1 forces some other vertex in the component to be... no, both colorings of a bipartite component are valid, so it's always fine. The only issue is if the component is not bipartite → NO.
+
+Hmm wait, but actually let me double check: "the lexicographically smallest valid designation". Since each component has exactly 2 valid colorings (for isolated vertex: color 1 or color 2 — 2 colorings; for connected component with edges: C and complement), and the choice per component is independent, the lexicographically smallest is obtained by choosing, per component, the coloring where the component's smallest vertex gets 1. 
+
+Actually hold on — is it truly independent? Lexicographic order: we compare strings position by position. The choices in different components don't constrain each other. To find the lexicographically smallest, greedily: for position 1, minimize; then position 2, etc. For the smallest-index vertex v of a component, both colorings are available regardless of other components' choices, so we pick the one giving v color 1. Then all other vertices in that component are determined. This greedy is consistent: once we fix the component's coloring by its min vertex = 1, all positions in that component are determined, and no later choice can affect them. And for other components, their choices are independent. So the answer: per component, min vertex gets 1.
+
+Wait, but actually there's a subtle point: could it be better to give the min vertex color 2 in some component? No — position of min vertex: choosing 1 vs 2, and 1 < 2, and all earlier positions (in other components with smaller indices... hmm, positions before the min vertex of this component belong to other components). Let me think again more carefully with the greedy: process positions 1 to n. At each position, if the vertex's color is already determined (by a previous vertex in the same component), fine. If not determined (it's the first vertex of its component encountered), we choose its color to be 1 (always possible since component is bipartite and both colorings valid). This gives the lexicographically smallest. Yes.
+
+So algorithm:
+1. Read graph.
+2. BFS/DFS from each unvisited vertex (in order 1..n), assign color 1 to start, alternate colors, check bipartiteness. If any edge connects same colors → NO.
+3. Output colors.
+
+Edge cases: self-loops? "incompatible pair" u and v — could u == v? The problem says pairs of personnel; possibly u ≠ v is guaranteed, but to be safe, if u == v, then that person is incompatible with themselves, meaning they can't have the same role as themselves — impossible → NO. Let's handle: if u == v, output NO. Actually, a self-loop makes 2-coloring impossible. Let's handle it.
+
+Multiple edges between same pair: fine, just duplicates.
+
+Complexity: n, m up to 2e5. BFS with adjacency lists using arrays. Python should handle this fine with sys.stdin.
+
+Implementation details for speed:
+- Read all input at once: data = sys.stdin.buffer.read().split().
+- Build adjacency using CSR (compressed sparse row) arrays for speed: count degrees, then fill.
+- BFS with a list as queue (or use deque). For 2e5 vertices and 4e5 directed edges, Python BFS should be OK within 1s... Python might be a bit slow but 2e5 is manageable.
+
+Let me write CSR:
+
 ```python
 import sys
-from sys import setrecursionlimit
 
-def solve():
+def main():
     data = sys.stdin.buffer.read().split()
-    if not data:
+    idx = 0
+    n = int(data[idx]); idx += 1
+    m = int(data[idx]); idx += 1
+    us = [0]*m
+    vs = [0]*m
+    deg = [0]*(n+1)
+    selfloop = False
+    for i in range(m):
+        u = int(data[idx]); idx += 1
+        v = int(data[idx]); idx += 1
+        us[i] = u; vs[i] = v
+        if u == v:
+            selfloop = True
+        deg[u] += 1
+        deg[v] += 1
+    if selfloop:
+        print("NO")
         return
-    it = iter(data)
-    n = int(next(it))
-    m = int(next(it))
-    adj = [[] for _ in range(n+1)]
-    for _ in range(m):
-        u = int(next(it))
-        v = int(next(it))
-        adj[u].append(v)
-        adj[v].append(u)
-    color = [0]*(n+1)
-    for s in range(1, n+1):
-        if color[s] == 0:
-            color[s] = 1
-            stack = [s]
-            while stack:
-                u = stack.pop()
-                for v in adj[u]:
-                    if color[v] == 0:
-                        color[v] = 3 - color[u]
-                        stack.append(v)
-                    elif color[v] == color[u]:
-                        sys.stdout.write("NO")
-                        return
-    out = ["YES"]
-    out.append(" ".join(str(color[i]) for i in range(1, n+1)))
-    sys.stdout.write("\n".join(out))
+    # CSR
+    start = [0]*(n+2)
+    for i in range(1, n+1):
+        start[i+1] = start[i] + deg[i]
+    # start[i] .. start[i+1]-1 holds neighbors of i? Let's define adj_start array of size n+2 where positions for vertex i are [start[i], start[i+1]).
+    adj = [0]*(2*m)
+    pos = start[:]  # copy, pos[i] = next insertion index for vertex i... wait start has size n+2.
+```
 
-solve()
+Hmm, let me be careful. Let me define head array of length n+2: head[i] is the starting index for vertex i's neighbors in adj array, with head[n+1] = 2*m. Actually simpler:
+
+```python
+    head = [0]*(n+2)
+    for i in range(1, n+1):
+        head[i+1] = head[i] + deg[i]
+    fill = head[:]  # fill[i] current insertion point for vertex i (1-indexed vertices, fill has length n+2)
+    adj = [0]*(2*m)
+    for i in range(m):
+        u = us[i]; v = vs[i]
+        adj[fill[u]] = v; fill[u] += 1
+        adj[fill[v]] = u; fill[v] += 1
+```
+
+Wait, head[i+1] = head[i] + deg[i] for i from 1 to n. head[1] = 0, head[2] = deg[1], etc. fill = head[:] copies. Then for each edge, insert. Good.
+
+Then BFS:
+
+```python
+    color = [0]*(n+1)  # 0 = unvisited, 1 or 2
+    for s in range(1, n+1):
+        if color[s] != 0:
+            continue
+        color[s] = 1
+        stack = [s]
+        while stack:
+            u = stack.pop()
+            cu = color[u]
+            for j in range(head[u], head[u+1]):
+                v = adj[j]
+                if color[v] == 0:
+                    color[v] = 3 - cu
+                    stack.append(v)
+                elif color[v] == cu:
+                    print("NO")
+                    return
+    print("YES")
+    sys.stdout.write("YES\n" + " ".join(map(str, color[1:])) + "\n")
+```
+
+Wait, using DFS with a stack (iterative) — but with DFS, bipartiteness check: when we encounter an already-colored neighbor with the same color, it's not bipartite. That works for DFS too since coloring is consistent: in DFS, when we pop u and look at neighbor v already colored, if color[v] == color[u], odd cycle → NO. This is correct: a graph is bipartite iff no edge has both endpoints same color after the propagation. Actually with DFS propagation, the coloring is the unique 2-coloring of the connected component (given start color), and it's valid iff no edge is monochromatic. Checking each edge when we process its endpoint: each edge (u,v) is examined from u's side and from v's side. When we process u (pop it), we check color[v] vs color[u]. But at that time, is color[v] final? Yes — colors never change once assigned. So if color[v] == color[u] at any point, it's a violation. And every edge gets checked from both sides (u's iteration and v's iteration, assuming both get popped, which they do since all reachable vertices get pushed and popped). So the check is complete. 
+
+But wait — there's a subtle issue with DFS vs BFS for correctness of the coloring being "the" coloring: any propagation order gives the same coloring in a connected bipartite component? Yes: color is determined by parity of path length from start, and bipartiteness ensures consistency. Both BFS and DFS produce the same final coloring. So DFS is fine and simpler/faster (list as stack).
+
+Hmm, but one concern: DFS with a stack — the stack could hold up to n elements, fine.
+
+Performance: 2e5 vertices, 4e5 directed edge traversals. The inner loop `for j in range(head[u], head[u+1])` — total 4e5 iterations plus overhead. Should run in well under 1 second in Python... maybe around 0.5-1s. Let's optimize a bit.
+
+Alternative: use adjacency slicing: `for v in adj[head[u]:head[u+1]]` — this creates a slice but iteration is faster than indexed access. Slicing creates a new list each time, but total elements copied is 4e5, fine.
+
+Actually, an even faster approach: avoid the per-vertex loop overhead. Let me think about the fastest Python approach.
+
+Option: process with BFS using deque. Or DFS with list. Both similar.
+
+Let me also consider reading input fast. m up to 2e5 lines. Using sys.stdin.buffer.read().split() gives ~4e5+2 tokens. int conversion: fine.
+
+Actually, we can avoid storing us/vs separately by converting all tokens to ints at once:
+
+```python
+data = sys.stdin.buffer.read().split()
+n = int(data[0]); m = int(data[1])
+```
+
+Then edges: tokens data[2:2+2m]. We can do `vals = list(map(int, data[2:2+2*m]))`. Then iterate pairs.
+
+For building CSR, a common fast trick:
+
+```python
+deg = [0]*(n+1)
+for x in vals:
+    deg[x] += 1  # counts both u and v occurrences
+```
+
+Since each edge contributes u once and v once in vals, deg[x] over vals counts total occurrences = degree. 
+
+Then head: prefix sums. Then fill:
+
+```python
+head = [0]*(n+2)
+for i in range(1, n+1):
+    head[i+1] = head[i] + deg[i]
+fill = head[1:n+1] ... 
+```
+
+Hmm, let me just do:
+
+```python
+pos = head[:]  # length n+2
+adj = [0]*(2*m)
+i = 0
+while i < len(vals):
+    u = vals[i]; v = vals[i+1]
+    adj[pos[u]] = v; pos[u] += 1
+    adj[pos[v]] = u; pos[v] += 1
+    i += 2
+```
+
+Self-loop check: check if u == v during this loop, or separately: `if any(vals[i]==vals[i+1] for i in range(0,len(vals),2))`. Actually simpler: during the fill loop.
+
+Hmm, wait — do we even need to handle self-loops? The problem says "incompatible pair of personnel" — a pair presumably means two distinct personnel. But defensive handling is cheap. If u==v, then that person must differ from themselves — impossible → NO. Actually, with the coloring algorithm: if u==v, then when processing u, neighbor v=u has color[u]==color[v] trivially → detected as NO automatically! Because adj contains u itself, and color[u] == color[u]. So the algorithm naturally outputs NO for self-loops. 
+
+But careful: with the check `elif color[v] == cu` — when v == u, color[v] == cu always → NO. Correct behavior.
+
+Now, the main loop performance. Let me write it carefully:
+
+```python
+color = [0]*(n+1)
+out = []
+for s in range(1, n+1):
+    if color[s]:
+        continue
+    color[s] = 1
+    stack = [s]
+    while stack:
+        u = stack.pop()
+        cu = color[u]
+        for v in adj[head[u]:head[u+1]]:
+            cv = color[v]
+            if cv == 0:
+                color[v] = 3 - cu
+                stack.append(v)
+            elif cv == cu:
+                sys.stdout.write("NO\n")
+                return
+```
+
+Hmm, but wait: there's a subtle issue with DFS and the "elif cv == cu" check. Consider: we pop u, and check all its neighbors. But what if a neighbor v was pushed but not yet popped, and later gets recolored? No — colors are assigned when pushed and never changed. So fine.
+
+But there's another subtlety: a vertex could be pushed twice? No — we push only when color[v]==0, and immediately set color[v]. So each vertex pushed exactly once. Good.
+
+Edge check completeness: every edge (u,v) with u≠v is in adj twice (once as u→v, once as v→u). When u is popped, we check color[v] vs color[u]. When v is popped, we check color[u] vs color[v]. Both endpoints get popped (they're in the component, all reachable vertices get pushed and popped). So every edge is checked at least once (twice). If the coloring is invalid (some monochromatic edge), it will be detected. If detected → NO. If the component is bipartite, the propagation gives a valid coloring and no false positive: could color[v] == color[u] happen in a bipartite graph with this propagation? The propagation assigns color[v] = 3 - color[u'] where u' is the vertex from which v was discovered. In a bipartite connected graph, the coloring equals the unique bipartition (with start = 1), so no edge is monochromatic. So no false positives. Correct.
+
+Hmm wait, actually let me double-check the claim "propagation gives the unique bipartition coloring". In DFS, when we discover v from u, color[v] = 3 - color[u]. In a connected bipartite graph, define the bipartition by parity of path length from s. color[v] assigned = 3 - color[parent]. By induction, color[v] = 1 if path length from s to v is even, 2 if odd (with color[s]=1). Since graph is bipartite, this is well-defined (all paths have same parity). So color equals bipartition coloring. Valid. Good.
+
+Now, about lexicographic smallest: we iterate s from 1 to n, and for each new component, color[s] = 1 where s is the minimum-index vertex of the component (since we go in increasing order and s is the first unvisited). As argued, this gives lexicographically smallest. 
+
+Wait, I should double check this claim once more with an example. Example 1: 4 vertices, edges 1-2, 2-3, 3-4, 1-4. Component: all. Start s=1, color 1. DFS: pop 1 (color 1), neighbors 2 and 4 → color 2 each. Pop 4 (color 2), neighbors 3 (→1) and 1 (color 1 ≠ 2, ok). Pop 3 (color 1), neighbors 2 (color 2, ok) and 4 (color 2, ok). Pop 2 (color 2), neighbors 1 (ok), 3 (ok). Result: 1 2 1 2. Matches expected output. 
+
+Example 2: triangle → odd cycle → NO. Correct.
+
+Now let me also think: is the lexicographic requirement possibly more subtle? E.g., could a component have more than 2 valid colorings? For connected graphs, no (2-colorings of connected bipartite graphs: exactly 2, complements). For disconnected, each component independently 2 choices. So total 2^(#components). Lexicographic smallest: each component's min vertex gets 1. Since components are independent and the string positions of a component... hmm, let me re-verify the greedy argument rigorously.
+
+Claim: The lexicographically smallest string is obtained by, for each component (in order of their minimal vertices), assigning the coloring with min vertex = 1.
+
+Proof sketch: Consider positions in order 1, 2, ..., n. Greedy: at each position i, choose the smallest possible value given previous choices. If vertex i's component already has an assigned coloring, value is forced. Otherwise, vertex i is the min of its component; both colorings are consistent with all previous choices (previous choices only involve other components); choose the one with color[i] = 1. This greedy yields the lexicographically smallest string, and it's exactly what our algorithm produces. ∎
+
+Yes, correct.
+
+Now performance considerations. n, m ≤ 2e5. Total work: O(n + m). In Python, this should be fine. Let me estimate: the DFS loop pops n vertices total, and for each, iterates over its adjacency slice. Total adjacency iterations = 2m = 4e5. Each iteration does a few list index operations. Roughly 4e5 * ~0.2µs... realistically Python does ~10-30M simple ops/sec; 4e5 iterations with ~5 ops each = 2M ops → ~0.2-0.5s. Plus input parsing 4e5 ints → fast with map. Plus building CSR: loops of 2e5 and 4e5 → similar. Total maybe 0.5-1s. Time limit is 1s. Hmm, might be tight. Let's optimize.
+
+Optimizations:
+1. Use `map(int, ...)` for bulk parsing.
+2. Build degree counts with a loop over vals — 4e5 iterations. Could use `collections.Counter`? Counter on a list of 4e5 ints is C-speed-ish. Actually `Counter(vals)` is implemented in C (_count_elements). Then deg[i] = counter[i]. That's fast.
+
+Actually, alternative: use `vals.count`? No, that's O(n) per call.
+
+Counter approach:
+```python
+from collections import Counter
+cnt = Counter(vals)
+```
+Then deg[i] = cnt.get(i, 0). Building the list: `deg = [cnt.get(i,0) for i in range(n+1)]` — 2e5 iterations, fine. Or use itertools.accumulate:
+
+```python
+deg = [0]*(n+2)
+for x, c in cnt.items():
+    deg[x] = c
+head = list(accumulate(deg))  # hmm, need careful indexing
+```
+
+Let me set up indexing: vertices 1..n. Let cnt_arr[1..n] = degree. head[i] = sum of degrees of vertices 1..i-1 = start index for vertex i. Using accumulate: `starts = [0] + list(accumulate(deg[1:n+1]))`? Let me define:
+
+deg array of length n+1, deg[0]=0. `pref = list(accumulate(deg))` gives pref[i] = deg[0]+...+deg[i] = sum deg[1..i]. Then head[i] (start for vertex i) = pref[i-1] = sum deg[1..i-1]. And head[i+1] = pref[i]. So vertex i's neighbors are adj[pref[i-1]:pref[i]].
+
+For filling: pos[i] starts at pref[i-1]. `pos = [0] + pref[:]`? pos[i] = pref[i-1] for i≥1: pos = [0, 0, pref[1], pref[2], ...]? Hmm: pos[1] should be pref[0] = deg[0] = 0. pos[2] = pref[1] = deg[1]. So pos[i] = pref[i-1]. Define pos = [0]*(n+1); for i in 1..n: pos[i] = pref[i-1]. That's `pos = [0] + pref[0:n]`? pref has length n+1 (indices 0..n). pref[0..n-1] appended after initial 0: pos = [0] + pref[:n] gives pos[i] = pref[i-1] for i=1..n. Yes.
+
+Then fill loop over edges: 2e5 iterations, each doing 2 insertions:
+
+```python
+it = iter(vals)
+for u, v in zip(it, it):
+    adj[pos[u]] = v; pos[u] += 1
+    adj[pos[v]] = u; pos[v] += 1
+```
+
+zip(it, it) pairs consecutive elements — nice. 2e5 iterations with ~8 ops each → ~1.6M ops, ~0.2s maybe. Hmm.
+
+Alternatively, we could avoid CSR and use adjacency lists of lists:
+
+```python
+g = [[] for _ in range(n+1)]
+for u, v in zip(it, it):
+    g[u].append(v)
+    g[v].append(u)
+```
+
+This is simpler; append is amortized O(1). 4e5 appends. List-of-lists memory: 2e5 lists — each empty list ~56 bytes, plus overhead. 2e5 * 56 = 11MB, fine within 256MB. The append approach is probably comparable in speed to CSR fill, and then traversal `for v in g[u]` is direct without slicing. Actually CSR with slicing `adj[a:b]` creates a new list per vertex — 2e5 slice creations. List-of-lists avoids that. I think list-of-lists is fine and simpler. But CSR traversal could use `adj[head[u]:head[u+1]]` slice — also fine.
+
+Actually, for traversal speed, iterating over a pre-built list `g[u]` is fast. Let me go with list-of-lists.
+
+Memory: g with 2e5 lists, each holding degree ints. Total ints stored = 4e5. Python list of ints: each pointer 8 bytes + small int objects (cached for < 256, but vertex numbers up to 2e5 → each int object ~28 bytes). 4e5 * 28 = 11MB for int objects (but they're shared? No — each int from parsing is a distinct object, except small ones). Hmm, vals list holds 4e5 int objects; g holds references to the same objects. So ~11MB for ints + list overhead. Fine.
+
+Actually wait, when we do `for u, v in zip(it, it)`, u and v are the int objects from vals; appending them to g just copies references. Good.
+
+DFS main loop:
+
+```python
+color = [0] * (n + 1)
+res = ["1"] * (n + 1)  # or build at end
+for s in range(1, n + 1):
+    if color[s]:
+        continue
+    color[s] = 1
+    stack = [s]
+    while stack:
+        u = stack.pop()
+        cu = 3 - color[u]  # color to assign to neighbors... wait
+```
+
+Hmm, let me write:
+
+```python
+    while stack:
+        u = stack.pop()
+        cu = color[u]
+        nc = 3 - cu
+        for v in g[u]:
+            cv = color[v]
+            if cv == 0:
+                color[v] = nc
+                stack.append(v)
+            elif cv == cu:
+                print("NO")
+                return
+```
+
+Wait, but there's an issue: `elif cv == cu` — when cv == cu and v == u (self-loop), correctly NO. When cv == nc, fine.
+
+Hmm, but actually there's a subtle bug possibility: what if cv == cu but the edge was already... no, it's a genuine violation. Fine.
+
+One more consideration: recursion depth — we use iterative DFS, no recursion. Good.
+
+Output: "YES\n" + " ".join colors. Building the string: colors as strings. We can do `" ".join(map(str, color[1:]))` — 2e5 strs, fine. Or keep a string array during coloring. Simpler: at the end, map str.
+
+Wait, but color values are 1 and 2 (ints). map(str, ...) fine.
+
+Let me also double check: what if m = 0? Then all vertices isolated, each gets 1. Output all 1s. Lexicographically smallest: yes, all 1s (each isolated vertex can be 1). Correct.
+
+What about n=1, m=0 → "YES\n1".
+
+Edge input parsing: tokens count = 2 + 2m. If m=0, no edge lines.
+
+Potential issue: input might have extra whitespace/newlines — split() handles it.
+
+Let me now also think about whether DFS order matters for the lexicographic result. The final coloring of a component is determined solely by color[s]=1 and connectivity — independent of traversal order. So DFS vs BFS doesn't matter. Good.
+
+Now, one more check on the "elif cv == cu" detection with DFS: Suppose component is bipartite. During DFS, when we pop u and examine neighbor v: color[v] is either 0 (assign nc), nc (fine), or cu (violation → but in bipartite graph this can't happen since final coloring is the bipartition and it's proper). But wait — during DFS, could color[v] == cu transiently even in a bipartite graph? color[v] is assigned once and never changes, and the final coloring is proper, so color[v] ≠ color[u] for every edge. So no false detection. And in a non-bipartite graph, the final coloring (as computed) has some monochromatic edge, which will be detected when its endpoints are popped. But careful: could the algorithm detect... it will detect when it pops an endpoint of a monochromatic edge. Since all vertices in the component get popped, and each edge is examined from both endpoints, yes, detection is guaranteed. But note: the algorithm might output NO before finishing — that's fine.
+
+Hmm, wait — one more subtle thing: when we detect a violation and print NO, we return immediately. Fine.
+
+Actually, hold on. Let me reconsider: is it possible that the DFS assigns colors in a way that creates a "false" violation in a bipartite graph? The coloring assigned: color[v] = 3 - color[parent(v)]. Claim: color[v] = 1 iff every path from s to v has even length... Let me prove by induction on discovery order: when v is discovered from u, color[v] = 3 - color[u]. In a connected bipartite graph, define d(v) = parity of any path from s to v (well-defined). Discovery edge (u,v) is a path from s to v of length (path to u) + 1. By induction color[u] matches parity of paths to u, so color[v] = 3 - color[u] matches parity(path to u) + 1 = parity of the discovery path = d(v). So color matches d. Since d is a proper 2-coloring (bipartite), no monochromatic edge. Good.
+
+Now let me think about performance more concretely and possibly micro-optimize.
+
+Main costs:
+1. Parsing: `data = sys.stdin.buffer.read().split()` → 4e5+2 byte strings. `vals = list(map(int, data[2:]))` → wait, need exactly 2m tokens; data[2:] should be exactly that (assuming no trailing junk). Use `vals = data[2:2+2*m]`? If there are exactly 2m tokens after the first two, data[2:] works. To be safe, slice to 2+2*m. map(int, ...) is C-speed, ~4e5 conversions, fast (~50ms).
+
+2. Building g: loop 2e5 iterations with zip pairing. Each iteration: 2 appends + tuple unpack. ~2e5 * ~0.5µs? Roughly 0.1-0.2s.
+
+Alternative faster build: hmm. We could avoid the Python loop... Not easily. It's fine.
+
+3. DFS: pops n times, inner loop total 4e5 iterations. Each inner iteration: color[v] lookup, compare, maybe assign+append. ~0.3-0.5s.
+
+4. Output join: fast.
+
+Total maybe 0.5-0.8s. Should fit in 1s... risky but probably OK. Typical judges give Python some slack, but the problem says 1s. Let's optimize where easy.
+
+Micro-optimizations:
+- Local variable references for color, g, stack.append, etc.
+- Use `for v in g[u]` directly.
+- Instead of `cv = color[v]` then branching, do:
+
+```python
+for v in g[u]:
+    if color[v] == cu:
+        # violation (v != u case) or self-loop
+        print("NO"); return
+    if color[v] == 0:
+        color[v] = nc
+        stack.append(v)
+```
+
+Hmm, two comparisons for unvisited. Alternative:
+
+```python
+for v in g[u]:
+    cv = color[v]
+    if cv:
+        if cv == cu:
+            NO
+    else:
+        color[v] = nc
+        stack.append(v)
+```
+
+This does one comparison for colored, two for unvisited. Most neighbors are already colored when examined (each edge examined twice; the second time both colored). Actually each directed edge (u→v) is examined exactly once (when u is popped). At that time v may or may not be colored. In DFS, roughly half the examinations find v uncolored? Hard to say. Either way, fine.
+
+Alternative approach avoiding per-edge Python loop: Hmm, could we vectorize with arrays? There's a known trick: BFS by levels using list comprehensions... For bipartiteness check we need per-edge checks anyway.
+
+Alternative: use arrays and process via... I think plain loop is fine. n, m = 2e5 is small.
+
+Actually, let me reconsider: maybe use sys.setrecursionlimit and recursive DFS? No — iterative is safer and faster in Python typically... recursion 2e5 deep would risk stack overflow (C stack). Iterative it is.
+
+Another thought: we can detect non-bipartiteness separately and more cheaply? Not needed.
+
+Let me also consider using BFS with deque — similar performance. DFS with list.pop() is fast (pop from end is O(1)).
+
+One concern with DFS: the stack can grow to O(n) = 2e5, fine.
+
+Let me write the final code:
+
+```python
+import sys
+
+def main():
+    data = sys.stdin.buffer.read().split()
+    n = int(data[0]); m = int(data[1])
+    vals = list(map(int, data[2:2 + 2 * m]))
+    g = [[] for _ in range(n + 1)]
+    it = iter(vals)
+    for u, v in zip(it, it):
+        g[u].append(v)
+        g[v].append(u)
+    color = [0] * (n + 1)
+    out = sys.stdout
+    for s in range(1, n + 1):
+        if color[s]:
+            continue
+        color[s] = 1
+        stack = [s]
+        pop = stack.pop
+        push = stack.append
+        while stack:
+            u = pop()
+            cu = color[u]
+            nc = 3 - cu
+            for v in g[u]:
+                cv = color[v]
+                if cv:
+                    if cv == cu:
+                        out.write("NO\n")
+                        return
+                else:
+                    color[v] = nc
+                    push(v)
+    out.write("YES\n")
+    out.write(" ".join(map(str, color[1:])))
+    out.write("\n")
+
+main()
+```
+
+Wait, there's a bug: `pop = stack.pop` and `push = stack.append` are bound per component — fine, but stack is recreated per component, so rebinding each time. Minor overhead per component, negligible.
+
+Hmm, wait: there's an issue with the check `if cv: if cv == cu: NO`. If v == u (self-loop), cv == cu → NO. Correct.
+
+But hold on — what about the case where cv == cu is checked but v was just... no, colors are immutable once set. Fine.
+
+Let me trace example 1:
+n=4, m=4, edges (1,2),(2,3),(3,4),(1,4).
+g[1]=[2,4], g[2]=[1,3], g[3]=[2,4], g[4]=[3,1].
+s=1: color[1]=1, stack=[1]. Pop 1, cu=1, nc=2. Neighbors: 2 (cv=0 → color 2, push), 4 (cv=0 → color 2, push). stack=[2,4]. Pop 4, cu=2, nc=1. Neighbors: 3 (cv=0 → color 1, push), 1 (cv=1, ≠2 ok). stack=[2,3]. Pop 3, cu=1, nc=2. Neighbors: 2 (cv=2, ≠1 ok), 4 (cv=2, ≠1 ok). stack=[2]. Pop 2, cu=2, nc=1. Neighbors: 1 (cv=1, ≠2 ok), 3 (cv=1, ≠2 ok). Done. Colors: [_,1,2,1,2] → "1 2 1 2". Correct.
+
+Example 2: triangle. s=1: color1=1. Pop 1: neighbors 2,3 → color 2 each. Pop 3 (cu=2, nc=1): neighbors 1 (cv=1 ok), 2 (cv=2 == cu → NO). Correct.
+
+Now, about the lexicographic claim — let me just triple-check with a tricky case. Suppose component with vertices {2, 5}, edge 2-5, and vertex 1 isolated. Positions: 1 → component A (isolated) → color 1. Position 2 → component B min vertex → color 1, then 5 → color 2. Result: 1 1 2. Alternative: 1 2 1 — lexicographically larger at position 2. So our answer 1 1 2 is smallest. Correct.
+
+Another case: component {1,3} edge, component {2,4} edge. Our: s=1 → color 1, then 3 → 2. s=2 → color 1, 4 → 2. Result: 1 1 2 2. Alternatives: 1 2 1 2 (comp B min=2 gets 2) — larger at position 2. 2 ... larger at position 1. So 1 1 2 2 is smallest. Correct.
+
+Now, is there any scenario where a connected component has more than 2 proper 2-colorings? Only if the component has no edges (isolated vertex): then colorings are just {1} or {2} — still 2 choices, handled the same (min vertex = itself gets 1). For a connected component with ≥1 edge, exactly 2. So all good.
+
+Hmm wait, actually, what about a component that's connected but... no, connected bipartite graph: pick any vertex's color, everything determined by propagation along paths; well-defined because bipartite. Exactly 2 colorings. Yes.
+
+Now let me reconsider performance of building g. `g = [[] for _ in range(n+1)]` — 2e5 list creations, ~20ms. The edge loop: 2e5 iterations. Each: unpack tuple from zip (creates tuples? zip yields tuples — 2e5 tuple allocations), two appends with method lookups (g[u].append — attribute lookup each time). Could optimize:
+
+```python
+for i in range(0, 2*m, 2):
+    u = vals[i]; v = vals[i+1]
+    g[u].append(v)
+    g[v].append(u)
+```
+
+Similar. Or precompute append methods? Not easily per-vertex.
+
+Alternative CSR approach might actually be faster for traversal since `adj[a:b]` slicing... hmm, slicing allocates. Let me think about which is faster for the DFS inner loop:
+
+List-of-lists: `for v in g[u]` — g[u] is a list, iteration is direct over list items. Fast.
+
+CSR: `for v in adj[head[u]:head[u+1]]` — creates a slice list (allocation + copy) then iterates. Slightly slower per vertex but the fill loop is also loop-based. I'll stick with list-of-lists.
+
+Actually, there's a neat trick to speed up both building and traversal: since we just need ANY traversal, we could also consider a different formulation: process edges to check bipartiteness via union-find with parity! Union-find with parity (weighted DSU): for each edge (u,v), if same set and parity same → NO; else union. Then coloring: for each component, find root, then color[v] = 1 if parity(v relative to root)... but we need min vertex = 1, so color[v] = 1 if parity(v) == parity(min_vertex_of_component), else 2. 
+
+DSU with path compression in pure Python: 2e5 unions with finds — each find is a loop. Probably similar or slower than DFS. DFS is fine.
+
+Let me also think: is there an issue with the DFS stack approach where a vertex's neighbors are examined when popped — each vertex popped exactly once (pushed exactly once since color set at push time). Yes.
+
+Total inner-loop iterations = sum of degrees = 2m = 4e5. Each iteration: `cv = color[v]` (list index), `if cv:` , branch. For unvisited: `color[v] = nc`, `push(v)`. Rough estimate: 4e5 iterations * ~150ns-300ns per basic op * ~4 ops ≈ 0.3-0.5s. Plus edge building ~0.2s, parsing ~0.1s. Total ~0.6-0.8s. Hmm, cutting close for a 1s limit. But note: many judges' 1s limits for Python problems with n=2e5... The problem statement here is generic ("Time limit: 1 s"). Since this is presumably a generated problem, I'll aim for a reasonably optimized solution. Let me think about whether I can vectorize more.
+
+Vectorization idea: Use the parity-of-BFS-levels approach with numpy? Bipartiteness check requires examining edges between same-level or same-parity vertices. Hmm.
+
+Alternative: think of it as 2-SAT / DSU. Actually here's a cleaner vectorizable approach:
+
+The graph is bipartite iff we can partition each connected component into two sides. Using DSU with parity is hard to vectorize.
+
+Alternative: BFS by levels using arrays and numpy scatter operations... complicated.
+
+Honestly, for n, m ≤ 2e5, a straightforward Python solution with fast I/O typically runs in ~0.5s. Let me just optimize constants:
+
+1. Parse with map(int, ...) — bulk.
+2. Build adjacency: I'll try to minimize overhead. One trick: build CSR using sorting! Sort edges by u — but sorting 4e5 items is ~0.1-0.2s too. Hmm.
+
+Actually here's a thought: we can avoid building adjacency entirely by using the "xor trick"? No.
+
+Let me think about the DSU-with-parity approach complexity: m=2e5 edges, each requires two finds. With path compression + union by size, finds are near O(1) amortized but with Python loop overhead per step. Each find: while loop a few iterations. Total maybe 2e5 * 2 * 3 steps * overhead ≈ similar to DFS. Not clearly better.
+
+I'll go with DFS. Let me micro-optimize the DFS:
+
+```python
+color = [0] * (n + 1)
+...
+for s in range(1, n+1):
+    if color[s]: continue
+    color[s] = 1
+    stack = [s]
+    while stack:
+        u = stack.pop()
+        cu3 = color[u] ^ 3  # if color is 1 → 2, if 2 → 1... 1^3=2, 2^3=1. 
+        for v in g[u]:
+            cv = color[v]
+            if cv:
+                if cv == color[u]:  # hmm, need cu
+```
+
+Using `nc = cu ^ 3` vs `3 - cu` — same speed basically.
+
+Alternative inner loop structure to reduce lookups:
+
+```python
+while stack:
+    u = stack.pop()
+    cu = color[u]
+    nc = cu ^ 3
+    gu = g[u]
+    for v in gu:
+        cv = color[v]
+        if cv == 0:
+            color[v] = nc
+            stack.append(v)
+        elif cv == cu:
+            sys.stdout.write("NO\n")
+            return
+```
+
+Here, for unvisited: one compare (cv==0) then assign+append. For visited with different color: two compares. For visited same color: two compares + exit. Versus the other structure: visited: one compare (if cv) + maybe second; unvisited: two compares. Which is more common? Each directed edge examined once. When u is popped, its neighbors: those discovered earlier are colored (with nc, since graph is bipartite — or cu if violation), those not yet discovered are uncolored. In DFS on a graph with m edges, number of "discovery" examinations = n - (#components) (tree edges), and the rest (2m - tree edges) find colored vertices. So colored examinations dominate: 2m - n ≈ 2e5+ vs n ≈ 2e5. Roughly half-half. Either structure fine.
+
+Hmm, actually wait: there's a subtle issue with the `elif cv == cu` structure combined with `if cv == 0` first: for a colored neighbor with cv == nc, we do 2 comparisons. For structure 2 (`if cv: ... else: ...`), colored neighbor: 1 comparison (if cv truthy) then check cv == cu inside — also 2 comparisons when cv == cu, but 1 comparison... no wait:
+
+Structure A:
+```python
+cv = color[v]
+if cv == 0:
+    ...
+elif cv == cu:
+    NO
+```
+Colored, cv==nc: comparisons: cv==0 (False), cv==cu (False) → 2 comparisons.
+Colored, cv==cu: 2 comparisons → NO.
+Uncolored: 1 comparison.
+
+Structure B:
+```python
+cv = color[v]
+if cv:
+    if cv == cu:
+        NO
+else:
+    ...
+```
+Colored, cv==nc: cv truthy (1 cmp), cv==cu (1 cmp) → 2.
+Colored, cv==cu: 2 → NO.
+Uncolored: cv truthy? (1 cmp, False) → else branch → 1 comparison.
+
+Same. OK whatever.
+
+Another micro-opt: bind `color` locally (it is local in main already — fast). Bind `stack.append` and `stack.pop` — but stack changes per component; we can bind inside the per-component loop. Actually, we could restructure to use a single stack across components: 
+
+```python
+stack = []
+push = stack.append
+pop = stack.pop
+for s in range(1, n+1):
+    if color[s]: continue
+    color[s] = 1
+    push(s)
+    while stack:
+        u = pop()
+        ...
+```
+
+Since the while loop empties the stack before moving to next s, reusing one stack is fine. This lets us bind push/pop once. 
+
+Also bind `g` locally. All locals in main() — good (local variable access is fast).
+
+One more idea to speed up the hot loop: process the adjacency with the color array and avoid function call overhead — already minimal.
+
+Alternatively, we could try to use BFS level-by-level with list comprehensions, which moves work into C:
+
+Level-synchronous BFS with comprehension:
+
+```python
+frontier = [s]
+color[s] = 1
+while frontier:
+    # assign colors to next level
+    ...
+```
+
+The problem: we need to check edges within the same level (odd cycle detection) and edges to previous levels are fine, edges to next level are discovery. With level BFS: for each vertex u in frontier, neighbors v: if uncolored → next level with opposite color; if colored with same color as u → violation. Note: same-level edges → violation (both got same color... wait, same level means same parity distance → same color → violation). Cross edges to previous-but-same-parity level → violation. This check still requires per-edge Python iteration. Comprehension could collect next frontier:
+
+```python
+nxt = []
+for u in frontier:
+    cu = color[u]
+    for v in g[u]:
+        ...
+```
+
+Not obviously better.
+
+What about a completely different check: bipartiteness via DSU implemented with arrays and iterative loops — no.
+
+Honestly, let me estimate more carefully. Python (CPython 3.8+) simple loop iteration with a few operations: roughly 50-100ns per bytecode op... Realistically, a loop body like:
+
+```python
+for v in gu:
+    cv = color[v]
+    if cv == 0:
+        color[v] = nc
+        push(v)
+```
+
+For unvisited: ~6-8 bytecodes ≈ 300-500ns. For visited: ~5-7 bytecodes ≈ 250-400ns. 4e5 iterations → 0.1-0.2s. Oh wait, that's better than my earlier estimate. Let me recount: FOR_ITER, STORE_FAST v, LOAD color, LOAD v, BINARY_SUBSCR, STORE cv, LOAD cv, LOAD 0, COMPARE, POP_JUMP... ~10 bytecodes for the compare path, plus branch. At ~30-70ns per bytecode (modern CPython 3.11+ is faster), 4e5 * 10 * 50ns = 0.2s. Plus the pop/color[u]/loop overhead per vertex: 2e5 * ~15 bytecodes = 0.15s. Edge building: 2e5 iterations * ~15 bytecodes = 0.15s. Parsing: fast. Total ≈ 0.5s worst case on older CPython, less on 3.11+. Should be OK.
+
+But to be safer, maybe I can reduce the edge-building cost. Options:
+
+Option 1: Build CSR via counting sort using... hmm, in pure Python:
+
+```python
+deg = [0]*(n+2)
+for x in vals:
+    deg[x] += 1
+```
+That's 4e5 iterations of `deg[x] += 1` — ~4-5 bytecodes each → 0.1s. Then prefix sums via itertools.accumulate (C speed). Then fill loop 2e5 iterations with 2 insertions each (~10-12 bytecodes) → 0.15s. Total similar to list-of-lists build (2e5 iterations, 2 appends: `g[u].append(v)` is LOAD g, LOAD u, BINARY_SUBSCR, LOAD_METHOD append, LOAD v, CALL — ~8 bytecodes; twice per iteration + zip overhead ~6 → ~22 bytecodes per edge → 0.25s). Hmm, CSR fill: `adj[pos[u]] = v; pos[u] += 1` = LOAD adj, LOAD pos, LOAD u, SUBSCR... store: ~6 bytecodes; twice + loop overhead ~10 → ~22. Similar.
+
+Counter for degrees: `cnt = Counter(vals)` is C-speed (fast, ~20ms for 4e5). Then:
+
+```python
+deg = [0]*(n+1)
+for x, c in cnt.items():
+    deg[x] = c
+```
+cnt.items() ≤ 2e5 iterations but typically = number of distinct vertices ≤ 2e5. ~0.05s. Then accumulate. Then fill loop still needed (2e5 iterations). Hmm, the fill loop is unavoidable in pure Python... unless we use sorting:
+
+Sort-based CSR: create list of (u, v) pairs sorted by u? `sorted(zip(vals[::2], vals[1::2]))` — sorting 2e5 tuples ~0.2s. Not better.
+
+Alternative: numpy! Use numpy to build CSR:
+- vals_np = np.array(vals) (or np.fromstring... use np.frombuffer? We can parse with np.fromstring(data, sep=' ')... deprecated; np.fromiter? Actually `np.array(data[2:], dtype=np.int32)` from list of bytes? No — need ints. We could do `np.fromstring(sys.stdin.buffer.read(), dtype=np.int64, sep=' ')` — deprecated but works; or np.loadtxt (slow). Better: `arr = np.array(sys.stdin.buffer.read().split(), dtype=np.int64)` — numpy converts byte strings to ints? np.array of bytes objects with dtype int64 — yes, numpy can convert bytes like b'123' to int? Let me think: np.array([b'123'], dtype=np.int64) — I believe numpy will try to convert bytes to int... Actually numpy conversion from bytes strings to integer dtype: it works via int(b'123')? int() doesn't accept bytes... Actually int(b'123') raises TypeError? No wait: int(b'123') → TypeError: int() can't convert non-string with explicit base? Hmm, in Python 3, int(b'123') raises TypeError. But numpy has its own string-to-int conversion which handles bytes: np.array([b'12', b'34'], dtype=np.int64) — I believe this works in numpy (it parses ASCII). Yes, numpy supports converting byte strings to numeric dtypes (it uses its own parser). I've used `np.array(sys.stdin.buffer.read().split(), dtype=np.int64)` before successfully. Yes, that works.
+
+Then CSR build with numpy:
+```python
+u = arr[0::2]; v = arr[1::2]
+deg = np.bincount(u, minlength=n+1) + np.bincount(v, minlength=n+1)
+```
+Wait, but self-loops: deg counts fine. Then head = np.zeros(n+2); head[1:] = np.cumsum(deg)? Let me define properly. Then fill: use argsort or the standard trick:
+
+```python
+order = np.argsort(u, kind='stable')  # sort edges by u
+```
+Then adj_v = v[order], and head from cumsum of deg. This gives CSR where for vertex i, neighbors are adj_v[head[i]:head[i+1]]. argsort of 2e5 elements: ~10ms. 
+
+But then the DFS still needs Python loops over 4e5 adjacency entries — numpy doesn't help there. The DFS is the dominant cost anyway. So numpy only saves the build (~0.2s). Might be worth it, but adds complexity and dependency. Also converting numpy arrays back for Python loop access is slow (numpy scalar extraction is slow!). Iterating over numpy array elements in Python is slower than iterating a Python list. We'd need adj_list = adj_v.tolist() (fast, C-level) — fine.
+
+Hmm, but honestly, I think plain Python is fine for 2e5. Let me just write clean, optimized plain Python.
+
+Actually, wait. Let me reconsider the problem constraints: n, m ≤ 2·10^5. This is small. Plain Python with fast I/O: definitely under 1s in most cases (PyPy would crush it, CPython ~0.3-0.6s). I'll go with plain Python, carefully optimized.
+
+Let me also double check the output format: "print YES, then a second line with n integers s_1 … s_n". So:
+
+```
+YES
+1 2 1 2
+```
+
+And for NO: single line "NO".
+
+Let me also handle potential edge case: m lines might contain u==v (self-loop) — handled naturally (cv == cu when v is u... wait, when we pop u and iterate neighbors, v = u: cv = color[u] = cu → NO). But what if the self-loop vertex is never... it will be popped since it's in some component and all component vertices get popped. When popped, its neighbor list includes itself → detected. But hmm, what if the self-loop is on a vertex that gets color assigned but... every vertex gets popped exactly once, and during its pop we examine all its neighbors including itself. So detected. Good.
+
+What about duplicate edges (u,v) appearing twice? Fine — just checked twice.
+
+Now, one more important consideration: the DFS `while stack` loop with `u = stack.pop()` — vertices can be pushed once each. Good.
+
+Let me also think about whether BFS might be faster than DFS here... same asymptotics. DFS with list is simplest.
+
+Let me write the final solution:
+
+```python
+import sys
+
+def main():
+    data = sys.stdin.buffer.read().split()
+    n = int(data[0])
+    m = int(data[1])
+    vals = list(map(int, data[2:2 + 2 * m]))
+    g = [[] for _ in range(n + 1)]
+    for i in range(0, 2 * m, 2):
+        u = vals[i]
+        v = vals[i + 1]
+        g[u].append(v)
+        g[v].append(u)
+    color = [0] * (n + 1)
+    stack = []
+    push = stack.append
+    pop = stack.pop
+    write = sys.stdout.write
+    for s in range(1, n + 1):
+        if color[s]:
+            continue
+        color[s] = 1
+        push(s)
+        while stack:
+            u = pop()
+            cu = color[u]
+            nc = cu ^ 3
+            for v in g[u]:
+                cv = color[v]
+                if cv:
+                    if cv == cu:
+                        write("NO\n")
+                        return
+                else:
+                    color[v] = nc
+                    push(v)
+    write("YES\n")
+    write(" ".join(map(str, color[1:])))
+    write("\n")
+
+main()
+```
+
+Wait — `cu ^ 3`: color 1 → 1^3 = 2, color 2 → 2^3 = 1. Correct.
+
+Hmm, one issue: `for i in range(0, 2*m, 2)` with indexing vals[i], vals[i+1] — this is fine. Alternatively zip(it, it). Let me benchmark mentally: `for u, v in zip(it, it)` — zip creates a tuple per iteration and unpacks: FOR_ITER + UNPACK_SEQUENCE(2) + 2 STOREs ≈ 4-5 bytecodes, vs range approach: FOR_ITER + STORE i + LOAD vals + LOAD i + SUBSCR + STORE u + ... ≈ 12 bytecodes. zip approach is faster. Use zip.
+
+Actually even better: `it = iter(vals); for u, v in zip(it, it):` — yes.
+
+Edge building with append: `g[u].append(v)` — LOAD_FAST g, LOAD_FAST u, BINARY_SUBSCR, LOAD_METHOD append, LOAD_FAST v, CALL_METHOD, POP_TOP ≈ 7 bytecodes. Twice per edge + zip overhead ≈ 18-19 bytecodes per edge → 2e5 edges → ~3.8M bytecodes ≈ 0.15-0.25s. Acceptable.
+
+Alternative: pre-bind appends? Can't easily since g[u] varies.
+
+Hmm, what about building adjacency differently: since we need each vertex's neighbor list, and we do two appends per edge... it's fine.
+
+Now the DFS hot loop. Let me count bytecodes per neighbor (visited, different color — the common case):
+```
+for v in g[u]:        # FOR_ITER + STORE_FAST (but g[u] computed once per u)
+    cv = color[v]     # LOAD color, LOAD v, BINARY_SUBSCR, STORE cv
+    if cv:            # LOAD cv, POP_JUMP_IF_FALSE
+        if cv == cu:  # LOAD cv, LOAD cu, COMPARE, POP_JUMP
+            (no)
+```
+≈ 4 + 3 + 2 + 4 = ~13 bytecodes per visited neighbor. Unvisited: FOR_ITER, STORE, 4 (cv), 2 (if cv → false path), then else: LOAD color, LOAD v, LOAD nc, STORE_SUBSCR, LOAD push, LOAD v, CALL, POP ≈ 9 more → ~17. Total ≈ 4e5 * 14 ≈ 5.6M bytecodes ≈ 0.2-0.35s (CPython ~20-40M bytecodes/sec... actually CPython does roughly 30-70M simple bytecodes/sec on modern hardware for 3.8+; let's say ~50M/s → 0.11s). Plus per-vertex overhead: 2e5 * ~12 bytecodes = 2.4M → 0.05s. OK total DFS ~0.2-0.4s. Fine.
+
+Total: parse (~0.05s) + build (~0.15s) + DFS (~0.3s) + output join (~0.02s) ≈ 0.5s. Should pass 1s.
+
+If I want extra safety, I could use numpy for parsing and CSR building. But there's a risk numpy isn't available... it usually is. Hmm, but plain Python should be fine. Let me keep it simple and robust.
+
+Actually, let me reconsider one more time whether there's a subtlety in "lexicographically smallest" that I'm missing. The problem: "designate a role for each person so that no incompatible pair receives the same role... the lexicographically smallest valid designation." 
+
+Hmm wait, actually — I want to reconsider whether the intended difficulty is exactly this (per-component min gets 1), or whether the problem intends something where the coloring isn't forced per component. With exactly 2 roles and "no incompatible pair receives the same role", it's exactly proper 2-coloring. Connected bipartite components have exactly 2 colorings. So yes, the answer is as I described. The "lexicographically smallest" twist just means: min vertex of each component gets role 1.
+
+Hmm, wait, wait. Let me reconsider. Is it really true that a connected bipartite graph has exactly 2 proper 2-colorings? Yes: fix color of one vertex; every other vertex's color is forced by connectivity along any path (well-defined by bipartiteness). So exactly 2 (swap). Confirmed.
+
+So the solution stands. Let me also verify with example 1 that our output matches: "1 2 1 2" — yes, and note that the alternative "2 1 2 1" is also valid but lexicographically larger. Good.
+
+Now, let me also double check the DFS handles disconnected graphs and the order of s ensures min-vertex-gets-1: we iterate s = 1..n; the first uncolored vertex in a component is its minimum. Yes.
+
+One more potential gotcha: vertices numbered 1 to n; g has size n+1; color size n+1. Output color[1:] joined. Good.
+
+What if m = 0? vals = [] (data[2:2] = []). The zip loop does nothing. All vertices get color 1. Output "YES\n1 1 ... 1". Correct.
+
+What if the input has fewer tokens than expected? Assume well-formed.
+
+Let me also consider: could there be an issue where data has more tokens (e.g., trailing whitespace)? split() handles whitespace; extra tokens beyond 2+2m would be ignored due to slicing. Good.
+
+Memory: vals 4e5 ints (~11MB with objects... small ints < 257 are cached; ints up to 2e5 are distinct objects ~28 bytes each → 4e5 * 28 = 11.2MB + list 3.2MB). g: (n+1) lists ≈ 2e5 * 56 bytes = 11MB + inner lists overhead... each non-empty list has capacity overhead; total elements 4e5 pointers = 3.2MB + per-list header ~56-88 bytes * 2e5 = ~15MB. Total maybe 40-50MB. Under 256MB. Fine.
+
+Alternatively, to reduce memory, delete vals after building g: `del vals, data`. Not necessary but cheap to add. Actually `data` holds 4e5 bytes objects (~20 bytes each = 8MB). Fine either way. I'll add `del data` maybe. Eh, it's fine.
+
+Let me also think about using sys.stdout.write vs print — write is fine.
+
+Final check on the "NO" path: we write "NO\n" and return. Good.
+
+Let me also think again about whether checking `cv == cu` inside `if cv:` catches all violations. Violation = edge (u,v) with color[u] == color[v], both nonzero (they're always nonzero once assigned; during examination both are assigned since u is popped → colored, and v either colored or gets colored now). When u is popped and v is a neighbor with cv == cu ≠ 0 → detected. Every edge (u,v) is examined when u is popped (v in g[u]) and when v is popped (u in g[v]). Both u and v are popped (each pushed vertex is popped; every vertex in a component containing an edge gets pushed... every vertex reached gets pushed and popped). So every edge examined at least once with both endpoints colored. If any edge is monochromatic in the final coloring, detected. But careful: we might return NO "early" — but only on actual violations, which are final (colors immutable). And in bipartite graphs, no violation ever appears. So correctness holds. 
+
+Wait, one more subtle thing: when we examine neighbor v with cv == 0, we color it nc and push. But what if v is already in the stack? Impossible — v in stack implies color[v] ≠ 0. Good.
+
+Also: could a vertex be examined as neighbor before being popped, colored nc, and then when popped, its cu = nc, and we check its neighbors — including the parent u with color cu^3 ≠ cu. Fine.
+
+I'm confident in the algorithm. Let me also add a small optimization: instead of `nc = cu ^ 3` computed per vertex — trivial.
+
+Also, `for v in g[u]` — g[u] lookup per pop. Fine.
+
+Let me write the final code cleanly:
+
+```python
+import sys
+
+def main():
+    data = sys.stdin.buffer.read().split()
+    n = int(data[0])
+    m = int(data[1])
+    vals = list(map(int, data[2:2 + 2 * m]))
+    del data
+    g = [[] for _ in range(n + 1)]
+    it = iter(vals)
+    for u, v in zip(it, it):
+        g[u].append(v)
+        g[v].append(u)
+    del vals, it
+    color = [0] * (n + 1)
+    stack = []
+    push = stack.append
+    pop = stack.pop
+    out = sys.stdout
+    for s in range(1, n + 1):
+        if color[s]:
+            continue
+        color[s] = 1
+        push(s)
+        while stack:
+            u = pop()
+            cu = color[u]
+            nc = cu ^ 3
+            for v in g[u]:
+                cv = color[v]
+                if cv:
+                    if cv == cu:
+                        out.write("NO\n")
+                        return
+                else:
+                    color[v] = nc
+                    push(v)
+    out.write("YES\n")
+    out.write(" ".join(map(str, color[1:])))
+    out.write("\n")
+
+main()
+```
+
+Hmm, `del vals, it` — but `it` is used in the zip loop; after the loop, deleting is fine. Actually `del it` inside... after the for loop completes, it's fine. But careful: `zip(it, it)` — deleting after loop OK.
+
+Wait, actually there's a subtle issue with `del data` — data[0], data[1] already extracted. Fine.
+
+One thing: `out.write(" ".join(map(str, color[1:])))` — color[1:] creates a list of n ints; map(str) → join. For n=2e5, fast (~20ms).
+
+Alternatively, since colors are only 1 and 2, we could precompute strings... map(str) is fine.
+
+Hmm, let me reconsider whether to output via print with '\n'.join. Fine as is.
+
+Let me now also think about whether the problem could have u or v out of range [1, n]... assume valid input.
+
+Let me trace through example 2 once more with the exact code:
+data = [3,3,1,2,1,3,2,3]. n=3, m=3. vals=[1,2,1,3,2,3]. g[1]=[2,3], g[2]=[1,3], g[3]=[1,2].
+s=1: color[1]=1, stack=[1]. Pop 1: cu=1, nc=2. v=2: cv=0 → color[2]=2, push. v=3: cv=0 → color[3]=2, push. stack=[2,3]. Pop 3: cu=2, nc=1. v=1: cv=1, truthy, cv==cu? 1==2 no. v=2: cv=2, truthy, cv==cu? 2==2 yes → write NO, return. Output "NO". Correct.
+
+Example 1 traced earlier → "YES\n1 2 1 2". Correct.
+
+Now let me think about whether there might be a performance trap: deep DFS stack — list-based, fine.
+
+One more consideration: the problem says "exactly two distinct roles, labeled 1 and 2" — yes, 2-coloring.
+
+I think we're done. But let me reconsider the time limit issue once more and decide whether to add numpy acceleration for parsing/building. Given constraints 2e5, plain Python is fine. Many similar problems (bipartite check, 2e5) pass in CPython within 1s with fast I/O. I'll keep plain Python but make the hot loops as tight as possible.
+
+Actually, one more micro-optimization for the DFS: hoist `g` and `color` — they're already local. The `for s in range(1, n+1)` loop with `if color[s]: continue` — 2e5 iterations, cheap.
+
+Another micro-opt: in the inner loop, replace
+
+```python
+cv = color[v]
+if cv:
+    if cv == cu:
+        ...
+else:
+    ...
+```
+
+with
+
+```python
+if color[v] == cu:
+    NO
+if not color[v]:  # hmm, double lookup
+```
+
+No — the current version with single lookup `cv = color[v]` is better.
+
+Alternative structure avoiding the nested if for the common case:
+
+```python
+for v in g[u]:
+    cv = color[v]
+    if cv == nc:
+        continue
+    if cv == 0:
+        color[v] = nc
+        push(v)
+    else:
+        NO
+```
+
+Common case (cv == nc): 1 comparison + continue. Unvisited: 2 comparisons + assign. Violation: 2 comparisons. Hmm, this makes the most common case fastest. But is cv == nc the most common? Visited neighbors have color nc (in bipartite case). Number of visited-neighbor examinations = 2m - (n - c) where c = #components. With m=2e5, n=2e5: ≈ 2e5+ visited vs ≈ 2e5 unvisited. Roughly equal. Either structure fine. I'll use this one since it's also clear.
+
+Actually hmm, wait: `if cv == nc: continue` — for unvisited cv=0, nc is 1 or 2, so 0 == nc false → next check. Fine.
+
+Let me also double check `nc = cu ^ 3`: cu=1 → nc=2; cu=2 → nc=1. And cv==nc means different color from u. Good.
+
+Final code:
+
+```python
+import sys
+
+def main():
+    data = sys.stdin.buffer.read().split()
+    n = int(data[0])
+    m = int(data[1])
+    vals = list(map(int, data[2:2 + 2 * m]))
+    g = [[] for _ in range(n + 1)]
+    it = iter(vals)
+    for u, v in zip(it, it):
+        g[u].append(v)
+        g[v].append(u)
+    color = [0] * (n + 1)
+    stack = []
+    push = stack.append
+    pop = stack.pop
+    write = sys.stdout.write
+    for s in range(1, n + 1):
+        if color[s]:
+            continue
+        color[s] = 1
+        push(s)
+        while stack:
+            u = pop()
+            nc = color[u] ^ 3
+            cu = color[u]  # hmm, need cu for comparison
+```
+
+Wait, in the structure `if cv == nc: continue; if cv == 0: ...; else: NO` — I need nc and the "else" catches cv == cu (since cv ∈ {0, 1, 2}, cv ≠ nc and cv ≠ 0 → cv == cu). So I don't need cu at all! Nice:
+
+```python
+while stack:
+    u = pop()
+    nc = color[u] ^ 3
+    for v in g[u]:
+        cv = color[v]
+        if cv == nc:
+            continue
+        if cv == 0:
+            color[v] = nc
+            push(v)
+        else:
+            write("NO\n")
+            return
+```
+
+Wait, but careful: cv == cu means violation. cv values: 0, 1, 2. nc ∈ {1,2}. If cv == nc → OK (different color). If cv == 0 → unvisited. Else cv == cu → violation. But hold on: what if cu... nc = cu ^ 3, so nc ≠ cu always. And cv == cu is the only remaining possibility. Correct.
+
+Hmm, but one edge: self-loop v == u: cv = color[u] = cu ≠ nc, ≠ 0 → else → NO. Correct.
+
+This is clean. Bytecode count per visited-OK neighbor: FOR_ITER, STORE v, LOAD color, LOAD v, SUBSCR, STORE cv, LOAD cv, LOAD nc, COMPARE, POP_JUMP → ~10, then JUMP back. Good.
+
+Let me also double-check `color[u] ^ 3` — color[u] is 1 or 2 (u was colored when pushed). Yes.
+
+Now, complete final code:
+
+```python
+import sys
+
+def main():
+    data = sys.stdin.buffer.read().split()
+    n = int(data[0])
+    m = int(data[1])
+    vals = list(map(int, data[2:2 + 2 * m]))
+    g = [[] for _ in range(n + 1)]
+    it = iter(vals)
+    for u, v in zip(it, it):
+        g[u].append(v)
+        g[v].append(u)
+    color = [0] * (n + 1)
+    stack = []
+    push = stack.append
+    pop = stack.pop
+    write = sys.stdout.write
+    for s in range(1, n + 1):
+        if color[s]:
+            continue
+        color[s] = 1
+        push(s)
+        while stack:
+            u = pop()
+            nc = color[u] ^ 3
+            for v in g[u]:
+                cv = color[v]
+                if cv == nc:
+                    continue
+                if cv == 0:
+                    color[v] = nc
+                    push(v)
+                else:
+                    write("NO\n")
+                    return
+    write("YES\n")
+    write(" ".join(map(str, color[1:])))
+    write("\n")
+
+main()
+```
+
+Hmm, one concern: `zip(it, it)` where `it = iter(vals)` — if m=0, vals=[], zip yields nothing. Good. If the number of tokens is odd (malformed input), zip pairs floor(odd/2)... but assume well-formed.
+
+Wait, there's one more thing to verify: `data[2:2 + 2*m]` — if m=0, this is data[2:2] = []. Good.
+
+Also, what if m lines contain vertices but the problem might have m=0 with no lines — handled.
+
+Let me reconsider: is there any chance the intended answer for lexicographic smallest is different — e.g., maybe they want the greedy where you process vertices 1..n and assign the smallest possible role, which for a connected bipartite graph is exactly what we do (min vertex of each component = 1). Yes, same thing.
+
+Hmm, actually hold on. Let me reconsider the problem statement once more: "designate a role for each person so that no incompatible pair receives the same role". Yes, proper 2-coloring. "or report impossibility" → NO if not bipartite. "the lexicographically smallest valid designation" → as computed.
+
+Wait, but hmm — one thing to double check: is it possible that the problem intends roles to be used... "exactly two distinct roles" — does it require both roles to be used? Like, if n=1, must we use both roles 1 and 2? With n=1, we can only assign one role to the single person; "exactly two distinct roles" describes the facility requiring two roles (day and night shifts), not that both must appear in the output. The output is s_1..s_n each in {1,2}. For n=1, output "1". I don't think there's a constraint that both roles appear. The examples don't clarify, but standard interpretation: just a valid 2-coloring. Also with n=2, m=0: lexicographically smallest is "1 1" — both get role 1. Is that valid? No incompatible pairs, so yes. Lexicographically smallest: "1 1". Our algorithm gives that. If the problem required both roles used, "1 1" would be invalid... but that would be a weird constraint, and with n=1 impossible. The problem says "designate a role for each person so that no incompatible pair receives the same role" — the only constraint is on incompatible pairs. So "1 1" is valid. Good.
+
+Hmm, although... let me reconsider: "The same facility now requires exactly two distinct roles, labeled 1 and 2." This is just setting up that there are two roles. The constraint is only "no incompatible pair receives the same role". So yes.
+
+Let me also think about whether the answer for a bipartite graph could need role 2 somewhere to be lexicographically smaller... no: lexicographic smallest means minimize s_1 first, then s_2, etc. Our greedy is exactly that.
+
+Double-check the greedy once more with a concrete potential counterexample: Component with vertices {1,2} and edge (1,2). Colorings: (1,2) and (2,1). Lexicographically smallest: (1,2). Our algorithm: s=1 → color 1; neighbor 2 → color 2. Output "1 2". Correct.
+
+Component {1,2,3} with edges (1,2),(2,3): colorings: 1,2,1 or 2,1,2. Smallest: 1 2 1. Ours: s=1→1, pop 1: neighbor 2→2; pop 2: neighbors 1 (cv=1==nc? nc=1, yes continue), 3 (cv=0 → color 1); pop 3: neighbor 2 (cv=2, nc=2 → continue). Result 1 2 1. Correct.
+
+Now, potential issue: star graph center vertex 5, leaves 1..4 (n=5, edges (5,1),(5,2),(5,3),(5,4)). Component min = 1 → color[1]=1, then 5→2, then 2,3,4→1. Result: 1 1 1 1 2. Alternative: 2 2 2 2 1 — larger. Correct: position 1 gets 1. 
+
+Another: path 2-1-3 (edges (1,2),(1,3)), plus vertex 4 isolated... wait n=4: edges (1,2),(1,3). Components: {1,2,3}, {4}. Ours: s=1→1, 2→2, 3→2, s=4→1. Result: 1 2 2 1. Alternatives: comp {1,2,3}: (1,2,2) or (2,1,1); comp {4}: 1 or 2. Lex smallest: 1 2 2 1. Correct.
+
+Great.
+
+Now let me also stress-test the algorithm logic mentally for a non-bipartite detection in a component not containing vertex 1: e.g., n=5, edges: (4,5),(4,5)... no. Triangle on {3,4,5}: edges (3,4),(4,5),(5,3). s=1: isolated → 1. s=2: isolated → 1. s=3: color 1, push. Pop 3: nc=2; neighbors 4 (→2, push), 5 (→2, push). Pop 5: cu=2, nc=1; neighbors 4 (cv=2; cv==nc? 2==1 no; cv==0? no → else → NO). Correct.
+
+Alright. Now, output formatting: should there be a trailing newline? Yes, standard. " ".join then "\n".
+
+Also, for NO: "NO\n".
+
+Let me also consider flushing: sys.stdout.write then program exit flushes automatically. Fine.
+
+One more thought on reading input: what if the input is huge (4e5 tokens)? sys.stdin.buffer.read() is fine.
+
+Potential issue: `int(data[0])` where data[0] is bytes — int(b'4') works? int() accepts bytes? Actually, int(b'4') — hmm. In Python 3, `int(b'4')` raises... let me think. `int('4')` works with str. With bytes: `int(b'4')` — I believe it works! Python's int constructor accepts str, bytes, bytearray. Yes: int(b'4') → 4. From the docs: "If x is not a number or if base is given, then x must be a string, bytes, or bytearray instance representing an integer literal in radix base." So int(b'4') = 4. Good. And `list(map(int, data[2:...]))` with bytes tokens works.
+
+Now, is `map(int, ...)` over 4e5 bytes tokens fast? Yes, ~50-100ms.
+
+Alright, I'm fairly confident. Let me also add a tiny safeguard: if m > 0 but tokens fewer than 2m (malformed), zip would just process fewer edges — not our concern.
+
+Let me also think about whether to use `sys.setrecursionlimit` — not needed (iterative).
+
+Actually, let me reconsider using BFS via deque vs list-stack DFS: DFS list-stack is fine.
+
+One more potential performance improvement: instead of `for v in g[u]`, since many vertices may have empty g[u] (isolated), the loop just doesn't execute. Fine.
+
+Hmm, let me reconsider the memory of `g = [[] for _ in range(n+1)]` — 200001 empty lists. Each empty list in CPython: 56 bytes. → 11.2MB. Plus the list itself 1.6MB. OK.
+
+Alternative memory-friendlier: CSR. But fine.
+
+Let me also double check: the problem's m can be 0 ≤ m ≤ 2e5, n ≥ 1. All good.
+
+Final answer code:
+
+```python
+import sys
+
+def main():
+    data = sys.stdin.buffer.read().split()
+    n = int(data[0])
+    m = int(data[1])
+    vals = list(map(int, data[2:2 + 2 * m]))
+    g = [[] for _ in range(n + 1)]
+    it = iter(vals)
+    for u, v in zip(it, it):
+        g[u].append(v)
+        g[v].append(u)
+    color = [0] * (n + 1)
+    stack = []
+    push = stack.append
+    pop = stack.pop
+    write = sys.stdout.write
+    for s in range(1, n + 1):
+        if color[s]:
+            continue
+        color[s] = 1
+        push(s)
+        while stack:
+            u = pop()
+            nc = color[u] ^ 3
+            for v in g[u]:
+                cv = color[v]
+                if cv == nc:
+                    continue
+                if cv == 0:
+                    color[v] = nc
+                    push(v)
+                else:
+                    write("NO\n")
+                    return
+    write("YES\n")
+    write(" ".join(map(str, color[1:])))
+    write("\n")
+
+main()
+```
+
+Wait — I should double check the case where the same edge (u,v) appears and during pop of u, v is uncolored → colored nc and pushed. Later, v popped, examines u: color[u] = cu, nc' = color[v]^3 = cu → cv == nc' → continue. Good.
+
+And a "back edge" to an already-colored same-side vertex: e.g., square 1-2-3-4-1 plus chord... let's do square with vertices 1,2,3,4, edges (1,2),(2,3),(3,4),(4,1). s=1: color 1. Pop 1: nc=2; g[1]=[2,4]: 2→2 push, 4→2 push. Pop 4: cu=2, nc=1; g[4]=[3,1]: 3→1 push; 1: cv=1==nc → continue. Pop 3: cu=1, nc=2; g[3]=[2,4]: 2: cv=2==nc continue; 4: cv=2==nc continue. Pop 2: cu=2, nc=1; g[2]=[1,3]: 1: cv=1==nc continue; 3: cv=1==nc continue. Result: 1 2 1 2. Correct (matches example 1, which is exactly this graph).
+
+Now pentagon (odd cycle) 1-2-3-4-5-1: s=1: 1. Pop 1: nc=2: 2→2, 5→2. Pop 5: cu=2, nc=1: g[5]=[4,1]: 4→1 push; 1: cv=1==nc continue. Pop 4: cu=1, nc=2: g[4]=[3,5]: 3→2 push; 5: cv=2==nc continue. Pop 3: cu=2, nc=1: g[3]=[2,4]: 2: cv=2; cv==nc? 2==1 no; cv==0? no → NO. Correct.
+
+I'm confident. One last look at potential edge case: n=1, m=0 → data = [b'1', b'0']. vals = []. g = [[], []]. s=1: color[1]=1, push. Pop 1: nc=2; g[1] empty. Done. Output "YES\n1\n". Correct.
+
+n=1, m=1 with self-loop (1,1): vals=[1,1]. g[1]=[1]. s=1: color 1, push. Pop 1: nc=2. v=1: cv=1; cv==nc? no; cv==0? no → NO. Correct (a person incompatible with themselves can't be scheduled... well, arguably the pair (1,1) means person 1 can't have the same role as themselves → impossible). Reasonable.
+
+Also, what about m with u==v where problem guarantees u≠v — doesn't matter, handled.
+
+I think the solution is complete. Let me also think about whether I should worry about the DFS stack `pop` being from the end — order doesn't matter for correctness.
+
+One more consideration on speed: the outer `for s in range(1, n+1)` — for n=2e5 with one big component, after the first s the rest are skipped via `if color[s]: continue` — 2e5 cheap iterations. Fine.
+
+Also, note: `write(" ".join(map(str, color[1:])))` — color[1:] is a list slice of ints. map(str, ...) over 2e5 → join. ~30ms. Fine.
+
+Alternatively, since colors are 1/2, we could do `bytes` tricks, but unnecessary.
+
+Done. Let me finalize.
+
+Actually, one more thought — should I guard against the scenario where the input's first line has extra numbers or the edge count differs? No, trust the format.
+
+Also, let me make sure about `data[2:2+2*m]` when there are exactly 2+2m tokens — slice equals all edge tokens. Good.
+
+Final solutionLooking at this problem:
+
+- It's a 2-coloring (bipartiteness) problem: assign roles 1/2 so adjacent vertices differ.
+- For lexicographic smallest: each connected component of a bipartite graph has exactly **two** valid colorings (a coloring and its complement), so the choices per component are independent. To get the lexicographically smallest string, each component's smallest-indexed vertex should get role 1 (then everything else in that component is forced).
+- Algorithm: iterate vertices 1..n; for each unvisited vertex (which is the minimum of its component), color it 1 and propagate colors via DFS/BFS, checking for conflicts (same-color edge → NO, including self-loops which are naturally detected).
+
+Complexity: O(n + m), well within limits using fast I/O and iterative DFS.
+
+Verified against both examples: example 1 gives `1 2 1 2`, example 2 (triangle, odd cycle) gives `NO`.
+
+```python
+import sys
+
+def main():
+    data = sys.stdin.buffer.read().split()
+    n = int(data[0])
+    m = int(data[1])
+    vals = list(map(int, data[2:2 + 2 * m]))
+    g = [[] for _ in range(n + 1)]
+    it = iter(vals)
+    for u, v in zip(it, it):
+        g[u].append(v)
+        g[v].append(u)
+    color = [0] * (n + 1)
+    stack = []
+    push = stack.append
+    pop = stack.pop
+    write = sys.stdout.write
+    for s in range(1, n + 1):
+        if color[s]:
+            continue
+        color[s] = 1
+        push(s)
+        while stack:
+            u = pop()
+            nc = color[u] ^ 3  # opposite color (1<->2)
+            for v in g[u]:
+                cv = color[v]
+                if cv == nc:
+                    continue
+                if cv == 0:
+                    color[v] = nc
+                    push(v)
+                else:
+                    # cv == color[u] -> conflict (also catches self-loops)
+                    write("NO\n")
+                    return
+    write("YES\n")
+    write(" ".join(map(str, color[1:])))
+    write("\n")
+
+main()
 ```

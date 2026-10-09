@@ -1,0 +1,126 @@
+from collections import defaultdict, deque
+
+def solve():
+    q, t = map(int, input().split())
+    n = 3 * q
+    
+    if t == 0:
+        if q == 0:
+            print("YES")
+        else:
+            print("NO")
+        return
+    
+    combinations = []
+    for _ in range(t):
+        a, b, c = map(int, input().split())
+        combinations.append((a, b, c))
+    
+    # Try to find a perfect matching using backtracking with optimizations
+    # This is essentially a 3D matching problem
+    
+    # Build adjacency list for each vertex (vial)
+    adj = defaultdict(list)
+    for i, (a, b, c) in enumerate(combinations):
+        adj[a].append(i)
+        adj[b].append(i)
+        adj[c].append(i)
+    
+    # Try to find a matching that covers all vertices
+    matching = [-1] * (n + 1)  # matching[vial] = combination_index
+    used_combinations = [False] * t
+    
+    def dfs(v, visited_vials, visited_combinations):
+        for comb_idx in adj[v]:
+            if visited_combinations[comb_idx]:
+                continue
+                
+            a, b, c = combinations[comb_idx]
+            visited_combinations[comb_idx] = True
+            
+            # Check if we can extend the matching
+            can_use = True
+            matched_vials = []
+            
+            # Check what vials are already matched
+            for x in [a, b, c]:
+                if matching[x] != -1:
+                    can_use = False
+                    break
+                matched_vials.append(x)
+            
+            if can_use:
+                # Try this combination
+                for x in [a, b, c]:
+                    matching[x] = comb_idx
+                
+                # If we've matched all vials, we're done
+                if len(visited_vials) + 3 == n:
+                    return True, [comb_idx]
+                
+                # Continue with next unmatched vial
+                next_v = None
+                for vial in range(1, n + 1):
+                    if matching[vial] == -1:
+                        next_v = vial
+                        break
+                
+                if next_v is not None:
+                    result, path = dfs(next_v, visited_vials | {a, b, c}, visited_combinations)
+                    if result:
+                        return True, [comb_idx] + path
+                
+                # Backtrack
+                for x in [a, b, c]:
+                    matching[x] = -1
+            
+            visited_combinations[comb_idx] = False
+        
+        return False, []
+    
+    # Start with the first unmatched vial
+    start_vial = 1
+    result, selected_combinations = dfs(start_vial, set(), [False] * t)
+    
+    if not result and len(selected_combinations) != q:
+        # Try another approach - use a greedy method with backtracking
+        selected = []
+        vial_used = [False] * (n + 1)
+        
+        def backtrack(idx):
+            if len(selected) == q:
+                return True
+            
+            if idx >= t:
+                return False
+            
+            # Try including this combination
+            a, b, c = combinations[idx]
+            if not vial_used[a] and not vial_used[b] and not vial_used[c]:
+                vial_used[a] = vial_used[b] = vial_used[c] = True
+                selected.append((a, b, c))
+                
+                if backtrack(idx + 1):
+                    return True
+                
+                selected.pop()
+                vial_used[a] = vial_used[b] = vial_used[c] = False
+            
+            # Try not including this combination
+            if backtrack(idx + 1):
+                return True
+                
+            return False
+        
+        if backtrack(0):
+            print("YES")
+            for combo in selected:
+                print(*combo)
+        else:
+            print("NO")
+    else:
+        print("YES")
+        for comb_idx in selected_combinations:
+            print(*combinations[comb_idx])
+
+solve()

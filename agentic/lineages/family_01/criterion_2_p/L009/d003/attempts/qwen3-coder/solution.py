@@ -12,7 +12,6 @@ def solve():
     # Build adjacency list
     adj = defaultdict(list)
     edges = []
-    
     for _ in range(m):
         u, v = map(int, input().split())
         u -= 1
@@ -21,35 +20,60 @@ def solve():
         adj[v].append(u)
         edges.append((u, v))
     
-    # Try to 2-color the graph (check if bipartite)
+    # The matrix [[x, 1], [1, y]] is invertible with integer entries
+    # iff det = xy - 1 = ±1
+    # So xy = 0 or xy = 2
+    # Since x,y ∈ {1,2}, we have xy ∈ {1,2,4}
+    # So xy = 2 is the only valid case (xy-1=1)
+    # This means x=y=2 OR one is 1 and other is 2
+    # Wait, xy=2 when x=1,y=2 or x=2,y=1
+    # xy=1 when x=y=1
+    # xy=4 when x=y=2
+    # So xy-1 = 1, 0, 3 respectively
+    # Only xy=2 gives det=1, so inverse exists and is integer
+    # Hence, adjacent nodes must have different values (one 1, one 2)
+    
+    # This is a bipartite graph check!
+    # Each edge must connect a node with value 1 to a node with value 2
+    
     color = [-1] * n
+    visited = [False] * n
     
+    def bfs(start):
+        queue = deque([start])
+        color[start] = 0
+        while queue:
+            node = queue.popleft()
+            if visited[node]:
+                continue
+            visited[node] = True
+            for neighbor in adj[node]:
+                if color[neighbor] == -1:
+                    color[neighbor] = 1 - color[node]
+                    queue.append(neighbor)
+                elif color[neighbor] == color[node]:
+                    return False
+        return True
+    
+    # Check if graph is bipartite
     for i in range(n):
-        if color[i] == -1:
-            queue = deque([i])
-            color[i] = 0
-            
-            while queue:
-                node = queue.popleft()
-                for neighbor in adj[node]:
-                    if color[neighbor] == -1:
-                        color[neighbor] = 1 - color[node]
-                        queue.append(neighbor)
-                    elif color[neighbor] == color[node]:
-                        print("NO")
-                        return
+        if not visited[i] and adj[i]:  # Only process nodes with edges
+            if not bfs(i):
+                print("NO")
+                return
     
-    # Check if the solution satisfies all edges
-    # For each edge, one endpoint should be 0 (power 1) and other should be 1 (power 2)
-    for u, v in edges:
-        if color[u] == color[v]:
-            print("NO")
-            return
-    
-    # Convert colors to power levels (0 -> 1, 1 -> 2)
-    power = [1 if c == 0 else 2 for c in color]
+    # If bipartite, assign colors (0 -> 1, 1 -> 2)
+    # For isolated nodes (no edges), assign 1 (lexicographically smallest)
+    result = []
+    for i in range(n):
+        if color[i] == -1:  # Isolated node
+            result.append("1")
+        elif color[i] == 0:
+            result.append("1")
+        else:
+            result.append("2")
     
     print("YES")
-    print(" ".join(map(str, power)))
+    print(" ".join(result))
 
 solve()

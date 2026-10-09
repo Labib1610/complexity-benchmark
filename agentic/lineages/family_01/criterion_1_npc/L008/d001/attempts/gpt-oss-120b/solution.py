@@ -1,5 +1,4 @@
 import sys
-
 sys.setrecursionlimit(10000)
 
 def solve() -> None:
@@ -9,39 +8,49 @@ def solve() -> None:
     it = iter(data)
     n = int(next(it))
     m = int(next(it))
-    adj = [[] for _ in range(n + 1)]
+    adj = [0] * n          # bitmask of neighbors
+    neigh = [[] for _ in range(n)]
     for _ in range(m):
-        u = int(next(it))
-        v = int(next(it))
-        if u == v:
-            continue
-        adj[u].append(v)
-        adj[v].append(u)
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+        neigh[u].append(v)
+        neigh[v].append(u)
 
-    colour = [0] * (n + 1)  # 1‑based
+    # order vertices by degree descending for better pruning
+    order = sorted(range(n), key=lambda x: -len(neigh[x]))
+    pos_in_order = [0]*n
+    for i, v in enumerate(order):
+        pos_in_order[v] = i
 
-    def dfs(v: int) -> bool:
-        if v == n + 1:
+    colors = [0]*n
+    found = False
+
+    def dfs(idx: int) -> bool:
+        nonlocal found
+        if idx == n:
             return True
-        for col in (1, 2, 3):
-            ok = True
-            for nb in adj[v]:
-                if colour[nb] == col:
-                    ok = False
-                    break
-            if not ok:
-                continue
-            colour[v] = col
-            if dfs(v + 1):
-                return True
-            colour[v] = 0
+        v = order[idx]
+        # try colors 1..3
+        forbidden = 0
+        for u in neigh[v]:
+            c = colors[u]
+            if c:
+                forbidden |= 1 << (c-1)
+        for col in range(1,4):
+            if not (forbidden & (1 << (col-1))):
+                colors[v] = col
+                if dfs(idx+1):
+                    return True
+                colors[v] = 0
         return False
 
-    if dfs(1):
-        out = ['YES', ' '.join(str(colour[i]) for i in range(1, n + 1))]
-        sys.stdout.write('\n'.join(out))
+    if dfs(0):
+        sys.stdout.write("YES\n")
+        sys.stdout.write(' '.join(str(colors[i]) for i in range(n)))
     else:
-        sys.stdout.write('NO')
+        sys.stdout.write("NO")
 
 if __name__ == "__main__":
     solve()

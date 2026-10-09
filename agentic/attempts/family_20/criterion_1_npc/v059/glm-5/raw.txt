@@ -1,0 +1,166 @@
+Looking at this problem, we need to color edges of a 3-regular graph with 3 colors such that each vertex has exactly one edge of each color. This is equivalent to finding a proper 3-edge-coloring of a cubic graph.
+
+By Vizing's theorem, a cubic graph is 3-edge-colorable if and only if it has no bridge. The algorithm:
+1. Find a perfect matching and color it with color 3
+2. The remaining edges form a 2-regular graph (disjoint cycles), which is 2-edge-colorable with colors 1 and 2
+
+To find a perfect matching in a bridgeless cubic graph, we can use the Tutte-Berge approach: find a maximum matching, and if it's not perfect, use the Gallai-Edmonds decomposition to find an augmenting structure.
+
+```python
+import sys
+from sys import setrecursionlimit
+setrecursionlimit(10000)
+
+def solve():
+    input_data = sys.stdin.buffer.read().split()
+    idx = 0
+    n = int(input_data[idx]); idx += 1
+    m = int(input_data[idx]); idx += 1
+    
+    edges = []
+    adj = [[] for _ in range(n+1)]
+    for i in range(m):
+        u = int(input_data[idx]); idx += 1
+        v = int(input_data[idx]); idx += 1
+        edges.append((u, v))
+        adj[u].append((v, i))
+        adj[v].append((u, i))
+    
+    # Find perfect matching using Tutte's algorithm
+    def find_perfect_matching():
+        nonlocal n
+        match = [0] * (n + 1)
+        
+        def try_kuhn(v, visited):
+            for u, eid in adj[v]:
+                if not visited[u]:
+                    visited[u] = True
+                    if match[u] == 0 or try_kuhn(match[u], visited):
+                        match[u] = v
+                        match[v] = u
+                        return True
+            return False
+        
+        for v in range(1, n+1):
+            if match[v] == 0:
+                visited = [False] * (n + 1)
+                if not try_kuhn(v, visited):
+                    break
+        
+        unmatched = [v for v in range(1, n+1) if match[v] == 0]
+        
+        if not unmatched:
+            return match
+        
+        # Gallai-Edmonds decomposition
+        U = set(unmatched)
+        Z = set()
+        queue = list(U)
+        while queue:
+            v = queue.pop()
+            for u, _ in adj[v]:
+                if u not in Z and u not in U:
+                    Z.add(u)
+                    w = match[u]
+                    if w and w not in U:
+                        U.add(w)
+                        queue.append(w)
+        
+        A = Z - U
+        all_set = set(range(1, n+1))
+        D = U | A
+        C = all_set - D
+        
+        # Find edge from C to A
+        for v in C:
+            for u, _ in adj[v]:
+                if u in A:
+                    # Find alternating path from unmatched in U to u
+                    parent = {u: v}
+                    visited = {u, v}
+                    queue = [u]
+                    found = False
+                    target = None
+                    while queue and not found:
+                        x = queue.pop(0)
+                        if x in U and match[x] == 0:
+                            target = x
+                            found = True
+                            break
+                        if x in A:
+                            for y, _ in adj[x]:
+                                if y not in visited and y in U:
+                                    visited.add(y)
+                                    parent[y] = x
+                                    queue.append(y)
+                        elif x in U:
+                            if match[x] != 0:
+                                y = match[x]
+                                if y not in visited:
+                                    visited.add(y)
+                                    parent[y] = x
+                                    queue.append(y)
+                    
+                    if target is not None:
+                        # Augment along path
+                        path = [target]
+                        x = target
+                        while x != v:
+                            x = parent[x]
+                            path.append(x)
+                        
+                        # path is [target, ..., u, v], alternating unmatched/matched
+                        # path[0] is unmatched, path[1]-path[2] matched, etc.
+                        for i in range(0, len(path)-1, 2):
+                            a, b = path[i], path[i+1]
+                            match[a] = b
+                            match[b] = a
+                        
+                        # Recursively find perfect matching
+                        return find_perfect_matching()
+        
+        return None
+    
+    match = find_perfect_matching()
+    
+    if match is None:
+        print("NO")
+        return
+    
+    color = [0] * m
+    for i, (u, v) in enumerate(edges):
+        if match[u] == v:
+            color[i] = 3
+    
+    # Color remaining 2-regular graph with colors 1 and 2
+    visited = [False] * (n + 1)
+    for start in range(1, n+1):
+        if visited[start]:
+            continue
+        visited[start] = True
+        cycle = [start]
+        cur = start
+        prev = -1
+        while True:
+            next_v = None
+            next_eid = None
+            for u, eid in adj[cur]:
+                if u != prev and color[eid] != 3:
+                    next_v = u
+                    next_eid = eid
+                    break
+            if next_v is None or next_v == start:
+                break
+            cycle.append((next_v, next_eid))
+            prev = cur
+            cur = next_v
+            visited[cur] = True
+        
+        for j, (v, eid) in enumerate(cycle):
+            color[eid] = 1 if j % 2 == 0 else 2
+    
+    print("YES")
+    print(' '.join(map(str, color)))
+
+solve()
+```

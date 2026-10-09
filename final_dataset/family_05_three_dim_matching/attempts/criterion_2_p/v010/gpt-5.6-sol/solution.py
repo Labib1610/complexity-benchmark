@@ -1,0 +1,97 @@
+import sys
+from collections import deque
+
+def main():
+    input_buffer = sys.stdin.buffer
+    first = input_buffer.readline().split()
+    if not first:
+        return
+
+    k, t = map(int, first)
+
+    adjacency = [[] for _ in range(k)]
+    machine = [-1] * k
+    pair_specialist = [-1] * k
+    pair_slot = [-1] * k
+    matched = 0
+
+    for _ in range(t):
+        x, y, z = map(int, input_buffer.readline().split())
+        x -= 1
+        y -= 1
+        z -= 1
+        adjacency[x].append(z)
+        machine[x] = y
+
+        if pair_specialist[x] == -1 and pair_slot[z] == -1:
+            pair_specialist[x] = z
+            pair_slot[z] = x
+            matched += 1
+
+    if matched < k:
+        sys.setrecursionlimit(5000)
+        distance = [0] * k
+        inf = k + 1
+
+        def bfs():
+            queue = deque()
+            shortest = inf
+
+            for u in range(k):
+                if pair_specialist[u] == -1:
+                    distance[u] = 0
+                    queue.append(u)
+                else:
+                    distance[u] = inf
+
+            while queue:
+                u = queue.popleft()
+                if distance[u] >= shortest:
+                    continue
+
+                next_distance = distance[u] + 1
+                for v in adjacency[u]:
+                    other = pair_slot[v]
+                    if other == -1:
+                        shortest = next_distance
+                    elif distance[other] == inf:
+                        distance[other] = next_distance
+                        queue.append(other)
+
+            return shortest != inf
+
+        def dfs(u):
+            for v in adjacency[u]:
+                other = pair_slot[v]
+                if other == -1 or (
+                    distance[other] == distance[u] + 1 and dfs(other)
+                ):
+                    pair_specialist[u] = v
+                    pair_slot[v] = u
+                    return True
+
+            distance[u] = inf
+            return False
+
+        while bfs():
+            augmented = 0
+            for u in range(k):
+                if pair_specialist[u] == -1 and dfs(u):
+                    augmented += 1
+            matched += augmented
+            if augmented == 0:
+                break
+
+    if matched != k:
+        sys.stdout.write("NO\n")
+        return
+
+    result = ["YES"]
+    for x in range(k):
+        result.append(
+            f"{x + 1} {machine[x] + 1} {pair_specialist[x] + 1}"
+        )
+    sys.stdout.write("\n".join(result))
+
+if __name__ == "__main__":
+    main()

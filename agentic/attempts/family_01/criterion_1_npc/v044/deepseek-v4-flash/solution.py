@@ -10,28 +10,29 @@ def solve():
         v -= 1
         adj[u].append(v)
         adj[v].append(u)
-    
+
     color = [-1] * n
 
-    def backtrack(i):
-        if i == n:
+    def backtrack(node):
+        if node == n:
             return True
-        for c in range(3):  # shifts 1,2,3 -> 0,1,2 internally
+        # Try colors 1, 2, 3
+        for c in (1, 2, 3):
             ok = True
-            for nb in adj[i]:
+            for nb in adj[node]:
                 if color[nb] == c:
                     ok = False
                     break
             if ok:
-                color[i] = c
-                if backtrack(i + 1):
+                color[node] = c
+                if backtrack(node + 1):
                     return True
-                color[i] = -1
+                color[node] = -1
         return False
 
     if backtrack(0):
         print("YES")
-        print(" ".join(str(c + 1) for c in color))
+        print(" ".join(str(color[i]) for i in range(n)))
     else:
         print("NO")
 

@@ -1,0 +1,82 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    j = int(input_data[0])
+    m = int(input_data[1])
+    
+    docs = []
+    idx = 2
+    for _ in range(j):
+        o = int(input_data[idx])
+        idx += 1
+        reviews = []
+        for _ in range(o):
+            official = int(input_data[idx])
+            duration = int(input_data[idx+1])
+            idx += 2
+            reviews.append((official - 1, duration))
+        docs.append(reviews)
+        
+    total_reviews = sum(len(d) for d in docs)
+    
+    # State: (review_idx_0, review_idx_1, ..., review_idx_{j-1})
+    # Value: (earliest_start_time, official_finish_times)
+    # We use a dictionary to store the Pareto frontier of states.
+    # Two states are comparable if all review indices are equal.
+    # A state dominates another if its start time is <= and all official finish times are <=.
+    
+    frontier = {}
+    initial_finish_times = tuple([0] * m)
+    initial_state = tuple([0] * j)
+    frontier[initial_state] = (0, initial_finish_times)
+    
+    ans = 0
+    
+    while frontier:
+        next_frontier = {}
+        for state, (start_time, finish_times) in frontier.items():
+            is_final = True
+            for doc_id in range(j):
+                if state[doc_id] < len(docs[doc_id]):
+                    is_final = False
+                    official, duration = docs[doc_id][state[doc_id]]
+                    # Earliest time this review can start
+                    earliest_start = max(start_time, finish_times[official])
+                    new_start_time = earliest_start + duration
+                    
+                    new_state = list(state)
+                    new_state[doc_id] += 1
+                    new_state = tuple(new_state)
+                    
+                    new_finish_times = list(finish_times)
+                    new_finish_times[official] = new_start_time
+                    new_finish_times = tuple(new_finish_times)
+                    
+                    # Check if this new state is dominated by an existing one
+                    if new_state in next_frontier:
+                        existing_start, existing_finish = next_frontier[new_state]
+                        # Check if new state dominates existing
+                        if new_start_time <= existing_start and new_finish_times <= existing_finish:
+                            next_frontier[new_state] = (new_start_time, new_finish_times)
+                        # Check if existing dominates new
+                        elif existing_start <= new_start_time and existing_finish <= new_finish_times:
+                            pass # Keep existing
+                        else:
+                            # Neither dominates, keep the one with strictly smaller start time
+                            if new_start_time < existing_start:
+                                next_frontier[new_state] = (new_start_time, new_finish_times)
+                    else:
+                        next_frontier[new_state] = (new_start_time, new_finish_times)
+            
+            if is_final:
+                ans = max(ans, start_time)
+                
+        frontier = next_frontier
+        
+    print(ans)
+
+solve()

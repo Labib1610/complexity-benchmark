@@ -1,0 +1,138 @@
+```python
+import sys
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+
+    n, m, k = data[0], data[1], data[2]
+    dangerous = [0] * n
+
+    pos = 3
+    for _ in range(m):
+        u = data[pos] - 1
+        v = data[pos + 1] - 1
+        pos += 2
+        dangerous[u] |= 1 << v
+        dangerous[v] |= 1 << u
+
+    if k == 1:
+        print("YES")
+        print(1)
+        return
+
+    full = (1 << n) - 1
+    compatibility = [
+        full & ~(dangerous[v] | (1 << v))
+        for v in range(n)
+    ]
+
+    # Quickly try to construct a clique in the compatibility graph.
+    candidates = full
+    greedy = []
+    while candidates:
+        bits = candidates
+        best_v = -1
+        best_degree = -1
+        while bits:
+            bit = bits & -bits
+            v = bit.bit_length() - 1
+            degree = (compatibility[v] & candidates).bit_count()
+            if degree > best_degree:
+                best_degree = degree
+                best_v = v
+            bits ^= bit
+
+        greedy.append(best_v)
+        if len(greedy) == k:
+            print("YES")
+            print(*(v + 1 for v in greedy))
+            return
+        candidates &= compatibility[best_v]
+
+    # Reorder vertices to improve greedy coloring and branching.
+    permutation = sorted(
+        range(n),
+        key=lambda v: compatibility[v].bit_count(),
+        reverse=True
+    )
+    new_index = [0] * n
+    for i, v in enumerate(permutation):
+        new_index[v] = i
+
+    adjacency = [0] * n
+    for i, old_v in enumerate(permutation):
+        bits = compatibility[old_v]
+        mask = 0
+        while bits:
+            bit = bits & -bits
+            old_u = bit.bit_length() - 1
+            mask |= 1 << new_index[old_u]
+            bits ^= bit
+        adjacency[i] = mask
+
+    chosen = []
+    answer = None
+
+    def color_sort(vertices):
+        order = []
+        colors = []
+        remaining = vertices
+        color = 0
+
+        while remaining:
+            color += 1
+            available = remaining
+            while available:
+                bit = available & -available
+                v = bit.bit_length() - 1
+
+                order.append(v)
+                colors.append(color)
+
+                remaining ^= bit
+                available ^= bit
+                available &= ~adjacency[v]
+
+        return order, colors
+
+    def search(vertices, depth):
+        nonlocal answer
+
+        order, colors = color_sort(vertices)
+
+        for i in range(len(order) - 1, -1, -1):
+            if depth + colors[i] < k:
+                return False
+
+            v = order[i]
+            bit = 1 << v
+            chosen.append(v)
+
+            if depth + 1 == k:
+                answer = chosen.copy()
+                return True
+
+            next_vertices = vertices & adjacency[v]
+            needed = k - depth - 1
+
+            if next_vertices.bit_count() >= needed:
+                if search(next_vertices, depth + 1):
+                    return True
+
+            chosen.pop()
+            vertices &= ~bit
+
+        return False
+
+    if search((1 << n) - 1, 0):
+        result = [permutation[v] + 1 for v in answer]
+        print("YES")
+        print(*result)
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    main()
+```

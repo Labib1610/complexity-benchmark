@@ -15,9 +15,8 @@ Each of the next m lines contains two integers u v — a conflicting pair.
 ## Output
 If no valid assignment exists, print a single line NO.
 Otherwise print YES on the first line. On the second line print n integers
-s₁ s₂ … sₙ (each in {1,2,3}), where sᵢ is the shift of worker i. Among all valid
-assignments output the lexicographically smallest sequence (compare s₁ first,
-then s₂, and so on).
+s₁ s₂ … sₙ (each in {1,2,3}), where sᵢ is the shift of worker i. Any valid
+assignment is accepted.
 
 ## Example 1
 Input:

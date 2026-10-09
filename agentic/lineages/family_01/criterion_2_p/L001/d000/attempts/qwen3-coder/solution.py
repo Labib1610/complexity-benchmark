@@ -2,38 +2,44 @@ import sys
 from collections import defaultdict, deque
 
 def solve():
+    import sys
+    sys.setrecursionlimit(1 << 25)
+    
     n, m = map(int, sys.stdin.readline().split())
     
-    # Build adjacency list
-    adj = defaultdict(list)
+    if m == 0:
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
+    
+    adj = [[] for _ in range(n + 1)]
     for _ in range(m):
         u, v = map(int, sys.stdin.readline().split())
         adj[u].append(v)
         adj[v].append(u)
     
-    # Color array: 0 = unvisited, 1 = color 1, 2 = color 2
     color = [0] * (n + 1)
     
-    # Check if bipartite using BFS
     for start in range(1, n + 1):
-        if color[start] == 0:
-            queue = deque([start])
-            color[start] = 1
+        if color[start] != 0:
+            continue
             
-            while queue:
-                node = queue.popleft()
-                
-                for neighbor in adj[node]:
-                    if color[neighbor] == 0:
-                        color[neighbor] = 3 - color[node]  # Flip color (1->2, 2->1)
-                        queue.append(neighbor)
-                    elif color[neighbor] == color[node]:
-                        print("NO")
-                        return
+        queue = deque()
+        queue.append(start)
+        color[start] = 1
+        
+        while queue:
+            u = queue.popleft()
+            
+            for v in adj[u]:
+                if color[v] == 0:
+                    color[v] = 3 - color[u]
+                    queue.append(v)
+                elif color[v] == color[u]:
+                    print("NO")
+                    return
     
     print("YES")
-    # Output the lexicographically smallest solution
-    # Since we start with color 1 for unvisited components, this ensures lex smallest
     result = []
     for i in range(1, n + 1):
         if color[i] == 0:

@@ -1,0 +1,170 @@
+import sys
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    k = int(next(it))
+    t = int(next(it))
+
+    # constraints: 0..k-1 membrane, k..2k-1 pathway, 2k..3k-1 sequence
+    n_cols = 3 * k
+    # DLX structures
+    max_nodes = t * 3 + n_cols + 1
+    U = [0] * max_nodes
+    D = [0] * max_nodes
+    L = [0] * max_nodes
+    R = [0] * max_nodes
+    C = [0] * max_nodes  # column header for each node
+    S = [0] * (n_cols + 1)  # size of column, header 0 is root
+
+    # header nodes: 0 is root, 1..n_cols are column headers
+    for i in range(n_cols + 1):
+        U[i] = D[i] = i
+        L[i] = i - 1
+        R[i] = i + 1
+    L[0] = n_cols
+    R[n_cols] = 0
+
+    # store rows (edges) for solution reconstruction
+    row_nodes = []          # list of first node index of each row
+    row_data = []           # (m,p,s) for each row
+
+    node_idx = n_cols + 1   # next free node index
+
+    for _ in range(t):
+        m = int(next(it)) - 1
+        p = int(next(it)) - 1
+        s = int(next(it)) - 1
+        cols = [m, k + p, 2 * k + s]   # column numbers (1‑based later)
+        first = None
+        for col in cols:
+            col += 1                     # shift to 1..n_cols
+            # create node
+            idx = node_idx
+            node_idx += 1
+            C[idx] = col
+            # vertical links
+            U[idx] = U[col]
+            D[idx] = col
+            D[U[col]] = idx
+            U[col] = idx
+            S[col] += 1
+            # horizontal links
+            if first is None:
+                first = idx
+                L[idx] = R[idx] = idx
+            else:
+                # insert to the left of first
+                L[idx] = L[first]
+                R[idx] = first
+                R[L[first]] = idx
+                L[first] = idx
+        row_nodes.append(first)
+        row_data.append((m + 1, p + 1, s + 1))
+
+    solution = []
+
+    def cover(col):
+        # remove column header
+        L[R[col]] = L[col]
+        R[L[col]] = R[col]
+        # remove rows
+        i = D[col]
+        while i != col:
+            j = R[i]
+            while j != i:
+                U[D[j]] = U[j]
+                D[U[j]] = D[j]
+                S[C[j]] -= 1
+                j = R[j]
+            i = D[i]
+
+    def uncover(col):
+        i = U[col]
+        while i != col:
+            j = L[i]
+            while j != i:
+                S[C[j]] += 1
+                U[D[j]] = j
+                D[U[j]] = j
+                j = L[j]
+            i = U[i]
+        L[R[col]] = col
+        R[L[col]] = col
+
+    sys.setrecursionlimit(10000)
+
+    def search():
+        if R[0] == 0:          # all columns covered
+            return True
+        # choose column with minimal size
+        c = R[0]
+        min_s = S[c]
+        j = R[c]
+        while j != 0:
+            if S[j] < min_s:
+                min_s = S[j]
+                c = j
+                if min_s == 0:
+                    break
+            j = R[j]
+        if min_s == 0:
+            return False
+        cover(c)
+        r = D[c]
+        while r != c:
+            solution.append(r)
+            j = R[r]
+            while j != r:
+                cover(C[j])
+                j = R[j]
+            if search():
+                return True
+            # backtrack
+            solution.pop()
+            j = L[r]
+            while j != r:
+                uncover(C[j])
+                j = L[j]
+            r = D[r]
+        uncover(c)
+        return False
+
+    if search():
+        # reconstruct chosen rows
+        chosen = []
+        used_rows = set()
+        for node in solution:
+            # find the row header (any node in its row)
+            # walk left until we hit the minimal index in that row
+            start = node
+            while True:
+                if start < row_nodes[0]:  # safety, shouldn't happen
+                    break
+                if start == L[start]:
+                    break
+                start = L[start]
+            # we can map by checking which stored row contains this node
+            # faster: store mapping from any node to row index during building
+        # Build mapping
+        node_to_row = {}
+        for idx, first in enumerate(row_nodes):
+            cur = first
+            while True:
+                node_to_row[cur] = idx
+                cur = R[cur]
+                if cur == first:
+                    break
+        for node in solution:
+            chosen.append(row_data[node_to_row[node]])
+        print("YES")
+        out = sys.stdout
+        for m, p, s in chosen:
+            out.write(f"{m} {p} {s}\n")
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()

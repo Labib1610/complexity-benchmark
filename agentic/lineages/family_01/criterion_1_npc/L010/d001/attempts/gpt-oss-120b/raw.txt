@@ -1,159 +1,7 @@
-**Solution Explanation**
-
-The specimens and volatile pairs form an undirected graph `G`.  
-We have to assign one of three colours `{1,2,3}` to every vertex so that
-adjacent vertices receive different colours – a *3‑colouring*.
-If several colourings exist we need the lexicographically smallest one
-(i.e. minimise the colour of vertex 1, then of vertex 2, …).
-
-`n ≤ 40`, therefore a simple depth‑first search with backtracking is fast
-enough, provided we prune impossible branches early.
-
---------------------------------------------------------------------
-
-#### Data structures
-* `adj[v]` – list of neighbours of vertex `v` (0‑based indices).
-* `color[v]` – current colour of vertex `v` (`0` = uncoloured, otherwise `1..3`).
-
---------------------------------------------------------------------
-
-#### Backtracking
-
-We colour the vertices **in the natural order** `0,1,…,n‑1`.  
-Because we always try the colours `1,2,3` in this order,
-the first complete colouring we find is exactly the required
-lexicographically smallest one.
-
-Recursive routine `dfs(v)` :
-
-```
-if v == n:               # all vertices coloured
-        return True
-for c in 1,2,3:
-        if c is compatible with already coloured neighbours of v:
-                colour v with c
-                if dfs(v+1): return True
-                undo colour of v
-return False
-```
-
-*Compatibility test* – for every neighbour `u` already coloured,
-`color[u] != c`.
-
-The recursion depth is at most `n = 40`; the total number of visited
-states is far below the theoretical `3^40` because each step discards
-any colour that conflicts with an already coloured neighbour.
-
---------------------------------------------------------------------
-
-#### Correctness Proof  
-
-We prove that the algorithm prints `NO` iff the graph is not 3‑colourable,
-otherwise prints `YES` and the lexicographically smallest valid colouring.
-
----
-
-##### Lemma 1  
-During the execution of `dfs(v)` the partial assignment
-`color[0..v‑1]` is always a proper colouring of the induced subgraph
-on vertices `{0,…,v‑1}`.
-
-**Proof.**  
-Initially `v = 0` and the assignment is empty – proper.
-When the algorithm colours vertex `v` with colour `c` it checks that
-no already coloured neighbour has colour `c`. Hence the new assignment
-remains proper. ∎
-
-
-
-##### Lemma 2  
-If `dfs(v)` returns `True`, the array `color` is a proper 3‑colouring of
-the whole graph.
-
-**Proof.**  
-`True` is returned only when the base case `v == n` is reached.
-By Lemma&nbsp;1 the assignment for vertices `0..n‑1` is proper,
-and every vertex has a colour in `{1,2,3}`. ∎
-
-
-
-##### Lemma 3  
-If a proper 3‑colouring exists, `dfs(0)` returns `True`.
-
-**Proof.**  
-Consider any proper colouring `C`.  
-We show by induction on `v` that the recursive search can follow `C`.
-
-*Base* `v = 0`: colour `C(0)` is one of `1,2,3` and is compatible with the
-empty set of coloured neighbours, therefore the loop will try it
-(and possibly earlier colours, but that does not prevent reaching it).
-
-*Induction step*: assume the search has coloured vertices `0..v‑1`
-exactly as in `C`. For vertex `v`, colour `C(v)` is compatible with all
-already coloured neighbours (because `C` is proper). Hence the loop
-will consider `C(v)` and the recursive call with `v+1` succeeds by the
-induction hypothesis. ∎
-
-
-
-##### Lemma 4  
-The first complete colouring found by the algorithm is the
-lexicographically smallest among all proper colourings.
-
-**Proof.**  
-Vertices are processed in increasing order.
-For each vertex the algorithm tries colours `1,2,3` in that order.
-Thus, when the algorithm reaches a vertex `i`, all colourings that
-agree with the already fixed prefix `color[0..i‑1]` and use a smaller
-colour at position `i` have already been explored and rejected.
-Consequently the first successful leaf corresponds to the smallest
-possible colour at the earliest position where colourings differ,
-i.e. the lexicographically minimal colouring. ∎
-
-
-
-##### Theorem  
-The program outputs  
-
-* `NO` iff the input graph is not 3‑colourable;  
-* otherwise `YES` followed by the lexicographically smallest proper
-  3‑colouring.
-
-**Proof.**  
-
-*If the program prints `YES`*: by Lemma&nbsp;2 the printed assignment is a
-proper 3‑colouring. By Lemma&nbsp;4 it is the lexicographically smallest.
-
-*If the program prints `NO`*: this happens only when `dfs(0)` returns
-`False`. By Lemma&nbsp;3, if a proper 3‑colouring existed,
-`dfs(0)` would return `True`. Hence no proper 3‑colouring exists.
-
-Conversely, if the graph is not 3‑colourable, any exhaustive search must
-fail, therefore `dfs(0)` returns `False` and the program prints `NO`. ∎
-
-
-
---------------------------------------------------------------------
-
-#### Complexity Analysis  
-
-`n ≤ 40`.  
-For each vertex at most three colours are tried, and a colour is rejected
-immediately if it conflicts with an already coloured neighbour.
-The worst‑case number of recursive calls is bounded by `3^n`,
-but in practice the conflict test prunes the tree heavily.
-With `n = 40` the program easily fits into the 2 s limit.
-
-Memory consumption:  
-`adj` stores at most `n·(n‑1)/2 ≤ 780` edges, `color` stores `n` integers.  
-Overall `O(n²)` ≤ a few kilobytes, far below the 256 MB limit.
-
---------------------------------------------------------------------
-
-#### Reference Implementation  (Python 3)
-
 ```python
 import sys
+
+sys.setrecursionlimit(10000)
 
 def solve() -> None:
     data = sys.stdin.read().strip().split()
@@ -162,43 +10,58 @@ def solve() -> None:
     it = iter(data)
     n = int(next(it))
     m = int(next(it))
-    adj = [[] for _ in range(n)]
+    adj = [0] * n          # bitmask adjacency
+    neigh = [[] for _ in range(n)]
     for _ in range(m):
         u = int(next(it)) - 1
         v = int(next(it)) - 1
-        adj[u].append(v)
-        adj[v].append(u)
+        if u == v:
+            continue
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+        neigh[u].append(v)
+        neigh[v].append(u)
 
-    color = [0] * n  # 0 = uncoloured, else 1..3
+    # order vertices by descending degree
+    order = sorted(range(n), key=lambda x: -len(neigh[x]))
+    pos_in_order = [0] * n
+    for i, v in enumerate(order):
+        pos_in_order[v] = i
 
-    sys.setrecursionlimit(10000)
+    colors = [0] * n
+    found = False
 
-    def dfs(v: int) -> bool:
-        if v == n:
-            return True
-        for c in (1, 2, 3):
-            ok = True
-            for nb in adj[v]:
-                if color[nb] == c:
-                    ok = False
-                    break
-            if not ok:
-                continue
-            color[v] = c
-            if dfs(v + 1):
-                return True
-            color[v] = 0
-        return False
+    def dfs(idx: int):
+        nonlocal found
+        if found:
+            return
+        if idx == n:
+            found = True
+            return
+        v = order[idx]
+        # try colors 1..3
+        forbidden = 0
+        for nb in neigh[v]:
+            c = colors[nb]
+            if c:
+                forbidden |= 1 << (c - 1)
+        for col in range(1, 4):
+            if not (forbidden & (1 << (col - 1))):
+                colors[v] = col
+                dfs(idx + 1)
+                if found:
+                    return
+                colors[v] = 0
 
-    if dfs(0):
-        out = ['YES', ' '.join(str(c) for c in color)]
+    dfs(0)
+
+    out = sys.stdout
+    if not found:
+        out.write("NO")
     else:
-        out = ['NO']
-    sys.stdout.write('\n'.join(out))
+        out.write("YES\n")
+        out.write(" ".join(str(colors[i]) for i in range(n)))
 
 if __name__ == "__main__":
     solve()
 ```
-
-The program follows exactly the algorithm proven correct above
-and conforms to the required input‑output format.

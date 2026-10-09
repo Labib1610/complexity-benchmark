@@ -1,0 +1,348 @@
+**Solution Explanation**
+
+For every chemical we have to choose one of three silos.
+For every reactive pair `(u , v)` the two chemicals must obtain different
+silos.
+The problem is exactly the *graph 3‑colouring* problem.
+
+`n ≤ 40`, therefore an exponential search with good pruning is fast enough.
+The algorithm is a depth‑first search with the following ideas
+
+* **possible colours** – for every not yet coloured vertex we keep a
+  3‑bit mask (`1 << colour`) of colours that are still allowed.
+* **most constrained vertex first** – the next vertex is the one with the
+  smallest number of still possible colours (MRV heuristic).  
+  If a vertex has no possible colour the current partial assignment is
+  impossible and we backtrack immediately.
+* **forward checking** – after fixing a colour for a vertex we delete this
+  colour from the masks of all its still uncoloured neighbours.
+  All deletions are stored, so they can be undone when we backtrack.
+* **symmetry breaking** – colour `1` is forced for the first vertex
+  (the three colours are completely symmetric, fixing the colour of the
+  first vertex reduces the search tree by a factor `3`).
+
+The search finishes as soon as all vertices are coloured – a valid
+assignment is found – or after the whole search tree has been explored,
+which means that no assignment exists.
+
+The algorithm works in time `O( 3^{k} )` where `k` is the number of
+vertices that really need a choice.
+For dense graphs many colours are eliminated quickly, for a completely
+empty graph we answer immediately (`m = 0`).  
+For `n = 40` the program easily fits into the limits.
+
+
+
+--------------------------------------------------------------------
+
+#### Algorithm
+```
+read n , m
+build adjacency list adj[0 … n-1]                // 0‑based vertices
+if m == 0:                                      // no constraints
+        output 1,2,3,1,2,3,… (any cyclic assignment)
+        finish
+
+possible[v] = 0b111   for all v                // colours 1,2,3 are possible
+colour[v]   = 0       for all v                // 0 = not coloured yet
+
+order vertices by decreasing degree (static order) – used only for tie breaking
+
+function dfs(coloured_cnt):
+        if coloured_cnt == n:                    // all vertices coloured
+                return True
+        // choose vertex with minimum number of possible colours
+        v = vertex among not coloured with smallest popcount(possible[v])
+        if possible[v] == 0:                     // dead end
+                return False
+
+        original_mask = possible[v]
+        // try the still possible colours (bits 0,1,2)
+        for c in {0,1,2} where (original_mask >> c) & 1:
+                # colour v with (c+1)
+                colour[v] = c+1
+                possible[v] = 1 << c               # only this colour remains
+                changed = []                      # neighbours whose mask is reduced
+                conflict = False
+
+                for u in adj[v]:
+                        if colour[u] == 0:        # neighbour not coloured yet
+                                if possible[u] & (1 << c):
+                                        possible[u] &= ~(1 << c)
+                                        changed.append(u)
+                                        if possible[u] == 0:
+                                                conflict = True
+                                                break
+                if not conflict and dfs(coloured_cnt + 1):
+                        return True                # solution found
+
+                # undo the changes
+                for u in changed:
+                        possible[u] |= (1 << c)
+                colour[v] = 0
+                possible[v] = original_mask
+        return False
+
+# symmetry breaking – first vertex gets colour 1
+first = 0
+colour[first] = 1
+possible[first] = 1 << 0
+for u in adj[first]:
+        if colour[u] == 0:
+                possible[u] &= ~ (1 << 0)
+
+if dfs(1):
+        print "YES"
+        print colour[0] … colour[n-1]
+else:
+        print "NO"
+```
+
+--------------------------------------------------------------------
+
+#### Correctness Proof  
+
+We prove that the algorithm prints **YES** and a correct assignment
+iff such an assignment exists.
+
+---
+
+##### Lemma 1  
+During the whole execution `possible[v]` always contains exactly the colours
+that can still be given to vertex `v` without violating any already fixed
+edge constraints.
+
+**Proof.**  
+Initially all three colours are possible, which is correct.
+When a vertex `v` is coloured with colour `c` the algorithm removes `c`
+from the mask of every still uncoloured neighbour `u`.  
+If `u` later receives a colour, the edge `(v,u)` will have different colours,
+so the removal is necessary.
+No other colour is removed, therefore the mask stays exact.
+When backtracking the removed bits are added again, restoring the former
+state. ∎
+
+
+
+##### Lemma 2  
+If the recursive call `dfs(coloured_cnt)` returns `True`,
+the array `colour[ ]` is a proper 3‑colouring of the whole graph.
+
+**Proof.**  
+`dfs` returns `True` only in the base case `coloured_cnt == n`,
+i.e. every vertex has a non‑zero colour.
+All colour assignments were performed only after checking that the colour
+was still present in `possible[ ]`.  
+By Lemma&nbsp;1 this guarantees that for every already coloured neighbour the
+two colours differ.
+Thus every edge connects vertices of different colours – a proper
+3‑colouring. ∎
+
+
+
+##### Lemma 3  
+If a proper 3‑colouring exists that respects the already fixed colours,
+`dfs(coloured_cnt)` will eventually return `True`.
+
+**Proof.**  
+Consider any partial assignment that can be extended to a full proper
+colouring.
+The algorithm chooses an uncoloured vertex `v`.  
+All colours that appear in a possible extension are still present in
+`possible[v]` (Lemma&nbsp;1), therefore the loop iterates over at least one
+such colour.
+When the algorithm tries such a colour, the forward checking step only
+removes this colour from neighbours – which is also done in the
+extension – so the extension remains feasible.
+Consequently the recursive call is made with a larger coloured set that
+still can be extended to a full solution.
+By induction on the number of coloured vertices the algorithm finally
+reaches the base case and returns `True`. ∎
+
+
+
+##### Lemma 4  
+If `dfs(coloured_cnt)` returns `False`, **no** proper 3‑colouring exists
+that respects the already fixed colours.
+
+**Proof.**  
+`dfs` returns `False` only after trying **all** colours that are still
+possible for the selected vertex `v` and each of those trials leads to a
+recursive call that returns `False`.  
+By the induction hypothesis each recursive call proves that no extension
+exists for the corresponding colour of `v`.  
+Since every colour that could appear in a proper extension was examined
+(Lemma&nbsp;1), no extension exists at all. ∎
+
+
+
+##### Lemma 5  
+The whole algorithm outputs **YES** with a correct assignment
+iff a proper 3‑colouring of the input graph exists.
+
+**Proof.**  
+
+*If the algorithm prints **YES**.*  
+It happened because `dfs(1)` returned `True`.  
+By Lemma&nbsp;2 the produced `colour[ ]` is a proper 3‑colouring.
+
+*If a proper 3‑colouring exists.*  
+If `m = 0` the algorithm outputs a trivial cyclic colouring, which is
+proper.  
+Otherwise the first vertex is forced to colour 1 – this does not destroy
+existence because the three colours are symmetric: any proper colouring
+can be permuted so that vertex 0 receives colour 1.
+Now the remaining uncoloured vertices still admit a proper extension.
+By Lemma&nbsp;3 `dfs(1)` will finally find it and return `True`,
+hence the algorithm prints **YES**. ∎
+
+
+
+##### Theorem  
+The program prints  
+
+* `NO`  **iff** the given graph is not 3‑colourable,  
+
+* otherwise `YES` followed by a valid assignment of silos.
+
+**Proof.** Directly from Lemma&nbsp;5. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### Complexity Analysis  
+
+`n ≤ 40`.
+
+*Initialisation* – `O(n + m)`.
+
+*Recursive search* – each recursive level colours one vertex.
+All work inside a level is proportional to its degree (removing a colour
+from neighbours).  
+Therefore the total work of one complete search path is `O(m)`.
+The number of explored nodes of the search tree is bounded by the number
+of colour choices that survive the forward checking.
+In the worst case it is exponential, but with the MRV heuristic and the
+early pruning it is tiny for all graphs fitting into the test data.
+For the given limits the program runs well below the 2 seconds limit.
+
+Memory consumption:
+
+* adjacency list – `O(n + m)`  
+* arrays `colour`, `possible` – `O(n)`  
+* recursion stack – depth `n`  
+
+Overall `O(n + m) ≤ O(40²)`, far below the 256 MB limit.
+
+
+
+--------------------------------------------------------------------
+
+#### Reference Implementation  (Python 3)
+
+```python
+import sys
+
+sys.setrecursionlimit(10000)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+
+    # empty graph – any assignment works
+    if m == 0:
+        ans = [(i % 3) + 1 for i in range(n)]
+        print("YES")
+        print(*ans)
+        return
+
+    # masks: bit 0 -> colour 1, bit1 -> colour2, bit2 -> colour3
+    ALL = 0b111
+    possible = [ALL] * n
+    colour = [0] * n          # 0 = uncoloured, else 1..3
+
+    # static order for tie‑breaking (higher degree first)
+    degree = [len(adj[i]) for i in range(n)]
+    order = sorted(range(n), key=lambda x: -degree[x])
+
+    # symmetry breaking: first vertex gets colour 1
+    first = 0
+    colour[first] = 1
+    possible[first] = 1 << 0
+    for nb in adj[first]:
+        if colour[nb] == 0:
+            possible[nb] &= ~ (1 << 0)
+
+    # helper: popcount of 3‑bit mask
+    popcnt = [bin(i).count('1') for i in range(8)]
+
+    def dfs(coloured_cnt: int) -> bool:
+        if coloured_cnt == n:
+            return True
+
+        # choose vertex with minimum remaining colours (MRV)
+        v = -1
+        best = 4
+        for i in range(n):
+            if colour[i] == 0:
+                pc = popcnt[possible[i]]
+                if pc < best:
+                    best = pc
+                    v = i
+                    if pc == 1:
+                        break
+        if best == 0:          # dead end
+            return False
+
+        orig_mask = possible[v]
+        # iterate over still possible colours
+        for c in range(3):
+            if not (orig_mask >> c) & 1:
+                continue
+            colour[v] = c + 1
+            possible[v] = 1 << c
+            changed = []
+            conflict = False
+
+            for nb in adj[v]:
+                if colour[nb] == 0:
+                    if possible[nb] & (1 << c):
+                        possible[nb] &= ~(1 << c)
+                        changed.append(nb)
+                        if possible[nb] == 0:
+                            conflict = True
+                            break
+            if not conflict and dfs(coloured_cnt + 1):
+                return True
+
+            # undo
+            for nb in changed:
+                possible[nb] |= (1 << c)
+            colour[v] = 0
+            possible[v] = orig_mask
+        return False
+
+    if dfs(1):
+        print("YES")
+        print(*colour)
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above
+and conforms to the required input‑output format.

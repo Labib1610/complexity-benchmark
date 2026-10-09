@@ -1,19 +1,18 @@
-# Frequency Settings
+# Problem B — Day and Night
 
-Time limit: 1 s
-Memory limit: 256 MB
+Time limit: 1 s   Memory limit: 256 MB
 
-In a maritime survey operation, $n$ autonomous vessels are deployed. Each vessel is equipped with a transmitter that must be locked to either frequency setting 1 or frequency setting 2. During the deployment, the vessels follow coordinated paths, which causes $m$ specific pairs of vessels to pass within close range of one another. When a pair of vessels is in close range, their telemetry systems will clash if both are locked to the identical frequency setting.
+A manufacturing plant employs $n$ workers, numbered 1 through $n$. The plant's safety system contains $m$ records of worker pairs who have previously had altercations. To prevent future incidents, management has established a strict rule: any two workers involved in a recorded altercation must be separated. The plant operates on exactly two shifts, shift 1 and shift 2. Each worker must be assigned to exactly one of these two shifts.
 
-You are required to find a frequency setting for each of the $n$ vessels such that no telemetry clashes occur during the operation. If several clash-free setups are possible, you must identify the setup that results in the lexicographically smallest sequence of settings for the vessels indexed 1 to $n$. If no setup can prevent all clashes, you must determine that it is unachievable.
+You must process the safety records and output a shift assignment for all $n$ workers. The assignment must comply with management's separation rule. If there are multiple compliant assignments, you must select the one yielding the lexicographically smallest sequence of shift numbers ($s_1, s_2, \dots, s_n$). If no compliant assignment is possible, you must report that it cannot be done.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$), representing the number of vessels and the number of close-range encounters.
-Each of the following $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$), indicating that vessel $u$ and vessel $v$ will pass within close range.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$).
+Each of the next $m$ lines contains two integers $u$ and $v$, representing a pair of workers who have a recorded altercation.
 
 ## Output
-If there is no way to prevent all telemetry clashes, output a single line containing `NO`.
-Otherwise, output `YES` on the first line. On the second line, output $n$ integers $s_1, \ldots, s_n$ (where each $s_i \in \{1, 2\}$), representing the lexicographically smallest valid sequence of frequency settings.
+If no compliant shift assignment exists, print a single line containing `NO`.
+Otherwise, print `YES` on the first line. On the second line, print $n$ integers $s_1 \dots s_n$ (each either 1 or 2), representing the lexicographically smallest compliant shift assignment.
 
 ## Example 1
 Input:

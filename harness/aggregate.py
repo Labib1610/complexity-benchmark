@@ -12,6 +12,8 @@ from pathlib import Path
 _CSV_COLUMNS = [
     "model", "family_id", "family_name", "criterion_id",
     "class_label", "overall_verdict", "first_failure", "n_cases", "n_passed",
+    # audit B1: the limits actually enforced; B7: approximation quality.
+    "declared_limit_s", "effective_limit_s", "n_scored", "mean_ratio",
 ]
 
 
@@ -30,8 +32,11 @@ def write_summary_csv(records: list[dict], out_path: Path) -> None:
         writer = csv.DictWriter(f, fieldnames=_CSV_COLUMNS, extrasaction="ignore")
         writer.writeheader()
         for r in records:
-            n_cases = len(r.get("cases", []))
-            n_passed = sum(1 for c in r.get("cases", []) if c.get("verdict") == "PASS")
+            cases = r.get("cases", [])
+            n_cases = len(cases)
+            n_passed = sum(1 for c in cases if c.get("verdict") == "PASS")
+            ratios = [c["score"]["ratio"] for c in cases
+                      if isinstance(c.get("score"), dict) and "ratio" in c["score"]]
             writer.writerow({
                 "model": r.get("model", ""),
                 "family_id": r.get("family_id", ""),
@@ -42,6 +47,10 @@ def write_summary_csv(records: list[dict], out_path: Path) -> None:
                 "first_failure": r.get("first_failure", ""),
                 "n_cases": n_cases,
                 "n_passed": n_passed,
+                "declared_limit_s": r.get("declared_limit_s", ""),
+                "effective_limit_s": r.get("effective_limit_s", ""),
+                "n_scored": len(ratios),
+                "mean_ratio": round(sum(ratios) / len(ratios), 4) if ratios else "",
             })
 
 

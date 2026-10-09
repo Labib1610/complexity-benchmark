@@ -4,182 +4,79 @@ from collections import defaultdict, deque
 
 def main():
     import sys
-    sys.setrecursionlimit(1 << 25)
+    input = sys.stdin.read
+    data = input().split()
     
-    n, m = map(int, sys.stdin.readline().split())
+    n = int(data[0])
+    m = int(data[1])
     
-    if m == 0:
-        print("YES")
-        print(" ".join(["1"] * n))
-        return
-    
-    adj = defaultdict(list)
     edges = []
+    adj = [[] for _ in range(n + 1)]
     
+    idx = 2
     for _ in range(m):
-        u, v = map(int, sys.stdin.readline().split())
+        u = int(data[idx])
+        v = int(data[idx + 1])
+        idx += 2
         edges.append((u, v))
         adj[u].append(v)
         adj[v].append(u)
     
-    # We model this as a 2-SAT problem.
-    # Each station i has two possible values: 1 or 2.
-    # We'll use node IDs: for station i, 
-    # variable i represents r[i] = 1,
-    # variable -i represents r[i] = 2.
+    # For each synchronization pair (u,v), we need M_u * M_v = swap_matrix
+    # Let's represent mode 1 as 0 (identity) and mode 2 as 1 (swap)
+    # Then M_u * M_v = swap iff (mode_u == 1 and mode_v == 2) or (mode_u == 2 and mode_v == 1)
+    # That means mode_u XOR mode_v = 1
     
-    # For each edge (u,v), we need r[u] * r[v] = 2.
-    # That means:
-    # - (r[u]=1 and r[v]=2) OR (r[u]=2 and r[v]=1)
-    # In terms of variables:
-    # (-u or -v) and (u or v)
-    # Which translates to clauses:
-    # [not u or not v] and [u or v]
+    # So for each edge (u,v), we have the constraint: mode_u XOR mode_v = 1
+    # This is a 2-SAT problem with constraints of the form x XOR y = 1
     
-    # Build implication graph for 2-SAT
-    # Nodes: 1..n for r[i]=1, -(1..n) for r[i]=2
+    # We can model this as a graph where each variable has two nodes: x and ~x
+    # For constraint x XOR y = 1, we add clauses:
+    # (x OR y) AND (~x OR ~y)
+    # Which translates to edges: (~x -> y) and (~y -> x) and (x -> ~y) and (y -> ~x)
     
-    graph = defaultdict(list)
-    reverse_graph = defaultdict(list)
+    # But since we know that x XOR y = 1, it's simpler:
+    # x = NOT y  =>  x = 1 - y
+    # So we can use a graph-based approach similar to bipartite checking
     
-    for u, v in edges:
-        # r[u]*r[v] = 2  <=>  (r[u]=1 and r[v]=2) or (r[u]=2 and r[v]=1)
-        # Clauses: (not var_u or not var_v) and (var_u or var_v)
-        # Which gives implications:
-        
-        # From (not u or not v): u => not v, v => not u
-        graph[u].append(-v)
-        graph[v].append(-u)
-        
-        # From (u or v): not u => v, not v => u
-        graph[-u].append(v)
-        graph[-v].append(u)
-        
-        # Also build reverse graph
-        reverse_graph[-v].append(u)
-        reverse_graph[-u].append(v)
-        reverse_graph[v].append(-u)
-        reverse_graph[u].append(-v)
+    # Build a graph where each connected component must be bipartite
+    # with the additional constraint that neighbors have different values
     
-    # Now run Kosaraju's algorithm to check 2-SAT satisfiability
-    visited = set()
-    order = []
+    # In our case, for each edge (u,v): mode_u XOR mode_v = 1
+    # This means mode_u != mode_v (they must be different)
+    # So we're essentially trying to 2-color the graph such that adjacent nodes have different colors
+    # But we also want the lexicographically smallest assignment
     
-    def dfs1(node):
-        if node in visited:
-            return
-        visited.add(node)
-        for nei in graph[node]:
-            dfs1(nei)
-        order.append(node)
+    # Let's build the adjacency list and then do BFS/DFS for each component
     
-    # Get all nodes involved
-    all_nodes = set()
-    for u in graph:
-        all_nodes.add(u)
-        for v in graph[u]:
-            all_nodes.add(v)
+    color = [-1] * (n + 1)  # -1: unvisited, 0: mode 1, 1: mode 2
     
-    for node in all_nodes:
-        if node not in visited:
-            dfs1(node)
-    
-    visited.clear()
-    scc_map = {}
-    scc_id = 0
-    component = []
-    
-    def dfs2(node):
-        if node in visited:
-            return
-        visited.add(node)
-        component.append(node)
-        for nei in reverse_graph[node]:
-            dfs2(nei)
-    
-    # Process in reverse post-order
-    for node in reversed(order):
-        if node not in visited:
-            component.clear()
-            dfs2(node)
-            global scc_id
-            for v in component:
-                scc_map[v] = scc_id
-            scc_id += 1
-    
-    # Check for contradictions
-    for i in range(1, n+1):
-        if scc_map.get(i, -1) == scc_map.get(-i, -2):
-            print("NO")
-            return
-    
-    # To get the lexicographically smallest assignment, process variables in order
-    # Assign truth values based on SCC completion order (reverse topological order of SCC DAG)
-    scc_order = {}
-    for node, sid in scc_map.items():
-        if sid not in scc_order:
-            scc_order[sid] = len(scc_order)
-    
-    assignment = {}
-    
-    # Sort SCCs by their finish time in reverse (topological order)
-    sorted_sccs = sorted(scc_order.keys(), key=lambda x: scc_order[x])
-    
-    for sid in sorted_sccs:
-        # All nodes in this SCC have the same truth value
-        # We look at any representative node
-        rep_node = None
-        for node, nsid in scc_map.items():
-            if nsid == sid:
-                rep_node = node
-                break
-        
-        # If already assigned, skip
-        nodes_in_scc = [node for node, nsid in scc_map.items() if nsid == sid]
-        assigned_in_this_scc = False
-        for node in nodes_in_scc:
-            if abs(node) in assignment:
-                assigned_in_this_scc = True
-                break
-        if assigned_in_this_scc:
-            continue
+    # Check if the graph is bipartite
+    for i in range(1, n + 1):
+        if color[i] == -1:
+            # Start BFS from node i, assign color 0 (mode 1) to get lex smallest
+            queue = deque()
+            queue.append(i)
+            color[i] = 0
             
-        # Decide assignment: prefer False (r[i]=2) unless forced otherwise
-        # But for lex smallest, we want r[1]=1 if possible, etc.
-        # So we should assign variables in order 1 to n, preferring 1 (True for positive var)
-        
-        # Actually, better approach: go through variables 1 to n and decide based on SCC info
-        pass # We'll do it below
+            while queue:
+                u = queue.popleft()
+                current_color = color[u]
+                
+                for v in adj[u]:
+                    if color[v] == -1:
+                        color[v] = 1 - current_color
+                        queue.append(v)
+                    elif color[v] == current_color:
+                        # Conflict: adjacent nodes have same color
+                        print("NO")
+                        return
     
-    # Better way: iterate through variables 1..n and assign based on SCC info
-    for i in range(1, n+1):
-        if i in assignment:
-            continue
-        sid_i = scc_map.get(i)
-        sid_not_i = scc_map.get(-i)
-        
-        # In SCC graph (DAG of SCCs), if SCC containing i comes AFTER SCC containing -i,
-        # then we should set i=True (r[i]=1)
-        # Else if SCC containing -i comes AFTER SCC containing i, set i=False (r[i]=2)
-        # Else they're in the same SCC (contradiction already handled)
-        
-        order_i = scc_order.get(sid_i, -1)
-        order_not_i = scc_order.get(sid_not_i, -1)
-        
-        if order_i > order_not_i:
-            assignment[i] = True   # r[i] = 1
-        else:
-            assignment[i] = False  # r[i] = 2
-    
-    result = []
-    for i in range(1, n+1):
-        if assignment[i]:
-            result.append('1')
-        else:
-            result.append('2')
-    
+    # If we reach here, a valid coloring exists
+    # Convert colors back to modes: 0 -> 1, 1 -> 2
+    modes = [color[i] + 1 for i in range(1, n + 1)]
     print("YES")
-    print(" ".join(result))
+    print(' '.join(map(str, modes)))
 
 if __name__ == "__main__":
     main()

@@ -12,40 +12,63 @@ for _ in range(m):
     adj[u].append(v)
     adj[v].append(u)
 
-def try_assign(start_val):
-    color = [-1] * n
-    color[0] = start_val
-    q = deque([0])
+color = [-1] * n
+ok = True
+
+for start in range(n):
+    if color[start] != -1:
+        continue
+    color[start] = 0
+    q = deque([start])
     while q:
         u = q.popleft()
         for v in adj[u]:
             if color[v] == -1:
-                color[v] = 1 - color[u]
+                color[v] = color[u] ^ 1
                 q.append(v)
             elif color[v] == color[u]:
-                return None
-    # For disconnected components, assign greedily
-    for i in range(n):
-        if color[i] == -1:
-            color[i] = 0
-            q = deque([i])
-            while q:
-                u = q.popleft()
-                for v in adj[u]:
-                    if color[v] == -1:
-                        color[v] = 1 - color[u]
-                        q.append(v)
-                    elif color[v] == color[u]:
-                        return None
-    return color
+                ok = False
+                break
+        if not ok:
+            break
+    if not ok:
+        break
 
-# Try starting with 1
-res = try_assign(0)
-if res is None:
-    res = try_assign(1)
-
-if res is None:
+if not ok:
     print("NO")
 else:
+    # Now we have a valid 2-coloring, but we need lexicographically smallest.
+    # For each component, we can flip colors if it makes the assignment smaller.
+    visited = [False] * n
+    for i in range(n):
+        if visited[i]:
+            continue
+        # collect component
+        comp = []
+        q = deque([i])
+        visited[i] = True
+        while q:
+            u = q.popleft()
+            comp.append(u)
+            for v in adj[u]:
+                if not visited[v]:
+                    visited[v] = True
+                    q.append(v)
+        # Try both colorings for this component
+        # current coloring: color[comp] as is
+        # flipped: 1 - color[comp]
+        # choose lexicographically smaller
+        # We compare the first differing index
+        flip = False
+        for u in sorted(comp):
+            if (1 - color[u]) < color[u]:
+                flip = True
+                break
+            elif (1 - color[u]) > color[u]:
+                break
+        if flip:
+            for u in comp:
+                color[u] = 1 - color[u]
+
     print("YES")
-    print(' '.join(str(x + 1) for x in res))
+    print(' '.join(str(c + 1) for c in color))

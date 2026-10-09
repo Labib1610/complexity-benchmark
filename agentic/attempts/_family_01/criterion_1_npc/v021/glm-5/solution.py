@@ -1,0 +1,58 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    n = int(data[0])
+    m = int(data[1])
+    adj = [[] for _ in range(n)]
+    idx = 2
+    for _ in range(m):
+        u = int(data[idx]) - 1
+        v = int(data[idx+1]) - 1
+        idx += 2
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    color = [0] * n
+    
+    # Try to 3-color the graph using backtracking with MRV heuristic
+    def backtrack():
+        # find uncolored vertex with maximum saturation (most distinct neighbor colors)
+        best = -1
+        best_sat = -1
+        best_options = None
+        for v in range(n):
+            if color[v] == 0:
+                used = set()
+                for nb in adj[v]:
+                    if color[nb] != 0:
+                        used.add(color[nb])
+                options = [c for c in (1, 2, 3) if c not in used]
+                if not options:
+                    return False
+                sat = len(used)
+                if sat > best_sat:
+                    best_sat = sat
+                    best = v
+                    best_options = options
+                    if sat == 2:
+                        break
+        if best == -1:
+            return True
+        v = best
+        for c in best_options:
+            color[v] = c
+            if backtrack():
+                return True
+            color[v] = 0
+        return False
+    
+    if backtrack():
+        print("YES")
+        print(" ".join(str(c) for c in color))
+    else:
+        print("NO")
+
+solve()

@@ -1,21 +1,20 @@
-# Problem A — Frequency Allocation
+# Problem A — Security Ring Allocation
 
 Time limit: 2 s   Memory limit: 256 MB
 
-A deployment of $n$ wireless access points requires channel configuration. You must assign each access point exactly one of three available non-overlapping frequency bands, designated 1, 2, and 3. Due to their physical placement, certain pairs of access points have overlapping signal ranges. To prevent packet collisions, any two access points with overlapping ranges must be assigned different frequency bands.
+You are tasked with deploying $n$ background processes (numbered 1 through $n$) on a computing cluster. To execute, every process requires an assignment to one of three available security rings, denoted by the integers 1, 2, and 3.
 
-The central controller auto-generates the configuration files by evaluating the sequence of band assignments for access points 1 to $n$. To ensure predictable behavior, the controller requires the sequence of assignments to be the lexicographically smallest valid sequence (comparing the band of access point 1 first, then access point 2, and so on).
+The system's shared memory introduces $m$ concurrency restrictions. Each restriction is defined by a pair of processes that interact with the same memory region. To avoid data corruption, whenever two processes share a memory region, their assigned security rings must be distinct from one another.
 
-Determine if a valid frequency assignment exists, and if so, provide the required configuration sequence.
+Determine if a complete assignment of security rings exists that satisfies all concurrency restrictions.
 
 ## Input
-The first line contains two integers $n$ and $m$ — the number of access points and the number of overlapping signal pairs ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
-The access points are numbered from 1 to $n$.
-Each of the following $m$ lines contains two integers $u$ and $v$, indicating that access point $u$ and access point $v$ have overlapping signal ranges.
+The first line contains two integers $n$ and $m$ — the number of processes and the number of concurrency restrictions ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
+Each of the following $m$ lines contains two integers $u$ and $v$, representing a pair of processes that share a memory region.
 
 ## Output
-If it is impossible to assign the frequency bands without packet collisions, output NO on a single line.
-Otherwise, output YES on the first line. On the second line, output $n$ integers $b_1, b_2, \dots, b_n$ (where each $b_i \in \{1, 2, 3\}$), representing the frequency band assigned to access point $i$. This sequence must be the lexicographically smallest valid assignment.
+If there is no valid assignment, print `NO` on a single line.
+Otherwise, print `YES` on the first line. On the second line, print $n$ integers $s_1, s_2, \dots, s_n$ ($1 \le s_i \le 3$), where $s_i$ is the security ring assigned to process $i$. Any valid assignment is accepted.
 
 ## Example 1
 Input:

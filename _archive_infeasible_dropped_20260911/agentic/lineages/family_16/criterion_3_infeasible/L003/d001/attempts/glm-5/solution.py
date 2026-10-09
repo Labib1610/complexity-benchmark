@@ -1,0 +1,36 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    j = int(input_data[0])
+    T = int(input_data[1])
+    
+    sum1 = 0
+    sum2 = 0
+    job_ans = -1
+    
+    idx = 2
+    for i in range(1, j + 1):
+        p1 = int(input_data[idx])
+        p2 = int(input_data[idx + 1])
+        idx += 2
+        
+        sum1 += p1
+        sum2 += p2
+        
+        if p1 + p2 > T:
+            if job_ans == -1:
+                job_ans = i
+                
+    if job_ans != -1:
+        print(f"JOB {job_ans}")
+    elif sum1 > T:
+        print("LOAD 1")
+    else:
+        print("LOAD 2")
+
+if __name__ == '__main__':
+    solve()

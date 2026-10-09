@@ -1,0 +1,81 @@
+import sys
+import heapq
+
+def solve():
+    input = sys.stdin.readline
+    n, m, t = map(int, input().split())
+    terminals = list(map(int, input().split()))
+    terminals = [x-1 for x in terminals]  # 0-based
+
+    # Build graph
+    graph = [[] for _ in range(n)]
+    for _ in range(m):
+        u, v, w = map(int, input().split())
+        u -= 1
+        v -= 1
+        graph[u].append((v, w))
+        graph[v].append((u, w))
+
+    # If only one terminal, cost is 0
+    if t == 1:
+        print(0)
+        return
+
+    # Dijkstra from each terminal to all nodes
+    INF = 10**18
+    dist = [[INF]*n for _ in range(t)]
+    for i, s in enumerate(terminals):
+        d = dist[i]
+        d[s] = 0
+        pq = [(0, s)]
+        while pq:
+            du, u = heapq.heappop(pq)
+            if du != d[u]:
+                continue
+            for v, w in graph[u]:
+                nd = du + w
+                if nd < d[v]:
+                    d[v] = nd
+                    heapq.heappush(pq, (nd, v))
+
+    # DP over subsets of terminals
+    # dp[mask][i] = min cost to connect terminals in mask, ending at terminal i
+    dp = [[INF]*t for _ in range(1<<t)]
+    for i in range(t):
+        dp[1<<i][i] = 0
+
+    for mask in range(1<<t):
+        # Try extending by one terminal
+        for i in range(t):
+            if dp[mask][i] == INF:
+                continue
+            for j in range(t):
+                if not (mask & (1<<j)):
+                    nmask = mask | (1<<j)
+                    nd = dp[mask][i] + dist[i][terminals[j]]
+                    if nd < dp[nmask][j]:
+                        dp[nmask][j] = nd
+
+        # Try merging two subsets (Steiner tree DP)
+        sub = (mask-1) & mask
+        while sub:
+            other = mask ^ sub
+            if sub < other:  # avoid duplicate work
+                for i in range(t):
+                    if not (sub & (1<<i)):
+                        continue
+                    for j in range(t):
+                        if not (other & (1<<j)):
+                            continue
+                        val = dp[sub][i] + dp[other][j]
+                        if val < dp[mask][i]:
+                            dp[mask][i] = val
+                        if val < dp[mask][j]:
+                            dp[mask][j] = val
+            sub = (sub-1) & mask
+
+    ans = min(dp[(1<<t)-1])
+    print(ans)
+
+if __name__ == "__main__":
+    solve()

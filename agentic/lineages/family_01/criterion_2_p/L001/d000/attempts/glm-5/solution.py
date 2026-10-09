@@ -1,45 +1,41 @@
 import sys
-from collections import deque
 
 def solve():
-    input = sys.stdin.read().split()
-    ptr = 0
-    n, m = map(int, input[ptr:ptr+2])
-    ptr +=2
+    input = sys.stdin.read
+    data = input().split()
+    if not data:
+        return
+    n = int(data[0])
+    m = int(data[1])
     
-    adj = [[] for _ in range(n+1)]
+    adj = [[] for _ in range(n + 1)]
+    idx = 2
     for _ in range(m):
-        u, v = map(int, input[ptr:ptr+2])
-        ptr +=2
+        u = int(data[idx])
+        v = int(data[idx+1])
         adj[u].append(v)
         adj[v].append(u)
+        idx += 2
+        
+    color = [0] * (n + 1)
     
-    color = [0]*(n+1)
-    possible = True
-    
-    for i in range(1, n+1):
+    for i in range(1, n + 1):
         if color[i] == 0:
-            queue = deque()
-            queue.append(i)
             color[i] = 1
-            while queue and possible:
-                u = queue.popleft()
+            queue = [i]
+            head = 0
+            while head < len(queue):
+                u = queue[head]
+                head += 1
                 for v in adj[u]:
                     if color[v] == 0:
                         color[v] = 3 - color[u]
                         queue.append(v)
                     elif color[v] == color[u]:
-                        possible = False
-                        break
-                if not possible:
-                    break
-        if not possible:
-            break
-    
-    if not possible:
-        print("NO")
-    else:
-        print("YES")
-        print(' '.join(map(str, color[1:n+1])))
+                        sys.stdout.write("NO\n")
+                        return
+                        
+    sys.stdout.write("YES\n")
+    sys.stdout.write(" ".join(map(str, color[1:])) + "\n")
 
 solve()

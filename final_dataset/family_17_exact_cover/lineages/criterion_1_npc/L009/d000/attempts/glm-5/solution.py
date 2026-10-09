@@ -1,0 +1,82 @@
+import sys
+sys.setrecursionlimit(1000000)
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    q = int(next(it))
+    t = int(next(it))
+    n = 3 * q
+    
+    # Map each triple to its index
+    triples = []
+    triple_index = {}
+    for i in range(t):
+        a = int(next(it))
+        b = int(next(it))
+        c = int(next(it))
+        triples.append((a, b, c))
+        triple_index[(a, b, c)] = i
+    
+    # Build adjacency: for each node, list of triple indices containing it
+    adj = [[] for _ in range(n + 1)]
+    for idx, (a, b, c) in enumerate(triples):
+        adj[a].append(idx)
+        adj[b].append(idx)
+        adj[c].append(idx)
+    
+    used = [False] * t
+    used_nodes = [False] * (n + 1)
+    result = []
+    
+    # Greedy with backtracking
+    def backtrack(remaining):
+        if remaining == 0:
+            return True
+        
+        # Find first unused node
+        start = 1
+        while start <= n and used_nodes[start]:
+            start += 1
+        
+        if start > n:
+            return False
+        
+        # Try each triple containing this node
+        for idx in adj[start]:
+            if used[idx]:
+                continue
+            a, b, c = triples[idx]
+            if used_nodes[a] or used_nodes[b] or used_nodes[c]:
+                continue
+            
+            # Use this triple
+            used[idx] = True
+            used_nodes[a] = True
+            used_nodes[b] = True
+            used_nodes[c] = True
+            result.append(idx)
+            
+            if backtrack(remaining - 1):
+                return True
+            
+            # Backtrack
+            result.pop()
+            used_nodes[a] = False
+            used_nodes[b] = False
+            used_nodes[c] = False
+            used[idx] = False
+        
+        return False
+    
+    if backtrack(q):
+        print("YES")
+        for idx in result:
+            a, b, c = triples[idx]
+            print(a, b, c)
+    else:
+        print("NO")
+
+solve()

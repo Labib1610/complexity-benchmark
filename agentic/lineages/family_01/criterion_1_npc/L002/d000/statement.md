@@ -1,20 +1,20 @@
-# Problem A — System Stabilization
+# Problem A — Phase Containment
 
 Time limit: 2 s   Memory limit: 256 MB
 
-A diagnostic system consists of $n$ processing modules. Each module must be programmed with a state value chosen from $\{1, 2, 3\}$.
+A research facility is testing $n$ experimental energy modules. Each module must be calibrated to operate in a single phase state. The valid phase states are denoted by the integers 1, 2, and 3.
 
-The system contains $m$ bidirectional monitoring links, each connecting a specific pair of modules. A monitoring link actively transmits an error flag if and only if the two modules it connects are programmed with the exact same state value. To achieve system stability, every module must be assigned a state value such that absolutely no error flags are transmitted across any link.
+During preliminary testing, $m$ unstable interactions were recorded. Each interaction involves a specific pair of modules $u$ and $v$. If both modules in such a pair are calibrated to the exact same phase state, they will resonate and destabilize the array. To ensure safe operation, for every recorded interaction between a module $u$ and a module $v$, their assigned phase states must be strictly different.
 
-Determine whether a stable configuration exists. If it does, find the valid assignment of state values that is lexicographically smallest when listed from module 1 to module $n$.
+Determine if there is a valid calibration for all $n$ modules. If it is possible, provide one such calibration.
 
 ## Input
-The first line provides two integers $n$ and $m$ — the number of modules and the number of monitoring links ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
-Each of the subsequent $m$ lines contains two integers $u$ and $v$, specifying a monitoring link between module $u$ and module $v$.
+The first line contains two integers $n$ and $m$ — the number of modules and the number of recorded interactions ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
+Each of the next $m$ lines contains two integers $u$ and $v$ — the identifiers of two modules that interact unstably.
 
 ## Output
-If no stable configuration is possible, print a single line containing `NO`.
-If a stable configuration exists, print `YES` on the first line. On the second line, print $n$ integers $s_1, s_2, \dots, s_n$ (each $s_i \in \{1, 2, 3\}$), representing the state value of each module $i$. If there are multiple stable configurations, output the one that is lexicographically smallest.
+If no safe calibration exists, print a single line NO.
+Otherwise, print YES on the first line. On the second line, print $n$ integers $p_1, p_2, \dots, p_n$ (each in $\{1, 2, 3\}$), where $p_i$ is the phase state assigned to module $i$. Any valid calibration is accepted.
 
 ## Example 1
 Input:

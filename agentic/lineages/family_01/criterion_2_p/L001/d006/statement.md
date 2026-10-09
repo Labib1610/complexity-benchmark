@@ -1,28 +1,24 @@
-# Problem B — Polymer Resonance Tuning
+# Problem B — Network Transceivers
 
-Time limit: 1 s
-Memory limit: 256 MB
+Time limit: 1 s   Memory limit: 256 MB
 
-A synthetic polymer consists of $n$ monomers, indexed from 1 to $n$. A tuning configuration assigns each monomer a resonance level, which must be chosen as either 1 or 2.
+You are configuring a communication network consisting of $n$ servers and $m$ communication links. Each link connects a specific pair of servers.
 
-The laboratory maintains a record of $m$ covalent bonds between these monomers. To ensure molecular stability, the entire polymer must satisfy a global kinetic constraint based on the stability scores of its bonds. For any bond connecting monomers $u$ and $v$ with resonance levels $r_u$ and $r_v$, its stability score is calculated as:
-$$ 3(r_u + r_v) - 2r_u r_v $$
+To make the network operational, you must assign a single direction to each link. When a link between two servers is directed, one server becomes its origin and the other becomes its destination. Once all links are directed, you must assign an operating mode to each server according to these rules:
+- **Mode 1**: The server is the origin for every link connected to it.
+- **Mode 2**: The server is the destination for every link connected to it.
 
-The global kinetic constraint dictates that the total stability score, summed across all $m$ recorded bonds, must be exactly equal to $5m$. That is, a valid configuration must satisfy:
+A configuration is valid if it is possible to direct the links such that every server qualifies for an operating mode. If a server has no links connected to it, it qualifies for both modes, but you must still assign it exactly one.
 
-$$ \sum_{i=1}^{m} \big( 3(r_{u_i} + r_{v_i}) - 2r_{u_i} r_{v_i} \big) = 5m $$
-
-where $u_i$ and $v_i$ are the two monomers connected by the $i$-th recorded bond.
-
-Your task is to determine a valid tuning configuration for all $n$ monomers. If multiple valid configurations exist, you must output the sequence of resonance levels that is lexicographically smallest. This means the configuration must prioritize assigning level 1 to monomer 1 if any valid configuration allows it; then, among those valid configurations, prioritize assigning level 1 to monomer 2, and so on sequentially up to monomer $n$. If no configuration can achieve a total stability score of exactly $5m$, you must report the failure.
+You must determine if there is a valid configuration. If there are multiple valid mode assignments, you must choose the assignment that yields the lexicographically smallest sequence of modes when listed in order from server $1$ to server $n$.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$).
-Each of the following $m$ lines contains two integers $u$ and $v$, identifying a bonded pair of monomers in the record. Both monomer identifiers $u$ and $v$ are at least 1 and at most $n$.
+The first line of the input contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$).
+Each of the next $m$ lines contains two integers $u$ and $v$ — a communication link between server $u$ and server $v$.
 
 ## Output
-If no tuning configuration can satisfy the stability constraint, output `NO` on a single line.
-Otherwise, output `YES` on the first line. On the second line, output $n$ space-separated integers $r_1, r_2, \dots, r_n$ (where each $r_i \in \{1, 2\}$) representing the resonance level assigned to each respective monomer from 1 to $n$. This sequence must be the lexicographically smallest possible valid sequence.
+If there is no valid configuration, output a single line containing `NO`.
+Otherwise, output `YES` on the first line. On the second line, output $n$ integers separated by spaces, where the $i$-th integer is the mode ($1$ or $2$) assigned to the $i$-th server, representing the lexicographically smallest valid assignment.
 
 ## Example 1
 Input:

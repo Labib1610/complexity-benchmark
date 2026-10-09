@@ -2,15 +2,15 @@
 
 Time limit: 1 s   Memory limit: 256 MB
 
-The same factory now runs only two shifts, labeled 1 and 2. There are $n$ workers, and $m$ pairs of workers who interact. You must assign each worker to a shift such that no two workers who interact are assigned to the same shift. If this cannot be done, report impossibility.
+The same factory now runs only two shifts, labeled 1 and 2. With $n$ workers and $m$ incompatibility rules, assign each worker a shift so that for every rule, the two specified workers are placed in different shifts, or report impossibility.
 
 ## Input
 The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$).
-Each of the next $m$ lines contains two integers $u$ and $v$ — a pair of interacting workers.
+Each of the next $m$ lines contains two integers $u$ and $v$ — a pair of workers subject to an incompatibility rule.
 
 ## Output
 If no valid assignment exists, print a single line NO.
-Otherwise print YES, then a second line with $n$ integers $s_1 \dots s_n$ (each in {1,2}), the lexicographically smallest valid assignment.
+Otherwise print YES, then a second line with $n$ integers $s_1 \dots s_n$ (each in $\{1,2\}$), the lexicographically smallest valid assignment.
 
 ## Example 1
 Input:

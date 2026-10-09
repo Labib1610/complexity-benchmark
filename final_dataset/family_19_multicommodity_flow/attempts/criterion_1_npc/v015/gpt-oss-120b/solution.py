@@ -1,0 +1,137 @@
+import sys
+import threading
+
+def solve():
+    import sys
+    sys.setrecursionlimit(1 << 25)
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it)); m = int(next(it)); k = int(next(it))
+    contracts = []
+    for _ in range(k):
+        s = int(next(it)) - 1
+        t = int(next(it)) - 1
+        d = int(next(it))
+        contracts.append((s, t, d))
+    edges = []
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        c = int(next(it))
+        edges.append((u, v, c))
+
+    # Build adjacency list for DFS path enumeration
+    adj = [[] for _ in range(n)]
+    for idx, (u, v, _) in enumerate(edges):
+        adj[u].append((v, idx))
+
+    # Precompute all simple paths up to a reasonable length (n)
+    # Since constraints are small, this is acceptable.
+    all_paths = [[] for _ in range(k)]
+
+    def dfs_paths(contract_idx, u, t, visited, path):
+        if u == t:
+            all_paths[contract_idx].append(path.copy())
+            return
+        if len(path) >= n:  # avoid too long
+            return
+        for v, eid in adj[u]:
+            if (eid) in visited:
+                continue
+            visited.add(eid)
+            path.append(eid)
+            dfs_paths(contract_idx, v, t, visited, path)
+            path.pop()
+            visited.remove(eid)
+
+    for i, (s, t, d) in enumerate(contracts):
+        dfs_paths(i, s, t, set(), [])
+
+    # If any contract has no path, impossible
+    for i in range(k):
+        if not all_paths[i]:
+            print("NO")
+            return
+
+    # Backtracking assignment of flows per contract using paths
+    cap = [c for _, _, c in edges]
+    flow = [[0] * m for _ in range(k)]
+
+    # Order contracts by fewest paths to prune faster
+    order = sorted(range(k), key=lambda i: len(all_paths[i]))
+
+    def backtrack(pos):
+        if pos == k:
+            return True
+        ci = order[pos]
+        s, t, d = contracts[ci]
+        # Use simple DFS to send d units via augmenting paths (like max flow) on residual capacities
+        # We'll try all combinations of distributing d over available paths (bounded by capacities)
+        # Since d is small (assumed), we can enumerate distributions via recursion over paths.
+        paths = all_paths[ci]
+        # Precompute max possible flow on each path
+        max_on_path = []
+        for p in paths:
+            mn = min(cap[e] for e in p)
+            max_on_path.append(mn)
+        # Recursive distribution
+        assign = [0] * len(paths)
+
+        def distribute(idx, remaining):
+            if remaining == 0:
+                # apply assignment
+                for pi, amt in enumerate(assign):
+                    if amt:
+                        for e in paths[pi]:
+                            cap[e] -= amt
+                            flow[ci][e] += amt
+                if backtrack(pos + 1):
+                    return True
+                # revert
+                for pi, amt in enumerate(assign):
+                    if amt:
+                        for e in paths[pi]:
+                            cap[e] += amt
+                            flow[ci][e] -= amt
+                return False
+            if idx == len(paths):
+                return False
+            # try 0..min(remaining, max_on_path[idx])
+            limit = min(remaining, max_on_path[idx])
+            for take in range(limit, -1, -1):
+                assign[idx] = take
+                # reduce capacities temporarily for subsequent paths
+                if take:
+                    for e in paths[idx]:
+                        cap[e] -= take
+                # recompute max_on_path for later paths (simple check)
+                ok = True
+                for later in range(idx + 1, len(paths)):
+                    if any(cap[e] <= 0 for e in paths[later]):
+                        # cannot send any through this path
+                        if remaining - take > 0:
+                            ok = False
+                            break
+                if ok and distribute(idx + 1, remaining - take):
+                    return True
+                if take:
+                    for e in paths[idx]:
+                        cap[e] += take
+                assign[idx] = 0
+            return False
+
+        return distribute(0, d)
+
+    if backtrack(0):
+        print("YES")
+        for i in range(k):
+            print(' '.join(str(x) for x in flow[i]))
+    else:
+        print("NO")
+
+def main():
+    solve()
+
+threading.Thread(target=main).start()

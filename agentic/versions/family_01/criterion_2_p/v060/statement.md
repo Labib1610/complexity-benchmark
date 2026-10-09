@@ -1,20 +1,20 @@
-# Problem B — Orbital Bandwidth Allocation
+# Problem B — Frequency Allocation
 
 Time limit: 1 s   Memory limit: 256 MB
 
-An orbital network consists of $n$ communication satellites, numbered 1 through $n$. During initial deployment, technicians observed that certain pairs of satellites are positioned such that their signal footprints overlap. Specifically, there are $m$ known pairs of satellites that will cause destructive interference if they operate on the same frequency band.
+A telecommunications company is deploying a network of $n$ wireless access points, numbered 1 through $n$. To minimize hardware costs, the network is restricted to using only two distinct frequency bands, labeled 1 and 2.
 
-Each satellite must be configured to broadcast permanently on one of two available frequency bands, designated as Band 1 and Band 2. A band configuration is represented as a sequence of $n$ integers, where the $i$-th integer specifies the band assigned to satellite $i$. A configuration is considered safe if, for every overlapping pair identified by the technicians, the two satellites in the pair are assigned to different frequency bands.
+Because of physical proximity, certain pairs of access points will cause severe signal interference if they broadcast on the same frequency band. You are given a list of $m$ such interference constraints. Your task is to assign each access point to either band 1 or band 2 such that no two interfering access points share the same band.
 
-Your task is to analyze the overlap data and determine whether a safe configuration is possible for all $n$ satellites. If it is possible, you must find the safe configuration that is lexicographically smallest. If no safe configuration can be established, you must report that it is impossible.
+If it is impossible to configure the network without interference, you must report this. If multiple valid configurations exist, the deployment software requires the sequence of band assignments $b_1, b_2, \dots, b_n$ (where $b_i \in \{1,2\}$ is the band for access point $i$) to be lexicographically smallest.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$).
-Each of the next $m$ lines contains two integers $u$ and $v$, representing a pair of satellites whose signal footprints overlap.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$).
+Each of the next $m$ lines contains two integers $u$ and $v$ — a pair of access points subject to an interference constraint.
 
 ## Output
-If no safe configuration exists, print a single line containing the word NO.
-Otherwise, print YES on the first line. On the second line, print $n$ integers $b_1 \dots b_n$ (each either 1 or 2), representing the lexicographically smallest safe configuration.
+If no valid assignment exists, print a single line `NO`.
+Otherwise print `YES`, then a second line with $n$ integers $b_1 \dots b_n$ (each in $\{1,2\}$), representing the lexicographically smallest valid assignment.
 
 ## Example 1
 Input:

@@ -1,0 +1,125 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # Check if graph is bipartite
+    color = [-1] * n
+    is_bipartite = True
+    for i in range(n):
+        if color[i] == -1:
+            color[i] = 0
+            stack = [i]
+            while stack:
+                u = stack.pop()
+                for v in adj[u]:
+                    if color[v] == -1:
+                        color[v] = 1 - color[u]
+                        stack.append(v)
+                    elif color[v] == color[u]:
+                        is_bipartite = False
+                        break
+                if not is_bipartite:
+                    break
+        if not is_bipartite:
+            break
+    
+    if not is_bipartite:
+        print("NO")
+        return
+    
+    # Find connected components
+    visited = [False] * n
+    components = []
+    for i in range(n):
+        if not visited[i]:
+            comp = []
+            stack = [i]
+            visited[i] = True
+            while stack:
+                u = stack.pop()
+                comp.append(u)
+                for v in adj[u]:
+                    if not visited[v]:
+                        visited[v] = True
+                        stack.append(v)
+            components.append(comp)
+    
+    # DP to check if we can partition components into two groups
+    # such that total size of group A equals total size of group B
+    # Group A: color 0 -> cluster 1, color 1 -> cluster 2
+    # Group B: color 0 -> cluster 2, color 1 -> cluster 1
+    # Cluster 3 is unused
+    
+    comp_count = len(components)
+    comp_size = [len(c) for c in components]
+    comp_diff = []
+    for c in components:
+        cnt0 = sum(1 for u in c if color[u] == 0)
+        cnt1 = len(c) - cnt0
+        comp_diff.append(cnt0 - cnt1)
+    
+    total_diff = sum(comp_diff)
+    if total_diff % 2 != 0:
+        print("NO")
+        return
+    
+    target = total_diff // 2
+    offset = n + 1
+    max_val = 2 * offset
+    
+    dp = [[-1] * (max_val + 1) for _ in range(comp_count + 1)]
+    dp[0][offset] = -2
+    
+    for i in range(comp_count):
+        d = comp_diff[i]
+        for j in range(max_val + 1):
+            if dp[i][j] != -1:
+                if j + d <= max_val and dp[i + 1][j + d] == -1:
+                    dp[i + 1][j + d] = 0
+                if j - d <= max_val and dp[i + 1][j - d] == -1:
+                    dp[i + 1][j - d] = 1
+    
+    if dp[comp_count][target + offset] == -1:
+        print("NO")
+        return
+    
+    # Reconstruct solution
+    group_assignment = []
+    curr = target + offset
+    for i in range(comp_count, 0, -1):
+        choice = dp[i][curr]
+        group_assignment.append(choice)
+        if choice == 0:
+            curr -= comp_diff[i - 1]
+        else:
+            curr += comp_diff[i - 1]
+    group_assignment.reverse()
+    
+    # Assign clusters
+    result = [0] * n
+    for i in range(comp_count):
+        group = group_assignment[i]
+        for u in components[i]:
+            if group == 0:
+                result[u] = 1 if color[u] == 0 else 2
+            else:
+                result[u] = 2 if color[u] == 0 else 1
+    
+    print("YES")
+    print(' '.join(map(str, result)))
+
+if __name__ == "__main__":
+    solve()

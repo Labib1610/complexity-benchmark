@@ -9,68 +9,67 @@ def solve() -> None:
     it = iter(data)
     n = int(next(it))
     m = int(next(it))
-
-    adj = [[] for _ in range(n)]
+    adj = [0] * n  # bitmask of neighbours
     for _ in range(m):
         u = int(next(it)) - 1
         v = int(next(it)) - 1
-        if u == v:
-            continue
-        adj[u].append(v)
-        adj[v].append(u)
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
 
-    # colour of each vertex, 0 = uncoloured, otherwise 1..3
-    color = [0] * n
-    # allowed colours mask, bits 0,1,2 correspond to colours 1,2,3
-    allowed = [0b111] * n
+    # order vertices by degree descending
+    order = sorted(range(n), key=lambda x: -adj[x].bit_count())
+    pos_in_order = [0] * n
+    for i, v in enumerate(order):
+        pos_in_order[v] = i
 
-    # depth‑first search, vertices are processed in order 0..n-1
-    def dfs(pos: int) -> bool:
-        if pos == n:
+    # neighbours in order indices for quick check
+    neigh_order = [ [pos_in_order[w] for w in range(n) if (adj[v] >> w) & 1] for v in range(n) ]
+
+    colors = [-1] * n
+    # possible colors mask for each vertex (bits 0,1,2)
+    poss = [0b111] * n
+
+    def dfs(idx: int) -> bool:
+        if idx == n:
             return True
-        v = pos
-        mask = allowed[v]
-        # try colours 1,2,3 (bits 0,1,2) in increasing order
-        for c in range(3):
-            bit = 1 << c
-            if mask & bit == 0:
-                continue
-            # forward checking: remove colour c from neighbours
-            changes = []          # list of (neighbour, previous_allowed)
+        v = order[idx]
+        # try colors allowed by poss
+        mask = poss[v]
+        while mask:
+            c = (mask & -mask).bit_length() - 1  # get lowest set bit index
+            mask &= mask - 1
+            # assign
+            colors[v] = c
+            # backup changes
+            changed = []
             ok = True
-            for nb in adj[v]:
-                if color[nb] == 0:
-                    prev = allowed[nb]
-                    new = prev & ~bit
-                    if new != prev:
-                        allowed[nb] = new
-                        changes.append((nb, prev))
+            for w in neigh_order[v]:
+                if colors[w] != -1:
+                    if colors[w] == c:
+                        ok = False
+                        break
+                else:
+                    if poss[w] & (1 << c):
+                        old = poss[w]
+                        new = old & ~(1 << c)
                         if new == 0:
                             ok = False
                             break
-                else:
-                    if color[nb] == c + 1:
-                        ok = False
-                        break
-            if ok:
-                color[v] = c + 1
-                if dfs(pos + 1):
-                    return True
-                color[v] = 0
-            # restore neighbours' allowed masks
-            for nb, prev in changes:
-                allowed[nb] = prev
+                        poss[w] = new
+                        changed.append((w, old))
+            if ok and dfs(idx + 1):
+                return True
+            # revert
+            for w, old in changed:
+                poss[w] = old
+            colors[v] = -1
         return False
 
-    possible = dfs(0)
-
-    out = []
-    if not possible:
-        out.append("NO")
+    if dfs(0):
+        print("YES")
+        print(' '.join(str(c + 1) for c in colors))
     else:
-        out.append("YES")
-        out.append(" ".join(str(col) for col in color))
-    sys.stdout.write("\n".join(out))
+        print("NO")
 
 if __name__ == "__main__":
     solve()

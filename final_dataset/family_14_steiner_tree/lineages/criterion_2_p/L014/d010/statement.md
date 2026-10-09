@@ -1,0 +1,96 @@
+# Corporate Consolidation
+
+Time limit: 2 s   Memory limit: 256 MB
+
+## Description
+
+In a regulated market, there are $n$ independent corporations (numbered 1 through $n$) and a set of $m$ proposed bilateral merger agreements. Each agreement involves two specific corporations and requires a defined legal fee to finalize.
+
+The market's proposed agreements form a minimally integrated structure: there are exactly $m = n - 1$ proposed agreements, and any two corporations are linked by exactly one simple route (a sequence of agreements without repeating any corporation) in this full set.
+
+Within this market, a particular group of $t$ corporations are identified as key patent holders.
+
+Your goal is to choose a subset of the proposed agreements to finalize. A chosen subset is considered valid if it includes every proposed agreement that is deemed *contested*. 
+
+To determine if a proposed agreement between corporation $u$ and corporation $v$ is contested, the regulators apply the following evaluation:
+1. Every key patent holder evaluates their distance to $u$ and their distance to $v$. Distance is measured as the number of agreements in the unique simple route linking them in the full market.
+2. Because of the market's structure, every key patent holder will be strictly closer to one of the two corporations.
+3. Each key patent holder casts a vote for the corporation ($u$ or $v$) that is closer to them.
+4. If corporation $u$ receives at least one vote AND corporation $v$ receives at least one vote, the agreement is deemed *contested*.
+
+You must find the minimum total legal fee of a valid subset of finalized agreements.
+
+## Input
+
+The first line contains three integers $n$, $m$, and $t$ ($1 \le t \le n$, $1 \le n \le 200000$, $m = n - 1$).
+The second line contains $t$ distinct integers: the identifiers of the key patent holders.
+Each of the next $m$ lines contains three integers $u$, $v$, and $w$ ($1 \le u, v \le n$, $u \neq v$, $1 \le w \le 1000000$), representing a proposed agreement between corporation $u$ and corporation $v$ with a legal fee of $w$.
+
+## Output
+
+Print a single integer: the minimum total legal fee of a valid subset of finalized agreements.
+
+## Examples
+
+### Example 1
+
+**Input**
+```
+4 3 2
+1 4
+1 2 5
+2 3 1
+3 4 2
+```
+
+**Output**
+```
+8
+```
+
+### Example 2
+
+**Input**
+```
+5 4 1
+3
+1 2 4
+2 3 6
+3 4 2
+4 5 9
+```
+
+**Output**
+```
+0
+```
+
+### Example 3
+
+**Input**
+```
+3 2 3
+1 2 3
+1 2 4
+2 3 5
+```
+
+**Output**
+```
+9
+```
+
+## Note
+
+In Example 1, the key patent holders are 1 and 4. 
+Consider the agreement between 1 and 2 (fee 5). Key patent holder 1 is distance 0 from 1 and distance 1 from 2, so it votes for 1. Key patent holder 4 is distance 3 from 1 and distance 2 from 2, so it votes for 2. Both corporations receive 1 vote, so the agreement is contested.
+Similarly, for the agreement between 2 and 3 (fee 1), 1 votes for 2 and 4 votes for 3. It is contested.
+For the agreement between 3 and 4 (fee 2), 1 votes for 3 and 4 votes for 4. It is contested.
+All three agreements are contested and must be included in any valid subset. The minimum total legal fee is 5 + 1 + 2 = 8.
+
+In Example 2, there is only $t=1$ key patent holder (corporation 3). For any proposed agreement, the single key patent holder will cast its vote for the closer corporation, leaving the other corporation with 0 votes. Thus, no agreements are contested. The regulatory condition is satisfied without including any agreements. The minimum total legal fee is 0.
+
+In Example 3, the key patent holders are 1, 2, and 3. 
+For the agreement between 1 and 2 (fee 4): key patent holder 1 votes for 1; key patent holders 2 and 3 vote for 2. Both sides receive at least one vote, so it is contested.
+For the agreement between 2 and 3 (fee 5): key patent holders 1 and 2 vote for 2; key patent holder 3 votes for 3. It is contested.
+The finalized subset must include both agreements. The minimum total legal fee is 4 + 5 = 9.

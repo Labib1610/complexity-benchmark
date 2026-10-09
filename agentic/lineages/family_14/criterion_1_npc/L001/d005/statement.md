@@ -1,0 +1,86 @@
+# Problem A — Group Unification
+
+Time limit: 5 s   Memory limit: 256 MB
+
+## Description
+
+You are managing a system of **n** elements, numbered 1 through **n**. Initially, each element resides in its own isolated group.
+
+You are provided with a list of **m** possible `MERGE` operations. A `MERGE` operation between element $u$ and element $v$ takes the group currently containing $u$ and the group currently containing $v$, and combines them into a single unified group. Selecting this specific operation to be executed incurs a one-time cost of $w$ compute cycles. 
+
+You are given a query containing a subset of **t** target elements: $c_1, c_2, \dots, c_t$. 
+Your objective is to select a subset of the available `MERGE` operations to execute such that, after all selected operations are applied, all **t** target elements reside in the exact same group. 
+
+You may select `MERGE` operations involving non-target elements; these can act as stepping stones to unify the groups containing the target elements if it results in a lower total compute cost. 
+
+Determine the minimum total compute cost required to ensure that all **t** target elements belong to the identical group. (If $t=1$, no operations are needed and the minimum cost is 0).
+
+## Input
+
+The first line contains three integers **n**, **m**, and **t** (1 ≤ t ≤ 10, 1 ≤ n ≤ 100, 0 ≤ m ≤ n·(n−1)/2), representing the total number of elements, the number of available `MERGE` operations, and the number of target elements.
+The second line contains **t** distinct integers $c_1, c_2, \dots, c_t$: the identifiers of the target elements. The order of these identifiers does not matter.
+Each of the next **m** lines contains three integers **u**, **v**, and **w** (1 ≤ u, v ≤ n, u ≠ v, 1 ≤ w ≤ 1000000), indicating that a `MERGE` operation can be executed between element u and element v at a cost of w.
+It is guaranteed that the available operations are sufficient to merge all target elements into one group.
+
+## Output
+
+Print a single integer: the minimum total compute cost to execute a sequence of `MERGE` operations that satisfies the requirement.
+
+## Examples
+
+### Example 1
+
+**Input**
+```
+4 6 3
+1 2 3
+1 4 1
+2 4 1
+3 4 1
+1 2 2
+2 3 2
+1 3 2
+```
+
+**Output**
+```
+3
+```
+
+### Example 2
+
+**Input**
+```
+4 4 3
+1 2 3
+1 2 1
+2 3 1
+1 4 10
+3 4 10
+```
+
+**Output**
+```
+2
+```
+
+### Example 3
+
+**Input**
+```
+3 2 1
+1
+1 2 5
+2 3 5
+```
+
+**Output**
+```
+0
+```
+
+## Note
+
+In Example 1, the target elements are 1, 2, and 3. You can execute `MERGE` operations between (1,4), (2,4), and (3,4) for a total cost of 1+1+1 = 3 compute cycles. Because element 1 is merged with 4, and 2 is merged with 4, they end up in the same group. Similarly, 3 is merged with 4, so all three target elements end up in the exact same group. Alternatively, executing `MERGE` operations for (1,2) and (2,3) directly would cost 2+2 = 4 cycles. The minimum cost is 3. 
+
+In Example 3, there is only one target element ($t=1$), so no operations are needed and the minimum cost is 0.

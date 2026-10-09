@@ -1,30 +1,49 @@
 import sys
+from collections import deque
 
 def solve():
-    input = sys.stdin.readline
-    n, m = map(int, input().split())
+    input_data = sys.stdin.buffer.read().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    
     adj = [[] for _ in range(n + 1)]
     for _ in range(m):
-        u, v = map(int, input().split())
+        u = int(next(it))
+        v = int(next(it))
         adj[u].append(v)
         adj[v].append(u)
-
+    
     color = [0] * (n + 1)
-    for i in range(1, n + 1):
-        if color[i] == 0:
-            color[i] = 1
-            stack = [i]
-            while stack:
-                u = stack.pop()
-                for v in adj[u]:
-                    if color[v] == 0:
-                        color[v] = 3 - color[u]
-                        stack.append(v)
-                    elif color[v] == color[u]:
-                        print("NO")
-                        return
+    possible = True
+    
+    for start in range(1, n + 1):
+        if color[start] != 0:
+            continue
+        # Try to assign color 1 (type 1) to start for lexicographically smallest
+        color[start] = 1
+        q = deque([start])
+        while q:
+            u = q.popleft()
+            for v in adj[u]:
+                if color[v] == 0:
+                    color[v] = 3 - color[u]
+                    q.append(v)
+                elif color[v] == color[u]:
+                    possible = False
+                    break
+            if not possible:
+                break
+        if not possible:
+            break
+    
+    if not possible:
+        sys.stdout.write("NO\n")
+    else:
+        sys.stdout.write("YES\n")
+        sys.stdout.write(" ".join(str(color[i]) for i in range(1, n + 1)) + "\n")
 
-    print("YES")
-    print(' '.join(str(color[i]) for i in range(1, n + 1)))
-
-solve()
+if __name__ == "__main__":
+    solve()

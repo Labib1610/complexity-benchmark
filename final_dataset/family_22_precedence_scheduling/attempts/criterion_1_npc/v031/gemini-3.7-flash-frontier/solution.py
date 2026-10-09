@@ -1,0 +1,163 @@
+import sys
+
+# Increase recursion depth just in case
+sys.setrecursionlimit(20000)
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+
+    n = int(input_data[0])
+    M = int(input_data[1])
+    T = int(input_data[2])
+    m = int(input_data[3])
+
+    if n > M * T:
+        print("NO")
+        return
+
+    adj = [[] for _ in range(n + 1)]
+    rev_adj = [[] for _ in range(n + 1)]
+    in_degree = [0] * (n + 1)
+    
+    idx = 4
+    for _ in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx + 1])
+        adj[u].append(v)
+        rev_adj[v].append(u)
+        in_degree[v] += 1
+        idx += 2
+
+    # Topological sort & cycle check & EST
+    # EST[u] is the minimum room for u (1-indexed)
+    est = [1] * (n + 1)
+    q = [i for i in range(1, n + 1) if in_degree[i] == 0]
+    head = 0
+    topo_order = []
+    
+    temp_deg = list(in_degree)
+    while head < len(q):
+        u = q[head]
+        head += 1
+        topo_order.append(u)
+        for v in adj[u]:
+            if est[u] + 1 > est[v]:
+                est[v] = est[u] + 1
+            temp_deg[v] -= 1
+            if temp_deg[v] == 0:
+                q.append(v)
+
+    if len(topo_order) < n:
+        print("NO")
+        return
+
+    # LST[u] is the maximum room for u
+    lst = [T] * (n + 1)
+    for u in reversed(topo_order):
+        for v in adj[u]:
+            if lst[v] - 1 < lst[u]:
+                lst[u] = lst[v] - 1
+
+    for i in range(1, n + 1):
+        if est[i] > lst[i] or est[i] > T or lst[i] < 1:
+            print("NO")
+            return
+
+    # Coffman-Graham-like / descendant rank for tie-breaking
+    desc_count = [0] * (n + 1)
+    for u in reversed(topo_order):
+        desc_count[u] = 1 + sum(desc_count[v] for v in adj[u])
+
+    # Assignment array: room[i]
+    ans_room = [0] * (n + 1)
+    
+    # Pre-calculate bit representation if n <= 64, or use frozenset / tuple
+    # We will search time step by time step t = 1..T
+    cur_in_degree = list(in_degree)
+    
+    visited_states = set()
+
+    from itertools import combinations
+
+    def search(t, placed_mask):
+        if t == T + 1:
+            return placed_mask == (1 << n) - 1
+
+        # Quick check if remaining rooms can hold remaining items
+        # Count placed
+        # placed_count = bin(placed_mask).count('1')
+        # if n - placed_count > (T - t + 1) * M:
+        #     return False
+
+        state = (t, placed_mask)
+        if state in visited_states:
+            return False
+
+        # Ready nodes are those not placed, with cur_in_degree == 0
+        ready = []
+        must_schedule = []
+        for i in range(1, n + 1):
+            if not (placed_mask & (1 << (i - 1))):
+                if cur_in_degree[i] == 0:
+                    ready.append(i)
+                    if lst[i] == t:
+                        must_schedule.append(i)
+                else:
+                    # If this node has lst[i] == t but is not ready, it's impossible
+                    if lst[i] <= t:
+                        visited_states.add(state)
+                        return False
+
+        if len(must_schedule) > M:
+            visited_states.add(state)
+            return False
+
+        # Sort ready items: priority by (lst, -desc_count)
+        ready.sort(key=lambda x: (lst[x], -desc_count[x]))
+
+        if len(ready) <= M:
+            # We can and should take all ready items
+            chosen_list = [ready]
+        else:
+            # We must choose M items, including all must_schedule items
+            needed_optional = M - len(must_schedule)
+            must_set = set(must_schedule)
+            other_ready = [x for x in ready if x not in must_set]
+            
+            chosen_list = []
+            for comb in combinations(other_ready, needed_optional):
+                chosen_list.append(must_schedule + list(comb))
+                if len(chosen_list) >= 50: # Prune combinations if too many
+                    break
+
+        for chosen in chosen_list:
+            # Apply chosen
+            new_mask = placed_mask
+            for u in chosen:
+                ans_room[u] = t
+                new_mask |= (1 << (u - 1))
+                for v in adj[u]:
+                    cur_in_degree[v] -= 1
+
+            if search(t + 1, new_mask):
+                return True
+
+            # Rollback
+            for u in chosen:
+                ans_room[u] = 0
+                for v in adj[u]:
+                    cur_in_degree[v] += 1
+
+        visited_states.add(state)
+        return False
+
+    if search(1, 0):
+        print("YES")
+        print(*(ans_room[i] for i in range(1, n + 1)))
+    else:
+        print("NO")
+
+if __name__ == '__main__':
+    solve()

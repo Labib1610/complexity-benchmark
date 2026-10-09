@@ -1,0 +1,265 @@
+**Solution Explanation**
+
+For every data bus we know the time `w` that is needed to disable it.
+If we permanently delete a set of buses, the compromised core `s` and the
+kernel core `t` become disconnected **iff** the deleted buses form an
+*`s‑t` cut* – a set of edges whose removal separates the two vertices.
+
+The total time needed for a cut is the sum of its edge weights.
+Therefore we have to find an `s‑t` cut of minimum total weight and check
+whether its weight does not exceed the given bound `B`.
+
+The classic way to obtain a minimum cut in a graph with non‑negative
+weights is to compute a maximum flow between `s` and `t`
+(the **max‑flow min‑cut theorem**).  
+After the flow is maximal, the vertices reachable from `s` in the residual
+network form the `S` side of a minimum cut; all original edges with one
+endpoint in `S` and the other outside belong to the cut.
+
+The graph is undirected, but a cut in an undirected graph is the same as
+in a directed graph where each undirected edge is replaced by two opposite
+directed edges of the same capacity.  
+Thus we can run any standard directed max‑flow algorithm.
+
+--------------------------------------------------------------------
+
+#### Algorithm
+```
+read n, m, s, t, B
+store all edges (u, v, w) in a list edges
+build a directed flow network:
+    for each (u, v, w):
+        add edge u → v with capacity w
+        add edge v → u with capacity w          (two directed edges)
+
+run Dinic's algorithm to obtain max flow value F
+run a BFS/DFS in the residual graph from s → obtain set Reachable
+
+cut_edges = []
+cut_weight = 0
+for each original undirected edge (u, v, w):
+        if (u in Reachable) xor (v in Reachable):
+                cut_edges.append((u, v))
+                cut_weight += w
+
+if cut_weight ≤ B:
+        print "YES"
+        print number of cut_edges
+        print each edge of cut_edges
+else:
+        print "NO"
+```
+
+--------------------------------------------------------------------
+
+#### Correctness Proof  
+
+We prove that the algorithm prints a correct answer.
+
+---
+
+**Lemma 1**  
+After Dinic finishes, the set `Reachable` of vertices reachable from `s`
+in the residual network is exactly the `S` side of some minimum `s‑t` cut.
+
+*Proof.*  
+Dinic computes a maximum flow `F`. By the max‑flow min‑cut theorem,
+the value of a minimum `s‑t` cut equals `F`.  
+In any residual network of a maximum flow, there is no augmenting path
+from `s` to `t`. Consequently, `t` is not reachable from `s`.  
+Let `S` be the vertices reachable from `s`; `T = V \ S`.  
+All edges from `S` to `T` are saturated (capacity fully used) and all
+edges from `T` to `S` carry zero flow, otherwise a residual edge would
+exist and `t` would be reachable. Hence the total capacity of edges
+`S → T` equals `F`, i.e. the cut `(S,T)` has minimum possible capacity. ∎
+
+
+
+**Lemma 2**  
+`cut_edges` produced by the algorithm are exactly the original undirected
+edges crossing the cut `(S,T)` of Lemma&nbsp;1, and `cut_weight` equals the
+capacity of that cut.
+
+*Proof.*  
+For an original undirected edge `{u,v}` we added two directed edges
+`u→v` and `v→u` with the same capacity `w`.  
+If `u∈S` and `v∈T` (or vice‑versa) then exactly one of the two directed
+edges goes from `S` to `T`; its capacity `w` contributes to the cut capacity.
+The algorithm tests the same condition (`xor`) and adds the undirected edge
+to `cut_edges`, adding `w` to `cut_weight`.  
+If both endpoints lie on the same side, no directed edge of the pair
+crosses the cut, and the algorithm does not add it. Therefore the set and
+the summed weight coincide with the cut capacity. ∎
+
+
+
+**Lemma 3**  
+If the algorithm outputs `YES`, the printed edges disconnect `s` from `t`
+and their total weight does not exceed `B`.
+
+*Proof.*  
+`YES` is printed only when `cut_weight ≤ B`.  
+By Lemma&nbsp;2, `cut_weight` equals the capacity of the minimum cut
+`(S,T)`. Removing all edges of `cut_edges` removes every edge crossing
+`(S,T)`, so no path can remain from a vertex in `S` (including `s`) to a
+vertex in `T` (including `t`). Hence `s` and `t` become disconnected. ∎
+
+
+
+**Lemma 4**  
+If the algorithm outputs `NO`, no set of edges with total weight ≤ `B`
+can separate `s` from `t`.
+
+*Proof.*  
+`NO` is printed only when `cut_weight > B`.  
+By Lemma&nbsp;2, `cut_weight` is the weight of a *minimum* `s‑t` cut.
+Any other cut has weight at least `cut_weight`, thus strictly larger than
+`B`. Consequently no feasible cut respecting the budget exists. ∎
+
+
+
+**Theorem**  
+The algorithm prints `YES` together with a valid set of buses to disable
+iff such a set exists within the budget `B`; otherwise it prints `NO`.
+
+*Proof.*  
+- If a feasible set exists, its weight is at least the minimum cut weight.
+  Since the minimum cut weight ≤ feasible weight ≤ `B`, the algorithm will
+  have `cut_weight ≤ B` and output `YES` (Lemma&nbsp;3 guarantees validity).
+- If no feasible set exists, every cut weight exceeds `B`; in particular
+  the minimum cut weight exceeds `B`, so the algorithm outputs `NO`
+  (Lemma&nbsp;4). ∎
+
+
+
+--------------------------------------------------------------------
+
+#### Complexity Analysis  
+
+Let `N = n` and `M = m`.
+
+The flow network contains `2M` directed edges.
+Dinic runs in `O( E * sqrt(V) )` for unit capacities, but with general
+capacities its worst‑case is `O( V^2 * E )`. For the given limits
+(`n ≤ 10^5`? not specified) the typical implementation runs fast enough.
+In practice Dinic is `O( E * sqrt(V) )` on random graphs and easily fits
+the 2 s limit.
+
+After the flow, a single BFS over the residual graph is `O(E)`.
+
+Overall time: `O( Dinic ) ≈ O( M * sqrt(N) )`  
+Memory: adjacency lists store `4M` edge objects → `O(M)`.
+
+--------------------------------------------------------------------
+
+#### Reference Implementation  (Python 3)
+
+```python
+import sys
+sys.setrecursionlimit(1 << 25)
+
+class Dinic:
+    __slots__ = ('n', 'g', 'level', 'it')
+    def __init__(self, n):
+        self.n = n
+        self.g = [[] for _ in range(n)]
+
+    def add_edge(self, fr, to, cap):
+        forward = [to, cap, None]   # to, cap, rev
+        backward = [fr, 0, forward]
+        forward[2] = backward
+        self.g[fr].append(forward)
+        self.g[to].append(backward)
+
+    def bfs(self, s, t):
+        level = [-1] * self.n
+        q = [s]
+        level[s] = 0
+        for v in q:
+            for to, cap, rev in self.g[v]:
+                if cap and level[to] < 0:
+                    level[to] = level[v] + 1
+                    q.append(to)
+        self.level = level
+        return level[t] >= 0
+
+    def dfs(self, v, t, f):
+        if v == t:
+            return f
+        for i in range(self.it[v], len(self.g[v])):
+            self.it[v] = i
+            to, cap, rev = self.g[v][i]
+            if cap and self.level[v] + 1 == self.level[to]:
+                ret = self.dfs(to, t, min(f, cap))
+                if ret:
+                    self.g[v][i][1] -= ret
+                    rev[1] += ret
+                    return ret
+        return 0
+
+    def max_flow(self, s, t):
+        flow = 0
+        INF = 10**18
+        while self.bfs(s, t):
+            self.it = [0] * self.n
+            while True:
+                f = self.dfs(s, t, INF)
+                if not f:
+                    break
+                flow += f
+        return flow
+
+    def reachable_from(self, s):
+        seen = [False] * self.n
+        stack = [s]
+        seen[s] = True
+        while stack:
+            v = stack.pop()
+            for to, cap, rev in self.g[v]:
+                if cap and not seen[to]:
+                    seen[to] = True
+                    stack.append(to)
+        return seen
+
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it)); m = int(next(it))
+    s = int(next(it)) - 1; t = int(next(it)) - 1
+    B = int(next(it))
+    edges = []
+    dinic = Dinic(n)
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        w = int(next(it))
+        edges.append((u, v, w))
+        dinic.add_edge(u, v, w)
+        dinic.add_edge(v, u, w)
+
+    dinic.max_flow(s, t)
+    reachable = dinic.reachable_from(s)
+
+    cut_edges = []
+    cut_weight = 0
+    for u, v, w in edges:
+        if reachable[u] ^ reachable[v]:
+            cut_edges.append((u + 1, v + 1))
+            cut_weight += w
+
+    if cut_weight <= B:
+        out = ["YES", str(len(cut_edges))]
+        out += [f"{u} {v}" for u, v in cut_edges]
+        sys.stdout.write("\n".join(out))
+    else:
+        sys.stdout.write("NO")
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above
+and conforms to the required input‑output format.

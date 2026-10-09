@@ -1,53 +1,40 @@
 import sys
-from sys import setrecursionlimit
 
 def solve():
-    input_data = sys.stdin.read().split()
-    if not input_data:
+    input = sys.stdin.read
+    data = input().split()
+    if not data:
         return
-    it = iter(input_data)
-    n = int(next(it))
-    m = int(next(it))
+    n = int(data[0])
+    m = int(data[1])
     
     adj = [[] for _ in range(n + 1)]
+    idx = 2
     for _ in range(m):
-        u = int(next(it))
-        v = int(next(it))
+        u = int(data[idx])
+        v = int(data[idx+1])
         adj[u].append(v)
         adj[v].append(u)
-    
+        idx += 2
+        
     color = [0] * (n + 1)
-    parent = [0] * (n + 1)
-    depth = [0] * (n + 1)
-    visited = [False] * (n + 1)
-    stack = []
     
-    for start in range(1, n + 1):
-        if visited[start]:
-            continue
-        visited[start] = True
-        color[start] = 1
-        depth[start] = 0
-        stack.append(start)
-        while stack:
-            u = stack[-1]
-            if adj[u]:
-                v = adj[u].pop()
-                if not visited[v]:
-                    visited[v] = True
-                    parent[v] = u
-                    depth[v] = depth[u] + 1
-                    color[v] = 3 - color[u]
-                    stack.append(v)
-                else:
-                    if depth[v] < depth[u] - 1:
-                        if color[v] == color[u]:
-                            print("NO")
-                            return
-            else:
-                stack.pop()
-    
+    for i in range(1, n + 1):
+        if color[i] == 0:
+            color[i] = 1
+            stack = [i]
+            while stack:
+                u = stack.pop()
+                for v in adj[u]:
+                    if color[v] == 0:
+                        color[v] = 3 - color[u]
+                        stack.append(v)
+                    elif color[v] == color[u]:
+                        print("NO")
+                        return
+                        
     print("YES")
-    print(' '.join(str(color[i]) for i in range(1, n + 1)))
+    print(" ".join(map(str, color[1:])))
 
-solve()
+if __name__ == '__main__':
+    solve()

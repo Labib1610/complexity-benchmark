@@ -1,0 +1,205 @@
+import sys
+from collections import deque
+
+def main():
+    input_line = sys.stdin.buffer.readline
+    n, m, k = map(int, input_line().split())
+
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u, v = map(int, input_line().split())
+        u -= 1
+        v -= 1
+        adj[u].append(v)
+        adj[v].append(u)
+
+    color = [-1] * n
+    easy_independent = []
+
+    for start in range(n):
+        if color[start] != -1:
+            continue
+
+        color[start] = 0
+        q = deque([start])
+        part0 = []
+        part1 = []
+
+        while q:
+            u = q.popleft()
+            if color[u] == 0:
+                part0.append(u)
+            else:
+                part1.append(u)
+
+            next_color = color[u] ^ 1
+            for v in adj[u]:
+                if color[v] == -1:
+                    color[v] = next_color
+                    q.append(v)
+
+        if len(part0) >= len(part1):
+            easy_independent.extend(part0)
+        else:
+            easy_independent.extend(part1)
+
+    if len(easy_independent) >= k:
+        answer = easy_independent[:k]
+        sys.stdout.write("YES\n")
+        sys.stdout.write(" ".join(str(x + 1) for x in answer))
+        sys.stdout.write("\n")
+        return
+
+    del easy_independent
+
+    left = [u for u in range(n) if color[u] == 0]
+    pair = [-1] * n
+    matching = 0
+    limit = n - k
+
+    # Initial greedy matching.
+    for u in left:
+        for v in adj[u]:
+            if pair[v] == -1:
+                pair[u] = v
+                pair[v] = u
+                matching += 1
+                break
+
+    if matching > limit:
+        sys.stdout.write("NO\n")
+        return
+
+    dist = [-1] * n
+    INF = n + 1
+
+    while True:
+        q = deque()
+        for u in left:
+            if pair[u] == -1:
+                dist[u] = 0
+                q.append(u)
+            else:
+                dist[u] = -1
+
+        shortest = INF
+
+        while q:
+            u = q.popleft()
+            du = dist[u]
+            if du >= shortest:
+                continue
+
+            for v in adj[u]:
+                paired_left = pair[v]
+                if paired_left == -1:
+                    shortest = du + 1
+                elif dist[paired_left] == -1:
+                    dist[paired_left] = du + 1
+                    q.append(paired_left)
+
+        if shortest == INF:
+            break
+
+        ptr = [0] * n
+        augmented_in_phase = 0
+
+        for root in left:
+            if pair[root] != -1 or dist[root] != 0:
+                continue
+
+            stack = [root]
+            via = []
+            augmented = False
+
+            while stack:
+                u = stack[-1]
+                neighbors = adj[u]
+                advanced = False
+
+                while ptr[u] < len(neighbors):
+                    v = neighbors[ptr[u]]
+                    ptr[u] += 1
+                    paired_left = pair[v]
+
+                    if paired_left == -1:
+                        if dist[u] + 1 == shortest:
+                            pair[u] = v
+                            pair[v] = u
+
+                            for i in range(len(via) - 1, -1, -1):
+                                parent = stack[i]
+                                edge_right = via[i]
+                                pair[parent] = edge_right
+                                pair[edge_right] = parent
+
+                            augmented = True
+                            break
+                    elif (
+                        dist[paired_left] == dist[u] + 1
+                        and dist[paired_left] < shortest
+                    ):
+                        via.append(v)
+                        stack.append(paired_left)
+                        advanced = True
+                        break
+
+                if augmented:
+                    break
+                if advanced:
+                    continue
+
+                dist[u] = -1
+                stack.pop()
+                if via:
+                    via.pop()
+
+            if augmented:
+                matching += 1
+                augmented_in_phase += 1
+                if matching > limit:
+                    sys.stdout.write("NO\n")
+                    return
+
+        if augmented_in_phase == 0:
+            break
+
+    # Alternating reachability from unmatched left vertices.
+    reachable = bytearray(n)
+    q = deque()
+
+    for u in left:
+        if pair[u] == -1:
+            reachable[u] = 1
+            q.append(u)
+
+    while q:
+        u = q.popleft()
+        for v in adj[u]:
+            if pair[u] == v:
+                continue
+            if not reachable[v]:
+                reachable[v] = 1
+                paired_left = pair[v]
+                if paired_left != -1 and not reachable[paired_left]:
+                    reachable[paired_left] = 1
+                    q.append(paired_left)
+
+    answer = []
+    for u in range(n):
+        if (color[u] == 0 and reachable[u]) or (
+            color[u] == 1 and not reachable[u]
+        ):
+            answer.append(u + 1)
+            if len(answer) == k:
+                break
+
+    if len(answer) < k:
+        sys.stdout.write("NO\n")
+    else:
+        sys.stdout.write("YES\n")
+        sys.stdout.write(" ".join(map(str, answer)))
+        sys.stdout.write("\n")
+
+if __name__ == "__main__":
+    main()

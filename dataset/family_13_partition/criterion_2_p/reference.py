@@ -12,31 +12,25 @@ def main():
         return
     target = total // 2
 
-    # Boolean subset-sum DP to target with predecessor tracking for one group.
-    reach = [False] * (target + 1)
-    reach[0] = True
-    from_item = [-1] * (target + 1)
-    prev_sum = [-1] * (target + 1)
+    # Bitset subset-sum DP: dp[i] = the set of sums reachable with the first i items, stored as a
+    # Python int (bit j set == sum j reachable). O(n * target / 64) -- fast and well within limits.
+    dp = [0] * (n + 1)
+    dp[0] = 1
+    for i in range(1, n + 1):
+        dp[i] = dp[i - 1] | (dp[i - 1] << d[i - 1])
 
-    for i in range(n):
-        c = d[i]
-        if c > target:
-            continue
-        for j in range(target, c - 1, -1):
-            if not reach[j] and reach[j - c]:
-                reach[j] = True
-                from_item[j] = i
-                prev_sum[j] = j - c
-
-    if not reach[target]:
+    if not (dp[n] >> target) & 1:
         sys.stdout.write("NO\n")
         return
 
+    # Reconstruct one group by walking the dp layers backwards.
     chosen = []
     j = target
-    while j > 0:
-        chosen.append(from_item[j] + 1)
-        j = prev_sum[j]
+    for i in range(n, 0, -1):
+        if (dp[i - 1] >> j) & 1:
+            continue                      # sum j reachable without item i -> item i not needed
+        chosen.append(i)                  # item i is required
+        j -= d[i - 1]
     chosen.sort()
 
     sys.stdout.write("YES\n")

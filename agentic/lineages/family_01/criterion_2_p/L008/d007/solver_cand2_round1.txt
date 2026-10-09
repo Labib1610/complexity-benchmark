@@ -1,83 +1,82 @@
 ```python
 import sys
 
-# The stability condition: trace(A_{s_u} A_{s_v}) = 6
-# A1 = [[1, 2], [0, 1]], A2 = [[1, 0], [2, 1]]
-# A1*A1 = [[1, 4], [0, 1]], trace = 2 != 6
-# A2*A2 = [[1, 0], [4, 1]], trace = 2 != 6
-# A1*A2 = [[5, 2], [2, 1]], trace = 6
-# A2*A1 = [[1, 2], [2, 5]], trace = 6
-# Thus, s_u != s_v for all edges (u, v). This is a bipartite graph check.
-# Harmonic condition: h_u * h_v = 1 (mod 11) and h_i = s_i (mod 3).
-# h_i in {1..10}.
-# If s_i = 1, h_i in {1, 4, 7, 10}.
-# If s_i = 2, h_i in {2, 5, 8}.
-# If s_u = 1, s_v = 2: h_u * h_v = 1 (mod 11).
-# Possible pairs (h_u, h_v):
-# h_u=1: h_v=1 (no, 1%3=1), h_v=12 (no), h_v=1/1=1 (no)
-# h_u=1, h_v=1 (1*1=1, 1=1 mod 3, 1=1 mod 3) -> s_u=1, s_v=1 (Violates s_u != s_v)
-# Let's check:
-# If s_u=1, h_u in {1, 4, 7, 10}. If s_v=2, h_v in {2, 5, 8}.
-# 1*h_v = 1 mod 11 => h_v = 1 (not in {2,5,8})
-# 4*h_v = 1 mod 11 => h_v = 3 (not in {2,5,8})
-# 7*h_v = 1 mod 11 => h_v = 8 (in {2,5,8}!)
-# 10*h_v = 1 mod 11 => h_v = 10 (not in {2,5,8})
-# So if s_u=1, s_v=2, we must have h_u=7, h_v=8.
-# This is consistent with s_u=1 (7%3=1) and s_v=2 (8%3=2).
-# So the condition is simply that the graph must be bipartite.
-# To minimize sum s_i * 3^(n-i), we want s_i=1 whenever possible.
+# The problem asks for an assignment of 1 or 2 to each lens such that for every lens i,
+# the average interference rating is 3.
+# Let x_i be the axis of lens i (1 or 2).
+# Let y_i = x_i - 1.5. So y_i is -0.5 if x_i=1, and 0.5 if x_i=2.
+# The interference rating for a connection between i and j is:
+# If x_i=1, x_j=1: rating 2. (y_i=-0.5, y_j=-0.5)
+# If x_i=2, x_j=2: rating 4. (y_i=0.5, y_j=0.5)
+# If x_i=1, x_j=2: rating 3. (y_i=-0.5, y_j=0.5)
+# If x_i=2, x_j=1: rating 3. (y_i=0.5, y_j=-0.5)
+# Notice that rating = 3 + 2 * y_i * y_j * 4 = 3 + 8 * y_i * y_j.
+# The mean rating for lens i is (1/d_i) * sum_{j in neighbors(i)} (3 + 8 * y_i * y_j)
+# = 3 + (8 * y_i / d_i) * sum_{j in neighbors(i)} y_j.
+# For the mean to be 3, we need sum_{j in neighbors(i)} y_j = 0.
+# Since y_j is either -0.5 or 0.5, this is equivalent to:
+# (count of neighbors with axis 2) - (count of neighbors with axis 1) = 0.
+# This means each lens must have an equal number of neighbors with axis 1 and axis 2.
+# This is only possible if each connected component is bipartite and we color it 2-colorable,
+# or more simply, the graph must be bipartite.
+# If the graph is bipartite, we can color each component with 1 and 2.
+# For a bipartite graph, each node has neighbors only of the opposite color.
+# If we assign color 1 to one set and color 2 to the other, then for any node,
+# all its neighbors have the opposite color.
+# If a node has d_i neighbors, it will have d_i neighbors of the opposite color.
+# This satisfies the condition if d_i is even? No, the condition is sum y_j = 0.
+# If all neighbors have the opposite color, then all y_j are the same.
+# The sum is d_i * y_j. This is 0 only if d_i = 0.
+# Wait, the condition is sum_{j in neighbors(i)} y_j = 0.
+# This means for every node, the number of neighbors with axis 1 must equal the number of neighbors with axis 2.
+# This is possible if and only if the graph is Eulerian (all degrees even) or bipartite?
+# Actually, this is a standard problem: a graph has such an assignment iff every connected component
+# has an even number of edges or is bipartite? No, it's simpler:
+# The condition "number of neighbors with axis 1 = number of neighbors with axis 2"
+# is satisfied if we can partition the edges into cycles.
+# This is possible if and only if every vertex has an even degree.
 
 def solve():
     input_data = sys.stdin.read().split()
     if not input_data: return
     n, m = int(input_data[0]), int(input_data[1])
     adj = [[] for _ in range(n + 1)]
+    deg = [0] * (n + 1)
     idx = 2
     for _ in range(m):
         u, v = int(input_data[idx]), int(input_data[idx+1])
-        adj[u].append(v)
-        adj[v].append(u)
+        adj[u].append((v, _))
+        adj[v].append((u, _))
+        deg[u] += 1
+        deg[v] += 1
         idx += 2
     
-    color = [0] * (n + 1)
-    res = [0] * (n + 1)
+    for i in range(1, n + 1):
+        if deg[i] % 2 != 0:
+            print("NO")
+            return
+            
+    ans = [1] * (n + 1)
+    used_edge = [False] * m
     
     for i in range(1, n + 1):
-        if color[i] == 0:
-            stack = [(i, 1)]
-            color[i] = 1
-            component = []
-            while stack:
-                u, c = stack.pop()
-                component.append((u, c))
-                for v in adj[u]:
-                    if color[v] == 0:
-                        color[v] = 3 - c
-                        stack.append((v, 3 - c))
-                    elif color[v] == c:
-                        print("NO")
-                        return
-            
-            # For each component, we have two choices:
-            # 1. color 1 -> s=1, color 2 -> s=2
-            # 2. color 1 -> s=2, color 2 -> s=1
-            # We want to minimize sum s_i * 3^(n-i).
-            # Find the first node in the component.
-            comp_nodes = sorted([u for u, c in component])
-            first_node = comp_nodes[0]
-            
-            # If we set color[first_node] = 1, then s[first_node] = 1
-            # If we set color[first_node] = 2, then s[first_node] = 2
-            # Since 1 < 2, we prefer s[first_node] = 1.
-            c_first = color[first_node]
-            for u, c in component:
-                if c == c_first:
-                    res[u] = 1
-                else:
-                    res[u] = 2
-                    
+        stack = [i]
+        while stack:
+            u = stack[-1]
+            found = False
+            while adj[u]:
+                v, edge_idx = adj[u].pop()
+                if not used_edge[edge_idx]:
+                    used_edge[edge_idx] = True
+                    ans[v] = 3 - ans[u]
+                    stack.append(v)
+                    found = True
+                    break
+            if not found:
+                stack.pop()
+                
     print("YES")
-    print(*(res[1:]))
+    print(*(ans[1:]))
 
 solve()
 ```

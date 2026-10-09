@@ -1,0 +1,259 @@
+```python
+import sys
+from collections import defaultdict
+import heapq
+
+def find_min_cost_span(n, m, t, focal_dims, generators):
+    if t <= 1:
+        return 0
+    
+    # Create a graph where vertices are focal dimensions
+    # We want to connect all focal dimensions with minimum cost
+    # This is essentially a Minimum Spanning Tree problem on focal dimensions
+    
+    # First, let's map focal dimensions to indices 0 to t-1 for easier handling
+    focal_index = {dim: i for i, dim in enumerate(focal_dims)}
+    
+    # We'll use a modified approach:
+    # Since we need to span all differences e_i - e_j for focal dims,
+    # we need the focal dimensions to be connected in the subspace.
+    # This means we need to build a spanning tree over the focal dimensions
+    # using the available generators.
+    
+    # To do this efficiently, we can think of this as finding the minimum cost
+    # to connect all focal dimensions, where the connection can be direct or indirect.
+    
+    # Let's build a graph with focal dimensions as nodes
+    # And find minimum cost to connect them all
+    
+    # But since generators can connect non-focal dimensions too,
+    # we need to consider connectivity in the full graph that allows us
+    # to "route" connections through non-focal dimensions.
+    
+    # Approach: Use Union-Find to track connected components
+    # Sort generators by cost and process greedily
+    
+    class UnionFind:
+        def __init__(self, size):
+            self.parent = list(range(size))
+            self.rank = [0] * size
+            
+        def find(self, x):
+            if self.parent[x] != x:
+                self.parent[x] = self.find(self.parent[x])
+            return self.parent[x]
+            
+        def union(self, x, y):
+            px, py = self.find(x), self.find(y)
+            if px == py:
+                return False
+            if self.rank[px] < self.rank[py]:
+                px, py = py, px
+            self.parent[py] = px
+            if self.rank[px] == self.rank[py]:
+                self.rank[px] += 1
+            return True
+            
+        def connected(self, x, y):
+            return self.find(x) == self.find(y)
+    
+    # Map all dimensions to 0..n-1
+    # But we're really interested in connecting focal dimensions
+    
+    # Initialize Union-Find for all n dimensions
+    uf = UnionFind(n)
+    
+    # Sort generators by weight
+    generators.sort(key=lambda x: x[2])
+    
+    total_cost = 0
+    connected_focal = UnionFind(t)  # To track connectivity among focal dimensions
+    focal_component_count = t
+    
+    # Create mapping from original dimension numbers to 0-indexed
+    dim_map = {dim: i for i, dim in enumerate(range(1, n+1))}
+    
+    # But we need to map focal dimensions specifically
+    focal_map = {focal_dims[i]: i for i in range(t)}
+    
+    for u, v, w in generators:
+        u_idx = u - 1  # Convert to 0-indexed
+        v_idx = v - 1  # Convert to 0-indexed
+        
+        # If these two dimensions weren't connected before
+        if not uf.connected(u_idx, v_idx):
+            uf.union(u_idx, v_idx)
+            
+            # Check if this connects two previously disconnected focal components
+            u_focal = u in focal_map
+            v_focal = v in focal_map
+            
+            if u_focal and v_focal:
+                u_comp = focal_map[u]
+                v_comp = focal_map[v]
+                if not connected_focal.connected(u_comp, v_comp):
+                    connected_focal.union(u_comp, v_comp)
+                    focal_component_count -= 1
+                    total_cost += w
+            elif u_focal or v_focal:
+                # One is focal, the other helps connect to other focals indirectly
+                # We still add the cost but don't necessarily decrease component count here
+                # unless it actually connects two focal components
+                pass
+            else:
+                # Neither is focal, just add cost for potential future connections
+                total_cost += w
+                
+            # If all focal dimensions are now connected, we're done
+            if focal_component_count == 1:
+                break
+    
+    # Actually, let me reconsider the approach entirely
+    # We want to make sure all pairwise differences of focal dimensions are in span
+    # This is equivalent to making sure all focal dimensions are in the same component
+    
+    uf = UnionFind(n)
+    total_cost = 0
+    
+    # Count how many distinct components the focal dimensions are in
+    # Initially, each focal dimension is in its own component
+    focal_components = set(focal_map[dim] for dim in focal_dims)
+    
+    # But we need to work with actual dimension indices
+    actual_focal_indices = [dim - 1 for dim in focal_dims]  # Convert to 0-indexed
+    
+    # Check initial number of components among focal dimensions
+    initial_components = []
+    dim_to_initial_component = {}
+    for idx in actual_focal_indices:
+        root = uf.find(idx)
+        if root not in dim_to_initial_component:
+            dim_to_initial_component[root] = len(initial_components)
+            initial_components.append([idx])
+        else:
+            initial_components[dim_to_initial_component[root]].append(idx)
+    
+    needed_connections = len(initial_components) - 1
+    
+    # Process generators in order of increasing cost
+    for u, v, w in generators:
+        u_idx = u - 1
+        v_idx = v - 1
+        
+        if not uf.connected(u_idx, v_idx):
+            # This will connect two components
+            # Check if this reduces the number of focal components
+            pre_count = count_focal_components(uf, actual_focal_indices)
+            uf.union(u_idx, v_idx)
+            post_count = count_focal_components(uf, actual_focal_indices)
+            
+            if post_count < pre_count:
+                total_cost += w
+                if post_count == 1:  # All focal dimensions connected
+                    break
+    
+    # Simpler approach: just implement Kruskal's algorithm properly
+    uf = UnionFind(n)
+    total_cost = 0
+    
+    def count_components(focal_indices):
+        roots = set(uf.find(idx) for idx in focal_indices)
+        return len(roots)
+    
+    current_components = count_components(actual_focal_indices)
+    
+    for u, v, w in sorted(generators, key=lambda x: x[2]):
+        u_idx = u - 1
+        v_idx = v - 1
+        
+        if not uf.connected(u_idx, v_idx):
+            old_count = current_components
+            uf.union(u_idx, v_idx)
+            new_count = count_components(actual_focal_indices)
+            
+            if new_count < old_count:
+                total_cost += w
+                current_components = new_count
+                if current_components == 1:
+                    break
+    
+    return total_cost
+
+def count_focal_components(uf, focal_indices):
+    roots = set(uf.find(idx) for idx in focal_indices)
+    return len(roots)
+
+# Read input
+line1 = list(map(int, sys.stdin.readline().split()))
+n, m, t = line1[0], line1[1], line1[2]
+
+focal_dims = list(map(int, sys.stdin.readline().split()))
+
+generators = []
+for _ in range(m):
+    u, v, w = map(int, sys.stdin.readline().split())
+    generators.append((u, v, w))
+
+# Special case: if t <= 1, no vectors needed
+if t <= 1:
+    print(0)
+else:
+    # Apply Kruskal's algorithm variant
+    # We want to connect all focal dimensions with minimum cost
+    
+    class UnionFind:
+        def __init__(self, size):
+            self.parent = list(range(size))
+            self.rank = [0] * size
+            
+        def find(self, x):
+            if self.parent[x] != x:
+                self.parent[x] = self.find(self.parent[x])
+            return self.parent[x]
+            
+        def union(self, x, y):
+            px, py = self.find(x), self.find(y)
+            if px == py:
+                return False
+            if self.rank[px] < self.rank[py]:
+                px, py = py, px
+            self.parent[py] = px
+            if self.rank[px] == self.rank[py]:
+                self.rank[px] += 1
+            return True
+            
+        def connected(self, x, y):
+            return self.find(x) == self.find(y)
+    
+    uf = UnionFind(n)
+    total_cost = 0
+    
+    # Convert focal dimensions to 0-indexed
+    actual_focal = [dim - 1 for dim in focal_dims]
+    
+    # Sort generators by cost
+    generators.sort(key=lambda x: x[2])
+    
+    def num_focal_components():
+        components = set()
+        for dim in actual_focal:
+            components.add(uf.find(dim))
+        return len(components)
+    
+    current_components = num_focal_components()
+    
+    for u, v, w in generators:
+        u_idx, v_idx = u - 1, v - 1
+        if not uf.connected(u_idx, v_idx):
+            prev_count = current_components
+            uf.union(u_idx, v_idx)
+            new_count = num_focal_components()
+            
+            if new_count < prev_count:
+                total_cost += w
+                current_components = new_count
+                if current_components <= 1:
+                    break
+    
+    print(total_cost)
+```

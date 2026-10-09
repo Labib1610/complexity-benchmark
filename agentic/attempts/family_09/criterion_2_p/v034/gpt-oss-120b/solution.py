@@ -1,0 +1,104 @@
+import sys
+from collections import deque
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it)); m = int(next(it)); k = int(next(it))
+    adj = [[] for _ in range(n+1)]
+    for _ in range(m):
+        u = int(next(it)); v = int(next(it))
+        adj[u].append(v)
+        adj[v].append(u)
+
+    # bipartition
+    side = [-1]*(n+1)          # 0 = left, 1 = right
+    for v in range(1, n+1):
+        if side[v]==-1:
+            side[v]=0
+            q=deque([v])
+            while q:
+                x=q.popleft()
+                for y in adj[x]:
+                    if side[y]==-1:
+                        side[y]=side[x]^1
+                        q.append(y)
+    # build adjacency from left to right
+    left_nodes = [i for i in range(1,n+1) if side[i]==0]
+    right_nodes = [i for i in range(1,n+1) if side[i]==1]
+
+    # Hopcroft–Karp
+    INF = 10**9
+    matchL = [0]*(n+1)   # matched right vertex or 0
+    matchR = [0]*(n+1)   # matched left vertex or 0
+    dist = [0]*(n+1)
+
+    def bfs() -> bool:
+        q = deque()
+        for u in left_nodes:
+            if matchL[u]==0:
+                dist[u]=0
+                q.append(u)
+            else:
+                dist[u]=INF
+        reachable=False
+        while q:
+            u=q.popleft()
+            for v in adj[u]:
+                if side[v]!=1: continue
+                w=matchR[v]
+                if w==0:
+                    reachable=True
+                elif dist[w]==INF:
+                    dist[w]=dist[u]+1
+                    q.append(w)
+        return reachable
+
+    def dfs(u: int) -> bool:
+        for v in adj[u]:
+            if side[v]!=1: continue
+            w=matchR[v]
+            if w==0 or (dist[w]==dist[u]+1 and dfs(w)):
+                matchL[u]=v
+                matchR[v]=u
+                return True
+        dist[u]=INF
+        return False
+
+    while bfs():
+        for u in left_nodes:
+            if matchL[u]==0:
+                dfs(u)
+
+    # minimum vertex cover from König's theorem
+    L_vis = [False]*(n+1)
+    R_vis = [False]*(n+1)
+    q=deque()
+    for u in left_nodes:
+        if matchL[u]==0:
+            L_vis[u]=True
+            q.append(u)
+    while q:
+        u=q.popleft()
+        for v in adj[u]:
+            if side[v]!=1: continue
+            if not R_vis[v] and matchL[u]!=v:   # edge not in matching
+                R_vis[v]=True
+                if matchR[v] and not L_vis[matchR[v]]:
+                    L_vis[matchR[v]]=True
+                    q.append(matchR[v])
+
+    independent = []
+    for v in range(1,n+1):
+        if (side[v]==0 and L_vis[v]) or (side[v]==1 and not R_vis[v]):
+            independent.append(v)
+    if len(independent) < k:
+        print("NO")
+        return
+    print("YES")
+    print(' '.join(map(str, independent[:k])))
+
+if __name__ == "__main__":
+    solve()

@@ -1,0 +1,211 @@
+```python
+import sys
+import heapq
+
+def solve():
+    input = sys.stdin.read().split()
+    ptr = 0
+    N = int(input[ptr]); ptr += 1
+    E = int(input[ptr]); ptr += 1
+    F = int(input[ptr]); ptr += 1
+    
+    targets = []
+    for _ in range(F):
+        targets.append(int(input[ptr]) - 1); ptr += 1
+    
+    adj = [[] for _ in range(N)]
+    edges = []
+    for _ in range(E):
+        u = int(input[ptr]) - 1; ptr += 1
+        v = int(input[ptr]) - 1; ptr += 1
+        w = int(input[ptr]); ptr += 1
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+        edges.append((u, v, w))
+    
+    # Check if all targets are already in the same component
+    # Using DSU to check connectivity
+    parent = list(range(N))
+    def find(i):
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+    
+    for u, v, w in edges:
+        pu, pv = find(u), find(v)
+        if pu != pv:
+            parent[pu] = pv
+    
+    # Check if all targets are in the same component
+    if F <= 1:
+        print(0)
+        return
+    
+    root_target = find(targets[0])
+    all_same = True
+    for t in targets[1:]:
+        if find(t) != root_target:
+            all_same = False
+            break
+    
+    if all_same:
+        print(0)
+        return
+    
+    # Need to connect targets: Steiner tree problem
+    # Since E = N-1, the graph is a forest. We use the DP on tree approach.
+    
+    LOG = 0
+    temp = F
+    while temp > 0:
+        LOG += 1
+        temp >>= 1
+    
+    # We need to root the forest(s) containing targets.
+    # Since it's a forest, we can run the DP on each tree.
+    # However, the targets might be spread across multiple trees.
+    # If targets are in different trees, we must connect those trees.
+    # But the problem statement guarantees that the full set of edges connects all nodes into one component.
+    # So the graph is a spanning forest of a single tree.
+    
+    # Identify the component containing targets (it's one tree)
+    # We can just root at targets[0]
+    root = targets[0]
+    
+    # Build tree structure
+    children = [[] for _ in range(N)]
+    parent_tree = [-1] * N
+    depth = [0] * N
+    
+    # BFS/DFS to build tree rooted at root
+    stack = [root]
+    visited = [False] * N
+    visited[root] = True
+    order = []
+    
+    while stack:
+        u = stack.pop()
+        order.append(u)
+        for v, w in adj[u]:
+            if not visited[v]:
+                visited[v] = True
+                parent_tree[v] = u
+                depth[v] = depth[u] + 1
+                children[u].append((v, w))
+                stack.append(v)
+    
+    # DP
+    # dp[u][mask] = min cost for subtree of u, covering targets represented by mask
+    # mask is a subset of targets (bitmask)
+    
+    # Map target index to bit position
+    target_id = {}
+    for i, t in enumerate(targets):
+        target_id[t] = i
+    
+    INF = 1 << 60
+    
+    # We'll use a dictionary for each node to save space
+    # But for efficiency, we can use list of size 2^K
+    
+    K = F
+    full_mask = (1 << K) - 1
+    
+    # dp[u] will be a list of size 2^K
+    # We process in post-order
+    
+    # Initialize dp for all nodes
+    # For efficiency, we only compute dp for nodes in the subtree containing targets
+    # But since we need to potentially connect targets from different branches, we need full DP
+    
+    # Actually, we can optimize: only nodes on paths between targets matter.
+    # But for simplicity, we do full DP on the tree.
+    
+    # Post-order traversal
+    post_order = []
+    stack = [(root, False)]
+    while stack:
+        u, processed = stack.pop()
+        if processed:
+            post_order.append(u)
+        else:
+            stack.append((u, True))
+            for v, w in children[u]:
+                stack.append((v, False))
+    
+    # Initialize dp
+    # We'll use a list of dictionaries or a 2D array
+    # Since N can be 200000 and K up to 18, 2D array is too large (200000 * 2^18)
+    # So we use dictionary for each node, but that might be slow
+    
+    # Alternative: since the tree is a forest and we only care about the tree containing targets,
+    # and the DP only needs to be computed for nodes that are LCA of some targets or on paths,
+    # we can use the "Steiner tree in tree" DP with optimization
+    
+    # But given constraints, let's try the standard DP
+    
+    # We'll use a list of size N, each element is a list of size 2^K
+    # But this is too memory intensive for N=200000, K=18
+    
+    # Optimization: we only need dp for nodes that are in the "Steiner tree"
+    # We can use the "DP on tree with merging" technique
+    
+    # Let's use a different approach: since the graph is a tree, we can use the "minimum Steiner tree" algorithm
+    # which runs in O(N * 3^K) or O(N * 2^K) with optimizations
+    
+    # Given the constraints, we need an efficient implementation
+    
+    # Let's use the DP where we process nodes in post-order and merge children
+    
+    # We'll use a dictionary for each node to store dp values
+    # But to optimize, we can use a list and only store non-INF values
+    
+    # Initialize dp for leaves
+    dp = [{} for _ in range(N)]
+    
+    for u in post_order:
+        # Initialize dp[u]
+        dp_u = {}
+        
+        # Check if u is a target
+        if u in target_id:
+            bit = 1 << target_id[u]
+            dp_u[bit] = 0
+        else:
+            dp_u[0] = 0
+        
+        # Merge children
+        for v, w in children[u]:
+            dp_v = dp[v]
+            new_dp = {}
+            for mask_u, cost_u in dp_u.items():
+                for mask_v, cost_v in dp_v.items():
+                    new_mask = mask_u | mask_v
+                    new_cost = cost_u + cost_v
+                    if new_mask not in new_dp or new_cost < new_dp[new_mask]:
+                        new_dp[new_mask] = new_cost
+            dp_u = new_dp
+        
+        # Apply edge cost: for each mask, we can choose to include the edge to parent
+        # This is done by adding w to all non-zero masks
+        # But we need to handle the case where we don't include the edge
+        # Actually, the DP transition is: after merging children, for each mask, we can either:
+        # 1. Not connect to parent: cost remains
+        # 2. Connect to parent: cost += w
+        
+        # But in the standard Steiner tree DP on trees, we don't add edge cost here
+        # The edge cost is added when we merge with parent
+        
+        # So we just store dp_u as is
+        dp[u] = dp_u
+    
+    # The answer is dp[root][full_mask]
+    if full_mask in dp[root]:
+        print(dp[root][full_mask])
+    else:
+        print(0)
+
+if __name__ == "__main__":
+    solve()
+```

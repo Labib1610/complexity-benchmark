@@ -1,20 +1,22 @@
-# Problem A — Transmission Channels
+# Problem A — Tier Differential Resolution
 
-Time limit: 2 s   Memory limit: 256 MB
+Time limit: 2 s
+Memory limit: 256 MB
 
-A set of $n$ sensors is deployed to monitor a facility. Each sensor must be assigned one of three transmission channels: 1, 2, or 3. Certain pairs of sensors are positioned too close to each other; if they broadcast on the same channel, their signals will interfere.
+You are configuring a distributed system consisting of $n$ components, numbered 1 through $n$. Each component $i$ must be assigned an integer operating tier $t_i$ such that $t_i \in \{1, 2, 3\}$.
 
-In most standard deployments, the physical layout of the facility is highly regular. Engineers typically configure the network by simply alternating adjacent sensors between channel 1 and channel 2. Channel 3 is provided merely as a fallback to resolve situations where a sequence of interferences wraps around unevenly and prevents perfect alternation. Because the network design is intended to be well-behaved, the expectation is that resolving conflicts is straightforward.
+The system contains $m$ critical data links between specific pairs of components. To prevent data collision, any two components $u$ and $v$ connected by a critical link must maintain a strict differential in their operating tiers. Specifically, their assigned tiers must satisfy the condition:
+$|t_u - t_v| \ge 1$
 
-Given a list of $n$ sensors and $m$ interfering pairs, you must assign every sensor to exactly one of the three channels such that no interfering pair shares a channel. If a collision-free assignment is possible, you must output the lexicographically smallest sequence of channels.
+Systems of differential constraints can frequently be resolved efficiently by propagating bounds through a dependency network. In many practical deployments, such bounds propagate cleanly without contradiction. Your task is to evaluate the given network of critical links and find a valid tier assignment for all $n$ components, or correctly identify if the system of constraints is unsatisfiable.
 
 ## Input
-The first line contains two integers $n$ and $m$ — the number of sensors and the number of interfering pairs ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
-Each of the next $m$ lines contains two integers $u$ and $v$, indicating that sensor $u$ and sensor $v$ will interfere if they share a channel.
+The first line contains two integers $n$ and $m$ — the number of components and the number of critical links ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
+Each of the next $m$ lines contains two integers $u$ and $v$ — indicating a critical link between component $u$ and component $v$.
 
 ## Output
-If no valid channel assignment exists, print a single line `NO`.
-Otherwise, print `YES` on the first line. On the second line, print $n$ integers $c_1, c_2, \dots, c_n$ (each in $\{1, 2, 3\}$), where $c_i$ is the channel assigned to sensor $i$. Among all valid assignments, output the lexicographically smallest sequence (compare $c_1$ first, then $c_2$, and so on).
+If there is no valid tier assignment that satisfies all constraints, print a single line containing `NO`.
+Otherwise, print `YES` on the first line. On the second line, print $n$ integers $t_1, t_2, \dots, t_n$ (each in $\{1, 2, 3\}$), where $t_i$ is the tier assigned to component $i$. Any valid assignment is accepted.
 
 ## Example 1
 Input:

@@ -1,0 +1,246 @@
+import sys
+
+# Increase recursion depth for deep Euler tours / recursions
+sys.setrecursionlimit(2000000)
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    nA = int(input_data[0])
+    nB = int(input_data[1])
+    m = int(input_data[2])
+    
+    if m == 0:
+        print("YES\n")
+        return
+
+    # Read edges
+    edges_u = [0] * m
+    edges_v = [0] * m
+    degA = [0] * (nA + 1)
+    degB = [0] * (nB + 1)
+    
+    idx = 3
+    for i in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx + 1])
+        edges_u[i] = u
+        edges_v[i] = v
+        degA[u] += 1
+        degB[v] += 1
+        idx += 2
+        
+    D = max(max(degA), max(degB))
+    if D == 0:
+        print("YES\n")
+        return
+
+    # Regularize and partition bipartite graph
+    # edge_color will store the final color (0-indexed, so 0 to D-1)
+    edge_color = [-1] * m
+
+    def color_graph(edge_indices, D_curr, offset):
+        if not edge_indices or D_curr == 0:
+            return
+        if D_curr == 1:
+            for eid in edge_indices:
+                if eid < m:
+                    edge_color[eid] = offset
+            return
+        
+        if D_curr % 2 == 1:
+            # When D is odd: find a matching covering all vertices of maximum degree
+            # Alternatively, regularize to D, find a 1-factor (matching of size = num_super_nodes),
+            # remove it, giving color offset + D_curr - 1, and recurse on D_curr - 1.
+            # Finding a 1-factor in a regular bipartite graph:
+            # We can use standard augmenting paths (Hopcroft-Karp / DFS).
+            super_edges, L, R = regularize(edge_indices, D_curr)
+            matching = find_perfect_matching(super_edges, L, R)
+            
+            rem_edges = []
+            for e in super_edges:
+                u, v, eid = e
+                if (u, v) in matching and matching[(u, v)] > 0:
+                    matching[(u, v)] -= 1
+                    if eid < m:
+                        edge_color[eid] = offset + D_curr - 1
+                else:
+                    rem_edges.append(eid)
+            
+            color_graph(rem_edges, D_curr - 1, offset)
+        else:
+            # D is even: regularize to D_curr, split into two D_curr/2 regular graphs via Euler tour
+            super_edges, L, R = regularize(edge_indices, D_curr)
+            
+            # Build adjacency list with multigraph support
+            # super_edges has (u, v, orig_id) where u in [0, L-1], v in [0, R-1]
+            V = L + R
+            adj = [[] for _ in range(V)]
+            edge_list = [] # (u, v_global, orig_id)
+            
+            for u, v, eid in super_edges:
+                vg = L + v
+                e_idx = len(edge_list)
+                edge_list.append([u, vg, eid, False]) # [u, v, id, used]
+                adj[u].append(e_idx)
+                adj[vg].append(e_idx)
+            
+            # Find Euler tours and alternate edges
+            part0 = []
+            part1 = []
+            
+            ptr = [0] * V
+            for i in range(V):
+                while ptr[i] < len(adj[i]):
+                    e_start = adj[i][ptr[i]]
+                    ptr[i] += 1
+                    if edge_list[e_start][3]:
+                        continue
+                    
+                    # Traverse Eulerian cycle
+                    # Using an explicit stack to avoid recursion limit
+                    curr = i
+                    cycle_edges = []
+                    stack = [curr]
+                    
+                    # Hierholzer-like cycle extraction
+                    while stack:
+                        u = stack[-1]
+                        while ptr[u] < len(adj[u]) and edge_list[adj[u][ptr[u]]][3]:
+                            ptr[u] += 1
+                        if ptr[u] < len(adj[u]):
+                            e_idx = adj[u][ptr[u]]
+                            ptr[u] += 1
+                            edge_list[e_idx][3] = True
+                            # find next vertex
+                            e = edge_list[e_idx]
+                            nxt = e[1] if e[0] == u else e[0]
+                            cycle_edges.append(e_idx)
+                            stack.append(nxt)
+                        else:
+                            stack.pop()
+                            
+                    # All cycles in bipartite graph are even length
+                    for idx_c, e_idx in enumerate(cycle_edges):
+                        eid = edge_list[e_idx][2]
+                        if idx_c % 2 == 0:
+                            part0.append(eid)
+                        else:
+                            part1.append(eid)
+            
+            half = D_curr // 2
+            color_graph(part0, half, offset)
+            color_graph(part1, half, offset + half)
+
+    def regularize(edge_indices, deg_target):
+        # Pack vertices into super-nodes of capacity deg_target
+        # Count degrees of left and right endpoints
+        left_nodes = {}
+        right_nodes = {}
+        for eid in edge_indices:
+            if eid < m:
+                u, v = edges_u[eid], edges_v[eid]
+            else:
+                continue
+            left_nodes[u] = left_nodes.get(u, 0) + 1
+            right_nodes[v] = right_nodes.get(v, 0) + 1
+        
+        # Map original vertices to super-nodes
+        left_super = {}
+        curr_s = 0
+        curr_cap = deg_target
+        for u, d in left_nodes.items():
+            if curr_cap < d:
+                curr_s += 1
+                curr_cap = deg_target
+            left_super[u] = curr_s
+            curr_cap -= d
+        L = curr_s + 1 if left_nodes else 0
+        
+        right_super = {}
+        curr_s = 0
+        curr_cap = deg_target
+        for v, d in right_nodes.items():
+            if curr_cap < d:
+                curr_s += 1
+                curr_cap = deg_target
+            right_super[v] = curr_s
+            curr_cap -= d
+        R = curr_s + 1 if right_nodes else 0
+        
+        S = max(L, R, 1)
+        
+        super_edges = []
+        deg_L = [0] * S
+        deg_R = [0] * S
+        
+        for eid in edge_indices:
+            if eid < m:
+                u, v = edges_u[eid], edges_v[eid]
+                su = left_super[u]
+                sv = right_super[v]
+                super_edges.append((su, sv, eid))
+                deg_L[su] += 1
+                deg_R[sv] += 1
+            else:
+                pass
+
+        # Add dummy edges to make each super-node have degree exactly deg_target
+        ptr_r = 0
+        dummy_id = m
+        for l in range(S):
+            while deg_L[l] < deg_target:
+                while ptr_r < S and deg_R[ptr_r] == deg_target:
+                    ptr_r += 1
+                if ptr_r == S:
+                    break
+                add = min(deg_target - deg_L[l], deg_target - deg_R[ptr_r])
+                for _ in range(add):
+                    super_edges.append((l, ptr_r, dummy_id))
+                    dummy_id += 1
+                deg_L[l] += add
+                deg_R[ptr_r] += add
+
+        return super_edges, S, S
+
+    def find_perfect_matching(super_edges, L, R):
+        # Hopcroft-Karp / DFS matching on regular bipartite graph
+        adj = [[] for _ in range(L)]
+        for u, v, _ in super_edges:
+            adj[u].append(v)
+            
+        pair_u = [-1] * L
+        pair_v = [-1] * R
+        
+        def dfs(u, visited):
+            for v in adj[u]:
+                if not visited[v]:
+                    visited[v] = True
+                    if pair_v[v] < 0 or dfs(pair_v[v], visited):
+                        pair_u[u] = v
+                        pair_v[v] = u
+                        return True
+            return False
+
+        for u in range(L):
+            if pair_u[u] == -1:
+                visited = [False] * R
+                dfs(u, visited)
+                
+        matching = {}
+        for u in range(L):
+            v = pair_u[u]
+            if v != -1:
+                matching[(u, v)] = matching.get((u, v), 0) + 1
+        return matching
+
+    color_graph(list(range(m)), D, 0)
+    
+    # Print result
+    out = ["YES", " ".join(str(edge_color[i] + 1) for i in range(m))]
+    sys.stdout.write("\n".join(out) + "\n")
+
+if __name__ == '__main__':
+    solve()

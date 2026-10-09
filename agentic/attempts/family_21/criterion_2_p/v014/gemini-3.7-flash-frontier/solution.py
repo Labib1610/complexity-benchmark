@@ -1,0 +1,113 @@
+import sys
+from collections import deque
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    s = int(input_data[2])
+    t = int(input_data[3])
+    limit = int(input_data[4])
+    
+    idx = 5
+    original_edges = []
+    
+    # Adjacency list for Dinic: u -> list of [v, cap, flow, rev_idx, edge_id]
+    adj = [[] for _ in range(n + 1)]
+    
+    for i in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx+1])
+        w = int(input_data[idx+2])
+        idx += 3
+        
+        original_edges.append((u, v, w))
+        
+        # In undirected graph, edge u-v with cap w:
+        # directed u->v cap w, directed v->u cap w.
+        # Residual graph: forward edge u->v (cap w, flow 0), back edge v->u (cap w, flow 0)
+        # To handle undirected correctly:
+        # u->v capacity w, reverse v->u capacity w.
+        # When flow goes u->v, residual of u->v decreases, residual of v->u increases.
+        # In undirected graphs, the standard is: edge u->v cap w with rev v->u cap w.
+        pos_u = len(adj[u])
+        pos_v = len(adj[v])
+        adj[u].append([v, w, 0, pos_v])
+        adj[v].append([u, w, 0, pos_u])
+
+    # Dinic's algorithm
+    def bfs(level):
+        for i in range(n + 1):
+            level[i] = -1
+        level[s] = 0
+        q = deque([s])
+        while q:
+            u = q.popleft()
+            for edge in adj[u]:
+                v, cap, flow, _ = edge
+                if cap - flow > 0 and level[v] < 0:
+                    level[v] = level[u] + 1
+                    q.append(v)
+        return level[t] >= 0
+
+    def dfs(u, pushed, level, ptr):
+        if pushed == 0 or u == t:
+            return pushed
+        for cid in range(ptr[u], len(adj[u])):
+            ptr[u] = cid
+            edge = adj[u][cid]
+            v, cap, flow, rev = edge
+            tr = cap - flow
+            if level[u] + 1 != level[v] or tr == 0:
+                continue
+            push = dfs(v, min(pushed, tr), level, ptr)
+            if push == 0:
+                continue
+            edge[2] += push
+            adj[v][rev][2] -= push
+            return push
+        return 0
+
+    max_flow = 0
+    level = [-1] * (n + 1)
+    INF = 10**18
+    while bfs(level):
+        ptr = [0] * (n + 1)
+        while True:
+            pushed = dfs(s, INF, level, ptr)
+            if pushed == 0:
+                break
+            max_flow += pushed
+
+    if max_flow > limit:
+        print("NO")
+        return
+
+    # Find reachable vertices from s in residual graph
+    visited = [False] * (n + 1)
+    visited[s] = True
+    q = deque([s])
+    while q:
+        u = q.popleft()
+        for edge in adj[u]:
+            v, cap, flow, _ = edge
+            if cap - flow > 0 and not visited[v]:
+                visited[v] = True
+                q.append(v)
+
+    # Collect cut edges
+    cut_edges = []
+    for u, v, w in original_edges:
+        if visited[u] != visited[v]:
+            cut_edges.append((u, v))
+
+    print("YES")
+    print(len(cut_edges))
+    for u, v in cut_edges:
+        print(f"{u} {v}")
+
+if __name__ == '__main__':
+    solve()

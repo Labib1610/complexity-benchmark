@@ -1,0 +1,163 @@
+```python
+import sys
+from itertools import combinations
+
+def find(parent, x):
+    if parent[x] != x:
+        parent[x] = find(parent, parent[x])
+    return parent[x]
+
+def union(parent, rank, x, y):
+    px, py = find(parent, x), find(parent, y)
+    if px == py:
+        return False
+    if rank[px] < rank[py]:
+        px, py = py, px
+    parent[py] = px
+    if rank[px] == rank[py]:
+        rank[px] += 1
+    return True
+
+def kruskal(n, edges, nodes):
+    parent = list(range(n))
+    rank = [0] * n
+    edges.sort(key=lambda x: x[2])
+    cost = 0
+    connected = 0
+    needed = len(nodes) - 1
+    
+    if needed <= 0:
+        return 0
+        
+    for u, v, w in edges:
+        if union(parent, rank, u, v):
+            cost += w
+            connected += 1
+            if connected == needed:
+                break
+    return cost
+
+def main():
+    input = sys.stdin.read
+    data = input().split()
+    
+    idx = 0
+    n = int(data[idx])
+    idx += 1
+    m = int(data[idx])
+    idx += 1
+    t = int(data[idx])
+    idx += 1
+    
+    official = list(map(int, data[idx:idx+t]))
+    idx += t
+    official = [x - 1 for x in official]  # Convert to 0-indexed
+    
+    edges = []
+    for _ in range(m):
+        u = int(data[idx]) - 1
+        v = int(data[idx+1]) - 1
+        w = int(data[idx+2])
+        idx += 3
+        edges.append((u, v, w))
+    
+    # If there's only one or zero official languages, no interpreters needed
+    if t <= 1:
+        print(0)
+        return
+    
+    min_cost = float('inf')
+    
+    # Try all subsets of nodes that could form a spanning tree connecting all official languages
+    # But we optimize: we only consider the official languages themselves as the terminal nodes
+    # This is essentially a Steiner Tree problem, but since t<=10, we can solve it by trying 
+    # all possible ways to connect the terminals via MST on a subset of vertices
+    
+    # However, given constraints and examples, let's approach differently:
+    # We want to connect all 't' official languages. 
+    # The optimal solution will be a tree connecting these 't' nodes (possibly using other nodes as Steiner points).
+    # Since t<=10, we can enumerate over which additional non-official nodes to include,
+    # and compute the MST cost for each combination.
+    
+    # But even simpler approach based on examples:
+    # Just run Kruskal on the full graph to connect all official languages.
+    # That is, find the minimum cost to make the subgraph induced by official languages connected.
+    
+    # Actually, let's think of it as finding a minimum cost to connect all t official nodes.
+    # This is the Euclidean Steiner tree problem on a graph, which is NP-hard in general.
+    # But since t<=10, we can use the fact that the solution will be a subtree of the MST of some subset of nodes.
+    
+    # More precise approach:
+    # Enumerate all possible subsets of nodes that include all official languages.
+    # For each such subset, compute the cost of its MST.
+    # Return the minimum such cost.
+    
+    # But let's simplify further:
+    # Run Kruskal on the entire graph to connect all official languages.
+    # This means we find the minimum cost to make the official languages mutually reachable.
+    
+    # Let's implement a proper solution:
+    # Generate all possible combinations of including extra nodes (up to n)
+    # But that's too much. Instead, we note that the optimal Steiner tree 
+    # will have at most (2*t - 2) nodes (a well-known property).
+    # But even that might be complex.
+    
+    # Simpler and correct approach:
+    # Use the fact that we want to connect t nodes optimally.
+    # Try all 2^n subsets of nodes, and for those that contain all official nodes,
+    # compute the MST cost of that subset. Take the minimum.
+    # But n=100 makes 2^n infeasible.
+    
+    # Key insight: we only care about connectivity among the t official nodes.
+    # So we can build a complete graph where edge weights are shortest paths between official nodes,
+    # then find MST of that. But this also needs all-pairs shortest paths.
+    
+    # Let's do this properly:
+    # 1. Compute all-pairs shortest paths considering only edges in our list.
+    # 2. Build a complete graph on official nodes with these distances.
+    # 3. Find MST of this complete graph.
+    
+    # Step 1: Build adjacency list
+    adj = [[] for _ in range(n)]
+    for u, v, w in edges:
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+        
+    # Step 2: Compute shortest paths from each official node
+    import heapq
+    
+    def dijkstra(start):
+        dist = [float('inf')] * n
+        dist[start] = 0
+        pq = [(0, start)]
+        while pq:
+            d, u = heapq.heappop(pq)
+            if d > dist[u]:
+                continue
+            for v, w in adj[u]:
+                if dist[u] + w < dist[v]:
+                    dist[v] = dist[u] + w
+                    heapq.heappush(pq, (dist[v], v))
+        return dist
+    
+    # Get pairwise distances between official languages
+    dist_matrix = []
+    for i in official:
+        dist_matrix.append(dijkstra(i))
+    
+    # Create edges for complete graph on official nodes
+    steiner_edges = []
+    for i in range(t):
+        for j in range(i+1, t):
+            u_idx = official[i]
+            v_idx = official[j]
+            weight = dist_matrix[i][v_idx]
+            steiner_edges.append((i, j, weight))
+            
+    # Now find MST of this complete graph
+    result = kruskal(t, steiner_edges, list(range(t)))
+    print(result)
+
+if __name__ == "__main__":
+    main()
+```

@@ -1,37 +1,42 @@
 import sys
 
 def solve():
-    input = sys.stdin.readline
-    n, m = map(int, input().split())
+    input_data = sys.stdin.read().strip().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    
     adj = [[] for _ in range(n)]
     for _ in range(m):
-        u, v = map(int, input().split())
-        u -= 1
-        v -= 1
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
         adj[u].append(v)
         adj[v].append(u)
-
-    color = [0] * n
-
-    def backtrack(idx):
-        if idx == n:
+    
+    colors = [0] * n
+    
+    def is_safe(node, color):
+        for neighbor in adj[node]:
+            if colors[neighbor] == color:
+                return False
+        return True
+    
+    def backtrack(node):
+        if node == n:
             return True
-        for c in range(1, 4):
-            ok = True
-            for nb in adj[idx]:
-                if color[nb] == c:
-                    ok = False
-                    break
-            if ok:
-                color[idx] = c
-                if backtrack(idx + 1):
+        for c in (1, 2, 3):
+            if is_safe(node, c):
+                colors[node] = c
+                if backtrack(node + 1):
                     return True
-                color[idx] = 0
+                colors[node] = 0
         return False
-
+    
     if backtrack(0):
         print("YES")
-        print(" ".join(map(str, color)))
+        print(" ".join(map(str, colors)))
     else:
         print("NO")
 

@@ -1,23 +1,28 @@
-# Phase II: Deployment Partitioning
+# Problem B — Vibration Control
 
-Time limit: 1 s   Memory limit: 256 MB
+Time limit: 1 s
+Memory limit: 256 MB
 
-A manufacturing facility is overhauling its workforce scheduling pipeline. In Phase I of this pipeline, an automated profiling tool evaluates all $n$ employees and flags $m$ pairs of individuals whose concurrent presence on the factory floor causes severe operational disruptions.
+The automated factory upgrade consists of three distinct phases. 
 
-Your task is to implement Phase II. You must allocate the $n$ employees into exactly two distinct operational rotations, designated by the rotation codes `1` and `2`. To prevent disruptions, if two employees were flagged as a pair in Phase I, they must receive different rotation codes.
+First, in Phase A, a robotic inspector surveys the $n$ newly installed machines (numbered 1 through $n$). It detects $m$ pairs of machines that share a delicate structural support.
 
-Once Phase II successfully generates a valid rotation sequence, it is passed to Phase III, where the payroll subsystem applies rotation-specific multipliers. To ensure deterministic behavior in Phase III, if multiple valid rotation assignments exist, you must produce the one that has the smaller rotation code at the earliest employee index where two valid assignments differ. If no valid allocation can be formed, the pipeline must halt.
+Second, in Phase B, the central computer must assign an operating rhythm to each machine. Every machine must receive a rhythm from the set {1, 2}. To prevent catastrophic vibration, any two machines sharing a structural support must receive different rhythms.
+
+Finally, in Phase C, the machines are powered on using the assigned rhythms, and production begins.
+
+Your software is responsible for Phase B. You will receive the structural data produced by Phase A. You must determine if a safe rhythm assignment is possible. If it is, you must output a valid sequence of rhythms. Because the system requires a deterministic outcome, if there are multiple valid ways to assign the rhythms, you must output the valid sequence where the rhythm of machine 1 is as small as possible. If there are still ties, the rhythm of machine 2 must be as small as possible, and so on. If no safe assignment is possible, Phase C must be aborted.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$), representing the number of employees and the number of flagged pairs from Phase I.
-Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$) — a pair of employees who must not receive the same rotation code.
+The first line provides two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$).
+The following $m$ lines each contain two integers $u$ and $v$, representing a pair of machines that share a structural support.
 
 ## Output
-If the Phase II allocation cannot be completed without placing a flagged pair in the same rotation, print a single line containing `NO`.
-Otherwise, print `YES` on the first line. On the second line, print $n$ integers separated by spaces, where the $i$-th integer (each being `1` or `2`) is the rotation code assigned to employee $i$. This sequence must be the valid assignment that has the smaller rotation code at the earliest index where it differs from any other valid assignment.
+If the machines cannot be assigned rhythms safely, print a single line containing `NO`.
+If a safe assignment exists, print `YES` on the first line. On the second line, print $n$ space-separated integers $r_1, r_2, \ldots, r_n$ (where each $r_i \in \{1, 2\}$), representing the required rhythm for each machine in order from 1 to $n$.
 
 ## Example 1
-### Input
+**Input:**
 ```
 4 4
 1 2
@@ -25,21 +30,21 @@ Otherwise, print `YES` on the first line. On the second line, print $n$ integers
 3 4
 1 4
 ```
-### Output
+**Output:**
 ```
 YES
 1 2 1 2
 ```
 
 ## Example 2
-### Input
+**Input:**
 ```
 3 3
 1 2
 1 3
 2 3
 ```
-### Output
+**Output:**
 ```
 NO
 ```

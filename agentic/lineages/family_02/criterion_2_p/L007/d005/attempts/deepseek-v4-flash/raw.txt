@@ -1,0 +1,116 @@
+We can model this as a **2-SAT** problem.  
+Each array \( i \) has two possible modes: 0 or 1.  
+Each interlock is a clause that forbids a certain combination of assignments.
+
+For example, an interlock `(1, 2)` means:  
+- If array 1 is mode 0 AND array 2 is mode 0 → trip.  
+So we must have: array 1 is mode 1 OR array 2 is mode 1.
+
+Similarly, `(-1, -2)` means:  
+- If array 1 is mode 1 AND array 2 is mode 1 → trip.  
+So we must have: array 1 is mode 0 OR array 2 is mode 0.
+
+We can encode each literal as a boolean variable:  
+- Let \( x_i \) = True if array \( i \) is mode 1, False if mode 0.  
+- Positive literal `k` means \( x_k = \text{False} \) (mode 0).  
+- Negative literal `-k` means \( x_k = \text{True} \) (mode 1).
+
+Each interlock `(l1, l2)` becomes a clause:  
+`(¬l1) ∨ (¬l2)` in terms of the condition being false.
+
+We then solve 2-SAT using implication graph and SCC.
+
+Here’s the implementation:
+
+```python
+import sys
+sys.setrecursionlimit(1 << 20)
+input = sys.stdin.readline
+
+n, m = map(int, input().split())
+N = 2 * n  # variables: 0..n-1 for x_i false, n..2n-1 for x_i true
+
+def var(i):
+    # i is 1-based array index
+    # returns (false_node, true_node)
+    return (i-1, i-1+n)
+
+g = [[] for _ in range(N)]
+gr = [[] for _ in range(N)]
+
+def add_imp(u, v):
+    g[u].append(v)
+    gr[v].append(u)
+
+for _ in range(m):
+    l1, l2 = map(int, input().split())
+    # condition for l1 is present if:
+    # l1 > 0: array l1 is mode 0 => x_l1 = False
+    # l1 < 0: array -l1 is mode 1 => x_{-l1} = True
+    # We need at least one condition absent:
+    # (not cond1) OR (not cond2)
+    # not cond1:
+    # if l1 > 0: not (x_l1=False) => x_l1=True
+    # if l1 < 0: not (x_{-l1}=True) => x_{-l1}=False
+    a = abs(l1)
+    b = abs(l2)
+    fa, ta = var(a)
+    fb, tb = var(b)
+    # literal for cond1 present:
+    if l1 > 0:
+        c1 = fa  # x_a = False
+    else:
+        c1 = ta  # x_a = True
+    if l2 > 0:
+        c2 = fb
+    else:
+        c2 = tb
+    # clause: (not c1) OR (not c2)
+    # implication: c1 -> not c2, c2 -> not c1
+    add_imp(c1, c2 ^ 1 if c2 < n else c2 - n)  # not c2
+    add_imp(c2, c1 ^ 1 if c1 < n else c1 - n)  # not c1
+
+# Kosaraju SCC
+visited = [False] * N
+order = []
+
+def dfs1(u):
+    visited[u] = True
+    for v in g[u]:
+        if not visited[v]:
+            dfs1(v)
+    order.append(u)
+
+for i in range(N):
+    if not visited[i]:
+        dfs1(i)
+
+comp = [-1] * N
+def dfs2(u, cid):
+    comp[u] = cid
+    for v in gr[u]:
+        if comp[v] == -1:
+            dfs2(v, cid)
+
+cid = 0
+for u in reversed(order):
+    if comp[u] == -1:
+        dfs2(u, cid)
+        cid += 1
+
+# Check satisfiability
+for i in range(n):
+    if comp[i] == comp[i+n]:
+        print("NO")
+        sys.exit()
+
+print("YES")
+res = []
+for i in range(n):
+    # if comp[true_node] < comp[false_node] => true
+    if comp[i+n] < comp[i]:
+        res.append('1')
+    else:
+        res.append('0')
+print(' '.join(res))
+```

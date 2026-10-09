@@ -1,0 +1,79 @@
+import sys
+import heapq
+from collections import defaultdict
+
+def dijkstra(graph, start, nodes):
+    distances = {node: float('inf') for node in nodes}
+    distances[start] = 0
+    pq = [(0, start)]
+    
+    while pq:
+        current_distance, current_node = heapq.heappop(pq)
+        
+        if current_distance > distances[current_node]:
+            continue
+            
+        for neighbor, weight in graph[current_node]:
+            distance = current_distance + weight
+            if distance < distances[neighbor]:
+                distances[neighbor] = distance
+                heapq.heappush(pq, (distance, neighbor))
+                
+    return distances
+
+def main():
+    n, m, t = map(int, sys.stdin.readline().split())
+    core_sites = list(map(int, sys.stdin.readline().split()))
+    
+    # If there's only one core site, no connection is needed
+    if t <= 1:
+        print(0)
+        return
+    
+    # Build the graph
+    graph = defaultdict(list)
+    for _ in range(m):
+        u, v, w = map(int, sys.stdin.readline().split())
+        graph[u].append((v, w))
+        graph[v].append((u, w))
+    
+    # Create a complete graph of core sites with shortest paths as edge weights
+    core_graph = []
+    for i in range(t):
+        distances = dijkstra(graph, core_sites[i], range(1, n+1))
+        for j in range(i+1, t):
+            core_graph.append((distances[core_sites[j]], core_sites[i], core_sites[j]))
+    
+    # Sort edges by weight for Kruskal's algorithm
+    core_graph.sort()
+    
+    # Union-Find data structure for Kruskal's algorithm
+    parent = {site: site for site in core_sites}
+    
+    def find(x):
+        if parent[x] != x:
+            parent[x] = find(parent[x])
+        return parent[x]
+    
+    def union(x, y):
+        px, py = find(x), find(y)
+        if px != py:
+            parent[px] = py
+            return True
+        return False
+    
+    # Kruskal's algorithm to find MST of core sites
+    total_cost = 0
+    edges_used = 0
+    
+    for weight, u, v in core_graph:
+        if union(u, v):
+            total_cost += weight
+            edges_used += 1
+            if edges_used == t - 1:
+                break
+    
+    print(total_cost)
+
+if __name__ == "__main__":
+    main()

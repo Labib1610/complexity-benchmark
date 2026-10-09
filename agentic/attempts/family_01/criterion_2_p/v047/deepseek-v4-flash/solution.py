@@ -5,62 +5,30 @@ input = sys.stdin.readline
 
 n, m = map(int, input().split())
 adj = [[] for _ in range(n)]
+edges = []
 for _ in range(m):
     u, v = map(int, input().split())
     u -= 1
     v -= 1
     adj[u].append(v)
     adj[v].append(u)
+    edges.append((u, v))
 
 color = [-1] * n
-possible = True
 
-for start in range(n):
-    if color[start] != -1:
-        continue
-    color[start] = 0
-    q = deque([start])
-    while q:
-        u = q.popleft()
-        for v in adj[u]:
-            if color[v] == -1:
-                color[v] = color[u] ^ 1
-                q.append(v)
-            elif color[v] == color[u]:
-                possible = False
-                break
-        if not possible:
-            break
-    if not possible:
-        break
+for i in range(n):
+    if color[i] == -1:
+        color[i] = 1
+        q = deque([i])
+        while q:
+            u = q.popleft()
+            for v in adj[u]:
+                if color[v] == -1:
+                    color[v] = 3 - color[u]
+                    q.append(v)
+                elif color[v] == color[u]:
+                    print("NO")
+                    sys.exit()
 
-if not possible:
-    print("NO")
-else:
-    # Now we have a valid 2-coloring, but we need lexicographically smallest.
-    # We'll try to flip colors in components if it makes earlier nodes smaller.
-    # Since color[0] is 0, we can try to keep it 0.
-    # For each component, if the node with smallest index has color 1, flip the whole component.
-    visited = [False] * n
-    for i in range(n):
-        if not visited[i]:
-            # BFS to collect component
-            comp = []
-            q = deque([i])
-            visited[i] = True
-            while q:
-                u = q.popleft()
-                comp.append(u)
-                for v in adj[u]:
-                    if not visited[v]:
-                        visited[v] = True
-                        q.append(v)
-            # Find smallest index in component
-            min_idx = min(comp)
-            if color[min_idx] == 1:
-                # flip
-                for u in comp:
-                    color[u] ^= 1
-
-    print("YES")
-    print(' '.join(str(c + 1) for c in color))
+print("YES")
+print(" ".join(str(color[i]) for i in range(n)))

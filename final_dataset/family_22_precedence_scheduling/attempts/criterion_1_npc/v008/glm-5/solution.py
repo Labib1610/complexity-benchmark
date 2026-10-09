@@ -1,0 +1,82 @@
+import sys
+from collections import deque
+
+def solve():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    M = int(next(it))
+    T = int(next(it))
+    m = int(next(it))
+    
+    adj = [[] for _ in range(n)]
+    indeg = [0] * n
+    for _ in range(m):
+        a = int(next(it)) - 1
+        b = int(next(it)) - 1
+        adj[a].append(b)
+        indeg[b] += 1
+    
+    # Kahn's algorithm with priority: prefer nodes with higher out-degree (heuristic)
+    # Actually, we need to schedule tasks to minimize the maximum slot used.
+    # A better heuristic: prioritize nodes that are ancestors of longer chains.
+    # We use a greedy approach: at each step, pick the node with the highest "level"
+    # (length of longest path from that node to a sink).
+    
+    # Compute levels (longest path from node to sink)
+    level = [0] * n
+    rev_adj = [[] for _ in range(n)]
+    for u in range(n):
+        for v in adj[u]:
+            rev_adj[v].append(u)
+    
+    # Topological sort on reversed graph to compute levels
+    q = deque()
+    for u in range(n):
+        if not adj[u]:  # sink
+            q.append(u)
+            level[u] = 1
+    
+    while q:
+        u = q.popleft()
+        for v in rev_adj[u]:
+            if level[v] < level[u] + 1:
+                level[v] = level[u] + 1
+                q.append(v)
+    
+    # Now schedule: at each slot, pick up to M available tasks with highest level
+    slot = [0] * n
+    current_indeg = indeg[:]
+    available = []
+    
+    # Initialize available tasks (those with indegree 0)
+    for u in range(n):
+        if current_indeg[u] == 0:
+            available.append((-level[u], u))
+    
+    import heapq
+    heapq.heapify(available)
+    
+    for t in range(1, T + 1):
+        batch = []
+        while available and len(batch) < M:
+            neg_lev, u = heapq.heappop(available)
+            batch.append(u)
+        
+        for u in batch:
+            slot[u] = t
+            for v in adj[u]:
+                current_indeg[v] -= 1
+                if current_indeg[v] == 0:
+                    heapq.heappush(available, (-level[v], v))
+    
+    if any(s == 0 for s in slot):
+        print("NO")
+    else:
+        print("YES")
+        print(' '.join(map(str, slot)))
+
+if __name__ == "__main__":
+    solve()

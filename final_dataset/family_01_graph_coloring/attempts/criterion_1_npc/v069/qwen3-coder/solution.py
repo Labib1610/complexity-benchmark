@@ -1,0 +1,64 @@
+def solve():
+    import sys
+    from collections import defaultdict, deque
+    
+    n, m = map(int, sys.stdin.readline().split())
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
+    
+    # Build adjacency list
+    adj = defaultdict(list)
+    edges = []
+    for _ in range(m):
+        u, v = map(int, sys.stdin.readline().split())
+        adj[u].append(v)
+        adj[v].append(u)
+        edges.append((u, v))
+    
+    # Try to 3-color the graph
+    color = [0] * (n + 1)  # 0 means uncolored, 1,2,3 are the colors
+    
+    # Check each connected component
+    visited = [False] * (n + 1)
+    
+    for start in range(1, n + 1):
+        if visited[start]:
+            continue
+            
+        # BFS to color this component
+        queue = deque([start])
+        color[start] = 1
+        visited[start] = True
+        
+        while queue:
+            node = queue.popleft()
+            current_color = color[node]
+            
+            # Try colors 1, 2, 3 for neighbors
+            next_color = current_color % 3 + 1  # 1->2, 2->3, 3->1
+            
+            for neighbor in adj[node]:
+                if not visited[neighbor]:
+                    # Assign the next color
+                    color[neighbor] = next_color
+                    visited[neighbor] = True
+                    queue.append(neighbor)
+                else:
+                    # Check if the coloring is consistent
+                    if color[neighbor] == current_color:
+                        print("NO")
+                        return
+    
+    # Verify the solution
+    for u, v in edges:
+        if color[u] == color[v]:
+            print("NO")
+            return
+    
+    print("YES")
+    print(" ".join(str(color[i]) for i in range(1, n + 1)))
+
+solve()

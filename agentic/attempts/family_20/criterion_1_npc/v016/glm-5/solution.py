@@ -1,0 +1,160 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    adj = [[] for _ in range(n + 1)]
+    edges = []
+    for i in range(m):
+        u = int(input_data[2 + 2 * i])
+        v = int(input_data[3 + 2 * i])
+        edges.append((u, v))
+        adj[u].append((v, i))
+        adj[v].append((u, i))
+        
+    # 1. Find a 2-factor (disjoint union of even cycles)
+    used = [False] * (n + 1)
+    cycle_edges = [False] * m
+    cycles = []
+    
+    for i in range(1, n + 1):
+        if not used[i]:
+            curr = i
+            c_nodes = []
+            while not used[curr]:
+                used[curr] = True
+                c_nodes.append(curr)
+                nxt = -1
+                for neighbor, edge_idx in adj[curr]:
+                    if not used[neighbor]:
+                        nxt = neighbor
+                        cycle_edges[edge_idx] = True
+                        break
+                if nxt == -1:
+                    break
+                curr = nxt
+            
+            # Close the cycle
+            if curr != i:
+                for neighbor, edge_idx in adj[curr]:
+                    if neighbor == i:
+                        cycle_edges[edge_idx] = True
+                        break
+            
+            cycles.append(c_nodes)
+            
+    # 2. Build the tree of chords
+    # Each cycle is a node in the tree. Edges are chords connecting two cycles.
+    # We use a small array for O(1) cycle ID lookups.
+    cycle_id = [0] * (n + 1)
+    for c_idx, c_nodes in enumerate(cycles):
+        for node in c_nodes:
+            cycle_id[node] = c_idx
+            
+    tree_adj = [[] for _ in range(len(cycles))]
+    for edge_idx in range(m):
+        if not cycle_edges[edge_idx]:
+            u, v = edges[edge_idx]
+            c_u = cycle_id[u]
+            c_v = cycle_id[v]
+            tree_adj[c_u].append((c_v, edge_idx, u, v))
+            tree_adj[c_v].append((c_u, edge_idx, u, v))
+            
+    # 3. Root the tree and process to assign shifts
+    # For each cycle, we need to know the orientation of its nodes.
+    # We store the cycle nodes in a list and maintain a mapping from node to its index.
+    cycle_pos = [{} for _ in range(len(cycles))]
+    for c_idx, c_nodes in enumerate(cycles):
+        for pos, node in enumerate(c_nodes):
+            cycle_pos[c_idx][node] = pos
+            
+    # We will assign shifts to cycle edges (1 or 2) and chords (3)
+    # Shifts for cycle edges: 1 if (pos_u + pos_v) % 2 == 0, else 2
+    # This means shift 1 is for edges connecting even pos to odd pos.
+    # Shift 2 is for edges connecting odd pos to even pos.
+    # We need to ensure that for any chord (u, v) in shift 3, 
+    # pos_u and pos_v have the same parity.
+    
+    # We can flip the orientation of a cycle (which swaps shifts 1 and 2 for its cycle edges)
+    # without affecting the parity of positions of its nodes.
+    # Wait, flipping the cycle (reversing the list of nodes) changes the parity of all nodes!
+    # If we reverse the list, pos' = L - 1 - pos. The parity of pos' is (L - 1 - pos) % 2.
+    # Since L is even, L - 1 is odd, so parity flips.
+    # This means flipping a cycle changes the parity of ALL its nodes.
+    # This is exactly what we need: if a chord connects two nodes of different parity,
+    # we can flip one of the cycles to make their parities match, so the chord can be shift 3.
+    
+    # Let's assign parities to cycle nodes. Initially, just use their index in the list.
+    # Then, we will flip cycles (XOR with 1) to ensure all chords connect nodes of the same parity.
+    # This is equivalent to bipartite matching on the tree of cycles!
+    
+    flip = [0] * len(cycles)
+    visited = [False] * len(cycles)
+    stack = [0]
+    visited[0] = True
+    
+    while stack:
+        c = stack.pop()
+        for neighbor, edge_idx, u, v in tree_adj[c]:
+            if not visited[neighbor]:
+                visited[neighbor] = True
+                stack.append(neighbor)
+                # u is in cycle c, v is in cycle neighbor
+                pos_u = cycle_pos[c][u]
+                pos_v = cycle_pos[neighbor][v]
+                # We want (pos_u + flip[c]) % 2 == (pos_v + flip[neighbor]) % 2
+                # So flip[neighbor] = (pos_u + flip[c] - pos_v) % 2
+                flip[neighbor] = (pos_u + flip[c] - pos_v) % 2
+                
+    # 4. Assign shifts based on the final parities
+    ans = [0] * m
+    
+    # Assign shifts to cycle edges
+    for c_idx, c_nodes in enumerate(cycles):
+        L = len(c_nodes)
+        for i in range(L):
+            u = c_nodes[i]
+            v = c_nodes[(i + 1) % L]
+            # Find the edge index
+            for neighbor, edge_idx in adj[u]:
+                if neighbor == v and cycle_edges[edge_idx]:
+                    pos_u = i
+                    pos_v = (i + 1) % L
+                    # Effective parities
+                    pu = (pos_u + flip[c_idx]) % 2
+                    pv = (pos_v + flip[c_idx]) % 2
+                    if pu != pv:
+                        ans[edge_idx] = 1
+                    else:
+                        ans[edge_idx] = 2
+                    break
+                    
+    # Assign shifts to chords
+    for edge_idx in range(m):
+        if not cycle_edges[edge_idx]:
+            ans[edge_idx] = 3
+            
+    # Verification (optional, for safety)
+    # Check degrees
+    deg = [[0, 0, 0] for _ in range(n + 1)]
+    for edge_idx in range(m):
+        u, v = edges[edge_idx]
+        s = ans[edge_idx] - 1
+        deg[u][s] += 1
+        deg[v][s] += 1
+        
+    for i in range(1, n + 1):
+        if deg[i][0] != 1 or deg[i][1] != 1 or deg[i][2] != 1:
+            # This should theoretically never happen if the logic is correct
+            print("NO")
+            return
+            
+    print("YES")
+    print(" ".join(map(str, ans)))
+
+if __name__ == '__main__':
+    solve()

@@ -1,0 +1,135 @@
+import sys
+sys.setrecursionlimit(1 << 25)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    A = int(next(it)); B = int(next(it)); L = int(next(it))
+    edges = [(int(next(it)) - 1, int(next(it)) - 1) for _ in range(L)]
+
+    # degree
+    degA = [0] * A
+    degB = [0] * B
+    for u, v in edges:
+        degA[u] += 1
+        degB[v] += 1
+    K = max(max(degA) if A else 0, max(degB) if B else 0)
+
+    # adjacency: for each vertex store (color -> edge id)
+    colA = [dict() for _ in range(A)]
+    colB = [dict() for _ in range(B)]
+    ans = [0] * L
+
+    # helper to find a free color at a vertex
+    def first_free(col, K):
+        for c in range(1, K + 1):
+            if c not in col:
+                return c
+        return None
+
+    # recursive recoloring
+    def dfs(u, v, want, seen):
+        """try to make color 'want' free at vertex v (which is either in A or B)"""
+        if (v, want) in seen:
+            return False
+        seen.add((v, want))
+        # edge currently using color want at v
+        if v < A:  # left side
+            e = colA[v].get(want)
+        else:
+            e = colB[v - A].get(want)
+        if e is None:
+            return True
+        u2, v2 = edges[e]
+        # the other endpoint of that edge
+        other = v2 if v < A else u2
+        # try to move that edge to another color
+        for c in range(1, K + 1):
+            if c == want:
+                continue
+            if (c not in (colA[u2] if u2 < A else colB[u2 - A])) and (c not in (colA[other] if other < A else colB[other - A])):
+                # recolor directly
+                # remove old
+                if u2 < A:
+                    del colA[u2][want]
+                else:
+                    del colB[u2 - A][want]
+                if other < A:
+                    del colA[other][want]
+                else:
+                    del colB[other - A][want]
+                # assign new
+                if u2 < A:
+                    colA[u2][c] = e
+                else:
+                    colB[u2 - A][c] = e
+                if other < A:
+                    colA[other][c] = e
+                else:
+                    colB[other - A][c] = e
+                ans[e] = c
+                return True
+        # try longer alternating path
+        for c in range(1, K + 1):
+            if c == want:
+                continue
+            if c not in (colA[u2] if u2 < A else colB[u2 - A]):
+                continue
+            # edge using color c at u2
+            e2 = colA[u2][c] if u2 < A else colB[u2 - A][c]
+            # attempt to free color c at the opposite endpoint of e2
+            opp = edges[e2][1] if u2 < A else edges[e2][0]
+            if dfs(u2, opp, c, seen):
+                # now we can shift e to color c
+                if u2 < A:
+                    del colA[u2][want]
+                else:
+                    del colB[u2 - A][want]
+                if other < A:
+                    del colA[other][want]
+                else:
+                    del colB[other - A][want]
+                if u2 < A:
+                    colA[u2][c] = e
+                else:
+                    colB[u2 - A][c] = e
+                if other < A:
+                    colA[other][c] = e
+                else:
+                    colB[other - A][c] = e
+                ans[e] = c
+                return True
+        return False
+
+    for idx, (u, v) in enumerate(edges):
+        # try to find a common free color
+        for c in range(1, K + 1):
+            if c not in colA[u] and c not in colB[v]:
+                colA[u][c] = idx
+                colB[v][c] = idx
+                ans[idx] = c
+                break
+        else:
+            # need recoloring
+            # pick a color free at u
+            for c in range(1, K + 1):
+                if c not in colA[u]:
+                    free_at_u = c
+                    break
+            # try to make free_at_u also free at v via augmenting
+            seen = set()
+            if dfs(v, v, free_at_u, seen):
+                colA[u][free_at_u] = idx
+                colB[v][free_at_u] = idx
+                ans[idx] = free_at_u
+            else:
+                # fallback (should not happen)
+                pass
+
+    out = ['YES', ' '.join(map(str, ans))]
+    sys.stdout.write('\n'.join(out))
+
+if __name__ == "__main__":
+    solve()

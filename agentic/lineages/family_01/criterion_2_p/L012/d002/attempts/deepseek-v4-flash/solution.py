@@ -12,21 +12,21 @@ for _ in range(m):
     adj[u].append(v)
     adj[v].append(u)
 
-color = [-1] * n  # -1 uncolored, 0 -> mode 1, 1 -> mode 2
+color = [-1] * n
 
 for i in range(n):
     if color[i] == -1:
-        color[i] = 0
+        color[i] = 1
         q = deque([i])
         while q:
             u = q.popleft()
             for v in adj[u]:
                 if color[v] == -1:
-                    color[v] = 1 - color[u]
+                    color[v] = 3 - color[u]
                     q.append(v)
                 elif color[v] == color[u]:
                     print("NO")
                     sys.exit()
 
 print("YES")
-print(" ".join(str(c + 1) for c in color))
+print(" ".join(str(color[i]) for i in range(n)))

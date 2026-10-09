@@ -1,0 +1,105 @@
+import sys
+
+# Increase recursion depth just in case, but iterative is preferred
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    num_nodes = 2 * n
+    head = [-1] * num_nodes
+    to = []
+    nxt = []
+    
+    def add_edge(u, v):
+        nxt.append(head[u])
+        head[u] = len(to)
+        to.append(v)
+
+    idx = 2
+    for _ in range(m):
+        l1 = int(input_data[idx])
+        l2 = int(input_data[idx + 1])
+        idx += 2
+        
+        u = 2 * (l1 - 1) if l1 > 0 else 2 * (-l1 - 1) + 1
+        v = 2 * (l2 - 1) if l2 > 0 else 2 * (-l2 - 1) + 1
+        
+        not_u = u ^ 1
+        not_v = v ^ 1
+        
+        # not_u -> v, not_v -> u
+        add_edge(not_u, v)
+        add_edge(not_v, u)
+        
+    dfn = [-1] * num_nodes
+    low = [-1] * num_nodes
+    scc = [-1] * num_nodes
+    in_stack = [False] * num_nodes
+    stack = []
+    
+    timer = 0
+    scc_cnt = 0
+    
+    # Iterative Tarjan's SCC
+    for i in range(num_nodes):
+        if dfn[i] != -1:
+            continue
+        
+        call_stack = [(i, head[i])]
+        dfn[i] = low[i] = timer
+        timer += 1
+        stack.append(i)
+        in_stack[i] = True
+        
+        while call_stack:
+            u, e = call_stack[-1]
+            if e != -1:
+                v = to[e]
+                call_stack[-1] = (u, nxt[e])
+                if dfn[v] == -1:
+                    dfn[v] = low[v] = timer
+                    timer += 1
+                    stack.append(v)
+                    in_stack[v] = True
+                    call_stack.append((v, head[v]))
+                elif in_stack[v]:
+                    if dfn[v] < low[u]:
+                        low[u] = dfn[v]
+            else:
+                call_stack.pop()
+                if call_stack:
+                    p = call_stack[-1][0]
+                    if low[u] < low[p]:
+                        low[p] = low[u]
+                
+                if low[u] == dfn[u]:
+                    while True:
+                        v = stack.pop()
+                        in_stack[v] = False
+                        scc[v] = scc_cnt
+                        if v == u:
+                            break
+                    scc_cnt += 1
+
+    ans = []
+    for i in range(n):
+        pos = 2 * i
+        neg = 2 * i + 1
+        if scc[pos] == scc[neg]:
+            print("NO")
+            return
+        # If scc[pos] < scc[neg], pos is in a later SCC in topological order (earlier in Tarjan output)
+        if scc[pos] < scc[neg]:
+            ans.append(1)
+        else:
+            ans.append(0)
+            
+    print("YES")
+    print(*(ans))
+
+if __name__ == '__main__':
+    solve()

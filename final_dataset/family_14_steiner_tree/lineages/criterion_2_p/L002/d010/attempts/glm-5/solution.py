@@ -1,0 +1,92 @@
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    t = int(next(it))
+    critical = [int(next(it)) for _ in range(t)]
+    edges = []
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        w = int(next(it))
+        edges.append((u, v, w))
+    
+    parent = list(range(n + 1))
+    rank = [0] * (n + 1)
+    
+    def find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+    
+    def union(x, y):
+        rx = find(x)
+        ry = find(y)
+        if rx == ry:
+            return False
+        if rank[rx] < rank[ry]:
+            parent[rx] = ry
+        elif rank[rx] > rank[ry]:
+            parent[ry] = rx
+        else:
+            parent[ry] = rx
+            rank[rx] += 1
+        return True
+    
+    edges.sort(key=lambda e: e[2])
+    for u, v, w in edges:
+        union(u, v)
+    
+    if t <= 1:
+        print(0)
+        return
+    
+    roots = set(find(x) for x in critical)
+    if len(roots) == 1:
+        print(0)
+        return
+    
+    parent = list(range(n + 1))
+    rank = [0] * (n + 1)
+    
+    for u, v, w in edges:
+        ru = find(u)
+        rv = find(v)
+        if ru == rv:
+            continue
+        if rank[ru] < rank[rv]:
+            ru, rv = rv, ru
+        parent[rv] = ru
+        if rank[ru] == rank[rv]:
+            rank[ru] += 1
+    
+    comp_root = {}
+    comp_min_edge = {}
+    for x in critical:
+        r = find(x)
+        if r not in comp_root:
+            comp_root[r] = r
+            comp_min_edge[r] = float('inf')
+    
+    for u, v, w in edges:
+        ru = find(u)
+        rv = find(v)
+        if ru == rv:
+            continue
+        if ru in comp_min_edge:
+            if w < comp_min_edge[ru]:
+                comp_min_edge[ru] = w
+        if rv in comp_min_edge:
+            if w < comp_min_edge[rv]:
+                comp_min_edge[rv] = w
+    
+    ans = sum(comp_min_edge.values())
+    print(ans)
+
+solve()

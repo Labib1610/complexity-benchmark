@@ -1,0 +1,40 @@
+import sys
+
+def solve():
+    input = sys.stdin.readline
+    n, m = map(int, input().split())
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u, v = map(int, input().split())
+        u -= 1
+        v -= 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    colors = [0] * n  # 0 = unassigned, 1,2,3 = protocol versions
+    
+    def backtrack(node):
+        if node == n:
+            return True
+        # Try colors 1,2,3
+        for c in (1, 2, 3):
+            ok = True
+            for nb in adj[node]:
+                if colors[nb] == c:
+                    ok = False
+                    break
+            if ok:
+                colors[node] = c
+                if backtrack(node + 1):
+                    return True
+                colors[node] = 0
+        return False
+    
+    if backtrack(0):
+        print("YES")
+        print(" ".join(map(str, colors)))
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()

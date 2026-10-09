@@ -1,0 +1,42 @@
+from itertools import combinations
+
+def solve():
+    k, t = map(int, input().split())
+    
+    if k == 0:
+        print("YES")
+        return
+    
+    if t == 0:
+        print("NO")
+        return
+    
+    relays = []
+    for _ in range(t):
+        x, y, z = map(int, input().split())
+        relays.append((x, y, z))
+    
+    # Try all combinations of k relays
+    for combo in combinations(relays, k):
+        # Check if all relays in this combination are mutually isolated
+        valid = True
+        for i in range(k):
+            for j in range(i + 1, k):
+                relay1 = combo[i]
+                relay2 = combo[j]
+                # If any parameter is the same, they're not isolated
+                if relay1[0] == relay2[0] or relay1[1] == relay2[1] or relay1[2] == relay2[2]:
+                    valid = False
+                    break
+            if not valid:
+                break
+        
+        if valid:
+            print("YES")
+            for relay in combo:
+                print(relay[0], relay[1], relay[2])
+            return
+    
+    print("NO")
+
+solve()

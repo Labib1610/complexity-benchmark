@@ -1,5 +1,5 @@
 import sys
-from collections import deque
+sys.setrecursionlimit(1 << 25)
 
 def solve() -> None:
     data = sys.stdin.read().strip().split()
@@ -14,41 +14,44 @@ def solve() -> None:
         adj[u].append(v)
         adj[v].append(u)
 
-    visited = [False] * (n + 1)
-    temp_col = [0] * (n + 1)          # 0 / 1 temporary colours
-    answer = [0] * (n + 1)
+    color = [-1] * (n + 1)          # 0/1 bipartite colors
+    comp_id = [-1] * (n + 1)
+    comps = []                     # list of (vertices list, min_vertex)
+    from collections import deque
 
     for start in range(1, n + 1):
-        if visited[start]:
+        if color[start] != -1:
             continue
         # BFS this component
         q = deque([start])
-        visited[start] = True
-        temp_col[start] = 0
-        comp = [start]
+        color[start] = 0
+        comp_vertices = [start]
+        ok = True
         while q:
             u = q.popleft()
-            cu = temp_col[u]
-            for w in adj[u]:
-                if not visited[w]:
-                    visited[w] = True
-                    temp_col[w] = 1 - cu
-                    q.append(w)
-                    comp.append(w)
-                elif temp_col[w] == cu:
+            for v in adj[u]:
+                if color[v] == -1:
+                    color[v] = color[u] ^ 1
+                    q.append(v)
+                    comp_vertices.append(v)
+                elif color[v] == color[u]:
                     print("NO")
                     return
-        # decide orientation
-        min_node = min(comp)
-        if temp_col[min_node] == 0:
-            for v in comp:
-                answer[v] = 1 if temp_col[v] == 0 else 2
-        else:
-            for v in comp:
-                answer[v] = 2 if temp_col[v] == 0 else 1
+        min_v = min(comp_vertices)
+        comps.append((comp_vertices, min_v))
 
+    # decide orientation per component
+    result = [0] * (n + 1)
+    for verts, min_v in comps:
+        # if min_v currently has color 0, keep; else flip
+        flip = 1 if color[min_v] == 1 else 0
+        for v in verts:
+            final = color[v] ^ flip
+            result[v] = 1 if final == 0 else 2
+
+    # output
     print("YES")
-    print(' '.join(str(answer[i]) for i in range(1, n + 1)))
+    print(' '.join(str(result[i]) for i in range(1, n + 1)))
 
 if __name__ == "__main__":
     solve()

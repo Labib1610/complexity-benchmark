@@ -1,0 +1,159 @@
+```python
+import sys
+from collections import defaultdict
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(["0"] * n))
+        return
+    
+    clauses = []
+    index = 2
+    for _ in range(m):
+        l1 = int(data[index])
+        l2 = int(data[index+1])
+        index += 2
+        
+        # We create variables:
+        # For each distributor i, let x_i represent s_i = 1 (True)
+        # and ~x_i represent s_i = 0 (False)
+        
+        # l1 can be positive or negative
+        # Same for l2
+        
+        # A detector triggers shutdown iff the mixture has Isotope-0 and NO Isotope-1
+        # That means both manifolds deliver Isotope-0.
+        # For a manifold j:
+        #   if j > 0: delivers Isotope-s_j
+        #   if j < 0: delivers NOT(Isotope-s_{|j|}) (due to transmutation)
+        #
+        # So for detector with manifolds l1 and l2:
+        # Manifold l1 delivers Isotope: 
+        #     if l1 > 0: s_{l1}
+        #     if l1 < 0: NOT(s_{|l1|})
+        # Similarly for l2
+        #
+        # The detector shuts down iff BOTH deliver Isotope-0.
+        # That means:
+        #     (Isotope from l1 is 0) AND (Isotope from l2 is 0)
+        #
+        # To prevent shutdown, we want:
+        #     NOT( (Isotope from l1 is 0) AND (Isotope from l2 is 0) )
+        #   = (Isotope from l1 is 1) OR (Isotope from l2 is 1)
+        #
+        # Let's define:
+        #   a = Isotope from l1 = 1?
+        #       if l1 > 0: a = s_{l1}
+        #       if l1 < 0: a = NOT(s_{|l1|})
+        #   b = Isotope from l2 = 1?
+        #       if l2 > 0: b = s_{l2}
+        #       if l2 < 0: b = NOT(s_{|l2|})
+        #
+        # Then clause is: a OR b
+        
+        v1 = abs(l1)
+        sign1 = 1 if l1 > 0 else -1
+        v2 = abs(l2)
+        sign2 = 1 if l2 > 0 else -1
+        
+        # We need: (sign1*s[v1] >= 1) OR (sign2*s[v2] >= 1)
+        # But since s[i] is 0 or 1, this translates to:
+        # If sign1=1: s[v1] should be 1 -> add literal x_v1
+        # If sign1=-1: NOT(s[v1]) should be 1 -> add literal NOT x_v1
+        # Same for v2
+        
+        # In terms of CNF SAT:
+        # Clause: (x[v1] if sign1==1 else NOT x[v1]) OR (x[v2] if sign2==1 else NOT x[v2])
+        
+        lit1 = v1 if sign1 == 1 else -v1
+        lit2 = v2 if sign2 == 1 else -v2
+        clauses.append((lit1, lit2))
+    
+    # Now we have a 2-SAT problem: each clause is a disjunction of two literals
+    # We solve it using implication graph and SCC
+    
+    # Build implication graph
+    # Variables: 1..n (x_i) and -1..-n (NOT x_i)
+    adj = defaultdict(list)
+    adj_rev = defaultdict(list)
+    
+    for (a, b) in clauses:
+        # Clause (a OR b) is equivalent to (NOT a => b) AND (NOT b => a)
+        adj[-a].append(b)
+        adj[-b].append(a)
+        adj_rev[b].append(-a)
+        adj_rev[a].append(-b)
+    
+    # Kosaraju's algorithm for SCC
+    order = []
+    visited = [False] * (2 * n + 1)
+    visited_map = {}
+    
+    def dfs1(u):
+        visited[u] = True
+        for v in adj[u]:
+            if not visited[v]:
+                dfs1(v)
+        order.append(u)
+    
+    # We need to visit all nodes from -n to n except 0
+    for i in range(1, n+1):
+        if not visited[i]:
+            dfs1(i)
+        if not visited[-i]:
+            dfs1(-i)
+    
+    order.reverse()
+    
+    # Second DFS to find SCC
+    scc_id = {}
+    scc_index = 0
+    
+    def dfs2(u):
+        scc_id[u] = scc_index
+        for v in adj_rev[u]:
+            if v not in scc_id:
+                dfs2(v)
+    
+    for u in order:
+        if u not in scc_id:
+            dfs2(u)
+            scc_index += 1
+    
+    # Check if any variable and its negation are in the same SCC
+    for i in range(1, n+1):
+        if scc_id[i] == scc_id[-i]:
+            print("NO")
+            return
+    
+    # Assign values based on topological order of SCCs
+    # Nodes in later SCCs should be assigned TRUE
+    assignment = [0] * (n+1)
+    scc_order = {}
+    for u in scc_id:
+        scc_order[scc_id[u]] = 1
+    scc_list = sorted(scc_order.keys())
+    scc_pos = {scc: idx for idx, scc in enumerate(scc_list)}
+    
+    for i in range(1, n+1):
+        scc_x = scc_pos[scc_id[i]]
+        scc_not_x = scc_pos[scc_id[-i]]
+        if scc_x > scc_not_x:
+            assignment[i] = 1
+        else:
+            assignment[i] = 0
+    
+    print("YES")
+    print(" ".join(map(str, assignment[1:n+1])))
+
+if __name__ == "__main__":
+    main()
+```

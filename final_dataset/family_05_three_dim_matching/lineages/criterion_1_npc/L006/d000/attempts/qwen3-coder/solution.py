@@ -1,0 +1,40 @@
+import sys
+from itertools import combinations
+
+def solve():
+    k, t = map(int, sys.stdin.readline().split())
+    
+    if k == 0:
+        print("YES")
+        return
+    
+    if t < k:
+        print("NO")
+        return
+    
+    blocks = []
+    for _ in range(t):
+        x, y, z = map(int, sys.stdin.readline().split())
+        blocks.append((x, y, z))
+    
+    # Try all combinations of k blocks
+    for combo in combinations(range(t), k):
+        shapes = set()
+        colors = set()
+        materials = set()
+        
+        for i in combo:
+            x, y, z = blocks[i]
+            shapes.add(x)
+            colors.add(y)
+            materials.add(z)
+        
+        if len(shapes) == k and len(colors) == k and len(materials) == k:
+            print("YES")
+            for i in combo:
+                print(blocks[i][0], blocks[i][1], blocks[i][2])
+            return
+    
+    print("NO")
+
+solve()

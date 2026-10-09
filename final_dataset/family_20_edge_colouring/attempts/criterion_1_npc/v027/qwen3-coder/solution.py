@@ -1,0 +1,92 @@
+import sys
+from collections import defaultdict, deque
+
+def solve():
+    n, m = map(int, input().split())
+    
+    # Build adjacency list and edge list
+    adj = defaultdict(list)
+    edges = []
+    
+    for i in range(m):
+        u, v = map(int, input().split())
+        u -= 1  # Convert to 0-indexed
+        v -= 1
+        adj[u].append((v, i))
+        adj[v].append((u, i))
+        edges.append((u, v))
+    
+    # Check if each vertex has degree 3
+    for i in range(n):
+        if len(adj[i]) != 3:
+            print("NO")
+            return
+    
+    # Try to 3-color the line graph (each edge is a node, adjacent if they share a vertex)
+    # This is equivalent to edge-coloring the original graph with 3 colors
+    # Since every vertex has degree 3, this is possible iff the graph is 3-edge-colorable
+    
+    # We'll use a BFS-based approach to assign colors
+    color = [-1] * m  # -1 means uncolored
+    colored = [False] * m
+    
+    # Process components
+    for start_edge in range(m):
+        if colored[start_edge]:
+            continue
+            
+        # BFS to color edges in this component
+        queue = deque([start_edge])
+        colored[start_edge] = True
+        
+        while queue:
+            e_idx = queue.popleft()
+            u, v = edges[e_idx]
+            
+            # Get available colors for this edge
+            used_colors = set()
+            
+            # Check all edges adjacent to u
+            for neighbor, nei_idx in adj[u]:
+                if colored[nei_idx] and nei_idx != e_idx:
+                    used_colors.add(color[nei_idx])
+            
+            # Check all edges adjacent to v
+            for neighbor, nei_idx in adj[v]:
+                if colored[nei_idx] and nei_idx != e_idx:
+                    used_colors.add(color[nei_idx])
+            
+            # Assign the first available color
+            for c in [1, 2, 3]:
+                if c not in used_colors:
+                    color[e_idx] = c
+                    break
+            else:
+                # No color available - impossible
+                print("NO")
+                return
+            
+            # Add uncolored neighbors to queue
+            for neighbor, nei_idx in adj[u]:
+                if not colored[nei_idx] and nei_idx != e_idx:
+                    colored[nei_idx] = True
+                    queue.append(nei_idx)
+            
+            for neighbor, nei_idx in adj[v]:
+                if not colored[nei_idx] and nei_idx != e_idx:
+                    colored[nei_idx] = True
+                    queue.append(nei_idx)
+    
+    # Verify the solution
+    for i in range(n):
+        colors_at_hub = set()
+        for neighbor, e_idx in adj[i]:
+            colors_at_hub.add(color[e_idx])
+        if len(colors_at_hub) != 3:
+            print("NO")
+            return
+    
+    print("YES")
+    print(' '.join(map(str, color)))
+
+solve()

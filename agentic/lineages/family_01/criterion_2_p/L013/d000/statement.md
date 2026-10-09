@@ -1,21 +1,20 @@
-# Magnetic Resonance Equilibrium
+# Problem B — Day and Night
 
-Time limit: 1 s
-Memory limit: 256 MB
+Time limit: 1 s   Memory limit: 256 MB
 
-A particle accelerator contains $n$ magnetic containment fields. Each field features a phase switch that must be set to position 1 or position 2. 
+The factory operates on a daily cycle consisting of exactly two operational periods: period 1 and period 2. You are tasked with assigning each of the $n$ personnel to exactly one of these periods.
 
-The accelerator is equipped with $m$ phase comparators. Each comparator links two specific fields. A comparator remains stable only if it detects a phase difference between the two fields it links. Consequently, if the two linked fields are set to the same switch position, the comparator will destabilize and trigger a system halt.
+To maintain productivity, certain pairs of personnel require access to the same specialized workstation. There are $m$ such workstation-sharing records. The facility enforces a strict separation rule for these records: for any recorded pair of individuals, if one individual is assigned to period 1, the other must be assigned to period 2, and conversely, if one is assigned to period 2, the other must be assigned to period 1.
 
-Your task is to determine whether there is a switch configuration for all $n$ fields that keeps every comparator stable. If multiple such configurations exist, the safety override protocol requires the one that is lexicographically smallest (i.e., the sequence of switch positions $s_1, s_2, \dots, s_n$ must be as small as possible when compared element by element starting from the first field).
+Determine if it is possible to assign all $n$ personnel to the two periods such that every separation rule is satisfied. If it is possible, you must provide the assignment. In cases where more than one valid assignment exists, you must choose the one that is lexicographically smallest when represented as a sequence of $n$ period numbers (each either 1 or 2).
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$).
-Each of the next $m$ lines contains two integers $u$ and $v$, indicating that a phase comparator links field $u$ and field $v$.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$), representing the number of personnel and the number of workstation-sharing records, respectively. Personnel are numbered from 1 to $n$.
+Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$), representing a pair of personnel subject to the separation rule.
 
 ## Output
-If no stable configuration exists, print a single line containing `NO`.
-Otherwise, print `YES` on the first line. On the second line, print $n$ integers $s_1, \dots, s_n$ (each being 1 or 2) representing the lexicographically smallest stable switch configuration.
+If no valid assignment exists that satisfies all separation rules, print a single line containing `NO`.
+Otherwise, print `YES` on the first line. On the second line, print $n$ integers $s_1, s_2, \dots, s_n$ (where each $s_i \in \{1, 2\}$) representing the assigned periods for personnel 1 through $n$. If there are multiple valid assignments, output the sequence that is lexicographically smallest.
 
 ## Example 1
 Input:

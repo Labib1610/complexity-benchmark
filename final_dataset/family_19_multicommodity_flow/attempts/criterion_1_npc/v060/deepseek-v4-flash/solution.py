@@ -1,0 +1,217 @@
+import sys
+from collections import deque
+
+class Dinic:
+    def __init__(self, n):
+        self.n = n
+        self.graph = [[] for _ in range(n)]
+    
+    def add_edge(self, fr, to, cap):
+        forward = [to, cap, None]
+        backward = [fr, 0, forward]
+        forward[2] = backward
+        self.graph[fr].append(forward)
+        self.graph[to].append(backward)
+    
+    def bfs(self, s, t):
+        self.level = [-1] * self.n
+        q = deque([s])
+        self.level[s] = 0
+        while q:
+            v = q.popleft()
+            for to, cap, rev in self.graph[v]:
+                if cap > 0 and self.level[to] < 0:
+                    self.level[to] = self.level[v] + 1
+                    q.append(to)
+        return self.level[t] >= 0
+    
+    def dfs(self, v, t, f):
+        if v == t:
+            return f
+        for i in range(self.it[v], len(self.graph[v])):
+            self.it[v] = i
+            to, cap, rev = self.graph[v][i]
+            if cap > 0 and self.level[v] < self.level[to]:
+                ret = self.dfs(to, t, min(f, cap))
+                if ret > 0:
+                    self.graph[v][i][1] -= ret
+                    rev[1] += ret
+                    return ret
+        return 0
+    
+    def max_flow(self, s, t):
+        flow = 0
+        INF = 10**18
+        while self.bfs(s, t):
+            self.it = [0] * self.n
+            while True:
+                f = self.dfs(s, t, INF)
+                if f == 0:
+                    break
+                flow += f
+        return flow
+
+def solve():
+    input_data = sys.stdin.read().strip().split()
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    k = int(next(it))
+    
+    contracts = []
+    for _ in range(k):
+        s = int(next(it)) - 1
+        t = int(next(it)) - 1
+        d = int(next(it))
+        contracts.append((s, t, d))
+    
+    channels = []
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        cap = int(next(it))
+        channels.append((u, v, cap))
+    
+    # Build flow network with lower bounds
+    # Node indexing: (account, contract) -> id
+    # We'll have n*k nodes for accounts per contract
+    # plus super source and super sink for feasibility
+    
+    node_id = {}
+    idx = 0
+    for i in range(k):
+        for a in range(n):
+            node_id[(a, i)] = idx
+            idx += 1
+    
+    S = idx
+    T = idx + 1
+    SS = idx + 2
+    TT = idx + 3
+    total_nodes = idx + 4
+    
+    dinic = Dinic(total_nodes)
+    
+    INF = 10**15
+    total_demand = 0
+    
+    # For lower bound feasibility, we add edges with lower bound = demand
+    # We'll use the standard transformation:
+    # For edge (u,v) with lower bound l and upper bound u, we add:
+    #   edge from SS to v with capacity l
+    #   edge from u to TT with capacity l
+    #   edge from u to v with capacity u-l
+    
+    # Contract edges: from super source S to origin with demand d
+    # and from destination to super sink T with demand d
+    for i, (s, t, d) in enumerate(contracts):
+        # S -> (s,i) with lower=d, upper=d
+        u = S
+        v = node_id[(s, i)]
+        l = d
+        cap = 0  # upper - lower = 0
+        dinic.add_edge(SS, v, l)
+        dinic.add_edge(u, TT, l)
+        dinic.add_edge(u, v, cap)
+        total_demand += l
+        
+        # (t,i) -> T with lower=d, upper=d
+        u = node_id[(t, i)]
+        v = T
+        l = d
+        cap = 0
+        dinic.add_edge(SS, v, l)
+        dinic.add_edge(u, TT, l)
+        dinic.add_edge(u, v, cap)
+        total_demand += l
+    
+    # Channel edges: for each channel (u,v,cap), for each contract i
+    for u, v, cap in channels:
+        for i in range(k):
+            a = node_id[(u, i)]
+            b = node_id[(v, i)]
+            l = 0
+            # upper = cap
+            dinic.add_edge(a, b, cap)  # upper - lower = cap
+    
+    # Add edge from T to S with infinite capacity to allow circulation
+    dinic.add_edge(T, S, INF)
+    
+    # Check feasibility: max flow from SS to TT must equal total_demand
+    flow = dinic.max_flow(SS, TT)
+    if flow != total_demand:
+        print("NO")
+        return
+    
+    # Extract flows per contract per channel
+    # We need to look at the edges we added for channels.
+    # We stored them in order: for each channel, for each contract.
+    # But Dinic doesn't store original edges easily; we can store references.
+    
+    # Rebuild graph to extract flows? Instead, we can store edge objects.
+    # Simpler: we can run max flow again from S to T and record flows.
+    # But we already have the residual graph. We can inspect the forward edges.
+    
+    # Let's store the edge references during construction.
+    # We'll redo construction but keep references.
+    
+    # Actually, easier: after feasibility, we can run max flow from S to T
+    # on the original network (without lower bound transformation) with capacities = upper bounds,
+    # and the flow will be the same as the feasible flow we found.
+    # But we need per-contract flows.
+    
+    # We'll rebuild a fresh Dinic for extraction:
+    dinic2 = Dinic(total_nodes)
+    # Add edges with original capacities (upper bounds)
+    for i, (s, t, d) in enumerate(contracts):
+        dinic2.add_edge(S, node_id[(s, i)], d)
+        dinic2.add_edge(node_id[(t, i)], T, d)
+    for u, v, cap in channels:
+        for i in range(k):
+            dinic2.add_edge(node_id[(u, i)], node_id[(v, i)], cap)
+    
+    # Run max flow from S to T
+    flow2 = dinic2.max_flow(S, T)
+    if flow2 != sum(d for _,_,d in contracts):
+        print("NO")
+        return
+    
+    # Now extract per-contract flows on each channel
+    # We need to map edge indices. We'll store them.
+    # Let's rebuild with edge references.
+    
+    # We'll create a list to store the forward edge objects for each channel/contract.
+    channel_edges = [[None]*k for _ in range(m)]
+    
+    dinic3 = Dinic(total_nodes)
+    for i, (s, t, d) in enumerate(contracts):
+        dinic3.add_edge(S, node_id[(s, i)], d)
+        dinic3.add_edge(node_id[(t, i)], T, d)
+    for j, (u, v, cap) in enumerate(channels):
+        for i in range(k):
+            a = node_id[(u, i)]
+            b = node_id[(v, i)]
+            # add edge and store reference
+            forward = [b, cap, None]
+            backward = [a, 0, forward]
+            forward[2] = backward
+            dinic3.graph[a].append(forward)
+            dinic3.graph[b].append(backward)
+            channel_edges[j][i] = forward
+    
+    # Run max flow
+    dinic3.max_flow(S, T)
+    
+    # Output
+    print("YES")
+    for i in range(k):
+        row = []
+        for j in range(m):
+            # flow on channel j for contract i = cap - remaining capacity
+            edge = channel_edges[j][i]
+            flow_val = channels[j][2] - edge[1]
+            row.append(str(flow_val))
+        print(" ".join(row))
+
+if __name__ == "__main__":
+    solve()

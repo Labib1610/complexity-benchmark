@@ -1,0 +1,156 @@
+from collections import defaultdict
+import sys
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    q = int(data[0])
+    t = int(data[1])
+    
+    if t == 0:
+        if q == 0:
+            print("YES")
+        else:
+            print("NO")
+        return
+    
+    resonators = []
+    index = 2
+    for i in range(t):
+        a = int(data[index])
+        b = int(data[index+1])
+        c = int(data[index+2])
+        resonators.append((a, b, c))
+        index += 3
+    
+    # Build a graph for matching: each frequency is a node, each resonator is a hyperedge connecting 3 nodes
+    # We want to find a perfect matching that covers all 3q nodes with exactly q hyperedges
+    
+    # This is a 3-dimensional matching problem. We can model it as a graph matching problem.
+    # However, we can also think of it as finding a matching in a 3-uniform hypergraph.
+    # We'll use a backtracking approach with pruning.
+    
+    # Since q <= 200 and t <= 20000, a pure backtracking might be too slow.
+    # We can use a greedy approach or a more efficient algorithm.
+    
+    # Let's try a greedy approach first: for each frequency, keep track of which resonators can cover it.
+    freq_to_resonators = defaultdict(list)
+    for i, (a, b, c) in enumerate(resonators):
+        freq_to_resonators[a].append(i)
+        freq_to_resonators[b].append(i)
+        freq_to_resonators[c].append(i)
+    
+    # We can model this as an exact cover problem and use Algorithm X (Dancing Links)
+    # But for simplicity, let's try a backtracking with optimization
+    
+    # Sort resonators by the least frequent frequency they cover (greedy heuristic)
+    def min_freq_count(res):
+        a, b, c = res
+        return min(len(freq_to_resonators[a]), len(freq_to_resonators[b]), len(freq_to_resonators[c]))
+    
+    # Sort resonators by how "rare" their least frequent frequency is
+    resonators_with_index = [(resonators[i], i) for i in range(t)]
+    resonators_with_index.sort(key=lambda x: min_freq_count(x[0]))
+    
+    selected = [False] * t  # Which resonators are selected
+    covered = [False] * (3*q + 1)  # Which frequencies are covered
+    result = []
+    
+    def backtrack(res_index, count):
+        if count == q:
+            # Check if all frequencies are covered
+            for i in range(1, 3*q + 1):
+                if not covered[i]:
+                    return False
+            return True
+        
+        if res_index == t:
+            return False
+            
+        # Pruning: if remaining resonators can't cover remaining frequencies, return False
+        # This is a loose pruning, but might help
+        
+        # Try not taking current resonator
+        if backtrack(res_index + 1, count):
+            return True
+            
+        # Try taking current resonator
+        res, idx = resonators_with_index[res_index]
+        a, b, c = res
+        
+        if not covered[a] and not covered[b] and not covered[c]:
+            # Take this resonator
+            selected[idx] = True
+            covered[a] = covered[b] = covered[c] = True
+            result.append(res)
+            
+            if backtrack(res_index + 1, count + 1):
+                return True
+                
+            # Backtrack
+            selected[idx] = False
+            covered[a] = covered[b] = covered[c] = False
+            result.pop()
+            
+        return False
+    
+    # This might be too slow. Let's try a different approach.
+    # Model as exact cover and use a more systematic method.
+    
+    # Use a greedy approach: at each step, pick the resonator that covers 3 uncovered frequencies
+    # and whose least frequent frequency is least frequent among all such resonators
+    
+    result_greedy = []
+    covered_greedy = [False] * (3*q + 1)
+    selected_greedy = [False] * t
+    
+    success = True
+    for _ in range(q):
+        # Find a resonator that covers 3 uncovered frequencies
+        found = False
+        best_res = None
+        best_idx = -1
+        best_min_count = float('inf')
+        
+        for i in range(t):
+            if selected_greedy[i]:
+                continue
+            a, b, c = resonators[i]
+            if not covered_greedy[a] and not covered_greedy[b] and not covered_greedy[c]:
+                # This resonator is valid
+                # Calculate min frequency count
+                min_count = min(len(freq_to_resonators[a]), len(freq_to_resonators[b]), len(freq_to_resonators[c]))
+                if min_count < best_min_count:
+                    best_min_count = min_count
+                    best_res = resonators[i]
+                    best_idx = i
+                    found = True
+                    
+        if not found:
+            success = False
+            break
+            
+        # Select this resonator
+        result_greedy.append(best_res)
+        selected_greedy[best_idx] = True
+        a, b, c = best_res
+        covered_greedy[a] = covered_greedy[b] = covered_greedy[c] = True
+        
+    # Verify all frequencies are covered
+    if success:
+        for i in range(1, 3*q + 1):
+            if not covered_greedy[i]:
+                success = False
+                break
+                
+    if success:
+        print("YES")
+        for res in result_greedy:
+            print(res[0], res[1], res[2])
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    main()

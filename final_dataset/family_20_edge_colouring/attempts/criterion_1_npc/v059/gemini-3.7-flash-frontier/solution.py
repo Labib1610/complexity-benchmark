@@ -1,0 +1,280 @@
+import sys
+import time
+import random
+
+# Increase recursion depth just in case
+sys.setrecursionlimit(300000)
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    edges = []
+    adj = [[] for _ in range(n + 1)]
+    idx = 2
+    for i in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx + 1])
+        idx += 2
+        edges.append((u, v))
+        adj[u].append((v, i))
+        adj[v].append((u, i))
+        
+    # Check degrees
+    for u in range(1, n + 1):
+        if len(adj[u]) != 3:
+            print("NO")
+            return
+
+    # Check for bridges using Tarjan's bridge-finding algorithm
+    tin = [0] * (n + 1)
+    low = [0] * (n + 1)
+    timer = 0
+    has_bridge = False
+    
+    def dfs_bridge(v, p_edge):
+        nonlocal timer, has_bridge
+        timer += 1
+        tin[v] = low[v] = timer
+        for to, e_idx in adj[v]:
+            if e_idx == p_edge:
+                continue
+            if tin[to] > 0:
+                low[v] = min(low[v], tin[to])
+            else:
+                dfs_bridge(to, e_idx)
+                low[v] = min(low[v], low[to])
+                if low[to] > tin[v]:
+                    has_bridge = True
+
+    visited_comp = [False] * (n + 1)
+    components = []
+    
+    for i in range(1, n + 1):
+        if not visited_comp[i]:
+            comp_nodes = []
+            comp_edges = []
+            q = [i]
+            visited_comp[i] = True
+            while q:
+                curr = q.pop()
+                comp_nodes.append(curr)
+                for neighbor, e_idx in adj[curr]:
+                    if not visited_comp[neighbor]:
+                        visited_comp[neighbor] = True
+                        q.append(neighbor)
+            
+            seen_e = set()
+            for u in comp_nodes:
+                for v, e_idx in adj[u]:
+                    if e_idx not in seen_e:
+                        seen_e.add(e_idx)
+                        comp_edges.append(e_idx)
+            components.append((comp_nodes, comp_edges))
+            dfs_bridge(i, -1)
+            
+    if has_bridge:
+        print("NO")
+        return
+
+    edge_color = [0] * m
+
+    # Exact backtracking solver for a component
+    def solve_exact(comp_nodes, comp_edges):
+        node_map = {u: i for i, u in enumerate(comp_nodes)}
+        c_n = len(comp_nodes)
+        c_adj = [[] for _ in range(c_n)]
+        c_edges = []
+        for e_idx in comp_edges:
+            u, v = edges[e_idx]
+            nu, nv = node_map[u], node_map[v]
+            c_edges.append((nu, nv, e_idx))
+            c_adj[nu].append(len(c_edges) - 1)
+            c_adj[nv].append(len(c_edges) - 1)
+            
+        colors = [-1] * len(c_edges)
+        
+        # Sort edges by degree / connectivity heuristic
+        order = list(range(len(c_edges)))
+        
+        def backtrack(step):
+            if step == len(order):
+                return True
+            e = order[step]
+            u, v, orig_idx = c_edges[e]
+            
+            used_colors = 0
+            for ne in c_adj[u]:
+                if colors[ne] != -1:
+                    used_colors |= (1 << colors[ne])
+            for ne in c_adj[v]:
+                if colors[ne] != -1:
+                    used_colors |= (1 << colors[ne])
+                    
+            for c in (0, 1, 2):
+                if not (used_colors & (1 << c)):
+                    colors[e] = c
+                    if backtrack(step + 1):
+                        return True
+                    colors[e] = -1
+            return False
+
+        if backtrack(0):
+            for i, (nu, nv, orig_idx) in enumerate(c_edges):
+                edge_color[orig_idx] = colors[i] + 1
+            return True
+        return False
+
+    # Local search solver for a component
+    def solve_local_search(comp_nodes, comp_edges, time_limit=1.5):
+        start_time = time.time()
+        node_map = {u: i for i, u in enumerate(comp_nodes)}
+        c_n = len(comp_nodes)
+        c_m = len(comp_edges)
+        
+        c_edges_u = [0] * c_m
+        c_edges_v = [0] * c_m
+        c_adj = [[] for _ in range(c_n)]
+        
+        for i, e_idx in enumerate(comp_edges):
+            u, v = edges[e_idx]
+            nu, nv = node_map[u], node_map[v]
+            c_edges_u[i] = nu
+            c_edges_v[i] = nv
+            c_adj[nu].append(i)
+            c_adj[nv].append(i)
+            
+        color = [0] * c_m
+        cnt = [0] * (c_n * 3)
+        
+        max_restarts = 50
+        for _ in range(max_restarts):
+            if time.time() - start_time > time_limit:
+                break
+                
+            # Random initialization
+            for i in range(c_n * 3):
+                cnt[i] = 0
+            for i in range(c_m):
+                c = random.randrange(3)
+                color[i] = c
+                cnt[c_edges_u[i] * 3 + c] += 1
+                cnt[c_edges_v[i] * 3 + c] += 1
+                
+            conflicts = 0
+            for i in range(c_n * 3):
+                if cnt[i] > 1:
+                    conflicts += cnt[i] - 1
+                    
+            if conflicts == 0:
+                for i, e_idx in enumerate(comp_edges):
+                    edge_color[e_idx] = color[i] + 1
+                return True
+                
+            max_steps = c_m * 30
+            tabu = [-1] * (c_m * 3)
+            
+            for step in range(max_steps):
+                if step % 256 == 0 and time.time() - start_time > time_limit:
+                    break
+                    
+                # Pick a random edge in conflict
+                # Sample random edges until we find one in conflict
+                e = -1
+                for _ in range(20):
+                    cand = random.randrange(c_m)
+                    c = color[cand]
+                    if cnt[c_edges_u[cand] * 3 + c] > 1 or cnt[c_edges_v[cand] * 3 + c] > 1:
+                        e = cand
+                        break
+                if e == -1:
+                    for cand in range(c_m):
+                        c = color[cand]
+                        if cnt[c_edges_u[cand] * 3 + c] > 1 or cnt[c_edges_v[cand] * 3 + c] > 1:
+                            e = cand
+                            break
+                            
+                if e == -1:
+                    for i, e_idx in enumerate(comp_edges):
+                        edge_color[e_idx] = color[i] + 1
+                    return True
+                    
+                u = c_edges_u[e]
+                v = c_edges_v[e]
+                cur_c = color[e]
+                
+                best_c = -1
+                best_delta = 999999
+                
+                # Evaluate new colors
+                c1 = (cur_c + 1) % 3
+                c2 = (cur_c + 2) % 3
+                
+                for nc in (c1, c2):
+                    # Delta if we change e to nc:
+                    # u: cnt[u, cur_c] decreases, cnt[u, nc] increases
+                    delta = 0
+                    if cnt[u * 3 + cur_c] > 1: delta -= 1
+                    if cnt[v * 3 + cur_c] > 1: delta -= 1
+                    if cnt[u * 3 + nc] >= 1: delta += 1
+                    if cnt[v * 3 + nc] >= 1: delta += 1
+                    
+                    is_tabu = (tabu[e * 3 + nc] > step)
+                    if conflicts + delta == 0:
+                        best_c = nc
+                        best_delta = delta
+                        break
+                        
+                    if delta < best_delta or (delta == best_delta and random.random() < 0.5):
+                        if not is_tabu or random.random() < 0.05:
+                            best_delta = delta
+                            best_c = nc
+                            
+                if best_c == -1 or (best_delta >= 0 and random.random() < 0.15):
+                    best_c = random.choice((c1, c2))
+                    best_delta = 0
+                    if cnt[u * 3 + cur_c] > 1: best_delta -= 1
+                    if cnt[v * 3 + cur_c] > 1: best_delta -= 1
+                    if cnt[u * 3 + best_c] >= 1: best_delta += 1
+                    if cnt[v * 3 + best_c] >= 1: best_delta += 1
+                    
+                cnt[u * 3 + cur_c] -= 1
+                cnt[v * 3 + cur_c] -= 1
+                cnt[u * 3 + best_c] += 1
+                cnt[v * 3 + best_c] += 1
+                color[e] = best_c
+                conflicts += best_delta
+                tabu[e * 3 + cur_c] = step + random.randint(3, 10)
+                
+                if conflicts == 0:
+                    for i, e_idx in enumerate(comp_edges):
+                        edge_color[e_idx] = color[i] + 1
+                    return True
+                    
+        return False
+
+    # Solve each component
+    for comp_nodes, comp_edges in components:
+        c_n = len(comp_nodes)
+        if c_n <= 30:
+            if not solve_exact(comp_nodes, comp_edges):
+                print("NO")
+                return
+        else:
+            time_per_comp = max(0.5, 4.0 / len(components))
+            if not solve_local_search(comp_nodes, comp_edges, time_limit=time_per_comp):
+                # Fallback to exact if small enough or fail
+                if c_n <= 50 and solve_exact(comp_nodes, comp_edges):
+                    continue
+                print("NO")
+                return
+
+    print("YES")
+    print(*(edge_color[i] for i in range(m)))
+
+if __name__ == '__main__':
+    solve()

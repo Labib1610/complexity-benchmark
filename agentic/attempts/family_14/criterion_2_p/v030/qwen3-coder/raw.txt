@@ -1,0 +1,127 @@
+```python
+import sys
+from collections import defaultdict
+import threading
+
+def main():
+    import sys
+    sys.setrecursionlimit(1 << 25)
+    
+    n, m, t = map(int, sys.stdin.readline().split())
+    priority = set(map(int, sys.stdin.readline().split()))
+    
+    # Since m = n-1 and the graph is connected, it's a tree
+    adj = [[] for _ in range(n+1)]
+    edges = []
+    
+    for _ in range(m):
+        u, v, w = map(int, sys.stdin.readline().split())
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+        edges.append((u, v, w))
+    
+    # If there's only one priority zone, no ducts needed
+    if t <= 1:
+        print(0)
+        return
+    
+    # We need to find the minimal subtree that connects all priority nodes
+    # This is the Steiner tree problem on a tree, which can be solved efficiently
+    
+    # Approach: 
+    # 1. Root the tree at any node (e.g., node 1)
+    # 2. For each node, compute whether its subtree contains any priority node
+    # 3. A edge needs to be included if it lies on the path between two priority nodes
+    # 4. In a tree, this is equivalent to including all edges in the minimal connected subtree containing all priorities
+    
+    # Let's use a different approach:
+    # Find the minimal connected subgraph containing all priority nodes
+    # In a tree, this is unique - it's the union of paths between all pairs of priority nodes
+    # But there's a simpler way: find the "Steiner tree" for the priority nodes
+    
+    # Algorithm:
+    # 1. Root the tree at an arbitrary node
+    # 2. Compute for each node:
+    #    - parent and depth for tree traversal
+    #    - whether the subtree contains any priority node
+    # 3. An edge (u,v) where u is the parent of v is needed iff:
+    #    - v's subtree contains at least one priority AND 
+    #    - the complement of v's subtree contains at least one priority
+    
+    # Root the tree at node 1
+    parent = [-1] * (n+1)
+    depth = [0] * (n+1)
+    children = [[] for _ in range(n+1)]
+    
+    def dfs(u, par, d):
+        parent[u] = par
+        depth[u] = d
+        for v, w in adj[u]:
+            if v != par:
+                children[u].append((v, w))
+                dfs(v, u, d+1)
+                
+    dfs(1, -1, 0)
+    
+    # Mark which subtrees contain priority nodes
+    contains_priority = [False] * (n+1)
+    
+    # Mark leaves first
+    def mark_priority_subtree(u):
+        if u in priority:
+            contains_priority[u] = True
+        for v, w in children[u]:
+            mark_priority_subtree(v)
+            if contains_priority[v]:
+                contains_priority[u] = True
+                
+    mark_priority_subtree(1)
+    
+    # Now count edges that must be included
+    total_energy = 0
+    
+    # For each edge from parent to child, check if it's needed
+    def calculate_energy(u):
+        nonlocal total_energy
+        for v, w in children[u]:
+            # Edge (u,v) is needed if:
+            # 1. v's subtree has a priority node, AND
+            # 2. The rest of the tree (including u's ancestors) has another priority node
+            # Or equivalently: v's subtree has at least one priority, and 
+            # the closure of v's subtree (entire tree minus v's subtree) also has at least one priority
+            
+            # Simpler condition:
+            # Edge (parent[v], v) is needed if both:
+            # - subtree of v contains at least one priority
+            # - the rest of the tree (complement of subtree of v) contains at least one priority
+            
+            if contains_priority[v]:  # v's subtree has priority
+                # Check if complement has priority
+                # Complement includes everything except v's subtree
+                # So we need to see if there's a priority outside v's subtree
+                # This happens unless ALL priorities are inside v's subtree
+                
+                # Count how many priorities are in v's subtree
+                count_in_subtree = 0
+                
+                # Helper to count priorities in subtree
+                def count_priorities(node):
+                    cnt = 1 if node in priority else 0
+                    for ch, cw in children[node]:
+                        cnt += count_priorities(ch)
+                    return cnt
+                    
+                count_in_subtree = count_priorities(v)
+                
+                # If not all priorities are in subtree, then we need this edge
+                if count_in_subtree < t:
+                    total_energy += w
+                    
+            calculate_energy(v)
+            
+    calculate_energy(1)
+    
+    print(total_energy)
+
+threading.Thread(target=main).start()
+```

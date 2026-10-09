@@ -1,0 +1,265 @@
+import sys
+import heapq
+import itertools
+
+sys.setrecursionlimit(1_000_000)
+
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+
+    n, M, T, m = data[:4]
+    g = [[] for _ in range(n)]
+    rg = [[] for _ in range(n)]
+    indeg = [0] * n
+
+    p = 4
+    for _ in range(m):
+        a = data[p] - 1
+        b = data[p + 1] - 1
+        p += 2
+        g[a].append(b)
+        rg[b].append(a)
+        indeg[b] += 1
+
+    if M <= 0 or T <= 0 or n > M * T:
+        print("NO")
+        return
+
+    # Topological order and cycle detection.
+    q = [v for v in range(n) if indeg[v] == 0]
+    topo = []
+    head = 0
+    deg = indeg[:]
+
+    while head < len(q):
+        v = q[head]
+        head += 1
+        topo.append(v)
+        for u in g[v]:
+            deg[u] -= 1
+            if deg[u] == 0:
+                q.append(u)
+
+    if len(topo) != n:
+        print("NO")
+        return
+
+    # Longest path ending at / starting from each vertex.
+    top = [1] * n
+    for v in topo:
+        nv = top[v] + 1
+        for u in g[v]:
+            if top[u] < nv:
+                top[u] = nv
+
+    bottom = [1] * n
+    for v in reversed(topo):
+        best = 1
+        for u in g[v]:
+            cand = bottom[u] + 1
+            if cand > best:
+                best = cand
+        bottom[v] = best
+
+    if max(bottom, default=0) > T:
+        print("NO")
+        return
+
+    hashes = [
+        ((i + 1) * 11995408973635179863 ^ ((i + 7) * 10150724397891781847))
+        & ((1 << 64) - 1)
+        for i in range(n)
+    ]
+
+    def forward_schedule(mode):
+        d = indeg[:]
+        heap = []
+
+        def key(v):
+            if mode == 0:
+                return (-bottom[v], -len(g[v]), v)
+            if mode == 1:
+                return (-bottom[v], hashes[v], v)
+            if mode == 2:
+                return (-len(g[v]), -bottom[v], hashes[v], v)
+            return (hashes[v], -bottom[v], v)
+
+        for v in range(n):
+            if d[v] == 0:
+                heapq.heappush(heap, (key(v), v))
+
+        ans = [0] * n
+        done = 0
+        cycle = 1
+
+        while heap and cycle <= T:
+            batch = []
+            for _ in range(min(M, len(heap))):
+                _, v = heapq.heappop(heap)
+                batch.append(v)
+                ans[v] = cycle
+
+            done += len(batch)
+            for v in batch:
+                for u in g[v]:
+                    d[u] -= 1
+                    if d[u] == 0:
+                        heapq.heappush(heap, (key(u), u))
+            cycle += 1
+
+        return ans if done == n else None
+
+    def backward_schedule(mode):
+        outdeg = [len(g[v]) for v in range(n)]
+        heap = []
+
+        def key(v):
+            if mode == 0:
+                return (-top[v], -len(rg[v]), v)
+            if mode == 1:
+                return (-top[v], hashes[v], v)
+            if mode == 2:
+                return (-len(rg[v]), -top[v], hashes[v], v)
+            return (hashes[v], -top[v], v)
+
+        for v in range(n):
+            if outdeg[v] == 0:
+                heapq.heappush(heap, (key(v), v))
+
+        ans = [0] * n
+        done = 0
+        cycle = T
+
+        while heap and cycle >= 1:
+            batch = []
+            for _ in range(min(M, len(heap))):
+                _, v = heapq.heappop(heap)
+                batch.append(v)
+                ans[v] = cycle
+
+            done += len(batch)
+            for v in batch:
+                for u in rg[v]:
+                    outdeg[u] -= 1
+                    if outdeg[u] == 0:
+                        heapq.heappush(heap, (key(u), u))
+            cycle -= 1
+
+        return ans if done == n else None
+
+    modes = (0, 1, 2, 3) if n <= 20000 else (0, 2)
+
+    for mode in modes:
+        ans = forward_schedule(mode)
+        if ans is not None:
+            print("YES")
+            print(*ans)
+            return
+
+    for mode in modes:
+        ans = backward_schedule(mode)
+        if ans is not None:
+            print("YES")
+            print(*ans)
+            return
+
+    # Exact search for smaller difficult instances.
+    if n <= 26:
+        pred_mask = [0] * n
+        for v in range(n):
+            mask = 0
+            for u in rg[v]:
+                mask |= 1 << u
+            pred_mask[v] = mask
+
+        full = (1 << n) - 1
+        latest = [T - bottom[v] + 1 for v in range(n)]
+        answer = [0] * n
+        failed = set()
+
+        def dfs(mask, cycle):
+            if mask == full:
+                return True
+            if cycle > T:
+                return False
+
+            state = (mask, cycle)
+            if state in failed:
+                return False
+
+            remaining_count = n - mask.bit_count()
+            if remaining_count > M * (T - cycle + 1):
+                failed.add(state)
+                return False
+
+            deadlines = []
+            available = []
+            urgent = []
+
+            unseen = full ^ mask
+            x = unseen
+            while x:
+                bit = x & -x
+                v = bit.bit_length() - 1
+                x -= bit
+
+                dline = latest[v]
+                if dline < cycle:
+                    failed.add(state)
+                    return False
+                deadlines.append(dline)
+
+                if pred_mask[v] & unseen == 0:
+                    available.append(v)
+                    if dline == cycle:
+                        urgent.append(v)
+                elif dline == cycle:
+                    failed.add(state)
+                    return False
+
+            deadlines.sort()
+            for i, dline in enumerate(deadlines, 1):
+                if i > M * (dline - cycle + 1):
+                    failed.add(state)
+                    return False
+
+            if not available:
+                failed.add(state)
+                return False
+
+            take = min(M, len(available))
+            if len(urgent) > take:
+                failed.add(state)
+                return False
+
+            urgent_set = set(urgent)
+            optional = [v for v in available if v not in urgent_set]
+            optional.sort(key=lambda v: (-bottom[v], -len(g[v]), v))
+            need = take - len(urgent)
+
+            for extra in itertools.combinations(optional, need):
+                selected = urgent + list(extra)
+                new_mask = mask
+                for v in selected:
+                    new_mask |= 1 << v
+                    answer[v] = cycle
+
+                if dfs(new_mask, cycle + 1):
+                    return True
+
+            failed.add(state)
+            return False
+
+        if dfs(0, 1):
+            print("YES")
+            print(*answer)
+            return
+
+    print("NO")
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,73 @@
+# Problem C — Impossible Deadline: Certify It
+
+Time limit: 2 s   Memory limit: 256 MB
+
+## Description
+
+A data center must resolve **j** queries. Each query requires sequential execution: it must first complete a data retrieval phase on the storage array (Component 1), and subsequently complete an analysis phase on the compute node (Component 2). For each query, you are given the exact number of minutes required on Component 1, and the exact number of minutes required on Component 2. 
+
+The system operates under strict concurrency limits:
+- A query can only begin its Component 2 phase after its Component 1 phase is entirely complete.
+- The storage array (Component 1) can process at most one query at any given moment.
+- The compute node (Component 2) can process at most one query at any given moment.
+- All queries must be completely finished by time **T**.
+
+For every input in this problem, it is **guaranteed that the deadline cannot be met**, no matter how the system schedules the queries. Your task is not to search for a schedule; it is to **prove** the deadline is impossible by outputting a short certificate. 
+
+It is guaranteed that exactly one of the following structural bottlenecks applies to the given input. Print the certificate corresponding to the unique applicable bottleneck:
+
+- **Sequential Bottleneck:** Even if granted exclusive access to the entire system from time zero, a query's uninterrupted end-to-end execution (its Component 1 phase immediately followed by its Component 2 phase) cannot be completed by time **T**.
+  Print: `JOB i` — where **i** (1-based index) is such a query.
+
+- **Throughput Bottleneck:** A component cannot concurrently process multiple queries. Consequently, its minimum active duration is the total of all corresponding phases across all queries. If this total required duration for the storage array strictly exceeds **T**, the schedule fails. The compute node is subject to the identical throughput constraint.
+  Print: `LOAD c` — where **c** is 1 (if the storage array's total duration strictly exceeds **T**) or 2 (if the compute node's total duration strictly exceeds **T**).
+
+## Input
+
+The first line contains two integers **j** and **T** (1 ≤ j ≤ 200000, 1 ≤ T ≤ 1000000000).
+Each of the next **j** lines contains two integers **p1** and **p2** (1 ≤ p1, p2 ≤ 1000000): the required minutes of the query on Component 1 and Component 2.
+
+## Output
+
+Print a single line containing the certificate:
+- `JOB i` (where **i** is the 1-based query index whose sequential phases sum to strictly more than **T**)
+- `LOAD c` (where **c** is 1 or 2, if Component **c**'s total required time across all queries strictly exceeds **T**)
+
+## Examples
+
+### Example 1
+
+**Input**
+```
+3 100
+70 60
+2 2
+3 4
+```
+
+**Output**
+```
+JOB 1
+```
+
+### Example 2
+
+**Input**
+```
+4 150
+50 1
+50 1
+50 1
+50 1
+```
+
+**Output**
+```
+LOAD 1
+```
+
+## Note
+
+In Example 1, query 1 has an uninterrupted end-to-end execution requiring 70 minutes on Component 1 and 60 minutes on Component 2. This sequence cannot be completed by time 100, so `JOB 1` proves the deadline is impossible.
+
+In Example 2, no single query fails the sequential bottleneck. However, Component 1's required active duration across all queries totals 200 minutes. Because Component 1 cannot concurrently process multiple queries, this duration cannot be completed by time 150, making `LOAD 1` the certificate.

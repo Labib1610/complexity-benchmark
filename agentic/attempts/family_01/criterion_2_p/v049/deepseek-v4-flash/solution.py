@@ -13,6 +13,7 @@ for _ in range(m):
     adj[v].append(u)
 
 color = [-1] * n
+possible = True
 
 for i in range(n):
     if color[i] == -1:
@@ -25,8 +26,45 @@ for i in range(n):
                     color[v] = color[u] ^ 1
                     q.append(v)
                 elif color[v] == color[u]:
-                    print("NO")
-                    sys.exit()
+                    possible = False
+                    break
+            if not possible:
+                break
+    if not possible:
+        break
 
-print("YES")
-print(" ".join(str(c + 1) for c in color))
+if not possible:
+    print("NO")
+else:
+    # Now we have a valid bipartition, but we want lexicographically smallest.
+    # We can try to flip components if it makes earlier workers shift 1.
+    # We'll do BFS again, but for each component, decide orientation.
+    visited = [False] * n
+    assign = [1] * n  # 1-based shift values
+
+    for i in range(n):
+        if not visited[i]:
+            # BFS to collect component
+            comp = []
+            q = deque([i])
+            visited[i] = True
+            color_map = {i: 0}
+            while q:
+                u = q.popleft()
+                comp.append(u)
+                for v in adj[u]:
+                    if not visited[v]:
+                        visited[v] = True
+                        color_map[v] = color_map[u] ^ 1
+                        q.append(v)
+            # Now decide orientation: try to make smallest index in comp shift 1
+            # If smallest index currently has color 1, flip all colors in comp
+            smallest = min(comp)
+            if color_map[smallest] == 1:
+                for u in comp:
+                    color_map[u] ^= 1
+            for u in comp:
+                assign[u] = color_map[u] + 1
+
+    print("YES")
+    print(" ".join(map(str, assign)))

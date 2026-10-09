@@ -1,0 +1,56 @@
+import sys
+from math import gcd
+
+def is_safe(x, y):
+    W1 = (2 ** x) + y
+    W2 = (2 ** y) + x
+    return gcd(W1, W2) == 1
+
+def solve():
+    n, m = map(int, sys.stdin.readline().split())
+    
+    # Precompute which mode pairs are safe
+    safe_pairs = [[False]*4 for _ in range(4)]
+    for i in range(1, 4):
+        for j in range(1, 4):
+            if is_safe(i, j):
+                safe_pairs[i][j] = True
+
+    # Read constraints
+    constraints = []
+    adj = [[] for _ in range(n+1)]
+    for _ in range(m):
+        u, v = map(int, sys.stdin.readline().split())
+        constraints.append((u, v))
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # Try all 3^n assignments
+    assignment = [0] * (n+1)
+    
+    def backtrack(emitter):
+        if emitter > n:
+            return True
+            
+        for mode in range(1, 4):
+            valid = True
+            for neighbor in adj[emitter]:
+                if assignment[neighbor] != 0:  # Already assigned
+                    if not safe_pairs[mode][assignment[neighbor]]:
+                        valid = False
+                        break
+            if valid:
+                assignment[emitter] = mode
+                if backtrack(emitter + 1):
+                    return True
+                assignment[emitter] = 0
+        
+        return False
+    
+    if backtrack(1):
+        print("YES")
+        print(' '.join(map(str, assignment[1:])))
+    else:
+        print("NO")
+
+solve()

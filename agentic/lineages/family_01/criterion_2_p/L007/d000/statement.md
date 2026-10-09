@@ -1,16 +1,16 @@
-# Problem B — Day and Night
+# Problem B — Frequencies and Interference
 
 Time limit: 1 s   Memory limit: 256 MB
 
-The factory planning process consists of three stages. In the first stage, human resources collects employee availability to determine exactly $n$ workers and $m$ conflict pairs. Your task is the second stage: given this data, assign each worker to one of two shifts, labeled 1 and 2, so that no conflicting pair shares a shift, or report impossibility. In the third stage, this schedule will be sent to the payroll department for final processing.
+A communication network now uses only two frequencies, labeled 1 and 2. With $n$ radio towers and $m$ interfering pairs, assign each tower a frequency so that no interfering pair shares a frequency, or report impossibility.
 
 ## Input
 The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$).
-Each of the next $m$ lines contains two integers $u$ and $v$ — a conflicting pair.
+Each of the next $m$ lines contains two integers $u$ and $v$ — an interfering pair of towers.
 
 ## Output
 If no valid assignment exists, print a single line NO.
-Otherwise print YES, then a second line with $n$ integers $s_1 \dots s_n$ (each in {1,2}), the lexicographically smallest valid assignment.
+Otherwise print YES, then a second line with $n$ integers $f_1 \dots f_n$ (each in $\{1,2\}$), the lexicographically smallest valid assignment.
 
 ## Example 1
 Input:

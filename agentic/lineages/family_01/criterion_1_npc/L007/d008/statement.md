@@ -1,28 +1,28 @@
-# Problem A — Channel Separation Configuration
+# Problem A — Orbital Resonance Alignment
 
 Time limit: 2 s   Memory limit: 256 MB
 
-A data center needs to assign a channel $c_u \in \{1, 2, 3\}$ to each of $n$ communication nodes.
-There are $m$ interference links, each connecting a pair of nodes.
+A space station has $n$ stabilizing gyroscopes. To maintain operational equilibrium, each gyroscope must be tuned to a frequency band $s_i \in \{1, 2, 3\}$.
 
-To evaluate the configuration, each channel is associated with a 3-bit transmission signature:
-- Channel 1 uses signature `011` (decimal 3).
-- Channel 2 uses signature `101` (decimal 5).
-- Channel 3 uses signature `110` (decimal 6).
+The station's structural integrity depends on $m$ critical load-bearing struts, each connecting a specific pair of gyroscopes. The interaction between connected gyroscopes generates a resonance drift.
 
-For each of the $m$ links connecting a pair of nodes $u$ and $v$, the hardware computes the bitwise XOR of their assigned signatures. The link's separation score is defined as the number of 1-bits (the popcount) in this XOR result.
+For a strut connecting gyroscope $u$ and gyroscope $v$, the resonance drift $D_{u,v}$ is calculated using the following orbital mechanics formula:
+$D_{u,v} = (s_u^2 + s_v^2) \pmod{s_u \times s_v}$
 
-The overall network is considered fully separated if and only if the sum of the separation scores across all $m$ links is exactly $2m$.
+The total system drift $W$ is the sum of the resonance drifts across all $m$ struts:
+$W = \sum_{j=1}^m D_{u_j, v_j}$
 
-Your task is to determine if there exists a channel assignment that makes the network fully separated. If at least one valid assignment exists, you must identify the one that is lexicographically smallest.
+To maintain perfect structural stability, the total system drift must be exactly equal to the number of struts. (That is, $W = m$).
+
+Your task is to determine whether there exists a valid frequency assignment for all gyroscopes $1 \dots n$ such that the total system drift $W$ is exactly $m$. If such an assignment exists, you must provide one.
 
 ## Input
-The first line of the input provides two integers $n$ and $m$ ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$). These represent the total number of nodes and the number of interference links, respectively.
-The following $m$ lines each contain two integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), indicating that node $u$ and node $v$ are connected by an interference link.
+The first line contains two integers $n$ and $m$ — the number of gyroscopes and the number of struts ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
+Each of the following $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), indicating a strut connecting gyroscope $u$ and gyroscope $v$. Each strut is listed at most once.
 
 ## Output
-If no fully separated assignment can be found, print `NO` on a single line.
-If a valid assignment is possible, print `YES` on the first line. On the second line, print $n$ integers $c_1, c_2, \dots, c_n$ (where each $c_i \in \{1, 2, 3\}$) representing the channel assigned to each respective node. Among all valid configurations, the sequence of channels you output must be the lexicographically smallest (i.e., comparing the channel of node 1 first, then node 2, and so forth).
+If it is impossible to align the gyroscopes to the required drift state, output a single line containing `NO`.
+Otherwise, output `YES` on the first line. On the second line, output $n$ integers $s_1, s_2, \dots, s_n$ (where each $s_i \in \{1, 2, 3\}$), with $s_i$ representing the frequency band assigned to gyroscope $i$. Any valid assignment is accepted.
 
 ## Example 1
 Input:
@@ -39,6 +39,15 @@ Output:
 YES
 1 2 3 3
 ```
+*Explanation for Example 1:*
+Assigning frequency bands 1, 2, 3, 3 yields the following resonance drifts:
+- Strut (1, 2) with bands 1 and 2: $D_{1,2} = (1^2 + 2^2) \pmod{1 \times 2} = 5 \pmod 2 = 1$.
+- Strut (1, 3) with bands 1 and 3: $D_{1,3} = (1^2 + 3^2) \pmod{1 \times 3} = 10 \pmod 3 = 1$.
+- Strut (2, 3) with bands 2 and 3: $D_{2,3} = (2^2 + 3^2) \pmod{2 \times 3} = 13 \pmod 6 = 1$.
+- Strut (1, 4) with bands 1 and 3: $D_{1,4} = (1^2 + 3^2) \pmod{1 \times 3} = 10 \pmod 3 = 1$.
+- Strut (2, 4) with bands 2 and 3: $D_{2,4} = (2^2 + 3^2) \pmod{2 \times 3} = 13 \pmod 6 = 1$.
+
+The total system drift $W$ is $1 + 1 + 1 + 1 + 1 = 5$. Since $m = 5$, the configuration achieves the target drift and is stable.
 
 ## Example 2
 Input:

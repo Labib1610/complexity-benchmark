@@ -1,0 +1,152 @@
+```python
+import sys
+from array import array
+
+def output_layout(order, n):
+    pos = [0] * n
+    for i, v in enumerate(order, 1):
+        pos[v] = i
+    print("YES")
+    print(*pos)
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+
+    n, m, budget = data[0], data[1], data[2]
+    edges = []
+    adj_mask = [0] * n
+    graph = [[] for _ in range(n)]
+
+    p = 3
+    identity_cost = 0
+    for _ in range(m):
+        u = data[p] - 1
+        v = data[p + 1] - 1
+        p += 2
+        edges.append((u, v))
+        adj_mask[u] |= 1 << v
+        adj_mask[v] |= 1 << u
+        graph[u].append(v)
+        graph[v].append(u)
+        identity_cost += abs(u - v)
+
+    if n == 1:
+        print("YES")
+        print(1)
+        return
+
+    if budget < m:
+        print("NO")
+        return
+
+    if identity_cost <= budget:
+        print("YES")
+        print(*range(1, n + 1))
+        return
+
+    # Try a few inexpensive DFS layouts before starting the exact subset DP.
+    roots = [0, max(range(n), key=lambda x: len(graph[x]))]
+    seen_roots = set()
+    for root in roots:
+        if root in seen_roots:
+            continue
+        seen_roots.add(root)
+
+        order = []
+        stack = [(root, -1)]
+        while stack:
+            u, parent = stack.pop()
+            order.append(u)
+            neighbors = graph[u]
+            for i in range(len(neighbors) - 1, -1, -1):
+                v = neighbors[i]
+                if v != parent:
+                    stack.append((v, u))
+
+        if len(order) == n:
+            pos = [0] * n
+            for i, v in enumerate(order):
+                pos[v] = i
+            cost = sum(abs(pos[u] - pos[v]) for u, v in edges)
+            if cost <= budget:
+                output_layout(order, n)
+                return
+
+    size = 1 << n
+    max_cost = m * (n - 1)
+    inf = max_cost + 1
+
+    if inf <= 0xFFFFFFFF:
+        dp = array('I', [inf]) * size
+    else:
+        dp = array('Q', [inf]) * size
+    dp[0] = 0
+
+    if m <= 255:
+        cuts = array('B', [0]) * size
+    elif m <= 65535:
+        cuts = array('H', [0]) * size
+    else:
+        cuts = array('I', [0]) * size
+
+    degrees = [len(graph[i]) for i in range(n)]
+    dp_local = dp
+    cuts_local = cuts
+    adj_local = adj_mask
+    deg_local = degrees
+
+    for s in range(1, size):
+        low = s & -s
+        previous = s - low
+        vertex = low.bit_length() - 1
+
+        cut = (
+            cuts_local[previous]
+            + deg_local[vertex]
+            - 2 * ((adj_local[vertex] & previous).bit_count())
+        )
+        cuts_local[s] = cut
+
+        bits = s
+        best = inf
+        while bits:
+            bit = bits & -bits
+            value = dp_local[s - bit]
+            if value < best:
+                best = value
+            bits -= bit
+
+        value = best + cut
+        dp_local[s] = value if value <= max_cost else inf
+
+    full = size - 1
+    if dp_local[full] > budget:
+        print("NO")
+        return
+
+    positions = [0] * n
+    s = full
+    slot = n
+    while s:
+        cut = cuts_local[s]
+        bits = s
+        target = dp_local[s]
+        while bits:
+            bit = bits & -bits
+            previous = s - bit
+            if dp_local[previous] + cut == target:
+                vertex = bit.bit_length() - 1
+                positions[vertex] = slot
+                s = previous
+                slot -= 1
+                break
+            bits -= bit
+
+    print("YES")
+    print(*positions)
+
+if __name__ == "__main__":
+    main()
+```

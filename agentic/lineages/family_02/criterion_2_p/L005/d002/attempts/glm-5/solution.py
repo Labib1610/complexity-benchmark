@@ -1,0 +1,68 @@
+import sys
+sys.setrecursionlimit(1 << 25)
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [[] for _ in range(2 * n + 1)]
+    
+    for _ in range(m):
+        l1 = int(next(it))
+        l2 = int(next(it))
+        u = l1 if l1 > 0 else n - l1
+        v = l2 if l2 > 0 else n - l2
+        nu = n + l1 if l1 < 0 else n - l1
+        nv = n + l2 if l2 < 0 else n - l2
+        adj[nu].append(v)
+        adj[nv].append(u)
+    
+    visited = [False] * (2 * n + 1)
+    order = []
+    
+    for i in range(1, 2 * n + 1):
+        if not visited[i]:
+            stack = [(i, 0)]
+            while stack:
+                node, idx = stack[-1]
+                if not visited[node]:
+                    visited[node] = True
+                if idx < len(adj[node]):
+                    stack[-1] = (node, idx + 1)
+                    nei = adj[node][idx]
+                    if not visited[nei]:
+                        stack.append((nei, 0))
+                else:
+                    stack.pop()
+                    order.append(node)
+    
+    comp = [-1] * (2 * n + 1)
+    comp_id = 0
+    
+    for i in reversed(order):
+        if comp[i] == -1:
+            stack = [i]
+            comp[i] = comp_id
+            while stack:
+                node = stack.pop()
+                for nei in adj[node]:
+                    if comp[nei] == -1:
+                        comp[nei] = comp_id
+                        stack.append(nei)
+            comp_id += 1
+    
+    assignment = [0] * (n + 1)
+    for i in range(1, n + 1):
+        if comp[i] == comp[n + i]:
+            print("NO")
+            return
+        assignment[i] = 1 if comp[i] > comp[n + i] else 0
+    
+    print("YES")
+    print(' '.join(map(str, assignment[1:])))
+
+solve()

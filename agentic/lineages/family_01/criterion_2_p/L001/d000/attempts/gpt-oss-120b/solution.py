@@ -9,55 +9,43 @@ def solve() -> None:
     n = int(next(it))
     m = int(next(it))
 
-    g = [[] for _ in range(n)]
+    adj = [[] for _ in range(n + 1)]
     for _ in range(m):
-        u = int(next(it)) - 1
-        v = int(next(it)) - 1
-        g[u].append(v)
-        g[v].append(u)
+        u = int(next(it)); v = int(next(it))
+        adj[u].append(v)
+        adj[v].append(u)
 
-    provisional = [-1] * n          # 0 / 1 provisional colours
-    answer = [0] * n                # final windows (1 or 2)
+    colour = [-1] * (n + 1)          # temporary 0/1
+    answer = [0] * (n + 1)           # final 1/2
 
-    for start in range(n):
-        if provisional[start] != -1:
+    for start in range(1, n + 1):
+        if colour[start] != -1:
             continue
-
-        # BFS of this component
+        # BFS of a new component
         q = deque([start])
-        provisional[start] = 0
-        comp = [start]
-        bipartite = True
+        colour[start] = 0
+        comp = []
+        while q:
+            x = q.popleft()
+            comp.append(x)
+            cx = colour[x]
+            for y in adj[x]:
+                if colour[y] == -1:
+                    colour[y] = cx ^ 1
+                    q.append(y)
+                elif colour[y] == cx:
+                    sys.stdout.write("NO")
+                    return
 
-        while q and bipartite:
-            u = q.popleft()
-            cu = provisional[u]
-            for v in g[u]:
-                cv = provisional[v]
-                if cv == -1:
-                    provisional[v] = cu ^ 1
-                    q.append(v)
-                    comp.append(v)
-                elif cv == cu:
-                    bipartite = False
-                    break
-
-        if not bipartite:
-            print("NO")
-            return
-
-        # orient component so that its smallest index gets window 1
-        min_vertex = min(comp)
-        if provisional[min_vertex] == 0:
-            map0, map1 = 1, 2
-        else:
-            map0, map1 = 2, 1
-
+        # decide orientation: smallest vertex gets bus 1
+        min_v = min(comp)
+        flip = colour[min_v]          # 0 -> no flip, 1 -> flip
         for v in comp:
-            answer[v] = map0 if provisional[v] == 0 else map1
+            final = colour[v] ^ flip
+            answer[v] = 1 if final == 0 else 2
 
-    print("YES")
-    sys.stdout.write(' '.join(map(str, answer)))
+    out = ["YES", " ".join(str(answer[i]) for i in range(1, n + 1))]
+    sys.stdout.write("\n".join(out))
 
 if __name__ == "__main__":
     solve()

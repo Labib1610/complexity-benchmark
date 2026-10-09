@@ -9,39 +9,42 @@ def solve() -> None:
     it = iter(data)
     n = int(next(it))
     m = int(next(it))
-
     adj = [[] for _ in range(n)]
     for _ in range(m):
         u = int(next(it)) - 1
         v = int(next(it)) - 1
-        if u == v:
-            continue
         adj[u].append(v)
         adj[v].append(u)
 
-    colour = [0] * n          # 0 = uncoloured, else 1..3
+    # order vertices by descending degree for better pruning
+    order = sorted(range(n), key=lambda x: -len(adj[x]))
+    color = [0] * n  # 0 = uncolored, 1..3 colors
 
-    def dfs(v: int) -> bool:
-        if v == n:
+    def dfs(pos: int) -> bool:
+        if pos == n:
             return True
-        used = 0
-        for nb in adj[v]:
-            c = colour[nb]
-            if c:
-                used |= 1 << (c - 1)
-        for col in (1, 2, 3):
-            if not (used & (1 << (col - 1))):
-                colour[v] = col
-                if dfs(v + 1):
-                    return True
-                colour[v] = 0
+        v = order[pos]
+        # try each color
+        for c in (1, 2, 3):
+            ok = True
+            for nb in adj[v]:
+                if color[nb] == c:
+                    ok = False
+                    break
+            if not ok:
+                continue
+            color[v] = c
+            if dfs(pos + 1):
+                return True
+            color[v] = 0
         return False
 
     if dfs(0):
-        out = ['YES', ' '.join(str(c) for c in colour)]
+        print("YES")
+        # output in original order
+        print(' '.join(str(color[i]) for i in range(n)))
     else:
-        out = ['NO']
-    sys.stdout.write('\n'.join(out))
+        print("NO")
 
 if __name__ == "__main__":
     solve()

@@ -1,0 +1,65 @@
+import sys
+import heapq
+
+def main():
+    input = sys.stdin.buffer.readline
+    n, m, t = map(int, input().split())
+    terminals = [x - 1 for x in map(int, input().split())]
+
+    graph = [[] for _ in range(n)]
+    for _ in range(m):
+        u, v, w = map(int, input().split())
+        u -= 1
+        v -= 1
+        graph[u].append((v, w))
+        graph[v].append((u, w))
+
+    if t == 1:
+        print(0)
+        return
+
+    inf = 10**30
+    size = 1 << t
+    dp = [[inf] * n for _ in range(size)]
+
+    for i, vertex in enumerate(terminals):
+        dp[1 << i][vertex] = 0
+
+    for mask in range(1, size):
+        current = dp[mask]
+
+        if mask & (mask - 1):
+            fixed_bit = mask & -mask
+            submask = (mask - 1) & mask
+
+            while submask:
+                if submask & fixed_bit:
+                    other = mask ^ submask
+                    if other:
+                        left = dp[submask]
+                        right = dp[other]
+                        for v in range(n):
+                            candidate = left[v] + right[v]
+                            if candidate < current[v]:
+                                current[v] = candidate
+                submask = (submask - 1) & mask
+
+        heap = [(distance, v) for v, distance in enumerate(current)
+                if distance < inf]
+        heapq.heapify(heap)
+
+        while heap:
+            distance, u = heapq.heappop(heap)
+            if distance != current[u]:
+                continue
+
+            for v, weight in graph[u]:
+                candidate = distance + weight
+                if candidate < current[v]:
+                    current[v] = candidate
+                    heapq.heappush(heap, (candidate, v))
+
+    print(min(dp[-1]))
+
+if __name__ == "__main__":
+    main()

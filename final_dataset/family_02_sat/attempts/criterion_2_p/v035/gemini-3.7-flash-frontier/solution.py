@@ -1,0 +1,87 @@
+import sys
+
+def main():
+    sys.setrecursionlimit(500000)
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    num_vars = 2 * n
+    adj = [[] for _ in range(num_vars)]
+    rev_adj = [[] for _ in range(num_vars)]
+    
+    def lit_to_var(l):
+        if l > 0:
+            return 2 * (l - 1)
+        else:
+            return 2 * (-l - 1) + 1
+
+    idx = 2
+    for _ in range(m):
+        l1 = int(input_data[idx])
+        l2 = int(input_data[idx+1])
+        idx += 2
+        
+        u = lit_to_var(l1)
+        v = lit_to_var(l2)
+        
+        # not l1 -> l2
+        adj[u ^ 1].append(v)
+        rev_adj[v].append(u ^ 1)
+        # not l2 -> l1
+        adj[v ^ 1].append(u)
+        rev_adj[u].append(v ^ 1)
+        
+    order = []
+    visited = [False] * num_vars
+    
+    for i in range(num_vars):
+        if not visited[i]:
+            stack = [(i, 0)]
+            visited[i] = True
+            while stack:
+                u, edge_idx = stack.pop()
+                if edge_idx < len(adj[u]):
+                    stack.append((u, edge_idx + 1))
+                    nxt = adj[u][edge_idx]
+                    if not visited[nxt]:
+                        visited[nxt] = True
+                        stack.append((nxt, 0))
+                else:
+                    order.append(u)
+                    
+    scc = [-1] * num_vars
+    scc_count = 0
+    
+    for u in reversed(order):
+        if scc[u] == -1:
+            stack = [u]
+            scc[u] = scc_count
+            while stack:
+                curr = stack.pop()
+                for nxt in rev_adj[curr]:
+                    if scc[nxt] == -1:
+                        scc[nxt] = scc_count
+                        stack.append(nxt)
+            scc_count += 1
+            
+    ans = [0] * n
+    for i in range(n):
+        pos = 2 * i
+        neg = 2 * i + 1
+        if scc[pos] == scc[neg]:
+            print("NO")
+            return
+        if scc[pos] < scc[neg]:
+            ans[i] = 1
+        else:
+            ans[i] = 0
+            
+    print("YES")
+    print(*(ans))
+
+if __name__ == '__main__':
+    main()

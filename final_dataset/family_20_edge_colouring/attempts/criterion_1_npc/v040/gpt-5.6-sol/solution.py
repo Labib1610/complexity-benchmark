@@ -1,0 +1,297 @@
+import sys
+from itertools import permutations
+
+sys.setrecursionlimit(1000000)
+
+data = list(map(int, sys.stdin.buffer.read().split()))
+if not data:
+    sys.exit()
+
+it = iter(data)
+n = next(it)
+m = next(it)
+
+edges = []
+adj = [[] for _ in range(n)]
+
+for eid in range(m):
+    u = next(it) - 1
+    v = next(it) - 1
+    edges.append((u, v))
+    adj[u].append(eid)
+    adj[v].append(eid)
+
+# A cubic graph containing a bridge cannot be 3-edge-colored.
+tin = [-1] * n
+low = [0] * n
+timer = 0
+has_bridge = False
+
+def bridge_dfs(v, parent_edge):
+    global timer, has_bridge
+    tin[v] = low[v] = timer
+    timer += 1
+
+    for eid in adj[v]:
+        if eid == parent_edge:
+            continue
+        a, b = edges[eid]
+        to = b if a == v else a
+
+        if tin[to] == -1:
+            bridge_dfs(to, eid)
+            low[v] = min(low[v], low[to])
+            if low[to] > tin[v]:
+                has_bridge = True
+        else:
+            low[v] = min(low[v], tin[to])
+
+for start in range(n):
+    if tin[start] == -1:
+        bridge_dfs(start, -1)
+
+if has_bridge:
+    print("NO")
+    sys.exit()
+
+# Find connected components and test bipartiteness.
+side = [-1] * n
+components = []
+
+for start in range(n):
+    if side[start] != -1:
+        continue
+
+    stack = [start]
+    side[start] = 0
+    vertices = []
+    component_edges = set()
+    bipartite = True
+
+    while stack:
+        v = stack.pop()
+        vertices.append(v)
+
+        for eid in adj[v]:
+            component_edges.add(eid)
+            a, b = edges[eid]
+            to = b if a == v else a
+
+            if side[to] == -1:
+                side[to] = side[v] ^ 1
+                stack.append(to)
+            elif side[to] == side[v]:
+                bipartite = False
+
+    components.append((vertices, list(component_edges), bipartite))
+
+answer = [0] * m
+
+# Bipartite cubic components can be colored by taking one perfect matching;
+# the remaining edges form even cycles.
+def color_bipartite_component(vertices, component_edges):
+    left = [v for v in vertices if side[v] == 0]
+    pair_right = [-1] * n
+    pair_edge_left = [-1] * n
+    seen = [0] * n
+    stamp = 0
+
+    def augment(v):
+        nonlocal stamp
+        for eid in adj[v]:
+            a, b = edges[eid]
+            to = b if a == v else a
+
+            if seen[to] == stamp:
+                continue
+            seen[to] = stamp
+
+            old = pair_right[to]
+            if old == -1 or augment(old):
+                pair_right[to] = v
+                pair_edge_left[v] = eid
+                return True
+        return False
+
+    for v in left:
+        stamp += 1
+        if not augment(v):
+            return False
+
+    for v in left:
+        answer[pair_edge_left[v]] = 1
+
+    for start_edge in component_edges:
+        if answer[start_edge] != 0:
+            continue
+
+        u, v = edges[start_edge]
+        answer[start_edge] = 2
+        start_vertex = u
+        current = v
+        previous_edge = start_edge
+        color = 3
+
+        while current != start_vertex:
+            next_edge = -1
+            for eid in adj[current]:
+                if eid != previous_edge and answer[eid] == 0:
+                    next_edge = eid
+                    break
+
+            if next_edge == -1:
+                return False
+
+            answer[next_edge] = color
+            a, b = edges[next_edge]
+            current = b if a == current else a
+            previous_edge = next_edge
+            color = 5 - color
+
+    return True
+
+# Precompute generalized arc consistency for a three-edge all-different constraint.
+perms = list(permutations((1, 2, 4)))
+gac = [None] * 512
+
+for d0 in range(1, 8):
+    for d1 in range(1, 8):
+        for d2 in range(1, 8):
+            supports = [0, 0, 0]
+            for p0, p1, p2 in perms:
+                if (d0 & p0) and (d1 & p1) and (d2 & p2):
+                    supports[0] |= p0
+                    supports[1] |= p1
+                    supports[2] |= p2
+
+            key = d0 | (d1 << 3) | (d2 << 6)
+            if supports[0] and supports[1] and supports[2]:
+                gac[key] = tuple(supports)
+
+domains = [7] * m
+bit_count = [0, 1, 1, 2, 1, 2, 2, 3]
+
+def solve_non_bipartite_component(vertices, component_edges):
+    trail = []
+
+    def rollback(checkpoint):
+        while len(trail) > checkpoint:
+            eid, old_domain = trail.pop()
+            domains[eid] = old_domain
+
+    def propagate(initial_vertices):
+        queue = list(initial_vertices)
+        head = 0
+
+        while head < len(queue):
+            v = queue[head]
+            head += 1
+
+            e0, e1, e2 = adj[v]
+            d0 = domains[e0]
+            d1 = domains[e1]
+            d2 = domains[e2]
+
+            result = gac[d0 | (d1 << 3) | (d2 << 6)]
+            if result is None:
+                return False
+
+            for eid, new_domain in ((e0, result[0]), (e1, result[1]), (e2, result[2])):
+                if new_domain != domains[eid]:
+                    trail.append((eid, domains[eid]))
+                    domains[eid] = new_domain
+                    a, b = edges[eid]
+                    queue.append(a)
+                    queue.append(b)
+
+        return True
+
+    root = vertices[0]
+    root_edges = adj[root]
+    initial_queue = [root]
+
+    for eid, value in zip(root_edges, (1, 2, 4)):
+        trail.append((eid, domains[eid]))
+        domains[eid] = value
+        a, b = edges[eid]
+        initial_queue.append(a)
+        initial_queue.append(b)
+
+    if not propagate(initial_queue):
+        return False
+
+    def search():
+        chosen = -1
+        chosen_size = 4
+        chosen_score = -1
+
+        for eid in component_edges:
+            domain = domains[eid]
+            size = bit_count[domain]
+
+            if size > 1:
+                u, v = edges[eid]
+                score = 0
+                for incident in adj[u]:
+                    score += 3 - bit_count[domains[incident]]
+                for incident in adj[v]:
+                    score += 3 - bit_count[domains[incident]]
+
+                if size < chosen_size or (size == chosen_size and score > chosen_score):
+                    chosen = eid
+                    chosen_size = size
+                    chosen_score = score
+                    if size == 2 and score >= 4:
+                        break
+
+        if chosen == -1:
+            return True
+
+        domain = domains[chosen]
+        values = []
+        bit = 1
+        while bit <= 4:
+            if domain & bit:
+                values.append(bit)
+            bit <<= 1
+
+        u, v = edges[chosen]
+
+        for value in values:
+            checkpoint = len(trail)
+            trail.append((chosen, domains[chosen]))
+            domains[chosen] = value
+
+            if propagate((u, v)) and search():
+                return True
+
+            rollback(checkpoint)
+
+        return False
+
+    return search()
+
+for vertices, component_edges, bipartite in components:
+    if bipartite:
+        if not color_bipartite_component(vertices, component_edges):
+            print("NO")
+            sys.exit()
+    else:
+        if not solve_non_bipartite_component(vertices, component_edges):
+            print("NO")
+            sys.exit()
+
+        for eid in component_edges:
+            value = domains[eid]
+            if value == 1:
+                answer[eid] = 1
+            elif value == 2:
+                answer[eid] = 2
+            elif value == 4:
+                answer[eid] = 3
+            else:
+                print("NO")
+                sys.exit()
+
+print("YES")
+print(*answer)

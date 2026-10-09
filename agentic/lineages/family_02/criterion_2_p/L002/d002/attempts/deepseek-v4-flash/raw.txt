@@ -1,0 +1,114 @@
+We can model this as a **2-SAT** problem.  
+
+Each machine has two possible modes: 0 or 1.  
+Each interlock gives a logical implication:
+
+If `l1` fails its condition, then `l2` must match its condition.  
+And symmetrically, if `l2` fails, then `l1` must match.
+
+Let’s define for a literal `x`:
+- `x > 0` means machine `x` is in mode 1.
+- `x < 0` means machine `|x|` is in mode 0.
+
+The condition “machine matches its reference” means:
+- If `l > 0`, then variable `l` is `True` (mode 1).
+- If `l < 0`, then variable `|l|` is `False` (mode 0).
+
+The interlock says:  
+If `l1` is **false**, then `l2` must be **true**.  
+And if `l2` is **false**, then `l1` must be **true**.
+
+That gives two implications:
+- `¬l1 → l2`
+- `¬l2 → l1`
+
+These are exactly the clauses of 2-SAT:
+- `(l1 ∨ l2)`  
+- `(¬l1 ∨ ¬l2)`? Wait, let’s check.
+
+Actually, `¬l1 → l2` is equivalent to `(l1 ∨ l2)`.  
+`¬l2 → l1` is equivalent to `(l2 ∨ l1)`, which is the same clause.  
+So each interlock gives **one clause**: `(l1 ∨ l2)`.
+
+Thus the problem reduces to:  
+Given `m` clauses of the form `(a ∨ b)` where each literal is either a variable or its negation, find a satisfying assignment.
+
+We can solve 2-SAT using implication graph and SCC (Kosaraju or Tarjan).
+
+---
+
+Here’s the implementation:
+
+```python
+import sys
+sys.setrecursionlimit(1 << 20)
+input = sys.stdin.readline
+
+n, m = map(int, input().split())
+N = 2 * n  # nodes: 0..n-1 for False, n..2n-1 for True
+
+def node(var):
+    # var > 0: True node for var
+    # var < 0: False node for |var|
+    if var > 0:
+        return (var - 1) * 2 + 1
+    else:
+        return (-var - 1) * 2
+
+def neg_node(u):
+    return u ^ 1
+
+g = [[] for _ in range(N)]
+gr = [[] for _ in range(N)]
+
+for _ in range(m):
+    a, b = map(int, input().split())
+    u = node(a)
+    v = node(b)
+    # clause (a or b) => (¬a -> b) and (¬b -> a)
+    g[neg_node(u)].append(v)
+    g[neg_node(v)].append(u)
+    gr[v].append(neg_node(u))
+    gr[u].append(neg_node(v))
+
+# Kosaraju SCC
+visited = [False] * N
+order = []
+
+def dfs1(u):
+    visited[u] = True
+    for w in g[u]:
+        if not visited[w]:
+            dfs1(w)
+    order.append(u)
+
+for i in range(N):
+    if not visited[i]:
+        dfs1(i)
+
+comp = [-1] * N
+def dfs2(u, cid):
+    comp[u] = cid
+    for w in gr[u]:
+        if comp[w] == -1:
+            dfs2(w, cid)
+
+cid = 0
+for u in reversed(order):
+    if comp[u] == -1:
+        dfs2(u, cid)
+        cid += 1
+
+# Check satisfiability
+for i in range(n):
+    if comp[2*i] == comp[2*i+1]:
+        print("NO")
+        sys.exit()
+
+print("YES")
+res = []
+for i in range(n):
+    # comp[2*i] < comp[2*i+1] means False < True => assign False
+    res.append('0' if comp[2*i] < comp[2*i+1] else '1')
+print(' '.join(res))
+```

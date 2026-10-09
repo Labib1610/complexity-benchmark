@@ -1,0 +1,124 @@
+import sys
+import threading
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    clauses = []
+    index = 2
+    for _ in range(m):
+        l1 = int(data[index])
+        l2 = int(data[index+1])
+        index += 2
+        # Convert to 0-based indexing for variables
+        # Positive literal: x_i is ENERGIZED (True)
+        # Negative literal: not x_i (ISOLATED)
+        v1 = abs(l1) - 1
+        v2 = abs(l2) - 1
+        lit1 = (v1, l1 > 0)   # (variable_index, is_positive)
+        lit2 = (v2, l2 > 0)
+        clauses.append((lit1, lit2))
+    
+    # Now we reduce to 2-SAT
+    # Each clause is a disjunction of two literals
+    # We build implication graph and check for SCCs
+    
+    # Number of variables
+    num_vars = n
+    
+    # Build implication graph
+    # For each variable, we have two nodes: 2*v (positive) and 2*v+1 (negative)
+    adj = [[] for _ in range(2 * num_vars)]
+    rev_adj = [[] for _ in range(2 * num_vars)]
+    
+    # For each clause (a OR b), we add edges (!a -> b) and (!b -> a)
+    for (v1, sign1), (v2, sign2) in clauses:
+        # Literal indices in implication graph:
+        # For variable v: node 2*v (positive), node 2*v+1 (negative)
+        node_not_a = 2*v1 + (0 if sign1 else 1)  # if sign1 is True, then !a is negation
+        node_b = 2*v2 + (0 if sign2 else 1)
+        
+        node_not_b = 2*v2 + (1 if sign2 else 0)
+        node_a = 2*v1 + (1 if sign1 else 0)
+        
+        adj[node_not_a].append(node_b)
+        rev_adj[node_b].append(node_not_a)
+        
+        adj[node_not_b].append(node_a)
+        rev_adj[node_a].append(node_not_b)
+    
+    # Kosaraju's algorithm to find strongly connected components
+    order = []
+    visited = [False] * (2 * num_vars)
+    
+    def dfs1(u):
+        visited[u] = True
+        for v in adj[u]:
+            if not visited[v]:
+                dfs1(v)
+        order.append(u)
+    
+    for i in range(2 * num_vars):
+        if not visited[i]:
+            dfs1(i)
+    
+    # Transpose the order
+    order.reverse()
+    
+    # Second DFS on reversed graph to find SCCs
+    visited = [False] * (2 * num_vars)
+    scc_id = [-1] * (2 * num_vars)
+    current_scc = 0
+    
+    def dfs2(u):
+        visited[u] = True
+        scc_id[u] = current_scc
+        for v in rev_adj[u]:
+            if not visited[v]:
+                dfs2(v)
+    
+    for u in order:
+        if not visited[u]:
+            dfs2(u)
+            current_scc += 1
+    
+    # Check for contradiction: variable and its negation in same SCC
+    for i in range(num_vars):
+        pos_node = 2*i
+        neg_node = 2*i + 1
+        if scc_id[pos_node] == scc_id[neg_node]:
+            print("NO")
+            return
+    
+    # Assign values based on topological order of SCCs
+    # Variables whose positive node has higher SCC id can be set to True
+    assignment = [False] * num_vars
+    scc_order = [-1] * current_scc
+    for i in range(2 * num_vars):
+        scc_order[scc_id[i]] = max(scc_order[scc_id[i]], i)
+    
+    # Actually, we just need to see which comes later in the topological sort
+    # But since we used Kosaraju, the SCC ids themselves give the reverse topological order
+    # So lower SCC id means earlier in topological order of condensation graph
+    # We want to assign True to variables whose positive literal is in a later SCC than negative
+    
+    for i in range(num_vars):
+        pos_scc = scc_id[2*i]
+        neg_scc = scc_id[2*i + 1]
+        if pos_scc > neg_scc:
+            assignment[i] = True
+        else:
+            assignment[i] = False
+    
+    print("YES")
+    result = []
+    for a in assignment:
+        result.append('1' if a else '0')
+    print(' '.join(result))
+
+threading.Thread(target=main).start()

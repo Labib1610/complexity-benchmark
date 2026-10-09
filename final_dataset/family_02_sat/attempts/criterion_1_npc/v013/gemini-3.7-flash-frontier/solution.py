@@ -1,0 +1,289 @@
+import sys
+import random
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    clauses = []
+    idx = 2
+    for _ in range(m):
+        c = [int(input_data[idx]), int(input_data[idx+1]), int(input_data[idx+2])]
+        idx += 3
+        # Simplify clause: remove duplicate literals
+        c_unique = []
+        tautology = False
+        for lit in c:
+            if lit in c_unique:
+                continue
+            if -lit in c_unique:
+                tautology = True
+                break
+            c_unique.append(lit)
+        if not tautology:
+            clauses.append(c_unique)
+    
+    # Fast check: empty clause
+    for c in clauses:
+        if len(c) == 0:
+            print("NO")
+            return
+
+    # Try WalkSAT first
+    ans = walksat(n, clauses, max_restarts=5, max_flips=15000, p_noise=0.4)
+    if ans is not None:
+        print("YES")
+        print(*(ans[1:]))
+        return
+
+    # If WalkSAT didn't find a solution, run DPLL
+    ans = dpll_solve(n, clauses)
+    if ans is not None:
+        print("YES")
+        print(*(ans[1:]))
+    else:
+        print("NO")
+
+def walksat(n, clauses, max_restarts=5, max_flips=15000, p_noise=0.4):
+    num_clauses = len(clauses)
+    if num_clauses == 0:
+        return [0] * (n + 1)
+    
+    # Pre-index clauses by literal
+    # lit > 0: lit; lit < 0: n - lit
+    pos_clauses = [[] for _ in range(n + 1)]
+    neg_clauses = [[] for _ in range(n + 1)]
+    for c_idx, c in enumerate(clauses):
+        for lit in c:
+            if lit > 0:
+                pos_clauses[lit].append(c_idx)
+            else:
+                neg_clauses[-lit].append(c_idx)
+
+    for restart in range(max_restarts):
+        assign = [0] + [random.randint(0, 1) for _ in range(n)]
+        
+        # num_true_lits for each clause
+        num_true = [0] * num_clauses
+        unsat = []
+        unsat_pos = [-1] * num_clauses
+        
+        for c_idx, c in enumerate(clauses):
+            cnt = 0
+            for lit in c:
+                val = assign[abs(lit)]
+                if (lit > 0 and val == 1) or (lit < 0 and val == 0):
+                    cnt += 1
+            num_true[c_idx] = cnt
+            if cnt == 0:
+                unsat_pos[c_idx] = len(unsat)
+                unsat.append(c_idx)
+        
+        for flip in range(max_flips):
+            if not unsat:
+                return assign
+            
+            c_idx = random.choice(unsat)
+            c = clauses[c_idx]
+            
+            # Find break counts for all vars in c
+            best_var = None
+            min_break = 10000000
+            zero_break_vars = []
+            
+            for lit in c:
+                var = abs(lit)
+                # If we flip var:
+                # Claused that had true count 1 where var was the true lit will become unsatisfied (break)
+                brk = 0
+                if assign[var] == 1:
+                    # var was 1, becoming 0
+                    for ci in pos_clauses[var]:
+                        if num_true[ci] == 1:
+                            brk += 1
+                else:
+                    # var was 0, becoming 1
+                    for ci in neg_clauses[var]:
+                        if num_true[ci] == 1:
+                            brk += 1
+                
+                if brk == 0:
+                    zero_break_vars.append(var)
+                if brk < min_break:
+                    min_break = brk
+                    best_var = var
+            
+            if zero_break_vars:
+                var_to_flip = random.choice(zero_break_vars)
+            elif random.random() < p_noise:
+                var_to_flip = abs(random.choice(c))
+            else:
+                var_to_flip = best_var
+            
+            # Flip var_to_flip
+            old_val = assign[var_to_flip]
+            new_val = 1 - old_val
+            assign[var_to_flip] = new_val
+            
+            if old_val == 1:
+                # pos_clauses lose 1, neg_clauses gain 1
+                for ci in pos_clauses[var_to_flip]:
+                    num_true[ci] -= 1
+                    if num_true[ci] == 0:
+                        unsat_pos[ci] = len(unsat)
+                        unsat.append(ci)
+                for ci in neg_clauses[var_to_flip]:
+                    num_true[ci] += 1
+                    if num_true[ci] == 1:
+                        # remove from unsat
+                        idx_in_unsat = unsat_pos[ci]
+                        last_c = unsat[-1]
+                        unsat[idx_in_unsat] = last_c
+                        unsat_pos[last_c] = idx_in_unsat
+                        unsat.pop()
+                        unsat_pos[ci] = -1
+            else:
+                # pos_clauses gain 1, neg_clauses lose 1
+                for ci in pos_clauses[var_to_flip]:
+                    num_true[ci] += 1
+                    if num_true[ci] == 1:
+                        idx_in_unsat = unsat_pos[ci]
+                        last_c = unsat[-1]
+                        unsat[idx_in_unsat] = last_c
+                        unsat_pos[last_c] = idx_in_unsat
+                        unsat.pop()
+                        unsat_pos[ci] = -1
+                for ci in neg_clauses[var_to_flip]:
+                    num_true[ci] -= 1
+                    if num_true[ci] == 0:
+                        unsat_pos[ci] = len(unsat)
+                        unsat.append(ci)
+                        
+    return None
+
+def dpll_solve(n, clauses):
+    # State: assignment: array of size n+1 with -1 (unset), 0, or 1
+    assignment = [-1] * (n + 1)
+    
+    # We can use a recursive DPLL with unit propagation
+    def bcp(cls, assign):
+        # returns updated cls, new_units, conflict_boolean
+        while True:
+            unit = None
+            for c in cls:
+                # evaluate clause under assign
+                unresolved = []
+                sat = False
+                for lit in c:
+                    var = abs(lit)
+                    val = assign[var]
+                    if val != -1:
+                        if (lit > 0 and val == 1) or (lit < 0 and val == 0):
+                            sat = True
+                            break
+                    else:
+                        unresolved.append(lit)
+                if sat:
+                    continue
+                if len(unresolved) == 0:
+                    return None, True # Conflict
+                if len(unresolved) == 1:
+                    unit = unresolved[0]
+                    break
+            if unit is None:
+                break
+            var = abs(unit)
+            val = 1 if unit > 0 else 0
+            if assign[var] != -1 and assign[var] != val:
+                return None, True
+            assign[var] = val
+        return cls, False
+
+    def dpll(assign):
+        # 1. Unit propagation
+        # Copy assignment so we can backtrack
+        curr_assign = list(assign)
+        _, conflict = bcp(clauses, curr_assign)
+        if conflict:
+            return None
+        
+        # Check if all satisfied or pick unassigned var
+        # MOM heuristic or DLIS: count occurrences in shortest unsatisfied clauses
+        min_len = 1000000
+        active_clauses = []
+        for c in clauses:
+            unresolved = []
+            sat = False
+            for lit in c:
+                var = abs(lit)
+                val = curr_assign[var]
+                if val != -1:
+                    if (lit > 0 and val == 1) or (lit < 0 and val == 0):
+                        sat = True
+                        break
+                else:
+                    unresolved.append(lit)
+            if not sat:
+                active_clauses.append(unresolved)
+                if len(unresolved) < min_len:
+                    min_len = len(unresolved)
+        
+        if not active_clauses:
+            # All satisfied! Fill remaining unset with 0
+            for i in range(1, n + 1):
+                if curr_assign[i] == -1:
+                    curr_assign[i] = 0
+            return curr_assign
+        
+        # Count occurrences in clauses of size min_len
+        pos_count = [0] * (n + 1)
+        neg_count = [0] * (n + 1)
+        for c in active_clauses:
+            if len(c) == min_len:
+                for lit in c:
+                    if lit > 0:
+                        pos_count[lit] += 1
+                    else:
+                        neg_count[-lit] += 1
+        
+        best_var = -1
+        best_score = -1
+        best_val = 1
+        for var in range(1, n + 1):
+            if curr_assign[var] == -1:
+                p = pos_count[var]
+                q = neg_count[var]
+                score = (p + q) * 1024 + p * q
+                if score > best_score:
+                    best_score = score
+                    best_var = var
+                    best_val = 1 if p >= q else 0
+        
+        if best_var == -1:
+            for i in range(1, n + 1):
+                if curr_assign[i] == -1:
+                    curr_assign[i] = 0
+            return curr_assign
+
+        # Branch 1
+        curr_assign[best_var] = best_val
+        res = dpll(curr_assign)
+        if res is not None:
+            return res
+        
+        # Branch 2
+        curr_assign[best_var] = 1 - best_val
+        res = dpll(curr_assign)
+        if res is not None:
+            return res
+        
+        return None
+
+    return dpll(assignment)
+
+if __name__ == '__main__':
+    solve()

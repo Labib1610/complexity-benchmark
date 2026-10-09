@@ -37,6 +37,65 @@ def gen_domset(k, seed, dominatable=True, pad=0):
 
 
 # --- criterion 2: rooted tree (parent list) -------------------------------------
+def _min_ds_tree(n, adj):
+    """Minimum dominating set size of a tree (3-state DP, iterative)."""
+    from collections import deque
+    INF = n + 5
+    parent = [0] * (n + 1); order = []; visited = [False] * (n + 1)
+    visited[1] = True; q = deque([1])
+    while q:
+        u = q.popleft(); order.append(u)
+        for w in adj[u]:
+            if not visited[w]:
+                visited[w] = True; parent[w] = u; q.append(w)
+    children = [[] for _ in range(n + 1)]
+    for v in order[1:]:
+        children[parent[v]].append(v)
+    IN = [0] * (n + 1); DOM = [0] * (n + 1); UND = [0] * (n + 1)
+    for v in reversed(order):
+        ch = children[v]; s_in = 1; s_und = 0; base = 0; best_delta = INF; has_in = False
+        for c in ch:
+            s_in += min(IN[c], DOM[c], UND[c]); s_und += DOM[c]
+            mc = IN[c] if IN[c] <= DOM[c] else DOM[c]; base += mc
+            if IN[c] <= DOM[c]:
+                has_in = True
+            else:
+                best_delta = min(best_delta, IN[c] - DOM[c])
+        IN[v] = s_in; UND[v] = s_und
+        DOM[v] = INF if not ch else (base if has_in else base + best_delta)
+    return min(IN[1], DOM[1])
+
+
+def gen_tree_ds(n, seed, kind, shape="random"):
+    """UNIFIED schema (audit B4): a tree on 1..n emitted as `n m k` + (n-1) undirected edges, exactly
+    like criterion 1. Minimum dominating set computed by tree DP; kind='yes' -> k = minDS,
+    kind='no' -> k = minDS - 1."""
+    rng = random.Random(seed * 2_000_003 + 7)
+    parent = [0] * (n + 1)
+    if shape == "path":
+        for c in range(2, n + 1):
+            parent[c] = c - 1
+    elif shape == "star":
+        for c in range(2, n + 1):
+            parent[c] = 1
+    elif shape == "balanced":
+        for c in range(2, n + 1):
+            parent[c] = c // 2
+    else:
+        for c in range(2, n + 1):
+            parent[c] = rng.randint(1, c - 1)
+    edges = [(c, parent[c]) for c in range(2, n + 1)]
+    adj = [[] for _ in range(n + 1)]
+    for u, v in edges:
+        adj[u].append(v); adj[v].append(u)
+    min_ds = _min_ds_tree(n, adj) if n >= 1 else 0
+    k = min_ds if kind == "yes" else max(0, min_ds - 1)
+    rng.shuffle(edges)
+    lines = [f"{n} {len(edges)} {k}"]
+    lines += [f"{u} {v}" for (u, v) in edges]
+    return "\n".join(lines) + "\n"
+
+
 def gen_tree(n, seed, shape="path"):
     """Rooted tree on n nodes (root = 1), printed as n-1 'child parent' links.
     shape: path (deep -> recursive DFS hits the recursion limit), star, balanced
@@ -105,13 +164,15 @@ def main():
     p.add_argument("--pad", type=int, default=0)
     p.add_argument("--shape", default="path")
     p.add_argument("--at", default="high")
+    p.add_argument("--kind", default="yes")   # criterion 2 (unified): yes|no
     args = p.parse_args()
 
     if args.criterion == 1:
         out = gen_domset(args.k, args.seed,
                          dominatable=(args.dominatable.lower() in ("yes", "y", "1", "true")), pad=args.pad)
     elif args.criterion == 2:
-        out = gen_tree(args.n, args.seed, shape=args.shape)
+        # audit B4: unified dominating-set decision + witness on a tree (schema = n m k).
+        out = gen_tree_ds(args.n, args.seed, args.kind, shape=args.shape)
     else:
         out = gen_isolated_k0(args.n, args.m, args.seed, at=args.at)
 

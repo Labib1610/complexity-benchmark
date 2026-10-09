@@ -1,0 +1,327 @@
+```python
+import sys
+import heapq
+import itertools
+import random
+
+sys.setrecursionlimit(1_000_000)
+
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if len(data) < 4:
+        return
+
+    n, M, T, m = data[:4]
+    if n == 0:
+        print("YES")
+        print()
+        return
+    if M <= 0 or T <= 0 or n > M * T:
+        print("NO")
+        return
+
+    adj_sets = [set() for _ in range(n)]
+    radj_sets = [set() for _ in range(n)]
+
+    p = 4
+    valid = True
+    for _ in range(m):
+        a, b = data[p] - 1, data[p + 1] - 1
+        p += 2
+        if not (0 <= a < n and 0 <= b < n) or a == b:
+            valid = False
+            continue
+        if b not in adj_sets[a]:
+            adj_sets[a].add(b)
+            radj_sets[b].add(a)
+
+    if not valid:
+        print("NO")
+        return
+
+    adj = [list(s) for s in adj_sets]
+    radj = [list(s) for s in radj_sets]
+    indeg = [len(radj[i]) for i in range(n)]
+
+    # Topological order and cycle detection.
+    heap = [i for i in range(n) if indeg[i] == 0]
+    heapq.heapify(heap)
+    topo = []
+    deg = indeg[:]
+
+    while heap:
+        v = heapq.heappop(heap)
+        topo.append(v)
+        for w in adj[v]:
+            deg[w] -= 1
+            if deg[w] == 0:
+                heapq.heappush(heap, w)
+
+    if len(topo) != n:
+        print("NO")
+        return
+
+    # With at least n cycles, any topological order is sufficient.
+    if T >= n:
+        ans = [0] * n
+        for cycle, v in enumerate(topo, 1):
+            ans[v] = cycle
+        print("YES")
+        print(*ans)
+        return
+
+    top_depth = [1] * n
+    for v in topo:
+        dv = top_depth[v] + 1
+        for w in adj[v]:
+            if top_depth[w] < dv:
+                top_depth[w] = dv
+
+    bottom = [1] * n
+    for v in reversed(topo):
+        if adj[v]:
+            bottom[v] = 1 + max(bottom[w] for w in adj[v])
+
+    if max(bottom) > T:
+        print("NO")
+        return
+
+    earliest = top_depth[:]
+    latest = [T - bottom[i] + 1 for i in range(n)]
+    if any(earliest[i] > latest[i] for i in range(n)):
+        print("NO")
+        return
+
+    def forward_schedule(mode, seed=0):
+        degree = indeg[:]
+        available = []
+        rng = random.Random(seed)
+
+        def key(v):
+            if mode == 0:
+                return (-bottom[v], -len(adj[v]), v)
+            if mode == 1:
+                return (-bottom[v], len(adj[v]), -v)
+            if mode == 2:
+                return (-len(adj[v]), -bottom[v], v)
+            if mode == 3:
+                return (latest[v], -len(adj[v]), v)
+            return (rng.random(), v)
+
+        for i in range(n):
+            if degree[i] == 0:
+                heapq.heappush(available, (key(i), i))
+
+        ans = [0] * n
+        done = 0
+        cycle = 1
+        while done < n:
+            if not available:
+                return None
+            batch = []
+            for _ in range(min(M, len(available))):
+                _, v = heapq.heappop(available)
+                batch.append(v)
+                ans[v] = cycle
+                done += 1
+            newly = []
+            for v in batch:
+                for w in adj[v]:
+                    degree[w] -= 1
+                    if degree[w] == 0:
+                        newly.append(w)
+            for w in newly:
+                heapq.heappush(available, (key(w), w))
+            cycle += 1
+
+        return ans if cycle - 1 <= T else None
+
+    def backward_schedule(mode, seed=0):
+        outdeg = [len(adj[i]) for i in range(n)]
+        available = []
+        rng = random.Random(seed)
+
+        def key(v):
+            if mode == 0:
+                return (-top_depth[v], -len(radj[v]), v)
+            if mode == 1:
+                return (-top_depth[v], len(radj[v]), -v)
+            if mode == 2:
+                return (-len(radj[v]), -top_depth[v], v)
+            return (rng.random(), v)
+
+        for i in range(n):
+            if outdeg[i] == 0:
+                heapq.heappush(available, (key(i), i))
+
+        ans = [0] * n
+        done = 0
+        cycle = T
+        while done < n:
+            if cycle < 1 or not available:
+                return None
+            batch = []
+            for _ in range(min(M, len(available))):
+                _, v = heapq.heappop(available)
+                batch.append(v)
+                ans[v] = cycle
+                done += 1
+            newly = []
+            for v in batch:
+                for u in radj[v]:
+                    outdeg[u] -= 1
+                    if outdeg[u] == 0:
+                        newly.append(u)
+            for u in newly:
+                heapq.heappush(available, (key(u), u))
+            cycle -= 1
+
+        return ans
+
+    for mode in range(4):
+        ans = forward_schedule(mode)
+        if ans is not None:
+            print("YES")
+            print(*ans)
+            return
+
+    for mode in range(3):
+        ans = backward_schedule(mode)
+        if ans is not None:
+            print("YES")
+            print(*ans)
+            return
+
+    # Randomized list schedules often find a witness before exact search.
+    if n <= 5000:
+        for seed in range(12):
+            ans = forward_schedule(4, seed)
+            if ans is not None:
+                print("YES")
+                print(*ans)
+                return
+            ans = backward_schedule(3, seed + 100)
+            if ans is not None:
+                print("YES")
+                print(*ans)
+                return
+
+    # Necessary Hall-type test for the current time windows.
+    def hall_ok(lb):
+        if T > 90:
+            return True
+        size = T + 2
+        pref = [[0] * size for _ in range(size)]
+        for i in range(n):
+            pref[lb[i]][latest[i]] += 1
+
+        for x in range(T, 0, -1):
+            running = 0
+            below = pref[x + 1]
+            row = pref[x]
+            for y in range(1, T + 1):
+                running += row[y]
+                row[y] = running + below[y]
+
+        for left in range(1, T + 1):
+            row = pref[left]
+            for right in range(left, T + 1):
+                if row[right] > M * (right - left + 1):
+                    return False
+        return True
+
+    if not hall_ok(earliest):
+        print("NO")
+        return
+
+    memo = set()
+
+    def propagate(lb, initially_delayed):
+        q = list(initially_delayed)
+        head = 0
+        while head < len(q):
+            v = q[head]
+            head += 1
+            if lb[v] > latest[v]:
+                return False
+            nv = lb[v] + 1
+            for w in adj[v]:
+                if lb[w] < nv:
+                    lb[w] = nv
+                    if lb[w] > latest[w]:
+                        return False
+                    q.append(w)
+        return True
+
+    def dfs(lb):
+        state = tuple(lb)
+        if state in memo:
+            return None
+        memo.add(state)
+        if len(memo) > 220000:
+            memo.clear()
+            memo.add(state)
+
+        counts = [0] * (T + 1)
+        for x in lb:
+            if x > T:
+                return None
+            counts[x] += 1
+
+        overloaded = 0
+        for t in range(1, T + 1):
+            if counts[t] > M:
+                overloaded = t
+                break
+
+        if overloaded == 0:
+            return lb
+
+        if not hall_ok(lb):
+            return None
+
+        candidates = [v for v in range(n) if lb[v] == overloaded]
+        need = len(candidates) - M
+        flexible = [v for v in candidates if latest[v] > overloaded]
+
+        if len(flexible) < need:
+            return None
+
+        flexible.sort(
+            key=lambda v: (
+                -(latest[v] - lb[v]),
+                bottom[v],
+                len(adj[v]),
+                v
+            )
+        )
+
+        if need == len(flexible):
+            choices = (tuple(flexible),)
+        else:
+            choices = itertools.combinations(flexible, need)
+
+        for delayed in choices:
+            nxt = lb[:]
+            for v in delayed:
+                nxt[v] += 1
+            if not propagate(nxt, delayed):
+                continue
+            result = dfs(nxt)
+            if result is not None:
+                return result
+
+        return None
+
+    result = dfs(earliest[:])
+    if result is None:
+        print("NO")
+    else:
+        print("YES")
+        print(*result)
+
+
+if __name__ == "__main__":
+    main()
+```

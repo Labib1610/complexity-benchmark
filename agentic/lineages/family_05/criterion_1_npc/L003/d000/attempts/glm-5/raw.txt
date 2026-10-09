@@ -1,0 +1,127 @@
+```python
+import sys
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    k = int(data[0])
+    t = int(data[1])
+    configs = []
+    idx = 2
+    for _ in range(t):
+        x = int(data[idx]); y = int(data[idx+1]); z = int(data[idx+2])
+        idx += 3
+        configs.append((x, y, z))
+    
+    # We need to select exactly k configurations such that:
+    # - each arm 1..k used exactly once
+    # - each sensor 1..k used exactly once
+    # - each module 1..k used exactly once
+    # This is a 3-dimensional matching problem.
+    # k <= 22, so we can use DP over subsets of arms and sensors (or arms and modules).
+    # State: dp[mask_arm][mask_sensor] = module mask used (or -1 if unreachable)
+    # But 2^22 * 2^22 is too large. Instead, we can iterate over arms in order and use DP over sensors.
+    # Actually, since each arm must be used exactly once, we can process arm by arm.
+    # dp[mask_sensor] = mask_module (bitmask of modules used) for the arms processed so far.
+    # But we need to know which arm we are at. Since arms are processed in increasing order,
+    # the number of bits set in mask_arm tells us which arm we are processing.
+    # Wait, but arms can be processed in any order. Let's fix: we process arms 1..k in order.
+    # For arm i, we try all configs with that arm, and transition from dp[mask_sensor] to dp[mask_sensor | (1<<(y-1))]
+    # if (1<<(z-1)) not in mask_module.
+    # But dp[mask_sensor] stores mask_module. However, different paths to the same mask_sensor might have different mask_module.
+    # We need to store all possible mask_module for each mask_sensor? That could be too many.
+    # Alternative: dp[mask_arm][mask_sensor] = mask_module. But that's 2^22 * 2^22.
+    # 
+    # Better approach: Since we process arms in order 1..k, at step i (0-indexed), we have used arms 1..i.
+    # The number of bits in mask_sensor equals i (since each arm uses exactly one sensor).
+    # So we only need dp[mask_sensor] where popcount(mask_sensor) == i.
+    # And we store mask_module. But there could be multiple mask_module values for the same mask_sensor.
+    # 
+    # Actually, we can use dp[mask_sensor] = set of mask_module. But that might be too large.
+    # 
+    # Let's think differently. We can use dp[mask] where mask is a subset of sensors (or modules),
+    # and the value is the mask of modules (or sensors). But we need to ensure arms are also matched.
+    # 
+    # Key insight: We can fix the order of arms. Process arm 1, then arm 2, etc.
+    # At step i, we have matched arms 1..i. The state is (mask_sensor, mask_module) but
+    # mask_arm is implicit (arms 1..i). However, we can note that popcount(mask_sensor) == i
+    # and popcount(mask_module) == i. So we can use dp[mask_sensor] = mask_module,
+    # but we need to handle the case where multiple mask_module values are possible.
+    # 
+    # Since k <= 22, and we process arm by arm, the number of states at step i is C(k, i).
+    # The total number of states across all steps is 2^k. For each state, we might have
+    # multiple mask_module values, but in practice, we can store just one (or a few).
+    # 
+    # Actually, let's use dp[mask_sensor] = mask_module, and if we reach the same mask_sensor
+    # with a different mask_module, we can keep both. But to save memory, we can use a dict
+    # mapping mask_sensor -> set of mask_module. But that might be too slow.
+    # 
+    # Alternative: Use dp[mask_sensor] = mask_module, and if we reach the same mask_sensor
+    # with the same mask_module, skip. If different mask_module, we need to keep both.
+    # But in practice, for each mask_sensor, there's at most one mask_module that works
+    # (if we process arms in order). Let me think...
+    # 
+    # No, that's not true. Different choices of configs for arms 1..i can lead to the same
+    # mask_sensor but different mask_module.
+    # 
+    # Let's just use a dict: dp[mask_sensor] = list of (mask_module, parent_info).
+    # But we need to reconstruct the solution, so we need parent pointers.
+    # 
+    # Actually, let's use a different approach. Since k <= 22, we can use meet-in-the-middle.
+    # Split arms into two halves: arms 1..k//2 and arms k//2+1..k.
+    # For each half, enumerate all possible (mask_sensor, mask_module) pairs.
+    # Then combine.
+    # 
+    # But let's try the simple DP first. We process arms in order 1..k.
+    # dp is a dict: mask_sensor -> dict of mask_module -> (prev_mask_sensor, config_used)
+    # At the end, we need mask_sensor == (1<<k)-1 and mask_module == (1<<k)-1.
+    # 
+    # The number of states could be large, but let's try.
+    
+    # Group configs by arm
+    configs_by_arm = [[] for _ in range(k+1)]
+    for x, y, z in configs:
+        configs_by_arm[x].append((y, z))
+    
+    # DP: dict mapping (mask_sensor, mask_module) -> (prev_mask_sensor, prev_mask_module, y, z)
+    # We process arms 1..k in order.
+    # Initial state: (0, 0) -> None
+    dp = {(0, 0): None}
+    
+    for arm in range(1, k+1):
+        new_dp = {}
+        for (ms, mm), parent in dp.items():
+            for y, z in configs_by_arm[arm]:
+                ys = y - 1
+                zs = z - 1
+                if not (ms & (1 << ys)) and not (mm & (1 << zs)):
+                    nms = ms | (1 << ys)
+                    nmm = mm | (1 << zs)
+                    key = (nms, nmm)
+                    if key not in new_dp:
+                        new_dp[key] = (ms, mm, y, z)
+        dp = new_dp
+        if not dp:
+            print("NO")
+            return
+    
+    full = (1 << k) - 1
+    if (full, full) in dp:
+        # Reconstruct
+        result = []
+        ms, mm = full, full
+        for arm in range(k, 0, -1):
+            parent = dp[(ms, mm)]
+            pms, pmm, y, z = parent
+            result.append((arm, y, z))
+            ms, mm = pms, pmm
+        result.reverse()
+        print("YES")
+        for x, y, z in result:
+            print(x, y, z)
+    else:
+        print("NO")
+
+solve()
+```

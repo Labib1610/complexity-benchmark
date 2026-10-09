@@ -1,0 +1,33 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    j = int(next(it))
+    T = int(next(it))
+    
+    items = []
+    for _ in range(j):
+        p1 = int(next(it))
+        p2 = int(next(it))
+        items.append((p1, p2))
+    
+    # Check JOB condition: p1 + p2 > T
+    for i, (p1, p2) in enumerate(items, 1):
+        if p1 + p2 > T:
+            print(f"JOB {i}")
+            return
+    
+    # Check LOAD condition
+    total_p1 = sum(p1 for p1, p2 in items)
+    total_p2 = sum(p2 for p1, p2 in items)
+    
+    if total_p1 > T:
+        print("LOAD 1")
+    else:
+        print("LOAD 2")
+
+if __name__ == "__main__":
+    solve()

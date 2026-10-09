@@ -1,0 +1,42 @@
+import sys
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    adj = [0] * (n + 1)          # 1‑based
+    edges = []
+    for _ in range(m):
+        u = int(next(it)); v = int(next(it))
+        if u > v:
+            u, v = v, u
+        edges.append((u, v))
+        adj[u] |= 1 << (v - 1)
+        adj[v] |= 1 << (u - 1)
+
+    full_mask = (1 << n) - 1
+    # iterate vertices in lexicographic order
+    for a in range(1, n - 1):
+        # collect neighbors > a for quick check
+        neigh_a = adj[a] & ~((1 << a) - 1)
+        # possible b are neighbors of a greater than a
+        b_mask = neigh_a
+        while b_mask:
+            # extract smallest b
+            low = b_mask & -b_mask
+            b = low.bit_length()          # vertex number
+            b_mask ^= low
+
+            # common neighbors of a and b that are > b
+            common = (adj[a] & adj[b]) & (~((1 << b) - 1) & full_mask)
+            if common:
+                c_low = common & -common
+                c = c_low.bit_length()
+                print(a, b, c)
+                return
+
+if __name__ == "__main__":
+    solve()

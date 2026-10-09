@@ -1,0 +1,94 @@
+import sys
+from collections import defaultdict, deque
+
+def main():
+    import sys
+    sys.setrecursionlimit(1 << 25)
+    
+    n, m, t = map(int, sys.stdin.readline().split())
+    terminals = set(map(int, sys.stdin.readline().split()))
+    
+    # Since m = n - 1 and there's exactly one path between any two nodes,
+    # the structure is a tree.
+    
+    adj = [[] for _ in range(n + 1)]
+    edges = []
+    
+    for _ in range(m):
+        u, v, w = map(int, sys.stdin.readline().split())
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+        edges.append((u, v, w))
+    
+    # If there's only one terminal, no edges are needed.
+    if t <= 1:
+        print(0)
+        return
+    
+    # We need to find the minimum spanning tree that connects all terminals.
+    # This is the Steiner tree problem on a tree, which can be solved efficiently.
+    
+    # Approach:
+    # 1. Root the tree at an arbitrary node (e.g., node 1).
+    # 2. For each node, compute:
+    #    - is_terminal: whether the node is a terminal.
+    #    - subtree_terminals: set of terminals in the subtree.
+    # 3. A edge is needed in the solution if and only if:
+    #    - It connects two components, each containing at least one terminal.
+    #    - In tree case: an edge (u,v) where removing it separates terminals.
+    #    - This is equivalent to: after rooting, for each edge to a child,
+    #      if the child's subtree contains at least one terminal,
+    #      and also there exist terminals outside that subtree.
+    
+    # Let's root the tree at node 1 and do a post-order traversal.
+    parent = [-1] * (n + 1)
+    parent_edge = [-1] * (n + 1)  # stores the weight of edge to parent
+    children = [[] for _ in range(n + 1)]
+    
+    # BFS to build rooted tree
+    visited = [False] * (n + 1)
+    queue = deque([1])
+    visited[1] = True
+    
+    while queue:
+        u = queue.popleft()
+        for v, w in adj[u]:
+            if not visited[v]:
+                visited[v] = True
+                parent[v] = u
+                parent_edge[v] = w
+                children[u].append((v, w))
+                queue.append(v)
+    
+    # Now we compute for each node, how many terminals are in its subtree.
+    subtree_terminals_count = [0] * (n + 1)
+    
+    # Leaf to root DP
+    def dfs(u):
+        count = 1 if u in terminals else 0
+        for v, w in children[u]:
+            count += dfs(v)
+        subtree_terminals_count[u] = count
+        return count
+    
+    dfs(1)
+    
+    # Total number of terminals
+    total_terminals = len(terminals)
+    
+    # Now, for each edge in the tree, check if it's needed.
+    # An edge from parent to child is needed if:
+    #   - child's subtree has at least 1 terminal, and
+    #   - child's subtree doesn't have ALL terminals.
+    result = 0
+    for u in range(1, n + 1):
+        for v, w in children[u]:
+            # Edge from u to v with weight w
+            count_in_subtree = subtree_terminals_count[v]
+            if count_in_subtree >= 1 and count_in_subtree < total_terminals:
+                result += w
+                
+    print(result)
+
+if __name__ == "__main__":
+    main()

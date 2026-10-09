@@ -1,23 +1,27 @@
-# Transformation Network
+# Problem B — Market Equilibrium
 
-Time limit: 1 s
-Memory limit: 256 MB
+Time limit: 1 s   Memory limit: 256 MB
 
-A network consists of $n$ nodes. Each node must be assigned exactly one of two mathematical transformation rules:
-- Rule 1: $f(x) = -x$
-- Rule 2: $f(x) = 1/x$
+You are analyzing a market with $n$ commodities. Each commodity $i$ must be assigned a pricing tier $p_i$, which must be chosen as either 1 or 2.
 
-There are $m$ links in the network. Each link connects two specific nodes $u$ and $v$. A link is considered stable if and only if the composition of the rules assigned to its two endpoints (applied in either order) yields $f_u(f_v(x)) = -1/x$ for all $x \neq 0$. If any link produces a different composition (such as $f_u(f_v(x)) = x$), the link is unstable and the entire configuration is invalid.
+There are $m$ observed dependencies between pairs of commodities. The $k$-th dependency involves commodities $u_k$ and $v_k$.
 
-Your task is to determine whether there is an assignment of rules (either 1 or 2) to all $n$ nodes such that every link in the network is stable. If multiple valid assignments exist, you must output the one that minimizes the sequence of assigned rule numbers $s_1, s_2, \dots, s_n$ lexicographically.
+The market's behavior is summarized by two global metrics:
+1. The **Gross Tier Index (GTI)**, defined as $W = \sum_{i=1}^n d_i p_i$, where $d_i$ is the total count of occurrences of commodity $i$ across all $m$ dependencies.
+2. The **Coupling Index (CI)**, defined as $U = \sum_{k=1}^m p_{u_k} p_{v_k}$.
+
+A market is considered to be in *perfect equilibrium* if and only if these metrics satisfy the equation:
+$3W - 2U = 5m$
+
+Your objective is to determine if there exists a pricing tier assignment for all $n$ commodities that achieves perfect equilibrium. If such an assignment exists, you must output it. In cases where multiple valid assignments exist, you must choose the one whose sequence of tiers $p_1, p_2, \dots, p_n$ is lexicographically smallest.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$).
-Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$), indicating that a link connects node $u$ and node $v$.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$), representing the number of commodities and the number of dependencies.
+The following $m$ lines each contain two integers $u$ and $v$ ($1 \le u, v \le n$), specifying the 1-based indices of the two commodities involved in that dependency.
 
 ## Output
-If no stable assignment exists, print a single line containing `NO`.
-Otherwise, print `YES` on the first line. On the second line, print $n$ integers $s_1, \ldots, s_n$ (each being 1 or 2) representing the lexicographically smallest valid assignment.
+If no valid pricing tier assignment can achieve perfect equilibrium, print a single line containing `NO`.
+Otherwise, print `YES` on the first line. On the second line, output $n$ integers $p_1, p_2, \dots, p_n$ (where each $p_i \in \{1, 2\}$) denoting the pricing tiers. If there are multiple valid sequences, output the sequence that is lexicographically smallest.
 
 ## Example 1
 Input:

@@ -1,0 +1,355 @@
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    idx = 0
+    n = int(data[idx]); idx += 1
+    m = int(data[idx]); idx += 1
+    k = int(data[idx]); idx += 1
+
+    aids = []
+    for _ in range(k):
+        s = int(data[idx]) - 1; idx += 1
+        t = int(data[idx]) - 1; idx += 1
+        d = int(data[idx]); idx += 1
+        aids.append((s, t, d))
+
+    edges = []
+    for _ in range(m):
+        u = int(data[idx]) - 1; idx += 1
+        v = int(data[idx]) - 1; idx += 1
+        cap = int(data[idx]); idx += 1
+        edges.append((u, v, cap))
+
+    # Build super source/sink multicommodity flow graph.
+    # Node layout:
+    # 0..n-1: original camps
+    # n..n+k-1: aid sources (super source side)
+    # n+k..n+2k-1: aid sinks (super sink side)
+    # n+2k: super source
+    # n+2k+1: super sink
+
+    N = n + 2*k + 2
+    S = n + 2*k
+    T = n + 2*k + 1
+
+    graph = [[] for _ in range(N)]
+
+    def add_edge(u, v, cap):
+        graph[u].append([v, cap, len(graph[v])])
+        graph[v].append([u, 0, len(graph[u]) - 1])
+
+    # Super source to aid sources
+    for i in range(k):
+        add_edge(S, n + i, aids[i][2])
+
+    # Aid sinks to super sink
+    for i in range(k):
+        add_edge(n + k + i, T, aids[i][2])
+
+    # Aid source i to dispatch camp s_i
+    for i in range(k):
+        add_edge(n + i, aids[i][0], aids[i][2])
+
+    # Target camp t_i to aid sink i
+    for i in range(k):
+        add_edge(aids[i][1], n + k + i, aids[i][2])
+
+    # Original corridors
+    for j, (u, v, cap) in enumerate(edges):
+        add_edge(u, v, cap)
+
+    # Dinic max flow
+    def bfs():
+        level = [-1] * N
+        level[S] = 0
+        q = [S]
+        for u in q:
+            for v, cap, _ in graph[u]:
+                if cap > 0 and level[v] < 0:
+                    level[v] = level[u] + 1
+                    q.append(v)
+        return level
+
+    def dfs(u, pushed, level, it):
+        if u == T:
+            return pushed
+        while it[u] < len(graph[u]):
+            e = graph[u][it[u]]
+            v, cap, rev = e
+            if cap > 0 and level[v] == level[u] + 1:
+                tr = dfs(v, min(pushed, cap), level, it)
+                if tr > 0:
+                    e[1] -= tr
+                    graph[v][rev][1] += tr
+                    return tr
+            it[u] += 1
+        return 0
+
+    total_demand = sum(d for _, _, d in aids)
+    flow = 0
+    while True:
+        level = bfs()
+        if level[T] < 0:
+            break
+        it = [0] * N
+        while True:
+            f = dfs(S, float('inf'), level, it)
+            if f == 0:
+                break
+            flow += f
+
+    if flow < total_demand:
+        print("NO")
+        return
+
+    # Extract per-aid-type flow on each corridor.
+    # Corridor j's forward edge is at graph[u][...].
+    # We added corridor edges after all the super-source/sink edges.
+    # For corridor j, its forward edge index in graph[u] is:
+    #   for aid source edges: k (S->aid) + k (aid->camp) + k (camp->aid sink) = 3k
+    #   then corridor edges start at 3k + j
+    # But simpler: we know the reverse edge stored in graph[v] has the flow.
+    # The forward edge object is graph[u][idx], its reverse is graph[v][rev].
+    # Flow on forward edge = initial_cap - current_cap of forward edge.
+    # We need to split this flow by aid type.
+
+    # We'll compute flow per aid type by sending each aid's demand individually
+    # through the residual graph (which now has 0 flow on super-source/sink edges
+    # since they're saturated, but we can still trace paths).
+    # Actually, easier: re-run with each aid type separately using the same
+    # corridor capacities minus already-used.
+
+    # Alternative: use the residual graph to extract paths for each aid type.
+    # The super source/sink edges are saturated, so we can't push more.
+    # Instead, we decompose the flow on corridor edges by aid type using
+    # the residual graph restricted to original nodes.
+
+    # Let's use a cleaner approach: since the graph is a DAG-free general graph,
+    # we decompose flow by finding s_i -> t_i paths in the residual graph
+    # where we treat the flow-carrying edges (forward edges with reduced cap
+    # meaning flow was used, or reverse edges with positive cap meaning flow).
+
+    # Actually, the standard way: for each aid type, find augmenting paths
+    # in the flow network (not residual) from s_i to t_i, using the flow
+    # that was assigned. But we don't have per-commodity flow.
+
+    # Let me reconsider: the problem is a multicommodity flow, but the
+    # structure (each aid has its own super-source/sink edge with capacity = demand)
+    # means the max flow solution gives a valid aggregate flow, but we need
+    # to decompose it per commodity. Since all commodities share corridor capacities
+    # but have separate source/sink, and the super-source/sink edges are separate,
+    # the flow decomposition is: for each aid i, the flow from aid-source-i to
+    # aid-sink-i in the residual graph (with only original nodes) equals d_i.
+    # We can extract it by finding paths from s_i to t_i using edges that carry flow.
+
+    # An edge (u,v) carries flow f if: forward cap reduced (original cap - current cap)
+    # or reverse edge has positive cap (which means flow on forward direction).
+    # We trace from s_i to t_i using flow-carrying edges, subtract as we go.
+
+    # First, build a flow map for corridor edges.
+    # We need to identify which graph edges correspond to corridor forward edges.
+    # The order of add_edge calls:
+    # 1. S -> aid source i (k edges)
+    # 2. aid sink i -> T (k edges)
+    # 3. aid source i -> s_i (k edges)
+    # 4. t_i -> aid sink i (k edges)
+    # 5. corridor edges (m edges)
+    # For node u, its adjacency list has edges added in the order of add_edge calls
+    # that involve u. So we can't easily index by position.
+
+    # Let's just store references to corridor forward edges when we add them.
+    # Redo the graph construction with stored edge references.
+
+    # --- Redo with edge references ---
+    N = n + 2*k + 2
+    S = n + 2*k
+    T = n + 2*k + 1
+    graph = [[] for _ in range(N)]
+
+    def add_edge(u, v, cap):
+        graph[u].append([v, cap, len(graph[v])])
+        graph[v].append([u, 0, len(graph[u]) - 1])
+
+    for i in range(k):
+        add_edge(S, n + i, aids[i][2])
+    for i in range(k):
+        add_edge(n + k + i, T, aids[i][2])
+    for i in range(k):
+        add_edge(n + i, aids[i][0], aids[i][2])
+    for i in range(k):
+        add_edge(aids[i][1], n + k + i, aids[i][2])
+
+    corridor_fwd = []  # references to forward edge objects
+    for j, (u, v, cap) in enumerate(edges):
+        graph[u].append([v, cap, len(graph[v])])
+        graph[v].append([u, 0, len(graph[u]) - 1])
+        corridor_fwd.append(graph[u][-1])
+
+    # Run Dinic again
+    def bfs2():
+        level = [-1] * N
+        level[S] = 0
+        q = [S]
+        for u in q:
+            for v, cap, _ in graph[u]:
+                if cap > 0 and level[v] < 0:
+                    level[v] = level[u] + 1
+                    q.append(v)
+        return level
+
+    def dfs2(u, pushed, level, it):
+        if u == T:
+            return pushed
+        while it[u] < len(graph[u]):
+            e = graph[u][it[u]]
+            v, cap, rev = e
+            if cap > 0 and level[v] == level[u] + 1:
+                tr = dfs2(v, min(pushed, cap), level, it)
+                if tr > 0:
+                    e[1] -= tr
+                    graph[v][rev][1] += tr
+                    return tr
+            it[u] += 1
+        return 0
+
+    flow = 0
+    while True:
+        level = bfs2()
+        if level[T] < 0:
+            break
+        it = [0] * N
+        while True:
+            f = dfs2(S, float('inf'), level, it)
+            if f == 0:
+                break
+            flow += f
+
+    if flow < total_demand:
+        print("NO")
+        return
+
+    # Now decompose flow per aid type.
+    # For each aid i, we need to route d_i units from s_i to t_i using
+    # the flow-carrying edges. A corridor edge (u,v) carries flow if
+    # its forward edge has current cap < original cap (i.e., flow used).
+    # The amount of flow on it = original_cap - current_cap.
+    # We can also use reverse edges (which represent flow in forward direction
+    # that we can "undo" and reroute).
+
+    # Build a residual-like graph on original nodes for flow decomposition.
+    # For each corridor edge, flow_on_edge = original_cap - current_fwd_cap.
+    # We can push flow along forward direction up to flow_on_edge,
+    # or along reverse direction up to current_fwd_cap (residual).
+
+    # Actually for decomposition, we use the flow network (not residual):
+    # edge (u,v) has capacity = flow_on_edge (the amount of flow assigned to it).
+    # We find paths from s_i to t_i and saturate them.
+
+    # Compute flow on each corridor edge
+    corridor_flow = []
+    for j, (u, v, cap) in enumerate(edges):
+        fwd = corridor_fwd[j]
+        used = cap - fwd[1]
+        corridor_flow.append(used)
+
+    # Build adjacency for flow decomposition (only forward direction with flow)
+    # But we also need reverse edges for residual (to handle cycles etc.)
+    # For path decomposition, we use the flow graph: edge (u,v) with cap = flow.
+    # We also add reverse edges with cap = 0 (standard residual for path finding).
+    # Actually, to decompose, we just need to find any s_i->t_i path in the
+    # flow-carrying subgraph and push min(flow along path, remaining demand).
+
+    fd_graph = [[] for _ in range(n)]
+    # Store: [to, edge_index_in_fd_graph[to], remaining_flow]
+    # We'll use simple adjacency with mutable flow values.
+    fd_edge_list = []  # each: [to, flow, rev_index]
+
+    def fd_add_edge(u, v, cap):
+        fd_graph[u].append([v, cap, len(fd_graph[v])])
+        fd_graph[v].append([u, 0, len(fd_graph[u]) - 1])
+
+    for j, (u, v, cap) in enumerate(edges):
+        if corridor_flow[j] > 0:
+            fd_add_edge(u, v, corridor_flow[j])
+
+    # For each aid type, find paths from s_i to t_i
+    result = [[0] * m for _ in range(k)]
+
+    # Map from (u,v) to corridor index for flow decomposition
+    # Since there can be multiple edges between same (u,v), we need to be careful.
+    # We'll track which corridor each fd_edge corresponds to.
+    fd_edge_to_corridor = []
+    fd_adj_start = []  # for each node, list of (fd_edge_index, corridor_index)
+
+    # Rebuild fd_graph with corridor tracking
+    fd_graph = [[] for _ in range(n)]
+    fd_edge_data = []  # list of [to, flow, rev_index, corridor_index]
+
+    def fd_add_edge_tracked(u, v, cap, corridor_idx):
+        idx = len(fd_edge_data)
+        fd_graph[u].append(idx)
+        fd_edge_data.append([v, cap, len(fd_graph[v]), corridor_idx])
+        fd_graph[v].append(idx + 1)
+        fd_edge_data.append([u, 0, len(fd_graph[u]) - 1, -1])  # reverse edge, no corridor
+
+    for j, (u, v, cap) in enumerate(edges):
+        if corridor_flow[j] > 0:
+            fd_add_edge_tracked(u, v, corridor_flow[j], j)
+
+    def find_path_bfs(s, t):
+        # Returns list of fd_edge indices forming a path, or None
+        parent_edge = [-1] * n
+        parent_node = [-1] * n
+        visited = [False] * n
+        visited[s] = True
+        q = [s]
+        for u in q:
+            if u == t:
+                break
+            for eid in fd_graph[u]:
+                e = fd_edge_data[eid]
+                v, flow, rev_idx, cidx = e
+                if flow > 0 and not visited[v]:
+                    visited[v] = True
+                    parent_node[v] = u
+                    parent_edge[v] = eid
+                    q.append(v)
+        if not visited[t]:
+            return None
+        # Reconstruct path
+        path_edges = []
+        u = t
+        while u != s:
+            eid = parent_edge[u]
+            path_edges.append(eid)
+            u = parent_node[u]
+        return path_edges
+
+    for i in range(k):
+        s_i, t_i, d_i = aids[i]
+        remaining = d_i
+        while remaining > 0:
+            path = find_path_bfs(s_i, t_i)
+            if path is None:
+                # Shouldn't happen if flow was valid
+                print("NO")
+                return
+            # Find min flow along path
+            min_flow = min(fd_edge_data[eid][1] for eid in path)
+            push = min(min_flow, remaining)
+            # Update flows and record
+            for eid in path:
+                e = fd_edge_data[eid]
+                e[1] -= push
+                rev = fd_edge_data[e[2]]
+                rev[1] += push
+                if e[3] >= 0:  # forward corridor edge
+                    result[i][e[3]] += push
+            remaining -= push
+
+    print("YES")
+    for i in range(k):
+        print(' '.join(map(str, result[i])))
+
+solve()

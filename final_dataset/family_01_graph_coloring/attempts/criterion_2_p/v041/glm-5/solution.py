@@ -1,0 +1,49 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    iterator = iter(input_data)
+    try:
+        n = int(next(iterator))
+        m = int(next(iterator))
+    except StopIteration:
+        return
+
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(next(iterator))
+        v = int(next(iterator))
+        adj[u].append(v)
+        adj[v].append(u)
+
+    color = [0] * (n + 1)
+    is_bipartite = True
+
+    for i in range(1, n + 1):
+        if color[i] == 0:
+            color[i] = 1
+            stack = [i]
+            while stack:
+                u = stack.pop()
+                for v in adj[u]:
+                    if color[v] == 0:
+                        color[v] = 3 - color[u]
+                        stack.append(v)
+                    elif color[v] == color[u]:
+                        is_bipartite = False
+                        break
+                if not is_bipartite:
+                    break
+        if not is_bipartite:
+            break
+
+    if not is_bipartite:
+        sys.stdout.write("NO\n")
+    else:
+        sys.stdout.write("YES\n")
+        sys.stdout.write(' '.join(map(str, color[1:])) + '\n')
+
+if __name__ == "__main__":
+    solve()

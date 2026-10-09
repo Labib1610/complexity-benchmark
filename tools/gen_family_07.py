@@ -54,7 +54,7 @@ def gen_two_strings(n, seed, mode="worst"):
     else:  # none: distinct alphabets at the seam so no suffix-prefix overlap
         s1 = "a" * n
         s2 = "b" * n
-    return f"{s1}\n{s2}\n"
+    return f"2\n{s1}\n{s2}\n"   # unified schema: k header (k=2)
 
 
 # --- criterion 3: a fragment that contains the forbidden string ---------------

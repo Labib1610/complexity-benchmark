@@ -1,0 +1,69 @@
+import sys
+from collections import defaultdict
+
+def solve():
+    n, m = map(int, input().split())
+    
+    # Read edges
+    edges = []
+    adj = defaultdict(list)
+    
+    for i in range(m):
+        u, v = map(int, input().split())
+        edges.append((u, v))
+        adj[u].append(i)
+        adj[v].append(i)
+    
+    # Try to color the edges with 3 colors such that
+    # no vertex has two edges of the same color
+    # This is equivalent to edge-coloring with 3 colors
+    # Since each vertex has degree 3, this is possible iff
+    # the graph is 3-edge-colorable
+    
+    # We'll model this as a constraint satisfaction problem
+    # and use a greedy approach with backtracking if needed
+    
+    # For cubic graphs (3-regular), 3-edge-coloring exists iff
+    # the graph is bridgeless. But since we're asked to solve
+    # or determine impossibility, we'll try to construct one.
+    
+    # Let's try a constructive approach:
+    # For each vertex, its 3 edges must have 3 different colors
+    
+    coloring = [0] * m  # 0 means uncolored, 1,2,3 are colors
+    
+    # Try to color greedily
+    def is_valid_color(edge_idx, color, current_coloring):
+        u, v = edges[edge_idx]
+        # Check if u already has an edge with this color
+        for e_idx in adj[u]:
+            if e_idx != edge_idx and current_coloring[e_idx] == color:
+                return False
+        # Check if v already has an edge with this color
+        for e_idx in adj[v]:
+            if e_idx != edge_idx and current_coloring[e_idx] == color:
+                return False
+        return True
+    
+    def backtrack(edge_idx):
+        if edge_idx == m:
+            return True
+            
+        for color in [1, 2, 3]:
+            if is_valid_color(edge_idx, color, coloring):
+                coloring[edge_idx] = color
+                if backtrack(edge_idx + 1):
+                    return True
+                coloring[edge_idx] = 0
+        return False
+    
+    # Optimization: Start with vertices that have most constraints
+    # But let's just try sequential for now
+    
+    if backtrack(0):
+        print("YES")
+        print(' '.join(map(str, coloring)))
+    else:
+        print("NO")
+
+solve()

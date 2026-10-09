@@ -1,0 +1,92 @@
+import sys
+from collections import defaultdict, deque
+
+def solve():
+    n, m = map(int, input().split())
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
+    
+    # Build adjacency list
+    adj = defaultdict(list)
+    for _ in range(m):
+        u, v = map(int, input().split())
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # Color graph with BFS (2-coloring for bipartite check)
+    color = [0] * (n + 1)  # 0: unvisited, 1: color 1, 2: color 2
+    visited = [False] * (n + 1)
+    
+    for start in range(1, n + 1):
+        if not visited[start]:
+            queue = deque([start])
+            color[start] = 1
+            visited[start] = True
+            
+            while queue:
+                node = queue.popleft()
+                
+                for neighbor in adj[node]:
+                    if not visited[neighbor]:
+                        visited[neighbor] = True
+                        color[neighbor] = 3 - color[node]  # Flip color (1->2, 2->1)
+                        queue.append(neighbor)
+                    elif color[neighbor] == color[node]:
+                        print("NO")
+                        return
+    
+    # If we reach here, the graph is bipartite
+    # Now we need to ensure the lex smallest assignment
+    # Since we started coloring with 1, and used BFS, this already gives us
+    # a valid coloring. We just need to make sure it's lex smallest.
+    # For each component, if color[component_nodes] starts with 2, we can flip it.
+    # But since we want lex smallest, and we process nodes in order 1..n,
+    # we should ensure the first node gets color 1.
+    
+    # Actually, our BFS approach starting with node 1 and coloring it 1
+    # will naturally give a lex-ordering if we process components in order.
+    # But let's re-think: we need to make sure the overall assignment is lex smallest.
+    
+    # Better approach: for each connected component, determine if we should flip colors
+    # to get the lex smallest representation.
+    
+    # Find connected components
+    visited_comp = [False] * (n + 1)
+    components = []
+    
+    for i in range(1, n + 1):
+        if not visited_comp[i]:
+            comp = []
+            queue = deque([i])
+            visited_comp[i] = True
+            comp.append(i)
+            
+            while queue:
+                node = queue.popleft()
+                for neighbor in adj[node]:
+                    if not visited_comp[neighbor]:
+                        visited_comp[neighbor] = True
+                        queue.append(neighbor)
+                        comp.append(neighbor)
+            components.append(comp)
+    
+    # For each component, decide whether to flip colors
+    final_color = color[:]  # Copy current coloring
+    
+    for component in components:
+        # In this component, find the minimum node
+        min_node = min(component)
+        # If its current color is 2, we should flip the whole component
+        # to make it 1, which leads to a lexicographically smaller result
+        if final_color[min_node] == 2:
+            # Flip colors in this component
+            for node in component:
+                final_color[node] = 3 - final_color[node]
+    
+    print("YES")
+    print(" ".join(str(final_color[i]) for i in range(1, n + 1)))
+
+solve()

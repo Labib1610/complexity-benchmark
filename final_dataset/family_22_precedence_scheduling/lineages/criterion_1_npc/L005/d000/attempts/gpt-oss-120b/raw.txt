@@ -1,0 +1,238 @@
+**Solution Explanation**
+
+For every operation we have to choose an integer time `1 … T`.
+
+*   If there is a dependency `a → b` then `time[a] < time[b]`.
+*   In each time slot at most `M` operations may be executed.
+
+All operations need exactly one time slot, therefore the problem is exactly the
+feasibility of a unit‑task schedule with precedence constraints on `M`
+identical parallel machines and a hard deadline `T`.
+
+--------------------------------------------------------------------
+
+#### 1.   Observations  
+
+*If a schedule exists, the **earliest possible** schedule (the one that always
+executes as many ready tasks as possible at the earliest time) also finishes
+not later than `T`.*  
+Indeed, any other schedule can be transformed into the earliest one by moving
+tasks forward without breaking precedence or capacity, never increasing the
+completion time.
+
+Consequences  
+
+* It is sufficient to construct the earliest schedule and check whether it
+finishes within `T`.
+* The earliest schedule can be built greedily:
+  * keep the set of *ready* operations – those whose all predecessors are already
+    scheduled,
+  * at each time `t = 1 … T` schedule up to `M` arbitrary ready operations,
+    remove them from the graph, and possibly add new ready operations.
+
+If after processing the `T` slots some operations are still unscheduled,
+no schedule respecting the deadline exists.
+
+The greedy construction is exactly a **topological order** respecting the
+machine capacity.
+
+--------------------------------------------------------------------
+
+#### 2.   Algorithm
+```
+if n > M * T :               # obvious impossibility
+        answer = NO
+else
+        build adjacency list, indegree[]
+        ready = queue of all vertices with indegree 0
+        time[1…n] = 0
+        cur_time = 1
+        while cur_time ≤ T and ready not empty:
+                take up to M vertices from ready
+                for each taken vertex v:
+                        time[v] = cur_time
+                        for each neighbour w of v:
+                                indegree[w] -= 1
+                                if indegree[w] == 0: push w into ready
+                cur_time += 1
+        if all time[v] > 0 :   # every vertex scheduled
+                answer = YES and output the times
+        else
+                answer = NO
+```
+
+--------------------------------------------------------------------
+
+#### 3.   Correctness Proof  
+
+We prove that the algorithm prints `YES` with a valid schedule iff such a
+schedule exists.
+
+---
+
+##### Lemma 1  
+During the algorithm, the set `ready` always contains exactly the operations
+whose all predecessors have already been assigned a time (i.e. are already
+scheduled).
+
+**Proof.**  
+Initially `ready` is filled with all vertices of indegree `0`, i.e. with no
+predecessors – the statement holds.  
+When a vertex `v` is scheduled we delete it from the graph and decrease the
+indegree of each successor `w`. If after the decrement `indegree[w]==0`,
+all its predecessors are already scheduled, therefore we insert `w` into
+`ready`. No other vertex is ever inserted or removed, so the invariant holds
+inductively. ∎
+
+
+
+##### Lemma 2  
+At every time slot `t` the algorithm schedules at most `M` operations and all
+scheduled operations satisfy all precedence constraints.
+
+**Proof.**  
+The algorithm extracts at most `M` vertices from `ready`; by Lemma&nbsp;1 each of
+them has all predecessors already scheduled, therefore the precedence
+condition `time[pre] < t` holds. ∎
+
+
+
+##### Lemma 3  
+Let `C` be the finishing time (the largest time used) of the schedule produced
+by the algorithm. Any feasible schedule must finish no earlier than `C`.
+
+**Proof.**  
+Consider the algorithm’s execution. At each time `t` it schedules **all**
+operations that are ready *and* that can be scheduled without exceeding the
+capacity `M`. Suppose there existed another feasible schedule that finishes
+strictly earlier than `C`. Look at the earliest time `t` where the two
+schedules differ. Up to `t‑1` both have scheduled the same set of operations
+(because the algorithm never idles while ready tasks exist). At time `t` the
+algorithm schedules some set `S` of ready tasks (size ≤ M). The other schedule
+cannot schedule any task outside `S` (they are not ready) and cannot schedule
+more than `M` tasks, therefore it can schedule at most the same number of
+tasks as the algorithm. Consequently it cannot finish earlier than the
+algorithm. ∎
+
+
+
+##### Lemma 4  
+If the algorithm finishes all `n` operations within `T` slots, the produced
+times constitute a valid schedule.
+
+**Proof.**  
+By Lemma&nbsp;2 capacity and precedence are satisfied. All times are between
+`1` and `T` by construction. ∎
+
+
+
+##### Lemma 5  
+If the algorithm does **not** finish all operations within `T` slots, then no
+feasible schedule exists.
+
+**Proof.**  
+The algorithm stops after time `T`. Let `C` be the finishing time it would need
+to schedule the remaining operations (i.e. the time when the ready queue finally
+empties, possibly > T). By Lemma&nbsp;3 any feasible schedule needs at least `C`
+time slots. Since `C > T`, a schedule respecting the deadline `T` cannot exist. ∎
+
+
+
+##### Theorem  
+The algorithm outputs  
+
+* `YES` and a correct assignment of times **iff** a feasible schedule exists,
+* otherwise `NO`.
+
+**Proof.**  
+
+*If the algorithm outputs `YES`*: by Lemma&nbsp;4 the printed times are a valid
+schedule, therefore a feasible schedule exists.
+
+*If a feasible schedule exists*: assume the algorithm would output `NO`.  
+Two reasons for `NO` are possible:
+
+1. `n > M·T`. Then any schedule would need more than `T` slots because each
+   slot can hold at most `M` tasks – contradiction.
+2. The greedy simulation ends with unscheduled tasks after time `T`. By
+   Lemma&nbsp;5 this implies impossibility, contradicting the assumption.
+
+Thus the algorithm cannot output `NO` when a feasible schedule exists. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### 4.   Complexity Analysis  
+
+*Building the graph*: `O(n + m)` memory and time.  
+*Simulation*: each vertex is taken from the queue once and each edge is examined
+once when its tail is processed – `O(n + m)` time.  
+Overall  
+
+* **Time** `O(n + m)`  
+* **Memory** `O(n + m)`
+
+Both satisfy the limits (`n, m ≤ 2·10⁵` typical for such problems).
+
+--------------------------------------------------------------------
+
+#### 5.   Reference Implementation  (Python 3)
+
+```python
+import sys
+from collections import deque
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    M = int(next(it))
+    T = int(next(it))
+    m = int(next(it))
+
+    adj = [[] for _ in range(n)]
+    indeg = [0] * n
+    for _ in range(m):
+        a = int(next(it)) - 1
+        b = int(next(it)) - 1
+        adj[a].append(b)
+        indeg[b] += 1
+
+    if n > M * T:
+        print("NO")
+        return
+
+    ready = deque([i for i in range(n) if indeg[i] == 0])
+    time = [0] * n
+    cur = 1
+    processed = 0
+
+    while cur <= T and ready:
+        cnt = 0
+        # schedule up to M tasks this slot
+        while cnt < M and ready:
+            v = ready.popleft()
+            time[v] = cur
+            processed += 1
+            for nb in adj[v]:
+                indeg[nb] -= 1
+                if indeg[nb] == 0:
+                    ready.append(nb)
+            cnt += 1
+        cur += 1
+
+    if processed == n:
+        print("YES")
+        print(' '.join(map(str, time)))
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above and conforms to
+the required input‑output format.

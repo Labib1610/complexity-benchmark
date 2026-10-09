@@ -1,0 +1,174 @@
+import sys
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+
+    n, m = data[0], data[1]
+    adj = [0] * n
+
+    pos = 2
+    for _ in range(m):
+        u = data[pos] - 1
+        v = data[pos + 1] - 1
+        pos += 2
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+
+    all_mask = (1 << n) - 1
+    non_neighbors = [
+        all_mask & ~(adj[v] | (1 << v))
+        for v in range(n)
+    ]
+    answer = [0] * n
+
+    def bipartite(vertices):
+        unseen = vertices
+        left = 0
+        right = 0
+
+        while unseen:
+            seed = unseen & -unseen
+            unseen ^= seed
+            left |= seed
+            queue = seed
+
+            while queue:
+                bit = queue & -queue
+                queue ^= bit
+                v = bit.bit_length() - 1
+                neighbors = adj[v] & vertices
+
+                if left & bit:
+                    if neighbors & left:
+                        return None
+                    new_vertices = neighbors & unseen
+                    right |= new_vertices
+                else:
+                    if neighbors & right:
+                        return None
+                    new_vertices = neighbors & unseen
+                    left |= new_vertices
+
+                unseen ^= new_vertices
+                queue |= new_vertices
+
+        return left, right
+
+    def assign_bipartition(parts):
+        left, right = parts
+        mask = left
+        while mask:
+            bit = mask & -mask
+            mask ^= bit
+            answer[bit.bit_length() - 1] = 1
+
+        mask = right
+        while mask:
+            bit = mask & -mask
+            mask ^= bit
+            answer[bit.bit_length() - 1] = 2
+
+    def solve_component(component):
+        parts = bipartite(component)
+        if parts is not None:
+            assign_bipartition(parts)
+            return True
+
+        solution = None
+
+        def search(independent, candidates, excluded):
+            nonlocal solution
+
+            if candidates == 0:
+                if excluded != 0:
+                    return False
+
+                remaining = component & ~independent
+                parts_here = bipartite(remaining)
+                if parts_here is None:
+                    return False
+
+                solution = (independent, parts_here[0], parts_here[1])
+                return True
+
+            union = candidates | excluded
+            best_vertex = -1
+            best_count = -1
+            temp = union
+
+            while temp:
+                bit = temp & -temp
+                temp ^= bit
+                v = bit.bit_length() - 1
+                count = (candidates & non_neighbors[v]).bit_count()
+                if count > best_count:
+                    best_count = count
+                    best_vertex = v
+
+            branch_vertices = candidates & ~non_neighbors[best_vertex]
+
+            while branch_vertices:
+                bit = branch_vertices & -branch_vertices
+                branch_vertices ^= bit
+                v = bit.bit_length() - 1
+
+                if search(
+                    independent | bit,
+                    candidates & non_neighbors[v],
+                    excluded & non_neighbors[v]
+                ):
+                    return True
+
+                candidates ^= bit
+                excluded |= bit
+
+            return False
+
+        if not search(0, component, 0):
+            return False
+
+        independent, left, right = solution
+
+        mask = independent
+        while mask:
+            bit = mask & -mask
+            mask ^= bit
+            answer[bit.bit_length() - 1] = 3
+
+        assign_bipartition((left, right))
+        return True
+
+    remaining = all_mask
+    components = []
+
+    while remaining:
+        seed = remaining & -remaining
+        remaining ^= seed
+        component = seed
+        queue = seed
+
+        while queue:
+            bit = queue & -queue
+            queue ^= bit
+            v = bit.bit_length() - 1
+            new_vertices = adj[v] & remaining
+            remaining ^= new_vertices
+            component |= new_vertices
+            queue |= new_vertices
+
+        components.append(component)
+
+    components.sort(key=int.bit_count)
+
+    for component in components:
+        if not solve_component(component):
+            print("NO")
+            return
+
+    print("YES")
+    print(*answer)
+
+if __name__ == "__main__":
+    main()

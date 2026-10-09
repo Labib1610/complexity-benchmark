@@ -1,22 +1,22 @@
-# Problem A — Security Clearance Resolution
+# Problem A — Thermal Resonance Tuning
 
 Time limit: 2 s   Memory limit: 256 MB
 
-A secure facility is configuring the access levels for a network of $n$ interdependent modules. Each module must receive exactly one access level from the set $\{1, 2, 3\}$.
+A reactor core contains $n$ thermal modules. To maintain stability, each module must be calibrated to exactly one of three distinct resonance states, designated as 1, 2, and 3.
 
-To prevent critical vulnerabilities, the facility has established $m$ separation protocols. Each protocol specifies a pair of modules that must be assigned different access levels. The interacting constraints of these protocols create complex, system-wide dependencies. 
+The diagnostic system has identified $m$ interference warnings. Each warning specifies two modules, $u$ and $v$, which are physically positioned such that they will cause catastrophic feedback if they share the same resonance state.
 
-Please take note: the test suite contains instances specifically designed to be adversarial. Maximum-size test cases are structured such that attempting to resolve the configuration by simply iterating through modules in numerical order and testing levels 1, 2, 3 sequentially will result in an astronomical number of dead ends before a valid state is found or proven impossible.
+To prevent core failure, the calibration sequence must ensure that for every recorded interference warning $(u, v)$, the two modules receive strictly different states.
 
-Your task is to determine if there exists a complete access assignment that respects all separation protocols. If at least one valid assignment exists, you must identify the one that is lexicographically smallest.
+Your task is to determine whether there exists a valid state assignment for all modules $1 \dots n$ such that every interference warning is mitigated. If such an assignment exists, you must provide one.
 
 ## Input
-The first line of the input provides two integers $n$ and $m$ ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$). These represent the total number of modules and the number of separation protocols, respectively.
-The following $m$ lines each contain two integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), indicating that module $u$ and module $v$ are restricted from sharing the same access level.
+The first line contains two integers $n$ and $m$ — the number of thermal modules and the number of interference warnings ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
+Each of the following $m$ lines contains two integers $u$ and $v$, indicating an interference warning between module $u$ and module $v$.
 
 ## Output
-If no valid assignment can satisfy all protocols, print `NO` on a single line.
-If a valid assignment is possible, print `YES` on the first line. On the second line, print $n$ integers $c_1, c_2, \dots, c_n$ (where each $c_i \in \{1, 2, 3\}$) representing the access level assigned to each respective module. Among all valid configurations, the sequence of access levels you output must be the lexicographically smallest (i.e., comparing the access level of module 1 first, then module 2, and so forth).
+If it is impossible to calibrate the modules safely, output a single line containing `NO`.
+Otherwise, output `YES` on the first line. On the second line, output $n$ integers $s_1, s_2, \dots, s_n$ (where each $s_i \in \{1, 2, 3\}$), with $s_i$ representing the resonance state assigned to module $i$. Any valid assignment is accepted.
 
 ## Example 1
 Input:

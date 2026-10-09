@@ -1,0 +1,170 @@
+```python
+import sys
+
+# Increase recursion depth for deep trees
+sys.setrecursionlimit(300000)
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    B = int(input_data[2])
+    
+    if n == 1:
+        print("YES")
+        print(1)
+        return
+    
+    adj = [[] for _ in range(n + 1)]
+    edges = []
+    idx = 3
+    for _ in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx+1])
+        adj[u].append(v)
+        adj[v].append(u)
+        edges.append((u, v))
+        idx += 2
+        
+    # Find centroids to try as roots, as well as high-degree nodes
+    sz = [0] * (n + 1)
+    def get_sz(u, p):
+        s = 1
+        for v in adj[u]:
+            if v != p:
+                s += get_sz(v, u)
+        sz[u] = s
+        return s
+    
+    get_sz(1, 0)
+    
+    centroids = []
+    def get_centroids(u, p):
+        is_centroid = True
+        for v in adj[u]:
+            if v != p:
+                get_centroids(v, u)
+                if sz[v] > n // 2:
+                    is_centroid = False
+        if n - sz[u] > n // 2:
+            is_centroid = False
+        if is_centroid:
+            centroids.append(u)
+            
+    get_centroids(1, 0)
+    
+    # Candidate roots
+    candidates = list(centroids)
+    # Add top degree nodes
+    nodes_by_deg = sorted(range(1, n + 1), key=lambda x: len(adj[x]), reverse=True)
+    for u in nodes_by_deg:
+        if len(candidates) >= 20:
+            break
+        if u not in candidates:
+            candidates.append(u)
+            
+    # If n is small, we can try more roots
+    if n <= 300:
+        candidates = list(range(1, n + 1))
+    elif n <= 2000:
+        candidates = nodes_by_deg[:min(n, 100)]
+        
+    best_cost = float('inf')
+    best_perm = None
+
+    def build_layout(root):
+        # 1. Compute subtree sizes
+        subtree_size = [0] * (n + 1)
+        def calc_size(u, p):
+            s = 1
+            for v in adj[u]:
+                if v != p:
+                    s += calc_size(v, u)
+            subtree_size[u] = s
+            return s
+        calc_size(root, 0)
+        
+        # 2. Layout generator
+        # side: 'ROOT', 'L' (u at right boundary), 'R' (u at left boundary)
+        def get_order(u, p, side):
+            children = [v for v in adj[u] if v != p]
+            if not children:
+                return [u]
+            
+            # Sort children by subtree size ascending
+            children.sort(key=lambda x: subtree_size[x])
+            
+            if side == 'ROOT':
+                # Distribute children to Left and Right
+                # Largest children at the outer ends
+                left_children = []
+                right_children = []
+                for i, c in enumerate(reversed(children)):
+                    if i % 2 == 0:
+                        right_children.append(c)
+                    else:
+                        left_children.append(c)
+                # left_children has largest first (outermost)
+                # right_children has largest first (outermost)
+                
+                res = []
+                for c in left_children:
+                    res.extend(get_order(c, u, 'L'))
+                res.append(u)
+                for c in reversed(right_children):
+                    res.extend(get_order(c, u, 'R'))
+                return res
+            
+            elif side == 'L':
+                # u must be at the right boundary of its block
+                # All children must be placed to the left of u
+                # To minimize distance to u, smallest children should be closer to u (rightmost)
+                # Largest children furthest from u (leftmost)
+                res = []
+                for c in reversed(children): # largest first
+                    res.extend(get_order(c, u, 'L'))
+                res.append(u)
+                return res
+            
+            else: # side == 'R'
+                # u must be at the left boundary of its block
+                # All children placed to the right of u
+                # Smallest children closer to u (leftmost), largest furthest (rightmost)
+                res = [u]
+                for c in children: # smallest first
+                    res.extend(get_order(c, u, 'R'))
+                return res
+
+        order = get_order(root, 0, 'ROOT')
+        return order
+
+    for r in candidates:
+        order = build_layout(r)
+        pos = [0] * (n + 1)
+        for p_idx, u in enumerate(order):
+            pos[u] = p_idx + 1
+        
+        cost = 0
+        for u, v in edges:
+            cost += abs(pos[u] - pos[v])
+            if cost > B and cost >= best_cost:
+                break
+                
+        if cost < best_cost:
+            best_cost = cost
+            best_perm = pos
+            if best_cost <= B:
+                break
+
+    if best_cost <= B:
+        print("YES")
+        print(*(best_perm[1:]))
+    else:
+        print("NO")
+
+if __name__ == '__main__':
+    solve()
+```

@@ -1,45 +1,38 @@
 def solve():
     import sys
+    from itertools import product
+    
     input = sys.stdin.read
     data = input().split()
     
-    n, m = int(data[0]), int(data[1])
+    n = int(data[0])
+    m = int(data[1])
     
-    # Build adjacency list for incompatibilities
-    adj = [[] for _ in range(n + 1)]
-    idx = 2
-    for _ in range(m):
-        u, v = int(data[idx]), int(data[idx + 1])
-        adj[u].append(v)
-        adj[v].append(u)
-        idx += 2
-    
-    # Try to assign shifts maintaining lexicographical order
-    assignment = [0] * (n + 1)  # assignment[i] = shift of person i
-    
-    def is_valid(person, shift):
-        for neighbor in adj[person]:
-            if assignment[neighbor] == shift:
-                return False
-        return True
-    
-    def backtrack(person):
-        if person > n:
-            return True
-            
-        for shift in [1, 2, 3]:
-            if is_valid(person, shift):
-                assignment[person] = shift
-                if backtrack(person + 1):
-                    return True
-                assignment[person] = 0  # backtrack
-                
-        return False
-    
-    if backtrack(1):
+    if m == 0:
         print("YES")
-        print(' '.join(map(str, assignment[1:])))
-    else:
-        print("NO")
+        print(" ".join(["1"] * n))
+        return
+    
+    edges = []
+    index = 2
+    for _ in range(m):
+        u = int(data[index]) - 1
+        v = int(data[index+1]) - 1
+        edges.append((u, v))
+        index += 2
+    
+    # Try all 3^n assignments
+    for assignment in product([1, 2, 3], repeat=n):
+        valid = True
+        for u, v in edges:
+            if assignment[u] == assignment[v]:
+                valid = False
+                break
+        if valid:
+            print("YES")
+            print(" ".join(map(str, assignment)))
+            return
+    
+    print("NO")
 
 solve()

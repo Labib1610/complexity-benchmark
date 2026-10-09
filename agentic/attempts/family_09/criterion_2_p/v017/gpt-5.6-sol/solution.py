@@ -1,0 +1,129 @@
+import sys
+from collections import deque
+
+sys.setrecursionlimit(300000)
+input = sys.stdin.buffer.readline
+
+n, m, k = map(int, input().split())
+adj = [[] for _ in range(n)]
+
+for _ in range(m):
+    u, v = map(int, input().split())
+    u -= 1
+    v -= 1
+    adj[u].append(v)
+    adj[v].append(u)
+
+UNCOLORED = 255
+color = bytearray([UNCOLORED]) * n
+left = []
+
+for start in range(n):
+    if color[start] != UNCOLORED:
+        continue
+    color[start] = 0
+    q = deque([start])
+
+    while q:
+        u = q.popleft()
+        if color[u] == 0:
+            left.append(u)
+        next_color = color[u] ^ 1
+        for v in adj[u]:
+            if color[v] == UNCOLORED:
+                color[v] = next_color
+                q.append(v)
+
+match_left = [-1] * n
+match_right = [-1] * n
+dist = [0] * n
+INF = n + 1
+
+def bfs():
+    q = deque()
+    for u in left:
+        if match_left[u] == -1:
+            dist[u] = 0
+            q.append(u)
+        else:
+            dist[u] = INF
+
+    shortest = INF
+    while q:
+        u = q.popleft()
+        if dist[u] >= shortest:
+            continue
+        nd = dist[u] + 1
+        for v in adj[u]:
+            paired = match_right[v]
+            if paired == -1:
+                shortest = nd
+            elif dist[paired] == INF:
+                dist[paired] = nd
+                q.append(paired)
+    return shortest
+
+shortest = INF
+
+def dfs(u):
+    next_dist = dist[u] + 1
+    for v in adj[u]:
+        paired = match_right[v]
+        if paired == -1:
+            if next_dist != shortest:
+                continue
+        elif dist[paired] != next_dist or not dfs(paired):
+            continue
+
+        match_left[u] = v
+        match_right[v] = u
+        return True
+
+    dist[u] = INF
+    return False
+
+while True:
+    shortest = bfs()
+    if shortest == INF:
+        break
+    for u in left:
+        if match_left[u] == -1:
+            dfs(u)
+
+reachable_left = bytearray(n)
+reachable_right = bytearray(n)
+q = deque()
+
+for u in left:
+    if match_left[u] == -1:
+        reachable_left[u] = 1
+        q.append(u)
+
+while q:
+    u = q.popleft()
+    matched_v = match_left[u]
+
+    for v in adj[u]:
+        if v == matched_v or reachable_right[v]:
+            continue
+
+        reachable_right[v] = 1
+        paired = match_right[v]
+        if paired != -1 and not reachable_left[paired]:
+            reachable_left[paired] = 1
+            q.append(paired)
+
+independent_set = []
+
+for u in range(n):
+    if color[u] == 0:
+        if reachable_left[u]:
+            independent_set.append(u + 1)
+    elif not reachable_right[u]:
+        independent_set.append(u + 1)
+
+if len(independent_set) < k:
+    print("NO")
+else:
+    print("YES")
+    print(*independent_set[:k])

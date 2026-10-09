@@ -1,0 +1,96 @@
+import sys
+from collections import deque
+
+def solve():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it)); m = int(next(it)); k = int(next(it))
+    streams = []
+    for _ in range(k):
+        s = int(next(it))-1; t = int(next(it))-1; d = int(next(it))
+        streams.append((s, t, d))
+    edges = []
+    adj = [[] for _ in range(n)]
+    for idx in range(m):
+        u = int(next(it))-1; v = int(next(it))-1; cap = int(next(it))
+        edges.append([u, v, cap])
+        adj[u].append((v, idx))
+
+    # Simple backtracking assuming small sizes
+    usage = [[0]*m for _ in range(k)]
+
+    # Precompute all simple paths up to length n for each stream
+    all_paths = []
+    for s, t, d in streams:
+        paths = []
+        stack = [(s, [], set([s]))]
+        while stack:
+            node, path, visited = stack.pop()
+            if node == t:
+                paths.append(path)
+                continue
+            if len(path) >= n:  # avoid too long
+                continue
+            for v, eid in adj[node]:
+                if v not in visited:
+                    stack.append((v, path+[eid], visited|{v}))
+        all_paths.append(paths)
+
+    # recursive search
+    caps = [edges[i][2] for i in range(m)]
+
+    def dfs(idx):
+        if idx == k:
+            return True
+        s, t, d = streams[idx]
+        # generate all ways to send d units over paths (allow repetitions)
+        # we treat each unit separately
+        assign = [0]*m
+        def place(unit):
+            if unit == d:
+                # check capacities
+                for i in range(m):
+                    if assign[i] > caps[i]:
+                        return False
+                # commit
+                for i in range(m):
+                    caps[i] -= assign[i]
+                    usage[idx][i] = assign[i]
+                if dfs(idx+1):
+                    return True
+                # rollback
+                for i in range(m):
+                    caps[i] += assign[i]
+                    usage[idx][i] = 0
+                return False
+            for path in all_paths[idx]:
+                ok = True
+                for eid in path:
+                    if assign[eid]+1 > caps[eid]:
+                        ok = False
+                        break
+                if not ok:
+                    continue
+                for eid in path:
+                    assign[eid] += 1
+                if place(unit+1):
+                    return True
+                for eid in path:
+                    assign[eid] -= 1
+            return False
+        return place(0)
+
+    possible = dfs(0)
+    if not possible:
+        print("NO")
+        return
+    print("YES")
+    out = []
+    for i in range(k):
+        out.append(' '.join(str(usage[i][j]) for j in range(m)))
+    sys.stdout.write('\n'.join(out))
+
+if __name__ == "__main__":
+    solve()

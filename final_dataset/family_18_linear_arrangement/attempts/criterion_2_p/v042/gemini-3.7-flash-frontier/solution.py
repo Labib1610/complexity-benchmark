@@ -1,0 +1,187 @@
+import sys
+
+# Increase recursion depth just in case
+sys.setrecursionlimit(300000)
+
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+
+    n = int(input_data[0])
+    m = int(input_data[1])
+    B = int(input_data[2])
+
+    edges = []
+    adj = [[] for _ in range(n + 1)]
+    idx = 3
+    for _ in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx + 1])
+        idx += 2
+        edges.append((u, v))
+        adj[u].append(v)
+        adj[v].append(u)
+
+    if n == 1:
+        if B >= 0:
+            print("YES")
+            print("1")
+        else:
+            print("NO")
+        return
+
+    # Find candidate roots: centroids, high degree nodes, etc.
+    # First, find centroid(s)
+    sz_temp = [0] * (n + 1)
+    parent_temp = [0] * (n + 1)
+    order_temp = []
+    stack = [1]
+    visited = [False] * (n + 1)
+    visited[1] = True
+
+    while stack:
+        u = stack.pop()
+        order_temp.append(u)
+        for v in adj[u]:
+            if not visited[v]:
+                visited[v] = True
+                parent_temp[v] = u
+                stack.append(v)
+
+    for u in reversed(order_temp):
+        sz_temp[u] = 1
+        for v in adj[u]:
+            if v != parent_temp[u]:
+                sz_temp[u] += sz_temp[v]
+
+    centroids = []
+    for u in range(1, n + 1):
+        max_c = n - sz_temp[u]
+        for v in adj[u]:
+            if v != parent_temp[u]:
+                if sz_temp[v] > max_c:
+                    max_c = sz_temp[v]
+        if max_c <= n // 2:
+            centroids.append(u)
+
+    # Candidate roots
+    candidates = set(centroids)
+    # Add top degree nodes
+    nodes_by_deg = sorted(range(1, n + 1), key=lambda x: len(adj[x]), reverse=True)
+    for u in nodes_by_deg[:min(n, 50)]:
+        candidates.add(u)
+
+    if n <= 1000:
+        candidates = list(range(1, n + 1))
+    else:
+        candidates = list(candidates)
+
+    def get_layout(r):
+        # Non-recursive tree traversal
+        order = []
+        parent = [0] * (n + 1)
+        stack = [r]
+        visited = [False] * (n + 1)
+        visited[r] = True
+        tree_adj = [[] for _ in range(n + 1)]
+
+        while stack:
+            u = stack.pop()
+            order.append(u)
+            for v in adj[u]:
+                if not visited[v]:
+                    visited[v] = True
+                    parent[v] = u
+                    tree_adj[u].append(v)
+                    stack.append(v)
+
+        sz = [1] * (n + 1)
+        for u in reversed(order):
+            for v in tree_adj[u]:
+                sz[u] += sz[v]
+
+        for u in range(1, n + 1):
+            tree_adj[u].sort(key=lambda v: sz[v])
+
+        # Generate left and right layout
+        # layout_left(u): children layout_left(c_k) ... layout_left(c_1) + [u]
+        # layout_right(u): [u] + layout_right(c_1) ... layout_right(c_k)
+
+        def build_right(u):
+            res = []
+            st = [u]
+            while st:
+                curr = st.pop()
+                res.append(curr)
+                for ch in reversed(tree_adj[curr]):
+                    st.append(ch)
+            return res
+
+        def build_left(u):
+            # Post-order with reversed children: layout_left(c_k) ... layout_left(c_1) + [curr]
+            res = []
+            st = [(u, False)]
+            while st:
+                curr, processed = st.pop()
+                if processed:
+                    res.append(curr)
+                else:
+                    st.append((curr, True))
+                    for ch in tree_adj[curr]:
+                        st.append((ch, False))
+            return res
+
+        # For root r, partition children into left and right
+        r_children = tree_adj[r]
+        left_res = []
+        right_res = []
+
+        # r_children are sorted by size ascending
+        # Distribute: 0 to left, 1 to right, 2 to left, 3 to right, ...
+        # For left: 0 is closest to r, so its build_left comes last in left_res
+        # i.e., left_res = build_left(c_{2k}) + ... + build_left(c_2) + build_left(c_0)
+        left_children = []
+        right_children = []
+        for i, ch in enumerate(r_children):
+            if i % 2 == 0:
+                left_children.append(ch)
+            else:
+                right_children.append(ch)
+
+        for ch in reversed(left_children):
+            left_res.extend(build_left(ch))
+
+        for ch in right_children:
+            right_res.extend(build_right(ch))
+
+        return left_res + [r] + right_res
+
+    best_cost = float("inf")
+    best_layout = None
+
+    for r in candidates:
+        layout = get_layout(r)
+        pos = [0] * (n + 1)
+        for i, u in enumerate(layout):
+            pos[u] = i + 1
+        cost = sum(abs(pos[u] - pos[v]) for u, v in edges)
+        if cost < best_cost:
+            best_cost = cost
+            best_layout = layout
+            if best_cost <= B:
+                break
+
+    if best_cost <= B:
+        pos = [0] * (n + 1)
+        for i, u in enumerate(best_layout):
+            pos[u] = i + 1
+        print("YES")
+        print(*(pos[i] for i in range(1, n + 1)))
+    else:
+        print("NO")
+
+
+if __name__ == "__main__":
+    solve()

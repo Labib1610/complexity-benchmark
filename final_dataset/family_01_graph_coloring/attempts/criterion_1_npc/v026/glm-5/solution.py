@@ -1,0 +1,74 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    color = [0] * n
+    
+    # Check if graph is bipartite and assign colors 1 or 2
+    is_bipartite = True
+    for i in range(n):
+        if color[i] == 0:
+            color[i] = 1
+            stack = [i]
+            while stack:
+                u = stack.pop()
+                for v in adj[u]:
+                    if color[v] == 0:
+                        color[v] = 3 - color[u]
+                        stack.append(v)
+                    elif color[v] == color[u]:
+                        is_bipartite = False
+                        break
+                if not is_bipartite:
+                    break
+        if not is_bipartite:
+            break
+    
+    if is_bipartite:
+        print("YES")
+        print(' '.join(map(str, color)))
+        return
+    
+    # Graph is not bipartite, need to check if 3-colorable
+    # Use backtracking with pruning
+    color = [0] * n
+    
+    # Order vertices by degree (descending) for better pruning
+    order = sorted(range(n), key=lambda x: -len(adj[x]))
+    
+    def backtrack(idx):
+        if idx == n:
+            return True
+        u = order[idx]
+        used = 0
+        for v in adj[u]:
+            if color[v] != 0:
+                used |= (1 << (color[v] - 1))
+        for c in range(1, 4):
+            if not (used & (1 << (c - 1))):
+                color[u] = c
+                if backtrack(idx + 1):
+                    return True
+                color[u] = 0
+        return False
+    
+    if backtrack(0):
+        print("YES")
+        print(' '.join(map(str, color)))
+    else:
+        print("NO")
+
+solve()

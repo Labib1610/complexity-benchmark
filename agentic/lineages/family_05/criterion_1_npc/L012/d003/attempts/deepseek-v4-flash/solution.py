@@ -1,0 +1,86 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.read().strip().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    k = int(next(it))
+    t = int(next(it))
+    
+    pockets = []
+    for _ in range(t):
+        x = int(next(it)) - 1
+        y = int(next(it)) - 1
+        z = int(next(it)) - 1
+        pockets.append((x, y, z))
+    
+    full_mask = (1 << k) - 1
+    
+    # Precompute masks for each pocket
+    pocket_masks = [(1 << x, 1 << y, 1 << z) for x, y, z in pockets]
+    
+    # Build coverage lists for each coordinate value for pruning
+    x_cover = [[] for _ in range(k)]
+    y_cover = [[] for _ in range(k)]
+    z_cover = [[] for _ in range(k)]
+    for idx, (mx, my, mz) in enumerate(pocket_masks):
+        x_bits = mx.bit_length() - 1
+        y_bits = my.bit_length() - 1
+        z_bits = mz.bit_length() - 1
+        x_cover[x_bits].append(idx)
+        y_cover[y_bits].append(idx)
+        z_cover[z_bits].append(idx)
+    
+    chosen = []
+    used = [False] * t
+    
+    def bt(x_mask, y_mask, z_mask):
+        if len(chosen) == k:
+            return x_mask == full_mask and y_mask == full_mask and z_mask == full_mask
+        
+        # Find a coordinate value not covered
+        missing_x = full_mask ^ x_mask
+        if missing_x:
+            bit = missing_x & -missing_x
+            x_val = bit.bit_length() - 1
+            candidates = x_cover[x_val]
+        elif (full_mask ^ y_mask):
+            bit = (full_mask ^ y_mask) & -(full_mask ^ y_mask)
+            y_val = bit.bit_length() - 1
+            candidates = y_cover[y_val]
+        elif (full_mask ^ z_mask):
+            bit = (full_mask ^ z_mask) & -(full_mask ^ z_mask)
+            z_val = bit.bit_length() - 1
+            candidates = z_cover[z_val]
+        else:
+            candidates = []
+        
+        for idx in candidates:
+            if used[idx]:
+                continue
+            mx, my, mz = pocket_masks[idx]
+            # Prune: don't pick if new coverage doesn't help
+            if (mx & x_mask) and (my & y_mask) and (mz & z_mask):
+                continue
+            # Also must not exceed k selections
+            if len(chosen) + 1 > k:
+                continue
+            used[idx] = True
+            chosen.append(idx)
+            if bt(x_mask | mx, y_mask | my, z_mask | mz):
+                return True
+            chosen.pop()
+            used[idx] = False
+        return False
+    
+    if bt(0, 0, 0):
+        sys.stdout.write("YES\n")
+        for idx in chosen:
+            x, y, z = pockets[idx]
+            sys.stdout.write(f"{x+1} {y+1} {z+1}\n")
+    else:
+        sys.stdout.write("NO\n")
+
+if __name__ == "__main__":
+    solve()

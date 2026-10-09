@@ -1,0 +1,66 @@
+import sys
+
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+
+    n = int(input_data[0])
+    m = int(input_data[1])
+    k = int(input_data[2])
+
+    adj = [0] * n
+    idx = 3
+    for _ in range(m):
+        u = int(input_data[idx]) - 1
+        v = int(input_data[idx + 1]) - 1
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+        idx += 2
+
+    # non_adj[i] has bits for all j where j is not adjacent to i and j != i
+    full_mask = (1 << n) - 1
+    non_adj = [(full_mask ^ adj[i]) ^ (1 << i) for i in range(n)]
+
+    c = [0] * (n + 1)
+    best = []
+    found_k = False
+
+    for i in range(n - 1, -1, -1):
+        target_len = c[i + 1] + 1
+        cand = non_adj[i] & ~((1 << (i + 1)) - 1)
+
+        def dfs(cand_mask, path):
+            nonlocal best, found_k
+            if not cand_mask:
+                if len(path) > len(best):
+                    best = list(path)
+                    if len(best) >= k:
+                        found_k = True
+                return
+
+            while cand_mask:
+                v = (cand_mask & -cand_mask).bit_length() - 1
+                if len(path) + c[v] <= len(best):
+                    return
+                cand_mask &= ~(1 << v)
+                dfs(cand_mask & non_adj[v], path + [v])
+                if found_k or len(best) >= target_len:
+                    return
+
+        dfs(cand, [i])
+        c[i] = len(best)
+        if found_k:
+            break
+
+    if len(best) >= k:
+        print("YES")
+        ans = [x + 1 for x in best[:k]]
+        print(*(ans))
+    else:
+        print("NO")
+
+
+if __name__ == "__main__":
+    solve()

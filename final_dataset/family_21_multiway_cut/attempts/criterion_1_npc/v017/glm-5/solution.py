@@ -1,0 +1,315 @@
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    idx = 0
+    n = int(data[idx]); idx += 1
+    m = int(data[idx]); idx += 1
+    k = int(data[idx]); idx += 1
+    B = int(data[idx]); idx += 1
+
+    hubs = []
+    for _ in range(k):
+        hubs.append(int(data[idx]) - 1)
+        idx += 1
+
+    edges = []
+    for _ in range(m):
+        u = int(data[idx]) - 1; idx += 1
+        v = int(data[idx]) - 1; idx += 1
+        w = int(data[idx]); idx += 1
+        edges.append((u, v, w))
+
+    if k <= 1:
+        print("YES")
+        print(0)
+        return
+
+    parent = list(range(n))
+    rank = [0] * n
+
+    def find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    def union(x, y):
+        rx = find(x)
+        ry = find(y)
+        if rx == ry:
+            return False
+        if rank[rx] < rank[ry]:
+            parent[rx] = ry
+        elif rank[rx] > rank[ry]:
+            parent[ry] = rx
+        else:
+            parent[ry] = rx
+            rank[rx] += 1
+        return True
+
+    edges.sort(key=lambda e: e[2])
+
+    chosen = []
+    total = 0
+    for u, v, w in edges:
+        if union(u, v):
+            chosen.append((u, v, w))
+            total += w
+
+    # Build MST adjacency
+    adj = [[] for _ in range(n)]
+    for u, v, w in chosen:
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+
+    # Kruskal reconstruction tree (binary lifting)
+    LOG = max(1, (n).bit_length())
+    up = [[-1] * n for _ in range(LOG)]
+    mx = [[0] * n for _ in range(LOG)]
+    depth = [0] * n
+
+    stack = [(0, -1, 0)]
+    visited = [False] * n
+    while stack:
+        node, par, d = stack.pop()
+        if visited[node]:
+            continue
+        visited[node] = True
+        depth[node] = d
+        up[0][node] = par
+        for j in range(1, LOG):
+            if up[j-1][node] != -1:
+                up[j][node] = up[j-1][up[j-1][node]]
+                mx[j][node] = max(mx[j-1][node], mx[j-1][up[j-1][node]])
+            else:
+                break
+        for nb, w in adj[node]:
+            if not visited[nb]:
+                up[0][nb] = node
+                mx[0][nb] = w
+                stack.append((nb, node, d + 1))
+
+    def max_edge(u, v):
+        if u == v:
+            return 0
+        if find(u) != find(v):
+            return 10**18
+        res = 0
+        if depth[u] < depth[v]:
+            u, v = v, u
+        diff = depth[u] - depth[v]
+        for j in range(LOG):
+            if (diff >> j) & 1:
+                res = max(res, mx[j][u])
+                u = up[j][u]
+        if u == v:
+            return res
+        for j in range(LOG - 1, -1, -1):
+            if up[j][u] != up[j][v]:
+                res = max(res, mx[j][u], mx[j][v])
+                u = up[j][u]
+                v = up[j][v]
+        res = max(res, mx[0][u], mx[0][v])
+        return res
+
+    # Build auxiliary graph on hubs
+    aux_edges = []
+    for i in range(k):
+        for j in range(i + 1, k):
+            w = max_edge(hubs[i], hubs[j])
+            aux_edges.append((w, i, j))
+
+    aux_edges.sort(key=lambda e: e[0])
+
+    h_parent = list(range(k))
+    def h_find(x):
+        while h_parent[x] != x:
+            h_parent[x] = h_parent[h_parent[x]]
+            x = h_parent[x]
+        return x
+
+    # For each chosen MST edge, find which hub-pairs it is the max edge for
+    # We use the auxiliary MST to determine cuts
+    # Actually simpler: auxiliary MST edges correspond to MST edges we need
+    # But we need to map back to original edges
+
+    # Build auxiliary MST
+    aux_adj = [[] for _ in range(k)]
+    for w, i, j in aux_edges:
+        ri = h_find(i)
+        rj = h_find(j)
+        if ri != rj:
+            h_parent[ri] = rj
+            aux_adj[i].append((j, w))
+            aux_adj[j].append((i, w))
+
+    # The edges we need to seal are the edges in the auxiliary MST
+    # But we need to find actual edges in original graph that achieve these cuts
+    # Each auxiliary MST edge weight corresponds to some MST edge weight
+    # We need to find which MST edges to cut
+
+    # Actually, the minimum cut separating all hubs is the auxiliary MST
+    # The total weight is sum of auxiliary MST edges
+    # We need to output actual edges
+
+    # Reset parent for finding actual edges
+    parent2 = list(range(n))
+    rank2 = [0] * n
+    def find2(x):
+        while parent2[x] != x:
+            parent2[x] = parent2[parent2[x]]
+            x = parent2[x]
+        return x
+    def union2(x, y):
+        rx = find2(x)
+        ry = find2(y)
+        if rx == ry:
+            return False
+        if rank2[rx] < rank2[ry]:
+            parent2[rx] = ry
+        elif rank2[rx] > rank2[ry]:
+            parent2[ry] = rx
+        else:
+            parent2[ry] = rx
+            rank2[rx] += 1
+        return True
+
+    # We need to find edges that form a Steiner forest separating all hubs
+    # The optimal solution: for each edge in auxiliary MST, we need one edge of that weight
+    # But multiple hub pairs might share the same MST edge
+
+    # Better approach: process edges in decreasing order of weight in auxiliary MST
+    # and find corresponding edges to cut
+
+    # Actually, let's just find the minimum weight set of edges whose removal separates all hubs
+    # This equals the auxiliary MST weight
+    # The edges to cut are edges in the original MST that correspond to auxiliary MST edges
+
+    # Let's collect the set of weights we need
+    needed_weights = []
+    h_parent2 = list(range(k))
+    def h_find2(x):
+        while h_parent2[x] != x:
+            h_parent2[x] = h_parent2[h_parent2[x]]
+            x = h_parent2[x]
+        return x
+
+    aux_total = 0
+    for w, i, j in aux_edges:
+        ri = h_find2(i)
+        rj = h_find2(j)
+        if ri != rj:
+            h_parent2[ri] = rj
+            needed_weights.append(w)
+            aux_total += w
+
+    if aux_total > B:
+        print("NO")
+        return
+
+    # Now we need to find actual edges to seal
+    # We need to separate hubs. The approach: build the cut by finding edges
+    # that separate hub components
+
+    # Reset and use a different strategy: process MST edges in decreasing weight order
+    # For each MST edge, check if removing it separates any two hub groups
+    # that are currently connected
+
+    # Rebuild MST
+    parent3 = list(range(n))
+    rank3 = [0] * n
+    def find3(x):
+        while parent3[x] != x:
+            parent3[x] = parent3[parent3[x]]
+            x = parent3[x]
+        return x
+    def union3(x, y):
+        rx = find3(x)
+        ry = find3(y)
+        if rx == ry:
+            return False
+        if rank3[rx] < rank3[ry]:
+            parent3[rx] = ry
+        elif rank3[rx] > rank3[ry]:
+            parent3[ry] = rx
+        else:
+            parent3[ry] = rx
+            rank3[rx] += 1
+        return True
+
+    mst_edges = []
+    for u, v, w in edges:
+        if union3(u, v):
+            mst_edges.append((u, v, w))
+
+    # For each component, track which hubs are in it
+    # Process edges in decreasing order
+    # When we remove an edge, we split a component into two
+    # If both sides have at least one hub, we need this edge
+
+    # Build tree
+    tree_adj = [[] for _ in range(n)]
+    for u, v, w in mst_edges:
+        tree_adj[u].append((v, w))
+        tree_adj[v].append((u, w))
+
+    # Root the tree and compute subtree hub counts
+    # Use iterative DFS
+    hub_set = set(hubs)
+    is_hub = [False] * n
+    for h in hubs:
+        is_hub[h] = True
+
+    # Find root (any node in the component containing hubs, or node 0)
+    root = 0
+    stack = [(root, -1, 0)]
+    order = []
+    parent_tree = [-1] * n
+    parent_weight = [0] * n
+    visited2 = [False] * n
+    while stack:
+        node, par, pw = stack.pop()
+        if visited2[node]:
+            continue
+        visited2[node] = True
+        parent_tree[node] = par
+        parent_weight[node] = pw
+        order.append(node)
+        for nb, w in tree_adj[node]:
+            if not visited2[nb]:
+                stack.append((nb, node, w))
+
+    # Compute hub count in subtree (process in reverse order)
+    hub_count = [0] * n
+    for node in reversed(order):
+        if is_hub[node]:
+            hub_count[node] += 1
+        par = parent_tree[node]
+        if par != -1:
+            hub_count[par] += hub_count[node]
+
+    total_hubs = len(hubs)
+    result_edges = []
+
+    for node in order:
+        par = parent_tree[node]
+        if par == -1:
+            continue
+        hc = hub_count[node]
+        if hc > 0 and hc < total_hubs:
+            # This edge separates hubs
+            result_edges.append((par, node, parent_weight[node]))
+
+    result_total = sum(w for _, _, w in result_edges)
+
+    if result_total > B:
+        print("NO")
+        return
+
+    print("YES")
+    print(len(result_edges))
+    for u, v, w in result_edges:
+        print(u + 1, v + 1)
+
+solve()

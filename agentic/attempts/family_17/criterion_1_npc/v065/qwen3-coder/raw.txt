@@ -1,0 +1,228 @@
+```python
+from collections import defaultdict
+import sys
+
+def find_matching(q, t, protocols):
+    # Create bipartite graph
+    # Left side: protocols (0 to t-1)
+    # Right side: sectors (0 to 3*q-1)
+    
+    # Build adjacency list for sectors to protocols
+    sector_to_protocols = defaultdict(list)
+    for i, (a, b, c) in enumerate(protocols):
+        sector_to_protocols[a-1].append(i)
+        sector_to_protocols[b-1].append(i)
+        sector_to_protocols[c-1].append(i)
+    
+    # Try to find maximum matching using backtracking
+    # This is essentially a exact cover problem
+    
+    # We need exactly q protocols, each covering 3 sectors, with no overlaps
+    selected = []
+    used_sectors = [False] * (3 * q)
+    
+    def backtrack(protocol_idx):
+        if len(selected) == q:
+            return True
+            
+        if protocol_idx >= t:
+            return False
+            
+        # Try including this protocol
+        a, b, c = protocols[protocol_idx]
+        a -= 1; b -= 1; c -= 1
+        
+        if not used_sectors[a] and not used_sectors[b] and not used_sectors[c]:
+            # Use this protocol
+            selected.append(protocol_idx)
+            used_sectors[a] = True
+            used_sectors[b] = True
+            used_sectors[c] = True
+            
+            if backtrack(protocol_idx + 1):
+                return True
+                
+            # Backtrack
+            selected.pop()
+            used_sectors[a] = False
+            used_sectors[b] = False
+            used_sectors[c] = False
+        
+        # Try skipping this protocol
+        if backtrack(protocol_idx + 1):
+            return True
+            
+        return False
+    
+    # Also try a more systematic approach - build conflict graph
+    # Two protocols conflict if they share at least one sector
+    
+    conflicts = [[False] * t for _ in range(t)]
+    sector_ownership = [[] for _ in range(3 * q)]
+    
+    for i, (a, b, c) in enumerate(protocols):
+        sector_ownership[a-1].append(i)
+        sector_ownership[b-1].append(i)
+        sector_ownership[c-1].append(i)
+    
+    # Check for conflicts between protocols
+    for i in range(t):
+        for j in range(i+1, t):
+            # Protocols i and j conflict if they share any sector
+            shared_sector = False
+            for sec in range(3*q):
+                if i in sector_ownership[sec] and j in sector_ownership[sec]:
+                    shared_sector = True
+                    break
+            if shared_sector:
+                conflicts[i][j] = True
+                conflicts[j][i] = True
+    
+    # Now we want to find an independent set of size q where each 
+    # selected protocol covers 3 distinct sectors not covered by others
+    
+    # Use greedy + backtracking approach
+    def solve():
+        # Try all possible combinations with pruning
+        def dfs(pos, selected_protocols, covered_sectors):
+            if len(selected_protocols) == q:
+                return selected_protocols[:]
+            
+            if pos >= t:
+                return None
+                
+            # Pruning: if even selecting all remaining protocols won't give us enough
+            if len(selected_protocols) + (t - pos) < q:
+                return None
+            
+            # Try including current protocol
+            a, b, c = protocols[pos]
+            a -= 1; b -= 1; c -= 1
+            
+            if (a not in covered_sectors and 
+                b not in covered_sectors and 
+                c not in covered_sectors):
+                
+                # Check if this protocol conflicts with any already selected
+                conflict = False
+                for prev_protocol in selected_protocols:
+                    if conflicts[pos][prev_protocol]:
+                        conflict = True
+                        break
+                
+                if not conflict:
+                    covered_sectors.add(a)
+                    covered_sectors.add(b)
+                    covered_sectors.add(c)
+                    selected_protocols.append(pos)
+                    
+                    result = dfs(pos + 1, selected_protocols, covered_sectors)
+                    if result is not None:
+                        return result
+                        
+                    selected_protocols.pop()
+                    covered_sectors.discard(a)
+                    covered_sectors.discard(b)
+                    covered_sectors.discard(c)
+            
+            # Try not including current protocol
+            result = dfs(pos + 1, selected_protocols, covered_sectors)
+            return result
+        
+        return dfs(0, [], set())
+    
+    result = solve()
+    return result
+
+def main():
+    input = sys.stdin.read
+    data = input().split()
+    
+    q = int(data[0])
+    t = int(data[1])
+    
+    protocols = []
+    idx = 2
+    for _ in range(t):
+        a = int(data[idx])
+        b = int(data[idx+1])
+        c = int(data[idx+2])
+        protocols.append((a, b, c))
+        idx += 3
+    
+    # More efficient approach: model as exact cover and use backtracking
+    def can_cover():
+        # Try to find q non-conflicting protocols that cover all sectors
+        selected = []
+        used = [False] * (3 * q + 1)  # sectors 1-indexed
+        
+        def backtrack(proto_idx):
+            if len(selected) == q:
+                return True
+            if proto_idx >= t:
+                return False
+                
+            # Try current protocol
+            a, b, c = protocols[proto_idx]
+            if not used[a] and not used[b] and not used[c]:
+                selected.append((a, b, c))
+                used[a] = used[b] = used[c] = True
+                
+                if backtrack(proto_idx + 1):
+                    return True
+                    
+                used[a] = used[b] = used[c] = False
+                selected.pop()
+            
+            # Skip current protocol
+            if backtrack(proto_idx + 1):
+                return True
+                
+            return False
+        
+        if backtrack(0):
+            return selected
+        return None
+    
+    # Even simpler backtracking
+    def solve_simple():
+        selected = []
+        used = [False] * (3 * q + 1)
+        
+        def bt(index):
+            if len(selected) == q:
+                return True
+            if index >= t:
+                return False
+            
+            # Try including this protocol
+            a, b, c = protocols[index]
+            if not used[a] and not used[b] and not used[c]:
+                selected.append(index)
+                used[a] = used[b] = used[c] = True
+                if bt(index + 1):
+                    return True
+                used[a] = used[b] = used[c] = False
+                selected.pop()
+            
+            # Try excluding this protocol
+            if bt(index + 1):
+                return True
+            return False
+        
+        if bt(0):
+            return [protocols[i] for i in selected]
+        return None
+    
+    result = solve_simple()
+    
+    if result:
+        print("YES")
+        for a, b, c in result:
+            print(a, b, c)
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    main()
+```

@@ -1,5 +1,5 @@
 import sys
-sys.setrecursionlimit(1 << 25)
+from collections import deque
 
 def solve() -> None:
     data = sys.stdin.read().strip().split()
@@ -8,42 +8,51 @@ def solve() -> None:
     it = iter(data)
     n = int(next(it))
     m = int(next(it))
-    g = [[] for _ in range(n)]
+    adj = [[] for _ in range(n + 1)]
     for _ in range(m):
-        u = int(next(it)) - 1
-        v = int(next(it)) - 1
-        g[u].append(v)
-        g[v].append(u)
+        u = int(next(it)); v = int(next(it))
+        if u == v:          # self‑loop impossible
+            print("NO")
+            return
+        adj[u].append(v)
+        adj[v].append(u)
 
-    col = [-1] * n          # 0 / 1
-    from collections import deque
-    for start in range(n):
-        if col[start] != -1:
+    color = [-1] * (n + 1)          # 0 / 1 bipartite colors
+    ans = [0] * (n + 1)             # final concentrations
+    for start in range(1, n + 1):
+        if color[start] != -1:
             continue
         # BFS this component
         q = deque([start])
-        col[start] = 0
+        color[start] = 0
         comp = [start]
+        ok = True
         while q:
-            v = q.popleft()
-            for to in g[v]:
-                if col[to] == -1:
-                    col[to] = col[v] ^ 1
-                    q.append(to)
-                    comp.append(to)
-                elif col[to] == col[v]:
+            u = q.popleft()
+            for v in adj[u]:
+                if color[v] == -1:
+                    color[v] = color[u] ^ 1
+                    q.append(v)
+                    comp.append(v)
+                elif color[v] == color[u]:
                     print("NO")
                     return
-        # make smallest index vertex colour 0 (=> mode 1)
-        mn = min(comp)
-        if col[mn] == 1:
+        # decide orientation to make lexicographically smallest
+        min_idx = min(comp)
+        if color[min_idx] == 0:
+            # 0 -> 1, 1 -> 2
             for v in comp:
-                col[v] ^= 1
+                ans[v] = 1 if color[v] == 0 else 2
+        else:
+            # flip: 1 -> 1, 0 -> 2
+            for v in comp:
+                ans[v] = 1 if color[v] == 1 else 2
 
-    # all good
+    # isolated vertices (no edges) already handled: they are single‑node components,
+    # color 0, min_idx = that vertex, so assigned 1.
+
     print("YES")
-    ans = [str(c + 1) for c in col]
-    print(' '.join(ans))
+    print(' '.join(str(ans[i]) for i in range(1, n + 1)))
 
 if __name__ == "__main__":
     solve()

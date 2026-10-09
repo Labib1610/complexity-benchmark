@@ -1,23 +1,20 @@
-# Problem A — Scheduling Pipeline: Phase 2
+# Staff Shift Allocation
 
-Time limit: 2 s
-Memory limit: 256 MB
+Time limit: 2 s   Memory limit: 256 MB
 
-A manufacturing facility's workforce management system is divided into three distinct stages. During the first stage, the personnel system gathers information on $n$ employees and flags specific pairs of employees who cannot work together due to interpersonal friction.
+A production plant employs a workforce of $n$ individuals. Management has identified $m$ pairs of staff members who experience severe conflicts when placed together. To maintain productivity, workplace rules mandate that the two individuals in any identified conflict pair must never be placed on the same shift.
 
-You are responsible for the second stage: the scheduling module. The facility operates three daily shifts, designated 1, 2, and 3. Each employee must be allocated to exactly one of these three shifts. To maintain productivity, no two employees with flagged friction may be allocated to the same shift.
+The plant's daily schedule is divided into exactly three distinct shifts: shift 1, shift 2, and shift 3. 
 
-The test data may contain arbitrary adversarial configurations, including worst-case instances (both with and without valid allocations) intended to defeat exhaustive assignment enumeration; solutions must meet the time limit on those instances.
-
-During the third stage, the payroll system processes your allocations to print the daily rosters. To guarantee predictable behavior in this final stage, if there are multiple valid ways to allocate the shifts, you must output the sequence of allocations that is lexicographically smallest (evaluating the shift of employee 1 first, then employee 2, and so forth). If no valid allocation can be found, the second stage must output a specific failure message so the system can notify the administration.
+You must establish whether it is feasible to place every individual onto exactly one of these three shifts without breaking the conflict rules. If a valid configuration is possible, you must output one. You only need to supply one valid configuration, even if several are possible.
 
 ## Input
-The first line provides two integers $n$ and $m$ — the number of employees and the number of friction pairs flagged in the first stage ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
-Each of the subsequent $m$ lines provides two integers $u$ and $v$, representing a pair of employees who cannot share a shift.
+The first line provides two integers $n$ and $m$ — the total number of individuals in the workforce and the number of conflict pairs ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
+Each of the subsequent $m$ lines provides two integers $u$ and $v$, meaning that individual $u$ and individual $v$ must be placed on different shifts.
 
 ## Output
-If no valid shift allocation can be made, output a single line containing `NO`.
-Otherwise, output `YES` on the first line. On the second line, output $n$ integers $s_1, s_2, \dots, s_n$ (each in the set $\{1, 2, 3\}$), where $s_i$ is the shift assigned to employee $i$. If multiple valid allocations exist, output the one that forms the lexicographically smallest sequence.
+If it is impossible to place all individuals onto the shifts without violating the conflict rules, print a single line containing `NO`.
+If it is possible, print `YES` on the first line. On the second line, print $n$ integers $s_1, s_2, \dots, s_n$ separated by spaces, where each $s_i \in \{1, 2, 3\}$ indicates the shift given to individual $i$. You only need to supply one valid configuration, even if several are possible.
 
 ## Example 1
 Input:

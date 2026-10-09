@@ -9,69 +9,67 @@ def solve() -> None:
     it = iter(data)
     n = int(next(it))
     m = int(next(it))
-
-    adj = [0] * n          # bitmask of neighbours
+    adj = [set() for _ in range(n)]
     for _ in range(m):
         u = int(next(it)) - 1
         v = int(next(it)) - 1
-        adj[u] |= 1 << v
-        adj[v] |= 1 << u
+        adj[u].add(v)
+        adj[v].add(u)
 
-    col = [0] * n          # 0 = uncoloured, else 1..3
-    avail = [0b111] * n    # three bits, all colours possible
+    # order vertices by degree descending for initial heuristic
+    order = sorted(range(n), key=lambda x: -len(adj[x]))
+    pos_in_order = {v: i for i, v in enumerate(order)}
+    # we will pick next vertex dynamically (DSATUR style)
+    colors = [0] * n
+    # for each vertex, keep set of neighbor colors used
+    neighbor_used = [set() for _ in range(n)]
 
-    # helper: find first vertex with col==0
-    def next_uncoloured(start):
-        for i in range(start, n):
-            if col[i] == 0:
-                return i
-        return n
-
-    # depth‑first search
-    def dfs(pos):
-        v = next_uncoloured(pos)
-        if v == n:                     # all coloured
-            return True
-
-        mask = avail[v]
-        for colour in (1, 2, 3):
-            bit = 1 << (colour - 1)
-            if not (mask & bit):
+    def select_vertex():
+        # choose uncolored vertex with maximum number of distinct neighbor colors,
+        # tie-break by degree
+        best = -1
+        best_cnt = -1
+        best_deg = -1
+        for v in range(n):
+            if colors[v] != 0:
                 continue
+            cnt = len(neighbor_used[v])
+            deg = len(adj[v])
+            if cnt > best_cnt or (cnt == best_cnt and deg > best_deg):
+                best = v
+                best_cnt = cnt
+                best_deg = deg
+        return best
 
+    def dfs(colored_cnt: int) -> bool:
+        if colored_cnt == n:
+            return True
+        v = select_vertex()
+        # possible colors are those not used by neighbors
+        used = neighbor_used[v]
+        for c in (1, 2, 3):
+            if c in used:
+                continue
             # assign
-            col[v] = colour
-            changed = []               # neighbours that lose this colour
-            neigh_mask = adj[v]
-            while neigh_mask:
-                u = (neigh_mask & -neigh_mask).bit_length() - 1
-                neigh_mask &= neigh_mask - 1
-                if col[u] == 0 and (avail[u] & bit):
-                    avail[u] &= ~bit
-                    changed.append(u)
-                    if avail[u] == 0:   # dead end
-                        break
-            else:
-                # no dead end, recurse
-                if dfs(v + 1):
-                    return True
-
-            # undo
-            for u in changed:
-                avail[u] |= bit
-            col[v] = 0
-
+            colors[v] = c
+            changed = []
+            for nb in adj[v]:
+                if c not in neighbor_used[nb]:
+                    neighbor_used[nb].add(c)
+                    changed.append(nb)
+            if dfs(colored_cnt + 1):
+                return True
+            # backtrack
+            for nb in changed:
+                neighbor_used[nb].remove(c)
+            colors[v] = 0
         return False
 
-    possible = dfs(0)
-
-    out = []
-    if not possible:
-        out.append("NO")
+    if dfs(0):
+        print("YES")
+        print(' '.join(map(str, colors)))
     else:
-        out.append("YES")
-        out.append(" ".join(str(c) for c in col))
-    sys.stdout.write("\n".join(out))
+        print("NO")
 
 if __name__ == "__main__":
     solve()

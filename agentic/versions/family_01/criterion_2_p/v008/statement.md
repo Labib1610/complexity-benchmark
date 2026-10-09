@@ -2,15 +2,15 @@
 
 Time limit: 1 s   Memory limit: 256 MB
 
-The factory planning process consists of three stages. In the first stage, human resources collects employee availability to determine exactly $n$ workers and $m$ conflict pairs. Your task is the second stage: given this data, assign each worker to one of two shifts, labeled 1 and 2, so that no conflicting pair shares a shift, or report impossibility. In the third stage, this schedule will be sent to the payroll department for final processing.
+The factory's automated scheduling system operates in three stages. First, HR compiles a database of n workers and extracts m conflict pairs based on personality assessments. In the second stage, you must process this data. The factory now runs only two shifts, labeled 1 and 2. You must assign each worker a shift so that no conflicting pair shares a shift, or report impossibility. Finally, in the third stage, your output is passed to payroll to calculate shift differentials.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$).
-Each of the next $m$ lines contains two integers $u$ and $v$ — a conflicting pair.
+The first line contains two integers n and m (1 ≤ n ≤ 2·10⁵, 0 ≤ m ≤ 2·10⁵).
+Each of the next m lines contains two integers u v — a conflicting pair.
 
 ## Output
 If no valid assignment exists, print a single line NO.
-Otherwise print YES, then a second line with $n$ integers $s_1 \dots s_n$ (each in {1,2}), the lexicographically smallest valid assignment.
+Otherwise print YES, then a second line with n integers s₁ … sₙ (each in {1,2}), the lexicographically smallest valid assignment.
 
 ## Example 1
 Input:

@@ -1,0 +1,259 @@
+from collections import defaultdict, deque
+
+def solve():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    index = 0
+    n = int(data[index])
+    index += 1
+    m = int(data[index])
+    index += 1
+    _ = int(data[index])
+    index += 1
+    
+    s = int(data[index])
+    index += 1
+    t = int(data[index])
+    index += 1
+    d = int(data[index])
+    index += 1
+    
+    edges = []
+    capacity = []
+    graph = defaultdict(list)
+    reverse_graph = defaultdict(list)
+    
+    for i in range(m):
+        u = int(data[index])
+        index += 1
+        v = int(data[index])
+        index += 1
+        bays = int(data[index])
+        index += 1
+        
+        edges.append((u, v))
+        capacity.append(bays)
+        graph[u].append(i)
+        reverse_graph[v].append(i)
+    
+    # We model this as a max flow problem from s to t with demand d
+    # If max flow < d, then impossible
+    # Otherwise, we need to find a feasible flow of exactly d
+    
+    # Let's use Ford-Fulkerson with BFS (Edmonds-Karp) to find max flow
+    # But we also need to ensure we get exactly d flow if possible
+    
+    # First, let's build the residual graph
+    # For each edge i: edges[i] = (u,v), capacity[i]
+    # We'll store residual capacities separately
+    
+    def bfs_flow():
+        # Find augmenting path using BFS
+        parent_edge = [-1] * (n+1)
+        parent = [-1] * (n+1)
+        visited = [False] * (n+1)
+        
+        queue = deque()
+        queue.append(s)
+        visited[s] = True
+        
+        while queue:
+            u = queue.popleft()
+            
+            if u == t:
+                break
+                
+            # Check forward edges
+            for edge_idx in graph[u]:
+                v = edges[edge_idx][1]
+                if not visited[v] and flow[edge_idx] < capacity[edge_idx]:
+                    visited[v] = True
+                    parent[v] = u
+                    parent_edge[v] = edge_idx
+                    queue.append(v)
+                    
+            # Check backward edges
+            for edge_idx in reverse_graph[u]:
+                v = edges[edge_idx][0]
+                if not visited[v] and flow[edge_idx] > 0:
+                    visited[v] = True
+                    parent[v] = u
+                    parent_edge[v] = -edge_idx - 1  # Negative to indicate backward
+                    queue.append(v)
+        
+        if not visited[t]:
+            return 0, [], []
+            
+        # Find minimum residual capacity along the path
+        path_flow = float('inf')
+        path = []
+        edge_path = []
+        current = t
+        while current != s:
+            prev = parent[current]
+            edge_idx = parent_edge[current]
+            if edge_idx >= 0:
+                # Forward edge
+                path_flow = min(path_flow, capacity[edge_idx] - flow[edge_idx])
+                edge_path.append(edge_idx)
+            else:
+                # Backward edge
+                actual_edge_idx = -edge_idx - 1
+                path_flow = min(path_flow, flow[actual_edge_idx])
+                edge_path.append(-actual_edge_idx - 1)
+            current = prev
+            
+        return path_flow, edge_path, parent_edge
+    
+    # Initialize flow
+    flow = [0] * m
+    
+    # Run max flow until we can't augment more or we reach d
+    total_flow = 0
+    while total_flow < d:
+        path_flow, edge_path, _ = bfs_flow()
+        if path_flow == 0:
+            break
+            
+        # Limit path_flow so we don't exceed demand
+        path_flow = min(path_flow, d - total_flow)
+        total_flow += path_flow
+        
+        # Update flows along the path
+        current = t
+        while current != s:
+            if parent_edge[current] >= 0:
+                edge_idx = parent_edge[current]
+                flow[edge_idx] += path_flow
+                prev = edges[edge_idx][0]
+            else:
+                edge_idx = -parent_edge[current] - 1
+                flow[edge_idx] -= path_flow
+                prev = edges[edge_idx][1]
+            current = prev
+    
+    if total_flow < d:
+        print("NO")
+        return
+    
+    # Now we have a flow of exactly d
+    print("YES")
+    print(' '.join(map(str, flow)))
+
+# But wait, let me re-read the problem...
+# The problem asks for a routing that delivers exactly d containers
+# This is a circulation problem with demands
+
+# Actually, simpler approach:
+# Model as max flow from s to t
+# If max flow >= d, then we can send d units
+# We just need to find any valid flow of value d
+
+# Let's restart with cleaner implementation
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    idx = 0
+    n = int(data[idx]); idx += 1
+    m = int(data[idx]); idx += 1
+    _ = int(data[idx]); idx += 1
+    s = int(data[idx]); idx += 1
+    t = int(data[idx]); idx += 1
+    d = int(data[idx]); idx += 1
+    
+    edges = []
+    cap = []
+    adj = [[] for _ in range(n+1)]
+    rev_adj = [[] for _ in range(n+1)]
+    
+    for i in range(m):
+        u = int(data[idx]); idx += 1
+        v = int(data[idx]); idx += 1
+        c = int(data[idx]); idx += 1
+        edges.append((u, v))
+        cap.append(c)
+        adj[u].append(i)
+        rev_adj[v].append(i)
+    
+    # Max flow from s to t
+    flow = [0] * m
+    
+    def bfs():
+        parent = [-1] * (n + 1)
+        parent_edge = [-1] * (n + 1)
+        visited = [False] * (n + 1)
+        q = deque([s])
+        visited[s] = True
+        
+        while q:
+            u = q.popleft()
+            if u == t:
+                break
+            # Forward edges
+            for e in adj[u]:
+                v = edges[e][1]
+                if not visited[v] and flow[e] < cap[e]:
+                    visited[v] = True
+                    parent[v] = u
+                    parent_edge[v] = e
+                    q.append(v)
+            # Backward edges
+            for e in rev_adj[u]:
+                v = edges[e][0]
+                if not visited[v] and flow[e] > 0:
+                    visited[v] = True
+                    parent[v] = u
+                    parent_edge[v] = ~e  # bitwise complement to mark backward
+                    q.append(v)
+        
+        if not visited[t]:
+            return 0, None
+        
+        # Find bottleneck
+        bottleneck = float('inf')
+        cur = t
+        while cur != s:
+            e = parent_edge[cur]
+            if e >= 0:
+                bottleneck = min(bottleneck, cap[e] - flow[e])
+                cur = edges[e][0]
+            else:
+                e = ~e
+                bottleneck = min(bottleneck, flow[e])
+                cur = edges[e][1]
+        
+        return bottleneck, parent_edge
+    
+    total_flow = 0
+    while total_flow < d:
+        aug, parent_edge = bfs()
+        if aug == 0:
+            break
+        aug = min(aug, d - total_flow)
+        total_flow += aug
+        
+        # Augment along path
+        cur = t
+        while cur != s:
+            e = parent_edge[cur]
+            if e >= 0:
+                flow[e] += aug
+                cur = edges[e][0]
+            else:
+                e = ~e
+                flow[e] -= aug
+                cur = edges[e][1]
+    
+    if total_flow < d:
+        print("NO")
+    else:
+        print("YES")
+        print(' '.join(map(str, flow)))
+
+if __name__ == "__main__":
+    main()

@@ -163,7 +163,8 @@ def main():
     ap.add_argument("--family", required=True)
     ap.add_argument("--models", nargs="+", help="evaluator ids (default: all frontier_evaluators)")
     ap.add_argument("--depths", default="final",
-                    help="'final' (default: hardest statement only) or 'seed,final'")
+                    help="'final' (hardest only), 'seed,final', or 'all' (every depth d0..d_final "
+                         "of each lineage -- the full per-depth difficulty progression)")
     ap.add_argument("--ceiling", type=int, default=DEFAULT_CEILING_S,
                     help="runaway guard in seconds (0 = unbounded; NOT a time limit)")
     ap.add_argument("--only-lineage")
@@ -205,11 +206,16 @@ def main():
             if not lj:
                 continue
             fd = lj.get("final_depth", 0)
-            which_depth = {"seed": 0, "final": fd}
-            for which in depths:
-                depth = which_depth.get(which)
-                if depth is None:
-                    continue
+            # 'all' -> evaluate EVERY depth d000..d<final> (full difficulty progression per lineage);
+            # 'seed'/'final' -> just those. The label `which` becomes the output-dir component, so for
+            # 'all' it is the per-depth tag d000/d001/... keeping each depth's results separate.
+            if "all" in depths:
+                depth_items = [(f"d{d:03d}", d) for d in range(fd + 1)
+                               if (ldir / f"d{d:03d}" / "statement.md").exists()]
+            else:
+                which_depth = {"seed": 0, "final": fd}
+                depth_items = [(w, which_depth[w]) for w in depths if w in which_depth]
+            for which, depth in depth_items:
                 stmt_path = ldir / f"d{depth:03d}" / "statement.md"
                 if not stmt_path.exists():
                     continue

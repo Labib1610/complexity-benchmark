@@ -1,0 +1,94 @@
+from collections import defaultdict, deque
+
+def solve():
+    q, t = map(int, input().split())
+    
+    if t < q:
+        print("NO")
+        return
+    
+    # Build bipartite graph
+    graph = defaultdict(list)
+    edges = []
+    
+    for i in range(t):
+        a, b = map(int, input().split())
+        graph[a].append((b, i))
+        edges.append((a, b))
+    
+    # Try to find a perfect matching using BFS-based augmenting paths
+    # This is essentially the Hopcroft-Karp algorithm simplified for our needs
+    
+    # match_new[b] = index of edge that matches new unit b to some old unit
+    match_new = {}
+    # match_old[a] = index of edge that matches old unit a to some new unit
+    match_old = {}
+    
+    def bfs():
+        # Find shortest augmenting paths
+        queue = deque()
+        dist = {}
+        
+        for a in range(1, q + 1):
+            if a not in match_old:
+                dist[a] = 0
+                queue.append(a)
+            else:
+                dist[a] = float('inf')
+        dist[None] = float('inf')
+        
+        while queue:
+            a = queue.popleft()
+            if dist[a] < dist[None]:
+                for b, edge_idx in graph[a]:
+                    # If b is matched, we can go to its mate
+                    if b in match_new:
+                        mate = edges[match_new[b]][0]  # The old unit that b is matched to
+                        if mate not in dist or dist[mate] == float('inf'):
+                            dist[mate] = dist[a] + 1
+                            queue.append(mate)
+                    else:
+                        # Found an augmenting path
+                        dist[None] = dist[a] + 1
+        return dist[None] != float('inf')
+    
+    def dfs(a):
+        # Find augmenting path starting from unmatched old unit a
+        if a is None:
+            return True
+            
+        for b, edge_idx in graph[a]:
+            # If b is matched, we can go to its mate
+            if b in match_new:
+                mate = edges[match_new[b]][0]  # The old unit that b is matched to
+                if dist.get(mate, float('inf')) == dist[a] + 1 and dfs(mate):
+                    # Augment along this path
+                    match_new[b] = edge_idx
+                    match_old[a] = edge_idx
+                    return True
+            else:
+                # b is free, so we found an augmenting path
+                if dist[None] == dist[a] + 1 and dfs(None):
+                    match_new[b] = edge_idx
+                    match_old[a] = edge_idx
+                    return True
+        dist[a] = float('inf')
+        return False
+    
+    # Main matching loop
+    matching = 0
+    while bfs():
+        for a in range(1, q + 1):
+            if a not in match_old:
+                if dfs(a):
+                    matching += 1
+    
+    if matching < q:
+        print("NO")
+    else:
+        print("YES")
+        for a in range(1, q + 1):
+            edge_idx = match_old[a]
+            print(edges[edge_idx][0], edges[edge_idx][1])
+
+solve()

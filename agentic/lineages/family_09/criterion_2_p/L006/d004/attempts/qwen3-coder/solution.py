@@ -1,0 +1,131 @@
+import sys
+from collections import defaultdict, deque
+
+def read_input():
+    n, m, k = map(int, sys.stdin.readline().split())
+    edges = []
+    adj = defaultdict(list)
+    for _ in range(m):
+        u, v = map(int, sys.stdin.readline().split())
+        edges.append((u, v))
+        adj[u].append(v)
+        adj[v].append(u)
+    return n, m, k, edges, adj
+
+def bipartite_partition(n, adj):
+    color = [-1] * (n + 1)
+    for i in range(1, n + 1):
+        if color[i] == -1:
+            queue = deque([i])
+            color[i] = 0
+            while queue:
+                node = queue.popleft()
+                for neighbor in adj[node]:
+                    if color[neighbor] == -1:
+                        color[neighbor] = 1 - color[node]
+                        queue.append(neighbor)
+                    elif color[neighbor] == color[node]:
+                        return None, None
+    set_a = [i for i in range(1, n + 1) if color[i] == 0]
+    set_b = [i for i in range(1, n + 1) if color[i] == 1]
+    return set_a, set_b
+
+def max_matching(set_a, set_b, adj):
+    # Build adjacency list for set_a to set_b
+    from_a_to_b = defaultdict(list)
+    for u in set_a:
+        for v in adj[u]:
+            if v in set_b:
+                from_a_to_b[u].append(v)
+    
+    match_b_to_a = {}
+    match_a_to_b = {}
+    
+    def dfs(u, visited):
+        for v in from_a_to_b[u]:
+            if v in visited:
+                continue
+            visited.add(v)
+            if v not in match_b_to_a or dfs(match_b_to_a[v], visited):
+                match_b_to_a[v] = u
+                match_a_to_b[u] = v
+                return True
+        return False
+    
+    matching = 0
+    for u in set_a:
+        if dfs(u, set()):
+            matching += 1
+            
+    return matching, match_a_to_b, match_b_to_a
+
+def find_maximum_independent_set(n, adj, set_a, set_b):
+    matching, match_a_to_b, match_b_to_a = max_matching(set_a, set_b, adj)
+    
+    # Konig's theorem: min vertex cover = max matching
+    # Min vertex cover -> Max independent set = n - min vertex cover
+    min_vertex_cover = matching
+    max_independent_set_size = n - min_vertex_cover
+    
+    # To find the actual independent set:
+    # 1. Find unmatched vertices in A and B
+    unmatched_a = [u for u in set_a if u not in match_a_to_b]
+    unmatched_b = [v for v in set_b if v not in match_b_to_a]
+    
+    # 2. BFS from unmatched A to find reachable vertices
+    visited_a = set()
+    visited_b = set()
+    queue = deque(unmatched_a)
+    visited_a.update(unmatched_a)
+    
+    while queue:
+        u = queue.popleft()
+        for v in adj[u]:
+            if v in set_b and v not in visited_b:
+                visited_b.add(v)
+                if v in match_b_to_a:
+                    u_match = match_b_to_a[v]
+                    if u_match not in visited_a:
+                        visited_a.add(u_match)
+                        queue.append(u_match)
+    
+    # Independent set consists of:
+    # - Unvisited vertices in A (those NOT in the vertex cover)
+    # - Visited vertices in B (those NOT in the vertex cover)
+    independent_set = []
+    for u in set_a:
+        if u not in visited_a:
+            independent_set.append(u)
+    for v in set_b:
+        if v in visited_b:
+            independent_set.append(v)
+            
+    return max_independent_set_size, independent_set
+
+def main():
+    n, m, k, edges, adj = read_input()
+    
+    if m == 0:
+        # No constraints, we can select any k variables
+        print("YES")
+        print(' '.join(map(str, range(1, k+1))))
+        return
+        
+    set_a, set_b = bipartite_partition(n, adj)
+    if set_a is None:
+        # This shouldn't happen as per problem statement
+        print("NO")
+        return
+        
+    max_ind_set_size, ind_set = find_maximum_independent_set(n, adj, set_a, set_b)
+    
+    if k <= max_ind_set_size:
+        # Select any k elements from the independent set
+        selected = ind_set[:k]
+        print("YES")
+        print(' '.join(map(str, selected)))
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    main()

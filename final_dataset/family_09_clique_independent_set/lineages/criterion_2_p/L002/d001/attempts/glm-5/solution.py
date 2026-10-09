@@ -1,0 +1,3 @@
+for i in range(head[a], head[a+1]):
+    b = to[i]
+    ...

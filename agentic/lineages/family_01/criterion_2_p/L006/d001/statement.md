@@ -1,20 +1,20 @@
-# Calibration Valves
+# Problem B — System Equilibrium
 
 Time limit: 1 s   Memory limit: 256 MB
 
-A fluid transport network contains $n$ calibration valves, numbered $1$ to $n$. Each valve must be configured to an operating pressure level of either $1$ or $2$.
+A facility configures $n$ automated valves, numbered 1 to $n$. Each valve must be assigned an operational state of either 1 or 2.
 
-The network is monitored by $m$ differential sensors. Each sensor bridges a specific pair of valves. For a sensor to yield a valid reading, the sum of the pressure levels of the two valves it bridges must be exactly $3$. 
+The facility relies on $m$ pressure monitors. Each monitor evaluates a specific pair of valves. To maintain equilibrium, every monitor requires that exactly one of the two valves it evaluates is set to state 1. Because the only available states are 1 and 2, this strictly dictates that the other valve in the evaluated pair must be set to state 2.
 
-You must determine a pressure level for each of the $n$ valves such that every sensor in the network yields a valid reading. If there are multiple valid configurations, you must output the one that is lexicographically smallest (assigning pressure level $1$ to lower-numbered valves whenever possible). If no valid configuration exists, report impossibility.
+Determine if there is a valid arrangement of states for all $n$ valves. If multiple valid arrangements exist, you must find the one that is lexicographically smallest.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$).
-Each of the next $m$ lines contains two integers $u$ and $v$ — the indices of a pair of valves bridged by a sensor.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$).
+Each of the next $m$ lines contains two integers $u$ and $v$ — the indices of the two valves evaluated by a monitor.
 
 ## Output
-If no valid configuration exists, print a single line NO.
-Otherwise print YES, then a second line with $n$ integers $p_1 \dots p_n$ (each in $\{1,2\}$), representing the lexicographically smallest valid configuration.
+If no valid arrangement exists, print a single line NO.
+Otherwise print YES, then a second line with $n$ integers $s_1 \dots s_n$ (each in {1,2}), representing the lexicographically smallest valid arrangement.
 
 ## Example 1
 Input:

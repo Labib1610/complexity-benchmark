@@ -1,20 +1,22 @@
-# Problem B — Sensor Frequency Allocation
+# Module 2: Clearance Allocation
 
 Time limit: 1 s   Memory limit: 256 MB
 
-A smart factory has $n$ wireless sensors. Each sensor must be configured to broadcast on one of two available frequency bands, labeled 1 and 2. 
+The corporate review pipeline operates in three consecutive stages. Initially, an analytics engine processes historical incident logs to identify critical interactions between personnel that demand rigorous monitoring.
 
-Due to hardware proximity, there are $m$ pairs of sensors that cause signal interference if configured incorrectly. To prevent data collision, for each such interfering pair of sensors $u$ and $v$, they must not broadcast on the same frequency. Instead, one sensor in the pair must be assigned to band 1, and the other must be assigned to band 2.
+You are responsible for the second stage: the security clearance allocator. Given the list of critical interactions, your allocator must distribute a clearance designation of either `1` or `2` to each of the $n$ employees. For operational stability, any pair of employees $u$ and $v$ involved in a flagged interaction must satisfy a strict checksum requirement. Specifically, the remainder when $u$'s designation is divided by $v$'s designation, added to the remainder when $v$'s designation is divided by $u$'s designation, must sum to exactly 1. 
 
-Determine if there is a valid configuration for all $n$ sensors. If there are multiple valid configurations, you must output the one where the sequence of band assignments $s_1 \dots s_n$ is lexicographically smallest.
+Should no such distribution of clearance designations exist, the allocator must trigger a workflow abort. If multiple valid distributions can be formed, the protocol mandates selecting the sequence of designations (ordered from employee 1 to $n$) that is lexicographically smallest.
+
+The resulting designations are then passed to the final stage, the compensation system, which adjusts shift payments accordingly.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$).
-Each of the next $m$ lines contains two integers $u$ and $v$ — a pair of sensors that interfere with each other.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$), representing the number of personnel and the number of flagged interactions.
+Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$) — a pair of employees whose clearance designations must satisfy the checksum requirement.
 
 ## Output
-If no valid configuration exists, print a single line NO.
-Otherwise print YES, then a second line with $n$ integers $s_1 \dots s_n$ (each in {1,2}), representing the lexicographically smallest valid configuration.
+If no valid clearance distribution can be found, output `NO` on a single line.
+Otherwise, output `YES` on the first line. On the second line, print $n$ integers $s_1 \dots s_n$ (each either `1` or `2`), denoting the clearance designation for employees 1 through $n$. This sequence must be the lexicographically smallest valid distribution.
 
 ## Example 1
 Input:

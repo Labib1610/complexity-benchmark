@@ -1,0 +1,53 @@
+import sys
+
+def solve():
+    input = sys.stdin.readline
+    n, m = map(int, input().split())
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u, v = map(int, input().split())
+        u -= 1
+        v -= 1
+        adj[u].append(v)
+        adj[v].append(u)
+
+    # Try each color for vertex 0
+    for c0 in range(1, 4):
+        color = [0] * n
+        color[0] = c0
+        possible = True
+        # BFS/DFS to color the rest with 2 colors
+        for start in range(n):
+            if color[start] == 0:
+                color[start] = 1 if c0 != 1 else 2
+                stack = [start]
+                while stack:
+                    u = stack.pop()
+                    for v in adj[u]:
+                        if color[v] == 0:
+                            # assign opposite of u among the two remaining colors
+                            if color[u] == c0:
+                                # u has the fixed color, v can be either of the other two
+                                # but we need consistency; choose one
+                                color[v] = 1 if c0 != 1 else 2
+                            else:
+                                # u has one of the two remaining colors
+                                # v must be the other remaining color
+                                other = [x for x in [1,2,3] if x != c0 and x != color[u]]
+                                color[v] = other[0]
+                            stack.append(v)
+                        elif color[v] == color[u]:
+                            possible = False
+                            break
+                    if not possible:
+                        break
+            if not possible:
+                break
+        if possible:
+            print("YES")
+            print(" ".join(str(color[i]) for i in range(n)))
+            return
+    print("NO")
+
+if __name__ == "__main__":
+    solve()

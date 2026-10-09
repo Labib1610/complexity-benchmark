@@ -1,0 +1,200 @@
+import sys
+from itertools import combinations
+
+def find(parent, x):
+    if parent[x] != x:
+        parent[x] = find(parent, parent[x])
+    return parent[x]
+
+def union(parent, rank, x, y):
+    px, py = find(parent, x), find(parent, y)
+    if px == py:
+        return
+    if rank[px] < rank[py]:
+        px, py = py, px
+    parent[py] = px
+    if rank[px] == rank[py]:
+        rank[px] += 1
+
+def is_connected_subset(edges, nodes):
+    if len(nodes) <= 1:
+        return True
+    node_set = set(nodes)
+    parent = list(range(n + 1))
+    rank = [0] * (n + 1)
+    for u, v, w in edges:
+        if u in node_set and v in node_set:
+            union(parent, rank, u, v)
+    root = find(parent, nodes[0])
+    return all(find(parent, node) == root for node in nodes)
+
+def kruskal_with_required_nodes(required_nodes):
+    # Create a graph where required nodes are connected with zero cost
+    # This ensures they are in the same component
+    edges_with_zero = edges[:]
+    parent_zero = list(range(n + 1))
+    rank_zero = [0] * (n + 1)
+    
+    # Connect all required nodes with zero cost
+    for i in range(1, len(required_nodes)):
+        union(parent_zero, rank_zero, required_nodes[0], required_nodes[i])
+    
+    # Now run Kruskal's algorithm to connect other nodes if needed
+    edges_sorted = sorted(edges, key=lambda x: x[2])
+    total_cost = 0
+    
+    for u, v, w in edges_sorted:
+        if find(parent_zero, u) != find(parent_zero, v):
+            union(parent_zero, rank_zero, u, v)
+            total_cost += w
+    
+    # Check if the required nodes form a cohesive enclave
+    # We need to verify that the subgraph induced by the selected edges 
+    # makes the required nodes connected and that any partition of the 
+    # connected component containing required nodes has at least one edge crossing
+    # But since we're building a connected component that contains all required nodes,
+    # and we're using minimum spanning tree approach, it's sufficient to 
+    # find the minimum cost to connect all required nodes, possibly with additional nodes
+    
+    # Actually, let's think differently:
+    # We want to find a subset S that contains all required nodes and is connected
+    # with minimum total edge cost. This is essentially finding the minimum spanning
+    # subgraph that connects all required nodes.
+    # This is the Steiner tree problem, which is NP-hard.
+    # But since t <= 10, we can try all possible subsets that contain required nodes.
+    
+    # Let's reconsider the problem:
+    # A cohesive enclave is a subset S such that for every partition of S into X and Y,
+    # there is at least one edge crossing. This is equivalent to saying the subgraph
+    # induced by S is connected.
+    # So we need to find a minimum cost set of edges such that the required nodes
+    # are all in the same connected component.
+    
+    # Since t <= 10, we can enumerate all possible subsets that contain required nodes
+    # and check if they are connected, then find the minimum cost among them.
+    
+    # But that's still exponential. Let's think of a better way.
+    # We can use the fact that we want a connected subgraph containing all required nodes.
+    # This is the Steiner tree problem. For small t, we can solve it by trying all 
+    # possible combinations.
+    
+    # Actually, let's look at the examples again.
+    # In example 1: required nodes are 1,2,3. We can include node 4 to reduce cost.
+    # The optimal solution connects 1-4, 2-4, 3-4 with cost 3.
+    
+    # Let's model this as finding a minimum spanning tree in a modified graph.
+    # Create a complete graph where the cost between two required nodes is the 
+    # shortest path between them in the original graph.
+    # Then find the MST of this complete graph.
+    
+    # But that's complex. Let's try a different approach.
+    # Since t <= 10, we can try all 2^(n-t) subsets of non-required nodes
+    # and for each, find the minimum spanning tree of the subgraph induced
+    # by required nodes + selected non-required nodes.
+    
+    min_cost = float('inf')
+    
+    # Get non-required nodes
+    non_required = [i for i in range(1, n+1) if i not in required_nodes]
+    
+    # Try all subsets of non-required nodes
+    for r in range(len(non_required) + 1):
+        for subset in combinations(non_required, r):
+            # The set of nodes we're considering
+            node_subset = list(required_nodes) + list(subset)
+            
+            # Find minimum spanning tree cost for this subset
+            if len(node_subset) == 1:
+                min_cost = min(min_cost, 0)
+                continue
+                
+            # Collect edges within this subset
+            sub_edges = []
+            for u, v, w in edges:
+                if u in node_subset and v in node_subset:
+                    sub_edges.append((u, v, w))
+            
+            # Check if required nodes are connected in this subset
+            # Sort edges by weight
+            sub_edges.sort(key=lambda x: x[2])
+            
+            # Kruskal's algorithm
+            parent_subset = list(range(n + 1))
+            rank_subset = [0] * (n + 1)
+            cost = 0
+            edge_count = 0
+            
+            for u, v, w in sub_edges:
+                if find(parent_subset, u) != find(parent_subset, v):
+                    union(parent_subset, rank_subset, u, v)
+                    cost += w
+                    edge_count += 1
+                    if edge_count == len(node_subset) - 1:
+                        break
+            
+            # Check if all nodes in subset are connected
+            if edge_count == len(node_subset) - 1:
+                # Check if all required nodes are in the same component
+                root = find(parent_subset, node_subset[0])
+                if all(find(parent_subset, node) == root for node in required_nodes):
+                    min_cost = min(min_cost, cost)
+    
+    return min_cost
+
+# Read input
+n, m, t = map(int, sys.stdin.readline().split())
+required_nodes = list(map(int, sys.stdin.readline().split()))
+edges = []
+
+for _ in range(m):
+    u, v, w = map(int, sys.stdin.readline().split())
+    edges.append((u, v, w))
+
+# Since t is small (<=10), we can use the approach described above
+min_cost = float('inf')
+
+# Get non-required nodes
+non_required = [i for i in range(1, n+1) if i not in required_nodes]
+
+# Try all subsets of non-required nodes
+for r in range(len(non_required) + 1):
+    for subset in combinations(non_required, r):
+        # The set of nodes we're considering
+        node_subset = list(required_nodes) + list(subset)
+        
+        # Find minimum spanning tree cost for this subset
+        if len(node_subset) == 1:
+            min_cost = min(min_cost, 0)
+            continue
+            
+        # Collect edges within this subset
+        sub_edges = []
+        for u, v, w in edges:
+            if u in node_subset and v in node_subset:
+                sub_edges.append((u, v, w))
+        
+        # Sort edges by weight
+        sub_edges.sort(key=lambda x: x[2])
+        
+        # Kruskal's algorithm
+        parent_subset = list(range(n + 1))
+        rank_subset = [0] * (n + 1)
+        cost = 0
+        edge_count = 0
+        
+        for u, v, w in sub_edges:
+            if find(parent_subset, u) != find(parent_subset, v):
+                union(parent_subset, rank_subset, u, v)
+                cost += w
+                edge_count += 1
+                if edge_count == len(node_subset) - 1:
+                    break
+        
+        # Check if all nodes in subset are connected
+        if edge_count == len(node_subset) - 1:
+            # Check if all required nodes are in the same component
+            root = find(parent_subset, node_subset[0])
+            if all(find(parent_subset, node) == root for node in required_nodes):
+                min_cost = min(min_cost, cost)
+
+print(min_cost)

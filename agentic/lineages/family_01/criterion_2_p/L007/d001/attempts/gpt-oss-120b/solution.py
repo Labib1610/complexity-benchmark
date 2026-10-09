@@ -2,47 +2,53 @@ import sys
 from collections import deque
 
 def solve() -> None:
-    data = sys.stdin.read().strip().split()
+    data = sys.stdin.buffer.read().split()
     if not data:
         return
     it = iter(data)
     n = int(next(it))
     m = int(next(it))
+
     adj = [[] for _ in range(n + 1)]
     for _ in range(m):
         u = int(next(it)); v = int(next(it))
         adj[u].append(v)
         adj[v].append(u)
 
-    color = [0] * (n + 1)          # final colors 1 or 2
-    parity = [ -1 ] * (n + 1)      # 0/1 during bfs, -1 = unvisited
+    colour = [-1] * (n + 1)          # -1 = unvisited, 0/1 = bipartite colour
+    ans = [0] * (n + 1)
+
     for start in range(1, n + 1):
-        if parity[start] != -1:
+        if colour[start] != -1:
             continue
         # BFS this component
         q = deque([start])
-        parity[start] = 0
-        comp_vertices = [start]
-        ok = True
-        while q:
-            u = q.popleft()
-            for v in adj[u]:
-                if parity[v] == -1:
-                    parity[v] = parity[u] ^ 1
-                    q.append(v)
-                    comp_vertices.append(v)
-                elif parity[v] == parity[u]:
-                    print("NO")
-                    return
-        # decide orientation: make smallest vertex have color 1
-        minv = min(comp_vertices)
-        flip = parity[minv]  # if 0 keep, if 1 flip
-        for v in comp_vertices:
-            p = parity[v] ^ flip
-            color[v] = p + 1   # 1 or 2
+        colour[start] = 0
+        comp = [start]
 
-    print("YES")
-    print(' '.join(str(color[i]) for i in range(1, n + 1)))
+        while q:
+            x = q.popleft()
+            cx = colour[x]
+            for y in adj[x]:
+                if colour[y] == -1:
+                    colour[y] = cx ^ 1
+                    q.append(y)
+                    comp.append(y)
+                elif colour[y] == cx:
+                    sys.stdout.write("NO")
+                    return
+
+        # decide orientation: smallest index gets value 1
+        min_v = min(comp)
+        if colour[min_v] == 0:
+            for v in comp:
+                ans[v] = 1 if colour[v] == 0 else 2
+        else:
+            for v in comp:
+                ans[v] = 2 if colour[v] == 0 else 1
+
+    out = ["YES", " ".join(str(ans[i]) for i in range(1, n + 1))]
+    sys.stdout.write("\n".join(out))
 
 if __name__ == "__main__":
     solve()

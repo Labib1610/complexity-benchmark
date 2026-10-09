@@ -1,0 +1,83 @@
+n, m, k = map(int, input().split())
+conflicts = [0] * n
+for _ in range(m):
+    u, v = map(int, input().split())
+    u -= 1
+    v -= 1
+    conflicts[u] |= (1 << v)
+    conflicts[v] |= (1 << u)
+
+# Split vertices into two halves
+half1 = n // 2
+half2 = n - half1
+
+# Enumerate independent sets in first half
+ind1 = []  # list of (mask, size)
+for mask in range(1 << half1):
+    ok = True
+    for i in range(half1):
+        if mask & (1 << i):
+            if conflicts[i] & mask:
+                ok = False
+                break
+    if ok:
+        ind1.append((mask, bin(mask).count("1")))
+
+# Enumerate independent sets in second half
+ind2 = []  # list of (mask, size)
+for mask in range(1 << half2):
+    ok = True
+    for i in range(half2):
+        if mask & (1 << i):
+            if conflicts[half1 + i] & (mask << half1):
+                ok = False
+                break
+    if ok:
+        ind2.append((mask, bin(mask).count("1")))
+
+# For each independent set in first half, store max size for each mask of conflicts to second half
+# Actually we need to combine: for each mask1, we need a mask2 that is independent and has no conflicts with mask1.
+# We'll precompute for each mask2 its "conflict mask" with first half.
+
+# For each mask2, compute which first-half vertices it conflicts with
+conflict_to_first = []
+for mask2, _ in ind2:
+    cmask = 0
+    for i in range(half2):
+        if mask2 & (1 << i):
+            cmask |= (conflicts[half1 + i] & ((1 << half1) - 1))
+    conflict_to_first.append(cmask)
+
+# Group ind2 by conflict_to_first mask, keep max size for each
+best2 = {}
+for idx, (mask2, sz) in enumerate(ind2):
+    cm = conflict_to_first[idx]
+    if cm not in best2 or best2[cm][0] < sz:
+        best2[cm] = (sz, mask2)
+
+# Now try all ind1
+for mask1, sz1 in ind1:
+    need = k - sz1
+    if need < 0:
+        continue
+    # We need a mask2 with size >= need and no conflict with mask1
+    # conflict_to_first for mask2 must have no overlap with mask1
+    # So we need cm such that (cm & mask1) == 0
+    for cm, (sz2, mask2) in best2.items():
+        if (cm & mask1) == 0 and sz2 >= need:
+            # Found
+            ans = []
+            for i in range(half1):
+                if mask1 & (1 << i):
+                    ans.append(i + 1)
+            for i in range(half2):
+                if mask2 & (1 << i):
+                    ans.append(half1 + i + 1)
+            # We might have more than k, but we need exactly k
+            # Since sz1 + sz2 >= k, we can drop extras
+            ans = ans[:k]
+            print("YES")
+            print(" ".join(map(str, ans)))
+            exit()
+
+print("NO")

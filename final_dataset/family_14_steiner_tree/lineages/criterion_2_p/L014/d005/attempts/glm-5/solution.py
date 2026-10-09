@@ -1,0 +1,54 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.buffer.read().split()
+    idx = 0
+    n = int(input_data[idx]); idx += 1
+    m = int(input_data[idx]); idx += 1
+    t = int(input_data[idx]); idx += 1
+    
+    is_key = [False] * (n + 1)
+    for _ in range(t):
+        v = int(input_data[idx]); idx += 1
+        is_key[v] = True
+    
+    edges = []
+    for _ in range(m):
+        u = int(input_data[idx]); idx += 1
+        v = int(input_data[idx]); idx += 1
+        w = int(input_data[idx]); idx += 1
+        edges.append((w, u, v))
+    
+    if t <= 1:
+        print(0)
+        return
+    
+    edges.sort()
+    
+    parent = list(range(n + 1))
+    size = [1] * (n + 1)
+    key_count = [1 if is_key[i] else 0 for i in range(n + 1)]
+    
+    def find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+    
+    total_cost = 0
+    for w, u, v in edges:
+        ru = find(u)
+        rv = find(v)
+        if ru == rv:
+            continue
+        if key_count[ru] > 0 and key_count[rv] > 0:
+            total_cost += w
+        if size[ru] < size[rv]:
+            ru, rv = rv, ru
+        parent[rv] = ru
+        size[ru] += size[rv]
+        key_count[ru] += key_count[rv]
+    
+    print(total_cost)
+
+solve()

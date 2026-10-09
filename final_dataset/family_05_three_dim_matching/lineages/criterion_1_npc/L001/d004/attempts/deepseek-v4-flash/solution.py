@@ -1,0 +1,49 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.read().strip().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    k = int(next(it))
+    t = int(next(it))
+    points = []
+    for _ in range(t):
+        x = int(next(it))
+        y = int(next(it))
+        z = int(next(it))
+        points.append((x, y, z))
+    
+    # Sort points to help pruning
+    points.sort()
+    
+    used_x = [False] * (k + 1)
+    used_y = [False] * (k + 1)
+    used_z = [False] * (k + 1)
+    
+    chosen = []
+    
+    def backtrack(idx, start):
+        if idx == k:
+            return True
+        # Try to pick next point
+        for i in range(start, t):
+            x, y, z = points[i]
+            if not used_x[x] and not used_y[y] and not used_z[z]:
+                used_x[x] = used_y[y] = used_z[z] = True
+                chosen.append((x, y, z))
+                if backtrack(idx + 1, i + 1):
+                    return True
+                chosen.pop()
+                used_x[x] = used_y[y] = used_z[z] = False
+        return False
+    
+    if backtrack(0, 0):
+        print("YES")
+        for p in chosen:
+            print(p[0], p[1], p[2])
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()

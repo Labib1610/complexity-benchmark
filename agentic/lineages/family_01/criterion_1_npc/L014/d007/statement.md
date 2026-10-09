@@ -1,25 +1,25 @@
-# Problem A — Independent Audits
+# Problem A — Grid Harmonic Resonance
 
-Time limit: 2 s   Memory limit: 256 MB
+Time limit: 2 s
+Memory limit: 256 MB
 
-You are managing the annual compliance audit for a corporation with $n$ departments. The company requires each department to be audited by exactly one of three external agencies, labeled 1, 2, and 3.
+You are deploying a computational grid consisting of $n$ processing nodes, labeled 1 through $n$. Your task is to configure the clock speed for each node. The available clock speed options for any node are 1, 2, and 3 GHz.
 
-Because departments collaborate, there are $m$ joint ventures between specific pairs of departments. The audit must be structured to meet a strict regulatory metric across these collaborations.
+Certain pairs of nodes share a direct synchronization link. For any two linked nodes $u$ and $w$ assigned clock speeds $x$ and $y$ respectively (where $x$ is the speed of $u$ and $y$ is the speed of $w$), the synchronization controller calculates two diagnostic values:
+$V_u = x \cdot ( (u+w) \cdot x - 2 \cdot u \cdot y )$
+$V_w = y \cdot ( (u+w) \cdot y - 2 \cdot w \cdot x )$
 
-For every joint venture between two departments $u$ and $v$ (which are assigned agencies $f_u$ and $f_v$, respectively), an "interaction value" is computed using the following expression:
-$$ 2(f_u - f_v)^4 - 10(f_u - f_v)^2 + 4 $$
+Due to hardware limitations, if the sum $V_u + V_w$ is exactly $0$, the nodes will experience harmonic resonance and the link will fail. To ensure the grid is fully operational, every synchronization link must connect two nodes that do not experience harmonic resonance.
 
-An assignment of agencies to all $n$ departments is legally compliant if and only if the total sum of the interaction values over all $m$ joint ventures equals exactly $-4m$.
-
-The corporate network can be highly interconnected, and the list of joint ventures is provided in no particular order. You must determine whether a compliant assignment exists.
+You are provided with the number of nodes and the exact pairs that share a synchronization link. You must output a fully functional clock speed assignment for the grid, or indicate if it is impossible.
 
 ## Input
-The first line provides $n$ and $m$ — the number of departments and joint ventures, respectively ($1 \le n \le 40$, $0 \le m \le n \cdot (n-1)/2$).
-The following $m$ lines each contain two integers $u$ and $v$, representing a joint venture between department $u$ and department $v$. Departments are indexed from 1 to $n$.
+The first line contains two integers $n$ and $m$ — the number of processing nodes and the number of synchronization links ($1 \le n \le 40$, $0 \le m \le n \cdot (n-1)/2$).
+Each of the following $m$ lines contains two distinct integers $u$ and $w$ ($1 \le u, w \le n$, $u \neq w$), representing a pair of nodes connected by a synchronization link. It is guaranteed that each unordered pair of nodes appears at most once in the input.
 
 ## Output
-If there is no way to assign agencies to satisfy the compliance metric, output `NO` on a single line.
-Otherwise, output `YES` on the first line. On the second line, output $n$ integers $f_1, f_2, \dots, f_n$ (where $f_i \in \{1, 2, 3\}$ is the agency for department $i$). If multiple valid assignments exist, you must provide the one that is lexicographically smallest (comparing the agency of department 1 first, then department 2, and so on).
+If no valid clock speed assignment can be found, print a single line containing `NO`.
+Otherwise, print `YES` on the first line. On the second line, print $n$ integers $a_1, a_2, \dots, a_n$ (where each $a_i \in \{1, 2, 3\}$), representing the clock speed assigned to node $i$. Any valid assignment will be accepted.
 
 ## Example 1
 Input:

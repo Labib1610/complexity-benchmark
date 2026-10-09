@@ -1,0 +1,57 @@
+import sys
+import heapq
+from collections import defaultdict
+
+def find(parent, x):
+    if parent[x] != x:
+        parent[x] = find(parent, parent[x])
+    return parent[x]
+
+def union(parent, rank, x, y):
+    px, py = find(parent, x), find(parent, y)
+    if px == py:
+        return False
+    if rank[px] < rank[py]:
+        px, py = py, px
+    parent[py] = px
+    if rank[px] == rank[py]:
+        rank[px] += 1
+    return True
+
+def kruskal(n, edges, required):
+    if len(required) <= 1:
+        return 0
+    
+    parent = list(range(n + 1))
+    rank = [0] * (n + 1)
+    
+    # Sort edges by weight
+    edges.sort(key=lambda x: x[2])
+    
+    cost = 0
+    connected = 1
+    
+    for u, v, w in edges:
+        if union(parent, rank, u, v):
+            cost += w
+            # Check if all required nodes are connected
+            if find(parent, required[0]) == find(parent, u):
+                connected += 1
+            if connected == len(required):
+                break
+                
+    return cost
+
+def main():
+    n, m, t = map(int, sys.stdin.readline().split())
+    required = list(map(int, sys.stdin.readline().split()))
+    
+    edges = []
+    for _ in range(m):
+        u, v, w = map(int, sys.stdin.readline().split())
+        edges.append((u, v, w))
+    
+    print(kruskal(n, edges, required))
+
+if __name__ == "__main__":
+    main()

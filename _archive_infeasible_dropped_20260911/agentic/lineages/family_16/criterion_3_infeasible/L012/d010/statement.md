@@ -1,0 +1,67 @@
+# Spaceship Power Allocation Certificate
+
+Time limit: 2 s   Memory limit: 256 MB
+
+## Description
+
+You are the chief engineer of a spaceship managing $j$ critical subsystems. Each subsystem requires two distinct energy bursts to reboot: a **Flux Compression** burst and a **Plasma Venting** burst. 
+
+The reboot sequence is strictly governed by the following safety constraints:
+1. **Sequence**: For any given subsystem, its Plasma Venting burst cannot begin until its Flux Compression burst has completely finished.
+2. **Compression Manifold**: The ship's compression manifold can process at most one Flux Compression burst at any given moment.
+3. **Venting Manifold**: The ship's venting manifold can process at most one Plasma Venting burst at any given moment.
+4. **Deadline**: All bursts across all subsystems must be fully completed within a strict operating window of $T$ milliseconds.
+
+The ship's computer has determined that no valid sequence of operations can satisfy all four constraints simultaneously. To isolate the bottleneck, the diagnostic system evaluates three theoretical scheduling proofs. The input data guarantees that exactly one of the three proof types will yield a minimum completion time strictly greater than $T$. You must output the corresponding error code for the proof that demonstrates $T$ is impossible to meet:
+
+- **Proof Type 1 (Output `JOB i`)**: Assume the ship is upgraded such that every subsystem receives its own independent Compression Manifold and its own independent Venting Manifold, completely eliminating all hardware sharing (bypassing Constraints 2 and 3). Under this upgrade, calculate the earliest possible time subsystem $i$ can finish its sequence. If this minimum time strictly exceeds $T$, output `JOB i` where $i$ is the 1-based index of the subsystem. If multiple subsystems exceed $T$ in this scenario, outputting any such index $i$ is acceptable.
+- **Proof Type 2 (Output `LOAD 1`)**: Assume the Plasma Venting phase is entirely bypassed for all subsystems (they only require Flux Compression). Under the original hardware limits, calculate the earliest possible time the entire ship's reboot can finish. If this minimum time strictly exceeds $T$, output `LOAD 1`.
+- **Proof Type 3 (Output `LOAD 2`)**: Assume the Flux Compression phase is entirely bypassed for all subsystems (they only require Plasma Venting). Under the original hardware limits, calculate the earliest possible time the entire ship's reboot can finish. If this minimum time strictly exceeds $T$, output `LOAD 2`.
+
+## Input
+
+The first line contains two integers $j$ and $T$ ($1 \le j \le 200000$, $1 \le T \le 1000000000$).
+Each of the next $j$ lines contains two integers $p_1$ and $p_2$ ($1 \le p_1, p_2 \le 1000000$): the duration in milliseconds for the subsystem's **Flux Compression** burst and its **Plasma Venting** burst, respectively.
+
+## Output
+
+Print a single line containing either `JOB i` (if Proof Type 1 yields a minimum time $> T$ for subsystem $i$), `LOAD 1` (if Proof Type 2 yields a minimum time $> T$), or `LOAD 2` (if Proof Type 3 yields a minimum time $> T$).
+
+## Examples
+
+### Example 1
+
+**Input**
+```
+3 100
+70 60
+2 2
+3 4
+```
+
+**Output**
+```
+JOB 1
+```
+
+### Example 2
+
+**Input**
+```
+4 150
+50 1
+50 1
+50 1
+50 1
+```
+
+**Output**
+```
+LOAD 1
+```
+
+## Note
+
+In Example 1, under Proof Type 1 for subsystem 1, we assume it has dedicated manifolds. However, subsystem 1 must still complete its 70 ms Flux Compression followed immediately by its 60 ms Plasma Venting. The earliest possible time to complete both is 130 ms. Since 130 ms strictly exceeds the 100 ms Deadline, `JOB 1` is a valid bottleneck proof.
+
+In Example 2, no individual subsystem exceeds the 150 ms limit under Proof Type 1. However, under Proof Type 2, we assume Plasma Venting is bypassed. We must still process all four 50 ms Flux Compression bursts one at a time due to the compression manifold's serial limit. The earliest possible time to finish all bursts is 200 ms. Since 200 ms strictly exceeds the 150 ms Deadline, `LOAD 1` is the valid bottleneck proof.

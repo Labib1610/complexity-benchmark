@@ -1,21 +1,25 @@
-# Problem B — Zone Isolation
+# Orbital Resonance
 
 Time limit: 1 s
 Memory limit: 256 MB
 
-A data center contains $n$ servers. You must assign a transmission band to each server. The only permitted bands are 1 and 2. 
+A deep space communications network consists of $n$ relay satellites, numbered 1 through $n$. Within this network, there are $m$ known proximity hazards. Each hazard involves a specific pair of satellites that are physically too close to one another.
 
-The system has $m$ active synchronization links. Each link connects a specific pair of servers. For the network to remain stable, the sum of the cubes of the bands assigned to any two servers connected by a synchronization link must be exactly 9.
+Every satellite in the network must be assigned a tuning parameter, which is an integer chosen from $\{1, 2\}$. Whenever two satellites $u$ and $v$ are involved in a proximity hazard, their tuning parameters $s_u$ and $s_v$ must satisfy the orbital equilibrium equation:
 
-Determine if a valid band configuration exists for all $n$ servers.
+$s_u^3 + s_v^3 + (s_u \cdot s_v)^2 = 13$
+
+If this expression evaluates to any other value, their resonance will cause a system-wide failure.
+
+Your task is to determine if there is a valid configuration of tuning parameters for all $n$ satellites that prevents any system-wide failures. If such a configuration is possible, you must output it. If there are multiple valid ways to assign the parameters, you must choose the one whose sequence of assignments $s_1, s_2, \dots, s_n$ is lexicographically smallest.
 
 ## Input
 The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$).
-Each of the next $m$ lines contains two integers $u$ and $v$ — the indices of a pair of servers connected by a synchronization link.
+Each of the next $m$ lines contains two integers $u$ and $v$ — a proximity hazard between satellite $u$ and satellite $v$.
 
 ## Output
-If no valid band configuration is possible, print a single line NO.
-Otherwise, print YES on the first line. On the second line, print $n$ integers $z_1 \dots z_n$ (where each $z_i \in \{1,2\}$) representing the valid assignment. If multiple valid assignments exist, output the one that is lexicographically smallest.
+If no safe configuration exists, print a single line containing `NO`.
+Otherwise, print `YES` on the first line. On the second line, print $n$ integers $s_1, \dots, s_n$ (each being either 1 or 2), representing the tuning parameter assigned to each satellite from 1 to $n$. This sequence must be the lexicographically smallest valid assignment.
 
 ## Example 1
 Input:

@@ -38,19 +38,54 @@ def _load_prompt(name, fallback):
     return p.read_text() if p.exists() else fallback
 
 
+# def seed_criteria_map(family, slug):
+#     """Seed criteria, each augmented with the universal adversarial tests (if any),
+#     so students are scored on the small seed cases AND the generated corner cases."""
+#     m = {c.criterion_id: c for c in discover_criteria(B.SEEDS_DIR / slug)}
+#     for cd, c in m.items():
+#         store = B.TESTS_DIR / f"family_{family}" / cd
+#         if not store.exists():
+#             continue
+#         for inp in sorted(store.glob("*.in")):
+#             outp = inp.with_suffix(".out")
+#             if outp.exists():
+#                 c.tests.append(TestCase(name="u" + inp.stem, in_path=inp, out_path=outp))
+#     return m
+
 def seed_criteria_map(family, slug):
-    """Seed criteria, each augmented with the universal adversarial tests (if any),
-    so students are scored on the small seed cases AND the generated corner cases."""
+    """Seed criteria, augmented with universal adversarial, scaled, and worstcase tests."""
     m = {c.criterion_id: c for c in discover_criteria(B.SEEDS_DIR / slug)}
+    
+    # Path to the main dataset directory (assuming B.SEEDS_DIR is in agentic/seeds)
+    dataset_dir = B.SEEDS_DIR.parent.parent / "dataset" / slug
+
     for cd, c in m.items():
+        # 1. Add Universal Adversarial Tests (u_)
         store = B.TESTS_DIR / f"family_{family}" / cd
-        if not store.exists():
-            continue
-        for inp in sorted(store.glob("*.in")):
-            outp = inp.with_suffix(".out")
-            if outp.exists():
-                c.tests.append(TestCase(name="u" + inp.stem, in_path=inp, out_path=outp))
+        if store.exists():
+            for inp in sorted(store.glob("*.in")):
+                outp = inp.with_suffix(".out")
+                if outp.exists():
+                    c.tests.append(TestCase(name="u_" + inp.stem, in_path=inp, out_path=outp))
+                    
+        # 2. Add Scaled Tests (scaled_)
+        scaled_store = B.SEEDS_DIR / slug / cd / "tests_scaled"
+        if scaled_store.exists():
+            for inp in sorted(scaled_store.glob("*.in")):
+                outp = inp.with_suffix(".out")
+                if outp.exists():
+                    c.tests.append(TestCase(name="scaled_" + inp.stem, in_path=inp, out_path=outp))
+
+        # 3. Add Worstcase Tests (worst_)
+        worstcase_store = dataset_dir / cd / "worstcase"
+        if worstcase_store.exists():
+            for inp in sorted(worstcase_store.glob("*.in")):
+                outp = inp.with_suffix(".out")
+                if outp.exists():
+                    c.tests.append(TestCase(name="worst_" + inp.stem, in_path=inp, out_path=outp))
+
     return m
+
 
 
 def gate_ok(vdir: Path) -> bool:
@@ -127,7 +162,7 @@ def main():
     global _family, _reset
     ap = argparse.ArgumentParser()
     ap.add_argument("--family", required=True)   # id or 'all'
-    ap.add_argument("--criterion", type=int, choices=[1, 2, 3])
+    ap.add_argument("--criterion", type=int, choices=[1, 2])
     ap.add_argument("--only")
     ap.add_argument("--reset", action="store_true")
     ap.add_argument("--workers", type=int, default=None,

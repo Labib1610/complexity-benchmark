@@ -1,0 +1,51 @@
+import sys
+sys.setrecursionlimit(1000000)
+
+def solve():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    k = int(next(it))
+    edges = []
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        edges.append((u, v))
+
+    if m == 0:
+        print("YES")
+        print()
+        return
+
+    solution_mask = None
+
+    def dfs(chosen_mask, k_left):
+        nonlocal solution_mask
+        if k_left < 0:
+            return False
+        # find first uncovered edge
+        for u, v in edges:
+            if not ((chosen_mask >> u) & 1 or (chosen_mask >> v) & 1):
+                # branch on u
+                if dfs(chosen_mask | (1 << u), k_left - 1):
+                    return True
+                # branch on v
+                if dfs(chosen_mask | (1 << v), k_left - 1):
+                    return True
+                return False
+        # all edges covered
+        solution_mask = chosen_mask
+        return True
+
+    if dfs(0, k):
+        print("YES")
+        res = [str(i + 1) for i in range(n) if (solution_mask >> i) & 1]
+        print(' '.join(res))
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()

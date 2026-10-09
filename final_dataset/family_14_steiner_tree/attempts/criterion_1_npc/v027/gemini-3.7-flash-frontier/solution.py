@@ -1,0 +1,68 @@
+import sys
+import heapq
+
+def solve():
+    input = sys.stdin.read
+    data = input().split()
+    if not data:
+        return
+    
+    n = int(data[0])
+    m = int(data[1])
+    t = int(data[2])
+    
+    idx = 3
+    terminals = [int(data[idx + i]) - 1 for i in range(t)]
+    idx += t
+    
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(data[idx]) - 1
+        v = int(data[idx+1]) - 1
+        w = int(data[idx+2])
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+        idx += 3
+        
+    if t <= 1:
+        print(0)
+        return
+
+    INF = float('inf')
+    num_masks = 1 << t
+    dp = [[INF] * n for _ in range(num_masks)]
+    
+    for i in range(t):
+        dp[1 << i][terminals[i]] = 0
+        
+    for mask in range(1, num_masks):
+        # 1. Combine submasks
+        submask = (mask - 1) & mask
+        while submask > (mask ^ submask):
+            other = mask ^ submask
+            for v in range(n):
+                val = dp[submask][v] + dp[other][v]
+                if val < dp[mask][v]:
+                    dp[mask][v] = val
+            submask = (submask - 1) & mask
+            
+        # 2. Dijkstra relaxation for current mask
+        pq = []
+        for v in range(n):
+            if dp[mask][v] < INF:
+                heapq.heappush(pq, (dp[mask][v], v))
+                
+        while pq:
+            d, u = heapq.heappop(pq)
+            if d > dp[mask][u]:
+                continue
+            for v, w in adj[u]:
+                if dp[mask][u] + w < dp[mask][v]:
+                    dp[mask][v] = dp[mask][u] + w
+                    heapq.heappush(pq, (dp[mask][v], v))
+                    
+    ans = min(dp[num_masks - 1])
+    print(ans)
+
+if __name__ == '__main__':
+    solve()

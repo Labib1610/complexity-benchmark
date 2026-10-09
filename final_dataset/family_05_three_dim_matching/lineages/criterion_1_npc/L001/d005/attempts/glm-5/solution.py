@@ -1,0 +1,234 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    k = int(data[0])
+    t = int(data[1])
+    idx = 2
+    models = []
+    for _ in range(t):
+        f = int(data[idx]); p = int(data[idx+1]); a = int(data[idx+2])
+        idx += 3
+        models.append((f, p, a))
+    
+    if k == 0:
+        print("YES")
+        return
+    
+    # We need exactly k resonators, each parameter must take all k values in each dimension.
+    # So each value 1..k appears exactly once in each dimension.
+    # This is equivalent to finding k triples forming a "3D permutation" / Latin transversal.
+    
+    # Build bipartite graph: left = frequency values 1..k, right = (phase, amplitude) pairs present.
+    # We need a perfect matching of size k. Then each freq used once, each (phase,amp) used once.
+    # But we also need each phase used once and each amplitude used once among the matched pairs.
+    
+    # Since k <= 22, we can do DP over subsets of phases (or amplitudes).
+    # Let's fix: for each frequency value f (1..k), we choose a model (f, p, a).
+    # We need the set of chosen p's to be a permutation of 1..k and a's to be a permutation of 1..k.
+    
+    # DP over frequencies in order 1..k, tracking used phases and used amplitudes.
+    # State: (i, mask_p, mask_a) but that's 22 * 2^22 * 2^22 too large.
+    
+    # Alternative: DP over subsets of frequencies. For a subset S of frequencies, 
+    # track which phases are used. But amplitudes also need tracking.
+    
+    # Better: Since we need a perfect matching in 3D, we can reduce.
+    # For each frequency f, list of (p,a) pairs available.
+    # We need to select one (p,a) per f such that p's form permutation and a's form permutation.
+    
+    # DP over subsets of frequencies: dp[mask] = set of possible phase-masks achievable
+    # where mask = subset of frequencies assigned so far, and we track phase usage.
+    # But we need both phase and amplitude to be permutations.
+    
+    # Let's do DP over frequencies one by one (there are k of them), 
+    # state = (mask_p, mask_a) but prune. Actually k<=22 so 2^22 * 2^22 is too big.
+    
+    # Key insight: we can do DP where we iterate over frequencies and track mask of used phases,
+    # and for amplitude we also need a mask. But we can use the fact that at step i (having placed i frequencies),
+    # both masks have exactly i bits set. The number of pairs of masks with i bits each is C(k,i)^2.
+    # Sum over i of C(k,i)^2 = C(2k,k) which for k=22 is about 705k... wait C(44,22) ~ 2.1e12. Too big.
+    
+    # Hmm, need smarter approach. Let's think differently.
+    # This is equivalent to finding a perfect matching in a 3-partite 3-uniform hypergraph.
+    # NP-hard in general but k<=22 is small.
+    
+    # Let's try: DP over subset of frequencies, storing a dict mapping phase_mask -> amplitude_mask.
+    # For each frequency not yet in the subset, for each (p,a) available for that frequency,
+    # if p not in phase_mask and a not in amplitude_mask, we can extend.
+    # The number of distinct phase_masks at each level is at most C(k, |S|).
+    # For each phase_mask we might store multiple amplitude_masks... but we can store a set.
+    # Total states bounded by sum of C(k,i)^2 but in practice much less due to sparsity of available models.
+    
+    # Actually, let's store dp[mask_p] = set of mask_a achievable, where |mask_p| = number of frequencies placed.
+    # We iterate: for each frequency f not yet placed (we place frequencies in order 1..k),
+    # extend. But we need to know which frequencies are placed. If we go in order, 
+    # after placing i frequencies (frequencies 1..i), mask_p has i bits.
+    
+    # Going in order of frequency 1..k:
+    # dp is a dict: mask_p -> set of mask_a, after processing frequencies 1..i.
+    # Initially dp = {0: {0}}.
+    # For frequency f (1-indexed), for each (p,a) in models with that f:
+    #   for each mask_p in dp with |mask_p| == f-1:
+    #     if p not in mask_p:
+    #       for each mask_a in dp[mask_p]:
+    #         if a not in mask_a:
+    #           new_mask_p = mask_p | (1<<(p-1))
+    #           new_mask_a = mask_a | (1<<(a-1))
+    #           add to new_dp[new_mask_p]
+    
+    # This could be exponential but with k<=22 and sparse models, might work.
+    # Worst case: all k^3 models present. Then it's dense. Let's estimate.
+    # At step i, number of mask_p with i bits = C(k,i). For each, number of mask_a with i bits = C(k,i).
+    # So total = sum C(k,i)^2 = C(2k,k). For k=22, C(44,22) ~ 2.1e12. Way too big.
+    
+    # Need better approach for dense case.
+    # In dense case (all k^3 models present), answer is always YES (Latin square exists for all k).
+    # Actually we need a Latin transversal in a 3D cube. For k>=1, a Latin square of order k exists,
+    # giving a solution: pick (i, j, L[i][j]) for i,j in 1..k but we need exactly k triples not k^2.
+    
+    # Wait, we need k triples (f,p,a) where f,p,a each are permutations of 1..k.
+    # That's a 3D permutation / Latin transversal of size k. 
+    # If all k^3 models present, we can always construct: (i, i, i) for i=1..k. That works!
+    # So dense case is trivially YES.
+    
+    # The hard case is when some models are missing. Let's think about when it's sparse.
+    # If t is small, DP is fast. If t is large (close to k^3), likely YES.
+    
+    # Let's just try the DP and hope it's fast enough with pruning. 
+    # Actually, let's optimize: store dp[mask_p] = set of mask_a, but use bitmasks.
+    # Also, we can prune: if at any point a frequency has no available (p,a) with p,a not used, prune.
+    
+    # Let's also handle: if t == k^3 (all models present), output (i,i,i) for i=1..k.
+    # More generally, if for each f, the model (f,f,f) exists, output those.
+    
+    # Quick check: (i,i,i) for all i
+    model_set = set(models)
+    quick = True
+    for i in range(1, k+1):
+        if (i,i,i) not in model_set:
+            quick = False
+            break
+    if quick:
+        print("YES")
+        for i in range(1, k+1):
+            print(f"{i} {i} {i}")
+        return
+    
+    # Group models by frequency
+    by_f = [[] for _ in range(k+1)]
+    for (f,p,a) in models:
+        by_f[f].append((p,a))
+    
+    # Check each frequency has at least one model
+    for f in range(1, k+1):
+        if not by_f[f]:
+            print("NO")
+            return
+    
+    # DP: process frequencies 1..k in order
+    # dp[mask_p] = set of mask_a (as a Python set of ints)
+    # We also need to reconstruct, so store parent info.
+    # To reconstruct, store for each (mask_p, mask_a) the choice (p,a) and previous (mask_p, mask_a).
+    
+    # Let's use dict: key = (mask_p, mask_a), value = (prev_mask_p, prev_mask_a, p, a)
+    # But that could be large. Let's try.
+    
+    # Actually, let's store dp as dict: mask_p -> dict: mask_a -> (prev_mask_p, prev_mask_a, p, a)
+    # This allows reconstruction.
+    
+    # Start
+    from collections import defaultdict
+    
+    # current: dict mapping mask_p -> dict mapping mask_a -> (prev_mask_p, prev_mask_a, p, a)
+    current = {0: {0: None}}
+    
+    full_mask = (1 << k) - 1
+    
+    for f in range(1, k+1):
+        next_dp = defaultdict(dict)
+        choices = by_f[f]
+        for mask_p, amp_dict in current.items():
+            if bin(mask_p).count('1') != f - 1:
+                continue  # shouldn't happen if we process in order
+            for (p, a) in choices:
+                pb = 1 << (p - 1)
+                ab = 1 << (a - 1)
+                if mask_p & pb:
+                    continue
+                if any(amp_dict.keys() and all(mask_a & ab for mask_a in amp_dict.keys())):
+                    # Check if there exists any mask_a without bit a
+                    pass
+                new_mask_p = mask_p | pb
+                for mask_a in amp_dict:
+                    if mask_a & ab:
+                        continue
+                    new_mask_a = mask_a | ab
+                    if new_mask_a not in next_dp[new_mask_p]:
+                        next_dp[new_mask_p][new_mask_a] = (mask_p, mask_a, p, a)
+        current = next_dp
+        if not current:
+            print("NO")
+            return
+    
+    # After processing all k frequencies, look for mask_p == full_mask and mask_a == full_mask
+    if full_mask in current and full_mask in current[full_mask]:
+        # Reconstruct
+        result = []
+        mask_p = full_mask
+        mask_a = full_mask
+        for f in range(k, 0, -1):
+            info = current[mask_p][mask_a] if f == k else prev_dp[mask_p][mask_a]
+            # We need to store previous dp... hmm, reconstruction is tricky.
+            # Let me restructure.
+            pass
+        # Actually the issue is we overwrote current. Let me redo with storage.
+    
+    # Redo with full storage for reconstruction
+    # dp_history[f] = dict mapping mask_p -> dict mapping mask_a -> (prev_mask_p, prev_mask_a, p, a)
+    # dp_history[0] = {0: {0: None}}
+    
+    dp_history = [None] * (k + 1)
+    dp_history[0] = {0: {0: None}}
+    
+    for f in range(1, k+1):
+        next_dp = defaultdict(dict)
+        choices = by_f[f]
+        prev = dp_history[f-1]
+        for mask_p, amp_dict in prev.items():
+            for (p, a) in choices:
+                pb = 1 << (p - 1)
+                ab = 1 << (a - 1)
+                if mask_p & pb:
+                    continue
+                new_mask_p = mask_p | pb
+                for mask_a in amp_dict:
+                    if mask_a & ab:
+                        continue
+                    new_mask_a = mask_a | ab
+                    if new_mask_a not in next_dp[new_mask_p]:
+                        next_dp[new_mask_p][new_mask_a] = (mask_p, mask_a, p, a)
+        dp_history[f] = next_dp
+        if not next_dp:
+            print("NO")
+            return
+    
+    if full_mask in dp_history[k] and full_mask in dp_history[k][full_mask]:
+        result = []
+        mask_p = full_mask
+        mask_a = full_mask
+        for f in range(k, 0, -1):
+            prev_mask_p, prev_mask_a, p, a = dp_history[f][mask_p][mask_a]
+            result.append((f, p, a))
+            mask_p = prev_mask_p
+            mask_a = prev_mask_a
+        result.reverse()
+        print("YES")
+        for (f, p, a) in result:
+            print(f"{f} {p} {a}")
+    else:
+        print("NO")
+
+solve()

@@ -4,34 +4,75 @@ from collections import deque
 input = sys.stdin.readline
 
 n, m = map(int, input().split())
-adj = [[] for _ in range(n)]
+adj = [[] for _ in range(n + 1)]
+
 for _ in range(m):
     u, v = map(int, input().split())
-    u -= 1
-    v -= 1
     adj[u].append(v)
     adj[v].append(u)
 
-color = [-1] * n
+color = [-1] * (n + 1)
+possible = True
 
-def bfs(start):
-    q = deque([start])
-    color[start] = 1  # try 1 first
-    while q:
-        u = q.popleft()
-        for v in adj[u]:
-            if color[v] == -1:
-                color[v] = 3 - color[u]  # alternate 1 <-> 2
-                q.append(v)
-            elif color[v] == color[u]:
-                return False
-    return True
-
-for i in range(n):
+for i in range(1, n + 1):
     if color[i] == -1:
-        if not bfs(i):
-            print("NO")
-            sys.exit()
+        color[i] = 1
+        q = deque([i])
+        while q:
+            u = q.popleft()
+            for v in adj[u]:
+                if color[v] == -1:
+                    color[v] = 3 - color[u]
+                    q.append(v)
+                elif color[v] == color[u]:
+                    possible = False
+                    break
+            if not possible:
+                break
+    if not possible:
+        break
 
-print("YES")
-print(" ".join(str(color[i]) for i in range(n)))
+if not possible:
+    print("NO")
+else:
+    # Now we have a valid bipartition, but we need lexicographically smallest.
+    # We can flip entire components if it makes earlier nodes smaller.
+    # We'll do BFS/DFS to find components and decide orientation.
+    visited = [False] * (n + 1)
+    assignment = [0] * (n + 1)
+    
+    for i in range(1, n + 1):
+        if not visited[i]:
+            # collect component
+            comp = []
+            q = deque([i])
+            visited[i] = True
+            comp.append(i)
+            while q:
+                u = q.popleft()
+                for v in adj[u]:
+                    if not visited[v]:
+                        visited[v] = True
+                        comp.append(v)
+                        q.append(v)
+            # Determine if flipping helps lexicographically
+            # Current colors from earlier BFS: color array
+            # If we flip, node i gets 3 - color[i]
+            # Compare first differing node in sorted order
+            flip = False
+            for node in sorted(comp):
+                if color[node] == 1:
+                    # current is 1, flipped would be 2 -> keep
+                    break
+                else:
+                    # current is 2, flipped would be 1 -> flip
+                    flip = True
+                    break
+            for node in comp:
+                if flip:
+                    assignment[node] = 3 - color[node]
+                else:
+                    assignment[node] = color[node]
+    
+    print("YES")
+    print(" ".join(str(assignment[i]) for i in range(1, n + 1)))

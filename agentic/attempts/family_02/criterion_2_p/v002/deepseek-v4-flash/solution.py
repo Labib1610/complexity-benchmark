@@ -1,0 +1,72 @@
+import sys
+sys.setrecursionlimit(1 << 20)
+
+def solve():
+    input = sys.stdin.readline
+    n, m = map(int, input().split())
+    N = 2 * n
+    g = [[] for _ in range(N)]
+    rg = [[] for _ in range(N)]
+
+    def node(var):
+        # var > 0: x_var = True
+        # var < 0: x_(-var) = False
+        idx = abs(var) - 1
+        if var > 0:
+            return idx
+        else:
+            return idx + n
+
+    for _ in range(m):
+        a, b = map(int, input().split())
+        u = node(a)
+        v = node(b)
+        # not u -> v
+        g[u ^ n if u < n else u - n].append(v)
+        rg[v].append(u ^ n if u < n else u - n)
+        # not v -> u
+        g[v ^ n if v < n else v - n].append(u)
+        rg[u].append(v ^ n if v < n else v - n)
+
+    # Tarjan SCC
+    visited = [False] * N
+    order = []
+    comp = [-1] * N
+
+    def dfs1(v):
+        visited[v] = True
+        for to in g[v]:
+            if not visited[to]:
+                dfs1(to)
+        order.append(v)
+
+    def dfs2(v, cid):
+        comp[v] = cid
+        for to in rg[v]:
+            if comp[to] == -1:
+                dfs2(to, cid)
+
+    for i in range(N):
+        if not visited[i]:
+            dfs1(i)
+
+    cid = 0
+    for v in reversed(order):
+        if comp[v] == -1:
+            dfs2(v, cid)
+            cid += 1
+
+    for i in range(n):
+        if comp[i] == comp[i + n]:
+            print("NO")
+            return
+
+    print("YES")
+    ans = [0] * n
+    for i in range(n):
+        # If comp[i] > comp[i+n], then i is reachable from not i => set True
+        ans[i] = 1 if comp[i] > comp[i + n] else 0
+    print(" ".join(map(str, ans)))
+
+if __name__ == "__main__":
+    solve()

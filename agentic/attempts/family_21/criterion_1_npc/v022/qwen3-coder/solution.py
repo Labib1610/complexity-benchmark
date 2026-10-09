@@ -1,0 +1,126 @@
+import sys
+from collections import deque
+
+def find_mincut(n, edges, source, sink):
+    # Create adjacency list with capacities
+    graph = [[] for _ in range(n)]
+    capacity = {}
+    
+    for u, v, w in edges:
+        graph[u].append(v)
+        graph[v].append(u)
+        capacity[(u, v)] = capacity.get((u, v), 0) + w
+        capacity[(v, u)] = capacity.get((v, u), 0) + w
+    
+    def bfs():
+        parent = [-1] * n
+        visited = [False] * n
+        queue = deque([source])
+        visited[source] = True
+        
+        while queue:
+            u = queue.popleft()
+            for v in graph[u]:
+                if not visited[v] and capacity.get((u, v), 0) > 0:
+                    visited[v] = True
+                    parent[v] = u
+                    queue.append(v)
+                    if v == sink:
+                        path = []
+                        curr = sink
+                        while curr != source:
+                            path.append((parent[curr], curr))
+                            curr = parent[curr]
+                        return path[::-1]
+        return None
+    
+    def dfs(path, min_flow):
+        for u, v in path:
+            capacity[(u, v)] -= min_flow
+            capacity[(v, u)] += min_flow
+    
+    total_flow = 0
+    while True:
+        path = bfs()
+        if not path:
+            break
+        min_flow = min(capacity[(u, v)] for u, v in path)
+        dfs(path, min_flow)
+        total_flow += min_flow
+    
+    # Find the cut
+    visited = [False] * n
+    queue = deque([source])
+    visited[source] = True
+    while queue:
+        u = queue.popleft()
+        for v in graph[u]:
+            if not visited[v] and capacity.get((u, v), 0) > 0:
+                visited[v] = True
+                queue.append(v)
+    
+    cut_edges = []
+    for u, v, w in edges:
+        # Check if this edge crosses the cut
+        if visited[u] and not visited[v]:
+            cut_edges.append((u, v, w))
+        elif visited[v] and not visited[u]:
+            cut_edges.append((u, v, w))
+    
+    return total_flow, cut_edges
+
+def main():
+    input_lines = []
+    for line in sys.stdin:
+        input_lines.append(line.strip())
+    
+    line_idx = 0
+    n, m, k, B = map(int, input_lines[line_idx].split())
+    line_idx += 1
+    
+    root_servers = list(map(int, input_lines[line_idx].split()))
+    line_idx += 1
+    
+    edges = []
+    for i in range(m):
+        u, v, w = map(int, input_lines[line_idx].split())
+        edges.append((u-1, v-1, w))  # Convert to 0-indexed
+        line_idx += 1
+    
+    # Adjust n to be 0-indexed max node id + 1
+    n = max(max(u, v) for u, v, _ in edges) + 1 if edges else 0
+    
+    # Create a new graph with super source and super sink
+    # Super source is n, super sink is n+1
+    new_n = n + 2
+    new_edges = edges[:]
+    
+    # Connect super source to all root servers except last one
+    # Connect super sink to last root server
+    last_root = root_servers[-1] - 1
+    for i in range(k-1):
+        root = root_servers[i] - 1
+        new_edges.append((new_n-2, root, B+1))  # Large capacity edges
+    
+    new_edges.append((last_root, new_n-1, B+1))
+    
+    # Find min cut between super source and super sink
+    min_cut_value, cut_edges = find_mincut(new_n, new_edges, new_n-2, new_n-1)
+    
+    if min_cut_value > B:
+        print("NO")
+        return
+    
+    # Filter out the artificial edges (those with capacity B+1)
+    result_edges = []
+    for u, v, w in cut_edges:
+        if w <= B:  # This is a real edge
+            result_edges.append((u+1, v+1))  # Convert back to 1-indexed
+    
+    print("YES")
+    print(len(result_edges))
+    for u, v in result_edges:
+        print(u, v)
+
+if __name__ == "__main__":
+    main()

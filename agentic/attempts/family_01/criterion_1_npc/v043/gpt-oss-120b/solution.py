@@ -1,0 +1,82 @@
+import sys
+
+sys.setrecursionlimit(10000)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    adj = [0] * n
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+
+    colors = [0] * n  # 0 uncolored, 1..3 colors
+    # order vertices by degree descending for initial heuristic
+    order = sorted(range(n), key=lambda x: bin(adj[x]).count('1'), reverse=True)
+
+    # DSATUR: at each step pick vertex with highest saturation (different colors among colored neighbors)
+    def select_vertex():
+        best = -1
+        best_sat = -1
+        best_deg = -1
+        for v in range(n):
+            if colors[v]:
+                continue
+            neigh = adj[v]
+            sat_mask = 0
+            while neigh:
+                u = (neigh & -neigh).bit_length() - 1
+                if colors[u]:
+                    sat_mask |= 1 << (colors[u] - 1)
+                neigh &= neigh - 1
+            sat = sat_mask.bit_count()
+            deg = bin(adj[v]).count('1')
+            if sat > best_sat or (sat == best_sat and deg > best_deg):
+                best = v
+                best_sat = sat
+                best_deg = deg
+        return best
+
+    found = False
+
+    def dfs(colored_cnt: int):
+        nonlocal found
+        if found:
+            return
+        if colored_cnt == n:
+            found = True
+            return
+        v = select_vertex()
+        # try colors 1..3
+        for c in (1, 2, 3):
+            conflict = False
+            neigh = adj[v]
+            while neigh:
+                u = (neigh & -neigh).bit_length() - 1
+                if colors[u] == c:
+                    conflict = True
+                    break
+                neigh &= neigh - 1
+            if not conflict:
+                colors[v] = c
+                dfs(colored_cnt + 1)
+                if found:
+                    return
+                colors[v] = 0
+
+    dfs(0)
+
+    if not found:
+        print("NO")
+    else:
+        print("YES")
+        print(' '.join(map(str, colors)))
+
+if __name__ == "__main__":
+    solve()

@@ -1,0 +1,182 @@
+import sys
+import threading
+
+def solve():
+    import sys
+    sys.setrecursionlimit(1 << 25)
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    k = int(next(it))
+    s = []
+    t = []
+    d = []
+    for _ in range(k):
+        s.append(int(next(it)) - 1)
+        t.append(int(next(it)) - 1)
+        d.append(int(next(it)))
+    edges = []
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        cap = int(next(it))
+        edges.append((u, v, cap))
+
+    # Simple check: total demand must not exceed total capacity of outgoing edges from sources etc.
+    total_demand = sum(d)
+    total_cap = sum(cap for _, _, cap in edges)
+    if total_demand > total_cap:
+        print("NO")
+        return
+
+    # Build a single-commodity flow network with a super source and super sink.
+    # This does not guarantee per-commodity feasibility, but given the problem constraints
+    # (which are not specified), we attempt this heuristic.
+    N = n + 2
+    SRC = n
+    SNK = n + 1
+
+    class Edge:
+        __slots__ = ('to', 'rev', 'cap')
+        def __init__(self, to, rev, cap):
+            self.to = to
+            self.rev = rev
+            self.cap = cap
+
+    graph = [[] for _ in range(N)]
+
+    def add_edge(fr, to, cap):
+        graph[fr].append(Edge(to, len(graph[to]), cap))
+        graph[to].append(Edge(fr, len(graph[fr]) - 1, 0))
+
+    for idx, (u, v, cap) in enumerate(edges):
+        add_edge(u, v, cap)
+
+    for i in range(k):
+        add_edge(SRC, s[i], d[i])
+        add_edge(t[i], SNK, d[i])
+
+    level = [0] * N
+    itp = [0] * N
+
+    from collections import deque
+
+    def bfs():
+        for i in range(N):
+            level[i] = -1
+        q = deque()
+        level[SRC] = 0
+        q.append(SRC)
+        while q:
+            v = q.popleft()
+            for e in graph[v]:
+                if e.cap > 0 and level[e.to] < 0:
+                    level[e.to] = level[v] + 1
+                    q.append(e.to)
+        return level[SNK] >= 0
+
+    def dfs(v, upTo):
+        if v == SNK:
+            return upTo
+        for i in range(itp[v], len(graph[v])):
+            e = graph[v][i]
+            if e.cap > 0 and level[v] < level[e.to]:
+                dflow = dfs(e.to, min(upTo, e.cap))
+                if dflow > 0:
+                    e.cap -= dflow
+                    graph[e.to][e.rev].cap += dflow
+                    return dflow
+            itp[v] += 1
+        return 0
+
+    flow = 0
+    INF = 10**18
+    while bfs():
+        itp = [0] * N
+        f = dfs(SRC, INF)
+        while f:
+            flow += f
+            f = dfs(SRC, INF)
+
+    if flow != total_demand:
+        print("NO")
+        return
+
+    # Retrieve flows on original edges
+    edge_flow = [0] * m
+    for idx, (u, v, cap) in enumerate(edges):
+        for e in graph[u]:
+            if e.to == v:
+                used = cap - e.cap
+                edge_flow[idx] = used
+                break
+
+    # Distribute flows to commodities greedily along shortest paths
+    # Build adjacency list of used capacities
+    adj = [[] for _ in range(n)]
+    for idx, (u, v, _) in enumerate(edges):
+        f = edge_flow[idx]
+        if f > 0:
+            adj[u].append((v, idx, f))
+
+    # For each commodity, find a path and assign flow
+    result = [[0] * m for _ in range(k)]
+    from collections import deque
+
+    for ci in range(k):
+        need = d[ci]
+        while need > 0:
+            # BFS to find any augmenting path with residual capacity
+            prev = [None] * n
+            prev_edge = [None] * n
+            q = deque()
+            q.append(s[ci])
+            while q and prev[t[ci]] is None:
+                u = q.popleft()
+                for v, eid, cap in adj[u]:
+                    if cap > 0 and prev[v] is None and v != s[ci]:
+                        prev[v] = u
+                        prev_edge[v] = eid
+                        q.append(v)
+            if prev[t[ci]] is None:
+                print("NO")
+                return
+            # find bottleneck
+            v = t[ci]
+            bott = need
+            while v != s[ci]:
+                u = prev[v]
+                eid = prev_edge[v]
+                # find current residual on this edge
+                for i, (vv, eeid, cap) in enumerate(adj[u]):
+                    if eeid == eid:
+                        bott = min(bott, cap)
+                        break
+                v = u
+            push = bott
+            # apply
+            v = t[ci]
+            while v != s[ci]:
+                u = prev[v]
+                eid = prev_edge[v]
+                for i, (vv, eeid, cap) in enumerate(adj[u]):
+                    if eeid == eid:
+                        adj[u][i] = (vv, eeid, cap - push)
+                        break
+                result[ci][eid] += push
+                v = u
+            need -= push
+
+    print("YES")
+    out = sys.stdout
+    for i in range(k):
+        out.write(' '.join(str(x) for x in result[i]))
+        out.write('\n')
+
+def main():
+    solve()
+
+threading.Thread(target=main).start()

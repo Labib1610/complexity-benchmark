@@ -1,0 +1,178 @@
+We can model this as a **2-SAT** problem.  
+
+Each regulator has two possible states: active (1) or standby (0).  
+Each hazard scenario says:  
+> The configuration must match at least one of the three listed states.
+
+If a scenario lists `(a, b, c)`, then the safe condition is:  
+`(var_a == val_a) OR (var_b == val_b) OR (var_c == val_c)`.
+
+This is a clause with 3 literals, which is not directly 2-SAT.  
+But we can transform each 3-literal clause into 2-SAT using auxiliary variables.
+
+---
+
+### Transformation
+For a clause `(l1 OR l2 OR l3)`, introduce a new auxiliary variable `x` and add these 2-SAT clauses:
+
+1. `(l1 OR l2 OR x)` → `(l1 OR l2 OR x)` is still 3.  
+Instead, we use the standard trick:
+
+Let `x` be a new variable.  
+Add:
+- `(l1 OR l2 OR x)`  
+- `(¬x OR l3)`
+
+But `(l1 OR l2 OR x)` is still 3-literal.  
+We can further split: introduce `y`:
+
+- `(l1 OR y)`  
+- `(¬y OR l2 OR x)`  
+Still 3-literal.
+
+Better approach:  
+Use **implication graph** with auxiliary variables:
+
+For `(a OR b OR c)`, introduce two new variables `p` and `q`:
+
+Clauses:
+- `(a OR b OR p)`  
+- `(¬p OR c)`  
+Still 3-literal in first.
+
+Actually, the standard reduction from 3-SAT to 2-SAT is not possible in general (3-SAT is NP-complete).  
+But here, each variable is binary and each clause is a **positive** requirement: at least one of three literals must be true.  
+This is a **3-XOR**? No, it's just a 3-CNF clause.
+
+---
+
+Wait — but the problem is not general 3-SAT.  
+Each literal is of the form `(var == value)`.  
+We can encode each literal as a boolean variable:  
+Let `X_i` be true if regulator i is active.  
+Then literal `(i active)` is `X_i`, literal `(i standby)` is `¬X_i`.
+
+So each clause is `(L1 OR L2 OR L3)` where each `L` is either `X_i` or `¬X_i`.
+
+This is exactly **3-SAT** with at most 90 variables and 400 clauses.  
+3-SAT is NP-complete, but with n ≤ 90 and m ≤ 400, we can use **backtracking with unit propagation** (DPLL) which is fast enough for these constraints.
+
+---
+
+### Plan
+- Parse input.
+- Represent each literal as an integer: positive `x` → `(x-1)*2` for true, negative `-x` → `(x-1)*2+1` for false.
+- Use DPLL with unit propagation and pure literal elimination.
+- If satisfiable, output assignment.
+
+---
+
+### Implementation
+
+```python
+import sys
+
+def main():
+    input_data = sys.stdin.read().strip().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    clauses = []
+    for _ in range(m):
+        l1 = int(next(it))
+        l2 = int(next(it))
+        l3 = int(next(it))
+        # encode literals
+        def enc(lit):
+            var = abs(lit) - 1
+            return var * 2 if lit > 0 else var * 2 + 1
+        clauses.append([enc(l1), enc(l2), enc(l3)])
+    
+    # DPLL solver
+    # variable count = n
+    # literal index: 2*var for true, 2*var+1 for false
+    # negation: lit ^ 1
+    
+    def neg(lit):
+        return lit ^ 1
+    
+    def solve():
+        # assignment: None = unassigned, True/False
+        assignment = [None] * n
+        
+        def dpll(clauses, assignment):
+            # unit propagation
+            changed = True
+            while changed:
+                changed = False
+                # find unit clauses
+                for clause in clauses:
+                    unassigned = []
+                    satisfied = False
+                    for lit in clause:
+                        var = lit // 2
+                        val = lit % 2 == 0  # True if lit is positive
+                        if assignment[var] is None:
+                            unassigned.append(lit)
+                        elif assignment[var] == val:
+                            satisfied = True
+                            break
+                    if satisfied:
+                        continue
+                    if len(unassigned) == 0:
+                        return None  # conflict
+                    if len(unassigned) == 1:
+                        lit = unassigned[0]
+                        var = lit // 2
+                        val = lit % 2 == 0
+                        assignment[var] = val
+                        changed = True
+            # pure literal elimination
+            # (optional, but can speed up)
+            # check for conflict
+            for clause in clauses:
+                satisfied = False
+                for lit in clause:
+                    var = lit // 2
+                    val = lit % 2 == 0
+                    if assignment[var] is not None and assignment[var] == val:
+                        satisfied = True
+                        break
+                if not satisfied:
+                    # all assigned and none match
+                    all_assigned = all(assignment[lit//2] is not None for lit in clause)
+                    if all_assigned:
+                        return None
+            # choose unassigned variable
+            for i in range(n):
+                if assignment[i] is None:
+                    # try True
+                    assign_copy = assignment[:]
+                    assign_copy[i] = True
+                    res = dpll(clauses, assign_copy)
+                    if res is not None:
+                        return res
+                    # try False
+                    assign_copy = assignment[:]
+                    assign_copy[i] = False
+                    res = dpll(clauses, assign_copy)
+                    if res is not None:
+                        return res
+                    return None
+            # all assigned
+            return assignment
+        
+        return dpll(clauses, assignment)
+    
+    result = solve()
+    if result is None:
+        print("NO")
+    else:
+        print("YES")
+        print(' '.join('1' if v else '0' for v in result))
+
+if __name__ == "__main__":
+    main()
+```

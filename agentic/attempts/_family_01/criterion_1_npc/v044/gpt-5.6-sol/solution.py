@@ -1,0 +1,189 @@
+import sys
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+
+    n, m = data[0], data[1]
+    adj = [0] * n
+    p = 2
+    for _ in range(m):
+        u = data[p] - 1
+        v = data[p + 1] - 1
+        p += 2
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+
+    assignment = [-1] * n
+
+    # Split into connected components.
+    unseen = (1 << n) - 1
+    components = []
+    while unseen:
+        start = unseen & -unseen
+        unseen ^= start
+        component = start
+        frontier = start
+
+        while frontier:
+            bit = frontier & -frontier
+            frontier ^= bit
+            v = bit.bit_length() - 1
+            new_vertices = adj[v] & unseen
+            unseen ^= new_vertices
+            component |= new_vertices
+            frontier |= new_vertices
+
+        components.append(component)
+
+    def solve_component(component):
+        colors = [0, 0, 0]
+        changes = []
+        failed = set()
+
+        def rollback(size):
+            while len(changes) > size:
+                v, color = changes.pop()
+                bit = 1 << v
+                colors[color] ^= bit
+                assignment[v] = -1
+
+        def assign(v, color):
+            bit = 1 << v
+            colors[color] |= bit
+            assignment[v] = color
+            changes.append((v, color))
+
+        def dfs():
+            snapshot = len(changes)
+
+            # Propagate vertices whose color is forced.
+            while True:
+                colored = colors[0] | colors[1] | colors[2]
+                uncolored = component & ~colored
+                if not uncolored:
+                    return True
+
+                forced_v = -1
+                forced_color = -1
+
+                x = uncolored
+                while x:
+                    bit = x & -x
+                    x ^= bit
+                    v = bit.bit_length() - 1
+
+                    seen = 0
+                    if adj[v] & colors[0]:
+                        seen |= 1
+                    if adj[v] & colors[1]:
+                        seen |= 2
+                    if adj[v] & colors[2]:
+                        seen |= 4
+
+                    if seen == 7:
+                        rollback(snapshot)
+                        return False
+                    if seen.bit_count() == 2:
+                        forced_v = v
+                        forced_color = (7 ^ seen).bit_length() - 1
+                        break
+
+                if forced_v == -1:
+                    break
+                assign(forced_v, forced_color)
+
+            key = (colors[0], colors[1], colors[2])
+            if key in failed:
+                rollback(snapshot)
+                return False
+
+            colored = colors[0] | colors[1] | colors[2]
+            uncolored = component & ~colored
+            if not uncolored:
+                return True
+
+            # DSATUR choice: maximum saturation, then maximum remaining degree.
+            best_v = -1
+            best_sat = -1
+            best_deg = -1
+            best_seen = 0
+
+            x = uncolored
+            while x:
+                bit = x & -x
+                x ^= bit
+                v = bit.bit_length() - 1
+
+                seen = 0
+                if adj[v] & colors[0]:
+                    seen |= 1
+                if adj[v] & colors[1]:
+                    seen |= 2
+                if adj[v] & colors[2]:
+                    seen |= 4
+
+                sat = seen.bit_count()
+                deg = (adj[v] & uncolored).bit_count()
+                if sat > best_sat or (sat == best_sat and deg > best_deg):
+                    best_v = v
+                    best_sat = sat
+                    best_deg = deg
+                    best_seen = seen
+
+            available = [c for c in range(3) if not (best_seen & (1 << c))]
+
+            # Unused colors are symmetric, so only the first unused one is needed.
+            used_mask = 0
+            for c in range(3):
+                if colors[c]:
+                    used_mask |= 1 << c
+
+            candidates = []
+            unused_added = False
+            for c in available:
+                if used_mask & (1 << c):
+                    candidates.append(c)
+                elif not unused_added:
+                    candidates.append(c)
+                    unused_added = True
+
+            for color in candidates:
+                branch_snapshot = len(changes)
+                assign(best_v, color)
+                if dfs():
+                    return True
+                rollback(branch_snapshot)
+
+            if len(failed) < 300000:
+                failed.add(key)
+            rollback(snapshot)
+            return False
+
+        # Fix one vertex's color to remove global color symmetry.
+        root = -1
+        root_degree = -1
+        x = component
+        while x:
+            bit = x & -x
+            x ^= bit
+            v = bit.bit_length() - 1
+            degree = (adj[v] & component).bit_count()
+            if degree > root_degree:
+                root = v
+                root_degree = degree
+
+        assign(root, 0)
+        return dfs()
+
+    for component in components:
+        if not solve_component(component):
+            print("NO")
+            return
+
+    print("YES")
+    print(*(c + 1 for c in assignment))
+
+if __name__ == "__main__":
+    main()

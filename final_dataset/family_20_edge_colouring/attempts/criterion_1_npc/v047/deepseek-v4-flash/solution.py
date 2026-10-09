@@ -1,0 +1,125 @@
+import sys
+sys.setrecursionlimit(1000000)
+
+def find_bridges(n, adj, edges):
+    visited = [False] * (n + 1)
+    tin = [-1] * (n + 1)
+    low = [-1] * (n + 1)
+    timer = 0
+    bridges = set()
+
+    def dfs(v, p_edge):
+        nonlocal timer
+        visited[v] = True
+        tin[v] = low[v] = timer
+        timer += 1
+        for to, eid in adj[v]:
+            if eid == p_edge:
+                continue
+            if visited[to]:
+                low[v] = min(low[v], tin[to])
+            else:
+                dfs(to, eid)
+                low[v] = min(low[v], low[to])
+                if low[to] > tin[v]:
+                    bridges.add(eid)
+    for i in range(1, n+1):
+        if not visited[i]:
+            dfs(i, -1)
+    return bridges
+
+def solve():
+    input_data = sys.stdin.read().strip().split()
+    n = int(input_data[0])
+    m = int(input_data[1])
+    edges = []
+    adj = [[] for _ in range(n+1)]
+    idx = 2
+    for eid in range(m):
+        u = int(input_data[idx]); v = int(input_data[idx+1])
+        idx += 2
+        edges.append((u, v))
+        adj[u].append((v, eid))
+        adj[v].append((u, eid))
+
+    # Check for bridges: if any bridge exists, no proper 3-edge-coloring
+    bridges = find_bridges(n, adj, edges)
+    if bridges:
+        print("NO")
+        return
+
+    # Now find a proper 3-edge-coloring using a known constructive method:
+    # Since graph is cubic and bridgeless, it has a perfect matching.
+    # Remove a perfect matching -> remaining graph is 2-regular (cycles).
+    # Color the cycles alternately with two colors, and the matching with the third.
+
+    # Find a perfect matching using simple greedy (since n <= 2000, we can do DFS-based)
+    match = [-1] * (n+1)
+    used = [False] * (n+1)
+
+    # Build adjacency for matching
+    adj_list = [[] for _ in range(n+1)]
+    for eid, (u, v) in enumerate(edges):
+        adj_list[u].append(v)
+        adj_list[v].append(u)
+
+    def augment(u, visited):
+        for v in adj_list[u]:
+            if not visited[v]:
+                visited[v] = True
+                if match[v] == -1 or augment(match[v], visited):
+                    match[v] = u
+                    match[u] = v
+                    return True
+        return False
+
+    for u in range(1, n+1):
+        if match[u] == -1:
+            visited = [False] * (n+1)
+            augment(u, visited)
+
+    # Now match[] gives perfect matching
+    color = [-1] * m
+    # Color matching edges with color 3
+    for eid, (u, v) in enumerate(edges):
+        if match[u] == v:
+            color[eid] = 3
+
+    # Remaining edges form cycles. Color them alternately 1 and 2.
+    # Build graph of remaining edges
+    rem_adj = [[] for _ in range(n+1)]
+    for eid, (u, v) in enumerate(edges):
+        if color[eid] == -1:
+            rem_adj[u].append((v, eid))
+            rem_adj[v].append((u, eid))
+
+    visited = [False] * (n+1)
+    for start in range(1, n+1):
+        if not visited[start] and rem_adj[start]:
+            # traverse cycle
+            stack = [(start, -1, 0)]  # node, parent_edge, color_to_assign
+            while stack:
+                u, pe, c = stack.pop()
+                if visited[u]:
+                    continue
+                visited[u] = True
+                for v, eid in rem_adj[u]:
+                    if eid == pe:
+                        continue
+                    if color[eid] == -1:
+                        color[eid] = c
+                        stack.append((v, eid, 3 - c))  # alternate 1<->2
+
+    # Check counts
+    cnt1 = color.count(1)
+    cnt2 = color.count(2)
+    cnt3 = color.count(3)
+    if cnt1 != n//2 or cnt2 != n//2 or cnt3 != n//2:
+        print("NO")
+        return
+
+    print("YES")
+    print(" ".join(str(c) for c in color))
+
+if __name__ == "__main__":
+    solve()

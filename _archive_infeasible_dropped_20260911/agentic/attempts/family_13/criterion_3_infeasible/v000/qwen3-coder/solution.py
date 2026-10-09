@@ -1,0 +1,57 @@
+import math
+from functools import reduce
+
+def gcd(a, b):
+    while b:
+        a, b = b, a % b
+    return a
+
+def main():
+    n = int(input())
+    d = list(map(int, input().split()))
+    
+    total = sum(d)
+    
+    # Check if total is odd
+    if total % 2 == 1:
+        print("ODD")
+        return
+    
+    target = total // 2
+    
+    # Check if any task is longer than half
+    if max(d) > target:
+        print("MAX")
+        return
+    
+    # Find GCD of all durations
+    g = reduce(gcd, d)
+    
+    # Check if g divides target
+    if target % g != 0:
+        print(f"MOD {g}")
+        return
+    
+    # This shouldn't happen according to problem statement
+    # But if it does, we need to find another divisor
+    # Since we know a split is impossible, there must be some divisor > 1
+    # that doesn't divide target
+    
+    # Try divisors up to sqrt(g)
+    for i in range(2, int(math.sqrt(g)) + 1):
+        if g % i == 0:
+            if target % i != 0:
+                print(f"MOD {i}")
+                return
+            other = g // i
+            if other != i and target % other != 0:
+                print(f"MOD {other}")
+                return
+    
+    # If g is prime and doesn't divide target
+    if g > 1 and target % g != 0:
+        print(f"MOD {g}")
+        return
+
+if __name__ == "__main__":
+    main()

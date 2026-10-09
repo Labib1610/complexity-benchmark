@@ -1,0 +1,297 @@
+**Solution Explanation**
+
+For every hub `i` we have to choose a phase `s_i ∈ {0,1}`.
+For a vulnerability assessment `(l1 , l2)` we need  
+
+```
+(l1 is aligned)  OR  (l2 is aligned)
+```
+
+where a literal `v` is *aligned* iff  
+
+* `v > 0` and `s_{v} = 1`
+* `v < 0` and `s_{|v|} = 0`
+
+--------------------------------------------------------------------
+
+#### 1.   From the statement to 2‑SAT  
+
+Define a Boolean variable  
+
+```
+x_i = (s_i == 1)          // true  ⇔ phase 1
+```
+
+* literal `v > 0`   →   `x_{v}` (true)
+* literal `v < 0`   →   `¬x_{|v|}` (false)
+
+The assessment becomes the clause  
+
+```
+(literal1) ∨ (literal2)
+```
+
+Exactly a **2‑SAT** clause.  
+Thus the whole problem is: *does the 2‑CNF formula have a satisfying
+assignment?* If yes, output any assignment, otherwise answer `NO`.
+
+--------------------------------------------------------------------
+
+#### 2.   Implication graph  
+
+For a clause `(a ∨ b)` we add the two implications  
+
+```
+¬a → b
+¬b → a
+```
+
+The graph has `2·n` vertices – one for each literal `x_i` (true) and
+`¬x_i` (false).
+
+Indexing (0‑based)
+
+```
+false literal of i : 2·(i-1)          // even
+true  literal of i : 2·(i-1) + 1      // odd
+complement = index ^ 1
+```
+
+--------------------------------------------------------------------
+
+#### 3.   Strongly Connected Components  
+
+A 2‑SAT formula is satisfiable **iff** for every variable `i`
+the two vertices `x_i` and `¬x_i` belong to different SCCs.
+If they are in the same SCC the formula is contradictory.
+
+The SCCs are obtained with Kosaraju’s algorithm  
+(`O(V+E)` = `O(n+m)`).
+
+--------------------------------------------------------------------
+
+#### 4.   Constructing a concrete assignment  
+
+Kosaraju processes the SCCs in reverse topological order.
+If we number the components in the order they are discovered
+(`0,1,2,…`), a component that appears later is *higher* in the topological
+order.
+
+For a variable `i`
+
+```
+if comp[ true(i) ] > comp[ false(i) ]   →   x_i = true   →   s_i = 1
+else                                      x_i = false  →   s_i = 0
+```
+
+This rule always yields a satisfying assignment.
+
+--------------------------------------------------------------------
+
+#### 5.   Correctness Proof  
+
+We prove that the algorithm prints `YES` and a correct schedule
+iff such a schedule exists.
+
+---
+
+##### Lemma 1  
+For every assessment `(l1 , l2)` the added edges correctly encode the
+requirement “at least one of the two literals is aligned”.
+
+**Proof.**  
+The clause is `(a ∨ b)` where `a` is the literal represented by `l1`,
+`b` by `l2`.  
+The clause is equivalent to the two implications `¬a → b` and `¬b → a`.
+Adding exactly these edges creates the same set of satisfying assignments.
+∎
+
+
+
+##### Lemma 2  
+If for some hub `i` the vertices `x_i` and `¬x_i` belong to the same SCC,
+the formula is unsatisfiable.
+
+**Proof.**  
+Inside one SCC each vertex reaches the other, therefore we have both
+implications `x_i → ¬x_i` and `¬x_i → x_i`.  
+Consequently any assignment forces `x_i` to be simultaneously true and
+false – impossible. ∎
+
+
+
+##### Lemma 3  
+If for every hub `i` the two vertices are in different SCCs,
+the assignment defined by  
+
+```
+s_i = 1  iff  comp[ true(i) ] > comp[ false(i) ]
+```
+
+satisfies all clauses.
+
+**Proof.**  
+Consider any clause `(a ∨ b)`.  
+In the implication graph we have edges `¬a → b` and `¬b → a`.  
+Because SCCs are contracted, there is **no** edge from a component to a
+component that appears earlier in the topological order.
+Hence, if `a` is false in the constructed assignment, then
+`comp[a] < comp[¬a]`.  
+Since `¬a → b` is an edge, the component of `b` cannot be earlier than
+the component of `¬a`; therefore `comp[b] ≥ comp[¬a] > comp[a]`,
+so `b` is true.  
+Thus at least one of `a , b` is true, i.e. the clause is satisfied.
+∎
+
+
+
+##### Lemma 4  
+If the algorithm outputs `YES` and the schedule `s`,
+the schedule is safe (no critical failure).
+
+**Proof.**  
+`YES` is printed only when Lemma&nbsp;2 does **not** trigger,
+i.e. all variables have different SCCs.
+The schedule is exactly the assignment of Lemma&nbsp;3,
+hence all clauses are satisfied, i.e. every assessment has at least one
+aligned parameter, i.e. no critical failure. ∎
+
+
+
+##### Lemma 5  
+If a safe schedule exists, the algorithm never prints `NO`.
+
+**Proof.**  
+A safe schedule is a satisfying assignment of the 2‑SAT formula.
+In any satisfying assignment no variable can be forced to both values,
+hence `x_i` and `¬x_i` cannot be mutually reachable, i.e. they are in
+different SCCs.  
+Therefore Lemma&nbsp;2 never holds and the algorithm proceeds to output
+`YES`. ∎
+
+
+
+##### Theorem  
+The algorithm prints `NO` **iff** no safe schedule exists;
+otherwise it prints `YES` followed by a safe schedule.
+
+**Proof.**  
+
+*If part*: By Lemma&nbsp;2, printing `NO` means some variable has both
+literals in the same SCC, which by Lemma&nbsp;2 makes the formula
+unsatisfiable, i.e. no safe schedule exists.
+
+*Only‑if part*: If a safe schedule exists, Lemma&nbsp;5 guarantees the
+algorithm does not print `NO`. It therefore prints `YES` and a schedule.
+By Lemma&nbsp;4 this schedule is safe. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### 6.   Complexity Analysis  
+
+*Vertices*: `2·n`  
+*Edges*: two per assessment → `2·m`
+
+```
+Time   : O(n + m)          (building graph + two DFS passes)
+Memory : O(n + m)          (adjacency lists, stacks, arrays)
+```
+
+Both satisfy the limits (`n ≤ 10⁵ , m ≤ 2·10⁵`).
+
+--------------------------------------------------------------------
+
+#### 7.   Reference Implementation  (Python 3)
+
+```python
+import sys
+
+sys.setrecursionlimit(1 << 25)
+
+def solve() -> None:
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+    it = iter(data)
+    n = next(it)
+    m = next(it)
+
+    N = 2 * n                     # total vertices
+    g = [[] for _ in range(N)]    # forward graph
+    rg = [[] for _ in range(N)]   # reverse graph
+
+    def lit_node(v: int) -> int:
+        """return vertex index of literal v (v>0 -> x_v, v<0 -> ¬x_|v|)"""
+        if v > 0:
+            return 2 * (v - 1) + 1   # true literal
+        else:
+            return 2 * (-v - 1)       # false literal
+
+    for _ in range(m):
+        a = next(it)
+        b = next(it)
+        A = lit_node(a)
+        B = lit_node(b)
+        NA = A ^ 1          # complement
+        NB = B ^ 1
+        # ¬A -> B
+        g[NA].append(B)
+        rg[B].append(NA)
+        # ¬B -> A
+        g[NB].append(A)
+        rg[A].append(NB)
+
+    visited = [False] * N
+    order = []
+
+    def dfs(v: int):
+        visited[v] = True
+        for to in g[v]:
+            if not visited[to]:
+                dfs(to)
+        order.append(v)
+
+    for v in range(N):
+        if not visited[v]:
+            dfs(v)
+
+    comp = [-1] * N
+    cur = 0
+
+    def rdfs(v: int, k: int):
+        comp[v] = k
+        for to in rg[v]:
+            if comp[to] == -1:
+                rdfs(to, k)
+
+    for v in reversed(order):
+        if comp[v] == -1:
+            rdfs(v, cur)
+            cur += 1
+
+    # check satisfiability
+    for i in range(n):
+        if comp[2 * i] == comp[2 * i + 1]:
+            print("NO")
+            return
+
+    # build assignment
+    ans = [0] * n
+    for i in range(n):
+        # true node index = 2*i+1, false = 2*i
+        if comp[2 * i + 1] > comp[2 * i]:
+            ans[i] = 1
+        else:
+            ans[i] = 0
+
+    print("YES")
+    print(' '.join(map(str, ans)))
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above
+and conforms to the required input‑output format.

@@ -1,0 +1,121 @@
+from collections import defaultdict
+import sys
+
+def find_matching(k, registry):
+    # Create adjacency list for chassis -> [(nav, img)]
+    chassis_adj = defaultdict(list)
+    for c, n, i in registry:
+        chassis_adj[c].append((n, i))
+    
+    # Try to find a perfect matching using backtracking
+    def backtrack(chassis_idx, used_nav, used_img, current_matching):
+        if chassis_idx > k:
+            return True
+        
+        if chassis_idx not in chassis_adj:
+            return False
+            
+        for nav, img in chassis_adj[chassis_idx]:
+            if nav not in used_nav and img not in used_img:
+                used_nav.add(nav)
+                used_img.add(img)
+                current_matching.append((chassis_idx, nav, img))
+                
+                if backtrack(chassis_idx + 1, used_nav, used_img, current_matching):
+                    return True
+                    
+                used_nav.remove(nav)
+                used_img.remove(img)
+                current_matching.pop()
+        
+        return False
+    
+    # Also try different orderings by sorting the options smartly
+    # We'll try a more sophisticated approach with bitmasks for small k
+    
+    if k <= 22:  # Use bitmask DP approach
+        # Map each component to available connections
+        nav_options = defaultdict(list)  # nav -> [(chassis, img)]
+        img_options = defaultdict(list)  # img -> [(chassis, nav)]
+        
+        for c, n, i in registry:
+            nav_options[n].append((c, i))
+            img_options[i].append((c, n))
+        
+        # Use backtracking with better pruning
+        def solve_with_dp(chassis_used, nav_used, img_used, selected):
+            if len(selected) == k:
+                return True
+                
+            # Find the next unused chassis
+            next_chassis = None
+            for i in range(1, k + 1):
+                if not (chassis_used & (1 << i)):
+                    next_chassis = i
+                    break
+            
+            if next_chassis is None:
+                return False
+                
+            if next_chassis not in chassis_adj:
+                return False
+                
+            for nav, img in chassis_adj[next_chassis]:
+                if not (nav_used & (1 << nav)) and not (img_used & (1 << img)):
+                    # Try this combination
+                    new_chassis_used = chassis_used | (1 << next_chassis)
+                    new_nav_used = nav_used | (1 << nav)
+                    new_img_used = img_used | (1 << img)
+                    selected.append((next_chassis, nav, img))
+                    
+                    if solve_with_dp(new_chassis_used, new_nav_used, new_img_used, selected):
+                        return True
+                        
+                    selected.pop()
+            
+            return False
+        
+        # Start solving
+        selected = []
+        if solve_with_dp(0, 0, 0, selected):
+            return selected
+        else:
+            return None
+    
+    # Fallback to simple backtracking
+    used_nav = set()
+    used_img = set()
+    current_matching = []
+    
+    if backtrack(1, used_nav, used_img, current_matching):
+        return current_matching
+    else:
+        return None
+
+def main():
+    input = sys.stdin.read
+    data = input().split()
+    
+    k = int(data[0])
+    t = int(data[1])
+    
+    registry = []
+    idx = 2
+    for _ in range(t):
+        c = int(data[idx])
+        n = int(data[idx + 1])
+        i = int(data[idx + 2])
+        registry.append((c, n, i))
+        idx += 3
+    
+    result = find_matching(k, registry)
+    
+    if result is None:
+        print("NO")
+    else:
+        print("YES")
+        for c, n, i in result:
+            print(c, n, i)
+
+if __name__ == "__main__":
+    main()

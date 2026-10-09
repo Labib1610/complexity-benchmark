@@ -1,182 +1,340 @@
 import sys
 
+# Since n <= 40, we use inclusion-exclusion to check if the graph is 3-colorable.
+# Graph is 3-colorable iff its vertices can be partitioned into at most 3 independent sets.
+# A set is independent if no two vertices in it are connected by an edge.
+# To find a valid coloring, we try to find a "small" independent set Sp.
+# Let S = V \ Sp. If we can choose Sp such that |Sp| >= n - 3 * 2^(n/2),
+# then we can search all 3-colorings of S quickly using DP.
+
 def solve():
-    data = sys.stdin.read().strip().split()
-    if not data:
+    # Read all input
+    input_data = sys.stdin.read().split()
+    if not input_data:
         return
-    it = iter(data)
-    n = int(next(it))
-    m = int(next(it))
-    
-    adj = [set() for _ in range(n)]
+    iterator = iter(input_data)
+    try:
+        n = int(next(iterator))
+        m = int(next(iterator))
+    except StopIteration:
+        return
+
+    # Handle edge cases
+    if n == 0:
+        print("YES")
+        print("")
+        return
+
+    # Adjacency matrix and adjacency list
+    adj_mat = [[False] * n for _ in range(n)]
+    adj_list = [[] for _ in range(n)]
+
     for _ in range(m):
-        u = int(next(it)) - 1
-        v = int(next(it)) - 1
-        adj[u].add(v)
-        adj[v].add(u)
-    
-    # We use backtracking with constraint propagation.
-    # assignment[i] = 0 means unassigned, 1-3 means shift.
-    assignment = [0] * n
-    
-    # For each node, track which shifts are forbidden by already assigned neighbors.
-    # forbidden[i] is a set of shifts (1, 2, 3) that node i cannot take.
-    forbidden = [set() for _ in range(n)]
-    
-    # To optimize, we maintain a list of nodes that are forced to have a specific value
-    # due to constraints (only 1 valid shift remaining). We process these immediately.
-    # This is a form of constraint propagation (forward checking / unit propagation).
-    
-    def propagate(queue):
-        # Process the queue of forced assignments.
-        # Returns False if a contradiction is found (a node has no valid shifts).
-        while queue:
-            u, val = queue.pop()
-            
-            # If already assigned, check consistency.
-            if assignment[u] != 0:
-                if assignment[u] != val:
+        u = int(next(iterator)) - 1
+        v = int(next(iterator)) - 1
+        if u != v:
+            adj_mat[u][v] = True
+            adj_mat[v][u] = True
+            adj_list[u].append(v)
+            adj_list[v].append(u)
+
+    # Check if independent set checks are needed
+    if m == 0:
+        print("YES")
+        print(" ".join(['1'] * n))
+        return
+
+    is_independent_cache = [None] * (1 << n)
+
+    def is_independent(mask):
+        """Check if set of vertices defined by mask is an independent set."""
+        if is_independent_cache[mask] is not None:
+            return is_independent_cache[mask]
+        
+        vertices = []
+        # Extract vertices in mask
+        # Optimization: only check edges within
+        sub_mask = mask
+        while sub_mask:
+            v = (sub_mask & -sub_mask).bit_length() - 1
+            vertices.append(v)
+            sub_mask &= (sub_mask - 1)
+        
+        for i in range(len(vertices)):
+            u = vertices[i]
+            for j in range(i + 1, len(vertices)):
+                v = vertices[j]
+                if adj_mat[u][v]:
+                    is_independent_cache[mask] = False
                     return False
-                continue
-            
-            # Assign the forced value
-            assignment[u] = val
-            
-            # Propagate constraint to neighbors
-            for v in adj[u]:
-                if val not in forbidden[v]:
-                    forbidden[v].add(val)
-                    # Check if this forces the neighbor
-                    if assignment[v] == 0:
-                        available = 0
-                        last_avail = -1
-                        # Check available shifts for v
-                        # Shifts are 1, 2, 3
-                        # We iterate 1..3 to find available ones
-                        # Since we prefer smaller shifts, if only one available, it's forced.
-                        # If multiple available, not forced yet.
-                        # If none available, contradiction.
-                        
-                        # Efficiently count available shifts
-                        # forbidden[v] contains shifts blocked by assigned neighbors
-                        if 1 not in forbidden[v]:
-                            available += 1
-                            last_avail = 1
-                        if 2 not in forbidden[v]:
-                            available += 1
-                            last_avail = 2
-                        if 3 not in forbidden[v]:
-                            available += 1
-                            last_avail = 3
-                        
-                        if available == 0:
-                            return False
-                        if available == 1:
-                            queue.append((v, last_avail))
+        
+        is_independent_cache[mask] = True
         return True
 
-    # We need a stack to handle backtracking state.
-    # Since we modify `assignment` and `forbidden` in place, we must save/restore.
-    # To save space, we can store the changes made during a propagation step
-    # and undo them. Or simpler: store copies of the state arrays.
-    # Given n <= 40, copying is acceptable but we should be careful.
-    # Let's use a recursive backtracking function.
+    # Iterate through possible independent sets to partition out
+    # We iterate by size to find a suitable set quickly.
+    # We want |Sp| >= n - 3 * 2^(n/2).
+    target_width = int((n + 2) // 2) # ceil(n/2)
+    max_nodes_S = int(3 * (1 << target_width))
     
-    # To find the lexicographically smallest solution, we iterate nodes 0 to n-1.
-    # For each node, we try shifts 1, 2, 3 in order.
+    # Actually, the condition is len(Sp) >= n - 3 * 2^W
+    # which means len(S) <= 3 * 2^W.
+    # Let's try small values of W.
+    # If n=40, W=20, 3*2^20 ~ 3M, which is manageable in worst case for mask enumeration, 
+    # but DP is on 2^|S|.
+    # We need len(S) <= 3 * 2^len(S)/2? No.
+    # We set W = n/2 => power_max_S = 3 * 2^(n/2). 
+    # We want |S| <= 3 * 2^(n/2).
+    # So |Sp| >= n - 3 * 2^(n/2).
     
-    sys.setrecursionlimit(10000)
+    width = (n + 1) // 2
+    power_limit = 3 * (1 << width)
     
-    def backtrack(idx):
-        # Find the next unassigned node starting from idx
-        # Since we propagate, some nodes after idx might already be assigned.
-        # We just need to find the first 0 in assignment array.
-        
-        # Optimization: if we just want to find *any* solution, we could pick
-        # the most constrained variable (MRV). However, we need the lexicographically
-        # smallest solution. The problem states "evaluates employees in numerical order"
-        # and "lexicographically smallest".
-        # This implies we must try to assign node 0 first, then node 1, etc.
-        # If node 0 is assigned 1, and this forces node 5 to be 3, that's fine.
-        # We just need to ensure that when we make a choice for the current "decision" node,
-        # we proceed in order.
-        
-        # Find first unassigned
-        current = -1
-        for i in range(n):
-            if assignment[i] == 0:
-                current = i
-                break
-        
-        if current == -1:
-            return True # All assigned
-        
-        # Try shifts 1, 2, 3
-        for shift in [1, 2, 3]:
-            if shift in forbidden[current]:
-                continue
-            
-            # Save state
-            # We only need to save parts that change.
-            # assignment changes for `current` and potentially others in propagate.
-            # forbidden changes for neighbors of assigned nodes.
-            # A simple way is to snapshot the lists.
-            
-            # Snapshotting lists of sets is tricky.
-            # Let's use a manual stack for undo operations.
-            # Or just deepcopy. For n=40, it's small enough.
-            
-            # Let's try a manual trail-based backtracking.
-            # We record changes made to `assignment` and `forbidden`.
-            # `assignment` changes are just setting a value.
-            # `forbidden` changes are adding to sets.
-            
-            # We can wrap the logic in a try-except style or just manage a list of modifications.
-            
-            # Let's stick to snapshotting for simplicity and correctness.
-            # Since n is small, deepcopy is fine.
-            # import copy
-            # saved_assignment = assignment[:]
-            # saved_forbidden = [s.copy() for s in forbidden]
-            
-            # Actually, let's implement a manual save/restore to be faster.
-            # We push onto a stack the operations to undo.
-            # But `propagate` is recursive/iterative and complex.
-            # Let's just use list slicing and list comprehension for copying.
-            
-            saved_assignment = assignment[:]
-            saved_forbidden = [s.copy() for s in forbidden]
-            
-            assignment[current] = shift
-            # We don't add to forbidden[current] because we check `shift in forbidden` before.
-            # But we must propagate this assignment to neighbors.
-            
-            # Initial queue for propagation
-            queue = [(current, shift)]
-            
-            if propagate(queue):
-                if backtrack(current + 1):
-                    return True
-            
-            # Restore state
-            # We can't just restore `saved_assignment` into the global variable,
-            # we need to update the content.
-            # Since `assignment` and `forbidden` are in outer scope, we update them.
-            # In Python, `assignment = saved_assignment` would just rebind the local name.
-            # We must update in-place or use `nonlocal`.
-            # Easier: just update elements.
-            
-            for i in range(n):
-                assignment[i] = saved_assignment[i]
-                forbidden[i] = saved_forbidden[i]
-                
-        return False
+    min_Sp_size = n - power_limit
+    if min_Sp_size < 0: min_Sp_size = 0
 
-    if backtrack(0):
-        print("YES")
-        print(*(assignment))
-    else:
+    best_Sp = None
+    
+    # Try to find Sp of size at least min_Sp_size
+    # Search small sets first? No, we need size >= threshold, so search large sets first?
+    # Threshold is usually small (e.g. if n=40, power_limit=3M, min_Sp_size is large).
+    # Wait, if |S| <= 3 * 2^W, then we can solve. We just need ONE such Sp.
+    # We find Sp via splitting graph into two halves A and B, each size ~ n/2.
+    # Enumerate all independent sets in A, group by intersection with boundary.
+    # Pick one that covers A maximally. Similar for B.
+    
+    mid = n // 2
+    A_nodes = list(range(mid))
+    B_nodes = list(range(mid, n))
+    
+    size_A = len(A_nodes)
+    size_B = len(B_nodes)
+    
+    # Precompute A_neighborhoods
+    # A_neighborhoods[k] = max independent set in A contained in k
+    # Actually: A_part[mask_in_B] = max independent set in A that has no edges to mask_in_B
+    A_part = [0] * (1 << size_B)
+    
+    # Iterate over all subsets of A
+    for mask in range(1 << size_A):
+        if is_independent(mask << 0): # shift by 0 since A starts at 0, but function takes global mask
+            # Construct global mask for Sp
+            Sp_A = 0
+            for i in range(size_A):
+                if (mask >> i) & 1:
+                    Sp_A |= (1 << A_nodes[i])
+            
+            # Calculate boundary in B: nodes in B adjacent to Sp_A
+            forbidden_B = 0
+            for i in range(size_A):
+                if (mask >> i) & 1:
+                    u = A_nodes[i]
+                    for v in adj_list[u]:
+                        if v >= mid:
+                            forbidden_B |= (1 << (v - mid))
+            
+            # valid_B_masks are those that don't intersect forbidden_B
+            # valid_B_mask range is [0, 2^B], but restricted.
+            # We update A_part for all valid B_masks.
+            # This inner loop is expensive if not careful.
+            # Complement of forbidden_B is allowed.
+            allowed_B = ((1 << size_B) - 1) ^ forbidden_B
+            
+            # We need to iterate all subsets of allowed_B?
+            # Actually, logic:
+            # We want A_part[b_mask] = max(A_is | A_is has no edges to b_mask)
+            # If A_is has no edges to b_mask, it has no edges to any sub-mask of b_mask.
+            # And it certainly has no edges to forbidden_B (disjoint).
+            # So A_is is valid for all sub-masks of allowed_B.
+            
+            # Iterate over sub-masks of allowed_B
+            sub = allowed_B
+            while True:
+                if A_part[sub] < mask: # store local mask to count size
+                    # Optimization: store size instead of mask to avoid bit_count
+                    # A_part stores the size (count of nodes)
+                    count = mask.bit_count()
+                    if A_part[sub] < count:
+                        A_part[sub] = count
+                if sub == 0:
+                    break
+                sub = (sub - 1) & allowed_B
+
+    # We iterated over A, now iterate over B
+    # B_part[mask_in_A] will be computed on the fly or similarly
+    # Actually we can just search for the combination that maximizes |Sp|
+    
+    best_Sp_size = -1
+    # To reconstruct, we might need to store the mask for A_part, not just size.
+    # Let's re-run with reconstruction storage.
+    A_part_mask = [0] * (1 << size_B)
+    
+    for mask in range(1 << size_A):
+        if is_independent(mask << 0):
+            count = mask.bit_count()
+            forbidden_B = 0
+            for i in range(size_A):
+                if (mask >> i) & 1:
+                    u = A_nodes[i]
+                    for v in adj_list[u]:
+                        if v >= mid:
+                            forbidden_B |= (1 << (v - mid))
+            allowed_B = ((1 << size_B) - 1) ^ forbidden_B
+            
+            sub = allowed_B
+            while True:
+                if A_part_mask[sub] < count:
+                    A_part_mask[sub] = count
+                # Note: we need the exact mask, not just count, to reconstruct.
+                # A_part_mask stores count, we need another array or different storage.
+                # Let's store the mask index in a separate array? Or just re-find?
+                # Let's store mask_A in a separate array A_best_mask[sub]
+                
+                if sub == 0:
+                    break
+                sub = (sub - 1) & allowed_B
+
+    # Correction: Let's create A_best_mask to store the mask
+    A_best_mask = [0] * (1 << size_B)
+    
+    for mask in range(1 << size_A):
+        if is_independent(mask << 0):
+            count = mask.bit_count()
+            forbidden_B = 0
+            for i in range(size_A):
+                if (mask >> i) & 1:
+                    u = A_nodes[i]
+                    for v in adj_list[u]:
+                        if v >= mid:
+                            forbidden_B |= (1 << (v - mid))
+            allowed_B = ((1 << size_B) - 1) ^ forbidden_B
+            
+            sub = allowed_B
+            while True:
+                if A_part_mask[sub] < count:
+                    A_part_mask[sub] = count
+                    A_best_mask[sub] = mask # Store the mask that gave this best size
+                if sub == 0:
+                    break
+                sub = (sub - 1) & allowed_B
+
+    # Now iterate over B
+    for mask_B in range(1 << size_B):
+        if is_independent(mask_B << mid):
+            # For this independent set in B, find compatible set in A
+            # Set in A must not have edges to mask_B
+            # This corresponds to A_part entries where the forbidden_B is compatible.
+            # A_best_mask[mask_B] gives the best A_mask that is compatible with mask_B.
+            # Because during construction, such an A_mask would have updated 
+            # A_part for its allowed_B, and mask_B is a subset of allowed_B.
+            
+            # Size of Sp part from B
+            count_B = mask_B.bit_count()
+            count_A = A_part_mask[mask_B]
+            
+            total = count_A + count_B
+            if total >= min_Sp_size:
+                # Found a valid Sp!
+                # Reconstruct
+                Sp_A_mask = A_best_mask[mask_B]
+                Sp_mask = 0
+                for i in range(size_A):
+                    if (Sp_A_mask >> i) & 1:
+                        Sp_mask |= (1 << A_nodes[i])
+                for i in range(size_B):
+                    if (mask_B >> i) & 1:
+                        Sp_mask |= (1 << B_nodes[i])
+                best_Sp = Sp_mask
+                break
+                
+    if best_Sp is None:
         print("NO")
+        return
+
+    # Solve for S = V \ Sp using DP
+    S_mask = ((1 << n) - 1) ^ best_Sp
+    S_nodes = []
+    for i in range(n):
+        if (S_mask >> i) & 1:
+            S_nodes.append(i)
+    k = len(S_nodes)
+    
+    # DP to 3-color S_nodes
+    dp = [4] * (1 << k)
+    dp[0] = 0
+    
+    for mask in range(1, 1 << k):
+        # Check all subsets
+        sub = mask
+        while sub:
+            if is_independent(sub): # 'sub' is a mask on S_nodes indices?
+                # We pass 'sub' which is an integer. is_independent iterates bits.
+                # Bits of 'sub' correspond to indices in S_nodes.
+                # We need to convert 'sub' to global mask to check is_independent.
+                # Let's modify is_independent or pass global mask.
+                # We can construct a global mask quickly.
+                # Or just map bits. 
+                # Let's precompute is_independent on k bits? No, graph is on n bits.
+                # We can compute global mask:
+                global_sub = 0
+                temp = sub
+                while temp:
+                    idx = (temp & -temp).bit_length() - 1
+                    global_sub |= (1 << S_nodes[idx])
+                    temp &= (temp - 1)
+                
+                if is_independent(global_sub):
+                    if dp[mask ^ sub] + 1 < dp[mask]:
+                        dp[mask] = dp[mask ^ sub] + 1
+            
+            sub = (sub - 1) & mask
+            
+    if dp[(1 << k) - 1] >= 4:
+        print("NO")
+        return
+
+    # Reconstruct coloring for S
+    ans = [0] * n
+    for i in range(n):
+        if (best_Sp >> i) & 1:
+            ans[i] = 1 # Assign Sp to shift 1
+
+    curr_mask = (1 << k) - 1
+    color = 2
+    while curr_mask:
+        # Find sub
+        # To reconstruct, we need to know which 'sub' gave the optimal value.
+        # We can just re-iterate or store path. Re-iterate.
+        found_sub = -1
+        sub = curr_mask
+        while sub:
+            # Check if this sub led to current state
+            # We need global_sub again for is_independent
+            global_sub = 0
+            temp = sub
+            while temp:
+                idx = (temp & -temp).bit_length() - 1
+                global_sub |= (1 << S_nodes[idx])
+                temp &= (temp - 1)
+            
+            if is_independent(global_sub):
+                if dp[curr_mask] == dp[curr_mask ^ sub] + 1:
+                    found_sub = sub
+                    break
+            sub = (sub - 1) & curr_mask
+        
+        # Color found_sub with 'color'
+        temp = found_sub
+        while temp:
+            idx = (temp & -temp).bit_length() - 1
+            ans[S_nodes[idx]] = color
+            temp &= (temp - 1)
+        
+        color += 1
+        curr_mask ^= found_sub
+
+    print("YES")
+    print(" ".join(map(str, ans)))
 
 if __name__ == '__main__':
     solve()

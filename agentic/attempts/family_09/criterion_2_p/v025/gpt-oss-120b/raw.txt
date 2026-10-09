@@ -1,0 +1,324 @@
+**Solution Explanation**
+
+The incompatibility graph is bipartite – every edge connects a module of the first
+consortium with a module of the second one.
+We are asked for an independent set of exactly `k` vertices.
+
+For a bipartite graph  
+
+```
+maximum independent set = n – size(minimum vertex cover)
+                         = n – size(maximum matching)          (Kőnig’s theorem)
+```
+
+So we
+
+1. rebuild the hidden bipartition,
+2. compute a maximum matching (Hopcroft‑Karp, `O(m·√n)`),
+3. from the matching obtain a minimum vertex cover,
+4. all vertices **not** in that cover form a maximum independent set,
+5. if its size ≥ k we output any `k` of them, otherwise answer `NO`.
+
+--------------------------------------------------------------------
+
+#### 1. Restoring the bipartition  
+
+The graph is guaranteed bipartite, therefore a simple BFS/DFS colour
+(`0/1`) works even if the graph is disconnected.
+
+```
+colour[v] = -1   (unvisited)
+for every vertex v:
+    if colour[v] == -1:
+        colour[v] = 0
+        queue = [v]
+        while queue:
+            x = pop()
+            for y in adj[x]:
+                if colour[y] == -1:
+                    colour[y] = colour[x] ^ 1
+                    push(y)
+```
+
+All vertices with colour `0` are taken as the **left** side, colour `1` as the
+right side.
+
+--------------------------------------------------------------------
+
+#### 2. Hopcroft‑Karp  
+
+Only edges from left to right are stored.
+`pairU[u]` – partner of left vertex `u` (`0` if free)  
+`pairV[v]` – partner of right vertex `v` (`0` if free)  
+
+Standard BFS builds distance layers, DFS augments along shortest alternating
+paths.
+
+--------------------------------------------------------------------
+
+#### 3. Minimum vertex cover from a maximum matching  
+
+Standard construction:
+
+* start from all **free** left vertices,
+* follow alternating edges (unmatched → matched → …) building the set `Z`,
+* then  
+
+```
+minCover = (left  \ Z)  ∪  (right ∩ Z)
+```
+
+All vertices **outside** `minCover` belong to a maximum independent set.
+
+--------------------------------------------------------------------
+
+#### 4. Answer  
+
+If `|independent| >= k` → `YES` and output the first `k` vertices of that set.  
+Otherwise → `NO`.
+
+The whole algorithm is `O(m·√n)` time, `O(n+m)` memory, well inside the limits.
+
+--------------------------------------------------------------------
+
+#### 5. Correctness Proof  
+
+We prove that the algorithm prints a correct answer.
+
+---
+
+##### Lemma 1  
+The colouring step produces a bipartition of the whole graph.
+
+**Proof.**  
+All edges are processed. When an edge `(x,y)` is examined, `y` receives the
+opposite colour of `x`. Because the input is guaranteed to be bipartite,
+no conflict (trying to assign two different colours to the same vertex) can
+appear. Hence after the BFS all vertices are coloured and every edge connects
+different colours. ∎
+
+
+
+##### Lemma 2  
+`matching` returned by Hopcroft‑Karp is a maximum matching of the bipartite
+graph.
+
+**Proof.**  
+Hopcroft‑Karp is a classic algorithm; it repeatedly augments along a set of
+shortest augmenting paths until none exist. The absence of augmenting paths
+characterises a maximum matching (Berge’s theorem). ∎
+
+
+
+##### Lemma 3  
+The set `C` constructed in step&nbsp;3 is a minimum vertex cover.
+
+**Proof.**  
+Let `U` be the set of free left vertices.
+`Z` is the set of vertices reachable from `U` by alternating paths
+(starting with an unmatched edge).  
+Standard König‑Kőnig theorem proof shows that  
+
+```
+C = (left \ Z) ∪ (right ∩ Z)
+```
+
+covers every edge and has size equal to the matching size, therefore it is a
+minimum vertex cover. ∎
+
+
+
+##### Lemma 4  
+`I = V \ C` is a maximum independent set.
+
+**Proof.**  
+`I` contains no edge because every edge has at least one endpoint in `C`
+(the definition of a vertex cover).  
+By König’s theorem  
+
+```
+|I| = n – |C| = n – size(maximum matching) = size(maximum independent set)
+```
+
+so `I` is maximum. ∎
+
+
+
+##### Lemma 5  
+If the algorithm outputs `YES` and a list `S` of `k` vertices, then `S` is an
+independent set.
+
+**Proof.**  
+`S` is taken as a subset of `I` (the maximum independent set).  
+Since `I` is independent, any subset of it is also independent. ∎
+
+
+
+##### Lemma 6  
+If the algorithm outputs `NO` then no independent set of size `k` exists.
+
+**Proof.**  
+`NO` is printed exactly when `|I| < k`.  
+`I` is a maximum independent set (Lemma&nbsp;4), therefore every independent
+set has size ≤ |I| < k. Hence a set of size `k` cannot exist. ∎
+
+
+
+##### Theorem  
+The algorithm prints `YES` and a correct selection of `k` mutually compatible
+modules iff such a selection exists; otherwise it prints `NO`.
+
+**Proof.**  
+
+*If the algorithm prints `YES`*: by Lemma&nbsp;5 the printed vertices form an
+independent set of size `k`. Hence a feasible selection exists.
+
+*If a feasible selection exists*: let `S*` be any independent set of size `k`.
+Maximum independent set size is at least `k`, i.e. `|I| ≥ k`. The algorithm
+therefore does not output `NO` (Lemma&nbsp;6) and will output `YES` with some
+`k` vertices from `I`. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### 6. Reference Implementation  (Python 3)
+
+```python
+import sys
+import collections
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it)); m = int(next(it)); k = int(next(it))
+    adj = [[] for _ in range(n + 1)]
+    edges = []
+    for _ in range(m):
+        u = int(next(it)); v = int(next(it))
+        adj[u].append(v)
+        adj[v].append(u)
+        edges.append((u, v))
+
+    # 1. bipartition
+    colour = [-1] * (n + 1)
+    left_nodes = []
+    right_nodes = []
+    for start in range(1, n + 1):
+        if colour[start] != -1:
+            continue
+        colour[start] = 0
+        q = collections.deque([start])
+        while q:
+            x = q.popleft()
+            for y in adj[x]:
+                if colour[y] == -1:
+                    colour[y] = colour[x] ^ 1
+                    q.append(y)
+    for v in range(1, n + 1):
+        if colour[v] == 0:
+            left_nodes.append(v)
+        else:
+            right_nodes.append(v)
+
+    # map original ids to 0‑based indices inside each side
+    left_id = {v: i+1 for i, v in enumerate(left_nodes)}   # 1‑based for HK
+    right_id = {v: i+1 for i, v in enumerate(right_nodes)}
+
+    L = len(left_nodes)
+    R = len(right_nodes)
+    g = [[] for _ in range(L + 1)]
+    for u, v in edges:
+        if colour[u] == 0:
+            g[left_id[u]].append(right_id[v])
+        else:
+            g[left_id[v]].append(right_id[u])
+
+    # 2. Hopcroft‑Karp
+    INF = 10 ** 9
+    pairU = [0] * (L + 1)
+    pairV = [0] * (R + 1)
+    dist = [0] * (L + 1)
+
+    def bfs() -> bool:
+        q = collections.deque()
+        for u in range(1, L + 1):
+            if pairU[u] == 0:
+                dist[u] = 0
+                q.append(u)
+            else:
+                dist[u] = INF
+        dist[0] = INF
+        while q:
+            u = q.popleft()
+            if dist[u] < dist[0]:
+                for v in g[u]:
+                    if dist[pairV[v]] == INF:
+                        dist[pairV[v]] = dist[u] + 1
+                        q.append(pairV[v])
+        return dist[0] != INF
+
+    def dfs(u: int) -> bool:
+        if u == 0:
+            return True
+        for v in g[u]:
+            if dist[pairV[v]] == dist[u] + 1 and dfs(pairV[v]):
+                pairU[u] = v
+                pairV[v] = u
+                return True
+        dist[u] = INF
+        return False
+
+    matching = 0
+    while bfs():
+        for u in range(1, L + 1):
+            if pairU[u] == 0 and dfs(u):
+                matching += 1
+
+    # 3. minimum vertex cover
+    # BFS from free left vertices in the alternating graph
+    visited_left = [False] * (L + 1)
+    visited_right = [False] * (R + 1)
+    q = collections.deque()
+    for u in range(1, L + 1):
+        if pairU[u] == 0:
+            q.append(('L', u))
+            visited_left[u] = True
+    while q:
+        side, x = q.popleft()
+        if side == 'L':
+            for v in g[x]:
+                if not visited_right[v] and pairU[x] != v:  # unmatched edge
+                    visited_right[v] = True
+                    q.append(('R', v))
+        else:  # side == 'R'
+            pu = pairV[x]
+            if pu and not visited_left[pu]:
+                visited_left[pu] = True
+                q.append(('L', pu))
+
+    # min cover = (left \ Z) ∪ (right ∩ Z)
+    in_cover = [False] * (n + 1)
+    for i, v in enumerate(left_nodes, start=1):
+        if not visited_left[i]:
+            in_cover[v] = True
+    for i, v in enumerate(right_nodes, start=1):
+        if visited_right[i]:
+            in_cover[v] = True
+
+    independent = [v for v in range(1, n + 1) if not in_cover[v]]
+
+    if len(independent) < k:
+        print("NO")
+        return
+    print("YES")
+    print(' '.join(map(str, independent[:k])))
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above and conforms
+to the required input‑output format.

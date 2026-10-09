@@ -1,0 +1,95 @@
+import sys
+from collections import deque
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    k = int(next(it))
+    B = int(next(it))
+    
+    terminals = []
+    for _ in range(k):
+        terminals.append(int(next(it)))
+    
+    adj = [[] for _ in range(n + 1)]
+    edges = []
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        w = int(next(it))
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+        edges.append((u, v, w))
+    
+    # Dijkstra from each terminal to find closest terminal for each node
+    INF = 10**18
+    dist = [INF] * (n + 1)
+    closest = [0] * (n + 1)
+    
+    pq = []
+    import heapq
+    for t in terminals:
+        dist[t] = 0
+        closest[t] = t
+        heapq.heappush(pq, (0, t, t))
+    
+    while pq:
+        d, u, src = heapq.heappop(pq)
+        if d > dist[u]:
+            continue
+        if d == dist[u] and closest[u] != src:
+            continue
+        for v, w in adj[u]:
+            nd = d + w
+            if nd < dist[v] or (nd == dist[v] and closest[v] != closest[u]):
+                if nd < dist[v]:
+                    dist[v] = nd
+                    closest[v] = closest[u]
+                    heapq.heappush(pq, (nd, v, closest[u]))
+                elif nd == dist[v] and closest[v] != closest[u]:
+                    closest[v] = closest[u]
+                    heapq.heappush(pq, (nd, v, closest[u]))
+    
+    # Build auxiliary graph
+    aux_adj = [[] for _ in range(n + 1)]
+    for u, v, w in edges:
+        if closest[u] != closest[v]:
+            aux_adj[u].append((v, w))
+            aux_adj[v].append((u, w))
+    
+    # BFS from first terminal
+    if k <= 1:
+        print("YES")
+        print(0)
+        return
+    
+    start = terminals[0]
+    visited = [False] * (n + 1)
+    visited[start] = True
+    q = deque([start])
+    sealed_edges = []
+    total_cost = 0
+    
+    while q:
+        u = q.popleft()
+        for v, w in aux_adj[u]:
+            if not visited[v]:
+                visited[v] = True
+                sealed_edges.append((u, v))
+                total_cost += w
+                q.append(v)
+    
+    if total_cost <= B:
+        print("YES")
+        print(len(sealed_edges))
+        for u, v in sealed_edges:
+            print(u, v)
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()

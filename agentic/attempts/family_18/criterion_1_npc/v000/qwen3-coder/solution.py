@@ -1,0 +1,169 @@
+import sys
+from itertools import permutations
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    idx = 0
+    n = int(data[idx])
+    idx += 1
+    m = int(data[idx])
+    idx += 1
+    B = int(data[idx])
+    idx += 1
+    
+    edges = []
+    for _ in range(m):
+        u = int(data[idx]) - 1  # Convert to 0-based
+        idx += 1
+        v = int(data[idx]) - 1  # Convert to 0-based
+        idx += 1
+        edges.append((u, v))
+    
+    # If m == 0, any permutation works
+    if m == 0:
+        print("YES")
+        print(' '.join(str(x) for x in range(1, n+1)))
+        return
+    
+    # For small n, try all permutations
+    if n <= 8:
+        for perm in permutations(range(n)):
+            total = 0
+            pos = [0] * n
+            for i in range(n):
+                pos[perm[i]] = i
+            for u, v in edges:
+                total += abs(pos[u] - pos[v])
+                if total > B:
+                    break
+            if total <= B:
+                print("YES")
+                result = [0] * n
+                for i in range(n):
+                    result[perm[i]] = i + 1
+                print(' '.join(map(str, result)))
+                return
+        print("NO")
+        return
+    
+    # For larger n, use heuristic: place nodes greedily to minimize total distance
+    # Start with placing first two nodes that have edges
+    if m == 0:
+        print("YES")
+        print(' '.join(str(x) for x in range(1, n+1)))
+        return
+        
+    # Build adjacency list
+    adj = [[] for _ in range(n)]
+    for u, v in edges:
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # Find a pair of connected nodes to start with
+    start_u, start_v = edges[0]
+    
+    # Try placing them at various distances to get a base cost
+    best_perm = None
+    min_excess = float('inf')
+    
+    # We'll try a few heuristic placements
+    # Strategy: Place high-degree nodes closer together
+    
+    degrees = [len(adj[i]) for i in range(n)]
+    nodes_sorted = sorted(range(n), key=lambda x: -degrees[x])
+    
+    # Place first two highest degree nodes at positions 0 and 1
+    pos = [-1] * n
+    pos[nodes_sorted[0]] = 0
+    pos[nodes_sorted[1]] = 1
+    unplaced = set(nodes_sorted[2:])
+    
+    # Now place remaining nodes greedily
+    placed_list = [nodes_sorted[0], nodes_sorted[1]]
+    
+    while unplaced:
+        best_node = -1
+        best_pos = -1
+        best_cost = float('inf')
+        
+        for node in unplaced:
+            for i in range(len(placed_list) + 1):
+                # Try inserting at position i
+                cost = 0
+                for neighbor in adj[node]:
+                    if pos[neighbor] != -1:
+                        # Position will be i in the sequence
+                        p = i
+                        q = placed_list.index(neighbor) if neighbor in placed_list else -1
+                        if q >= i:
+                            q += 1
+                        cost += abs(p - q)
+                if cost < best_cost:
+                    best_cost = cost
+                    best_node = node
+                    best_pos = i
+                    
+        # Place the best node
+        placed_list.insert(best_pos, best_node)
+        pos[best_node] = best_pos
+        unplaced.remove(best_node)
+    
+    # Calculate total cost
+    total = 0
+    for u, v in edges:
+        total += abs(pos[u] - pos[v])
+    
+    if total <= B:
+        # Create result permutation
+        result = [0] * n
+        for i in range(n):
+            result[pos[i]] = i + 1
+        print("YES")
+        print(' '.join(map(str, result)))
+        return
+    
+    # If that didn't work, try a simpler approach: just sort by degree and place linearly
+    pos = [0] * n
+    for i, node in enumerate(nodes_sorted):
+        pos[node] = i
+    
+    total = 0
+    for u, v in edges:
+        total += abs(pos[u] - pos[v])
+    
+    if total <= B:
+        # Create result permutation
+        result = [0] * n
+        for i in range(n):
+            result[pos[i]] = i + 1
+        print("YES")
+        print(' '.join(map(str, result)))
+        return
+    
+    # Last resort: try random permutations for small n
+    if n <= 10:
+        import random
+        for _ in range(10000):
+            perm = list(range(n))
+            random.shuffle(perm)
+            pos = [0] * n
+            for i in range(n):
+                pos[perm[i]] = i
+            total = 0
+            for u, v in edges:
+                total += abs(pos[u] - pos[v])
+            if total <= B:
+                result = [0] * n
+                for i in range(n):
+                    result[perm[i]] = i + 1
+                print("YES")
+                print(' '.join(map(str, result)))
+                return
+    
+    print("NO")
+
+if __name__ == "__main__":
+    main()

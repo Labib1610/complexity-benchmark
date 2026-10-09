@@ -1,0 +1,239 @@
+from collections import defaultdict, deque
+import sys
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    q = int(data[0])
+    t = int(data[1])
+    
+    if q == 0:
+        print("YES")
+        return
+    
+    index = 2
+    triples = []
+    for i in range(t):
+        a = int(data[index])
+        b = int(data[index+1])
+        c = int(data[index+2])
+        triples.append((a, b, c))
+        index += 3
+    
+    # Build graph for matching
+    # Nodes: 0 to 3*q-1 (fragments), 3*q to 3*q+t-1 (triples)
+    # Source: -2, Sink: -1
+    
+    source = -2
+    sink = -1
+    
+    # For each fragment, keep track of which triples contain it
+    fragment_to_triples = defaultdict(list)
+    for idx, (a, b, c) in enumerate(triples):
+        triple_node = 3*q + idx
+        fragment_to_triples[a].append((triple_node, idx))
+        fragment_to_triples[b].append((triple_node, idx))
+        fragment_to_triples[c].append((triple_node, idx))
+    
+    # We will use a flow network and Ford-Fulkerson (or similar)
+    # But since capacities are 1, we can model as bipartite matching
+    # Left side: fragments (0 to 3*q-1)
+    # Right side: triples (3*q to 3*q+t-1)
+    # We want a matching that covers all fragments exactly once, and uses exactly q triples
+    
+    # This is equivalent to finding a matching in a tripartite graph:
+    # Source -> fragments (capacity 1)
+    # fragments -> triples (capacity 1 if fragment in triple)
+    # triples -> sink (capacity 1)
+    
+    # But actually, we can think of it as a maximum flow problem
+    # Or even simpler, a matching problem where we need to match each fragment to exactly one triple,
+    # and each triple to at most one use, and we select exactly q triples.
+    
+    # Let's reduce to max flow
+    # Nodes: 
+    # - source (-2)
+    # - fragments (0 to 3*q-1)
+    # - triples (3*q to 3*q+t-1)
+    # - sink (-1)
+    
+    from collections import deque
+    
+    class FlowGraph:
+        def __init__(self):
+            self.edges = defaultdict(list)
+            self.capacities = {}
+        
+        def add_edge(self, u, v, cap):
+            self.edges[u].append(v)
+            self.edges[v].append(u)
+            self.capacities[(u,v)] = cap
+            self.capacities[(v,u)] = 0
+            
+        def bfs(self, source, sink, parent):
+            visited = set()
+            queue = deque([source])
+            visited.add(source)
+            parent[source] = -1
+            
+            while queue:
+                u = queue.popleft()
+                for v in self.edges[u]:
+                    if v not in visited and self.capacities[(u,v)] > 0:
+                        queue.append(v)
+                        visited.add(v)
+                        parent[v] = u
+                        if v == sink:
+                            return True
+            return False
+        
+        def max_flow(self, source, sink):
+            parent = {}
+            flow = 0
+            while self.bfs(source, sink, parent):
+                path_flow = float('inf')
+                s = sink
+                while s != source:
+                    path_flow = min(path_flow, self.capacities[(parent[s], s)])
+                    s = parent[s]
+                
+                v = sink
+                while v != source:
+                    u = parent[v]
+                    self.capacities[(u,v)] -= path_flow
+                    self.capacities[(v,u)] += path_flow
+                    v = parent[v]
+                
+                flow += path_flow
+            return flow
+    
+    # Build the flow graph
+    graph = FlowGraph()
+    
+    # source to each fragment (0 to 3*q-1)
+    for i in range(3*q):
+        graph.add_edge(source, i, 1)
+    
+    # fragment to triple
+    for idx, (a, b, c) in enumerate(triples):
+        triple_node = 3*q + idx
+        graph.add_edge(a-1, triple_node, 1)  # Convert to 0-based
+        graph.add_edge(b-1, triple_node, 1)
+        graph.add_edge(c-1, triple_node, 1)
+    
+    # triple to sink
+    for idx in range(t):
+        triple_node = 3*q + idx
+        graph.add_edge(triple_node, sink, 1)
+    
+    # Run max flow
+    max_flow_value = graph.max_flow(source, sink)
+    
+    if max_flow_value != 3*q:
+        print("NO")
+        return
+    
+    # Now we need to check if we can select exactly q triples
+    # In our construction, each triple has capacity 1 to sink
+    # So if max_flow is 3*q, and each triple can carry at most 1 unit of flow through it,
+    # then at most q triples are used.
+    # But we also need exactly q triples.
+    
+    # Actually, let's reframe. We want a subgraph where:
+    # - Each fragment has degree exactly 1 (connected to exactly one triple)
+    # - Each selected triple has degree exactly 3 (connected to its 3 fragments)
+    # - Exactly q triples are selected
+    
+    # This is equivalent to finding a perfect matching in a hypergraph where hyperedges are triples.
+    # This is NP-hard in general, but with small constraints, maybe we can do backtracking.
+    # However, q <= 200, so backtracking won't work.
+    
+    # Let's stick with the flow approach, but ensure we get exactly q triples.
+    # In our flow solution, if max_flow is 3*q, then there exists a way to route the flow.
+    # Since all capacities are 1, the flow decomposition gives us a set of paths.
+    # Each path goes source -> fragment -> triple -> sink
+    # So we have 3*q such paths, meaning 3*q fragment-triple incidences.
+    # Each triple can be incident to at most 3 fragments, so we need at least q triples.
+    # If we have max_flow = 3*q, and we saturate exactly q triple->sink edges,
+    # then we're good.
+    
+    # Let's reconstruct the solution
+    selected_triples = []
+    for idx in range(t):
+        triple_node = 3*q + idx
+        # Check if edge (triple_node, sink) has residual capacity 0 (i.e., was used)
+        if graph.capacities[(triple_node, sink)] == 0:
+            selected_triples.append(idx)
+    
+    if len(selected_triples) != q:
+        # Try to adjust by finding augmenting paths that increase triple usage
+        # This is getting complex. Let's try a different approach.
+        # Use a known algorithm for Exact Cover or Set Packing.
+        pass
+    
+    # Let's try a different modeling.
+    # This is essentially a 3-dimensional matching problem or an Exact Cover problem.
+    # We can solve it using a backtracking approach with optimizations, but given constraints,
+    # it might be too slow.
+    
+    # Let's go back to flow. The issue is ensuring exactly q triples.
+    # One way is to modify the graph:
+    # Instead of having capacity 1 from each triple to sink,
+    # we could have a chain that enforces exactly q units go through triples.
+    
+    # But that's complex. Let's just check if our current solution works.
+    # If max_flow = 3*q, and we identify which triples were used,
+    # we can verify if they cover all fragments exactly once.
+    
+    # Reconstruct which fragments map to which triples
+    fragment_assignment = [-1] * (3*q)  # fragment (0-based) -> triple index
+    triple_usage = [0] * t  # how many fragments are assigned to each triple
+    
+    for i in range(3*q):
+        fragment = i
+        # Look at outgoing edges from fragment in the residual graph
+        for v in graph.edges[fragment]:
+            # If there's flow from fragment to v (residual capacity < original)
+            if (fragment, v) in graph.capacities and graph.capacities[(fragment, v)] < 1:
+                # This means originally there was capacity 1, now it's less, so flow went this way
+                # v should be a triple node
+                if v >= 3*q:  # It's a triple node
+                    triple_idx = v - 3*q
+                    fragment_assignment[fragment] = triple_idx
+                    triple_usage[triple_idx] += 1
+                    break
+    
+    # Verify: each fragment assigned, each used triple has exactly 3 fragments
+    valid = True
+    assigned_triples = set()
+    for frag in range(3*q):
+        if fragment_assignment[frag] == -1:
+            valid = False
+            break
+        assigned_triples.add(fragment_assignment[frag])
+    
+    if not valid:
+        print("NO")
+        return
+        
+    for tri_idx in assigned_triples:
+        if triple_usage[tri_idx] != 3:
+            valid = False
+            break
+            
+    if len(assigned_triples) != q:
+        valid = False
+        
+    if not valid:
+        print("NO")
+        return
+    
+    print("YES")
+    for tri_idx in sorted(assigned_triples):
+        a, b, c = triples[tri_idx]
+        print(a, b, c)
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,191 @@
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    it = iter(data)
+    q = int(next(it))
+    t = int(next(it))
+    n = 3 * q
+
+    reactions = []
+    for _ in range(t):
+        a = int(next(it)) - 1
+        b = int(next(it)) - 1
+        c = int(next(it)) - 1
+        reactions.append((a, b, c))
+
+    if t == 0:
+        print("NO")
+        return
+
+    # Build adjacency: for each pair of clusters, list of reaction indices containing that pair
+    pair_to_reactions = {}
+    for idx, (a, b, c) in enumerate(reactions):
+        for x, y in ((a, b), (a, c), (b, c)):
+            key = (x, y) if x < y else (y, x)
+            pair_to_reactions.setdefault(key, []).append(idx)
+
+    # Build adjacency list for conflict graph: reactions sharing at least one cluster conflict
+    # To avoid O(t^2) when t is large, use cluster->reactions mapping
+    cluster_to_reactions = {}
+    for idx, (a, b, c) in enumerate(reactions):
+        for cl in (a, b, c):
+            cluster_to_reactions.setdefault(cl, []).append(idx)
+
+    adj = [[] for _ in range(t)]
+    for cl, lst in cluster_to_reactions.items():
+        L = len(lst)
+        for i in range(L):
+            for j in range(i + 1, L):
+                adj[lst[i]].append(lst[j])
+                adj[lst[j]].append(lst[i])
+
+    # Remove duplicate edges
+    for i in range(t):
+        if adj[i]:
+            adj[i] = list(set(adj[i]))
+
+    # Find connected components
+    comp_id = [-1] * t
+    comp_reactions = []
+    for i in range(t):
+        if comp_id[i] == -1:
+            comp = []
+            stack = [i]
+            comp_id[i] = len(comp_reactions)
+            while stack:
+                u = stack.pop()
+                comp.append(u)
+                for v in adj[u]:
+                    if comp_id[v] == -1:
+                        comp_id[v] = len(comp_reactions)
+                        stack.append(v)
+            comp_reactions.append(comp)
+
+    # For each component, try to find exact cover via backtracking
+    # Exact cover: select subset of reactions so every cluster appears exactly once
+    # Within a component, clusters involved are those in reactions of the component
+    
+    selected_global = [False] * t
+    possible = True
+
+    for comp in comp_reactions:
+        # Collect clusters in this component
+        clusters_set = set()
+        for idx in comp:
+            a, b, c = reactions[idx]
+            clusters_set.add(a)
+            clusters_set.add(b)
+            clusters_set.add(c)
+        clusters_list = sorted(clusters_set)
+        cluster_to_local = {cl: i for i, cl in enumerate(clusters_list)}
+        m = len(clusters_list)
+        
+        # local reactions
+        local_reactions = []
+        for idx in comp:
+            a, b, c = reactions[idx]
+            local_reactions.append((cluster_to_local[a], cluster_to_local[b], cluster_to_local[c], idx))
+        
+        # For exact cover with 3 elements per reaction, number of reactions selected = m/3
+        if m % 3 != 0:
+            possible = False
+            break
+        
+        target = m // 3
+        
+        # Backtracking with MRV (minimum remaining values)
+        # State: which clusters are covered, which reactions used
+        # Use bitmask if m small, else use set
+        
+        covered = [0] * m  # 0 = uncovered, 1 = covered
+        used = [False] * len(local_reactions)
+        
+        # Precompute for each cluster, list of reaction indices (local) containing it
+        cluster_to_local_reactions = [[] for _ in range(m)]
+        for li, (la, lb, lc, gidx) in enumerate(local_reactions):
+            cluster_to_local_reactions[la].append(li)
+            cluster_to_local_reactions[lb].append(li)
+            cluster_to_local_reactions[lc].append(li)
+        
+        # Count of available reactions for each uncovered cluster
+        avail_count = [0] * m
+        for cl in range(m):
+            avail_count[cl] = len(cluster_to_local_reactions[cl])
+        
+        result = [None]
+        
+        def backtrack(remaining):
+            if remaining == 0:
+                return True
+            # Find uncovered cluster with minimum available reactions
+            min_avail = 999999999
+            best_cl = -1
+            for cl in range(m):
+                if covered[cl] == 0:
+                    cnt = 0
+                    for ri in cluster_to_local_reactions[cl]:
+                        if not used[ri]:
+                            cnt += 1
+                    if cnt == 0:
+                        return False
+                    if cnt < min_avail:
+                        min_avail = cnt
+                        best_cl = cl
+                        if cnt == 1:
+                            break
+            
+            # Try each available reaction for best_cl
+            for ri in cluster_to_local_reactions[best_cl]:
+                if used[ri]:
+                    continue
+                la, lb, lc, gidx = local_reactions[ri]
+                if covered[la] or covered[lb] or covered[lc]:
+                    continue
+                # Use this reaction
+                covered[la] = covered[lb] = covered[lc] = 1
+                used[ri] = True
+                selected_global[gidx] = True
+                if backtrack(remaining - 1):
+                    return True
+                # Undo
+                covered[la] = covered[lb] = covered[lc] = 0
+                used[ri] = False
+                selected_global[gidx] = False
+            return False
+        
+        if not backtrack(target):
+            possible = False
+            break
+
+    if not possible:
+        print("NO")
+        return
+
+    # Verify all clusters covered
+    covered_clusters = [False] * n
+    count = 0
+    for idx in range(t):
+        if selected_global[idx]:
+            a, b, c = reactions[idx]
+            if covered_clusters[a] or covered_clusters[b] or covered_clusters[c]:
+                print("NO")
+                return
+            covered_clusters[a] = True
+            covered_clusters[b] = True
+            covered_clusters[c] = True
+            count += 1
+
+    if count != q or not all(covered_clusters):
+        print("NO")
+        return
+
+    print("YES")
+    for idx in range(t):
+        if selected_global[idx]:
+            a, b, c = reactions[idx]
+            print(f"{a+1} {b+1} {c+1}")
+
+solve()

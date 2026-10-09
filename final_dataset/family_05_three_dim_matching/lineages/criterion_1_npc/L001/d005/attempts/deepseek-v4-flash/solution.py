@@ -1,0 +1,73 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.read().strip().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    k = int(next(it))
+    t = int(next(it))
+    resonators = []
+    for _ in range(t):
+        f = int(next(it)) - 1
+        p = int(next(it)) - 1
+        a = int(next(it)) - 1
+        resonators.append((f, p, a))
+    
+    # We'll try to pick k resonators covering all values
+    # Use backtracking with bitmasks
+    full_mask = (1 << k) - 1
+    chosen = []
+    
+    # Precompute for each resonator its bit contribution
+    # We'll sort resonators by some heuristic (e.g., rarity) to speed up
+    # Count how many resonators cover each value
+    freq_count = [0]*k
+    phase_count = [0]*k
+    amp_count = [0]*k
+    for f, p, a in resonators:
+        freq_count[f] += 1
+        phase_count[p] += 1
+        amp_count[a] += 1
+    
+    # Sort resonators: rare values first
+    def rarity(res):
+        f, p, a = res
+        return freq_count[f] + phase_count[p] + amp_count[a]
+    resonators.sort(key=rarity)
+    
+    # Backtracking
+    def dfs(idx, mask_f, mask_p, mask_a, selected):
+        if len(selected) == k:
+            if mask_f == full_mask and mask_p == full_mask and mask_a == full_mask:
+                return True
+            return False
+        if idx >= len(resonators):
+            return False
+        # Prune: if remaining resonators not enough to reach k
+        if len(selected) + (len(resonators) - idx) < k:
+            return False
+        
+        f, p, a = resonators[idx]
+        # Option 1: take this resonator
+        new_mask_f = mask_f | (1 << f)
+        new_mask_p = mask_p | (1 << p)
+        new_mask_a = mask_a | (1 << a)
+        selected.append((f+1, p+1, a+1))
+        if dfs(idx+1, new_mask_f, new_mask_p, new_mask_a, selected):
+            return True
+        selected.pop()
+        # Option 2: skip this resonator
+        if dfs(idx+1, mask_f, mask_p, mask_a, selected):
+            return True
+        return False
+    
+    if dfs(0, 0, 0, 0, []):
+        print("YES")
+        for f, p, a in chosen:
+            print(f, p, a)
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()

@@ -1,23 +1,20 @@
-# Problem B — Polymer Resonance Tuning
+# Problem B — Interferometry Array
 
-Time limit: 1 s
-Memory limit: 256 MB
+Time limit: 1 s   Memory limit: 256 MB
 
-A synthetic polymer consists of $n$ monomers, indexed from 1 to $n$. A tuning configuration assigns each monomer a resonance level, which must be chosen as either 1 or 2.
+An observatory operates an interferometry array consisting of $n$ radio telescope dishes. To calibrate the array for a new observation run, the control system must assign a configuration value to each dish. The hardware only supports configuration values that are positive integers with a specific property: the total number of positive divisors of the assigned value must be exactly equal to the value itself.
 
-The laboratory maintains a record of $m$ covalent bonds between these monomers. To ensure molecular stability, a strict structural rule applies to any pair of monomers connected by a documented bond. For every recorded bonded pair of monomers $u$ and $v$, the configuration must satisfy two conditions simultaneously:
-- Monomers $u$ and $v$ cannot both be assigned resonance level 1.
-- Monomers $u$ and $v$ cannot both be assigned resonance level 2.
+The array relies on $m$ baseline connections, each linking a specific pair of dishes that act as a single synthetic aperture. For the interferometry to function correctly across a baseline, the signals from the two linked dishes must be offset. The control system enforces this by requiring that for any two dishes connected by a baseline, the sum of the cubes of their assigned configuration values is exactly $9$.
 
-Your task is to determine a valid tuning configuration for all $n$ monomers. If multiple valid configurations exist, you must output the sequence of resonance levels that is lexicographically smallest. This means the configuration must prioritize assigning level 1 to monomer 1 if any valid configuration allows it; then, among those valid configurations, prioritize assigning level 1 to monomer 2, and so on sequentially up to monomer $n$. If no configuration can satisfy the structural rule for all recorded bonds simultaneously, you must report the failure.
+You need to determine if there is a valid calibration that satisfies all baseline connections. If there are multiple valid ways to assign the configuration values across the array, the control system must select the one that yields the lexicographically smallest sequence of values when listed in order from dish $1$ to dish $n$.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$).
-Each of the following $m$ lines contains two integers $u$ and $v$, identifying a bonded pair of monomers in the record. Both monomer identifiers $u$ and $v$ are at least 1 and at most $n$.
+The first line of the input contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$).
+Each of the next $m$ lines contains two integers $u$ and $v$ — a baseline connection between dish $u$ and dish $v$.
 
 ## Output
-If no valid tuning configuration exists, output `NO` on a single line.
-Otherwise, output `YES` on the first line. On the second line, output $n$ space-separated integers $r_1, r_2, \dots, r_n$ (where each $r_i \in \{1, 2\}$) representing the resonance level assigned to each respective monomer from 1 to $n$. This sequence must be the lexicographically smallest possible valid sequence.
+If there is no way to assign the configuration values without violating the baseline requirements, output a single line containing `NO`.
+Otherwise, output `YES` on the first line. On the second line, output $n$ integers separated by spaces, where the $i$-th integer is the configuration value assigned to the $i$-th dish, representing the lexicographically smallest valid assignment ordered by dish indices from $1$ to $n$.
 
 ## Example 1
 Input:

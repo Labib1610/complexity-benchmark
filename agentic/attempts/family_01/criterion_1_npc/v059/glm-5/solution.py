@@ -1,4 +1,5 @@
 import sys
+sys.setrecursionlimit(10000)
 
 def solve():
     data = sys.stdin.read().strip().split()
@@ -15,58 +16,26 @@ def solve():
         adj[u].append(v)
         adj[v].append(u)
     
-    # Try to color with 2 colors first (greedy, lexicographically smallest)
     color = [0] * n
-    is_bipartite = True
     
-    for start in range(n):
-        if color[start] == 0:
-            color[start] = 1
-            queue = [start]
-            for u in queue:
-                for v in adj[u]:
-                    if color[v] == 0:
-                        color[v] = 3 - color[u]
-                        queue.append(v)
-                    elif color[v] == color[u]:
-                        is_bipartite = False
-                        break
-                if not is_bipartite:
-                    break
-        if not is_bipartite:
-            break
+    def dfs(u, c):
+        color[u] = c
+        for v in adj[u]:
+            if color[v] == 0:
+                if not dfs(v, 3 - c):
+                    return False
+            elif color[v] == c:
+                return False
+        return True
     
-    if is_bipartite:
-        print("YES")
-        print(' '.join(map(str, color)))
-        return
+    for i in range(n):
+        if color[i] == 0:
+            if not dfs(i, 1):
+                print("NO")
+                return
     
-    # Try 3-coloring with backtracking
-    assignment = [0] * n
-    
-    # Precompute neighbors for faster access
-    # Order: try colors 1, 2, 3 for each vertex
-    
-    def backtrack(idx):
-        if idx == n:
-            return True
-        for c in range(1, 4):
-            valid = True
-            for v in adj[idx]:
-                if v < idx and assignment[v] == c:
-                    valid = False
-                    break
-            if valid:
-                assignment[idx] = c
-                if backtrack(idx + 1):
-                    return True
-        assignment[idx] = 0
-        return False
-    
-    if backtrack(0):
-        print("YES")
-        print(' '.join(map(str, assignment)))
-    else:
-        print("NO")
+    print("YES")
+    print(' '.join(map(str, color)))
 
-solve()
+if __name__ == "__main__":
+    solve()

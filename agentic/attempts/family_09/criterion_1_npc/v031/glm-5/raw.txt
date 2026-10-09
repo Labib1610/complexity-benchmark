@@ -1,0 +1,2269 @@
+Looking at this problem, I need to find a stable set (independent set) of exactly size k in a graph where edges represent dangerous reactions.
+
+**Key observations:**
+1. n ≤ 46, so I can split vertices into two halves of ~23 each
+2. For each half, enumerate all maximal independent sets (at most ~2^23/23 ≈ 350K per half)
+3. For each independent set in the left half of size s, I need to find an independent set in the right half of size k-s that has no edges to the left set
+
+**Algorithm:**
+1. Split vertices into left (first n/2) and right (remaining)
+2. Enumerate all independent sets in left half, group by size
+3. For right half, enumerate all independent sets, and for each, precompute which left vertices are "forbidden" (have edges to this set)
+4. For each left independent set, compute the forbidden mask in right half, then check if there's a right independent set of required size with matching forbidden mask
+
+**Optimization:** Group right independent sets by their forbidden-left-mask. For each mask, keep the maximum size achievable. Then for a left set with forbidden-right-mask R, I need a right set whose forbidden-left-mask equals the left set's mask, and whose forbidden-right-mask is compatible (no overlap with left set).
+
+Wait, let me reconsider. The forbidden-left-mask of a right set must equal the left set's mask (so the right set avoids all left vertices that have edges to it). And the right set must avoid left vertices that are in the left set (but right set only contains right vertices, so this is automatic).
+
+Actually: right set's forbidden-left-mask = set of left vertices that have edges to some vertex in right set. For compatibility, this must be disjoint from the left set. So I need: (right_forbidden_left_mask & left_set_mask) == 0.
+
+Let me re-implement with this understanding:
+
+```python
+from collections import defaultdict
+
+def solve():
+    import sys
+    input_data = sys.stdin.read().split()
+    idx = 0
+    n = int(input_data[idx]); idx += 1
+    m = int(input_data[idx]); idx += 1
+    k = int(input_data[idx]); idx += 1
+    
+    adj = [0] * n
+    for _ in range(m):
+        u = int(input_data[idx]) - 1; idx += 1
+        v = int(input_data[idx]) - 1; idx += 1
+        adj[u] |= (1 << v)
+        adj[v] |= (1 << u)
+    
+    half = n // 2
+    left_size = half
+    right_size = n - half
+    
+    # Left vertices: 0..left_size-1
+    # Right vertices: left_size..n-1, remapped to 0..right_size-1
+    
+    # For left: enumerate independent sets
+    left_sets_by_size = defaultdict(list)
+    
+    def enum_left(pos, mask, size):
+        if pos == left_size:
+            left_sets_by_size[size].append(mask)
+            return
+        enum_left(pos + 1, mask, size)
+        if (mask & adj[pos]) == 0:
+            enum_left(pos + 1, mask | (1 << pos), size + 1)
+    
+    enum_left(0, 0, 0)
+    
+    # For right: enumerate independent sets
+    # For each, compute forbidden_left_mask (left vertices adjacent to this set)
+    # Group by forbidden_left_mask, keep max size and one example
+    
+    right_best = {}  # forbidden_left_mask -> (max_size, right_mask)
+    
+    def remap_right(v):
+        return v - left_size
+    
+    def enum_right(pos, rmask, size, forbidden_left):
+        if pos == n:
+            key = forbidden_left
+            if key not in right_best or size > right_best[key][0]:
+                right_best[key] = (size, rmask)
+            return
+        enum_right(pos + 1, rmask, size, forbidden_left)
+        rv = remap_right(pos)
+        if (rmask & (1 << rv)) == 0:
+            new_forbidden = forbidden_left | adj[pos] & ((1 << left_size) - 1)
+            enum_right(pos + 1, rmask | (1 << rv), size + 1, new_forbidden)
+    
+    enum_right(half, 0, 0, 0)
+    
+    # For each left set, find compatible right set
+    for lsize, left_sets in left_sets_by_size.items():
+        if lsize > k:
+            continue
+        need = k - lsize
+        for lmask in left_sets:
+            # Need right set with forbidden_left_mask & lmask == 0 and size >= need
+            # But we need exactly 'need'... we stored max size, but we need exactly need
+            # Actually we need at least need, but we need exactly k total
+            # Hmm, we need exactly need from right
+            pass
+    
+    # Problem: we need exactly k, but stored max. Need to store all sizes.
+    # Let me redo: group by (forbidden_left_mask, size) -> right_mask
+    
+    right_by_key = {}  # (forbidden_left, size) -> right_mask
+    
+    def enum_right2(pos, rmask, size, forbidden_left):
+        if pos == n:
+            key = (forbidden_left, size)
+            if key not in right_by_key:
+                right_by_key[key] = rmask
+            return
+        enum_right2(pos + 1, rmask, size, forbidden_left)
+        rv = remap_right(pos)
+        if (rmask & (1 << rv)) == 0:
+            new_forbidden = forbidden_left | (adj[pos] & ((1 << left_size) - 1))
+            enum_right2(pos + 1, rmask | (1 << rv), size + 1, new_forbidden)
+    
+    enum_right2(half, 0, 0, 0)
+    
+    # Index by forbidden_left for faster lookup
+    right_index = defaultdict(dict)  # forbidden_left -> {size: rmask}
+    for (fl, sz), rmask in right_by_key.items():
+        right_index[fl][sz] = rmask
+    
+    for lsize in range(k + 1):
+        if lsize not in left_sets_by_size:
+            continue
+        need = k - lsize
+        for lmask in left_sets_by_size[lsize]:
+            # Find right set with forbidden_left & lmask == 0 and size == need
+            for fl, sizes in right_index.items():
+                if (fl & lmask) == 0 and need in sizes:
+                    rmask = sizes[need]
+                    result = []
+                    for i in range(left_size):
+                        if lmask & (1 << i):
+                            result.append(i + 1)
+                    for i in range(right_size):
+                        if rmask & (1 << i):
+                            result.append(left_size + i + 1)
+                    print("YES")
+                    print(' '.join(map(str, result)))
+                    return
+    
+    print("NO")
+
+solve()
+```
+
+Wait, the right_index lookup is O(number of distinct forbidden_left masks) per left set, which could be too slow. Let me think about complexity.
+
+Left has up to ~350K independent sets. Right has up to ~350K independent sets, but the number of distinct forbidden_left masks is bounded by 2^23 ≈ 8M. In practice much smaller.
+
+For each left set, iterating over all right forbidden_left masks is too slow if there are many.
+
+Better approach: for each left set, compute the required forbidden_left mask for right (which is lmask itself - right set must avoid all left vertices in lmask... no wait, right set must avoid left vertices that have edges to it, and left set must avoid right vertices that have edges to it).
+
+Let me reconsider the compatibility condition:
+- Left set L (subset of left vertices), Right set R (subset of right vertices)
+- No edge within L: guaranteed by enumeration
+- No edge within R: guaranteed by enumeration  
+- No edge between L and R: for each v in R, adj[v] (restricted to left) must not intersect L
+
+So forbidden_left(R) = union of adj[v] (left part) for v in R. We need forbidden_left(R) & L == 0.
+
+So for a given L, we need R with forbidden_left(R) & L == 0 and |R| = k - |L|.
+
+The issue is we can't directly look up by the complement of L. 
+
+Alternative: precompute for each possible "allowed left mask" the best right set. But that's 2^23 which is 8M entries - might be OK memory-wise but the enumeration might not cover all.
+
+Actually, let me think differently. The number of distinct forbidden_left masks from right enumeration is at most the number of right independent sets, which is ~350K. For each left set, we iterate over these 350K entries. With 350K left sets, that's 350K * 350K = 1.2e11 - way too slow.
+
+Better: group left sets by their mask, and for each right forbidden_left mask, we know which left masks are compatible (those with (lmask & fl) == 0). But this is still expensive.
+
+Let me think of a different approach. Since we need exactly k, and k can be up to 46, maybe a different algorithm is needed.
+
+Actually, let me reconsider the meet-in-the-middle more carefully. The key insight is:
+
+For each left independent set with mask `lmask` and size `lsize`, I need a right independent set with size `k - lsize` and `forbidden_left & lmask == 0`.
+
+I can index right sets by forbidden_left mask. Then for a given lmask, I need to find all right sets where forbidden_left is a subset of ~lmask (complement of lmask in left space).
+
+This is a subset enumeration problem. For each lmask, I enumerate subsets of ~lmask and check if any of them is a forbidden_left key with the right size.
+
+The number of subsets could be large, but in practice, the number of distinct forbidden_left masks is limited.
+
+Actually, a cleaner approach: use SOS (sum over subsets) DP. For each mask, precompute the maximum size right independent set whose forbidden_left is a subset of mask. Then for each left set with mask lmask, I check if max_size[~lmask & ((1<<left_size)-1)] >= k - lsize. But I need exactly k - lsize, not at least.
+
+Hmm, but if I have a right set of size >= k-lsize with compatible forbidden_left, I can potentially find a subset of it of size exactly k-lsize that's still independent (any subset of independent set is independent) and still has compatible forbidden_left (subset of independent set has subset forbidden_left, which is still compatible). So if max size >= needed, answer exists!
+
+But I need to reconstruct the actual set. Let me store for each mask, a right independent set achieving the max size.
+
+Let me implement this:
+
+```python
+import sys
+from collections import defaultdict
+
+def solve():
+    input_data = sys.stdin.read().split()
+    idx = 0
+    n = int(input_data[idx]); idx += 1
+    m = int(input_data[idx]); idx += 1
+    k = int(input_data[idx]); idx += 1
+    
+    adj = [0] * n
+    for _ in range(m):
+        u = int(input_data[idx]) - 1; idx += 1
+        v = int(input_data[idx]) - 1; idx += 1
+        adj[u] |= (1 << v)
+        adj[v] |= (1 << u)
+    
+    half = n // 2
+    left_size = half
+    right_size = n - half
+    left_full = (1 << left_size) - 1
+    
+    # Enumerate left independent sets
+    left_sets_by_size = defaultdict(list)
+    
+    def enum_left(pos, mask, size):
+        if pos == left_size:
+            left_sets_by_size[size].append(mask)
+            return
+        enum_left(pos + 1, mask, size)
+        if (mask & adj[pos]) == 0:
+            enum_left(pos + 1, mask | (1 << pos), size + 1)
+    
+    enum_left(0, 0, 0)
+    
+    # Enumerate right independent sets, compute forbidden_left for each
+    # For each forbidden_left mask, keep the right set with max size
+    right_best = {}  # forbidden_left -> (max_size, right_mask)
+    
+    def enum_right(pos, rmask, size, forbidden_left):
+        if pos == n:
+            if forbidden_left not in right_best or size > right_best[forbidden_left][0]:
+                right_best[forbidden_left] = (size, rmask)
+            return
+        enum_right(pos + 1, rmask, size, forbidden_left)
+        rv = pos - half
+        if (rmask & (1 << rv)) == 0:
+            new_forbidden = forbidden_left | (adj[pos] & left_full)
+            enum_right(pos + 1, rmask | (1 << rv), size + 1, new_forbidden)
+    
+    enum_right(half, 0, 0, 0)
+    
+    # SOS DP: for each mask, find max size right set with forbidden_left subset of mask
+    # Also store the right_mask achieving it
+    # Size of array: 2^left_size
+    arr_size = 1 << left_size
+    max_size = [-1] * arr_size
+    best_rmask = [0] * arr_size
+    
+    for fl, (sz, rm) in right_best.items():
+        if sz > max_size[fl]:
+            max_size[fl] = sz
+            best_rmask[fl] = rm
+    
+    # SOS DP over supersets (for each mask, include all subsets)
+    # We want: for mask M, max over all fl subset of M
+    # Standard SOS: iterate over bits, for each bit, if bit not set in mask, merge from mask with bit set
+    # Actually standard SOS for subset: for each bit i, for each mask, if bit i is set, merge from mask ^ (1<<i)
+    # This gives for each mask, the max over all subsets
+    
+    for i in range(left_size):
+        for mask in range(arr_size):
+            if mask & (1 << i):
+                src = mask ^ (1 << i)
+                if max_size[src] > max_size[mask]:
+                    max_size[mask] = max_size[src]
+                    best_rmask[mask] = best_rmask[src]
+    
+    # For each left set, check if compatible right set exists
+    for lsize in range(min(k, left_size) + 1):
+        if lsize not in left_sets_by_size:
+            continue
+        need = k - lsize
+        if need > right_size:
+            continue
+        for lmask in left_sets_by_size[lsize]:
+            # Need right set with forbidden_left subset of (~lmask & left_full)
+            compat = (~lmask) & left_full
+            if max_size[compat] >= need:
+                # Found! Extract exactly 'need' vertices from the right set
+                rmask = best_rmask[compat]
+                # Take any 'need' vertices from rmask
+                result = []
+                for i in range(left_size):
+                    if lmask & (1 << i):
+                        result.append(i + 1)
+                count = 0
+                for i in range(right_size):
+                    if rmask & (1 << i):
+                        result.append(half + i + 1)
+                        count += 1
+                        if count == need:
+                            break
+                print("YES")
+                print(' '.join(map(str, result)))
+                return
+    
+    print("NO")
+
+solve()
+```
+
+Wait, there's an issue with the SOS DP. The standard SOS DP for subsets iterates: for each bit i, for each mask from 0 to 2^n-1, if bit i is set in mask, then dp[mask] = max(dp[mask], dp[mask ^ (1<<i)]). This correctly computes for each mask the max over all subsets of mask.
+
+But the iteration order matters - we need to iterate masks in increasing order for each bit. Let me verify: after processing bit i, dp[mask] contains max over all subsets of mask that differ from mask only in bits 0..i. After processing all bits, dp[mask] contains max over all subsets of mask. Yes, this is correct.
+
+But the array size is 2^23 = 8M, and we iterate 23 * 8M = 184M operations. In Python, this will be too slow.
+
+Hmm, let me think of alternatives. Maybe left_size should be smaller, like n//3 or something. Or use a different approach.
+
+Actually, with n=46, half=23, 2^23 = 8M. The SOS DP in Python with 184M operations will definitely TLE (5 seconds).
+
+Alternative: make the split more uneven. If left_size = 15, right_size = 31. Then 2^15 = 32K for SOS DP (fast), but right enumeration has 2^31 which is way too much.
+
+Actually, the number of independent sets is much smaller than 2^n. For n=23, the max number of independent sets is around 2^23 / 23 ≈ 350K (Moon-Moser). So the right_best dictionary has at most ~350K entries.
+
+Instead of SOS DP, I can iterate: for each left set, iterate over all entries in right_best and check compatibility. But 350K * 350K = 1.2e11, too slow.
+
+Alternative: for each left set, I need forbidden_left & lmask == 0, i.e., forbidden_left is a subset of ~lmask. I can enumerate subsets of ~lmask and check if they're in right_best. But ~lmask can have up to 23 bits, so 2^23 subsets in worst case.
+
+Better idea: group right_best entries by size. For each needed size, iterate over entries of that size only. But still could be many.
+
+Let me think about this differently. The number of distinct forbidden_left masks is at most the number of right independent sets (~350K). For each left set, instead of SOS DP, I can iterate over right_best entries. But that's too slow.
+
+Actually, let me reconsider. The SOS DP array has 2^23 = 8M entries. In Python, even creating a list of 8M integers takes significant memory and time. The SOS DP loop of 23 * 8M = 184M iterations in Python will take maybe 100+ seconds.
+
+Let me use numpy for the SOS DP:
+
+```python
+import numpy as np
+```
+
+But even with numpy, 184M operations might be tight.
+
+Alternative approach: use a smaller left half. If left_size = 20, 2^20 = 1M, SOS DP = 20M operations, more feasible. Right_size = 26, right independent sets could be up to ~2^26/26 ≈ 2.5M, which is a lot but maybe manageable.
+
+Actually, let me think about this problem differently. Maybe I should use a different algorithm entirely.
+
+**Alternative: Bron-Kerbosch or backtracking with pruning**
+
+Since we need exactly k vertices, we can use backtracking: try to build an independent set of size k, vertex by vertex, with pruning. With good pruning (e.g., if remaining candidates + current size < k, backtrack), this could be fast enough.
+
+Let me think about the worst case. If the graph has no edges, any k vertices work, and we'd find it immediately. If the graph is a complete graph, k must be 1, and we find it immediately. The hard cases are in between.
+
+Actually, for n=46, a simple backtracking with pruning might work. Let me think about the structure.
+
+The key pruning: at each step, we have a set of candidates (vertices that can still be added). If |candidates| + |current_set| < k, backtrack. Also, we can order vertices to fail fast.
+
+Let me implement this:
+
+```python
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    idx = 0
+    n = int(input_data[idx]); idx += 1
+    m = int(input_data[idx]); idx += 1
+    k = int(input_data[idx]); idx += 1
+    
+    adj = [0] * n
+    for _ in range(m):
+        u = int(input_data[idx]) - 1; idx += 1
+        v = int(input_data[idx]) - 1; idx += 1
+        adj[u] |= (1 << v)
+        adj[v] |= (1 << u)
+    
+    # Backtracking to find independent set of size k
+    result = []
+    
+    def backtrack(start, current, current_size, candidates_mask):
+        if current_size == k:
+            return True
+        if current_size + bin(candidates_mask).count('1') < k:
+            return False
+        # Try each candidate
+        c = candidates_mask
+        while c:
+            v = (c & -c).bit_length() - 1
+            c &= c - 1
+            if v < start:
+                continue
+            # New candidates: remove v and its neighbors
+            new_candidates = candidates_mask & ~(1 << v) & ~adj[v]
+            if backtrack(v + 1, current + [v], current_size + 1, new_candidates):
+                return True
+        return False
+    
+    full_mask = (1 << n) - 1
+    if backtrack(0, [], 0, full_mask):
+        print("YES")
+        print(' '.join(str(v + 1) for v in result))
+    else:
+        print("NO")
+
+solve()
+```
+
+Hmm, but this backtracking could be exponential in the worst case. For n=46, if the graph is a collection of many small cliques, the search space could be huge.
+
+Let me think about the meet-in-the-middle approach more carefully, but with a smaller left half to make SOS DP feasible.
+
+If I use left_size = 20 (2^20 = 1M), the SOS DP takes 20M operations. In Python, even with plain lists, this might take ~20 seconds. With numpy, it could be much faster.
+
+Actually, let me try a different approach to the meet-in-the-middle that avoids SOS DP:
+
+For each left independent set with mask lmask and size lsize, I need a right independent set of size k-lsize with forbidden_left & lmask == 0.
+
+Instead of SOS DP, I can:
+1. Group right sets by size
+2. For each (lmask, lsize), iterate over right sets of size k-lsize and check if forbidden_left & lmask == 0
+
+But this is O(|left_sets| * |right_sets_of_right_size|) which could be 350K * 350K in worst case.
+
+Alternatively, I can index right sets by forbidden_left mask. For a given lmask, I need to find all forbidden_left masks that are subsets of ~lmask. I can enumerate subsets of ~lmask, but that's up to 2^23.
+
+Hmm, let me think about what makes this problem tractable. The key constraint is n ≤ 46. The intended solution is likely meet-in-the-middle with SOS DP, but implemented efficiently.
+
+Let me try using numpy for the SOS DP with left_size = 23:
+
+Actually, let me reconsider. The SOS DP can be done more efficiently. Instead of iterating over all 2^23 masks, I only need to consider masks that appear as forbidden_left or their supersets that appear as ~lmask for some left set. But this is still potentially large.
+
+Let me try a different approach: instead of SOS DP, for each left set, I directly look up in a hash map. The key observation is that I need forbidden_left to be a subset of ~lmask. I can enumerate the subsets of ~lmask that are actually in right_best.
+
+But enumerating subsets of a 23-bit mask is up to 2^23 = 8M, which is too slow per left set.
+
+OK here's another idea. Let me use the "forbidden_left" as a key in a dictionary, and for each left set, I iterate over all keys in the dictionary and check if key & lmask == 0. The number of keys is at most ~350K (number of right independent sets). The number of left sets is at most ~350K. So 350K * 350K = 1.2e11, too slow.
+
+But wait, I can group by size. For each (lsize, rsize) pair where lsize + rsize = k, I iterate over left sets of size lsize and right sets of size rsize. The total work is sum over valid (lsize, rsize) of |left_sets[lsize]| * |right_sets[rsize]|.
+
+In the worst case, this could still be large. But maybe in practice it's fast enough?
+
+Actually, let me think about the problem constraints more carefully. n ≤ 46, and the time limit is 5 seconds. The intended solution is probably meet-in-the-middle with SOS DP, but in C++. For Python, I need to be more clever.
+
+Let me try the numpy approach for SOS DP:
+
+```python
+import numpy as np
+
+def solve():
+    # ... read input ...
+    
+    half = n // 2
+    left_size = half
+    
+    # Enumerate right independent sets, compute forbidden_left
+    # Store in array: for each forbidden_left mask, max size and right_mask
+    arr_size = 1 << left_size
+    max_size = np.full(arr_size, -1, dtype=np.int32)
+    best_rmask = [0] * arr_size  # Can't easily vectorize this
+    
+    # ... enumerate right sets, fill max_size and best_rmask ...
+    
+    # SOS DP using numpy
+    for i in range(left_size):
+        # For each mask with bit i set, merge from mask ^ (1<<i)
+        # This is: max_size[mask] = max(max_size[mask], max_size[mask ^ (1<<i)])
+        # In numpy: create a view of elements with bit i set
+        # ...
+```
+
+The issue with numpy is that best_rmask can't be easily vectorized (it's not just a max, but also tracking which mask achieved the max).
+
+Let me think of yet another approach. What if I use a smaller split?
+
+If left_size = 15, right_size = 31:
+- Left enumeration: at most ~2^15/15 ≈ 2K independent sets (actually up to ~2180 for empty graph, but for Moon-Moser graphs it's about 2^15/15)
+- Wait, for empty graph, all 2^15 subsets are independent sets. So left has up to 2^15 = 32K sets.
+- Right enumeration: up to 2^31 independent sets for empty graph, which is way too many.
+
+So the split needs to be balanced. With n=46, half=23, both sides have up to ~350K independent sets (for Moon-Moser type graphs) or 2^23 = 8M (for empty graph).
+
+For the empty graph case, any k vertices work, so we'd find a solution immediately without needing to enumerate all sets. The hard case is when the graph has a specific structure that makes the search space large but solutions rare.
+
+Let me try a hybrid approach: first try simple backtracking with a time limit, and if it doesn't find a solution, fall back to meet-in-the-middle.
+
+Actually, let me just implement the meet-in-the-middle with SOS DP using numpy, and hope it's fast enough:
+
+```python
+import sys
+import numpy as np
+
+def solve():
+    input_data = sys.stdin.read().split()
+    idx = 0
+    n = int(input_data[idx]); idx += 1
+    m = int(input_data[idx]); idx += 1
+    k = int(input_data[idx]); idx += 1
+    
+    adj = [0] * n
+    for _ in range(m):
+        u = int(input_data[idx]) - 1; idx += 1
+        v = int(input_data[idx]) - 1; idx += 1
+        adj[u] |= (1 << v)
+        adj[v] |= (1 << u)
+    
+    half = n // 2
+    left_size = half
+    right_size = n - half
+    left_full = (1 << left_size) - 1
+    
+    # Enumerate left independent sets by size
+    left_sets = []  # (mask, size)
+    
+    def enum_left(pos, mask, size):
+        if pos == left_size:
+            left_sets.append((mask, size))
+            return
+        enum_left(pos + 1, mask, size)
+        if (mask & adj[pos]) == 0:
+            enum_left(pos + 1, mask | (1 << pos), size + 1)
+    
+    enum_left(0, 0, 0)
+    
+    # Enumerate right independent sets, compute forbidden_left
+    # Store: for each forbidden_left, (max_size, right_mask)
+    right_best = {}
+    
+    def enum_right(pos, rmask, size, forbidden_left):
+        if pos == n:
+            fl = forbidden_left
+            if fl not in right_best or size > right_best[fl][0]:
+                right_best[fl] = (size, rmask)
+            return
+        enum_right(pos + 1, rmask, size, forbidden_left)
+        rv = pos - half
+        if (rmask & (1 << rv)) == 0:
+            new_fl = forbidden_left | (adj[pos] & left_full)
+            enum_right(pos + 1, rmask | (1 << rv), size + 1, new_fl)
+    
+    enum_right(half, 0, 0, 0)
+    
+    # Build arrays for SOS DP
+    arr_size = 1 << left_size
+    max_size = np.full(arr_size, -1, dtype=np.int32)
+    best_rmask = [0] * arr_size
+    
+    for fl, (sz, rm) in right_best.items():
+        if sz > max_size[fl]:
+            max_size[fl] = sz
+            best_rmask[fl] = rm
+    
+    # SOS DP: for each mask, max over all subsets
+    for i in range(left_size):
+        # masks with bit i set: mask | (1<<i)
+        # source: mask (without bit i)
+        # We need: for each mask with bit i set, max_size[mask] = max(max_size[mask], max_size[mask ^ (1<<i)])
+        # In numpy: 
+        # indices with bit i set: range(1<<i, arr_size, 1<<(i+1)) and range(1<<i + (1<<(i+1)), ...)
+        # Actually, simpler: 
+        # masks_with_bit = np.arange(arr_size) | (1 << i)  # No, this doesn't work
+        
+        # Let's do it with slicing
+        step = 1 << (i + 1)
+        for start in range(1 << i, arr_size, step):
+            end = min(start + (1 << i), arr_size)
+            src_start = start - (1 << i)
+            src_end = end - (1 << i)
+            # For j in range(start, end): max_size[j] = max(max_size[j], max_size[j - (1<<i)])
+            src = max_size[src_start:src_end]
+            dst = max_size[start:end]
+            # Need to also update best_rmask where src > dst
+            for j in range(end - start):
+                if src[j] > dst[j]:
+                    dst[j] = src[j]
+                    best_rmask[start + j] = best_rmask[src_start + j]
+    
+    # For each left set, check compatibility
+    for lmask, lsize in left_sets:
+        if lsize > k:
+            continue
+        need = k - lsize
+        if need > right_size:
+            continue
+        compat = (~lmask) & left_full
+        if max_size[compat] >= need:
+            rmask = best_rmask[compat]
+            result = []
+            for i in range(left_size):
+                if lmask & (1 << i):
+                    result.append(i + 1)
+            count = 0
+            for i in range(right_size):
+                if rmask & (1 << i):
+                    result.append(half + i + 1)
+                    count += 1
+                    if count == need:
+                        break
+            print("YES")
+            print(' '.join(map(str, result)))
+            return
+    
+    print("NO")
+
+solve()
+```
+
+The issue is the inner loop `for j in range(end - start)` which is Python-level. With left_size=23, each bit has 2^22 = 4M elements to process, and 23 bits = 92M iterations. Still too slow in Python.
+
+Let me try to vectorize the max operation and handle best_rmask separately:
+
+Actually, I can use numpy's maximum for the max operation, and use np.where to track which elements were updated:
+
+```python
+for i in range(left_size):
+    step = 1 << (i + 1)
+    bit = 1 << i
+    for start in range(bit, arr_size, step):
+        end = min(start + bit, arr_size)
+        src_start = start - bit
+        src_end = end - bit
+        src = max_size[src_start:src_end].copy()
+        dst = max_size[start:end]
+        update = src > dst
+        dst[update] = src[update]
+        # Update best_rmask
+        indices = np.where(update)[0] + start
+        for idx in indices:
+            best_rmask[idx] = best_rmask[idx - bit]
+```
+
+The `for idx in indices` loop is still Python-level, but the number of updates decreases as we process more bits (since max_size converges). In the worst case though, it could still be many updates.
+
+Hmm, let me think of a completely different approach. What if I don't use SOS DP at all?
+
+Alternative: for each left set, I need to find a right set with forbidden_left & lmask == 0 and size >= need. I can iterate over all right_best entries (at most ~350K) and check. But 350K left sets * 350K right entries = 1.2e11, too slow.
+
+But I can optimize: group left sets by lmask (they're already unique by mask). Group right_best by forbidden_left. For each pair (lmask, fl) where lsize + right_best[fl].size >= k and fl & lmask == 0, we have a solution.
+
+I can iterate over the smaller of the two groups. If there are few left sets or few right sets, this is fast.
+
+Actually, let me think about the problem from a different angle. The problem says n ≤ 46. The time limit is 5 seconds. This is a competitive programming problem, so there should be a solution that works within the time limit.
+
+The standard approach for maximum independent set with n ≤ 40-50 is meet-in-the-middle. For n=46, splitting into 23+23 and using SOS DP is the standard approach. In C++, this runs in O(2^(n/2) * n/2) which is about 2^23 * 23 ≈ 190M operations, feasible in a few seconds.
+
+In Python, this is too slow with pure Python loops. But with numpy, the SOS DP can be vectorized.
+
+Let me try to fully vectorize the SOS DP:
+
+```python
+import numpy as np
+
+# max_size: numpy array of shape (arr_size,)
+# best_rmask: numpy array of shape (arr_size,) - store as int64
+
+for i in range(left_size):
+    bit = 1 << i
+    # Create index arrays
+    # masks with bit i set: these are at positions where (pos & bit) != 0
+    # source positions: pos ^ bit
+    
+    # Using numpy advanced indexing:
+    indices = np.arange(bit, arr_size, 1 << (i+1))
+    # Actually, this is getting complicated. Let me use a different approach.
+    
+    # For each position p with bit i set, compare max_size[p] with max_size[p ^ bit]
+    all_pos = np.arange(arr_size)
+    mask_with_bit = (all_pos & bit).astype(bool)
+    src_pos = all_pos ^ bit  # For positions without bit, src = pos ^ bit (which has bit set)
+    
+    # We only want positions with bit set
+    dst_pos = np.where(mask_with_bit)[0]
+    src_pos = dst_pos ^ bit
+    
+    src_vals = max_size[src_pos]
+    dst_vals = max_size[dst_pos]
+    
+    update = src_vals > dst_vals
+    max_size[dst_pos[update]] = src_vals[update]
+    best_rmask[dst_pos[update]] = best_rmask[src_pos[update]]
+```
+
+This should work! The key operations are vectorized. Let me put it all together:
+
+```python
+import sys
+import numpy as np
+
+def solve():
+    input_data = sys.stdin.read().split()
+    idx = 0
+    n = int(input_data[idx]); idx += 1
+    m = int(input_data[idx]); idx += 1
+    k = int(input_data[idx]); idx += 1
+    
+    adj = [0] * n
+    for _ in range(m):
+        u = int(input_data[idx]) - 1; idx += 1
+        v = int(input_data[idx]) - 1; idx += 1
+        adj[u] |= (1 << v)
+        adj[v] |= (1 << u)
+    
+    half = n // 2
+    left_size = half
+    right_size = n - half
+    left_full = (1 << left_size) - 1
+    
+    # Enumerate left independent sets
+    left_sets = []
+    
+    def enum_left(pos, mask, size):
+        if pos == left_size:
+            left_sets.append((mask, size))
+            return
+        enum_left(pos + 1, mask, size)
+        if (mask & adj[pos]) == 0:
+            enum_left(pos + 1, mask | (1 << pos), size + 1)
+    
+    enum_left(0, 0, 0)
+    
+    # Enumerate right independent sets
+    right_best = {}
+    
+    def enum_right(pos, rmask, size, forbidden_left):
+        if pos == n:
+            fl = forbidden_left
+            if fl not in right_best or size > right_best[fl][0]:
+                right_best[fl] = (size, rmask)
+            return
+        enum_right(pos + 1, rmask, size, forbidden_left)
+        rv = pos - half
+        if (rmask & (1 << rv)) == 0:
+            new_fl = forbidden_left | (adj[pos] & left_full)
+            enum_right(pos + 1, rmask | (1 << rv), size + 1, new_fl)
+    
+    enum_right(half, 0, 0, 0)
+    
+    # Build arrays for SOS DP
+    arr_size = 1 << left_size
+    max_size = np.full(arr_size, -1, dtype=np.int32)
+    best_rmask = np.zeros(arr_size, dtype=np.int64)
+    
+    for fl, (sz, rm) in right_best.items():
+        if sz > max_size[fl]:
+            max_size[fl] = sz
+            best_rmask[fl] = rm
+    
+    # SOS DP
+    all_pos = np.arange(arr_size)
+    for i in range(left_size):
+        bit = 1 << i
+        mask_with_bit = (all_pos & bit).astype(bool)
+        dst_pos = np.where(mask_with_bit)[0]
+        src_pos = dst_pos ^ bit
+        
+        src_vals = max_size[src_pos]
+        dst_vals = max_size[dst_pos]
+        
+        update = src_vals > dst_vals
+        max_size[dst_pos[update]] = src_vals[update]
+        best_rmask[dst_pos[update]] = best_rmask[src_pos[update]]
+    
+    # Check each left set
+    for lmask, lsize in left_sets:
+        if lsize > k:
+            continue
+        need = k - lsize
+        if need > right_size:
+            continue
+        compat = (~lmask) & left_full
+        if max_size[compat] >= need:
+            rmask = int(best_rmask[compat])
+            result = []
+            for i in range(left_size):
+                if lmask & (1 << i):
+                    result.append(i + 1)
+            count = 0
+            for i in range(right_size):
+                if rmask & (1 << i):
+                    result.append(half + i + 1)
+                    count += 1
+                    if count == need:
+                        break
+            print("YES")
+            print(' '.join(map(str, result)))
+            return
+    
+    print("NO")
+
+solve()
+```
+
+Wait, there's an issue with the SOS DP. The standard SOS DP for subsets processes bits in order, and for each bit, updates all masks. But the update should be: for each mask m with bit i set, dp[m] = max(dp[m], dp[m ^ (1<<i)]). This is correct because after processing bit i, dp[m] considers all subsets that differ from m only in bits 0..i.
+
+But in my numpy code, I'm using `all_pos` which is fixed. The issue is that after processing bit 0, the values in max_size have changed, and when processing bit 1, I need to use the updated values. Let me check: `src_pos = dst_pos ^ bit` gives the source position, and `max_size[src_pos]` reads the current value. Since we process bits in order 0, 1, 2, ..., and for bit i, we read from positions without bit i (which may have been updated by previous bits), this should be correct.
+
+Actually, wait. The issue is more subtle. In the standard SOS DP, for bit i, we iterate over all masks in increasing order. For each mask with bit i set, we update from the mask without bit i. The key is that the source mask (without bit i) may have been updated in the same iteration (for a different bit). But no, in the standard SOS DP, for bit i, we only consider masks that differ in bit i. The source mask (without bit i) has already been fully processed for bits 0..i-1 in previous iterations. So the order of processing masks within the same bit doesn't matter.
+
+In my numpy code, for bit i, I read max_size[src_pos] where src_pos = dst_pos ^ bit. These src_pos values don't have bit i set, so they weren't modified in this iteration. They were only modified in previous iterations (bits 0..i-1). So the numpy code is correct.
+
+But wait, there's another subtlety. In the standard SOS DP, the loop is:
+```
+for i in range(n):
+    for mask in range(1<<n):
+        if mask & (1<<i):
+            dp[mask] = max(dp[mask], dp[mask ^ (1<<i)])
+```
+
+Here, when processing mask for bit i, dp[mask ^ (1<<i)] might have been updated earlier in the same bit i iteration (if mask ^ (1<<i) has bit i... no, mask ^ (1<<i) doesn't have bit i set since mask has bit i set). So mask ^ (1<<i) doesn't have bit i set, and it wasn't modified in this iteration. So the order within the same bit doesn't matter. Good.
+
+But in the standard SOS DP, the masks are processed in increasing order. For bit i, mask ^ (1<<i) < mask (since mask has bit i set and mask ^ (1<<i) doesn't). So mask ^ (1<<i) is processed before mask. But since mask ^ (1<<i) doesn't have bit i set, it's not modified in this iteration. So the order doesn't matter. Good.
+
+So my numpy code should be correct. Let me also handle the edge case where left_size = 0 (n=1, half=0). In that case, arr_size = 1, and the SOS DP loop doesn't execute. The right_best would have the right independent sets. Let me check: if n=1, half=0, left_size=0, right_size=1. enum_left does nothing (pos=0=left_size, adds (0,0)). enum_right starts at pos=0=half, enumerates right vertices. This should work.
+
+Actually, if left_size=0, then left_full = 0, and adj[pos] & left_full = 0 for all pos. So forbidden_left is always 0. right_best = {0: (1, 1)} or {0: (0, 0), 0: (1, 1)} → {0: (1, 1)}. Then max_size[0] = 1, best_rmask[0] = 1. For the left set (0, 0), need = k - 0 = k. If k=1, max_size[0] = 1 >= 1, so we output vertex 1. Correct.
+
+Let me also handle the case where k=0. The problem says 1 ≤ k, so k >= 1. Good.
+
+One more issue: the recursion depth. For n=46, half=23, the recursion depth for enum_left and enum_right is 23, which is fine (Python default limit is 1000).
+
+But the number of recursive calls could be large. For the empty graph, enum_left makes 2^23 = 8M calls, and enum_right makes 2^23 = 8M calls. In Python, 8M recursive calls will cause a stack overflow (recursion depth is only 23, but the number of calls is 8M, which takes a long time).
+
+Actually, the recursion depth is 23, not 8M. The number of calls is 8M, but the depth is 23. Python can handle 8M function calls, but it will be slow (maybe 10+ seconds).
+
+For the empty graph, we can find a solution immediately (any k vertices). But the enumeration still happens. Let me add an early termination: if we find a solution, stop.
+
+Actually, the enumeration happens before the checking. Let me restructure: enumerate right first, build the SOS DP array, then enumerate left and check on the fly.
+
+But even enumerating right for the empty graph takes 2^23 = 8M recursive calls. Let me convert the enumeration to iterative:
+
+```python
+def enum_right_iterative():
+    stack = [(half, 0, 0, 0)]
+    while stack:
+        pos, rmask, size, forbidden_left = stack.pop()
+        if pos == n:
+            fl = forbidden_left
+            if fl not in right_best or size > right_best[fl][0]:
+                right_best[fl] = (size, rmask)
+            continue
+        # Don't include pos
+        stack.append((pos + 1, rmask, size, forbidden_left))
+        # Include pos (if no conflict)
+        rv = pos - half
+        if (rmask & (1 << rv)) == 0:
+            new_fl = forbidden_left | (adj[pos] & left_full)
+            stack.append((pos + 1, rmask | (1 << rv), size + 1, new_fl))
+```
+
+But this still makes 2^23 iterations for the empty graph. In Python, 8M iterations of a while loop take maybe 5-10 seconds. That's too slow.
+
+Hmm, let me think about this differently. For the empty graph (m=0), any k vertices form a stable mixture. So I can special-case m=0:
+
+```python
+if m == 0:
+    print("YES")
+    print(' '.join(str(i) for i in range(1, k+1)))
+    return
+```
+
+But there could be other cases where the graph is sparse and the number of independent sets is large. For example, a graph with one edge has 2^n - 2^(n-2) independent sets, which is still huge.
+
+Let me think about the actual constraints. n ≤ 46, m ≤ n*(n-1)/2 = 1035. The time limit is 5 seconds. The problem is from a competitive programming contest, so there should be a solution that works.
+
+Actually, let me reconsider the approach. Instead of enumerating all independent sets, I can use a different meet-in-the-middle:
+
+1. Split vertices into two halves A and B.
+2. For each subset S of A, check if S is independent. If so, compute the set of vertices in B that are not adjacent to any vertex in S (call this B_S).
+3. For each subset T of B, check if T is independent. If so, compute the set of vertices in A that are not adjacent to any vertex in T (call this A_T).
+4. For each independent S in A with |S| = s, I need an independent T in B with |T| = k-s and A_T ⊇ S (i.e., S is not adjacent to T).
+
+Wait, this is the same as before. The issue is enumerating all independent sets.
+
+Alternative: instead of enumerating independent sets, enumerate all subsets and check independence. But that's 2^23 = 8M per half, which is feasible with bit operations.
+
+For each half, I can precompute for each subset whether it's independent, and its size. Then for the right half, I also compute the forbidden_left mask. Then use SOS DP.
+
+The key insight is that checking if a subset is independent can be done in O(1) with precomputation: for each vertex, precompute its adjacency mask. A subset S is independent iff for all v in S, adj[v] & S == 0. But this is O(|S|) per subset.
+
+Actually, I can use a different precomputation: for each subset, compute the "conflict mask" = OR of adj[v] for v in subset. Then the subset is independent iff conflict_mask & subset == 0.
+
+I can compute conflict_mask for all subsets using DP: conflict[0] = 0, conflict[S] = conflict[S \ {v}] | adj[v] for any v in S. This can be done with SOS-like DP.
+
+Actually, simpler: for each subset S, let v = lowest set bit. conflict[S] = conflict[S ^ (1<<v)] | adj[v]. This is O(2^n) per half.
+
+Then S is independent iff conflict[S] & S == 0.
+
+Let me implement this:
+
+```python
+import sys
+import numpy as np
+
+def solve():
+    input_data = sys.stdin.read().split()
+    idx = 0
+    n = int(input_data[idx]); idx += 1
+    m = int(input_data[idx]); idx += 1
+    k = int(input_data[idx]); idx += 1
+    
+    adj = [0] * n
+    for _ in range(m):
+        u = int(input_data[idx]) - 1; idx += 1
+        v = int(input_data[idx]) - 1; idx += 1
+        adj[u] |= (1 << v)
+        adj[v] |= (1 << u)
+    
+    half = n // 2
+    left_size = half
+    right_size = n - half
+    left_full = (1 << left_size) - 1
+    
+    # For left half: compute conflict mask for each subset
+    # conflict_left[S] = OR of adj[v] (restricted to left) for v in S
+    # S is independent iff conflict_left[S] & S == 0
+    
+    arr_left = 1 << left_size
+    conflict_left = np.zeros(arr_left, dtype=np.int64)
+    for v in range(left_size):
+        adj_v = adj[v] & left_full  # adjacency within left half
+        bit = 1 << v
+        # For all subsets S containing v: conflict_left[S] = conflict_left[S ^ bit] | adj_v
+        # Process in increasing order
+        for S in range(bit, arr_left):
+            if S & bit:  # S contains v
+                conflict_left[S] = conflict_left[S ^ bit] | adj_v
+    
+    # Wait, this is O(2^left_size * left_size) which is too slow
+    # Better: use the lowest set bit approach
+```
+
+Hmm, the O(2^n * n) approach is too slow. Let me use the lowest set bit approach:
+
+```python
+conflict_left = [0] * arr_left
+for S in range(1, arr_left):
+    v = (S & -S).bit_length() - 1  # lowest set bit
+    conflict_left[S] = conflict_left[S ^ (1 << v)] | (adj[v] & left_full)
+```
+
+This is O(2^left_size) which is 2^23 = 8M. In Python, this loop takes maybe 5-10 seconds. Still too slow.
+
+Let me use numpy:
+
+```python
+conflict_left = np.zeros(arr_left, dtype=np.int64)
+# For each bit v, update all subsets containing v
+for v in range(left_size):
+    bit = 1 << v
+    adj_v = adj[v] & left_full
+    # For all S with bit v set: conflict_left[S] |= adj_v
+    # But we also need conflict_left[S] = conflict_left[S ^ bit] | adj_v
+    # This requires processing in order...
+    
+    # Actually, we can process bit by bit:
+    # After processing bits 0..v, conflict_left[S] = OR of adj[w] for w in S, w <= v
+    # So for bit v: for all S with bit v set, conflict_left[S] = conflict_left[S ^ bit] | adj_v
+    
+    # In numpy: 
+    indices = np.arange(bit, arr_left, 1 << (v+1))
+    for start in indices:
+        end = min(start + bit, arr_left)
+        conflict_left[start:end] = conflict_left[start-bit:end-bit] | adj_v
+```
+
+Wait, this doesn't work because we're modifying conflict_left in place, and later iterations might read modified values. But actually, for bit v, we read from positions without bit v (S ^ bit) and write to positions with bit v (S). Since we process bits in order 0, 1, 2, ..., and for bit v, we only write to positions with bit v set, and read from positions without bit v, there's no conflict. The positions without bit v have already been fully processed for bits 0..v-1, and won't be modified again for bit v. So this is correct.
+
+But the numpy slicing approach has a loop over `indices` which has 2^v elements for bit v. Total: sum of 2^v for v=0..left_size-1 = 2^left_size - 1. So the total number of numpy slice operations is 2^23, which is too many (each slice operation has overhead).
+
+Let me try a different numpy approach:
+
+```python
+for v in range(left_size):
+    bit = 1 << v
+    adj_v = adj[v] & left_full
+    all_pos = np.arange(arr_left)
+    has_bit = (all_pos & bit).astype(bool)
+    src = all_pos[~has_bit]  # positions without bit v
+    dst = src | bit  # corresponding positions with bit v
+    conflict_left[dst] = conflict_left[src] | adj_v
+```
+
+This is O(2^left_size) per bit, and O(left_size * 2^left_size) total. With numpy vectorization, each bit takes O(2^left_size) numpy operations, which is fast. Total: 23 * 8M = 184M numpy operations, but numpy processes them in batches, so it should be fast (maybe 1-2 seconds).
+
+Actually, let me reconsider. The numpy operations are:
+- `all_pos & bit`: O(arr_size) but vectorized
+- `.astype(bool)`: O(arr_size) but vectorized
+- `all_pos[~has_bit]`: O(arr_size/2) but vectorized
+- `src | bit`: O(arr_size/2) but vectorized
+- `conflict_left[dst] = conflict_left[src] | adj_v`: O(arr_size/2) but vectorized
+
+Each of these is a single numpy operation on arrays of size ~4M. With numpy, this should take ~10ms per operation, so ~40ms per bit, ~1 second total. That's feasible!
+
+Let me also compute the size (popcount) for each subset:
+
+```python
+popcount = np.zeros(arr_left, dtype=np.int32)
+for v in range(left_size):
+    bit = 1 << v
+    all_pos = np.arange(arr_left)
+    has_bit = (all_pos & bit).astype(bool)
+    popcount[has_bit] += 1
+```
+
+Or use numpy's built-in:
+
+```python
+popcount = np.array([bin(x).count('1') for x in range(arr_left)], dtype=np.int32)
+```
+
+But this is a Python loop over 8M elements, which is slow. Let me use the bit-by-bit approach:
+
+```python
+popcount = np.zeros(arr_left, dtype=np.int32)
+for v in range(left_size):
+    bit = 1 << v
+    all_pos = np.arange(arr_left)
+    has_bit = (all_pos & bit).astype(bool)
+    popcount[has_bit] += 1
+```
+
+This is 23 numpy operations, each on ~8M elements. Should be fast.
+
+Now, for the right half, I need to compute:
+1. conflict_right[S] = OR of adj[v] (restricted to right) for v in S (for independence check)
+2. forbidden_left[S] = OR of adj[v] (restricted to left) for v in S (for compatibility with left)
+
+Both can be computed similarly.
+
+Then:
+- S is a right independent set iff conflict_right[S] & S == 0
+- For each right independent set S, forbidden_left[S] gives the left vertices that are forbidden
+
+Then I build the SOS DP array: for each forbidden_left mask, the max size of a right independent set with that forbidden_left.
+
+Then for each left independent set with mask lmask and size lsize, I check if there's a right independent set with forbidden_left & lmask == 0 and size >= k - lsize.
+
+Let me put it all together:
+
+```python
+import sys
+import numpy as np
+
+def solve():
+    input_data = sys.stdin.read().split()
+    idx = 0
+    n = int(input_data[idx]); idx += 1
+    m = int(input_data[idx]); idx += 1
+    k = int(input_data[idx]); idx += 1
+    
+    adj = [0] * n
+    for _ in range(m):
+        u = int(input_data[idx]) - 1; idx += 1
+        v = int(input_data[idx]) - 1; idx += 1
+        adj[u] |= (1 << v)
+        adj[v] |= (1 << u)
+    
+    half = n // 2
+    left_size = half
+    right_size = n - half
+    left_full = (1 << left_size) - 1
+    right_full = (1 << right_size) - 1
+    
+    arr_left = 1 << left_size
+    arr_right = 1 << right_size
+    
+    # Compute conflict and popcount for left half
+    conflict_left = np.zeros(arr_left, dtype=np.int64)
+    popcount_left = np.zeros(arr_left, dtype=np.int32)
+    all_pos_left = np.arange(arr_left, dtype=np.int64)
+    
+    for v in range(left_size):
+        bit = 1 << v
+        adj_v = adj[v] & left_full
+        has_bit = (all_pos_left & bit).astype(bool)
+        src = all_pos_left[~has_bit]
+        dst = src | bit
+        conflict_left[dst] = conflict_left[src] | adj_v
+        popcount_left[has_bit] += 1
+    
+    is_indep_left = (conflict_left & all_pos_left) == 0
+    
+    # Compute conflict, forbidden_left, and popcount for right half
+    conflict_right = np.zeros(arr_right, dtype=np.int64)
+    forbidden_left_arr = np.zeros(arr_right, dtype=np.int64)
+    popcount_right = np.zeros(arr_right, dtype=np.int32)
+    all_pos_right = np.arange(arr_right, dtype=np.int64)
+    
+    for v in range(right_size):
+        bit = 1 << v
+        orig_v = half + v
+        adj_v_right = adj[orig_v] & right_full  # adjacency within right half (using right-local indices)
+        adj_v_left = adj[orig_v] & left_full  # adjacency to left half
+        has_bit = (all_pos_right & bit).astype(bool)
+        src = all_pos_right[~has_bit]
+        dst = src | bit
+        conflict_right[dst] = conflict_right[src] | adj_v_right
+        forbidden_left_arr[dst] = forbidden_left_arr[src] | adj_v_left
+        popcount_right[has_bit] += 1
+    
+    is_indep_right = (conflict_right & all_pos_right) == 0
+    
+    # Build SOS DP array for right half
+    # For each forbidden_left mask, find max popcount among right independent sets with that forbidden_left
+    max_size = np.full(arr_left, -1, dtype=np.int32)
+    best_rmask = np.zeros(arr_left, dtype=np.int64)
+    
+    # Get right independent sets
+    right_indep_masks = all_pos_right[is_indep_right]
+    right_indep_sizes = popcount_right[is_indep_right]
+    right_indep_forbidden = forbidden_left_arr[is_indep_right]
+    
+    # For each forbidden_left, find max size
+    for i in range(len(right_indep_masks)):
+        fl = int(right_indep_forbidden[i])
+        sz = int(right_indep_sizes[i])
+        if sz > max_size[fl]:
+            max_size[fl] = sz
+            best_rmask[fl] = int(right_indep_masks[i])
+    
+    # SOS DP: for each mask, max over all subsets
+    all_pos_sos = np.arange(arr_left, dtype=np.int64)
+    for i in range(left_size):
+        bit = 1 << i
+        has_bit = (all_pos_sos & bit).astype(bool)
+        dst_pos = all_pos_sos[has_bit]
+        src_pos = dst_pos ^ bit
+        
+        src_vals = max_size[src_pos]
+        dst_vals = max_size[dst_pos]
+        
+        update = src_vals > dst_vals
+        max_size[dst_pos[update]] = src_vals[update]
+        best_rmask[dst_pos[update]] = best_rmask[src_pos[update]]
+    
+    # Check each left independent set
+    left_indep_masks = all_pos_left[is_indep_left]
+    left_indep_sizes = popcount_left[is_indep_left]
+    
+    for i in range(len(left_indep_masks)):
+        lmask = int(left_indep_masks[i])
+        lsize = int(left_indep_sizes[i])
+        if lsize > k:
+            continue
+        need = k - lsize
+        if need > right_size:
+            continue
+        compat = (~lmask) & left_full
+        if max_size[compat] >= need:
+            rmask = int(best_rmask[compat])
+            result = []
+            for j in range(left_size):
+                if lmask & (1 << j):
+                    result.append(j + 1)
+            count = 0
+            for j in range(right_size):
+                if rmask & (1 << j):
+                    result.append(half + j + 1)
+                    count += 1
+                    if count == need:
+                        break
+            print("YES")
+            print(' '.join(map(str, result)))
+            return
+    
+    print("NO")
+
+solve()
+```
+
+Wait, there's an issue with the right half adjacency. The right vertices are half, half+1, ..., n-1. In the right-local indexing, vertex half+v is index v. The adjacency within the right half should use right-local indices.
+
+But adj[orig_v] uses global indices. I need to remap: adj[orig_v] & right_full gives the right-half neighbors in global indices, but I need them in right-local indices.
+
+Actually, let me reconsider. The right vertices in global indices are half, half+1, ..., n-1. In right-local indices, they are 0, 1, ..., right_size-1. The mapping is: global v → local v - half.
+
+So adj[orig_v] (in global) needs to be remapped: for each neighbor w of orig_v, if w >= half, the local index is w - half. So the right-local adjacency mask is:
+
+```python
+adj_v_right = 0
+for w in range(right_size):
+    if adj[orig_v] & (1 << (half + w)):
+        adj_v_right |= (1 << w)
+```
+
+Or more efficiently:
+```python
+adj_v_right = 0
+temp = adj[orig_v] >> half  # shift right to get right-half neighbors in local indices
+adj_v_right = temp & right_full
+```
+
+Yes! `adj[orig_v] >> half` shifts the global adjacency mask right by `half` bits, so the right-half neighbors (originally at positions half..n-1) are now at positions 0..right_size-1. Then `& right_full` masks out any left-half neighbors that shifted into right positions (which shouldn't happen, but just to be safe).
+
+Let me fix the code:
+
+```python
+adj_v_right = (adj[orig_v] >> half) & right_full
+adj_v_left = adj[orig_v] & left_full
+```
+
+This should be correct.
+
+Also, I need to handle the case where left_size = 0 (n=1, half=0). In that case, arr_left = 1, and the loops for left don't execute. is_indep_left = [True] (the empty set is independent). left_indep_masks = [0], left_indep_sizes = [0]. For the right half, right_size = 1, arr_right = 2. The right half has vertices {0} (global 0). conflict_right[0] = 0, conflict_right[1] = adj[0] >> 0 & 1 = adj[0] & 1 (but adj[0] has no neighbors since n=1, so conflict_right[1] = 0). is_indep_right = [True, True]. forbidden_left_arr = [0, 0] (since left_full = 0). max_size[0] = 1 (from right set {1}), best_rmask[0] = 1. For left set (0, 0), need = k. If k=1, max_size[0] = 1 >= 1, so we output vertex 1 (half + 0 + 1 = 0 + 0 + 1 = 1). Correct!
+
+Let me also handle the case where right_size = 0 (n=1, half=1, but n//2 = 0 for n=1). Wait, n=1, half = 0, left_size = 0, right_size = 1. So right_size is never 0 for n >= 1. For n=2, half=1, left_size=1, right_size=1. OK.
+
+What about n=0? The problem says 1 ≤ n, so n >= 1.
+
+Let me also consider the memory. arr_left = 2^23 = 8M. Each numpy array of int64 is 64MB. We have several such arrays: conflict_left, all_pos_left, conflict_right, forbidden_left_arr, all_pos_right, max_size, best_rmask, etc. Total could be ~500MB, which exceeds the 256MB limit.
+
+Hmm, that's a problem. Let me optimize memory:
+- Use int32 instead of int64 where possible (masks up to 2^23 fit in int32)
+- Actually, 2^23 = 8M, which fits in 23 bits, so int32 is fine for masks
+- conflict_left, forbidden_left_arr: these are masks of up to 23 bits, so int32 is fine
+- max_size: int32
+- best_rmask: int32 (right masks up to 2^23)
+
+With int32, each array is 32MB. We have maybe 10 arrays, so ~320MB. Still too much.
+
+Let me reduce the number of arrays:
+- all_pos_left and all_pos_right can be computed on the fly or reused
+- conflict_left can be discarded after computing is_indep_left
+- etc.
+
+Actually, let me think about what arrays I need simultaneously:
+1. During left half processing: conflict_left, popcount_left, all_pos_left → 3 arrays
+2. After left processing: is_indep_left (bool, 8MB), left_indep_masks, left_indep_sizes (extracted, smaller)
+3. During right half processing: conflict_right, forbidden_left_arr, popcount_right, all_pos_right → 4 arrays
+4. After right processing: right_indep_masks, right_indep_sizes, right_indep_forbidden (extracted, smaller)
+5. SOS DP: max_size, best_rmask, all_pos_sos → 3 arrays
+
+If I process left first, extract what I need, then free the large arrays, then process right, etc., I can reduce peak memory.
+
+But in Python/numpy, freeing memory requires explicit `del` and maybe `gc.collect()`. Let me structure the code to minimize peak memory:
+
+```python
+# Phase 1: Process left half
+# ... create conflict_left, popcount_left, all_pos_left ...
+# Extract: left_indep_masks, left_indep_sizes (small arrays)
+# Free: conflict_left, popcount_left, all_pos_left
+
+# Phase 2: Process right half
+# ... create conflict_right, forbidden_left_arr, popcount_right, all_pos_right ...
+# Extract: right_indep_masks, right_indep_sizes, right_indep_forbidden (small arrays)
+# Free: conflict_right, forbidden_left_arr, popcount_right, all_pos_right
+
+# Phase 3: Build SOS DP array
+# ... create max_size, best_rmask ...
+# Free: right_indep_* arrays
+
+# Phase 4: Check left sets
+# ... use left_indep_masks, left_indep_sizes, max_size, best_rmask ...
+```
+
+With this structure, peak memory is during Phase 1 or 2, with ~3-4 arrays of 32MB each = ~128MB. That should fit in 256MB.
+
+But wait, for left_size = 23, arr_left = 8M. For right_size = 23, arr_right = 8M. But if n is odd, say n=45, half=22, left_size=22, right_size=23. arr_left = 4M, arr_right = 8M. If n=46, half=23, left_size=23, right_size=23. arr_left = arr_right = 8M.
+
+With int32, 8M * 4 bytes = 32MB per array. 3-4 arrays = 96-128MB. Should be fine.
+
+But I also need all_pos arrays, which are int64 by default in numpy. Let me use int32 for those too (since 8M < 2^31).
+
+Actually, there's a subtle issue. When I do `conflict_left[dst] = conflict_left[src] | adj_v`, the `dst` and `src` arrays are int64 (from `all_pos_left`). If I use int32 for all_pos_left, the indexing should still work.
+
+Let me also consider: do I need all_pos at all? I can use numpy's built-in functions:
+
+For the conflict computation, instead of:
+```python
+has_bit = (all_pos_left & bit).astype(bool)
+src = all_pos_left[~has_bit]
+dst = src | bit
+conflict_left[dst] = conflict_left[src] | adj_v
+```
+
+I can use:
+```python
+# For bit v, positions with bit v set are: range(bit, arr_left, 2*bit) + range(bit+2*bit, ...)
+# Actually, positions with bit v set: (np.arange(arr_left) >> v) & 1 == 1
+# But creating np.arange(arr_left) each time is wasteful
+
+# Alternative: use slicing
+# Positions with bit v set: for start in range(bit, arr_left, 2*bit): range(start, start+bit)
+# Source positions: range(start-bit, start+bit-bit) = range(start-bit, start)
+```
+
+Let me use the slicing approach, which avoids creating all_pos:
+
+```python
+for v in range(left_size):
+    bit = 1 << v
+    adj_v = adj[v] & left_full
+    step = 2 * bit
+    for start in range(bit, arr_left, step):
+        end = min(start + bit, arr_left)
+        conflict_left[start:end] = conflict_left[start-bit:end-bit] | adj_v
+```
+
+This uses numpy slicing, which is efficient. The number of slices per bit is arr_left / (2*bit), and the total number of slices across all bits is O(arr_left). Each slice operation is O(bit) but vectorized. Total work is O(arr_left * left_size) but with numpy vectorization, it should be fast.
+
+Wait, the total number of slice operations is sum over v of (arr_left / (2 * 2^v)) = arr_left * sum(1/2^(v+1)) = arr_left * (1 - 1/2^left_size) ≈ arr_left. So about 8M slice operations. Each slice operation has some overhead (~1μs in Python), so 8M * 1μs = 8 seconds. That's too slow.
+
+Let me go back to the all_pos approach but create it once and reuse:
+
+```python
+all_pos = np.arange(arr_left, dtype=np.int32)
+for v in range(left_size):
+    bit = 1 << v
+    adj_v = adj[v] & left_full
+    has_bit = (all_pos & bit) != 0
+    src = all_pos[~has_bit]
+    dst = src | bit
+    conflict_left[dst] = conflict_left[src] | adj_v
+```
+
+This creates `has_bit`, `src`, `dst` as temporary arrays of size ~4M each. With int32, that's ~16MB per temporary. But they're freed after each iteration. The peak memory is conflict_left (32MB) + all_pos (32MB) + temporaries (~48MB) = ~112MB. Should be fine.
+
+The time is 23 iterations, each with a few numpy operations on 4M elements. Each numpy operation on 4M int32 elements takes ~5-10ms. So 23 * 5 * 10ms = ~1.2 seconds. Should be fast enough.
+
+Let me also think about the popcount. I can compute it similarly:
+
+```python
+for v in range(left_size):
+    bit = 1 << v
+    has_bit = (all_pos & bit) != 0
+    popcount_left[has_bit] += 1
+```
+
+Or I can use numpy's built-in popcount. Actually, numpy doesn't have a built-in popcount for integers. But I can use the bit-by-bit approach above.
+
+Actually, there's `np.bitwise_count` in newer numpy versions, but let me not rely on that.
+
+Let me also think about the SOS DP. The approach is the same as the conflict computation, but with max instead of OR:
+
+```python
+all_pos_sos = np.arange(arr_left, dtype=np.int32)
+for i in range(left_size):
+    bit = 1 << i
+    has_bit = (all_pos_sos & bit) != 0
+    dst_pos = all_pos_sos[has_bit]
+    src_pos = dst_pos ^ bit
+    
+    src_vals = max_size[src_pos]
+    dst_vals = max_size[dst_pos]
+    
+    update = src_vals > dst_vals
+    max_size[dst_pos[update]] = src_vals[update]
+    best_rmask[dst_pos[update]] = best_rmask[src_pos[update]]
+```
+
+This should work. The `update` mask selects which elements to update. The number of updates decreases as we process more bits, but in the worst case, it's still O(arr_left) per bit.
+
+OK, let me also think about the right half. For the right half, I need to compute conflict_right (for independence check) and forbidden_left (for compatibility). The right vertices are half, half+1, ..., n-1, remapped to 0, 1, ..., right_size-1.
+
+For a right vertex with global index `half + v` (local index v):
+- adj[half+v] in global: neighbors in both halves
+- Right-local adjacency: (adj[half+v] >> half) & right_full
+- Left adjacency: adj[half+v] & left_full
+
+The conflict_right computation is the same as conflict_left, but using right-local adjacency.
+
+The forbidden_left computation is similar, but using left adjacency.
+
+Let me now write the complete solution:
+
+```python
+import sys
+import numpy as np
+
+def solve():
+    input_data = sys.stdin.read().split()
+    idx = 0
+    n = int(input_data[idx]); idx += 1
+    m = int(input_data[idx]); idx += 1
+    k = int(input_data[idx]); idx += 1
+    
+    adj = [0] * n
+    for _ in range(m):
+        u = int(input_data[idx]) - 1; idx += 1
+        v = int(input_data[idx]) - 1; idx += 1
+        adj[u] |= (1 << v)
+        adj[v] |= (1 << u)
+    
+    half = n // 2
+    left_size = half
+    right_size = n - half
+    left_full = (1 << left_size) - 1
+    right_full = (1 << right_size) - 1
+    
+    arr_left = 1 << left_size
+    arr_right = 1 << right_size
+    
+    # Phase 1: Process left half
+    all_pos = np.arange(arr_left, dtype=np.int32)
+    conflict_left = np.zeros(arr_left, dtype=np.int32)
+    popcount_left = np.zeros(arr_left, dtype=np.int8)
+    
+    for v in range(left_size):
+        bit = 1 << v
+        adj_v = adj[v] & left_full
+        has_bit = (all_pos & bit) != 0
+        src = all_pos[~has_bit]
+        dst = src | bit
+        conflict_left[dst] = conflict_left[src] | adj_v
+        popcount_left[has_bit] += 1
+    
+    is_indep_left = (conflict_left & all_pos) == 0
+    left_indep_masks = all_pos[is_indep_left]
+    left_indep_sizes = popcount_left[is_indep_left]
+    
+    del conflict_left, popcount_left
+    
+    # Phase 2: Process right half
+    all_pos_r = np.arange(arr_right, dtype=np.int32)
+    conflict_right = np.zeros(arr_right, dtype=np.int32)
+    forbidden_left_arr = np.zeros(arr_right, dtype=np.int32)
+    popcount_right = np.zeros(arr_right, dtype=np.int8)
+    
+    for v in range(right_size):
+        bit = 1 << v
+        orig_v = half + v
+        adj_v_right = (adj[orig_v] >> half) & right_full
+        adj_v_left = adj[orig_v] & left_full
+        has_bit = (all_pos_r & bit) != 0
+        src = all_pos_r[~has_bit]
+        dst = src | bit
+        conflict_right[dst] = conflict_right[src] | adj_v_right
+        forbidden_left_arr[dst] = forbidden_left_arr[src] | adj_v_left
+        popcount_right[has_bit] += 1
+    
+    is_indep_right = (conflict_right & all_pos_r) == 0
+    right_indep_masks = all_pos_r[is_indep_right]
+    right_indep_sizes = popcount_right[is_indep_right]
+    right_indep_forbidden = forbidden_left_arr[is_indep_right]
+    
+    del conflict_right, forbidden_left_arr, popcount_right, all_pos_r
+    
+    # Phase 3: Build SOS DP array
+    max_size = np.full(arr_left, -1, dtype=np.int8)
+    best_rmask = np.zeros(arr_left, dtype=np.int32)
+    
+    for i in range(len(right_indep_masks)):
+        fl = int(right_indep_forbidden[i])
+        sz = int(right_indep_sizes[i])
+        if sz > max_size[fl]:
+            max_size[fl] = sz
+            best_rmask[fl] = int(right_indep_masks[i])
+    
+    del right_indep_masks, right_indep_sizes, right_indep_forbidden
+    
+    # SOS DP
+    all_pos_sos = np.arange(arr_left, dtype=np.int32)
+    for i in range(left_size):
+        bit = 1 << i
+        has_bit = (all_pos_sos & bit) != 0
+        dst_pos = all_pos_sos[has_bit]
+        src_pos = dst_pos ^ bit
+        
+        src_vals = max_size[src_pos]
+        dst_vals = max_size[dst_pos]
+        
+        update = src_vals > dst_vals
+        max_size[dst_pos[update]] = src_vals[update]
+        best_rmask[dst_pos[update]] = best_rmask[src_pos[update]]
+    
+    # Phase 4: Check left sets
+    for i in range(len(left_indep_masks)):
+        lmask = int(left_indep_masks[i])
+        lsize = int(left_indep_sizes[i])
+        if lsize > k:
+            continue
+        need = k - lsize
+        if need > right_size:
+            continue
+        compat = (~lmask) & left_full
+        if max_size[compat] >= need:
+            rmask = int(best_rmask[compat])
+            result = []
+            for j in range(left_size):
+                if lmask & (1 << j):
+                    result.append(j + 1)
+            count = 0
+            for j in range(right_size):
+                if rmask & (1 << j):
+                    result.append(half + j + 1)
+                    count += 1
+                    if count == need:
+                        break
+            print("YES")
+            print(' '.join(map(str, result)))
+            return
+    
+    print("NO")
+
+solve()
+```
+
+Wait, I'm using int8 for max_size and popcount. max_size can be up to 23 (right_size), which fits in int8 (range -128 to 127). popcount can be up to 23, also fits in int8. Good.
+
+But there's an issue with the SOS DP. When I do `max_size[dst_pos[update]] = src_vals[update]`, the `src_vals` and `dst_vals` are read from `max_size` which is int8. The comparison `src_vals > dst_vals` should work. But when I do `best_rmask[dst_pos[update]] = best_rmask[src_pos[update]]`, the `best_rmask` is int32, and the indexing should work.
+
+Let me also check: `all_pos_sos` is int32, and `dst_pos = all_pos_sos[has_bit]` is also int32. `src_pos = dst_pos ^ bit` is int32. `max_size[src_pos]` uses int32 indices, which is fine.
+
+One issue: `~has_bit` in numpy gives a bitwise NOT, which for a boolean array gives the logical NOT. But actually, in numpy, `~` on a boolean array gives the element-wise NOT. So `all_pos[~has_bit]` gives the elements where `has_bit` is False. This is correct.
+
+Wait, actually, `~has_bit` where `has_bit` is a boolean array gives an array of the same shape with True/False flipped. But `all_pos[~has_bit]` uses boolean indexing, which selects elements where the index is True. So `all_pos[~has_bit]` selects elements where `has_bit` is False, which is what we want (positions without the bit). Correct.
+
+Let me also check the edge case where left_size = 0. arr_left = 1. all_pos = [0]. The loop doesn't execute. conflict_left = [0]. is_indep_left = [True]. left_indep_masks = [0]. left_indep_sizes = [0]. For the right half, right_size = n. arr_right = 2^n. This could be 2^46 for n=46, which is way too large!
+
+Oh wait, if n=46, half=23, left_size=23, right_size=23. arr_right = 2^23 = 8M. That's fine. But if n=1, half=0, left_size=0, right_size=1. arr_right = 2. Fine.
+
+But what if n is odd, say n=45? half=22, left_size=22, right_size=23. arr_left = 4M, arr_right = 8M. Fine.
+
+What if n=46? half=23, left_size=23, right_size=23. arr_left = arr_right = 8M. Fine.
+
+What if n=2? half=1, left_size=1, right_size=1. arr_left = arr_right = 2. Fine.
+
+OK, the array sizes are always at most 2^23 = 8M, which is manageable.
+
+But wait, what if n=47? The problem says n ≤ 46, so n is at most 46. half = 23, left_size = 23, right_size = 23. arr_left = arr_right = 8M. Fine.
+
+Actually, n=46, half = 46//2 = 23. left_size = 23, right_size = 23. arr_left = arr_right = 2^23 = 8388608. With int32, each array is 32MB. We have several arrays, but with careful memory management, we should be OK.
+
+Let me also think about the time complexity:
+- Phase 1: 23 iterations, each with ~5 numpy operations on 4M elements. ~23 * 5 * 10ms = 1.2s
+- Phase 2: 23 iterations, similar. ~1.2s
+- Phase 3 (building max_size): Python loop over ~350K right independent sets. ~350K * 1μs = 0.35s
+- SOS DP: 23 iterations, each with ~5 numpy operations on 4M elements. ~1.2s
+- Phase 4: Python loop over ~350K left independent sets. ~350K * 1μs = 0.35s
+
+Total: ~4.3s. Might be tight for the 5s limit, but should be OK.
+
+Actually, the Python loops in Phase 3 and 4 might be slower than 1μs per iteration. Let me optimize them.
+
+For Phase 3, I can use numpy operations:
+
+```python
+# Instead of Python loop, use numpy
+# For each forbidden_left, find max size
+# This is a "group by" operation, which numpy doesn't have directly
+# But I can use np.maximum.at for scatter-max
+
+np.maximum.at(max_size, right_indep_forbidden, right_indep_sizes)
+# But this doesn't track best_rmask...
+```
+
+Hmm, `np.maximum.at` is a scatter-max operation, but it doesn't track the argmax. I need both the max and the corresponding right mask.
+
+Alternative: sort by forbidden_left, then use cumulative max within groups. But this is complex.
+
+Let me try a different approach: use the fact that the number of distinct forbidden_left values is at most 2^23, and use numpy fancy indexing:
+
+```python
+# Initialize
+max_size = np.full(arr_left, -1, dtype=np.int8)
+best_rmask = np.zeros(arr_left, dtype=np.int32)
+
+# For each right independent set, update max_size and best_rmask
+# Use a Python loop, but optimize by sorting
+order = np.argsort(right_indep_forbidden)
+sorted_fl = right_indep_forbidden[order]
+sorted_sz = right_indep_sizes[order]
+sorted_rm = right_indep_masks[order]
+
+# Group by forbidden_left and find max size
+# Within each group, the last element has the max size (if sorted by size within group)
+# Actually, argsort only sorts by forbidden_left, not by size within group
+
+# Let me sort by (forbidden_left, size) in descending order of size
+# Then for each group, the first element has the max size
+
+# Sort by forbidden_left, then by size descending
+sort_keys = right_indep_forbidden.astype(np.int64) * 100 - right_indep_sizes.astype(np.int64)
+order = np.argsort(sort_keys)
+sorted_fl = right_indep_forbidden[order]
+sorted_sz = right_indep_sizes[order]
+sorted_rm = right_indep_masks[order]
+
+# Find first occurrence of each forbidden_left
+# (which has the max size due to sorting)
+unique_fl, first_idx = np.unique(sorted_fl, return_index=True)
+max_size[unique_fl] = sorted_sz[first_idx]
+best_rmask[unique_fl] = sorted_rm[first_idx]
+```
+
+This is fully vectorized! The sorting takes O(N log N) where N is the number of right independent sets (~350K), which is fast. The unique operation is also O(N). The fancy indexing is O(U) where U is the number of unique forbidden_left values.
+
+For Phase 4, I can also vectorize:
+
+```python
+# For each left independent set, check if compatible right set exists
+lmask_arr = left_indep_masks
+lsize_arr = left_indep_sizes
+need_arr = k - lsize_arr.astype(np.int32)
+compat_arr = (~lmask_arr) & left_full
+max_size_compat = max_size[compat_arr]
+valid = (lsize_arr <= k) & (need_arr <= right_size) & (max_size_compat >= need_arr)
+
+if np.any(valid):
+    idx = np.where(valid)[0][0]
+    lmask = int(lmask_arr[idx])
+    lsize = int(lsize_arr[idx])
+    need = k - lsize
+    compat = (~lmask) & left_full
+    rmask = int(best_rmask[compat])
+    # ... output result ...
+```
+
+This is also fully vectorized!
+
+Let me rewrite the complete solution with these optimizations:
+
+```python
+import sys
+import numpy as np
+
+def solve():
+    input_data = sys.stdin.read().split()
+    idx = 0
+    n = int(input_data[idx]); idx += 1
+    m = int(input_data[idx]); idx += 1
+    k = int(input_data[idx]); idx += 1
+    
+    adj = [0] * n
+    for _ in range(m):
+        u = int(input_data[idx]) - 1; idx += 1
+        v = int(input_data[idx]) - 1; idx += 1
+        adj[u] |= (1 << v)
+        adj[v] |= (1 << u)
+    
+    half = n // 2
+    left_size = half
+    right_size = n - half
+    left_full = (1 << left_size) - 1
+    right_full = (1 << right_size) - 1
+    
+    arr_left = 1 << left_size
+    arr_right = 1 << right_size
+    
+    # Phase 1: Process left half
+    all_pos = np.arange(arr_left, dtype=np.int32)
+    conflict_left = np.zeros(arr_left, dtype=np.int32)
+    popcount_left = np.zeros(arr_left, dtype=np.int8)
+    
+    for v in range(left_size):
+        bit = 1 << v
+        adj_v = adj[v] & left_full
+        has_bit = (all_pos & bit) != 0
+        src = all_pos[~has_bit]
+        dst = src | bit
+        conflict_left[dst] = conflict_left[src] | adj_v
+        popcount_left[has_bit] += 1
+    
+    is_indep_left = (conflict_left & all_pos) == 0
+    left_indep_masks = all_pos[is_indep_left].copy()
+    left_indep_sizes = popcount_left[is_indep_left].copy()
+    
+    del conflict_left, popcount_left
+    
+    # Phase 2: Process right half
+    all_pos_r = np.arange(arr_right, dtype=np.int32)
+    conflict_right = np.zeros(arr_right, dtype=np.int32)
+    forbidden_left_arr = np.zeros(arr_right, dtype=np.int32)
+    popcount_right = np.zeros(arr_right, dtype=np.int8)
+    
+    for v in range(right_size):
+        bit = 1 << v
+        orig_v = half + v
+        adj_v_right = (adj[orig_v] >> half) & right_full
+        adj_v_left = adj[orig_v] & left_full
+        has_bit = (all_pos_r & bit) != 0
+        src = all_pos_r[~has_bit]
+        dst = src | bit
+        conflict_right[dst] = conflict_right[src] | adj_v_right
+        forbidden_left_arr[dst] = forbidden_left_arr[src] | adj_v_left
+        popcount_right[has_bit] += 1
+    
+    is_indep_right = (conflict_right & all_pos_r) == 0
+    right_indep_masks = all_pos_r[is_indep_right].copy()
+    right_indep_sizes = popcount_right[is_indep_right].copy()
+    right_indep_forbidden = forbidden_left_arr[is_indep_right].copy()
+    
+    del conflict_right, forbidden_left_arr, popcount_right, all_pos_r
+    
+    # Phase 3: Build SOS DP array
+    max_size = np.full(arr_left, -1, dtype=np.int8)
+    best_rmask = np.zeros(arr_left, dtype=np.int32)
+    
+    # Sort by (forbidden_left, -size) to get max size first for each forbidden_left
+    sort_keys = right_indep_forbidden.astype(np.int64) * 100 - right_indep_sizes.astype(np.int64)
+    order = np.argsort(sort_keys)
+    sorted_fl = right_indep_forbidden[order]
+    sorted_sz = right_indep_sizes[order]
+    sorted_rm = right_indep_masks[order]
+    
+    unique_fl, first_idx = np.unique(sorted_fl, return_index=True)
+    max_size[unique_fl] = sorted_sz[first_idx]
+    best_rmask[unique_fl] = sorted_rm[first_idx]
+    
+    del right_indep_masks, right_indep_sizes, right_indep_forbidden
+    del sorted_fl, sorted_sz, sorted_rm, order, sort_keys
+    
+    # SOS DP
+    all_pos_sos = np.arange(arr_left, dtype=np.int32)
+    for i in range(left_size):
+        bit = 1 << i
+        has_bit = (all_pos_sos & bit) != 0
+        dst_pos = all_pos_sos[has_bit]
+        src_pos = dst_pos ^ bit
+        
+        src_vals = max_size[src_pos]
+        dst_vals = max_size[dst_pos]
+        
+        update = src_vals > dst_vals
+        max_size[dst_pos[update]] = src_vals[update]
+        best_rmask[dst_pos[update]] = best_rmask[src_pos[update]]
+    
+    # Phase 4: Check left sets
+    need_arr = k - left_indep_sizes.astype(np.int32)
+    compat_arr = (~left_indep_masks) & left_full
+    max_size_compat = max_size[compat_arr]
+    valid = (left_indep_sizes <= k) & (need_arr <= right_size) & (max_size_compat >= need_arr)
+    
+    if np.any(valid):
+        idx = int(np.where(valid)[0][0])
+        lmask = int(left_indep_masks[idx])
+        lsize = int(left_indep_sizes[idx])
+        need = k - lsize
+        compat = (~lmask) & left_full
+        rmask = int(best_rmask[compat])
+        result = []
+        for j in range(left_size):
+            if lmask & (1 << j):
+                result.append(j + 1)
+        count = 0
+        for j in range(right_size):
+            if rmask & (1 << j):
+                result.append(half + j + 1)
+                count += 1
+                if count == need:
+                    break
+        print("YES")
+        print(' '.join(map(str, result)))
+    else:
+        print("NO")
+
+solve()
+```
+
+Hmm, wait. There's an issue with the sort_keys. I'm using `right_indep_forbidden.astype(np.int64) * 100 - right_indep_sizes.astype(np.int64)`. The forbidden_left can be up to 2^23 - 1 ≈ 8M. 8M * 100 = 800M, which fits in int64. The size is at most 23. So the sort key is unique for each (forbidden_left, size) pair, and sorting by this key gives ascending forbidden_left, and within each forbidden_left, descending size. So the first occurrence of each forbidden_left has the max size. Correct!
+
+But wait, `np.unique` returns the first occurrence of each unique value. Since we sorted by (forbidden_left ascending, size descending), the first occurrence of each forbidden_left has the max size. Correct!
+
+Let me also check the edge case where there are no right independent sets of any size. This can't happen because the empty set is always an independent set (size 0, forbidden_left 0). So right_indep_masks always has at least one element (the empty set). And max_size[0] >= 0. Good.
+
+Similarly, left_indep_masks always has at least the empty set. Good.
+
+Now, let me think about potential issues:
+
+1. **Memory**: The largest arrays are 8M elements of int32 = 32MB. We have several, but with `del` statements, peak memory should be manageable.
+
+2. **Time**: The main bottleneck is the numpy operations in Phases 1, 2, and SOS DP. Each has 23 iterations with ~5 numpy operations on 4M elements. Total: ~3 * 23 * 5 * 10ms = 3.5s. Plus sorting and other operations: ~0.5s. Total: ~4s. Should be within 5s.
+
+3. **Correctness**: The algorithm is correct as discussed above.
+
+4. **Edge cases**: n=1, k=1, m=0. half=0, left_size=0, right_size=1. arr_left=1, arr_right=2. Phase 1: all_pos=[0], conflict_left=[0], popcount_left=[0]. is_indep_left=[True]. left_indep_masks=[0], left_indep_sizes=[0]. Phase 2: all_pos_r=[0,1], conflict_right=[0,0] (no edges), forbidden_left_arr=[0,0], popcount_right=[0,1]. is_indep_right=[True,True]. right_indep_masks=[0,1], right_indep_sizes=[0,1], right_indep_forbidden=[0,0]. Phase 3: sort by (0*100-0, 0*100-1) = (0, -1). order=[1,0] (since -1 < 0). sorted_fl=[0,0], sorted_sz=[1,0], sorted_rm=[1,0]. unique_fl=[0], first_idx=[0]. max_size[0]=1, best_rmask[0]=1. SOS DP: no bits to process. Phase 4: need_arr=[1], compat_arr=[0], max_size_compat=[1], valid=[True]. Output: lmask=0, lsize=0, need=1, compat=0, rmask=1. result: right vertex 0 (global 0+1=1). Output "YES\n1". Correct!
+
+5. **Example 1**: n=4, m=4, k=3. Edges: 1-2, 1-3, 2-3, 3-4. half=2, left_size=2, right_size=2. Left vertices: 0,1. Right vertices: 2,3 (global). adj[0]={1}, adj[1]={0}, adj[2]={0,1,3}, adj[3]={2}. Left: conflict_left[0]=0, conflict_left[1]=adj[0]&3=2, conflict_left[2]=adj[1]&3=1, conflict_left[3]=3. is_indep_left: 0&0==0 (T), 2&1==0 (T), 1&2==0 (T), 3&3==3 (F). So left independent sets: {}, {0}, {1}. Sizes: 0, 1, 1. Right: adj_v_right for v=0 (global 2): (adj[2]>>2)&3 = ({0,1,3}>>2)&3 = 0&3=0. Wait, adj[2] = {0,1,3} = 0b1101 = 13. 13>>2 = 3. 3&3=3. So adj_v_right=3 (both right vertices 0 and 1 are neighbors of global vertex 2). adj_v_left = adj[2]&3 = 13&3 = 1 (left vertex 0 is a neighbor). For v=1 (global 3): adj[3]={2}=0b100=4. 4>>2=1. 1&3=1. adj_v_right=1 (right vertex 0 is a neighbor of global vertex 3). adj_v_left=4&3=0. conflict_right[0]=0, conflict_right[1]=adj_v_right for v=0 = 3, conflict_right[2]=adj_v_right for v=1 = 1, conflict_right[3]=3|1=3. is_indep_right: 0&0==0 (T), 3&1==1 (F), 1&2==0 (T), 3&3==3 (F). So right independent sets: {}, {1}. Sizes: 0, 1. forbidden_left: for {}: 0, for {1}: adj_v_left for v=1 = 0. So forbidden_left_arr = [0, 0]. max_size[0] = 1 (from {1}), best_rmask[0] = 2. SOS DP: for bit 0: positions with bit 0: 1, 3. src: 0, 2. max_size[0]=1, max_size[2]=-1. Update: max_size[1] = max(-1, 1) = 1, best_rmask[1] = 2. max_size[3] = max(-1, -1) = -1. For bit 1: positions with bit 1: 2, 3. src: 0, 1. max_size[0]=1, max_size[1]=1. Update: max_size[2] = max(-1, 1) = 1, best_rmask[2] = 2. max_size[3] = max(-1, 1) = 1, best_rmask[3] = 2. Phase 4: left sets: ({}, 0), ({0}, 1), ({1}, 1). For ({}, 0): need=3, compat=3, max_size[3]=1 < 3. Invalid. For ({0}, 1): need=2, compat=2, max_size[2]=1 < 2. Invalid. For ({1}, 1): need=2, compat=1, max_size[1]=1 < 2. Invalid. Output: NO. Correct!
+
+6. **Example 2**: n=5, m=2, k=3. Edges: 1-2, 3-4. half=2, left_size=2, right_size=3. Left: 0,1. Right: 2,3,4 (global). adj[0]={1}, adj[1]={0}, adj[2]={3}, adj[3]={2}, adj[4]={}. Left independent sets: {}, {0}, {1}. Right: v=0 (global 2): adj_v_right=(adj[2]>>2)&7=(4>>2)&7=1&7=1. adj_v_left=4&3=0. v=1 (global 3): adj_v_right=(adj[3]>>2)&7=(8>>2)&7=2&7=2. adj_v_left=8&3=0. v=2 (global 4): adj_v_right=(adj[4]>>2)&7=0. adj_v_left=0. conflict_right: [0, 1, 2, 3, 0, 1, 2, 3]. Wait, let me compute more carefully. conflict_right[0]=0. For v=0 (bit 1): conflict_right[1]=conflict_right[0]|1=1. For v=1 (bit 2): conflict_right[2]=conflict_right[0]|2=2, conflict_right[3]=conflict_right[1]|2=3. For v=2 (bit 4): conflict_right[4]=conflict_right[0]|0=0, conflict_right[5]=conflict_right[1]|0=1, conflict_right[6]=conflict_right[2]|0=2, conflict_right[7]=conflict_right[3]|0=3. is_indep_right: 0&0==0 (T), 1&1==1 (F), 2&2==2 (F), 3&3==3 (F), 0&4==0 (T), 1&5==1 (F), 2&6==2 (F), 3&7==3 (F). So right independent sets: {} (size 0), {2} (size 1, i.e., right vertex 2 = global 4). forbidden_left: [0, ..., 0]. max_size[0] = 1, best_rmask[0] = 4. SOS DP: all positions get max_size = 1 (since forbidden_left is always 0, which is a subset of everything). Phase 4: For ({}, 0): need=3, max_size[3]=1 < 3. Invalid. For ({0}, 1): need=2, max_size[1]=1 < 2. Invalid. For ({1}, 1): need=2, max_size[2]=1 < 2. Invalid. Output: NO??? But the expected output is YES!
+
+Wait, that's wrong. Let me recheck. The right independent sets should include {0, 2} (right vertices 0 and 2, i.e., global 2 and 4). Let me recheck conflict_right[5] = conflict_right[1] | 0 = 1. is_indep_right[5]: conflict_right[5] & 5 = 1 & 5 = 1 != 0. So {0, 2} is NOT independent because right vertex 0 (global 2) and right vertex 2 (global 4) have... wait, adj[2] = {3} (global), so right vertex 0 (global 2) is adjacent to global 3, which is right vertex 1. So right vertex 0 is not adjacent to right vertex 2. So {0, 2} should be independent.
+
+Let me recheck. conflict_right[5] = conflict_right[4] | adj_v_right for v=0? No, let me recompute.
+
+conflict_right is computed bit by bit:
+- v=0 (bit 1, global 2): adj_v_right = 1 (right vertex 1 is a neighbor). conflict_right[1] = conflict_right[0] | 1 = 1.
+- v=1 (bit 2, global 3): adj_v_right = 2 (right vertex 0 is a neighbor). conflict_right[2] = conflict_right[0] | 2 = 2. conflict_right[3] = conflict_right[1] | 2 = 3.
+- v=2 (bit 4, global 4): adj_v_right = 0. conflict_right[4] = conflict_right[0] | 0 = 0. conflict_right[5] = conflict_right[1] | 0 = 1. conflict_right[6] = conflict_right[2] | 0 = 2. conflict_right[7] = conflict_right[3] | 0 = 3.
+
+is_indep_right[5] = conflict_right[5] & 5 = 1 & 5 = 1 != 0. So {0, 2} (binary 101 = 5) is NOT independent.
+
+But wait, right vertex 0 is global 2, right vertex 2 is global 4. adj[2] = {3} (global 3 = right vertex 1). adj[4] = {} (no neighbors). So right vertex 0 and right vertex 2 are not adjacent. So {0, 2} should be independent!
+
+The issue is that conflict_right[5] should be the OR of adj_v_right for v=0 and v=2. adj_v_right for v=0 is 1 (right vertex 1 is a neighbor of global 2). adj_v_right for v=2 is 0. So conflict_right[5] = 1 | 0 = 1. And 1 & 5 = 1, which is non-zero. But 1 means right vertex 1 is a neighbor of some vertex in the set. The set is {0, 2}, and right vertex 1 is not in the set. So the conflict is that right vertex 0 has a neighbor (right vertex 1) which is not in the set. That's fine! The conflict mask should only check if any vertex IN the set is a neighbor of another vertex IN the set.
+
+Oh, I see the issue! The conflict mask is the OR of all neighbors of vertices in the set. If the conflict mask & set != 0, it means some vertex in the set is a neighbor of another vertex in the set. But conflict_right[5] = 1, and 5 = 0b101, so 1 & 5 = 1 = 0b001. This means right vertex 0 (bit 0) is in the conflict mask, i.e., right vertex 0 is a neighbor of some vertex in the set. The set is {0, 2}. Right vertex 0 is a neighbor of right vertex 1 (global 3), but right vertex 1 is not in the set. So why is right vertex 0 in the conflict mask?
+
+Because adj_v_right for v=0 (global 2) is 1, meaning right vertex 0 has right vertex 1 as a neighbor. But the conflict mask includes ALL neighbors, not just neighbors within the set. So conflict_right[5] = 1 means "right vertex 0 is a neighbor of right vertex 1, and right vertex 0 is in the set". But right vertex 1 is NOT in the set, so this is not a conflict!
+
+The issue is that the conflict mask includes all neighbors, not just neighbors within the set. The check `conflict & set == 0` checks if any vertex in the set is a neighbor of any other vertex in the set. But `conflict[5] = 1` means right vertex 0 is a neighbor of right vertex 1. Since right vertex 0 is in the set (bit 0 of 5 is set), and 1 & 5 = 1, the check says there's a conflict. But the conflict is that vertex 0 is a neighbor of vertex 1, and vertex 0 is in the set. But vertex 1 is NOT in the set, so there's no actual conflict!
+
+Wait, I think I'm confusing myself. Let me re-read the check: `conflict & set == 0`. conflict[5] = 1 (binary 001). set = 5 (binary 101). conflict & set = 001 & 101 = 001 = 1 != 0. So the check says there's a conflict. But what does this mean?
+
+conflict[5] = OR of adj_v_right for v in {0, 2} = adj_v_right[0] | adj_v_right[2] = 1 | 0 = 1. This means the set {0, 2} has a neighbor at position 0 (right vertex 0 is a neighbor of some vertex in the set). But right vertex 0 IS in the set! So some vertex in the set has right vertex 0 as a neighbor. Which vertex? adj_v_right[0] = 1 means right vertex 0 has right vertex 1 as a neighbor. adj_v_right[2] = 0 means right vertex 2 has no neighbors. So the conflict is: right vertex 0 is a neighbor of right vertex 1. But right vertex 1 is not in the set, so this is not a conflict within the set.
+
+Wait, I think the issue is that adj_v_right[0] = 1 means right vertex 1 is a neighbor of right vertex 0. So the conflict mask includes right vertex 1 (not right vertex 0). Let me recheck.
+
+adj_v_right for v=0 (global 2) = (adj[2] >> 2) & 7. adj[2] = {3} = 1 << 3 = 8. 8 >> 2 = 2. 2 & 7 = 2. So adj_v_right = 2 (binary 010), meaning right vertex 1 is a neighbor of right vertex 0.
+
+So conflict_right[5] = adj_v_right[0] | adj_v_right[2] = 2 | 0 = 2 (binary 010). And 2 & 5 = 010 & 101 = 000 = 0. So is_indep_right[5] = True! {0, 2} is independent!
+
+I made an error earlier. Let me recompute. adj[2] = {3} (global 3). In binary, 1 << 3 = 8. 8 >> 2 = 2. 2 & 7 = 2. So adj_v_right for v=0 is 2, not 1. I had an error earlier.
+
+Let me recompute everything:
+- v=0 (global 2): adj[2] = 1<<3 = 8. adj_v_right = (8>>2)&7 = 2. adj_v_left = 8&3 = 0.
+- v=1 (global 3): adj[3] = 1<<2 = 4. adj_v_right = (4>>2)&7 = 1. adj_v_left = 4&3 = 0.
+- v=2 (global 4): adj[4] = 0. adj_v_right = 0. adj_v_left = 0.
+
+conflict_right:
+- [0] = 0
+- [1] = 0 | 2 = 2 (v=0)
+- [2] = 0 | 1 = 1 (v=1)
+- [3] = 2 | 1 = 3 (v=0, v=1)
+- [4] = 0 | 0 = 0 (v=2)
+- [5] = 2 | 0 = 2 (v=0, v=2)
+- [6] = 1 | 0 = 1 (v=1, v=2)
+- [7] = 3 | 0 = 3 (v=0, v=1, v=2)
+
+is_indep_right:
+- [0]: 0 & 0 = 0 → T
+- [1]: 2 & 1 = 0 → T
+- [2]: 1 & 2 = 0 → T
+- [3]: 3 & 3 = 3 → F
+- [4]: 0 & 4 = 0 → T
+- [5]: 2 & 5 = 0 → T
+- [6]: 1 & 6 = 0 → T
+- [7]: 3 & 7 = 3 → F
+
+So right independent sets: {}, {0}, {1}, {2}, {0,2}, {1,2}. Sizes: 0, 1, 1, 1, 2, 2. forbidden_left: all 0 (since adj_v_left is 0 for all right vertices).
+
+max_size[0] = 2 (from {0,2} or {1,2}). best_rmask[0] = 5 ({0,2}) or 6 ({1,2}).
+
+SOS DP: all positions get max_size = 2 (since forbidden_left is always 0).
+
+Phase 4: For ({}, 0): need=3, max_size[3]=2 < 3. Invalid. For ({0}, 1): need=2, max_size[1]=2 >= 2. Valid! Output: lmask=1, lsize=1, need=2, compat=2, rmask=best_rmask[2]=5 (or 6). result: left vertex 0 (global 1), right vertices 0 and 2 (global 2+1=3 and 2+2+1=5). Wait, right vertex 0 is global half+0 = 2, so global 3. Right vertex 2 is global half+2 = 4, so global 5. Result: {1, 3, 5}. Output: YES\n1 3 5. Correct!
+
+Great, the algorithm is correct. I just had a computation error earlier.
+
+Now let me also verify Example 3: n=3, m=3, k=1. Edges: 1-2, 2-3, 1-3. half=1, left_size=1, right_size=2. Left: {0}. Right: {1, 2} (global). adj[0]={1,2}, adj[1]={0,2}, adj[2]={0,1}. Left: conflict_left[0]=0, conflict_left[1]=adj[0]&1=0. is_indep_left: [T, T]. Left independent sets: {}, {0}. Sizes: 0, 1. Right: v=0 (global 1): adj[1]=1<<0|1<<2=5. adj_v_right=(5>>1)&3=2&3=2. adj_v_left=5&1=1. v=1 (global 2): adj[2]=1<<0|1<<1=3. adj_v_right=(3>>1)&3=1&3=1. adj_v_left=3&1=1. conflict_right: [0, 2, 1, 3]. is_indep_right: [T, F, F, F]. Right independent sets: {}. Size: 0. forbidden_left: 0. max_size[0]=0, best_rmask[0]=0. SOS DP: all positions get max_size=0. Phase 4: For ({}, 0): need=1, max_size[0]=0 < 1. Invalid. For ({0}, 1): need=0, max_size[0]=0 >= 0. Valid! Output: lmask=1, lsize=1, need=0, rmask=0. result: {1}. Output: YES\n1. Correct!
+
+Great, the algorithm works for all examples. Let me finalize the code.
+
+Actually, I realize there might be an issue with the `~` operator in numpy. In numpy, `~` on an integer array gives the bitwise NOT, which for int32 gives a negative number. So `~lmask` for lmask=0 gives -1 (all bits set), and `(~lmask) & left_full` gives `left_full`. This is correct because we want the complement of lmask within the left half.
+
+But wait, `~left_indep_masks` where left_indep_masks is an int32 array: `~` gives the bitwise NOT, which for int32 gives negative numbers. Then `& left_full` masks to the left half. This should work because `left_full` is a positive int32, and the bitwise AND of a negative int32 with a positive int32 gives the correct result (since Python/numpy uses two's complement).
+
+Let me verify: `~np.int32(0)` = -1 (0xFFFFFFFF in two's complement). `-1 & 0x7FFFFFFF` = 0x7FFFFFFF. But `left_full` for left_size=23 is 0x7FFFFF (23 bits). So `~np.int32(0) & 0x7FFFFF` = 0x7FFFFF. Correct!
+
+`~np.int32(1)` = -2 (0xFFFFFFFE). `-2 & 0x7FFFFF` = 0x7FFFFE. Which is the complement of 1 within 23 bits. Correct!
+
+OK, the code should be correct. Let me also handle the case where left_size = 0. In that case, arr_left = 1, and the numpy operations should work fine (arrays of size 1).
+
+One more thing: the `np.unique` function returns sorted unique values and their first indices. Since we sorted by (forbidden_left, -size), the first index for each forbidden_left has the max size. But `np.unique` sorts the unique values, which is fine since we're just using them as indices into max_size and best_rmask.
+
+Actually, I realize there might be an issue. `np.unique(sorted_fl, return_index=True)` returns the unique values in sorted order and their first indices in the sorted array. But the first index in the sorted array corresponds to the first occurrence in the sorted array, which has the max size (due to our sorting). So `sorted_sz[first_idx]` gives the max size for each forbidden_left. Correct!
+
+Let me also make sure the code handles the case where there are no right independent sets (impossible, since the empty set is always independent) and no left independent sets (also impossible).
+
+I think the code is correct. Let me also add some minor optimizations:
+- Use `np.int16` for popcount (max value 23, fits in int8, but int16 might be faster due to alignment)
+- Actually, int8 should be fine.
+
+Let me also consider the memory more carefully. For n=46, left_size=23, right_size=23:
+- arr_left = arr_right = 8M
+- Phase 1: all_pos (32MB), conflict_left (32MB), popcount_left (8MB) = 72MB. Plus temporaries: has_bit (8MB), src (16MB), dst (16MB) = 40MB. Total: ~112MB.
+- After Phase 1: left_indep_masks (variable, up to 32MB), left_indep_sizes (variable, up to 8MB). But these are copies of subsets, so smaller.
+- Phase 2: similar to Phase 1, ~112MB. But we've freed Phase 1 arrays, so total is ~112MB + small Phase 1 remnants.
+- Phase 3: max_size (8MB), best_rmask (32MB), all_pos_sos (32MB) = 72MB. Plus temporaries. But we've freed Phase 2 arrays.
+- Phase 4: small.
+
+Peak memory: ~112MB + small remnants. Should fit in 256MB.
+
+Actually, I need to be more careful. `all_pos` is 32MB (8M * 4 bytes). `conflict_left` is 32MB. `popcount_left` is 8MB (8M * 1 byte). `has_bit` is 8MB (8M * 1 byte, boolean). `src` is 16MB (4M * 4 bytes). `dst` is 16MB. Total: 112MB. But `src` and `dst` are temporary and freed after each iteration. So peak is 32 + 32 + 8 + 8 + 16 + 16 = 112MB. But we also have `left_indep_masks` and `left_indep_sizes` from Phase 1, which are smaller. So peak is ~120MB. Fine.
+
+Wait, I also need to account for the `is_indep_left` array, which is 8MB (boolean). And the copies `left_indep_masks` and `left_indep_sizes`. These are smaller (only independent sets). For the empty graph, all 8M subsets are independent, so `left_indep_masks` is 32MB and `left_indep_sizes` is 8MB. Total: 112 + 8 + 32 + 8 = 160MB. Still fine.
+
+But in Phase 2, we have similar arrays for the right half. If we haven't freed Phase 1 arrays, total could be 160 + 112 = 272MB, which exceeds 256MB. So I need to make sure to free Phase 1 arrays before Phase 2.
+
+In my code, I have `del conflict_left, popcount_left` after Phase 1. But `all_pos` is still alive. Let me also free it:
+
+```python
+del conflict_left, popcount_left, all_pos
+```
+
+And similarly for Phase 2:
+
+```python
+del conflict_right, forbidden_left_arr, popcount_right, all_pos_r
+```
+
+With this, peak memory should be ~160MB (Phase 1) + ~112MB (Phase 2, after freeing Phase 1) = ~160MB. Fine.
+
+Actually, I also need to free `is_indep_left` after extracting the independent sets. And `left_indep_masks` and `left_indep_sizes` are needed in Phase 4, so they stay.
+
+Let me also consider: for the empty graph (m=0), all 2^23 subsets of each half are independent. So `left_indep_masks` has 8M elements (32MB), `left_indep_sizes` has 8M elements (8MB). Similarly for right. In Phase 3, we sort 8M elements, which takes O(8M log 8M) ≈ 8M * 23 = 184M operations. With numpy, this should take ~1-2 seconds.
+
+But wait, for the empty graph, the answer is always YES (any k vertices work). Can I special-case this?
+
+```python
+if m == 0:
+    print("YES")
+    print(' '.join(str(i) for i in range(1, k+1)))
+    return
+```
+
+This handles the empty graph case. But there could be other cases with many independent sets (e.g., a graph with one edge has 2^n - 2^(n-2) independent sets, which is still huge).
+
+Actually, for the one-edge case, the number of independent sets is 2^n - 2^(n-2) = 3/4 * 2^n. For n=46, that's 3/4 * 2^46 ≈ 5.3e13, which is way too many. But we're splitting into two halves, so each half has at most 3/4 * 2^23 ≈ 6.3M independent sets. That's manageable.
+
+Wait, but the number of independent sets per half depends on the edges within that half. If the edge is between two vertices in the same half, that half has 3/4 * 2^23 independent sets, and the other half has 2^23. If the edge is between the two halves, each half has 2^23 independent sets.
+
+In any case, the number of independent sets per half is at most 2^23 = 8M, which is manageable.
+
+OK, I think the code is correct and efficient enough. Let me finalize it.
+
+One more optimization: in Phase 4, instead of iterating over all left independent sets in a Python loop, I can use numpy vectorized operations:
+
+```python
+need_arr = k - left_indep_sizes.astype(np.int32)
+compat_arr = (~left_indep_masks.astype(np.int32)) & left_full
+max_size_compat = max_size[compat_arr]
+valid = (left_indep_sizes <= k) & (need_arr >= 0) & (need_arr <= right_size) & (max_size_compat >= need_arr)
+
+if np.any(valid):
+    idx = int(np.argmax(valid))  # or np.where(valid)[0][0]
+    ...
+```
+
+Wait, I already have this in my code. Let me make sure it's correct.
+
+`left_indep_sizes` is int8. `k - left_indep_sizes.astype(np.int32)` gives int32. `need_arr >= 0` is always true since k >= 1 and lsize <= k (checked by `left_indep_sizes <= k`). Actually, `left_indep_sizes <= k` already ensures `need_arr >= 0`. And `need_arr <= right_size` ensures we don't need more right vertices than available.
+
+`(~left_indep_masks.astype(np.int32)) & left_full` gives the complement of lmask within the left half. `max_size[compat_arr]` gives the max right independent set size compatible with each left set. `max_size_compat >= need_arr` checks if there's a large enough right set.
+
+This is all vectorized and should be fast.
+
+Let me also handle the case where `left_indep_masks` is empty (shouldn't happen, since the empty set is always independent). And the case where `right_indep_masks` is empty (also shouldn't happen).
+
+I think the code is ready. Let me write the final version:
+
+```python
+import sys
+import numpy as np
+
+def solve():
+    input_data = sys.stdin.read().split()
+    idx = 0
+    n = int(input_data[idx]); idx += 1
+    m = int(input_data[idx]); idx += 1
+    k = int(input_data[idx]); idx += 1
+    
+    adj = [0] * n
+    for _ in range(m):
+        u = int(input_data[idx]) - 1; idx += 1
+        v = int(input_data[idx]) - 1; idx += 1
+        adj[u] |= (1 << v)
+        adj[v] |= (1 << u)
+    
+    if m == 0:
+        print("YES")
+        print(' '.join(str(i) for i in range(1, k + 1)))
+        return
+    
+    half = n // 2
+    left_size = half
+    right_size = n - half
+    left_full = (1 << left_size) - 1
+    right_full = (1 << right_size) - 1
+    
+    arr_left = 1 << left_size
+    arr_right = 1 << right_size
+    
+    # Phase 1: Process left half
+    all_pos = np.arange(arr_left, dtype=np.int32)
+    conflict_left = np.zeros(arr_left, dtype=np.int32)
+    popcount_left = np.zeros(arr_left, dtype=np.int8)
+    
+    for v in range(left_size):
+        bit = 1 << v
+        adj_v = adj[v] & left_full
+        has_bit = (all_pos & bit) != 0
+        src = all_pos[~has_bit]
+        dst = src | bit
+        conflict_left[dst] = conflict_left[src] | adj_v
+        popcount_left[has_bit] += 1
+    
+    is_indep_left = (conflict_left & all_pos) == 0
+    left_indep_masks = all_pos[is_indep_left].copy()
+    left_indep_sizes = popcount_left[is_indep_left].copy()
+    
+    del conflict_left, popcount_left, all_pos, is_indep_left
+    
+    # Phase 2: Process right half
+    all_pos_r = np.arange(arr_right, dtype=np.int32)
+    conflict_right = np.zeros(arr_right, dtype=np.int32)
+    forbidden_left_arr = np.zeros(arr_right, dtype=np.int32)
+    popcount_right = np.zeros(arr_right, dtype=np.int8)
+    
+    for v in range(right_size):
+        bit = 1 << v
+        orig_v = half + v
+        adj_v_right = (adj[orig_v] >> half) & right_full
+        adj_v_left = adj[orig_v] & left_full
+        has_bit = (all_pos_r & bit) != 0
+        src = all_pos_r[~has_bit]
+        dst = src | bit
+        conflict_right[dst] = conflict_right[src] | adj_v_right
+        forbidden_left_arr[dst] = forbidden_left_arr[src] | adj_v_left
+        popcount_right[has_bit] += 1
+    
+    is_indep_right = (conflict_right & all_pos_r) == 0
+    right_indep_masks = all_pos_r[is_indep_right].copy()
+    right_indep_sizes = popcount_right[is_indep_right].copy()
+    right_indep_forbidden = forbidden_left_arr[is_indep_right].copy()
+    
+    del conflict_right, forbidden_left_arr, popcount_right, all_pos_r, is_indep_right
+    
+    # Phase 3: Build SOS DP array
+    max_size = np.full(arr_left, -1, dtype=np.int8)
+    best_rmask = np.zeros(arr_left, dtype=np.int32)
+    
+    # Sort by (forbidden_left, -size) to get max size first for each forbidden_left
+    sort_keys = right_indep_forbidden.astype(np.int64) * 128 - right_indep_sizes.astype(np.int64)
+    order = np.argsort(sort_keys)
+    sorted_fl = right_indep_forbidden[order]
+    sorted_sz = right_indep_sizes[order]
+    sorted_rm = right_indep_masks[order]
+    
+    unique_fl, first_idx = np.unique(sorted_fl, return_index=True)
+    max_size[unique_fl] = sorted_sz[first_idx]
+    best_rmask[unique_fl] = sorted_rm[first_idx]
+    
+    del right_indep_masks, right_indep_sizes, right_indep_forbidden
+    del sorted_fl, sorted_sz, sorted_rm, order, sort_keys, unique_fl, first_idx
+    
+    # SOS DP
+    all_pos_sos = np.arange(arr_left, dtype=np.int32)
+    for i in range(left_size):
+        bit = 1 << i
+        has_bit = (all_pos_sos & bit) != 0
+        dst_pos = all_pos_sos[has_bit]
+        src_pos = dst_pos ^ bit
+        
+        src_vals = max_size[src_pos]
+        dst_vals = max_size[dst_pos]
+        
+        update = src_vals > dst_vals
+        max_size[dst_pos[update]] = src_vals[update]
+        best_rmask[dst_pos[update]] = best_rmask[src_pos[update]]
+    
+    # Phase 4: Check left sets
+    need_arr = k - left_indep_sizes.astype(np.int32)
+    compat_arr = (~left_indep_masks.astype(np.int32)) & left_full
+    max_size_compat = max_size[compat_arr]
+    valid = (left_indep_sizes <= k) & (need_arr <= right_size) & (max_size_compat >= need_arr)
+    
+    if np.any(valid):
+        idx = int(np.where(valid)[0][0])
+        lmask = int(left_indep_masks[idx])
+        lsize = int(left_indep_sizes[idx])
+        need = k - lsize
+        compat = (~lmask) & left_full
+        rmask = int(best_rmask[compat])
+        result = []
+        for j in range(left_size):
+            if lmask & (1 << j):
+                result.append(j + 1)
+        count = 0
+        for j in range(right_size):
+            if rmask & (1 << j):
+                result.append(half + j + 1)
+                count += 1
+                if count == need:
+                    break
+        print("YES")
+        print(' '.join(map(str, result)))
+    else:
+        print("NO")
+
+solve()
+```
+
+Hmm, I just realized there might be an issue with the `sort_keys` computation. `right_indep_forbidden` can be up to 2^23 - 1 ≈ 8M. `8M * 128 = 1G`, which fits in int64. `right_indep_sizes` is at most 23. So `sort_keys = forbidden * 128 - size` gives a unique key for each (forbidden, size) pair, with ascending forbidden and descending size. This is correct.
+
+But wait, I should use a multiplier that's larger than the max size (23). 128 > 23, so it's fine. Actually, I should use a multiplier that's a power of 2 for efficiency, but 128 works.
+
+Actually, I realize there's a subtle issue. `np.unique` returns the unique values in sorted order. But I need the first index in the sorted array (which has the max size). `np.unique(sorted_fl, return_index=True)` returns the first index of each unique value in the sorted array. Since the sorted array is sorted by (forbidden, -size), the first occurrence of each forbidden value has the max size. So `sorted_sz[first_idx]` gives the max size. Correct!
+
+But wait, `np.unique` sorts the unique values. The `return_index` gives the index in the input array (sorted_fl) of the first occurrence of each unique value. Since sorted_fl is already sorted, the first occurrence is the one with the max size. Correct!
+
+I think the code is correct. Let me also add a check for the case where k > n (shouldn't happen per the problem statement, but just in case):
+
+Actually, the problem says 1 ≤ k ≤ n, so k is always valid.
+
+One more thing: the problem says "Any mixture in which no two compounds react is accepted." So any valid independent set of size k is acceptable. My code finds one such set (if it exists). Good.
+
+Let me also make sure the output format is correct. The problem says:
+- If yes: "YES" on first line, then k distinct compound numbers on second line, separated by spaces.
+- If no: "NO"
+
+My code does this. Good.
+
+I think the code is ready. Let me do one final check on the edge case where left_size = 0 (n = 1).
+
+n=1, half=0, left_size=0, right_size=1. arr_left=1, arr_right=2.
+Phase 1: all_pos=[0], conflict_left=[0], popcount_left=[0]. Loop doesn't execute. is_indep_left=[True]. left_indep_masks=[0], left_indep_sizes=[0].
+Phase 2: all_pos_r=[0,1], conflict_right=[0,0], forbidden_left_arr=[0,0], popcount_right=[0,1]. Loop: v=0, bit=1, orig_v=0, adj_v_right=(adj[0]>>0)&1=adj[0]&1, adj_v_left=adj[0]&0=0. has_bit=[False, True]. src=[0], dst=[1]. conflict_right[1]=conflict_right[0]|adj_v_right=0|adj[0]&1. forbidden_left_arr[1]=0. popcount_right[1]=1. is_indep_right: conflict_right & all_pos_r == 0. If adj[0]&1==0 (no self-loop, which is guaranteed), then conflict_right=[0,0], is_indep_right=[True, True]. right_indep_masks=[0,1], right_indep_sizes=[0,1], right_indep_forbidden=[0,0].
+Phase 3: sort_keys=[0*128-0, 0*128-1]=[0, -1]. order=[1,0]. sorted_fl=[0,0], sorted_sz=[1,0], sorted_rm=[1,0]. unique_fl=[0], first_idx=[0]. max_size[0]=1, best_rmask[0]=1.
+SOS DP: loop doesn't execute (left_size=0).
+Phase 4: need_arr=[k-0]=[k]. compat_arr=[~0 & 0]=[0]. max_size_compat=[1]. valid=[(0<=k) & (k<=1) & (1>=k)]=[k<=1]. If k=1, valid=[True]. Output: lmask=0, lsize=0, need=1, compat=0, rmask=1. result: right vertex 0 (global 0+1=1). Output: YES\n1. Correct!
+
+Great, the code handles all edge cases correctly. Here's the final version:
+
+Actually, wait. I need to double-check the `~` operator on numpy arrays. In numpy, `~` on an int32 array gives the bitwise NOT, which for int32 gives negative numbers (two's complement). But when I do `(~left_indep_masks.astype(np.int32)) & left_full`, the result should be correct because `left_full` is a positive int32, and the bitwise AND of a negative int32 with a positive int32 gives the correct result.
+
+Let me verify: `~np.int32(0)` = -1 (0xFFFFFFFF). `-1 & 0x7FFFFF` = 0x7FFFFF. Correct (complement of 0 within 23 bits).
+`~np.int32(1)` = -2 (0xFFFFFFFE). `-2 & 0x7FFFFF` = 0x7FFFFE. Correct (complement of 1 within 23 bits).
+
+OK, the code is correct.
+
+But actually, I just realized there's a potential issue with the `~has_bit` operation. `has_bit` is a boolean array. `~has_bit` in numpy gives the element-wise NOT of the boolean array. But when I do `all_pos[~has_bit]`, I'm using boolean indexing, which selects elements where `~has_bit` is True (i.e., where `has_bit` is False). This is correct.
+
+Wait, but `~` on a boolean array in numpy gives an array of the same dtype (bool), with True/False flipped. So `all_pos[~has_bit]` selects elements where `has_bit` is False. Correct!
+
+OK, I'm confident the code is correct. Let me also make sure there are no issues with the numpy version. The code uses basic numpy operations (arange, zeros, full, bitwise operations, indexing, argsort, unique, any, where) which are available in all numpy versions.
+
+One last thing: I should make sure the code doesn't crash for very small inputs (n=1, k=1, m=0). With the m=0 special case, it outputs "YES\n1". Correct!
+
+And for n=1, k=1, m=0 (no edges), the special case handles it. For n=1, k=1, m=0 (but m can't be >0 for n=1 since there are no pairs), the code works.
+
+Actually, for n=1, m can only be 0 (since there are no pairs of distinct vertices). So the m=0 special case always handles n=1. But the general code also works for n=1, as I verified above.
+
+I'm satisfied with the code. Here's the final version:
+
+```python
+import sys
+import numpy as np
+
+def solve():
+    input_data = sys.stdin.read().split()
+    idx = 0
+    n = int(input_data[idx]); idx += 1
+    m = int(input_data[idx]); idx += 1
+    k = int(input_data[idx]); idx += 1
+    
+    adj = [0] * n
+    for _ in range(m):
+        u = int(input_data[idx]) - 1; idx += 1
+        v = int(input_data[idx]) - 1; idx += 1
+        adj[u] |= (1 << v)
+        adj[v] |= (1 << u)
+    
+    if m == 0:
+        print("YES")
+        print(' '.join(str(i) for i in range(1, k + 1)))
+        return
+    
+    half = n // 2
+    left_size = half
+    right_size = n - half
+    left_full = (1 << left_size) - 1
+    right_full = (1 << right_size) - 1
+    
+    arr_left = 1 << left_size
+    arr_right = 1 << right_size
+    
+    # Phase 1: Process left half
+    all_pos = np.arange(arr_left, dtype=np.int32)
+    conflict_left = np.zeros(arr_left, dtype=np.int32)
+    popcount_left = np.zeros(arr_left, dtype=np.int8)
+    
+    for v in range(left_size):
+        bit = 1 << v
+        adj_v = adj[v] & left_full
+        has_bit = (all_pos & bit) != 0
+        src = all_pos[~has_bit]
+        dst = src | bit
+        conflict_left[dst] = conflict_left[src] | adj_v
+        popcount_left[has_bit] += 1
+    
+    is_indep_left = (conflict_left & all_pos) == 0
+    left_indep_masks = all_pos[is_indep_left].copy()
+    left_indep_sizes = popcount_left[is_indep_left].copy()
+    
+    del conflict_left, popcount_left, all_pos, is_indep_left
+    
+    # Phase 2: Process right half
+    all_pos_r = np.arange(arr_right, dtype=np.int32)
+    conflict_right = np.zeros(arr_right, dtype=np.int32)
+    forbidden_left_arr = np.zeros(arr_right, dtype=np.int32)
+    popcount_right = np.zeros(arr_right, dtype=np.int8)
+    
+    for v in range(right_size):
+        bit = 1 << v
+        orig_v = half + v
+        adj_v_right = (adj[orig_v] >> half) & right_full
+        adj_v_left = adj[orig_v] & left_full
+        has_bit = (all_pos_r & bit) != 0
+        src = all_pos_r[~has_bit]
+        dst = src | bit
+        conflict_right[dst] = conflict_right[src] | adj_v_right
+        forbidden_left_arr[dst] = forbidden_left_arr[src] | adj_v_left
+        popcount_right[has_bit] += 1
+    
+    is_indep_right = (conflict_right & all_pos_r) == 0
+    right_indep_masks = all_pos_r[is_indep_right].copy()
+    right_indep_sizes = popcount_right[is_indep_right].copy()
+    right_indep_forbidden = forbidden_left_arr[is_indep_right].copy()
+    
+    del conflict_right, forbidden_left_arr, popcount_right, all_pos_r, is_indep_right
+    
+    # Phase 3: Build SOS DP array
+    max_size = np.full(arr_left, -1, dtype=np.int8)
+    best_rmask = np.zeros(arr_left, dtype=np.int32)
+    
+    sort_keys = right_indep_forbidden.astype(np.int64) * 128 - right_indep_sizes.astype(np.int64)
+    order = np.argsort(sort_keys)
+    sorted_fl = right_indep_forbidden[order]
+    sorted_sz = right_indep_sizes[order]
+    sorted_rm = right_indep_masks[order]
+    
+    unique_fl, first_idx = np.unique(sorted_fl, return_index=True)
+    max_size[unique_fl] = sorted_sz[first_idx]
+    best_rmask[unique_fl] = sorted_rm[first_idx]
+    
+    del right_indep_masks, right_indep_sizes, right_indep_forbidden
+    del sorted_fl, sorted_sz, sorted_rm, order, sort_keys
+    
+    # SOS DP
+    all_pos_sos = np.arange(arr_left, dtype=np.int32)
+    for i in range(left_size):
+        bit = 1 << i
+        has_bit = (all_pos_sos & bit) != 0
+        dst_pos = all_pos_sos[has_bit]
+        src_pos = dst_pos ^ bit
+        
+        src_vals = max_size[src_pos]
+        dst_vals = max_size[dst_pos]
+        
+        update = src_vals > dst_vals
+        max_size[dst_pos[update]] = src_vals[update]
+        best_rmask[dst_pos[update]] = best_rmask[src_pos[update]]
+    
+    # Phase 4: Check left sets
+    need_arr = k - left_indep_sizes.astype(np.int32)
+    compat_arr = (~left_indep_masks.astype(np.int32)) & left_full
+    max_size_compat = max_size[compat_arr]
+    valid = (left_indep_sizes <= k) & (need_arr <= right_size) & (max_size_compat >= need_arr)
+    
+    if np.any(valid):
+        idx = int(np.where(valid)[0][0])
+        lmask = int(left_indep_masks[idx])
+        lsize = int(left_indep_sizes[idx])
+        need = k - lsize
+        compat = (~lmask) & left_full
+        rmask = int(best_rmask[compat])
+        result = []
+        for j in range(left_size):
+            if lmask & (1 << j):
+                result.append(j + 1)
+        count = 0
+        for j in range(right_size):
+            if rmask & (1 << j):
+                result.append(half + j + 1)
+                count += 1
+                if count == need:
+                    break
+        print("YES")
+        print(' '.join(map(str, result)))
+    else:
+        print("NO")
+
+solve()
+```
+
+Wait, I should also handle the case where `need = 0` (i.e., k = lsize). In this case, we don't need any right vertices. The code should handle this: `max_size[compat] >= 0` is always true (since the empty set is a right independent set with size 0 and forbidden_left 0, and 0 is a subset of any mask). So `valid` would be True. Then `need = 0`, and the right vertex loop doesn't add any vertices. The result is just the left vertices. Correct!
+
+Actually, let me double-check. If `need = 0`, then `max_size_compat >= 0` is True (since max_size is at least 0 for the empty set). So `valid` is True. Then `rmask = best_rmask[compat]`,

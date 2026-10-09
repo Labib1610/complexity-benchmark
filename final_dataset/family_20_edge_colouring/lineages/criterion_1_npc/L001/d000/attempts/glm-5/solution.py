@@ -1,0 +1,58 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [[] for _ in range(n + 1)]
+    edges = []
+    for i in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        edges.append((u, v))
+        adj[u].append((v, i))
+        adj[v].append((u, i))
+    
+    # Check degree constraint
+    for i in range(1, n + 1):
+        if len(adj[i]) != 3:
+            print("NO")
+            return
+    
+    # Build edge adjacency: edge_adj[e] = list of edges sharing a vertex
+    edge_adj = [[] for _ in range(m)]
+    for u in range(1, n + 1):
+        incident_edges = [idx for (v, idx) in adj[u]]
+        for i in range(3):
+            e1 = incident_edges[i]
+            for j in range(i + 1, 3):
+                e2 = incident_edges[j]
+                edge_adj[e1].append(e2)
+                edge_adj[e2].append(e1)
+    
+    # 3-coloring the edges
+    color = [0] * m
+    
+    for i in range(m):
+        if color[i] == 0:
+            stack = [i]
+            color[i] = 1
+            while stack:
+                u = stack.pop()
+                for v in edge_adj[u]:
+                    if color[v] == 0:
+                        color[v] = color[u] % 3 + 1
+                        stack.append(v)
+                    elif color[v] == color[u]:
+                        print("NO")
+                        return
+    
+    print("YES")
+    print(' '.join(map(str, color)))
+
+if __name__ == "__main__":
+    solve()

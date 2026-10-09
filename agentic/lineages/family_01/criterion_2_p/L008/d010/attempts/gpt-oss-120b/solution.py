@@ -2,53 +2,53 @@ import sys
 from collections import deque
 
 def solve() -> None:
-    data = sys.stdin.buffer.read().split()
+    data = sys.stdin.read().strip().split()
     if not data:
         return
     it = iter(data)
     n = int(next(it))
     m = int(next(it))
-
-    adj = [[] for _ in range(n + 1)]
+    adj = [[] for _ in range(n)]
     for _ in range(m):
-        u = int(next(it)); v = int(next(it))
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
         adj[u].append(v)
         adj[v].append(u)
 
-    state = [0] * (n + 1)          # final answer, 0 = unassigned, 1 or 2
-    parity = [-1] * (n + 1)       # temporary 0/1 inside current component
-    q = deque()
-
-    for start in range(1, n + 1):
-        if state[start]:
+    parity = [-1] * n          # -1 unvisited, else 0/1
+    answer = [0] * n
+    for start in range(n):
+        if parity[start] != -1:
             continue
-        # new component, start BFS with parity 0
+        # BFS this component
+        q = deque([start])
         parity[start] = 0
-        q.append(start)
-        component_vertices = [start]
-
+        comp = [start]
+        ok = True
         while q:
-            u = q.popleft()
-            pu = parity[u]
-            for v in adj[u]:
-                if parity[v] == -1:
-                    parity[v] = 1 - pu
-                    q.append(v)
-                    component_vertices.append(v)
-                elif parity[v] == pu:
-                    # not bipartite
-                    sys.stdout.write("NO")
+            v = q.popleft()
+            for to in adj[v]:
+                if parity[to] == -1:
+                    parity[to] = parity[v] ^ 1
+                    q.append(to)
+                    comp.append(to)
+                elif parity[to] == parity[v]:
+                    print("NO")
                     return
+        # choose orientation to make smallest index get color 1
+        first = min(comp)
+        if parity[first] == 0:
+            # parity 0 -> color 1, parity 1 -> color 2
+            for v in comp:
+                answer[v] = 1 if parity[v] == 0 else 2
+        else:
+            # parity 1 -> color 1
+            for v in comp:
+                answer[v] = 1 if parity[v] == 1 else 2
 
-        # assign final states: parity 0 -> 1, parity 1 -> 2
-        for v in component_vertices:
-            state[v] = 1 if parity[v] == 0 else 2
-            parity[v] = -1          # reset for next component
-
-    # all good
-    out = ["YES\n"]
-    out.append(' '.join(str(state[i]) for i in range(1, n + 1)))
-    sys.stdout.write('\n'.join(out))
+    # all components processed, graph is bipartite
+    print("YES")
+    print(' '.join(map(str, answer)))
 
 if __name__ == "__main__":
     solve()

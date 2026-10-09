@@ -1,21 +1,20 @@
-# Sensor Polarity Configuration
+# Problem B — Power Scaling
 
-Time limit: 1 s
-Memory limit: 256 MB
+Time limit: 1 s   Memory limit: 256 MB
 
-You are configuring a network of $n$ sensors. Each sensor must be assigned an operating state, represented by an integer $s_i \in \{1, 2\}$.
+A manufacturing facility employs $n$ robotic welders, which are identified by integers from 1 to $n$. The facility requires each welder to be configured with a power scaling factor of exactly 1 or 2. 
 
-There are $m$ critical pairs of sensors. For each critical pair $(u, v)$, the system requires that their assigned states satisfy the equation $s_u \times s_v = 2$ to maintain equilibrium.
+Over time, management has installed $m$ shared power buses. Each bus connects two specific welders. A strict operational rule dictates that to prevent electrical overload, the product of the power scaling factors of the two welders connected by any shared bus must be exactly 2.
 
-Your task is to determine whether there exists a valid state assignment for all $n$ sensors that satisfies this equation for every critical pair. If multiple valid assignments exist, you must find the one where the sequence $(s_1, s_2, \dots, s_n)$ is lexicographically smallest. (A sequence $A$ is lexicographically smaller than sequence $B$ if, at the first position where they differ, the value in $A$ is smaller than the value in $B$.)
+Your task is to determine whether the entire set of welders can be configured in complete compliance with this operational rule. If a compliant configuration exists, you must provide the specific configuration sequence $s_1, s_2, \dots, s_n$ (where each $s_i \in \{1, 2\}$ is the scaling factor assigned to welder $i$) that is lexicographically smallest. If no such configuration is possible, you must report that it cannot be done.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$), representing the number of sensors and the number of critical pairs.
-Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$), indicating that sensors $u$ and $v$ form a critical pair.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$).
+Each of the next $m$ lines contains two integers $u$ and $v$ — representing the two welders connected by a shared power bus.
 
 ## Output
-If no valid state assignment can satisfy all conditions, print a single line containing `NO`.
-Otherwise, print `YES` on the first line. On the second line, print $n$ integers $s_1, \ldots, s_n$ (each $s_i \in \{1, 2\}$), representing the lexicographically smallest valid state assignment.
+If there is no way to assign the scaling factors without violating the operational rule, print a single line containing NO.
+Otherwise, print YES on the first line. On the second line, print $n$ space-separated integers $s_1, s_2, \dots, s_n$ (each either 1 or 2), representing the lexicographically smallest valid configuration sequence.
 
 ## Example 1
 Input:

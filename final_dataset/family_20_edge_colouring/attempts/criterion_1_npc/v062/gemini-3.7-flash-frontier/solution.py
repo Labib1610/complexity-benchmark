@@ -1,0 +1,133 @@
+import sys
+
+# Increase recursion depth just in case
+sys.setrecursionlimit(100000)
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    edges = []
+    adj = [[] for _ in range(n + 1)]
+    idx = 2
+    for i in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx+1])
+        idx += 2
+        edges.append((u, v))
+        adj[u].append(i)
+        adj[v].append(i)
+        
+    # Check if graph is 3-regular
+    for i in range(1, n + 1):
+        if len(adj[i]) != 3:
+            print("NO")
+            return
+
+    # Edge neighbors: edges that share a vertex
+    edge_adj = [[] for _ in range(m)]
+    for v in range(1, n + 1):
+        e1, e2, e3 = adj[v]
+        edge_adj[e1].extend([e2, e3])
+        edge_adj[e2].extend([e1, e3])
+        edge_adj[e3].extend([e1, e2])
+
+    for i in range(m):
+        edge_adj[i] = list(set(edge_adj[i]))
+
+    # Domain for each edge: bitmask where 1=color1, 2=color2, 4=color3 (mask: 1, 2, 4)
+    # 7 means {1, 2, 3}
+    domains = [7] * m
+    assigned = [0] * m
+
+    def popcount(x):
+        return (x & 1) + ((x >> 1) & 1) + ((x >> 2) & 1)
+
+    # Unit propagation / forward checking
+    def assign(edge, color_mask, trail):
+        if assigned[edge] == color_mask:
+            return True
+        if assigned[edge] != 0:
+            return False
+        if not (domains[edge] & color_mask):
+            return False
+        
+        assigned[edge] = color_mask
+        trail.append((edge, domains[edge], 0))
+        domains[edge] = color_mask
+
+        # Propagate to adjacent edges: they cannot have this color
+        for neighbor in edge_adj[edge]:
+            if assigned[neighbor] == color_mask:
+                return False
+            if domains[neighbor] & color_mask:
+                trail.append((neighbor, domains[neighbor], 1))
+                domains[neighbor] &= ~color_mask
+                if domains[neighbor] == 0:
+                    return False
+                # If only one color left and not assigned, we could queue it,
+                # but standard search with MRV will pick it next anyway.
+        return True
+
+    def backtrack(steps=0):
+        # Pick unassigned variable with minimum remaining values (MRV)
+        # Degree heuristic as tie breaker
+        best_edge = -1
+        min_dom = 4
+        
+        for i in range(m):
+            if assigned[i] == 0:
+                d = popcount(domains[i])
+                if d < min_dom:
+                    min_dom = d
+                    best_edge = i
+                    if d == 1:
+                        break
+
+        if best_edge == -1:
+            return True # All assigned
+
+        if min_dom == 0:
+            return False
+
+        cur_dom = domains[best_edge]
+        # Try available colors
+        colors = []
+        for c in [1, 2, 4]:
+            if cur_dom & c:
+                colors.append(c)
+
+        for c in colors:
+            trail = []
+            if assign(best_edge, c, trail):
+                if backtrack(steps + 1):
+                    return True
+            # Undo trail
+            for item in reversed(trail):
+                e, old_d, t = item
+                if t == 0:
+                    assigned[e] = 0
+                domains[e] = old_d
+
+        return False
+
+    # Break symmetry on the first connected component: assign colors 1, 2, 4 to edges of vertex 1
+    v1_edges = adj[1]
+    trail = []
+    ok = (assign(v1_edges[0], 1, trail) and 
+          assign(v1_edges[1], 2, trail) and 
+          assign(v1_edges[2], 4, trail))
+
+    if ok and backtrack():
+        print("YES")
+        mask_to_color = {1: 1, 2: 2, 4: 3}
+        ans = [str(mask_to_color[assigned[i]]) for i in range(m)]
+        print(" ".join(ans))
+    else:
+        print("NO")
+
+if __name__ == '__main__':
+    solve()

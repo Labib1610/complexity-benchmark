@@ -3,33 +3,37 @@ import sys
 def solve():
     input = sys.stdin.readline
     n, m = map(int, input().split())
-    conflicts = [[] for _ in range(n)]
+    adj = [0] * n
     for _ in range(m):
         u, v = map(int, input().split())
         u -= 1
         v -= 1
-        conflicts[u].append(v)
-        conflicts[v].append(u)
+        adj[u] |= (1 << v)
+        adj[v] |= (1 << u)
 
+    # Try to assign shifts 1,2,3
     assignment = [0] * n
 
-    def backtrack(i):
-        if i == n:
+    # Backtracking with pruning
+    def dfs(idx):
+        if idx == n:
             return True
-        for shift in (1, 2, 3):
+        # Try colors 1,2,3
+        for color in (1, 2, 3):
             ok = True
-            for j in conflicts[i]:
-                if assignment[j] == shift:
+            # Check conflicts with already assigned neighbors
+            for j in range(n):
+                if (adj[idx] >> j) & 1 and assignment[j] == color:
                     ok = False
                     break
             if ok:
-                assignment[i] = shift
-                if backtrack(i + 1):
+                assignment[idx] = color
+                if dfs(idx + 1):
                     return True
-                assignment[i] = 0
+                assignment[idx] = 0
         return False
 
-    if backtrack(0):
+    if dfs(0):
         print("YES")
         print(" ".join(map(str, assignment)))
     else:

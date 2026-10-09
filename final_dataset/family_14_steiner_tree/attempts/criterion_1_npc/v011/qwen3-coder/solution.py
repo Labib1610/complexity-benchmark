@@ -1,0 +1,86 @@
+import sys
+import heapq
+from collections import defaultdict
+import math
+
+def dijkstra(graph, start, end):
+    # Dijkstra's algorithm to find shortest path between start and end
+    dist = defaultdict(lambda: math.inf)
+    dist[start] = 0
+    pq = [(0, start)]
+    visited = set()
+    
+    while pq:
+        d, u = heapq.heappop(pq)
+        if u in visited:
+            continue
+        visited.add(u)
+        
+        if u == end:
+            return d
+            
+        for v, w in graph[u]:
+            if v not in visited and dist[u] + w < dist[v]:
+                dist[v] = dist[u] + w
+                heapq.heappush(pq, (dist[v], v))
+                
+    return dist[end]
+
+def solve():
+    n, m, t = map(int, sys.stdin.readline().split())
+    primary = list(map(int, sys.stdin.readline().split()))
+    
+    # If there's only one primary language, no translation needed
+    if t <= 1:
+        print(0)
+        return
+        
+    edges = []
+    graph = defaultdict(list)
+    
+    for _ in range(m):
+        u, v, w = map(int, sys.stdin.readline().split())
+        edges.append((w, u, v))
+        graph[u].append((v, w))
+        graph[v].append((u, w))
+    
+    # Create a complete graph of primary languages with shortest path weights
+    primary_graph = []
+    for i in range(t):
+        for j in range(i+1, t):
+            # Find shortest path between primary[i] and primary[j]
+            cost = dijkstra(graph, primary[i], primary[j])
+            if cost != math.inf:
+                primary_graph.append((cost, i, j))
+    
+    # Kruskal's algorithm to find MST of primary languages
+    parent = list(range(t))
+    
+    def find(x):
+        if parent[x] != x:
+            parent[x] = find(parent[x])
+        return parent[x]
+    
+    def union(x, y):
+        px, py = find(x), find(y)
+        if px != py:
+            parent[px] = py
+            return True
+        return False
+    
+    # Sort edges by weight
+    primary_graph.sort()
+    
+    total_cost = 0
+    edges_used = 0
+    
+    for cost, u, v in primary_graph:
+        if union(u, v):
+            total_cost += cost
+            edges_used += 1
+            if edges_used == t - 1:
+                break
+    
+    print(total_cost)
+
+solve()

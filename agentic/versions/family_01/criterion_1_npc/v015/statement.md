@@ -1,18 +1,17 @@
-# Problem A — Shift Allocation Protocol
+# Problem A — Technician Roster
 
-Time limit: 2 s   Memory limit: 256 MB
+Time limit: 2 s
+Memory limit: 256 MB
 
-A manufacturing facility operates continuously across three sequential time periods, designated as period 1, period 2, and period 3. The facility employs $n$ machinists, and management must allocate each machinist to exactly one of these periods. Safety incident logs indicate that certain pairs of machinists have interpersonal disputes. To prevent workplace disruptions, no two machinists with a documented dispute can be allocated to the same time period.
-
-Management needs to determine if a completely safe allocation is possible. Furthermore, the payroll system requires the final schedule to be submitted as a sequence of $n$ period numbers, corresponding to machinists 1 through $n$. To ensure standardized reporting when multiple safe allocations are possible, the system mandates selecting the sequence that is lexicographically smallest (comparing the first machinist's period first, then the second's, and so on).
+A continuous-operation facility divides its daily schedule into three distinct 8-hour blocks, designated 1, 2, and 3. The facility employs $n$ technicians, numbered 1 through $n$, each of whom must be allocated to exactly one of these blocks. To prevent workplace friction, HR mandates that certain pairs of technicians cannot be present during the same block. You are given the total number of technicians and the specific pairs that have documented conflicts. Produce a complete schedule assigning each technician to block 1, 2, or 3 without violating any HR mandates, or indicate that no such arrangement exists.
 
 ## Input
-The first line provides two integers $n$ and $m$ — the total number of machinists and the number of documented disputes ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
-The following $m$ lines each contain two integers $u$ and $v$, representing a pair of machinists who have a dispute.
+The first line contains two integers $n$ and $m$ — the number of technicians and the number of documented HR conflicts ($1 \le n \le 40$, $0 \le m \le n \cdot (n-1)/2$).
+Each of the following $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$), representing a pair of technicians who cannot be assigned to the same block.
 
 ## Output
-If there is no way to allocate the machinists safely, output a single line containing `NO`.
-If a safe allocation is possible, output `YES` on the first line. On the second line, output $n$ integers separated by spaces, where the $i$-th integer (which must be 1, 2, or 3) represents the time period assigned to machinist $i$. This sequence must be the lexicographically smallest among all valid allocations.
+If no valid schedule can be created, print a single line containing `NO`.
+Otherwise, print `YES` on the first line. On the second line, print $n$ integers $s_1, s_2, \dots, s_n$ (where each $s_i \in \{1, 2, 3\}$), representing the block assigned to technician $i$. Any valid schedule will be accepted.
 
 ## Example 1
 Input:

@@ -13,6 +13,7 @@ for _ in range(m):
     adj[v].append(u)
 
 color = [-1] * n
+ok = True
 
 for i in range(n):
     if color[i] == -1:
@@ -22,11 +23,51 @@ for i in range(n):
             u = q.popleft()
             for v in adj[u]:
                 if color[v] == -1:
-                    color[v] = 1 - color[u]
+                    color[v] = color[u] ^ 1
                     q.append(v)
                 elif color[v] == color[u]:
-                    print("NO")
-                    sys.exit()
+                    ok = False
+                    break
+            if not ok:
+                break
+    if not ok:
+        break
 
-print("YES")
-print(" ".join(str(c + 1) for c in color))
+if not ok:
+    print("NO")
+else:
+    # For each component, decide orientation
+    visited = [False] * n
+    assignment = [0] * n
+    for i in range(n):
+        if not visited[i]:
+            # collect component
+            comp = []
+            q = deque([i])
+            visited[i] = True
+            while q:
+                u = q.popleft()
+                comp.append(u)
+                for v in adj[u]:
+                    if not visited[v]:
+                        visited[v] = True
+                        q.append(v)
+            # two possible assignments: color as is, or flipped
+            # compute score for each
+            score1 = 0.0
+            score2 = 0.0
+            for u in comp:
+                if color[u] == 0:
+                    score1 += 1 / __import__('math').factorial(u + 1)
+                else:
+                    score2 += 1 / __import__('math').factorial(u + 1)
+            # choose better
+            if score1 >= score2:
+                for u in comp:
+                    assignment[u] = 1 if color[u] == 0 else 2
+            else:
+                for u in comp:
+                    assignment[u] = 1 if color[u] == 1 else 2
+
+    print("YES")
+    print(" ".join(map(str, assignment)))

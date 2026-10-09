@@ -1,0 +1,72 @@
+# Problem C — Impossible Protocol: Certify It
+
+Time limit: 2 s   Memory limit: 256 MB
+
+## Description
+
+A cryptographic protocol operates on a state space of size **T**, represented as the set of integers $\{1, 2, \dots, T\}$. A session consists of **j** independent exchanges. For each exchange $i$, the protocol must generate two injective functions:
+- A query function $Q_i$ mapping the set of integers from 1 to **p1** inclusive into the set $\{1, 2, \dots, T\}$.
+- A reply function $R_i$ mapping the set of integers from 1 to **p2** inclusive into the set $\{1, 2, \dots, T\}$.
+
+A valid session must satisfy three security properties:
+1. **Causality:** For any single exchange $i$, the maximum value in the image of $Q_i$ must be strictly less than the minimum value in the image of $R_i$.
+2. **Query Independence:** For any two distinct exchanges $x$ and $y$, the images of $Q_x$ and $Q_y$ must be disjoint (their intersection is empty).
+3. **Reply Independence:** For any two distinct exchanges $x$ and $y$, the images of $R_x$ and $R_y$ must be disjoint.
+
+Every provided configuration represents an impossible session—there is no valid way to generate the functions that satisfies all properties within a state space of size **T**. Instead of attempting to generate them, your task is to identify the bottleneck that proves the configuration is unachievable, providing a short certificate the system can verify.
+
+Exactly one of the following foundational requirements is broken. Output the applicable certificate:
+
+- **Causality Failure:** For some exchange $i$, there exist no injective functions $Q_i$ and $R_i$ into $\{1, 2, \dots, T\}$ that satisfy the Causality property. Output `JOB i` (where $i$ is the 1-based index of the exchange).
+- **Query Collision:** There exist no **j** injective functions $Q_1, \dots, Q_j$ into $\{1, 2, \dots, T\}$ that satisfy the Query Independence property. Output `LOAD 1`.
+- **Reply Collision:** There exist no **j** injective functions $R_1, \dots, R_j$ into $\{1, 2, \dots, T\}$ that satisfy the Reply Independence property. Output `LOAD 2`.
+
+You are guaranteed that exactly one of these requirements will be broken for the given input.
+
+## Input
+
+The first line contains two integers **j** and **T** (1 ≤ j ≤ 200000, 1 ≤ T ≤ 1000000000).
+Each of the next **j** lines contains two integers **p1** and **p2** (1 ≤ p1, p2 ≤ 1000000): the domain sizes for the query function and the reply function of an exchange.
+
+## Output
+
+Print a single line: `JOB i` (for a causality bottleneck) or `LOAD c` (for a collision bottleneck, where **c** is 1 for query collision or 2 for reply collision).
+
+## Examples
+
+### Example 1
+
+**Input**
+```
+3 100
+70 60
+2 2
+3 4
+```
+
+**Output**
+```
+JOB 1
+```
+
+### Example 2
+
+**Input**
+```
+4 150
+50 1
+50 1
+50 1
+50 1
+```
+
+**Output**
+```
+LOAD 1
+```
+
+## Note
+
+In Example 1, for exchange 1, the query and reply functions require domains of sizes 70 and 60 respectively. There exist no injective functions mapping these domains into $\{1, 2, \dots, 100\}$ such that the maximum value in the query image is strictly less than the minimum value in the reply image, breaking the Causality property. Thus `JOB 1` is the correct proof of impossibility. 
+
+In Example 2, no single exchange breaks Causality. However, the query functions require domains of sizes 50, 50, 50, and 50. There exist no 4 injective functions from these domains into $\{1, 2, \dots, 150\}$ such that their images are mutually disjoint, breaking the Query Independence property. Thus `LOAD 1` is the correct output.

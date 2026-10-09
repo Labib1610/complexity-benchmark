@@ -1,0 +1,76 @@
+import sys
+from itertools import combinations
+
+def solve():
+    k, t = map(int, sys.stdin.readline().split())
+    
+    if t == 0:
+        if k == 0:
+            print("YES")
+        else:
+            print("NO")
+        return
+    
+    profiles = []
+    for _ in range(t):
+        x, y, z = map(int, sys.stdin.readline().split())
+        profiles.append((x, y, z))
+    
+    # We need to find k profiles such that all operators, terminals and shifts 
+    # are used exactly once each
+    
+    # This is essentially finding a perfect matching in a 3-dimensional bipartite graph
+    # We can model this as finding a set of k triples (x_i, y_j, z_l) such that:
+    # - All x values are distinct
+    # - All y values are distinct  
+    # - All z values are distinct
+    # - Each triple is from our profile list
+    
+    # Since k <= 22, we can try all combinations of k profiles from the t available
+    # But C(t, k) could be too large, so let's think differently
+    
+    # This is actually the 3D matching problem
+    # Let's use backtracking approach since k is small
+    
+    def backtrack(selected, used_x, used_y, used_z, index):
+        if len(selected) == k:
+            return selected[:]
+        
+        if index >= t:
+            return None
+            
+        # Try including current profile
+        x, y, z = profiles[index]
+        if x not in used_x and y not in used_y and z not in used_z:
+            selected.append(profiles[index])
+            used_x.add(x)
+            used_y.add(y)
+            used_z.add(z)
+            
+            result = backtrack(selected, used_x, used_y, used_z, index + 1)
+            if result is not None:
+                return result
+                
+            selected.pop()
+            used_x.remove(x)
+            used_y.remove(y)
+            used_z.remove(z)
+        
+        # Try not including current profile
+        return backtrack(selected, used_x, used_y, used_z, index + 1)
+    
+    # Optimization: if t < k, impossible
+    if t < k:
+        print("NO")
+        return
+        
+    result = backtrack([], set(), set(), set(), 0)
+    
+    if result is not None:
+        print("YES")
+        for profile in result:
+            print(profile[0], profile[1], profile[2])
+    else:
+        print("NO")
+
+solve()

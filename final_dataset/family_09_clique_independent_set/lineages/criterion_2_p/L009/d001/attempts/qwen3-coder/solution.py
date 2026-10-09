@@ -1,0 +1,65 @@
+import sys
+from collections import defaultdict, deque
+
+def read_input():
+    n, m, k = map(int, sys.stdin.readline().split())
+    edges = []
+    for _ in range(m):
+        u, v = map(int, sys.stdin.readline().split())
+        edges.append((u, v))
+    return n, m, k, edges
+
+def build_graph(n, edges):
+    graph = defaultdict(list)
+    for u, v in edges:
+        graph[u].append(v)
+        graph[v].append(u)
+    return graph
+
+def is_bipartite(graph, n):
+    color = {}
+    for start in range(1, n + 1):
+        if start not in color:
+            queue = deque([start])
+            color[start] = 0
+            while queue:
+                node = queue.popleft()
+                for neighbor in graph[node]:
+                    if neighbor not in color:
+                        color[neighbor] = 1 - color[node]
+                        queue.append(neighbor)
+                    elif color[neighbor] == color[node]:
+                        return False, None, None
+    # If bipartite, partition into two sets
+    set_a, set_b = [], []
+    for node in range(1, n + 1):
+        if node in color:
+            if color[node] == 0:
+                set_a.append(node)
+            else:
+                set_b.append(node)
+        else:
+            # Isolated node, can be put in either set
+            set_a.append(node)
+    return True, set_a, set_b
+
+def solve():
+    n, m, k, edges = read_input()
+    graph = build_graph(n, edges)
+    
+    # The even-loop property means the graph is bipartite
+    is_bip, set_a, set_b = is_bipartite(graph, n)
+    
+    # Since the problem guarantees even-loop property, it should always be bipartite
+    # But we check anyway for robustness
+    
+    if len(set_a) >= k:
+        print("YES")
+        print(' '.join(map(str, set_a[:k])))
+    elif len(set_b) >= k:
+        print("YES")
+        print(' '.join(map(str, set_b[:k])))
+    else:
+        print("NO")
+
+solve()

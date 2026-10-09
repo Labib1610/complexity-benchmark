@@ -1,0 +1,93 @@
+import sys
+import heapq
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    
+    n = int(next(it))
+    m = int(next(it))
+    t = int(next(it))
+    
+    core = []
+    for _ in range(t):
+        core.append(int(next(it)))
+    
+    # Build adjacency list for all n nodes
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        w = int(next(it))
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+    
+    # If t <= 1, no edges needed
+    if t <= 1:
+        print(0)
+        return
+    
+    # Compute MST on the complete graph of core nodes
+    # where edge weight between core[i] and core[j] is the shortest path cost in original graph
+    # Use Prim's algorithm on the fly
+    
+    INF = 10**18
+    min_edge = [INF] * (n + 1)  # min_edge[v] = min cost to connect v to current MST
+    in_mst = [False] * (n + 1)
+    
+    # Start with first core node
+    start = core[0]
+    min_edge[start] = 0
+    
+    # Priority queue: (cost, node)
+    pq = [(0, start)]
+    
+    mst_cost = 0
+    nodes_in_mst = 0
+    
+    while pq and nodes_in_mst < t:
+        cost, u = heapq.heappop(pq)
+        
+        if in_mst[u]:
+            continue
+        
+        # Check if u is a core node
+        is_core = False
+        for c in core:
+            if c == u:
+                is_core = True
+                break
+        
+        if not is_core:
+            continue
+        
+        in_mst[u] = True
+        mst_cost += cost
+        nodes_in_mst += 1
+        
+        # Run Dijkstra from u to update min_edge for all nodes
+        dist = [INF] * (n + 1)
+        dist[u] = 0
+        dq = [(0, u)]
+        
+        while dq:
+            d, v = heapq.heappop(dq)
+            if d > dist[v]:
+                continue
+            for to, w in adj[v]:
+                if dist[to] > d + w:
+                    dist[to] = d + w
+                    heapq.heappush(dq, (dist[to], to))
+        
+        # Update min_edge for all nodes based on distances from u
+        for v in range(1, n + 1):
+            if not in_mst[v] and dist[v] < min_edge[v]:
+                min_edge[v] = dist[v]
+                heapq.heappush(pq, (min_edge[v], v))
+    
+    print(mst_cost)
+
+if __name__ == "__main__":
+    solve()

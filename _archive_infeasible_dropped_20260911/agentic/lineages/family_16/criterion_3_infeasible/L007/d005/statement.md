@@ -1,0 +1,57 @@
+# Problem C — Impossible Domains: Certify It
+
+Time limit: 2 s   Memory limit: 256 MB
+
+## Description
+
+A system must assign an activation domain $D_{i,c} \subseteq [0, T]$ to each item $i \in \{1 \dots j\}$ and component $c \in \{1, 2\}$. 
+A complete assignment is valid if it satisfies three axioms:
+1. **Contiguity:** Each domain $D_{i,c}$ must be a single contiguous closed interval of length exactly $p_{i,c}$.
+2. **Causality:** For every item $i$, if $x \in D_{i,1}$ and $y \in D_{i,2}$, then $x \le y$.
+3. **Exclusivity:** For a fixed component $c$, and any two distinct items $i \neq k$, the intersection $D_{i,c} \cap D_{k,c}$ must contain at most one real number.
+
+You are analyzing logs from failed systems where a valid complete assignment is mathematically impossible. For every provided test case, exactly one of the following isolated subsystems is inherently impossible to assign. Output the code for the one that applies:
+- `JOB i` — It is impossible to construct $D_{i,1}$ and $D_{i,2}$ within $[0, T]$ satisfying Contiguity and Causality for the **i**-th item (1-indexed), even if we completely ignore Exclusivity and all other items.
+- `LOAD c` — It is impossible to construct $D_{1,c}, \dots, D_{j,c}$ within $[0, T]$ satisfying Contiguity and Exclusivity for component **c** (where **c** $\in \{1, 2\}$), even if we completely ignore Causality and the other component.
+
+## Input
+
+The first line contains two integers **j** and **T** (1 ≤ j ≤ 200000, 1 ≤ T ≤ 1000000000).
+Each of the following **j** lines contains two integers **p1** and **p2** (1 ≤ p1, p2 ≤ 1000000): the required domain lengths $p_{i,1}$ and $p_{i,2}$ for the item at component 1 and component 2, respectively.
+
+## Output
+
+Print a single line containing the applicable certificate: either `JOB i` or `LOAD c`.
+
+## Examples
+
+### Example 1
+
+**Input**
+```
+3 100
+70 60
+2 2
+3 4
+```
+
+**Output**
+```
+JOB 1
+```
+
+### Example 2
+
+**Input**
+```
+4 150
+50 1
+50 1
+50 1
+50 1
+```
+
+**Output**
+```
+LOAD 1
+```

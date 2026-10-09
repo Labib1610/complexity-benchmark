@@ -1,0 +1,69 @@
+import sys
+
+def solve():
+    input = sys.stdin.readline
+    n, m, k = map(int, input().split())
+    adj = [0] * n
+    for _ in range(m):
+        u, v = map(int, input().split())
+        u -= 1
+        v -= 1
+        adj[u] |= (1 << v)
+        adj[v] |= (1 << u)
+
+    # Try to find an independent set of size k
+    # Use bitmask to represent candidate set
+    # We'll do backtracking with pruning
+
+    # Precompute for each vertex, the set of vertices that are not neighbors (including itself)
+    # This helps in quickly getting candidates
+    non_neighbors = [0] * n
+    for i in range(n):
+        non_neighbors[i] = ((1 << n) - 1) ^ adj[i]
+
+    # We'll do recursive search
+    # candidates: bitmask of vertices we can still add
+    # chosen: list of chosen vertices
+    def dfs(candidates, chosen):
+        if len(chosen) == k:
+            return chosen[:]
+        # Prune: if not enough candidates left
+        if bin(candidates).count("1") < k - len(chosen):
+            return None
+        # Choose a vertex with fewest candidates to branch on (heuristic)
+        # Find first set bit
+        # Simple: pick lowest index
+        # But we can improve by picking vertex with smallest degree among candidates
+        best_v = -1
+        best_count = n + 1
+        c = candidates
+        while c:
+            lsb = c & -c
+            v = (lsb.bit_length() - 1)
+            cnt = bin(candidates & non_neighbors[v]).count("1")
+            if cnt < best_count:
+                best_count = cnt
+                best_v = v
+            c -= lsb
+        v = best_v
+        # Option 1: include v
+        new_candidates = candidates & non_neighbors[v]
+        res = dfs(new_candidates, chosen + [v])
+        if res is not None:
+            return res
+        # Option 2: exclude v
+        res = dfs(candidates & ~(1 << v), chosen)
+        if res is not None:
+            return res
+        return None
+
+    all_mask = (1 << n) - 1
+    result = dfs(all_mask, [])
+    if result is None:
+        print("NO")
+    else:
+        print("YES")
+        print(" ".join(str(x + 1) for x in result))
+
+if __name__ == "__main__":
+    solve()

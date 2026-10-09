@@ -1,0 +1,264 @@
+```python
+import sys
+from collections import deque
+import random
+
+# Increase recursion depth just in case
+sys.setrecursionlimit(20000)
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    k = int(next(it))
+    
+    contracts = []
+    for _ in range(k):
+        s = int(next(it)) - 1
+        t = int(next(it)) - 1
+        d = int(next(it))
+        contracts.append((s, t, d))
+        
+    edges = []
+    adj = [[] for _ in range(n)]
+    for e in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        c = int(next(it))
+        edges.append((u, v, c))
+        adj[u].append((v, c, e))
+
+    # If k == 1, it's just single-commodity maximum flow / reach demand
+    if k == 1:
+        s, t, d = contracts[0]
+        # Max flow with Dinic
+        # Build residual graph
+        head = [-1] * n
+        to = []
+        nxt = []
+        cap = []
+        flow = []
+        edge_orig_idx = []
+        
+        def add_edge(u, v, c, idx):
+            to.append(v); cap.append(c); flow.append(0); nxt.append(head[u]); edge_orig_idx.append(idx); head[u] = len(to) - 1
+            to.append(u); cap.append(0); flow.append(0); nxt.append(head[v]); edge_orig_idx.append(-1); head[v] = len(to) - 1
+
+        for e, (u, v, c) in enumerate(edges):
+            add_edge(u, v, c, e)
+            
+        level = [-1] * n
+        def bfs():
+            for i in range(n):
+                level[i] = -1
+            level[s] = 0
+            q = deque([s])
+            while q:
+                u = q.popleft()
+                e = head[u]
+                while e != -1:
+                    v = to[e]
+                    if cap[e] - flow[e] > 0 and level[v] == -1:
+                        level[v] = level[u] + 1
+                        q.append(v)
+                    e = nxt[e]
+            return level[t] != -1
+
+        ptr = [0] * n
+        def dfs(u, pushed):
+            if pushed == 0 or u == t:
+                return pushed
+            e = ptr[u]
+            while e != -1:
+                v = to[e]
+                tr = cap[e] - flow[e]
+                if level[u] + 1 == level[v] and tr > 0:
+                    tr = min(pushed, tr)
+                    p = dfs(v, tr)
+                    if p > 0:
+                        flow[e] += p
+                        flow[e ^ 1] -= p
+                        return p
+                e = nxt[e]
+                ptr[u] = e
+            return 0
+
+        tot_flow = 0
+        while tot_flow < d and bfs():
+            for i in range(n):
+                ptr[i] = head[i]
+            while True:
+                p = dfs(s, d - tot_flow)
+                if p == 0:
+                    break
+                tot_flow += p
+
+        if tot_flow < d:
+            print("NO")
+            return
+        
+        ans = [0] * m
+        for e in range(0, len(to), 2):
+            orig = edge_orig_idx[e]
+            if orig != -1:
+                ans[orig] = max(0, flow[e])
+        print("YES")
+        print(*(ans))
+        return
+
+    # For general k, use ILP via branch and bound or randomized DFS
+    # Let's decompose demand into unit flows or use a DFS with backtracking
+    # Check if total demand is 0
+    if sum(c[2] for c in contracts) == 0:
+        print("YES")
+        for _ in range(k):
+            print(*([0] * m))
+        return
+
+    # Backtracking with path finding for individual units of flow
+    # Decompose contracts into units
+    units = []
+    for i, (s, t, d) in enumerate(contracts):
+        for _ in range(d):
+            units.append((i, s, t))
+
+    # Try heuristic / randomized backtracking
+    rem_cap = [c for _, _, c in edges]
+    res_flow = [[0] * m for _ in range(k)]
+
+    def find_path(s, t):
+        # BFS to find shortest path in available edges
+        parent = [-1] * n
+        parent_edge = [-1] * n
+        q = deque([s])
+        visited = [False] * n
+        visited[s] = True
+        while q:
+            u = q.popleft()
+            if u == t:
+                break
+            # Randomize neighbors to get diverse paths on retry
+            nbrs = adj[u]
+            for v, c, e in nbrs:
+                if rem_cap[e] > 0 and not visited[v]:
+                    visited[v] = True
+                    parent[v] = u
+                    parent_edge[v] = e
+                    q.append(v)
+        if not visited[t]:
+            return None
+        path = []
+        curr = t
+        while curr != s:
+            path.append(parent_edge[curr])
+            curr = parent[curr]
+        path.reverse()
+        return path
+
+    # Try deterministic + random restart backtracking
+    for attempt in range(100):
+        if attempt > 0:
+            random.shuffle(units)
+        rem_cap = [c for _, _, c in edges]
+        res_flow = [[0] * m for _ in range(k)]
+        possible = True
+        for (c_idx, s, t) in units:
+            path = find_path(s, t)
+            if path is None:
+                possible = False
+                break
+            for e in path:
+                rem_cap[e] -= 1
+                res_flow[c_idx][e] += 1
+        if possible:
+            print("YES")
+            for i in range(k):
+                print(*res_flow[i])
+            return
+
+    # If simple greedy doesn't find it, use Branch & Bound on flow variables
+    # (Formulate as ILP: x_{i, e} >= 0, conservation constraints, capacity constraints)
+    import math
+
+    # Variables: x[i][e], total k * m variables
+    num_vars = k * m
+    # Build constraint matrix A * x = b, and capacity <= cap
+    # We can use a simple Simplex + B&B if needed, but for competitive programming,
+    # let's try a full DFS over units with backtracking depth.
+    
+    rem_cap = [c for _, _, c in edges]
+    res_flow = [[0] * m for _ in range(k)]
+    
+    # Sort units by something sensible
+    units.sort(key=lambda u: (u[1], u[2]))
+    
+    # DFS to find paths with backtracking
+    def dfs_units(idx):
+        if idx == len(units):
+            return True
+        c_idx, s, t = units[idx]
+        
+        # Find all simple paths or paths without cycles
+        # To avoid infinite paths, find shortest paths
+        dist = [-1] * n
+        dist[t] = 0
+        q = deque([t])
+        # Backward BFS for heuristic
+        while q:
+            curr = q.popleft()
+            for u in range(n):
+                for v, _, e in adj[u]:
+                    if v == curr and rem_cap[e] > 0 and dist[u] == -1:
+                        dist[u] = dist[curr] + 1
+                        q.append(u)
+        if dist[s] == -1:
+            return False
+
+        # DFS for a single path from s to t
+        path = []
+        visited_nodes = [False] * n
+        def get_paths(u):
+            if u == t:
+                return True
+            visited_nodes[u] = True
+            # Sort edges by dist[v]
+            valid_edges = []
+            for v, _, e in adj[u]:
+                if rem_cap[e] > 0 and not visited_nodes[v] and dist[v] != -1:
+                    valid_edges.append((dist[v], v, e))
+            valid_edges.sort()
+            for _, v, e in valid_edges:
+                path.append(e)
+                rem_cap[e] -= 1
+                res_flow[c_idx][e] += 1
+                if get_paths(v):
+                    return True
+                rem_cap[e] += 1
+                res_flow[c_idx][e] -= 1
+                path.pop()
+            visited_nodes[u] = False
+            return False
+
+        if get_paths(s):
+            if dfs_units(idx + 1):
+                return True
+            # Undo
+            for e in path:
+                rem_cap[e] += 1
+                res_flow[c_idx][e] -= 1
+        return False
+
+    if dfs_units(0):
+        print("YES")
+        for i in range(k):
+            print(*res_flow[i])
+    else:
+        print("NO")
+
+if __name__ == '__main__':
+    solve()
+```

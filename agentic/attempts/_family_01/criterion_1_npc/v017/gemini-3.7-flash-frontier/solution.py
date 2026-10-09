@@ -1,0 +1,92 @@
+import sys
+
+# Increase recursion depth just in case
+sys.setrecursionlimit(2000)
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    adj = [[] for _ in range(n)]
+    idx = 2
+    for _ in range(m):
+        u = int(input_data[idx]) - 1
+        v = int(input_data[idx+1]) - 1
+        idx += 2
+        adj[u].append(v)
+        adj[v].append(u)
+        
+    color = [0] * n  # 0 means unassigned, 1, 2, 3 are the colors
+    
+    # Track available colors using bitmask: bit 1, 2, 3 (values 1, 2, 3)
+    # Full mask = (1 << 1) | (1 << 2) | (1 << 3) = 2 | 4 | 8 = 14
+    FULL_MASK = 14
+    available = [FULL_MASK] * n
+    
+    def get_cand_count(mask):
+        return bin(mask).count('1')
+
+    def backtrack(assigned_count):
+        if assigned_count == n:
+            return True
+        
+        # Select vertex with MRV (minimum remaining values)
+        best_u = -1
+        min_cands = 4
+        max_deg = -1
+        
+        for u in range(n):
+            if color[u] == 0:
+                cands = get_cand_count(available[u])
+                if cands == 0:
+                    return False
+                if cands < min_cands:
+                    min_cands = cands
+                    best_u = u
+                    max_deg = len(adj[u])
+                elif cands == min_cands:
+                    if len(adj[u]) > max_deg:
+                        best_u = u
+                        max_deg = len(adj[u])
+                        
+        u = best_u
+        mask = available[u]
+        
+        for c in (1, 2, 3):
+            if (mask & (1 << c)):
+                color[u] = c
+                
+                # Forward check / update neighbors
+                affected = []
+                possible = True
+                bit = 1 << c
+                for v in adj[u]:
+                    if color[v] == 0 and (available[v] & bit):
+                        available[v] ^= bit
+                        affected.append(v)
+                        if available[v] == 0:
+                            possible = False
+                            
+                if possible:
+                    if backtrack(assigned_count + 1):
+                        return True
+                        
+                # Restore
+                for v in affected:
+                    available[v] |= bit
+                color[u] = 0
+                
+        return False
+
+    if backtrack(0):
+        print("YES")
+        print(*(color[i] for i in range(n)))
+    else:
+        print("NO")
+
+if __name__ == '__main__':
+    solve()

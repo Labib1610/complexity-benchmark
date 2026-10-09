@@ -1,0 +1,175 @@
+import sys
+from array import array
+from collections import deque
+
+sys.setrecursionlimit(300000)
+
+data = sys.stdin.buffer.read()
+idx = 0
+length = len(data)
+
+def read_int():
+    global idx
+    while idx < length and data[idx] <= 32:
+        idx += 1
+    value = 0
+    while idx < length and data[idx] > 32:
+        value = value * 10 + data[idx] - 48
+        idx += 1
+    return value
+
+n = read_int()
+m = read_int()
+k = read_int()
+
+edge_u = array('i')
+edge_v = array('i')
+degree = [0] * n
+
+for _ in range(m):
+    u = read_int() - 1
+    v = read_int() - 1
+    edge_u.append(u)
+    edge_v.append(v)
+    degree[u] += 1
+    degree[v] += 1
+
+offset = [0] * (n + 1)
+for i in range(n):
+    offset[i + 1] = offset[i] + degree[i]
+
+adj = array('i', [0]) * (2 * m)
+position = offset[:-1].copy()
+
+for i in range(m):
+    u = edge_u[i]
+    v = edge_v[i]
+    adj[position[u]] = v
+    position[u] += 1
+    adj[position[v]] = u
+    position[v] += 1
+
+del edge_u, edge_v, degree, position, data
+
+color = bytearray([255]) * n
+left = []
+stack = []
+
+for start in range(n):
+    if color[start] != 255:
+        continue
+    color[start] = 0
+    stack.append(start)
+
+    while stack:
+        u = stack.pop()
+        if color[u] == 0:
+            left.append(u)
+        next_color = color[u] ^ 1
+        for p in range(offset[u], offset[u + 1]):
+            v = adj[p]
+            if color[v] == 255:
+                color[v] = next_color
+                stack.append(v)
+
+pair_left = [-1] * n
+pair_right = [-1] * n
+dist = [-1] * n
+
+def bfs():
+    q = deque()
+    shortest = n + 1
+
+    for u in left:
+        if pair_left[u] == -1:
+            dist[u] = 0
+            q.append(u)
+        else:
+            dist[u] = -1
+
+    while q:
+        u = q.popleft()
+        if dist[u] + 1 >= shortest:
+            continue
+        for p in range(offset[u], offset[u + 1]):
+            v = adj[p]
+            matched_u = pair_right[v]
+            if matched_u == -1:
+                shortest = dist[u] + 1
+            elif dist[matched_u] == -1:
+                dist[matched_u] = dist[u] + 1
+                q.append(matched_u)
+
+    return shortest
+
+def dfs(u, shortest):
+    next_distance = dist[u] + 1
+    for p in range(offset[u], offset[u + 1]):
+        v = adj[p]
+        matched_u = pair_right[v]
+
+        if matched_u == -1:
+            if next_distance == shortest:
+                pair_left[u] = v
+                pair_right[v] = u
+                return True
+        elif dist[matched_u] == next_distance and dfs(matched_u, shortest):
+            pair_left[u] = v
+            pair_right[v] = u
+            return True
+
+    dist[u] = -1
+    return False
+
+while True:
+    shortest = bfs()
+    if shortest == n + 1:
+        break
+    for u in left:
+        if pair_left[u] == -1:
+            dfs(u, shortest)
+
+reachable_left = bytearray(n)
+reachable_right = bytearray(n)
+q = deque()
+
+for u in left:
+    if pair_left[u] == -1:
+        reachable_left[u] = 1
+        q.append(u)
+
+while q:
+    u = q.popleft()
+    matched_v = pair_left[u]
+
+    for p in range(offset[u], offset[u + 1]):
+        v = adj[p]
+        if v == matched_v or reachable_right[v]:
+            continue
+
+        reachable_right[v] = 1
+        matched_u = pair_right[v]
+        if matched_u != -1 and not reachable_left[matched_u]:
+            reachable_left[matched_u] = 1
+            q.append(matched_u)
+
+answer = []
+
+for u in left:
+    if reachable_left[u]:
+        answer.append(u + 1)
+        if len(answer) == k:
+            break
+
+if len(answer) < k:
+    for v in range(n):
+        if color[v] == 1 and not reachable_right[v]:
+            answer.append(v + 1)
+            if len(answer) == k:
+                break
+
+if len(answer) < k:
+    sys.stdout.write("NO\n")
+else:
+    sys.stdout.write("YES\n")
+    sys.stdout.write(" ".join(map(str, answer)) + "\n")

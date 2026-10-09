@@ -1,0 +1,83 @@
+# Problem A — Sparse Bilinear Form
+
+Time limit: 5 s   Memory limit: 256 MB
+
+## Description
+
+You are given an **n** $\times$ **n** matrix **A**. Initially, **A** is the identity matrix (i.e., $A_{i,i} = 1$ for all $1 \le i \le n$, and all other entries are $0$).
+
+You are provided a list of **m** symmetric updates. Each update consists of two distinct indices **u** and **v**, which modifies the matrix by adding $1$ to both $A_{u,v}$ and $A_{v,u}$.
+
+Your task is to find a binary vector **x** $\in \{0, 1\}^n$ containing exactly **k** ones (and **n** $-$ **k** zeros) such that the bilinear form $\mathbf{x}^T \mathbf{A} \mathbf{x}$ equals exactly **k**. 
+
+If such a vector exists, report it by listing the 1-based indices $i$ where $x_i = 1$.
+
+## Input
+
+The first line contains three integers **n**, **m**, and **k** (1 ≤ **n** ≤ 46, 0 ≤ **m** ≤ **n**·(**n**−1)/2, 1 ≤ **k** ≤ **n**).
+Each of the next **m** lines contains two integers **u** and **v** (1 ≤ **u**, **v** ≤ **n**, **u** ≠ **v**), representing an update to the matrix. The input will never list the same pair of indices more than once.
+
+## Output
+
+If a valid vector **x** exists, print `YES` on the first line, then on the second line print the **k** distinct indices where $x_i = 1$, separated by spaces. If multiple valid vectors exist, any valid selection is accepted. Print only the **k** selected indices.
+
+If no such vector exists, print `NO`.
+
+## Examples
+
+### Example 1
+
+**Input**
+```
+4 4 3
+1 2
+1 3
+2 3
+3 4
+```
+
+**Output**
+```
+NO
+```
+
+### Example 2
+
+**Input**
+```
+5 2 3
+1 2
+3 4
+```
+
+**Output**
+```
+YES
+1 3 5
+```
+
+### Example 3
+
+**Input**
+```
+3 3 1
+1 2
+2 3
+1 3
+```
+
+**Output**
+```
+YES
+1
+```
+
+## Note
+
+In Example 2, if we choose the vector **x** such that $x_1 = 1$, $x_3 = 1$, $x_5 = 1$ and $x_2 = x_4 = 0$, the sum of its elements is $3$.
+The non-zero entries of **A** are the diagonal elements and the updated pairs $A_{1,2}=A_{2,1}=1$ and $A_{3,4}=A_{4,3}=1$.
+The bilinear form $\mathbf{x}^T \mathbf{A} \mathbf{x}$ is computed as $\sum_{i=1}^n \sum_{j=1}^n x_i A_{i,j} x_j$. 
+For our chosen **x**, the non-zero terms in this sum are $x_1 A_{1,1} x_1 + x_3 A_{3,3} x_3 + x_5 A_{5,5} x_5 = 1 + 1 + 1 = 3$. 
+Since no off-diagonal terms $x_i A_{i,j} x_j$ are non-zero (for instance, $x_1 A_{1,2} x_2 = 1 \times 1 \times 0 = 0$), the total sum is exactly $3$, which equals **k**. The indices where $x_i = 1$ are 1, 3, and 5. 
+
+In Example 1, for any vector with exactly 3 ones, there will be at least one pair of ones that interact via an updated off-diagonal entry, making the total sum strictly greater than 3. Thus, no valid vector exists.

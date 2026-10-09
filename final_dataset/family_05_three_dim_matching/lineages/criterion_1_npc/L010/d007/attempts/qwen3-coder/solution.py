@@ -1,0 +1,47 @@
+from itertools import combinations
+
+def solve():
+    k, t = map(int, input().split())
+    
+    if t == 0:
+        if k == 0:
+            print("YES")
+        else:
+            print("NO")
+        return
+    
+    relays = []
+    for _ in range(t):
+        a, b, c = map(int, input().split())
+        relays.append((a, b, c))
+    
+    # Try all combinations of k relays
+    for combo in combinations(relays, k):
+        # Count occurrences of each value in each position
+        c1 = {}
+        c2 = {}
+        c3 = {}
+        
+        for a, b, c in combo:
+            c1[a] = c1.get(a, 0) + 1
+            c2[b] = c2.get(b, 0) + 1
+            c3[c] = c3.get(c, 0) + 1
+        
+        # Calculate sum of squares
+        total = 0
+        for count in c1.values():
+            total += count * count
+        for count in c2.values():
+            total += count * count
+        for count in c3.values():
+            total += count * count
+        
+        if total == 3 * k:
+            print("YES")
+            for relay in combo:
+                print(relay[0], relay[1], relay[2])
+            return
+    
+    print("NO")
+
+solve()

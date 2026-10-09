@@ -65,8 +65,9 @@ def check_reference(criterion: Criterion) -> list[str]:
         if not tc.out_path.exists():
             problems.append(f"MISSING .out for {tc.in_path}")
 
+    # allow_expand=True: offline oracle validation may exceed the model deadline (audit B1).
     verdict = judge_problem(criterion, criterion.reference_path,
-                            timeout_override=_REFERENCE_TIMEOUT_S)
+                            timeout_override=_REFERENCE_TIMEOUT_S, allow_expand=True)
     for cv in verdict.cases:
         if cv.verdict != "PASS":
             problems.append(
@@ -78,11 +79,15 @@ def check_reference(criterion: Criterion) -> list[str]:
 
 
 def _check_path(path: Path) -> int:
-    """Check a single criterion dir or a whole family dir. Returns exit code."""
+    """Check a single criterion dir, a family dir, or a whole dataset root. Returns exit code."""
     errors_total = 0
 
+    # Dataset root: contains family_* subdirs -> check every family's every criterion.
+    if any(path.glob("family_*")):
+        criteria = list(iter_problems(path))
+        label = f"dataset {path.name}"
     # Determine if path is a family or a criterion
-    if (path / "criterion_1_npc").exists() or any(path.glob("criterion_*")):
+    elif (path / "criterion_1_npc").exists() or any(path.glob("criterion_*")):
         criteria = discover_criteria(path)
         label = f"family {path.name}"
     elif (path / "meta.yaml").exists() or (path / "reference.py").exists():
@@ -135,11 +140,15 @@ def main():
     )
     parser.add_argument(
         "path",
-        help="Path to a family directory (e.g. dataset/family_01_graph_coloring) "
-             "or a single criterion directory.",
+        nargs="?",
+        default=None,
+        help="Path to the dataset root, a family directory "
+             "(e.g. dataset/family_01_graph_coloring), or a single criterion directory. "
+             "Defaults to the dataset/ directory (checks every family).",
     )
     args = parser.parse_args()
-    sys.exit(_check_path(Path(args.path)))
+    path = Path(args.path) if args.path else (Path(__file__).parent.parent / "dataset")
+    sys.exit(_check_path(path))
 
 
 if __name__ == "__main__":

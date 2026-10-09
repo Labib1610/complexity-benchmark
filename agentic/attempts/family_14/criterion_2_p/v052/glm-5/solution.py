@@ -1,0 +1,62 @@
+import sys
+
+def main():
+    data = sys.stdin.buffer.read().split()
+    idx = 0
+    n = int(data[idx]); idx += 1
+    m = int(data[idx]); idx += 1
+    t = int(data[idx]); idx += 1
+    
+    is_key = [False] * (n + 1)
+    for _ in range(t):
+        room = int(data[idx]); idx += 1
+        is_key[room] = True
+    
+    edges = []
+    for _ in range(m):
+        u = int(data[idx]); idx += 1
+        v = int(data[idx]); idx += 1
+        w = int(data[idx]); idx += 1
+        edges.append((w, u, v))
+    
+    if t <= 1:
+        print(0)
+        return
+    
+    edges.sort()
+    
+    parent = list(range(n + 1))
+    size = [1] * (n + 1)
+    key_count = [0] * (n + 1)
+    for i in range(1, n + 1):
+        if is_key[i]:
+            key_count[i] = 1
+    
+    def find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+    
+    total = 0
+    remaining = t
+    
+    for w, u, v in edges:
+        ru = find(u)
+        rv = find(v)
+        if ru != rv:
+            if size[ru] < size[rv]:
+                ru, rv = rv, ru
+            parent[rv] = ru
+            size[ru] += size[rv]
+            key_count[ru] += key_count[rv]
+            if key_count[rv] > 0:
+                total += w
+                remaining -= key_count[rv]
+                if remaining <= 1:
+                    break
+    
+    print(total)
+
+if __name__ == "__main__":
+    main()

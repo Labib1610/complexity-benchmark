@@ -1,0 +1,66 @@
+import sys
+
+def solve():
+    input = sys.stdin.readline
+    q, t = map(int, input().split())
+    n = 3 * q
+    triples = []
+    for _ in range(t):
+        a, b, c = map(int, input().split())
+        triples.append((a-1, b-1, c-1))
+    
+    # Build adjacency: for each person, list of triple indices containing them
+    person_to_triples = [[] for _ in range(n)]
+    for idx, (a,b,c) in enumerate(triples):
+        person_to_triples[a].append(idx)
+        person_to_triples[b].append(idx)
+        person_to_triples[c].append(idx)
+    
+    used = [False] * t
+    chosen = []
+    assigned = [False] * n
+    
+    # Precompute bitmask for each triple
+    masks = []
+    for a,b,c in triples:
+        masks.append((1 << a) | (1 << b) | (1 << c))
+    
+    full_mask = (1 << n) - 1
+    
+    # Recursive backtracking
+    def dfs(mask):
+        if mask == full_mask:
+            return True
+        # Find first unassigned person
+        # Use bit trick to find lowest zero bit
+        # We'll find first unassigned by scanning
+        first = -1
+        for i in range(n):
+            if not (mask >> i) & 1:
+                first = i
+                break
+        # Try triples containing this person
+        for idx in person_to_triples[first]:
+            if used[idx]:
+                continue
+            a,b,c = triples[idx]
+            if (mask >> a) & 1 or (mask >> b) & 1 or (mask >> c) & 1:
+                continue
+            used[idx] = True
+            chosen.append(idx)
+            if dfs(mask | masks[idx]):
+                return True
+            chosen.pop()
+            used[idx] = False
+        return False
+    
+    if dfs(0):
+        print("YES")
+        for idx in chosen:
+            a,b,c = triples[idx]
+            print(a+1, b+1, c+1)
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()

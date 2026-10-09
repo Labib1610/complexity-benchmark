@@ -1,0 +1,198 @@
+import sys
+import random
+import time
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    edges = []
+    adj = [[] for _ in range(n)]
+    
+    idx = 2
+    for i in range(m):
+        u = int(input_data[idx]) - 1
+        v = int(input_data[idx + 1]) - 1
+        idx += 2
+        edges.append((u, v))
+        adj[u].append(i)
+        adj[v].append(i)
+        
+    # Quick bridge check using Tarjan's bridge finding algorithm
+    tin = [-1] * n
+    low = [-1] * n
+    timer = 0
+    has_bridge = False
+    
+    stack = [(0, -1, 0)] # u, p_edge, adj_idx
+    tin[0] = low[0] = 0
+    timer = 1
+    
+    # Non-recursive DFS to find bridges and check connectivity
+    visited_count = 1
+    while stack:
+        u, p_edge, edge_idx = stack[-1]
+        if edge_idx < len(adj[u]):
+            e = adj[u][edge_idx]
+            stack[-1] = (u, p_edge, edge_idx + 1)
+            if e == p_edge:
+                continue
+            v = edges[e][0] if edges[e][1] == u else edges[e][1]
+            if tin[v] != -1:
+                if tin[v] < low[u]:
+                    low[u] = tin[v]
+            else:
+                tin[v] = low[v] = timer
+                timer += 1
+                visited_count += 1
+                stack.append((v, e, 0))
+        else:
+            stack.pop()
+            if stack:
+                p_u = stack[-1][0]
+                if low[u] < low[p_u]:
+                    low[p_u] = low[u]
+                if low[u] > tin[p_u]:
+                    has_bridge = True
+                    break
+
+    # If disconnected (for cubic graphs) or has a bridge, cannot be 3-edge-colored
+    if has_bridge:
+        print("NO")
+        return
+
+    # Edge coloring algorithm
+    edge_color = [0] * m
+    # edge_with_color[u][c] = edge index with color c (1, 2, 3) incident to u
+    edge_with_color = [[-1, -1, -1, -1] for _ in range(n)]
+    
+    def set_color(e, c):
+        old_c = edge_color[e]
+        u, v = edges[e]
+        if old_c > 0:
+            edge_with_color[u][old_c] = -1
+            edge_with_color[v][old_c] = -1
+        edge_color[e] = c
+        if c > 0:
+            edge_with_color[u][c] = e
+            edge_with_color[v][c] = e
+
+    uncolored = list(range(m))
+    random.seed(42)
+    random.shuffle(uncolored)
+    
+    start_time = time.time()
+    max_iter = 300000
+    iterations = 0
+    
+    while uncolored:
+        iterations += 1
+        if iterations > max_iter or (iterations % 5000 == 0 and time.time() - start_time > 4.2):
+            print("NO")
+            return
+        
+        e = uncolored.pop()
+        u, v = edges[e]
+        
+        # Find missing color at u
+        c_u = 0
+        for c in (1, 2, 3):
+            if edge_with_color[u][c] == -1:
+                c_u = c
+                break
+        
+        # Find missing color at v
+        c_v = 0
+        for c in (1, 2, 3):
+            if edge_with_color[v][c] == -1:
+                c_v = c
+                break
+                
+        if c_u == c_v:
+            set_color(e, c_u)
+            continue
+            
+        c1, c2 = c_u, c_v
+        
+        # Trace alternating path (c1, c2) starting at u
+        path = []
+        curr = u
+        exp_c = c2
+        while True:
+            nxt_e = edge_with_color[curr][exp_c]
+            if nxt_e == -1:
+                break
+            path.append(nxt_e)
+            nxt_u, nxt_v = edges[nxt_e]
+            curr = nxt_v if nxt_u == curr else nxt_u
+            exp_c = c1 if exp_c == c2 else c2
+            
+        if curr != v:
+            # Path does not reach v, flip it
+            for pe in path:
+                old_c = edge_color[pe]
+                new_c = c1 if old_c == c2 else c2
+                set_color(pe, new_c)
+            set_color(e, c2)
+        else:
+            # Try third color c3
+            c3 = 6 - c1 - c2
+            path2 = []
+            curr = u
+            exp_c = c3
+            while True:
+                nxt_e = edge_with_color[curr][exp_c]
+                if nxt_e == -1:
+                    break
+                path2.append(nxt_e)
+                nxt_u, nxt_v = edges[nxt_e]
+                curr = nxt_v if nxt_u == curr else nxt_u
+                exp_c = c1 if exp_c == c3 else c3
+                
+            for pe in path2:
+                old_c = edge_color[pe]
+                new_c = c1 if old_c == c3 else c3
+                set_color(pe, new_c)
+                
+            # Now missing at u is c3, missing at v is c2
+            path3 = []
+            curr = u
+            exp_c = c2
+            while True:
+                nxt_e = edge_with_color[curr][exp_c]
+                if nxt_e == -1:
+                    break
+                path3.append(nxt_e)
+                nxt_u, nxt_v = edges[nxt_e]
+                curr = nxt_v if nxt_u == curr else nxt_u
+                exp_c = c3 if exp_c == c2 else c2
+                
+            if curr != v:
+                for pe in path3:
+                    old_c = edge_color[pe]
+                    new_c = c3 if old_c == c2 else c2
+                    set_color(pe, new_c)
+                set_color(e, c2)
+            else:
+                # Random kick
+                chosen_node = u if random.random() < 0.5 else v
+                incident_edges = adj[chosen_node]
+                colored_inc = [ie for ie in incident_edges if edge_color[ie] > 0]
+                if colored_inc:
+                    victim = random.choice(colored_inc)
+                    c_victim = edge_color[victim]
+                    set_color(victim, 0)
+                    set_color(e, c_victim)
+                    uncolored.append(victim)
+                else:
+                    uncolored.append(e)
+
+    print("YES")
+    print(*(edge_color[i] for i in range(m)))
+
+if __name__ == '__main__':
+    solve()

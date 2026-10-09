@@ -1,0 +1,312 @@
+import sys
+import heapq
+import itertools
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if len(data) < 4:
+        return
+
+    n, M, T, m = data[:4]
+    if M <= 0 or T <= 0 or n > M * T:
+        print("NO")
+        return
+
+    pred = [0] * n
+    succ = [0] * n
+    indeg = [0] * n
+
+    p = 4
+    invalid = False
+    for _ in range(m):
+        a = data[p] - 1
+        b = data[p + 1] - 1
+        p += 2
+        if a == b:
+            invalid = True
+            continue
+        bit = 1 << b
+        if not (succ[a] & bit):
+            succ[a] |= bit
+            pred[b] |= 1 << a
+            indeg[b] += 1
+
+    if invalid:
+        print("NO")
+        return
+
+    # Topological order and cycle detection.
+    q = [i for i in range(n) if indeg[i] == 0]
+    heapq.heapify(q)
+    topo = []
+    deg = indeg[:]
+
+    while q:
+        v = heapq.heappop(q)
+        topo.append(v)
+        bits = succ[v]
+        while bits:
+            lb = bits & -bits
+            u = lb.bit_length() - 1
+            bits -= lb
+            deg[u] -= 1
+            if deg[u] == 0:
+                heapq.heappush(q, u)
+
+    if len(topo) != n:
+        print("NO")
+        return
+
+    if M == 1:
+        if n > T:
+            print("NO")
+            return
+        ans = [0] * n
+        for i, v in enumerate(topo, 1):
+            ans[v] = i
+        print("YES")
+        print(*ans)
+        return
+
+    # Longest path lengths ending/starting at every vertex.
+    top_len = [1] * n
+    for v in topo:
+        bits = succ[v]
+        nv = top_len[v] + 1
+        while bits:
+            lb = bits & -bits
+            u = lb.bit_length() - 1
+            bits -= lb
+            if top_len[u] < nv:
+                top_len[u] = nv
+
+    bottom = [1] * n
+    for v in reversed(topo):
+        bits = succ[v]
+        best = 1
+        while bits:
+            lb = bits & -bits
+            u = lb.bit_length() - 1
+            bits -= lb
+            val = bottom[u] + 1
+            if val > best:
+                best = val
+        bottom[v] = best
+
+    if max(bottom, default=0) > T:
+        print("NO")
+        return
+
+    # Necessary capacity checks based on static feasible stage intervals.
+    left_counts = [0] * (T + 2)
+    right_counts = [0] * (T + 2)
+    for v in range(n):
+        earliest = top_len[v]
+        latest = T - bottom[v] + 1
+        if earliest > latest:
+            print("NO")
+            return
+        left_counts[earliest] += 1
+        right_counts[latest] += 1
+
+    # Jobs whose earliest stage is in the final k stages must fit there.
+    suffix = 0
+    for stage in range(T, 0, -1):
+        suffix += left_counts[stage]
+        slots = T - stage + 1
+        if suffix > slots * M:
+            print("NO")
+            return
+
+    # Jobs whose latest stage is in the first k stages must fit there.
+    prefix = 0
+    for stage in range(1, T + 1):
+        prefix += right_counts[stage]
+        if prefix > stage * M:
+            print("NO")
+            return
+
+    outdeg = [succ[v].bit_count() for v in range(n)]
+
+    # Critical-path list scheduling: fast path for typical instances.
+    deg = indeg[:]
+    heap = []
+    for v in range(n):
+        if deg[v] == 0:
+            heapq.heappush(heap, (-bottom[v], -outdeg[v], v))
+
+    greedy_ans = [0] * n
+    completed = 0
+    stage = 0
+
+    while heap:
+        stage += 1
+        batch = []
+        for _ in range(min(M, len(heap))):
+            _, _, v = heapq.heappop(heap)
+            batch.append(v)
+            greedy_ans[v] = stage
+            completed += 1
+
+        newly = []
+        for v in batch:
+            bits = succ[v]
+            while bits:
+                lb = bits & -bits
+                u = lb.bit_length() - 1
+                bits -= lb
+                deg[u] -= 1
+                if deg[u] == 0:
+                    newly.append(u)
+
+        for u in newly:
+            heapq.heappush(heap, (-bottom[u], -outdeg[u], u))
+
+    if completed == n and stage <= T:
+        print("YES")
+        print(*greedy_ans)
+        return
+
+    # Exact branch-and-bound search over non-delay schedules.
+    # Every feasible instance has a non-delay feasible schedule.
+    sys.setrecursionlimit(max(1000000, T + n + 100))
+
+    all_mask = (1 << n) - 1
+    initial_avail = 0
+    for v in range(n):
+        if pred[v] == 0:
+            initial_avail |= 1 << v
+
+    answer = [0] * n
+    failed = set()
+
+    def dfs(done, avail, rem):
+        if done == all_mask:
+            return True
+        if rem == 0:
+            return False
+
+        remaining_count = n - done.bit_count()
+        if remaining_count > rem * M:
+            return False
+
+        key = (done, rem)
+        if key in failed:
+            return False
+
+        # Deadline-capacity pruning. An unscheduled vertex v must be
+        # executed no later than rem-bottom[v]+1 relative stages from now.
+        deadline_counts = {}
+        mandatory = 0
+        unscheduled = all_mask ^ done
+        bits = unscheduled
+
+        while bits:
+            lb = bits & -bits
+            v = lb.bit_length() - 1
+            bits -= lb
+
+            b = bottom[v]
+            if b > rem:
+                failed.add(key)
+                return False
+
+            d = rem - b + 1
+            deadline_counts[d] = deadline_counts.get(d, 0) + 1
+            if d == 1:
+                mandatory |= lb
+
+        total = 0
+        for d in sorted(deadline_counts):
+            total += deadline_counts[d]
+            if total > d * M:
+                failed.add(key)
+                return False
+
+        if mandatory & ~avail:
+            failed.add(key)
+            return False
+
+        avail_count = avail.bit_count()
+        mandatory_count = mandatory.bit_count()
+
+        if mandatory_count > M or avail_count == 0:
+            failed.add(key)
+            return False
+
+        take_count = min(M, avail_count)
+        need = take_count - mandatory_count
+
+        optional_mask = avail & ~mandatory
+        optional = []
+        bits = optional_mask
+        while bits:
+            lb = bits & -bits
+            v = lb.bit_length() - 1
+            bits -= lb
+            optional.append(v)
+
+        optional.sort(key=lambda x: (-bottom[x], -outdeg[x], x))
+
+        if need == 0:
+            choices = [()]
+        elif need == len(optional):
+            choices = [tuple(optional)]
+        else:
+            choices = itertools.combinations(optional, need)
+
+        current_stage = T - rem + 1
+
+        for comb in choices:
+            chosen = mandatory
+            for v in comb:
+                chosen |= 1 << v
+
+            chosen_bits = chosen
+            while chosen_bits:
+                lb = chosen_bits & -chosen_bits
+                v = lb.bit_length() - 1
+                chosen_bits -= lb
+                answer[v] = current_stage
+
+            done2 = done | chosen
+            avail2 = avail & ~chosen
+
+            candidates = 0
+            chosen_bits = chosen
+            while chosen_bits:
+                lb = chosen_bits & -chosen_bits
+                v = lb.bit_length() - 1
+                chosen_bits -= lb
+                candidates |= succ[v]
+
+            candidates &= ~done2
+            bits = candidates
+            while bits:
+                lb = bits & -bits
+                u = lb.bit_length() - 1
+                bits -= lb
+                if pred[u] & ~done2 == 0:
+                    avail2 |= lb
+
+            if dfs(done2, avail2, rem - 1):
+                return True
+
+            chosen_bits = chosen
+            while chosen_bits:
+                lb = chosen_bits & -chosen_bits
+                v = lb.bit_length() - 1
+                chosen_bits -= lb
+                answer[v] = 0
+
+        failed.add(key)
+        return False
+
+    if dfs(0, initial_avail, T):
+        print("YES")
+        print(*answer)
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    main()

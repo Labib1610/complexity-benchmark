@@ -1,0 +1,167 @@
+```python
+import sys
+from collections import deque
+
+def solve():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    M = int(next(it))
+    T = int(next(it))
+    m = int(next(it))
+    
+    adj = [[] for _ in range(n)]
+    indeg = [0] * n
+    rev_adj = [[] for _ in range(n)]
+    
+    for _ in range(m):
+        a = int(next(it)) - 1
+        b = int(next(it)) - 1
+        adj[a].append(b)
+        rev_adj[b].append(a)
+        indeg[b] += 1
+    
+    # Compute earliest possible phase for each verse (topological order)
+    earliest = [1] * n
+    q = deque()
+    for i in range(n):
+        if indeg[i] == 0:
+            q.append(i)
+    
+    topo_order = []
+    while q:
+        u = q.popleft()
+        topo_order.append(u)
+        for v in adj[u]:
+            if earliest[v] < earliest[u] + 1:
+                earliest[v] = earliest[u] + 1
+            indeg[v] -= 1
+            if indeg[v] == 0:
+                q.append(v)
+    
+    if len(topo_order) != n:
+        print("NO")
+        return
+    
+    # Check if any verse requires phase > T
+    for i in range(n):
+        if earliest[i] > T:
+            print("NO")
+            return
+    
+    # Compute latest possible phase for each verse
+    latest = [T] * n
+    for u in reversed(topo_order):
+        for v in adj[u]:
+            if latest[u] > latest[v] - 1:
+                latest[u] = latest[v] - 1
+    
+    # Check if any verse has latest < earliest
+    for i in range(n):
+        if latest[i] < earliest[i]:
+            print("NO")
+            return
+    
+    # Check capacity constraint using Dilworth's theorem
+    # We need to check if the width of the poset (size of maximum antichain) <= M
+    # Build bipartite graph for maximum matching
+    N = 2 * n + 2
+    source = 0
+    sink = N - 1
+    cap = [[0] * N for _ in range(N)]
+    
+    for i in range(1, n + 1):
+        cap[source][i] = 1
+    for i in range(n + 1, N - 1):
+        cap[i][sink] = 1
+    
+    for u in range(n):
+        for v in adj[u]:
+            cap[u + 1][v + n + 1] = 1
+    
+    # Dinic's algorithm
+    graph = [[] for _ in range(N)]
+    for i in range(N):
+        for j in range(N):
+            if cap[i][j] > 0:
+                graph[i].append(j)
+    
+    def bfs():
+        level = [-1] * N
+        level[source] = 0
+        dq = deque([source])
+        while dq:
+            u = dq.popleft()
+            for v in graph[u]:
+                if level[v] == -1 and cap[u][v] > 0:
+                    level[v] = level[u] + 1
+                    dq.append(v)
+        return level
+    
+    def dfs(u, flow, level, ptr):
+        if u == sink:
+            return flow
+        while ptr[u] < len(graph[u]):
+            v = graph[u][ptr[u]]
+            if level[v] == level[u] + 1 and cap[u][v] > 0:
+                pushed = dfs(v, min(flow, cap[u][v]), level, ptr)
+                if pushed > 0:
+                    cap[u][v] -= pushed
+                    cap[v][u] += pushed
+                    return pushed
+            ptr[u] += 1
+        return 0
+    
+    max_flow = 0
+    while True:
+        level = bfs()
+        if level[sink] == -1:
+            break
+        ptr = [0] * N
+        while True:
+            pushed = dfs(source, float('inf'), level, ptr)
+            if pushed == 0:
+                break
+            max_flow += pushed
+    
+    if max_flow > M:
+        print("NO")
+        return
+    
+    # Assign phases greedily from earliest to latest
+    # Group verses by their earliest phase
+    verses_by_earliest = [[] for _ in range(T + 1)]
+    for i in range(n):
+        verses_by_earliest[earliest[i]].append(i)
+    
+    phase = [0] * n
+    for t in range(1, T + 1):
+        # Sort verses with earliest=t by their latest phase (ascending)
+        verses_by_earliest[t].sort(key=lambda x: latest[x])
+        for v in verses_by_earliest[t]:
+            phase[v] = t
+    
+    # Verify the solution
+    # Check precedence
+    for u in range(n):
+        for v in adj[u]:
+            if phase[u] >= phase[v]:
+                print("NO")
+                return
+    
+    # Check capacity
+    count = [0] * (T + 1)
+    for i in range(n):
+        count[phase[i]] += 1
+    for t in range(1, T + 1):
+        if count[t] > M:
+            print("NO")
+            return
+    
+    print("YES")
+    print(' '.join(str(p) for p in phase))
+
+solve()
+```

@@ -1,20 +1,20 @@
-# Calibration Valves
+# Problem B — System Equilibrium
 
 Time limit: 1 s   Memory limit: 256 MB
 
-A fluid transport network contains $n$ calibration valves, numbered $1$ through $n$. You must configure each valve to operate at a pressure setting of either $1$ or $2$.
+A fluid control facility contains $n$ automated valves, labeled 1 through $n$. The system's protocol dictates that every valve must be assigned an operational state of either 1 or 2.
 
-The system's safety is monitored by $m$ diagnostic sensors. Each sensor connects a specific pair of valves and features a reference diaphragm calibrated to a strict threshold of 3 units. For a sensor to function correctly and yield a valid reading, the total combined pressure from the two valves it connects must exactly match this threshold. If the combined pressure is lower or higher, the diaphragm fails to engage, resulting in an invalid state.
+The network is supervised by $m$ pressure monitors. Each monitor is linked to a specific pair of valves. For the network to achieve equilibrium, every monitor must verify that the operational state of one of its two linked valves is exactly twice the operational state of the other.
 
-Your task is to assign a pressure setting to each of the $n$ valves so that every diagnostic sensor in the network operates correctly. If multiple valid assignments are possible, you must output the lexicographically smallest one (assigning pressure setting $1$ to lower-numbered valves whenever possible). If no such assignment is possible, you must report that it cannot be done.
+You must determine whether a configuration exists that satisfies all monitors. If there are several valid configurations for the $n$ valves, you must output the sequence of states $s_1 \dots s_n$ that is lexicographically smallest.
 
 ## Input
-The first line provides two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$).
-The following $m$ lines each contain two integers $u$ and $v$, representing the indices of a pair of valves connected by a diagnostic sensor.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$).
+Each of the following $m$ lines contains two integers $u$ and $v$ — the labels of the two valves linked to a single monitor.
 
 ## Output
-If it is impossible to configure the valves to satisfy all sensors, output a single line with NO.
-If it is possible, output YES on the first line. On the second line, output $n$ integers $p_1 \dots p_n$ (where each $p_i \in \{1,2\}$) giving the lexicographically smallest valid configuration.
+If no such configuration is possible, print a single line containing `NO`.
+Otherwise, print `YES` on the first line. On the second line, print $n$ integers $s_1 \dots s_n$ (where each $s_i \in \{1,2\}$) representing the lexicographically smallest valid configuration.
 
 ## Example 1
 Input:

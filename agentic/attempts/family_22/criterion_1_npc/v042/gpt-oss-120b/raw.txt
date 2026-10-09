@@ -1,0 +1,276 @@
+**Solution Explanation**
+
+For every processor we have to choose a cycle `1 … T`.
+
+*   a processor can be installed only after all its predecessors,
+    therefore its cycle must be **strictly larger** than the cycles of all
+    predecessors;
+*   in each cycle at most `M` processors may be installed.
+
+The problem is a unit‑time job‑shop with precedence constraints and `M`
+identical machines.
+For this special case the following classic construction works.
+
+--------------------------------------------------------------------
+
+#### 1.   Topological order, earliest and latest possible cycles  
+
+The dependency graph is a directed acyclic graph (if it contains a cycle the
+answer is immediately `NO`).
+
+*`earliest[v]`* – the smallest cycle in which `v` can be placed  
+
+```
+earliest[v] = 1 + max( earliest[u] ) over all edges u → v
+```
+
+If `v` has no predecessor, `earliest[v] = 1`.
+
+*`latest[v]`* – the largest cycle in which `v` can be placed while still
+allowing all its successors to finish before the deadline  
+
+```
+latest[v] = T - max( latest[w] - 1 ) over all edges v → w
+```
+
+If `v` has no successor, `latest[v] = T`.
+
+Both values are obtained by a single forward and a single backward pass over a
+topological order.
+
+If for some vertex `earliest[v] > latest[v]` the constraints are contradictory –
+answer `NO`.
+
+Thus every processor `v` must be scheduled inside the **interval**
+
+```
+[ earliest[v] , latest[v] ]          (inclusive)
+```
+
+--------------------------------------------------------------------
+
+#### 2.   Reducing to “interval scheduling with capacity”
+
+Now we have `n` jobs, each of length `1`, each with a release time
+`earliest[v]` and a deadline `latest[v]`.  
+In every cycle we may execute at most `M` jobs.
+
+For this problem Horn’s algorithm (also called “earliest‑deadline‑first”)
+is optimal:
+
+```
+for t = 1 … T
+        add to a priority queue all jobs whose earliest == t
+        (the queue is ordered by increasing latest)
+        take up to M jobs from the queue and fix their cycle = t
+        (if a job taken has latest < t → impossible)
+after the loop, if the queue is not empty → impossible
+```
+
+If the algorithm finishes, the obtained assignment respects all intervals,
+hence also all original precedence constraints (because `earliest`/`latest`
+were derived from them).  
+If it fails, no feasible schedule exists – this is a classic theorem for
+unit‑length jobs with release times and deadlines.
+
+--------------------------------------------------------------------
+
+#### 3.   Correctness Proof  
+
+We prove that the algorithm prints `YES` with a correct schedule
+iff such a schedule exists.
+
+---
+
+##### Lemma 1  
+For every vertex `v` any feasible schedule assigns it a cycle `c`
+with `earliest[v] ≤ c ≤ latest[v]`.
+
+**Proof.**  
+`earliest[v]` is defined as one more than the maximum cycle of its
+predecessors, therefore any schedule must place `v` after all predecessors,
+hence `c ≥ earliest[v]`.  
+Analogously, `latest[v]` is the latest cycle that still leaves at least one
+free cycle for each successor, therefore `c ≤ latest[v]`. ∎
+
+
+
+##### Lemma 2  
+If the algorithm finishes the loop without failure, the produced assignment
+satisfies all intervals, i.e. for every vertex `v`
+`earliest[v] ≤ assigned_cycle[v] ≤ latest[v]`.
+
+**Proof.**  
+A vertex enters the priority queue exactly at its `earliest`.  
+It is taken at the first time `t` when it becomes one of the `M` smallest
+`latest` values among the waiting jobs.  
+Because the queue is ordered by `latest`, at the moment of extraction we have
+`t ≤ latest[v]` (otherwise `latest[v] < t` would have caused immediate failure).
+Thus the assigned cycle lies inside the interval. ∎
+
+
+
+##### Lemma 3  
+If the algorithm reports failure, **no** feasible schedule exists.
+
+**Proof.**  
+Two possible failure reasons.
+
+1. While extracting a job at time `t` we find `latest < t`.  
+   By Lemma&nbsp;1 any feasible schedule must place this job no later than
+   `latest`, impossible at time `t`. Hence no schedule exists.
+
+2. After processing all `T` cycles the priority queue still contains jobs.  
+   All of them have `earliest ≤ T` (otherwise they would never have entered)
+   and also `latest ≥ T` (otherwise they would have caused case 1 earlier).
+   Yet there is no free capacity left in any cycle `1 … T`, contradicting the
+   pigeon‑hole principle: `T·M` total slots are insufficient for the remaining
+   jobs, so any schedule would exceed the per‑cycle limit. ∎
+
+
+
+##### Lemma 4  
+If a feasible schedule exists, the algorithm never fails.
+
+**Proof.**  
+Consider any feasible schedule `S`.  
+Process cycles `t = 1 … T`.  
+At the beginning of cycle `t` the set of jobs that have already been scheduled
+by `S` and have `earliest ≤ t` is a subset of the jobs currently waiting in the
+algorithm’s queue (because the algorithm adds exactly those jobs and never
+removes a job before scheduling it).  
+`S` uses at most `M` jobs in cycle `t`; therefore among the waiting jobs there
+are at least `M` that can still be placed at or after `t` (their `latest` is
+≥ the cycle used by `S`).  
+The algorithm extracts the `M` jobs with smallest `latest`; none of them can
+have `latest < t`, otherwise `S` would also violate its deadline.
+Thus the algorithm never meets the two failure conditions. ∎
+
+
+
+##### Theorem  
+The program outputs  
+
+*`YES` and a schedule* **iff** a schedule satisfying all constraints exists;  
+otherwise it outputs `NO`.
+
+**Proof.**  
+
+*If* the program prints `YES`, by Lemma&nbsp;2 the schedule respects all
+intervals, and by Lemma&nbsp;1 this implies respect of all precedence edges.
+Capacity per cycle is `M` by construction. Hence the schedule is feasible.
+
+*Only‑if* a feasible schedule exists, Lemma&nbsp;4 guarantees the algorithm
+does not fail, therefore it reaches the end and prints `YES`.  
+
+If the program prints `NO`, it failed, and by Lemma&nbsp;3 no feasible
+schedule can exist. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### 4.   Complexity Analysis  
+
+* Topological sorting: `O(n + m)`
+* Computing `earliest` and `latest`: two passes `O(n + m)`
+* Scheduling loop: each vertex is inserted once and extracted once from a
+  binary heap → `O(n log n)`
+
+Memory consumption: adjacency lists `O(n + m)`, several integer arrays
+`O(n)`, heap `O(n)`. All well within the limits.
+
+--------------------------------------------------------------------
+
+#### 5.   Reference Implementation  (Python 3)
+
+```python
+import sys
+import heapq
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    M = int(next(it))
+    T = int(next(it))
+    m = int(next(it))
+
+    g = [[] for _ in range(n)]
+    rg = [[] for _ in range(n)]
+    indeg = [0]*n
+    for _ in range(m):
+        a = int(next(it))-1
+        b = int(next(it))-1
+        g[a].append(b)
+        rg[b].append(a)
+        indeg[b] += 1
+
+    # topological order
+    from collections import deque
+    q = deque([i for i in range(n) if indeg[i]==0])
+    topo = []
+    while q:
+        v = q.popleft()
+        topo.append(v)
+        for to in g[v]:
+            indeg[to] -= 1
+            if indeg[to]==0:
+                q.append(to)
+    if len(topo)!=n:
+        print("NO")
+        return
+
+    # earliest
+    earliest = [1]*n
+    for v in topo:
+        for to in g[v]:
+            if earliest[to] < earliest[v] + 1:
+                earliest[to] = earliest[v] + 1
+
+    # latest
+    latest = [T]*n
+    for v in reversed(topo):
+        for pre in rg[v]:
+            # v must be after pre, so pre <= latest[v]-1
+            if latest[pre] > latest[v] - 1:
+                latest[pre] = latest[v] - 1
+
+    for i in range(n):
+        if earliest[i] > latest[i] or earliest[i] > T or latest[i] < 1:
+            print("NO")
+            return
+
+    # bucket vertices by earliest
+    bucket = [[] for _ in range(T+2)]
+    for i in range(n):
+        bucket[earliest[i]].append(i)
+
+    ans = [0]*n
+    heap = []  # (latest, vertex)
+    for t in range(1, T+1):
+        for v in bucket[t]:
+            heapq.heappush(heap, (latest[v], v))
+        cnt = 0
+        while heap and cnt < M:
+            dl, v = heapq.heappop(heap)
+            if dl < t:          # missed deadline
+                print("NO")
+                return
+            ans[v] = t
+            cnt += 1
+    if heap:
+        print("NO")
+        return
+
+    print("YES")
+    print(' '.join(str(x) for x in ans))
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above and conforms
+to the required input‑output format.

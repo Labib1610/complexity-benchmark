@@ -1,0 +1,65 @@
+import sys
+sys.setrecursionlimit(400000)
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    t = int(next(it))
+    
+    is_priority = [False] * (n + 1)
+    for _ in range(t):
+        u = int(next(it))
+        is_priority[u] = True
+        
+    adj = [[] for _ in range(n + 1)]
+    edges = []
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        w = int(next(it))
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+        edges.append((u, v, w))
+    
+    parent = [0] * (n + 1)
+    parent_edge_weight = [0] * (n + 1)
+    depth = [0] * (n + 1)
+    
+    stack = [(1, 0)]
+    parent[1] = 0
+    while stack:
+        u, p = stack.pop()
+        for v, w in adj[u]:
+            if v != p:
+                parent[v] = u
+                parent_edge_weight[v] = w
+                depth[v] = depth[u] + 1
+                stack.append((v, u))
+    
+    marked = [False] * (n + 1)
+    for i in range(1, n + 1):
+        if is_priority[i]:
+            marked[i] = True
+            
+    order = sorted(range(1, n + 1), key=lambda x: -depth[x])
+    
+    for u in order:
+        if u == 1:
+            continue
+        p = parent[u]
+        if marked[u] and not marked[p]:
+            marked[p] = True
+            
+    total_cost = 0
+    for u in range(2, n + 1):
+        if marked[u]:
+            total_cost += parent_edge_weight[u]
+            
+    print(total_cost)
+
+if __name__ == "__main__":
+    solve()

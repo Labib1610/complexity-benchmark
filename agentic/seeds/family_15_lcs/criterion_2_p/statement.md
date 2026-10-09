@@ -4,20 +4,17 @@ Time limit: 2 s   Memory limit: 256 MB
 
 ## Description
 
-You are given **two** genetic sequences, each a string of lowercase letters. A **shared motif** is a string that appears in both sequences as a subsequence — its letters occur in that same order within each sequence, though not necessarily consecutively.
-
-Find a longest shared motif: report its length and the motif itself.
+An archivist compares just **two** transcripts of lowercase letters and must find the longest sequence of letters appearing in the same relative order (not necessarily contiguously) inside both. With only two transcripts to align, the best common ordered thread can be built up position by position without searching exponentially many candidates. Report a longest common ordered thread of the two transcripts (or its length, per the output format).
 
 ## Input
 
-The first line contains the first sequence.
-The second line contains the second sequence.
-Each sequence is a non-empty string of lowercase English letters of length at most 2000.
+The first line contains a single integer **k** (k = 2).
+Each of the next **k** lines contains one sequence: a non-empty string of lowercase English letters, length at most 2000.
 
 ## Output
 
 On the first line print the length of a longest shared motif.
-On the second line print the longest shared motif; if several share the maximum length, print the lexicographically smallest one. If the maximum length is 0, the second line may be left blank.
+On the second line print one shared motif of that length (any motif achieving the maximum length is accepted). If the maximum length is 0, the second line may be left blank.
 
 ## Examples
 
@@ -25,44 +22,47 @@ On the second line print the longest shared motif; if several share the maximum 
 
 **Input**
 ```
-abcde
-ace
+2
+abcbdab
+bdcaba
 ```
 
 **Output**
 ```
-3
-ace
+4
+bcba
 ```
 
 ### Example 2
 
 **Input**
 ```
+2
 abc
-cba
+def
 ```
 
 **Output**
 ```
-1
-a
+0
+
 ```
 
 ### Example 3
 
 **Input**
 ```
-hello
-hello
+2
+axbyc
+abc
 ```
 
 **Output**
 ```
-5
-hello
+3
+abc
 ```
 
 ## Note
 
-In Example 2, each single letter is shared but no length-2 string appears in order in both; the lexicographically smallest single letter is `a`.
+This is the same shared-motif (longest common subsequence) problem as Problem A. The only difference is that here there are exactly **two** sequences, which makes an efficient exact solution possible. In Example 1, `bcba` appears in order in both sequences; several length-4 motifs exist and any of them is accepted.

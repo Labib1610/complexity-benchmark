@@ -1,31 +1,29 @@
-# Operator Network
+# Problem B — Market Equilibrium
 
-Time limit: 1 s
-Memory limit: 256 MB
+Time limit: 1 s   Memory limit: 256 MB
 
-A network consists of $n$ nodes. Each node must be assigned exactly one of two linear differential operators:
-- Operator 1: $T_1(f)(x) = f'(x) + f(x)$
-- Operator 2: $T_2(f)(x) = f'(x) - f(x)$
+You are analyzing a market with $n$ commodities. Each commodity $i$ must be assigned a pricing tier $p_i$, which must be chosen as either 1 or 2.
 
-where $f$ is any twice continuously differentiable function with compact support on the real line.
+There are $m$ observed dependencies between pairs of commodities. The $k$-th dependency involves commodities $u_k$ and $v_k$. 
 
-There are $m$ links in the network. Each link connects two specific nodes $u$ and $v$. A link is considered stable if and only if the composed operator $T_{u,v} = T_u \circ T_v$ (applied in either order, as they commute) is formally self-adjoint. 
+For each dependency $k$, its stability index is defined by the ratio:
+$$ \frac{p_{u_k} p_{v_k}}{(p_{u_k} + p_{v_k})^2} $$
 
-Specifically, the combined operator $T_{u,v}$ must satisfy the following integral equation for all twice continuously differentiable functions $f$ and $g$ with compact support:
+To maintain market equilibrium, the sum of the stability indices across all $m$ dependencies must be exactly $\frac{2m}{9}$.
 
-$$ \int_{-\infty}^\infty g(x) T_{u,v}(f)(x) dx = \int_{-\infty}^\infty T_{u,v}(g)(x) f(x) dx $$
+Your objective is to determine if there exists a pricing tier assignment for all $n$ commodities that satisfies this equilibrium condition. If such an assignment exists, you must output it. 
 
-If there exists even one pair of functions $f, g$ where this equality fails, the link is unstable and the entire configuration is invalid.
-
-Your task is to determine whether there is an assignment of operators (either 1 or 2) to all $n$ nodes such that every link in the network is stable. If multiple valid assignments exist, you must output the one that minimizes the sequence of assigned operator numbers $s_1, s_2, \dots, s_n$ lexicographically.
+If there are multiple valid assignments, you must choose the one that maximizes the market confidence score. The market confidence score of an assignment is defined as:
+$$ \sum_{i=1}^n \frac{2 - p_i}{i!} $$
+where $i!$ denotes the factorial of $i$.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$).
-Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$), indicating that a link connects node $u$ and node $v$.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$), representing the number of commodities and the number of dependencies.
+The following $m$ lines each contain two integers $u$ and $v$ ($1 \le u, v \le n$), specifying the 1-based indices of the two commodities involved in that dependency.
 
 ## Output
-If no stable assignment exists, print a single line containing `NO`.
-Otherwise, print `YES` on the first line. On the second line, print $n$ integers $s_1, \ldots, s_n$ (each being 1 or 2) representing the lexicographically smallest valid assignment.
+If no valid pricing tier assignment can achieve equilibrium, print a single line containing `NO`.
+Otherwise, print `YES` on the first line. On the second line, output $n$ integers $p_1, p_2, \dots, p_n$ (where each $p_i \in \{1, 2\}$) denoting the pricing tiers. If there are multiple valid sequences, output the sequence that maximizes the market confidence score.
 
 ## Example 1
 Input:

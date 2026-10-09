@@ -1,0 +1,88 @@
+import sys
+import heapq
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    t = int(next(it))
+    
+    anchors = set()
+    for _ in range(t):
+        anchors.add(int(next(it)))
+    
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        w = int(next(it))
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+    
+    # Dijkstra from each anchor
+    INF = float('inf')
+    dist = [[INF] * (n + 1) for _ in range(n + 1)]
+    for s in range(1, n + 1):
+        d = dist[s]
+        d[s] = 0
+        pq = [(0, s)]
+        while pq:
+            d_u, u = heapq.heappop(pq)
+            if d_u > d[u]:
+                continue
+            for v, w in adj[u]:
+                nd = d_u + w
+                if nd < d[v]:
+                    d[v] = nd
+                    heapq.heappush(pq, (nd, v))
+    
+    anchor_list = list(anchors)
+    k = len(anchor_list)
+    
+    # Steiner Tree DP
+    # dp[mask][v] = min cost to connect anchors in mask, ending at node v
+    dp = [[INF] * (n + 1) for _ in range(1 << k)]
+    
+    for i, node in enumerate(anchor_list):
+        dp[1 << i][node] = 0
+    
+    for mask in range(1, 1 << k):
+        # First, try to combine submasks
+        submask = (mask - 1) & mask
+        while submask:
+            other = mask ^ submask
+            for v in range(1, n + 1):
+                if dp[submask][v] < INF and dp[other][v] < INF:
+                    new_cost = dp[submask][v] + dp[other][v]
+                    if new_cost < dp[mask][v]:
+                        dp[mask][v] = new_cost
+            submask = (submask - 1) & mask
+        
+        # Then, propagate using shortest paths
+        # dp[mask][v] = min over u of (dp[mask][u] + dist[u][v])
+        # This is equivalent to adding all edges with their weights
+        # We use Dijkstra-like relaxation
+        pq = []
+        for v in range(1, n + 1):
+            if dp[mask][v] < INF:
+                heapq.heappush(pq, (dp[mask][v], v))
+        
+        while pq:
+            d_u, u = heapq.heappop(pq)
+            if d_u > dp[mask][u]:
+                continue
+            for v, w in adj[u]:
+                nd = d_u + w
+                if nd < dp[mask][v]:
+                    dp[mask][v] = nd
+                    heapq.heappush(pq, (nd, v))
+    
+    full_mask = (1 << k) - 1
+    ans = min(dp[full_mask])
+    print(ans)
+
+if __name__ == "__main__":
+    solve()

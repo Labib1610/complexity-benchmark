@@ -1,0 +1,93 @@
+import sys
+from array import array
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+
+    n, m, budget = data[0], data[1], data[2]
+    edges = []
+    adj_mask = [0] * n
+    degree = [0] * n
+
+    idx = 3
+    identity_cost = 0
+    for _ in range(m):
+        u = data[idx] - 1
+        v = data[idx + 1] - 1
+        idx += 2
+        edges.append((u, v))
+        adj_mask[u] |= 1 << v
+        adj_mask[v] |= 1 << u
+        degree[u] += 1
+        degree[v] += 1
+        identity_cost += abs(u - v)
+
+    if identity_cost <= budget:
+        print("YES")
+        print(*range(1, n + 1))
+        return
+
+    if budget < m:
+        print("NO")
+        return
+
+    total = 1 << n
+    cut = array('i', [0]) * total
+    dp = array('q', [0]) * total
+    choice = bytearray(total)
+
+    inf = n * n + 1
+    dp_local = dp
+    cut_local = cut
+    choice_local = choice
+    adj_local = adj_mask
+    degree_local = degree
+
+    for mask in range(1, total):
+        bit = mask & -mask
+        rest = mask ^ bit
+        v = bit.bit_length() - 1
+
+        c = cut_local[rest] + degree_local[v] - 2 * (
+            adj_local[v] & rest
+        ).bit_count()
+        cut_local[mask] = c
+
+        x = mask
+        best = inf
+        best_v = 0
+        while x:
+            b = x & -x
+            prev = dp_local[mask ^ b]
+            if prev < best:
+                best = prev
+                best_v = b.bit_length() - 1
+            x ^= b
+
+        value = best + c
+        if value > inf:
+            value = inf
+        dp_local[mask] = value
+        choice_local[mask] = best_v
+
+    full = total - 1
+    if dp_local[full] > budget:
+        print("NO")
+        return
+
+    position = [0] * n
+    mask = full
+    pos = n
+    while mask:
+        v = choice_local[mask]
+        position[v] = pos
+        mask ^= 1 << v
+        pos -= 1
+
+    print("YES")
+    print(*position)
+
+if __name__ == "__main__":
+    main()

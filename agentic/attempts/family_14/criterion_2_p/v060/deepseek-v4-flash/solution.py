@@ -1,0 +1,71 @@
+import sys
+sys.setrecursionlimit(300000)
+
+def solve():
+    input = sys.stdin.readline
+    n, m, t = map(int, input().split())
+    keyholders = set(map(int, input().split()))
+    
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u, v, w = map(int, input().split())
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+    
+    if t <= 1:
+        print(0)
+        return
+    
+    # DFS to get parent and depth
+    parent = [0] * (n + 1)
+    parent_edge_weight = [0] * (n + 1)
+    depth = [0] * (n + 1)
+    visited = [False] * (n + 1)
+    
+    stack = [(next(iter(keyholders)), 0, 0)]
+    visited[next(iter(keyholders))] = True
+    while stack:
+        u, p, w = stack.pop()
+        parent[u] = p
+        parent_edge_weight[u] = w
+        for v, wgt in adj[u]:
+            if not visited[v]:
+                visited[v] = True
+                depth[v] = depth[u] + 1
+                stack.append((v, u, wgt))
+    
+    # Mark nodes that are in the minimal subtree
+    mark = [False] * (n + 1)
+    for k in keyholders:
+        mark[k] = True
+    
+    # Propagate marks upward
+    # We can do a BFS/DFS from keyholders upward using parent pointers
+    # But easier: do a post-order traversal
+    order = []
+    stack = [next(iter(keyholders))]
+    while stack:
+        u = stack.pop()
+        order.append(u)
+        for v, _ in adj[u]:
+            if v != parent[u]:
+                stack.append(v)
+    
+    for u in reversed(order):
+        if mark[u]:
+            p = parent[u]
+            if p != 0:
+                mark[p] = True
+    
+    # Sum edges where both endpoints are marked
+    total = 0
+    for u in range(1, n + 1):
+        if mark[u]:
+            p = parent[u]
+            if p != 0 and mark[p]:
+                total += parent_edge_weight[u]
+    
+    print(total)
+
+if __name__ == "__main__":
+    solve()

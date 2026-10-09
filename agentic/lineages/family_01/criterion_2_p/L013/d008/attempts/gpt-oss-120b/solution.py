@@ -15,49 +15,37 @@ def solve() -> None:
         adj[u].append(v)
         adj[v].append(u)
 
-    side = [-1] * n          # 0 / 1 inside component
-    comp = [-1] * n          # component id
-    comps = []               # list of vertex lists per component
+    color = [-1] * n          # 0 or 1
+    res = [2] * n             # default 2
     from collections import deque
 
-    comp_cnt = 0
-    for v in range(n):
-        if side[v] != -1:
+    for start in range(n):
+        if color[start] != -1:
             continue
-        q = deque([v])
-        side[v] = 0
-        comp[v] = comp_cnt
-        verts = [v]
+        # BFS this component
+        q = deque([start])
+        color[start] = 0
+        comp_vertices = [start]
         ok = True
         while q:
-            x = q.popleft()
-            for y in adj[x]:
-                if side[y] == -1:
-                    side[y] = side[x] ^ 1
-                    comp[y] = comp_cnt
-                    q.append(y)
-                    verts.append(y)
-                elif side[y] == side[x]:
+            v = q.popleft()
+            for to in adj[v]:
+                if color[to] == -1:
+                    color[to] = color[v] ^ 1
+                    q.append(to)
+                    comp_vertices.append(to)
+                elif color[to] == color[v]:
                     print("NO")
                     return
-        comps.append(verts)
-        comp_cnt += 1
-
-    orientation = [None] * comp_cnt   # 0: side0->1, 1: side0->2
-    ans = [0] * n
-
-    for i in range(n):
-        c = comp[i]
-        if orientation[c] is None:
-            # we want colour 1 for vertex i
-            orientation[c] = 0 if side[i] == 0 else 1
-        if orientation[c] == 0:
-            ans[i] = 1 if side[i] == 0 else 2
-        else:
-            ans[i] = 2 if side[i] == 0 else 1
+        # decide which side gets price 1
+        # side containing the smallest index gets 1
+        min_idx = min(comp_vertices)
+        side_one = color[min_idx]          # this color will be 1
+        for v in comp_vertices:
+            res[v] = 1 if color[v] == side_one else 2
 
     print("YES")
-    print(' '.join(map(str, ans)))
+    print(' '.join(map(str, res)))
 
 if __name__ == "__main__":
     solve()

@@ -1,0 +1,50 @@
+import sys
+from collections import deque
+
+def solve():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it)); m = int(next(it)); k = int(next(it))
+    orders = [(int(next(it))-1, int(next(it))-1, int(next(it))) for _ in range(k)]
+    edges = []
+    for _ in range(m):
+        u = int(next(it))-1; v = int(next(it))-1; cap = int(next(it))
+        edges.append((u, v, cap))
+    # Build adjacency for maxflow checks
+    adj = [[] for _ in range(n)]
+    for idx, (u, v, cap) in enumerate(edges):
+        adj[u].append((v, idx))
+    # Simple greedy: route each order using BFS on residual capacities
+    residual = [cap for _, _, cap in edges]
+    flows = [[0]*m for _ in range(k)]
+    for oi, (s, t, d) in enumerate(orders):
+        # repeat d times find any augmenting path
+        for _ in range(d):
+            parent = [(-1, -1)]*n
+            q = deque([s])
+            parent[s] = (s, -1)
+            while q and parent[t][0]==-1:
+                u = q.popleft()
+                for v, eid in adj[u]:
+                    if residual[eid] > 0 and parent[v][0]==-1:
+                        parent[v] = (u, eid)
+                        q.append(v)
+            if parent[t][0]==-1:
+                print("NO")
+                return
+            # augment one unit
+            v = t
+            while v != s:
+                u, eid = parent[v]
+                residual[eid] -= 1
+                flows[oi][eid] += 1
+                v = u
+    print("YES")
+    out = sys.stdout
+    for row in flows:
+        out.write(" ".join(map(str, row)) + "\n")
+
+if __name__ == "__main__":
+    solve()

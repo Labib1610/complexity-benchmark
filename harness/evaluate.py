@@ -148,6 +148,14 @@ def main(argv=None):
                 verdict = judge_problem(criterion, solution_path,
                                         timeout_override=timeout_override)
 
+                # Audit B1: a PASS whose slowest case exceeds the effective limit is invalid.
+                over = [round(c.elapsed_s, 3) for c in verdict.cases
+                        if c.verdict == "PASS" and c.elapsed_s > verdict.effective_limit_s + 1e-6]
+                if verdict.overall == "PASS" and over:
+                    print(f"  [WARN] {model_id}/{criterion.family_id}/{criterion.criterion_id}: "
+                          f"PASS with case(s) over the {verdict.effective_limit_s}s limit: {over}",
+                          file=sys.stderr)
+
                 record = {
                     "model": model_id,
                     "family_id": criterion.family_id,
@@ -156,6 +164,8 @@ def main(argv=None):
                     "class_label": verdict.class_label,
                     "overall": verdict.overall,
                     "first_failure": verdict.first_failure,
+                    "declared_limit_s": verdict.declared_limit_s,   # audit B1
+                    "effective_limit_s": verdict.effective_limit_s,  # never > declared
                     "n_cases": len(verdict.cases),
                     "n_passed": sum(1 for c in verdict.cases if c.verdict == "PASS"),
                     "cases": [
@@ -171,10 +181,13 @@ def main(argv=None):
                         if i < len(criterion.tests):
                             tc = criterion.tests[i]
                             expected = tc.out_path.read_text() if tc.out_path.exists() else ""
+                            input_text = tc.in_path.read_text() if tc.in_path.exists() else ""
                             from harness.runner import RunResult
+                            # audit B7: score against the REAL input + REAL stdout, not the
+                            # checker diagnostic string.
                             rr = RunResult(status=cv.verdict if cv.verdict in ("TLE", "RUNTIME_ERROR") else "OK",
-                                           stdout=cv.reason, elapsed_s=cv.elapsed_s)
-                            score = score_case_fn(criterion, cv.reason, expected, rr)
+                                           stdout=cv.stdout, elapsed_s=cv.elapsed_s)
+                            score = score_case_fn(criterion, input_text, cv.stdout, expected, rr)
                             record["cases"][i]["score"] = score
 
                 # token_budget: record the level

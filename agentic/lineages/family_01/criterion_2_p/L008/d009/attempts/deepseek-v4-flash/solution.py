@@ -13,34 +13,57 @@ for _ in range(m):
     adj[v].append(u)
 
 color = [-1] * n
-ok = True
 
+for start in range(n):
+    if color[start] != -1:
+        continue
+    color[start] = 0  # 0 means mode 1, 1 means mode 2
+    q = deque([start])
+    while q:
+        u = q.popleft()
+        for v in adj[u]:
+            if color[v] == -1:
+                color[v] = 1 - color[u]
+                q.append(v)
+            elif color[v] == color[u]:
+                print("NO")
+                sys.exit()
+
+# Now we have a valid bipartite coloring, but we want lexicographically smallest.
+# We can flip entire components if it makes earlier positions smaller.
+# Since each component is independent, we can choose orientation per component.
+
+visited = [False] * n
 for i in range(n):
-    if color[i] == -1:
-        color[i] = 0
+    if not visited[i]:
+        # BFS to collect component
+        comp = []
         q = deque([i])
+        visited[i] = True
         while q:
             u = q.popleft()
+            comp.append(u)
             for v in adj[u]:
-                if color[v] == -1:
-                    color[v] = color[u] ^ 1
+                if not visited[v]:
+                    visited[v] = True
                     q.append(v)
-                elif color[v] == color[u]:
-                    ok = False
+        # Check if flipping this component gives lexicographically smaller
+        # We compare current vs flipped for the smallest index in comp
+        # If flipped is smaller at the first differing position, flip.
+        flip = False
+        for u in comp:
+            if color[u] == 0:
+                # current has 1, flipped has 2
+                if not flip:
+                    # flipped would be larger here, so don't flip
                     break
-            if not ok:
+            else:
+                # current has 2, flipped has 1
+                flip = True
                 break
-    if not ok:
-        break
+        if flip:
+            for u in comp:
+                color[u] = 1 - color[u]
 
-if not ok:
-    print("NO")
-else:
-    # color 0 -> 1, color 1 -> 2
-    # But we want lexicographically smallest: try to make vertex 0 = 1
-    # If color[0] == 1, swap colors
-    if color[0] == 1:
-        for i in range(n):
-            color[i] ^= 1
-    print("YES")
-    print(' '.join(str(1 if c == 0 else 2) for c in color))
+print("YES")
+print(' '.join(str(c + 1) for c in color))

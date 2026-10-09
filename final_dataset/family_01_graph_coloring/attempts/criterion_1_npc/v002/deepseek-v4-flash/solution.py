@@ -1,0 +1,39 @@
+n, m = map(int, input().split())
+edges = [set() for _ in range(n)]
+for _ in range(m):
+    u, v = map(int, input().split())
+    u -= 1
+    v -= 1
+    edges[u].add(v)
+    edges[v].add(u)
+
+color = [-1] * n
+possible = False
+
+def backtrack(idx):
+    global possible
+    if possible:
+        return
+    if idx == n:
+        possible = True
+        return
+    for c in range(3):
+        ok = True
+        for nb in edges[idx]:
+            if color[nb] == c:
+                ok = False
+                break
+        if ok:
+            color[idx] = c
+            backtrack(idx + 1)
+            if possible:
+                return
+            color[idx] = -1
+
+backtrack(0)
+
+if not possible:
+    print("NO")
+else:
+    print("YES")
+    print(" ".join(str(c + 1) for c in color))

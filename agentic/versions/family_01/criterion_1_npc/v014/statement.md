@@ -1,19 +1,19 @@
-# Problem A — Tri-Phase Allocation
+# Problem A — Staggered Rotations
 
 Time limit: 2 s   Memory limit: 256 MB
 
-A manufacturing plant runs its daily operations in three consecutive phases, designated as 1, 2, and 3. The plant employs a roster of staff members. Due to interpersonal disputes, certain pairs of staff members are deemed incompatible and are strictly prohibited from working during the same operational phase.
+A manufacturing plant organizes its daily schedule into a Morning, Evening, and Night rotation (represented by the numbers 1, 2, and 3). The plant employs a workforce of technicians. Over time, various pairs of technicians have filed formal grievances against each other. To maintain productivity and avoid workplace incidents, management mandates that no two technicians who share a grievance may be assigned to the same daily rotation. Every technician must be placed into exactly one of the three available rotations. 
 
-Your task is to allocate each staff member to exactly one of the three phases in a way that respects all incompatibility rules. If no such allocation can be made, you must report that it is impossible.
+Determine if there is a valid rotation assignment for all technicians, and if so, provide one.
 
 ## Input
-The first line contains two integers $n$ and $m$ — the number of staff members and the number of incompatible pairs. The facility has exactly 40 safety badges available, meaning the staff size $n$ is at least one but can never exceed the total badge count. The number of incompatible pairs $m$ is non-negative and is bounded above by the total number of distinct two-person combinations possible among the $n$ staff members.
+The first line contains two integers $n$ and $m$. The facility guarantees at least one technician is employed, and due to the limited number of 40 safety lockers on the assembly floor, the headcount $n$ never exceeds this capacity. The integer $m$ represents the number of formal grievances, which is non-negative and will not exceed the maximum possible number of distinct pairs among the $n$ technicians.
 
-The following $m$ lines each contain two integers $u$ and $v$ — a pair of staff members who are incompatible.
+Each of the following $m$ lines contains two integers $u$ and $v$, indicating that technician $u$ and technician $v$ have a grievance against each other.
 
 ## Output
-If there is no valid allocation, output a single line containing `NO`.
-Otherwise, output `YES` on the first line. On the second line, output $n$ integers $p_1, p_2, \dots, p_n$ (where each $p_i \in \{1, 2, 3\}$), representing the phase assigned to staff member $i$. If multiple valid allocations exist, output the one that is lexicographically smallest (comparing the phase of staff member 1 first, then staff member 2, and so forth).
+If no valid rotation schedule exists, print a single line containing `NO`.
+Otherwise, print `YES` on the first line. On the second line, print $n$ integers $s_1, s_2, \dots, s_n$ (each being 1, 2, or 3), where $s_i$ is the rotation assigned to the $i$-th technician. Any valid assignment is accepted.
 
 ## Example 1
 Input:

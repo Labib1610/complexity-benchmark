@@ -1,0 +1,143 @@
+import random
+import sys
+
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+
+    n = int(input_data[0])
+    m = int(input_data[1])
+
+    edges = []
+    idx = 2
+    for _ in range(m):
+        u = int(input_data[idx]) - 1
+        v = int(input_data[idx + 1]) - 1
+        edges.append((u, v))
+        idx += 2
+
+    # Quick check: n must be even, m = 3n/2
+    if n % 2 != 0 or m != 3 * n // 2:
+        print("NO")
+        return
+
+    # Check degrees: every node must have degree 3
+    deg = [0] * n
+    for u, v in edges:
+        deg[u] += 1
+        deg[v] += 1
+    if any(d != 3 for d in deg):
+        print("NO")
+        return
+
+    def try_color():
+        edge_col = [0] * m
+        v_edge = [[-1, -1, -1, -1] for _ in range(n)]
+
+        edge_order = list(range(m))
+        random.shuffle(edge_order)
+
+        steps = 0
+        max_steps = 100000
+
+        for e in edge_order:
+            u, v = edges[e]
+            while edge_col[e] == 0:
+                steps += 1
+                if steps > max_steps:
+                    return None
+
+                miss_u = [c for c in (1, 2, 3) if v_edge[u][c] == -1]
+                miss_v = [c for c in (1, 2, 3) if v_edge[v][c] == -1]
+
+                if not miss_u or not miss_v:
+                    return None
+
+                common = set(miss_u) & set(miss_v)
+                if common:
+                    c = common.pop()
+                    edge_col[e] = c
+                    v_edge[u][c] = e
+                    v_edge[v][c] = e
+                    break
+
+                a = random.choice(miss_u)
+                b = random.choice(miss_v)
+
+                # Trace (a, b) path from u starting with color b
+                path_edges = []
+                curr = u
+                needed = b
+                while True:
+                    nxt_e = v_edge[curr][needed]
+                    if nxt_e == -1:
+                        break
+                    path_edges.append((nxt_e, needed))
+                    nu, nv = edges[nxt_e]
+                    curr = nv if curr == nu else nu
+                    needed = a if needed == b else b
+
+                if curr != v:
+                    # Swap along (a, b) path
+                    for pe, old_c in path_edges:
+                        new_c = a if old_c == b else b
+                        pu, pv = edges[pe]
+                        v_edge[pu][old_c] = -1
+                        v_edge[pv][old_c] = -1
+                        edge_col[pe] = new_c
+
+                    for pe, _ in path_edges:
+                        new_c = edge_col[pe]
+                        pu, pv = edges[pe]
+                        v_edge[pu][new_c] = pe
+                        v_edge[pv][new_c] = pe
+
+                    # Now b is missing at both u and v
+                    edge_col[e] = b
+                    v_edge[u][b] = e
+                    v_edge[v][b] = e
+                    break
+                else:
+                    # Path reached v. Trace (a, c) path from u and swap unconditionally
+                    c = 6 - a - b
+                    path_edges = []
+                    curr = u
+                    needed = c
+                    while True:
+                        nxt_e = v_edge[curr][needed]
+                        if nxt_e == -1:
+                            break
+                        path_edges.append((nxt_e, needed))
+                        nu, nv = edges[nxt_e]
+                        curr = nv if curr == nu else nu
+                        needed = a if needed == c else c
+
+                    for pe, old_c in path_edges:
+                        new_c = a if old_c == c else c
+                        pu, pv = edges[pe]
+                        v_edge[pu][old_c] = -1
+                        v_edge[pv][old_c] = -1
+                        edge_col[pe] = new_c
+
+                    for pe, _ in path_edges:
+                        new_c = edge_col[pe]
+                        pu, pv = edges[pe]
+                        v_edge[pu][new_c] = pe
+                        v_edge[pv][new_c] = pe
+
+        return edge_col
+
+    for _ in range(5):
+        res = try_color()
+        if res is not None:
+            print("YES")
+            print(*(res[i] for i in range(m)))
+            return
+
+    print("NO")
+
+
+if __name__ == "__main__":
+    solve()

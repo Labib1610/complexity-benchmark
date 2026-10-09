@@ -1,0 +1,297 @@
+```python
+import sys
+from collections import deque
+
+sys.setrecursionlimit(1_000_000)
+
+
+class Dinic:
+    __slots__ = ("n", "g", "level", "it")
+
+    def __init__(self, n):
+        self.n = n
+        self.g = [[] for _ in range(n)]
+        self.level = [-1] * n
+        self.it = [0] * n
+
+    def add_edge(self, u, v, cap, edge_id=-1):
+        a = [v, cap, None, edge_id, cap]
+        b = [u, 0, a, -1, 0]
+        a[2] = b
+        b[2] = a
+        self.g[u].append(a)
+        self.g[v].append(b)
+        return a
+
+    def max_flow(self, s, t, limit):
+        if s == t:
+            return limit
+
+        total = 0
+        n = self.n
+        while total < limit:
+            level = [-1] * n
+            level[s] = 0
+            q = deque([s])
+            while q:
+                u = q.popleft()
+                for e in self.g[u]:
+                    if e[1] > 0 and level[e[0]] < 0:
+                        level[e[0]] = level[u] + 1
+                        q.append(e[0])
+            if level[t] < 0:
+                break
+
+            self.level = level
+            self.it = [0] * n
+
+            def dfs(u, pushed):
+                if u == t:
+                    return pushed
+                gu = self.g[u]
+                while self.it[u] < len(gu):
+                    e = gu[self.it[u]]
+                    if e[1] > 0 and level[e[0]] == level[u] + 1:
+                        got = dfs(e[0], min(pushed, e[1]))
+                        if got:
+                            e[1] -= got
+                            e[2][1] += got
+                            return got
+                    self.it[u] += 1
+                return 0
+
+            while total < limit:
+                pushed = dfs(s, limit - total)
+                if not pushed:
+                    break
+                total += pushed
+
+        return total
+
+
+def get_flow(n, edges, residual, s, t, need, with_assignment=False):
+    if need == 0 or s == t:
+        return (True, [0] * len(edges)) if with_assignment else True
+
+    dinic = Dinic(n)
+    refs = [None] * len(edges)
+    for eid, (u, v, _) in enumerate(edges):
+        if residual[eid] > 0:
+            refs[eid] = dinic.add_edge(u, v, residual[eid], eid)
+
+    value = dinic.max_flow(s, t, need)
+    if value < need:
+        return (False, None) if with_assignment else False
+
+    if not with_assignment:
+        return True
+
+    used = [0] * len(edges)
+    for eid, ref in enumerate(refs):
+        if ref is not None:
+            used[eid] = ref[4] - ref[1]
+    return True, used
+
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+
+    it = iter(data)
+    n = next(it)
+    m = next(it)
+    k = next(it)
+
+    commodities = []
+    for i in range(k):
+        s = next(it) - 1
+        t = next(it) - 1
+        d = next(it)
+        commodities.append((s, t, d, i))
+
+    edges = []
+    adjacency = [[] for _ in range(n)]
+    reverse_adjacency = [[] for _ in range(n)]
+    capacities = []
+
+    for eid in range(m):
+        u = next(it) - 1
+        v = next(it) - 1
+        cap = next(it)
+        edges.append((u, v, cap))
+        capacities.append(cap)
+        if cap > 0 and u != v:
+            adjacency[u].append((v, eid))
+            reverse_adjacency[v].append(u)
+
+    answer = [[0] * m for _ in range(k)]
+    active = []
+
+    for s, t, d, original_id in commodities:
+        if d == 0 or s == t:
+            continue
+        if not get_flow(n, edges, capacities, s, t, d):
+            print("NO")
+            return
+        active.append((s, t, d, original_id))
+
+    if not active:
+        out = ["YES"]
+        out.extend(" ".join(map(str, row)) for row in answer)
+        print("\n".join(out))
+        return
+
+    path_lists = []
+
+    for s, t, d, original_id in active:
+        can_reach_t = [False] * n
+        can_reach_t[t] = True
+        q = deque([t])
+        while q:
+            v = q.popleft()
+            for u in reverse_adjacency[v]:
+                if not can_reach_t[u]:
+                    can_reach_t[u] = True
+                    q.append(u)
+
+        if not can_reach_t[s]:
+            print("NO")
+            return
+
+        paths = []
+        visited = [False] * n
+        visited[s] = True
+        current = []
+
+        def enumerate_paths(u):
+            if u == t:
+                paths.append(tuple(current))
+                return
+            for v, eid in adjacency[u]:
+                if can_reach_t[v] and not visited[v]:
+                    visited[v] = True
+                    current.append(eid)
+                    enumerate_paths(v)
+                    current.pop()
+                    visited[v] = False
+
+        enumerate_paths(s)
+        if not paths:
+            print("NO")
+            return
+
+        paths.sort(key=lambda p: (len(p), p))
+        path_lists.append(paths)
+
+    order = list(range(len(active)))
+    order.sort(key=lambda x: (len(path_lists[x]), -active[x][2]))
+    active = [active[i] for i in order]
+    path_lists = [path_lists[i] for i in order]
+
+    residual = capacities[:]
+    failed_boundary = set()
+    failed_partial = set()
+
+    def future_feasible(start_index):
+        for j in range(start_index, len(active)):
+            s, t, d, _ = active[j]
+            if not get_flow(n, edges, residual, s, t, d):
+                return False
+        return True
+
+    def solve(ci):
+        if ci == len(active):
+            return True
+
+        boundary_key = (ci, tuple(residual))
+        if boundary_key in failed_boundary:
+            return False
+
+        s, t, demand, original_id = active[ci]
+
+        # First try one ordinary maximum-flow realization. This handles most
+        # instances without entering the exhaustive branch.
+        ok, used = get_flow(n, edges, residual, s, t, demand, True)
+        if not ok:
+            failed_boundary.add(boundary_key)
+            return False
+
+        for eid, amount in enumerate(used):
+            residual[eid] -= amount
+            answer[original_id][eid] += amount
+
+        if future_feasible(ci + 1) and solve(ci + 1):
+            return True
+
+        for eid, amount in enumerate(used):
+            residual[eid] += amount
+            answer[original_id][eid] -= amount
+
+        paths = path_lists[ci]
+
+        def allocate(remaining, first_path):
+            if remaining == 0:
+                return solve(ci + 1)
+
+            state = (ci, remaining, first_path, tuple(residual))
+            if state in failed_partial:
+                return False
+
+            if not get_flow(n, edges, residual, s, t, remaining):
+                failed_partial.add(state)
+                return False
+
+            for pi in range(first_path, len(paths)):
+                path = paths[pi]
+                bottleneck = remaining
+                for eid in path:
+                    if residual[eid] < bottleneck:
+                        bottleneck = residual[eid]
+                        if bottleneck == 0:
+                            break
+                if bottleneck == 0:
+                    continue
+
+                low = 1
+                quantities = range(bottleneck, low - 1, -1)
+
+                for amount in quantities:
+                    for eid in path:
+                        residual[eid] -= amount
+                        answer[original_id][eid] += amount
+
+                    rem = remaining - amount
+                    feasible = True
+                    if rem and not get_flow(n, edges, residual, s, t, rem):
+                        feasible = False
+                    if feasible and not future_feasible(ci + 1):
+                        feasible = False
+
+                    if feasible and allocate(rem, pi + 1):
+                        return True
+
+                    for eid in path:
+                        residual[eid] += amount
+                        answer[original_id][eid] -= amount
+
+            failed_partial.add(state)
+            return False
+
+        if allocate(demand, 0):
+            return True
+
+        failed_boundary.add(boundary_key)
+        return False
+
+    if solve(0):
+        out = ["YES"]
+        out.extend(" ".join(map(str, row)) for row in answer)
+        print("\n".join(out))
+    else:
+        print("NO")
+
+
+if __name__ == "__main__":
+    main()
+```

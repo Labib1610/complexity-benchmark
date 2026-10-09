@@ -1,0 +1,104 @@
+import sys
+sys.setrecursionlimit(10000000)
+
+def solve():
+    input_data = sys.stdin.read().strip().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    B = int(next(it))
+    edges = []
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        edges.append((u, v))
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # If no edges, any order works
+    if m == 0:
+        print("YES")
+        print(" ".join(str(i+1) for i in range(n)))
+        return
+    
+    # Try backtracking for small n
+    if n <= 12:
+        pos = [-1] * n
+        used = [False] * n
+        best = [None]
+        
+        def backtrack(idx, current_cost):
+            if current_cost > B:
+                return
+            if idx == n:
+                best[0] = pos[:]
+                return True
+            # Try placing each unused vertex at position idx
+            for v in range(n):
+                if not used[v]:
+                    # compute added cost
+                    added = 0
+                    for u in adj[v]:
+                        if pos[u] != -1:
+                            added += idx - pos[u]
+                    if current_cost + added > B:
+                        continue
+                    used[v] = True
+                    pos[v] = idx
+                    if backtrack(idx + 1, current_cost + added):
+                        return True
+                    pos[v] = -1
+                    used[v] = False
+            return False
+        
+        if backtrack(0, 0):
+            print("YES")
+            print(" ".join(str(p+1) for p in best[0]))
+        else:
+            print("NO")
+        return
+    
+    # For larger n, use greedy: order by degree descending (common heuristic)
+    order = sorted(range(n), key=lambda x: -len(adj[x]))
+    pos = [0]*n
+    for i, v in enumerate(order):
+        pos[v] = i
+    total = 0
+    for u, v in edges:
+        total += abs(pos[u] - pos[v])
+    if total <= B:
+        print("YES")
+        print(" ".join(str(p+1) for p in pos))
+    else:
+        # Try BFS ordering
+        from collections import deque
+        visited = [False]*n
+        order2 = []
+        for start in range(n):
+            if not visited[start]:
+                q = deque([start])
+                visited[start] = True
+                while q:
+                    u = q.popleft()
+                    order2.append(u)
+                    for w in adj[u]:
+                        if not visited[w]:
+                            visited[w] = True
+                            q.append(w)
+        pos2 = [0]*n
+        for i, v in enumerate(order2):
+            pos2[v] = i
+        total2 = 0
+        for u, v in edges:
+            total2 += abs(pos2[u] - pos2[v])
+        if total2 <= B:
+            print("YES")
+            print(" ".join(str(p+1) for p in pos2))
+        else:
+            print("NO")
+
+if __name__ == "__main__":
+    solve()

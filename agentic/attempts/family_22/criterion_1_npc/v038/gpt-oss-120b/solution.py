@@ -1,0 +1,44 @@
+import sys
+from collections import deque
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    M = int(next(it))
+    T = int(next(it))
+    m = int(next(it))
+    adj = [[] for _ in range(n)]
+    indeg = [0]*n
+    for _ in range(m):
+        a = int(next(it))-1
+        b = int(next(it))-1
+        adj[a].append(b)
+        indeg[b] += 1
+
+    ready = deque([i for i in range(n) if indeg[i]==0])
+    assign = [0]*n
+    time = 1
+    while time <= T and ready:
+        cnt = 0
+        # schedule up to M tasks this phase
+        while cnt < M and ready:
+            v = ready.popleft()
+            assign[v] = time
+            cnt += 1
+            for nb in adj[v]:
+                indeg[nb] -= 1
+                if indeg[nb]==0:
+                    ready.append(nb)
+        time += 1
+
+    if all(a!=0 for a in assign):
+        sys.stdout.write("YES\n")
+        sys.stdout.write(" ".join(map(str, assign)))
+    else:
+        sys.stdout.write("NO")
+
+if __name__ == "__main__":
+    solve()

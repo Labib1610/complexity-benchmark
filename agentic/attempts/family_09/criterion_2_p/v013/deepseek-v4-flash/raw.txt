@@ -1,0 +1,989 @@
+We can model the problem as a bipartite graph: components are vertices, interference links are edges, and the dual-architecture guarantee means the graph is bipartite. We need to find an independent set of size exactly k.
+
+Since the graph is bipartite, we can color it into two sides (say left and right). Let L and R be the two color classes. An independent set can contain vertices from both sides, but no edges between chosen vertices. In a bipartite graph, any subset that contains no edges is simply a subset where we avoid picking both endpoints of any edge. However, finding an independent set of exact size k in a general bipartite graph is NP-hard? Actually, maximum independent set in bipartite graphs can be solved in polynomial time via matching (Kőnig's theorem), but here we only need existence of size k, not maximum. But we can use the fact that any independent set in a bipartite graph can be formed by taking all vertices from one side and some from the other side, but we must avoid edges. However, we can always take all vertices from one side (they are independent because no edges within same side). So if k ≤ max(|L|, |R|), we can just output any k vertices from the larger side. If k > max(|L|, |R|), then we need to include vertices from both sides, but we must avoid edges. This becomes more complex.
+
+But note: In a bipartite graph, the complement of a vertex cover is an independent set. Maximum independent set size = n - minimum vertex cover size. Minimum vertex cover size = maximum matching size (Kőnig). So we can compute maximum matching, get maximum independent set size. If k > that, impossible. If k ≤ that, we can find an independent set of size k by taking a maximum independent set and then removing arbitrary vertices until size k. That works because any subset of an independent set is also independent. So we just need to find one maximum independent set.
+
+Thus algorithm:
+1. Build bipartite graph by BFS/DFS coloring (since guaranteed bipartite).
+2. Compute maximum matching (Hopcroft-Karp) between the two sides.
+
+3. From maximum matching, find minimum vertex cover via standard construction: From unmatched left vertices, do alternating BFS/DFS; mark reachable left and right vertices. Then minimum vertex cover = (left vertices not reachable) ∪ (right vertices reachable). Then maximum independent set = complement of that vertex cover.
+
+4. If k > size of maximum independent set, print NO. Else, take any k vertices from that independent set and print YES.
+
+Let's implement Hopcroft-Karp efficiently for n up to 100k, m up to 400k. We'll map vertices to indices 0..n-1. We'll store adjacency for left side only (since edges from left to right). We'll color first: BFS from unvisited, assign color 0/1. Then left = color 0, right = color 1. But we need to ensure edges go between left and right. We'll build adjacency for left vertices: for each edge (u,v), if color[u]==0 then left u has neighbor v; else left v has neighbor u. We'll store right vertices as their original index.
+
+Hopcroft-Karp:
+- pairU: array size n_left, -1 if unmatched; pairV: array size n_right, -1.
+- dist: array size n_left+1 (we use n_left as NIL sentinel.
+
+BFS: queue all unmatched left vertices, dist[u]=0; else dist[u]=INF. dist[NIL]=INF. While queue: for each neighbor v of u: if pairV[v]==-1 then dist[NIL]=0? Actually standard: if dist[pairV[v]] == INF: dist[pairV[v]] = dist[u]+1; push pairV[v]. We'll use NIL index = n_left. So pairV[v] can be -1 or a left index. If -1, we set dist[NIL]=0? Actually we need to allow augmenting path to NIL. Standard: if pairV[v] == NIL? We'll use -1 as NIL. We'll set dist[NIL] = 0 when we find free right vertex. But we need to keep BFS until we find free right. We'll do: if pairV[v] == -1: dist[NIL] = 0; else if dist[pairV[v]] == INF: dist[pairV[v]] = dist[u]+1; push. We'll also break? We can continue but we can stop early? We'll just continue.
+
+DFS(u): for each v in adj[u]: if pairV[v]==-1 or (dist[pairV[v]] == dist[u]+1 and DFS(pairV[v])): then pairU[u]=v; pairV[v]=u; return True. dist[u]=INF; return False.
+
+We'll run BFS, then DFS for all unmatched left vertices. Repeat until BFS finds no augmenting path (dist[NIL]==INF).
+
+After matching, we compute min vertex cover:
+- We need to run alternating BFS from all unmatched left vertices. We'll mark visitedL, visitedR.
+- For each unmatched left u: BFS: mark visitedL[u]; for each neighbor v: if not visitedR[v]: mark visitedR[v]; if pairV[v]!=-1 and not visitedL[pairV[v]]: mark visitedL[pairV[v]]; push.
+- Then min vertex cover = (left vertices not visitedL) ∪ (right vertices visitedR).
+- Maximum independent set = all vertices not in that cover. That is: left vertices visitedL ∪ right vertices not visitedR.
+
+Let's verify with example1: n=4, edges: 1-3,1-4,2-3,2-4. BFS color: 1,2 color0; 3,4 color1. Left={1,2}, right={3,4}. Matching size2 (1-3,2-4). Unmatched left none. Alternating BFS from unmatched left none. visitedL empty, visitedR empty. Min vertex cover = left not visitedL = {1,2} ∪ right visitedR = {} => {1,2}. Independent set = complement = {3,4}. Size2. k=2, output 3 4? But example output 1 2. Both are valid? Check edges: 3 and4 have no edge between them? Actually edges are 1-3,1-4,2-3,2-4. So 3 and4 are not connected, so {3,4} is valid. So output any. Good.
+
+Example3: k=3, max independent size=2, so NO.
+
+Example2: m=0, graph has no edges, all vertices independent. BFS color: all color0? Actually BFS from 1: color0, no neighbors, so all color0. Left=all, right=empty. Matching size0. Unmatched left all. Alternating BFS from all unmatched left: visitedL all, visitedR empty. Min vertex cover = left not visitedL = {} ∪ right visitedR = {} => empty. Independent set = all vertices. Size5. k=5, output all.
+
+Works.
+
+Edge case: k=0? But k≥1 per constraints. So fine.
+
+We need to be careful with memory: n up to 100k, m up to 400k. Adjacency list for left side: each edge stored once. We'll store as list of lists of ints. That's fine.
+
+
+
+Now implement. We'll read input fast using sys.stdin.buffer.read().split().
+
+ We'll parse ints.
+
+We'll color using BFS/DFS iterative to avoid recursion depth. We'll use deque.
+
+We'll assign color array of size n, -1 unvisited. For each i from 0 to n-1: if color[i]==-1: color[i]=0; queue=[i]; while queue: pop; for each neighbor in adj_original? We need original adjacency for coloring. We'll store original adjacency as list of lists for all vertices. That's 2m edges, fine. Then after coloring, build left adjacency.
+
+We'll map left vertices to indices 0..L-1. We'll also need mapping from original vertex to left index. We'll create left_id array of size n, -1 if not left. Similarly right_id. We'll fill during coloring? We can after coloring: for i in range(n): if color[i]==0: left_id[i]=len(left_list); left_list.append(i); else: right_id[i]=len(right_list); right_list.append(i). Then build left_adj: for each original edge (u,v): if color[u]==0: left_adj[left_id[u]].append(v); else: left_adj[left_id[v]].append(u; (since v is left). We'll store right vertices as original index, but pairV array indexed by right_id. So we need to convert neighbor original to right_id. We'll store right_id array. So left_adj[u_idx].append(right_id[v_orig]). Good.
+
+Now Hopcroft-Karp:
+- nL = len(left_list), nR = len(right_list).
+- pairU = [-1]*nL; pairV = [-1]*nR.
+- dist = [0]*(nL+1); NIL = nL.
+- BFS function: from collections import deque. Initialize dist all INF (use large int). dist[NIL]=INF. Queue empty. For u in range(nL): if pairU[u]==-1: dist[u]=0; q.append(u; else dist[u]=INF. While q: u=q.popleft(); for v in left_adj[u]: if pairV[v]==-1: dist[NIL]=0; else: if dist[pairV[v]] == INF: dist[pairV[v]] = dist[u]+1; q.append(pairV[v]). Return dist[NIL] != INF.
+
+- DFS(u): for v in left_adj[u]: if pairV[v]==-1 or (dist[pairV[v]] == dist[u]+1 and DFS(pairV[v])): pairU[u]=v; pairV[v]=u; return True. dist[u]=INF; return False.
+
+We need to be careful: In DFS, we should not revisit same v? Standard implementation uses recursion and dist to prune. We'll implement iterative? Recursion depth could be up to nL (100k), which may exceed Python recursion limit. We'll set sys.setrecursionlimit(300000).. But recursion depth in DFS could be O(nL) in worst case? Hopcroft-Karp DFS depth is at most augmenting path length, which can be O(nL). So recursion depth could be 100k, which is okay with recursionlimit 300k. But Python recursion overhead might be high but acceptable for 2s? We'll try. Alternatively implement iterative DFS, but recursion is simpler. We'll set recursionlimit high.
+
+But note: In DFS, we iterate over all neighbors of u each time. Standard Hopcroft-Karp uses current pointer to avoid re-scanning? Actually we can just iterate all neighbors; complexity O(E sqrt(V))? With m=400k, fine. But we need to avoid infinite recursion? We set dist[u]=INF after failure. That's standard.
+
+
+
+After matching, compute min vertex cover:
+- visitedL = [False]*nL; visitedR = [False]*nR.
+- q = deque(). For u in range(nL): if pairU[u]==-1: visitedL[u]=True; q.append(u.
+- While q: u=q.popleft(); for v in left_adj[u]: if not visitedR[v]: visitedR[v]=True; if pairV[v]!=-1 and not visitedL[pairV[v]]: visitedL[pairV[v]]=True; q.append(pairV[v]).
+- Then independent set: left vertices visitedL (since not in cover) plus right vertices not visitedR. We'll collect original indices: for u in range(nL): if visitedL[u]: ans.append(left_list[u]); for v in range(nR): if not visitedR[v]: ans.append(right_list[v]).
+- If len(ans) < k: print NO. Else: print YES; print first k from ans.
+
+Let's test with example1: left={1,2}, right={3,4}. Matching: pairU[0]=0 (1-3), pairU[1]=1 (2-4). Unmatched left none. visitedL all false, visitedR all false. Independent set: left visitedL none, right not visitedR all => {3,4}. Size2. k=2, output 3 4. Valid.
+
+But wait: Is {3,4} independent? Yes. Good.
+
+Now test with a case where maximum independent set includes both sides. Example: n=3, edges: 1-2. BFS: 1 color0, 2 color1, 3 color0? Actually BFS from 1: color0, neighbor2 color1. Then 3 unvisited, color0. Left={1,3}, right={2}. Matching: edge 1-2, pairU[0]=0, pairV[0]=0. Unmatched left: u=1 (vertex3). Alternating BFS from u=1: visitedL[1]=True; neighbors of 3: none. So visitedL={1}, visitedR={}. Min vertex cover = left not visitedL = {0} ∪ right visitedR = {} => {1} (vertex1). Independent set = complement = {2,3}? Wait left visitedL = {3}, right not visitedR = {2} => {3,2}. Size2. Is {2,3} independent? Edge 1-2 only, so yes. Good. k=2, output 2 3. Valid.
+
+Now test with a case where maximum independent set size = n - matching size. Suppose n=4, edges: 1-2,2-3? But graph must be bipartite? 1-2,2-3 forms path length2, bipartite: 1 color0,2 color1,3 color0. Left={1,3}, right={2}. Matching size1 (1-2). Unmatched left: u=1 (vertex3). Alternating BFS from 3: no neighbors. visitedL={1}, visitedR={}. Min vertex cover = left not visitedL = {0} ∪ right visitedR = {} => {1}. Independent set = {2,3}? Actually left visitedL = {3}, right not visitedR = {2} => {3,2}. Size2. Is {2,3} independent? Edge 2-3 exists? Yes! Wait edge 2-3 exists, so {2,3} is not independent. Something wrong. Let's re-evaluate.
+
+Graph: vertices 1,2,3,4? Actually n=4, edges: 1-2,2-3. BFS: 1 color0, 2 color1, 3 color0, 4 color0? 4 unvisited, color0. Left={1,3,4}, right={2}. Matching: edge 1-2, pairU[0]=0, pairV[0]=0. Unmatched left: u=1 (vertex3), u=2 (vertex4). Alternating BFS from u=1 (vertex3): no neighbors. visitedL[1]=True. From u=2 (vertex4): no neighbors. visitedL[2]=True. So visitedL={1,2}, visitedR={}. Min vertex cover = left not visitedL = {0} ∪ right visitedR = {} => {1}. Independent set = left visitedL = {3,4} ∪ right not visitedR = {2} => {3,4,2}. But {2,3} edge exists! Wait left visitedL includes vertex3 (index1), right not visitedR includes vertex2 (index0). But edge 2-3 exists, so they cannot both be in independent set. Something is wrong with our construction? Let's recall standard construction: After maximum matching, run alternating BFS from all unmatched left vertices. Mark reachable left and right. Then minimum vertex cover = (L \ Z_L) ∪ (R ∩ Z_R), where Z_L is set of left vertices reachable, Z_R is set of right vertices reachable. Then independent set = complement = (L ∩ Z_L) ∪ (R \ Z_R). In our case, Z_L = {3,4}, Z_R = {}. So independent set = {3,4} ∪ {2} = {2,3,4}. But edge 2-3 exists, so not independent. That means our matching is not maximum? Let's check: Graph edges: 1-2,2-3. Maximum matching size? We can match 1-2 or 2-3, size1. So matching size1 is maximum. But independent set size should be n - matching size = 4-1=3. But {2,3,4} has edge 2-3, so not independent. Wait is {1,3,4} independent? Edge 1-2,2-3, so 1 and3 not connected, 1 and4 not,3 and4 not. So {1,3,4} size3 independent. So maximum independent set size3. Our construction gave {2,3,4} which is not independent. So we made a mistake in construction.
+
+Let's recall standard algorithm: Given bipartite graph G=(L,R,E), maximum matching M. Let U be set of unmatched left vertices. Let Z be set of vertices reachable from U by alternating paths (edges not in M from left to right, edges in M from right to left). Then minimum vertex cover = (L \ Z) ∪ (R ∩ Z). In our example: U = {3,4} (left unmatched). Alternating paths: From 3: no edges. From 4: no edges. So Z = {3,4} (left only). Then vertex cover = (L \ Z) = {1} ∪ (R ∩ Z) = {} => {1}. That's a vertex cover? Edge 2-3: vertex1 doesn't cover it. So not a vertex cover. So something is off: The alternating path definition: From unmatched left, we can go along edges not in M to right, then along edges in M back to left, etc. But from 3, there is edge 3-2 (not in M), so we can go to right vertex2. Then from right2, we can go along edge in M (1-2) back to left1. So Z should include right2 and left1. I missed that because I only considered neighbors of left vertices, but I didn't consider that from left3, we can go to right2 (edge not in M), and then from right2, we can go to left1 via matching edge. In my BFS, I did: for each neighbor v of u: if not visitedR[v]: mark visitedR[v]; if pairV[v]!=-1 and not visitedL[pairV[v]]: mark visitedL[pairV[v]]; push. That should work. Let's simulate: Start with unmatched left: u=1 (vertex3), u=2 (vertex4).. Process u=1: neighbors of 3: right2 (v=0). visitedR[0]=True. pairV[0]=0 (left1), so visitedL[0]=True; push left1. Process u=2: neighbors of 4: none. Process left1: neighbors of 1: right2 (v=0) already visitedR. So visitedL={1,2} (left3,4), visitedR={0} (right2). Then min vertex cover = (L \ visitedL) = {0} (left1) ∪ (R ∩ visitedR) = {0} (right2) => {1,2}. That covers all edges? Edge 1-2 covered by both, edge2-3 covered by right2. Yes. Independent set = complement = left visitedL = {3,4} ∪ right not visitedR = {} => {3,4}. Size2? But maximum independent set size should be3? Wait n=4, matching size1, so max independent size = n - min vertex cover size = 4-2=2? But we found {1,3,4} size3 independent? Check edges: 1-2,2-3. {1,3,4}: edge 1-2? 1 and2 not both; edge2-3? 2 not in set; so yes independent. So size3. So min vertex cover size should be1? But {1} doesn't cover edge2-3. So min vertex cover size is2? Then max independent size =2. But {1,3,4} size3 independent, contradiction. Wait is graph bipartite? 1-2,2-3: 1 color0,2 color1,3 color0. Edge 2-3 connects color1 and0, fine. So bipartite. But {1,3,4} independent? 1 and3 not connected, 1 and4 not,3 and4 not. Yes. So max independent size at least3. Then min vertex cover size at most1. But {1} doesn't cover edge2-3. So min vertex cover size at least2? Actually vertex cover must cover edge2-3, so must include 2 or3. Also edge1-2, so must include1 or2. If we choose {2}, covers both edges? Edge1-2 covered by2, edge2-3 covered by2. So {2} is a vertex cover of size1. So min vertex cover size1. Then max independent size =3. Our construction gave vertex cover {1,2} size2, which is not minimum. So our alternating BFS construction is wrong because we started from all unmatched left vertices, but we should start from unmatched left vertices and follow alternating paths where edges from left to right are NOT in M, and edges from right to left are IN M. In our BFS, when we process left u, we iterate over all neighbors v (edges not in M? Actually all edges from left to right are not in M? Wait matching edges are also edges from left to right. In alternating path, from left to right we can only use edges NOT in M. From right to left we can only use edges IN M. In our BFS, we processed left u: for each neighbor v, we mark visitedR[v] regardless of whether (u,v) is in M. That's wrong: We should only traverse edges not in M from left to right. Similarly, from right to left, we should only traverse matching edge. So we need to check: For left u, for each neighbor v: if (u,v) is not a matching edge? Actually if pairU[u]==v, then that edge is in M, and we should not traverse it from left to right in alternating path (because alternating path from left uses non-matching edges to go to right). So we should skip if pairU[u]==v. Similarly, from right v, we only go to pairV[v] (matching edge). So in BFS, when processing left u, we should only consider neighbors v such that pairU[u] != v. Then mark visitedR[v]; then if pairV[v]!=-1, go to pairV[v] (matching edge). That's correct.
+
+Let's redo: Start unmatched left: u=1 (vertex3), u=2 (vertex4).. Process u=1: neighbors of 3: right2 (v=0). pairU[1]? left index1 (vertex3) has pairU[1] = -1 (unmatched), so pairU[1] != 0, so we traverse. visitedR[0]=True. pairV[0]=0 (left1), so visitedL[0]=True; push left1. Process u=2: neighbors of 4: none. Process left1: neighbors of 1: right2 (v=0). pairU[0] = 0 (matched to right2), so pairU[0]==v, so skip. So visitedL={1,2} (left3,4), visitedR={0} (right2). Then min vertex cover = (L \ visitedL) = {0} (left1) ∪ (R ∩ visitedR) = {0} (right2) => {1,2}. Still size2. But we know {2} is vertex cover. Why construction gives {1,2}? Let's check: Is {1,2} a vertex cover? Yes. But not minimum. The standard construction should give a minimum vertex cover. Why did we get non-minimum? Because our alternating BFS from unmatched left vertices should produce Z such that vertex cover = (L\Z) ∪ (R∩Z) is minimum. But we got Z = {left3,4, right2}. Then vertex cover = (L\Z) = {left1} ∪ (R∩Z) = {right2} => {1,2}. That's size2. But minimum is1. So something else: Maybe our matching is not maximum? We matched 1-2. But maximum matching size is1? Actually graph has edges 1-2,2-3. Maximum matching size is1 (can't match both because share vertex2). So matching size1 is maximum. Then min vertex cover size should be1. But our construction gave size2. So the standard construction must be different: The alternating BFS should start from all unmatched left vertices, but also from all unmatched right vertices? Let's recall: To find minimum vertex cover from maximum matching, we do: Let U be set of unmatched left vertices. Let Z be set of vertices reachable from U by alternating paths (where edges from left to right are unmatched, edges from right to left are matched). Then minimum vertex cover = (L \ Z) ∪ (R ∩ Z). In our example, U = {left3,left4}. Alternating paths: From left3, we can go to right2 (unmatched edge), then from right2, we can go to left1 (matched edge). Then from left1, we can go to right2? But that edge is matched, so from left1 we cannot go to right2 via unmatched edge because that edge is matched. So Z = {left3,left4,right2,left1}. Then vertex cover = (L\Z) = {} ∪ (R∩Z) = {right2} => {2}. That's size1. But in our BFS, we got visitedL included left1? Yes we did. But then vertex cover = (L\visitedL) = {left1}? Wait L = {1,3,4}. visitedL = {3,4,1}? Actually we marked visitedL[0] (left1) when processing left3. So visitedL = {left1,left3,left4}. Then L\visitedL = {} (empty). So vertex cover = {} ∪ (R∩visitedR) = {right2} => {2}. That's size1. But earlier I said L\visitedL = {0} because I thought visitedL didn't include left1. Let's re-evaluate: In our BFS, we started with unmatched left: u=1 (left3), u=2 (left4). Process u=1: neighbor right2, visitedR[0]=True, pairV[0]=0, so visitedL[0]=True, push left1. So visitedL includes left1. Then process u=2: no neighbors. Then process left1: neighbor right2, but pairU[0]==0, so skip. So visitedL = {left1,left3,left4}. So L\visitedL = {} (empty). Then vertex cover = {} ∪ {right2} = {2}. That's correct. I earlier mistakenly said L\visitedL = {0}. So our BFS with skip matching edges from left works. Good.
+
+So we need to modify BFS for min vertex cover: When processing left u, for each neighbor v: if pairU[u] == v: continue (skip matching edge from left to right). Then mark visitedR[v]; if pairV[v]!=-1: mark visitedL[pairV[v]]; push. That's correct.
+
+Now in Hopcroft-Karp BFS for matching, we don't skip matching edges? Actually in HK BFS, we traverse all edges from left to right, regardless of matching? Standard HK BFS: For each neighbor v of u: if pairV[v] == NIL: dist[NIL]=0; else if dist[pairV[v]] == INF: dist[pairV[v]] = dist[u]+1; push. It doesn't skip matching edges because it's building layered graph for augmenting paths, which alternate unmatched/matched edges. But in BFS, from left u, we consider all neighbors v, and then go to pairV[v] (which is matched edge from right to left). That's correct: The path from left to right uses edge (u,v) which may be matched or unmatched? Actually in augmenting path, edges alternate: starting from unmatched left, first edge must be unmatched (because left is unmatched, so no matched edge from it). Then from right to left uses matched edge. Then from left to right uses unmatched edge, etc. So in BFS, when we are at left u, we should only traverse unmatched edges to right? But standard HK BFS doesn't check that because it uses dist to ensure alternating? Let's recall: In HK, BFS builds layers: dist[u] for left vertices. For each neighbor v of u, if pairV[v] is free, then we found augmenting path; else if dist[pairV[v]] == INF, set dist[pairV[v]] = dist[u]+1. This implicitly assumes that edge (u,v) is unmatched? Actually if (u,v) is matched, then pairV[v] = u, so dist[pairV[v]] = dist[u], which is not INF (since dist[u] already set), so it won't be updated. So it effectively skips matched edges from left to right because pairV[v] == u, and dist[u] is not INF. So it's fine. So our HK BFS is correct.
+
+Now for min vertex cover BFS, we need to skip matched edges from left to right explicitly because we don't have dist to prevent. So we'll do: if pairU[u] == v: continue.
+
+Now let's test with example1: left={1,2}, right={3,4}. Matching: pairU[0]=0 (1-3), pairU[1]=1 (2-4). Unmatched left none. So BFS from unmatched left none. visitedL empty, visitedR empty. Vertex cover = (L\empty) = {1,2} ∪ (R∩empty) = {} => {1,2}. Independent set = complement = {3,4}. Size2. Good.
+
+Now test with a case where maximum independent set includes both sides. Example: n=3, edges: 1-2. Left={1,3}, right={2}. Matching: pairU[0]=0 (1-2), pairU[1]=-1 (3 unmatched). Unmatched left: u=1 (vertex3). BFS: process u=1: neighbors of 3: right2 (v=0). pairU[1] = -1, not equal 0, so traverse. visitedR[0]=True. pairV[0]=0, so visitedL[0]=True; push left0. Process left0: neighbors of 1: right2 (v=0). pairU[0]==0, skip. So visitedL={left0,left1}, visitedR={right0}. Vertex cover = (L\visitedL) = {} ∪ (R∩visitedR) = {right0} => {2}. Independent set = complement = left visitedL = {1,3} ∪ right not visitedR = {} => {1,3}. Size2. Is {1,3} independent? Edge 1-2 only, so yes. Good.
+
+Now test with a case where maximum independent set includes right side. Example: n=3, edges: 1-2,1-3? Bipartite? 1 color0,2 color1,3 color1. Left={1}, right={2,3}. Matching: edge 1-2, pairU[0]=0, pairV[0]=0. Unmatched left none. BFS from unmatched left none. visitedL empty, visitedR empty. Vertex cover = (L\empty) = {1} ∪ (R∩empty) = {} => {1}. Independent set = complement = left visitedL = {} ∪ right not visitedR = {2,3} => {2,3}. Size2. Is {2,3} independent? No edge between them, yes. Good.
+
+Now test with a case where maximum independent set includes both sides and matching not perfect. Example: n=4, edges: 1-2,2-3,3-4? Bipartite? Path length3: 1 color0,2 color1,3 color0,4 color1. Left={1,3}, right={2,4}. Edges: 1-2,2-3,3-4. Maximum matching size2? We can match 1-2 and3-4, size2. So perfect matching. Unmatched left none. Vertex cover = (L\empty) = {1,3} ∪ (R∩empty) = {} => {1,3}. Independent set = {2,4}. Size2. Is {2,4} independent? Edge 2-3,3-4, so 2 and4 not connected, yes. Good.
+
+Now test with a case where maximum matching not perfect and independent set includes both sides. Example: n=5, edges: 1-2,2-3,3-4,4-5? Path length4: colors: 1,3,5 color0; 2,4 color1. Left={1,3,5}, right={2,4}. Edges: 1-2,2-3,3-4,4-5. Maximum matching size2? We can match 1-2 and3-4, leaving5 unmatched. Or match2-3 and4-5, leaving1 unmatched. Size2. Let's pick matching via HK: It might match 1-2,3-4. Unmatched left: vertex5 (left index2). BFS from unmatched left5: neighbors of5: right4 (v=1). pairU[2] = -1, not equal1, traverse. visitedR[1]=True. pairV[1]=1 (left3), so visitedL[1]=True; push left3. Process left3: neighbors of3: right2 (v=0), right4 (v=1). pairU[1] =1 (matched to right4), so for v=0: pairU[1]!=0, traverse? Wait pairU[1] is 1, not 0, so we traverse edge 3-2 (unmatched). visitedR[0]=True. pairV[0]=0 (left1), so visitedL[0]=True; push left1. For v=1: pairU[1]==1, skip. Process left1: neighbors of1: right2 (v=0). pairU[0]==0, skip. So visitedL={left5,left3,left1}, visitedR={right4,right2}. Vertex cover = (L\visitedL) = {} ∪ (R∩visitedR) = {right2,right4} => {2,4}. Independent set = complement = left visitedL = {1,3,5} ∪ right not visitedR = {} => {1,3,5}. Size3. Is {1,3,5} independent? Edges: 1-2,2-3,3-4,4-5. So 1,3,5 have no edges among them? 1-3 no,3-5 no,1-5 no. Yes. Good.
+
+Now test with a case where independent set includes both sides. Example: n=4, edges: 1-2,3-4. Bipartite: 1,3 color0; 2,4 color1. Left={1,3}, right={2,4}. Matching size2 (1-2,3-4). Unmatched left none. Vertex cover = (L\empty) = {1,3} ∪ (R∩empty) = {} => {1,3}. Independent set = {2,4}. Size2. But we could also choose {1,3}? Both sides? Actually {1,3} is left side, size2. So fine.
+
+Now test with a case where maximum independent set size > max(|L|,|R|)? Actually max independent set size can be larger than either side? In bipartite graph, maximum independent set can include vertices from both sides, but size ≤ n - min vertex cover. It can be larger than max(|L|,|R|) if both sides have some vertices and matching small. Example: n=4, edges: 1-2 only. Left={1,3}, right={2,4}. Matching size1. Unmatched left: vertex3. BFS from 3: neighbor2? Actually 3 has no edges. So visitedL={3}, visitedR={}. Vertex cover = (L\visitedL) = {1} ∪ (R∩visitedR) = {} => {1}. Independent set = left visitedL = {3} ∪ right not visitedR = {2,4} => {3,2,4}. Size3. Is {2,3,4} independent? Edge 1-2 only, so yes. So max independent size3 > max(|L|=2,|R|=2)? Actually max(|L|,|R|)=2, but size3. So our algorithm handles.
+
+Now we need to ensure we output exactly k components. If k ≤ len(ans), we can take first k. But we must ensure they are distinct. They are.
+
+Now complexity: Hopcroft-Karp O(E sqrt(V))). With n=100k, m=400k, fine. But Python recursion in DFS might be okay. We'll implement iterative DFS? Let's consider performance. Hopcroft-Karp DFS recursion depth could be up to O(sqrt(V))? Actually augmenting path length can be O(V), but in HK, DFS depth is bounded by current BFS distance, which can be O(V). So recursion depth up to 100k. Python recursionlimit 300k should handle. But recursion overhead might be high but acceptable for 2s? We'll try. If TLE, we can implement iterative DFS. But let's first write recursive.
+
+We need to be careful with recursionlimit: sys.setrecursionlimit(1_000_000) maybe.
+
+Now implement Hopcroft-Karp:
+
+```
+def bfs():
+    from collections import deque
+    q = deque()
+    for u in range(nL):
+        if pairU[u] == -1:
+            dist[u] = 0
+            q.append(u)
+        else:
+            dist[u] = INF
+    dist[NIL] = INF
+    while q:
+        u = q.popleft()
+        if dist[u] < dist[NIL]:
+            for v in left_adj[u]:
+                if pairV[v] == -1:
+                    dist[NIL] = 0
+                else:
+                    if dist[pairV[v]] == INF:
+                        dist[pairV[v]] = dist[u] + 1
+                        q.append(pairV[v])
+    return dist[NIL] != INF
+```
+
+But note: In BFS, we should not stop early when dist[NIL] set? We can continue but we need to ensure we don't process vertices with dist >= dist[NIL]? Standard: if dist[u] < dist[NIL] then explore. We'll do that.
+
+DFS:
+
+```
+def dfs(u):
+    for v in left_adj[u]:
+        if pairV[v] == -1 or (dist[pairV[v]] == dist[u]+1 and dfs(pairV[v])):
+            pairU[u] = v
+            pairV[v] = u
+            return True
+    dist[u] = INF
+    return False
+```
+
+But we need to avoid revisiting same v? Standard doesn't need because dist ensures. But we might revisit same v multiple times? In DFS, for a given u, we iterate all neighbors. If a neighbor v leads to failure, we might try it again from another u? That's okay. But we need to ensure we don't get stuck in cycles? dist ensures no cycles because dist increases. Good.
+
+
+
+After matching, compute min vertex cover BFS:
+
+```
+visitedL = [False]*nL
+visitedR = [False]*nR
+q = deque()
+for u in range(nL):
+    if pairU[u] == -1:
+        visitedL[u] = True
+        q.append(u)
+while q:
+    u = q.popleft()
+    for v in left_adj[u]:
+        if pairU[u] == v:
+            continue
+        if not visitedR[v]:
+            visitedR[v] = True
+            if pairV[v] != -1:
+                nxt = pairV[v]
+                if not visitedL[nxt]:
+                    visitedL[nxt] = True
+                    q.append(nxt)
+```
+
+Then ans = [left_list[u] for u in range(nL) if visitedL[u]] + [right_list[v] for v in range(nR) if not visitedR[v]].
+
+Now test with example1: left={1,2}, right={3,4}. Matching: pairU[0]=0, pairU[1]=1. Unmatched left none. visitedL all false, visitedR all false. ans = [] + [3,4] = [3,4]. Size2. k=2, output 3 4. Valid.
+
+But example output 1 2. Both valid. Good.
+
+Now test with example3: n=4, edges same, k=3. Max independent size2, so NO.
+
+Now test with m=0: n=5, k=5. BFS color: all color0? Actually BFS from 0: color0, no neighbors, then 1 unvisited color0, etc. So left=all, right=empty. Matching size0. Unmatched left all. BFS for min vertex cover: from each unmatched left, no neighbors, so visitedL all true, visitedR empty. ans = all left + [] = all vertices. Size5. k=5, output all. Good.
+
+Now test with k=1: Always possible? If n≥1, any single vertex is independent. Our algorithm: max independent size at least1, so YES. Output first vertex from ans. Good.
+
+Now test with k=n: Need entire graph independent, i.e., m=0. Our algorithm: max independent size = n if m=0, else < n. So if m>0, NO. Good.
+
+
+
+Now we need to ensure we handle large input efficiently. Use sys.stdin.buffer.read().split() to parse ints. We'll build original adjacency for coloring. Since m up to 400k, adjacency list of lists for n=100k is fine. But we need to store edges for building left_adj after coloring. We can store edges list of tuples (u,v) as 0-indexed. That's 400k tuples, fine. Or we can build left_adj directly after coloring by iterating edges again. We'll store edges list.
+
+Coloring BFS: We'll use deque. For each i in range(n): if color[i]==-1: color[i]=0; q=[i]; while q: pop; for nb in adj[i]: if color[nb]==-1: color[nb]=color[u]^1; push. Since graph guaranteed bipartite, no conflict. But we can ignore conflict.
+
+After coloring, build left_id, right_id, left_list, right_list. Then build left_adj: for each (u,v) in edges: if color[u]==0: left_adj[left_id[u]].append(right_id[v]); else: left_adj[left_id[v]].append(right_id[u]). Note: If color[u]==1, then v is color0, so v is left. Good.
+
+Now Hopcroft-Karp: We'll use arrays of ints. For performance, we can use list of lists for left_adj. We'll also maybe use local variables for speed.
+
+Now recursion DFS: We'll define as nested function to access pairU, pairV, dist, left_adj, nL, NIL. But recursion overhead might be high. We'll implement iterative DFS? Let's think.
+
+Standard HK DFS recursive:
+
+```
+def dfs(u):
+    for v in left_adj[u]:
+        if pairV[v] == -1 or (dist[pairV[v]] == dist[u]+1 and dfs(pairV[v])):
+            pairU[u] = v
+            pairV[v] = u
+            return True
+    dist[u] = INF
+    return False
+```
+
+This can be called many times. With n=100k, m=400k, it should be okay. But Python recursion depth may be high. We'll set recursionlimit 1e6. However, Python recursion overhead for 400k edges might be okay within 2s? Possibly. But we can optimize by using iterative DFS with stack? Let's consider.
+
+Iterative DFS for HK is tricky because we need to backtrack and update pairs. But we can implement recursive and hope. Many competitive programmers use recursive HK in Python for n=100k, m=400k? Might be tight but okay with PyPy? We'll write efficient code.
+
+Alternative: Use Dinic? No.
+
+We'll proceed with recursive.
+
+Now one more nuance: The graph is guaranteed bipartite, but we don't know which side is which. Our coloring gives one bipartition. Good.
+
+Now let's test with a random small graph by brute force to verify. We'll write a quick mental test? But we can trust.
+
+
+
+Now let's think about edge cases:
+- n=1, m=0, k=1: left={1}, right={}. Matching size0. Unmatched left all. BFS min cover: visitedL all, visitedR empty. ans=[1]. k=1, YES 1.
+- n=2, m=1, edge 1-2, k=1: left={1}, right={2}. Matching size1. Unmatched left none. visitedL empty, visitedR empty. ans = [] + [2] = [2]. k=1, output 2. Valid.
+- n=2, m=1, k=2: max independent size1, NO.
+- n=3, m=2, edges 1-2,1-3, k=2: Bipartite: 1 color0,2 color1,3 color1. Left={1}, right={2,3}. Matching size1 (1-2). Unmatched left none. visitedL empty, visitedR empty. ans = [] + [2,3] = [2,3]. Size2. Is {2,3} independent? No edge between them, yes. k=2, YES 2 3. Good.
+- n=3, m=2, edges 1-2,2-3, k=2: Bipartite: 1 color0,2 color1,3 color0. Left={1,3}, right={2}. Matching size1 (1-2). Unmatched left: vertex3. BFS min cover: from 3: neighbor2 (v=0). pairU[1] = -1, not equal0, traverse. visitedR[0]=True. pairV[0]=0, visitedL[0]=True; push left1. Process left1: neighbor2 (v=0). pairU[0]==0, skip. visitedL={left1,left3}, visitedR={right2}. ans = left visitedL = {1,3} + right not visitedR = {} => {1,3}. Size2. Is {1,3} independent? Edge 1-2,2-3, so 1 and3 not connected, yes. k=2, YES 1 3. Good.
+
+Now test with a case where maximum independent set includes both sides and k less than max. Example: n=4, edges: 1-2 only, k=2. Max independent size3. Our ans = {3,2,4}? Let's compute: left={1,3}, right={2,4}. Matching size1 (1-2). Unmatched left: vertex3. BFS min cover: from 3: no neighbors. visitedL={3}, visitedR={}. ans = left visitedL = {3} + right not visitedR = {2,4} => {3,2,4}. Size3. k=2, we can output first two: {3,2}. Is {3,2} independent? Edge 1-2 only, so yes. Good.
+
+Now test with a case where ans includes both sides and we need to output k less than size. We just take first k. Since any subset of independent set is independent, fine.
+
+Now one more nuance: The problem statement says "destructive interference can only ever occur between two components of opposite polarities." This guarantees graph is bipartite. But it doesn't say the graph is connected. Our coloring handles disconnected.
+
+Now let's think about memory: left_adj list of lists for up to 100k left vertices, total edges 400k. Each int in Python is 28 bytes, so 400k*28 ≈ 11MB, plus list overhead maybe 20MB. Original adjacency for coloring: 2m edges = 800k ints ≈ 22MB. Edges list of tuples: 400k tuples each tuple 2 ints? Actually tuple overhead large. We can avoid storing edges list by building left_adj after coloring? But we need edges after coloring. We can store edges as two parallel lists? Or we can build left_adj during coloring? We don't know left/right until after coloring. We can store edges as list of (u,v) tuples. 400k tuples might be ~22MB. Total maybe 60-80MB, within 256MB? Python overhead might be high. Let's estimate: original adjacency: list of n lists (100k lists overhead ~5.6MB), plus 800k ints (each int object 28 bytes? But small ints are cached? Actually ints up to 100k are not all cached? Python caches -5..256 only. So each int object ~28 bytes. 800k*28=22.4MB. Plus list pointers in adjacency lists: each int is a reference (8 bytes) in list, so 800k*8=6.4MB. So original adjacency ~34MB. Edges list of tuples: 400k tuples, each tuple overhead 56 bytes + two references? Actually tuple of two ints: tuple object 56 bytes + two references (16 bytes) =72 bytes? But ints are same objects as in adjacency? Actually when we parse, we create ints. We store edges as tuples of ints. Those ints are separate objects? We parse from bytes, create int objects. We store in edges list. Then we also store in adjacency lists? We append the same int objects? When we append u to adj[v], we append the int object u (same object as in tuple? Actually u is an int variable; when we append, we append reference to that int object. So the int objects are shared between edges list and adjacency lists? Yes, because we append the same int object. So memory for int objects is 2m ints? Actually each edge has two ints, so 800k int objects. They are referenced in both edges list and adjacency lists. So int objects memory ~22MB. Edges list of tuples: 400k tuples, each tuple 56 bytes + 16 bytes references =72 bytes =>28.8MB. Plus list of tuples overhead ~3.2MB. So edges list ~32MB. Original adjacency lists: list of lists overhead ~5.6MB + list pointers 6.4MB =12MB. So total ~66MB. left_adj: another list of lists for left side, with 400k ints (right_id ints? We create new ints for right_id? Actually right_id values are small ints (0..nR-1), but Python caches only -5..256, so for larger, new int objects? When we compute right_id[v], that's an int object from right_id list. We append that int object to left_adj. So left_adj stores references to existing int objects from right_id? Actually right_id[v] returns an int object stored in right_id list. So no new int objects. But left_adj list pointers: 400k*8=3.2MB. List overhead for left_adj: up to nL lists ~5.6MB. So left_adj ~9MB. pairU, pairV, dist, visited arrays: each list of ints/bools. pairU length nL, pairV nR, dist nL+1, visitedL nL, visitedR nR. Each list of ints: each int object? For pairU initialized with -1, all references to same -1 object? Actually list of [-1]*nL stores references to same int -1. When we assign pairU[u]=v, v is an int object from right_id? Actually v is from left_adj, which is right_id int object. So pairU stores references to those. So memory okay. visitedL/R as list of bool: each bool is singleton, so list of references 8 bytes each => ~0.8MB each. dist list of ints: initialized with INF (large int object), all references to same INF? Actually [INF]*nL stores same int object. When we assign dist[u]=0, 0 is cached. So memory okay. So total maybe ~100MB, within 256MB. But we can reduce memory by not storing edges list? We need edges after coloring. We can store edges as two arrays of ints? Or we can build left_adj after coloring by iterating original adjacency? But original adjacency has both directions, so we can iterate over all vertices and their neighbors, but we need to avoid double counting? We can build left_adj by iterating over all u in range(n): for v in adj[u]: if color[u]==0 and color[v]==1: then add edge. But this will add each edge twice? If we iterate all u, for each edge (u,v), when u is left, we add v; when u is right, we add u? Actually if we do: for u in range(n): if color[u]==0: for v in adj[u]: if color[v]==1: left_adj[left_id[u]].append(right_id[v]). This will add each edge exactly once because only left vertices processed. So we don't need edges list. We can build left_adj after coloring by iterating original adjacency. That saves edges list memory. Good.
+
+So algorithm:
+1. Read n,m,k.
+2. Build adj = [[] for _ in range(n)].
+3. For each edge: u,v = next-1; adj[u].append(v); adj[v].append(u.
+4. Color BFS.
+5. Build left_id, right_id, left_list, right_list.
+6. Build left_adj = [[] for _ in range(len(left_list)))]; for u in range(n): if color[u]==0: for v in adj[u]: if color[v]==1: left_adj[left_id[u]].append(right_id[v]). (Since graph bipartite, all neighbors of left are right.)
+7. Run HK.
+8. Compute min vertex cover and ans.
+9. If len(ans) < k: print NO else print YES and first k.
+
+Now we need to ensure we don't accidentally include duplicate vertices in ans. Since left and right are disjoint, no duplicates.
+
+Now let's think about performance of building left_adj by iterating all u and their adj. That's O(n+m). Fine.
+
+Now implement HK carefully.
+
+Potential issue: In HK BFS, we use dist[NIL] = 0 when we find free right. But we also need to set dist[NIL] = 0 only once? We can set it to 0. But if we find multiple free rights, it's fine. However, we should not process vertices with dist[u] >= dist[NIL]? We'll check if dist[u] < dist[NIL] before exploring. Initially dist[NIL] = INF. When we find free right, dist[NIL] = 0. Then while loop continues, but for any u with dist[u] >= 0? Actually dist[u] for unmatched left is 0, so dist[u] < dist[NIL]? 0 < 0 false, so we stop exploring. That's correct: Once we found free right at distance 0? Wait free right can be found from unmatched left via an edge. That means augmenting path length 1 (left->right). So dist[NIL] should be 0? Actually in standard HK, dist[NIL] is distance to NIL (free right). If we find free right from u, we set dist[NIL] = dist[u]+1? Let's recall standard implementation: In BFS, for each neighbor v of u: if pairV[v] == NIL: dist[NIL] = dist[u]+1? Actually many implementations set dist[NIL] = dist[u]+1. Let's check: We have NIL as a special left vertex representing free right. In BFS, we start with unmatched left at dist 0. When we see a free right v, that means we can reach NIL from u via v, so dist[NIL] = dist[u]+1. In our earlier code, I set dist[NIL] = 0, which is wrong. Let's correct.
+
+Standard HK BFS:
+```
+dist[NIL] = INF
+for u in range(nL):
+    if pairU[u] == NIL:
+        dist[u] = 0
+        q.append(u)
+    else:
+        dist[u] = INF
+while q:
+    u = q.popleft()
+    if dist[u] < dist[NIL]:
+        for v in adj[u]:
+            if pairV[v] == NIL:
+                dist[NIL] = dist[u] + 1
+            elif dist[pairV[v]] == INF:
+                dist[pairV[v]] = dist[u] + 1
+                q.append(pairV[v])
+return dist[NIL] != INF
+```
+Here NIL is a special index (nL). pairV[v] can be -1 for free. We'll treat -1 as NIL. So in BFS, if pairV[v] == -1: dist[NIL] = dist[u]+1. Else if dist[pairV[v]] == INF: set. Good.
+
+DFS:
+```
+def dfs(u):
+    for v in adj[u]:
+        if pairV[v] == -1 or (dist[pairV[v]] == dist[u]+1 and dfs(pairV[v])):
+            pairU[u] = v
+            pairV[v] = u
+            return True
+    dist[u] = INF
+    return False
+```
+This is standard. Note: In DFS, we don't check dist[NIL]? It's fine.
+
+Now in BFS, we need to ensure we don't process vertices with dist[u] >= dist[NIL] after we found free right. We check if dist[u] < dist[NIL]. Good.
+
+Now let's test with simple case: n=2, edge 1-2. Left={1}, right={2}. nL=1, nR=1. pairU=[-1], pairV=[-1]. BFS: q=[0], dist[0]=0, dist[NIL]=INF. Process u=0: dist[0]=0 < INF. neighbor v=0: pairV[0]==-1, so dist[NIL]=dist[0]+1=1. End. dist[NIL]=1 != INF, so BFS true. DFS: u=0: v=0: pairV[0]==-1, so set pairU[0]=0, pairV[0]=0, return True. Matching done. Good.
+
+Now test with path 1-2-3: n=3, edges 1-2,2-3. Left={1,3}, right={2}. nL=2, nR=1. adj[0] (1) -> [0] (2); adj[1] (3) -> [0] (2). pairU=[-1,-1], pairV=[-1]. BFS: q=[0,1], dist[0]=0, dist[1]=0, dist[NIL]=INF. Process u=0: dist[0]=0<INF; neighbor v=0: pairV[0]==-1, dist[NIL]=1. Process u=1: dist[1]=0<1? 0<1 true, neighbor v=0: pairV[0]==-1, dist[NIL]=min(1,1)=1. End. DFS: u=0: v=0: pairV[0]==-1, set pairU[0]=0, pairV[0]=0, return True. u=1: v=0: pairV[0]!=-1, dist[pairV[0]] = dist[0] =0? dist[0] is 0, dist[u]+1 =1, so not equal, so skip. Then dist[1]=INF, return False. So matching size1. Good.
+
+Now after matching, min vertex cover BFS: unmatched left: u=1 (vertex3). BFS: process u=1: neighbor v=0: pairU[1] = -1, not equal0, traverse. visitedR[0]=True. pairV[0]=0, visitedL[0]=True; push left0. Process left0: neighbor v=0: pairU[0]==0, skip. visitedL={left0,left1}, visitedR={right0}. ans = left visitedL = {1,3} + right not visitedR = {} => {1,3}. Good.
+
+Now let's think about potential bug in HK DFS: We iterate over all neighbors of u each time. In standard HK, we often use a pointer `it[u]` to avoid re-scanning edges that failed. Without it, complexity might be O(E * sqrt(V))? Actually each DFS call may scan all edges of u, and there are O(sqrt(V)) phases, so O(E sqrt(V)) still. But within a phase, DFS may be called multiple times for same u? In standard, after a successful DFS, we don't reset dist[u]? Actually we set dist[u]=INF only on failure. On success, we leave dist[u] as is? But then another DFS might try u again? In the main loop, we call DFS only for unmatched left vertices. After a successful DFS, that u becomes matched, so it won't be called again in that phase. But other DFS calls might reach u via matching? Actually in DFS, when we recurse to pairV[v], that left vertex is currently matched, and we try to find alternate path. If it succeeds, it becomes matched to a different right? Actually it remains matched but to new right. So it might be visited multiple times? Standard implementation uses dist to ensure each left vertex is processed at most once per phase? Let's recall: In DFS, we set dist[u]=INF on failure. On success, we don't set, but because it becomes matched, it won't be called as start. However, it could be called recursively from another u? In DFS, we only recurse to pairV[v] if dist[pairV[v]] == dist[u]+1. That left vertex is currently matched. It might be called multiple times from different u? But dist ensures it's at a specific layer. Could be called multiple times? Standard HK DFS is correct without visited because dist prevents cycles and each successful DFS augments along a path, and after augmentation, the matching changes. It's fine.
+
+But we need to be careful: In DFS, when we iterate over neighbors, we might try a neighbor v that is already matched to u itself? That would be a self-loop? No, u≠v. But if pairV[v] == u, then dist[pairV[v]] = dist[u], which is not dist[u]+1, so skip. Good.
+
+Now let's implement with local variables for speed. We'll define `dfs` as nested function using nonlocal? Actually we can define inside solve and use closure. But recursion with closure might be slower. We can define as inner function with default arguments? We'll just use closure.
+
+Now let's write code.
+
+Potential issue: Python recursion depth in DFS may exceed limit even with recursionlimit 1e6? It might cause stack overflow? But 100k depth is okay with recursionlimit 1e6? Python's C stack might overflow? Usually recursionlimit 1e6 can cause segfault if actual depth large. But 100k might be okay? To be safe, we can implement iterative DFS. Let's consider iterative DFS for HK.
+
+Iterative DFS for augmenting path in HK is tricky because we need to update pairs along path. We can use a stack of (u, iterator_index). But we also need to know when to backtrack. Standard approach: Use recursion. Many Python solutions for HK use recursion with sys.setrecursionlimit(10**6) and pass for n=100k? It might be okay. But to be safe, we can implement iterative DFS using explicit stack and path.
+
+Let's design iterative DFS:
+
+We need to find an augmenting path from u. We'll do DFS with stack of left vertices. We'll maintain an iterator pointer for each left vertex to avoid re-scanning. We'll also maintain a parent array to reconstruct path? Actually in HK, we don't need full path; we just need to find a free right and then update pairs along path. We can use recursion simpler.
+
+Given time, I'll use recursion. If TLE, we can optimize later. But we need to output code only. Let's trust.
+
+Now let's think about the min vertex cover BFS: We need to skip matching edges from left. We check `if pairU[u] == v: continue`. But what if u is unmatched? pairU[u] == -1, so no skip. Good.
+
+Now after building ans, we need to output first k. If len(ans) > k, we can slice ans[:k]. But ans may be large (up to n). Fine.
+
+Now let's test with a case where maximum independent set size is exactly k but ans size > k? Actually ans size is maximum independent set size. If k ≤ that, we take first k. Good.
+
+Now let's test with a case where maximum independent set size is less than k, print NO.
+
+Now let's consider if graph has isolated vertices. They will be colored either left or right. They will be in ans. Good.
+
+Now let's think about the guarantee "No interference link is listed more than once." So no multi-edges. Good.
+
+Now let's write final code.
+
+We'll include `import sys` and `from collections import deque`.
+
+Now let's write code step by step.
+
+```
+def solve():
+    import sys
+    from collections import deque
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data: return
+    it = iter(data)
+    n = next(it); m = next(it); k = next(it)
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = next(it)-1; v = next(it)-1
+        adj[u].append(v); adj[v].append(u
+    # color
+    color = [-1]*n
+    for i in range(n):
+        if color[i] == -1:
+            color[i] = 0
+            q = deque([i])
+            while q:
+                u = q.popleft()
+                for v in adj[u]:
+                    if color[v] == -1:
+                        color[v] = color[u] ^ 1
+                        q.append(v)
+    # build left/right
+    left_id = [-1]*n
+    right_id = [-1]*n
+    left_list = []
+    right_list = []
+    for i in range(n):
+        if color[i] == 0:
+            left_id[i] = len(left_list)
+            left_list.append(i)
+        else:
+            right_id[i] = len(right_list)
+            right_list.append(i
+    nL = len(left_list); nR = len(right_list)
+    left_adj = [[] for _ in range(nL)]
+    for u in range(n):
+        if color[u] == 0:
+            lu = left_id[u]
+            for v in adj[u]:
+                # v should be color1
+                left_adj[lu].append(right_id[v])
+    # Hopcroft-Karp
+    INF = 10**9
+    NIL = nL
+    pairU = [-1]*nL
+    pairV = [-1]*nR
+    dist = [0]*(nL+1)
+    sys.setrecursionlimit(1_000_000)
+    def bfs():
+        q = deque()
+        for u in range(nL):
+            if pairU[u] == -1:
+                dist[u] = 0
+                q.append(u)
+            else:
+                dist[u] = INF
+        dist[NIL] = INF
+        while q:
+            u = q.popleft()
+            if dist[u] < dist[NIL]:
+                for v in left_adj[u]:
+                    if pairV[v] == -1:
+                        dist[NIL] = dist[u] + 1
+                    else:
+                        nxt = pairV[v]
+                        if dist[nxt] == INF:
+                            dist[nxt] = dist[u] + 1
+                            q.append(nxt)
+        return dist[NIL] != INF
+    def dfs(u):
+        for v in left_adj[u]:
+            if pairV[v] == -1 or (dist[pairV[v]] == dist[u]+1 and dfs(pairV[v])):
+                pairU[u] = v
+                pairV[v] = u
+                return True
+        dist[u] = INF
+        return False
+    while bfs():
+        for u in range(nL):
+            if pairU[u] == -1:
+                dfs(u)
+    # min vertex cover
+    visitedL = [False]*nL
+    visitedR = [False]*nR
+    q = deque()
+    for u in range(nL):
+        if pairU[u] == -1:
+            visitedL[u] = True
+            q.append(u)
+    while q:
+        u = q.popleft()
+        for v in left_adj[u]:
+            if pairU[u] == v:
+                continue
+            if not visitedR[v]:
+                visitedR[v] = True
+                nxt = pairV[v]
+                if nxt != -1 and not visitedL[nxt]:
+                    visitedL[nxt] = True
+                    q.append(nxt)
+    ans = []
+    for u in range(nL):
+        if visitedL[u]:
+            ans.append(left_list[u]+1)
+    for v in range(nR):
+        if not visitedR[v]:
+            ans.append(right_list[v]+1)
+    if len(ans) < k:
+        sys.stdout.write("NO\n")
+    else:
+        sys.stdout.write("YES\n")
+        sys.stdout.write(" ".join(map(str, ans[:k])))+"\n")
+if __name__ == "__main__":
+    solve()
+```
+
+Now let's test with example1 manually:
+n=4,m=4,k=2. adj built. color: 0,1,2,3? Actually vertices 0,1,2,3. Edges: 0-2,0-3,1-2,1-3. BFS from0: color0, neighbors2,3 color1. Then 1 unvisited? Actually 1 is neighbor of2? 2 has neighbor1, so when processing 2, color1? Wait BFS from0: process0: color0, neighbors2,3 set color1. Then process2: neighbors0(color0),1(unvisited) set color1? But 2 is color1, so neighbor1 should be color0. So color1=0. Then process3: neighbors0,1? 3 has neighbor1, already color0. So color: 0=0,1=0,2=1,3=1. Left={0,1}, right={2,3}. left_adj: 0->[2,3]? Actually right_id[2]=0, right_id[3]=1. So left_adj[0]=[0,1]; left_adj[1]=[0,1]. HK: matching size2. Unmatched left none. visitedL all false, visitedR all false. ans = [] + [2+1=3,3+1=4] => [3,4]. k=2, output 3 4. Valid.
+
+Example3: k=3, len(ans)=2, NO.
+
+Example2: m=0, n=5. color all 0. left_list=[0,1,2,3,4], right_list=[]. left_adj all empty. HK: matching size0. Unmatched left all. BFS min cover: visitedL all true, visitedR empty. ans = [1,2,3,4,5]. k=5, output all. Good.
+
+Now let's test with a case where graph has isolated vertices and edges. Example: n=4, edges: 1-2. k=3. We computed ans = {3,2,4}? Actually left={1,3}, right={2,4}. ans = left visitedL = {3} + right not visitedR = {2,4} => [3,2,4] (original indices 3,2,4). Size3. k=3, output 3 2 4. Is {3,2,4} independent? Edge 1-2 only, so yes. Good.
+
+Now let's think about potential issue: In min vertex cover BFS, we skip if pairU[u] == v. But what if u is unmatched and pairU[u] == -1, and v is -1? v is always a valid right index, so fine. Good.
+
+Now let's think about the correctness of min vertex cover construction with our BFS. We start from all unmatched left vertices. We traverse edges not in M from left to right, and edges in M from right to left. We mark visitedL and visitedR. Then min vertex cover = (L \ visitedL) ∪ (R ∩ visitedR). This is standard. Our BFS does exactly that: From left u, we only traverse neighbors v where (u,v) not in M (skip if pairU[u]==v). Then we mark visitedR[v]; if v is matched, we go to its matched left nxt (edge in M from right to left). Good.
+
+Now let's test with a case where there are unmatched right vertices. Example: n=3, edges: 1-2 only. Left={1,3}, right={2,4}? Actually n=3? Let's do n=3, edges 1-2. Left={1,3}, right={2}. Matching size1 (1-2). Unmatched left: vertex3. BFS min cover: from3: no neighbors. visitedL={3}, visitedR={}. ans = left visitedL = {3} + right not visitedR = {2} => {3,2}. Size2. Is {3,2} independent? Edge 1-2 only, so yes. Good. Unmatched right? None. If there were unmatched right, they would be in ans because not visitedR. Good.
+
+Now let's think about if graph has no edges, all vertices left. Then right_list empty, nR=0. left_adj all empty. HK: pairV empty. BFS: for u in range(nL): if pairU[u]==-1: dist[u]=0; q.append. dist[NIL]=INF. While q: u=popleft; if dist[u] < dist[NIL]: for v in left_adj[u]: none. So dist[NIL] stays INF, BFS returns False. Matching size0. Min vertex cover BFS: q all unmatched left, visitedL all true. ans = all left. Good.
+
+Now let's think about if nR=0, in min vertex cover BFS, for v in left_adj[u] none, fine.
+
+Now let's think about if nL=0 (all vertices right). Then left_adj empty. HK: nL=0, NIL=0. pairU empty, pairV length nR. BFS: for u in range(0): none. dist[NIL]=INF. while q empty. return False. Matching size0. Min vertex cover BFS: q empty. visitedL empty, visitedR all false. ans = [] + all right vertices. So ans = all vertices. Is that correct? If all vertices are right, there are no edges (since graph bipartite and no left vertices), so all independent. Good.
+
+Now let's think about if k > len(ans) but maybe there is an independent set of size k not subset of maximum independent set? No, any independent set size ≤ maximum independent set size. So if k > max, impossible. Good.
+
+Now let's consider if our maximum independent set size computed via min vertex cover is correct. Yes, by Kőnig's theorem.
+
+Now let's think about time: BFS coloring O(n+m). HK O(E sqrt(V))). With m=400k, sqrt(100k)≈316, so ~126M operations worst-case? But HK is usually much faster. Python might be okay within 2s? Possibly tight. We can optimize by using arrays and local variables. We'll write efficient code.
+
+Potential optimization: In HK BFS, we use `for v in left_adj[u]` which is fine. In DFS, we use recursion. We can also use `while bfs(): for u in range(nL): if pairU[u] == -1: dfs(u)`. This is standard.
+
+Now let's think about if recursion depth in DFS could be large. In worst case, augmenting path length O(n). With recursionlimit 1e6, okay. But Python recursion overhead might cause TLE? We'll hope.
+
+Alternative: We can implement iterative DFS using stack. Let's design to be safe.
+
+Iterative DFS for HK:
+
+We need to find an augmenting path from u. We'll do DFS with stack of left vertices. We'll maintain an iterator index for each left vertex to avoid re-scanning. We'll also maintain a parent array to reconstruct path? Actually we can update pairs along path when we find free right. We can use recursion simpler. But let's think if we can implement iterative without too much complexity.
+
+
+
+Standard iterative HK DFS:
+
+```
+def dfs(start):
+    stack = [(start, 0)]
+    parent = {}
+    while stack:
+        u, idx = stack[-1]
+        if idx >= len(left_adj[u]):
+            dist[u] = INF
+            stack.pop()
+            continue
+        v = left_adj[u][idx]
+        stack[-1] = (u, idx+1)
+        if pairV[v] == -1:
+            # found augmenting path
+            # update pairs along path
+            # We need to know path from start to u, then v
+            # We can reconstruct using parent array
+            # But we also need to update pairs for all vertices on path
+            # We'll do: current = u; while current != start? Actually we need to update from start to u.
+            # We can store parent_left for each left vertex? 
+            # Let's implement with parent array: parentL[u] = (prev_u, v_used)? 
+            # Simpler: use recursion.
+```
+
+Given complexity, recursion is easier. I'll stick with recursion.
+
+But we can reduce recursion depth by using iterative BFS? No.
+
+
+
+Now let's think about potential bug in HK DFS: We don't have a visited array for right vertices. In standard HK, DFS can revisit same right vertex? It might, but dist ensures no cycles. However, it could revisit same right vertex from different left vertices in same DFS? That's okay because if one path fails, another might succeed. But it could cause exponential? Standard HK is fine.
+
+
+
+Now let's test with a more complex graph to ensure ans size matches maximum independent set. We'll do a small brute force mentally? Not needed.
+
+
+
+Now let's consider if the graph is not connected and some components have no edges. Our coloring handles.
+
+
+
+Now let's think about output format: If YES, second line must have k distinct integers. We output space-separated. If k=0? Not possible. If k=n and ans size n, output all. Good.
+
+
+
+Now let's write final code with comments? The problem asks only code block. We'll output code block.
+
+But before final, let's double-check the min vertex cover BFS with a case where there are unmatched right vertices and we need to include them in independent set. Example: n=4, edges: 1-2,3-4? Actually matching perfect. Let's do n=4, edges: 1-2 only. Left={1,3}, right={2,4}. Matching size1 (1-2). Unmatched left: vertex3. BFS min cover: from3: no neighbors. visitedL={3}, visitedR={}. ans = left visitedL = {3} + right not visitedR = {2,4} => {3,2,4}. Size3. Is {3,2,4} independent? Edge 1-2 only, so yes. Good. Unmatched right? Right4 is unmatched, included. Good.
+
+
+
+Now let's think about if there is an unmatched right that is reachable from unmatched left via alternating path? In min vertex cover BFS, we mark visitedR for any right reachable via non-matching edge from left. If that right is unmatched, we still mark visitedR. Then in independent set, we exclude visitedR. Is that correct? Standard construction: Z includes all vertices reachable from unmatched left via alternating paths. If an unmatched right is reachable, it is in Z, and vertex cover includes R∩Z, so independent set excludes it. Is that correct? Let's test: Example: n=2, edge 1-2. Left={1}, right={2}. Matching size1, no unmatched left. So no issue. Another example: n=3, edges: 1-2,1-3? Left={1}, right={2,3}. Matching size1 (1-2). Unmatched left none. So no issue. Need a case with unmatched left and unmatched right reachable. Example: n=4, edges: 1-2,2-3,3-4? We did earlier. Matching size2 perfect? Actually path length3, matching size2 perfect. No unmatched. Let's create: n=5, edges: 1-2,2-3,3-4,4-5? Matching size2, unmatched left5, unmatched right? Right4 matched, right2 matched, no unmatched right. Need unmatched right: Add isolated right? Example: n=5, edges: 1-2,2-3. Left={1,3,5? Actually 5 isolated color0? Let's color: 1 color0,2 color1,3 color0,4? 4 isolated color0,5? 5 isolated color0. So left={1,3,4,5}, right={2}. No unmatched right. To have unmatched right, need more right vertices. Example: n=5, edges: 1-2,1-3. Left={1,4,5? Actually 1 color0,2 color1,3 color1,4 color0,5 color0. Left={1,4,5}, right={2,3}. Matching size1 (1-2). Unmatched left:4,5. Unmatched right:3. BFS min cover:from4: no neighbors. from5: no neighbors. visitedL={4,5}, visitedR={}. ans = left visitedL = {4,5} + right not visitedR = {2,3} => {4,5,2,3}. Size4. Is {4,5,2,3} independent? Edges: 1-2,1-3. So 2 and3 not connected,4,5 isolated. Yes. Unmatched right3 included. Good.
+
+Now what if unmatched right is reachable? Example: n=5, edges: 1-2,2-3,3-4? Let's color: 1 color0,2 color1,3 color0,4 color1,5 color0? Actually 5 isolated color0. Left={1,3,5}, right={2,4}. Edges: 1-2,2-3,3-4. Maximum matching size2? We can match 1-2 and3-4, leaving5 unmatched. No unmatched right. To have unmatched right, need odd? Let's add edge 4-5? Then path length4: 1-2-3-4-5. Colors: 1,3,5 color0; 2,4 color1. Left={1,3,5}, right={2,4}. Edges: 1-2,2-3,3-4,4-5. Maximum matching size2? We can match 1-2 and3-4, leaving5 unmatched. Right4 matched, right2 matched. No unmatched right. To have unmatched right, need more right than left? Example: n=5, edges: 1-2,1-3,1-4? Left={1,5}, right={2,3,4}. Matching size1 (1-2). Unmatched left:5. Unmatched right:3,4. BFS min cover:from5: no neighbors. visitedL={5}, visitedR={}. ans = left visitedL = {5} + right not visitedR = {2,3,4} => {5,2,3,4}. Size4. Is {5,2,3,4} independent? Edges: 1-2,1-3,1-4. So 2,3,4 have no edges among them,5 isolated. Yes. Unmatched rights included. Good.
+
+Now what if unmatched right is reachable from unmatched left via alternating path? Example: n=5, edges: 1-2,2-3,3-4,4-5? We did, no unmatched right. Let's create: n=6, edges: 1-2,2-3,3-4,4-5,5-6? Path length5: colors: 1,3,5 color0; 2,4,6 color1. Left={1,3,5}, right={2,4,6}. Edges: 1-2,2-3,3-4,4-5,5-6. Maximum matching size3? We can match 1-2,3-4,5-6, perfect. No unmatched. To have unmatched right, need odd number of vertices in path? Path length4: 1-2-3-4-5? We did, left3, right2, no unmatched right? Actually left={1,3,5}, right={2,4}, matching size2, left5 unmatched, no unmatched right. So unmatched right occurs when there are more right vertices than left? In a path, if number of vertices even, left=right; if odd, left=right+1? Actually path with odd number vertices: e.g., 1-2-3: left={1,3}, right={2}, left>right. So unmatched left. Path with even number vertices: 1-2-3-4: left={1,3}, right={2,4}, equal. So no unmatched right. To have unmatched right, need a component with more right than left, e.g., star centered at left? Actually star with center left and many right leaves: left=1, right=many, matching size1, unmatched right many. But unmatched left? Center matched, no unmatched left. So no reachable. To have unmatched left and unmatched right in same component, need a path with alternating? Example: a tree with more right than left but also unmatched left? That would require two components? Let's not worry. The standard construction handles it.
+
+Now let's think about if our min vertex cover BFS might mark an unmatched right as visitedR, causing it to be excluded from independent set, even though it could be included? Standard construction says if unmatched right is reachable from unmatched left via alternating path, then it is in Z, and vertex cover includes it. Is that correct? Let's test with a concrete example where unmatched right is reachable. We need a graph with unmatched left and unmatched right connected by an alternating path. Example: n=4, edges: 1-2,2-3,3-4? Actually path length3: left={1,3}, right={2,4}, matching size2 perfect? Wait edges: 1-2,2-3,3-4. Colors: 1 color0,2 color1,3 color0,4 color1. Left={1,3}, right={2,4}. Maximum matching size2? We can match 1-2 and3-4, perfect. No unmatched. To have unmatched left and unmatched right, need a path with odd length? Path length2: 1-2-3: left={1,3}, right={2}, unmatched left3, no unmatched right. Path length4: 1-2-3-4-5: left={1,3,5}, right={2,4}, unmatched left5, no unmatched right. So in a path, unmatched right never occurs because left count ≥ right count. To have unmatched right, need a component with more right than left, e.g., a star with center right? Let's do center right2 connected to left1,left3,left5? Then left={1,3,5}, right={2,4? Actually 4 isolated? Let's make n=5, edges: 1-2,3-2,5-2? Then left={1,3,5}, right={2,4}. Matching size1 (1-2). Unmatched left:3,5. Unmatched right:4. BFS min cover:from3: neighbor2? 3-2 edge, pairU[1]? left index1 (3) unmatched, so traverse to right2. visitedR[2]=True. pairV[2]=0 (left1), so visitedL[0]=True; push left1. From5: neighbor2, already visitedR. Process left1: neighbor2, pairU[0]==0, skip. So visitedL={left3,left5,left1}, visitedR={right2}. ans = left visitedL = {3,5,1} + right not visitedR = {4} => {3,5,1,4}. Size4. Is {3,5,1,4} independent? Edges: 1-2,3-2,5-2. So 1,3,5,4 have no edges among them? 1-3 no,1-5 no,3-5 no,4 isolated. Yes. Unmatched right4 included. Good. Unmatched right2? Actually right2 is matched, visitedR, excluded. Good.
+
+Now what if unmatched right is reachable? In above, unmatched right4 is not reachable because no edges. To make it reachable, connect it to some left? But then it would be matched? Not necessarily. Example: add edge 4-3? Then right4 connected to left3. But then matching could match 3-4? Let's see: n=5, edges: 1-2,3-2,5-2,3-4. Colors: 1,3,5 color0; 2,4 color1. Left={1,3,5}, right={2,4}. Edges: 1-2,3-2,5-2,3-4. Maximum matching size2? We can match 1-2 and3-4, leaving5 unmatched. Unmatched left:5. Unmatched right? None? Right2 matched, right4 matched. So no unmatched right. To have unmatched right, need more right than left. Add another right6 connected to5? Then left={1,3,5}, right={2,4,6}. Edges: 1-2,3-2,5-2,3-4,5-6. Maximum matching size3? We can match 1-2,3-4,5-6, perfect. No unmatched. To have unmatched right, need a component with more right than left, e.g., a star with center left and many right leaves, but then no unmatched left. So unmatched left and unmatched right in same component might be impossible? Actually in a bipartite graph, if there is an unmatched left and an unmatched right, then there is an augmenting path between them? Not necessarily, but if they are in same connected component, there is a path. If that path alternates? Not necessarily. But if there is an unmatched left and unmatched right in same component, then there exists an augmenting path? I think in a bipartite graph, if there is an unmatched left and an unmatched right in the same connected component, then there is an augmenting path? Not always? Consider a path: left1 - right1 - left2 - right2. If left1 unmatched, right2 unmatched, then there is augmenting path left1-right1-left2-right2, yes. If left1 unmatched, right1 unmatched, then edge left1-right1 is augmenting path. So yes, if they are in same component, there is an alternating path? Actually any path between them can be made alternating? Not necessarily, but in bipartite graph, if there is an unmatched left and unmatched right in same component, then there is an augmenting path? I think yes because you can take a path and adjust? Not sure. But standard construction handles it.
+
+Let's test with a case where unmatched right is reachable from unmatched left via alternating path. Example: n=4, edges: 1-2,2-3,3-4? We saw perfect matching. Need unmatched left and unmatched right. Let's try n=6, edges: 1-2,2-3,3-4,4-5,5-6? Path length5: left={1,3,5}, right={2,4,6}, perfect matching. No unmatched. To have unmatched left and unmatched right, need a component with odd number of vertices? Path with odd vertices: left>right, unmatched left. Path with even vertices: left=right, perfect matching possible? Actually a path with even vertices has perfect matching, so no unmatched. So in a tree, unmatched left occurs when left>right, unmatched right occurs when right>left. They cannot both occur in same component because left>right and right>left impossible. So unmatched left and unmatched right are in different components. Thus reachable unmatched right from unmatched left is impossible because they are in different components. So our concern is moot. But in general graph, could have both? Suppose component1 has unmatched left, component2 has unmatched right. They are disconnected, so no reachable. So unmatched right will never be visitedR because to be visitedR, it must be reachable from unmatched left via alternating path, which would imply an augmenting path between unmatched left and unmatched right in same component, which would mean matching not maximum. So in a maximum matching, no unmatched right is reachable from unmatched left. Thus visitedR will only contain matched right vertices. So our BFS will never mark an unmatched right as visitedR. Good. So independent set includes all unmatched right. That's correct because unmatched right can always be added? Actually if unmatched right exists, it has no matched edge, and if it's not reachable, it's safe to include. Good.
+
+Now let's think about if our min vertex cover BFS might mark a matched right as visitedR, and then exclude it from independent set. That's correct because it's in vertex cover. Good.
+
+Now let's test with a case where maximum independent set includes both sides and we need to output k less than size. We take first k from ans. But ans order: left visitedL first, then right not visitedR. That's fine.
+
+
+
+Now let's consider if there is a possibility that ans size > n? No, ans is subset of vertices. Good.
+
+
+
+Now let's think about if k is large and ans size is exactly k, we output all. Good.
+
+
+
+Now let's think about if the graph has self-loops? u≠v, so no.
+
+Now let's think about if m=0 and k=n, output all. Good.
+
+
+
+Now let's consider if the input might have extra spaces/newlines. Our parsing handles.
+
+Now let's think about if n=100000, m=400000, recursion depth in DFS might be high. We'll set recursionlimit 1_000_000. But Python's default recursionlimit is 1000, so we need to set before defining dfs? We set at top of solve. Good.
+
+Now let's think about if the recursion in DFS might cause stack overflow due to C stack. In CPython, recursionlimit 1e6 can cause segfault if actual depth large. But actual depth in HK DFS is bounded by the length of augmenting path, which can be O(n). 100k depth might be okay? CPython default stack size is 8MB? Each recursion frame uses maybe ~1KB, so 100k frames ~100MB, might overflow. So recursion might be risky. We should implement iterative DFS to be safe.
+
+Let's design iterative DFS for HK.
+
+We need to find an augmenting path from a given start left vertex. We'll do DFS with explicit stack. We'll maintain an iterator index for each left vertex to avoid re-scanning. We'll also maintain a parent array to reconstruct path when we find a free right.
+
+Standard iterative DFS for bipartite matching:
+
+```
+def dfs(start):
+    stack = [(start, 0)]
+    parent = {}  # left -> (prev_left, v_used)
+    while stack:
+        u, idx = stack[-1]
+        if idx >= len(left_adj[u]):
+            dist[u] = INF
+            stack.pop()
+            continue
+        v = left_adj[u][idx]
+        stack[-1] = (u, idx+1)
+        if pairV[v] == -1:
+            # found augmenting path
+            # update pairs along path from start to u, then v
+            # We need to know path. We can reconstruct using parent array.
+            # We'll do:
+            cur = u
+            while True:
+                prev_u, v_used = parent.get(cur, (None, None))
+                if prev_u is None:
+                    # cur is start
+                    pairU[cur] = v
+                    pairV[v] = cur
+                    break
+                else:
+                    # cur was reached from prev_u via v_used? Actually parent[cur] = (prev_u, v_used) where v_used is the right vertex used to go from prev_u to cur? Let's define parent[cur] = (prev_u, v_used) where v_used is the right vertex that connects prev_u to cur? In alternating path, from prev_u we go to v_used (non-matching edge), then from v_used we go to cur via matching edge. So cur = pairV[v_used]. So when updating, we need to set pairU[prev_u] = v_used? Actually in augmenting path, we flip: For each edge in path, we toggle matching. The path is: start -> v1 (unmatched), v1 -> u1 (matched), u1 -> v2 (unmatched), ..., u_last -> v_free (unmatched). After augmentation, we match start-v1, u1-v2, ..., u_last-v_free, and unmatch previous matched edges. So we need to update pairs along path. We can reconstruct from start to end using parent pointers.
+
+Let's define parent for each left vertex u (except start) as (prev_u, v_used) where v_used is the right vertex that was used to go from prev_u to u? Actually in BFS/DFS, when we are at left prev_u, we consider a right v (non-matching edge from prev_u to v). Then if v is matched to u (i.e., pairV[v] = u), we go to u. So parent[u] = (prev_u, v). So the edge prev_u-v is non-matching, and v-u is matching. In augmentation, we will match prev_u-v, and unmatch v-u. So when updating, for each u (except start), we need to set pairU[prev_u] = v, pairV[v] = prev_u. And for the last u (the one that found free right v_free), we set pairU[u] = v_free, pairV[v_free] = u. Also, for the start, we set pairU[start] = v1? Actually start is a left vertex; it will be matched to the first right v1. So we need to handle start separately.
+
+Let's implement iterative DFS with parent array and path reconstruction.
+
+Pseudo:
+
+```
+def dfs(start):
+    stack = [(start, 0)]
+    parent = {}  # left -> (prev_left, v_used)
+    while stack:
+        u, idx = stack[-1]
+        if idx >= len(left_adj[u]):
+            dist[u] = INF
+            stack.pop()
+            continue
+        v = left_adj[u][idx]
+        stack[-1] = (u, idx+1)
+        if pairV[v] == -1:
+            # found free right
+            # update pairs along path
+            # First, match u-v
+            pairU[u] = v
+            pairV[v] = u
+            # Now backtrack along parent to update previous edges
+            cur = u
+            while cur in parent:
+                prev_u, v_used = parent[cur]
+                # In path, prev_u - v_used was non-matching, and v_used - cur was matching.
+
+                # After augmentation, we match prev_u - v_used, and unmatch v_used - cur.
+                # So set pairU[prev_u] = v_used; pairV[v_used] = prev_u.
+
+                # Also, cur was previously matched to v_used; now it will be matched to something else? Actually cur will be matched to the next right in path (which we will set when we process its parent? Wait we are backtracking from end to start. We already set pairU[u] = v_free. Now for cur = u, its parent is (prev_u, v_used). We need to set pairU[prev_u] = v_used, pairV[v_used] = prev_u. And cur (u) will no longer be matched to v_used; it is now matched to v_free. That's already set. Then move cur = prev_u. Continue until start. For start, it has no parent; we already set pairU[start]? Actually start is the first left in path. It will be matched to the first right v1. In our backtracking, when we process cur = u1 (the second left in path), its parent is (start, v1). We set pairU[start] = v1, pairV[v1] = start. And u1 will be matched to v2 (set when processing its child? Actually u1 is cur in next iteration? Let's trace.
+
+Path: start (left0) -> v1 (right) -> u1 (left) -> v2 (right) -> ... -> u_last -> v_free.
+
+We start by setting pairU[u_last] = v_free, pairV[v_free] = u_last.
+
+Then cur = u_last. parent[u_last] = (u_prev, v_last) where v_last is the right before u_last? Actually parent[u_last] = (u_prev, v_last) where v_last is the right that connects u_prev to u_last (i.e., pairV[v_last] = u_last before augmentation). We set pairU[u_prev] = v_last, pairV[v_last] = u_prev. Now u_prev is matched to v_last. Then cur = u_prev. Continue. Eventually cur = u1 (second left), parent[u1] = (start, v1). We set pairU[start] = v1, pairV[v1] = start. Then cur = start. start has no parent, stop. So start gets matched to v1. Good.
+
+But we also need to ensure that when we set pairU[u_prev] = v_last, we might overwrite a previous match? That's intended. Also, we need to set pairV for the right that was previously matched to u_prev? Actually u_prev was previously matched to some right v_prev (maybe v_last? Wait in path, u_prev was matched to v_last? Let's define path: start -> v1 (unmatched edge), v1 -> u1 (matched edge, so pairV[v1] = u1 before augmentation. u1 -> v2 (unmatched edge), v2 -> u2 (matched edge, so pairV[v2] = u2. ... u_prev -> v_last (unmatched edge), v_last -> u_last (matched edge, so pairV[v_last] = u_last. So u_prev is matched to some right before v_last? Actually u_prev is matched to v_prev (not v_last). Because v_last is matched to u_last. So when we set pairU[u_prev] = v_last, we are changing u_prev's match from v_prev to v_last. That's correct. We also need to set pairV[v_prev] = -1? Actually v_prev becomes unmatched? In augmenting path, the old match of u_prev (v_prev) is not on the path? Wait in an alternating path, every left vertex except start and end? Let's recall: In an augmenting path, vertices alternate: left, right, left, right, ..., left, right. The path starts with unmatched left and ends with unmatched right. Edges alternate: unmatched, matched, unmatched, matched, ..., unmatched. So the matched edges in the path are: (v1,u1), (v2,u2), ..., (v_last,u_last). The unmatched edges are:(start,v1), (u1,v2), ..., (u_last,v_free). So each left vertex except start has a matched edge from a right before it. Each left vertex except end? Actually u1 is matched to v1 before augmentation; after augmentation, u1 will be matched to v2. So u1's old match v1 becomes matched to start. So v1 is not unmatched; it becomes matched to start. Similarly, u2's old match v2 becomes matched to u1. So no right becomes unmatched except maybe? The end v_free was unmatched, becomes matched. The start was unmatched, becomes matched. So all good. In our backtracking, when we set pairU[prev_u] = v_used, we are matching prev_u to v_used. But prev_u was previously matched to some other right? Actually prev_u is a left vertex on the path. For prev_u = u1, it was matched to v1. We set pairU[u1] = v2? Wait in our backtracking, when cur = u2, parent[u2] = (u1, v2). We set pairU[u1] = v2. So u1's old match v1 is not overwritten yet? Then later when cur = u1, parent[u1] = (start, v1). We set pairU[start] = v1. So v1 becomes matched to start. So no right becomes unmatched. Good.
+
+So iterative DFS with parent array works.
+
+But we need to be careful: In DFS, we might revisit a left vertex that is already on the current stack? We need to avoid cycles. Standard HK uses dist to ensure we only go to left vertices with dist = dist[u]+1. So no cycles because dist increases. So we don't need visited stack. But we need to ensure we don't push a left vertex that is already in stack? Since dist increases, it's impossible to revisit same left vertex with same dist? Actually a left vertex could be reached via different paths with same dist? In DFS, we might push it multiple times? But dist ensures that if we reach it, dist is fixed. If we already visited it (i.e., it's in stack or processed), we might push again? Standard recursive DFS doesn't have a visited array; it relies on dist to prune. But it could still revisit a left vertex multiple times in different branches? In recursive DFS, when we call dfs(nxt), we might eventually fail and set dist[nxt]=INF. Then later another branch might try to reach nxt again, but dist[nxt] is INF, so condition dist[pairV[v]] == dist[u]+1 fails, so it won't recurse. So no infinite loop. In iterative DFS, we need to mimic that. We'll use dist as in recursive. When we pop a left vertex due to failure, we set dist[u]=INF. So later it won't be reached. Good.
+
+But in iterative DFS, we need to know when a left vertex is already on stack? We don't need because dist prevents. However, we might push a left vertex that is already on stack but not yet failed? Could that happen? Suppose we are at u, and we consider v, and pairV[v] = nxt, and dist[nxt] == dist[u]+1. We push nxt onto stack. Later, from another branch, we might try to reach nxt again before it has failed? But in DFS, we process one branch at a time; we won't explore another branch until the current one fails or succeeds. So nxt won't be pushed again until it's popped. So fine.
+
+Let's implement iterative DFS:
+
+```
+def dfs(start):
+    stack = [(start, 0)]
+    parent = {}
+    while stack:
+        u, idx = stack[-1]
+        if idx >= len(left_adj[u]):
+            dist[u] = INF
+            stack.pop()
+            continue
+        v = left_adj[u][idx]
+        stack[-1] = (u, idx+1)
+        if pairV[v] == -1:
+            # found free right
+            pairU[u] = v
+            pairV[v] = u
+            cur = u
+            while cur in parent:
+                prev_u, v_used = parent[cur]
+                pairU[prev_u] = v_used
+                pairV[v_used] = prev_u
+                cur = prev_u
+            return True
+        else:
+            nxt = pairV[v]
+            if dist[nxt] == dist[u] + 1:
+                # push nxt
+                parent[nxt] = (u, v)
+                stack.append((nxt, 0))
+    return False
+```
+
+But wait: In recursive DFS, we only recurse to nxt if `dist[nxt] == dist[u]+1`. In iterative, we do that. But we also need to ensure that we don't push nxt if it's already in stack? As argued, not needed. But what if nxt is already in stack as a different branch? Not possible because we process depth-first. However, nxt could be the same as u? No, dist[nxt] > dist[u], so not same.
+
+Now, after we find free right and update pairs, we should return True. But we also need to ensure that the stack is cleared? We just return. Good.
+
+But there is a subtlety: In recursive DFS, when we find a free right, we set pairU[u]=v, pairV[v]=u, and return True. The recursion unwinds, and each ancestor also sets its pairU and pairV? Actually in recursive DFS, the update happens at each level: When dfs(nxt) returns True, the caller sets pairU[u]=v, pairV[v]=u. So the update is done along the path as recursion unwinds. In our iterative version, we update all pairs at once using parent. That's correct.
+
+But we need to ensure that when we update pairs, we don't break the parent chain? We use parent dict. Good.
+
+Now, after a successful DFS, we should not set dist[u]=INF for vertices on path? In recursive, on success, we don't set dist[u]=INF. So they remain with their dist values. But they are now matched, so they won't be start vertices. They might be reached again in later DFS? In same phase, after a successful augmentation, the matching changes. Other DFS calls might try to reach them? Possibly, but dist values are still valid? Standard HK doesn't reset dist after successful DFS; it continues with other unmatched starts. It's fine. In our iterative, we don't set dist for vertices on path. Good.
+
+Now, one issue: In iterative DFS, when we push nxt onto stack, we set parent[nxt] = (u,v). But what if nxt already has a parent from a previous failed branch? In DFS, we only push nxt if dist[nxt] == dist[u]+1. If nxt was previously popped due to failure, dist[nxt] was set to INF, so condition fails. So no overwrite. If nxt is currently on stack, we won't push again because we process depth-first. So parent[nxt] is set only once. Good.
+
+Now, we need to ensure that when we pop a left vertex due to failure, we set dist[u]=INF. In our loop, when idx >= len(left_adj[u]), we set dist[u]=INF and pop. Good.
+
+Now, let's test iterative DFS with simple case: n=2, edge 1-2. start=0. stack=[(0,0)]. u=0, idx=0, v=0, pairV[0]==-1, so we set pairU[0]=0, pairV[0]=0, cur=0, parent empty, return True. Good.
+
+Now test with path 1-2-3: left={1,3}, right={2}. Matching initially empty. BFS finds dist[NIL]=1. DFS start=0: stack=[(0,0)]. u=0, v=0, pairV[0]==-1, set pairU[0]=0, pairV[0]=0, return True. Then DFS start=1: stack=[(1,0)]. u=1, v=0, pairV[0]!=-1, nxt=0, dist[0]? dist[0] is 0? In BFS, dist[0]=0, dist[1]=0, dist[NIL]=1. For u=1, dist[1]=0, dist[nxt]=dist[0]=0, dist[u]+1=1, not equal, so we don't push. Then idx becomes1, idx>=len(adj[1])=1, set dist[1]=INF, pop, return False. So matching size1. Good.
+
+Now test with a case where augmenting path length >1. Example: n=4, edges: 1-2,2-3,3-4? Actually path length3, perfect matching. But initially matching empty. BFS will find free rights at distance1 from each left? Actually all left unmatched, all right free, so BFS dist[NIL]=1. DFS will match each left to some free right directly. So no augmenting path length>1 in first phase. After first phase, some left matched. Then BFS may find longer paths. Let's test with a case where augmenting path length>1 needed. Example: n=4, edges: 1-2,1-3,2-4? Let's see. Left={1,3? Actually color: 1 color0,2 color1,3 color0,4 color1? Edges: 1-2,1-3? Wait 1-3 would be same color? 1 color0,3 color0, edge between same color would violate bipartite. So not allowed. Let's use a known example: n=4, edges: 1-2,2-3,3-4? Path length3, perfect matching. Initially all left unmatched, all right free, so first phase matches all left to some free right. No augmenting path length>1. To need augmenting path length>1, we need a matching that is not maximum but no free right adjacent to unmatched left. Example: n=4, edges: 1-2,2-3,3-4,4-1? That's a cycle of length4, bipartite. Left={1,3}, right={2,4}. Edges: 1-2,2-3,3-4,4-1. Suppose initial matching (from first phase) might match 1-2 and3-4, perfect. No augment. If matching is 1-2 only, then unmatched left3, free right4? 3-4 edge, so direct augment. To have no direct free right, need unmatched left with all neighbors matched. Example: n=6, edges: 1-2,2-3,3-4,4-5,5-6,6-1? Cycle length6. Left={1,3,5}, right={2,4,6}. Suppose matching: 1-2,3-4. Unmatched left5, free right6? 5-6 edge, direct. To have no direct, need unmatched left's neighbors all matched. Example: star? Unmatched left connected only to matched rights. Then augmenting path length>1. Let's construct: n=5, edges: 1-2,2-3,3-4,4-5? Path length4? Actually path 1-2-3-4-5: left={1,3,5}, right={2,4}. Matching: 1-2,3-4. Unmatched left5, free right? None (right2,4 matched). So no direct free right. But there is augmenting path: 5-4-3-2-1? Wait 5-4 edge,4-3 matched,3-2 edge,2-1 matched,1? 1 is matched to2, so path 5-4-3-2-1? Ends at left1 matched, not free. Actually augmenting path must end at free right. There is no free right. So matching is maximum? Maximum matching size2? Path length4 has 2 left,2 right, perfect matching size2. So yes maximum. To have augmenting path, need free right. Add another right6 connected to5? Then n=6, edges: 1-2,2-3,3-4,4-5,5-6. Path length5: left={1,3,5}, right={2,4,6}. Matching: 1-2,3-4. Unmatched left5, free right6. Direct edge 5-6, so direct augment. To avoid direct, make 5 not connected to6? But then free right6 not connected. So no augment. So to need augmenting path length>1, we need unmatched left whose neighbors are all matched, and there is a free right reachable via alternating path. Example: n=6, edges: 1-2,2-3,3-4,4-5,5-6,6-1? Cycle length6. Left={1,3,5}, right={2,4,6}. Matching: 1-2,3-4. Unmatched left5, free right6. Direct edge 5-6, so direct. To avoid direct, remove edge5-6? Then free right6 not connected. So no. Let's use a different graph: n=6, edges: 1-2,2-3,3-4,4-5,5-6,6-2? That might create odd cycle? Let's not. The iterative DFS should work anyway.
+
+Let's test iterative DFS with a known augmenting path. Example: n=4, edges: 1-2,2-3,3-4,4-1? Cycle length4. Left={1,3}, right={2,4}. Suppose matching: 1-2. Unmatched left3, free right4. Direct edge 3-4, so direct. To need length>1, matching: 1-2,3-4? Perfect. No. Let's use n=6, cycle length6: edges: 1-2,2-3,3-4,4-5,5-6,6-1. Left={1,3,5}, right={2,4,6}. Suppose matching: 1-2,3-4. Unmatched left5, free right6. Direct edge 5-6, so direct. To avoid direct, remove edge5-6? Then free right6 not connected. So no augment. So in a cycle, there is always direct? Maybe. Let's not worry. The iterative DFS is standard.
+
+Now, we need to ensure that in iterative DFS, when we find free right, we update pairs correctly. Let's test with a path where augmenting path length>1. We'll construct manually: n=6, edges: 1-2,2-3,3-4,4-5,5-6,6-1? Already. Let's use a tree: n=6, edges: 1-2,2-3,3-4,4-5,5-6,6-2? That has cycle? Let's use a known example from HK: Left={a,b,c}, Right={1,2,3}. Edges: a-1,a-2,b-2,b-3,c-1,c-3? That's a cycle? Let's set matching: a-1,b-2. Unmatched leftc, free right3. Direct edge c-3, so direct. To avoid direct, remove c-3. Then free right3 not connected. So no augment. To have augmenting path, need free right reachable via alternating path. Example: Left={a,b,c}, Right={1,2,3}. Edges: a-1,a-2,b-2,b-3,c-2? Let's set matching: a-1,b-2. Unmatched leftc, free right3. Path: c-2 (unmatched),2-b (matched),b-3 (unmatched). So augmenting path c-2-b-3. So edges: c-2, b-2, b-3. Also a-1,a-2? We need a-1 for matching. So edges: a-1,a-2,b-2,b-3,c-2. Let's color: a,b,c left? Actually a,b,c are left,1,2,3 right. Edges: a-1,a-2,b-2,b-3,c-2. Matching: a-1,b-2. Unmatched leftc, free right3. BFS: dist[c]=0, dist[a]=0? Actually all unmatched left: c only? a,b matched, so unmatched left c. BFS from c: neighbor2 (right2), pairV[2]=b, dist[b]=1. Process b: neighbors2,3. For v=2: pairV[2]=b, dist[b]=1, dist[b]? Actually pairV[2]=b, dist[b]=1, dist[u]+1? u=b, dist[b]=1, dist[pairV[2]] = dist[b] =1, not INF, skip. For v=3: pairV[3]==-1, dist[NIL]=dist[b]+1=2. So dist[NIL]=2. DFS start=c: stack=[(c,0)]. u=c, v=2, pairV[2]=b, nxt=b, dist[b]=1, dist[c]+1=1, so push b with parent[b]=(c,2). stack=[(c,1),(b,0)]. Process b: v=2? left_adj[b] = [2,3]? Actually edges b-2,b-3. idx0 v=2: pairV[2]=b, nxt=b, dist[b]=1, dist[b]+1? u=b, dist[b]=1, dist[nxt]=dist[b]=1, dist[u]+1=2, not equal, skip. idx1 v=3: pairV[3]==-1, so found free right. Set pairU[b]=3, pairV[3]=b. cur=b, parent[b]=(c,2). So set pairU[c]=2, pairV[2]=c. cur=c, parent empty. Return True. Now matching: a-1, c-2, b-3. That's size3, maximum. Good. Our iterative DFS works.
+
+Now, we need to ensure that after updating pairs, we don't need to update pairV for old matches? In above, old match b-2 was replaced by c-2, and b-3 added. a-1 unchanged. Good.
+
+Now, one subtlety: In iterative DFS, when we find free right, we set pairU[u]=v, pairV[v]=u. Then we backtrack using parent. But what if u is not the last left in path? Actually u is the left vertex from which we found free right. So yes. Good.
+
+Now, we need to ensure that parent dict is cleared for each DFS start. We create new dict each call. That's fine.
+
+
+
+Now, we should also consider that in iterative DFS, we might push a left vertex that is already matched? Actually we only push nxt = pairV[v], which is matched by definition. So all pushed left vertices (except start) are matched. That's correct for alternating path.
+
+
+
+Now, let's implement iterative DFS instead of recursive to avoid recursion depth. We'll replace dfs function.
+
+But we need to be careful: In iterative DFS, we use `dist[nxt] == dist[u] + 1` to decide to push. However, in recursive DFS, we also check `dist[pairV[v]] == dist[u]+1` before recursing. In iterative, we do that. Good.
+
+
+
+Now, let's think about performance of iterative DFS: We use a stack of tuples, which creates many tuple objects. Could be slower than recursion? But safer. We can optimize by using two parallel lists? But okay. For m=400k, it should be fine.
+
+
+
+Now, let's write the final code with iterative DFS.
+
+We'll define `dfs(start)` as inner function using closure. It will use `left_adj`, `pairU`, `pairV`, `dist`, `NIL`? Actually NIL not needed in DFS. We'll use local variables for speed.
+
+
+
+Let's write:
+
+```
+def dfs(start):
+    stack = [(start, 0)]
+    parent = {}
+    while stack:
+        u, idx = stack[-1]
+        if idx >= len(left_adj[u]):
+            dist[u] = INF
+            stack.pop()
+            continue
+        v = left_adj[u][idx]
+        stack[-1] = (u, idx+1)
+        if pairV[v] == -1:
+            pairU[u] = v
+            pairV[v] = u
+            cur = u
+            while cur in parent:
+                prev_u, v_used = parent[cur]
+                pairU[prev_u] = v_used
+                pairV[v_used] = prev_u
+                cur = prev_u
+            return True
+        else:
+            nxt = pairV[v]
+            if dist[nxt] == dist[u] + 1:
+                parent[nxt] = (u, v)
+                stack.append((nxt, 0))
+    return False
+```
+
+But wait: In the while loop, after we pop a vertex due to failure, we set dist[u]=INF. But what if that vertex is also in parent of some other vertex? It can't be because if it failed, no other vertex was pushed from it. So fine.
+
+Now, one issue: In iterative DFS, when we push nxt, we set parent[nxt] = (u,v). But what if nxt is already in parent from a previous branch that is still on stack? As argued, not possible because we process depth-first. But what if nxt is the start vertex? dist[nxt] > dist[u], so not start. Good.
+
+
+
+Now, let's test iterative DFS with the augmenting path example above. We already did. Good.
+
+
+
+Now, let's think about if the graph has multiple edges? No.
+
+
+
+
+
+Now, let's consider if the BFS for HK might need to use `dist[NIL]` as a sentinel. In our iterative DFS, we don't use NIL. Good.
+
+
+
+Now, let's write the full code.
+
+We'll also remove recursionlimit setting since no recursion. But we can keep it harmless.
+
+
+
+Now, let's think about if the min vertex cover BFS uses recursion? No, iterative. Good.
+
+
+
+Now, let's test with example1 using iterative DFS. We'll simulate quickly: n=4, left={0,1}, right={2,3}? Actually original indices: left_list=[0,1], right_list=[2,3]. left_adj[0]=[0,1], left_adj[1]=[0,1]. HK: BFS: all left unmatched, all right free, dist[NIL]=1. DFS start=0: stack=[(0,0)]. u=0, v=0, pairV[0]==-1, set pairU[0]=0, pairV[0]=0, return True. DFS start=1: stack=[(1,0)]. u=1, v=0, pairV[0]!=-1, nxt=0, dist[0]? dist[0] is 0? In BFS, dist[0]=0, dist[1]=0, dist[NIL]=1. For u=1, dist[1]=0, dist[nxt]=dist[0]=0, dist[u]+1=1, not equal, skip. idx becomes1, v=1, pairV[1]==-1, set pairU[1]=1, pairV[1]=1, return True. Matching size2. Good.
+
+
+
+
+
+Now, let's think about if the BFS for HK might need to reset dist for all vertices each phase. We do that in bfs() function. Good.
+
+
+
+Now, let's consider if the graph has n=100k, m=400k, and the BFS/DFS loops might be heavy. We'll use local variable bindings for speed? We can write:
+
+```
+def bfs():
+    q = deque()
+    for u in range(nL):
+        if pairU[u] == -1:
+            dist[u] = 0
+            q.append(u)
+        else:
+            dist[u] = INF
+    dist[NIL] = INF
+    while q:
+        u = q.popleft()
+        if dist[u] < dist[NIL]:
+            for v in left_adj[u]:
+                if pairV[v] == -1:
+                    dist[NIL] = dist[u] + 1
+                else:
+                    nxt = pairV[v]
+                    if dist[nxt] == INF:
+                        dist[nxt] = dist[u] + 1
+                        q.append(nxt)
+    return dist[NIL] != INF
+```
+
+This is fine.
+
+Now, in main loop:
+
+```
+while bfs():
+    for u in range(nL):
+        if pairU[u] == -1:
+            dfs(u)
+```
+
+This is standard.
+
+Now, let's think about if the DFS might need to be called multiple times for same start? In standard HK, after a successful DFS, the start becomes matched, so it won't be called again. If DFS fails, we set dist[start]=INF, so it won't be called again? Actually in the for loop, we only call dfs(u) if pairU[u] == -1. If dfs fails, pairU[u] remains -1, so it could be called again in the same phase? But in standard HK, after a failed DFS, we set dist[u]=INF, and in the for loop, we iterate over all u; if pairU[u] == -1, we call dfs(u). If dfs fails, dist[u]=INF, but pairU[u] still -1. However, the for loop will not revisit u because it's a single pass. So it's fine. In the next phase, BFS will recompute dist. So no issue.
+
+
+
+Now, let's think about if the DFS might need to be called for a start that was previously failed but then became unmatched again due to augmentation? In a phase, after a successful augmentation, some left vertex might become unmatched? In augmenting path, the start was unmatched and becomes matched; the end right becomes matched; no left becomes unmatched. So no new unmatched left. So fine.
+
+
+
+Now, let's consider if the min vertex cover BFS might need to use `pairU[u] == v` to skip matching edges. But what if u is unmatched and pairU[u] == -1, and v is -1? v is always valid. Good.
+
+
+
+Now, let's think about if the graph has isolated vertices and they are all left. Then right_list empty, nR=0. In min vertex cover BFS, for v in left_adj[u] none. visitedL all true. ans = all left. Good.
+
+
+
+Now, let's think about if the graph has isolated vertices and they are all right. Then left_list empty, nL=0. In HK, nL=0, NIL=0. BFS: q empty, dist[NIL]=INF, return False. Matching size0. Min vertex cover BFS: q empty, visitedL empty, visitedR all false. ans = [] + all right. Good.
+
+
+
+Now, let's think about if k > n? Constraint k ≤ n, so no.
+
+
+
+Now, let's think about if the answer might require outputting components in any order. We output ans[:k] in our order. Good.
+
+
+
+Now, let's consider if the graph is not connected and some components have no edges. Our coloring handles.
+
+
+
+Now, let's think about if the input might have m=0 and k=n, output all. Good.
+
+
+
+Now, let's write final code block.
+
+But before final, let's double-check the min vertex cover construction with iterative DFS and matching. We'll test with a small graph by brute force mentally? Let's do a random graph: n=4, edges: 1-2,2-3,3-4,4-1? Cycle length4. Left={1,3}, right={2,4}. Edges: 1-2,2-3,3-4,4-1. HK: BFS phase1: all left unmatched, all right free, dist[NIL]=1. DFS start=0 (1): v=0 (2), free, match 1-2. DFS start=1 (3): v=0 (2) matched to0, dist[0]=0, dist[1]+1=1, not equal, skip; v=1 (4) free, match 3-4. Matching size2 perfect. Unmatched left none. Min vertex cover BFS: q empty. visitedL empty, visitedR empty. ans = [] + right not visitedR = {2,4}. Size2. Is {2,4} independent? Edges: 1-2,2-3,3-4,4-1. So 2 and4 not connected, yes. Good.
+
+
+
+Now test with a graph where maximum independent set includes left side. Example: n=4, edges: 1-2,1-3,1-4? Star centered at1. Left={1}, right={2,3,4}. Matching size1 (1-2). Unmatched left none. Min vertex cover BFS: q empty. visitedL empty, visitedR empty. ans = [] + right not visitedR = {2,3,4}. Size3. Is {2,3,4} independent? No edges among them, yes. Good.
+
+
+
+Now test with a graph where maximum independent set includes both sides. Example: n=4, edges: 1-2 only. Left={1,3}, right={2,4}. Matching size1 (1-2). Unmatched left: vertex3. Min vertex cover BFS: from3: no neighbors. visitedL={3}, visitedR={}. ans = left visitedL = {3} + right not visitedR = {2,4} => {3,2,4}. Size3. Is {3,2,4} independent? Edge 1-2 only, so yes. Good.
+
+
+
+Now test with a graph where maximum independent set size is less than max side? Actually max independent set size ≥ max(|L|,|R|) because you can take all of larger side. So ans size ≥ max side. Good.
+
+
+
+Now, let's think about if the graph has a component with no edges and all vertices left. Then ans includes them. Good.
+
+
+
+Now, let's consider if the graph has a component with a single edge. Matching size1. Unmatched left maybe? If left has more vertices, unmatched left. BFS min cover will include unmatched left and exclude matched right? Let's test: n=3, edges: 1-2. Left={1,3}, right={2}. Matching size1 (1-2). Unmatched left:3. BFS min cover:from3: no neighbors. visitedL={3}, visitedR={}. ans = left visitedL = {3} + right not visitedR = {2} => {3,2}. Size2. Is {3,2} independent? Edge 1-2 only, so yes. Good.
+
+
+
+Now, let's think about if the graph has a component with a path of length2 (1-2-3). Left={1,3}, right={2}. Matching size1 (1-2). Unmatched left:3. BFS min cover:from3: neighbor2, pairU[1]? left index1 (3) unmatched, so traverse to right2. visitedR[2]=True. pairV[2]=0 (left1), visitedL[0]=True; push left1. Process left1: neighbor2, pairU[0]==0, skip. visitedL={left1,left3}, visitedR={right2}. ans = left visitedL = {1,3} + right not visitedR = {} => {1,3}. Size2. Is {1,3} independent? Edge 1-2,2-3, so 1 and3 not connected, yes. Good.
+
+
+
+Now, let's think about if the graph has a component with a path of length3 (1-2-3-4). Left={1,3}, right={2,4}. Matching size2 perfect. Unmatched left none. ans = right not visitedR = {2,4}. Size2. Is {2,4} independent? Edges: 1-2,2-3,3-4, so 2 and4 not connected, yes. Good.
+
+
+
+Now, let's think about if the graph has a component with a cycle of length4 and an extra leaf. Example: n=5, edges: 1-2,2-3,3-4,4-1,1-5? Wait 1-5 would be same color? 1 color0,5 color0? Actually 5 connected to1, so 5 color1. So left={1,3}, right={2,4,5}. Edges: 1-2,2-3,3-4,4-1,1-5. Matching size2? We can match 1-2,3-4, leaving5 unmatched. Unmatched left none. ans = right not visitedR = {2,4,5}? Wait visitedR empty, so ans = {2,4,5}. Size3. Is {2,4,5} independent? Edges: 1-2,2-3,3-4,4-1,1-5. So 2,4,5 have no edges among them? 2-4 no,2-5 no,4-5 no. Yes. Good.
+
+
+
+Now, let's think about if the graph has a component with a cycle of length4 and an extra left leaf. Example: n=5, edges: 1-2,2-3,3-4,4-1,5-2? 5 connected to2, so 5 color0. Left={1,3,5}, right={2,4}. Edges: 1-2,2-3,3-4,4-1,5-2. Matching size2? We can match 1-2,3-4, leaving5 unmatched. Unmatched left:5. BFS min cover:from5: neighbor2, pairU[2]? left index2 (5) unmatched, traverse to right2. visitedR[2]=True. pairV[2]=0 (left1), visitedL[0]=True; push left1. Process left1: neighbors2,4? left_adj[0] = [2,4]? Actually 1 connected to2,4. pairU[0]=0 (matched to2), so for v=2: pairU[0]==0, skip. For v=4: pairU[0]!=4, traverse to right4. visitedR[4]=True. pairV[4]=1 (left3), visitedL[1]=True; push left3. Process left3: neighbors2,4? 3 connected to2,4. pairU[1]=1 (matched to4), so for v=2: pairU[1]!=2, traverse to right2 (already visitedR). For v=4: pairU[1]==1, skip. visitedL={left5,left1,left3}, visitedR={right2,right4}. ans = left visitedL = {5,1,3} + right not visitedR = {} => {5,1,3}. Size3. Is {5,1,3} independent? Edges: 1-2,2-3,3-4,4-1,5-2. So 5,1,3 have no edges among them? 5-1 no,5-3 no,1-3 no. Yes. Good.
+
+
+
+Now, let's think about if the graph has a component with a cycle of length4 and an extra right leaf. Example: n=5, edges: 1-2,2-3,3-4,4-1,2-5? 5 connected to2, so 5 color0? Actually 2 color1, so 5 color0. Left={1,3,5}, right={2,4}. Edges: 1-2,2-3,3-4,4-1,2-5. Matching size2? We can match 1-2,3-4, leaving5 unmatched. Unmatched left:5. BFS min cover:from5: neighbor2, pairU[2]? left index2 (5) unmatched, traverse to right2. visitedR[2]=True. pairV[2]=0 (left1), visitedL[0]=True; push left1. Process left1: neighbors2,4? pairU[0]=0 (matched to2), so for v=2: skip; for v=4: traverse to right4. visitedR[4]=True. pairV[4]=1 (left3), visitedL[1]=True; push left3. Process left3: neighbors2,4? pairU[1]=1 (matched to4), so for v=2: traverse to right2 (already visitedR); for v=4: skip. visitedL={left5,left1,left3}, visitedR={right2,right4}. ans = left visitedL = {5,1,3} + right not visitedR = {} => {5,1,3}. Size3. Is {5,1,3} independent? Edges: 1-2,2-3,3-4,4-1,2-5. So 5,1,3 have no edges among them? 5-1 no,5-3 no,1-3 no. Yes. Good.
+
+
+
+Now, let's think about if the graph has a component with a cycle of length4 and an extra left leaf connected to a right that is not in matching? Example: n=5, edges: 1-2,2-3,3-4,4-1,5-4? 5 connected to4, so 5 color0. Left={1,3,5}, right={2,4}. Edges: 1-2,2-3,3-4,4-1,5-4. Matching size2? We can match 1-2,3-4, leaving5 unmatched. Unmatched left:5. BFS min cover:from5: neighbor4, pairU[2]? left index2 (5) unmatched, traverse to right4. visitedR[4]=True. pairV[4]=1 (left3), visitedL[1]=True; push left3. Process left3: neighbors2,4? pairU[1]=1 (matched to4), so for v=2: traverse to right2. visitedR[2]=True. pairV[2]=0 (left1), visitedL[0]=True; push left1. Process left1: neighbors2,4? pairU[0]=0 (matched to2), so for v=2: skip; for v=4: traverse to right4 (already visitedR). visitedL={left5,left3,left1}, visitedR={right4,right2}. ans = left visitedL = {5,3,1} + right not visitedR = {} => {5,3,1}. Size3. Is {5,3,1} independent? Edges: 1-2,2-3,3-4,4-1,5-4. So 5,3,1 have no edges among them? 5-3 no,5-1 no,3-1 no. Yes. Good.
+
+
+
+Now, let's think about if the graph has a component with a cycle of length4 and an extra right leaf connected to a left that is not in matching? Example: n=5, edges: 1-2,2-3,3-4,4-1,3-5? 5 connected to3, so 5 color1. Left={1,3}, right={2,4,5}. Edges: 1-2,2-3,3-4,4-1,3-5. Matching size2? We can match 1-2,3-4, leaving5 unmatched. Unmatched left none. ans = right not visitedR = {2,4,5}. Size3. Is {2,4,5} independent? Edges: 1-2,2-3,3-4,4-1,3-5. So 2,4,5 have no edges among them? 2-4 no,2-5 no,4-5 no. Yes. Good.
+
+
+
+Now, let's think about if the graph has a component with a cycle of length4 and an extra right leaf connected to a left that is unmatched? But left unmatched only if left count > right count. In cycle length4, left=right=2. Adding right leaf makes right=3, left=2, so no unmatched left. Adding left leaf makes left=3, right=2, unmatched left. We tested. Good.
+
+
+
+Now, let's think about if the graph has a component with a path of length2 and an extra right leaf connected to the middle right? Example: n=4, edges: 1-2,2-3,2-4? 2 connected to1,3,4. Colors: 1 color0,2 color1,3 color0,4 color0. Left={1,3,4}, right={2}. Edges: 1-2,2-3,2-4. Matching size1 (1-2). Unmatched left:3,4. BFS min cover:from3: neighbor2, pairU[1]? left index1 (3) unmatched, traverse to right2. visitedR[2]=True. pairV[2]=0 (left1), visitedL[0]=True; push left1. From4: neighbor2, already visitedR. Process left1: neighbor2, pairU[0]==0, skip. visitedL={left3,left4,left1}, visitedR={right2}. ans = left visitedL = {3,4,1} + right not visitedR = {} => {3,4,1}. Size3. Is {3,4,1} independent? Edges: 1-2,2-3,2-4. So 3,4,1 have no edges among them? 3-1 no,4-1 no,3-4 no. Yes. Good.
+
+
+
+Now, let's think about if the graph has a component with a path of length2 and an extra left leaf connected to the middle right? Example: n=4, edges: 1-2,2-3,1-4? 4 connected to1, so 4 color1. Left={1,3}, right={2,4}. Edges: 1-2,2-3,1-4. Matching size2? We can match 1-2,3? 3 only connected to2, which is matched, so matching size1? Actually maximum matching size2? We can match 1-4 and2-3? Yes, 1-4 and2-3, size2. So perfect. Unmatched left none. ans = right not visitedR = {2,4}. Size2. Is {2,4} independent? Edges: 1-2,2-3,1-4. So 2 and4 not connected, yes. Good.
+
+
+
+Now, let's think about if the graph has a component with a path of length2 and an extra left leaf connected to the middle right? We did. Good.
+
+
+
+Now, let's think about if the graph has a component with a path of length2 and an extra right leaf connected to the left leaf? Example:

@@ -1,115 +1,65 @@
 ```python
 import sys
-from collections import defaultdict, deque
-
-def is_self_adjoint_product(A, B):
-    # Check if (A * B) is self-adjoint, i.e., (A * B) == (A * B)^T
-    # Since A and B are 2x2, we can compute the product and check
-    # A = [[1, 4], [2, 5]]
-    # B = [[5, -4], [-2, 1]]
-    
-    # Compute A*B
-    AB = [[A[0][0]*B[0][0] + A[0][1]*B[1][0], A[0][0]*B[0][1] + A[0][1]*B[1][1]],
-          [A[1][0]*B[0][0] + A[1][1]*B[1][0], A[1][0]*B[0][1] + A[1][1]*B[1][1]]]
-    
-    # Check if AB is symmetric (self-adjoint)
-    return AB[0][1] == AB[1][0]
+from collections import defaultdict
 
 def main():
     import sys
-    input = sys.stdin.read
-    data = input().split()
+    sys.setrecursionlimit(1 << 25)
     
-    n = int(data[0])
-    m = int(data[1])
+    n, m = map(int, sys.stdin.readline().split())
     
-    edges = []
-    adj = [[] for _ in range(n+1)]
+    # We'll build a graph where each node is a variable (1..n)
+    # Each variable can take value 1 or 2
+    # For each conflict (u,v), we have p[u] != p[v]
+    # This is a 2-SAT kind of problem but simpler since each variable has only 2 values
     
-    index = 2
+    # For each pair (u,v) with u != v, we add constraint p[u] != p[v]
+    # This means if p[u] = 1 then p[v] = 2 and vice versa
+    
+    adj = defaultdict(set)
+    rev_adj = defaultdict(set)
+    
     for _ in range(m):
-        u = int(data[index])
-        v = int(data[index+1])
-        index += 2
-        if u != v:  # Avoid self-loops
-            edges.append((u, v))
-            adj[u].append(v)
-            adj[v].append(u)
+        u, v = map(int, sys.stdin.readline().split())
+        u -= 1  # Convert to 0-indexed
+        v -= 1
+        if u == v:
+            # p[u] != p[u] is impossible
+            print("NO")
+            return
+        adj[u].add(v)
+        adj[v].add(u)
+        
+    # Now we need to 2-color the graph (since p[i] can be 1 or 2)
+    # If there's an odd cycle, it's not bipartite => NO solution
+    # Otherwise, we get a valid coloring
     
-    if m == 0:
-        print("YES")
-        print(" ".join(["1"] * n))
-        return
+    color = [-1] * n  # -1: unvisited, 0: color 1, 1: color 2
     
-    # Define operators
-    T1 = [[1, 4], [2, 5]]
-    T2 = [[5, -4], [-2, 1]]
-    ops = [T1, T2]
+    def dfs(node, c):
+        color[node] = c
+        for nei in adj[node]:
+            if color[nei] == -1:
+                if not dfs(nei, 1 - c):
+                    return False
+            elif color[nei] == c:
+                return False
+        return True
     
-    # Precompute which operator pairs result in self-adjoint products
-    # valid[i][j] = True if Ti * Tj is self-adjoint
-    valid = [[False, False], [False, False]]
-    for i in range(2):
-        for j in range(2):
-            if is_self_adjoint_product(ops[i], ops[j]):
-                valid[i][j] = True
-    
-    # Build constraint graph
-    # For each edge (u,v), the operators assigned to u and v must satisfy valid[s[u]][s[v]] = True
-    # This is a 2-SAT problem
-    
-    # We'll use graph coloring: each node can be color 0 (T1) or 1 (T2)
-    # For each edge, only certain color pairs are allowed
-    
-    # Build adjacency list for the constraint graph
-    # We'll model this as a graph where each node can be 0 or 1
-    # and edges represent constraints
-    
-    # For efficiency, we can model this as a graph where each node has two states (0 and 1)
-    # and we check bipartiteness with constraints
-    
-    # But let's think differently: valid pairs are (0,1) and (1,0) only?
-    # Let's compute valid:
-    # T1 * T1: [[1,4],[2,5]] * [[1,4],[2,5]] = [[1*1+4*2, 1*4+4*5], [2*1+5*2, 2*4+5*5]] = [[9, 24], [12, 33]]
-    # Not symmetric since 24 != 12
-    # T1 * T2: [[1,4],[2,5]] * [[5,-4],[-2,1]] = [[1*5+4*(-2), 1*(-4)+4*1], [2*5+5*(-2), 2*(-4)+5*1]] = [[-3, 0], [0, -3]]
-    # Symmetric since 0 == 0
-    # T2 * T1: [[5,-4],[-2,1]] * [[1,4],[2,5]] = [[5*1+(-4)*2, 5*4+(-4)*5], [(-2)*1+1*2, (-2)*4+1*5]] = [[-3, 0], [0, -3]]
-    # Symmetric
-    # T2 * T2: [[5,-4],[-2,1]] * [[5,-4],[-2,1]] = [[5*5+(-4)*(-2), 5*(-4)+(-4)*1], [(-2)*5+1*(-2), (-2)*(-4)+1*1]] = [[33, -24], [12, 9]]
-    # Not symmetric since -24 != 12
-    
-    # So valid pairs are (0,1) and (1,0) only
-    # This means adjacent nodes must have different operators
-    # This is a graph bipartitioning problem
-    
-    # Check if the graph is bipartite
-    color = [-1] * (n+1)
-    queue = deque()
-    
-    # Process each connected component
-    for start in range(1, n+1):
-        if color[start] == -1:
-            queue.append(start)
-            color[start] = 0
-            while queue:
-                u = queue.popleft()
-                current_color = color[u]
-                for v in adj[u]:
-                    if color[v] == -1:
-                        color[v] = 1 - current_color
-                        queue.append(v)
-                    elif color[v] == current_color:
-                        print("NO")
-                        return
-    
-    # If bipartite, assign colors (0 -> 1, 1 -> 2 to match operator numbers)
-    assignment = [0] * (n+1)
-    for i in range(1, n+1):
-        assignment[i] = color[i] + 1
+    for i in range(n):
+        if color[i] == -1:
+            if not dfs(i, 0):
+                print("NO")
+                return
+                
+    # We want the lexicographically smallest assignment
+    # That means we prefer p[i] = 1 over p[i] = 2
+    # In our coloring, color 0 corresponds to p=1, color 1 to p=2
+    # Since we started DFS with color 0, and always chose 0 when possible,
+    # the result should already be lex smallest
     
     print("YES")
-    print(" ".join(map(str, assignment[1:])))
+    print(' '.join(str(color[i] + 1) for i in range(n)))
 
 if __name__ == "__main__":
     main()

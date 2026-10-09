@@ -1,0 +1,57 @@
+import sys
+sys.setrecursionlimit(1 << 25)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it)); m = int(next(it)); t = int(next(it))
+    terminals = set()
+    for _ in range(t):
+        terminals.add(int(next(it)) - 1)
+    adj = [[] for _ in range(n)]
+    edges = []
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        w = int(next(it))
+        adj[u].append((v, w, len(edges)))
+        adj[v].append((u, w, len(edges)))
+        edges.append((u, v, w))
+
+    if t <= 1:
+        print(0)
+        return
+
+    parent = [-1] * n
+    parent_edge = [-1] * n
+    order = []
+    stack = [0]
+    parent[0] = 0
+    while stack:
+        u = stack.pop()
+        order.append(u)
+        for v, w, idx in adj[u]:
+            if parent[v] == -1:
+                parent[v] = u
+                parent_edge[v] = (idx, w)
+                stack.append(v)
+
+    sub_cnt = [0] * n
+    for v in terminals:
+        sub_cnt[v] = 1
+
+    total = 0
+    for u in reversed(order):
+        if u == 0:
+            continue
+        cnt = sub_cnt[u]
+        if 0 < cnt < t:
+            total += parent_edge[u][1]
+        sub_cnt[parent[u]] += cnt
+
+    print(total)
+
+if __name__ == "__main__":
+    solve()

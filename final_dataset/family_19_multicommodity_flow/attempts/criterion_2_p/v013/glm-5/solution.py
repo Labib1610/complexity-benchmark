@@ -1,0 +1,104 @@
+import sys
+from collections import deque
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    
+    n = int(next(it))
+    m = int(next(it))
+    _ = int(next(it))  # product varieties, always 1
+    
+    s = int(next(it))
+    t = int(next(it))
+    d = int(next(it))
+    
+    # Adjust to 0-indexed
+    s -= 1
+    t -= 1
+    
+    edges = []
+    adj = [[] for _ in range(n)]
+    
+    for i in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        c = int(next(it))
+        edges.append((u, v, c))
+        adj[u].append(i)
+        adj[v].append(i)
+    
+    # Build flow network
+    # Nodes: 0 to n-1 are original nodes
+    # Node n is super source, node n+1 is super sink
+    
+    N = n + 2
+    source = n
+    sink = n + 1
+    
+    cap = [[0] * N for _ in range(N)]
+    
+    for i, (u, v, c) in enumerate(edges):
+        cap[u][v] += c
+    
+    # Add edge from super source to s with capacity d
+    cap[source][s] = d
+    # Add edge from t to super sink with capacity d
+    cap[t][sink] = d
+    
+    # Dinic's algorithm
+    level = [0] * N
+    ptr = [0] * N
+    
+    def bfs():
+        for i in range(N):
+            level[i] = -1
+        level[source] = 0
+        q = deque([source])
+        while q:
+            u = q.popleft()
+            for v in range(N):
+                if level[v] == -1 and cap[u][v] > 0:
+                    level[v] = level[u] + 1
+                    q.append(v)
+        return level[sink] != -1
+    
+    def dfs(u, flow):
+        if u == sink:
+            return flow
+        for v in range(ptr[u], N):
+            ptr[u] = v
+            if level[v] == level[u] + 1 and cap[u][v] > 0:
+                pushed = dfs(v, min(flow, cap[u][v]))
+                if pushed > 0:
+                    cap[u][v] -= pushed
+                    cap[v][u] += pushed
+                    return pushed
+        return 0
+    
+    total_flow = 0
+    while bfs():
+        ptr = [0] * N
+        while True:
+            pushed = dfs(source, float('inf'))
+            if pushed == 0:
+                break
+            total_flow += pushed
+    
+    if total_flow != d:
+        print("NO")
+        return
+    
+    # Extract flow values for original edges
+    result = []
+    for u, v, c in edges:
+        flow = c - cap[u][v]
+        result.append(str(flow))
+    
+    print("YES")
+    print(" ".join(result))
+
+if __name__ == "__main__":
+    solve()

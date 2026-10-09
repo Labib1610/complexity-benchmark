@@ -9,38 +9,55 @@ def solve() -> None:
     it = iter(data)
     n = int(next(it))
     m = int(next(it))
-    adj = [set() for _ in range(n)]
+    adj = [0] * n
     for _ in range(m):
         u = int(next(it)) - 1
         v = int(next(it)) - 1
-        adj[u].add(v)
-        adj[v].add(u)
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+
+    # order vertices by degree descending
+    order = sorted(range(n), key=lambda x: -adj[x].bit_count())
+    pos_in_order = [0] * n
+    for i, v in enumerate(order):
+        pos_in_order[v] = i
 
     colors = [0] * n
     found = False
 
-    def dfs(idx: int) -> bool:
+    # precompute neighbor list for fast check
+    neigh = [ [j for j in range(n) if (adj[i] >> j) & 1] for i in range(n) ]
+
+    def dfs(idx: int):
         nonlocal found
+        if found:
+            return
         if idx == n:
-            return True
+            found = True
+            return
+        v = order[idx]
+        # try colors 1..3
         for c in (1, 2, 3):
             ok = True
-            for nb in adj[idx]:
-                if nb < idx and colors[nb] == c:
+            for nb in neigh[v]:
+                if colors[nb] == c:
                     ok = False
                     break
             if ok:
-                colors[idx] = c
-                if dfs(idx + 1):
-                    return True
-                colors[idx] = 0
-        return False
+                colors[v] = c
+                dfs(idx + 1)
+                if found:
+                    return
+                colors[v] = 0
 
-    if dfs(0):
-        print("YES")
-        print(' '.join(map(str, colors)))
+    dfs(0)
+
+    out = sys.stdout
+    if not found:
+        out.write("NO")
     else:
-        print("NO")
+        out.write("YES\n")
+        out.write(" ".join(str(colors[i]) for i in range(n)))
 
 if __name__ == "__main__":
     solve()

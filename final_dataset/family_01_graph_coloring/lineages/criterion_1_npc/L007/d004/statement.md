@@ -1,0 +1,51 @@
+# Problem A — Thermal Resonance Tuning
+
+Time limit: 2 s   Memory limit: 256 MB
+
+A reactor core contains $n$ thermal modules. To maintain stability, each module must be calibrated to exactly one of three distinct resonance states, designated as 1, 2, and 3.
+
+The diagnostic system has identified $m$ interference warnings. Each warning specifies two modules, $u$ and $v$, which are physically positioned such that they will cause catastrophic feedback if they share the same resonance state.
+
+To prevent core failure, the calibration sequence must ensure that for every recorded interference warning $(u, v)$, the two modules receive strictly different states.
+
+Your task is to determine whether there exists a valid state assignment for all modules $1 \dots n$ such that every interference warning is mitigated. If such an assignment exists, you must provide one.
+
+## Input
+The first line contains two integers $n$ and $m$ — the number of thermal modules and the number of interference warnings ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
+Each of the following $m$ lines contains two integers $u$ and $v$, indicating an interference warning between module $u$ and module $v$.
+
+## Output
+If it is impossible to calibrate the modules safely, output a single line containing `NO`.
+Otherwise, output `YES` on the first line. On the second line, output $n$ integers $s_1, s_2, \dots, s_n$ (where each $s_i \in \{1, 2, 3\}$), with $s_i$ representing the resonance state assigned to module $i$. Any valid assignment is accepted.
+
+## Example 1
+Input:
+```
+4 5
+1 2
+1 3
+2 3
+1 4
+2 4
+```
+Output:
+```
+YES
+1 2 3 3
+```
+
+## Example 2
+Input:
+```
+4 6
+1 2
+1 3
+1 4
+2 3
+2 4
+3 4
+```
+Output:
+```
+NO
+```

@@ -1,0 +1,230 @@
+```python
+import sys
+from collections import deque
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it)); m = int(next(it)); k = int(next(it))
+    s = int(next(it)) - 1; t = int(next(it)) - 1; d = int(next(it))
+    edges_input = []
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        cap = int(next(it))
+        edges_input.append((u, v, cap))
+
+    # Dinic
+    N = n
+    g = [[] for _ in range(N)]
+
+    class Edge:
+        __slots__ = ('to','rev','cap','orig')
+        def __init__(self, to, rev, cap, orig=False):
+            self.to = to
+            self.rev = rev
+            self.cap = cap
+            self.orig = orig  # marks if this is original forward edge
+
+    # store reference to original edges to retrieve flow later
+    orig_refs = []
+
+    def add_edge(fr, to, cap, orig=False):
+        fwd = Edge(to, len(g[to]), cap, orig)
+        rev = Edge(fr, len(g[fr]), 0, False)
+        g[fr].append(fwd)
+        g[to].append(rev)
+        return fwd
+
+    for idx, (u, v, cap) in enumerate(edges_input):
+        e = add_edge(u, v, cap, True)
+        orig_refs.append(e)
+
+    level = [0]*N
+    itp = [0]*N
+
+    def bfs():
+        for i in range(N):
+            level[i] = -1
+        q = deque()
+        level[s] = 0
+        q.append(s)
+        while q:
+            v = q.popleft()
+            for e in g[v]:
+                if e.cap > 0 and level[e.to] < 0:
+                    level[e.to] = level[v] + 1
+                    q.append(e.to)
+        return level[t] >= 0
+
+    def dfs(v, f):
+        if v == t:
+            return f
+        for i in range(itp[v], len(g[v])):
+            itp[v] = i
+            e = g[v][i]
+            if e.cap > 0 and level[v] < level[e.to]:
+                ret = dfs(e.to, min(f, e.cap))
+                if ret:
+                    e.cap -= ret
+                    g[e.to][e.rev].cap += ret
+                    return ret
+        return 0
+
+    flow = 0
+    INF = 10**18
+    while bfs():
+        itp = [0]*N
+        while True:
+            f = dfs(s, INF)
+            if not f:
+                break
+            flow += f
+            if flow >= d:
+                break
+        if flow >= d:
+            break
+
+    if flow < d:
+        print("NO")
+        return
+
+    # We have at least d flow; need exactly d. The current flow may be >d.
+    # Reduce excess flow if any by sending back along residual.
+    excess = flow - d
+    if excess > 0:
+        # add a super source/sink to push back excess from t to s
+        # We'll just run another maxflow from t to s on residual network with limit excess.
+        # Temporarily treat t as source and s as sink.
+        # Reuse bfs/dfs with swapped roles.
+        ss, tt = t, s
+        while excess > 0 and bfs():
+            itp = [0]*N
+            while excess > 0:
+                f = dfs(ss, excess)
+                if not f:
+                    break
+                excess -= f
+        # after this, total flow from s to t is exactly d
+    # retrieve flows on original edges
+    res = []
+    for e in orig_refs:
+        # original capacity minus remaining capacity = flow used
+        used = e.cap  # e.cap is residual capacity now
+        flow_used = e.orig_cap - used if hasattr(e, 'orig_cap') else None
+    # To get original capacity, we stored it in e.cap initially, but it changed.
+    # We'll store it separately when adding edges.
+
+    # Rebuild with stored caps
+    # Actually easier: store original capacity in edge object.
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it)); m = int(next(it)); k = int(next(it))
+    s = int(next(it))-1; t = int(next(it))-1; d = int(next(it))
+    edges_input = []
+    for _ in range(m):
+        u = int(next(it))-1; v = int(next(it))-1; cap = int(next(it))
+        edges_input.append((u,v,cap))
+
+    N = n
+    g = [[] for _ in range(N)]
+
+    class Edge:
+        __slots__ = ('to','rev','cap','orig_cap')
+        def __init__(self, to, rev, cap, orig_cap):
+            self.to = to
+            self.rev = rev
+            self.cap = cap
+            self.orig_cap = orig_cap
+
+    orig_refs = []
+
+    def add_edge(fr, to, cap):
+        fwd = Edge(to, len(g[to]), cap, cap)
+        rev = Edge(fr, len(g[fr]), 0, 0)
+        g[fr].append(fwd)
+        g[to].append(rev)
+        return fwd
+
+    for u,v,cap in edges_input:
+        e = add_edge(u,v,cap)
+        orig_refs.append(e)
+
+    level = [0]*N
+    itp = [0]*N
+
+    def bfs(src, sink):
+        for i in range(N):
+            level[i] = -1
+        q = deque([src])
+        level[src] = 0
+        while q:
+            v = q.popleft()
+            for e in g[v]:
+                if e.cap and level[e.to] < 0:
+                    level[e.to] = level[v] + 1
+                    q.append(e.to)
+        return level[sink] >= 0
+
+    def dfs(v, sink, f):
+        if v == sink:
+            return f
+        for i in range(itp[v], len(g[v])):
+            itp[v] = i
+            e = g[v][i]
+            if e.cap and level[v] < level[e.to]:
+                ret = dfs(e.to, sink, min(f, e.cap))
+                if ret:
+                    e.cap -= ret
+                    g[e.to][e.rev].cap += ret
+                    return ret
+        return 0
+
+    flow = 0
+    INF = 10**18
+    while bfs(s, t):
+        itp = [0]*N
+        while True:
+            f = dfs(s, t, INF)
+            if not f:
+                break
+            flow += f
+            if flow >= d:
+                break
+        if flow >= d:
+            break
+
+    if flow < d:
+        print("NO")
+        return
+
+    # Reduce excess if any
+    excess = flow - d
+    if excess:
+        # send excess from t back to s
+        while excess and bfs(t, s):
+            itp = [0]*N
+            while excess:
+                f = dfs(t, s, excess)
+                if not f:
+                    break
+                excess -= f
+
+    # Now extract flows
+    ans = []
+    for e in orig_refs:
+        used = e.orig_cap - e.cap
+        ans.append(str(used))
+
+    print("YES")
+    print(" ".join(ans))
+
+if __name__ == "__main__":
+    solve()
+```

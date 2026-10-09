@@ -1,0 +1,250 @@
+import sys
+from collections import deque
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    s = int(next(it))
+    t = int(next(it))
+    cap = int(next(it))
+
+    # Build graph
+    adj = [[] for _ in range(n + 1)]
+    edges = []
+    for i in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        w = int(next(it))
+        edges.append((u, v, w))
+        adj[u].append((v, i))
+        adj[v].append((u, i))
+
+    if s == t:
+        print("NO")
+        return
+
+    INF = float('inf')
+
+    # Dijkstra from s
+    dist_s = [INF] * (n + 1)
+    dist_s[s] = 0
+    pq = [(0, s)]
+    while pq:
+        d, u = heapq_heappop(pq)
+        if d > dist_s[u]:
+            continue
+        for v, idx in adj[u]:
+            nd = d + edges[idx][2]
+            if nd < dist_s[v]:
+                dist_s[v] = nd
+                heapq_heappush(pq, (nd, v))
+
+    # Dijkstra from t
+    dist_t = [INF] * (n + 1)
+    dist_t[t] = 0
+    pq = [(0, t)]
+    while pq:
+        d, u = heapq_heappop(pq)
+        if d > dist_t[u]:
+            continue
+        for v, idx in adj[u]:
+            nd = d + edges[idx][2]
+            if nd < dist_t[v]:
+                dist_t[v] = nd
+                heapq_heappush(pq, (nd, v))
+
+    D = dist_s[t]
+    if D > cap:
+        print("NO")
+        return
+
+    # Build shortest path DAG (edges on some shortest s-t path)
+    dag_adj = [[] for _ in range(n + 1)]
+    dag_rev = [[] for _ in range(n + 1)]
+    dag_edge_idx = []
+    for i, (u, v, w) in enumerate(edges):
+        if dist_s[u] + w + dist_t[v] == D:
+            dag_adj[u].append((v, i))
+            dag_rev[v].append((u, i))
+            dag_edge_idx.append(i)
+        elif dist_s[v] + w + dist_t[u] == D:
+            dag_adj[v].append((u, i))
+            dag_rev[u].append((v, i))
+            dag_edge_idx.append(i)
+
+    # Min cut on shortest path DAG using max flow
+    # Node splitting: node i -> i' with capacity INF (except s, t)
+    # Edge (u,v) in DAG: u' -> v with capacity w
+    # Source = s, Sink = t (no split needed for s and t)
+    # Node i' has id n+i
+
+    N = 2 * n + 2
+    SRC = s
+    SNK = t
+
+    class MaxFlow:
+        def __init__(self, n):
+            self.n = n
+            self.graph = [[] for _ in range(n + 1)]
+            self.edges = []
+
+        def add_edge(self, u, v, cap):
+            self.graph[u].append(len(self.edges))
+            self.edges.append([v, cap, 0])
+            self.graph[v].append(len(self.edges))
+            self.edges.append([u, 0, 0])
+
+        def bfs(self, s, t):
+            self.level = [-1] * (self.n + 1)
+            self.level[s] = 0
+            q = deque([s])
+            while q:
+                u = q.popleft()
+                for eid in self.graph[u]:
+                    v, cap, flow = self.edges[eid]
+                    if cap > flow and self.level[v] < 0:
+                        self.level[v] = self.level[u] + 1
+                        q.append(v)
+            return self.level[t] >= 0
+
+        def dfs(self, u, t, f):
+            if u == t:
+                return f
+            while self.it[u] < len(self.graph[u]):
+                eid = self.graph[u][self.it[u]]
+                v, cap, flow = self.edges[eid]
+                if cap > flow and self.level[v] == self.level[u] + 1:
+                    d = self.dfs(v, t, min(f, cap - flow))
+                    if d > 0:
+                        self.edges[eid][2] += d
+                        self.edges[eid ^ 1][2] -= d
+                        return d
+                self.it[u] += 1
+            return 0
+
+        def max_flow(self, s, t):
+            flow = 0
+            while self.bfs(s, t):
+                self.it = [0] * (self.n + 1)
+                while True:
+                    f = self.dfs(s, t, INF)
+                    if f == 0:
+                        break
+                    flow += f
+            return flow
+
+    mf = MaxFlow(N)
+    BIG = float('inf')
+
+    # Add node-split edges
+    for i in range(1, n + 1):
+        if i == s or i == t:
+            continue
+        mf.add_edge(i, n + i, BIG)
+
+    # Add DAG edges
+    for i in dag_edge_idx:
+        u, v, w = edges[i]
+        # Determine direction
+        if dist_s[u] + w + dist_t[v] == D:
+            # u -> v
+            mf.add_edge(n + u if u != s else s, v if v != t else t, w)
+        else:
+            # v -> u
+            mf.add_edge(n + v if v != s else s, u if u != t else t, w)
+
+    flow = mf.max_flow(SRC, SNK)
+
+    if flow > cap:
+        print("NO")
+        return
+
+    # Find min cut edges
+    # BFS from SRC in residual graph
+    visited = [False] * (N + 1)
+    q = deque([SRC])
+    visited[SRC] = True
+    while q:
+        u = q.popleft()
+        for eid in mf.graph[u]:
+            v, cap, fl = mf.edges[eid]
+            if cap > fl and not visited[v]:
+                visited[v] = True
+                q.append(v)
+
+    # Collect cut edges
+    result = []
+    for i in dag_edge_idx:
+        u, v, w = edges[i]
+        if dist_s[u] + w + dist_t[v] == D:
+            # u -> v
+            uu = n + u if u != s else s
+            vv = v if v != t else t
+            # Find if this edge is cut
+            for eid in mf.graph[uu]:
+                ev, cap, fl = mf.edges[eid]
+                if ev == vv and cap == w and cap == fl:
+                    if visited[uu] and not visited[vv]:
+                        result.append((u, v))
+                        break
+        else:
+            # v -> u
+            uu = n + v if v != s else s
+            vv = u if u != t else t
+            for eid in mf.graph[uu]:
+                ev, cap, fl = mf.edges[eid]
+                if ev == vv and cap == w and cap == fl:
+                    if visited[uu] and not visited[vv]:
+                        result.append((v, u))
+                        break
+
+    print("YES")
+    print(len(result))
+    for u, v in result:
+        print(u, v)
+
+def heapq_heappush(heap, item):
+    heap.append(item)
+    _siftdown(heap, 0, len(heap) - 1)
+
+def heapq_heappop(heap):
+    lastelt = heap.pop()
+    if heap:
+        returnitem = heap[0]
+        heap[0] = lastelt
+        _siftup(heap, 0)
+        return returnitem
+    return lastelt
+
+def _siftdown(heap, startpos, pos):
+    newitem = heap[pos]
+    while pos > startpos:
+        parentpos = (pos - 1) >> 1
+        parent = heap[parentpos]
+        if newitem < parent:
+            heap[pos] = parent
+            pos = parentpos
+            continue
+        break
+    heap[pos] = newitem
+
+def _siftup(heap, pos):
+    endpos = len(heap)
+    startpos = pos
+    newitem = heap[pos]
+    childpos = 2 * pos + 1
+    while childpos < endpos:
+        rightpos = childpos + 1
+        if rightpos < endpos and not heap[childpos] < heap[rightpos]:
+            childpos = rightpos
+        heap[pos] = heap[childpos]
+        pos = childpos
+        childpos = 2 * pos + 1
+    heap[pos] = newitem
+    _siftdown(heap, startpos, pos)
+
+solve()

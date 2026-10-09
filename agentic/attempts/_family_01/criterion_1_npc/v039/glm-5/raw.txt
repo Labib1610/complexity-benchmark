@@ -1,0 +1,423 @@
+```python
+import sys
+from itertools import product
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    n = int(data[0])
+    m = int(data[1])
+    adj = [0] * n
+    idx = 2
+    for _ in range(m):
+        u = int(data[idx]) - 1
+        v = int(data[idx + 1]) - 1
+        idx += 2
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+
+    # Precompute for each color c the set of vertices that can take color c
+    # (i.e., have no neighbor already colored c). We'll do DP over subsets.
+    # Since n <= 40, we split into two halves of size up to 20 each.
+
+    half = n // 2
+    left_size = half
+    right_size = n - half
+
+    left_adj = [0] * left_size
+    for i in range(left_size):
+        left_adj[i] = adj[i] & ((1 << left_size) - 1)
+
+    right_adj = [0] * right_size
+    for i in range(right_size):
+        v = i + half
+        right_adj[i] = (adj[v] >> half) & ((1 << right_size) - 1)
+
+    # For left half, enumerate all valid 3-colorings
+    # For each coloring, record the set of right vertices that are adjacent to
+    # some left vertex of each color (forbidden sets for right half).
+    # Then for right half, enumerate all valid 3-colorings and check compatibility.
+
+    # Enumerate left colorings
+    left_colorings = []
+    # We'll store (left_colors_tuple, forbidden_for_right)
+    # forbidden_for_right[c] = bitmask of right vertices forbidden for color c
+
+    def enumerate_half(size, adj_local):
+        colorings = []
+        # colors as list of length size
+        # use recursive enumeration with pruning
+        colors = [0] * size
+        def rec(pos):
+            if pos == size:
+                colorings.append(tuple(colors))
+                return
+            used = 0
+            for j in range(pos):
+                if adj_local[pos] & (1 << j):
+                    used |= 1 << colors[j]
+            for c in range(3):
+                if not (used & (1 << c)):
+                    colors[pos] = c
+                    rec(pos + 1)
+        rec(0)
+        return colorings
+
+    left_colorings = enumerate_half(left_size, left_adj)
+    right_colorings = enumerate_half(right_size, right_adj)
+
+    # For each left coloring, compute forbidden sets for right
+    # forbidden[c] = set of right vertices adjacent to some left vertex colored c
+    left_forbidden = []
+    for lc in left_colorings:
+        forb = [0, 0, 0]
+        for i in range(left_size):
+            c = lc[i]
+            # neighbors in right half
+            rn = adj[i] >> half
+            forb[c] |= rn
+        left_forbidden.append(forb)
+
+    # For each right coloring, compute the colors used per right vertex
+    # We need to find a pair (left, right) such that for every right vertex j
+    # with color c, j is not in forb[c] of the left coloring.
+
+    # To speed up, group right colorings by something? 
+    # left_size <= 20, right_size <= 20
+    # Number of 3-colorings of a 20-vertex graph could be large but manageable?
+    # Worst case: empty graph -> 3^20 = 3.5 billion, too many.
+    # Need a better approach.
+
+    # Better: meet-in-the-middle with DP on subsets.
+    # For left half: for each subset S of left vertices colored with color 0,
+    # the remaining must be 2-colored with colors 1,2. Similarly for right.
+    # Actually, let's think differently.
+
+    # Alternative: 3-coloring via DP on independent sets.
+    # For a graph, 3-coloring = partition vertices into 3 independent sets.
+    # We can enumerate all independent sets of left half, assign color 0 to one,
+    # then 2-color the rest (check bipartite). Same for right.
+    # Then combine.
+
+    # Let's implement this approach.
+
+    # Enumerate all independent sets of left half
+    def enumerate_independent_sets(size, adj_local):
+        sets = []
+        # recursive
+        def rec(pos, current):
+            if pos == size:
+                sets.append(current)
+                return
+            # exclude pos
+            rec(pos + 1, current)
+            # include pos if possible
+            if (adj_local[pos] & current) == 0:
+                rec(pos + 1, current | (1 << pos))
+        rec(0, 0)
+        return sets
+
+    left_ind_sets = enumerate_independent_sets(left_size, left_adj)
+    right_ind_sets = enumerate_independent_sets(right_size, right_adj)
+
+    # For left half: for each independent set S (color 0), the rest R = full - S
+    # must be 2-colorable (bipartite). If so, record the 2-coloring of R.
+    # The 2-coloring of R: we need to check if R is bipartite and get a coloring.
+    # But there could be multiple 2-colorings (if disconnected). We need all?
+    # Actually for combining, we need: left assigns colors to left vertices,
+    # right assigns colors to right vertices, and cross edges must not conflict.
+    # Cross edge (i in left, j in right): colors must differ.
+    # So for left coloring, we compute forb[c] = right vertices adjacent to left color c.
+    # For right coloring, each right vertex j has color c, must not be in forb[c].
+    # So we need: for each right vertex j with color c, j not in forb[c].
+    # Equivalently: for each color c, the set of right vertices colored c must be
+    # disjoint from forb[c].
+    # So if we know the partition of right vertices into 3 independent sets,
+    # we need: IS_c ∩ forb[c] = empty for all c.
+
+    # For left: enumerate independent set S0 (color 0), then 2-color rest.
+    # For each valid 2-coloring of rest, we get a full 3-coloring of left.
+    # We compute forb[0], forb[1], forb[2].
+    # We can group left colorings by (forb[0], forb[1], forb[2])? That's too many.
+
+    # Let's think about the sizes. n <= 40, half <= 20.
+    # Number of independent sets of a 20-vertex graph: worst case empty graph = 2^20 = 1M.
+    # For each, we check bipartiteness of complement and 2-color.
+    # That's feasible.
+
+    # For right half: same, enumerate independent set T0 (color 0), 2-color rest.
+    # For each right coloring, we have sets T0, T1, T2 (partition of right vertices).
+    # We need T0 ∩ forb[0] = ∅, T1 ∩ forb[1] = ∅, T2 ∩ forb[2] = ∅.
+    # So we need forb[0] ⊆ complement of T0 = T1 ∪ T2, etc. Not exactly.
+    # We need T_c ∩ forb[c] = ∅ for each c.
+    # Equivalently, forb[c] ⊆ (all right vertices) - T_c = T_{other1} ∪ T_{other2}.
+
+    # Hmm, let's just store for each right coloring the triple (T0, T1, T2).
+    # Then for each left coloring with forb, check if T_c ∩ forb[c] = ∅ for all c.
+    # But number of right colorings could be large.
+
+    # Let's bound: for empty graph on 20 vertices, number of 3-colorings = 3^20 ≈ 3.5B, too many.
+    # But with the independent set + 2-coloring approach:
+    # For empty graph, every subset is independent. For each S0, the rest is empty or
+    # can be 2-colored in 2^k ways where k = |rest| (each vertex 2 choices).
+    # Total = sum over k of C(20,k) * 2^k = 3^20. Still too many.
+
+    # We need a smarter meet-in-the-middle.
+
+    # Key insight: We can fix the color 0 assignment (independent set) for both halves,
+    # then the problem reduces to 2-coloring with forbidden colors.
+    # After fixing S0 (left color 0) and T0 (right color 0):
+    # - Left rest must be 2-colored with colors 1,2 (bipartite check).
+    # - Right rest must be 2-colored with colors 1,2.
+    # - Cross constraints: left vertex color 1 can't match right vertex color 1, etc.
+    # 
+    # For the cross constraints with colors 1 and 2:
+    # Let A = left vertices with color 1, B = left vertices with color 2.
+    # Let C = right vertices with color 1, D = right vertices with color 2.
+    # Constraints: no edge between A and C, no edge between B and D.
+    # (Edges between A and D, B and C are fine.)
+    # Also S0 has no edges to T0 (both color 0, but they're independent sets including
+    # cross edges? No: S0 is independent in left, T0 in right, but cross edges between
+    # S0 and T0 would violate color 0 = color 0. So we need S0 and T0 to have no
+    # cross edges, i.e., no edge between a vertex in S0 and a vertex in T0.)
+    # 
+    # So the full constraints:
+    # 1. S0 independent in left, T0 independent in right.
+    # 2. No cross edge between S0 and T0.
+    # 3. Left rest (L - S0) is bipartite with parts A, B.
+    # 4. Right rest (R - T0) is bipartite with parts C, D.
+    # 5. No cross edge between A and C.
+    # 6. No cross edge between B and D.
+    # 
+    # For fixed S0, T0 satisfying 1 and 2:
+    # We need to 2-color left rest and right rest such that 3,4,5,6 hold.
+    # 
+    # For left rest: it must be bipartite. If connected, 2 colorings (swap A,B).
+    # For right rest: same.
+    # 
+    # The cross constraints 5,6 link the choices.
+    # 
+    # Let's think of it as: left rest has a bipartition (A,B) [two choices if valid],
+    # right rest has a bipartition (C,D) [two choices if valid].
+    # We need: A-C no edge AND B-D no edge, OR A-D no edge AND B-C no edge
+    # (since we can swap C,D).
+    # 
+    # So for fixed S0, T0:
+    # - Check left rest bipartite, get its two parts (A,B) [unique up to swap].
+    # - Check right rest bipartite, get its two parts (C,D).
+    # - Check if (no A-C edge and no B-D edge) or (no A-D edge and no B-C edge).
+    # 
+    # This is efficient! For each (S0, T0) pair, O(n^2) or with bitmasks O(n/64).
+    # 
+    # Number of (S0, T0) pairs: |left_ind_sets| * |right_ind_sets|.
+    # Worst case empty graph: 2^20 * 2^20 = 2^40, too many.
+    # 
+    # But we can be smarter: for fixed S0, we need T0 such that:
+    # - T0 independent in right.
+    # - No cross edge between S0 and T0, i.e., T0 ⊆ right vertices with no neighbor in S0.
+    #   Let N0 = right vertices adjacent to some vertex in S0. Then T0 ∩ N0 = ∅.
+    #   So T0 ⊆ R - N0.
+    # - T0 independent in right.
+    # 
+    # So for fixed S0, valid T0 are independent sets of right graph restricted to R - N0.
+    # 
+    # Then for each such T0, check bipartiteness and cross constraints.
+    # 
+    # Still could be many. Let's think about the structure more.
+    # 
+    # Actually, let's just enumerate S0 (independent sets of left), and for each,
+    # compute N0 (right vertices forbidden for color 0). Then we need to find
+    # a valid assignment of colors 1,2 to left rest and right rest.
+    # 
+    # Left rest: must be 2-colored (bipartite). Let's say it has parts A, B.
+    # Right rest: vertices not in T0. But T0 is not yet chosen.
+    # 
+    # Hmm, this is getting complicated. Let me think of another approach.
+    # 
+    # Alternative: Since n <= 40, we can use the fact that 3-coloring can be reduced
+    # to checking if the graph is 3-colorable by trying all 3-colorings of a small
+    # subset and then extending.
+    # 
+    # Actually, a standard approach for 3-coloring with n=40:
+    # Pick a vertex, try 3 colors. For each, pick an uncolored vertex adjacent to
+    # a colored one, try the remaining 2 colors. This is like a backtracking search.
+    # With good pruning, this can work for n=40 in practice.
+    # 
+    # But worst case (empty graph) is 3^40, too slow.
+    # 
+    # For empty graph, answer is always YES (any coloring works).
+    # The hard case is dense graphs.
+    # 
+    # Let's use the meet-in-the-middle with independent sets more carefully.
+    # 
+    # We enumerate all independent sets of left half (color 0).
+    # For each S0, the left rest must be 2-colorable. We check bipartiteness.
+    # If bipartite, we get parts (A, B). Note: (A, B) is unique up to swap.
+    # 
+    # Now for the right half, we need to assign colors 0, 1, 2 to right vertices.
+    # Constraints:
+    # - Color 0: independent set T0, with no cross edge to S0.
+    # - Color 1: independent set T1, with no cross edge to A.
+    # - Color 2: independent set T2, with no cross edge to B.
+    # - T0, T1, T2 partition the right vertices.
+    # 
+    # So we need to partition right vertices into 3 independent sets with
+    # additional cross constraints. This is a 3-coloring of the right graph
+    # with forbidden colors per vertex (based on cross edges).
+    # 
+    # For each right vertex j, forbidden colors are:
+    # - 0 if j has a cross edge to S0.
+    # - 1 if j has a cross edge to A.
+    # - 2 if j has a cross edge to B.
+    # 
+    # So each right vertex has a set of allowed colors (subset of {0,1,2}).
+    # We need to 3-color the right graph respecting these allowed colors.
+    # 
+    # This is a list coloring problem. For 3 colors, we can solve it by:
+    # - If a vertex has 0 allowed colors: impossible.
+    # - If 1 allowed color: assign it, propagate.
+    # - If 2 allowed colors: try both (backtracking).
+    # - If 3 allowed colors: try all 3 (backtracking).
+    # 
+    # With right_size <= 20, even 3^20 is too slow in worst case.
+    # But with the independent set structure, we can do better.
+    # 
+    # Actually, let's use the same independent set approach for the right half.
+    # 
+    # For the right half with allowed colors per vertex:
+    # Enumerate independent sets T0 (color 0) from vertices that allow color 0.
+    # For each T0, the remaining vertices must be 2-colored with colors 1,2,
+    # respecting allowed colors and bipartiteness.
+    # 
+    # For 2-coloring with allowed colors:
+    # - Vertices allowing only color 1: must be color 1.
+    # - Vertices allowing only color 2: must be color 2.
+    # - Vertices allowing both: can be either, but must respect bipartiteness.
+    # 
+    # This is a constrained bipartiteness check. We can handle it:
+    # - Fix vertices with forced colors.
+    # - Check consistency (no edge between two color-1 vertices, etc.).
+    # - For the rest, check if the graph is bipartite with the forced assignments.
+    # 
+    # This is efficient! For each T0, O(right_size^2) or with bitmasks faster.
+    # 
+    # Number of T0 candidates: independent sets of right vertices allowing color 0.
+    # Worst case: all right vertices allow color 0, empty right graph -> 2^20 = 1M.
+    # For each, O(20) work with bitmasks. Total 20M, feasible.
+    # 
+    # And number of S0 candidates: independent sets of left, worst 2^20 = 1M.
+    # For each S0, we check left rest bipartite (O(1) with precomputation or O(20)),
+    # then enumerate T0 candidates for right.
+    # 
+    # Total: 1M * 1M = 1T, too slow.
+    # 
+    # We need to reduce. Let's think...
+    # 
+    # Actually, for each S0, the number of T0 candidates depends on how many
+    # right vertices allow color 0 (those not adjacent to S0). If S0 is large,
+    # few right vertices allow color 0. If S0 is small, many allow it but left
+    # rest is large and might not be bipartite.
+    # 
+    # In the worst case (empty graph), every S0 is valid, left rest is always
+    # bipartite (empty graph), and every T0 is valid. So 2^20 * 2^20 = 2^40.
+    # 
+    # But for empty graph, we can just output any coloring! So we can special-case
+    # or use a different strategy for sparse graphs.
+    # 
+    # Let's think about the actual constraint. For the empty graph, the answer
+    # is trivially YES. The hard cases are when the graph has many edges.
+    # 
+    # Alternative approach: Use backtracking with good ordering and pruning.
+    # Order vertices by degree (highest first). For each vertex, try colors
+    # that don't conflict with already colored neighbors. With pruning,
+    # this can be very fast in practice.
+    # 
+    # For n=40, even 3^40 is too slow, but with pruning it often works.
+    # The worst case for backtracking is a graph with no edges (no pruning),
+    # but that's trivially colorable.
+    # 
+    # Let's implement backtracking with:
+    # - Order by degree descending.
+    # - For each vertex, try only colors not used by colored neighbors.
+    # - If a vertex has 0 available colors, backtrack.
+    # 
+    # For the empty graph, the first vertex gets 3 colors, second gets 3, etc.
+    # But we can stop early: if we successfully color all, output. For empty
+    # graph, any assignment works, so we'd find one immediately (all color 1).
+    # Wait, no: we try colors in order, so first vertex color 1, second color 1
+    # (no conflict), etc. So we'd find a coloring in O(n) time.
+    # 
+    # The issue is when the graph is not 3-colorable: we might explore many
+    # branches before concluding NO. But for n=40, with good pruning, it
+    # should be manageable.
+    # 
+    # Let's implement this with MRV (minimum remaining values) heuristic:
+    # always color the vertex with fewest available colors next.
+
+    # Backtracking with MRV
+    color = [-1] * n
+    # available[i] = bitmask of colors available for vertex i
+    available = [7] * n  # colors 0,1,2 -> bits 0,1,2
+
+    def solve_bt():
+        # Find uncolored vertex with minimum available colors
+        min_avail = 8
+        best = -1
+        for i in range(n):
+            if color[i] == -1:
+                a = available[i]
+                cnt = bin(a).count('1')
+                if cnt == 0:
+                    return False
+                if cnt < min_avail:
+                    min_avail = cnt
+                    best = i
+                    if cnt == 1:
+                        break
+        
+        if best == -1:
+            return True  # all colored
+        
+        a = available[best]
+        for c in range(3):
+            if not (a & (1 << c)):
+                continue
+            # Assign color c to best
+            color[best] = c
+            # Save and update neighbors
+            saved = []
+            for j in range(n):
+                if adj[best] & (1 << j) and color[j] == -1:
+                    if available[j] & (1 << c):
+                        saved.append((j, available[j]))
+                        available[j] &= ~(1 << c)
+                        if available[j] == 0:
+                            # This neighbor has no available colors
+                            # Restore and try next color
+                            for jj, av in saved:
+                                available[jj] = av
+                            color[best] = -1
+                            break
+                    else:
+                        # already not available, no change needed
+                        pass
+            else:
+                # No break, all good
+                if solve_bt():
+                    return True
+                # Restore
+                for jj, av in saved:
+                    available[jj] = av
+            color[best] = -1
+        
+        return False
+
+    if solve_bt():
+        print("YES")
+        print(' '.join(str(color[i] + 1) for i in range(n)))
+    else:
+        print("NO")
+
+solve()
+```

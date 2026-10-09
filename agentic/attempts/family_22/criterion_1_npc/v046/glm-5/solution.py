@@ -1,0 +1,69 @@
+import sys
+from collections import deque
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    M = int(next(it))
+    T = int(next(it))
+    m = int(next(it))
+
+    adj = [[] for _ in range(n + 1)]
+    indeg = [0] * (n + 1)
+    for _ in range(m):
+        a = int(next(it))
+        b = int(next(it))
+        adj[a].append(b)
+        indeg[b] += 1
+
+    # term[v] = earliest term module v can be placed
+    term = [0] * (n + 1)
+    q = deque()
+    for v in range(1, n + 1):
+        if indeg[v] == 0:
+            term[v] = 1
+            q.append(v)
+
+    cnt = 0
+    while q:
+        u = q.popleft()
+        cnt += 1
+        for v in adj[u]:
+            if term[v] < term[u] + 1:
+                term[v] = term[u] + 1
+            indeg[v] -= 1
+            if indeg[v] == 0:
+                q.append(v)
+
+    if cnt != n:
+        print("NO")
+        return
+
+    max_term = max(term[1:n + 1])
+    if max_term > T:
+        print("NO")
+        return
+
+    # Greedy assignment respecting capacity:
+    # Process modules in non-decreasing earliest term.
+    # Assign each to the smallest available term >= its earliest term with capacity.
+    order = sorted(range(1, n + 1), key=lambda v: term[v])
+    cap = [0] * (T + 2)
+    assign = [0] * (n + 1)
+    for v in order:
+        t = term[v]
+        while t <= T and cap[t] >= M:
+            t += 1
+        if t > T:
+            print("NO")
+            return
+        cap[t] += 1
+        assign[v] = t
+
+    print("YES")
+    print(" ".join(str(assign[v]) for v in range(1, n + 1)))
+
+solve()

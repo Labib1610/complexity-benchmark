@@ -1,0 +1,91 @@
+from collections import defaultdict
+import sys
+
+def find_matching(q, t, triples):
+    # Create a graph where each component is a node
+    # and each triple is a hyperedge connecting 3 nodes
+    # We want to find a perfect matching that covers all 3q nodes
+    
+    if t == 0:
+        if q == 0:
+            print("YES")
+            return
+        else:
+            print("NO")
+            return
+    
+    # Build adjacency list for each component
+    adj = defaultdict(list)
+    triple_indices = {}
+    
+    for i, (a, b, c) in enumerate(triples):
+        adj[a].append(i)
+        adj[b].append(i)
+        adj[c].append(i)
+        triple_indices[i] = (a, b, c)
+    
+    # Try to find a matching using backtracking
+    used_triples = [False] * t
+    used_components = [False] * (3*q + 1)
+    result = []
+    
+    def backtrack(component):
+        # Find the first unused component
+        while component <= 3*q and used_components[component]:
+            component += 1
+            
+        if component > 3*q:
+            # All components are used
+            return len(result) == q
+        
+        # Try each triple containing this component
+        for triple_idx in adj[component]:
+            if used_triples[triple_idx]:
+                continue
+                
+            a, b, c = triple_indices[triple_idx]
+            
+            # Check if all components in this triple are available
+            if used_components[a] or used_components[b] or used_components[c]:
+                continue
+            
+            # Use this triple
+            used_triples[triple_idx] = True
+            used_components[a] = True
+            used_components[b] = True
+            used_components[c] = True
+            result.append((a, b, c))
+            
+            # Recurse
+            if backtrack(component + 1):
+                return True
+            
+            # Backtrack
+            used_triples[triple_idx] = False
+            used_components[a] = False
+            used_components[b] = False
+            used_components[c] = False
+            result.pop()
+        
+        return False
+    
+    # Start backtracking from component 1
+    if backtrack(1):
+        print("YES")
+        for triple in result:
+            print(*triple)
+    else:
+        print("NO")
+
+# Read input
+line = sys.stdin.readline().strip()
+if not line:
+    print("NO")
+else:
+    q, t = map(int, line.split())
+    triples = []
+    for _ in range(t):
+        a, b, c = map(int, sys.stdin.readline().split())
+        triples.append((a, b, c))
+
+    find_matching(q, t, triples)

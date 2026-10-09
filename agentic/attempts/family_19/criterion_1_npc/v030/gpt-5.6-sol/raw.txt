@@ -1,0 +1,389 @@
+```python
+import sys
+import time
+import random
+from collections import deque
+
+START_TIME = time.monotonic()
+data = list(map(int, sys.stdin.buffer.read().split()))
+it = iter(data)
+
+try:
+    n = next(it)
+    m = next(it)
+    k = next(it)
+except StopIteration:
+    sys.exit()
+
+requests = []
+for _ in range(k):
+    s = next(it) - 1
+    t = next(it) - 1
+    d = next(it)
+    requests.append((s, t, d))
+
+edges = []
+caps0 = []
+for _ in range(m):
+    u = next(it) - 1
+    v = next(it) - 1
+    c = next(it)
+    edges.append((u, v))
+    caps0.append(c)
+
+
+def valid_solution(ans):
+    if ans is None or len(ans) != k:
+        return False
+    used = [0] * m
+    for i, (s, t, d) in enumerate(requests):
+        if len(ans[i]) != m:
+            return False
+        bal = [0] * n
+        for j, x in enumerate(ans[i]):
+            if x < 0:
+                return False
+            used[j] += x
+            u, v = edges[j]
+            bal[u] += x
+            bal[v] -= x
+        for v in range(n):
+            need = d if v == s else (-d if v == t else 0)
+            if bal[v] != need:
+                return False
+    return all(used[j] <= caps0[j] for j in range(m))
+
+
+def print_solution(ans):
+    out = ["YES"]
+    out.extend(" ".join(map(str, row)) for row in ans)
+    sys.stdout.write("\n".join(out))
+
+
+# Use an exact mixed-integer solver when SciPy/HiGHS is available.
+try:
+    import numpy as np
+    from scipy.optimize import milp, LinearConstraint, Bounds
+    from scipy.sparse import coo_matrix
+
+    var_count = k * m
+    row_count = m + k * n
+
+    rows = []
+    cols = []
+    vals = []
+
+    for i in range(k):
+        base = i * m
+        node_base = m + i * n
+        for j, (u, v) in enumerate(edges):
+            col = base + j
+            rows.append(j)
+            cols.append(col)
+            vals.append(1.0)
+
+            rows.append(node_base + u)
+            cols.append(col)
+            vals.append(1.0)
+
+            rows.append(node_base + v)
+            cols.append(col)
+            vals.append(-1.0)
+
+    A = coo_matrix(
+        (np.asarray(vals, dtype=float),
+         (np.asarray(rows, dtype=np.int32), np.asarray(cols, dtype=np.int32))),
+        shape=(row_count, var_count)
+    ).tocsr()
+
+    lower = np.full(row_count, -np.inf, dtype=float)
+    upper = np.empty(row_count, dtype=float)
+    upper[:m] = np.asarray(caps0, dtype=float)
+
+    for i, (s, t, d) in enumerate(requests):
+        base = m + i * n
+        lower[base:base + n] = 0.0
+        upper[base:base + n] = 0.0
+        lower[base + s] = upper[base + s] = float(d)
+        lower[base + t] = upper[base + t] = float(-d)
+
+    ub = np.tile(np.asarray(caps0, dtype=float), k)
+    remaining_time = max(0.1, 4.65 - (time.monotonic() - START_TIME))
+
+    result = milp(
+        c=np.zeros(var_count, dtype=float),
+        integrality=np.ones(var_count, dtype=np.uint8),
+        bounds=Bounds(np.zeros(var_count, dtype=float), ub),
+        constraints=LinearConstraint(A, lower, upper),
+        options={
+            "time_limit": remaining_time,
+            "presolve": True,
+            "mip_rel_gap": 0.0
+        }
+    )
+
+    if result.x is not None:
+        rounded = np.rint(result.x).astype(object)
+        answer = []
+        for i in range(k):
+            answer.append([
+                int(rounded[i * m + j])
+                for j in range(m)
+            ])
+        if valid_solution(answer):
+            print_solution(answer)
+            sys.exit()
+
+    if getattr(result, "status", None) == 2:
+        print("NO")
+        sys.exit()
+except Exception:
+    pass
+
+
+# Exact path search for small instances.
+class SearchTimeout(Exception):
+    pass
+
+
+def exact_small_search(deadline):
+    total = sum(d for _, _, d in requests)
+    if total > 12 or m > 28 or n > 14:
+        return None
+
+    outgoing = [[] for _ in range(n)]
+    for j, (u, v) in enumerate(edges):
+        if u != v:
+            outgoing[u].append(j)
+
+    residual = caps0[:]
+    remaining = [d for _, _, d in requests]
+    answer = [[0] * m for _ in range(k)]
+    failed = set()
+    calls = 0
+
+    def enumerate_paths(s, t, best_limit=None):
+        paths = []
+        visited = [False] * n
+        visited[s] = True
+        path = []
+
+        def walk(u):
+            nonlocal calls
+            calls += 1
+            if (calls & 1023) == 0 and time.monotonic() > deadline:
+                raise SearchTimeout
+            if u == t:
+                paths.append(tuple(path))
+                return
+            for eid in outgoing[u]:
+                if residual[eid] <= 0:
+                    continue
+                v = edges[eid][1]
+                if visited[v]:
+                    continue
+                visited[v] = True
+                path.append(eid)
+                walk(v)
+                path.pop()
+                visited[v] = False
+                if best_limit is not None and len(paths) > best_limit:
+                    return
+
+        walk(s)
+        return paths
+
+    def dfs():
+        nonlocal calls
+        calls += 1
+        if (calls & 255) == 0 and time.monotonic() > deadline:
+            raise SearchTimeout
+
+        if not any(remaining):
+            return True
+
+        key = (tuple(remaining), tuple(residual))
+        if key in failed:
+            return False
+
+        chosen = -1
+        chosen_paths = None
+        best_count = None
+
+        for i, rem in enumerate(remaining):
+            if rem == 0:
+                continue
+            s, t, _ = requests[i]
+            paths = enumerate_paths(s, t, best_count)
+            if not paths:
+                failed.add(key)
+                return False
+            if best_count is None or len(paths) < best_count:
+                chosen = i
+                chosen_paths = paths
+                best_count = len(paths)
+
+        chosen_paths.sort(
+            key=lambda p: (
+                sum(1 / residual[e] for e in p),
+                len(p)
+            )
+        )
+
+        remaining[chosen] -= 1
+        for path in chosen_paths:
+            for eid in path:
+                residual[eid] -= 1
+                answer[chosen][eid] += 1
+
+            if dfs():
+                return True
+
+            for eid in path:
+                residual[eid] += 1
+                answer[chosen][eid] -= 1
+
+        remaining[chosen] += 1
+        failed.add(key)
+        return False
+
+    try:
+        if dfs():
+            return answer
+        return False
+    except SearchTimeout:
+        return None
+
+
+if time.monotonic() < START_TIME + 4.0:
+    exact_result = exact_small_search(min(START_TIME + 4.1, time.monotonic() + 1.5))
+    if exact_result is False:
+        print("NO")
+        sys.exit()
+    if exact_result is not None and valid_solution(exact_result):
+        print_solution(exact_result)
+        sys.exit()
+
+
+# Randomized sequential max-flow fallback.
+class Dinic:
+    __slots__ = ("n", "g", "level", "pos")
+
+    def __init__(self, n):
+        self.n = n
+        self.g = [[] for _ in range(n)]
+        self.level = [-1] * n
+        self.pos = [0] * n
+
+    def add_edge(self, u, v, cap):
+        forward = [v, cap, None]
+        backward = [u, 0, forward]
+        forward[2] = backward
+        self.g[u].append(forward)
+        self.g[v].append(backward)
+        return forward
+
+    def max_flow(self, s, t, limit):
+        if s == t:
+            return limit
+        total = 0
+        n = self.n
+        while total < limit:
+            level = [-1] * n
+            level[s] = 0
+            q = deque([s])
+            while q:
+                u = q.popleft()
+                for e in self.g[u]:
+                    if e[1] > 0 and level[e[0]] < 0:
+                        level[e[0]] = level[u] + 1
+                        q.append(e[0])
+            if level[t] < 0:
+                break
+
+            self.level = level
+            self.pos = [0] * n
+
+            def send(u, pushed):
+                if u == t:
+                    return pushed
+                while self.pos[u] < len(self.g[u]):
+                    e = self.g[u][self.pos[u]]
+                    if e[1] > 0 and level[e[0]] == level[u] + 1:
+                        got = send(e[0], min(pushed, e[1]))
+                        if got:
+                            e[1] -= got
+                            e[2][1] += got
+                            return got
+                    self.pos[u] += 1
+                return 0
+
+            while total < limit:
+                pushed = send(s, limit - total)
+                if not pushed:
+                    break
+                total += pushed
+        return total
+
+
+def randomized_attempt(order, shuffle_edges):
+    residual = caps0[:]
+    answer = [[0] * m for _ in range(k)]
+
+    for commodity in order:
+        s, t, demand = requests[commodity]
+        if demand == 0:
+            continue
+
+        graph = Dinic(n)
+        edge_order = list(range(m))
+        if shuffle_edges:
+            random.shuffle(edge_order)
+
+        refs = [None] * m
+        initial = [0] * m
+        for eid in edge_order:
+            c = residual[eid]
+            if c <= 0:
+                continue
+            u, v = edges[eid]
+            refs[eid] = graph.add_edge(u, v, c)
+            initial[eid] = c
+
+        got = graph.max_flow(s, t, demand)
+        if got != demand:
+            return None
+
+        for eid in range(m):
+            ref = refs[eid]
+            if ref is not None:
+                used = initial[eid] - ref[1]
+                if used:
+                    answer[commodity][eid] = used
+                    residual[eid] -= used
+
+    return answer
+
+
+base_orders = [
+    list(range(k)),
+    sorted(range(k), key=lambda i: -requests[i][2]),
+    sorted(range(k), key=lambda i: requests[i][2]),
+]
+
+attempt = 0
+while time.monotonic() < START_TIME + 4.85:
+    if attempt < len(base_orders):
+        order = base_orders[attempt][:]
+    else:
+        order = list(range(k))
+        random.shuffle(order)
+
+    answer = randomized_attempt(order, attempt > 0)
+    if answer is not None and valid_solution(answer):
+        print_solution(answer)
+        sys.exit()
+    attempt += 1
+
+print("NO")
+```

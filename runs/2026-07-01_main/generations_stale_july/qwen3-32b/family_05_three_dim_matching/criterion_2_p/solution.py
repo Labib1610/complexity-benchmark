@@ -1,0 +1,39 @@
+import sys
+sys.setrecursionlimit(10000)
+
+def main():
+    k, e = map(int, sys.stdin.readline().split())
+    adj = [[] for _ in range(k + 1)]
+    for _ in range(e):
+        x, y = map(int, sys.stdin.readline().split())
+        adj[x].append(y)
+    
+    match_to = [None] * (k + 1)
+    
+    def bpm(u, visited):
+        for v in adj[u]:
+            if not visited[v]:
+                visited[v] = True
+                if match_to[v] is None or bpm(match_to[v], visited):
+                    match_to[v] = u
+                    return True
+        return False
+    
+    count = 0
+    for u in range(1, k + 1):
+        visited = [False] * (k + 1)
+        if bpm(u, visited):
+            count += 1
+    
+    if count == k:
+        print("YES")
+        res = [0] * (k + 1)
+        for task in range(1, k + 1):
+            if match_to[task] is not None:
+                res[match_to[task]] = task
+        print(' '.join(map(str, res[1:])))
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    main()

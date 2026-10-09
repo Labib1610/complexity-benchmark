@@ -1,0 +1,118 @@
+import sys
+from collections import deque
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+
+    it = iter(data)
+    n = next(it)
+    m = next(it)
+    _ = next(it)
+
+    s = next(it) - 1
+    t = next(it) - 1
+    required = next(it)
+
+    graph = [[] for _ in range(n)]
+    to = []
+    residual = []
+    original_capacity = []
+    original_edges = []
+
+    def add_edge(u, v, capacity):
+        edge_id = len(to)
+
+        to.append(v)
+        residual.append(capacity)
+        graph[u].append(edge_id)
+
+        to.append(u)
+        residual.append(0)
+        graph[v].append(edge_id + 1)
+
+        original_edges.append(edge_id)
+        original_capacity.append(capacity)
+
+    for _ in range(m):
+        u = next(it) - 1
+        v = next(it) - 1
+        capacity = next(it)
+        add_edge(u, v, capacity)
+
+    if required == 0:
+        print("YES")
+        print(" ".join(["0"] * m))
+        return
+
+    if s == t:
+        print("NO")
+        return
+
+    sys.setrecursionlimit(max(1_000_000, n * 2 + 10))
+
+    level = [-1] * n
+    pointer = [0] * n
+
+    def bfs():
+        level[:] = [-1] * n
+        level[s] = 0
+        queue = deque([s])
+
+        while queue:
+            u = queue.popleft()
+            next_level = level[u] + 1
+            for edge_id in graph[u]:
+                v = to[edge_id]
+                if residual[edge_id] > 0 and level[v] == -1:
+                    level[v] = next_level
+                    queue.append(v)
+
+        return level[t] != -1
+
+    def dfs(u, pushed):
+        if u == t:
+            return pushed
+
+        edges = graph[u]
+        while pointer[u] < len(edges):
+            edge_id = edges[pointer[u]]
+            v = to[edge_id]
+
+            if residual[edge_id] > 0 and level[v] == level[u] + 1:
+                sent = dfs(v, min(pushed, residual[edge_id]))
+                if sent:
+                    residual[edge_id] -= sent
+                    residual[edge_id ^ 1] += sent
+                    return sent
+
+            pointer[u] += 1
+
+        return 0
+
+    total_flow = 0
+
+    while total_flow < required and bfs():
+        pointer[:] = [0] * n
+
+        while total_flow < required:
+            sent = dfs(s, required - total_flow)
+            if sent == 0:
+                break
+            total_flow += sent
+
+    if total_flow < required:
+        print("NO")
+        return
+
+    flows = [
+        str(original_capacity[i] - residual[edge_id])
+        for i, edge_id in enumerate(original_edges)
+    ]
+
+    print("YES")
+    print(" ".join(flows))
+
+if __name__ == "__main__":
+    main()

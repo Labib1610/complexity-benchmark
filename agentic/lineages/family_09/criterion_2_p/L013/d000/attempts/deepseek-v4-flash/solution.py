@@ -1,0 +1,61 @@
+import sys
+from collections import deque
+
+input = sys.stdin.readline
+
+n, m, k = map(int, input().split())
+adj = [[] for _ in range(n)]
+for _ in range(m):
+    u, v = map(int, input().split())
+    u -= 1
+    v -= 1
+    adj[u].append(v)
+    adj[v].append(u)
+
+color = [-1] * n
+groups = []
+
+for i in range(n):
+    if color[i] == -1:
+        color[i] = 0
+        q = deque([i])
+        comp = [i]
+        while q:
+            u = q.popleft()
+            for v in adj[u]:
+                if color[v] == -1:
+                    color[v] = color[u] ^ 1
+                    comp.append(v)
+                    q.append(v)
+        side0 = [x for x in comp if color[x] == 0]
+        side1 = [x for x in comp if color[x] == 1]
+        groups.append((side0, side1))
+
+# We can choose from each component either from side0 or side1
+# Let's collect all side0 and side1 sizes
+sizes = [(len(s0), len(s1)) for s0, s1 in groups]
+
+# Check if we can pick exactly k
+# We can do DP with bitset for reachable sums
+possible = 1  # bitmask of possible counts from side0 choices
+for a, b in sizes:
+    possible = (possible << a) | (possible << b)
+
+if k >= len(possible) or not (possible >> k) & 1:
+    print("NO")
+else:
+    print("YES")
+    # Reconstruct
+    chosen = []
+    remaining = k
+    for a, b in reversed(sizes):
+        # try to take from side0 if possible
+        if remaining >= a and ((possible >> (remaining - a)) & 1):
+            chosen.extend(groups[len(chosen)][0])
+            remaining -= a
+        else:
+            chosen.extend(groups[len(chosen)][1])
+            remaining -= b
+        # remove this group's contribution from possible
+        possible = (possible >> a) | (possible >> b)
+    print(" ".join(str(x + 1) for x in chosen))

@@ -2,59 +2,50 @@ import sys
 from collections import defaultdict
 
 def solve():
-    import sys
-    input = sys.stdin.read
-    data = input().split()
+    n, m = map(int, input().split())
     
-    n = int(data[0])
-    m = int(data[1])
+    if m == 0:
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
     
     # Build adjacency list
-    adj = defaultdict(set)
-    idx = 2
+    adj = defaultdict(list)
+    edges = []
     for _ in range(m):
-        u = int(data[idx]) - 1  # Convert to 0-based indexing
-        v = int(data[idx+1]) - 1
-        adj[u].add(v)
-        adj[v].add(u)
-        idx += 2
+        u, v = map(int, input().split())
+        adj[u].append(v)
+        adj[v].append(u)
+        edges.append((u, v))
     
-    # Try all 3^n assignments, but prune using constraint propagation
-    # We'll use backtracking with constraint checking
-    assignment = [-1] * n  # -1 means unassigned
+    # Try to 3-color the graph using backtracking
+    color = [0] * (n + 1)  # color[i] represents the color of node i (1-indexed)
     
-    def is_valid(person, cycle):
-        for neighbor in adj[person]:
-            if assignment[neighbor] == cycle:
+    def is_safe(node, c):
+        for neighbor in adj[node]:
+            if color[neighbor] == c:
                 return False
         return True
     
-    def backtrack(pos):
-        if pos == n:
+    def backtrack(node):
+        if node > n:
             return True
             
-        # Try cycles 1, 2, 3 in order for lexicographically smallest result
-        for cycle in [1, 2, 3]:
-            if is_valid(pos, cycle):
-                assignment[pos] = cycle
-                if backtrack(pos + 1):
+        if color[node] != 0:
+            return backtrack(node + 1)
+            
+        for c in range(1, 4):
+            if is_safe(node, c):
+                color[node] = c
+                if backtrack(node + 1):
                     return True
-                assignment[pos] = -1  # Backtrack
-                
+                color[node] = 0
         return False
     
-    # Since n <= 40 and this is a 3-coloring problem which is NP-complete,
-    # but given the small constraints we can try smarter approach:
-    # Actually, let's think differently. For n=40, 3^40 is too big.
-    # But since we need lexicographically smallest, we can do greedy with backtracking.
-    # However, even that might be slow. Let's just implement basic backtracking
-    # with early pruning.
-    
-    # Optimization: process nodes in order, trying colors 1,2,3
-    
-    if backtrack(0):
+    # Start backtracking from node 1
+    if backtrack(1):
         print("YES")
-        print(' '.join(map(str, assignment)))
+        print(" ".join(str(color[i]) for i in range(1, n + 1)))
     else:
         print("NO")
 

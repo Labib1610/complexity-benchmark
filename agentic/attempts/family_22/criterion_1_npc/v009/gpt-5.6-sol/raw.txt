@@ -1,0 +1,264 @@
+```python
+import sys
+from collections import deque
+
+sys.setrecursionlimit(1_000_000)
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if len(data) < 4:
+        return
+
+    n, M, T, m = data[:4]
+    if n == 0:
+        print("YES")
+        print()
+        return
+    if M <= 0 or T <= 0 or n > M * T:
+        print("NO")
+        return
+
+    out_adj = [[] for _ in range(n)]
+    in_adj = [[] for _ in range(n)]
+    indeg = [0] * n
+
+    pos = 4
+    for _ in range(m):
+        a = data[pos] - 1
+        b = data[pos + 1] - 1
+        pos += 2
+        out_adj[a].append(b)
+        in_adj[b].append(a)
+        indeg[b] += 1
+
+    q = deque(i for i in range(n) if indeg[i] == 0)
+    topo = []
+    deg = indeg[:]
+    while q:
+        u = q.popleft()
+        topo.append(u)
+        for v in out_adj[u]:
+            deg[v] -= 1
+            if deg[v] == 0:
+                q.append(v)
+
+    if len(topo) != n:
+        print("NO")
+        return
+
+    source_count = sum(1 for i in range(n) if not in_adj[i])
+    sink_count = sum(1 for i in range(n) if not out_adj[i])
+    reversed_graph = sink_count < source_count
+
+    if reversed_graph:
+        succ = in_adj
+        pred_lists = out_adj
+        order = topo[::-1]
+    else:
+        succ = out_adj
+        pred_lists = in_adj
+        order = topo
+
+    pred_mask = [0] * n
+    for v in range(n):
+        mask = 0
+        for u in pred_lists[v]:
+            mask |= 1 << u
+        pred_mask[v] = mask
+
+    tail = [1] * n
+    for u in reversed(order):
+        best = 0
+        for v in succ[u]:
+            if tail[v] > best:
+                best = tail[v]
+        tail[u] = best + 1
+
+    if max(tail) > T:
+        print("NO")
+        return
+
+    all_mask = (1 << n) - 1
+    priority = sorted(range(n), key=lambda x: (-tail[x], -len(succ[x]), x))
+
+    def available_jobs(done):
+        return [
+            u for u in priority
+            if not ((done >> u) & 1) and (pred_mask[u] & ~done) == 0
+        ]
+
+    # A fast list schedule often finds a valid answer without any search.
+    done = 0
+    greedy_path = []
+    while done != all_mask:
+        avail = available_jobs(done)
+        if not avail:
+            break
+        chosen = avail[:M]
+        selected = 0
+        for u in chosen:
+            selected |= 1 << u
+        greedy_path.append(selected)
+        done |= selected
+
+    if done == all_mask and len(greedy_path) <= T:
+        path = greedy_path
+    else:
+        best_time = {}
+        path_stack = []
+        answer = None
+
+        def dfs(done, current_time):
+            nonlocal answer
+
+            if done == all_mask:
+                answer = path_stack[:]
+                return True
+
+            remaining_slots = T - current_time
+            if remaining_slots <= 0:
+                return False
+
+            remaining_count = n - done.bit_count()
+            if remaining_count > remaining_slots * M:
+                return False
+
+            old_time = best_time.get(done)
+            if old_time is not None and old_time <= current_time:
+                return False
+            best_time[done] = current_time
+
+            hist = [0] * (remaining_slots + 1)
+            urgent_mask = 0
+            rem_mask = all_mask ^ done
+            x = rem_mask
+            while x:
+                bit = x & -x
+                u = bit.bit_length() - 1
+                d = tail[u]
+                if d > remaining_slots:
+                    return False
+                hist[d] += 1
+                if d == remaining_slots:
+                    urgent_mask |= bit
+                x ^= bit
+
+            count = 0
+            for d in range(remaining_slots, 0, -1):
+                count += hist[d]
+                prefix_slots = remaining_slots - d + 1
+                if count > prefix_slots * M:
+                    return False
+
+            avail = available_jobs(done)
+            if not avail:
+                return False
+
+            avail_mask = 0
+            for u in avail:
+                avail_mask |= 1 << u
+
+            if urgent_mask & ~avail_mask:
+                return False
+            if urgent_mask.bit_count() > M:
+                return False
+
+            if len(avail) <= M:
+                selected = avail_mask
+                path_stack.append(selected)
+                if dfs(done | selected, current_time + 1):
+                    return True
+                path_stack.pop()
+                return False
+
+            # Available jobs with identical future successor sets are
+            # interchangeable from this state, so group them to avoid
+            # symmetric branches.
+            groups_dict = {}
+            group_order = []
+            for u in avail:
+                key = 0
+                for v in succ[u]:
+                    key |= 1 << v
+                if key not in groups_dict:
+                    groups_dict[key] = []
+                    group_order.append(key)
+                groups_dict[key].append(u)
+
+            groups = [groups_dict[key] for key in group_order]
+            group_masks = []
+            group_minimum = []
+            for group in groups:
+                gm = 0
+                forced = 0
+                for u in group:
+                    bit = 1 << u
+                    gm |= bit
+                    if urgent_mask & bit:
+                        forced += 1
+                group_masks.append(gm)
+                group_minimum.append(forced)
+
+            gcount = len(groups)
+            suffix_size = [0] * (gcount + 1)
+            suffix_min = [0] * (gcount + 1)
+            for i in range(gcount - 1, -1, -1):
+                suffix_size[i] = suffix_size[i + 1] + len(groups[i])
+                suffix_min[i] = suffix_min[i + 1] + group_minimum[i]
+
+            def generate(index, need, selected):
+                if index == gcount:
+                    if need == 0:
+                        yield selected
+                    return
+
+                size = len(groups[index])
+                minimum = group_minimum[index]
+                low = max(minimum, need - suffix_size[index + 1])
+                high = min(size, need - suffix_min[index + 1])
+                if low > high:
+                    return
+
+                group = groups[index]
+                prefix_masks = [0] * (size + 1)
+                pm = 0
+                for j, u in enumerate(group, 1):
+                    pm |= 1 << u
+                    prefix_masks[j] = pm
+
+                for take in range(high, low - 1, -1):
+                    yield from generate(
+                        index + 1,
+                        need - take,
+                        selected | prefix_masks[take]
+                    )
+
+            for selected in generate(0, M, 0):
+                path_stack.append(selected)
+                if dfs(done | selected, current_time + 1):
+                    return True
+                path_stack.pop()
+
+            return False
+
+        if not dfs(0, 0):
+            print("NO")
+            return
+        path = answer
+
+    length = len(path)
+    slots = [0] * n
+    for oriented_slot, mask in enumerate(path, 1):
+        actual_slot = length - oriented_slot + 1 if reversed_graph else oriented_slot
+        while mask:
+            bit = mask & -mask
+            u = bit.bit_length() - 1
+            slots[u] = actual_slot
+            mask ^= bit
+
+    print("YES")
+    print(*slots)
+
+if __name__ == "__main__":
+    main()
+```

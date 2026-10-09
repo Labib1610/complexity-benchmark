@@ -1,50 +1,85 @@
 def solve():
     import sys
-    input = sys.stdin.read
-    data = input().split()
+    from collections import defaultdict
     
-    n = int(data[0])
-    m = int(data[1])
+    n, m = map(int, sys.stdin.readline().split())
     
-    # Create adjacency list representation of conflicts
-    adj = [[] for _ in range(n + 1)]
-    idx = 2
+    if m == 0:
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
+    
+    # Build adjacency list
+    adj = defaultdict(set)
+    edges = []
     for _ in range(m):
-        u = int(data[idx])
-        v = int(data[idx + 1])
-        adj[u].append(v)
-        adj[v].append(u)
-        idx += 2
+        u, v = map(int, sys.stdin.readline().split())
+        u -= 1  # Convert to 0-indexed
+        v -= 1
+        adj[u].add(v)
+        adj[v].add(u)
+        edges.append((u, v))
     
-    # Try to 3-color the graph
-    color = [0] * (n + 1)  # 0 means uncolored, 1,2,3 are the colors
+    # Try all 3-colorings
+    # For each connected component, we'll try to 3-color it
     
-    def is_safe(node, c):
-        # Check if we can assign color c to node
-        for neighbor in adj[node]:
-            if color[neighbor] == c:
+    color = [-1] * n  # -1 means uncolored
+    
+    def dfs(node, c):
+        # Try to color node with color c
+        # Check if any neighbor has the same color
+        for nei in adj[node]:
+            if color[nei] == c:
                 return False
+        
+        color[node] = c
+        
+        # Now try to color neighbors with other colors
+        for nei in adj[node]:
+            if color[nei] == -1:
+                # Try the other two colors
+                found = False
+                for nc in [(c+1)%3, (c+2)%3]:
+                    if dfs(nei, nc):
+                        found = True
+                        break
+                if not found:
+                    color[node] = -1
+                    return False
+            else:
+                # Already colored, check compatibility
+                if color[nei] == c:
+                    color[node] = -1
+                    return False
+                    
         return True
     
-    def backtrack(node):
-        if node > n:
-            return True
-            
-        # Try colors in order 1, 2, 3 for lexicographically smallest result
-        for c in range(1, 4):
-            if is_safe(node, c):
-                color[node] = c
-                if backtrack(node + 1):
-                    return True
-                color[node] = 0  # Backtrack
-        
-        return False
+    # Check if graph is 3-colorable
+    visited = [False] * n
     
-    # Start backtracking from node 1
-    if backtrack(1):
-        print("YES")
-        print(*color[1:])
-    else:
-        print("NO")
+    for i in range(n):
+        if color[i] == -1:
+            # Try coloring this component starting with color 0
+            success = False
+            for c in range(3):
+                old_color = color[:]
+                if dfs(i, c):
+                    success = True
+                    break
+                else:
+                    color = old_color[:]
+            
+            if not success:
+                print("NO")
+                return
+    
+    # Verify the solution
+    for u, v in edges:
+        if color[u] == color[v]:
+            print("NO")
+            return
+    
+    print("YES")
+    print(" ".join(str(c + 1) for c in color))
 
 solve()

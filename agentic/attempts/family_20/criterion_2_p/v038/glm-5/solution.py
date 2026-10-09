@@ -1,0 +1,160 @@
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    it = iter(data)
+    Nin = int(next(it))
+    Nout = int(next(it))
+    M = int(next(it))
+
+    edges = []
+    din = [0] * (Nin + 2)
+    dout = [0] * (Nout + 2)
+
+    for _ in range(M):
+        u = int(next(it))
+        v = int(next(it))
+        edges.append((u, v))
+        din[u] += 1
+        dout[v] += 1
+
+    D = 0
+    for i in range(1, Nin + 1):
+        if din[i] > D:
+            D = din[i]
+    for i in range(1, Nout + 1):
+        if dout[i] > D:
+            D = dout[i]
+
+    if M == 0:
+        out = ["YES", ""]
+        sys.stdout.write("\n".join(out))
+        return
+
+    # Build bipartite graph: left = inbound, right = outbound
+    # We will find an edge-coloring with D colors using a standard augmenting approach.
+    # To keep it fast in Python, we use arrays and iterative Euler-like recoloring.
+
+    # We need adjacency for left and right, but we process edges one by one.
+    # For each vertex, maintain color -> edge index mapping (or neighbor).
+    # Since D can be up to 400000, using dict per vertex is okay if total edges is 400000.
+
+    # But to be efficient, we use arrays of dicts.
+    left_color = [dict() for _ in range(Nin + 1)]   # color -> edge index
+    right_color = [dict() for _ in range(Nout + 1)] # color -> edge index
+
+    ans = [0] * M
+
+    # We'll assign colors greedily with recoloring (Kempe chain / Euler tour style).
+    # For each edge (u,v):
+    #   find a free color on u (cu) and free color on v (cv).
+    #   If cu == cv: assign.
+    #   Else: we need to swap along alternating path starting from v using color cu.
+    #   Actually standard approach: if cu != cv, we recolor the alternating path
+    #   starting at v with colors cu and cv, then assign cu to this edge.
+
+    # To find free color quickly, maintain next available pointer per vertex.
+    # But colors can be freed during recoloring, so we use a set-like structure.
+    # Given constraints, we use a simple approach with dicts and a "used" marker.
+
+    # We'll implement the standard bipartite edge coloring augmenting path.
+
+    for idx, (u, v) in enumerate(edges):
+        # Find free color on u
+        cu = None
+        # We'll search from 1 upward; maintain a hint per vertex to speed up.
+        # Use dict membership.
+        du = left_color[u]
+        # find smallest color not in du
+        c = 1
+        while c in du:
+            c += 1
+        cu = c
+
+        dv = right_color[v]
+        c = 1
+        while c in dv:
+            c += 1
+        cv = c
+
+        if cu == cv:
+            color = cu
+            left_color[u][color] = idx
+            right_color[v][color] = idx
+            ans[idx] = color
+        else:
+            # Recolor alternating path starting at v with colors cu and cv.
+            # The path alternates: at right vertex v, color cu is free (since cu not in dv? not necessarily).
+            # Actually cu is free on u, cv is free on v. We want to assign cu to edge (u,v).
+            # But cu might be used on v by some other edge. If so, we follow that edge to left,
+            # where the color used is cu, then at that left vertex, cv is free (since cv free on v? not necessarily).
+            # Standard Kempe chain: swap colors cu and cv along the maximal alternating path
+            # starting from v. After swapping, cu becomes free on v, so we can assign cu to (u,v).
+
+            # Build the alternating path:
+            # Start at right vertex v. We look at color cu on v.
+            # If cu is free on v, we can directly assign cu to (u,v).
+            # Else, there's an edge e1 = (u1, v) with color cu. Move to u1.
+            # At u1, color cv: if free, stop. Else there's edge e2 = (u1, v2) with color cv. Move to v2.
+            # Continue alternating.
+
+            # We'll collect the path of edges, then swap colors.
+
+            path_edges = []
+            current_side = 'R'  # currently at right vertex v
+            current_vertex = v
+            a, b = cu, cv
+            # We alternate: at right vertex, look for color a (which is cu).
+            # If found, edge goes to some left vertex. Then at left vertex, look for color b (cv).
+            # If found, edge goes to some right vertex. Then look for color a, etc.
+
+            while True:
+                if current_side == 'R':
+                    eidx = right_color[current_vertex].get(a)
+                    if eidx is None:
+                        break
+                    path_edges.append(eidx)
+                    # move to left vertex of this edge
+                    _, current_vertex = edges[eidx]
+                    current_side = 'L'
+                    a, b = b, a
+                else:
+                    eidx = left_color[current_vertex].get(a)
+                    if eidx is None:
+                        break
+                    path_edges.append(eidx)
+                    u2, v2 = edges[eidx]
+                    current_vertex = v2
+                    current_side = 'R'
+                    a, b = b, a
+
+            # Swap colors along path
+            # The path_edges alternate: first edge has color cu, next cv, next cu, ...
+            # After swap: first becomes cv, next cu, next cv, ...
+            # But we need to update left_color and right_color accordingly.
+
+            # Actually the colors to swap are cu and cv.
+            # For each edge in path, if its color is cu, change to cv; if cv, change to cu.
+            for eidx in path_edges:
+                u2, v2 = edges[eidx]
+                c_old = ans[eidx]
+                c_new = cv if c_old == cu else cu
+                # remove old color mappings
+                del left_color[u2][c_old]
+                del right_color[v2][c_old]
+                # add new
+                left_color[u2][c_new] = eidx
+                right_color[v2][c_new] = eidx
+                ans[eidx] = c_new
+
+            # Now cu is free on v, assign cu to (u,v)
+            left_color[u][cu] = idx
+            right_color[v][cu] = idx
+            ans[idx] = cu
+
+    out = ["YES", " ".join(map(str, ans))]
+    sys.stdout.write("\n".join(out))
+
+solve()

@@ -1,23 +1,28 @@
-# Problem B — Polymer Frequency Tuning
+# Problem B — Network Transceivers
 
-Time limit: 1 s
-Memory limit: 256 MB
+Time limit: 1 s   Memory limit: 256 MB
 
-A synthetic polymer consists of $n$ monomers, indexed from 1 to $n$. A tuning configuration assigns each monomer a specific frequency band, which is a continuous real interval. For each monomer, you must choose its frequency band to be either the interval $[0, 1]$ or the interval $[1, 2]$.
+You are configuring a communication network consisting of $n$ servers and $m$ communication links. Each link connects a specific pair of servers.
 
-The laboratory maintains a record of $m$ covalent bonds between these monomers. To avoid destructive interference, the polymer must satisfy a local stability condition for every bond: for any recorded bond connecting monomer $u$ and monomer $v$, the frequency band assigned to $u$ and the frequency band assigned to $v$ must intersect at exactly one point. If their assigned bands overlap over a range of positive length, the polymer will destabilize. (Note that multiple records of the same bond, or a bond connecting a monomer to itself, must still strictly satisfy this condition without exception).
+To make the network operational, each communication link must be assigned a transmission polarity. For any link connecting a server $u$ and a server $v$, its polarity evaluated from $u$ to $v$, denoted $D_{u,v}$, must be chosen from $\{1, -1\}$. Evaluated in the reverse direction, the polarity of that same link is $D_{v,u} = -D_{u,v}$.
 
-Your task is to determine a valid tuning configuration for all $n$ monomers. If multiple valid configurations exist, you must output the one that is lexicographically smallest when represented as a sequence of choices. Specifically, represent the choice of interval $[0, 1]$ as the integer 1, and the choice of interval $[1, 2]$ as the integer 2. The configuration is valid if it produces a sequence of $n$ integers $r_1, r_2, \dots, r_n$ (where each $r_i \in \{1, 2\}$) such that the sequence is lexicographically smaller than any other valid sequence. This means it must prioritize assigning 1 to monomer 1 if possible; then prioritize assigning 1 to monomer 2, and so on sequentially. 
+Once all links have been assigned a polarity, each server must be assigned a hardware type $T \in \{1, 2\}$.
 
-If no configuration can satisfy the stability constraint for all $m$ recorded bonds, you must report the failure.
+A configuration is valid if it is possible to assign the link polarities such that for every server $i$, its assigned type $T_i$ satisfies the following equation for every link connecting server $i$ to a server $j$:
+$$T_i = \frac{3 + D_{i,j}}{2}$$
+where $D_{i,j}$ is the polarity of that specific link evaluated from $i$ to $j$.
+
+If a server has no links connected to it, the equation is vacuously satisfied for both types, but you must still assign it exactly one type.
+
+You must determine if there is a valid configuration. If there are multiple valid type assignments, you must choose the assignment that yields the lexicographically smallest sequence of types when listed in order from server $1$ to server $n$.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$).
-Each of the following $m$ lines contains two integers $u$ and $v$, identifying a bonded pair of monomers in the record. Both monomer identifiers $u$ and $v$ are at least 1 and at most $n$.
+The first line of the input contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$).
+Each of the next $m$ lines contains two integers $u$ and $v$ — a communication link between server $u$ and server $v$.
 
 ## Output
-If no tuning configuration can satisfy the stability constraint, output `NO` on a single line.
-Otherwise, output `YES` on the first line. On the second line, output $n$ space-separated integers $r_1, r_2, \dots, r_n$ (where each $r_i \in \{1, 2\}$) representing the interval assigned to each respective monomer from 1 to $n$. This sequence must be the lexicographically smallest possible valid sequence.
+If there is no valid configuration, output a single line containing `NO`.
+Otherwise, output `YES` on the first line. On the second line, output $n$ integers separated by spaces, where the $i$-th integer is the type ($1$ or $2$) assigned to the $i$-th server, representing the lexicographically smallest valid assignment.
 
 ## Example 1
 Input:

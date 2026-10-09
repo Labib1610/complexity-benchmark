@@ -1,0 +1,67 @@
+import sys
+sys.setrecursionlimit(1000000)
+
+def solve():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [[False] * n for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u][v] = True
+        adj[v][u] = True
+    
+    # Build adjacency list for non-edges
+    non_adj = [[] for _ in range(n)]
+    for i in range(n):
+        for j in range(i + 1, n):
+            if not adj[i][j]:
+                non_adj[i].append(j)
+                non_adj[j].append(i)
+    
+    color = [0] * n
+    
+    def dfs(u, c):
+        color[u] = c
+        for v in non_adj[u]:
+            if color[v] == 0:
+                if not dfs(v, 3 - c):
+                    return False
+            elif color[v] == c:
+                return False
+        return True
+    
+    # Find connected components in non-edge graph
+    for i in range(n):
+        if color[i] == 0:
+            if not dfs(i, 1):
+                print("NO")
+                return
+    
+    # Check if any triangle exists in non-edge graph
+    for i in range(n):
+        for j in range(i + 1, n):
+            if not adj[i][j]:  # i-j is non-edge
+                for k in range(j + 1, n):
+                    if not adj[i][k] and not adj[j][k]:  # i-k and j-k are non-edges
+                        print("NO")
+                        return
+    
+    # Valid assignment exists
+    # Assign environment 3 to all, then adjust based on bipartite coloring
+    result = [3] * n
+    for i in range(n):
+        if color[i] == 1:
+            result[i] = 1
+        else:
+            result[i] = 2
+    
+    print("YES")
+    print(' '.join(map(str, result)))
+
+solve()

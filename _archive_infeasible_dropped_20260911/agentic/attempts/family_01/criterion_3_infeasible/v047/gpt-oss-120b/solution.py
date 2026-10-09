@@ -1,0 +1,34 @@
+import sys
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    adj = [0] * (n + 1)          # bitset of neighbors, 1‑based indices
+    for _ in range(m):
+        u = int(next(it)); v = int(next(it))
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+
+    full_mask = (1 << (n + 1)) - 1   # bits 0..n
+    for a in range(1, n - 1):
+        a_mask = adj[a]
+        for b in range(a + 1, n):
+            # edge (a,b) must exist
+            if (a_mask >> b) & 1 == 0:
+                continue
+            # common neighbors larger than b
+            mask = full_mask ^ ((1 << (b + 1)) - 1)   # bits > b
+            common = (a_mask & adj[b]) & mask
+            if common:
+                # lowest set bit gives smallest c
+                low = common & -common
+                c = low.bit_length() - 1
+                sys.stdout.write(f"{a} {b} {c}")
+                return
+
+if __name__ == "__main__":
+    solve()

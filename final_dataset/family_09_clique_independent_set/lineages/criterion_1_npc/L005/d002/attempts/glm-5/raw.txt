@@ -1,0 +1,1112 @@
+Let me analyze this problem.
+
+We have a graph with n vertices (n ≤ 46) and m edges. We need to find an independent set of exactly size k, or report that none exists.
+
+This is the classic Maximum Independent Set problem, which is NP-hard in general, but n ≤ 46 allows meet-in-the-middle approach.
+
+Standard approach for n ≤ 40: split vertices into two halves, enumerate all independent sets in each half, then combine. For n = 46, each half has 23 vertices, so up to 2^23 ≈ 8.4M subsets per half. Enumerating all independent sets in each half... Actually we need to be careful.
+
+The classic meet-in-the-middle for MIS: split vertices into two halves A (size n1) and B (size n2). For each independent set S_A in A, we need to find the maximum independent set in B among vertices not adjacent to S_A. To do this efficiently:
+
+1. Enumerate all independent sets in B, and for each mask, record the maximum independent set size... Actually, the standard technique:
+
+- For each subset mask of B, compute f[mask] = max size of independent set S ⊆ mask (i.e., S is independent and S ⊆ mask). This can be computed with DP: f[mask] = max(f[mask without lowest bit], f[mask without lowest bit] + 1 if the vertex can be added...). Hmm, actually the standard is: g[mask] = size of independent set if mask itself is independent, else -infinity; then f[mask] = max over subsets... that's too slow.
+
+Better standard approach: For each mask of B, define ok[mask] = 1 if mask is independent. Then define best[mask] = maximum popcount of an independent subset of mask. DP: best[mask] = if ok[mask] then popcount(mask) else max(best[mask \ {v}] for v in mask)? That's O(2^23 * 23) which is ~200M operations — too slow in Python.
+
+Alternative: best[mask] = max(best[mask & (mask-1)]... no.
+
+Actually there's a neat trick: best[mask] can be computed as: take lowest bit v, best[mask] = max(best[mask ^ v], best[mask & ~(adj[v])] + 1)? Hmm, that's not quite right either. Let me think.
+
+Actually, the standard recurrence: Let v = lowest set bit of mask. Then any independent subset of mask either doesn't include v (so it's an independent subset of mask ^ v) or includes v (so it's {v} ∪ independent subset of mask \ (adj[v] ∪ {v})). So best[mask] = max(best[mask ^ v], 1 + best[mask & ~adj_v & ~(1<<v)]). Wait, mask & ~adj[v] already excludes v since v ∉ adj[v]. So best[mask] = max(best[mask ^ (1<<v)], 1 + best[mask & ~adj[v]]). This is O(2^n2) with O(1) per mask. For n2 = 23, that's 8.4M operations. In Python, that's feasible but slow-ish (maybe 10-20 seconds in pure Python... hmm, time limit is 5s).
+
+But wait — we don't just need the maximum size; we need to find an actual independent set of exactly size k. Hmm, but actually we need exactly k, not maximum. But note: if there's an independent set of size ≥ k, is there one of exactly size k? Yes! Any subset of an independent set is independent. So we just need to check whether the maximum independent set size ≥ k. If yes, take any independent set of size ≥ k and remove vertices to get exactly k. 
+
+So the problem reduces to: find maximum independent set size, and one maximum (or any sufficiently large) independent set.
+
+Meet-in-the-middle for MIS with n=46:
+
+Split into halves A (first n1 vertices) and B (remaining n2 vertices), n1 ≈ n2 ≈ 23.
+
+Step 1: Enumerate all independent sets in A. There could be up to 2^23 of them. For each independent set S_A, the "available" mask in B is avail = fullB & ~union of adjacencies from S_A. Then the answer is max over S_A of |S_A| + best[avail].
+
+But enumerating all independent sets in A could be expensive if done naively (2^23 subsets, checking independence of each). We can enumerate independent sets via recursion/DFS which only visits independent sets — the number of independent sets could still be large (e.g., empty graph has 2^23 independent sets). Hmm, 8.4M independent sets in A, and for each we do a lookup best[avail] — that's 8.4M lookups plus the enumeration. In Python this might be too slow.
+
+Alternative approach: instead of enumerating independent sets of A, compute for each mask of A: h[mask] = max size of independent subset of mask (same DP as best). Then... hmm, but the combination requires knowing which vertices of B are blocked.
+
+Standard MITM for MIS: For each independent set S_A in A... Actually there's another formulation:
+
+For each subset mask_A of A, define F[mask_A] = max over independent S ⊆ mask_A of |S| + best[B \ N(S)]? That doesn't decompose nicely.
+
+Hmm, let me think about the standard approach more carefully.
+
+The standard meet-in-the-middle for maximum clique/independent set (e.g., from "MIS in O(2^{n/2})"):
+
+- Split V into L and R.
+- Enumerate all independent sets in L (via DFS). For each such set S with the set of blocked vertices in R being T = N(S) ∩ R, we want |S| + MIS(R \ T).
+- Precompute best[mask] for all masks in R = max independent set within subset mask of R.
+- Answer = max over independent S in L of |S| + best[fullR \ N(S)].
+
+The enumeration of independent sets in L via DFS: the DFS tree has exactly (number of independent sets in L) nodes, and at each leaf/node we do O(1) or O(n) work. Worst case 2^23 ≈ 8.4M nodes. In Python, a DFS with 8.4M recursive calls is probably ~10-30 seconds. Too slow for 5s? Maybe with careful optimization (iterative, bit tricks) it could work, but risky.
+
+Alternative: DP over subsets of L. Define for each mask ⊆ L: dp[mask] = max size of independent subset of mask, along with... but we need the blocked set in R which depends on the actual independent set chosen, not just its size. Hmm.
+
+Wait, but here's a trick: we can define G[mask] = max over independent S ⊆ mask of (|S|, and we need N(S) info)... The issue is that different independent sets S of the same size block different subsets of R, so we can't just take max size.
+
+Hmm, but actually there's a cleverer formulation. Let me think about the "profile" approach:
+
+Alternative: For each subset T of R (the blocked set), define M[T] = max size of independent set S in L such that N(S) ∩ R ⊆ T. Then answer = max over T of M[T] + best[fullR \ T]? No wait, that's not right either because best[fullR \ T] uses exactly the complement.
+
+Hmm, actually: answer = max over independent S in L of |S| + best[fullR \ N(S)]. Define for each mask X ⊆ R: H[X] = max over independent S in L with N(S) ∩ R ⊆ X of |S|. Then... no.
+
+Let me think differently. Actually, let's define it as: answer = max over S independent in L, S' independent in R, S' ∩ N(S) = ∅ of |S| + |S'|.
+
+Alternative formulation via "for each independent set in R, count max independent in L avoiding its neighborhood": symmetric, same issue.
+
+OK here's another standard approach: since best[mask] is monotone (best[mask] ≤ best[mask'] if mask ⊆ mask'), we have:
+
+answer = max over independent S in L of |S| + best[fullR \ N(S)].
+
+We can compute this with a different DP: Let's define D[mask] for mask ⊆ L as: max over independent S ⊆ mask of (|S| + best[fullR \ N(S)])? The problem: N(S) depends on S, and when we extend S by a vertex v, N(S) grows. The recurrence D[mask] = max(D[mask \ v], 1 + D'...) doesn't work because D[mask \ v] might use a different S with different neighborhood.
+
+Hmm, but wait: best is monotone, so if S ⊆ S'' then best[fullR \ N(S'')] ≤ best[fullR \ N(S)]. So for a fixed mask, the best S to use... it's not simply determined.
+
+Alternative known technique: iterate over all 2^{n1} masks of L. For each mask, check if mask is independent (can be done with DP: ind[mask] = ind[mask without lowest bit] and (mask without lowest bit) & adj[v] == 0). Then for each independent mask (which is an independent set), compute blocked = OR of adj_R[v] for v in mask. Computing blocked for each mask: blocked[mask] = blocked[mask without lowest bit] | adjR[v]. So we can do a single DP over all 2^{n1} masks computing both ind[mask] and blocked[mask] and then value = popcount(mask) + best[fullR \ blocked[mask]] for independent masks.
+
+This is O(2^{n1}) = 8.4M iterations with simple bit operations. In Python, 8.4M iterations of a loop with a few operations each... roughly 5-15 seconds in CPython. Hmm, risky. But we can vectorize with numpy? Let's think.
+
+Actually, we can vectorize the DP over masks using numpy arrays of size 2^23. The DP: for mask from 1 to 2^23 - 1: v = lowest bit, prev = mask ^ v. This sequential dependency makes vectorization hard... but there's a trick: process by lowest bit.
+
+Alternative: We can compute things grouped by lowest set bit. For masks whose lowest bit is v (i.e., masks in [v, 2v) with... hmm), mask = prev | v where prev = mask ^ v has all bits > v... no wait, lowest bit v means mask = v + (higher bits), prev = mask ^ v.
+
+Hmm, let me think of a cleaner vectorized approach.
+
+Actually, here's a cleaner way to think: enumerate independent sets in L via a different decomposition. Let me reconsider.
+
+Alternative approach: Since we need "exactly k" and any independent set of size ≥ k suffices, and n ≤ 46... 
+
+Another thought: maybe there's a simpler approach given the constraints. n ≤ 46, m up to n(n-1)/2. Time limit 5s. This is clearly a meet-in-the-middle MIS problem (classic: n ≤ 40 for 2^{n/2}).
+
+Hmm wait, actually, maybe we should think about whether the answer is more often YES. If the graph is sparse, greedy/branch-and-bound works fast. The hard case is dense graphs where answer is NO or small k. Branch and bound with good pruning (like a max-clique solver on complement) can handle n=46 in many cases, but worst cases exist.
+
+Let me think about the MITM more carefully with Python performance in mind.
+
+Plan:
+- n ≤ 46. Split: L = vertices 0..n1-1, R = vertices n1..n-1, with n1 = n // 2 (so n1 ≤ 23, n2 = n - n1 ≤ 23).
+- Precompute adjR[v] for v in L: bitmask over R of neighbors in R... wait no, adjL[v] = neighbors within L, adjR[v] = neighbors in R (as bitmask in R's indexing).
+- Precompute best[mask] for all mask ⊆ R: max independent set size within mask. DP over 2^{n2} masks: best[0] = 0; for mask > 0: v = lowest bit; best[mask] = max(best[mask ^ v], 1 + best[mask & ~adjR_of_v]). Wait, need to be careful: if we include v, the rest must be an independent subset of mask \ ({v} ∪ N(v)). Since v is the lowest bit, mask & ~adjR[v] — adjR[v] doesn't include v itself, so mask & ~adjR[v] still includes v. Hmm, we need mask & ~adjR[v] & ~v_bit = mask & ~(adjR[v] | v_bit). Since v is the lowest bit of mask, and we're removing v... Let me just write: rest = mask & ~(adjR[v] | (1<<v)). Then best[mask] = max(best[mask ^ (1<<v)], 1 + best[rest]).
+
+  Note: best[mask ^ v] considers subsets not containing v; 1 + best[rest] considers subsets containing v. This correctly computes max independent subset size of mask. And it's O(1) per mask. Total 2^23 = 8.4M operations. In pure Python: too slow (~10+ s). With numpy vectorization? The recurrence has sequential dependency but we can restructure.
+
+Vectorization idea for best[]: Process masks in order of... hmm. The dependency: best[mask] depends on best[mask ^ lowbit] and best[mask & ~(adj|bit)]. Both of these are "smaller" masks but not in a simple pattern.
+
+Alternative: compute best[] differently. Note best[mask] = max over independent subsets. Another way: define ok[mask] = 1 if mask is independent in R. Then best[mask] = max over sub ⊆ mask, ok[sub]=1 of popcount(sub). This is a "subset sum / SOS (sum over subsets) DP": best[mask] = max_{sub ⊆ mask} (ok[sub] ? popcount(sub) : -inf). SOS DP: O(2^{n2} * n2) = 8.4M * 23 ≈ 190M — too slow even vectorized? With numpy, SOS can be done as n2 passes over arrays of size 2^23, each pass doing vectorized max: for each bit i, best[ masks with bit i ] = max(best[mask], best[mask ^ (1<<i)]). Each pass is a numpy operation on ~4M elements. 23 passes × a few operations = maybe 23 × 50ms = ~1-2s. Feasible!
+
+But computing ok[mask] for all masks: ok[mask] = 1 iff for all v in mask, adjR[v] & (mask ^ v_bit) == 0. Vectorized: ok[mask] can be computed via DP too: ok[mask] = ok[mask ^ lowbit] and ((mask ^ lowbit) & adjR[v] == 0). Sequential again. Hmm.
+
+Alternative for ok: ok[mask] = AND over v in mask of (adjR[v] & mask == 0)... Vectorizing over all masks: hmm.
+
+Alternative: enumerate independent sets in R directly via DFS and mark them. The number of independent sets in R could be up to 2^23 in the worst case (empty graph). DFS enumeration in Python with 8.4M nodes — too slow.
+
+Hmm, but wait: we don't need ok[] for all masks; we need best[] for all masks. Let me think about computing best[] with the O(1)-per-mask recurrence but vectorized by grouping.
+
+Grouping idea: masks grouped by lowest set bit. For bit v, masks with lowest bit v are exactly {v_bit} ∪ S where S ⊆ {v+1, ..., n2-1}. So masks with lowest bit v = v_bit | S for S ranging over subsets of the "upper" part. For these masks: best[v | S] = max(best[S], 1 + best[(v|S) & ~(adjR[v]|v)]) = max(best[S], 1 + best[S & ~adjR[v]]).
+
+So if we process v from 0 to n2-1, and we have best[] computed for all subsets of {v+1, ...} (i.e., all masks < 2^v... wait no. Subsets of {v+1,...,n2-1} are masks with all bits ≥ v+1, i.e., masks in [0, 2^{n2}) that are multiples of 2^{v+1}... no, masks with no bits below v+1: these are masks m where m & (2^{v+1}-1) == 0, i.e., m = S << (v+1) for S ⊆ {0..n2-v-2}.
+
+Hmm, so the set of masks with lowest bit exactly v: m = 2^v + t where t has bits only in [v+1, n2). For each such m, best[m] = max(best[m - 2^v], 1 + best[(m) & ~(adjR[v] | 2^v)]).
+
+Note m - 2^v = t (bits in [v+1, n2)), and m & ~(adjR[v]|2^v) = t & ~adjR[v] (bits in [v+1, n2) minus neighbors of v).
+
+So: for each v, we need best[] already computed for all masks with bits only in [v+1, n2) — which is true if we process v in increasing order? Let's check: when processing v, we compute best for masks with lowest bit v. These depend on masks with bits in [v+1, n2) (for the first term) and masks with bits in [v+1, n2) excluding neighbors of v (second term). Masks with bits only in [v+1, n2) have lowest bit ≥ v+1 > v, so they were computed in earlier iterations (v' ≥ v+1)? No wait — masks with lowest bit v' are computed when we process v'. If we process v from high to low: process v = n2-1 down to 0. When processing v, all masks with bits in [v+1, n2) have lowest bit ≥ v+1, computed already. 
+
+So the vectorized algorithm:
+- best = array of size 2^{n2}, initialized to 0 (best[0] = 0; masks that are... hmm wait, all masks will get values).
+
+Actually let me re-index: Let full = 2^{n2}. best array indexed by mask (0..full-1). Initialize best[0] = 0 and... every mask m > 0 has a lowest bit v, and will be assigned when processing v. So:
+
+for v in range(n2-1, -1, -1):
+    # masks with lowest bit v: m = 2^v + t, t ⊆ [v+1, n2)
+    # Represent as arrays: t ranges over all subsets of upper = bits v+1..n2-1.
+    # In terms of array indices: t = s << (v+1) for s ⊆ [0, n2-v-1).
+    # best[2^v + t] = max(best[t], 1 + best[t & ~adjRv]) where adjRv = adjR[v] (bits in R indexing; note adjR[v] may include bits < v? Neighbors of v in R could have lower index? adjR[v] includes any neighbor of v in R, which could be a vertex with index < v in R's local indexing. But t & ~adjRv only has bits in [v+1, n2), so bits of adjRv below v+1 don't matter. Fine.)
+
+Vectorized with numpy: Let U = n2 - v - 1 (number of upper bits). The masks t are s << (v+1) for s in [0, 2^U). We need:
+- A = best[t] for all t: best[(s << (v+1))] for s in range(2^U) — this is best[v+1::]... hmm, array slicing: indices 2^{v+1} * something. Actually indices t = s * 2^{v+1}, so it's best[::2^{v+1}] — a strided slice of length 2^{n2-v-1}. 
+- B = best[t & ~adjRv]: t & ~adjRv = (s & ~adjRv_shifted) << (v+1)? Since adjRv's relevant bits are in [v+1, n2), adjRv >> (v+1) gives a mask over s's bits. t & ~adjRv = ((s) & ~(adjRv >> (v+1))) << (v+1). So B[s] = best[(s & ~av) << (v+1)] where av = adjRv >> (v+1). This is a gather operation: indices (s & ~av) * 2^{v+1}. Hmm, gather with numpy fancy indexing: idx = (s_arr & ~av) << (v+1); B = best[idx]. That's 2^{n2-v-1} gathers.
+
+Then best[2^v + t] = maximum(A, B + 1): assign to indices 2^v + (s << (v+1)) = (2s+1) << v... i.e., indices (s << (v+1)) | 2^v. Strided: best[2^v :: 2^{v+1}]? Indices with bit v set and no bits below v: m = 2^v + s*2^{v+1}. Yes! That's the slice best[2^v : : 2^{v+1}] of length 2^{n2-v-1}.
+
+So per v: 
+- A = best[0::2^{v+1}] (length 2^{n2-v-1}) — wait, t = s << (v+1) for s in [0, 2^{U}), so indices are 0, 2^{v+1}, 2*2^{v+1}, ...: slice best[::2^{v+1}].
+- B = best[(s & ~av) << (v+1)]: fancy indexing.
+- best[2^v::2^{v+1}] = np.maximum(A, B + 1).
+
+Total work: sum over v of 2^{n2-v-1} = 2^{n2} - 1 ≈ 8.4M elements total across all v. Each element involves a few numpy ops. This should run in maybe 1-2 seconds. 
+
+Hmm wait, but there's a subtlety: when processing v from high to low, at step v we need best[t] for t with bits in [v+1, n2) — those were computed at steps v' > v (masks with lowest bit v' ≥ v+1) plus best[0]. But the slice best[::2^{v+1}] includes indices with bits possibly below v+1? No: indices are multiples of 2^{v+1}, so bits 0..v are 0. Bits v+1..n2-1 arbitrary. These masks have lowest bit ≥ v+1 (or are 0). Were they all computed? Masks with lowest bit v' for v' > v: computed at step v'. Mask 0: initialized. Yes. ✓.
+
+And the fancy-indexed B: (s & ~av) << (v+1) — also multiples of 2^{v+1}, bits ≥ v+1 only. ✓.
+
+Great, so best[] over R can be computed vectorized.
+
+Now for the L side: we need max over independent S ⊆ L of |S| + best[fullR \ N_R(S)].
+
+Similarly, define for masks of L... we need to enumerate independent sets of L. Let's define a similar DP over L masks: for mask ⊆ L, let g[mask] = ... hmm, the problem is the value depends on both |S| and N_R(S), which are two different quantities. 
+
+Option 1: Enumerate all independent sets of L. Worst case 2^{23} ≈ 8.4M. For each, compute value. In pure Python, too slow. Vectorized?
+
+Option 2: DP over L masks where state includes blocked set in R — too big.
+
+Option 3: Reformulate. Hmm.
+
+Let me think about Option 1 vectorized. We want, for all independent sets S in L: val(S) = |S| + best[fullR & ~N_R(S)]. 
+
+We can compute N_R(S) for all masks S ⊆ L via DP: NR[mask] = NR[mask ^ lowbit] | adjR[lowbit vertex]. This is a DP over 2^{n1} masks with sequential dependency, but again can be vectorized by grouping by lowest bit:
+
+for v in range(n1-1, -1, -1):
+    # masks with lowest bit v: m = 2^v + (s << (v+1))
+    # NR[m] = NR[s << (v+1)] | adjRv  (where NR[t] for t = s<<(v+1) already computed)
+    # Wait: NR[m] = NR[m ^ 2^v] | adjR[v] = NR[s << (v+1)] | adjR[v].
+    NR[2^v::2^{v+1}] = NR[::2^{v+1}] | adjRv
+
+That's vectorized. ✓.
+
+Similarly, isInd[mask] (whether mask is independent in L): isInd[m] = isInd[m ^ 2^v] and ((m ^ 2^v) & adjL[v] == 0). Vectorized:
+    prev = slice NR-like: isInd[::2^{v+1}] gives isInd[t] for t = s<<(v+1).
+    isInd[2^v::2^{v+1}] = isInd[::2^{v+1}] & ((t & adjL[v]) == 0) — need t values: t = s << (v+1) for s in range(2^U). We can compute (s_arr << (v+1)) & adjLv == 0. Since adjL[v] has bits possibly anywhere in [0, n1), and t = s << (v+1), t & adjL[v] = (s & (adjL[v] >> (v+1))) << (v+1)... so condition: s & (adjL[v] >> (v+1)) == 0. Hmm wait, adjL[v] >> (v+1) — bits of adjL[v] at positions ≥ v+1 shifted down. And bits of adjL[v] below v+1: t has no bits below v+1, so they don't affect t & adjL[v]. So condition: (s & (adjL[v] >> (v+1))) == 0. ✓.
+
+Then val[mask] for independent masks = popcount(mask) + best[fullR & ~NR[mask]]. popcount vectorized: we can compute popcount for all masks via DP too, or use numpy: popcount of array of uint64... numpy doesn't have builtin popcount for older versions; np.bincount trick: popcount via bit tricks (parallel bit count) on uint32/uint64 arrays. Standard: 
+x = x - ((x >> 1) & 0x55555555) etc. That works vectorized. Or compute popcount by DP grouped by lowest bit: pc[m] = pc[m ^ 2^v] + 1 — vectorized similarly. Either way.
+
+Then answer_L_part: max over independent masks m of pc[m] + best[fullR & ~NR[m]]. Vectorized: compute val = pc + best[fullR & ~NR] for all masks (best indexed by fancy indexing: idx = fullR & ~NR (as array), val = pc_arr + best[idx]), then mask out non-independent masks (set val to -1 where not independent), then take max. Also need to reconstruct the actual set.
+
+Memory: arrays of size 2^23 = 8.4M. Each int32 array: 33MB. We need: best (int8 suffices! values ≤ 23, so uint8/int8: 8.4MB), NR (needs n2 ≤ 23 bits: uint32: 33MB), isInd (bool: 8.4MB), pc (uint8: 8.4MB), val (int16: 17MB), idx (uint32: 33MB). Total maybe ~130MB. Memory limit 256MB. Hmm, tight but maybe OK. We can be careful: delete arrays when not needed, use in-place ops.
+
+Wait, actually, we could reduce: instead of computing NR for all masks of L, note we only need it for independent masks... but vectorized it's easier to compute for all.
+
+Alternatively, swap roles: make L the smaller half? No — both halves need full-mask arrays. Hmm, actually only the R side needs best[] (2^{n2} array), and the L side needs NR, isInd, pc, val arrays (2^{n1}). Both are ~2^23. Total memory as computed.
+
+Hmm, wait. Actually, let me reconsider: maybe there's a way to avoid enumerating all L masks. 
+
+Alternative approach: enumerate independent sets of L via DFS but only "maximal-ish" ones? No, we need all for correctness of the max formula... Actually no — we need max over independent S in L of |S| + best[R \ N(S)]. 
+
+Hmm, alternative: think of it as: answer = max over independent sets S_R in R of |S_R| + f[N(S_R) ∩ L] where f[T] = max independent set in L avoiding N... this is symmetric, same cost.
+
+Another idea: reduce the L-side work using the structure: for the L side, instead of all 2^{n1} masks, enumerate only independent sets. But vectorizing "enumerate all independent sets" — the count can be up to 2^{n1} anyway (empty graph). So no gain in worst case, but the vectorized full-mask approach is simpler and has predictable performance. 2^23 = 8.4M elements with a handful of numpy passes each — should be fine.
+
+Actually hold on, let me reconsider the sizes. n ≤ 46. n1 = 23, n2 = 23. 2^23 = 8,388,608. numpy operations on 8.4M-element arrays: each pass ~10-50ms. We have maybe 10-20 passes total (23 iterations of small slices summing to 8.4M elements each for a few DPs). Should be ~1-3 seconds total. OK.
+
+But wait — reconstruction. We need to output an actual independent set of size ≥ k (then trim to k). The vectorized DP gives us the max value and which L-mask achieves it, but then we need to reconstruct the R-side independent set for the corresponding available mask. Reconstruction of best[]: we have best[] array; given mask M (available in R), we can reconstruct greedily: while M != 0: v = lowest bit; if best[M] == best[M ^ 2^v]: M ^= 2^v (exclude v); else: include v, M &= ~(adjR[v] | 2^v). This is O(n2) lookups. ✓. Similarly for L side: we know the winning L mask directly (argmax over val), and we verified it's independent. But wait — is the winning L mask independent? We restricted val to independent masks. ✓. And its R-available mask is fullR & ~NR[winning_mask]. Then reconstruct R set from best[]. Total set = L part ∪ R part, size = max_val ≥ k if answer ≥ k. Then trim to exactly k (any subset works — subsets of independent sets are independent). ✓.
+
+Wait, one more check: the formula max over independent S ⊆ L of |S| + best[fullR \ N_R(S)] — is this correct for MIS of the whole graph? MIS of G = max over ways to split: choose S = MIS ∩ L, then (MIS \ S) is an independent set in R \ N(S). Conversely, any independent S in L plus independent S' in R \ N(S) forms an independent set in G (S ∪ S' independent: within S ok, within S' ok, across: S' avoids N(S)). ✓. And best[fullR \ N(S)] = max independent set in R within the available vertices. ✓. So answer = that max. ✓.
+
+Edge cases: k could be ≤ answer always if answer ≥ k → YES. If MIS size < k → NO. Also note k ≥ 1 and n ≥ 1.
+
+Special cases: m = 0 → any k employees work. The algorithm handles it (best[] with no edges = popcount, etc.).
+
+Also n small (like n=1): n1 = 0, n2 = 1. L empty: only mask 0, val = best[fullR]. Fine. Need to handle n1 = 0 or n2 = 0 gracefully. If n2 = 0 (n=1? n1 = 0, n2 = 1; hmm n1 = n//2: n=1 → n1=0, n2=1). n=2 → n1=1, n2=1. Fine. What if n1 = 0: L masks: only 1 mask (empty). Arrays of size 1. Should work with numpy as long as slices are right. Let me make sure the loops handle n1=0 (range(-1,-1,-1) empty — wait, for v in range(n1-1, -1, -1) with n1=0: range(-1, -1, -1) is empty ✓).
+
+Hmm wait, actually, let me double check the split choice. n1 = n // 2 → for n=46: n1=23, n2=23. For n=45: n1=22, n2=23. OK.
+
+Memory optimization: Let me plan the arrays:
+
+R side (size 2^{n2}):
+- best: uint8 (values 0..23). 8.4MB.
+
+L side (size 2^{n1}):
+- NR: uint32 (23 bits fit). 33.6MB.
+- isInd: bool. 8.4MB.
+- pc: uint8. 8.4MB.
+- val: int16 (max 46). 16.8MB.
+- idx for fancy indexing best: can compute as fullR & ~NR → another uint32 array 33.6MB, or do in-place: idx = np.bitwise_and(NR, fullR_inv)... Let me think: available = fullR & ~NR. We can compute avail = (~NR) & fullR in a new array or reuse. Then val = pc + best[avail] (fancy indexing creates a copy of size 2^{n1} of uint8 → 8.4MB, then add pc → int16). Then set val[~isInd] = -1 (or use np.where). Then argmax.
+
+Peak memory: NR (33.6) + isInd (8.4) + pc (8.4) + avail (33.6) + best (8.4) + val (16.8) + temp from fancy indexing (8.4) ≈ 118MB. Plus numpy overhead. Should fit in 256MB. We can free NR after computing avail. Actually we need NR... no, after computing avail = fullR & ~NR, we don't need NR anymore (reconstruction of L side uses the winning mask directly, and we can recompute NR for a single mask in Python quickly if needed — actually we don't even need that; the winning L mask is the set itself). Wait, do we need NR for reconstruction? The L-side set is just the winning mask (bits = vertices). The R-side available mask = fullR & ~NR[winning] = avail[winning]. So keep avail, drop NR. ✓.
+
+Actually, we could avoid storing avail separately: val = pc + best[(~NR) & fullR] — compute temp array. Either way similar memory. Let me just structure:
+
+1. Compute best[] (uint8, size 2^{n2}).
+2. Compute NR[] (uint32, size 2^{n1}) via grouped DP.
+3. Compute isInd[] (bool, size 2^{n1}).
+4. Compute pc[] (uint8, size 2^{n1}).
+5. avail = fullR & ~NR (uint32) — or since NR bits beyond n2? NR only contains R-indices (bits 0..n2-1), so avail = fullR ^ NR... wait, ~NR in numpy with uint32 flips all 32 bits; & fullR keeps only bits 0..n2-1. Since NR ⊆ fullR (bits within 0..n2-1), avail = fullR & ~NR = fullR ^ NR. ✓ (XOR is fine since NR's bits are subset of fullR's bits).
+6. val = pc.astype(int16) + best[avail] — fancy indexing.
+7. val[~isInd] = -1; also val for... wait, all masks including non-independent get -1 except we should ensure mask 0 (empty set) is independent (it is, isInd[0] = True, val[0] = 0 + best[fullR] = MIS(R)). ✓.
+8. best_idx = argmax(val); if val[best_idx] >= k → YES, reconstruct; else NO.
+
+Wait, but there's an issue: is the maximum over all masks correct? The maximum of val over independent masks = MIS size of G. If MIS size ≥ k → YES. Since any subset of an independent set is independent, we can trim to exactly k. ✓.
+
+Reconstruction:
+- L set: bits of best_idx (mask over L vertices 0..n1-1 → global vertices 0..n1-1... wait, need to define vertex ordering. Let me define: global vertices 0..n-1 (0-indexed; input is 1-indexed, subtract 1). L = {0, ..., n1-1}, R = {n1, ..., n-1} with local index j = global - n1.
+- R available mask: avail[best_idx] (or recompute: OR of adjR[v] for v in L set, then fullR ^ that).
+- Reconstruct R independent set from best[]: 
+  M = avail_mask; while M: v = lowest bit; if best[M] == best[M ^ (1<<v)]: M ^= (1<<v); else: take v; M &= ~(adjR_local[v] | (1<<v)).
+  Hmm wait, need to double check this reconstruction matches the DP recurrence: best[M] = max(best[M ^ 2^v], 1 + best[M & ~(adjR[v]|2^v)]). If best[M] == best[M ^ 2^v], we can exclude v (there's an optimal solution without v). Else best[M] = 1 + best[M & ~(adjR[v]|2^v)] > best[M ^ 2^v], so include v and recurse on M & ~(adjR[v]|2^v). ✓. But careful: best[M] == best[M ^ 2^v] could also happen when including v is also optimal; excluding is fine either way.
+
+  Actually simpler greedy reconstruction: repeatedly: if M == 0 stop. v = lowest bit of M. If best[M] > best[M ^ 2^v]: include v, M = M & ~(adjR[v] | 2^v). Else: M ^= 2^v. This yields a set of size best[avail]. Let me verify: this is standard. ✓.
+
+- Total set size = pc[best_idx] + best[avail[best_idx]] = val[best_idx]. Trim to k: take any k vertices from the union. Output (1-indexed).
+
+Hmm wait, actually there's a subtle issue with trimming: we need exactly k, and the union has size ≥ k, and any subset is independent. ✓.
+
+Now, let me also double check the best[] DP grouping more carefully.
+
+best[] DP (R side), n2 bits. best[0] = 0. For v from n2-1 down to 0:
+  U = n2 - 1 - v (number of bits above v).
+  s ranges over [0, 2^U): represents the upper bits (bits v+1..n2-1), i.e., t = s << (v+1).
+  Masks being computed: m = 2^v | t, indices = 2^v + s*2^{v+1} = (2s+1) * 2^v. Slice: best[2^v :: 2^{v+1}] — starts at 2^v, step 2^{v+1}, length: number of s values = 2^U. Check: (2^{n2} - 2^v) / 2^{v+1} = 2^{n2-v-1} - 0.5 → hmm, (2^{n2} - 2^v)/2^{v+1} = 2^{n2-v-1} - 1/2, so length = ceil = 2^{n2-v-1} = 2^U. ✓ (indices: 2^v, 2^v + 2^{v+1}, ..., last = 2^v + (2^U - 1)*2^{v+1} = 2^v + 2^{n2} - 2^{v+1} = 2^{n2} - 2^v < 2^{n2} ✓).
+
+  A = best[::2^{v+1}] (length 2^U): values best[t] for t = s*2^{v+1}. ✓ (t has no bits ≤ v).
+  B indices: t & ~adjRv where adjRv = adjacency of v within R (local indices). t & ~adjRv = (s & ~(adjRv >> (v+1))) << (v+1)? Let me verify: t = s << (v+1). t & ~adjRv: bit j of t (for j ≥ v+1) is s[j-(v+1)]; bit j of adjRv fixed. So t & ~adjRv = ((s & ~(adjRv >> (v+1))) << (v+1)) — but careful: adjRv >> (v+1) shifts bits at positions ≥ v+1 down to ≥ 0; bits of adjRv at positions < v+1 are discarded, which is correct since t has no bits there. ✓.
+  So: av = adjRv >> (v+1) (an integer). s_arr = np.arange(2^U, dtype=uint32). b_idx = (s_arr & ~av) << (v+1). B = best[b_idx] (fancy indexing).
+  Then best[2^v::2^{v+1}] = np.maximum(A, B + 1). Since best is uint8 and B+1 ≤ 24, fine. But careful: B + 1 as uint8 — B is uint8 (from best), +1 fine.
+
+  Wait, but there's an ordering issue: A = best[::2^{v+1}] — these are best values of masks t (no bit v). When we assign best[2^v::2^{v+1}], do we overwrite anything that A or B read? A reads indices that are multiples of 2^{v+1}; we write indices ≡ 2^v mod 2^{v+1}. Disjoint. ✓. B reads indices (s & ~av) << (v+1) — multiples of 2^{v+1}. Disjoint from writes. ✓. But numpy fancy indexing B = best[b_idx] creates a copy before assignment, and A = best[::2^{v+1}] is a view — if we compute np.maximum(A, B+1) it creates a new array, then assign to the strided slice. Safe. ✓.
+
+  Also, s_arr of size 2^U: for v = n2-1, U = 0, s_arr = [0]. Fine. Actually creating np.arange(2^U) each iteration: total sum 2^{n2} elements across iterations — fine. Or precompute a big arange once and slice: s_full = np.arange(2^{n2}, dtype=uint32)? Hmm, 2^23 * 4 bytes = 33MB. Then per v, use s_full[:2^U]? But the shift (v+1) differs... b_idx = (s & ~av) << (v+1). We can compute per iteration. Creating arange per iteration: sum of sizes = 2^{n2}-1 ≈ 8.4M uint32 = 33MB total allocation churn — fine.
+
+  Hmm, wait: actually there's an even simpler observation for B: (s & ~av) << (v+1) — instead of computing per-element, note B[s] = best[(s & ~av) << (v+1)]. Alternatively define a helper: for the "exclude-neighbors" gather. It's fine as is.
+
+  Actually, hmm, wait. Let me reconsider: is there an issue when adjRv has bits ≥ n2? No, adjRv is a mask over R's local indices 0..n2-1. ✓.
+
+Let me also double-check the best[] recurrence handles the case where including v: rest = M & ~(adjRv | 2^v). In my grouped formulation: M = 2^v | t. rest = (2^v | t) & ~(adjRv | 2^v) = t & ~adjRv (since 2^v removed, and t's bits ≥ v+1 filtered by ~adjRv; also bits of adjRv below v don't matter as t has none). ✓. And best[M] = max(best[t], 1 + best[t & ~adjRv]). ✓.
+
+But hold on — is this recurrence actually correct for "max independent subset of M"? Standard: Let v = lowest bit of M. Any independent subset S ⊆ M either contains v or not. If not: S ⊆ M \ {v} = t, max size best[t]. If yes: S \ {v} ⊆ M \ ({v} ∪ N(v)) and independent, so |S| ≤ 1 + best[M \ ({v} ∪ N(v))]; conversely 1 + (max independent subset of M \ ({v} ∪ N(v))) is achievable. ✓. Note M \ ({v} ∪ N(v)) = t & ~adjRv. ✓.
+
+Great.
+
+Now NR[] DP (L side): NR[mask] = OR over v ∈ mask of adjR_global[v] (bitmask over R local indices of neighbors). NR[0] = 0. For v from n1-1 down to 0:
+  NR[2^v::2^{v+1}] = NR[::2^{v+1}] | adjRv.
+  Wait: NR[m] where m = 2^v | t: NR[m] = NR[t] | adjR[v]. NR[t] = NR[::2^{v+1}] slice. Assign to NR[2^v::2^{v+1}]. But careful: NR[::2^{v+1}] is a view of the same array we're writing to — but disjoint indices as before (multiples of 2^{v+1} vs ≡2^v mod 2^{v+1}). numpy handles reading view and writing disjoint slice: NR[2^v::2^{v+1}] = NR[::2^{v+1}] | adjRv — the RHS NR[::2^{v+1}] | adjRv creates a new array first (binary op creates new array), then assignment. Safe. ✓.
+
+isInd[] DP: isInd[0] = True. For v from n1-1 down to 0:
+  isInd[2^v::2^{v+1}] = isInd[::2^{v+1}] & ((s_arr & aLv) == 0) where aLv = adjL[v] >> (v+1) (bits of adjL[v] above v, shifted; bits below v don't matter since t has none... wait, adjL[v] includes neighbors of v in L; v's neighbors with index < v: t has no bits < v+1, so t & adjL[v] only involves bits ≥ v+1. But wait — hmm, actually neighbors of v with index less than v: bit positions < v; t has no bits there. So condition (t & adjL[v]) == 0 ⟺ (s & (adjL[v] >> (v+1))) == 0. ✓.
+  So: cond = (s_arr & aLv) == 0 → bool array. isInd[2^v::2^{v+1}] = isInd[::2^{v+1}] & cond. ✓.
+
+pc[] DP: pc[0] = 0. For v: pc[2^v::2^{v+1}] = pc[::2^{v+1}] + 1. ✓.
+
+Then:
+  avail = fullR ^ NR  (uint32; NR ⊆ fullR bit-wise? NR bits are R-local indices 0..n2-1, fullR = 2^{n2}-1. So yes, NR & ~fullR = 0, avail = fullR ^ NR = fullR & ~NR. ✓.)
+  val = pc + best[avail] — best[avail] is fancy indexing: creates uint8 array of size 2^{n1}; pc is uint8; sum could overflow uint8? Max 46 > 255? No, 46 < 255. Wait max val = n1 + n2 ≤ 46 < 255 ✓. But pc + best[avail] in uint8: max 23+23=46, fine. Actually numpy uint8 + uint8 = uint8, no overflow since ≤ 46. ✓.
+  val = val where isInd else -1: val = np.where(isInd, val, np.uint8(255))? Hmm, using 255 as "-1" sentinel since val is uint8 and max real value 46. Or cast to int16. Let me use: val[~isInd] = 255 — but ~isInd creates another bool array; or val[isInd == False]... Simpler: val = np.where(isInd, val, 255). Or since non-independent masks: we can just do val += 0... hmm. Alternative trick: instead of masking, note that for non-independent masks, pc + best[avail] might exceed the true MIS — we must mask them out. Use np.where.
+
+  Hmm, wait — actually there's a subtle alternative: we could avoid the isInd array by noting... no, masking is needed. Fine.
+
+  Then best_val = int(val.min())? No — argmax. best_idx = int(np.argmax(val)); best_val = int(val[best_idx]). If best_val == 255 → shouldn't happen since mask 0 is independent with val = best[fullR] ≥ 0. So best_val = MIS size.
+
+  If best_val >= k: reconstruct and print. Else NO.
+
+Reconstruction details:
+  L mask = best_idx. L vertices = [v for v in range(n1) if best_idx >> v & 1].
+  R avail mask = int(avail[best_idx]) — or recompute: a = 0; for v in L vertices: a |= adjR_local_of_v... avail = fullR ^ a. Either fine; reading avail[best_idx] is easiest.
+  Reconstruct R set via best[] lookups (pure Python, O(n2) steps):
+    M = avail_mask; R_local = []
+    while M:
+      v = (M & -M).bit_length() - 1
+      if best[M] != best[M ^ (1 << v)]:
+        R_local.append(v); M &= ~(adjR_local[v] | (1 << v))
+      else:
+        M ^= (1 << v)
+    Wait — need to double check: best[M] != best[M ^ 2^v] means best[M] = 1 + best[M & ~(adj|bit)] (since best[M] = max of the two options and it's not equal to the first, it must be the second and strictly greater). Then include v. ✓. But is it guaranteed best[M] > best[M^2^v] implies the second branch? best[M] = max(opt1, opt2) where opt1 = best[M^2^v]. If best[M] != opt1 then best[M] = opt2 > opt1. ✓.
+    
+    Hmm, but actually there's a subtle correctness point: is it true that best[M] as computed by the DP equals the true max independent subset size? Yes by induction. And reconstruction: if best[M] == best[M ^ 2^v], there's an optimal independent subset of M not containing v (size best[M^2^v] = best[M]), so exclude v. ✓.
+
+  Total vertices = L vertices (global 0..n1-1) + R vertices (global n1 + local). Size should equal best_val. Take first k, sort, print 1-indexed.
+
+Let me double check with Example 1:
+n=4, m=4, k=3. Edges: (1,2),(1,3),(2,3),(3,4) → 0-indexed: (0,1),(0,2),(1,2),(2,3).
+n1 = 2 (vertices 0,1), n2 = 2 (vertices 2,3 → local 0,1).
+adjL: vertex 0: neighbors in L: {1} → mask 0b10 = 2. Vertex 1: {0} → mask 1.
+adjR (local): vertex 0 (global 2): neighbors in R: {global 3} → local 1 → mask 2. Vertex 1 (global 3): {global 2} → local 0 → mask 1.
+Cross: adjR_of_L[0] (global 0's neighbors in R): global 2 → local 0 → mask 1. adjR_of_L[1] (global 1): none in R? Global 1's neighbors: 0, 2. In R: global 2 → local 0 → mask 1.
+
+best[] over R (n2=2): fullR = 3.
+best[0] = 0.
+v=1: masks with lowest bit 1: m=2 (binary 10), t=0. best[2] = max(best[0], 1 + best[0 & ~adjRv]) where adjR[1] = 1 (local vertex 1's neighbors: local 0). 0 & ~1 = 0. best[2] = max(0, 1+0) = 1.
+v=0: masks with lowest bit 0: m=1 (t=0), m=3 (t=2).
+  m=1: t=0: best[1] = max(best[0], 1 + best[0 & ~adjR[0]]) ; adjR[0] = 2 (local 0's neighbor: local 1). 0 & ~2 = 0. best[1] = max(0, 1) = 1.
+  m=3: t=2: best[3] = max(best[2], 1 + best[2 & ~adjR[0]]) = max(1, 1 + best[2 & ~2]) = max(1, 1 + best[0]) = max(1, 1) = 1.
+So best = [0, 1, 1, 1]. MIS(R) = 1 (edge between the two R vertices). ✓.
+
+L side (n1=2): masks 0..3.
+NR: NR[0]=0. v=1: NR[2] = NR[0] | adjR_of_L[1] = 0 | 1 = 1. v=0: NR[1] = NR[0] | adjR_of_L[0] = 1. NR[3] = NR[2] | 1 = 1.
+isInd: isInd[0]=T. v=1: isInd[2] = isInd[0] & (s & aLv == 0) with s=0 → T. v=0: isInd[1] = isInd[0] & cond(s=0) = T. isInd[3] = isInd[2] & (s=1 & aLv == 0)? aLv = adjL[0] >> 1 = 2 >> 1 = 1. s=1: 1 & 1 = 1 ≠ 0 → F. So isInd[3] = F. ✓ ({0,1} is an edge).
+pc: [0,1,1,2].
+avail = 3 ^ NR = [3, 2, 2, 2].
+val = pc + best[avail] = [0+best[3], 1+best[2], 1+best[2], 2+best[2]] = [1, 2, 2, 3]. Mask non-independent: val[3] = -1 (255). So val = [1, 2, 2, 255]. Max = 2 < k=3 → NO. ✓.
+
+Example 2: n=5, m=2, k=3. Edges (0,1), (2,3). n1 = 2 (vertices 0,1), n2 = 3 (vertices 2,3,4 → local 0,1,2).
+R has edge between local 0 and 1 (global 2-3). best over R: fullR = 7.
+MIS(R) = 2 (locals 0,2 or 1,2).
+L: edge 0-1. Independent sets in L: {}, {0}, {1}. 
+- {} : avail = 7, best[7] = 2 → total 2.
+- {0}: NR = neighbors of 0 in R = none → avail 7 → 1 + 2 = 3.
+- {1}: same → 3.
+Max = 3 ≥ 3 → YES. Reconstruct: say L mask = 1 (vertex 0), avail = 7, reconstruct R set of size 2 from best[]: M=7: v=0: best[7] vs best[6]: best[6] = MIS({1,2} local) = 1 (edge 0-1... wait local 1 and 2: edge between local 0 and 1 only; {1,2} independent → best[6] = 2. Hmm let me recompute. adjR local: local 0 (global 2) ↔ local 1 (global 3). So adjR[0] = 2, adjR[1] = 1, adjR[2] = 0.
+best[7]: v=0: max(best[6], 1 + best[7 & ~2]) = max(best[6], 1 + best[5]). best[6]: lowest bit 1: max(best[4], 1 + best[4 & ~1]) = max(best[4], 1+best[4]) = best[4]+1. best[4]: lowest bit 2: max(best[0], 1 + best[0]) = 1. So best[6] = 2. best[5]: lowest bit 0: max(best[4], 1 + best[5 & ~2]) = max(1, 1 + best[1]) = max(1, 1+1) = 2. So best[7] = max(2, 3) = 3? Wait: 1 + best[5] = 3. Hmm, but MIS of R = {local 0, local 2} = {0, 2} size 2. Let me recheck best[5]: mask 5 = bits 0 and 2 = {local 0, local 2}: independent (no edge between 0 and 2) → best[5] should be 2. And best[7] = max(best[6], 1 + best[5 & ~adjR[0]]) = max(2, 1 + best[5 & ~2]) = max(2, 1 + best[5]) = max(2, 3) = 3?? That's wrong — MIS of {0,1,2} with edge 0-1 is {0,2} or {1,2}, size 2.
+
+Let me recheck the recurrence: best[M] with lowest bit v: include v → 1 + best[M \ ({v} ∪ N(v))]. M = 7, v = 0, N(0) = {1}. M \ ({0} ∪ {1}) = {2} = mask 4. So it should be 1 + best[4] = 1 + 1 = 2. But I computed M & ~(adjR[v] | 2^v) = 7 & ~(2 | 1) = 7 & ~3 = 4. ✓ — I made an arithmetic error above: "best[5 & ~2]" — no wait. Let me redo: rest = M & ~(adjRv | bit) = 7 & ~(2|1) = 4. I earlier wrote best[7 & ~2] which was wrong (forgot to remove v's own bit). With rest = 4: best[7] = max(best[6], 1 + best[4]) = max(2, 2) = 2. ✓. Good — in the grouped formulation: rest = t & ~adjRv where t = M ^ 2^v = 6, adjRv = 2: 6 & ~2 = 4. ✓ (t's bit v is 0 anyway since v is lowest bit... wait t = M ^ 2^v has bit v = 0 ✓, and t & ~adjRv removes neighbors). ✓. Good, my formula rest = t & ~adjRv is correct because t doesn't contain v.
+
+OK so best[7] = 2, and val for L mask {0} = 1 + 2 = 3. Reconstruct: L = {0} (global 0), avail = 7: M=7, v=0: best[7]=2, best[6]=2 → equal → exclude 0. M=6: v=1: best[6]=2, best[4]=1 → not equal → include local 1 (global 3), M = 6 & ~(adjR[1] | 2) = 6 & ~(1|2) = 6 & ~3 = 4. M=4: v=2: best[4]=1, best[0]=0 → include local 2 (global 4), M = 4 & ~(0|4) = 0. R set = {local 1, local 2} = {global 3, 4}. Total = {0, 3, 4} → 1-indexed {1, 4, 5}. Check: edges (1,2),(3,4) 1-indexed → (0,1),(2,3). Set {0,3,4}: contains edge (3,4)? 0-indexed edge (2,3) → vertices 2 and 3. Our set has 3 and 4, not 2 and 3. ✓ independent. Output "1 4 5" — different from sample "1 3 5" but any valid answer accepted. ✓.
+
+Example 3: n=3, m=3, k=1. Triangle. n1=1, n2=2. L = {0}, R = {1,2} local {0,1} with edge between them. best: [0,1,1,1]. L masks: 0: val = 0 + best[3] = 1. 1: isInd[1] = T (single vertex), NR[1] = adj of global 0 in R = both locals (edges 0-1, 0-2) → mask 3. avail = 0. val = 1 + best[0] = 1. Max = 1 ≥ 1 → YES. Reconstruct e.g. L mask 1 → vertex 0 → output "1". ✓.
+
+Now, performance considerations in detail:
+
+n2 = 23 → 2^23 = 8,388,608. The best[] DP loop runs 23 iterations; iteration v processes 2^{n2-1-v} elements. Total elements = 2^23 - 1 ≈ 8.4M. Each element involves: creating arange (s_arr), computing b_idx = (s_arr & ~av) << (v+1) (two ops), fancy gather best[b_idx] (this is the expensive one — random-ish access pattern, but actually the indices are structured: (s & ~av) << (v+1) — for s in order, indices jump around within [0, 2^{v+1} * 2^U) = [0, 2^{n2})... it's a gather of 2^U elements), A slice read, maximum, add 1, strided write. Roughly 5-6 array operations per iteration over shrinking arrays. Total ~8.4M * 6 element-ops ≈ 50M element operations in numpy → well under a second... but fancy indexing with uint32 indices on large arrays can be slower, maybe 50-100M elements/sec → fine.
+
+Hmm wait, actually, one concern: for small v (like v=0), U = 22, s_arr has 4M elements, b_idx computation and gather of 4M elements — fine.
+
+L side similar: NR DP (23 iterations, total 8.4M elements, cheap ops), isInd DP (similar), pc DP (similar), then final combination: avail = fullR ^ NR (8.4M), best[avail] gather (8.4M), pc + that (8.4M), np.where (8.4M), argmax (8.4M). All fine.
+
+Memory: 
+- best: uint8 2^23 = 8.4MB.
+- NR: uint32 2^23 = 33.5MB.
+- isInd: bool 2^23 = 8.4MB.
+- pc: uint8 2^23 = 8.4MB.
+- avail: uint32 2^23 = 33.5MB (can overwrite NR in place: NR ^= fullR → avail in place! Since avail = fullR ^ NR. ✓ saves memory).
+- best[avail]: uint8 2^23 = 8.4MB temp.
+- val: computed as pc + best[avail] → uint8 8.4MB.
+- np.where(isInd, val, 255): another 8.4MB (or do in-place: val[~isInd] = 255 — ~isInd is a temp bool 8.4MB; or val += isInd*... hmm; simplest: val = np.where(...). Or: since non-independent masks — alternative: we can avoid np.where by using the trick: val[isInd == 0] = 255. Boolean mask indexing creates temp. Fine either way.)
+
+Peak: best (8.4) + NR/avail (33.5) + isInd (8.4) + pc (8.4) + gather temp (8.4) + val (8.4) ≈ 70MB. Plus temporaries during ops (a few more 8-33MB temps). Well within 256MB. 
+
+Actually wait, I realize we could also free isInd after masking. And pc can be freed after val computed. Fine.
+
+Also, s_arr arange per iteration: max size 2^22 * 4 bytes = 16.8MB temp for v=0. Fine.
+
+Hmm, one more thought: can we reduce n1/n2 imbalance? n=46 → 23/23. Both sides 2^23. Total ~16.8M array elements across both sides. OK.
+
+Alternatively, we could consider making the split uneven to reduce memory: e.g., n1=20, n2=26 → 2^26 = 67M for best[] — worse. 23/23 is optimal for memory balance. ✓.
+
+Now, is numpy guaranteed available? The problem says Python 3. Typically competitive programming judges have numpy for Python. Hmm, but not always. This is a risk. Let me think whether a pure-Python solution could pass within 5s.
+
+Pure Python: 2^23 iterations for best[] DP with list — each iteration: a few operations. CPython does maybe 10-30M simple ops/sec... 8.4M iterations × ~5-10 ops = 40-80M ops → 5-15 seconds. Too risky. Plus L side similar. Total maybe 20-40s. Too slow.
+
+Alternative pure-Python approach: branch and bound for MIS with n=46. Worst case could be exponential but with good pruning (like max-clique algorithms: MCS/MCR, or the "greedy + coloring bound" approach used in Cliquer), n=46 dense graphs are usually solvable quickly. But adversarial cases (this problem seems designed for MITM given n ≤ 46 and 5s limit) could kill B&B. Hmm.
+
+Actually, wait. Let me reconsider. n ≤ 46 and time limit 5 s (generous). The intended solution is likely meet-in-the-middle O(2^{n/2} · poly). In C++ that's trivial. In Python, we need numpy or very optimized bit tricks.
+
+Hmm, but actually, let me reconsider the problem size: maybe there's additional structure. "no pair appears more than once" — just says simple graph. k from 1 to n. No other structure. So it's exact MIS decision.
+
+Let me think about whether we can be smarter about the L-side enumeration to reduce work: we need max over independent S in L of |S| + best[avail(S)]. 
+
+Alternative: iterate over independent sets of L only (not all masks). Number of independent sets in L could be much less than 2^{n1} for dense graphs, but 2^{n1} for sparse. The vectorized full-mask approach has fixed cost 2^{n1} regardless — predictable. I'll go with it.
+
+Another alternative for the L side: swap the roles — compute for the L side a function and combine differently... The standard alternative: 
+
+answer = max over masks X ⊆ R of [ best[X] + h(X) ] where h(X) = max over independent S in L with N_R(S) ∩ X = ∅... no wait: we need S' ⊆ R \ N(S) and S ⊆ L \ N(S'). Hmm: answer = max over independent S' in R of |S'| + g(N_R(S') ) where g(T) = max independent set in L avoiding... no: S must avoid N_L(S')? S ⊆ L, S independent, and S ∩ N_L(S') = ∅. So g(T) = max independent subset of (L \ T) = bestL[fullL \ T]. So answer = max over independent S' in R of |S'| + bestL[fullL \ N_L(S')]. Symmetric — same structure. No help.
+
+OK here's another thought to halve memory/time: note that in the L-side val computation, we do a gather best[avail] over 2^{n1} masks. Fine.
+
+Let me now also think: do we even need the isInd check via DP? Alternative: compute val for all masks but for non-independent masks the value pc + best[avail] might overcount... yes we need isInd. Alternatively, we can compute "max independent subset" style DP for L too... but the issue remains that val depends on the actual set S (its neighborhood), not just best size. Hmm, wait — actually here's a thought: define for each mask M ⊆ L: W[M] = max over independent S ⊆ M of (|S| + best[fullR \ N_R(S)]). Recurrence with lowest bit v: W[M] = max(W[M ^ 2^v], 1 + ???). The second term: S contains v: S \ {v} ⊆ M \ ({v} ∪ N_L(v)), and value = 1 + (max over independent S'' ⊆ M \ ({v} ∪ N_L(v)) of |S''| + best[fullR \ (N_R(v) ∪ N_R(S''))]). The inner term is NOT W[M \ ({v} ∪ N_L(v))] because the neighborhood accumulates N_R(v). So we'd need W indexed also by accumulated R-neighborhood — too big. So no; the isInd-mask approach is the way (enumerate independent sets explicitly as masks).
+
+Hmm, wait, actually there IS a classic trick: since best[] is monotone (X ⊆ Y ⟹ best[X] ≤ best[Y]), we have: max over independent S ⊆ M of |S| + best[fullR \ N(S)]... For a fixed M, is the max achieved by... no, still depends on S.
+
+OK so the plan stands: enumerate all 2^{n1} masks of L, filter independent ones, compute val, argmax.
+
+Actually hold on, I realize there might be an issue with using uint8 for best[] when n2 = 23: values 0..23 fit. ✓. And val uint8: 0..46, sentinel 255. ✓.
+
+Let me also handle small n where n1 or n2 = 0:
+- n = 1: n1 = 0, n2 = 1. L masks: just [0] (array size 1). NR = [0], isInd = [True], pc = [0], avail = fullR ^ NR = [1 ^ 0] = [1], val = [0 + best[1]] = [1] (best[1] = 1, single vertex). k=1 → YES, vertex 1. ✓. The loops for L (v in range(-1, -1, -1)) don't execute; arrays initialized: NR = np.zeros(1, uint32), isInd = np.ones(1, bool), pc = np.zeros(1, uint8). ✓.
+- n = 2: n1 = 1, n2 = 1. Fine.
+
+Edge: m = 0 → no edges; adj all 0. best[M] = popcount(M) effectively. val max = n. ✓.
+
+Now let me also think about reading input: first line n, m, k; then m lines of pairs. Use sys.stdin.buffer.read().split().
+
+Output: if NO → "NO". If YES → "YES\n" + " ".join of k numbers.
+
+Let me now also double check the best[] vectorized DP once more with a concrete small example, say n2 = 3, edges: local 0-1 (adjR[0] = 0b010 = 2, adjR[1] = 0b001 = 1, adjR[2] = 0).
+
+fullR = 7. best array size 8, best[0] = 0.
+
+v = 2 (U = 0): s_arr = [0]. Masks: m = 4. A = best[::8] = [best[0]] = [0]. av = adjR[2] >> 3 = 0. b_idx = (0 & ~0) << 3 = [0]. B = [0]. best[4::8] = max(0, 1) = 1. → best[4] = 1. ✓ ({2}).
+
+v = 1 (U = 1): s_arr = [0, 1]. Masks: m = 2 + s*4 → m = 2, 6. A = best[::4] = [best[0], best[4]] = [0, 1]. av = adjR[1] >> 2 = 1 >> 2 = 0. b_idx = (s & ~0) << 2 = [0, 4]. B = [best[0], best[4]] = [0, 1]. best[2::4] = max(A, B+1) = [max(0,1), max(1,2)] = [1, 2]. → best[2] = 1 ✓ ({1}), best[6] = 2 ✓ ({1,2}).
+
+v = 0 (U = 2): s_arr = [0,1,2,3]. Masks: m = 1 + s*2 → 1, 3, 5, 7. A = best[::2] = [best[0], best[2], best[4], best[6]] = [0, 1, 1, 2]. av = adjR[0] >> 1 = 2 >> 1 = 1. b_idx = (s & ~1) << 1 = [0, 0, 2, 2]... wait: s & ~1: s=0→0, s=1→0, s=2→2, s=3→2. << 1: [0, 0, 4, 4]. B = [best[0], best[0], best[4], best[4]] = [0, 0, 1, 1]. best[1::2] = max(A, B+1) = [max(0,1), max(1,1), max(1,2), max(2,2)] = [1, 1, 2, 2]. → best[1] = 1 ✓, best[3] = 1 ✓ ({0,2}? mask 3 = {0,1} — edge 0-1 → MIS 1 ✓), best[5] = 2 ✓ ({0,2}), best[7] = 2 ✓.
+
+The DP works.
+
+Now the NR DP check with small example: n1 = 2, adjR_of_L[0] = 5 (say), adjR_of_L[1] = 2. NR size 4. NR[0] = 0.
+v=1: NR[2::4] = NR[::4] | 2 → NR[2] = 0|2 = 2.
+v=0: NR[1::2] = NR[::2] | 5 → NR[1] = NR[0]|5 = 5, NR[3] = NR[2]|5 = 7. ✓ (mask 3 = {0,1}: 5|2 = 7 ✓).
+
+isInd check: adjL[0] = 2 (neighbor 1), adjL[1] = 1. isInd[0] = True.
+v=1: aLv = adjL[1] >> 2 = 0. cond = (s & 0) == 0 = True for s=0. isInd[2] = isInd[0] & True = True.
+v=0: aLv = adjL[0] >> 1 = 1. s_arr = [0, 1]. cond = [True, False]. isInd[1::2] = isInd[::2] & cond → isInd[1] = True & True = True, isInd[3] = isInd[2] & False = False. ✓.
+
+pc: v=1: pc[2] = pc[0]+1 = 1. v=0: pc[1] = pc[0]+1 = 1, pc[3] = pc[2]+1 = 2. ✓.
+
+All good. Now let me write the code.
+
+```python
+import sys
+import numpy as np
+
+def main():
+    data = sys.stdin.buffer.read().split()
+    n = int(data[0]); m = int(data[1]); k = int(data[2])
+    # adjacency bitmasks (global 0-indexed)
+    adj = [0] * n
+    idx = 3
+    for _ in range(m):
+        u = int(data[idx]) - 1; v = int(data[idx+1]) - 1; idx += 2
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+    
+    n1 = n // 2
+    n2 = n - n1
+    fullR = (1 << n2) - 1
+    fullL = (1 << n1) - 1
+    
+    # local adjacency for R
+    adjR = [0] * n2   # adjR[j] = mask over R-local of neighbors of global vertex n1+j within R
+    for j in range(n2):
+        g = n1 + j
+        adjR[j] = adj[g] >> n1   # neighbors in R: global bits n1..n-1 → shift; but adj[g] may include L bits — shifting right by n1 drops them. ✓
+    # local adjacency for L
+    adjL = [0] * n1
+    for i in range(n1):
+        adjL[i] = adj[i] & fullL
+    # cross adjacency: for L vertex i, mask over R-local of neighbors in R
+    crossR = [0] * n1
+    for i in range(n1):
+        crossR[i] = adj[i] >> n1
+    
+    # ---- best[] over R ----
+    sizeR = 1 << n2
+    best = np.zeros(sizeR, dtype=np.uint8)
+    for v in range(n2 - 1, -1, -1):
+        U = n2 - 1 - v
+        cnt = 1 << U
+        step = 1 << (v + 1)
+        s_arr = np.arange(cnt, dtype=np.uint32)
+        av = adjR[v] >> (v + 1)
+        b_idx = (s_arr & np.uint32(~av & 0xFFFFFFFF)) << np.uint32(v + 1)
+        # hmm, careful with numpy uint32 bitwise not and shifts
+        B = best[b_idx]
+        A = best[::step]
+        best[(1 << v)::step] = np.maximum(A, B + np.uint8(1))
+    ...
+```
+
+Wait, careful with numpy bitwise operations on uint32: ~av where av is a Python int — s_arr & ~av: numpy will handle Python int operand; ~av for Python int av ≥ 0 is negative (two's complement infinite), and numpy will convert... s_arr & ~av with s_arr uint32 and ~av a negative Python int: numpy converts the int to... it might raise an error or wrap. Safer: mask_inv = (~adjR[v]) & fullR_shifted... Let me define: av = adjR[v] >> (v+1); av_bits = (1 << U) - 1 (bits available for s). inv = (~av) & av_bits. Then b_idx = (s_arr & inv) << (v+1). Since s < 2^U, s & inv is fine with inv as a non-negative Python int. numpy: s_arr & inv where inv is Python int ≥ 0 → OK, result uint32. Then << (v+1): shifting uint32 array by Python int → OK. But watch overflow: (s & inv) << (v+1) ≤ (2^U - 1) << (v+1) < 2^{n2} ≤ 2^23 < 2^32. ✓.
+
+Hmm, but wait: b_idx values as uint32 used to index best (size 2^23) — numpy fancy indexing with uint32 index array: works (indices are cast to intp internally; on 64-bit platforms fine).
+
+Also `B + np.uint8(1)`: B is uint8 array; B+1 → uint8 (values ≤ 24, no overflow). np.maximum(A, B+1) → uint8. Assign to strided slice. ✓.
+
+But hold on — there's a subtle issue with `A = best[::step]` and then assigning to `best[(1<<v)::step]`: A is a view into best. np.maximum(A, B+1) creates a new array (reads A). Then assignment writes to disjoint slice. Safe. ✓.
+
+Another subtlety: when v = n2-1, U = 0, cnt = 1, s_arr = [0], step = 2^{n2} = sizeR. best[::sizeR] = [best[0]] (length 1). best[sizeR-... wait, 1 << v = 2^{n2-1}; slice best[2^{n2-1}::2^{n2}] = [best[2^{n2-1}]] length 1. ✓.
+
+Edge case n2 = 0: can that happen? n ≥ 1; n1 = n//2; n2 = n - n1. n=1 → n1=0, n2=1. n2 = 0 only if n = 0 — not possible. ✓. n1 = 0 possible (n=1). Then L arrays size 1; loops range(-1,-1,-1) empty. ✓.
+
+Now L side:
+
+```python
+    sizeL = 1 << n1
+    NR = np.zeros(sizeL, dtype=np.uint32)
+    isInd = np.ones(sizeL, dtype=bool)
+    pc = np.zeros(sizeL, dtype=np.uint8)
+    for v in range(n1 - 1, -1, -1):
+        U = n1 - 1 - v
+        cnt = 1 << U
+        step = 1 << (v + 1)
+        base = 1 << v
+        # NR
+        NR[base::step] = NR[::step] | np.uint32(crossR[v])
+        # isInd
+        s_arr = np.arange(cnt, dtype=np.uint32)
+        aLv = adjL[v] >> (v + 1)
+        cond = (s_arr & aLv) == 0
+        isInd[base::step] = isInd[::step] & cond
+        # pc
+        pc[base::step] = pc[::step] + np.uint8(1)
+```
+
+Wait — NR[base::step] = NR[::step] | crossR[v]: RHS reads NR[::step] (view) and creates new array via |, then writes to disjoint slice. Safe. ✓.
+
+Hmm, but wait: is `NR[::step] | np.uint32(crossR[v])` OK when crossR[v] ≥ 2^32? No, crossR[v] < 2^23. ✓. Actually numpy might complain about mixing uint32 array with Python int in bitwise or — using np.uint32(crossR[v]) is safe. Actually in newer numpy versions (NEP 50), array | python_int works fine if int fits. I'll cast explicitly to be safe.
+
+Then:
+
+```python
+    avail = NR ^ np.uint32(fullR)   # in-place alternative: NR ^= fullR
+    # Actually: NR ^= np.uint32(fullR) modifies NR in place → avail. But we might want NR later? No — reconstruction uses avail[best_idx] and L mask. So in-place fine.
+    NR ^= np.uint32(fullR)
+    avail = NR  # rename
+    vals = pc + best[avail]   # uint8 + uint8 → uint8; max 46 OK
+    vals[~isInd] = 255  # or np.where
+    best_pos = int(np.argmax(vals))
+    best_val = int(vals[best_pos])
+```
+
+Hmm, `vals[~isInd] = 255`: ~isInd creates temp bool array (8.4MB) — fine. Or `vals[isInd == False] = 255`. Or better: `vals += isInd` no... Let me think: alternative without temp: np.putmask or np.copyto: np.copyto(vals, 255, where=~isInd) — still creates ~isInd. Or: vals = np.where(isInd, vals, 255). Any is fine memory-wise.
+
+Wait, actually there's a subtle issue: `best[avail]` — avail is uint32 array of size 2^{n1}; fancy indexing best with it: creates uint8 array size 2^{n1}. ✓. `pc + best[avail]`: uint8 + uint8 = uint8, values ≤ 46. ✓.
+
+But hold on: is it true that for non-independent masks we must exclude? Yes. But also note: for independent masks, val = |S| + best[avail(S)] which is a valid independent set size in G (achievable). And the true MIS is achieved by some independent S. So max over independent masks = MIS(G). ✓.
+
+Then:
+
+```python
+    if best_val < k:
+        print("NO")
+        return
+    # reconstruct
+    Lmask = best_pos
+    avail_mask = int(avail[best_pos])
+    # R reconstruction
+    chosen = []
+    M = avail_mask
+    bl = best  # numpy array; indexing with Python int returns np.uint8 → int()
+    while M:
+        lb = M & (-M)
+        v = lb.bit_length() - 1
+        if int(best[M]) != int(best[M ^ lb]):
+            chosen.append(n1 + v)
+            M &= ~(adjR[v] | lb)
+        else:
+            M ^= lb
+    # L vertices
+    for i in range(n1):
+        if (Lmask >> i) & 1:
+            chosen.append(i)
+    # chosen has size best_val ≥ k
+    chosen = chosen[:k]
+    chosen.sort()
+    sys.stdout.write("YES\n" + " ".join(str(c+1) for c in chosen) + "\n")
+```
+
+Wait — `int(best[M])`: best is a numpy uint8 array; best[M] with Python int M returns numpy scalar; int() converts. ✓. But careful: M can be up to 2^23 - 1 — fine.
+
+Hmm, wait: there's a potential issue with the reconstruction loop: `if best[M] != best[M ^ lb]` — include v branch: we set M &= ~(adjR[v] | lb). But is it guaranteed that after including v, best[M_new] = best[M] - 1? By the DP: best[M] = max(best[M^lb], 1 + best[M & ~(adjR[v]|lb)]). If best[M] != best[M^lb], then best[M] = 1 + best[M & ~(adjR[v]|lb)] (and it's > best[M^lb]). So yes, the loop accumulates exactly best[avail_mask] vertices. ✓.
+
+Also need to double check: the total count = pc[Lmask] + best[avail_mask] = best_val. And chosen (before trimming) has exactly best_val elements: L part has popcount(Lmask) = pc[Lmask] ✓ (pc DP computes popcount ✓), R part has best[avail_mask] ✓.
+
+Trimming to k: any k of them. ✓ (subset of independent set is independent).
+
+Now let me reconsider performance more carefully, especially numpy operations count:
+
+best[] DP: 23 iterations. Iteration v: arrays of size 2^{n2-1-v}. Operations per iteration: arange (cheap-ish), s_arr & inv (1 op), << shift (1 op), gather best[b_idx] (1 gather), slice read A (view, free), B+1 (1), maximum (1), strided write (1). So ~6 passes over 2^U elements. Sum over v: 6 * (2^23 - 1) ≈ 50M element-ops. numpy does these at maybe 100-500M elements/sec for simple ops; gathers slower (~50-150M/sec). Total maybe 0.3-1.0s. OK.
+
+L side: 3 DPs (NR, isInd, pc), each ~3-4 passes: NR: read slice | const, write: ~2 passes × 8.4M = 17M; isInd: arange, &, ==, &, write: ~4 passes = 34M; pc: +1, write: 2 passes = 17M. Then final: XOR (8.4M), gather best[avail] (8.4M), add (8.4M), mask (8.4M), argmax (8.4M). Total maybe another 0.3-0.8s.
+
+Overall estimate: 1-2 seconds. Within 5s. 
+
+But wait — I should double-check the arange creation cost: np.arange(2^22) for v=0 iteration — 4M elements, fast (~10ms). Sum fine.
+
+One more potential performance concern: strided slice assignment best[base::step] = ... with step 2 for v=0 — strided writes are slower than contiguous but still vectorized. Fine.
+
+Hmm, also: for v=0 in best DP: step = 2, base = 1: best[1::2] = np.maximum(best[::2], B+1) where B = best[b_idx], b_idx = (s & inv) << 1, s in [0, 2^{n2-1}). The gather: indices (s & inv) << 1 — these are even indices in [0, 2^{n2}). Gather of 4M elements. Fine.
+
+Now, what about the case where numpy is NOT available? Should I write a fallback? The problem says "Python 3"; most judges (Codeforces, etc.) have numpy. Given the problem structure (this looks like a Codeforces-style problem), numpy should be available. But to be safe, maybe I should write a solution that works without numpy too, using pure Python with bit tricks, and choose based on availability? That complicates things. Alternatively, write pure Python optimized enough?
+
+Let me estimate pure Python more carefully. The best[] DP in pure Python:
+
+```python
+best = bytearray(1 << n2)
+for v in reversed(range(n2)):
+    av = ~adjR[v]
+    base = 1 << v
+    step = 1 << (v+1)
+    ...
+```
+
+Pure Python loop over 8.4M masks with per-mask work ~5 ops: ~8.4M × 5 = 42M bytecode ops → CPython ~30-60M simple ops/sec... more like 20-40M ops/sec for mixed ops → 1-2s per... hmm, actually a loop like:
+
+```python
+for m in range(1, size):
+    lb = m & -m
+    best[m] = max(best[m ^ lb], best[m & not_adj[...]] + 1)
+```
+
+Each iteration: ~8-12 bytecodes plus list indexing... realistically 8.4M iterations × ~0.3-0.5 µs = 3-5 seconds just for best[]. Then L side: NR, isInd, pc, val: another 8.4M × 4 loops... 10-20s total. Too slow for pure Python.
+
+Could restructure pure Python to avoid per-mask loops using... hmm, big-integer bit tricks? There's a classic trick to do DP over subsets using Python big ints as vectors? Not straightforward for this max-DP with gathers.
+
+Alternative pure-Python approach: meet-in-the-middle with dictionary/list but smarter: enumerate independent sets of L via recursion in a compiled-ish way... still 8.4M sets worst case.
+
+I think numpy is the way. Most likely the judge has numpy. Also, the problem gives 5s which suggests they anticipate slower languages needing optimization.
+
+Hmm, actually, wait. Let me reconsider — maybe there's a smarter algorithm exploiting the "exactly k" nature... No, MIS decision is NP-hard; n=46 MITM is the intended approach.
+
+Alternatively, branch-and-bound with bitmasks (like a simple MIS B&B with coloring bound) in pure Python might actually be fast in practice for most inputs, but worst-case adversarial (e.g., crafted instances where B&B explores exponentially) would TLE. Given this is a constructed problem (n ≤ 46, 5s), MITM is intended. I'll go with numpy MITM. Maybe I'll add a pure-Python fallback if numpy import fails? That fallback would be the same algorithm in pure Python (slow but correct) — better than crashing. Actually, if numpy is missing, pure Python might TLE anyway, but let's include it as a fallback for robustness. Hmm, but that doubles code complexity. Let me think...
+
+Actually, you know what — let me write the solution so that the core DPs are done with numpy if available, else pure Python loops (with the same logic). The pure Python version: I can optimize by processing masks grouped by lowest bit with slice operations on bytearrays? Hmm, interesting: the best[] DP grouped by lowest bit: for fixed v, best[base + s*step] = max(best[s*step], 1 + best[(s & inv) << (v+1)]). In pure Python, still per-element.
+
+Alternatively pure Python fallback: use recursion to enumerate independent sets of the smaller side and best[] via... no.
+
+Let me just consider: is it plausible the judge lacks numpy? The problem statement says "Python 3". On Codeforces, numpy is available. On most OJs, yes. I'll primarily use numpy, with a pure-Python fallback path (same algorithm, loops) — if numpy is unavailable, at least it's correct, possibly slow. Actually, let me make the fallback reasonably optimized pure Python; for small n it'd be fine, for n=46 it might take 20-60s... Risky either way. I'll include it anyway as a safety net.
+
+Hmm, actually, let me think about whether I can make a pure-Python solution that's fast enough with clever tricks, to not depend on numpy at all. 
+
+Idea: use Python's big integers to simulate bit-parallel operations across all masks simultaneously? The DP best[m] = max(best[m^lb], 1 + best[m & ~adj]) is a per-mask scalar DP — hard to bit-parallelize because values are multi-bit and the operation is max, not boolean.
+
+But wait — here's a thought: we don't need best[] for ALL masks if we instead enumerate independent sets of R and use a different combination method... The standard alternative MITM formulation:
+
+Sort/list all independent sets of R grouped by... hmm, the classic approach for counting: for each independent set S in L, we need max |S'| over independent S' in R with S' ∩ N(S) = ∅. If we enumerate independent sets of R (up to 2^{23}), and for each compute... we'd need, for each subset T of R (blocked), the max |S'| with N(S') ⊆ T... Define for each independent S' in R: key = N_R(S') (as mask), value = |S'|. Then for query S (independent in L): we need max |S'| over S' with N(S') ∩ N(S) = ∅, i.e., N(S') ⊆ fullR \ N(S). Define G[X] = max |S'| with N(S') ⊆ X — computable via SOS DP over 2^{n2} masks: G[X] = max(G[X without some bit], ...) — SOS max-convolution: G[X] = max over subsets... G is defined on 2^{n2} masks with DP G[X] = max(g[X], G[X ^ lb]) where g[X] = max |S'| with N(S') == X exactly (or -inf). SOS: for each bit i: for X with bit i: G[X] = max(G[X], G[X ^ 2^i]). That's n2 passes over 2^{n2} — 23 × 8.4M = 190M ops in pure Python — way too slow.
+
+So pure Python full-mask DPs are too slow regardless. The numpy path is essential for worst case. OK let me just commit to numpy with a pure-Python fallback (best effort).
+
+Actually, hmm, wait. Let me reconsider the problem constraints once more: n ≤ 46. But maybe test data isn't adversarial to B&B? Can't know. MITM is safe. Let me also consider: maybe implement MITM in pure Python but with the L-side enumeration restricted to independent sets via DFS, and R-side best[] computed lazily...? No — best[] needs full table for O(1) queries; computing per-query would be expensive.
+
+Alternatively: pure Python MITM where we enumerate independent sets of BOTH sides and use sorted-list + binary search combination? The classic technique: list all independent sets of R as (blocked_mask_in_R... hmm. Let me recall the standard O(2^{n/2}) MITM for MIS:
+
+For each independent set S in L, we need MIS(R \ N(S)). Precompute best[] table (requires full-mask DP). The full-mask DP is the bottleneck in pure Python.
+
+Alternative: enumerate independent sets of R, store in a list sorted by mask... For query "max independent subset of avail", we could sort independent sets of R by size descending, and for each query scan until finding one ⊆ avail — worst case bad.
+
+Another classic: for each independent set S_R of R, its "signature" is the complement... Hmm, the counting version uses zeta transforms. For the max version, the SOS DP is needed. 190M ops pure Python — no.
+
+OK, decision: numpy primary. Pure Python fallback (same algorithm; will be slow for n=46 but correct — and if numpy is missing, nothing better is available anyway... well, actually a B&B might handle many cases; but let me keep the fallback simple: same MITM in pure Python loops. For n ≤ ~40 it might pass; for 46 probably TLE but only in the no-numpy scenario).
+
+Hmm, actually, let me reconsider: maybe write the pure-Python fallback as branch-and-bound MIS instead? B&B with bitmask greedy coloring bound is quite effective in practice, and for random/typical tests n=46 is easy. But adversarial tests (which this problem likely has, being MITM-intended) could kill it. But the fallback only matters if numpy is absent... I'll go with the MITM pure-Python fallback since it's algorithmically sound (just slow in CPython). Actually — hmm, let me estimate the pure-Python MITM cost more carefully with optimizations:
+
+best[] DP pure Python, grouped by lowest bit, using lists and avoiding function call overhead:
+
+```python
+best = [0] * (1 << n2)
+for v in range(n2 - 1, -1, -1):
+    inv = ~adjR[v]  # python int, infinite two's complement — careful with & : (s & inv) works for s ≥ 0? s & ~adjR[v] where ~adjR[v] is negative → result is s with adjR bits cleared, non-negative. ✓ Python handles negative ints in & as two's complement with infinite bits. ✓
+    ...
+    for s in range(1 << U):
+        t = s << (v+1)
+        b = best[t & inv] + 1  # t & inv = (s & inv') << (v+1)? No wait: t & inv where inv = ~adjR[v]: t & ~adjR[v]. Hmm but t = s << (v+1); t & ~adjR[v] = (s & ~(adjR[v] >> (v+1))) << (v+1) only if we're careful about adjR bits below v+1 — t has no bits below v+1, so t & ~adjR[v] = t & ~(adjR[v] & highpart)... it's fine either way: t & ~adjR[v] directly.
+        a = best[t]
+        if b > a: b = a... 
+        best[t | (1 << v)] = a if a >= b else b
+```
+
+Per s: ~6-8 operations. Total 8.4M × 8 ≈ 67M ops → ~15-25s in CPython. Too slow but it's just a fallback.
+
+Alternatively, PyPy-style optimization isn't available. OK whatever — fallback is best-effort.
+
+Actually, hold on. Let me reconsider whether we can shrink the problem for pure Python: note k matters! If k is small, we don't need full MIS — we need to decide if independent set of size ≥ k exists. Hmm, but worst case k could be large. Also if k ≤ some threshold, greedy might find it quickly... Not reliable.
+
+Another thought: maybe use the complement graph and look for clique... same complexity.
+
+OK, let me also double check: is there any smarter exact algorithm for n=46 in Python without numpy? There's the "Robson" algorithm, complex. No.
+
+Final decision: numpy-based MITM, with pure-Python fallback (same algorithm) if numpy unavailable. Actually, let me simplify: I'll write the code with numpy, and wrap import in try/except; if unavailable, run pure-Python version of the same DPs. Let me make the pure-Python version as fast as possible (bytearray for best, local variable caching, etc.).
+
+Hmm, actually, thinking about it more — let me reconsider the pure python fallback performance with a smarter formulation. 
+
+For best[]: instead of grouped-by-lowest-bit, do the straightforward loop over all masks:
+
+```python
+best = bytearray(1 << n2)
+for m in range(1, 1 << n2):
+    lb = m & -m
+    best[m] = max(best[m ^ lb], best[m & ~adjR_of[lb_bit]]) ... 
+```
+
+Need adjR by bit: adjByBit[lb] = adjR[v]. Precompute list indexed by power of two? adjByBit = [0]*(1<<n2)? That's 8.4M-entry list — 67MB+ for Python ints... too much memory. Instead: v = lb.bit_length()-1, adjR[v] — bit_length is a fast method. Per m: lb = m & -m; v = lb.bit_length() - 1; a = best[m ^ lb]; b = best[m & nadj[v]] + 1; best[m] = a if a > b else b. That's ~10 ops → 8.4M × 10 = 84M ops ≈ 20-30s. Slow.
+
+Grouped version avoids bit_length per element:
+
+```python
+for v in range(n2-1, -1, -1):
+    nadj = ~adjR[v]
+    bit = 1 << v
+    step = bit << 1
+    for t in range(0, 1 << n2, step):
+        a = best[t]
+        b = best[t & nadj] + 1
+        best[t | bit] = a if a >= b else b
+```
+
+Per t: ~8 ops. Same total. ~20s. Meh.
+
+Could we do the L side cheaper in pure Python? NR, isInd, pc, val: 4 more DPs of similar cost → 60-80s total. Way too slow. 
+
+Alternative pure-Python strategy: swap which side gets the full best[] table vs enumeration? Both sides need 2^23 work. Hmm.
+
+What about using recursion to enumerate independent sets of L (only independent sets, not all masks) and for R... we still need best[] table (2^23 DP). Unless we enumerate independent sets of R too and combine via sorting/merge:
+
+MITM via enumeration of both sides: Let list_R = all independent sets of R as (mask_in_R, size). For query avail (subset of R), we need max size among independent sets ⊆ avail. If we sort list_R by size descending, then for each query we scan from the top until we find a set ⊆ avail — worst case O(|list_R|) per query, total O(2^{n1} × 2^{n2}) — no good.
+
+Better: build a "trie"/subset-max structure... The SOS DP is the standard; 190M ops.
+
+Hmm, what about: for each independent set S_L, the query avail = fullR \ N(S_L). Note many S_L share the same avail. Group L independent sets by avail mask: for each distinct avail value X, record max |S_L| among independent sets with that avail. Number of distinct avail values ≤ number of independent sets of L but could be much smaller... worst case still 2^23 distinct. Then for each distinct X with weight w, we need best[X]... still need best table or per-X computation.
+
+Alternatively flip: for each independent set S_R in R, define blocked_L = N_L(S_R) (mask over L). Then answer = max over S_R of |S_R| + maxInd(L \ blocked_L). If we enumerate independent sets of R (up to 2^23) and for each compute maxInd(L \ blocked) via a precomputed bestL[] table (2^{n1} DP) — same cost symmetric.
+
+OK pure Python is just slow; fallback will be best-effort. Given the 5s limit and that this is likely judged with numpy available, I'll go numpy.
+
+Hmm, actually — wait. Let me reconsider one more time whether there's a way to make the whole thing faster/lighter in numpy, and also double check correctness details.
+
+One more important detail: the problem says m can be 0, and pairs u≠v, no duplicates. Multi-edges impossible. Self-loops impossible. Good.
+
+Also note: k ≥ 1. If best_val ≥ k → YES. Note best_val ≥ 1 always (n ≥ 1, single vertex independent). If k > best_val → NO.
+
+Let me now also think about potential numpy version issues:
+- np.arange with dtype=np.uint32: fine.
+- Bitwise ops between uint32 arrays and Python ints: In older numpy (< NEP 50), `s_arr & inv` where inv is a Python int: value-based casting; inv < 2^23 fits in uint32 → OK. `<< (v+1)`: shifting uint32 array by Python int → in older numpy, the shift might upcast? `np.uint32 array << python int` — the int is a "weak" operand; result stays uint32 if int fits. Should be fine. To be extra safe, I could use np.left_shift(s_arr, v+1) — same semantics. Or convert everything to int64? Memory: int64 arrays of 8.4M = 67MB each — too much for several arrays. uint32 is right. Actually, hmm, for b_idx I could use int32 (values < 2^23) — indexing with int32 array works.
+
+Let me be careful: `(s_arr & inv) << np.uint32(v+1)`? Shifting uint32 by uint32 scalar — fine. Or just `<< (v+1)` with Python int — numpy handles it. I'll use Python ints but ensure dtypes stay uint32. Actually, potential issue: in some numpy versions, `uint32_array << python_int` where python_int doesn't fit uint32 → error; v+1 ≤ 23 fits. ✓. And `s_arr & inv`: inv ≤ 2^23-1 fits. ✓.
+
+- `best[b_idx]` where b_idx is uint32: numpy fancy indexing with unsigned ints — fine.
+- `np.maximum(A, B + 1)`: A is a strided view (uint8), B+1 uint8. ✓.
+- Assignment to strided slice `best[base::step] = ...`: the RHS length must equal slice length: len = 2^U. A = best[::step] has length ceil(sizeR / step) = ceil(2^{n2} / 2^{v+1}) = 2^{n2-v-1} = 2^U ✓. B has length 2^U ✓.
+
+Wait, careful: best[::step] with step = 2^{v+1}: indices 0, step, 2*step, ..., last index ≤ sizeR-1. Count = ceil(sizeR/step) = 2^{n2-v-1} = 2^U ✓. And best[base::step]: indices base, base+step, ...: count = ceil((sizeR - base)/step) = ceil((2^{n2} - 2^v)/2^{v+1}) = 2^{n2-v-1} - 1/2 → ceil = 2^{n2-v-1} = 2^U ✓. 
+
+- For the L side similarly.
+
+- `NR[base::step] = NR[::step] | np.uint32(crossR[v])`: RHS is a new array (binary op), length 2^U; LHS slice length 2^U ✓.
+
+- `isInd[base::step] = isInd[::step] & cond`: cond is bool array length 2^U ✓.
+
+- `pc[base::step] = pc[::step] + np.uint8(1)`: pc[::step] is uint8 view; +1 → new uint8 array ✓.
+
+Hmm wait, one concern: `pc[::step] + np.uint8(1)` — in NEP 50 numpy (2.0+), uint8 + uint8 scalar = uint8 ✓. In older, value-based: 1 fits uint8 → uint8 ✓.
+
+- Final: `avail_arr = NR ^ np.uint32(fullR)` — or in-place `NR ^= np.uint32(fullR)`. In-place avoids extra 33MB. ✓.
+
+- `vals = pc + best[avail_arr]`: best[avail_arr] — fancy indexing with uint32 array of size 2^{n1} → uint8 array. pc (uint8) + that → uint8. Max value: pc ≤ 23, best ≤ 23 → 46 ✓ no overflow.
+
+- Masking: `vals[~isInd] = 255` — hmm, ~isInd on bool array gives elementwise not ✓. Or `np.copyto(vals, 255, where=~isInd)`. Or `vals = np.where(isInd, vals, 255)`. I'll use np.where for clarity... actually in-place with boolean mask is fine: `vals[~isInd] = np.uint8(255)`.
+
+Hmm wait, actually there's a subtle issue: what if k... no wait, vals max = MIS size; sentinel 255 > any real value (≤ 46) so argmax picks a real independent mask as long as at least one exists — mask 0 always independent with val = best[fullR] ≥ 0. ✓.
+
+- argmax over 8.4M uint8: fast.
+
+Now reconstruction: as described.
+
+Let me also double-check the crossR computation: crossR[i] = neighbors of L vertex i within R, as R-local mask = adj[i] >> n1. adj[i] has bits for all neighbors; bits ≥ n1 are R vertices (global n1+j → bit n1+j → shifted: bit j). ✓. Bits < n1 are L neighbors — dropped by shift ✓.
+
+adjR[j] = adj[n1+j] >> n1: neighbors of R vertex j within R ✓ (bits < n1 dropped).
+
+adjL[i] = adj[i] & fullL ✓.
+
+Now, the isInd DP condition: for mask m = bit_v | t (t = s << (v+1)), independence requires: t independent AND t & adjL[v] == 0. t & adjL[v]: t has bits ≥ v+1 only; adjL[v] bits at positions ≥ v+1: aLv = adjL[v] >> (v+1). Condition: s & aLv == 0. ✓. Note: adjL[v] bits below v (neighbors of v with smaller index): those bits are < v ≤ ... t has no bits < v+1, so they don't matter ✓. Wait, but hold on: what about neighbors of v at positions < v — if t contained such a vertex, m wouldn't be independent. But t only has bits ≥ v+1 > v, so t can't contain vertices < v. But wait — is that right? t = s << (v+1) has bits in [v+1, n1). Vertices with index < v are not in t. But m's independence requires no edges among ALL pairs in m. isInd[t] ensures independence among t's vertices. Edges between v and t: checked. Edges between v and vertices < v: those vertices aren't in m. ✓. So isInd[m] = isInd[t] & (t & adjL[v] == 0) ✓. And by induction all pairs covered: every pair (u, w) in m: when processing the smaller of u, w... hmm, let me verify induction: process v from high to low; when we set isInd[m] for m with lowest bit v, we check edges from v to all higher vertices in m, and isInd[t] covers pairs among higher vertices (by induction, since t's lowest bit is > v, it was processed at an earlier iteration... wait, t's lowest bit v' > v, and isInd[t] was computed when processing v'. At that time, we checked edges from v' to higher vertices in t, and recursed. So by induction, isInd[t] = "t is independent" ✓.
+
+Hmm wait, but there's a subtlety: when processing v' (the lowest bit of t), we checked edges between v' and vertices above v' in t. But edges between v' and vertices BELOW v'? Those vertices aren't in t (t's bits all > v'). ✓. Great.
+
+Similarly NR DP correctness: NR[m] = NR[t] | crossR[v] — OR over all vertices in m of crossR ✓ by induction.
+
+pc: popcount ✓.
+
+best DP correctness: verified above.
+
+Now — one more check on the best[] DP: the recurrence uses adjR[v] = neighbors of v within R. When including v, remaining must avoid N(v) ∩ R... but wait, we're computing "max independent subset of mask M ⊆ R" — the graph induced on R. Edges within R only. ✓ adjR[v] correct.
+
+And the combination: independent S in L, independent S' in R with S' ∩ N_R(S) = ∅ (i.e., S' ⊆ fullR \ NR(S) = avail). Then S ∪ S' independent in G: cross edges: any edge between u ∈ S and w ∈ S' would mean w ∈ N_R(S) — excluded ✓. ✓.
+
+Now, the reconstruction of R part uses best[] and adjR — consistent with the DP ✓.
+
+Let me now also verify: after finding best_pos (an independent L mask) and reconstructing R part from avail[best_pos], the union is independent and has size best_val ≥ k. Trim to k. But wait — trimming: take chosen[:k] — the first k elements of the combined list. Any subset works ✓.
+
+Let me also handle output format: "YES" then the k numbers separated by spaces. Sample outputs have them space-separated on one line. ✓. And "NO" alone.
+
+Now let me also think about whether n1 = n//2 is the best split for performance. The R side does the heavier per-element work (gather in best DP: ~6 passes), the L side does 3 light DPs + final gather. Balanced 23/23 is fine. Alternatively n1 = 23, n2 = 23 for n=46. For n=45: n1=22 (4.2M), n2=23 (8.4M). Fine.
+
+Hmm, one thing: for the best DP, iteration v=0 processes 2^{22} = 4.2M elements with a gather — the gather indices (s & inv) << 1: as s goes 0..2^22-1, indices are even numbers < 2^23. This is a "strided-ish" gather; numpy handles ~100M gathers/sec → 0.04s. Fine.
+
+Total memory during best DP: best (8.4MB) + s_arr (up to 16.8MB for uint32 at v=0... wait at v=0, U = n2-1 = 22, s_arr = 2^22 uint32 = 16.8MB) + b_idx (16.8MB) + B (4.2MB) + B+1 (4.2MB) + maximum result (4.2MB). ~55MB peak. Fine.
+
+L side: NR (33.5MB) + isInd (8.4) + pc (8.4) + per-iteration temps (s_arr up to 16.8MB at v=0, cond 4.2MB bool) + final: avail in-place, gather temp (8.4MB uint8), vals (8.4MB), ~isInd temp (8.4MB). Peak ~90MB. Fine.
+
+Alright. Now, let me also think about whether to use `int(np.argmax(vals))` — returns intp; int() fine.
+
+Also `int(avail[best_pos])` — numpy uint32 → int ✓.
+
+Reconstruction loop uses best[] numpy array with Python int indices — each access ~100ns, loop ≤ 23 iterations ✓.
+
+Now let me write the full code.
+
+```python
+import sys
+
+def solve_numpy(n, m, k, edges):
+    import numpy as np
+    adj = [0] * n
+    for u, v in edges:
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+
+    n1 = n // 2
+    n2 = n - n1
+    fullR = (1 << n2) - 1
+    fullL = (1 << n1) - 1
+
+    adjR = [adj[n1 + j] >> n1 for j in range(n2)]
+    adjL = [adj[i] & fullL for i in range(n1)]
+    crossR = [adj[i] >> n1 for i in range(n1)]
+
+    sizeR = 1 << n2
+    best = np.zeros(sizeR, dtype=np.uint8)
+    for v in range(n2 - 1, -1, -1):
+        U = n2 - 1 - v
+        cnt = 1 << U
+        step = 1 << (v + 1)
+        base = 1 << v
+        s_arr = np.arange(cnt, dtype=np.uint32)
+        inv = (~adjR[v]) & ((1 << U) - 1) if U > 0 else 0
+        # b_idx = (s & inv) << (v+1)
+        b_idx = (s_arr & np.uint32(inv)) << np.uint32(v + 1)
+        B = best[b_idx]
+        A = best[::step]
+        best[base::step] = np.maximum(A, B + np.uint8(1))
+    ...
+```
+
+Hmm wait, `inv = (~adjR[v]) & ((1<<U)-1)`: adjR[v] >> (v+1) gives bits of adjR[v] above v, within [0, U). So inv = ~(adjR[v] >> (v+1)) & ((1<<U)-1). Let me redo: av = adjR[v] >> (v+1); inv = ~av & ((1 << U) - 1). Note (~adjR[v]) & ((1<<U)-1) = (~(adjR[v] & maskU)) & maskU where maskU = (1<<U)-1 = (~adjR[v] & maskU) — and adjR[v] >> (v+1) = adjR[v] & maskU (bits of adjR[v] in positions [v+1, n2) shifted down = adjR[v] >> (v+1); and adjR[v] & maskU... hmm no: adjR[v] & maskU keeps bits [0, U) of adjR[v] — that's neighbors with local index < U = n2-1-v, not what I want. I want bits [v+1, n2) = av = adjR[v] >> (v+1). So inv = (~av) & ((1<<U)-1). Let me just write:
+
+av = adjR[v] >> (v + 1)
+inv = ~av & ((1 << U) - 1)
+
+For U = 0: (1<<0)-1 = 0 → inv = 0; s_arr = [0]; b_idx = [0] ✓.
+
+Then b_idx = (s_arr & inv) << (v+1). Since inv is Python int ≥ 0, `s_arr & inv` OK.
+
+Hmm, `np.uint32(v+1)` as shift amount: shifting uint32 array by uint32 scalar — numpy result uint32 ✓. Or just `<< (v+1)` — Python int shift; in NEP 50, uint32 << python_int → uint32 (int is weak). In old numpy, value-based: 23 fits → uint32. Either way fine. I'll use plain Python int to keep it simple. Actually hmm, in old numpy, `uint32_arr << 23`: 23 is int64 by default value-based casting → result could be... For shifts, numpy's value-based casting on old versions: I believe `np.uint32 array << Python int` yields uint32 if the int fits in uint32. Let me double check: np.array([1], dtype=np.uint32) << 23 → array([8388608], dtype=uint32). Yes, shifts preserve dtype for non-negative small ints. ✓.
+
+Similarly `s_arr & inv` → uint32 ✓.
+
+`B + np.uint8(1)` — hmm, B is uint8 array; `B + 1` in NEP 50: uint8 + weak int → uint8 ✓; old numpy: 1 fits uint8 → uint8 ✓. I'll write `B + 1`.
+
+`np.maximum(A, B1)` — both uint8 → uint8 ✓.
+
+Assignment `best[base::step] = result` ✓.
+
+Now, is there an issue with `A = best[::step]` being a view while we also gather `B = best[b_idx]` (copy) — then compute maximum (new array) — then write. No aliasing problem since maximum materializes before write. ✓.
+
+L side:
+
+```python
+    sizeL = 1 << n1
+    NR = np.zeros(sizeL, dtype=np.uint32)
+    isInd = np.ones(sizeL, dtype=bool)
+    pc = np.zeros(sizeL, dtype=np.uint8)
+    for v in range(n1 - 1, -1, -1):
+        U = n1 - 1 - v
+        cnt = 1 << U
+        step = 1 << (v + 1)
+        base = 1 << v
+        cr = np.uint32(crossR[v])
+        NR[base::step] = NR[::step] | cr
+        s_arr = np.arange(cnt, dtype=np.uint32)
+        aLv = adjL[v] >> (v + 1)
+        cond = (s_arr & aLv) == 0
+        isInd[base::step] = isInd[::step] & cond
+        pc[base::step] = pc[::step] + 1
+```
+
+Wait — `NR[base::step] = NR[::step] | cr`: RHS: view | scalar → new array ✓ then write to disjoint slice ✓.
+
+`isInd[base::step] = isInd[::step] & cond`: view & bool array → new array ✓.
+
+`pc[base::step] = pc[::step] + 1`: view + scalar → new uint8 array ✓.
+
+Then:
+
+```python
+    NR ^= np.uint32(fullR)   # NR becomes avail
+    vals = pc + best[NR]
+    vals[~isInd] = 255
+    pos = int(np.argmax(vals))
+    best_val = int(vals[pos])
+```
+
+Hmm, `best[NR]`: NR is uint32 array — fancy index ✓. But wait: NR values after XOR: fullR ^ NR_orig — since NR_orig ⊆ fullR (bits only 0..n2-1 — crossR values are adj[i] >> n1 < 2^{n2} ✓), avail = fullR ^ NR ✓.
+
+`vals[~isInd] = 255`: vals is uint8; 255 fits ✓. ~isInd: bool array ✓.
+
+Hmm, one concern: `pc + best[NR]` — pc is uint8, best[NR] is uint8 → uint8 sum, max 46 ✓.
+
+Then:
+
+```python
+    if best_val < k:
+        return None
+    Lmask = pos
+    avail_mask = int(NR[pos])
+    chosen = []
+    M = avail_mask
+    while M:
+        lb = M & (-M)
+        v = lb.bit_length() - 1
+        if best[M] != best[M ^ lb]:
+            chosen.append(n1 + v)
+            M &= ~(adjR[v] | lb)
+        else:
+            M ^= lb
+    for i in range(n1):
+        if (Lmask >> i) & 1:
+            chosen.append(i)
+    chosen = chosen[:k]
+    chosen.sort()
+    return [c + 1 for c in chosen]
+```
+
+Wait: `best[M] != best[M ^ lb]` — numpy uint8 scalars comparison ✓.
+
+Hmm, but there's a subtle bug risk: `M &= ~(adjR[v] | lb)` — Python ints, ~ of non-negative → negative, & with M → correct mask clearing ✓.
+
+Also: the while loop terminates: each step clears at least bit v ✓.
+
+Count check: len(chosen) before trim = popcount(Lmask) + best[avail_mask] = best_val ✓ (pc[pos] = popcount(pos) — trust DP; and R reconstruction yields exactly best[avail_mask] vertices — argued above).
+
+Actually hold on, let me re-verify the R reconstruction count argument rigorously. Claim: the loop adds exactly best[M0] vertices for starting mask M0. Induction on popcount: M with lowest bit v. Case 1: best[M] == best[M ^ lb]: we skip v, move to M ^ lb, and by induction add best[M ^ lb] = best[M] vertices. Case 2: best[M] != best[M ^ lb]: then best[M] = 1 + best[M & ~(adjR[v]|lb)] (from recurrence, since best[M] = max of the two and differs from the first). We add 1 and move to M' = M & ~(adjR[v]|lb), by induction add best[M'] more: total 1 + best[M'] = best[M] ✓.
+
+But wait — is the recurrence best[M] = max(best[M^lb], 1 + best[M & ~(adjR[v]|lb)]) exactly what the vectorized DP computes? In the vectorized version: best[base + t] = max(best[t], 1 + best[t & ~adjRv]) where t = M ^ lb. And M & ~(adjR[v] | lb) = (base | t) & ~(adjRv | base) = t & ~adjRv (t has no bit v; adjRv has no bit v). ✓ identical. ✓.
+
+Edge case: what if best_val ≥ k but... chosen[:k] — chosen has ≥ k elements ✓.
+
+Also, what if k ≤ 0? Constraint says k ≥ 1. ✓.
+
+What if best_val == 255? Impossible (mask 0 independent, val ≤ 46). ✓.
+
+Now the pure-Python fallback. Let me write it with the same logic:
+
+```python
+def solve_pure(n, m, k, edges):
+    adj = [0] * n
+    for u, v in edges:
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+    n1 = n // 2
+    n2 = n - n1
+    fullR = (1 << n2) - 1
+    fullL = (1 << n1) - 1
+    adjR = [adj[n1 + j] >> n1 for j in range(n2)]
+    adjL = [adj[i] & fullL for i in range(n1)]
+    crossR = [adj[i] >> n1 for i in range(n1)]
+
+    sizeR = 1 << n2
+    best = bytearray(sizeR)
+    for v in range(n2 - 1, -1, -1):
+        nadj = ~adjR[v]
+        bit = 1 << v
+        step = bit << 1
+        for t in range(0, sizeR, step):
+            a = best[t]
+            b = best[t & nadj] + 1
+            best[t | bit] = a if a >= b else b
+    ...
+```
+
+Wait, careful: `t & nadj` where nadj = ~adjR[v] (negative Python int): t & ~adjR[v] — Python: bitwise & of non-negative t with negative ~adjR[v] gives t with adjR[v] bits cleared ✓ (two's complement semantics with infinite sign extension — for non-negative t, result = t & (mask clearing adjR bits) ✓, result non-negative ✓).
+
+Hmm, but note: t & nadj might still contain bit v? t has bits ≥ v+1 only (t is multiple of 2^{v+1}), and adjR[v] doesn't contain bit v, so t & nadj keeps... t doesn't have bit v anyway ✓.
+
+L side pure Python:
+
+```python
+    sizeL = 1 << n1
+    # iterate masks grouped by lowest bit, tracking (isInd, pc, NR)
+    # We need arrays: isInd (bytearray 0/1), pc (bytearray), NR (list of ints)
+    NR = [0] * sizeL
+    isInd = bytearray(sizeL)  # 1 = independent
+    isInd[0] = 1
+    pc = bytearray(sizeL)
+    for v in range(n1 - 1, -1, -1):
+        bit = 1 << v
+        step = bit << 1
+        cr = crossR[v]
+        aL = adjL[v]
+        for t in range(0, sizeL, step):
+            NR[t | bit] = NR[t] | cr
+            isInd[t | bit] = isInd[t] if (t & aL) == 0 else 0
+            pc[t | bit] = pc[t] + 1
+    best_val = -1
+    best_pos = 0
+    for mask in range(sizeL):
+        if isInd[mask]:
+            val = pc[mask] + best[fullR ^ NR[mask]]
+            if val > best_val:
+                best_val = val
+                best_pos = mask
+    ...
+```
+
+This is O(2^{n1} + 2^{n2}) pure Python — slow for n=46 (~30-60s) but correct. As a fallback only.
+
+Hmm, actually, can I speed up the pure-Python fallback by merging the final loop into the DP loops? The final combination loop is another 8.4M iterations. Whatever — fallback.
+
+Actually, wait. Let me reconsider: maybe I should make the primary solution robust without numpy by using a different strategy: hybrid — if n is small (say n ≤ 30?), pure Python MITM is fine (2^15 per side = 32K — trivial). For larger n without numpy... hmm. Actually, let me think about the realistic scenario: this problem is from some contest; the judge almost certainly has numpy if Python is an allowed language... but actually, many judges (like ICPC-style with only C++/Java) — but the problem asks for Python 3 solution, so presumably judged where Python works, and numpy is common. Also, the 5s time limit suggests they expect slower solutions.
+
+Alternatively — maybe I should implement a branch-and-bound MIS as the primary pure-Python approach, which for n=46 with good bounds is often fast, and use numpy MITM when numpy is available? Hmm, B&B worst case is a risk even with numpy... no wait, if numpy is available, MITM is deterministic ~2s. If numpy unavailable, B&B is the only hope for n=46. So: try numpy MITM; except ImportError → if n small, pure MITM; else B&B? That's a lot of code. Let me simplify: numpy MITM primary; fallback = pure-Python MITM (correct, may TLE on huge inputs without numpy — acceptable risk given fallback is unlikely used).
+
+Hmm, actually, let me reconsider the pure-python fallback performance once more and try to optimize it hard, in case numpy is missing. 
+
+Optimization ideas for pure Python:
+1. The best[] DP: 8.4M iterations of the inner loop. Using bytearray and local vars, maybe 0.15-0.25 µs per iteration → 1.5-2s? Hmm, CPython bytecode: each iteration executes ~10 bytecodes with list/bytearray indexing. Realistically ~0.2-0.4 µs/iter → 8.4M × 0.3µs ≈ 2.5s. Hmm, that might be more optimistic than my earlier guess. Let me count bytecodes: `for t in range(0, sizeR, step):` (range iteration ~1 op), `a = best[t]` (load best, load t, BINARY_SUBSCR, store → ~4), `b = best[t & nadj] + 1` (~7), `best[t | bit] = a if a >= b else b` (~8). Total ~20 bytecodes/iter. CPython ~30-70M bytecodes/sec → 8.4M × 20 = 168M bytecodes → 3-6s. Hmm. Too slow with the L side too (another ~10-20s). 
+
+2. Reduce work: note we don't need best[] for ALL masks — only for masks that arise as avail = fullR ^ NR[S] for independent S in L. But those could be many.
+
+3. Alternative: enumerate independent sets of L via DFS (only independent sets — for dense graphs far fewer than 2^{n1}), and for R... still need best[] table. Hmm, but here's a trick: we can compute best[] lazily only for needed masks via memoized recursion? The number of distinct needed masks could be up to 2^{23} anyway.
+
+4. Use the structure: process the combination differently — "for each independent set in R (enumerated via DFS), update answer with bestL[avail]" — symmetric.
+
+Honestly, for the fallback, B&B might be the better choice for large n. Let me think about a decent B&B for MIS:
+
+Simple B&B with greedy coloring bound (like Cliquer/MCS):
+- Work on complement graph → find clique of size ≥ k? Or directly MIS.
+- MIS B&B: maintain current set P (candidate vertices, as bitmask), chosen count c. If c + bound(P) ≤ best found so far... but we need decision "≥ k", so we can prune when c + bound(P) < k... wait we want to find ANY independent set of size k. So: DFS: choose vertex v from P, branch: include v (c+1, P &= ~adj[v]... P' = P \ ({v} ∪ N(v))) or exclude v (P without v). Prune when c + MIS_bound(P) < k. Bound: greedy coloring of complement... for MIS, bound = size of greedy "independent-set coloring" of P? Hmm: a standard bound for MIS: partition P into cliques? No wait — for MIS we need an upper bound on independent set size in P: color the complement graph... equivalently, in G, partition P into cliques — no wait. Upper bound on α(P): any partition of P into cliques gives α ≤ #cliques. Finding clique cover = coloring complement. Greedy clique cover of P in G: repeatedly pick a vertex, greedily build a clique around it... Hmm, simpler: α(P) ≤ number of colors in a greedy coloring of the complement graph restricted to P. Alternatively, a simpler bound: α(P) ≤ |P| trivially, and α(P) ≤ ... 
+
+Hmm, this is getting complicated. Alternatively formulate as max clique on complement graph and use a simple MCS-style B&B with greedy coloring bound — well-known and effective. But implementing coloring-based B&B correctly and efficiently in Python is a chunk of work, and worst-case adversarial inputs (which likely exist for this problem, e.g., Ramsey-type hard instances at n=46... actually n=46 is small enough that good B&B handles almost anything — max clique solvers handle n=46 easily in general; hard instances start around n=1000+ for dense random, or structured instances. Actually for n=46, even adversarial instances are typically solvable by decent B&B in milliseconds... hmm, is that true? Random graphs near threshold with n=46: max clique solvers do these instantly. The hardest known instances are much bigger. For n ≤ 46, a good clique B&B is essentially always fast. But "good" means with coloring bounds, not naive.)
+
+Hmm OK. But honestly, I think the cleanest robust plan: numpy MITM as primary. For fallback (no numpy): pure-Python MITM for n ≤ 36 or so (2^18 per side = 260K — fast), and for n > 36... pure MITM would be 2^23-ish → too slow. Could do B&B... 
+
+You know, let me just also implement a simple but effective B&B as the no-numpy fallback for larger n. Actually, let me think about how much I trust B&B for this problem's tests. The problem is clearly designed for MITM (n ≤ 46 = 2×23). Tests likely include dense graphs where MIS is small and B&B... hmm, dense graphs are actually EASY for MIS B&B (small answer, strong bounds). Hard cases for max-clique B&B are graphs where the answer is large-ish and the graph is structured. For MIS on n=46: complement max-clique on 46 vertices — even the hardest known structured instances at n≈46 (like C. elegans? no that's bigger)... I believe a coloring-based B&B handles n=46 always. But a naive B&B without coloring could blow up on, e.g., a graph designed so that greedy bounds are weak.
+
+Given time constraints for me writing this, let me implement:
+
+1. Primary: numpy MITM (fast, deterministic, handles worst case).
+2. Fallback (numpy missing): pure-Python MITM if n ≤ 34 (2^17 per side — quick), else pure-Python MITM anyway (might TLE, but correct) — OR a B&B. Hmm.
+
+Actually, let me just make the fallback a reasonably optimized B&B with coloring bound, plus exact MITM for small n. Hmm, but that's substantial extra code and testing burden. 
+
+Alternative pragmatic choice: fallback = pure-Python MITM regardless of n. If numpy is missing AND n is large AND tests are worst-case → TLE, but that's a corner of a corner. Most judges have numpy. I'll go with pure-Python MITM fallback, optimized as best I can.
+
+Hmm, wait, actually — let me reconsider. Is there a chance to make the pure Python MITM fast enough for n=46 within 5s using clever tricks? 
+
+Trick: use arrays and minimize per-element work by processing in chunks with list comprehensions? E.g., the best[] DP grouped by v: for fixed v, we need best[base::step] = max(best[::step], best[b_idx]+1). With lists: 
+
+```python
+seg_a = best[::step]  # list slice — O(size/step) fast C-level
+seg_b = [best[(s & inv) << (v+1)] for s in range(cnt)]  # list comp — still per-element Python
+```
+
+List comprehensions are ~2x faster than explicit loops but still ~0.1-0.2µs/element → 8.4M × 2 (best + L sides...) — the gathers dominate: best DP gather 8.4M, L-side final gather 8.4M, plus max/add operations... Each element needs several ops; list comps can fuse some. Rough estimate: best DP: per element: compute (s & inv) << shift (2 ops), index (1), +1 (1), max with a (1), store (1) → in a fused list comp with zip: maybe 0.15-0.25 µs/elem → 8.4M → 1.5-2s. L side: NR DP: per element: index NR[t], | cr, store → fused: `NR[base::step] = [x | cr for x in NR[::step]]` — slice assignment with list comp: ~0.1µs/elem → 0.8s. isInd: similar with condition → 1s. pc: `[x+1 for x in pc[::step]]` → 0.8s. Final: for the combination, we need per independent mask: val = pc + best[fullR ^ NR]. Fused: `max(zip(...))`... something like:
+
+```python
+vals = [ (p + best[f ^ q]) if ind else -1 ... ]
+```
+
+Hmm, fusing with conditionals: list comp with conditional expression: ~0.2-0.3µs/elem → 2s. Then max: `max(vals)` C-level fast. Total pure Python ≈ 6-8s. Over the 5s limit but not catastrophically. With more cleverness (e.g., skipping isInd array by enumerating independent sets via the isInd DP... no).
+
+Alternatively for the final combination, fuse differently: iterate over independent masks only? We have isInd as bytearray; iterating all masks anyway.
+
+Hmm, what about using the `array` module or just lists of ints — lists are fine.
+
+Actually here's a much better idea for pure Python: process the L side via DFS enumeration of independent sets ONLY (not all masks), maintaining (count, blockedR) incrementally — the DFS visits exactly the independent sets. For sparse L, far fewer than 2^{n1}; worst case (empty L graph) 2^{23} nodes ≈ 8.4M recursive steps — each step in Python ~0.5-1µs → 5-10s. Hmm, not better in worst case.
+
+And the R side best[] table is unavoidable 2^{n2} work in pure Python (~2-4s with fused list comps). Plus L side. Realistically 6-10s total in CPython for n=46 worst case. Over limit.
+
+OK so pure Python can't reliably do n=46. numpy it is. Fallback: I'll do pure Python MITM (best effort). Actually, let me add one more fallback layer: if numpy is missing and n is large, use B&B? Ugh. Let me evaluate: how likely is numpy missing? Very unlikely on any modern judge. I'll skip B&B and keep the code manageable. Actually... let me include a simple B&B anyway? Hmm.
+
+Let me think about the B&B quality needed. Actually, here's a cleaner fallback idea that's simple AND often effective: iterative deepening / randomized — no, not exact.
+
+Simple exact B&B for "independent set of size ≥ k":
+
+```
+def bb(P, c):  # P: bitmask of candidates, c: chosen count
+    if c >= k: return True (record)
+    if c + popcount(P) < k: return False
+    # bound: greedy clique cover? 
+    while P:
+        v = lowest bit of P
+        # include v branch
+        if bb(P & ~adj[v] & ~(1<<v)... , c+1): return True
+        P ^= v_bit  # exclude v
+    return False
+```
+
+With only popcount bound, this is exponential — bad for e.g. empty graph? Empty graph: k=n: first branch includes everything... P & ~adj → P without v; c+1... it would succeed immediately going down the include-branch: include v1, include v2, ... depth n, each step O(1) → fine. Bad case: graph where answer < k and bound weak: e.g., perfect matching graph (n=46, 23 disjoint edges), k=23: answer = 23 (pick one per edge) → YES found quickly by greedy include-lowest? include v0 → removes v0 and its partner; include next lowest... yes finds 23 quickly. Bad case: answer = k-1 (NO instances

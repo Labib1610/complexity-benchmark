@@ -1,0 +1,121 @@
+import sys
+import threading
+
+def main():
+    import sys
+    import threading
+    
+    def solve():
+        j, T = map(int, sys.stdin.readline().split())
+        processes = []
+        for _ in range(j):
+            p1, p2 = map(int, sys.stdin.readline().split())
+            processes.append((p1, p2))
+        
+        # Check for JOB i violations
+        for i in range(j):
+            p1, p2 = processes[i]
+            # Minimum required separation: y_i - x_i >= (p1+p2)/2
+            min_sep = (p1 + p2) / 2
+            # Maximum possible separation: (T - p2/2) - (p1/2) = T - (p1+p2)/2
+            max_sep = T - (p1 + p2) / 2
+            if min_sep > max_sep + 1e-9:  # Add epsilon for floating point comparison
+                print(f"JOB {i+1}")
+                return
+        
+        # Check for LOAD 1 violation (alpha bursts)
+        p1_list = [p[0] for p in processes]
+        p1_list.sort()
+        # Total space needed for alpha bursts
+        total_alpha_space = sum(p1_list)
+        # Minimum span required for non-overlapping placement
+        if j > 1:
+            min_span = sum(p1_list[:-1])  # All but the last one contribute to minimum span
+            for i in range(j-1):
+                min_span += p1_list[i]/2 + p1_list[i+1]/2
+            min_span -= p1_list[0]/2 + p1_list[-1]/2  # We double counted the ends
+        else:
+            min_span = p1_list[0]
+            
+        # Actually, let's think differently:
+        # For alpha exclusivity with confinement:
+        # Sort by p1 values and try to place them optimally
+        # The minimum space needed is sum of all p1 values
+        # But we also need separation of (p1_u + p1_v)/2 between any two
+        
+        # Simpler approach for LOAD 1:
+        # Minimum total length needed considering exclusivity
+        p1_sorted = sorted([p[0] for p in processes])
+        min_length_needed = 0
+        if j > 0:
+            min_length_needed = p1_sorted[0]  # First element needs its full width
+            for i in range(1, j):
+                # Need separation of (p1_prev + p1_curr)/2
+                prev_half = p1_sorted[i-1] / 2
+                curr_half = p1_sorted[i] / 2
+                min_length_needed += prev_half + curr_half
+                
+            # But actually, when placing optimally end-to-end with required separations:
+            # Place first at position p1_sorted[0]/2
+            # Each subsequent needs to be separated by (prev + curr)/2
+            min_length_needed = 0
+            pos = 0
+            for i in range(j):
+                if i == 0:
+                    pos += p1_sorted[i] / 2  # Position center at p1/2 from start
+                    min_length_needed = p1_sorted[i]
+                else:
+                    sep = (p1_sorted[i-1] + p1_sorted[i]) / 2
+                    pos += sep
+                    min_length_needed = pos + p1_sorted[i] / 2
+                    
+            # Available space is T
+            if min_length_needed > T + 1e-9:
+                print("LOAD 1")
+                return
+        
+        # Let's do it properly for LOAD 1:
+        # To fit j alpha bursts with exclusivity constraint:
+        # Sort p1 values. When placing optimally to minimize total span:
+        # First burst can be placed anywhere, then each subsequent burst 
+        # must be separated by at least (p1_prev + p1_curr)/2 from previous
+        # But they also need to fit in [p1_k/2, T-p1_k/2]
+        
+        # Minimum span calculation for alpha:
+        p1s = [p[0] for p in processes]
+        p1s.sort()
+        if j > 0:
+            # Minimum span when placing optimally
+            min_span_alpha = 0
+            # Place first one starting at p1s[0]/2
+            right_end = p1s[0]/2
+            min_span_alpha = p1s[0]
+            for i in range(1, j):
+                # Need separation (p1s[i-1] + p1s[i])/2
+                sep = (p1s[i-1] + p1s[i]) / 2
+                right_end += sep
+                min_span_alpha = right_end + p1s[i]/2
+                
+            if min_span_alpha > T + 1e-9:
+                print("LOAD 1")
+                return
+        
+        # Check for LOAD 2 violation (beta bursts)
+        p2s = [p[1] for p in processes]
+        p2s.sort()
+        if j > 0:
+            min_span_beta = 0
+            right_end = p2s[0]/2
+            min_span_beta = p2s[0]
+            for i in range(1, j):
+                sep = (p2s[i-1] + p2s[i]) / 2
+                right_end += sep
+                min_span_beta = right_end + p2s[i]/2
+                
+            if min_span_beta > T + 1e-9:
+                print("LOAD 2")
+                return
+    
+    solve()
+
+threading.Thread(target=main).start()

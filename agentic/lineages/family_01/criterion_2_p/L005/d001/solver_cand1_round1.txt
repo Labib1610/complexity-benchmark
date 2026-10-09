@@ -1,13 +1,18 @@
 ```python
 import sys
 
-# The problem states that for any two substations u and v with a proximity report,
-# power(u) + power(v) = 3.
-# Since power levels are {1, 2}, this means power(u) != power(v).
-# This is equivalent to saying the graph must be bipartite.
-# If the graph is bipartite, we can color it with 1s and 2s.
-# To get the lexicographically smallest configuration, we want to assign 1
-# to the smallest possible indices whenever possible.
+# The problem asks to assign s_i in {1, 2} such that for every edge (u, v),
+# s_u * s_v = 2.
+# Let x_i = log2(s_i). Since s_i in {1, 2}, x_i in {0, 1}.
+# The condition s_u * s_v = 2 becomes log2(s_u) + log2(s_v) = log2(2) = 1.
+# So x_u + x_v = 1 (mod 2).
+# This is a standard bipartite graph coloring problem.
+# If the graph is bipartite, we can color it with 0 and 1.
+# x_i = 0 corresponds to s_i = 2^0 = 1.
+# x_i = 1 corresponds to s_i = 2^1 = 2.
+# To get the lexicographically smallest assignment, we want s_i = 1 as much as possible.
+# For each connected component, we have two choices for the coloring (x_i or 1-x_i).
+# We choose the one that results in a smaller sequence of s_i values.
 
 def solve():
     input_data = sys.stdin.read().split()
@@ -20,74 +25,69 @@ def solve():
     idx = 2
     for _ in range(m):
         u = int(input_data[idx])
-        v = int(input_data[idx + 1])
+        v = int(input_data[idx+1])
         adj[u].append(v)
         adj[v].append(u)
         idx += 2
         
-    color = [0] * (n + 1)
-    
-    # To get the lexicographically smallest configuration, we iterate 1 to n.
-    # If a node is not colored, we start a BFS/DFS.
-    # In each connected component, we have two choices:
-    # 1. Assign 1 to the first node encountered, 2 to its neighbors, etc.
-    # 2. Assign 2 to the first node encountered, 1 to its neighbors, etc.
-    # We pick the one that results in a lexicographically smaller sequence.
-    
+    color = [-1] * (n + 1)
     ans = [0] * (n + 1)
+    
     for i in range(1, n + 1):
-        if color[i] == 0:
+        if color[i] == -1:
             component = []
-            stack = [i]
-            color[i] = 1
-            component.append(i)
-            
-            # Standard BFS/DFS to find component and check bipartiteness
-            head = 0
-            while head < len(component):
-                u = component[head]
-                head += 1
+            stack = [(i, 0)]
+            color[i] = 0
+            while stack:
+                u, c = stack.pop()
+                component.append((u, c))
                 for v in adj[u]:
-                    if color[v] == 0:
-                        color[v] = 3 - color[u]
-                        component.append(v)
-                    elif color[v] == color[u]:
+                    if color[v] == -1:
+                        color[v] = 1 - c
+                        stack.append((v, 1 - c))
+                    elif color[v] == c:
                         print("NO")
                         return
             
-            # Now we have a component. We have two colorings:
-            # C1: color[v]
-            # C2: 3 - color[v]
-            # We want to choose the one that makes the sequence lexicographically smallest.
-            # We compare the values at the smallest index in the component.
-            
-            # Let's check which coloring is better for the first node in the component
-            # (which is the smallest index in the component).
+            # Two possible assignments for this component:
+            # Option 0: node u gets s = 2^color[u]
+            # Option 1: node u gets s = 2^(1-color[u])
+            # We want the lexicographically smallest sequence.
+            # Compare the first node in the component (smallest index).
             # Actually, we need to compare the whole sequence.
-            # Since we want the lexicographically smallest, we want the smallest
-            # possible value at the smallest index.
+            # Since we want lexicographical smallest, we compare the values
+            # at the smallest index in the component.
             
-            # Let 'first' be the smallest index in this component.
-            # If we set color[first] = 1, then all nodes with color[v] == color[first] get 1,
-            # and all nodes with color[v] != color[first] get 2.
-            # If we set color[first] = 2, then all nodes with color[v] == color[first] get 2,
-            # and all nodes with color[v] != color[first] get 1.
+            comp_nodes = sorted([node for node, c in component])
+            first_node = comp_nodes[0]
             
-            # We compare the two options:
-            # Option A: nodes with color[v] == color[first] get 1, others get 2.
-            # Option B: nodes with color[v] == color[first] get 2, others get 1.
+            # If we use color[first_node] as the exponent, s = 2^color[first_node]
+            # If we use 1-color[first_node] as the exponent, s = 2^(1-color[first_node])
+            # We pick the one that gives s=1 if possible.
             
-            # We want the one that puts a 1 at the smallest index possible.
-            # The smallest index in the component is 'first'.
-            # In Option A, ans[first] = 1. In Option B, ans[first] = 2.
-            # So Option A is always better.
+            # Let's check which assignment makes the first node 1.
+            # If color[first_node] == 0, then s = 2^0 = 1.
+            # If color[first_node] == 1, then s = 2^1 = 2.
+            # If we flip, s becomes 2^(1-color[first_node]).
             
-            for node in component:
-                if color[node] == color[i]:
-                    ans[node] = 1
-                else:
-                    ans[node] = 2
-                    
+            # We want to minimize the sequence.
+            # For each node u in component, s_u = 2^(color[u] ^ flip)
+            # We want to choose flip in {0, 1} to minimize the sequence.
+            
+            def get_seq(f):
+                return [2**(color[u] ^ f) for u in comp_nodes]
+            
+            seq0 = get_seq(0)
+            seq1 = get_seq(1)
+            
+            if seq0 <= seq1:
+                best_flip = 0
+            else:
+                best_flip = 1
+                
+            for u, c in component:
+                ans[u] = 2**(c ^ best_flip)
+                
     print("YES")
     print(*(ans[1:]))
 

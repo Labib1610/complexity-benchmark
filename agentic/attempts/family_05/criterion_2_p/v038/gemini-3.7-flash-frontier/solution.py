@@ -1,0 +1,87 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    k = int(input_data[0])
+    t = int(input_data[1])
+    
+    adj = [[] for _ in range(k + 1)]
+    v_of_u = [0] * (k + 1)
+    
+    idx = 2
+    for _ in range(t):
+        u = int(input_data[idx])
+        v = int(input_data[idx + 1])
+        w = int(input_data[idx + 2])
+        idx += 3
+        adj[u].append(w)
+        v_of_u[u] = v
+        
+    # Check if any u has no edges
+    for u in range(1, k + 1):
+        if not adj[u]:
+            print("NO")
+            return
+            
+    # Hopcroft-Karp algorithm for maximum bipartite matching
+    pair_u = [0] * (k + 1)
+    pair_w = [0] * (k + 1)
+    dist = [0] * (k + 1)
+    
+    from collections import deque
+    
+    INF = 10**9
+    
+    def bfs():
+        queue = deque()
+        for u in range(1, k + 1):
+            if pair_u[u] == 0:
+                dist[u] = 0
+                queue.append(u)
+            else:
+                dist[u] = INF
+        dist[0] = INF
+        
+        while queue:
+            u = queue.popleft()
+            if dist[u] < dist[0]:
+                for w in adj[u]:
+                    v_u = pair_w[w]
+                    if dist[v_u] == INF:
+                        dist[v_u] = dist[u] + 1
+                        queue.append(v_u)
+        return dist[0] != INF
+    
+    def dfs(u):
+        if u != 0:
+            for w in adj[u]:
+                v_u = pair_w[w]
+                if dist[v_u] == dist[u] + 1:
+                    if dfs(v_u):
+                        pair_w[w] = u
+                        pair_u[u] = w
+                        return True
+            dist[u] = INF
+            return False
+        return True
+    
+    matching = 0
+    while bfs():
+        for u in range(1, k + 1):
+            if pair_u[u] == 0:
+                if dfs(u):
+                    matching += 1
+                    
+    if matching == k:
+        out = ["YES"]
+        for u in range(1, k + 1):
+            out.append(f"{u} {v_of_u[u]} {pair_u[u]}")
+        sys.stdout.write("\n".join(out) + "\n")
+    else:
+        print("NO")
+
+if __name__ == '__main__':
+    solve()

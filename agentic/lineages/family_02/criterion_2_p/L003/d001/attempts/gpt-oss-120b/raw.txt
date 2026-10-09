@@ -1,0 +1,327 @@
+**Solution Explanation**
+
+For every microservice `i` we introduce a Boolean variable  
+
+```
+xi = 1   … service i uses Route 1
+xi = 0   … service i uses Route 0
+```
+
+A rule contains two *targets* `l1 , l2`.  
+`l =  +i` means the literal `xi` (Route 1 for service `i`).  
+`l =  -i` means the literal `¬xi` (Route 0 for service `i`).
+
+The rule is satisfied iff at least one of its two literals is true, i.e. it is a
+2‑SAT clause  
+
+```
+(l1) ∨ (l2)
+```
+
+Thus the whole problem is exactly the classic **2‑SAT** problem.
+
+--------------------------------------------------------------------
+
+#### 1.   Implication graph
+
+For a clause `(a ∨ b)` we add the two implications  
+
+```
+¬a → b
+¬b → a
+```
+
+If we can assign truth values to all variables so that every implication is
+respected, all clauses are satisfied.
+
+We build a directed graph with `2·n` vertices – one for each literal.
+
+```
+index(xi = true)   = 2·(i‑1)
+index(xi = false)  = 2·(i‑1) + 1
+not(v) = v ^ 1          (toggle the last bit)
+```
+
+For every rule we translate the two integers into the corresponding indices
+and add the two edges described above.
+
+--------------------------------------------------------------------
+
+#### 2.   Strongly connected components
+
+In an implication graph a 2‑SAT instance is **unsatisfiable** iff a variable and
+its negation belong to the same strongly connected component (SCC).  
+Otherwise a satisfying assignment exists and can be obtained from the
+topological order of the SCC‑condensation graph:
+
+*process SCCs in reverse topological order*  
+(components discovered later by Kosaraju’s second pass have a smaller
+topological number).  
+Assign a literal `v` to **true** if its component number is larger than the
+component number of `¬v`. This guarantees that if `v` is true, all
+implications from `v` go to already decided false literals, never creating a
+contradiction.
+
+We use Kosaraju’s algorithm (two DFS passes). To avoid recursion limits we
+implement both passes iteratively with explicit stacks.
+
+Complexities  
+
+```
+vertices : 2·n   ≤ 2·10^5
+edges    : 2·m   ≤ 4·10^5
+Time  : O(n + m)
+Memory: O(n + m)
+```
+
+Both satisfy the limits.
+
+--------------------------------------------------------------------
+
+#### 3.   Algorithm
+```
+read n, m
+build adjacency list G (forward) and GR (reverse) with 2·n vertices
+for each rule (l1, l2):
+        a = literal_to_index(l1)
+        b = literal_to_index(l2)
+        add edge (not a) → b   to G and reverse edge to GR
+        add edge (not b) → a   to G and reverse edge to GR
+
+# first pass: order vertices by finish time
+visited = [False]*2n
+order = []
+for v in 0 .. 2n-1:
+        if not visited[v]:
+                iterative_dfs(v, G, visited, order)
+
+# second pass: assign component ids
+comp = [-1]*2n
+cid = 0
+for v in reversed(order):
+        if comp[v] == -1:
+                iterative_dfs_assign(v, GR, comp, cid)
+                cid += 1
+
+# check for contradictions
+for i in 1 .. n:
+        if comp[2*(i-1)] == comp[2*(i-1)+1]:
+                print "NO"
+                exit
+
+# build assignment
+ans = []
+for i in 1 .. n:
+        true_idx = 2*(i-1)
+        false_idx = true_idx + 1
+        if comp[true_idx] > comp[false_idx]:
+                ans.append(1)   # xi = true → Route 1
+        else:
+                ans.append(0)
+
+print "YES"
+print ans space‑separated
+```
+
+--------------------------------------------------------------------
+
+#### 4.   Correctness Proof  
+
+We prove that the algorithm prints `YES` and a correct assignment iff such an
+assignment exists.
+
+---
+
+##### Lemma 1  
+For every clause `(a ∨ b)` the added edges `(¬a → b)` and `(¬b → a)` are
+logically equivalent to the clause: any truth assignment satisfies the clause
+iff it satisfies both implications.
+
+**Proof.**  
+`(a ∨ b)` is false only when `a = false` **and** `b = false`.  
+If `a = false` then `¬a` is true, so the implication `¬a → b` forces `b = true`.  
+Similarly, if `b = false` the implication `¬b → a` forces `a = true`.  
+Thus the only way to violate an implication is to set both `a` and `b` false,
+exactly the situation that falsifies the clause. ∎
+
+
+
+##### Lemma 2  
+If a variable `xi` and its negation belong to the same SCC, the 2‑SAT instance
+has no satisfying assignment.
+
+**Proof.**  
+Inside an SCC every vertex reaches every other, therefore `xi → ¬xi` and
+`¬xi → xi` are both implied. Any assignment that makes `xi = true` forces
+`¬xi = true`, a contradiction; similarly for `xi = false`. Hence no assignment
+can satisfy all implications. ∎
+
+
+
+##### Lemma 3  
+If for every `i` the two literals are in different SCCs, assigning each
+variable `xi` the value  
+
+```
+xi = true  iff  comp(xi) > comp(¬xi)
+```
+
+satisfies all implications.
+
+**Proof.**  
+Consider any implication `p → q`. In the condensation DAG, there is a directed
+edge from `comp(p)` to `comp(q)`. Topological order of SCCs guarantees
+`comp(p) ≥ comp(q)` (larger number = earlier in reverse topological order).  
+
+Our assignment makes a literal true only when its component number is larger
+than that of its negation. Therefore, if `p` is true, `comp(p) > comp(¬p)`.
+Because `comp(p) ≥ comp(q)`, we have `comp(q) ≥ comp(¬p)`. Two cases:
+
+* `comp(q) = comp(p)`: then `q` is in the same SCC as `p`, hence also true.
+* `comp(q) < comp(p)`: then `comp(q) > comp(¬q)` (otherwise `¬q` would be
+  reachable from `p` and belong to the same SCC, contradicting Lemma 2).  
+  Thus `q` is true.
+
+In both cases the implication is respected. ∎
+
+
+
+##### Lemma 4  
+The assignment constructed in Lemma 3 satisfies every original clause.
+
+**Proof.**  
+By Lemma 1 each clause is equivalent to its two implications. Lemma 3 shows all
+implications hold, therefore every clause holds. ∎
+
+
+
+##### Theorem  
+The algorithm outputs  
+
+* `NO` **iff** the given instance is unsatisfiable;  
+* otherwise `YES` and a list `s1 … sn` that satisfies all rules.
+
+**Proof.**  
+
+*If the algorithm prints `NO`.*  
+That happens only when some variable and its negation share an SCC.
+By Lemma 2 the instance is unsatisfiable.
+
+*If the instance is unsatisfiable.*  
+Any unsatisfiable 2‑SAT instance must contain a variable whose literals are in
+the same SCC (standard property of implication graphs). The algorithm will
+detect it and print `NO`.
+
+*If the algorithm prints `YES`.*  
+Then no variable collides with its negation, so the algorithm proceeds to the
+assignment step. By Lemma 3 the assignment respects all implications, and by
+Lemma 4 it satisfies all original clauses, i.e. all rules.
+
+*If a satisfying assignment exists.*  
+Then no variable collides with its negation (otherwise Lemma 2 would forbid any
+assignment). The algorithm therefore reaches the assignment step and, by
+Lemma 4, produces a satisfying assignment, printing `YES`.
+
+Thus the output is correct in all cases. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### 5.   Reference Implementation  (Python 3)
+
+```python
+import sys
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    N = 2 * n
+    G = [[] for _ in range(N)]
+    GR = [[] for _ in range(N)]
+
+    def lit_to_idx(l: int) -> int:
+        v = abs(l) - 1
+        if l > 0:
+            return 2 * v          # xi = true
+        else:
+            return 2 * v + 1      # xi = false (¬xi)
+
+    for _ in range(m):
+        a = int(next(it))
+        b = int(next(it))
+        ia = lit_to_idx(a)
+        ib = lit_to_idx(b)
+        na = ia ^ 1
+        nb = ib ^ 1
+        # ¬a -> b
+        G[na].append(ib)
+        GR[ib].append(na)
+        # ¬b -> a
+        G[nb].append(ia)
+        GR[ia].append(nb)
+
+    # first pass: order by finish time (iterative)
+    visited = [False] * N
+    order = []
+
+    for v in range(N):
+        if visited[v]:
+            continue
+        stack = [(v, 0)]  # (node, next_child_index)
+        while stack:
+            node, idx = stack[-1]
+            if not visited[node]:
+                visited[node] = True
+            # explore next neighbor
+            if idx < len(G[node]):
+                nxt = G[node][idx]
+                stack[-1] = (node, idx + 1)
+                if not visited[nxt]:
+                    stack.append((nxt, 0))
+            else:
+                order.append(node)
+                stack.pop()
+
+    # second pass: assign components
+    comp = [-1] * N
+    cid = 0
+    for v in reversed(order):
+        if comp[v] != -1:
+            continue
+        stack = [v]
+        comp[v] = cid
+        while stack:
+            node = stack.pop()
+            for nxt in GR[node]:
+                if comp[nxt] == -1:
+                    comp[nxt] = cid
+                    stack.append(nxt)
+        cid += 1
+
+    # check contradictions
+    for i in range(n):
+        if comp[2 * i] == comp[2 * i + 1]:
+            print("NO")
+            return
+
+    # build assignment
+    ans = []
+    for i in range(n):
+        if comp[2 * i] > comp[2 * i + 1]:
+            ans.append('1')
+        else:
+            ans.append('0')
+    print("YES")
+    print(' '.join(ans))
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above and conforms
+to the required input‑output format.

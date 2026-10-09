@@ -1,0 +1,136 @@
+import sys
+from collections import defaultdict, deque
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
+    
+    edges = []
+    adj = [[] for _ in range(n + 1)]
+    edge_indices = defaultdict(list)
+    
+    idx = 2
+    for i in range(m):
+        u = int(data[idx])
+        v = int(data[idx + 1])
+        idx += 2
+        edges.append((u, v))
+        adj[u].append((v, i))
+        adj[v].append((u, i))
+        edge_indices[(u, v)].append(i)
+        edge_indices[(v, u)].append(i)
+    
+    # We need sum of (c_u | c_v) over all edges to be 3*m
+    # Since c_u, c_v ∈ {1,2}, we have:
+    # 1|1 = 1, 1|2 = 3, 2|1 = 3, 2|2 = 2
+    # So we want as many 1|2 or 2|1 as possible.
+    # Let x be number of edges with value 3, y with value 2, z with value 1
+    # Then: 3x + 2y + z = 3m
+    # And: x + y + z = m
+    # => 3x + 2y + z = 3(x + y + z)
+    # => 3x + 2y + z = 3x + 3y + 3z
+    # => -y - 2z = 0 => y = -2z => Not possible unless y=z=0
+    # Actually let's recheck:
+    # 3x + 2y + z = 3m and x + y + z = m
+    # From second: z = m - x - y
+    # Sub into first: 3x + 2y + (m - x - y) = 3m
+    # 2x + y + m = 3m
+    # 2x + y = 2m
+    # So y = 2m - 2x
+    # Also z = m - x - y = m - x - (2m - 2x) = m - x - 2m + 2x = x - m
+    # For feasibility: x,y,z ≥ 0
+    # x ≥ 0, y = 2m - 2x ≥ 0 ⇒ x ≤ m
+    # z = x - m ≥ 0 ⇒ x ≥ m
+    # So x = m, which gives y = 0, z = 0
+    # This means ALL edges must contribute 3 to the sum.
+    # That means for every edge (u,v), c_u | c_v = 3
+    # Which happens iff (c_u, c_v) ∈ {(1,2), (2,1)}
+    
+    # So we need a bipartite coloring where each edge connects a 1-node to a 2-node
+    # This is possible iff the graph is bipartite
+    
+    color = [-1] * (n + 1)  # -1 unvisited, 0 and 1 are colors
+    visited = [False] * (n + 1)
+    
+    for start in range(1, n + 1):
+        if not visited[start]:
+            queue = deque()
+            queue.append(start)
+            color[start] = 0
+            visited[start] = True
+            
+            while queue:
+                u = queue.popleft()
+                current_color = color[u]
+                next_color = 1 - current_color
+                
+                for v, _ in adj[u]:
+                    if not visited[v]:
+                        visited[v] = True
+                        color[v] = next_color
+                        queue.append(v)
+                    elif color[v] != next_color:
+                        print("NO")
+                        return
+    
+    # Graph is bipartite. Now we need lexicographically smallest assignment.
+    # Assign color 0 → mode 1, color 1 → mode 2
+    # But we want lexicographically smallest, so among valid assignments,
+    # we prefer earlier nodes to be 1.
+    # In a bipartite graph, we can choose which side gets 1 or 2.
+    # To get lex smallest, we try assigning color 0 to 1, color 1 to 2.
+    # If that doesn't work (i.e., some component might be better flipped),
+    # but actually since both sides are symmetric in terms of satisfying constraints,
+    # and we just need each edge to connect different values,
+    # the lex smallest is obtained by assigning:
+    # if node i has color 0, assign it mode 1
+    # if node i has color 1, assign it mode 2
+    # But what if a connected component could be flipped?
+    # Flipping a component means swapping 1 and 2 for all nodes in it.
+    # To maintain lex order, for each component, we decide whether to flip based on
+    # the label of the first node in that component.
+    # But since we process nodes in order 1..n, and do BFS from each unvisited,
+    # the first node in each component determines the canonical assignment.
+    # To get lex smallest, we should assign the first node in each component to 1.
+    # That means if color[first_node] == 1, we flip the whole component.
+    
+    # Let's reorganize:
+    # We'll do BFS for each component, and always assign the starting node color 0 -> mode 1
+    result = [0] * (n + 1)
+    visited = [False] * (n + 1)
+    
+    for start in range(1, n + 1):
+        if not visited[start]:
+            queue = deque()
+            queue.append(start)
+            visited[start] = True
+            # Assign start node to mode 1 (which corresponds to preferring 1)
+            # So if its color was 1, we flip the interpretation
+            flip = (color[start] == 1)
+            
+            while queue:
+                u = queue.popleft()
+                if flip:
+                    result[u] = 2 if color[u] == 0 else 1
+                else:
+                    result[u] = 1 if color[u] == 0 else 2
+                    
+                for v, _ in adj[u]:
+                    if not visited[v]:
+                        visited[v] = True
+                        queue.append(v)
+    
+    print("YES")
+    print(" ".join(map(str, result[1:])))
+
+if __name__ == "__main__":
+    main()

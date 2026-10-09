@@ -1,0 +1,66 @@
+import sys
+sys.setrecursionlimit(10000)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    adj = [set() for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u].add(v)
+        adj[v].add(u)
+
+    # order vertices by degree descending
+    order = sorted(range(n), key=lambda x: -len(adj[x]))
+    pos_in_order = [0]*n
+    for idx, v in enumerate(order):
+        pos_in_order[v] = idx
+
+    colors = [0]*n  # 0,1,2 -> shift 1,2,3 ; -1 uncolored
+    colors = [-1]*n
+
+    # For quick conflict check, maintain neighbor colors set per vertex
+    neighbor_used = [set() for _ in range(n)]
+
+    def dfs(idx: int) -> bool:
+        if idx == n:
+            return True
+        v = order[idx]
+        # try colors not used by already colored neighbors
+        used = neighbor_used[v]
+        for c in range(3):
+            if c in used:
+                continue
+            # assign
+            colors[v] = c
+            # update neighbor_used for uncolored neighbors
+            changed = []
+            for nb in adj[v]:
+                if colors[nb] == -1:
+                    if c not in neighbor_used[nb]:
+                        neighbor_used[nb].add(c)
+                        changed.append(nb)
+            if dfs(idx+1):
+                return True
+            # rollback
+            for nb in changed:
+                neighbor_used[nb].remove(c)
+            colors[v] = -1
+        return False
+
+    possible = dfs(0)
+    out = []
+    if not possible:
+        out.append("NO")
+    else:
+        out.append("YES")
+        out.append(' '.join(str(c+1) for c in colors))
+    sys.stdout.write('\n'.join(out))
+
+if __name__ == "__main__":
+    solve()

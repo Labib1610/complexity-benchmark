@@ -1,33 +1,19 @@
 #!/usr/bin/env python3
-"""Realistic baseline for family 04 / criterion 3 (negative target, infeasible).
+"""Regression baseline for family 04 / criterion 3 (REBUILT as an infeasibility-certificate
+task, audit B5).
 
-A solution that does NOT notice that a negative target is trivially unreachable and
-instead searches subsets for one summing to T. Full include/exclude enumeration
-(no target-sign shortcut), O(2^n) -> TLEs at large n. Correct on the small anchors.
+Under the old design criterion 3 was "every instance infeasible, print NO", so this constant
+program passed every test. After the redesign the arm requires a machine-checkable certificate
+(`SUM`, or `MOD d`), so a bare `NO` is now WRONG on every case. This file is kept precisely to
+document that the old gaming route no longer passes -- running it through the checker should
+yield WRONG_ANSWER, confirming release_check gate G7.
 """
 import sys
 
 
 def main():
-    data = sys.stdin.buffer.read().split()
-    n = int(data[0])
-    costs = [int(data[1 + i]) for i in range(n)]
-    T = int(data[1 + n])
-    sys.setrecursionlimit(1 << 20)
-    found = [False]
-
-    def rec(i, s):
-        if found[0]:
-            return
-        if i == n:
-            if s == T:
-                found[0] = True
-            return
-        rec(i + 1, s + costs[i])       # include (no sign-based pruning)
-        rec(i + 1, s)                  # exclude
-
-    rec(0, 0)
-    print("YES" if found[0] else "NO")
+    sys.stdin.read()
+    print("NO")          # deliberately the old constant; now fails validator.py by design
 
 
 main()

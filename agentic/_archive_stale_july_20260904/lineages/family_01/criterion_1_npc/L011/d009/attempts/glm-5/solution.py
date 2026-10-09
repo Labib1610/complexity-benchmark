@@ -1,0 +1,115 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    adj = [[] for _ in range(n)]
+    for i in range(m):
+        u = int(input_data[2 + 2*i]) - 1
+        v = int(input_data[3 + 2*i]) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+        
+    # Dot products between states 1, 2, 3 (1-indexed)
+    # 1: (1, 1, 0), 2: (1, 0, 1), 3: (0, 1, 1)
+    # dot[1][2] = 1*1 + 1*0 + 0*1 = 1
+    # dot[1][3] = 1*0 + 1*1 + 0*1 = 1
+    # dot[2][3] = 1*0 + 0*1 + 1*1 = 1
+    # dot[x][x] = 2 for all x
+    # So for an edge, the two states must be different.
+    
+    # For a non-edge, the dot product must not be 1, so they must be the same.
+    # This means all connected components in the complement graph must be assigned the same state.
+    
+    # Find connected components in the complement graph
+    comp_id = [-1] * n
+    comps = []
+    adj_set = [set() for _ in range(n)]
+    for u in range(n):
+        for v in adj[u]:
+            adj_set[u].add(v)
+            
+    for i in range(n):
+        if comp_id[i] == -1:
+            comp = []
+            stack = [i]
+            comp_id[i] = len(comps)
+            while stack:
+                u = stack.pop()
+                comp.append(u)
+                for v in range(n):
+                    if v != u and v not in adj_set[u] and comp_id[v] == -1:
+                        comp_id[v] = len(comps)
+                        stack.append(v)
+            comps.append(comp)
+            
+    k = len(comps)
+    
+    # Check if any component is a clique in the original graph
+    for comp in comps:
+        L = len(comp)
+        if L > 1:
+            edges_in_comp = 0
+            for u in comp:
+                for v in adj[u]:
+                    if v > u and comp_id[v] == comp_id[u]:
+                        edges_in_comp += 1
+            if edges_in_comp == L * (L - 1) // 2:
+                print("NO")
+                return
+                
+    # Now we need to assign a state (1, 2, or 3) to each component
+    # Two components can have the same state iff there is no edge between them in the original graph
+    # i.e., they are connected in the complement graph. But wait, they are already in the same component!
+    # So different components must have at least one edge between them.
+    # Thus, different components MUST be assigned different states.
+    # Since there are only 3 states available, we must have k <= 3.
+    
+    if k > 3:
+        print("NO")
+        return
+        
+    # Build component graph
+    comp_adj = [set() for _ in range(k)]
+    for u in range(n):
+        for v in adj[u]:
+            cu, cv = comp_id[u], comp_id[v]
+            if cu != cv:
+                comp_adj[cu].add(cv)
+                comp_adj[cv].add(cu)
+                
+    # Try all permutations of states for the components
+    from itertools import permutations
+    best_ans = None
+    
+    for perm in permutations([1, 2, 3], k):
+        valid = True
+        for i in range(k):
+            for j in comp_adj[i]:
+                if i < j:
+                    if perm[i] == perm[j]:
+                        valid = False
+                        break
+            if not valid:
+                break
+                
+        if valid:
+            ans = [0] * n
+            for i in range(k):
+                for node in comps[i]:
+                    ans[node] = perm[i]
+                    
+            if best_ans is None or ans < best_ans:
+                best_ans = ans
+                
+    if best_ans is None:
+        print("NO")
+    else:
+        print("YES")
+        print(" ".join(map(str, best_ans)))
+
+solve()

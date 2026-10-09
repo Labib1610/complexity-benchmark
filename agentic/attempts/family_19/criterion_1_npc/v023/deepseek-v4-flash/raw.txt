@@ -1,0 +1,207 @@
+ We need to model this as a multi-commodity flow problem with shared capacities.  
+Since the number of frequencies and nodes is small, we can solve it using **linear programming** or **min-cost flow** with a super source/sink, but here we can use a **feasibility flow with lower bounds** approach.
+
+We can model it as a **single-commodity flow with multiple demands** by splitting each frequency into its own flow, but sharing edge capacities.  
+This is a **multi-commodity flow** problem, which is NP-hard in general.  
+However, the constraints are not given explicitly, but since it’s a contest problem, likely small enough for an **integer linear programming (ILP)** or **max flow with lower bounds** trick.
+
+We can solve it using **linear programming** via `scipy.optimize.linprog` or `pulp`, but those may not be available.  
+We can also use **networkx**? Not guaranteed.
+
+Given the problem statement, the intended solution is likely to use **max flow with lower bounds** by treating each frequency separately and using **capacity sharing** via **flow decomposition**?  
+But that doesn’t work directly.
+
+Actually, this is a **feasible flow with multiple sources/sinks and shared capacities** — can be solved by **linear programming** or **min-cost max-flow** if we treat each frequency as a commodity and use **capacity scaling**?  
+But multi-commodity flow is NP-hard.
+
+Given the problem is from a contest, maybe the constraints are small (n ≤ 10, m ≤ 20, k ≤ 5) so we can use **ILP** via brute force?  
+But we need exact solution.
+
+We can use **max flow with lower bounds** for each frequency separately, but that doesn't ensure shared capacity.
+
+Wait — maybe we can use **linear programming** with `scipy`?  
+But the environment may not have scipy.
+
+We can implement a **simplex** or use `pulp`? Not guaranteed.
+
+Given the problem statement, I think the intended solution is to use **max flow with lower bounds** for each frequency independently, but that would ignore capacity sharing.  
+So maybe the constraints are small enough to use **integer linear programming** via `itertools`? No.
+
+Let’s think:  
+We have k commodities, each with a demand d_i.  
+We need to send d_i units from s_i to t_i for each i, sharing edge capacities.
+
+This is exactly the **multi-commodity flow** problem.  
+For small k and m, we can use **linear programming** with `scipy.optimize.linprog` if available.  
+But we can also use **fractional** solution and then round? Not guaranteed integral.
+
+Given the problem is from a contest, maybe the constraints are small enough to use **brute force** on paths?  
+But that’s exponential.
+
+Let’s check the example: n=4, m=5, k=2.  
+We can solve by hand:  
+Frequency 1: s=1, t=4, d=2.  
+Frequency 2: s=2, t=3, d=1.  
+Edges:  
+1->2 cap 2  
+2->4 cap 1  
+1->3 cap 1  
+3->4 cap 2  
+2->3 cap 1  
+
+We need to send 2 units from 1 to 4, and 1 unit from 2 to 3.  
+Possible:  
+Freq1: 1->2 (1), 2->4 (1), 1->3 (1), 3->4 (1) → that's 2 units? Actually 1->2->4 uses 1 unit, 1->3->4 uses 1 unit, total 2.  
+Freq2: 2->3 (1).  
+Check capacities:  
+1->2: used by freq1 1, cap 2 OK.  
+2->4: used 1, cap 1 OK.  
+1->3: used 1, cap 1 OK.  
+3->4: used 1, cap 2 OK.  
+2->3: used 1, cap 1 OK.  
+So yes.
+
+Thus we need to find such a flow.
+
+Given the difficulty, I think the intended solution is to use **linear programming** with `scipy` or `pulp`.  
+But since we can't assume external libraries, maybe we can implement a **max flow with lower bounds** for each frequency and use **capacity sharing** via **binary search**? No.
+
+Wait — maybe the problem is actually **single-commodity**? No, it's multi-frequency.
+
+Given the time, I'll implement a solution using **linear programming** with `scipy.optimize.linprog` if available, and fallback to a simple **max flow** per frequency if not? But that won't work.
+
+Actually, we can model it as a **min-cost max-flow** with multiple commodities by using a **super source** and **super sink** and **edge splitting**?  
+No.
+
+Given the problem is from a contest, maybe the constraints are small enough to use **integer linear programming** via `itertools.product` on paths?  
+But that's too large.
+
+I think the intended solution is to use **max flow with lower bounds** for each frequency independently, but that would ignore capacity sharing.  
+But maybe the test cases are such that the optimal solution doesn't require sharing? Unlikely.
+
+Let’s search memory: This problem is from NWERC? Or maybe it's from Kattis?  
+"Magical Ley Lines" — I recall a problem about multi-commodity flow with small k, solved by **brute force over all possible path assignments**?  
+If k ≤ 3 and m ≤ 20, we can enumerate all possible paths for each commodity? That's huge.
+
+Given the time, I'll implement a solution using **linear programming** with `scipy` if available, else use a **max flow with lower bounds** per frequency and hope the test cases are simple.
+
+But the problem says "Output only the answer in the exact format specified." So we need to output the flow.
+
+I'll implement using `scipy.optimize.linprog` with integer variables? But linprog doesn't do integer. We can use `milp` from scipy.optimize? That's available in newer scipy.
+
+Given the environment might have scipy, I'll use `scipy.optimize.milp` with integrality.
+
+Let's write the code:
+
+- Variables: x_{i,j} for each frequency i and edge j, integer >=0.
+- Constraints: For each edge j, sum_i x_{i,j} <= cap_j.
+- For each frequency i and each node v (except s_i, t_i): sum_in - sum_out = 0.
+- For s_i: sum_out - sum_in = d_i.
+- For t_i: sum_in - sum_out = d_i.
+
+Then minimize 0 (feasibility) and check if solution exists.
+
+We'll use scipy.optimize.milp.
+
+If scipy not available, we can try to use `pulp`? Not guaranteed.
+
+Given the problem is from a contest, maybe they expect a custom max flow with lower bounds for each frequency and then combine? But that's not correct.
+
+I'll go with scipy milp.
+
+Let's write the code.```python
+import sys
+import numpy as np
+from scipy.optimize import milp, LinearConstraint, Bounds, integrality
+
+def solve():
+    input_data = sys.stdin.read().strip().split()
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    k = int(next(it))
+    
+    freqs = []
+    for _ in range(k):
+        s = int(next(it)) - 1
+        t = int(next(it)) - 1
+        d = int(next(it))
+        freqs.append((s, t, d))
+    
+    edges = []
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        c = int(next(it))
+        edges.append((u, v, c))
+    
+    # Variables: x[i][j] for frequency i, edge j
+    # Total variables = k * m
+    num_vars = k * m
+    
+    # Objective: all zeros (feasibility)
+    c_obj = np.zeros(num_vars)
+    
+    # Bounds: all variables >= 0
+    lb = np.zeros(num_vars)
+    ub = np.full(num_vars, np.inf)
+    bounds = Bounds(lb, ub)
+    
+    # Integrality: all integer
+    intg = np.ones(num_vars)
+    
+    constraints = []
+    lower_bounds = []
+    upper_bounds = []
+    
+    # Edge capacity constraints: sum_i x[i][j] <= cap_j
+    for j in range(m):
+        row = np.zeros(num_vars)
+        for i in range(k):
+            row[i * m + j] = 1
+        constraints.append(row)
+        lower_bounds.append(-np.inf)
+        upper_bounds.append(edges[j][2])
+    
+    # Flow conservation constraints for each frequency and each node
+    for i in range(k):
+        s, t, d = freqs[i]
+        for v in range(n):
+            row = np.zeros(num_vars)
+            # incoming edges
+            for j, (u, w, _) in enumerate(edges):
+                if w == v:
+                    row[i * m + j] += 1
+                if u == v:
+                    row[i * m + j] -= 1
+            # For source: out - in = d
+            if v == s:
+                lower_bounds.append(d)
+                upper_bounds.append(d)
+            elif v == t:
+                lower_bounds.append(-d)
+                upper_bounds.append(-d)
+            else:
+                lower_bounds.append(0)
+                upper_bounds.append(0)
+            constraints.append(row)
+    
+    A = np.array(constraints)
+    lc = LinearConstraint(A, np.array(lower_bounds), np.array(upper_bounds))
+    
+    res = milp(c=c_obj, constraints=[lc], integrality=intg, bounds=bounds, options={"time_limit": 4.5})
+    
+    if not res.success:
+        print("NO")
+        return
+    
+    x = res.x
+    # Output
+    print("YES")
+    for i in range(k):
+        vals = [str(int(round(x[i * m + j]))) for j in range(m)]
+        print(" ".join(vals))
+
+if __name__ == "__main__":
+    solve()
+```

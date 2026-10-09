@@ -1,0 +1,267 @@
+import sys
+from collections import deque
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    iterator = iter(input_data)
+    n = int(next(iterator))
+    m = int(next(iterator))
+    k = int(next(iterator))
+    
+    orders = []
+    for _ in range(k):
+        s = int(next(iterator)) - 1
+        t = int(next(iterator)) - 1
+        d = int(next(iterator))
+        orders.append((s, t, d))
+        
+    edges = []
+    for _ in range(m):
+        u = int(next(iterator)) - 1
+        v = int(next(iterator)) - 1
+        cap = int(next(iterator))
+        edges.append((u, v, cap))
+
+    # Fast check: total capacity leaving source, entering dest
+    # If k == 1, we can use Max Flow
+    if k == 1:
+        s, t, d = orders[0]
+        # Dinic's algorithm
+        class Dinic:
+            def __init__(self, n):
+                self.n = n
+                self.graph = [[] for _ in range(n)]
+                self.edges = []
+                
+            def add_edge(self, u, v, cap, orig_idx):
+                idx = len(self.edges)
+                self.edges.append([u, v, cap, 0, orig_idx])
+                self.edges.append([v, u, 0, 0, -1])
+                self.graph[u].append(idx)
+                self.graph[v].append(idx ^ 1)
+                
+            def bfs(self, s, t):
+                self.level = [-1] * self.n
+                self.level[s] = 0
+                q = deque([s])
+                while q:
+                    u = q.popleft()
+                    for idx in self.graph[u]:
+                        v, cap, flow = self.edges[idx][1], self.edges[idx][2], self.edges[idx][3]
+                        if cap - flow > 0 and self.level[v] == -1:
+                            self.level[v] = self.level[u] + 1
+                            q.append(v)
+                return self.level[t] != -1
+                
+            def dfs(self, u, t, pushed, ptr):
+                if pushed == 0 or u == t:
+                    return pushed
+                for i in range(ptr[u], len(self.graph[u])):
+                    ptr[u] = i
+                    idx = self.graph[u][i]
+                    v, cap, flow = self.edges[idx][1], self.edges[idx][2], self.edges[idx][3]
+                    if self.level[v] == self.level[u] + 1 and cap - flow > 0:
+                        tr = self.dfs(v, t, min(pushed, cap - flow), ptr)
+                        if tr > 0:
+                            self.edges[idx][3] += tr
+                            self.edges[idx ^ 1][3] -= tr
+                            return tr
+                return 0
+                
+            def max_flow(self, s, t, limit):
+                flow = 0
+                while flow < limit and self.bfs(s, t):
+                    ptr = [0] * self.n
+                    while True:
+                        pushed = self.dfs(s, t, limit - flow, ptr)
+                        if pushed == 0:
+                            break
+                        flow += pushed
+                return flow
+
+        mf = Dinic(n)
+        for i, (u, v, cap) in enumerate(edges):
+            mf.add_edge(u, v, cap, i)
+        
+        flow = mf.max_flow(s, t, d)
+        if flow < d:
+            print("NO")
+            return
+        
+        ans = [0] * m
+        for i in range(0, len(mf.edges), 2):
+            orig_idx = mf.edges[i][4]
+            ans[orig_idx] = mf.edges[i][3]
+        
+        print("YES")
+        print(*(ans))
+        return
+
+    # General case: Simplex + Branch and Bound
+    # Variables: f[i][e] -> var_idx = i * m + e
+    num_vars = k * m
+    
+    # Constraints:
+    # 1. Conservation: for each order i, vertex v: sum_{out} f[i][e] - sum_{in} f[i][e] = b
+    # 2. Edge capacities: for each edge e: sum_i f[i][e] <= cap[e]
+    # 3. f[i][e] >= 0, plus branching bounds: low <= f[i][e] <= up
+    
+    # Let's set up equality constraints A_eq x = b_eq
+    # and inequality constraints A_ub x <= b_ub
+    eq_rows = []
+    eq_rhs = []
+    
+    for i in range(k):
+        s_i, t_i, d_i = orders[i]
+        for v in range(n):
+            if v == t_i:
+                continue # redundant equation
+            row = {}
+            for e, (u_e, v_e, _) in enumerate(edges):
+                if u_e == v:
+                    row[i * m + e] = row.get(i * m + e, 0.0) + 1.0
+                if v_e == v:
+                    row[i * m + e] = row.get(i * m + e, 0.0) - 1.0
+            
+            b_val = 0.0
+            if v == s_i:
+                b_val = float(d_i)
+            
+            # Clean up zero coefficients
+            row = {k_var: val for k_var, val in row.items() if abs(val) > 1e-9}
+            eq_rows.append(row)
+            eq_rhs.append(b_val)
+            
+    ub_rows = []
+    ub_rhs = []
+    for e in range(m):
+        row = {}
+        for i in range(k):
+            row[i * m + e] = 1.0
+        ub_rows.append(row)
+        ub_rhs.append(float(edges[e][2]))
+
+    # We will use SciPy linprog if available, else simple branch & bound or backtracking
+    try:
+        from scipy.optimize import linprog, milp, LinearConstraint, Bounds
+        import numpy as np
+        
+        # Build matrices for MILP
+        A_eq_mat = np.zeros((len(eq_rows), num_vars))
+        for r_idx, row in enumerate(eq_rows):
+            for c_idx, val in row.items():
+                A_eq_mat[r_idx, c_idx] = val
+        b_eq_mat = np.array(eq_rhs)
+        
+        A_ub_mat = np.zeros((len(ub_rows), num_vars))
+        for r_idx, row in enumerate(ub_rows):
+            for c_idx, val in row.items():
+                A_ub_mat[r_idx, c_idx] = val
+        b_ub_mat = np.array(ub_rhs)
+        
+        A_all = np.vstack([A_eq_mat, A_ub_mat])
+        lhs = np.concatenate([b_eq_mat, np.full(len(ub_rhs), -np.inf)])
+        rhs = np.concatenate([b_eq_mat, b_ub_mat])
+        
+        constraints = LinearConstraint(A_all, lhs, rhs)
+        integrality = np.ones(num_vars)
+        bounds = Bounds(np.zeros(num_vars), np.inf)
+        c = np.zeros(num_vars)
+        
+        res = milp(c=c, constraints=constraints, integrality=integrality, bounds=bounds)
+        if res.success:
+            print("YES")
+            x = np.round(res.x).astype(int)
+            for i in range(k):
+                row = x[i * m : (i + 1) * m]
+                print(*(row))
+            return
+        else:
+            print("NO")
+            return
+    except ImportError:
+        pass
+
+    # Fallback to pure Python backtracking with path decomposition if scipy is not present
+    # Usually scipy is present in PyPy / Python competitive environments or we can backtrack.
+    # Unit flow decomposition backtracking:
+    rem_cap = [edges[e][2] for e in range(m)]
+    flow_res = [[0] * m for _ in range(k)]
+    
+    # Group demands into single wagon requests: (order_idx, s, t)
+    units = []
+    for i, (s, t, d) in enumerate(orders):
+        for _ in range(d):
+            units.append((i, s, t))
+            
+    # Adj list
+    adj = [[] for _ in range(n)]
+    for e, (u, v, cap) in enumerate(edges):
+        adj[u].append((v, e))
+        
+    def backtrack(idx):
+        if idx == len(units):
+            return True
+        ord_idx, s, t = units[idx]
+        
+        # BFS/DFS to find a path for this unit
+        # Find all simple paths or use shortest path
+        # To avoid infinite loop / explore systematically:
+        visited = [False] * n
+        path = []
+        
+        def find_path(curr):
+            if curr == t:
+                return True
+            visited[curr] = True
+            for nxt, e in adj[curr]:
+                if not visited[nxt] and rem_cap[e] > 0:
+                    rem_cap[e] -= 1
+                    path.append(e)
+                    if find_path(nxt):
+                        return True
+                    path.pop()
+                    rem_cap[e] += 1
+            visited[curr] = False
+            return False
+
+        # Try to find a path
+        # For general search, we might need multiple paths
+        # Let's do DFS with backtracking over paths
+        def search_paths(curr):
+            if curr == t:
+                # Apply path to results
+                for e in path:
+                    flow_res[ord_idx][e] += 1
+                if backtrack(idx + 1):
+                    return True
+                for e in path:
+                    flow_res[ord_idx][e] -= 1
+                return False
+                
+            visited[curr] = True
+            for nxt, e in adj[curr]:
+                if not visited[nxt] and rem_cap[e] > 0:
+                    rem_cap[e] -= 1
+                    path.append(e)
+                    if search_paths(nxt):
+                        return True
+                    path.pop()
+                    rem_cap[e] += 1
+            visited[curr] = False
+            return False
+
+        return search_paths(s)
+
+    if backtrack(0):
+        print("YES")
+        for i in range(k):
+            print(*(flow_res[i]))
+    else:
+        print("NO")
+
+if __name__ == '__main__':
+    solve()

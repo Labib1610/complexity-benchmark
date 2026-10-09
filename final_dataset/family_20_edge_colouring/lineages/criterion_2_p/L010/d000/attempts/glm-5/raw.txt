@@ -1,0 +1,337 @@
+```python
+import sys
+
+def main():
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    nL = int(data[0]); nR = int(data[1]); m = int(data[2])
+    edges = []
+    idx = 3
+    degL = [0]*(nL+1)
+    degR = [0]*(nR+1)
+    for _ in range(m):
+        u = int(data[idx]); v = int(data[idx+1]); idx += 2
+        edges.append((u,v))
+        degL[u] += 1
+        degR[v] += 1
+    maxL = max(degL) if nL >= 1 else 0
+    maxR = max(degR) if nR >= 1 else 0
+    delta = max(maxL, maxR)
+    if delta == 0:
+        out = ["YES"]
+        if m > 0:
+            out.append(" ".join(["1"]*m))
+        sys.stdout.write("\n".join(out))
+        return
+
+    # Build adjacency lists for left side (presenters)
+    # We'll store edge indices in the adjacency list
+    adj = [[] for _ in range(nL+1)]
+    for i,(u,v) in enumerate(edges):
+        adj[u].append(i)
+
+    color = [0]*m
+    # For each left vertex, assign colors to its incident edges greedily.
+    # Since deg(u) <= delta, we can always find a color in 1..delta not used by u.
+    # But we also need to ensure the right vertex doesn't have a conflict.
+    # Use a "used" array per left vertex, and a "last color" marker per right vertex.
+    # Actually, greedy edge coloring of bipartite graph: process each left vertex,
+    # for each incident edge pick smallest color not used by left vertex and not used by right vertex.
+    # This is O(sum deg) with proper data structures.
+
+    # We'll use a "free color" approach:
+    # For left vertex u, maintain a set/stack of free colors.
+    # For right vertex v, maintain a set/stack of free colors.
+    # When coloring edge (u,v), pick a color free for both, or do augmenting path.
+    # But simpler: since it's bipartite, Vizing's theorem says edge chromatic number = delta.
+    # A simple greedy with augmenting paths works but is complex.
+    #
+    # Alternative: Use the fact that we can do a simple greedy if we process edges in a good order.
+    # Actually, for bipartite graphs, a simple greedy edge coloring (pick any available color)
+    # can use up to 2*delta - 1 colors in worst case for general graphs, but for bipartite
+    # it's known that greedy can still exceed delta.
+    #
+    # We need a proper algorithm. Let's use the standard "König's edge coloring" via
+    # Euler tour / splitting into matchings approach, or the augmenting path approach.
+    #
+    # Given constraints (m up to 400000, delta up to 400000), we need O(m * something small).
+    #
+    # Let's implement the augmenting path based algorithm (Misra & Gries style for bipartite,
+    # or the simpler version for bipartite graphs).
+    #
+    # Actually, for bipartite graphs, there's a simpler approach:
+    # Repeatedly find a perfect matching in a delta-regular bipartite graph.
+    # But our graph may not be regular.
+    #
+    # Let's use the approach from "A simple algorithm for edge coloring bipartite multigraphs"
+    # which processes edges one by one and uses color swapping via alternating paths.
+    #
+    # Implementation:
+    # Maintain for each vertex (both sides) a mapping color -> edge index (or -1 if free).
+    # Also maintain a "free color" for each vertex (any color not currently used).
+    #
+    # For each edge (u,v):
+    #   Find a color free at u (fu) and a color free at v (fv).
+    #   If fu == fv: assign fu.
+    #   Else: assign fu to edge, then try to recolor the edge at v that has color fu
+    #         by swapping along an alternating path from v using colors fu and fv.
+    #
+    # This is the standard algorithm. Let's implement it.
+
+    # We'll use arrays for color usage:
+    # For left vertices: color_of_L[u][c] = edge index or -1
+    # For right vertices: color_of_R[v][c] = edge index or -1
+    # But delta can be up to 400000 and nL up to 100000, so we can't allocate 2D arrays.
+    # Use dictionaries or lists of lists only for vertices with degree > 0.
+    #
+    # Actually, we can use a different representation:
+    # For each vertex, store a dict: color -> edge_index
+    # And a variable: any_free_color (we can compute by scanning, but that's slow).
+    #
+    # Better: maintain a "free color" stack/list for each vertex.
+    # Initially, free colors for vertex with degree d are {1, 2, ..., delta} minus used ones.
+    # But we don't know used ones until we assign.
+    #
+    # Let's think differently. Since delta <= 400000 and sum of degrees = 2m <= 800000,
+    # the total number of color assignments is m. We can use dicts per vertex.
+    #
+    # For finding a free color at a vertex: we can maintain a counter "next_free" that
+    # increments until we find an unused color. Since each vertex has at most delta colors
+    # and at most deg(v) used, and sum of deg = 2m, total work for finding free colors
+    # across all edges is O(m + n*delta) in worst case... that's too much if delta is large
+    # and many vertices have small degree.
+    #
+    # Hmm. Let's think about the problem constraints again.
+    # nL, nR up to 100000, m up to 400000, delta up to 400000.
+    #
+    # Alternative approach: Use the "splitting" method.
+    # Make the graph delta-regular by adding dummy vertices and edges.
+    # Then decompose into delta perfect matchings using Hall's theorem / flow.
+    # But that's also complex.
+    #
+    # Let's try the augmenting path approach with dicts and see if it's fast enough.
+    # The key insight: for each edge, we do at most one augmenting path, and the path
+    # length is bounded. Total work should be O(m * alpha) for some small alpha.
+    #
+    # Let's implement it carefully.
+
+    # color_of_L[u]: dict mapping color -> edge_index
+    # color_of_R[v]: dict mapping color -> edge_index
+    # free_L[u]: a color not used by u (we'll maintain a "candidate" that we check)
+    # free_R[v]: a color not used by v
+
+    color_of_L = [dict() for _ in range(nL+1)]
+    color_of_R = [dict() for _ in range(nR+1)]
+    free_L = [1]*(nL+1)  # candidate free color
+    free_R = [1]*(nR+1)
+
+    def get_free_L(u):
+        d = color_of_L[u]
+        c = free_L[u]
+        while c in d:
+            c += 1
+        free_L[u] = c
+        return c
+
+    def get_free_R(v):
+        d = color_of_R[v]
+        c = free_R[v]
+        while c in d:
+            c += 1
+        free_R[v] = c
+        return c
+
+    # For the augmenting path, we need to find an alternating path.
+    # We'll use a recursive/iterative approach.
+
+    for i in range(m):
+        u, v = edges[i]
+        fu = get_free_L(u)
+        fv = get_free_R(v)
+
+        if fu == fv:
+            color[i] = fu
+            color_of_L[u][fu] = i
+            color_of_R[v][fu] = i
+            # update free candidates
+            if free_L[u] == fu:
+                free_L[u] = fu + 1
+            if free_R[v] == fu:
+                free_R[v] = fu + 1
+        else:
+            # Try to assign fu to edge (u,v), but fu might be used at v.
+            # We need to find an alternating path from v using colors fu and fv.
+            # The path: v -> (edge with color fu at v) -> u' -> (edge with color fv at u') -> ...
+            # until we find a vertex where fv is free (on left) or fu is free (on right).
+
+            # Assign fu tentatively
+            # The edge at v with color fu (if any) needs to be recolored to fv.
+            # Then at the other endpoint of that edge, fu becomes free but fv might be used.
+            # Continue alternating.
+
+            # Let's do the swap along the path.
+            # We'll collect the path of edges and then recolor.
+
+            # Actually, let's implement it as: flip colors along the alternating path.
+            # The path starts at v. At v, color fu is used by some edge e1=(u1,v).
+            # We want to change e1's color from fu to fv.
+            # At u1, fv might be used by some edge e2=(u1,v2). Change e2 from fv to fu.
+            # At v2, fu might be used by some edge e3=(u3,v2). Change e3 from fu to fv.
+            # ... until we reach a vertex where the target color is free.
+
+            # We alternate: at right vertices, we look for color fu; at left vertices, color fv.
+
+            # Let's trace the path:
+            path_edges = []  # list of (edge_index, old_color, new_color)
+            curr_v = v
+            curr_color_to_find = fu  # at right vertex, find this color
+            curr_new_color = fv
+
+            # The edge (u,v) will get color fu.
+            # We need to find at v an edge with color fu, move it to fv.
+            # Then at its left endpoint, find edge with color fv, move to fu.
+            # etc.
+
+            # Actually, let's think of it as: we're building a fan or path.
+            # Standard algorithm: we have edge (u,v), free colors fu at u, fv at v, fu != fv.
+            # We color (u,v) with fu. Now v has two edges with color fu (the new one and old one).
+            # We need to recolor the old one. We try to recolor it to fv.
+            # If fv is free at the other endpoint of the old edge, great.
+            # Otherwise, we continue the alternating path.
+
+            # Let's implement iteratively:
+            # We have a "conflict" at vertex v: color fu is now used twice (by edge i and old edge).
+            # We want to move the old edge to fv.
+            # old_edge = color_of_R[v][fu]  (but we haven't assigned yet)
+
+            # Let's assign fu to edge i first, then resolve conflict.
+            color[i] = fu
+            old_edge_at_v = color_of_R[v].get(fu, -1)
+            color_of_L[u][fu] = i
+            color_of_R[v][fu] = i
+
+            if old_edge_at_v == -1:
+                # No conflict, fu was free at v. But we said fu != fv and fu was free at u,
+                # fv was free at v. If fu is also free at v, then fu == fv? No.
+                # fu is free at u, fv is free at v. fu != fv. fu might or might not be free at v.
+                # If fu is free at v, then we can just use fu. But we computed fv = get_free_R(v)
+                # which is the smallest free color at v. If fu < fv, then fu is used at v.
+                # If fu > fv, then fu might be free at v (since fv is smallest free).
+                # Wait, fv is the smallest free color at v. If fu > fv and fu is free at v,
+                # then no conflict. If fu is used at v, there's a conflict.
+                # So old_edge_at_v == -1 means fu is free at v, no conflict. Done.
+                if free_R[v] == fu:
+                    free_R[v] = fu + 1
+                # Also update free_L[u] if needed
+                if free_L[u] == fu:
+                    free_L[u] = fu + 1
+                continue
+
+            # There's a conflict. old_edge_at_v has color fu at v.
+            # Its left endpoint is edges[old_edge_at_v][0].
+            # We want to recolor old_edge_at_v to fv.
+            # Check if fv is free at that left endpoint.
+            # If yes, recolor. If no, continue alternating.
+
+            # We'll do the alternating path swap.
+            # Path: edge i (color fu) -> old_edge_at_v (recolor fu->fv) -> ...
+            # At each step, we have a vertex where a color is "doubly used" or we need to
+            # move a color.
+
+            # Let's restructure: we have a sequence of edges to recolor.
+            # Start: edge i gets fu. Conflict at v: old edge has fu.
+            # Move old edge to fv. Conflict at u1 (left endpoint of old edge) if fv used there.
+            # Move that edge to fu. Conflict at v2 if fu used there. Etc.
+
+            # We alternate between right and left vertices.
+            # At right vertex: looking for color fu, moving to fv.
+            # At left vertex: looking for color fv, moving to fu.
+
+            # Let's collect the path and then flip.
+            # Actually, we can flip as we go, but we need to be careful about undoing.
+
+            # Let's use the standard approach: find the maximal alternating path, then flip.
+
+            # Path vertices: v, u1, v2, u3, ...
+            # Path edges: old_edge_at_v, edge_at_u1_with_fv, edge_at_v2_with_fu, ...
+
+            # We stop when we find a vertex where the target color is free.
+
+            # Let's trace:
+            # curr_vertex = v (right side)
+            # target_color = fu (the color we're trying to "move away")
+            # new_color = fv
+
+            # At curr_vertex (right), find edge with color fu (target_color).
+            # If none, stop (fu is free here, but we already handled that case).
+            # If found, this edge should be recolored to fv (new_color).
+            # Move to the other endpoint (left side). Now target_color = fv, new_color = fu.
+            # At left vertex, find edge with color fv. If none, stop (fv is free, recolor works).
+            # If found, recolor to fu. Move to right endpoint. target_color = fu, new_color = fv.
+            # Repeat.
+
+            # We collect edges and their new colors, then apply all at once.
+
+            path = []  # list of (edge_index, new_color)
+            curr_vertex = v
+            curr_is_right = True
+            find_color = fu
+            replace_with = fv
+
+            while True:
+                if curr_is_right:
+                    e = color_of_R[curr_vertex].get(find_color, -1)
+                else:
+                    e = color_of_L[curr_vertex].get(find_color, -1)
+
+                if e == -1:
+                    # find_color is free at curr_vertex, path ends here
+                    break
+
+                path.append((e, replace_with))
+
+                # Move to other endpoint
+                eu, ev = edges[e]
+                if curr_is_right:
+                    curr_vertex = eu  # move to left
+                else:
+                    curr_vertex = ev  # move to right
+                curr_is_right = not curr_is_right
+
+                # Swap find_color and replace_with
+                find_color, replace_with = replace_with, find_color
+
+            # Now apply the recoloring
+            for (e, nc) in path:
+                eu, ev = edges[e]
+                oc = color[e]
+                # Remove old color, add new color
+                del color_of_L[eu][oc]
+                del color_of_R[ev][oc]
+                color[e] = nc
+                color_of_L[eu][nc] = e
+                color_of_R[ev][nc] = e
+
+            # Update free candidates
+            # After all recoloring, free_L[u] and free_R[v] might need updating
+            # but get_free_L/get_free_R will handle it lazily.
+            # However, we should update free_L and free_R for vertices that had colors freed.
+            # Let's just reset them to be safe (they'll be recomputed lazily).
+            # Actually, the lazy approach in get_free_L/R handles it.
+            # But we might have stale free_L[u] values. Let's update the ones we know.
+            # For edge i: u got color fu, v got color fu.
+            if free_L[u] <= fu:
+                free_L[u] = fu + 1
+            if free_R[v] <= fu:
+                free_R[v] = fu + 1
+            # For recolored edges, their vertices might have new free colors.
+            # But the lazy get_free will handle it.
+
+    out = ["YES"]
+    out.append(" ".join(map(str, color)))
+    sys.stdout.write("\n".join(out))
+
+if __name__ == "__main__":
+    main()
+```

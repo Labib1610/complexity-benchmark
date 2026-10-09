@@ -1,0 +1,73 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    k = int(next(it))
+    t = int(next(it))
+    
+    paths = []
+    for _ in range(t):
+        x = int(next(it))
+        y = int(next(it))
+        z = int(next(it))
+        paths.append((x, y, z))
+    
+    # Calculate capacities
+    C = [0] * (3 * k + 1)
+    C[1] = 1
+    for i in range(2, 3 * k + 1):
+        C[i] = (k + 1) * C[i-1] + 1
+    
+    # Total capacity
+    total_capacity = sum(C[1:])
+    
+    # Create set of available paths for quick lookup
+    available = set(paths)
+    
+    # Try to construct the solution greedily
+    # We need exactly k paths such that each index 1..k, k+1..2k, 2k+1..3k appears exactly once
+    # This means we need paths (x, y, z) where x covers 1..k, y covers 1..k (mapping to k+y), z covers 1..k (mapping to 2k+z)
+    
+    result = []
+    used_x = [False] * (k + 1)
+    used_y = [False] * (k + 1)
+    used_z = [False] * (k + 1)
+    
+    # Greedy approach: for each x from 1 to k, try to find a valid path
+    for x in range(1, k + 1):
+        found = False
+        for y in range(1, k + 1):
+            if used_y[y]:
+                continue
+            for z in range(1, k + 1):
+                if used_z[z]:
+                    continue
+                if (x, y, z) in available:
+                    result.append((x, y, z))
+                    used_x[x] = True
+                    used_y[y] = True
+                    used_z[z] = True
+                    found = True
+                    break
+            if found:
+                break
+        if not found:
+            print("NO")
+            return
+    
+    # Verify the solution
+    energy_sum = 0
+    for x, y, z in result:
+        energy_sum += C[x] + C[k + y] + C[2 * k + z]
+    
+    if energy_sum == total_capacity and len(result) == k:
+        print("YES")
+        for x, y, z in result:
+            print(x, y, z)
+    else:
+        print("NO")
+
+solve()

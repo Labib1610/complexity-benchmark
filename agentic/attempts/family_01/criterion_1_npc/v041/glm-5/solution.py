@@ -1,192 +1,44 @@
 import sys
+sys.setrecursionlimit(10000)
 
 def solve():
-    data = sys.stdin.read().split()
+    data = sys.stdin.read().strip().split()
     if not data:
         return
     it = iter(data)
     n = int(next(it))
     m = int(next(it))
     
-    adj = [0] * n
+    adj = [[] for _ in range(n)]
     for _ in range(m):
         u = int(next(it)) - 1
         v = int(next(it)) - 1
-        adj[u] |= 1 << v
-        adj[v] |= 1 << u
+        adj[u].append(v)
+        adj[v].append(u)
     
-    # Check if graph is 3-colorable using meet-in-the-middle
-    half = n // 2
-    n1 = half
-    n2 = n - half
+    color = [0] * n
     
-    # Precompute masks for left part
-    # For each subset S of left part, check if S is independent set
-    # valid_colorings[mask] = list of valid 3-colorings (represented as integers)
-    # We need to find colorings for left part
+    def is_safe(node, c):
+        for neighbor in adj[node]:
+            if color[neighbor] == c:
+                return False
+        return True
     
-    # Generate all valid colorings for left part
-    # A coloring is valid if for every edge (u,v), color[u] != color[v]
-    # We represent coloring as an integer where each pair of bits represents color (0,1,2)
+    def dfs(node):
+        if node == n:
+            return True
+        for c in range(1, 4):
+            if is_safe(node, c):
+                color[node] = c
+                if dfs(node + 1):
+                    return True
+                color[node] = 0
+        return False
     
-    # For left part (n1 nodes)
-    valid_left = []
-    colors_left = []
-    
-    # Iterate through all possible colorings for left part
-    # Using base-3 representation
-    # To optimize, we iterate through all 3^n1 possibilities
-    
-    # Precompute edges within left part
-    left_edges = []
-    for i in range(n1):
-        for j in range(i + 1, n1):
-            if (adj[i] >> j) & 1:
-                left_edges.append((i, j))
-    
-    # Generate all colorings for left part
-    # We'll use recursion or iterative approach
-    # For efficiency, we'll iterate through all 3^n1 colorings
-    
-    # For each coloring, check if it's valid
-    # Store valid colorings
-    
-    # To speed up, we can use DP or meet-in-the-middle within left part
-    # But n1 <= 20, so 3^20 is too large
-    # We need a smarter approach
-    
-    # Actually, let's use meet-in-the-middle properly
-    # Split into two halves, enumerate valid colorings for each half
-    # Then combine
-    
-    # For left half (n1 nodes), enumerate all valid colorings
-    # For right half (n2 nodes), enumerate all valid colorings
-    # Then check compatibility
-    
-    # Enumerate valid colorings for left part
-    def enumerate_valid_colorings(nodes, adj_matrix):
-        num_nodes = len(nodes)
-        if num_nodes == 0:
-            return [0]
-        
-        # Map from local index to global index
-        local_to_global = nodes
-        global_to_local = {g: l for l, g in enumerate(nodes)}
-        
-        # Build local adjacency
-        local_adj = [0] * num_nodes
-        for i in range(num_nodes):
-            gi = local_to_global[i]
-            for j in range(i + 1, num_nodes):
-                gj = local_to_global[j]
-                if (adj[gi] >> gj) & 1:
-                    local_adj[i] |= 1 << j
-                    local_adj[j] |= 1 << i
-        
-        valid = []
-        
-        # DFS to generate all valid colorings
-        # coloring[i] = 0, 1, or 2
-        coloring = [0] * num_nodes
-        
-        def dfs(pos):
-            if pos == num_nodes:
-                # Convert to integer
-                val = 0
-                for i in range(num_nodes):
-                    val += coloring[i] * (3 ** i)
-                valid.append(val)
-                return
-            
-            # Try each color
-            for c in range(3):
-                # Check if this color conflicts with previous nodes
-                ok = True
-                for prev in range(pos):
-                    if (local_adj[prev] >> pos) & 1:
-                        if coloring[prev] == c:
-                            ok = False
-                            break
-                if ok:
-                    coloring[pos] = c
-                    dfs(pos + 1)
-        
-        dfs(0)
-        return valid
-    
-    left_nodes = list(range(n1))
-    right_nodes = list(range(n1, n))
-    
-    left_colorings = enumerate_valid_colorings(left_nodes, adj)
-    right_colorings = enumerate_valid_colorings(right_nodes, adj)
-    
-    # For each valid coloring of left and right, check if they are compatible
-    # i.e., no edge between left and right has same color
-    
-    # Precompute for each left coloring, the colors of left nodes
-    # and for each right coloring, the colors of right nodes
-    
-    # Actually, we need to check edges between left and right
-    # For each edge (u, v) where u in left, v in right, check color[u] != color[v]
-    
-    # Build list of edges between left and right
-    cross_edges = []
-    for u in range(n1):
-        for v in range(n1, n):
-            if (adj[u] >> v) & 1:
-                cross_edges.append((u, v))
-    
-    # For efficiency, precompute for each left coloring, the color of each left node
-    # and for each right coloring, the color of each right node
-    
-    # Decode coloring
-    def decode_coloring(val, num_nodes):
-        colors = []
-        for _ in range(num_nodes):
-            colors.append(val % 3)
-            val //= 3
-        return colors
-    
-    # Precompute left colors
-    left_colors_list = [decode_coloring(c, n1) for c in left_colorings]
-    right_colors_list = [decode_coloring(c, n2) for c in right_colorings]
-    
-    # For each pair of left and right colorings, check compatibility
-    # To find lexicographically smallest, we iterate in order
-    
-    # Sort left colorings and right colorings by their decoded values
-    # Actually, we want lexicographically smallest overall, so we should
-    # iterate through left colorings in order, and for each, find the smallest
-    # compatible right coloring
-    
-    # Sort left colorings by their decoded values (which gives lexicographic order)
-    left_colorings_sorted = sorted(range(len(left_colorings)), key=lambda i: left_colors_list[i])
-    right_colorings_sorted = sorted(range(len(right_colorings)), key=lambda i: right_colors_list[i])
-    
-    for li in left_colorings_sorted:
-        left_cols = left_colors_list[li]
-        for ri in right_colorings_sorted:
-            right_cols = right_colors_list[ri]
-            # Check cross edges
-            valid = True
-            for u, v in cross_edges:
-                # u is in left (0 to n1-1), v is in right (n1 to n-1)
-                # v - n1 is the index in right_cols
-                if left_cols[u] == right_cols[v - n1]:
-                    valid = False
-                    break
-            if valid:
-                # Found a valid coloring
-                # Output YES and the coloring
-                result = [0] * n
-                for i in range(n1):
-                    result[i] = left_cols[i] + 1
-                for i in range(n2):
-                    result[n1 + i] = right_cols[i] + 1
-                print("YES")
-                print(' '.join(map(str, result)))
-                return
-    
-    print("NO")
+    if dfs(0):
+        print("YES")
+        print(' '.join(map(str, color)))
+    else:
+        print("NO")
 
 solve()

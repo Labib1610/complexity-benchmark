@@ -1,0 +1,355 @@
+```python
+import sys
+
+sys.setrecursionlimit(1_000_000)
+
+
+def in_span_mod_p(route_vertices, n, p):
+    basis = [None] * n
+    rank = 0
+
+    for a, b, c in route_vertices:
+        v = [0] * n
+        v[a] = 1
+        v[b] = 1
+        v[c] = 1
+
+        for pivot in range(n):
+            value = v[pivot]
+            if value == 0:
+                continue
+            row = basis[pivot]
+            if row is None:
+                inv = pow(value, p - 2, p)
+                for j in range(pivot, n):
+                    v[j] = (v[j] * inv) % p
+                basis[pivot] = v
+                rank += 1
+                break
+
+            factor = value
+            for j in range(pivot, n):
+                v[j] = (v[j] - factor * row[j]) % p
+
+        if rank:
+            target = [1] * n
+            for pivot in range(n):
+                if target[pivot] and basis[pivot] is not None:
+                    factor = target[pivot]
+                    row = basis[pivot]
+                    for j in range(pivot, n):
+                        target[j] = (target[j] - factor * row[j]) % p
+            if not any(target):
+                return True
+
+    target = [1] * n
+    for pivot in range(n):
+        if target[pivot] and basis[pivot] is not None:
+            factor = target[pivot]
+            row = basis[pivot]
+            for j in range(pivot, n):
+                target[j] = (target[j] - factor * row[j]) % p
+    return not any(target)
+
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if len(data) < 2:
+        return
+
+    k, t = data[0], data[1]
+    if t == 0:
+        print("NO")
+        return
+
+    ncols = 3 * k
+    all_mask = (1 << k) - 1
+
+    xs = [0] * t
+    ys = [0] * t
+    zs = [0] * t
+    incidence = [0] * ncols
+    route_codes = [0] * t
+    route_vertices = []
+
+    pos = 2
+    for i in range(t):
+        x = data[pos] - 1
+        y = data[pos + 1] - 1
+        z = data[pos + 2] - 1
+        pos += 3
+
+        xs[i] = x
+        ys[i] = y
+        zs[i] = z
+
+        cx = x
+        cy = k + y
+        cz = 2 * k + z
+        bit = 1 << i
+
+        incidence[cx] |= bit
+        incidence[cy] |= bit
+        incidence[cz] |= bit
+
+        code = (1 << cx) | (1 << cy) | (1 << cz)
+        route_codes[i] = code
+        route_vertices.append((cx, cy, cz))
+
+    # Necessary linear-algebra conditions over several finite fields.
+    basis2 = [0] * ncols
+    for code in route_codes:
+        v = code
+        while v:
+            pivot = (v & -v).bit_length() - 1
+            if basis2[pivot]:
+                v ^= basis2[pivot]
+            else:
+                basis2[pivot] = v
+                break
+
+    target = (1 << ncols) - 1
+    v = target
+    while v:
+        pivot = (v & -v).bit_length() - 1
+        if basis2[pivot]:
+            v ^= basis2[pivot]
+        else:
+            print("NO")
+            return
+
+    for p in (3, 5, 7, 11):
+        if not in_span_mod_p(route_vertices, ncols, p):
+            print("NO")
+            return
+
+    full_rows = (1 << t) - 1
+    answer = []
+    failed = set()
+    cache_limit = 800_000
+    node_count = 0
+
+    def projection_has_matching(avail, used_a, used_b, offset_a, offset_b):
+        remaining_a = all_mask ^ used_a
+        remaining_b = all_mask ^ used_b
+        adjacency = []
+
+        bits_a = remaining_a
+        while bits_a:
+            ba = bits_a & -bits_a
+            a = ba.bit_length() - 1
+            bits_a ^= ba
+
+            neighbors = 0
+            bits_b = remaining_b
+            inc_a = incidence[offset_a + a]
+            while bits_b:
+                bb = bits_b & -bits_b
+                b = bb.bit_length() - 1
+                bits_b ^= bb
+                if avail & inc_a & incidence[offset_b + b]:
+                    neighbors |= bb
+
+            if neighbors == 0:
+                return False
+            adjacency.append((neighbors.bit_count(), neighbors))
+
+        adjacency.sort()
+        matched_to_a = [-1] * k
+
+        def augment(a_id, neighbors, seen):
+            bits = neighbors
+            while bits:
+                bb = bits & -bits
+                bits ^= bb
+                b = bb.bit_length() - 1
+                if seen & bb:
+                    continue
+                previous = matched_to_a[b]
+                if previous == -1:
+                    matched_to_a[b] = a_id
+                    return True
+                prev_neighbors = adjacency[previous][1]
+                if augment(previous, prev_neighbors, seen | bb):
+                    matched_to_a[b] = a_id
+                    return True
+            return False
+
+        for a_id, (_, neighbors) in enumerate(adjacency):
+            if not augment(a_id, neighbors, 0):
+                return False
+        return True
+
+    def residual_in_gf2_span(avail, mx, my, mz):
+        basis = [0] * ncols
+        rows = avail
+        while rows:
+            bit = rows & -rows
+            rows ^= bit
+            idx = bit.bit_length() - 1
+            value = route_codes[idx]
+
+            while value:
+                pivot = (value & -value).bit_length() - 1
+                if basis[pivot]:
+                    value ^= basis[pivot]
+                else:
+                    basis[pivot] = value
+                    break
+
+        target_value = 0
+        remaining = all_mask ^ mx
+        target_value |= remaining
+        remaining = all_mask ^ my
+        target_value |= remaining << k
+        remaining = all_mask ^ mz
+        target_value |= remaining << (2 * k)
+
+        while target_value:
+            pivot = (target_value & -target_value).bit_length() - 1
+            if basis[pivot]:
+                target_value ^= basis[pivot]
+            else:
+                return False
+        return True
+
+    def dfs(mx, my, mz, avail, depth):
+        nonlocal node_count
+        node_count += 1
+
+        if mx == all_mask:
+            return True
+
+        key = mx | (my << k) | (mz << (2 * k))
+        if key in failed:
+            return False
+
+        best_rows = 0
+        best_count = t + 1
+
+        remaining = all_mask ^ mx
+        bits = remaining
+        while bits:
+            b = bits & -bits
+            bits ^= b
+            i = b.bit_length() - 1
+            candidates = avail & incidence[i]
+            count = candidates.bit_count()
+            if count == 0:
+                if len(failed) < cache_limit:
+                    failed.add(key)
+                return False
+            if count < best_count:
+                best_count = count
+                best_rows = candidates
+                if count == 1:
+                    break
+
+        if best_count != 1:
+            remaining = all_mask ^ my
+            bits = remaining
+            while bits:
+                b = bits & -bits
+                bits ^= b
+                i = b.bit_length() - 1
+                candidates = avail & incidence[k + i]
+                count = candidates.bit_count()
+                if count == 0:
+                    if len(failed) < cache_limit:
+                        failed.add(key)
+                    return False
+                if count < best_count:
+                    best_count = count
+                    best_rows = candidates
+                    if count == 1:
+                        break
+
+        if best_count != 1:
+            remaining = all_mask ^ mz
+            bits = remaining
+            while bits:
+                b = bits & -bits
+                bits ^= b
+                i = b.bit_length() - 1
+                candidates = avail & incidence[2 * k + i]
+                count = candidates.bit_count()
+                if count == 0:
+                    if len(failed) < cache_limit:
+                        failed.add(key)
+                    return False
+                if count < best_count:
+                    best_count = count
+                    best_rows = candidates
+                    if count == 1:
+                        break
+
+        if best_count > 5 and depth % 3 == 1:
+            if not residual_in_gf2_span(avail, mx, my, mz):
+                if len(failed) < cache_limit:
+                    failed.add(key)
+                return False
+
+        if best_count > 3 and depth % 2 == 0:
+            if not projection_has_matching(avail, mx, my, 0, k):
+                if len(failed) < cache_limit:
+                    failed.add(key)
+                return False
+            if not projection_has_matching(avail, mx, mz, 0, 2 * k):
+                if len(failed) < cache_limit:
+                    failed.add(key)
+                return False
+            if not projection_has_matching(avail, my, mz, k, 2 * k):
+                if len(failed) < cache_limit:
+                    failed.add(key)
+                return False
+
+        candidates_list = []
+        rows = best_rows
+        while rows:
+            bit = rows & -rows
+            rows ^= bit
+            idx = bit.bit_length() - 1
+            x, y, z = xs[idx], ys[idx], zs[idx]
+
+            score = (
+                (avail & incidence[x]).bit_count()
+                + (avail & incidence[k + y]).bit_count()
+                + (avail & incidence[2 * k + z]).bit_count()
+            )
+            candidates_list.append((score, idx))
+
+        candidates_list.sort()
+
+        for _, idx in candidates_list:
+            x, y, z = xs[idx], ys[idx], zs[idx]
+            bx = 1 << x
+            by = 1 << y
+            bz = 1 << z
+
+            if (mx & bx) or (my & by) or (mz & bz):
+                continue
+
+            conflicts = incidence[x] | incidence[k + y] | incidence[2 * k + z]
+            next_avail = avail & ~conflicts
+
+            answer.append(idx)
+            if dfs(mx | bx, my | by, mz | bz, next_avail, depth + 1):
+                return True
+            answer.pop()
+
+        if len(failed) < cache_limit:
+            failed.add(key)
+        return False
+
+    if dfs(0, 0, 0, full_rows, 0):
+        out = ["YES"]
+        for idx in answer:
+            out.append(f"{xs[idx] + 1} {ys[idx] + 1} {zs[idx] + 1}")
+        sys.stdout.write("\n".join(out))
+    else:
+        print("NO")
+
+
+if __name__ == "__main__":
+    main()
+```

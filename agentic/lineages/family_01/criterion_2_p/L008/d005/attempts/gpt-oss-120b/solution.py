@@ -1,63 +1,63 @@
 import sys
-sys.setrecursionlimit(1 << 25)
+from collections import deque
 
 def solve() -> None:
     data = sys.stdin.read().strip().split()
     if not data:
         return
     it = iter(data)
-    n = int(next(it)); m = int(next(it))
-    g = [[] for _ in range(n)]
+    n = int(next(it))
+    m = int(next(it))
+    adj = [[] for _ in range(n + 1)]
     for _ in range(m):
-        u = int(next(it)) - 1
-        v = int(next(it)) - 1
-        g[u].append(v)
-        g[v].append(u)
+        u = int(next(it)); v = int(next(it))
+        adj[u].append(v)
+        adj[v].append(u)
 
-    color = [-1] * n          # 0 / 1 bipartite color
-    comp = [-1] * n           # component id
-    comps = []                # list of vertices per component
-    from collections import deque
-    cid = 0
-    for i in range(n):
-        if color[i] != -1:
+    # special case: no edges -> all 1s
+    if m == 0:
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
+
+    color = [ -1 ] * (n + 1)          # parity 0/1, -1 = unvisited
+    answer = [0] * (n + 1)
+
+    for start in range(1, n + 1):
+        if color[start] != -1:
             continue
-        # start BFS
-        q = deque([i])
-        color[i] = 0
-        comp[i] = cid
-        cur = [i]
+        # BFS this component
+        q = deque([start])
+        color[start] = 0
+        comp = [start]
+        minv = start
         ok = True
         while q:
             v = q.popleft()
-            for to in g[v]:
+            for to in adj[v]:
                 if color[to] == -1:
                     color[to] = color[v] ^ 1
-                    comp[to] = cid
-                    cur.append(to)
                     q.append(to)
+                    comp.append(to)
+                    if to < minv:
+                        minv = to
                 elif color[to] == color[v]:
+                    # odd cycle
                     print("NO")
                     return
-        comps.append(cur)
-        cid += 1
+        # decide orientation
+        if color[minv] == 0:
+            # 0 -> 1, 1 -> 2
+            for v in comp:
+                answer[v] = 1 if color[v] == 0 else 2
+        else:
+            # swap
+            for v in comp:
+                answer[v] = 2 if color[v] == 0 else 1
 
-    # decide orientation per component to minimize weighted sum
-    flip = [None] * cid   # None = undecided, 0 = keep, 1 = swap
-    for i in range(n):
-        c = comp[i]
-        if flip[c] is None:
-            # we want s_i = 1, i.e., color[i] ^ flip == 0  => flip = color[i]
-            flip[c] = color[i]
-
-    # build answer
-    ans = [0] * n
-    for i in range(n):
-        f = flip[comp[i]]
-        ans[i] = 1 if (color[i] ^ f) == 0 else 2
-
+    # output
     print("YES")
-    print(' '.join(map(str, ans)))
+    print(" ".join(str(answer[i]) for i in range(1, n + 1)))
 
 if __name__ == "__main__":
     solve()

@@ -1,0 +1,184 @@
+import sys
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    j = int(data[0])
+    T = int(data[1])
+    
+    p = []
+    idx = 2
+    for i in range(j):
+        p1 = int(data[idx])
+        p2 = int(data[idx+1])
+        p.append((p1, p2))
+        idx += 2
+    
+    # Check each job for JOB certificate
+    for i in range(j):
+        p1, p2 = p[i]
+        if p1 + p2 > T:
+            print(f"JOB {i+1}")
+            return
+    
+    # Check each component for LOAD certificate
+    for c in range(2):
+        lengths = [p[i][c] for i in range(j)]
+        lengths.sort()
+        total = sum(lengths)
+        overlap_count = 0
+        pos = 0
+        max_overlap = 0
+        
+        # We simulate placing intervals to find maximum overlap
+        # Sort events: start and end of intervals
+        events = []
+        for i in range(j):
+            events.append((i, 'start'))
+            events.append((i + lengths[i], 'end'))
+        
+        events.sort()
+        
+        count = 0
+        for pos, typ in events:
+            if typ == 'start':
+                count += 1
+                max_overlap = max(max_overlap, count)
+            else:
+                count -= 1
+        
+        # Actually, there's a simpler way for contiguous intervals on a line:
+        # The minimum space needed is sum of lengths if no overlaps,
+        # but with overlaps, it can be less. However, for the LOAD certificate,
+        # we need to check if it's impossible even ignoring causality.
+        
+        # The key insight: for LOAD c, we want to see if we can place j intervals
+        # of lengths lengths[0]..lengths[j-1] in [0,T] with exclusivity.
+        # Exclusivity means intersection contains at most one point.
+        # For intervals [a,b] and [c,d], if b >= c, they intersect in more than one point
+        # unless b = c. So to satisfy exclusivity, we must have gaps between intervals
+        # or they touch at endpoints.
+        
+        # But actually, the intersection of two closed intervals [a,b] and [c,d] 
+        # contains more than one point iff max(a,c) < min(b,d).
+        # So to satisfy exclusivity, we must have max(a,c) >= min(b,d), i.e., b <= c or d <= a.
+        # In other words, intervals are disjoint or touch at a point.
+        
+        # So we can place intervals such that they are disjoint or touch.
+        # The minimum space needed is sum of lengths, because we can make them disjoint.
+        # Wait, no. We can make them touch, so minimum is sum of lengths.
+        # But if sum of lengths > T, then impossible.
+        # But that's not right either, because we can have overlap at a point.
+        
+        # Let's think differently. 
+        # If we sort the intervals by start time, and place them greedily,
+        # to minimize total span, we place each interval as early as possible.
+        # But we must ensure exclusivity.
+        
+        # If intervals are [s1, s1+l1], [s2, s2+l2], ..., 
+        # then to satisfy exclusivity, we need that for any two intervals,
+        # their intersection has at most one point.
+        # This is true if we place them so that the end of one is <= start of next,
+        # or they touch at exactly one point (end of one = start of next).
+        
+        # So the minimum space is when we place them back-to-back: 
+        # [0, l1], [l1, l1+l2], ..., total span = sum of lengths.
+        # But we can do better by allowing touching: [0,l1], [l1,l1+l2], etc.
+        # So minimum space needed is sum of lengths.
+        # If sum > T, then impossible.
+        
+        # But wait, the intervals can be placed anywhere, not necessarily starting from 0.
+        # But to minimize space, placing them back-to-back is optimal.
+        # So if sum of lengths > T, then impossible.
+        
+        # But actually, we can shift the whole set, so it's not about where we start,
+        # but about the total span.
+        # The minimum possible span when placing j intervals with exclusivity is sum of lengths.
+        # Because even if they touch at endpoints, total span is sum of lengths.
+        # If sum > T, then impossible.
+        
+        # But that's not quite right either. 
+        # If we have intervals [0,2] and [2,4], total span is 4, sum of lengths is 4.
+        # If we have [0,2] and [1,3], they intersect in [1,2] which has length > 1, so invalid.
+        # If we have [0,2] and [2,5], they intersect at point 2, so valid. Total span 5.
+        # If [0,2] and [3,6], disjoint, total span 6.
+        
+        # So to minimize total span with exclusivity, we place intervals so that 
+        # any overlap is at most a point. The best is to place them back-to-back.
+        # So minimum span = sum of lengths.
+        # If sum > T, then impossible.
+        
+        # But we can shift the whole configuration, so it's about whether we can fit
+        # intervals of total span <= T.
+        # So if sum of lengths > T, then impossible.
+        
+        # But actually, the intervals can be placed anywhere in [0,T].
+        # The minimum space they can occupy with exclusivity is sum of lengths.
+        # So if sum > T, impossible.
+        
+        # But that's not the right condition either.
+        # We can place intervals so that they touch at endpoints.
+        # The minimum total covered space is sum of lengths.
+        # But we have T units of space.
+        # So if sum of lengths > T, impossible.
+        
+        # Wait, that's not right. 
+        # If T = 5, and we have lengths [2,2], sum = 4.
+        # We can place [0,2] and [2,4]. Total span 4. Fits in [0,5]. OK.
+        # If lengths [3,3], sum = 6 > 5. Impossible.
+        
+        # So the condition for LOAD c is: sum of p[i][c] > T.
+        
+        # But let's double-check with example 2:
+        # j=4, T=150
+        # lengths for c=1: [50,50,50,50], sum = 200 > 150. So LOAD 1.
+        # lengths for c=2: [1,1,1,1], sum = 4 <= 150. So OK.
+        # Output is LOAD 1. Correct.
+        
+        # Example 1:
+        # j=3, T=100
+        # Item 1: p1=70, p2=60. sum = 130 > 100. So JOB 1? No, that's not the rule.
+        # Rule for JOB i: p[i][1] + p[i][2] > T.
+        # Item 1: 70 + 60 = 130 > 100. So JOB 1.
+        # Item 2: 2 + 2 = 4 <= 100. OK.
+        # Item 3: 3 + 4 = 7 <= 100. OK.
+        # For LOAD:
+        # c=1: lengths [70,2,3]. sum = 75 <= 100. OK.
+        # c=2: lengths [60,2,4]. sum = 66 <= 100. OK.
+        # So JOB 1 is the answer. Correct.
+        
+        # So the rules are:
+        # JOB i if p[i][1] + p[i][2] > T.
+        # LOAD c if sum of p[i][c] for all i > T.
+        
+        # But the problem says exactly one certificate applies.
+        # So we check JOB first, and if none, then LOAD.
+        
+        # But we should check all JOBs first, then all LOADs.
+        # But since exactly one applies, we can check in order.
+        
+        # Let's re-read: "exactly one of the following isolated subsystems is inherently impossible"
+        # So we should check all JOBs, then all LOADs, and return the first one that's impossible.
+        
+        # But to be safe, let's check all JOBs first.
+        job_impossible = []
+        for i in range(j):
+            p1, p2 = p[i]
+            if p1 + p2 > T:
+                job_impossible.append(i+1)
+        
+        if job_impossible:
+            print(f"JOB {job_impossible[0]}")
+            return
+            
+        # If no JOB is impossible, check LOADs
+        for c in [1, 2]:
+            total_length = sum(p[i][c-1] for i in range(j))  # p[i][0] is p1, p[i][1] is p2
+            if total_length > T:
+                print(f"LOAD {c}")
+                return
+
+if __name__ == "__main__":
+    main()

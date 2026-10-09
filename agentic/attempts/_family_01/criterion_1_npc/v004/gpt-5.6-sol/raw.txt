@@ -1,0 +1,207 @@
+```python
+import sys
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+
+    n, m = data[0], data[1]
+    old_adj = [set() for _ in range(n)]
+
+    pos = 2
+    for _ in range(m):
+        u = data[pos] - 1
+        v = data[pos + 1] - 1
+        pos += 2
+        if u != v:
+            old_adj[u].add(v)
+            old_adj[v].add(u)
+
+    order = sorted(range(n), key=lambda v: len(old_adj[v]), reverse=True)
+    new_index = [0] * n
+    for i, v in enumerate(order):
+        new_index[v] = i
+
+    adj = [0] * n
+    for i, old_v in enumerate(order):
+        mask = 0
+        for old_u in old_adj[old_v]:
+            mask |= 1 << new_index[old_u]
+        adj[i] = mask
+
+    all_mask = (1 << n) - 1
+    nonadj = [all_mask & ~(adj[v] | (1 << v)) for v in range(n)]
+
+    # Any K4 makes a 3-coloring impossible.
+    for u in range(n):
+        candidates = adj[u] & ~((1 << (u + 1)) - 1)
+        while candidates:
+            vb = candidates & -candidates
+            candidates ^= vb
+            v = vb.bit_length() - 1
+            common = adj[u] & adj[v]
+            rest = common
+            while rest:
+                wb = rest & -rest
+                rest ^= wb
+                w = wb.bit_length() - 1
+                if adj[w] & common:
+                    print("NO")
+                    return
+
+    def bipartition(mask):
+        color0 = 0
+        color1 = 0
+        unseen = mask
+
+        while unseen:
+            root = unseen & -unseen
+            unseen ^= root
+            color0 |= root
+            queue = root
+
+            while queue:
+                vb = queue & -queue
+                queue ^= vb
+                v = vb.bit_length() - 1
+                neighbors = adj[v] & mask
+
+                if color0 & vb:
+                    if neighbors & color0:
+                        return None
+                    new_vertices = neighbors & unseen
+                    color1 |= new_vertices
+                else:
+                    if neighbors & color1:
+                        return None
+                    new_vertices = neighbors & unseen
+                    color0 |= new_vertices
+
+                unseen &= ~new_vertices
+                queue |= new_vertices
+
+        return color0, color1
+
+    # Find connected components.
+    components = []
+    unseen = all_mask
+    while unseen:
+        root = unseen & -unseen
+        unseen ^= root
+        component = root
+        frontier = root
+
+        while frontier:
+            vb = frontier & -frontier
+            frontier ^= vb
+            v = vb.bit_length() - 1
+            new_vertices = adj[v] & unseen
+            unseen &= ~new_vertices
+            component |= new_vertices
+            frontier |= new_vertices
+
+        components.append(component)
+
+    colors = [0] * n
+    sys.setrecursionlimit(10000)
+
+    for component in components:
+        direct = bipartition(component)
+        if direct is not None:
+            c0, c1 = direct
+            bits = c0
+            while bits:
+                b = bits & -bits
+                bits ^= b
+                colors[b.bit_length() - 1] = 1
+            bits = c1
+            while bits:
+                b = bits & -bits
+                bits ^= b
+                colors[b.bit_length() - 1] = 2
+            continue
+
+        found = None
+
+        # Enumerate maximal independent sets as maximal cliques
+        # in the complement graph.
+        def bron_kerbosch(chosen, possible, excluded):
+            nonlocal found
+
+            if not (possible | excluded):
+                remaining = component & ~chosen
+                partition = bipartition(remaining)
+                if partition is not None:
+                    found = (chosen, partition[0], partition[1])
+                    return True
+                return False
+
+            union = possible | excluded
+            pivot = -1
+            best_count = -1
+            q = union
+
+            while q:
+                b = q & -q
+                q ^= b
+                v = b.bit_length() - 1
+                count = (possible & nonadj[v]).bit_count()
+                if count > best_count:
+                    best_count = count
+                    pivot = v
+
+            candidates = possible & ~nonadj[pivot]
+
+            while candidates:
+                b = candidates & -candidates
+                candidates ^= b
+                v = b.bit_length() - 1
+
+                if bron_kerbosch(
+                    chosen | b,
+                    possible & nonadj[v],
+                    excluded & nonadj[v]
+                ):
+                    return True
+
+                possible ^= b
+                excluded |= b
+
+            return False
+
+        bron_kerbosch(0, component, 0)
+
+        if found is None:
+            print("NO")
+            return
+
+        c3, c1, c2 = found
+        bits = c1
+        while bits:
+            b = bits & -bits
+            bits ^= b
+            colors[b.bit_length() - 1] = 1
+
+        bits = c2
+        while bits:
+            b = bits & -bits
+            bits ^= b
+            colors[b.bit_length() - 1] = 2
+
+        bits = c3
+        while bits:
+            b = bits & -bits
+            bits ^= b
+            colors[b.bit_length() - 1] = 3
+
+    answer = [0] * n
+    for old_v in range(n):
+        answer[old_v] = colors[new_index[old_v]]
+
+    print("YES")
+    print(*answer)
+
+if __name__ == "__main__":
+    main()
+```

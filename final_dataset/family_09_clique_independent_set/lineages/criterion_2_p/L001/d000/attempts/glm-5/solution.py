@@ -1,0 +1,50 @@
+import sys
+from collections import deque
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    k = int(next(it))
+    
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # Find the two camps using BFS
+    camp = [0] * (n + 1)
+    for start in range(1, n + 1):
+        if camp[start] == 0:
+            camp[start] = 1
+            q = deque([start])
+            while q:
+                u = q.popleft()
+                for v in adj[u]:
+                    if camp[v] == 0:
+                        camp[v] = 3 - camp[u]
+                        q.append(v)
+    
+    # Count sizes of each camp
+    camp1 = [i for i in range(1, n + 1) if camp[i] == 1]
+    camp2 = [i for i in range(1, n + 1) if camp[i] == 2]
+    
+    # Choose the larger camp
+    if len(camp1) >= len(camp2):
+        chosen = camp1
+    else:
+        chosen = camp2
+    
+    if len(chosen) >= k:
+        print("YES")
+        print(' '.join(map(str, chosen[:k])))
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()

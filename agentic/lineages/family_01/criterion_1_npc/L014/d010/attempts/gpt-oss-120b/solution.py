@@ -1,5 +1,4 @@
 import sys
-
 sys.setrecursionlimit(10000)
 
 def solve() -> None:
@@ -16,37 +15,46 @@ def solve() -> None:
         adj[u].append(v)
         adj[v].append(u)
 
-    colors = [0] * n
+    # order vertices by decreasing degree for better pruning
+    order = sorted(range(n), key=lambda x: -len(adj[x]))
+    pos_in_order = [0] * n
+    for idx, v in enumerate(order):
+        pos_in_order[v] = idx
+
+    colour = [0] * n          # 0 = uncoloured, else 1..3
     found = False
 
-    def dfs(v: int):
+    def dfs(idx: int) -> None:
         nonlocal found
         if found:
             return
-        if v == n:
+        if idx == n:
             found = True
             return
-        for c in (1, 2, 3):          # try colors in increasing order for lexicographic minimality
+        v = order[idx]
+        # try colours 1..3
+        for c in (1, 2, 3):
             ok = True
             for nb in adj[v]:
-                if nb < v and colors[nb] == c:   # only need to check already colored neighbors
+                if colour[nb] == c:
                     ok = False
                     break
-            if ok:
-                colors[v] = c
-                dfs(v + 1)
-                if found:
-                    return
-                colors[v] = 0
+            if not ok:
+                continue
+            colour[v] = c
+            dfs(idx + 1)
+            if found:
+                return
+            colour[v] = 0
 
     dfs(0)
 
-    out = sys.stdout
     if not found:
-        out.write("NO\n")
+        print("NO")
     else:
-        out.write("YES\n")
-        out.write(" ".join(map(str, colors)) + "\n")
+        print("YES")
+        # output in original vertex order
+        print(' '.join(str(colour[i]) for i in range(n)))
 
 if __name__ == "__main__":
     solve()

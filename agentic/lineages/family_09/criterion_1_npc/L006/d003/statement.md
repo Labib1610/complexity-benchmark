@@ -1,0 +1,71 @@
+# Problem A — Multiplex Assay Design
+
+Time limit: 5 s   Memory limit: 256 MB
+
+## Description
+
+A genetics laboratory is developing a multiplex assay using a repository of **n** candidate markers, labeled 1 to **n**.
+
+The final assay must contain exactly **k** distinct markers. Due to the chemical dynamics of the mixture, there are strict compatibility rules. The laboratory has documented **m** interference events, each identifying a pair of markers that are mutually exclusive. If both markers from any such pair are included, they will react adversely and cause the mixture to fail.
+
+You must determine if a completely stable assay of exactly **k** markers can be formulated. A formulation is considered stable if no two markers in the chosen subset trigger any of the **m** interference events.
+
+## Input
+
+The first line contains three integers: **n**, **m**, and **k** (1 ≤ n ≤ 46, 0 ≤ m ≤ n·(n−1)/2, 1 ≤ k ≤ n).
+The next **m** lines each contain two integers **u** and **v** (1 ≤ u, v ≤ n, u ≠ v), detailing an interference event between marker **u** and marker **v**. Each mutually exclusive pair is documented at most once.
+
+## Output
+
+If a stable assay of exactly **k** markers can be formed, output `YES` on the first line. On the second line, output the **k** identifiers of your selected markers, separated by spaces. The evaluation system will independently verify that your specific selection contains exactly **k** markers and triggers zero interference events.
+
+If no such assay can be formulated, output `NO`.
+
+## Examples
+
+### Example 1
+
+**Input**
+```
+4 4 3
+1 2
+1 3
+2 3
+3 4
+```
+
+**Output**
+```
+NO
+```
+
+### Example 2
+
+**Input**
+```
+5 2 3
+1 2
+3 4
+```
+
+**Output**
+```
+YES
+1 3 5
+```
+
+### Example 3
+
+**Input**
+```
+3 3 1
+1 2
+2 3
+1 3
+```
+
+**Output**
+```
+YES
+1
+```

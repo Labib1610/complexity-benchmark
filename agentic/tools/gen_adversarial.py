@@ -131,7 +131,7 @@ def generate(family, crit_dir, keep=8, pool=40, seed=0, against=None, ceiling=30
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--family", required=True)
-    ap.add_argument("--criterion", type=int, choices=[1, 2, 3])
+    ap.add_argument("--criterion", type=int, choices=[1, 2])
     ap.add_argument("--against", nargs="*", help="solution.py paths for differential testing")
     ap.add_argument("--keep", type=int, default=8)
     ap.add_argument("--pool", type=int, default=40)

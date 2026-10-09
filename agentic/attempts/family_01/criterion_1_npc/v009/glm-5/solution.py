@@ -1,57 +1,51 @@
 import sys
+sys.setrecursionlimit(100000)
 
 def solve():
-    input_data = sys.stdin.read().split()
-    if not input_data:
+    data = sys.stdin.read().split()
+    if not data:
         return
-    iterator = iter(input_data)
-    try:
-        n = int(next(iterator))
-        m = int(next(iterator))
-    except StopIteration:
-        return
-
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    
     adj = [[] for _ in range(n)]
+    
     for _ in range(m):
-        u = int(next(iterator)) - 1
-        v = int(next(iterator)) - 1
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
         adj[u].append(v)
         adj[v].append(u)
-
-    # We use backtracking with pruning.
-    # assignment[i] stores the shift (1, 2, or 3) for worker i.
-    # 0 means unassigned.
-    assignment = [0] * n
     
-    def backtrack(worker_idx):
-        # Base case: all workers have been assigned a shift.
-        if worker_idx == n:
-            return True
-
-        # Try shifts in increasing order to ensure lexicographically smallest result.
-        for shift in range(1, 4):
-            # Check if this shift is valid for the current worker.
-            # A shift is invalid if any neighbor already has the same shift.
-            is_valid = True
-            for neighbor in adj[worker_idx]:
-                if assignment[neighbor] == shift:
-                    is_valid = False
-                    break
-            
-            if is_valid:
-                assignment[worker_idx] = shift
-                if backtrack(worker_idx + 1):
-                    return True
-                # Backtrack: unassign the worker to try other shifts.
-                assignment[worker_idx] = 0
-        
-        return False
-
-    if backtrack(0):
-        print("YES")
-        print(*(assignment))
-    else:
+    color = [0] * n
+    possible = True
+    
+    def dfs(u):
+        nonlocal possible
+        if not possible:
+            return
+        for v in adj[u]:
+            if color[v] == 0:
+                color[v] = 6 - color[u]
+                dfs(v)
+                if not possible:
+                    return
+            elif color[v] == color[u]:
+                possible = False
+                return
+    
+    for i in range(n):
+        if color[i] == 0:
+            color[i] = 1
+            dfs(i)
+            if not possible:
+                break
+    
+    if not possible:
         print("NO")
+    else:
+        print("YES")
+        print(" ".join(map(str, color)))
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     solve()

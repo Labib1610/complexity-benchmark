@@ -1,0 +1,110 @@
+import sys
+from itertools import chain
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    iterator = iter(input_data)
+    n = int(next(iterator))
+    m = int(next(iterator))
+    
+    adj = [[] for _ in range(2 * n + 2)]
+    
+    for _ in range(m):
+        l1 = int(next(iterator))
+        l2 = int(next(iterator))
+        
+        u = l1
+        not_u = -l1
+        v = l2
+        not_v = -l2
+        
+        # Clause: (u or v)
+        # Implications: not_u -> v, not_v -> u
+        adj[n - not_u].append(n + v)
+        adj[n - not_v].append(n + u)
+        
+    # Kosaraju's algorithm to find SCCs
+    num_nodes = 2 * n + 1
+    visited = [False] * (num_nodes + 1)
+    order = []
+    
+    # First DFS pass to compute finishing times
+    sys.setrecursionlimit(300000)
+    
+    def dfs1(u):
+        stack = [u]
+        while stack:
+            node = stack[-1]
+            if visited[node]:
+                stack.pop()
+                continue
+            visited[node] = True
+            pushed_any = False
+            for v in adj[node]:
+                if not visited[v]:
+                    stack.append(v)
+                    pushed_any = True
+            if not pushed_any:
+                stack.pop()
+                order.append(node)
+    
+    for i in range(1, num_nodes + 1):
+        if not visited[i]:
+            dfs1(i)
+            
+    # Second DFS pass on the transposed graph
+    # Build transpose graph
+    adj_t = [[] for _ in range(num_nodes + 1)]
+    for u in range(1, num_nodes + 1):
+        for v in adj[u]:
+            adj_t[v].append(u)
+            
+    visited = [False] * (num_nodes + 1)
+    comp = [-1] * (num_nodes + 1)
+    current_comp_id = 0
+    
+    def dfs2(u, cid):
+        stack = [u]
+        visited[u] = True
+        comp[u] = cid
+        while stack:
+            node = stack.pop()
+            for v in adj_t[node]:
+                if not visited[v]:
+                    visited[v] = True
+                    comp[v] = cid
+                    stack.append(v)
+                    
+    for u in reversed(order):
+        if not visited[u]:
+            dfs2(u, current_comp_id)
+            current_comp_id += 1
+            
+    # Check for contradiction x and -x in the same SCC
+    for i in range(1, n + 1):
+        if comp[n + i] == comp[n - i]:
+            sys.stdout.write("NO")
+            return
+            
+    # Assign values based on topological order of components
+    # The component IDs are assigned in reverse topological order.
+    # A lower ID means it appears later in the topological sort (sinks first processed).
+    assignment = [0] * (n + 1)
+    for i in range(1, n + 1):
+        # If comp(pos) < comp(neg), pos is processed later (is stronger).
+        # In reverse topological order, processing sinks first yields:
+        # valid assignment values the sink component.
+        # If pos is in a sink relative to neg, pos should be True.
+        if comp[n + i] < comp[n - i]:
+            assignment[i] = 1
+        else:
+            assignment[i] = 0
+            
+    output = ["YES"]
+    output.append(" ".join(map(str, assignment[1:])))
+    sys.stdout.write("\n".join(output))
+
+if __name__ == "__main__":
+    solve()

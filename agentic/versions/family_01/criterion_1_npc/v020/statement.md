@@ -1,18 +1,20 @@
-# Orbital Power Routing
+# Problem A — Storage Sharding
 
 Time limit: 2 s   Memory limit: 256 MB
 
-An orbital satellite contains $n$ electronic modules, numbered 1 through $n$. To distribute the electrical load, the satellite is equipped with exactly three independent power buses, designated as Bus 1, Bus 2, and Bus 3. Every module must be directly wired to exactly one of these three buses.
+You are configuring a distributed database that spans exactly three independent storage drives, labeled 1, 2, and 3. The database consists of $n$ distinct tables. Every table must be allocated to exactly one of these three drives.
 
-Due to electromagnetic sensitivity, certain pairs of modules will experience severe crosstalk if they draw power from the same bus. You are provided with a list of all such incompatible module pairs. Your task is to determine whether it is possible to assign every module to a power bus such that no two incompatible modules share a bus.
+To prevent I/O bottlenecks during complex queries, certain pairs of tables that are frequently joined must reside on completely different drives. If they are placed on the same drive, concurrent read operations will cause hardware thrashing. You are provided with a list of all such high-traffic table pairs. 
+
+Determine whether it is possible to distribute all $n$ tables across the three drives such that for every high-traffic pair, the two tables in the pair are assigned to different drives.
 
 ## Input
-The first line contains two integers $n$ and $m$ — the number of modules and the number of incompatible pairs ($1 \le n \le 40$, $0 \le m \le n \cdot (n-1)/2$).
-Each of the next $m$ lines contains two integers $u$ and $v$ — a pair of modules that cannot share the same bus.
+The first line contains two integers $n$ and $m$ — the number of tables and the number of high-traffic pairs ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
+Each of the next $m$ lines contains two integers $u$ $v$ — a high-traffic pair of tables that must be separated. Tables are numbered from 1 to $n$.
 
 ## Output
-If no safe routing configuration exists, print a single line `NO`.
-Otherwise, print `YES` on the first line. On the second line, print $n$ integers $b_1, b_2, \dots, b_n$ (each in $\{1,2,3\}$), where $b_i$ is the bus assignment for module $i$. Among all valid assignments, output the lexicographically smallest sequence (compare $b_1$ first, then $b_2$, and so on).
+If no valid allocation exists, print a single line NO.
+Otherwise print YES on the first line. On the second line print $n$ integers $d_1, d_2, \dots, d_n$ (each in {1, 2, 3}), where $d_i$ is the drive assigned to table $i$. Any valid allocation is accepted.
 
 ## Example 1
 Input:

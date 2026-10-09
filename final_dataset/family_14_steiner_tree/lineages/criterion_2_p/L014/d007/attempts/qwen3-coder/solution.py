@@ -1,0 +1,131 @@
+import sys
+from collections import defaultdict, deque
+
+def find_critical_edges(n, edges, key_holders):
+    # Build the tree
+    adj = defaultdict(list)
+    for u, v, w in edges:
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+    
+    # If there's only one key holder, no edge is critical
+    if len(key_holders) <= 1:
+        return set()
+    
+    key_set = set(key_holders)
+    
+    # First, we need to find which edges are critical
+    # An edge is critical if removing it separates the graph into two components
+    # each containing at least one key holder
+    
+    # Since the graph is a tree (n-1 edges and connected), we can use the following approach:
+    # 1. Root the tree at any node
+    # 2. For each edge, determine the two subtrees it creates
+    # 3. Count key holders in each subtree
+    
+    # Let's root the tree at node 1
+    root = 1
+    
+    # Build parent relationships and subtree info
+    parent = [-1] * (n + 1)
+    children = defaultdict(list)
+    edge_weight = {}
+    
+    # BFS to build tree structure
+    visited = [False] * (n + 1)
+    queue = deque([root])
+    visited[root] = True
+    
+    while queue:
+        u = queue.popleft()
+        for v, w in adj[u]:
+            if not visited[v]:
+                visited[v] = True
+                parent[v] = u
+                children[u].append(v)
+                edge_weight[(u, v)] = w
+                edge_weight[(v, u)] = w
+                queue.append(v)
+    
+    # Count key holders in each subtree
+    key_count = [0] * (n + 1)
+    
+    # Post-order traversal to compute key counts
+    def dfs_count(u):
+        count = 1 if u in key_set else 0
+        for v in children[u]:
+            count += dfs_count(v)
+        key_count[u] = count
+        return count
+    
+    dfs_count(root)
+    
+    # Find critical edges
+    critical_edges = set()
+    
+    # For each edge (u,v) where u is parent of v
+    # The edge separates the tree into:
+    # 1. Subtree rooted at v (key_count[v] key holders)
+    # 2. Rest of the tree (total_keys - key_count[v] key holders)
+    total_keys = len(key_set)
+    
+    for u in range(1, n + 1):
+        for v in children[u]:
+            # Edge (u,v)
+            count1 = key_count[v]  # Subtree of v
+            count2 = total_keys - key_count[v]  # Rest of tree
+            
+            if count1 > 0 and count2 > 0:
+                # This edge is critical
+                critical_edges.add((u, v))
+                critical_edges.add((v, u))
+    
+    return critical_edges
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    idx = 0
+    n = int(data[idx])
+    idx += 1
+    m = int(data[idx])
+    idx += 1
+    t = int(data[idx])
+    idx += 1
+    
+    key_holders = []
+    for _ in range(t):
+        key_holders.append(int(data[idx]))
+        idx += 1
+    
+    edges = []
+    for _ in range(m):
+        u = int(data[idx])
+        idx += 1
+        v = int(data[idx])
+        idx += 1
+        w = int(data[idx])
+        idx += 1
+        edges.append((u, v, w))
+    
+    # Find critical edges
+    critical_edges = find_critical_edges(n, edges, key_holders)
+    
+    # Sum weights of critical edges
+    total_cost = 0
+    added_edges = set()
+    
+    for u, v, w in edges:
+        edge_key1 = (u, v)
+        edge_key2 = (v, u)
+        if edge_key1 in critical_edges or edge_key2 in critical_edges:
+            if edge_key1 not in added_edges and edge_key2 not in added_edges:
+                total_cost += w
+                added_edges.add(edge_key1)
+    
+    print(total_cost)
+
+if __name__ == "__main__":
+    main()

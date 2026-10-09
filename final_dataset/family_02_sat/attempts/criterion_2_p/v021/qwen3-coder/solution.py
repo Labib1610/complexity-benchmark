@@ -1,0 +1,133 @@
+import sys
+sys.setrecursionlimit(1000000)
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    clauses = []
+    index = 2
+    for _ in range(m):
+        l1 = int(data[index])
+        l2 = int(data[index+1])
+        index += 2
+        clauses.append((l1, l2))
+    
+    # Convert to 2-SAT
+    # Variables are 1-indexed. We'll use 2*i for x_i true, 2*i-1 for x_i false
+    # But in our encoding: for variable i (1-based), 
+    # node 2*i represents x_i = True, node 2*i+1 represents x_i = False
+    # Actually, let's use standard convention:
+    # variable i (1-based) -> nodes 2*i (True) and 2*i+1 (False)
+    # But to make indexing easier, let's map:
+    # variable i (1-based): True -> node 2*i, False -> node 2*i+1
+    # i.e., for variable v (1-based):
+    # literal v (meaning x_v = True) -> node 2*v
+    # literal -v (meaning x_v = False) -> node 2*v+1
+    
+    # So given a literal l:
+    # if l > 0: node = 2*l
+    # if l < 0: node = 2*abs(l)+1
+    
+    def lit_to_node(lit):
+        if lit > 0:
+            return 2 * lit
+        else:
+            return 2 * (-lit) + 1
+            
+    def node_to_lit(node):
+        v = node // 2
+        if node % 2 == 0:  # even, so True
+            return v
+        else:  # odd, so False
+            return -v
+    
+    # For implication graph: clause (a OR b) is equivalent to (~a => b) AND (~b => a)
+    # Node for ~a is a^1 (flip last bit)
+    
+    adj = [[] for _ in range(2*(n+1))]  # 0 unused, 1 to n are variables
+    rev_adj = [[] for _ in range(2*(n+1))]
+    
+    for l1, l2 in clauses:
+        # clause (l1 OR l2) means (~l1 => l2) AND (~l2 => l1)
+        n1 = lit_to_node(l1)
+        n2 = lit_to_node(l2)
+        not_n1 = n1 ^ 1
+        not_n2 = n2 ^ 1
+        
+        adj[not_n1].append(n2)
+        adj[not_n2].append(n1)
+        rev_adj[n2].append(not_n1)
+        rev_adj[n1].append(not_n2)
+        
+    # Kosaraju's algorithm for SCC
+    visited = [False] * (2*(n+1))
+    order = []
+    
+    def dfs1(u):
+        visited[u] = True
+        for v in adj[u]:
+            if not visited[v]:
+                dfs1(v)
+        order.append(u)
+        
+    for i in range(2, 2*(n+1)):
+        if not visited[i]:
+            dfs1(i)
+            
+    # Second DFS on transpose graph
+    visited = [False] * (2*(n+1))
+    scc_id = [-1] * (2*(n+1))
+    scc_count = 0
+    
+    def dfs2(u):
+        visited[u] = True
+        scc_id[u] = scc_count
+        for v in rev_adj[u]:
+            if not visited[v]:
+                dfs2(v)
+                
+    while order:
+        u = order.pop()
+        if not visited[u]:
+            dfs2(u)
+            scc_count += 1
+            
+    # Check if satisfiable
+    for i in range(1, n+1):
+        node_true = 2*i
+        node_false = 2*i+1
+        if scc_id[node_true] == scc_id[node_false]:
+            print("NO")
+            return
+            
+    # Extract solution
+    # Assign values based on topological order of SCCs
+    # Nodes in later SCCs (higher id) should be assigned True if possible
+    assignment = [0] * (n+1)
+    
+    # Create list of (scc_id, node) and sort by scc_id descending
+    node_scc_list = [(scc_id[i], i) for i in range(2, 2*(n+1))]
+    node_scc_list.sort(reverse=True)
+    
+    for _, node in node_scc_list:
+        lit = node_to_lit(node)
+        var = abs(lit)
+        if assignment[var] == 0:  # not yet assigned
+            if lit > 0:
+                assignment[var] = 1
+            else:
+                assignment[var] = 0
+                
+    print("YES")
+    result = []
+    for i in range(1, n+1):
+        result.append(str(assignment[i]))
+    print(' '.join(result))
+
+if __name__ == "__main__":
+    main()

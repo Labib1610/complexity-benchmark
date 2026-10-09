@@ -1,0 +1,47 @@
+# Problem B — Power Grid Feed Interlocks
+
+Time limit: 1 s   Memory limit: 256 MB
+
+## Description
+
+A power grid consists of **n** independent feed lines. Prior to commissioning, every feed line must be assigned exactly one of two operational modes: ENERGIZED or ISOLATED.
+
+The grid is safeguarded by **m** fault-prevention relays. Each relay is programmed to track two specific target modes across the network. A relay will initiate a system-wide fault if and only if the grid configuration simultaneously omits both of its target modes. A target mode is considered omitted when its corresponding feed line is set to the alternative mode. A full grid configuration is deemed secure if zero relays initiate a fault.
+
+Determine whether there exists a global configuration of all $n$ feed lines that is secure, and if so, report one; otherwise, report that the safety requirements are irreconcilable.
+
+## Input
+The first line contains two integers $n$ and $m$ ($1 \le n \le 10^5$, $0 \le m \le 2 \cdot 10^5$).
+Each of the next $m$ lines contains two non-zero signed integers $l_1$ and $l_2$, with $|l_i| \le n$. A positive integer $x$ denotes the mode where feed line $x$ is ENERGIZED, while a negative integer $-x$ denotes the mode where feed line $x$ is ISOLATED. Each line defines a single relay that initiates a fault if the grid configuration omits both the mode denoted by $l_1$ and the mode denoted by $l_2$.
+
+## Output
+If no secure configuration exists, print a single line `NO`.
+Otherwise, print `YES` on the first line. On the second line, print $n$ integers $s_1 \ s_2 \ \dots \ s_n$ (each in $\{0, 1\}$) representing any secure configuration, where 1 denotes ENERGIZED and 0 denotes ISOLATED.
+
+## Example 1
+Input:
+```
+2 2
+1 2
+-1 -2
+```
+Output:
+```
+YES
+1 0
+```
+
+## Example 2
+Input:
+```
+1 2
+1 1
+-1 -1
+```
+Output:
+```
+NO
+```
+
+## Note
+Multiple secure configurations may exist; any one is accepted. The same feed line index may appear in multiple relays.

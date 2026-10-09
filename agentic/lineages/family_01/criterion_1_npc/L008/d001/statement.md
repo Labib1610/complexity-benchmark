@@ -1,20 +1,20 @@
-# Problem A — Assembly Tolerances
+# Reagent Storage
 
 Time limit: 2 s   Memory limit: 256 MB
 
-A specialized manufacturing facility produces a complex device made of $n$ machined parts. Before final assembly, every single part must be treated with exactly one of three available chemical sealants. These sealants are designated as 1, 2, and 3.
+A laboratory is synthesizing a compound using $n$ distinct chemical reagents. Each reagent must be placed into exactly one of three temperature-controlled vaults, labeled 1, 2, and 3.
 
-Because of the precise tolerances required, certain pairs of parts interlock flush against each other in the final device. If two interlocking parts are treated with the exact same sealant, the identical chemical properties cause a cross-linking reaction that permanently fuses them together, ruining the device's internal mechanics. To prevent this, any two parts that interlock must be treated with strictly different sealants.
+Due to volatility, there are $m$ specific pairs of reagents that are highly reactive. If both reagents of a reactive pair are placed into the identical vault, they will cause a thermal runaway. 
 
-You are given the number of parts and the full list of interlocking pairs. Determine if it is possible to assign a sealant to every part without causing any interlocking pairs to fuse. 
+You must determine a vault assignment for every reagent ensuring that no reactive pair is stored together. If no such safe arrangement can be found, you must declare it impossible.
 
 ## Input
-The first line contains two integers $n$ and $m$ — the number of machined parts and the number of interlocking pairs ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
-Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$) — an interlocking pair of parts.
+The first line contains two integers $n$ and $m$ — the number of reagents and the number of reactive pairs ($1 \le n \le 40$, $0 \le m \le n \cdot (n-1)/2$).
+Each of the following $m$ lines contains two integers $u$ and $v$ — a pair of reagents that are reactive.
 
 ## Output
-If no valid assignment exists, print a single line NO.
-Otherwise print YES on the first line. On the second line print $n$ integers $s_1 s_2 \dots s_n$ (each in $\{1, 2, 3\}$), where $s_i$ is the sealant applied to part $i$. Among all valid assignments output the lexicographically smallest sequence (compare $s_1$ first, then $s_2$, and so on).
+If no safe arrangement is possible, print a single line NO.
+Otherwise, print YES on the first line. On the second line, print $n$ integers $s_1, s_2, \dots, s_n$ (each in $\{1,2,3\}$), where $s_i$ is the vault assigned to reagent $i$. Any valid arrangement is accepted.
 
 ## Example 1
 Input:

@@ -1,0 +1,84 @@
+import sys
+
+def solve():
+    input = sys.stdin.read
+    data = input().split()
+    if not data:
+        return
+    n = int(data[0])
+    m = int(data[1])
+    
+    adj = [[] for _ in range(2 * n)]
+    idx = 2
+    for _ in range(m):
+        c1 = int(data[idx])
+        c2 = int(data[idx+1])
+        idx += 2
+        
+        u = abs(c1) - 1
+        v = abs(c2) - 1
+        
+        s1 = 1 if c1 > 0 else 0
+        s2 = 1 if c2 > 0 else 0
+        
+        # c1 -> !c2
+        adj[2 * u + s1].append(2 * v + 1 - s2)
+        # c2 -> !c1
+        adj[2 * v + s2].append(2 * u + 1 - s1)
+        
+    N = 2 * n
+    dfs_num = 0
+    visited = [False] * N
+    visited_time = [0] * N
+    low_link = [0] * N
+    on_stack = [False] * N
+    stack = []
+    comp_id = [-1] * N
+    num_comp = 0
+    
+    def dfs(u):
+        nonlocal dfs_num, num_comp
+        visited[u] = True
+        visited_time[u] = dfs_num
+        low_link[u] = dfs_num
+        dfs_num += 1
+        stack.append(u)
+        on_stack[u] = True
+        
+        for v in adj[u]:
+            if not visited[v]:
+                dfs(v)
+                low_link[u] = min(low_link[u], low_link[v])
+            elif on_stack[v]:
+                low_link[u] = min(low_link[u], visited_time[v])
+                
+        if low_link[u] == visited_time[u]:
+            while True:
+                v = stack.pop()
+                on_stack[v] = False
+                comp_id[v] = num_comp
+                if v == u:
+                    break
+            num_comp += 1
+
+    sys.setrecursionlimit(1 << 25)
+    for i in range(N):
+        if not visited[i]:
+            dfs(i)
+            
+    for i in range(n):
+        if comp_id[2 * i] == comp_id[2 * i + 1]:
+            print("NO")
+            return
+            
+    print("YES")
+    ans = [0] * n
+    for i in range(n):
+        # If comp_id of OPEN (2*i + 1) is greater than CLOSED (2*i), 
+        # it means OPEN is topologically later, so we must pick OPEN.
+        ans[i] = 1 if comp_id[2 * i + 1] > comp_id[2 * i] else 0
+        
+    print(" ".join(map(str, ans)))
+
+if __name__ == '__main__':
+    solve()

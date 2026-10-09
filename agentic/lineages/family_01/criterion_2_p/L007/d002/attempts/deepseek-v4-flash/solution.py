@@ -14,27 +14,19 @@ for _ in range(m):
 
 color = [-1] * n
 
-def bfs(start):
-    q = deque([start])
-    color[start] = 0  # try 0 first (meaning value 1)
-    while q:
-        u = q.popleft()
-        for v in adj[u]:
-            if color[v] == -1:
-                color[v] = 1 - color[u]
-                q.append(v)
-            elif color[v] == color[u]:
-                return False
-    return True
-
-# Try to assign 1 (color 0) to smallest possible nodes
 for i in range(n):
     if color[i] == -1:
-        if not bfs(i):
-            print("NO")
-            sys.exit()
+        color[i] = 1
+        q = deque([i])
+        while q:
+            u = q.popleft()
+            for v in adj[u]:
+                if color[v] == -1:
+                    color[v] = 3 - color[u]  # 1 -> 2, 2 -> 1
+                    q.append(v)
+                elif color[v] == color[u]:
+                    print("NO")
+                    sys.exit()
 
-# Convert color to 1 or 2
-res = [1 if c == 0 else 2 for c in color]
 print("YES")
-print(" ".join(map(str, res)))
+print(" ".join(map(str, color)))

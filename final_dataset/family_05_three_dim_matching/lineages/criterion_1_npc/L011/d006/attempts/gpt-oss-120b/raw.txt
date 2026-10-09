@@ -1,0 +1,357 @@
+**Solution Explanation**
+
+For every frequency `x (1 … k)`, modulation `y (1 … k)` and encryption key `z (1 … k)`
+we have a *configuration* – a triple `(x , y , z)`.
+From the given list we have to choose exactly `k` triples such that  
+
+* each frequency is used once,
+* each modulation is used once,
+* each encryption key is used once,
+* the chosen triples are pairwise distinct in all three coordinates.
+
+So we have to find a *perfect 3‑dimensional matching*.
+`k ≤ 22`, therefore the whole instance is tiny – we can solve it with the
+classical **exact cover** algorithm (Knuth’s *Algorithm X* with dancing links).
+
+--------------------------------------------------------------------
+
+#### 1.   Modelling as Exact Cover
+
+We have `3·k` constraints  
+
+```
+C0 … C(k-1)          –  frequency i is used      (i = 1 … k)
+Ck … C(2k-1)         –  modulation j is used     (j = 1 … k)
+C2k … C(3k-1)        –  key l is used            (l = 1 … k)
+```
+
+Every allowed configuration `(x , y , z)` satisfies exactly three constraints:
+
+```
+C(x-1) , C(k + y-1) , C(2k + z-1)
+```
+
+Choosing a set of rows (configurations) that covers **all** constraints exactly
+once is exactly the required deployment.
+
+--------------------------------------------------------------------
+
+#### 2.   Dancing Links (DLX)
+
+*Columns* – one column per constraint.  
+*Rows*    – one row per allowed configuration, containing the three columns
+           belonging to this configuration.
+
+DLX stores the sparse binary matrix with four double linked lists
+(`left / right / up / down`).  
+Operations:
+
+```
+cover(col)   – remove the column and all rows that contain a 1 in it
+uncover(col) – restore everything (inverse operation)
+```
+
+The recursive search:
+
+```
+search()
+    if no column left → solution found
+    choose column with fewest rows   (heuristic)
+    cover(col)
+    for each row r in this column
+        add r to partial solution
+        for each other column j of r
+            cover(j)
+        if search() succeeds → propagate success
+        undo coverings of j
+        remove r from partial solution
+    uncover(col)
+    return failure
+```
+
+Depth of the recursion is at most `k (≤ 22)`.  
+Number of rows ≤ `k³  ( ≤ 10648 )`.  
+The whole structure easily fits into memory and runs far below the
+5‑second limit.
+
+--------------------------------------------------------------------
+
+#### 3.   Correctness Proof  
+
+We prove that the algorithm prints “YES” and a valid deployment
+iff such a deployment exists.
+
+---
+
+##### Lemma 1  
+During the execution of `search` the set of uncovered columns is exactly the
+set of constraints that are **still unmet** by the rows already stored in the
+partial solution.
+
+**Proof.**  
+Initially all columns are uncovered, no constraint is satisfied – true.
+`cover(col)` removes `col` and all rows that contain a 1 in `col`.  
+Removing those rows means we forbid using any of them later, i.e. we decide
+that none of the still‑unselected rows may satisfy `col`.  
+Consequently `col` becomes satisfied (by the already chosen row that contains
+the 1 in `col`) and is removed from the list of unmet constraints.  
+All other columns are untouched, therefore the invariant holds after every
+cover/uncover pair. ∎
+
+
+
+##### Lemma 2  
+When `search` reaches the line “if no column left → solution found”,
+the rows stored in the partial solution form a set of `k` pairwise
+perfectly isolated configurations.
+
+**Proof.**  
+If no column is left, by Lemma&nbsp;1 *all* `3·k` constraints are satisfied.
+Each column corresponds to a distinct value of one of the three parameters,
+hence each value appears exactly once among the selected rows.
+A row uses exactly one frequency, one modulation and one key,
+so the selected rows are `k` different triples with all three coordinates
+pairwise different – exactly the definition of a valid deployment. ∎
+
+
+
+##### Lemma 3  
+If a valid deployment exists, `search` will eventually find it.
+
+**Proof.**  
+Consider any valid deployment `S`.  
+At the start every column is present.  
+`search` always chooses a column `c` that still needs to be satisfied.
+Because `S` satisfies all constraints, `c` is satisfied by a unique row
+`r ∈ S`.  
+`r` belongs to the list of rows examined in the `for each row r in this column`
+loop (the column contains exactly all rows that have a 1 in `c`).  
+When this `r` is selected, `cover` is called for all other columns of `r`,
+exactly the columns that `r` satisfies as well.  
+Thus after these coverings the remaining uncovered columns are those that are
+still unsatisfied by `S \ {r}`.  
+Repeating the argument for the recursive call yields a sequence of choices
+that follows the rows of `S` one after another, finally reaching the empty
+matrix and reporting success. ∎
+
+
+
+##### Lemma 4  
+If `search` reports failure, no valid deployment exists.
+
+**Proof.**  
+Assume a deployment existed. By Lemma&nbsp;3 the recursive search would
+eventually follow exactly its rows and succeed, contradicting the reported
+failure. Hence no deployment exists. ∎
+
+
+
+##### Theorem  
+The program outputs  
+
+* “YES” and a list of `k` configurations that are pairwise isolated  
+  **iff** such a list exists,
+* otherwise it outputs “NO”.
+
+**Proof.**  
+
+*If the program prints “YES”.*  
+It printed the rows stored when `search` terminated with success.
+By Lemma&nbsp;2 those rows constitute a valid deployment.
+
+*If a valid deployment exists.*  
+The corresponding exact‑cover instance is solvable.
+By Lemma&nbsp;3 `search` will find a solution, thus the program prints “YES”.
+If `search` fails, by Lemma&nbsp;4 no deployment exists, therefore printing
+“NO” is correct.
+
+Both directions hold, completing the proof. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### 4.   Complexity Analysis  
+
+```
+k ≤ 22
+t ≤ k³ ≤ 10648
+rows = t
+columns = 3k ≤ 66
+nodes = 3·t ≤ 31944
+```
+
+*Building the structure* – `O(nodes)` time, `O(nodes)` memory.  
+*Search* – each recursive level removes at least one column, depth ≤ `k`.  
+All operations inside a level are proportional to the number of nodes removed,
+which together over the whole recursion is `O(nodes)`.  
+Therefore total running time is `O(nodes)` in practice, far below the limit.
+
+Memory consumption: a few integers per node → < 1 MiB.
+
+--------------------------------------------------------------------
+
+#### 5.   Reference Implementation  (Python 3)
+
+```python
+import sys
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    k = int(next(it))
+    t = int(next(it))
+
+    triples = []
+    for _ in range(t):
+        x = int(next(it)) - 1
+        y = int(next(it)) - 1
+        z = int(next(it)) - 1
+        triples.append((x, y, z))
+
+    if t < k:
+        print("NO")
+        return
+
+    # ---------- DLX construction ----------
+    num_cols = 3 * k                     # column id 1 .. num_cols
+    max_nodes = t * 3 + num_cols + 5    # enough space
+
+    # linked‑list structures
+    L = [0] * max_nodes
+    R = [0] * max_nodes
+    U = [0] * max_nodes
+    D = [0] * max_nodes
+    C = [0] * max_nodes          # column of a node
+    S = [0] * (num_cols + 1)     # column sizes, index 0 unused
+    row_of_node = [0] * max_nodes
+
+    # header 0, column headers 1..num_cols
+    for i in range(num_cols + 1):
+        L[i] = i - 1
+        R[i] = i + 1
+        U[i] = D[i] = i
+    L[0] = num_cols
+    R[num_cols] = 0
+
+    node_ptr = num_cols + 1        # next free node index
+    row_to_triple = []             # row id -> (x,y,z)
+
+    for (x, y, z) in triples:
+        cols = [x + 1,                # frequency columns are 1..k
+                k + y + 1,            # modulation columns are k+1 .. 2k
+                2 * k + z + 1]        # key columns are 2k+1 .. 3k
+        first = -1
+        row_id = len(row_to_triple)
+        row_to_triple.append((x + 1, y + 1, z + 1))
+        for col in cols:
+            idx = node_ptr
+            node_ptr += 1
+            C[idx] = col
+            row_of_node[idx] = row_id
+
+            # vertical insertion (above column header)
+            U[idx] = U[col]
+            D[idx] = col
+            D[U[col]] = idx
+            U[col] = idx
+            S[col] += 1
+
+            # horizontal linking within the row
+            if first == -1:
+                first = idx
+                L[idx] = R[idx] = idx
+            else:
+                L[idx] = L[first]
+                R[idx] = first
+                R[L[first]] = idx
+                L[first] = idx
+
+    # ---------- DLX algorithm ----------
+    solution_rows = []
+
+    def cover(c: int) -> None:
+        # remove column header
+        L[R[c]] = L[c]
+        R[L[c]] = R[c]
+        i = D[c]
+        while i != c:
+            j = R[i]
+            while j != i:
+                U[D[j]] = U[j]
+                D[U[j]] = D[j]
+                S[C[j]] -= 1
+                j = R[j]
+            i = D[i]
+
+    def uncover(c: int) -> None:
+        i = U[c]
+        while i != c:
+            j = L[i]
+            while j != i:
+                S[C[j]] += 1
+                U[D[j]] = j
+                D[U[j]] = j
+                j = L[j]
+            i = U[i]
+        L[R[c]] = c
+        R[L[c]] = c
+
+    sys.setrecursionlimit(10000)
+
+    def search() -> bool:
+        if R[0] == 0:          # all columns covered
+            return True
+        # choose column with minimum size
+        c = R[0]
+        min_s = S[c]
+        j = R[c]
+        while j != 0:
+            if S[j] < min_s:
+                min_s = S[j]
+                c = j
+                if min_s == 0:
+                    break
+            j = R[j]
+        if min_s == 0:
+            return False
+
+        cover(c)
+        r = D[c]
+        while r != c:
+            solution_rows.append(row_of_node[r])
+            j = R[r]
+            while j != r:
+                cover(C[j])
+                j = R[j]
+            if search():
+                return True
+            # backtrack
+            solution_rows.pop()
+            j = L[r]
+            while j != r:
+                uncover(C[j])
+                j = L[j]
+            r = D[r]
+        uncover(c)
+        return False
+
+    possible = search()
+    if not possible:
+        print("NO")
+        return
+
+    print("YES")
+    out = sys.stdout
+    for row_id in solution_rows:
+        x, y, z = row_to_triple[row_id]
+        out.write(f"{x} {y} {z}\n")
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above
+and conforms to the required input‑output format.

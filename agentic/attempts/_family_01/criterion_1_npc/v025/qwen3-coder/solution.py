@@ -1,0 +1,48 @@
+from itertools import product
+
+def solve():
+    n, m = map(int, input().split())
+    
+    # Read toxic pairs
+    toxic_pairs = []
+    for _ in range(m):
+        u, v = map(int, input().split())
+        toxic_pairs.append((u-1, v-1))  # Convert to 0-indexed
+    
+    # Try all possible assignments
+    for assignment in product([1, 2, 3], repeat=n):
+        # Check water constraint: each greenhouse can have at most 45 species (450/10)
+        counts = [0, 0, 0]
+        for greenhouse in assignment:
+            counts[greenhouse-1] += 1
+        
+        if any(count > 45 for count in counts):
+            continue
+            
+        # Check toxicity isolation constraint
+        valid = True
+        for u, v in toxic_pairs:
+            if assignment[u] == assignment[v]:
+                valid = False
+                break
+                
+        if not valid:
+            continue
+            
+        # Check filtration budget constraint
+        filtration_units = 0
+        for u, v in toxic_pairs:
+            if assignment[u] != assignment[v]:
+                filtration_units += 1
+                
+        if filtration_units > 800:
+            continue
+            
+        # If we reach here, we found a valid assignment
+        print("YES")
+        print(' '.join(map(str, assignment)))
+        return
+        
+    print("NO")
+
+solve()

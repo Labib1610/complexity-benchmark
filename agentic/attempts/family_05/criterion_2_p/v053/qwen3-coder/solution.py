@@ -1,0 +1,91 @@
+from collections import defaultdict
+
+def solve():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    k = int(data[0])
+    t = int(data[1])
+    
+    index = 2
+    entries = []
+    container_to_tag = {}
+    
+    for _ in range(t):
+        u = int(data[index])
+        v = int(data[index+1])
+        w = int(data[index+2])
+        entries.append((u, v, w))
+        index += 3
+        if u not in container_to_tag:
+            container_to_tag[u] = v
+        else:
+            if container_to_tag[u] != v:
+                # This should not happen according to problem statement
+                pass
+    
+    # Build a graph: for each vessel, which containers can be assigned to it
+    # Since each container has a fixed tag, we can think of this as a bipartite matching problem
+    # But actually, since tag is fixed per container, we can consider (container, vessel) pairs
+    # where the tag is determined by the container
+    
+    # Let's model this as a maximum bipartite matching:
+    # Left side: containers (1 to k)
+    # Right side: vessels (1 to k)
+    # An edge exists if there is an entry (u, tag_of_u, w)
+    
+    # So for each container u, we know its tag tag_of_u
+    # We look at all entries (u, tag_of_u, w) and build a graph from u to w
+    
+    # Adjacency list for graph: vessel -> list of containers that can use it
+    vessel_to_containers = defaultdict(list)
+    
+    # For each entry (u,v,w), if container u has tag v, then we can have an edge from u to w
+    entry_map = {}  # (u,w) -> original entry (u,v,w)
+    
+    for u, v, w in entries:
+        if u in container_to_tag and container_to_tag[u] == v:
+            vessel_to_containers[w].append(u)
+            entry_map[(u, w)] = (u, v, w)
+    
+    # Now we need to find a perfect matching in this bipartite graph
+    # Left side: containers 1..k
+    # Right side: vessels 1..k
+    # Edges: for each (u,w) such that there exists an entry (u, tag[u], w)
+    
+    # Use Hopcroft-Karp or similar. But since k<=1200, let's use a simpler O(k^3) approach like Hungarian
+    # However, even simpler: use a DFS-based augmenting path method
+    
+    match_vessel = [0] * (k + 1)   # match_vessel[w] = u means vessel w is matched to container u
+    match_container = [0] * (k + 1) # match_container[u] = w means container u is matched to vessel w
+    
+    def dfs(u, visited):
+        for w in vessel_to_containers.get(u, []):
+            if visited[w]:
+                continue
+            visited[w] = True
+            if match_vessel[w] == 0 or dfs(match_vessel[w], visited):
+                match_vessel[w] = u
+                match_container[u] = w
+                return True
+        return False
+    
+    # Try to match each container
+    matched = 0
+    for u in range(1, k + 1):
+        visited = [False] * (k + 1)
+        if dfs(u, visited):
+            matched += 1
+    
+    if matched < k:
+        print("NO")
+        return
+    
+    print("YES")
+    for u in range(1, k + 1):
+        w = match_container[u]
+        u_entry, v_entry, w_entry = entry_map[(u, w)]
+        print(u_entry, v_entry, w_entry)
+
+solve()

@@ -1,0 +1,93 @@
+```python
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    n, m, k = map(int, input_data[:3])
+    adj = [0] * n
+    idx = 3
+    for _ in range(m):
+        u, v = int(input_data[idx]) - 1, int(input_data[idx+1]) - 1
+        adj[u] |= (1 << v)
+        adj[v] |= (1 << u)
+        idx += 2
+
+    # Meet-in-the-middle approach for Maximum Independent Set / k-clique
+    # n <= 46 is too large for simple backtracking, but we need a k-clique in the complement graph.
+    # Actually, n=46 is small enough for a optimized Bron-Kerbosch or meet-in-the-middle.
+    
+    n1 = n // 2
+    n2 = n - n1
+    
+    # adj_comp is the adjacency matrix of the complement graph
+    adj_comp = [(~(adj[i] | (1 << i))) & ((1 << n) - 1) for i in range(n)]
+    
+    # Precompute cliques for the second half
+    cliques2 = {}
+    for i in range(1 << n2):
+        nodes = [j + n1 for j in range(n2) if (i >> j) & 1]
+        valid = True
+        mask = 0
+        for u in nodes:
+            if (adj[u] & mask):
+                valid = False
+                break
+            mask |= (1 << u)
+        if valid:
+            size = len(nodes)
+            if size not in cliques2 or (cliques2[size] < mask):
+                cliques2[size] = mask
+    
+    # Search for k-clique
+    def find_clique(idx, current_mask, count):
+        if count == k:
+            return current_mask
+        if idx == n1:
+            needed = k - count
+            if needed in cliques2:
+                m2 = cliques2[needed]
+                if not (current_mask & m2) and not (current_mask & (adj[i] for i in range(n1, n) if (m2 >> i) & 1)):
+                    # Check if m2 is compatible with current_mask
+                    compatible = True
+                    for i in range(n1, n):
+                        if (m2 >> i) & 1:
+                            if (adj[i] & current_mask):
+                                compatible = False
+                                break
+                    if compatible:
+                        return current_mask | m2
+            return None
+        
+        # Try including idx
+        if not (adj[idx] & current_mask):
+            res = find_clique(idx + 1, current_mask | (1 << idx), count + 1)
+            if res: return res
+        
+        # Try excluding idx
+        return find_clique(idx + 1, current_mask, count)
+
+    # Simple backtracking with pruning for n=46
+    def backtrack(candidates, current):
+        if len(current) == k:
+            return current
+        if not candidates or len(current) + len(candidates) < k:
+            return None
+        
+        v = candidates[0]
+        # Include v
+        res = backtrack([c for c in candidates[1:] if not (adj[v] & (1 << c))], current + [v])
+        if res: return res
+        # Exclude v
+        return backtrack(candidates[1:], current)
+
+    res = backtrack(list(range(n)), [])
+    if res:
+        print("YES")
+        print(*(x + 1 for x in res))
+    else:
+        print("NO")
+
+solve()
+```

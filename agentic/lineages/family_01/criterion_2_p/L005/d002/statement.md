@@ -1,20 +1,21 @@
-# Problem B — Resource Allocation
+# Problem B — Frequency Calibration
 
-Time limit: 1 s   Memory limit: 256 MB
+Time limit: 1 s
+Memory limit: 256 MB
 
-You are configuring a network of $n$ nodes. Each node must be assigned a tier of either $1$ or $2$. 
+An industrial facility manages a network of $n$ automated machines. Each machine must be configured to use one of two specific operational modes, which are designated by the values 1 and 2.
 
-The network has $m$ communication channels, each connecting a pair of nodes. Each channel has exactly 3 units of bandwidth available. To fully utilize the network without overloading it, the two nodes connected by any channel must together consume exactly the available bandwidth of that channel. A node assigned to tier $s$ consumes exactly $s$ units of bandwidth on each of its connected channels.
+The facility's monitoring system has flagged $m$ adjacency pairs. Each pair indicates two machines that are physically close enough to risk signal overlap. To guarantee safe operation, the system enforces a strict interference protocol: for any two machines in an adjacency pair, if their configured modes are $x$ and $y$, the resulting cross-talk metric, calculated as $x^2 + 3xy + y^2$, must evaluate to exactly 11.
 
-You must assign a tier to every node. If it is impossible to configure the network to satisfy the bandwidth requirement for all channels, report impossibility.
+Your task is to determine a mode configuration for all $n$ machines that satisfies this protocol for every adjacency pair, or determine that no such configuration is possible.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 200000$, $0 \le m \le 200000$).
-Each of the next $m$ lines contains two integers $u$ and $v$ — a pair of nodes connected by a communication channel.
+The first line provides two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$).
+The following $m$ lines each contain two integers $u$ and $v$ — a pair of machines listed in an adjacency pair.
 
 ## Output
 If no valid configuration exists, print a single line NO.
-Otherwise print YES, then a second line with $n$ integers $s_1 \dots s_n$, each equal to 1 or 2, representing the tiers of the nodes. If multiple valid configurations exist, output the lexicographically smallest one.
+Otherwise print YES, then a second line with $n$ integers $s_1 \dots s_n$ (each in {1,2}), representing the lexicographically smallest valid configuration.
 
 ## Example 1
 Input:

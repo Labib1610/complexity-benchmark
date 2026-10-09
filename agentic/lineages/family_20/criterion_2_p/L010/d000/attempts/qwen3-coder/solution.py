@@ -1,0 +1,60 @@
+import sys
+from collections import defaultdict, deque
+
+def main():
+    import sys
+    sys.setrecursionlimit(1 << 25)
+    
+    nL, nR, m = map(int, sys.stdin.readline().split())
+    
+    # We'll store the graph as adjacency list for each side
+    # Left nodes: 1 to nL, Right nodes: 1 to nR
+    adjL = defaultdict(list)  # adjL[u] = list of right-side nodes connected to u
+    adjR = defaultdict(list)  # adjR[v] = list of left-side nodes connected to v
+    
+    edges = []
+    
+    for i in range(m):
+        u, v = map(int, sys.stdin.readline().split())
+        adjL[u].append(v)
+        adjR[v].append(u)
+        edges.append((u, v))
+    
+    # Compute degrees
+    degL = {u: len(adjL[u]) for u in range(1, nL+1)}
+    degR = {v: len(adjR[v]) for v in range(1, nR+1)}
+    
+    delta = 0
+    if m > 0:
+        max_deg_L = max(degL.values()) if degL else 0
+        max_deg_R = max(degR.values()) if degR else 0
+        delta = max(max_deg_L, max_deg_R)
+    
+    # Edge coloring: we need to assign colors 1..delta to edges such that
+    # edges incident to same node have different colors
+    
+    # For each node, maintain which colors are used on its edges
+    color_used_L = defaultdict(lambda: [False] * (delta + 1))  # color_used_L[u][c] = True if color c is used by u
+    color_used_R = defaultdict(lambda: [False] * (delta + 1))
+    
+    # Result array
+    result = [0] * m
+    
+    # Process edges and assign colors greedily
+    for idx, (u, v) in enumerate(edges):
+        # Find a free color for this edge
+        color = 1
+        while color <= delta:
+            if not color_used_L[u][color] and not color_used_R[v][color]:
+                break
+            color += 1
+        
+        result[idx] = color
+        color_used_L[u][color] = True
+        color_used_R[v][color] = True
+    
+    print("YES")
+    print(' '.join(map(str, result)))
+
+if __name__ == "__main__":
+    main()

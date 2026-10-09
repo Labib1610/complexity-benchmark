@@ -1,0 +1,95 @@
+import sys
+from collections import defaultdict, deque
+
+def solve():
+    n, m, k = map(int, sys.stdin.readline().split())
+    
+    # Build adjacency list
+    adj = defaultdict(set)
+    for _ in range(m):
+        u, v = map(int, sys.stdin.readline().split())
+        adj[u].add(v)
+        adj[v].add(u)
+    
+    # If no edges, we can pick any k nodes
+    if m == 0:
+        print("YES")
+        print(*range(1, k+1))
+        return
+    
+    # Check if graph is bipartite and find the two sets
+    color = {}
+    visited = set()
+    
+    # Try to color each component
+    components = []
+    for start in range(1, n+1):
+        if start not in visited:
+            # BFS to find component and check bipartiteness
+            queue = deque([start])
+            color[start] = 0
+            visited.add(start)
+            set0, set1 = {start}, set()
+            
+            is_bipartite = True
+            while queue and is_bipartite:
+                node = queue.popleft()
+                current_color = color[node]
+                
+                for neighbor in adj[node]:
+                    if neighbor not in visited:
+                        visited.add(neighbor)
+                        color[neighbor] = 1 - current_color
+                        if color[neighbor] == 0:
+                            set0.add(neighbor)
+                        else:
+                            set1.add(neighbor)
+                        queue.append(neighbor)
+                    elif color[neighbor] == current_color:
+                        is_bipartite = False
+                        break
+            
+            if not is_bipartite:
+                print("NO")
+                return
+                
+            components.append((set0, set1))
+    
+    # For each component, we can take at most one of the two sets
+    # This is because within a set, no two nodes are adjacent (by bipartite property)
+    set_a = set()
+    set_b = set()
+    
+    for s0, s1 in components:
+        set_a.update(s0)
+        set_b.update(s1)
+    
+    # Now we want to find the maximum independent set
+    # In a bipartite graph, this is the larger of the two sets
+    if len(set_a) >= k:
+        result = list(set_a)[:k]
+        print("YES")
+        print(*result)
+    elif len(set_b) >= k:
+        result = list(set_b)[:k]
+        print("YES")
+        print(*result)
+    else:
+        # We might be able to combine nodes from different components
+        # But in a bipartite graph, the maximum independent set is max(|A|, |B|)
+        # where A and B are the two partitions
+        
+        # Actually, let's reconsider what we can do:
+        # The maximum independent set in a bipartite graph is the larger partition
+        max_independent = max(len(set_a), len(set_b))
+        if max_independent >= k:
+            if len(set_a) >= k:
+                result = list(set_a)[:k]
+            else:
+                result = list(set_b)[:k]
+            print("YES")
+            print(*result)
+        else:
+            print("NO")
+
+solve()

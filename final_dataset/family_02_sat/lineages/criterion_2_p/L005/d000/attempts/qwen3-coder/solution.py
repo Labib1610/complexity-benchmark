@@ -1,0 +1,106 @@
+import sys
+import threading
+
+def main():
+    import sys
+    sys.setrecursionlimit(1 << 25)
+    
+    n, m = map(int, sys.stdin.readline().split())
+    
+    # For each dependency, we have a clause with two literals
+    # This is a 2-SAT problem
+    
+    # We'll use Kosaraju's algorithm to solve 2-SAT
+    # Variables: 1 to n
+    # For variable x, node x represents x=True, node -x represents x=False
+    # So we have nodes from -n to -1 and 1 to n (0 is not used)
+    
+    adj = {}
+    rev_adj = {}
+    
+    # Initialize adjacency lists
+    for i in range(1, n+1):
+        adj[i] = []
+        adj[-i] = []
+        rev_adj[i] = []
+        rev_adj[-i] = []
+    
+    # Read clauses and build implication graph
+    for _ in range(m):
+        l1, l2 = map(int, sys.stdin.readline().split())
+        # Clause (l1 OR l2) is equivalent to (~l1 -> l2) AND (~l2 -> l1)
+        # where ~l1 means negation of l1
+        # If l1 is positive, ~l1 is -l1
+        # If l1 is negative, ~l1 is -(-l1) = l1
+        adj[-l1].append(l2)
+        adj[-l2].append(l1)
+        rev_adj[l2].append(-l1)
+        rev_adj[l1].append(-l2)
+    
+    # Kosaraju's algorithm for finding SCCs
+    visited = set()
+    order = []
+    
+    def dfs1(node):
+        if node in visited:
+            return
+        visited.add(node)
+        for neighbor in adj.get(node, []):
+            dfs1(neighbor)
+        order.append(node)
+    
+    # First DFS to get finishing order
+    for i in range(1, n+1):
+        if i not in visited:
+            dfs1(i)
+        if -i not in visited:
+            dfs1(-i)
+    
+    # Second DFS on transpose graph in reverse order
+    visited = set()
+    scc = {}
+    scc_id = 0
+    
+    def dfs2(node):
+        if node in visited:
+            return
+        visited.add(node)
+        scc[node] = scc_id
+        for neighbor in rev_adj.get(node, []):
+            dfs2(neighbor)
+    
+    # Process in reverse order
+    while order:
+        node = order.pop()
+        if node not in visited:
+            dfs2(node)
+            scc_id += 1
+    
+    # Check if for any variable x, x and -x are in the same SCC
+    for i in range(1, n+1):
+        if scc[i] == scc[-i]:
+            print("NO")
+            return
+    
+    # If satisfiable, construct a solution
+    # Assign values based on topological order of SCCs
+    # Variables in later SCCs (higher scc_id) are assigned first
+    assignment = {}
+    
+    # Create list of (scc_id, node) and sort by scc_id descending
+    scc_nodes = [(scc[node], node) for node in scc]
+    scc_nodes.sort(reverse=True)
+    
+    for _, node in scc_nodes:
+        if node > 0 and node not in assignment:
+            assignment[node] = 1
+        elif node < 0 and (-node) not in assignment:
+            assignment[-node] = 0
+    
+    print("YES")
+    result = []
+    for i in range(1, n+1):
+        result.append(str(assignment[i]))
+    print(' '.join(result))
+
+threading.Thread(target=main).start()

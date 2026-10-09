@@ -1,0 +1,419 @@
+```python
+import sys
+from collections import deque
+
+sys.setrecursionlimit(1_000_000)
+
+data = list(map(int, sys.stdin.buffer.read().split()))
+if not data:
+    sys.exit()
+
+nL, nR, m = data[0], data[1], data[2]
+U = [0] * m
+V = [0] * m
+
+deg_initial_l = [0] * nL
+deg_initial_r = [0] * nR
+
+p = 3
+for i in range(m):
+    u = data[p] - 1
+    v = data[p + 1] - 1
+    p += 2
+    U[i] = u
+    V[i] = v
+    deg_initial_l[u] += 1
+    deg_initial_r[v] += 1
+
+Delta = 0
+if m:
+    Delta = max(max(deg_initial_l), max(deg_initial_r))
+
+answer = [0] * m
+
+if m == 0:
+    sys.stdout.write("YES\n\n")
+    sys.exit()
+
+deg_l = [0] * nL
+deg_r = [0] * nR
+req_l_mark = [0] * nL
+req_r_mark = [0] * nR
+generation = 0
+
+match_l = [-1] * nL
+match_r = [-1] * nR
+match_edge_r = [-1] * nR
+dist_l = [-1] * nL
+dist_r = [-1] * nR
+ptr_l = [0] * nL
+ptr_r = [0] * nR
+
+selected_mark = [0] * m
+used_mark = [0] * m
+selected_generation = 0
+used_generation = 0
+
+def extract_covering_matching(edges, D):
+    global generation, selected_generation
+    generation += 1
+    gen = generation
+
+    touched_l = []
+    touched_r = []
+
+    for e in edges:
+        u = U[e]
+        v = V[e]
+        if deg_l[u] == 0:
+            touched_l.append(u)
+        if deg_r[v] == 0:
+            touched_r.append(v)
+        deg_l[u] += 1
+        deg_r[v] += 1
+
+    req_l = []
+    req_r = []
+
+    for u in touched_l:
+        if deg_l[u] == D:
+            req_l_mark[u] = gen
+            req_l.append(u)
+
+    for v in touched_r:
+        if deg_r[v] == D:
+            req_r_mark[v] = gen
+            req_r.append(v)
+
+    if not req_l and not req_r:
+        for u in touched_l:
+            deg_l[u] = 0
+        for v in touched_r:
+            deg_r[v] = 0
+        return [], edges
+
+    adj_l = {u: [] for u in req_l}
+    adj_r = {v: [] for v in req_r}
+
+    for e in edges:
+        u = U[e]
+        v = V[e]
+        if req_l_mark[u] == gen:
+            adj_l[u].append((v, e))
+        if req_r_mark[v] == gen:
+            adj_r[v].append((u, e))
+
+    matched_lefts = []
+    matched_rights = []
+
+    def assign(u, v, e):
+        if match_l[u] == -1:
+            matched_lefts.append(u)
+        if match_r[v] == -1:
+            matched_rights.append(v)
+        match_l[u] = v
+        match_r[v] = u
+        match_edge_r[v] = e
+
+    # Greedy initialization for required left vertices.
+    for u in req_l:
+        for v, e in adj_l[u]:
+            if match_r[v] == -1:
+                assign(u, v, e)
+                break
+
+    # Hopcroft-Karp phases to saturate every required left vertex.
+    while True:
+        q = deque()
+        for u in req_l:
+            if match_l[u] == -1:
+                dist_l[u] = 0
+                q.append(u)
+            else:
+                dist_l[u] = -1
+
+        if not q:
+            break
+
+        target_depth = -1
+
+        while q:
+            u = q.popleft()
+            d = dist_l[u]
+            if target_depth != -1 and d >= target_depth:
+                continue
+            for v, _ in adj_l[u]:
+                if match_l[u] == v:
+                    continue
+                u2 = match_r[v]
+                if u2 == -1:
+                    target_depth = d
+                elif dist_l[u2] == -1:
+                    dist_l[u2] = d + 1
+                    q.append(u2)
+
+        if target_depth == -1:
+            break
+
+        for u in req_l:
+            ptr_l[u] = 0
+
+        def dfs_left(u):
+            a = adj_l[u]
+            i = ptr_l[u]
+            while i < len(a):
+                ptr_l[u] = i + 1
+                v, e = a[i]
+                i += 1
+
+                if match_l[u] == v:
+                    continue
+
+                u2 = match_r[v]
+                if u2 == -1:
+                    if dist_l[u] == target_depth:
+                        assign(u, v, e)
+                        return True
+                elif dist_l[u2] == dist_l[u] + 1 and dfs_left(u2):
+                    assign(u, v, e)
+                    return True
+
+            dist_l[u] = -1
+            return False
+
+        progressed = False
+        for u in req_l:
+            if match_l[u] == -1 and dfs_left(u):
+                progressed = True
+
+        if not progressed:
+            break
+
+    # Cover required right vertices while preserving all required left vertices.
+    while True:
+        sources = []
+        q = deque()
+
+        for v in req_r:
+            if match_r[v] == -1:
+                dist_r[v] = 0
+                sources.append(v)
+                q.append(v)
+            else:
+                dist_r[v] = -1
+
+        if not sources:
+            break
+
+        target_depth = -1
+
+        while q:
+            v = q.popleft()
+            d = dist_r[v]
+            if target_depth != -1 and d >= target_depth:
+                continue
+
+            for u, _ in adj_r[v]:
+                if match_r[v] == u:
+                    continue
+                v2 = match_l[u]
+                if v2 == -1 or req_r_mark[v2] != gen:
+                    target_depth = d
+                elif dist_r[v2] == -1:
+                    dist_r[v2] = d + 1
+                    q.append(v2)
+
+        if target_depth == -1:
+            break
+
+        for v in req_r:
+            ptr_r[v] = 0
+
+        def dfs_right(v):
+            a = adj_r[v]
+            i = ptr_r[v]
+
+            while i < len(a):
+                ptr_r[v] = i + 1
+                u, e = a[i]
+                i += 1
+
+                if match_r[v] == u:
+                    continue
+
+                v2 = match_l[u]
+
+                if v2 == -1:
+                    if dist_r[v] == target_depth:
+                        assign(u, v, e)
+                        return True
+                elif req_r_mark[v2] != gen:
+                    if dist_r[v] == target_depth:
+                        match_r[v2] = -1
+                        match_edge_r[v2] = -1
+                        assign(u, v, e)
+                        return True
+                elif dist_r[v2] == dist_r[v] + 1 and dfs_right(v2):
+                    assign(u, v, e)
+                    return True
+
+            dist_r[v] = -1
+            return False
+
+        progressed = False
+        for v in sources:
+            if match_r[v] == -1 and dfs_right(v):
+                progressed = True
+
+        if not progressed:
+            break
+
+    selected_generation += 1
+    sgen = selected_generation
+    matching = []
+
+    for v in matched_rights:
+        if match_r[v] != -1:
+            e = match_edge_r[v]
+            if e != -1 and selected_mark[e] != sgen:
+                selected_mark[e] = sgen
+                matching.append(e)
+
+    remainder = []
+    for e in edges:
+        if selected_mark[e] != sgen:
+            remainder.append(e)
+
+    for u in matched_lefts:
+        match_l[u] = -1
+    for v in matched_rights:
+        match_r[v] = -1
+        match_edge_r[v] = -1
+
+    for u in touched_l:
+        deg_l[u] = 0
+    for v in touched_r:
+        deg_r[v] = 0
+
+    return matching, remainder
+
+def balanced_split(edges):
+    global used_generation
+    used_generation += 1
+    gen = used_generation
+
+    adj = {}
+    offset = nL
+
+    for e in edges:
+        a = U[e]
+        b = offset + V[e]
+        if a in adj:
+            adj[a].append(e)
+        else:
+            adj[a] = [e]
+        if b in adj:
+            adj[b].append(e)
+        else:
+            adj[b] = [e]
+
+    odd_vertices = [x for x, a in adj.items() if len(a) & 1]
+    part0 = []
+    part1 = []
+
+    def next_edge(x):
+        a = adj[x]
+        while a and used_mark[a[-1]] == gen:
+            a.pop()
+        if not a:
+            return -1
+        return a.pop()
+
+    def walk(start):
+        x = start
+        parity = 0
+        while True:
+            e = next_edge(x)
+            if e == -1:
+                break
+            used_mark[e] = gen
+            if parity == 0:
+                part0.append(e)
+            else:
+                part1.append(e)
+            parity ^= 1
+
+            a = U[e]
+            b = offset + V[e]
+            x = b if x == a else a
+
+    for x in odd_vertices:
+        if next_edge(x) != -1:
+            # next_edge popped an unused edge, so put it back.
+            e = None
+            # Recover by finding the popped edge through a tiny explicit start.
+            # The popped edge is the only missing unmarked edge; handle it first.
+            # Reconstruct it from the endpoint adjacency is unnecessary: instead,
+            # find it among incident input edges kept in the opposite endpoint.
+            # To avoid this issue, append it back using endpoint scan below.
+            # This branch is replaced by direct local walking initialization.
+            pass
+
+    # Rebuild adjacency because the odd-vertex probe above may have popped edges.
+    adj.clear()
+    for e in edges:
+        a = U[e]
+        b = offset + V[e]
+        adj.setdefault(a, []).append(e)
+        adj.setdefault(b, []).append(e)
+
+    def has_edge(x):
+        a = adj[x]
+        while a and used_mark[a[-1]] == gen:
+            a.pop()
+        return bool(a)
+
+    for x in odd_vertices:
+        if has_edge(x):
+            walk(x)
+
+    for x in list(adj.keys()):
+        while has_edge(x):
+            walk(x)
+
+    return part0, part1
+
+color_counter = 1
+
+def color_edges(edges, D):
+    global color_counter
+
+    if not edges:
+        color_counter += D
+        return
+
+    if D == 1:
+        c = color_counter
+        color_counter += 1
+        for e in edges:
+            answer[e] = c
+        return
+
+    if D & 1:
+        matching, remainder = extract_covering_matching(edges, D)
+        c = color_counter
+        color_counter += 1
+        for e in matching:
+            answer[e] = c
+        color_edges(remainder, D - 1)
+    else:
+        left_part, right_part = balanced_split(edges)
+        half = D // 2
+        color_edges(left_part, half)
+        color_edges(right_part, half)
+
+color_edges(list(range(m)), Delta)
+
+sys.stdout.write("YES\n")
+sys.stdout.write(" ".join(map(str, answer)) + "\n")
+```

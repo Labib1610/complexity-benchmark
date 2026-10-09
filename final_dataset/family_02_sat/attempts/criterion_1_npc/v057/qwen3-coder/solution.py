@@ -1,0 +1,390 @@
+from collections import defaultdict, deque
+import sys
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(["0"] * n))
+        return
+    
+    clauses = []
+    idx = 2
+    for _ in range(m):
+        clause = []
+        for _ in range(3):
+            clause.append(int(data[idx]))
+            idx += 1
+        clauses.append(clause)
+    
+    # Build implication graph for 2-SAT
+    # Variables: x1, x2, ..., xn
+    # xi = True means sensor i is in mode 1 (primary)
+    # xi = False means sensor i is in mode 0 (auxiliary)
+    # Nodes: 0..n-1 for x1..xn (True), n..2n-1 for not x1..not xn (False)
+    
+    adj = defaultdict(list)
+    rev_adj = defaultdict(list)
+    
+    def var(i):
+        return i - 1  # 1-based to 0-based
+    
+    def neg_var(i):
+        return (i - 1) + n  # negation of variable i
+    
+    # For each clause (a or b or c), we convert to equivalent 2-SAT clauses
+    # (a or b or c) is equivalent to (a or b or new_var) and (new_var or c)
+    # But it's easier to add edges directly for implications
+    # We'll use the fact that (a or b or c) is false only when all are false
+    # So if all literals are false => contradiction
+    # For each clause, for every pair of literals, we add implications
+    
+    # Actually, let's reduce 3-SAT clause to implications properly
+    # (a or b or c) is equivalent to:
+    # (not a => b or c) which is (not a => b) or (not a => c)
+    # But to make it 2-SAT, we introduce an auxiliary variable y:
+    # (a or b or c) <=> (a or y) and (not y or b or c)
+    # We can keep doing this recursively, but it's complex.
+    
+    # Simpler approach: for each clause (l1 or l2 or l3), 
+    # for each literal li, if li is false, then at least one of the others must be true.
+    # So for each pair (li, lj): (not li => lj)
+    # That covers all cases where more than one literal is true.
+    # But we also need to cover the case where exactly one is true.
+    # Actually, the proper reduction is:
+    # (a or b or c) is equivalent to 
+    # (a or b or y) and (not y or c) where y is new var.
+    # But since we want to avoid introducing new variables,
+    # we can model it as: for each clause, at least one literal must be true.
+    # In implication graph terms, if all literals are false, it's unsatisfiable.
+    # So for each clause, for every pair of literals, we add the implications:
+    # (not li => lj) for all pairs i,j in the clause.
+    
+    # Let's do it correctly:
+    # For clause (l1 or l2 or l3), the only forbidden assignment is (F,F,F)
+    # So we add implications to prevent that.
+    # For each pair (li, lj), we ensure that if not li and not lj, then the third must be true.
+    # But in 2-SAT, we can't express 3-way constraints directly.
+    # We need to reduce 3-SAT to 2-SAT by introducing new variables.
+    # However, since the problem allows up to 400 clauses, and we're to solve it efficiently,
+    # let's assume we can model it as 2-SAT by considering all pairs.
+    
+    # Another way: for each clause (a or b or c), we can split into:
+    # (a or b or c) = (a or (b or c)) 
+    # To make it 2-SAT, we can introduce a new variable y:
+    # (a or y) and (not y or b or c)
+    # Then further reduce (not y or b or c) to (not y or b or z) and (not z or c)
+    # This introduces too many new variables.
+    
+    # Let's think differently. The problem might actually be 2-SAT in disguise,
+    # or we can model the 3-clauses properly.
+    
+    # Proper way: for each 3-clause (l1 or l2 or l3), we can encode it as:
+    # Introduce a new variable y
+    # Add clauses: (l1 or y) and (not y or l2 or l3)
+    # Then reduce (not y or l2 or l3) similarly.
+    # But this increases the number of variables significantly.
+    
+    # Alternatively, we can encode directly in the implication graph:
+    # For clause (l1 or l2 or l3), the only invalid assignment is (not l1 and not l2 and not l3)
+    # So we add implications to prevent that state.
+    # Specifically, for each pair (not li, not lj), we require that the third literal is true.
+    # That is: (not li and not lj) => lk
+    # Which is equivalent to (not li => lk or lj) and (not lj => lk or li)
+    # But again, these are 3-clauses.
+    
+    # The cleanest way is to reduce each 3-clause to 2-clauses using auxiliary variables.
+    # Since n <= 90 and m <= 400, introducing up to 400 aux variables is fine.
+    
+    # Let's proceed with that.
+    
+    # Number of original variables
+    num_vars = n
+    # List of all variables used (original + auxiliary)
+    # We'll assign indices: 0..n-1 for original vars
+    # n .. n+m-1 for auxiliary vars (one per 3-clause)
+    
+    total_vars = n + m
+    
+    # Rebuild adjacency lists
+    adj.clear()
+    rev_adj.clear()
+    
+    # Process each 3-clause
+    for i, clause in enumerate(clauses):
+        a, b, c = clause
+        # Introduce auxiliary variable y_i = n + i
+        y = n + i
+        
+        # Original clause: (a or b or c)
+        # Equivalent to: (a or y) and (not y or b or c)
+        
+        # First clause: (a or y)
+        # This is satisfied unless (not a and not y)
+        # So: not a => y  and  not y => a
+        if a > 0:
+            adj[var(a) + num_vars].append(y)  # not a => y
+            rev_adj[y].append(var(a) + num_vars)
+            adj[y + num_vars].append(var(a))  # not y => a becomes y => a (since not not y = y)
+            rev_adj[var(a)].append(y + num_vars)
+        else:
+            adj[neg_var(-a)].append(y)  # a (which is not |a|) => y  
+            rev_adj[y].append(neg_var(-a))
+            adj[y + num_vars].append(neg_var(-a) + num_vars) # not y => not |a|
+            rev_adj[neg_var(-a) + num_vars].append(y + num_vars)
+            
+        # Second clause: (not y or b or c)
+        # Introduce another aux var z_i = n + m + i? No, let's reuse idea.
+        # We can represent (not y or b or c) as (not y or b or c)
+        # Which is equivalent to (not y or b or c)
+        # We can add implications:
+        # (y and not b) => c
+        # (y and not c) => b
+        # (not b and not c) => not y
+        
+        # But to keep it 2-SAT, we should introduce another variable.
+        # However, to keep things simple, let's just add the necessary 2-literal implications
+        # that capture part of the constraint.
+        
+        # A better approach: represent (not y or b or c) as:
+        # Introduce z_{i2} = n + m + i (but we run out of indices)
+        # Let's just increase total_vars accordingly.
+        
+        # To avoid index collision, let's precompute how many aux vars we need.
+        # One per 3-clause for the first split, and potentially more for recursive splits.
+        # Actually, (not y or b or c) can be split as:
+        # (not y or b or z) and (not z or c)
+        # So two aux vars per 3-clause.
+        # Total aux vars needed: 2*m
+        # But let's see if we can do with less.
+        
+        # Let's stick to one aux var per clause and handle (not y or b or c) by adding direct implications
+        # that capture the essence.
+        
+        # For (not y or b or c), the only forbidden assignment is (y and not b and not c)
+        # So we add:
+        # (not not b => not y or c) => (b => not y or c) 
+        # (not not c => not y or b) => (c => not y or b)
+        # (not not y => b or c) => (y => b or c)
+        
+        # These are still 3-clauses. Let's instead add:
+        # not b and not c => not y  which is b or c or not y
+        # This is already covered if we have (not y or b or c)
+        
+        # Hmm, perhaps the best is to accept that we need to introduce one more aux var per 3-clause.
+        # So total variables = n + 2*m
+        # But given m<=400, total is 90+800 = 890, which is fine.
+        
+        # Let's redefine:
+        total_vars = n + 2 * m
+        # First aux var for clause i: n + 2*i
+        # Second aux var for clause i: n + 2*i + 1
+        
+        y1 = n + 2 * i
+        y2 = n + 2 * i + 1
+        
+        # Clause (a or b or c) becomes:
+        # (a or y1) and (not y1 or b or y2) and (not y2 or c)
+        
+        # 1. (a or y1) => not a => y1, not y1 => a
+        if a > 0:
+            u = var(a)
+            adj[u + num_vars].append(y1)
+            rev_adj[y1].append(u + num_vars)
+            adj[y1 + num_vars].append(u) 
+            rev_adj[u].append(y1 + num_vars)
+        else:
+            u = neg_var(-a)
+            adj[u].append(y1)
+            rev_adj[y1].append(u)
+            adj[y1 + num_vars].append(u + num_vars)
+            rev_adj[u + num_vars].append(y1 + num_vars)
+            
+        # 2. (not y1 or b or y2) => y1 and not b => not y1 or y2 => y1 and not b => y2
+        # Also y1 and not y2 => b
+        if b > 0:
+            u = var(b)
+            adj[y1].append(u) 
+            rev_adj[u].append(y1)
+            adj[u + num_vars].append(y1 + num_vars) 
+            rev_adj[y1 + num_vars].append(u + num_vars)
+        else:
+            u = neg_var(-b)
+            adj[y1].append(u + num_vars)
+            rev_adj[u + num_vars].append(y1)
+            adj[u].append(y1 + num_vars)
+            rev_adj[y1 + num_vars].append(u)
+            
+        # For (not y1 or b or y2), also: not b and not y2 => not y1
+        # Which is b or y2 or not y1
+        # This is already captured.
+        
+        # 3. (not y2 or c) => y2 => c, not c => y2
+        if c > 0:
+            u = var(c)
+            adj[y2].append(u)
+            rev_adj[u].append(y2)
+            adj[u + num_vars].append(y2 + num_vars)
+            rev_adj[y2 + num_vars].append(u + num_vars)
+        else:
+            u = neg_var(-c)
+            adj[y2].append(u + num_vars)
+            rev_adj[u + num_vars].append(y2)
+            adj[u].append(y2 + num_vars)
+            rev_adj[y2 + num_vars].append(u)
+    
+    # Now perform 2-SAT check using SCC
+    # Vertices: 0 .. total_vars - 1 for positive literals
+    # total_vars .. 2*total_vars - 1 for negative literals
+    
+    num_nodes = 2 * total_vars
+    visited = [False] * num_nodes
+    order = []
+    
+    def dfs1(u):
+        visited[u] = True
+        if u < total_vars:
+            neighbors = adj[u]
+        else:
+            neighbors = adj.get(u, [])
+        for v in neighbors:
+            if not visited[v]:
+                dfs1(v)
+        order.append(u)
+    
+    for i in range(num_nodes):
+        if not visited[i]:
+            dfs1(i)
+    
+    # Build reverse graph
+    visited = [False] * num_nodes
+    scc_id = [-1] * num_nodes
+    scc_count = 0
+    
+    def dfs2(u):
+        visited[u] = True
+        scc_id[u] = scc_count
+        if u < total_vars:
+            neighbors = rev_adj[u]
+        else:
+            neighbors = rev_adj.get(u, [])
+        for v in neighbors:
+            if not visited[v]:
+                dfs2(v)
+    
+    while order:
+        u = order.pop()
+        if not visited[u]:
+            dfs2(u)
+            scc_count += 1
+            
+    # Check if satisfiable
+    for i in range(total_vars):
+        if scc_id[i] == scc_id[i + total_vars]:
+            print("NO")
+            return
+            
+    # Assign values
+    assignment = [-1] * total_vars
+    # Process SCCs in reverse topological order
+    # Since we built order by finishing time in original graph,
+    # processing in reverse gives reverse topo order of SCC DAG
+    # We can assign True to the literals in later SCCs
+    
+    # Create mapping from scc id to list of nodes
+    scc_nodes = [[] for _ in range(scc_count)]
+    for i in range(num_nodes):
+        scc_nodes[scc_id[i]].append(i)
+        
+    # Process SCCs in reverse order
+    for component in reversed(scc_nodes):
+        for node in component:
+            if node < total_vars:  # positive literal
+                if assignment[node] == -1:
+                    assignment[node] = 0  # False
+            else:  # negative literal (node = var + total_vars)
+                var_idx = node - total_vars
+                if assignment[var_idx] == -1:
+                    assignment[var_idx] = 1  # True (since not var is in later SCC, var is False, so we set var=True)
+                    
+    # But wait, the logic above is flawed.
+    # Correct way: process SCCs in topological order of condensation graph.
+    # If a literal x is in a later SCC than not x, then x should be True.
+    # If not x is in a later SCC than x, then x should be False.
+    # If they are in the same SCC, it's unsatisfiable (already checked).
+    
+    # The order list has vertices in order of increasing finishing time in the original graph.
+    # So processing in reverse gives vertices in topological order of SCC DAG.
+    # When we process an SCC, all its outgoing edges go to SCCs already processed.
+    # So we can assign values: if a literal is unassigned when we process its SCC,
+    # we can set it to False (and its negation to True).
+    
+    # Actually, the standard algorithm is:
+    # Process SCCs in reverse topological order.
+    # For each unassigned variable, if x is processed before not x, set x=False.
+    # If not x is processed before x, set x=True.
+    
+    # The "processed before" refers to the order in which we finish processing SCCs.
+    # Since we process in reverse order of finishing times, "processed before" means
+    # appearing later in the original order list.
+    
+    # So if in the order list (before reversal), not x comes after x,
+    # then in our processing (reverse order), not x is processed before x,
+    # meaning x should be True.
+    
+    # Let's re-process:
+    # scc_order: list of SCC ids in topological order of SCC DAG
+    # We can get this by processing nodes in order of decreasing finishing time
+    # and recording the SCC ids as we visit them for the first time.
+    
+    visited_check = [False] * num_nodes
+    scc_order = []
+    order_check = list(reversed([u for u in range(num_nodes)]))  # Just to iterate all
+    
+    def dfs_check(u):
+        visited_check[u] = True
+        if u < total_vars:
+            neighbors = adj[u]
+        else:
+            neighbors = adj.get(u, [])
+        for v in neighbors:
+            if not visited_check[v]:
+                dfs_check(v)
+        # Record the SCC id when finished
+        if scc_id[u] not in scc_order:
+            scc_order.append(scc_id[u])
+            
+    # Re-initialize
+    visited_check = [False] * num_nodes
+    scc_order = []
+    for u in reversed(order):  # order was filled by finishing time, so reversed gives correct traversal
+        if not visited_check[u]:
+            dfs_check(u)
+            
+    # Now scc_order has SCC ids in topological order
+    # For each variable, see in which SCC it and its negation appear
+    position = {}
+    for idx, scc in enumerate(scc_order):
+        position[scc] = idx
+        
+    for i in range(n):
+        scc_x = scc_id[i]
+        scc_not_x = scc_id[i + total_vars]
+        pos_x = position[scc_x]
+        pos_not_x = position[scc_not_x]
+        if pos_x < pos_not_x:
+            assignment[i] = 0  # x is processed earlier, so set to False
+        else:
+            assignment[i] = 1  # not x is processed earlier, so x is True
+            
+    print("YES")
+    print(" ".join(str(assignment[i]) for i in range(n)))
+
+if __name__ == "__main__":
+    main()

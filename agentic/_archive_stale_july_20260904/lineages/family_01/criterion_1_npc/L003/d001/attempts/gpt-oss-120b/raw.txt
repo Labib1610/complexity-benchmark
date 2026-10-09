@@ -1,0 +1,271 @@
+**Solution Explanation**
+
+For every worker we have to choose a shift `1,2,3`.  
+If two workers are in conflict they must obtain different shifts.
+The problem is exactly a *3‑coloring* of a graph with vertices `1…n`
+and edges given by the conflicts.
+
+`n ≤ 40`, therefore a depth‑first search with good pruning is easily fast
+enough.  
+To obtain the lexicographically smallest assignment we process the workers
+in the natural order `1,2,…,n` and always try the smallest possible shift
+first.
+
+--------------------------------------------------------------------
+
+#### Data structures
+
+* `adj[v]` – list of neighbours of vertex `v` (0‑based indices).
+* `color[v]` – already fixed shift (`0` = not fixed yet, otherwise `1…3`).
+* `mask[v]` – a 3‑bit mask of still possible shifts for `v`.  
+  bit `0` → shift 1, bit `1` → shift 2, bit `2` → shift 3.  
+  Initially `mask[v] = 0b111` for all vertices.
+
+During the search we need to undo the changes made to the masks.
+For that we keep a stack `changes` of triples `(vertex, old_mask)`.
+
+--------------------------------------------------------------------
+
+#### Recursive search  
+
+```
+dfs(pos):
+    if pos == n:                # all workers processed
+        return True
+    v = pos                     # current vertex (0‑based)
+
+    for c in 1,2,3:             # try shifts in increasing order
+        if mask[v] does not contain c: continue
+
+        # --- assign c to v -------------------------------------------------
+        saved = []              # local list of modifications
+        color[v] = c
+        old_mask_v = mask[v]
+        mask[v] = 1 << (c-1)    # only this colour remains
+
+        ok = True
+        for u in adj[v]:
+            if color[u] != 0:               # already coloured → just check
+                if color[u] == c:
+                    ok = False; break
+                continue
+            if mask[u] & (1 << (c-1)):      # colour c becomes impossible
+                new_mask = mask[u] & ~(1 << (c-1))
+                saved.append( (u, mask[u]) )
+                mask[u] = new_mask
+                if new_mask == 0:           # neighbour has no colour left
+                    ok = False; break
+
+        if ok and dfs(pos+1):
+            return True                     # solution found
+
+        # --- backtrack ------------------------------------------------------
+        for u, old in reversed(saved):
+            mask[u] = old
+        mask[v] = old_mask_v
+        color[v] = 0
+    return False
+```
+
+*When a vertex is coloured we immediately delete this colour from the
+masks of all still uncoloured neighbours (forward checking).  
+If any neighbour loses its last possible colour we backtrack instantly.
+Because we always try colours `1,2,3` in this order and vertices are processed
+in increasing index, the first complete colouring found is the lexicographically
+smallest one.*
+
+The recursion depth is at most `n = 40`.  
+In the worst case we explore `3^40` states, but forward checking prunes the
+search dramatically; for `n = 40` the program easily finishes within the
+2 seconds limit.
+
+--------------------------------------------------------------------
+
+#### Correctness Proof  
+
+We prove that the algorithm outputs `NO` iff no valid assignment exists,
+otherwise it outputs `YES` and the lexicographically smallest assignment.
+
+---
+
+##### Lemma 1  
+During the execution of `dfs(pos)` the invariant holds:
+
+*For every vertex `v` with `color[v] = 0` the mask `mask[v]` contains exactly
+the shifts that can still be assigned to `v` without violating any already
+fixed colours.*
+
+**Proof.**  
+Initially all colours are possible, so the invariant holds.
+When we assign colour `c` to vertex `v` we:
+* set `mask[v]` to the singleton `{c}` – correct because `v` is now fixed;
+* for each uncoloured neighbour `u` we delete `c` from `mask[u]`,
+  because `u` cannot share the shift with `v`. No other colours are removed.
+Thus the invariant is preserved. Backtracking restores the previous masks,
+so the invariant also holds after backtracking. ∎
+
+
+
+##### Lemma 2  
+If the algorithm reaches `pos == n`, the array `color` is a valid shift
+assignment.
+
+**Proof.**  
+All vertices are coloured. By Lemma&nbsp;1 each neighbour of a vertex never
+shares the same colour, otherwise that colour would have been removed from
+its mask and the algorithm would have backtracked earlier. Hence all conflict
+edges connect vertices with different colours. ∎
+
+
+
+##### Lemma 3  
+If a partial assignment can be extended to a full valid assignment,
+`dfs` never backtracks from it before trying that extension.
+
+**Proof.**  
+Assume the current partial assignment is extendable.
+When we try a colour `c` for the next vertex `v`, Lemma&nbsp;1 guarantees that
+`c` is present in `mask[v]`. Removing `c` from neighbours cannot make any
+neighbour’s mask empty, because the existing full solution assigns a colour
+different from `c` to each neighbour. Therefore the algorithm does **not**
+detect a conflict and recurses deeper. Hence it explores every extendable
+branch. ∎
+
+
+
+##### Lemma 4  
+If a valid assignment exists, `dfs(0)` returns `True` and the produced
+`color` array is the lexicographically smallest valid assignment.
+
+**Proof.**  
+By Lemma&nbsp;3 the search explores all possible colourings, therefore it will
+find at least one and return `True`.  
+The search order is: vertices in increasing index, for each vertex colours
+`1,2,3` in that order. The first complete assignment encountered is therefore
+the smallest in lexicographic order (standard property of depth‑first search
+with ordered choices). ∎
+
+
+
+##### Lemma 5  
+If `dfs(0)` returns `False`, no valid assignment exists.
+
+**Proof.**  
+Assume a valid assignment existed. Following the same reasoning as in
+Lemma&nbsp;3, the branch that follows this assignment would never be pruned,
+so the recursion would eventually reach `pos == n` and return `True`,
+contradiction. ∎
+
+
+
+##### Theorem  
+The program prints  
+
+* `NO` iff the conflict graph is not 3‑colourable;  
+* otherwise `YES` and the lexicographically smallest shift assignment.
+
+**Proof.**  
+The program runs `dfs(0)`.  
+If it returns `False`, by Lemma&nbsp;5 no valid assignment exists, and the
+program prints `NO`.  
+If it returns `True`, by Lemma&nbsp;2 the obtained `color` array is a valid
+assignment, and by Lemma&nbsp;4 it is the lexicographically smallest one.
+The program prints `YES` and this array. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### Complexity Analysis  
+
+`n ≤ 40`, `m ≤ n(n‑1)/2`.
+
+*Each recursive step* processes all neighbours of the current vertex,
+i.e. `O(deg(v))`. Over the whole search the total work is `O(m·branch_factor)`.
+The branch factor is at most `3`, and strong pruning makes the explored
+search tree tiny for the given limits.
+
+In the worst theoretical case the algorithm could visit `3^n` states,
+giving `O(3^n + m·3^n)` time, but for `n = 40` this never happens in practice.
+Memory consumption: adjacency lists `O(m)`, plus arrays of size `n`
+and a recursion stack of depth `n`. All well below the limits.
+
+--------------------------------------------------------------------
+
+#### Reference Implementation  (Python 3)
+
+```python
+import sys
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+
+    color = [0] * n               # 0 = uncoloured, else 1..3
+    mask = [0b111] * n            # possible colours bitmask
+
+    sys.setrecursionlimit(10000)
+
+    def dfs(pos: int) -> bool:
+        if pos == n:
+            return True
+        v = pos
+        # try colours 1,2,3
+        for c in (1, 2, 3):
+            bit = 1 << (c - 1)
+            if not (mask[v] & bit):
+                continue
+
+            # assign c to v
+            saved = []                     # (vertex, old_mask)
+            color[v] = c
+            old_mask_v = mask[v]
+            mask[v] = bit
+
+            ok = True
+            for u in adj[v]:
+                if color[u]:
+                    if color[u] == c:
+                        ok = False
+                        break
+                    continue
+                if mask[u] & bit:
+                    new_mask = mask[u] & ~bit
+                    saved.append((u, mask[u]))
+                    mask[u] = new_mask
+                    if new_mask == 0:
+                        ok = False
+                        break
+
+            if ok and dfs(pos + 1):
+                return True
+
+            # backtrack
+            for u, old in reversed(saved):
+                mask[u] = old
+            mask[v] = old_mask_v
+            color[v] = 0
+        return False
+
+    if dfs(0):
+        out = ['YES', ' '.join(str(c) for c in color)]
+    else:
+        out = ['NO']
+    sys.stdout.write('\n'.join(out))
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above and conforms
+to the required input‑output format.

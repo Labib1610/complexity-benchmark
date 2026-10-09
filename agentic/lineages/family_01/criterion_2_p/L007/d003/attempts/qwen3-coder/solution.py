@@ -1,50 +1,63 @@
 import sys
 from collections import defaultdict, deque
 
-def solve():
-    n, m = map(int, input().split())
+def main():
+    import sys
+    sys.setrecursionlimit(1 << 25)
+    
+    n, m = map(int, sys.stdin.readline().split())
     
     if m == 0:
         print("YES")
         print(" ".join(["1"] * n))
         return
     
-    # Build adjacency list
     adj = defaultdict(list)
+    edges = []
+    
     for _ in range(m):
-        u, v = map(int, input().split())
+        u, v = map(int, sys.stdin.readline().split())
+        u -= 1
+        v -= 1
         adj[u].append(v)
         adj[v].append(u)
+        edges.append((u, v))
     
-    # Color array: 0 = unvisited, 1 = color 1, 2 = color 2
-    color = [0] * (n + 1)
+    color = [-1] * n
+    impossible = False
     
-    # Check if bipartite (2-colorable)
-    for start in range(1, n + 1):
-        if color[start] == 0:
-            # BFS to color component
-            queue = deque([start])
-            color[start] = 1
+    for start in range(n):
+        if color[start] == -1:
+            queue = deque()
+            queue.append(start)
+            color[start] = 0
             
             while queue:
-                node = queue.popleft()
-                
-                for neighbor in adj[node]:
-                    if color[neighbor] == 0:
-                        color[neighbor] = 3 - color[node]  # Flip color (1->2, 2->1)
-                        queue.append(neighbor)
-                    elif color[neighbor] == color[node]:
-                        print("NO")
-                        return
+                u = queue.popleft()
+                for v in adj[u]:
+                    if color[v] == -1:
+                        color[u] = 1 - color[u] if color[u] != -1 else 0
+                        color[v] = 1 - color[u]
+                        queue.append(v)
+                    elif color[v] == color[u]:
+                        impossible = True
+                        break
+                if impossible:
+                    break
+        if impossible:
+            break
     
-    # If we get here, it's bipartite
-    print("YES")
-    result = []
-    for i in range(1, n + 1):
-        if color[i] == 1:
-            result.append("1")
-        else:
-            result.append("2")
-    print(" ".join(result))
+    if impossible:
+        print("NO")
+    else:
+        print("YES")
+        result = []
+        for i in range(n):
+            if color[i] == 0:
+                result.append("1")
+            else:
+                result.append("2")
+        print(" ".join(result))
 
-solve()
+if __name__ == "__main__":
+    main()

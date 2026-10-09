@@ -1,0 +1,90 @@
+from collections import defaultdict
+import sys
+
+def find_matching(q, t, configurations):
+    if t < q:
+        return None
+    
+    # Create adjacency list for graph matching
+    # Each configuration is a "right" node
+    # Each module is a "left" node
+    # We want a perfect matching that covers all 3q modules
+    
+    if q == 0:
+        return []
+    
+    # Try all combinations of q configurations
+    # Since q <= 200 and we need exact coverage, use backtracking
+    
+    configs = []
+    for i in range(t):
+        configs.append(configurations[i])
+    
+    # Convert to sets for faster intersection checks
+    config_sets = [set(c) for c in configs]
+    
+    # Use backtracking to find a valid combination
+    def backtrack(index, selected, used_modules):
+        if len(selected) == q:
+            if len(used_modules) == 3 * q:
+                return [configs[i] for i in selected]
+            else:
+                return None
+        
+        if index >= len(configs):
+            return None
+            
+        # Pruning: if even using all remaining configs won't give us enough modules
+        remaining_configs = len(configs) - index
+        if len(selected) + remaining_configs < q:
+            return None
+            
+        # Try including current configuration
+        current_set = config_sets[index]
+        # Check if this configuration conflicts with already used modules
+        if not (current_set & used_modules):  # No intersection
+            # Include this configuration
+            new_used = used_modules | current_set
+            selected.append(index)
+            result = backtrack(index + 1, selected, new_used)
+            if result is not None:
+                return result
+            selected.pop()
+        
+        # Try not including current configuration
+        result = backtrack(index + 1, selected, used_modules)
+        return result
+    
+    result = backtrack(0, [], set())
+    return result
+
+def main():
+    input_lines = []
+    for line in sys.stdin:
+        input_lines.append(line.strip())
+    
+    line_idx = 0
+    q, t = map(int, input_lines[line_idx].split())
+    line_idx += 1
+    
+    configurations = []
+    for i in range(t):
+        a, b, c = map(int, input_lines[line_idx].split())
+        configurations.append((a, b, c))
+        line_idx += 1
+    
+    if q == 0 and t == 0:
+        print("YES")
+        return
+    
+    result = find_matching(q, t, configurations)
+    
+    if result is None:
+        print("NO")
+    else:
+        print("YES")
+        for config in result:
+            print(config[0], config[1], config[2])
+
+if __name__ == "__main__":
+    main()

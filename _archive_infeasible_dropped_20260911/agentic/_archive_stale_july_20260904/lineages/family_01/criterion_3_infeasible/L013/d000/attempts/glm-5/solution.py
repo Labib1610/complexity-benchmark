@@ -1,0 +1,36 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [[False] * (n + 1) for _ in range(n + 1)]
+    deg = [0] * (n + 1)
+    
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        adj[u][v] = True
+        adj[v][u] = True
+        deg[u] += 1
+        deg[v] += 1
+    
+    # Iterate to find lexicographically smallest triad
+    # a < b < c, so a ranges from 1 to n-2
+    for a in range(1, n - 1):
+        # b ranges from a+1 to n-1
+        for b in range(a + 1, n):
+            if not adj[a][b]:
+                continue
+            # c ranges from b+1 to n
+            for c in range(b + 1, n + 1):
+                if adj[a][c] and adj[b][c]:
+                    print(a, b, c)
+                    return
+
+if __name__ == '__main__':
+    solve()

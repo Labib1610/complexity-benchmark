@@ -1,0 +1,301 @@
+import sys
+from collections import deque
+
+sys.setrecursionlimit(1_000_000)
+
+data = list(map(int, sys.stdin.buffer.read().split()))
+it = iter(data)
+nL = next(it)
+nR = next(it)
+m = next(it)
+
+U = [0] * m
+V = [0] * m
+degree_l = [0] * nL
+degree_r = [0] * nR
+
+for i in range(m):
+    u = next(it) - 1
+    v = next(it) - 1
+    U[i] = u
+    V[i] = v
+    degree_l[u] += 1
+    degree_r[v] += 1
+
+K = max(max(degree_l, default=0), max(degree_r, default=0))
+
+if m == 0:
+    sys.stdout.write("YES\n\n")
+    raise SystemExit
+
+answer = [0] * m
+
+pending_l = [-1] * nL
+pending_r = [-1] * nR
+pair_l = [-1] * m
+pair_r = [-1] * m
+mark = [0] * m
+mark_token = 0
+
+
+def balanced_split(edges):
+    for e in edges:
+        pair_l[e] = -1
+        pair_r[e] = -1
+
+    for e in edges:
+        u = U[e]
+        old = pending_l[u]
+        if old == -1:
+            pending_l[u] = e
+        else:
+            pair_l[old] = e
+            pair_l[e] = old
+            pending_l[u] = -1
+
+        v = V[e]
+        old = pending_r[v]
+        if old == -1:
+            pending_r[v] = e
+        else:
+            pair_r[old] = e
+            pair_r[e] = old
+            pending_r[v] = -1
+
+    for e in edges:
+        pending_l[U[e]] = -1
+        pending_r[V[e]] = -1
+
+    global mark_token
+    mark_token += 1
+    token = mark_token
+
+    first = []
+    second = []
+
+    def walk(start):
+        current = start
+        previous = -1
+        side = 0
+        while current != -1 and mark[current] != token:
+            mark[current] = token
+            if side == 0:
+                first.append(current)
+            else:
+                second.append(current)
+            side ^= 1
+
+            a = pair_l[current]
+            b = pair_r[current]
+            nxt = a if a != previous else b
+            previous, current = current, nxt
+
+    for e in edges:
+        if mark[e] != token and (pair_l[e] == -1 or pair_r[e] == -1):
+            walk(e)
+
+    for e in edges:
+        if mark[e] != token:
+            walk(e)
+
+    return first, second
+
+
+def covering_matching(edges, d):
+    adj_l = {}
+    adj_r = {}
+    deg_l = {}
+    deg_r = {}
+
+    for e in edges:
+        u = U[e]
+        v = V[e]
+        adj_l.setdefault(u, []).append(e)
+        adj_r.setdefault(v, []).append(e)
+        deg_l[u] = deg_l.get(u, 0) + 1
+        deg_r[v] = deg_r.get(v, 0) + 1
+
+    mandatory_l = {u for u, x in deg_l.items() if x == d}
+    mandatory_r = {v for v, x in deg_r.items() if x == d}
+
+    match_l = {}
+    match_r = {}
+
+    # Saturate all mandatory left vertices.
+    while True:
+        roots = [u for u in mandatory_l if u not in match_l]
+        if not roots:
+            break
+
+        dist = {}
+        q = deque()
+        for u in roots:
+            dist[u] = 0
+            q.append(u)
+
+        found = False
+        while q:
+            u = q.popleft()
+            nd = dist[u] + 1
+            for e in adj_l[u]:
+                v = V[e]
+                me = match_r.get(v)
+                if me is None:
+                    found = True
+                else:
+                    u2 = U[me]
+                    if u2 not in dist:
+                        dist[u2] = nd
+                        q.append(u2)
+
+        if not found:
+            break
+
+        dead = set()
+
+        def dfs_left(u):
+            for e in adj_l[u]:
+                v = V[e]
+                me = match_r.get(v)
+                if me is None:
+                    match_l[u] = e
+                    match_r[v] = e
+                    return True
+                u2 = U[me]
+                if dist.get(u2) == dist[u] + 1 and u2 not in dead:
+                    if dfs_left(u2):
+                        match_l[u] = e
+                        match_r[v] = e
+                        return True
+            dead.add(u)
+            return False
+
+        progress = False
+        for u in roots:
+            if u not in match_l and dfs_left(u):
+                progress = True
+        if not progress:
+            break
+
+    # Saturate mandatory right vertices while preserving mandatory left vertices.
+    while True:
+        roots = [v for v in mandatory_r if v not in match_r]
+        if not roots:
+            break
+
+        dist = {}
+        q = deque()
+        for v in roots:
+            dist[v] = 0
+            q.append(v)
+
+        terminal_depth = None
+        while q:
+            v = q.popleft()
+            if terminal_depth is not None and dist[v] >= terminal_depth:
+                continue
+            nd = dist[v] + 1
+
+            matched_edge_of_v = match_r.get(v)
+            for e in adj_r[v]:
+                if e == matched_edge_of_v:
+                    continue
+                u = U[e]
+                me = match_l.get(u)
+
+                terminal = False
+                if me is None:
+                    terminal = True
+                elif u not in mandatory_l and V[me] not in mandatory_r:
+                    terminal = True
+
+                if terminal:
+                    terminal_depth = nd
+                else:
+                    v2 = V[me]
+                    if v2 not in dist:
+                        dist[v2] = nd
+                        q.append(v2)
+
+        if terminal_depth is None:
+            break
+
+        dead = set()
+
+        def dfs_right(v):
+            matched_edge_of_v = match_r.get(v)
+            for e in adj_r[v]:
+                if e == matched_edge_of_v:
+                    continue
+
+                u = U[e]
+                me = match_l.get(u)
+
+                terminal = False
+                if me is None:
+                    terminal = True
+                elif u not in mandatory_l and V[me] not in mandatory_r:
+                    terminal = True
+
+                if terminal and dist[v] + 1 == terminal_depth:
+                    old = match_l.get(u)
+                    if old is not None:
+                        old_v = V[old]
+                        match_r.pop(old_v, None)
+                    match_l[u] = e
+                    match_r[v] = e
+                    return True
+
+                if me is not None:
+                    v2 = V[me]
+                    if dist.get(v2) == dist[v] + 1 and v2 not in dead:
+                        if dfs_right(v2):
+                            match_l[u] = e
+                            match_r[v] = e
+                            return True
+
+            dead.add(v)
+            return False
+
+        progress = False
+        for v in roots:
+            if v not in match_r and dfs_right(v):
+                progress = True
+        if not progress:
+            break
+
+    return set(match_l.values())
+
+
+stack = [(list(range(m)), K, 1)]
+
+while stack:
+    edges, d, start_color = stack.pop()
+    if not edges:
+        continue
+
+    if d == 1:
+        for e in edges:
+            answer[e] = start_color
+        continue
+
+    if d & 1:
+        chosen = covering_matching(edges, d)
+        color = start_color + d - 1
+        for e in chosen:
+            answer[e] = color
+
+        remaining = [e for e in edges if e not in chosen]
+        if remaining:
+            stack.append((remaining, d - 1, start_color))
+    else:
+        a, b = balanced_split(edges)
+        half = d // 2
+        if b:
+            stack.append((b, half, start_color + half))
+        if a:
+            stack.append((a, half, start_color))
+
+sys.stdout.write("YES\n")
+sys.stdout.write(" ".join(map(str, answer)))
+sys.stdout.write("\n")

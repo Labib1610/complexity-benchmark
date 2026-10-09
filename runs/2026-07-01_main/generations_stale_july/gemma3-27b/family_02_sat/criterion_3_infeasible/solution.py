@@ -1,0 +1,54 @@
+```python
+def solve():
+    n, m = map(int, input().split())
+    requirements = []
+    for _ in range(m):
+        requirements.append(tuple(map(int, input().split())))
+
+    for j in range(1, n + 1):
+        active_implies_active = True
+        active_implies_inactive = True
+        inactive_implies_active = True
+        inactive_implies_inactive = True
+
+        for l1, l2 in requirements:
+            if l1 == j:
+                if l2 == j:
+                    continue
+                else:
+                    active_implies_active = False
+                    active_implies_inactive = False
+                    inactive_implies_active = False
+                    inactive_implies_inactive = False
+                    break
+            elif l2 == j:
+                if l1 == j:
+                    continue
+                else:
+                    active_implies_active = False
+                    active_implies_inactive = False
+                    inactive_implies_active = False
+                    inactive_implies_inactive = False
+                    break
+            elif l1 == -j:
+                if l2 == -j:
+                    continue
+                else:
+                    active_implies_active = False
+                    active_implies_inactive = False
+                    inactive_implies_active = False
+                    inactive_implies_inactive = False
+                    break
+            elif l2 == -j:
+                if l1 == -j:
+                    continue
+                else:
+                    active_implies_active = False
+                    active_implies_inactive = False
+                    inactive_implies_active = False
+                    inactive_implies_inactive = False
+                    break
+        
+        if not (active_implies_active or active_implies_inactive or inactive_implies_active or inactive_implies_inactive):
+            print(j)
+            return

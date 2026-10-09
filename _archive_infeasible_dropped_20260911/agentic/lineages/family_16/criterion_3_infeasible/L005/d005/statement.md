@@ -1,0 +1,63 @@
+# Problem C — Schedule Diagnostics
+
+Time limit: 2 s   Memory limit: 256 MB
+
+## Description
+
+A manufacturing plant must process **j** items through two sequential stages. Every item must fully complete stage 1 at the first facility before it can advance to stage 2 at the second facility. The required processing duration for each item at stage 1 and stage 2 is provided. A facility can process only a single item at any given moment.
+
+The input provides an integer parameter **T**. The absolute deadline for the production run is time `t = T + 1`. A schedule is only successful if all items clear stage 2 such that their completion time is ≤ **T** + 1. Note that the plant powers on and begins its schedule exactly at time `t = 1`.
+
+For every given input, no valid schedule exists that can meet this deadline. You must provide a short certificate proving this impossibility. You are not asked to construct a schedule; only output a certificate that can be checked directly from the input. Exactly one of the following two reasons will apply, and you must output the corresponding certificate:
+
+- **Routing Delay:** Imagine a hypothetical scenario where all items except item **i** (1-based index) are cancelled. If item **i** begins stage 1 at `t = 1`, and its required processing durations mean its completion time would strictly exceed `T + 1`, output `JOB i`. If multiple items fit this description, you may output any one of them.
+
+- **Throughput Saturation:** Imagine a hypothetical scenario where the sequential dependency between stages is removed, such that facility **c** (1 or 2) always has all **j** items immediately available to process back-to-back without any waiting. If facility **c** begins its continuous workload at `t = 1` and its completion time would strictly exceed `T + 1`, output `LOAD c`. If both facilities fit this description, you may output either one.
+
+## Input
+
+The first line contains two integers **j** and **T** (1 ≤ j ≤ 200000, 1 ≤ T ≤ 1000000000).
+Each of the following **j** lines contains two integers **p1** and **p2** (1 ≤ p1, p2 ≤ 1000000): the processing duration of an item at stage 1 and stage 2, respectively.
+
+## Output
+
+Print a single line containing the certificate: either `JOB i` or `LOAD c`.
+
+## Examples
+
+### Example 1
+
+**Input**
+```
+3 100
+70 60
+2 2
+3 4
+```
+
+**Output**
+```
+JOB 1
+```
+
+### Example 2
+
+**Input**
+```
+4 150
+50 1
+50 1
+50 1
+50 1
+```
+
+**Output**
+```
+LOAD 1
+```
+
+## Note
+
+In Example 1, **T** = 100. The absolute deadline is `t = 101`. If all items except item 1 are cancelled, it begins stage 1 at `t = 1`, requires 70 time units, finishing stage 1 at `t = 71`. It then requires 60 time units at stage 2, giving a final completion time of `t = 131`. Since 131 strictly exceeds 101, it misses the deadline. Thus, a routing delay certificate `JOB 1` is printed. 
+
+In Example 2, **T** = 150. The absolute deadline is `t = 151`. No single item would miss the deadline if run alone (each would complete at `t = 52`). However, if facility 1 could process all tasks back-to-back starting at `t = 1`, it would need 200 time units total, giving a completion time of `t = 201`. Since 201 strictly exceeds 151, a throughput saturation certificate `LOAD 1` is printed.

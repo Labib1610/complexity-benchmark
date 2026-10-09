@@ -1,18 +1,20 @@
-# Problem A — Roster Planning
+# Problem A — Factory Zoning
 
 Time limit: 2 s   Memory limit: 256 MB
 
-A facility employs $n$ personnel. The daily operation is divided into a morning, afternoon, and evening block (identified by the integers 1, 2, and 3). Due to operational guidelines, certain pairs of personnel are required to be placed in different time blocks.
+A manufacturing plant is establishing safety protocols for its $n$ employees. Every employee must be assigned a zone code $z_i$, which must be an integer such that $0 < z_i < 4$.
 
-Your task is to determine if it is possible to assign each person to exactly one time block such that all separation guidelines are satisfied. 
+The plant's safety guidelines specify $m$ pairs of employees who have overlapping equipment requirements. If two such employees are assigned identically valued zone codes, a resource conflict will occur. Thus, for each specified pair, the two employees must receive strictly distinct zone codes.
+
+Determine an assignment of zone codes for all $n$ employees that prevents any resource conflicts, or report that the guidelines cannot be fulfilled.
 
 ## Input
-The first line provides two integers $n$ and $m$ (1 ≤ n ≤ 40, 0 ≤ m ≤ n·(n−1)/2), representing the number of personnel and the number of separation guidelines.
-Each of the subsequent $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \ne v$), indicating that person $u$ and person $v$ must be given different time blocks.
+The first line contains two integers $n$ and $m$ — the number of employees and the number of pairs with overlapping requirements ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
+Each of the next $m$ lines contains two integers $u$ and $v$ — indicating that employee $u$ and employee $v$ have overlapping equipment requirements.
 
 ## Output
-If there is no valid way to assign the time blocks, output `NO` on a single line.
-Otherwise, output `YES` on the first line. On the second line, output $n$ integers $s_1, s_2, \dots, s_n$ separated by spaces, where $s_i \in \{1, 2, 3\}$ is the time block assigned to person $i$. Among all valid assignments, output the lexicographically smallest sequence (compare $s_1$ first, then $s_2$, and so on).
+If no valid assignment exists, print a single line `NO`.
+Otherwise, print `YES` on the first line. On the second line, print $n$ integers $z_1, z_2, \dots, z_n$ (where each $z_i$ is an integer such that $0 < z_i < 4$), where $z_i$ is the zone code of employee $i$. Any valid sequence of zone codes is accepted.
 
 ## Example 1
 Input:

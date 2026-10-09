@@ -1,0 +1,130 @@
+import sys
+sys.setrecursionlimit(10000)
+
+def solve():
+    input_data = sys.stdin.read().strip().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    edges = []
+    adj = [[] for _ in range(n)]
+    for idx in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        edges.append((u, v))
+        adj[u].append((v, idx))
+        adj[v].append((u, idx))
+    
+    color = [-1] * m
+    # Each vertex has degree 3, so we can try to 3-color the edges.
+    # This is equivalent to edge-coloring a 3-regular graph with 3 colors.
+    # By Vizing's theorem, a 3-regular graph is 3-edge-colorable iff it is bipartite.
+    # But here we can also solve via matching decomposition.
+    
+    # We'll use a constructive approach: find a perfect matching, remove it,
+    # then the remaining graph is 2-regular (cycles), which can be 2-colored.
+    
+    # First, find a perfect matching using simple greedy + augmenting path (since n <= 2000)
+    match = [-1] * n
+    adj_edges = [[] for _ in range(n)]
+    for idx, (u, v) in enumerate(edges):
+        adj_edges[u].append((v, idx))
+        adj_edges[v].append((u, idx))
+    
+    # Greedy matching
+    used_edge = [False] * m
+    for u in range(n):
+        if match[u] == -1:
+            for v, idx in adj_edges[u]:
+                if match[v] == -1 and not used_edge[idx]:
+                    match[u] = v
+                    match[v] = u
+                    used_edge[idx] = True
+                    color[idx] = 1
+                    break
+    
+    # If not perfect, try augmenting paths
+    def augment(u, visited):
+        for v, idx in adj_edges[u]:
+            if visited[v]:
+                continue
+            visited[v] = True
+            if match[v] == -1 or augment(match[v], visited):
+                match[u] = v
+                match[v] = u
+                return True
+        return False
+    
+    for u in range(n):
+        if match[u] == -1:
+            visited = [False] * n
+            visited[u] = True
+            if not augment(u, visited):
+                print("NO")
+                return
+    
+    # Now match[] is a perfect matching. Color those edges with 1.
+    for u in range(n):
+        if match[u] > u:
+            for v, idx in adj_edges[u]:
+                if v == match[u]:
+                    color[idx] = 1
+                    break
+    
+    # Remaining edges form a 2-regular graph (cycles). Color them with 2 and 3.
+    remaining_edges = [i for i in range(m) if color[i] == -1]
+    # Build adjacency for remaining edges
+    rem_adj = [[] for _ in range(n)]
+    for idx in remaining_edges:
+        u, v = edges[idx]
+        rem_adj[u].append((v, idx))
+        rem_adj[v].append((u, idx))
+    
+    # Color cycles with 2 and 3 alternating
+    for start in range(n):
+        if rem_adj[start]:
+            # start of a cycle
+            u = start
+            prev = -1
+            while True:
+                # find next edge not used
+                next_v = None
+                next_idx = None
+                for v, idx in rem_adj[u]:
+                    if idx != prev:
+                        next_v = v
+                        next_idx = idx
+                        break
+                if next_v is None:
+                    break
+                # color this edge
+                if color[next_idx] == -1:
+                    # alternate color
+                    # find previous color to alternate
+                    if prev != -1:
+                        # previous edge color
+                        prev_color = color[prev]
+                        color[next_idx] = 2 if prev_color == 3 else 3
+                    else:
+                        color[next_idx] = 2
+                prev = next_idx
+                u = next_v
+                if u == start:
+                    break
+            # remove this cycle from rem_adj to avoid re-processing
+            # Actually we can just mark edges as colored, and skip if all colored
+            # We'll just break out when cycle done.
+    
+    # Check if all colored
+    if any(c == -1 for c in color):
+        print("NO")
+        return
+    
+    print("YES")
+    print(" ".join(str(c) for c in color))
+
+if __name__ == "__main__":
+    solve()

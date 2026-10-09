@@ -1,0 +1,133 @@
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    deg = [0] * (n + 1)
+    adj = [[] for _ in range(n + 1)]
+    
+    edges = []
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        if u > v:
+            u, v = v, u
+        edges.append((u, v))
+        deg[u] += 1
+        deg[v] += 1
+    
+    for u, v in edges:
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    for i in range(1, n + 1):
+        adj[i].sort()
+    
+    best = None
+    
+    for u in range(1, n + 1):
+        if best is not None and u >= best[0]:
+            break
+        
+        du = deg[u]
+        au = adj[u]
+        
+        for v in au:
+            if v <= u:
+                continue
+            if best is not None:
+                if u > best[0]:
+                    continue
+                if u == best[0] and v >= best[1]:
+                    continue
+            
+            dv = deg[v]
+            av = adj[v]
+            
+            i = 0
+            j = 0
+            len_au = len(au)
+            len_av = len(av)
+            common = 0
+            while i < len_au and j < len_av:
+                if au[i] == av[j]:
+                    common += 1
+                    i += 1
+                    j += 1
+                elif au[i] < av[j]:
+                    i += 1
+                else:
+                    j += 1
+            
+            union_size = du + dv - common
+            
+            for w in au:
+                if w <= v:
+                    continue
+                if best is not None:
+                    if u > best[0]:
+                        continue
+                    if u == best[0] and v > best[1]:
+                        continue
+                    if u == best[0] and v == best[1] and w >= best[2]:
+                        continue
+                
+                dw = deg[w]
+                aw = adj[w]
+                
+                cuw = 0
+                i = 0
+                j = 0
+                len_aw = len(aw)
+                while i < len_au and j < len_aw:
+                    if au[i] == aw[j]:
+                        cuw += 1
+                        i += 1
+                        j += 1
+                    elif au[i] < aw[j]:
+                        i += 1
+                    else:
+                        j += 1
+                
+                cvw = 0
+                i = 0
+                j = 0
+                while i < len_av and j < len_aw:
+                    if av[i] == aw[j]:
+                        cvw += 1
+                        i += 1
+                        j += 1
+                    elif av[i] < aw[j]:
+                        i += 1
+                    else:
+                        j += 1
+                
+                cuvw = 0
+                i = 0
+                j = 0
+                while i < len_au and j < len_aw:
+                    if au[i] == aw[j]:
+                        if au[i] == v:
+                            cuvw += 1
+                        i += 1
+                        j += 1
+                    elif au[i] < aw[j]:
+                        i += 1
+                    else:
+                        j += 1
+                
+                total = union_size + dw - cuw - cvw + cuvw
+                target = du + dv + dw - 3
+                
+                if total == target:
+                    if best is None or (u, v, w) < best:
+                        best = (u, v, w)
+    
+    print(best[0], best[1], best[2])
+
+solve()

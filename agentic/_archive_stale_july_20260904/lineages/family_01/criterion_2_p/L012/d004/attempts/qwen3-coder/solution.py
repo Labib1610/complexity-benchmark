@@ -1,0 +1,81 @@
+import sys
+from collections import defaultdict, deque
+
+def solve():
+    n, m = map(int, input().split())
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
+    
+    # Build adjacency list
+    adj = defaultdict(list)
+    edges = []
+    for _ in range(m):
+        u, v = map(int, input().split())
+        adj[u].append(v)
+        adj[v].append(u)
+        edges.append((u, v))
+    
+    # For each connected component, we need to check if it's bipartite
+    # and find a valid 2-coloring
+    color = [0] * (n + 1)  # 0: unvisited, 1: color 1, 2: color 2
+    result = [0] * (n + 1)
+    
+    # Process each connected component
+    for start in range(1, n + 1):
+        if color[start] != 0:
+            continue
+            
+        # BFS to check bipartiteness and get a valid coloring
+        queue = deque([start])
+        color[start] = 1
+        
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if color[v] == 0:
+                    color[v] = 3 - color[u]  # Flip color (1->2, 2->1)
+                    queue.append(v)
+                elif color[v] == color[u]:
+                    print("NO")
+                    return
+    
+    # Now we have a valid bipartition. We need to assign amplitudes
+    # such that the sequence is lexicographically smallest.
+    # For each edge (u,v), we need s[u] != s[v]
+    # Since we have a valid 2-coloring, we can map colors to amplitudes
+    
+    # To get lexicographically smallest, we try assigning s[1] = 1 first
+    # If that leads to a valid solution, great. Otherwise try s[1] = 2
+    
+    def try_assignment(first_color):
+        # Map colors to amplitudes
+        # If first_color == 1, then color 1 -> amplitude 1, color 2 -> amplitude 2
+        # If first_color == 2, then color 1 -> amplitude 2, color 2 -> amplitude 1
+        for i in range(1, n + 1):
+            if color[i] == 1:
+                result[i] = first_color
+            else:
+                result[i] = 3 - first_color
+        
+        # Verify all edges satisfy the constraints
+        for u, v in edges:
+            if not ((result[u] == 1 or result[v] == 1) and (result[u] == 2 or result[v] == 2)):
+                return False
+            if result[u] == result[v]:
+                return False
+        return True
+    
+    # Try s[1] = 1 first
+    if try_assignment(1):
+        print("YES")
+        print(" ".join(map(str, result[1:])))
+    elif try_assignment(2):
+        print("YES")
+        print(" ".join(map(str, result[1:])))
+    else:
+        print("NO")
+
+solve()

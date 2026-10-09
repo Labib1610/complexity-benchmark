@@ -1,0 +1,61 @@
+import sys
+from collections import defaultdict, deque
+import threading
+
+def main():
+    import sys
+    sys.setrecursionlimit(1 << 25)
+    
+    N1, N2, M = map(int, sys.stdin.readline().split())
+    
+    # If no tasks, trivially YES
+    if M == 0:
+        print("YES")
+        return
+
+    # Build adjacency lists for both sides
+    adj1 = defaultdict(list)  # adjacency from primary processors
+    adj2 = defaultdict(list)  # adjacency from secondary processors
+    degree1 = [0] * (N1 + 1)
+    degree2 = [0] * (N2 + 1)
+    
+    edges = []
+    
+    for _ in range(M):
+        u, v = map(int, sys.stdin.readline().split())
+        edges.append((u, v))
+        adj1[u].append(v)
+        adj2[v].append(u)
+        degree1[u] += 1
+        degree2[v] += 1
+
+    # Find maximum degree K
+    K = max(max(degree1), max(degree2))
+
+    # Create a bipartite graph and find a proper edge coloring with K colors
+    # This is equivalent to finding a proper edge coloring of a bipartite graph,
+    # which is known to be equal to its maximum degree.
+
+    # We'll use a BFS-based approach to assign colors
+    
+    # For each node, we maintain a set of used colors
+    used1 = [set() for _ in range(N1+1)]
+    used2 = [set() for _ in range(N2+1)]
+    
+    # Result array to store color of each edge
+    result = [0] * M
+    
+    # For each edge, assign the smallest available color that's not used by either endpoint
+    for idx, (u, v) in enumerate(edges):
+        # Find the first color from 1 to K that is not used by u and v
+        color = 1
+        while color in used1[u] or color in used2[v]:
+            color += 1
+        result[idx] = color
+        used1[u].add(color)
+        used2[v].add(color)
+    
+    print("YES")
+    print(' '.join(map(str, result)))
+
+threading.Thread(target=main).start()

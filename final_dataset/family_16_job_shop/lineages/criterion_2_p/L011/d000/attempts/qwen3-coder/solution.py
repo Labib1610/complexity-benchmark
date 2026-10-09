@@ -1,0 +1,47 @@
+import sys
+from functools import cmp_to_key
+
+def compare_jobs(job1, job2):
+    # Johnson's rule comparison
+    # job1 = (p1, p2, index)
+    # job2 = (p1, p2, index)
+    
+    # If both have p1 <= p2 or both have p1 >= p2
+    if (job1[0] <= job1[1]) == (job2[0] <= job2[1]):
+        if job1[0] <= job1[1]:  # Both are p1 <= p2
+            # Sort by p1 ascending
+            return job1[0] - job2[0]
+        else:  # Both are p1 > p2
+            # Sort by p2 descending
+            return job2[1] - job1[1]
+    else:
+        # One has p1 <= p2, other has p1 > p2
+        # Jobs with p1 <= p2 come first
+        if job1[0] <= job1[1]:
+            return -1
+        else:
+            return 1
+
+def main():
+    j = int(sys.stdin.readline())
+    jobs = []
+    
+    for i in range(j):
+        p1, p2 = map(int, sys.stdin.readline().split())
+        jobs.append((p1, p2, i))
+    
+    # Sort according to Johnson's rule
+    jobs.sort(key=cmp_to_key(compare_jobs))
+    
+    # Calculate the minimum completion time
+    primary_time = 0
+    secondary_time = 0
+    
+    for p1, p2, _ in jobs:
+        primary_time += p1
+        secondary_time = max(secondary_time, primary_time) + p2
+    
+    print(secondary_time)
+
+if __name__ == "__main__":
+    main()

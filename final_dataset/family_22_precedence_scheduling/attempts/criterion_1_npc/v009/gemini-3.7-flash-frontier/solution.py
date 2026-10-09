@@ -1,0 +1,176 @@
+import sys
+from collections import deque
+from itertools import combinations
+
+# Increase recursion depth for deep graphs
+sys.setrecursionlimit(200000)
+
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+
+    n = int(input_data[0])
+    M = int(input_data[1])
+    T = int(input_data[2])
+    m = int(input_data[3])
+
+    adj = [[] for _ in range(n + 1)]
+    rev_adj = [[] for _ in range(n + 1)]
+    in_deg = [0] * (n + 1)
+
+    idx = 4
+    for _ in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx + 1])
+        idx += 2
+        adj[u].append(v)
+        rev_adj[v].append(u)
+        in_deg[v] += 1
+
+    # Check for cycles & topological sort
+    q = deque([i for i in range(1, n + 1) if in_deg[i] == 0])
+    topo = []
+    while q:
+        u = q.popleft()
+        topo.append(u)
+        for v in adj[u]:
+            in_deg[v] -= 1
+            if in_deg[v] == 0:
+                q.append(v)
+
+    if len(topo) < n:
+        print("NO")
+        return
+
+    # Basic capacity check
+    if n > M * T:
+        print("NO")
+        return
+
+    # Compute EST (Earliest Start Time)
+    est = [1] * (n + 1)
+    for u in topo:
+        for v in adj[u]:
+            if est[u] + 1 > est[v]:
+                est[v] = est[u] + 1
+
+    # Compute LST (Latest Start Time) and Height (longest path to sink)
+    lst = [T] * (n + 1)
+    height = [1] * (n + 1)
+    for u in reversed(topo):
+        for v in adj[u]:
+            if lst[v] - 1 < lst[u]:
+                lst[u] = lst[v] - 1
+            if height[v] + 1 > height[u]:
+                height[u] = height[v] + 1
+
+    for i in range(1, n + 1):
+        if est[i] > lst[i] or lst[i] < 1 or est[i] > T:
+            print("NO")
+            return
+
+    # Successor count for tie-breaking
+    succ_count = [0] * (n + 1)
+    for u in reversed(topo):
+        succ_count[u] = 1 + sum(succ_count[v] for v in adj[u])
+
+    # Precedence bitmasks / dependencies
+    # For small n, we can use integer bitmasks
+    # Each job u has a pred_mask
+    pred_mask = [0] * (n + 1)
+    for u in range(1, n + 1):
+        mask = 0
+        for p in rev_adj[u]:
+            mask |= 1 << (p - 1)
+        pred_mask[u] = mask
+
+    # Backtracking search
+    slot_assigned = [0] * (n + 1)
+    failed = set()
+
+    def get_priority(u):
+        return (lst[u], -height[u], -succ_count[u], u)
+
+    def search(t, scheduled_mask):
+        if scheduled_mask == (1 << n) - 1:
+            return True
+        if t > T:
+            return False
+
+        state = (t, scheduled_mask)
+        if state in failed:
+            return False
+
+        # Find available jobs
+        avail = []
+        must = []
+        for u in range(1, n + 1):
+            if not (scheduled_mask & (1 << (u - 1))):
+                # Check if all predecessors are scheduled
+                if (pred_mask[u] & scheduled_mask) == pred_mask[u]:
+                    if lst[u] == t:
+                        must.append(u)
+                    elif lst[u] < t:
+                        failed.add(state)
+                        return False
+                    else:
+                        avail.append(u)
+
+        if len(must) > M:
+            failed.add(state)
+            return False
+
+        needed = M - len(must)
+        if len(avail) <= needed:
+            chosen_batch = must + avail
+            if not chosen_batch:
+                # Idle step if no jobs available
+                if search(t + 1, scheduled_mask):
+                    return True
+            else:
+                next_mask = scheduled_mask
+                for u in chosen_batch:
+                    next_mask |= 1 << (u - 1)
+                    slot_assigned[u] = t
+                if search(t + 1, next_mask):
+                    return True
+        else:
+            # Sort remaining available by priority
+            avail.sort(key=get_priority)
+
+            # Prioritize picking the best `needed` elements first
+            if needed == 0:
+                next_mask = scheduled_mask
+                for u in must:
+                    next_mask |= 1 << (u - 1)
+                    slot_assigned[u] = t
+                if search(t + 1, next_mask):
+                    return True
+            else:
+                # We pick `needed` elements from `avail`.
+                # Heuristic: try the greedy choice first, then combinations
+                # To prevent huge branching, limit candidate pool if too large
+                pool = avail[: min(len(avail), needed + 5)]
+                for combo in combinations(pool, needed):
+                    chosen_batch = must + list(combo)
+                    next_mask = scheduled_mask
+                    for u in chosen_batch:
+                        next_mask |= 1 << (u - 1)
+                        slot_assigned[u] = t
+                    if search(t + 1, next_mask):
+                        return True
+
+        failed.add(state)
+        return False
+
+    if search(1, 0):
+        print("YES")
+        print(*(slot_assigned[i] for i in range(1, n + 1)))
+    else:
+        print("NO")
+
+
+if __name__ == "__main__":
+    solve()

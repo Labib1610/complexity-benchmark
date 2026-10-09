@@ -2,15 +2,15 @@
 
 Time limit: 1 s   Memory limit: 256 MB
 
-There are n workers in a factory, and m conflict pairs between them. The factory now runs only two shifts, labeled 1 and 2. Furthermore, no conflicting pair may share a shift. Given these conditions, assign each worker a shift, or report impossibility.
+The factory operates continuously using exactly two shifts, labeled 1 and 2. There are $n$ workers and $m$ pairs of workers. For each given pair, the two workers must be assigned to different shifts. Assign each worker a shift so that all pair restrictions are satisfied, or report impossibility.
 
 ## Input
-The first line contains two integers n and m (1 ≤ n ≤ 2·10⁵, 0 ≤ m ≤ 2·10⁵).
-Each of the next m lines contains two integers u v — a conflicting pair.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$).
+Each of the next $m$ lines contains two integers $u$ and $v$ — a pair of workers who must receive different shifts.
 
 ## Output
 If no valid assignment exists, print a single line NO.
-Otherwise print YES, then a second line with n integers s₁ … sₙ (each in {1,2}), the lexicographically smallest valid assignment.
+Otherwise print YES, then a second line with $n$ integers $s_1 \dots s_n$ (each in $\{1,2\}$), representing the lexicographically smallest valid assignment.
 
 ## Example 1
 Input:

@@ -1,0 +1,61 @@
+import sys
+from collections import deque
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    k = int(next(it))
+    
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # BFS to find the two camps
+    camp = [0] * (n + 1)
+    camp_sizes = [0, 0, 0]  # 1-indexed for camps
+    
+    for start in range(1, n + 1):
+        if camp[start] == 0:
+            queue = deque([start])
+            camp[start] = 1
+            camp_sizes[1] += 1
+            while queue:
+                u = queue.popleft()
+                for v in adj[u]:
+                    if camp[v] == 0:
+                        camp[v] = 3 - camp[u]
+                        camp_sizes[camp[v]] += 1
+                        queue.append(v)
+    
+    # Try to find k users from one camp
+    result = []
+    found = False
+    target_camp = 0
+    
+    if camp_sizes[1] >= k:
+        target_camp = 1
+        found = True
+    elif camp_sizes[2] >= k:
+        target_camp = 2
+        found = True
+    
+    if found:
+        for i in range(1, n + 1):
+            if camp[i] == target_camp:
+                result.append(i)
+                if len(result) == k:
+                    break
+        print("YES")
+        print(" ".join(map(str, result)))
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()

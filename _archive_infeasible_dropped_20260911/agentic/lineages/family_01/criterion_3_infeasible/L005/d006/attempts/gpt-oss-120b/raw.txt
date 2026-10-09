@@ -1,0 +1,224 @@
+**Solution Explanation**
+
+For every person `v` we store the set of his/her enemies as a bitset  
+(`adj[v]` – an integer whose binary representation has a `1` at position `u`
+iff `v` and `u` are incompatible).
+
+```
+bit i of adj[v] = 1   ⇔   (v , i) is an incompatibility log
+```
+
+`n ≤ 2000`, therefore a bitset fits into a Python integer
+(`2000` bits ≈ `250` bytes).
+
+--------------------------------------------------------------------
+
+#### Finding the lexicographically smallest triangle  
+
+We have to output the smallest triple  
+
+```
+a < b < c
+```
+
+such that all three edges `(a,b) , (a,c) , (b,c)` exist.
+
+The natural order is
+
+```
+for a = 1 … n
+    for b = a+1 … n   (only if edge a‑b exists)
+        find the smallest c > b with edges a‑c and b‑c
+```
+
+If we can obtain `c` in *O(1)* the whole algorithm is `O(m)`  
+(`m` – number of edges, at most `2·10⁵`).
+
+*Intersection*  
+For a fixed pair `(a,b)` the vertices that are adjacent to **both**
+are exactly the bits set in `adj[a] & adj[b]`.
+
+*Ignore vertices ≤ b*  
+We need `c > b`.  
+All bits `0 … b` are cleared:
+
+```
+common = (adj[a] & adj[b]) & ~((1 << (b+1)) - 1)
+```
+
+If `common` is non‑zero, the least significant `1` gives the smallest
+possible `c`.  
+The position of the lowest set bit of a positive integer `x` is
+
+```
+pos = (x & -x).bit_length() - 1          # 0‑based
+```
+
+Finally we output `a+1 , b+1 , pos+1` (the input uses 1‑based indices).
+
+Because the outer loops enumerate `a` and `b` in increasing order,
+the first triangle we encounter is exactly the lexicographically
+smallest one.
+
+--------------------------------------------------------------------
+
+#### Correctness Proof  
+
+We prove that the algorithm outputs the lexicographically smallest
+triangle.
+
+---
+
+##### Lemma 1  
+For any vertices `a` and `b` the expression  
+
+```
+common = (adj[a] & adj[b]) & ~((1 << (b+1)) - 1)
+```
+
+contains a `1` at position `c` **iff** `c > b` and edges `(a,c)` and
+`(b,c)` exist.
+
+**Proof.**  
+`adj[a] & adj[b]` has a `1` exactly at vertices adjacent to both `a` and
+`b`.  
+The mask `~((1 << (b+1)) - 1)` has `0` on positions `0 … b` and `1`
+elsewhere, therefore clearing all bits `≤ b`.  
+Consequently a `1` survives precisely when `c > b` and both edges are
+present. ∎
+
+
+
+##### Lemma 2  
+If `common` from Lemma&nbsp;1 is non‑zero, the vertex  
+
+```
+c = (common & -common).bit_length() - 1
+```
+
+is the smallest vertex `c > b` that together with `a,b` forms a triangle.
+
+**Proof.**  
+`common & -common` isolates the lowest set bit of `common`. Its
+position (computed by `bit_length()-1`) is the smallest index where
+`common` has a `1`. By Lemma&nbsp;1 such an index corresponds to a vertex
+adjacent to both `a` and `b` and larger than `b`. No smaller vertex can
+satisfy the condition, otherwise `common` would have a `1` at a lower
+position. ∎
+
+
+
+##### Lemma 3  
+When the algorithm terminates and prints `(a,b,c)`,
+the three vertices form a triangle.
+
+**Proof.**  
+The algorithm prints only after finding a non‑zero `common` for the
+current pair `(a,b)` and then computes `c` as in Lemma&nbsp;2.
+By Lemma&nbsp;1 edges `(a,c)` and `(b,c)` exist, and the outer loop
+iterates only over pairs `(a,b)` that are edges themselves.
+Thus all three edges are present – a triangle. ∎
+
+
+
+##### Lemma 4  
+Let `T` be the triangle printed by the algorithm.
+For any triangle `T' = (a',b',c')` with `a' < b' < c'`,
+we have `(a,b,c) ≤_lex (a',b',c')`.
+
+**Proof.**  
+The outermost loop scans `a` from `1` upwards.
+The first time a triangle is found, its first vertex `a` is the smallest
+possible among all triangles, otherwise a triangle with a smaller `a`
+would have been discovered earlier.
+
+Fix this minimal `a`.  
+Inside, `b` is scanned increasingly over neighbours of `a`.
+If a triangle with the same `a` and a smaller `b` existed, it would be
+found before the current `b`. Hence the algorithm’s `b` is the smallest
+possible among triangles with that `a`.
+
+Finally, for this pair `(a,b)` Lemma&nbsp;2 returns the smallest feasible
+`c`. Therefore no triangle can be lexicographically smaller than
+`(a,b,c)`. ∎
+
+
+
+##### Theorem  
+The algorithm always outputs the lexicographically smallest triple of
+mutually incompatible persons.
+
+**Proof.**  
+Existence: the statement guarantees at least one triangle; the loops
+examine every edge, thus eventually encounter a triangle and terminate.
+
+By Lemma&nbsp;3 the printed triple is a triangle.
+By Lemma&nbsp;4 no other triangle is lexicographically smaller.
+Therefore the output is exactly the required triangle. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### Complexity Analysis  
+
+*Building adjacency bitsets* : `O(m)`  
+*Main loops* : each edge `(a,b)` is processed once → `O(m)` bitwise
+operations.  
+All operations on Python integers of at most `2000` bits are `O(1)`.
+
+```
+Time   :  O(m)   ≤ 2·10⁵
+Memory :  O(n)   (n integers, each ≤ 2ⁿ)  ≈ 2000·250 B  < 1 MB
+```
+
+Both limits satisfy the problem constraints.
+
+--------------------------------------------------------------------
+
+#### Reference Implementation  (Python 3)
+
+```python
+import sys
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+
+    adj = [0] * n               # bitset for each vertex
+    neigh = [[] for _ in range(n)]   # neighbour lists (sorted later)
+
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+        neigh[u].append(v)
+        neigh[v].append(u)
+
+    for lst in neigh:
+        lst.sort()
+
+    for a in range(n):
+        for b in neigh[a]:
+            if b <= a:
+                continue
+            # vertices adjacent to both a and b, larger than b
+            common = (adj[a] & adj[b]) & ~((1 << (b + 1)) - 1)
+            if common:
+                # lowest set bit -> smallest c
+                low = (common & -common).bit_length() - 1
+                # output 1‑based and ordered
+                print(a + 1, b + 1, low + 1)
+                return
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above and
+conforms to the required input‑output format.

@@ -1,0 +1,148 @@
+import sys
+from collections import defaultdict
+import heapq
+
+def find_parent(parent, x):
+    if parent[x] != x:
+        parent[x] = find_parent(parent, parent[x])
+    return parent[x]
+
+def union(parent, rank, x, y):
+    px, py = find_parent(parent, x), find_parent(parent, y)
+    if px == py:
+        return False
+    if rank[px] < rank[py]:
+        px, py = py, px
+    parent[py] = px
+    if rank[px] == rank[py]:
+        rank[px] += 1
+    return True
+
+def kruskal(n, edges):
+    parent = list(range(n))
+    rank = [0] * n
+    edges.sort()
+    cost = 0
+    for w, u, v in edges:
+        if find_parent(parent, u) != find_parent(parent, v):
+            union(parent, rank, u, v)
+            cost += w
+    return cost
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    idx = 0
+    n = int(data[idx])
+    idx += 1
+    m = int(data[idx])
+    idx += 1
+    t = int(data[idx])
+    idx += 1
+    
+    priority = []
+    priority_set = set()
+    for _ in range(t):
+        p = int(data[idx]) - 1
+        idx += 1
+        priority.append(p)
+        priority_set.add(p)
+    
+    if t <= 1:
+        print(0)
+        return
+    
+    # For each pair of priority coordinates, we need b_x + b_y in the span
+    # We can think of this as connecting components in a graph where 
+    # priority coordinates are nodes and we want to make sure they are all connected
+    # But we also have non-priority coordinates that can help us connect them
+    
+    # Create a graph with all coordinates
+    edges = []
+    for _ in range(m):
+        u = int(data[idx]) - 1
+        idx += 1
+        v = int(data[idx]) - 1
+        idx += 1
+        w = int(data[idx])
+        idx += 1
+        edges.append((w, u, v))
+    
+    # We want to ensure that for every pair of priority vertices,
+    # there's a path between them in the graph formed by selected edges
+    # This is equivalent to finding a minimum spanning tree that connects
+    # all priority vertices (a Steiner tree)
+    
+    # Since t is small (<= 10), we can use the following approach:
+    # 1. For each pair of priority vertices, compute the shortest path between them
+    # 2. Create a complete graph on priority vertices with edge weights = shortest path
+    # 3. Find the minimum spanning tree of this complete graph
+    
+    # However, there's a simpler way given the constraints:
+    # We can model this as a variant of the Steiner tree problem
+    # But since t <= 10, we can solve it exactly
+    
+    # Build adjacency list
+    adj = [[] for _ in range(n)]
+    for w, u, v in edges:
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+    
+    # Compute shortest paths between all pairs of priority vertices
+    # Using Dijkstra for each priority vertex
+    dist = [[float('inf')] * n for _ in range(n)]
+    
+    def dijkstra(start):
+        d = [float('inf')] * n
+        d[start] = 0
+        pq = [(0, start)]
+        while pq:
+            w, u = heapq.heappop(pq)
+            if w > d[u]:
+                continue
+            for v, c in adj[u]:
+                if d[v] > d[u] + c:
+                    d[v] = d[u] + c
+                    heapq.heappush(pq, (d[v], v))
+        return d
+    
+    # Precompute distances from each priority node
+    priority_dists = {}
+    for p in priority:
+        priority_dists[p] = dijkstra(p)
+    
+    # Now create a complete graph on priority vertices
+    # Edge weight between i and j is the shortest path distance
+    priority_edges = []
+    for i in range(t):
+        for j in range(i+1, t):
+            pi, pj = priority[i], priority[j]
+            priority_edges.append((priority_dists[pi][pj], pi, pj))
+    
+    # Sort edges by weight
+    priority_edges.sort()
+    
+    # Kruskal's algorithm to find MST on priority vertices
+    parent = list(range(n))
+    rank = [0] * n
+    total_cost = 0
+    edges_used = 0
+    
+    for w, u, v in priority_edges:
+        if w == float('inf'):
+            continue
+        pu = find_parent(parent, u)
+        pv = find_parent(parent, v)
+        if pu != pv:
+            union(parent, rank, u, v)
+            total_cost += w
+            edges_used += 1
+            if edges_used == t - 1:
+                break
+    
+    print(total_cost)
+
+if __name__ == "__main__":
+    main()

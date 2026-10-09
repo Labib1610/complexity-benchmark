@@ -1,0 +1,98 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    n = int(data[0])
+    m = int(data[1])
+    adj = [0] * (n + 1)
+    idx = 2
+    for _ in range(m):
+        u = int(data[idx]); v = int(data[idx+1]); idx += 2
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+    
+    # Find connected components
+    visited = [False] * (n + 1)
+    components = []
+    for i in range(1, n + 1):
+        if not visited[i]:
+            comp = []
+            stack = [i]
+            visited[i] = True
+            while stack:
+                u = stack.pop()
+                comp.append(u)
+                for v in range(1, n + 1):
+                    if (adj[u] >> v) & 1 and not visited[v]:
+                        visited[v] = True
+                        stack.append(v)
+            components.append(comp)
+    
+    color = [0] * (n + 1)
+    
+    for comp in components:
+        # Try to 2-color this component (bipartite check)
+        comp_color = {}
+        start = comp[0]
+        comp_color[start] = 0
+        stack = [start]
+        is_bipartite = True
+        while stack and is_bipartite:
+            u = stack.pop()
+            for v in comp:
+                if (adj[u] >> v) & 1:
+                    if v not in comp_color:
+                        comp_color[v] = comp_color[u] ^ 1
+                        stack.append(v)
+                    elif comp_color[v] == comp_color[u]:
+                        is_bipartite = False
+                        break
+        
+        if not is_bipartite:
+            # Not bipartite: need 3 colors. Use greedy with backtracking.
+            # Order vertices by degree (highest first) for better pruning
+            comp_sorted = sorted(comp, key=lambda x: -bin(adj[x]).count('1'))
+            mapping = {v: i for i, v in enumerate(comp_sorted)}
+            size = len(comp_sorted)
+            local_adj = [0] * size
+            for i, v in enumerate(comp_sorted):
+                mask = 0
+                for j, u in enumerate(comp_sorted):
+                    if (adj[v] >> u) & 1:
+                        mask |= 1 << j
+                local_adj[i] = mask
+            
+            local_color = [0] * size
+            found = [False]
+            
+            def backtrack(pos):
+                if pos == size:
+                    return True
+                used = 0
+                for j in range(pos):
+                    if (local_adj[pos] >> j) & 1:
+                        used |= 1 << local_color[j]
+                for c in range(3):
+                    if not (used & (1 << c)):
+                        local_color[pos] = c
+                        if backtrack(pos + 1):
+                            return True
+                return False
+            
+            if not backtrack(0):
+                print("NO")
+                return
+            
+            for i, v in enumerate(comp_sorted):
+                color[v] = local_color[i] + 1
+        else:
+            # Bipartite: assign 2 colors, use 1 and 2
+            for v in comp:
+                color[v] = comp_color[v] + 1
+    
+    print("YES")
+    print(' '.join(str(color[i]) for i in range(1, n + 1)))
+
+solve()

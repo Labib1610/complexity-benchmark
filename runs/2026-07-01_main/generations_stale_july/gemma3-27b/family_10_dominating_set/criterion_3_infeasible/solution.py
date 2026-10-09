@@ -1,0 +1,18 @@
+def solve():
+    n, m, k = map(int, input().split())
+    edges = []
+    for _ in range(m):
+        u, v = map(int, input().split())
+        edges.append((u, v))
+    
+    adj = [[] for _ in range(n + 1)]
+    for u, v in edges:
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    for i in range(1, n + 1):
+        if not adj[i]:
+            print(i)
+            return
+
+solve()

@@ -1,0 +1,283 @@
+**Solution Explanation**
+
+The artifacts and the interfering pairs form an undirected graph `G`.  
+We have to colour every vertex with one of three colours `{1,2,3}` such that
+adjacent vertices obtain different colours – i.e. we need a *3‑colouring* of
+`G`.
+
+`n ≤ 40`, therefore an exponential backtracking with good pruning easily fits
+into the limits.
+
+--------------------------------------------------------------------
+
+#### 1.   Data representation  
+
+* `adj[i]` – bit mask (Python `int`) of neighbours of vertex `i` (`0‑based`).
+  Because `n ≤ 40` a single 64‑bit integer is sufficient.
+* `color[i]` – `-1` if not coloured yet, otherwise `0,1,2`.
+* `avail[i]` – bit mask of still possible colours for vertex `i`.
+  Bit `c` (`1<<c`) is set iff colour `c` is still allowed.
+  Initially `avail[i] = 0b111` for all vertices.
+
+--------------------------------------------------------------------
+
+#### 2.   Recursive search  
+
+```
+search():
+    if every vertex coloured → success
+    choose an uncoloured vertex v with the smallest number of possible colours
+    for each colour c allowed for v:
+        assign c to v
+        for every uncoloured neighbour u of v:
+            delete colour c from avail[u]          (record the change)
+            if avail[u] becomes 0 → undo and continue with next colour
+        recurse
+        if recursion succeeded → propagate success
+        undo all changes of this level
+    return failure
+```
+
+*Choosing the vertex with the smallest domain* (the “minimum remaining
+values” heuristic) dramatically reduces the search tree.
+The algorithm is a classic *forward‑checking* backtracking.
+
+All modifications of `avail` are stored on a stack
+`changes = [(u, old_mask), …]` so they can be undone in `O(number of changes)`.
+
+The recursion depth never exceeds `n = 40`.
+
+--------------------------------------------------------------------
+
+#### 3.   Correctness Proof  
+
+We prove that the algorithm prints “YES” and a correct assignment iff a
+3‑colouring exists, otherwise prints “NO”.
+
+---
+
+##### Lemma 1  
+During the execution, for every vertex `v` the set represented by `avail[v]`
+is exactly the set of colours that can still be assigned to `v` without
+conflicting with the colours already fixed for its coloured neighbours.
+
+**Proof.**  
+Initially all three colours are possible, matching the definition.  
+When a vertex `x` gets colour `c`, the algorithm removes `c` from the
+availability of each *uncoloured* neighbour `y`. This is precisely the
+restriction imposed by the new edge `(x,y)`. No other colours are removed,
+and the removal is undone when the assignment of `x` is undone.
+Thus the invariant holds after every change and its reversal. ∎
+
+
+
+##### Lemma 2  
+If the algorithm reaches a state where some uncoloured vertex has
+`avail = 0`, then the current partial colouring cannot be extended to a full
+3‑colouring.
+
+**Proof.**  
+By Lemma&nbsp;1 `avail = 0` means *no* colour can be given to that vertex without
+conflicting with already coloured neighbours. Any extension would have to
+colour it, which is impossible. ∎
+
+
+
+##### Lemma 3  
+Whenever the recursive call `search()` returns *success*, the array `color`
+contains a proper 3‑colouring of the whole graph.
+
+**Proof.**  
+Success is returned only when the base case “all vertices coloured” is reached.
+At that moment every edge connects two vertices that received colours at
+different moments; when the second endpoint was coloured, the colour of the
+first endpoint was still present in its `avail` (otherwise the algorithm would
+have backtracked by Lemma&nbsp;2). Hence the two colours differ. ∎
+
+
+
+##### Lemma 4  
+If a proper 3‑colouring exists, the algorithm eventually finds one and returns
+success.
+
+**Proof.**  
+Consider any fixed valid 3‑colouring `C`. The search explores the colour
+assignments in a depth‑first manner.  
+When the algorithm chooses a vertex `v`, it tries **all** colours that are
+still allowed by `avail[v]`. By Lemma&nbsp;1 the colour `C(v)` is allowed
+because all previously coloured neighbours agree with `C`. Therefore the
+branch that follows `C(v)` is never pruned. Repeating this argument along the
+recursion, the algorithm can follow the exact sequence of choices prescribed
+by `C` and reaches the leaf where all vertices are coloured exactly as in `C`.
+Consequently a success is found. ∎
+
+
+
+##### Lemma 5  
+If the algorithm finishes without success, no proper 3‑colouring exists.
+
+**Proof.**  
+Assume the contrary: a proper colouring `C` exists but the algorithm fails.
+During the whole search every time a vertex is coloured, all colours that are
+compatible with the already fixed part are explored (Lemma&nbsp;1).  
+If the algorithm backtracks from a partial assignment, Lemma&nbsp;2 guarantees
+that **no** extension of this partial assignment can be a proper colouring.
+Thus the branch containing `C` cannot be discarded. Since the algorithm explores
+all branches, it would eventually reach the leaf representing `C`, contradicting
+the assumption of failure. ∎
+
+
+
+##### Theorem  
+The program outputs  
+
+* “YES” and a list of module numbers `1..3` that satisfies all constraints
+  **iff** such an assignment exists;
+* otherwise it outputs “NO”.
+
+**Proof.**  
+*If* the program prints “YES”, it did so after `search()` returned success.
+By Lemma&nbsp;3 the produced assignment is a proper 3‑colouring, therefore a
+valid plan exists.
+
+*Only‑if* a valid plan exists, Lemma&nbsp;4 guarantees that `search()` will
+find one and return success, so the program prints “YES”.  
+If no plan exists, Lemma&nbsp;5 shows that `search()` cannot succeed, thus the
+program reaches the end and prints “NO”. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### 4.   Complexity Analysis  
+
+`n ≤ 40`.
+
+*Each recursive level* processes one vertex and updates at most its degree
+neighbours ( ≤ 39).  
+All operations are bitwise integer manipulations, `O(1)`.
+
+In the worst case the algorithm explores the whole 3‑colouring search tree:
+`O(3^n)`.  
+With the MRV heuristic and forward checking the practical number of visited
+states is far smaller; for `n = 40` it easily fits into the 2 s limit
+(the worst‑case graphs are very dense and get pruned quickly).
+
+Memory consumption:
+
+* adjacency masks: `n` integers,
+* colour array, availability array: `O(n)`,
+* recursion stack and change list: at most `O(n^2)` integers in the worst
+  case, well below the 256 MB limit.
+
+--------------------------------------------------------------------
+
+#### 5.   Reference Implementation  (Python 3)
+
+```python
+import sys
+
+sys.setrecursionlimit(10000)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+
+    adj = [0] * n
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+
+    color = [-1] * n               # -1 = uncoloured, else 0,1,2
+    avail = [0b111] * n            # three bits set
+
+    # order of vertices for tie‑breaking (higher degree first)
+    degree = [bin(adj[i]).count('1') for i in range(n)]
+    order = sorted(range(n), key=lambda x: -degree[x])
+
+    # helper: count bits set (0..3)
+    popcnt = lambda x: (x & 1) + ((x >> 1) & 1) + ((x >> 2) & 1)
+
+    # recursive search
+    changes = []   # stack of (vertex, old_avail)
+
+    def dfs(coloured_cnt: int) -> bool:
+        if coloured_cnt == n:
+            return True
+
+        # choose vertex with minimum remaining colours
+        v = -1
+        best = 4
+        for u in order:
+            if color[u] == -1:
+                cnt = popcnt(avail[u])
+                if cnt < best:
+                    best = cnt
+                    v = u
+                    if cnt == 1:
+                        break
+        if v == -1:   # should not happen
+            return False
+        if best == 0:
+            return False
+
+        cur_avail = avail[v]
+        # try each possible colour
+        for c in range(3):
+            if not (cur_avail >> c) & 1:
+                continue
+            # assign
+            color[v] = c
+            # record changes to neighbours
+            changed = []
+            mask = 1 << c
+            nb = adj[v]
+            while nb:
+                u = (nb & -nb).bit_length() - 1
+                nb &= nb - 1
+                if color[u] == -1 and (avail[u] & mask):
+                    old = avail[u]
+                    new = old & ~mask
+                    if new != old:
+                        changed.append((u, old))
+                        avail[u] = new
+                        if new == 0:
+                            # undo
+                            for uu, oo in reversed(changed):
+                                avail[uu] = oo
+                            color[v] = -1
+                            break
+            else:
+                # no conflict, recurse
+                if dfs(coloured_cnt + 1):
+                    return True
+                # undo changes after recursion
+                for uu, oo in reversed(changed):
+                    avail[uu] = oo
+            # undo assignment
+            color[v] = -1
+        return False
+
+    possible = dfs(0)
+
+    out = []
+    if possible:
+        out.append("YES")
+        # convert 0/1/2 to 1/2/3
+        out.append(' '.join(str(c + 1) for c in color))
+    else:
+        out.append("NO")
+    sys.stdout.write('\n'.join(out))
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above and conforms
+to the required input‑output format.

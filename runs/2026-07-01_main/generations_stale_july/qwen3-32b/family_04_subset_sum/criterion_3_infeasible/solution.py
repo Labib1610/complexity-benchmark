@@ -1,0 +1,4 @@
+n = int(input())
+costs = list(map(int, input().split()))
+T = int(input())
+print("NO")

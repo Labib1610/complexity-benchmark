@@ -1,35 +1,94 @@
-We can model this as a graph coloring problem with 3 colors (agencies 1, 2, 3).  
-
-First, let’s analyze the interaction value formula:
+We need to check the condition for each edge.  
+For an edge between \(u\) and \(w\) with speeds \(x\) and \(y\):
 
 \[
-2(f_u - f_v)^4 - 10(f_u - f_v)^2 + 4
+V_u = x \cdot ((u+w)) \cdot x - 2 \cdot u \cdot y)
+\]
+Wait, the formula seems garbled. Let’s parse carefully:
+
+From the statement:
+
+\(V_u = x \cdot ( (u+w)) \cdot x -  ‌2 \cdot u \cdot y )\)
+
+It likely means:
+
+\[
+V_u = x \cdot \big( (u+w) \cdot x -  ‌2 \cdot u \cdot y \big)
 \]
 
-Let \( d = f_u - f_v \). Possible values of \( d \) are \(-2, -1, 0, 1, 2\).
+Similarly:
 
-Compute:
+\[
+V_w = y \cdot \big( (u+w) \cdot y -  ‌2 \cdot w \cdot x \big)
+\]
 
-- \( d = 0 \): \( 0 - 0 + 4 = 4 \)
-- \( d = \pm 1 \): \( 2(1) - 10(1) + 4 = 2 - 10 + 4 = -4 \)
-- \( d = \pm 2 \): \( 2(16) - 10(4) + 4 = 32 - 40 + 4 = -4 \)
+We need \(V_u + V_w = 0\) to be avoided.
 
-So the interaction value is:
-- \( 4 \) if same agency
-- \( -4 \) if different agencies
+Let’s compute:
 
-We need total sum = \(-4m\).  
-That means every edge must contribute \(-4\), i.e., **no two connected departments can have the same agency**.
+\[
+V_u + V_w = x \cdot ( (u+w) \cdot x -  ‌2 u y ) + y \cdot ( (u+w) \cdot y -  ‌2 w x )
+\]
 
-So the problem reduces to:  
-Can we 3-color the graph such that adjacent vertices have different colors?  
-And we need the lexicographically smallest coloring.
+\[
+= (u+w) \cdot (x^2 + y^2) -  ‌2 u x y -  ‌2 w x y
+\]
 
-Since \( n \le 40 \), we can use backtracking with pruning.
+\[
+= (u+w))(x^2 + y^2) -  ‌2 (u+w) x y
+\]
 
----
+\[
+= (u+w))(x^2 + y^2 -  ‌2 x y) = (u+w) (x-y)^2
+\]
 
-```python
+Since \(u+w > 0\), the condition \(V_u+V_w=0\) is equivalent to \(x = y\).
+
+Thus, harmonic resonance occurs exactly when two linked nodes have the same clock speed.
+
+So the problem reduces to: assign each node a value in {1,2,3} such that no edge connects two nodes with the same value. That is a proper 3-coloring of the given graph.
+
+Since \(n \le 40\), we can use backtracking with pruning. The graph may be disconnected; we can color each component independently.
+
+We need to output any valid assignment or NO if impossible.
+
+We can implement a simple backtracking: assign colors to nodes in order, checking neighbors already colored. If a node has no possible color, backtrack. Since 3 colors and max 40 nodes, worst-case exponential but with pruning it's fine for this size (especially since 3-coloring is NP-complete but n=40 is small enough for backtracking with heuristics).
+
+We can also use DSATUR heuristic: choose next vertex with most colored neighbors and fewest available colors. But simple order may work.
+
+Let's implement a recursive function that tries colors 1,2,3 for each node in order, checking adjacency.
+
+We'll store adjacency list.
+
+We'll also pre-check: if any node has degree > 2? Actually 3-coloring possible only if max degree ≤2? No, that's for 2-coloring. For 3-coloring, max degree can be larger. But if a node has degree > 2, it's still possible if its neighbors use at most 2 colors among them. So no simple degree check.
+
+We'll just backtrack.
+
+We'll also use a simple heuristic: order nodes by degree descending to reduce branching.
+
+Implementation:
+
+- Read n,m.
+- Build adjacency list (0-indexed).
+- Order nodes by degree descending.
+- Map original index to order position.
+- Recursively assign colors in that order.
+- For each node, try colors 1,2,3; check all neighbors already assigned (in order) have different color.
+ If valid, assign and recurse.
+ If all fail, backtrack.
+- If complete, output YES and colors in original order.
+
+We'll also handle m=0: any assignment works.
+
+Let's test with examples.
+
+Example1: graph edges: 1-2,1-3,2-3,1-4,2-4. This is K4 minus edge 3-4. 3-coloring possible: assign 1:1,2:2,3:3,4:3 works.
+
+Example2: K4, needs 4 colors, impossible.
+
+Our backtracking will find NO.
+
+Let's code.```python
 import sys
 
 def solve():
@@ -37,33 +96,42 @@ def solve():
     n, m = map(int, input().split())
     adj = [[] for _ in range(n)]
     for _ in range(m):
-        u, v = map(int, input().split())
+        u, w = map(int, input().split())
         u -= 1
-        v -= 1
-        adj[u].append(v)
-        adj[v].append(u)
-    
-    color = [0] * n  # 0 = uncolored, 1,2,3 = agencies
-    
+        w -= 1
+        adj[u].append(w)
+        adj[w].append(u)
+
+    # Order nodes by degree descending for better pruning
+    order = sorted(range(n), key=lambda x: len(adj[x]), reverse=True)
+    pos = [0] * n
+    for i, v in enumerate(order):
+        pos[v] = i
+
+    color = [0] * n
+    assigned = [False] * n
+
     def backtrack(idx):
         if idx == n:
             return True
-        for c in range(1, 4):
-            ok = True
-            for nb in adj[idx]:
-                if color[nb] == c:
-                    ok = False
-                    break
-            if ok:
-                color[idx] = c
+        v = order[idx]
+        used = set()
+        for nb in adj[v]:
+            if assigned[nb]:
+                used.add(color[nb])
+        for c in (1, 2, 3):
+            if c not in used:
+                color[v] = c
+                assigned[v] = True
                 if backtrack(idx + 1):
                     return True
-                color[idx] = 0
+                assigned[v] = False
+                color[v] = 0
         return False
-    
+
     if backtrack(0):
         print("YES")
-        print(" ".join(map(str, color)))
+        print(" ".join(str(color[i]) for i in range(n)))
     else:
         print("NO")
 

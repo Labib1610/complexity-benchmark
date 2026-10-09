@@ -1,47 +1,63 @@
 import sys
 from collections import defaultdict, deque
 
-def solve():
+def main():
+    import sys
+    sys.setrecursionlimit(1 << 25)
+    
     n, m = map(int, sys.stdin.readline().split())
     
+    if m == 0:
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
+    
     # Build adjacency list
-    graph = defaultdict(list)
+    adj = defaultdict(list)
     for _ in range(m):
         u, v = map(int, sys.stdin.readline().split())
-        graph[u].append(v)
-        graph[v].append(u)
+        adj[u].append(v)
+        adj[v].append(u)
     
-    # Color array: 0 = unvisited, 1 = color 1, 2 = color 2
+    # Color array: 0 = unvisited, 1 and 2 are the two colors
     color = [0] * (n + 1)
     
     # Check if bipartite using BFS
-    for start in range(1, n + 1):
-        if color[start] == 0:
-            queue = deque([start])
-            color[start] = 1
-            
-            while queue:
-                node = queue.popleft()
-                
-                for neighbor in graph[node]:
-                    if color[neighbor] == 0:
-                        color[neighbor] = 3 - color[node]  # Flip color (1->2, 2->1)
-                        queue.append(neighbor)
-                    elif color[neighbor] == color[node]:
-                        print("NO")
-                        return
+    def bfs(start):
+        queue = deque()
+        queue.append(start)
+        color[start] = 1
+        while queue:
+            u = queue.popleft()
+            current_color = color[u]
+            next_color = 3 - current_color  # flips 1->2 and 2->1
+            for v in adj[u]:
+                if color[v] == 0:
+                    color[v] = next_color
+                    queue.append(v)
+                elif color[v] == current_color:
+                    return False
+        return True
     
-    # If we reach here, the graph is bipartite
-    print("YES")
-    # Output the lexicographically smallest solution
-    # Since we start with color 1 for unvisited components, this is already lex smallest
-    result = []
+    # Process each connected component
     for i in range(1, n + 1):
         if color[i] == 0:
-            result.append("1")  # Isolated vertex can be assigned 1
-        else:
-            result.append(str(color[i]))
+            if not bfs(i):
+                print("NO")
+                return
     
-    print(" ".join(result))
+    print("YES")
+    # To get lexicographically smallest, we prefer color 1 for node 1 if possible
+    # But our coloring already ensures that. We just need to make sure node 1 gets 1
+    # If color[1] is 2, we flip all colors
+    if color[1] == 2:
+        for i in range(1, n + 1):
+            if color[i] == 1:
+                color[i] = 2
+            else:
+                color[i] = 1
+                
+    print(" ".join(str(color[i]) for i in range(1, n + 1)))
 
-solve()
+if __name__ == "__main__":
+    main()

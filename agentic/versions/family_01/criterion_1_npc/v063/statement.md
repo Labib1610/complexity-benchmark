@@ -1,21 +1,20 @@
-# Problem A — Deployment Rings
+# Problem A — Phase Assignments
 
 Time limit: 2 s   Memory limit: 256 MB
 
-You are configuring a distributed application comprising $n$ microservices, indexed by integers from 1 to $n$. Each microservice must be allocated to an isolation ring. An isolation ring is identified by a positive integer strictly less than 4.
+A tactical command center oversees a roster of active field agents. The facility's communication infrastructure requires a minimum of one active agent to remain operational, and its hardware can support a maximum capacity of 40 agents simultaneously.
 
-During load testing, specific pairs of microservices have demonstrated resource-contention defects. If both microservices in such a pair are deployed in the exact same isolation ring, the application will crash. To ensure operational stability, you must place the two microservices of any defective pair into completely distinct rings.
+To execute a complex operation, each agent must be assigned exactly one of three operational phases, designated by the codes 1, 2, and 3. However, certain pairs of agents have conflicting operational profiles. If two agents with conflicting profiles are assigned to the exact same operational phase, their operation will be compromised.
 
-Your task is to find a valid ring allocation for all $n$ microservices. When multiple valid configurations exist, you must select the one that assigns the lowest possible ring number to microservice 1. If there are still multiple options, you must resolve the tie by minimizing the ring number for microservice 2, and so on, proceeding sequentially up to microservice $n$. If no valid allocation can be found, you must state that it is impossible.
+You will be provided with the roster size and the list of all conflicting agent pairs. The number of such conflicting pairs can range anywhere from none at all, up to the theoretical maximum where every single agent conflicts with every other agent. Determine if it is possible to assign every agent a phase code such that no two conflicting agents operate in the same phase. If it is possible, provide one such valid assignment.
 
 ## Input
-The first line contains $n$ and $m$ — the number of microservices and the number of defective pairs. The number of microservices is at least one, and it cannot exceed the total number of available CPU cores across the cluster (which consists of exactly 5 servers, each containing exactly 8 cores). The number of defective pairs $m$ is at least zero and is bounded by the maximum number of distinct unordered pairs that can be formed from the $n$ microservices.
-
-The following $m$ lines each contain two integers $u$ and $v$, indicating that microservice $u$ and microservice $v$ share a resource-contention defect.
+The first line provides two integers, $n$ and $m$, representing the number of active agents and the total count of conflicting pairs, respectively. The constraints on these values are dictated by the facility's physical limits and the maximum possible number of pairs described above.
+Each of the next $m$ lines contains two integers $u$ and $v$. These represent the ID numbers (from 1 to $n$) of two distinct agents whose profiles conflict. No pair of agents is listed more than once.
 
 ## Output
-If it is impossible to stabilize the application, output a single line with the word NO.
-Otherwise, output YES on the first line. On the second line, output $n$ integers separated by spaces, representing the isolation rings assigned to microservices 1 through $n$ respectively, following the tie-breaking rules described above.
+If there is no way to assign the phases safely, output a single line containing `NO`.
+Otherwise, output `YES` on the first line. On the second line, output $n$ integers $s_1, s_2, \dots, s_n$ separated by spaces. Each integer $s_i$ must be 1, 2, or 3, representing the operational phase assigned to agent $i$. Any valid assignment is accepted.
 
 ## Example 1
 Input:

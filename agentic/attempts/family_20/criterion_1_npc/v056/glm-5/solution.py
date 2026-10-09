@@ -1,0 +1,240 @@
+import sys
+from collections import defaultdict, deque
+
+def solve():
+    input_data = sys.stdin.buffer.read().split()
+    idx = 0
+    n = int(input_data[idx]); idx += 1
+    m = int(input_data[idx]); idx += 1
+    
+    edges = []
+    adj = [[] for _ in range(n + 1)]
+    for i in range(m):
+        u = int(input_data[idx]); idx += 1
+        v = int(input_data[idx]); idx += 1
+        edges.append((u, v))
+        adj[u].append((v, i))
+        adj[v].append((u, i))
+    
+    # Find perfect matching via augmenting paths
+    matched = [False] * m
+    match_edge = [-1] * (n + 1)
+    
+    def augment(start):
+        visited = [False] * (n + 1)
+        parent_edge = [-1] * (n + 1)
+        visited[start] = True
+        queue = deque([start])
+        while queue:
+            u = queue.popleft()
+            for v, eid in adj[u]:
+                if not visited[v]:
+                    visited[v] = True
+                    parent_edge[v] = eid
+                    if match_edge[v] == -1:
+                        # Found augmenting path
+                        cur = v
+                        while cur != start:
+                            pe = parent_edge[cur]
+                            matched[pe] = not matched[pe]
+                            # Update match_edge
+                            a, b = edges[pe]
+                            if a == cur:
+                                other = b
+                            else:
+                                other = a
+                            if matched[pe]:
+                                match_edge[cur] = pe
+                                match_edge[other] = pe
+                            else:
+                                match_edge[cur] = -1
+                                match_edge[other] = -1
+                            cur = other
+                        return True
+                    else:
+                        # Follow matched edge
+                        me = match_edge[v]
+                        a, b = edges[me]
+                        other = a if b == v else b
+                        if not visited[other]:
+                            visited[other] = True
+                            parent_edge[other] = me
+                            queue.append(other)
+        return False
+    
+    for v in range(1, n + 1):
+        if match_edge[v] == -1:
+            if not augment(v):
+                print("NO")
+                return
+    
+    # Build residual graph (non-matching edges)
+    radj = [[] for _ in range(n + 1)]
+    for i, (u, v) in enumerate(edges):
+        if not matched[i]:
+            radj[u].append((v, i))
+            radj[v].append((u, i))
+    
+    # Find cycles
+    color = [0] * (n + 1)
+    cycle_list = []
+    edge_cycle = [-1] * m
+    
+    for start in range(1, n + 1):
+        if color[start] == 0:
+            # Trace cycle
+            path = [start]
+            path_edges = []
+            color[start] = 1
+            cur = start
+            prev = -1
+            while True:
+                next_v = -1
+                next_e = -1
+                for v, eid in radj[cur]:
+                    if v != prev:
+                        next_v = v
+                        next_e = eid
+                        break
+                if next_v == -1:
+                    break
+                path_edges.append(next_e)
+                if next_v == start:
+                    # Cycle complete
+                    cid = len(cycle_list)
+                    cycle_list.append((path[:], path_edges))
+                    for e in path_edges:
+                        edge_cycle[e] = cid
+                    break
+                if color[next_v] != 0:
+                    break
+                color[next_v] = 1
+                path.append(next_v)
+                prev = cur
+                cur = next_v
+    
+    # Check for odd cycles and fix
+    odd_cycles = [i for i, (verts, _) in enumerate(cycle_list) if len(verts) % 2 == 1]
+    
+    while odd_cycles:
+        c1 = odd_cycles[0]
+        # Find path to another odd cycle via matched edges
+        # BFS in "super graph" where cycles are connected by matched edges
+        visited_cycles = set([c1])
+        parent = {c1: (-1, -1, -1)}  # cycle -> (parent_cycle, matched_edge, direction)
+        queue = deque([c1])
+        found = -1
+        
+        while queue and found == -1:
+            c = queue.popleft()
+            verts_c = cycle_list[c][0]
+            for v in verts_c:
+                me = match_edge[v]
+                if me == -1:
+                    continue
+                a, b = edges[me]
+                other = a if b == v else b
+                oc = edge_cycle[other] if other <= n and radj[other] else -1
+                # Find which cycle 'other' belongs to
+                oc = -1
+                for cid, (vlist, elist) in enumerate(cycle_list):
+                    if other in vlist:
+                        oc = cid
+                        break
+                if oc == -1 or oc in visited_cycles:
+                    continue
+                visited_cycles.add(oc)
+                parent[oc] = (c, me, v)
+                if oc in odd_cycles and oc != c1:
+                    found = oc
+                    break
+                queue.append(oc)
+        
+        if found == -1:
+            print("NO")
+            return
+        
+        # Swap matched edges along the path
+        path_edges_swap = []
+        cur_c = found
+        while cur_c != c1:
+            pc, me, _ = parent[cur_c]
+            path_edges_swap.append(me)
+            cur_c = pc
+        
+        for me in path_edges_swap:
+            matched[me] = not matched[me]
+            a, b = edges[me]
+            if matched[me]:
+                match_edge[a] = me
+                match_edge[b] = me
+            else:
+                match_edge[a] = -1
+                match_edge[b] = -1
+        
+        # Rebuild residual and cycles
+        radj = [[] for _ in range(n + 1)]
+        for i, (u, v) in enumerate(edges):
+            if not matched[i]:
+                radj[u].append((v, i))
+                radj[v].append((u, i))
+        
+        color = [0] * (n + 1)
+        cycle_list = []
+        edge_cycle = [-1] * m
+        
+        for start in range(1, n + 1):
+            if color[start] == 0 and radj[start]:
+                path = [start]
+                path_edges = []
+                color[start] = 1
+                cur = start
+                prev = -1
+                while True:
+                    next_v = -1
+                    next_e = -1
+                    for v, eid in radj[cur]:
+                        if v != prev:
+                            next_v = v
+                            next_e = eid
+                            break
+                    if next_v == -1:
+                        break
+                    path_edges.append(next_e)
+                    if next_v == start:
+                        cid = len(cycle_list)
+                        cycle_list.append((path[:], path_edges[:]))
+                        for e in path_edges:
+                            edge_cycle[e] = cid
+                        break
+                    if color[next_v] != 0:
+                        break
+                    color[next_v] = 1
+                    path.append(next_v)
+                    prev = cur
+                    cur = next_v
+        
+        odd_cycles = [i for i, (verts, _) in enumerate(cycle_list) if len(verts) % 2 == 1]
+    
+    # Assign colors
+    ans = [0] * m
+    for i in range(m):
+        if matched[i]:
+            ans[i] = 3
+    
+    for cid, (verts, elist) in enumerate(cycle_list):
+        for j, e in enumerate(elist):
+            ans[e] = 1 if j % 2 == 0 else 2
+    
+    # Verify
+    count = [0, 0, 0]
+    for a in ans:
+        count[a-1] += 1
+    if count[0] != m // 3 or count[1] != m // 3 or count[2] != m // 3:
+        print("NO")
+        return
+    
+    print("YES")
+    print(' '.join(map(str, ans)))
+
+solve()

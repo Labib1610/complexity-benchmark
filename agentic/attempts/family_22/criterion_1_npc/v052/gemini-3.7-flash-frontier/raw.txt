@@ -1,0 +1,178 @@
+```python
+import sys
+from collections import deque
+from itertools import combinations
+
+# Increase recursion depth just in case
+sys.setrecursionlimit(20000)
+
+def main():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    M = int(input_data[1])
+    T = int(input_data[2])
+    m = int(input_data[3])
+    
+    if n > M * T:
+        print("NO")
+        return
+
+    adj = [[] for _ in range(n)]
+    radj = [[] for _ in range(n)]
+    in_degree = [0] * n
+    out_degree = [0] * n
+    
+    idx = 4
+    for _ in range(m):
+        u = int(input_data[idx]) - 1
+        v = int(input_data[idx+1]) - 1
+        idx += 2
+        adj[u].append(v)
+        radj[v].append(u)
+        in_degree[v] += 1
+        out_degree[u] += 1
+
+    # Topological sort & cycle check
+    q = deque([i for i in range(n) if in_degree[i] == 0])
+    topo_order = []
+    while q:
+        u = q.popleft()
+        topo_order.append(u)
+        for v in adj[u]:
+            in_degree[v] -= 1
+            if in_degree[v] == 0:
+                q.append(v)
+                
+    if len(topo_order) < n:
+        print("NO")
+        return
+
+    # Earliest start time (1-indexed)
+    E = [1] * n
+    for u in topo_order:
+        for v in adj[u]:
+            if E[u] + 1 > E[v]:
+                E[v] = E[u] + 1
+
+    # Latest start time (1-indexed)
+    L = [T] * n
+    for u in reversed(topo_order):
+        for v in radj[u]:
+            if L[u] - 1 < L[v]:
+                L[v] = L[u] - 1
+
+    for i in range(n):
+        if E[i] > L[i] or E[i] > T or L[i] < 1:
+            print("NO")
+            return
+
+    # Compute height/depth (longest path to any sink) for heuristic tie-breaking
+    depth = [0] * n
+    for u in reversed(topo_order):
+        for v in adj[u]:
+            if depth[v] + 1 > depth[u]:
+                depth[u] = depth[v] + 1
+
+    # Count of descendants for heuristic tie-breaking
+    # Transitive closure / descendant count
+    desc_masks = [1 << i for i in range(n)]
+    for u in reversed(topo_order):
+        for v in adj[u]:
+            desc_masks[u] |= desc_masks[v]
+    desc_count = [bin(desc_masks[i]).count('1') for i in range(n)]
+
+    # Precedence bitmasks
+    pred_masks = [0] * n
+    for i in range(n):
+        for p in radj[i]:
+            pred_masks[i] |= (1 << p)
+
+    assignment = [0] * n
+    failed_states = set()
+
+    def search(shift, completed_mask):
+        if completed_mask == (1 << n) - 1:
+            return True
+        if shift > T:
+            return False
+
+        # State compression for memoization
+        state = (shift, completed_mask)
+        if state in failed_states:
+            return False
+
+        # Find all operations ready to be scheduled
+        ready = []
+        mandatory = []
+        
+        # Overload check & ready identification
+        for i in range(n):
+            if not ((completed_mask >> i) & 1):
+                # Check if all predecessors are completed
+                if (pred_masks[i] & completed_mask) == pred_masks[i]:
+                    if L[i] < shift:
+                        failed_states.add(state)
+                        return False
+                    if L[i] == shift:
+                        mandatory.append(i)
+                    else:
+                        ready.append(i)
+                else:
+                    if L[i] <= shift:
+                        # Cannot possibly finish predecessors in time
+                        failed_states.add(state)
+                        return False
+
+        if len(mandatory) > M:
+            failed_states.add(state)
+            return False
+
+        # Sort ready operations by priority:
+        # 1. Smaller L[i]
+        # 2. Larger depth
+        # 3. Larger descendant count
+        ready.sort(key=lambda x: (L[x], -depth[x], -desc_count[x]))
+
+        slots_left = M - len(mandatory)
+        
+        # We can pick from 0 up to slots_left from `ready`
+        # Prioritize picking as many as possible (slots_left) with best heuristics
+        max_to_pick = min(slots_left, len(ready))
+
+        # Generate choices of combinations, prioritizing larger subsets and earlier items
+        # To avoid combinatorial explosion, try greedy subset first, then others
+        comb_choices = []
+        for k in range(max_to_pick, -1, -1):
+            # Limit number of combinations if ready is large
+            for c in combinations(ready, k):
+                comb_choices.append(c)
+                if len(comb_choices) > 50:
+                    break
+            if len(comb_choices) > 50:
+                break
+
+        for choice in comb_choices:
+            chosen = mandatory + list(choice)
+            new_mask = completed_mask
+            for u in chosen:
+                new_mask |= (1 << u)
+                assignment[u] = shift
+
+            if search(shift + 1, new_mask):
+                return True
+
+        failed_states.add(state)
+        return False
+
+    if search(1, 0):
+        print("YES")
+        print(*(assignment[i] for i in range(n)))
+    else:
+        print("NO")
+
+if __name__ == '__main__':
+    main()
+```

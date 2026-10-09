@@ -1,0 +1,151 @@
+import sys
+from sys import setrecursionlimit
+import random
+
+def solve():
+    input_data = sys.stdin.buffer.read().split()
+    idx = 0
+    n = int(input_data[idx]); idx += 1
+    m = int(input_data[idx]); idx += 1
+    
+    edges = []
+    adj = [[] for _ in range(n + 1)]
+    for i in range(m):
+        u = int(input_data[idx]); idx += 1
+        v = int(input_data[idx]); idx += 1
+        edges.append((u, v))
+        adj[u].append((v, i))
+        adj[v].append((u, i))
+    
+    # Check for bridges using iterative DFS
+    disc = [0] * (n + 1)
+    low = [0] * (n + 1)
+    visited = [False] * (n + 1)
+    timer = [1]
+    has_bridge = [False]
+    
+    for start in range(1, n + 1):
+        if not visited[start]:
+            stack = [(start, -1, 0)]
+            while stack:
+                node, parent_edge, ci = stack[-1]
+                if ci == 0:
+                    visited[node] = True
+                    disc[node] = low[node] = timer[0]
+                    timer[0] += 1
+                if ci < len(adj[node]):
+                    nb, eid = adj[node][ci]
+                    stack[-1] = (node, parent_edge, ci + 1)
+                    if eid == parent_edge:
+                        continue
+                    if visited[nb]:
+                        low[node] = min(low[node], disc[nb])
+                    else:
+                        stack.append((nb, eid, 0))
+                else:
+                    stack.pop()
+                    if stack:
+                        pnode = stack[-1][0]
+                        low[pnode] = min(low[pnode], low[node])
+                        if low[node] > disc[pnode]:
+                            has_bridge[0] = True
+    
+    if has_bridge[0]:
+        print("NO")
+        return
+    
+    # Find perfect matching using randomized augmenting paths
+    def find_matching():
+        match = [0] * (n + 1)
+        order = list(range(1, n + 1))
+        random.shuffle(order)
+        for u in order:
+            if match[u] == 0:
+                # BFS augmenting path
+                pred = [-1] * (n + 1)
+                pred_edge = [-1] * (n + 1)
+                pred[u] = 0
+                queue = [u]
+                head = 0
+                found = -1
+                while head < len(queue) and found == -1:
+                    cur = queue[head]; head += 1
+                    for nb, eid in adj[cur]:
+                        if pred[nb] == -1:
+                            pred[nb] = cur
+                            pred_edge[nb] = eid
+                            if match[nb] == 0:
+                                found = nb
+                                break
+                            queue.append(nb)
+                if found != -1:
+                    path_edges = []
+                    cur = found
+                    while pred[cur] != 0:
+                        path_edges.append(pred_edge[cur])
+                        cur = pred[cur]
+                    for i, eid in enumerate(path_edges):
+                        a, b = edges[eid]
+                        if i % 2 == 0:
+                            match[a] = eid + 1
+                            match[b] = eid + 1
+                        else:
+                            match[a] = 0
+                            match[b] = 0
+        cnt = sum(1 for i in range(1, n+1) if match[i] > 0)
+        if cnt == n:
+            return [match[i] - 1 for i in range(1, n+1) if match[i] > 0]
+        return None
+    
+    matching = None
+    for _ in range(50):
+        matching = find_matching()
+        if matching is not None:
+            break
+    
+    if matching is None:
+        print("NO")
+        return
+    
+    color = [0] * m
+    in_matching = [False] * m
+    for eid in matching:
+        in_matching[eid] = True
+        color[eid] = 3
+    
+    # Build remaining graph (2-regular = disjoint even cycles)
+    radj = [[] for _ in range(n + 1)]
+    for i, (u, v) in enumerate(edges):
+        if not in_matching[i]:
+            radj[u].append((v, i))
+            radj[v].append((u, i))
+    
+    visited2 = [False] * (n + 1)
+    for start in range(1, n + 1):
+        if not visited2[start] and radj[start]:
+            cycle_nodes = []
+            cycle_edges = []
+            cur = start
+            while True:
+                visited2[cur] = True
+                nxt = None
+                for nb, eid in radj[cur]:
+                    if not visited2[nb]:
+                        nxt = (nb, eid)
+                        break
+                if nxt is None:
+                    for nb, eid in radj[cur]:
+                        if nb == start:
+                            cycle_edges.append(eid)
+                            break
+                    break
+                cycle_nodes.append(cur)
+                cycle_edges.append(nxt[1])
+                cur = nxt[0]
+            for i, eid in enumerate(cycle_edges):
+                color[eid] = 1 if i % 2 == 0 else 2
+    
+    print("YES")
+    print(' '.join(map(str, color)))
+
+solve()

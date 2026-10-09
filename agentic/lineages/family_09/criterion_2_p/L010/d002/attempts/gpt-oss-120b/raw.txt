@@ -1,0 +1,344 @@
+**Solution Explanation**
+
+For every interference link `{u , v}` the voltages must satisfy  
+
+```
+voltage[u] + voltage[v] = 0          (1)
+```
+
+If we walk along a cycle `v1 – v2 – … – vt – v1` and add the
+equations (1) we obtain  
+
+```
+voltage[v1] = (‑1)^t · voltage[v1]
+```
+
+Therefore `t` must be even – the graph contains no odd cycle.
+Consequently the whole graph is **bipartite**.
+In a bipartite component we can colour the vertices with two colours
+`0` and `1` such that every edge connects vertices of different colours.
+Both colour classes are independent sets, but we are allowed to take
+*only one* colour class from each component, otherwise an edge would be
+inside the chosen set.
+
+For a component `i`
+
+```
+size0[i] = number of vertices coloured 0
+size1[i] = number of vertices coloured 1
+```
+
+From this component we may take either `size0[i]` vertices (all colour 0)
+or `size1[i]` vertices (all colour 1).
+
+The problem becomes
+
+```
+choose for every component i one of the two numbers size0[i] , size1[i]
+so that the total sum equals k
+```
+
+That is a classic **subset‑sum** problem with at most `n ≤ 10^5`
+items and target `k ≤ n`.  
+`k` is at most `10^5`, therefore a bitset of length `k+1` (or `n+1`)
+fits easily into memory (`≈ 13 KB`).  
+Bitset DP works in `O( n · (n / wordsize) )` bit operations, which is fast
+enough in Python because the whole bitset is stored as a single `int`
+and shifting it is implemented in C.
+
+--------------------------------------------------------------------
+
+#### 1.   Building the bipartition
+
+* BFS/DFS over every not yet visited vertex,
+* colour neighbours with the opposite colour,
+* store the vertices of each colour in two lists per component.
+
+The input guarantees the graph is bipartite, so no conflict occurs.
+
+--------------------------------------------------------------------
+
+#### 2.   Subset‑sum DP with reconstruction
+
+```
+dp   – integer, bit j is 1  ⇔  sum j is reachable after processing some components
+prev – array[0…n]  previous sum that leads to this sum (‑1 = not set yet)
+choice – array[0…n]  0 if we used colour 0 of the current component,
+                     1 if we used colour 1
+```
+
+initially `dp = 1` (only sum 0 reachable).
+
+For every component `(a = size0 , b = size1)` :
+
+```
+new = (dp << a) | (dp << b)          # sums reachable after taking this component
+added = new ^ dp                     # bits that became 1 now
+while added != 0:
+        lsb = added & -added          # lowest set bit
+        s   = lsb.bit_length() - 1   # the sum represented by this bit
+        # which colour gave this sum ?
+        if s >= a and ((dp >> (s-a)) & 1):
+                prev[s]   = s - a
+                choice[s] = 0
+        else:
+                prev[s]   = s - b
+                choice[s] = 1
+        added ^= lsb                  # remove processed bit
+dp = new
+```
+
+Each sum becomes reachable **once**, therefore the total work of the
+inner `while` loop over the whole algorithm is `O(n)`.
+
+--------------------------------------------------------------------
+
+#### 3.   Obtaining the answer
+
+If after all components `dp` has bit `k` set, a solution exists.
+Reconstruct the used colour of every component by walking backwards
+from `k` using `prev` and `choice`.  
+While walking we collect the vertices of the selected colour class.
+Finally output any `k` of them (exactly `k` are collected).
+
+If bit `k` is not set → answer `NO`.
+
+--------------------------------------------------------------------
+
+#### 4.   Correctness Proof  
+
+We prove that the algorithm prints `YES` and a correct safe subset
+iff such a subset exists.
+
+---
+
+##### Lemma 1  
+The input graph is bipartite and the BFS colouring produces a valid
+bipartition of every connected component.
+
+**Proof.**  
+The statement in the statement guarantees the existence of a non‑zero
+real assignment satisfying (1) for every edge.
+As shown in the introduction this is possible only for bipartite graphs.
+BFS colours neighbours with opposite colours, therefore no edge connects
+two vertices of the same colour. ∎
+
+
+
+##### Lemma 2  
+For a component `i` any independent set contained completely inside the
+component is either the whole colour 0 class or the whole colour 1 class.
+
+**Proof.**  
+All edges go between the two colour classes.
+If an independent set contains a vertex of colour 0, it cannot contain
+any vertex of colour 1 (otherwise an edge would be inside the set).
+Thus the set is a subset of one colour class.
+If it is maximal inside the component it must contain *all* vertices of
+that colour class, otherwise we could add another vertex of the same
+colour without creating an edge. ∎
+
+
+
+##### Lemma 3  
+After processing the first `t` components, the bitset `dp`
+has exactly the sums that can be obtained by choosing for each of those
+`t` components one of its two colour class sizes.
+
+**Proof by induction over `t`.**  
+
+*Base `t = 0`* : only sum 0 is reachable, `dp = 1`. True.
+
+*Induction step* : assume the claim for `t‑1`.  
+For component `t` we may add either `a = size0[t]` or `b = size1[t]`
+to any previously reachable sum `s`.  
+Shifting `dp` left by `a` (resp. `b`) creates the set
+`{ s + a | s reachable }` (resp. `s + b`).  
+The bitwise OR of the two shifted bitsets therefore contains exactly the
+sums reachable after also deciding for component `t`. ∎
+
+
+
+##### Lemma 4  
+Whenever a new sum `s` becomes reachable, the algorithm stores in
+`prev[s]` the previous sum and in `choice[s]` the colour (0 or 1) that
+produced `s`.
+
+**Proof.**  
+`added` contains precisely the bits that changed from `0` to `1`.
+For each such bit we test whether `s‑a` was reachable before (`dp` has
+that bit set). If yes, the transition used colour 0, otherwise colour 1.
+Both cases store the correct predecessor and colour. ∎
+
+
+
+##### Lemma 5  
+If bit `k` is set after all components, the reconstruction procedure
+outputs a set of exactly `k` vertices containing no edge.
+
+**Proof.**  
+Starting from `k` and repeatedly applying `prev` we obtain a decreasing
+sequence of sums ending at `0`. By Lemma&nbsp;4 each step corresponds to
+choosing colour 0 or 1 of the current component, therefore we select
+exactly one colour class per component.
+All selected vertices are taken from colour classes, which are independent
+by Lemma&nbsp;2, and the total number of taken vertices is the sum of the
+chosen class sizes, i.e. `k`. ∎
+
+
+
+##### Lemma 6  
+If the algorithm prints `NO` then no safe subset of size `k` exists.
+
+**Proof.**  
+`NO` is printed only when bit `k` is not set in the final `dp`.
+By Lemma&nbsp;3 `dp` contains *all* achievable totals of the form
+`Σ chosen_size[i]`. Hence no selection of one colour class per component
+sums to `k`. By Lemma&nbsp;2 any safe subset must be such a selection,
+so a safe subset of size `k` cannot exist. ∎
+
+
+
+##### Theorem  
+The algorithm outputs  
+
+* `YES` and a correct safe subset of size `k` **iff** such a subset exists,
+* otherwise `NO`.
+
+**Proof.**  
+
+*If part*:  
+Assume a safe subset of size `k` exists.
+By Lemma&nbsp;2 it corresponds to a choice of one colour class per
+component, therefore sum `k` is reachable.
+Consequently bit `k` is set (Lemma&nbsp;3) and the algorithm prints `YES`.
+Reconstruction yields a subset of size `k` without edges
+(Lemmas&nbsp;4,5).
+
+*Only‑if part*:  
+If the algorithm prints `YES`, bit `k` was set, thus a selection of colour
+classes with total `k` exists (Lemma&nbsp;3). The reconstructed vertex set
+has size `k` and contains no edge (Lemma&nbsp;5), i.e. a safe subset.
+
+If the algorithm prints `NO`, by Lemma&nbsp;6 no safe subset of size `k`
+exists. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### 5.   Complexity Analysis  
+
+*Bipartition* : `O(n + m)` time, `O(n + m)` memory.  
+*DP* : each component causes one shift of an integer of at most `n+1`
+bits → `O( (n / wordsize) )` elementary operations.
+Overall `O( n · (n / 64) )` bit operations, well below the limit
+(≈ 1.6 · 10⁶ machine words for the worst case).  
+The reconstruction scans at most `k ≤ n` steps.
+
+Memory: adjacency list `O(n + m)`, colour lists `O(n)`,
+`dp` as one Python `int` (≈ 13 KB), `prev` and `choice` arrays `O(n)`.
+
+--------------------------------------------------------------------
+
+#### 6.   Reference Implementation  (Python 3)
+
+```python
+import sys
+sys.setrecursionlimit(1 << 25)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it)); m = int(next(it)); k = int(next(it))
+    g = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        g[u].append(v)
+        g[v].append(u)
+
+    colour = [-1] * n
+    comps = []          # list of (list0, list1)
+    from collections import deque
+    for start in range(n):
+        if colour[start] != -1:
+            continue
+        q = deque([start])
+        colour[start] = 0
+        list0 = [start]
+        list1 = []
+        while q:
+            v = q.popleft()
+            for to in g[v]:
+                if colour[to] == -1:
+                    colour[to] = colour[v] ^ 1
+                    if colour[to] == 0:
+                        list0.append(to)
+                    else:
+                        list1.append(to)
+                    q.append(to)
+        comps.append((list0, list1))
+
+    # DP bitset
+    dp = 1  # bit 0 set
+    max_sum = n
+    prev = [-1] * (max_sum + 1)
+    choice = [0] * (max_sum + 1)
+
+    for idx, (lst0, lst1) in enumerate(comps):
+        a = len(lst0)
+        b = len(lst1)
+        new = (dp << a) | (dp << b)
+        added = new ^ dp
+        while added:
+            lsb = added & -added
+            s = lsb.bit_length() - 1
+            # which side gave this sum?
+            if s >= a and ((dp >> (s - a)) & 1):
+                prev[s] = s - a
+                choice[s] = 0
+            else:
+                prev[s] = s - b
+                choice[s] = 1
+            added ^= lsb
+        dp = new
+
+    if (dp >> k) & 1 == 0:
+        print("NO")
+        return
+
+    # reconstruction
+    take_side = []          # for each component, which side to take (0/1)
+    cur = k
+    while cur > 0:
+        ch = choice[cur]
+        take_side.append(ch)
+        cur = prev[cur]
+    # the order of components processed is the same as comps list,
+    # but we collected choices only for those components that contributed
+    # (all of them, because each component adds either a or b >0, except
+    # isolated vertices where one side may be empty; still a+b =1)
+    # however some components may have size0==size1==0? impossible.
+    # The length of take_side equals number of components.
+    take_side = take_side[::-1]   # now in component order
+
+    answer = []
+    for (lst0, lst1), side in zip(comps, take_side):
+        if side == 0:
+            answer.extend(lst0)
+        else:
+            answer.extend(lst1)
+
+    # answer length is exactly k
+    print("YES")
+    print(' '.join(str(v + 1) for v in answer[:k]))
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above
+and conforms to the required input‑output format.

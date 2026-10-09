@@ -1,0 +1,246 @@
+**Solution Explanation**
+
+For every instrument bay `a (1 … q)` we have to choose exactly one radiator panel `b (q+1 … 2q)` and
+vice‑versa.
+The given cleared conduits are edges of a bipartite graph
+
+* left part – bays `1 … q`
+* right part – panels `q+1 … 2q`
+
+We have to find a *perfect matching* (matching of size `q`).  
+If it exists we output the matched pairs, otherwise we output `NO`.
+
+The classic algorithm for maximum bipartite matching in large sparse graphs is
+**Hopcroft‑Karp** – `O(E·√V)`.  
+With `V = 2·10⁵` and `E ≤ 4·10⁵` it easily fits into the limits.
+
+
+
+--------------------------------------------------------------------
+
+#### Algorithm
+```
+read q, t
+build adjacency list G[1…q]   // store right vertices as 0‑based indices 0…q-1
+run Hopcroft‑Karp on G
+if size of matching == q:
+        print "YES"
+        for each left vertex a (1…q):
+                r = match_left[a]          // 0‑based right index
+                b = q + 1 + r
+                print a, b
+else:
+        print "NO"
+```
+
+**Hopcroft‑Karp**
+
+* `pairU[a]` – right vertex matched to left `a` (`-1` if free)
+* `pairV[r]` – left vertex matched to right `r` (`-1` if free)
+* `dist[a]` – distance in the BFS layering graph
+
+```
+while BFS() builds layers and returns True:
+        for each free left vertex a:
+                if DFS(a):
+                        increase matching size
+```
+
+`BFS` starts from all free left vertices, follows only edges that go to
+unmatched right vertices or to matched left vertices, and builds the
+shortest‑augmenting‑path distance to a dummy NIL node.
+`DFS` searches augmenting paths respecting the layering (`dist`).
+
+The implementation uses 0‑based indices internally for simplicity.
+
+--------------------------------------------------------------------
+
+#### Correctness Proof  
+
+We prove that the algorithm outputs `YES` with a set of `q` edges iff a perfect
+matching exists, otherwise outputs `NO`.
+
+---
+
+##### Lemma 1  
+During the execution of Hopcroft‑Karp, `pairU` and `pairV` always represent a
+matching (no two edges share an endpoint).
+
+**Proof.**  
+Initially all pairs are `-1` – empty matching.  
+Both `BFS` and `DFS` never modify the arrays.  
+`DFS` changes a pair only when it finds an augmenting path:
+it flips the matched/unmatched status along the path, which replaces each
+matched edge by an unmatched one and vice‑versa, preserving the matching
+property. ∎
+
+
+
+##### Lemma 2  
+Each successful call of `DFS` augments the current matching by exactly one
+edge, increasing its size by one.
+
+**Proof.**  
+`DFS` is called only from a free left vertex `u`.  
+If it returns `True`, it has found a path `u = u₀ – v₀ – u₁ – … – v_k`
+where `v_k` is a free right vertex.  
+All interior edges are matched, the first and last are unmatched.
+Flipping the status along the path matches `u` with `v₀` and leaves all other
+vertices matched as before, adding one new matched pair and removing none.
+∎
+
+
+
+##### Lemma 3  
+If `BFS` returns `False`, the current matching is maximum.
+
+**Proof.**  
+`BFS` builds the layered graph of all shortest augmenting paths.
+If it cannot reach a free right vertex, there is **no** augmenting path at all.
+By the classic theorem of Berge, a matching without augmenting paths is
+maximum. ∎
+
+
+
+##### Lemma 4  
+When the algorithm terminates, the size of the matching equals the size of a
+maximum matching in the input graph.
+
+**Proof.**  
+The algorithm repeats `BFS`/`DFS` while `BFS` finds an augmenting path.
+Each iteration augments the matching by at least one (Lemma&nbsp;2).  
+When `BFS` finally fails, by Lemma&nbsp;3 the current matching is maximum.
+Thus the final size equals the maximum possible size. ∎
+
+
+
+##### Lemma 5  
+If the algorithm outputs `YES`, the printed edges form a perfect matching.
+
+**Proof.**  
+`YES` is printed only when the final matching size is `q`.
+By Lemma&nbsp;1 it is a matching, and because it contains `q` edges while each
+side has exactly `q` vertices, every vertex is incident to exactly one edge –
+a perfect matching. The printed edges are exactly the pairs stored in
+`pairU`. ∎
+
+
+
+##### Lemma 6  
+If a perfect matching exists, the algorithm outputs `YES`.
+
+**Proof.**  
+A perfect matching has size `q`.  
+By Lemma&nbsp;4 the algorithm finds a maximum matching; its size is at least the
+size of any matching, therefore at least `q`.  
+Since the graph has only `q` vertices on each side, the size cannot exceed `q`,
+hence the algorithm’s matching size is exactly `q` and it prints `YES`. ∎
+
+
+
+##### Theorem  
+The algorithm prints `YES` followed by a set of `q` valid conduits
+iff such a set exists; otherwise it prints `NO`.
+
+**Proof.**  
+*If* part – Lemma&nbsp;5.  
+*Only‑if* part – Lemma&nbsp;6. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### Complexity Analysis  
+
+*`BFS`* processes each edge at most once → `O(E)`.  
+*`DFS`* also traverses each edge at most once per phase → `O(E)`.  
+Number of phases ≤ `O(√V)` (standard Hopcroft‑Karp bound).  
+
+Total time: `O(E·√V)` ≤ `4·10⁵·√2·10⁵` ≈ `1.8·10⁸` operations, well inside 2 s in Python.  
+
+Memory: adjacency list `O(E)`, plus a few arrays of size `O(V)` → ≤ ~10 MB.
+
+--------------------------------------------------------------------
+
+#### Reference Implementation  (Python 3)
+
+```python
+import sys
+from collections import deque
+
+def hopcroft_karp(adj, n_left, n_right):
+    INF = 10 ** 9
+    pair_u = [-1] * n_left
+    pair_v = [-1] * n_right
+    dist = [0] * n_left
+
+    def bfs():
+        q = deque()
+        for u in range(n_left):
+            if pair_u[u] == -1:
+                dist[u] = 0
+                q.append(u)
+            else:
+                dist[u] = INF
+        found = False
+        while q:
+            u = q.popleft()
+            for v in adj[u]:
+                pu = pair_v[v]
+                if pu != -1 and dist[pu] == INF:
+                    dist[pu] = dist[u] + 1
+                    q.append(pu)
+                elif pu == -1:
+                    found = True
+        return found
+
+    def dfs(u):
+        for v in adj[u]:
+            pu = pair_v[v]
+            if pu == -1 or (dist[pu] == dist[u] + 1 and dfs(pu)):
+                pair_u[u] = v
+                pair_v[v] = u
+                return True
+        dist[u] = INF
+        return False
+
+    matching = 0
+    while bfs():
+        for u in range(n_left):
+            if pair_u[u] == -1 and dfs(u):
+                matching += 1
+    return matching, pair_u
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    q = int(next(it))
+    t = int(next(it))
+    n_left = q
+    n_right = q
+    adj = [[] for _ in range(n_left)]
+    for _ in range(t):
+        a = int(next(it)) - 1          # 0‑based left
+        b = int(next(it)) - (q + 1)    # right index 0…q-1
+        if 0 <= a < n_left and 0 <= b < n_right:
+            adj[a].append(b)
+
+    size, pair_u = hopcroft_karp(adj, n_left, n_right)
+    out = []
+    if size == q:
+        out.append("YES")
+        for a in range(q):
+            b = pair_u[a] + q + 1
+            out.append(f"{a+1} {b}")
+    else:
+        out.append("NO")
+    sys.stdout.write("\n".join(out))
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above and conforms
+to the required input‑output format.

@@ -1,0 +1,212 @@
+import sys
+sys.setrecursionlimit(1000000)
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    color = [0] * n
+    
+    def dfs(u, c):
+        color[u] = c
+        for v in adj[u]:
+            if color[v] == 0:
+                if not dfs(v, 3 - c):
+                    return False
+            elif color[v] == c:
+                return False
+        return True
+    
+    # Check if graph is bipartite
+    for i in range(n):
+        if color[i] == 0:
+            if not dfs(i, 1):
+                print("NO")
+                return
+    
+    # Group vertices by their bipartition color
+    part1 = [i for i in range(n) if color[i] == 1]
+    part2 = [i for i in range(n) if color[i] == 2]
+    
+    # dp[mask] = True if subset mask of part1 can be colored with color 1
+    # The rest of part1 gets color 2, part2 gets color 3
+    sz1 = len(part1)
+    sz2 = len(part2)
+    
+    # Precompute which vertices in part1 are adjacent to each vertex in part1
+    # Actually, we need to check: for any subset S of part1 colored 1,
+    # no two vertices in S can be adjacent (they must be independent set)
+    
+    # Precompute adjacency bitmask for part1
+    part1_set = set(part1)
+    adj_mask1 = [0] * sz1
+    for i in range(sz1):
+        u = part1[i]
+        mask = 0
+        for v in adj[u]:
+            if v in part1_set:
+                idx = part1.index(v)  # This is O(n), but n <= 40 so it's fine
+                mask |= (1 << idx)
+        adj_mask1[i] = mask
+    
+    # dp[mask] = True if mask is an independent set in part1
+    dp = [False] * (1 << sz1)
+    dp[0] = True
+    for mask in range(1, 1 << sz1):
+        # Find lowest set bit
+        lb = mask & -mask
+        i = (lb.bit_length() - 1)
+        prev = mask ^ lb
+        if dp[prev] and (adj_mask1[i] & prev) == 0:
+            dp[mask] = True
+    
+    # For each valid mask, check if part2 can be partitioned into colors 2 and 3
+    # such that vertices colored 2 are not adjacent to vertices in part1 colored 2
+    # Wait, let me reconsider.
+    
+    # part1 vertices: color 1 or 2
+    # part2 vertices: color 2 or 3
+    # 
+    # If part1 vertex gets color 1, it's adjacent only to part2 vertices (by bipartition)
+    # If part1 vertex gets color 2, it must not be adjacent to any part2 vertex with color 2
+    # 
+    # So: part1 colored 1 -> no constraint on part2 (since part2 gets 2 or 3, not 1)
+    #     part1 colored 2 -> adjacent part2 vertices must get color 3
+    #     part2 colored 2 -> adjacent part1 vertices must get color 1
+    #     part2 colored 3 -> no constraint on part1 (since part1 gets 1 or 2, not 3)
+    
+    # Let's denote:
+    # S1 = part1 vertices with color 1
+    # S2 = part1 vertices with color 2 (= part1 - S1)
+    # T2 = part2 vertices with color 2
+    # T3 = part2 vertices with color 3 (= part2 - T2)
+    #
+    # Constraints:
+    # 1. S1 is independent set in part1 (no edges within S1)
+    # 2. T2 is independent set in part2 (no edges within T2)
+    # 3. For every edge (u,v) with u in S2, v in T2: not allowed (u has color 2, v has color 2)
+    #    So: neighbors of S2 in part2 must be in T3
+    #    Equivalently: T2 must not contain any neighbor of S2
+    # 4. For every edge (u,v) with u in S1, v in T2: not allowed (u has color 1, v has color 2)
+    #    Wait, u in part1, v in part2, edge exists. u has color 1, v has color 2.
+    #    This is allowed! Color 1 and color 2 are different.
+    #    Actually, the constraint is: same color -> no edge.
+    #    So if u has color 1 and v has color 2, that's fine.
+    #    If u has color 2 and v has color 2, that's not fine.
+    #
+    # So the constraints are:
+    # 1. S1 is independent set in part1
+    # 2. T2 is independent set in part2
+    # 3. T2 ∩ N(S2) = empty (where N(S2) is neighbors of S2 in part2)
+    # 4. S1 ∩ N(T2) = empty (where N(T2) is neighbors of T2 in part1)
+    #    Wait, this is the same as constraint 3 due to bipartite structure.
+    #    Actually, constraint 4 says: if v in T2, then all neighbors of v in part1 must be in S1 (color 1).
+    #    This is equivalent to: S2 ∩ N(T2) = empty.
+    #    Which is the same as: T2 ∩ N(S2) = empty.
+    #
+    # So we need:
+    # - S1 independent in part1
+    # - T2 independent in part2
+    # - T2 ⊆ part2 - N(S2) = part2 - N(part1 - S1)
+    #
+    # For a given S1 (independent set in part1):
+    # - S2 = part1 - S1
+    # - Forbidden in T2: N(S2) ∩ part2
+    # - T2 must be independent set in part2, and T2 ⊆ part2 - N(S2)
+    # - T2 can be any independent set within the allowed vertices
+    
+    # Precompute adjacency for part2
+    part2_set = set(part2)
+    adj_mask2 = [0] * sz2
+    for i in range(sz2):
+        v = part2[i]
+        mask = 0
+        for u in adj[v]:
+            if u in part2_set:
+                idx = part2.index(u)
+                mask |= (1 << idx)
+        adj_mask2[i] = mask
+    
+    # Precompute neighbors in part2 for each vertex in part1
+    neighbor_in_part2 = [0] * sz1
+    for i in range(sz1):
+        u = part1[i]
+        mask = 0
+        for v in adj[u]:
+            if v in part2_set:
+                idx = part2.index(v)
+                mask |= (1 << idx)
+        neighbor_in_part2[i] = mask
+    
+    # Precompute dp2[mask] = True if mask is independent set in part2
+    dp2 = [False] * (1 << sz2)
+    dp2[0] = True
+    for mask in range(1, 1 << sz2):
+        lb = mask & -mask
+        i = (lb.bit_length() - 1)
+        prev = mask ^ lb
+        if dp2[prev] and (adj_mask2[i] & prev) == 0:
+            dp2[mask] = True
+    
+    # For each valid S1 (independent set in part1), check if there's a valid T2
+    for mask1 in range(1 << sz1):
+        if not dp[mask1]:
+            continue
+        # S2 = part1 - S1, so mask_S2 = complement of mask1
+        mask_S2 = ((1 << sz1) - 1) ^ mask1
+        
+        # Forbidden vertices in part2: neighbors of S2
+        forbidden = 0
+        temp = mask_S2
+        while temp:
+            lb = temp & -temp
+            i = (lb.bit_length() - 1)
+            forbidden |= neighbor_in_part2[i]
+            temp ^= lb
+        
+        # Allowed vertices in part2: part2 - forbidden
+        allowed = ((1 << sz2) - 1) ^ forbidden
+        
+        # Check if there's an independent set T2 within allowed
+        # T2 can be empty (all part2 gets color 3)
+        # We need to find any T2 that is independent and T2 ⊆ allowed
+        
+        # Enumerate all subsets of allowed and check if any is independent
+        # This could be slow, but let's try
+        sub = allowed
+        while True:
+            if dp2[sub]:  # sub is an independent set in part2
+                # Found a valid allocation
+                # Construct the answer
+                ans = [0] * n
+                for i in range(sz1):
+                    if mask1 & (1 << i):
+                        ans[part1[i]] = 1
+                    else:
+                        ans[part1[i]] = 2
+                for i in range(sz2):
+                    if sub & (1 << i):
+                        ans[part2[i]] = 2
+                    else:
+                        ans[part2[i]] = 3
+                print("YES")
+                print(' '.join(map(str, ans)))
+                return
+            if sub == 0:
+                break
+            sub = (sub - 1) & allowed
+    
+    print("NO")
+
+solve()

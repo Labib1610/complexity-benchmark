@@ -1,0 +1,117 @@
+import sys
+from collections import defaultdict
+import heapq
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    nL = int(data[0])
+    nR = int(data[1])
+    m = int(data[2])
+    
+    tests = []
+    lock_deg = [0] * (nL + 1)
+    key_deg = [0] * (nR + 1)
+    
+    idx = 3
+    for i in range(m):
+        u = int(data[idx])
+        v = int(data[idx+1])
+        idx += 2
+        tests.append((u, v))
+        lock_deg[u] += 1
+        key_deg[v] += 1
+    
+    delta = 0
+    for i in range(1, nL + 1):
+        if lock_deg[i] > delta:
+            delta = lock_deg[i]
+    for i in range(1, nR + 1):
+        if key_deg[i] > delta:
+            delta = key_deg[i]
+    
+    # For each lock and key, maintain a min-heap of available rounds
+    lock_rounds = [list(range(1, delta + 1)) for _ in range(nL + 1)]
+    key_rounds = [list(range(1, delta + 1)) for _ in range(nR + 1)]
+    
+    # Convert to heaps
+    for i in range(1, nL + 1):
+        heapq.heapify(lock_rounds[i])
+    for i in range(1, nR + 1):
+        heapq.heapify(key_rounds[i])
+    
+    result = []
+    
+    for u, v in tests:
+        # Find a round that's available for both lock u and key v
+        # Since we're processing in order and assigning rounds,
+        # we need to track used rounds per item to avoid conflicts.
+        # A better approach: assign rounds greedily ensuring no conflict.
+        
+        # Let's use a different strategy:
+        # For each item, keep track of which rounds it's already used in.
+        # But since we want to minimize the max round used and we know it's <= delta,
+        # we can assign rounds greedily.
+        
+        # We'll maintain for each lock and key, a set of used rounds.
+        # And for each test, pick the smallest round available for both.
+        # Actually, let's think differently.
+        
+        # Since we know that Delta is the maximum degree, and a valid assignment exists,
+        # we can model this as edge coloring in a bipartite graph.
+        # In bipartite graphs, edge chromatic number equals max degree.
+        # So we can assign rounds 1 to delta.
+        
+        # We'll simulate this by maintaining for each vertex, 
+        # which colors (rounds) have been used on its edges.
+        # When we process an edge (u,v), we pick the smallest color not used 
+        # in u's or v's lists.
+        
+        # To do this efficiently, we can maintain for each vertex a boolean array
+        # of used colors, but with delta up to 1e5, that's too much memory.
+        # Instead, we store for each vertex a set of used colors.
+        # And when assigning, we iterate from 1 upwards until we find a free one.
+        # But again, if delta is large, this could be slow.
+        # However, since total number of edges is <= 4*1e5, and we check at most delta colors,
+        # and sum of degrees = 2*m, total checks = O(m * delta). That might be acceptable.
+        # But let's optimize further.
+        
+        # Better idea: for each vertex, maintain a min-heap of *free* colors.
+        # When we assign a color to an edge, we remove that color from both endpoints' free lists.
+        # But removing from heap is inefficient.
+        
+        # Even better: we can just maintain for each vertex, a pointer to the next free color.
+        # But this gets complicated with multiple edges.
+        
+        # Let's go back to the set-based approach with optimization.
+        # We'll maintain for each vertex, a set of used colors.
+        # And when assigning, we start from 1 and go up until we find a color not in either set.
+        # To make this faster, we can keep track of the max color used so far for each vertex.
+        # But still not ideal.
+        
+        # Optimal approach for this problem:
+        # Model as list-edge-coloring of bipartite graph.
+        # There are algorithms for this, but perhaps overkill.
+        # Since we know a solution exists with delta colors, we can assign greedily.
+        
+        # Let's proceed with greedy assignment using sets.
+        # It should pass given the constraints.
+        
+        if not hasattr(main, 'lock_used'):
+            main.lock_used = [set() for _ in range(nL + 1)]
+            main.key_used = [set() for _ in range(nR + 1)]
+        
+        r = 1
+        while r in main.lock_used[u] or r in main.key_used[v]:
+            r += 1
+        main.lock_used[u].add(r)
+        main.key_used[v].add(r)
+        result.append(str(r))
+    
+    print("YES")
+    print(' '.join(result))
+
+if __name__ == "__main__":
+    main()

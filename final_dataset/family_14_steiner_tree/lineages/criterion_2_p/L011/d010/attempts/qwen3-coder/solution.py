@@ -1,0 +1,95 @@
+import sys
+import threading
+
+def main():
+    import sys
+    sys.setrecursionlimit(1 << 25)
+    
+    n, m, t = map(int, sys.stdin.readline().split())
+    critical = set(map(int, sys.stdin.readline().split()))
+    
+    edges = []
+    for _ in range(m):
+        u, v, w = map(int, sys.stdin.readline().split())
+        edges.append((w, u, v))
+    
+    edges.sort()
+    
+    parent = list(range(n + 1))
+    
+    def find(x):
+        if parent[x] != x:
+            parent[x] = find(parent[x])
+        return parent[x]
+    
+    def union(x, y):
+        px, py = find(x), find(y)
+        if px != py:
+            parent[px] = py
+            return True
+        return False
+    
+    # Initially, all nodes are present
+    # We want to find the maximum spanning tree that includes all critical nodes
+    # But we are minimizing cost, so we can think of it as:
+    # Find the minimum cost to keep all critical nodes connected
+    
+    # Reverse the approach: we start with all edges, and we want to remove as many high-cost edges as possible
+    # while keeping the critical nodes connected.
+    
+    # This is essentially finding the Minimum Spanning Tree of the subgraph induced by critical nodes
+    # and the necessary connecting edges.
+    
+    # But since the original graph is a tree (m = n-1), it's even simpler.
+    # The final graph must be a tree containing all critical nodes.
+    # So we need to find the minimum cost subtree that spans all critical nodes.
+    
+    # Since the original graph is a tree, we can find the minimal subtree that connects all critical nodes.
+    # This is the Steiner tree problem on a tree, which can be solved efficiently.
+    
+    # In a tree, the minimal Steiner tree for a set of terminals can be found by:
+    # 1. Consider only the nodes that are on paths between terminals
+    # 2. The cost is the sum of edge weights in the subtree that connects all terminals
+    
+    # Algorithm:
+    # 1. Root the tree at one of the critical nodes
+    # 2. For each node, compute if it is necessary (i.e., it is critical or has critical descendants in different subtrees)
+    # 3. The edges in the minimal Steiner tree are those connecting necessary nodes
+    
+    # Build adjacency list
+    adj = [[] for _ in range(n + 1)]
+    for w, u, v in edges:
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+    
+    # Mark critical nodes
+    is_critical = [False] * (n + 1)
+    for c in critical:
+        is_critical[c] = True
+    
+    # DFS to find the necessary edges
+    visited = [False] * (n + 1)
+    total_cost = [0]
+    
+    def dfs(u):
+        visited[u] = True
+        # Count critical nodes in subtree
+        crit_count = 1 if is_critical[u] else 0
+        # For each child, get the count of critical nodes
+        for v, w in adj[u]:
+            if not visited[v]:
+                child_crit = dfs(v)
+                # If the child subtree has critical nodes, we need the edge to it
+                if child_crit > 0:
+                    total_cost[0] += w
+                crit_count += child_crit
+        return crit_count
+    
+    # To minimize the cost, we should root at a critical node
+    root = next(iter(critical))
+    dfs(root)
+    
+    print(total_cost[0])
+
+# Run the main function in a new thread with increased stack size
+threading.Thread(target=main).start()

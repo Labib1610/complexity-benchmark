@@ -1,0 +1,38 @@
+import sys
+
+def main():
+    input = sys.stdin.buffer.readline
+    n, m = map(int, input().split())
+
+    graph = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u, v = map(int, input().split())
+        graph[u].append(v)
+        graph[v].append(u)
+
+    color = [0] * (n + 1)
+
+    for start in range(1, n + 1):
+        if color[start] != 0:
+            continue
+
+        color[start] = 1
+        stack = [start]
+
+        while stack:
+            u = stack.pop()
+            expected = 3 - color[u]
+
+            for v in graph[u]:
+                if color[v] == 0:
+                    color[v] = expected
+                    stack.append(v)
+                elif color[v] == color[u]:
+                    print("NO")
+                    return
+
+    sys.stdout.write("YES\n")
+    sys.stdout.write(" ".join(map(str, color[1:])))
+
+if __name__ == "__main__":
+    main()

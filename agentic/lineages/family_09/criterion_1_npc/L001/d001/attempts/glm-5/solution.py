@@ -1,0 +1,200 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    k = int(next(it))
+
+    adj = [0] * (n + 1)
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        adj[u] |= 1 << (v - 1)
+        adj[v] |= 1 << (u - 1)
+
+    # Greedy selection
+    selected = []
+    used_mask = 0
+    for u in range(1, n + 1):
+        if (used_mask & adj[u]) == 0:
+            selected.append(u)
+            used_mask |= 1 << (u - 1)
+            if len(selected) == k:
+                print("YES")
+                print(*(selected))
+                return
+
+    # If greedy fails, use meet-in-the-middle to find maximum independent set
+    half_n = n // 2
+    size_left = half_n
+    size_right = n - half_n
+
+    # Masks for left and right parts
+    # Left: vertices 1..half_n
+    # Right: vertices half_n+1..n
+    
+    # Precompute masks for left part
+    left_masks = [0] * (size_left + 1)
+    for i in range(size_left):
+        u = i + 1
+        # Only consider edges to other left vertices
+        mask = 0
+        for j in range(size_left):
+            if adj[u] & (1 << j):
+                mask |= 1 << j
+        left_masks[i] = mask
+
+    # DP for left part: dp[mask] = True if mask is independent set in left
+    # We want to find max popcount(mask) for left
+    # Since size_left <= 23, we iterate all masks
+    best_left = [0] * (1 << size_left)
+    # best_left[mask] = max independent set size for submask of mask?
+    # Actually we just need to check if mask is independent.
+    # Let's compute valid independent sets in left.
+    
+    # valid_left[mask] is True if mask is independent
+    valid_left = [True] * (1 << size_left)
+    for mask in range(1, 1 << size_left):
+        lsb = mask & -mask
+        i = (lsb.bit_length() - 1)
+        prev = mask ^ lsb
+        if not valid_left[prev]:
+            valid_left[mask] = False
+        else:
+            # Check if i conflicts with any vertex in prev
+            if left_masks[i] & prev:
+                valid_left[mask] = False
+    
+    # Precompute max independent set size for each mask of left part
+    # dp_left[mask] = max size of independent subset of mask
+    dp_left = [0] * (1 << size_left)
+    for mask in range(1, 1 << size_left):
+        if valid_left[mask]:
+            dp_left[mask] = mask.bit_count()
+        else:
+            # Try removing one vertex
+            lsb = mask & -mask
+            dp_left[mask] = max(dp_left[mask ^ lsb], dp_left[mask & (mask - 1)])
+    
+    # For right part: vertices half_n+1 .. n
+    # Map right vertex index r (0-based in right) to actual vertex u = half_n + 1 + r
+    # For each right vertex, compute mask of neighbors in right part
+    
+    right_masks = [0] * size_right
+    for r in range(size_right):
+        u = half_n + 1 + r
+        mask = 0
+        for r2 in range(size_right):
+            v = half_n + 1 + r2
+            if adj[u] & (1 << (v - 1)):
+                mask |= 1 << r2
+        right_masks[r] = mask
+    
+    # Iterate over all independent sets in right part
+    # For each valid right_mask, compute forbidden left vertices
+    # Then find max independent set in left that doesn't use forbidden vertices
+    
+    max_total = 0
+    best_left_mask = 0
+    best_right_mask = 0
+    
+    # Precompute for each right mask, the set of left vertices it conflicts with
+    # conflict_left[mask_right] = bitmask of left vertices that conflict with any vertex in mask_right
+    
+    # Precompute conflict for each single right vertex
+    single_conflict_left = [0] * size_right
+    for r in range(size_right):
+        u = half_n + 1 + r
+        conflict = 0
+        for l in range(size_left):
+            v = l + 1
+            if adj[u] & (1 << (v - 1)):
+                conflict |= 1 << l
+        single_conflict_left[r] = conflict
+    
+    # Iterate over all valid right masks
+    valid_right = [True] * (1 << size_right)
+    for mask in range(1, 1 << size_right):
+        lsb = mask & -mask
+        i = (lsb.bit_length() - 1)
+        prev = mask ^ lsb
+        if not valid_right[prev]:
+            valid_right[mask] = False
+        else:
+            if right_masks[i] & prev:
+                valid_right[mask] = False
+    
+    for mask_r in range(1 << size_right):
+        if not valid_right[mask_r]:
+            continue
+        
+        # Compute conflict in left part
+        conflict_left = 0
+        temp = mask_r
+        while temp:
+            lsb = temp & -temp
+            i = (lsb.bit_length() - 1)
+            conflict_left |= single_conflict_left[i]
+            temp ^= lsb
+        
+        # Available left vertices: all left vertices minus conflict_left
+        available_left = ((1 << size_left) - 1) ^ conflict_left
+        
+        # Max independent set in available_left
+        max_left = dp_left[available_left]
+        
+        total = max_left + mask_r.bit_count()
+        if total > max_total:
+            max_total = total
+            best_left_mask = available_left
+            best_right_mask = mask_r
+            if max_total >= k:
+                break
+        
+        if max_total >= k:
+            break
+    
+    if max_total < k:
+        print("NO")
+        return
+    
+    # Reconstruct the solution
+    # Find actual independent set of size max_total
+    
+    # Find left independent set
+    # We need to find a subset of best_left_mask that is independent and has size dp_left[best_left_mask]
+    # We can use greedy or DP to reconstruct
+    
+    # Reconstruct left part
+    left_independent = 0
+    remaining = best_left_mask
+    target_size = dp_left[best_left_mask]
+    
+    # Find the actual independent set mask
+    # We can iterate through all subsets of best_left_mask
+    found = False
+    for sub in range(1 << size_left):
+        if (sub & ~best_left_mask) == 0 and valid_left[sub] and sub.bit_count() == target_size:
+            left_independent = sub
+            found = True
+            break
+    
+    # Collect vertices
+    result = []
+    for i in range(size_left):
+        if left_independent & (1 << i):
+            result.append(i + 1)
+    
+    for r in range(size_right):
+        if best_right_mask & (1 << r):
+            result.append(half_n + 1 + r)
+    
+    print("YES")
+    print(*(result[:k]))
+
+if __name__ == "__main__":
+    solve()

@@ -1,0 +1,158 @@
+import sys
+from collections import defaultdict, deque
+
+def main():
+    import sys
+    sys.setrecursionlimit(1 << 25)
+    
+    n, m, t = map(int, sys.stdin.readline().split())
+    contaminated = set(map(int, sys.stdin.readline().split()))
+    
+    # Build the tree
+    adj = defaultdict(list)
+    edges = []
+    for _ in range(m):
+        u, v, w = map(int, sys.stdin.readline().split())
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+        edges.append((u, v, w))
+    
+    # If there's only one contaminated vat, cost is 0
+    if t <= 1:
+        print(0)
+        return
+    
+    # Find the subtree that spans all contaminated nodes
+    # We can do this by finding the minimal subtree containing all contaminated nodes
+    
+    # First, we'll find all nodes that are on paths between contaminated nodes
+    # This is equivalent to finding the minimal connected subtree containing all contaminated nodes
+    
+    # To do this efficiently, we can use the fact that in a tree, the minimal subtree
+    # containing a set of nodes is the union of paths between all pairs,
+    # but more efficiently, it's the set of nodes that lie on paths between 
+    # any two nodes in the set.
+    
+    # An easier approach: since it's a tree, we can find the "subtree" that contains
+    # all contaminated nodes by doing BFS/DFS from one contaminated node and 
+    # marking what's needed.
+    
+    # Even simpler: we want the minimal subtree connecting all contaminated nodes.
+    # This is called the Steiner tree problem on trees, which has a simple solution:
+    # 1. Root the tree at any node
+    # 2. For each node, compute whether its subtree contains any contaminated node
+    # 3. The edges in our minimal subtree are those where both endpoints' subtrees
+    #    contain at least one contaminated node
+    
+    # Let's root the tree at node 1
+    root = 1
+    
+    # Convert adjacency list to parent-child relationships via DFS
+    parent = [-1] * (n + 1)
+    children = defaultdict(list)
+    edge_weight = {}
+    
+    visited = [False] * (n + 1)
+    stack = [root]
+    visited[root] = True
+    
+    while stack:
+        u = stack.pop()
+        for v, w in adj[u]:
+            if not visited[v]:
+                visited[v] = True
+                parent[v] = u
+                children[u].append(v)
+                edge_weight[(u, v)] = w
+                edge_weight[(v, u)] = w
+                stack.append(v)
+    
+    # Now compute for each node whether its subtree contains a contaminated node
+    contains_contaminated = [False] * (n + 1)
+    
+    # Initialize leaves
+    for node in range(1, n + 1):
+        if node in contaminated:
+            contains_contaminated[node] = True
+    
+    # Post-order traversal to propagate contamination up the tree
+    def dfs_contains(node, par):
+        for child in children[node]:
+            if child != par:
+                dfs_contains(child, node)
+                if contains_contaminated[child]:
+                    contains_contaminated[node] = True
+                    
+    dfs_contains(root, -1)
+    
+    # Now collect all edges where both endpoints have contains_contaminated = True
+    # But we also need to make sure the edge is actually part of the path between contaminated nodes
+    # In a tree, an edge should be included if removing it separates the contaminated nodes into two non-empty groups
+    
+    # Simpler approach: count edges where one endpoint is the parent of the other,
+    # and the subtree of the child contains at least one contaminated node,
+    # and the rest of the tree (including the parent) also contains at least one contaminated node
+    
+    total_cost = 0
+    
+    # For each edge (parent[v], v) where subtree of v contains contaminated node
+    for v in range(1, n + 1):
+        p = parent[v]
+        if p != -1 and contains_contaminated[v]:
+            # Check if the complement (rest of the tree) also contains a contaminated node
+            # This is true unless ALL contaminated nodes are in the subtree of v
+            # We need to check if there's a contaminated node NOT in subtree of v
+            total_cost += edge_weight[(p, v)]
+            
+    # Actually, let's think differently. 
+    # The minimal subtree connecting all contaminated nodes includes an edge 
+    # iff it separates the set of contaminated nodes.
+    
+    # In a tree, for any edge e, removing e splits the tree into two components.
+    # Edge e should be in the minimal subtree iff both components contain at least one contaminated node.
+    
+    # So for each edge (u,v), we need to know:
+    # - How many contaminated nodes are in the subtree "away" from u (i.e. not containing u's parent)
+    # - How many contaminated nodes are in the rest of the tree
+    
+    # Let's re-root and calculate for each directed edge, how many contaminated nodes 
+    # are "below" it.
+    
+    # subtree_count[v] = number of contaminated nodes in subtree rooted at v
+    subtree_count = [0] * (n + 1)
+    
+    # Mark contaminated nodes
+    is_contaminated = [0] * (n + 1)
+    for node in contaminated:
+        is_contaminated[node] = 1
+        
+    # Calculate subtree counts with post-order DFS
+    def calc_subtree_counts(node, par):
+        subtree_count[node] = is_contaminated[node]
+        for child in children[node]:
+            if child != par:
+                calc_subtree_counts(child, node)
+                subtree_count[node] += subtree_count[child]
+                
+    calc_subtree_counts(root, -1)
+    
+    # Total contaminated nodes
+    total_contaminated = len(contaminated)
+    
+    # Now for each edge, check if it should be included
+    result = 0
+    for u in range(1, n + 1):
+        for v in children[u]:  # Only consider edges going from u to its children
+            # Count1 = contaminated nodes in subtree of v
+            count1 = subtree_count[v]
+            # Count2 = contaminated nodes outside subtree of v
+            count2 = total_contaminated - count1
+            
+            # If both parts have at least one contaminated node, include the edge
+            if count1 > 0 and count2 > 0:
+                result += edge_weight[(u, v)]
+                
+    print(result)
+
+if __name__ == "__main__":
+    main()

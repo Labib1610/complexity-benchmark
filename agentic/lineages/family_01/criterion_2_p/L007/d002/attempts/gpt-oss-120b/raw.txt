@@ -1,242 +1,272 @@
 **Solution Explanation**
 
-For every dampener (edge) `{u,v}` we need  
+For every tower we have to choose a value `f_i ∈ {1,2}`.
+For a critical link `{u,v}` the stability condition is  
 
 ```
-grade[u] + grade[v] = 3 ,   grade[i] ∈ {1,2}
+f_u ^ f_v + f_v ^ f_u = 3
 ```
 
-Therefore the two ends must receive *different* grades, i.e. the graph must be
-**bipartite**.  
-If the graph is bipartite we have two possible colourings for each connected
-component – we may exchange the two colour classes.
-Among all feasible colourings we have to output the lexicographically smallest
-sequence `c1 … cn`.
+(`^` is exponentiation).
 
 --------------------------------------------------------------------
 
-#### 1.   Observations  
+#### 1.   Allowed pairs
 
-* `grade = 1` is smaller than `grade = 2`.  
-  To minimise the whole sequence we want the smallest possible index to obtain
-  grade `1`.  
-* Components are independent: flipping colours inside one component does not
-  influence any other component.
-* Consequently we can decide the orientation of each component **independently**
-  and greedily:
-  *look at the smallest vertex index belonging to the component – give it grade
-  `1`*.
-  This yields the globally lexicographically smallest sequence, because any
-  later decision cannot change an earlier position.
+```
+(1,1) : 1^1 + 1^1 = 2   (invalid)
+(1,2) : 1^2 + 2^1 = 1 + 2 = 3   (valid)
+(2,1) : symmetric, also valid
+(2,2) : 2^2 + 2^2 = 8   (invalid)
+```
+
+So on every critical link the two endpoints must have **different**
+values, i.e. the whole graph has to be *bipartite* and the two colour
+classes correspond to the values `1` and `2`.
 
 --------------------------------------------------------------------
 
-#### 2.   Algorithm  
+#### 2.   Existence test
 
+We run a BFS/DFS over every connected component, colour vertices with
+`0` / `1`.  
+If we ever meet an edge whose ends already have the same colour,
+the component is not bipartite → answer `NO`.
+
+--------------------------------------------------------------------
+
+#### 3.   Lexicographically smallest assignment
+
+For a bipartite component there are exactly two possible assignments:
+
+* colour `0` → value `1`, colour `1` → value `2`
+* colour `0` → value `2`, colour `1` → value `1`
+
+The whole output sequence is compared lexicographically.
+Consider the smallest index `v` that belongs to the component.
+All vertices with index `< v` are already fixed, therefore the decision
+for this component is decided solely by `v` :
+
+*If we give `v` the value `1` the whole sequence becomes smaller,
+and this is always possible by choosing the appropriate orientation.*
+
+Hence the optimal rule is:
+
+```
+for each component:
+        let v = smallest vertex index in the component
+        if colour[v] == 0:   colour 0 → 1, colour 1 → 2
+        else:                colour 1 → 1, colour 0 → 2
+```
+
+Isolated vertices are handled the same way (they become `1`).
+
+--------------------------------------------------------------------
+
+#### 4.   Algorithm
 ```
 read n,m
 build adjacency list
+answer = array of size n (0‑based)
 
-colour[1..n] = -1          # 0 / 1 for the two sides, -1 = unvisited
-answer[1..n] = 0
+visited = [False]*n
+colour  = [0]*n          # 0 / 1 inside a component
 
-for v = 1 .. n:
-    if colour[v] == -1:
-        # start a new component
-        queue = [v]; colour[v] = 0
-        component_vertices = [v]
+for each vertex i = 0 … n-1:
+        if not visited[i]:
+                bfs from i
+                collect all vertices of this component in list comp
+                during bfs check bipartiteness
+                if conflict → print NO and exit
+                min_v = min(comp)
+                if colour[min_v] == 0:
+                        map0 = 1 ; map1 = 2
+                else:
+                        map0 = 2 ; map1 = 1
+                for v in comp:
+                        answer[v] = map0 if colour[v]==0 else map1
 
-        while queue not empty:
-            x = pop queue
-            for each neighbour y of x:
-                if colour[y] == -1:
-                    colour[y] = colour[x] ^ 1
-                    push y to queue
-                    component_vertices.append(y)
-                elif colour[y] == colour[x]:
-                    print "NO" and exit   # not bipartite
-
-        # component is bipartite, decide orientation
-        smallest = min(component_vertices)
-        # if smallest currently has colour 0 we keep mapping 0→1,1→2,
-        # otherwise we flip the mapping
-        flip = (colour[smallest] == 1)
-
-        for u in component_vertices:
-            if flip:
-                answer[u] = 1 if colour[u] == 1 else 2
-            else:
-                answer[u] = 1 if colour[u] == 0 else 2
-
-# all components processed without conflict
-print "YES"
-print answer[1] … answer[n]
+print YES
+print answer (1‑based indices)
 ```
+
+`n, m ≤ 2·10⁵`, BFS/DFS is `O(n+m)` time and `O(n+m)` memory,
+well inside the limits.
 
 --------------------------------------------------------------------
 
-#### 3.   Correctness Proof  
+#### 5.   Correctness Proof  
 
-We prove that the algorithm prints `NO` iff no feasible assignment exists,
-otherwise prints the lexicographically smallest feasible assignment.
+We prove that the algorithm prints `NO` iff no valid assignment exists,
+otherwise prints `YES` and the lexicographically smallest valid
+assignment.
 
 ---
 
 ##### Lemma 1  
-If the algorithm prints `NO`, the input graph is not bipartite, therefore no
-assignment satisfies all edges.
+For any edge `{u,v}` the stability condition holds **iff**
+`f_u ≠ f_v`.
 
-**Proof.** `NO` is printed only when during BFS an edge `{x,y}` with
-`colour[x] == colour[y]` is found. This is exactly the definition of a graph
-that is not bipartite. In any feasible assignment adjacent vertices must have
-different grades, i.e. different colours, so a non‑bipartite graph cannot be
-satisfied. ∎
+*Proof.* Direct computation of the four possible pairs shown in section 1.
+∎
 
 
 
 ##### Lemma 2  
-If the algorithm finishes without printing `NO`, the produced `answer`
-satisfies every edge.
+A configuration satisfying all conditions exists **iff** the graph is
+bipartite.
 
-**Proof.** For each component BFS assigned a proper 2‑colouring
-(`colour` values differ on every edge). Afterwards we possibly flip the whole
-colouring, which still keeps the two colour classes distinct.
-Mapping colour `0 → 1, 1 → 2` (or the flipped version) gives grades `1` and `2`
-that differ on every edge, hence sum `3`. ∎
+*Proof.*  
+*If* the graph is bipartite, colour its two parts with `0` and `1`.  
+Assign value `1` to one part and `2` to the other – by Lemma 1 every edge
+joins different values, condition holds.
+
+*Only‑if*: suppose a configuration exists. By Lemma 1 every edge connects
+different values, therefore vertices with value `1` and with value `2`
+form a bipartition of the graph. ∎
 
 
 
 ##### Lemma 3  
-For a fixed connected component, among the two possible grade assignments the
-algorithm chooses the lexicographically smaller one restricted to the indices
-of that component.
+For a bipartite connected component `C` let `v_min` be its smallest
+index. There exists a valid assignment for `C` with `f_{v_min}=1`.
 
-**Proof.** Let `s` be the smallest vertex index of the component.
-The algorithm forces `grade[s] = 1`. The only other feasible assignment would
-give `grade[s] = 2` (the opposite orientation). Since `1 < 2`, the chosen
-orientation is lexicographically smaller on the component’s index set. ∎
+*Proof.* Take any bipartition (colours `0/1`). If `v_min` already has colour
+`0`, map colour `0 → 1`. Otherwise map colour `1 → 1`. Both mappings are
+valid because they only swap the two values globally inside the component.
+∎
 
 
 
 ##### Lemma 4  
-Let the components be processed in increasing order of their smallest vertex.
-After processing the first `k` components, the partial sequence of the first
-`p` vertices (where `p` is the largest index among those components) is the
-lexicographically smallest possible among all feasible global assignments.
+The algorithm outputs a valid assignment whenever the graph is bipartite.
 
-**Proof.** Induction over `k`.
-
-*Base `k=1`*: By Lemma&nbsp;3 the orientation of the first component is the
-smallest among the two possibilities, therefore the prefix up to its largest
-index is minimal.
-
-*Induction step*: Assume the claim holds after `k-1` components.
-Component `k` contains the smallest index not yet fixed; all earlier indices
-are already at their minimal possible values.
-Choosing the orientation that gives grade `1` to the smallest vertex of this
-component (Lemma&nbsp;3) cannot worsen any earlier position and makes the new
-prefix (up to the largest index of component `k`) minimal. ∎
+*Proof.*  
+During BFS each component is coloured properly, otherwise the algorithm
+stops with `NO`. By Lemma 3 the algorithm chooses a mapping that gives the
+smallest vertex of the component value `1`; all other vertices receive the
+opposite value. By Lemma 1 every edge connects different values, therefore
+all conditions are satisfied. ∎
 
 
 
 ##### Lemma 5  
-The complete sequence `answer` output by the algorithm is the lexicographically
-smallest feasible assignment.
+Among all valid assignments the one produced by the algorithm is
+lexicographically smallest.
 
-**Proof.** After the last component all vertices are processed, so Lemma&nbsp;4
-applies to the whole index set `{1,…,n}`. Hence no other feasible assignment
-has a smaller prefix, i.e. the whole sequence is minimal. ∎
+*Proof.*  
+Consider the vertices in increasing order.
+Let `C` be the component containing the first vertex `i` whose value can
+still differ between two valid assignments.
+All earlier vertices belong to components already fixed by the algorithm,
+hence they have the same values in every optimal assignment.
+
+`i` is the smallest index of `C`. By Lemma 3 there exists a valid
+assignment with `f_i = 1`. The algorithm chooses exactly this orientation,
+so its value at position `i` is `1`, the minimum possible.
+Therefore no other valid assignment can be lexicographically smaller.
+∎
+
+
+
+##### Lemma 6  
+If the algorithm prints `NO` then no valid assignment exists.
+
+*Proof.* The algorithm prints `NO` only when it discovers an edge whose
+endpoints have the same BFS colour, i.e. an odd cycle. Hence the graph is
+not bipartite. By Lemma 2 a valid assignment would imply bipartiteness,
+contradiction. ∎
 
 
 
 ##### Theorem  
-The algorithm outputs  
+The program prints  
 
-* `NO` iff no feasible assignment exists;  
-* otherwise `YES` and the lexicographically smallest feasible assignment.
+* `NO` iff the required configuration does not exist;  
 
-**Proof.**  
-*If part*: By Lemma&nbsp;1, `NO` implies impossibility.  
-*Only‑if part*: If a feasible assignment exists, the graph is bipartite,
-so BFS never encounters a conflict and the algorithm does not print `NO`.  
-By Lemma&nbsp;2 the produced assignment is feasible, and by Lemma&nbsp;5 it is
-the lexicographically smallest one. ∎
+* otherwise `YES` followed by the lexicographically smallest valid
+  configuration.
+
+*Proof.*  
+- If the program prints `NO`, by Lemma 6 no configuration exists.  
+- If the program prints `YES`, the graph is bipartite, and by Lemma 4 the
+  printed assignment is valid. By Lemma 5 it is the lexicographically
+  smallest among all valid assignments. ∎
 
 
-
---------------------------------------------------------------------
-
-#### 4.   Complexity Analysis  
-
-*Building adjacency list*: `O(n + m)` memory and time.  
-*BFS over all components*: each vertex and edge is visited once → `O(n + m)`.  
-*Additional work* (finding minima, filling answer) is linear in the component
-size, overall `O(n)`.
-
-Total time `O(n + m)` ≤ `4·10⁵`, well inside the limits.  
-Memory consumption `O(n + m)` for adjacency list and arrays.
 
 --------------------------------------------------------------------
 
-#### 5.   Reference Implementation  (Python 3)
+#### 6.   Complexity Analysis
+
+*Time* : each vertex and each edge is processed once → `O(n + m)`  
+*Memory*: adjacency list + a few arrays of size `n` → `O(n + m)`
+
+Both satisfy the limits.
+
+--------------------------------------------------------------------
+
+#### 7.   Reference Implementation  (Python 3)
 
 ```python
 import sys
 from collections import deque
 
 def solve() -> None:
-    data = sys.stdin.buffer.read().split()
+    data = sys.stdin.read().strip().split()
     if not data:
         return
     it = iter(data)
     n = int(next(it))
     m = int(next(it))
-
-    adj = [[] for _ in range(n + 1)]
+    adj = [[] for _ in range(n)]
     for _ in range(m):
-        u = int(next(it)); v = int(next(it))
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
         adj[u].append(v)
         adj[v].append(u)
 
-    colour = [-1] * (n + 1)          # 0 / 1
-    answer = [0] * (n + 1)
+    visited = [False] * n
+    colour = [0] * n          # 0 / 1 inside a component
+    ans = [0] * n
 
-    for start in range(1, n + 1):
-        if colour[start] != -1:
+    for start in range(n):
+        if visited[start]:
             continue
-        # BFS for this component
+        # BFS this component
         q = deque([start])
+        visited[start] = True
         colour[start] = 0
         comp = [start]
-
+        ok = True
         while q:
-            x = q.popleft()
-            cx = colour[x]
-            for y in adj[x]:
-                if colour[y] == -1:
-                    colour[y] = cx ^ 1
-                    q.append(y)
-                    comp.append(y)
-                elif colour[y] == cx:
-                    sys.stdout.write("NO")
+            v = q.popleft()
+            for to in adj[v]:
+                if not visited[to]:
+                    visited[to] = True
+                    colour[to] = colour[v] ^ 1
+                    q.append(to)
+                    comp.append(to)
+                elif colour[to] == colour[v]:
+                    # not bipartite
+                    print("NO")
                     return
-
-        # decide orientation: smallest vertex gets grade 1
-        smallest = min(comp)
-        flip = (colour[smallest] == 1)   # need to swap if smallest is colour 1
-        if not flip:
-            for v in comp:
-                answer[v] = 1 if colour[v] == 0 else 2
+        # choose orientation: smallest index gets value 1
+        min_v = min(comp)
+        if colour[min_v] == 0:
+            map0, map1 = 1, 2
         else:
-            for v in comp:
-                answer[v] = 1 if colour[v] == 1 else 2
+            map0, map1 = 2, 1
+        for v in comp:
+            ans[v] = map0 if colour[v] == 0 else map1
 
-    out = ["YES", " ".join(str(answer[i]) for i in range(1, n + 1))]
-    sys.stdout.write("\n".join(out))
+    # all components processed
+    print("YES")
+    print(' '.join(map(str, ans)))
 
 if __name__ == "__main__":
     solve()
 ```
 
-The program follows exactly the algorithm proven correct above and conforms
-to the required input‑output format.
+The program follows exactly the algorithm proven correct above and
+conforms to the required input‑output format.

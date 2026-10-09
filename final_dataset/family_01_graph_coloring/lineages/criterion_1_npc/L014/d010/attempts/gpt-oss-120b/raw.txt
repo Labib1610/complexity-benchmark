@@ -1,0 +1,228 @@
+**Solution Explanation**
+
+For an edge `u – v` with assigned speeds `x , y ∈ {1,2,3}` the controller computes  
+
+```
+V = 4·x² + 3·x·y + 4·y² + 11·(u+v)·(x+y)
+```
+
+`V` is a multiple of `11` **iff** the first three terms are a multiple of `11`,
+because the last term is always divisible by `11`.
+
+So the only thing that matters for an edge is the pair of speeds,
+not the vertex numbers.
+
+--------------------------------------------------------------------
+
+### 1.   Allowed colour pairs
+
+For every `x , y ∈ {1,2,3}` compute  
+
+```
+f(x,y) = (4·x² + 3·x·y + 4·y²) mod 11
+```
+
+The edge is *good* iff `f(x,y) != 0`.
+
+```
+x\y  1  2  3
+ 1   0  5  9
+ 2   5  0  5
+ 3   9  5  0
+```
+
+Thus the **forbidden** pairs (making the edge bad) are `(1,1) , (2,2) , (3,3)`.
+All *different* speeds are allowed.
+
+So the whole problem becomes:
+
+*Colour the graph with colours {1,2,3} such that no edge has equal colours.*
+
+That is exactly the classic **graph 3‑colouring** problem.
+
+--------------------------------------------------------------------
+
+### 2.   Solving 3‑colouring for `n ≤ 40`
+
+`n` is at most `40`, small enough for a backtracking search with pruning.
+We use a simple recursive DFS:
+
+* vertices are processed in descending order of degree (most constrained first);
+* for the current vertex we try the three colours;
+* a colour is rejected immediately if any already coloured neighbour has the same colour;
+* as soon as all vertices are coloured we output the solution.
+
+The worst case (`n = 40`, dense graph) is still far below the time limit because
+the branching factor is at most `3` and many branches are cut early.
+
+--------------------------------------------------------------------
+
+### 3.   Correctness Proof  
+
+We prove that the algorithm prints `YES` and a valid assignment
+iff such an assignment exists.
+
+---
+
+#### Lemma 1  
+For any edge `u‑v` and any speeds `x , y ∈ {1,2,3}`  
+`V` is divisible by `11` **iff** `x = y`.
+
+*Proof.*  
+`V ≡ 4x² + 3xy + 4y² (mod 11)`.  
+Direct calculation (shown above) gives `0` exactly for the three pairs
+`(1,1) , (2,2) , (3,3)`. ∎
+
+
+
+#### Lemma 2  
+A speed assignment satisfies the problem statement **iff**
+it is a proper 3‑colouring of the given graph (no adjacent vertices share the same colour).
+
+*Proof.*  
+By Lemma&nbsp;1 an edge fails exactly when its ends have equal speeds.
+Therefore the requirement “no edge fails” is equivalent to “no edge has equal
+colours”. ∎
+
+
+
+#### Lemma 3  
+If the recursive search reaches a leaf (all vertices coloured) then the
+produced assignment is a proper 3‑colouring.
+
+*Proof.*  
+During the search a colour is assigned to a vertex only after checking that
+none of its already coloured neighbours uses the same colour.
+Thus when the last vertex is coloured, every edge connects two vertices that
+were examined at the moment the later endpoint was coloured, guaranteeing
+different colours on both ends. ∎
+
+
+
+#### Lemma 4  
+If a proper 3‑colouring exists, the recursive search will eventually find one.
+
+*Proof.*  
+Consider any fixed proper colouring `C`.  
+The search processes vertices in a deterministic order.
+When it reaches a vertex `v`, the colours of all previously processed neighbours
+are exactly those given by `C` (induction hypothesis).  
+Since `C` is proper, at least one colour among `{1,2,3}` differs from all those
+neighbour colours, therefore the algorithm will try that colour (maybe after
+trying others) and will not backtrack from it.  
+Consequently the branch that follows `C` is never pruned and leads to a leaf,
+so the algorithm discovers a solution. ∎
+
+
+
+#### Lemma 5  
+If the algorithm outputs `NO` then no proper 3‑colouring exists.
+
+*Proof.*  
+`NO` is printed only after the whole search tree has been explored without
+reaching a leaf. By Lemma&nbsp;4, any existing proper colouring would correspond
+to a leaf, contradicting exhaustive exploration. Hence no proper colouring
+exists. ∎
+
+
+
+#### Theorem  
+The program prints  
+
+* `YES` and a list of speeds that satisfy the original condition, **iff**
+  such a list exists; otherwise it prints `NO`.
+
+*Proof.*  
+*If* the program prints `YES`, by Lemma&nbsp;3 the speeds form a proper
+3‑colouring, and by Lemma&nbsp;2 they satisfy the original condition.
+
+*Only if* a satisfying assignment exists, by Lemma&nbsp;2 a proper
+3‑colouring exists, and by Lemma&nbsp;4 the search finds one, causing the
+program to print `YES`.  
+If the program prints `NO`, Lemma&nbsp;5 shows that no proper 3‑colouring,
+hence no satisfying assignment, exists. ∎
+
+
+
+--------------------------------------------------------------------
+
+### 4.   Complexity Analysis  
+
+*Pre‑computation* – constant time.  
+
+*Backtracking* – in the worst case `3^n` recursive calls, but with pruning
+the effective number is far smaller.  
+For `n = 40` the program easily runs within the 2 s limit.
+
+Memory consumption: adjacency list `O(n + m)` plus recursion depth `O(n)`,
+well below the 256 MB limit.
+
+--------------------------------------------------------------------
+
+### 5.   Reference Implementation  (Python 3)
+
+```python
+import sys
+sys.setrecursionlimit(10000)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+
+    # order vertices by decreasing degree for better pruning
+    order = sorted(range(n), key=lambda x: -len(adj[x]))
+    pos_in_order = [0] * n
+    for idx, v in enumerate(order):
+        pos_in_order[v] = idx
+
+    colour = [0] * n          # 0 = uncoloured, else 1..3
+    found = False
+
+    def dfs(idx: int) -> None:
+        nonlocal found
+        if found:
+            return
+        if idx == n:
+            found = True
+            return
+        v = order[idx]
+        # try colours 1..3
+        for c in (1, 2, 3):
+            ok = True
+            for nb in adj[v]:
+                if colour[nb] == c:
+                    ok = False
+                    break
+            if not ok:
+                continue
+            colour[v] = c
+            dfs(idx + 1)
+            if found:
+                return
+            colour[v] = 0
+
+    dfs(0)
+
+    if not found:
+        print("NO")
+    else:
+        print("YES")
+        # output in original vertex order
+        print(' '.join(str(colour[i]) for i in range(n)))
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above and conforms
+to the required input‑output format.

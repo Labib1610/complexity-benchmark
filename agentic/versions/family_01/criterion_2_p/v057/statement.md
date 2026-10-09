@@ -1,22 +1,23 @@
-# Acoustic Sensor Calibration
+# Orbital Resonance
 
-Time limit: 1 s   Memory limit: 256 MB
+Time limit: 1 s
+Memory limit: 256 MB
 
-The deployment of an acoustic sensor network occurs in three distinct stages. First, $n$ sensors are scattered across a testing field to collect ambient noise data and establish initial telemetry links. 
+The deployment of a deep space communications network is executed in three mandatory phases. 
 
-In the second stage, the central controller must calibrate the network's power distribution. This is the task you must implement. Each sensor must be assigned a power mode, which is strictly restricted to either mode 1 or mode 2. During the initial boot sequence, the system generates $m$ resonance alerts. Each alert specifies a pair of sensors $(u, v)$ that are placed too close to one another. To safely resolve an alert, the controller must ensure that the sum of the power modes assigned to sensors $u$ and $v$ is exactly 3. 
+Phase I (Orbital Insertion and Hazard Mapping) has just concluded. This initial stage confirmed the active status of $n$ relay satellites, numbered 1 through $n$, and successfully mapped $m$ proximity hazards. Each hazard indicates that a specific pair of satellites is physically drifting too close together.
 
-If no valid power mode assignment exists for all sensors that satisfies every alert simultaneously, the calibration fails. Otherwise, multiple valid assignments might exist. Because the final stage requires a deterministic initialization, your software must select the lexicographically smallest sequence of power modes $(p_1, p_2, \dots, p_n)$ out of all valid configurations.
+You are responsible for Phase II (Transmitter Initialization). Each satellite features a dual-band transmitter that must be permanently locked to either operating mode 1 or operating mode 2. If any proximity hazard involves two satellites locked to the exact same mode, a resonance cascade will occur and a system-wide failure will be triggered. You must determine if there is a way to lock the modes for all $n$ satellites such that no hazard involves matching modes.
 
-In the third and final stage, the sensors activate their data processing modules using the assigned power modes and begin transmitting filtered telemetry. You only need to simulate the second stage.
+If Phase II completes successfully, the network advances to Phase III (Telemetry Synchronization). The synchronization protocol requires the full sequence of assigned modes $s_1, s_2, \dots, s_n$ to be fed into the primary diagnostic system. To ensure deterministic diagnostic testing, the system demands that you supply the lexicographically smallest sequence of modes that prevents resonance cascades. If no safe configuration is possible, Phase III is aborted entirely.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$), representing the number of sensors and the number of resonance alerts from the first stage.
-Each of the following $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$), indicating an alert between sensor $u$ and sensor $v$.
+The first line provides two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$), the number of satellites verified in Phase I and the number of mapped proximity hazards.
+Each of the subsequent $m$ lines contains two integers $u$ and $v$ — a proximity hazard between satellite $u$ and satellite $v$.
 
 ## Output
-If the calibration cannot be completed because no valid assignment exists, print a single line containing `NO`.
-Otherwise, print `YES` on the first line. On the second line, print $n$ integers $p_1, p_2, \dots, p_n$ (each either 1 or 2), representing the lexicographically smallest valid power mode sequence.
+If it is impossible to pass Phase II without triggering a failure, output a single line containing `NO`.
+Otherwise, output `YES` on the first line to authorize Phase III. On the second line, output $n$ integers $s_1, \dots, s_n$ (each being either 1 or 2), representing the mode locked for each satellite from 1 to $n$. This sequence must be the lexicographically smallest valid configuration.
 
 ## Example 1
 Input:

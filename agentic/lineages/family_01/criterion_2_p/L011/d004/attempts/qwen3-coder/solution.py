@@ -1,92 +1,93 @@
 import sys
 from collections import defaultdict, deque
 
-def main():
-    import sys
-    input = sys.stdin.read
-    data = input().split()
+def solve():
+    n, m = map(int, sys.stdin.readline().split())
     
-    n = int(data[0])
-    m = int(data[1])
+    if m == 0:
+        # No constraints, all 1s is the lexicographically smallest solution
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
     
     edges = []
-    graph = defaultdict(list)
-    
-    idx = 2
+    adj = [[] for _ in range(n + 1)]
     for _ in range(m):
-        u = int(data[idx]) - 1
-        v = int(data[idx+1]) - 1
-        idx += 2
+        u, v = map(int, sys.stdin.readline().split())
         edges.append((u, v))
-        graph[u].append(v)
-        graph[v].append(u)
+        adj[u].append(v)
+        adj[v].append(u)
     
-    # There are only two functions:
-    # f1: identity (1->1, 2->2)  => x_i = f_i(1) = 1
-    # f2: flip    (1->2, 2->1)  => x_i = f_i(1) = 2
+    # For the interference formula p_u^2 + p_v^2 + p_u * p_v = 7
+    # With p_u, p_v in {1, 2}:
+    # 1,1: 1+1+1=3
+    # 1,2: 1+4+2=7  <-- Valid
+    # 2,1: 4+1+2=7  <-- Valid
+    # 2,2: 4+4+4=12
+    # So only (1,2) and (2,1) pairs are valid.
     
-    # For constraint f_u(f_v(1)) = 2:
-    # If x_v = 1 (f_v is identity), then f_u(1) = 2 => x_u = 2
-    # If x_v = 2 (f_v is flip),    then f_u(2) = 2 => f_u must be identity => x_u = 1
+    # This means the graph must be bipartite, and we need to 2-color it.
+    # We color with 1 and 2.
     
-    # So for each edge (u,v), we have:
-    # x_v = 1 => x_u = 2
-    # x_v = 2 => x_u = 1
-    # This is equivalent to x_u = 3 - x_v
+    colors = [0] * (n + 1)  # 0 means unvisited, 1 and 2 are the two colors
     
-    # This means in each connected component, if we fix one node's value,
-    # all others are determined.
-    
-    # We can model this as a 2-SAT problem or bipartite checking.
-    # Let's use graph coloring: each edge (u,v) requires x_u != x_v
-    # But wait, let's re-examine the constraint.
-    
-    # f_u(f_v(1)) = 2
-    # If f_v(1) = 1, then f_u(1) = 2 => x_u = 2
-    # If f_v(1) = 2, then f_u(2) = 2 => f_u is identity => x_u = 1
-    # So if x_v = 1, then x_u = 2
-    #    if x_v = 2, then x_u = 1
-    # This means x_u = 3 - x_v
-    
-    # So for every edge, the two endpoints must have different x values.
-    # But not just different -- specifically, x_u = 3 - x_v
-    # This is like a bipartite graph with specific assignment.
-    
-    # For each connected component, we can do a BFS/DFS.
-    # Start with a node, assign it 1, then all neighbors must be 2,
-    # their neighbors must be 1, etc.
-    # If we ever try to assign a value different from what it already has, it's impossible.
-    
-    # To get lexicographically smallest, we process nodes in order 0 to n-1
-    # and for each unvisited node, we assign it 1 (to minimize lex order).
-    
-    color = [-1] * n  # -1: unvisited, 1: color 1, 2: color 2
-    visited = [False] * n
-    
-    for i in range(n):
-        if not visited[i]:
-            # Assign color 1 to get lex smallest
+    # Check if the graph is bipartite
+    for start in range(1, n + 1):
+        if colors[start] == 0:
             queue = deque()
-            queue.append(i)
-            color[i] = 1
-            visited[i] = True
+            queue.append(start)
+            colors[start] = 1
             
             while queue:
                 u = queue.popleft()
-                c = color[u]
-                for v in graph[u]:
-                    if not visited[v]:
-                        color[v] = 3 - c
-                        visited[v] = True
+                for v in adj[u]:
+                    if colors[v] == 0:
+                        colors[v] = 3 - colors[u]  # Flip color: 1->2, 2->1
                         queue.append(v)
-                    else:
-                        if color[v] != 3 - c:
-                            print("NO")
-                            return
+                    elif colors[v] == colors[u]:
+                        print("NO")
+                        return
     
-    # If we reach here, a valid assignment exists
-    print("YES")
-    print(' '.join(str(color[i]) for i in range(n)))
+    # The graph is bipartite. Now we need the lex smallest valid coloring.
+    # Since both 1 and 2 are valid "first" colors for the first node,
+    # we try both and pick the lex smaller result.
+    
+    def get_coloring(first_color):
+        col = [0] * (n + 1)
+        queue = deque()
+        queue.append(1)
+        col[1] = first_color
+        
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if col[v] == 0:
+                    col[v] = 3 - col[u]
+                    queue.append(v)
+                elif col[v] != 3 - col[u]:
+                    return None  # Not bipartite or conflict
+        return col
+    
+    # Try coloring node 1 with color 1
+    col1 = get_coloring(1)
+    # Try coloring node 1 with color 2
+    col2 = get_coloring(2)
+    
+    if col1 is None and col2 is None:
+        print("NO")
+        return
+    
+    result = None
+    if col1 is not None:
+        result = col1
+    if col2 is not None:
+        if result is None or tuple(col2[1:]) < tuple(result[1:]):
+            result = col2
+    
+    if result is None:
+        print("NO")
+    else:
+        print("YES")
+        print(" ".join(map(str, result[1:])))
 
-if __name__ == "__main__":
-    main()
+solve()

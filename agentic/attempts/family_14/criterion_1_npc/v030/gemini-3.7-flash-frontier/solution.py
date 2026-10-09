@@ -1,0 +1,89 @@
+import sys
+
+def solve():
+    input = sys.stdin.read
+    data = input().split()
+    if not data:
+        return
+    
+    n = int(data[0])
+    m = int(data[1])
+    t = int(data[2])
+    
+    if t <= 1:
+        print(0)
+        return
+    
+    idx = 3
+    mandated = []
+    for _ in range(t):
+        mandated.append(int(data[idx]) - 1)
+        idx += 1
+        
+    INF = float('inf')
+    dist = [[INF] * n for _ in range(n)]
+    for i in range(n):
+        dist[i][i] = 0
+        
+    for _ in range(m):
+        u = int(data[idx]) - 1
+        v = int(data[idx+1]) - 1
+        w = int(data[idx+2])
+        idx += 3
+        if w < dist[u][v]:
+            dist[u][v] = w
+            dist[v][u] = w
+            
+    # All-pairs shortest paths (Floyd-Warshall)
+    for k in range(n):
+        dk = dist[k]
+        for i in range(n):
+            di = dist[i]
+            dik = di[k]
+            if dik == INF:
+                continue
+            for j in range(n):
+                if di[j] > dik + dk[j]:
+                    di[j] = dik + dk[j]
+                    
+    num_masks = 1 << t
+    dp = [[INF] * n for _ in range(num_masks)]
+    
+    # Base cases for single terminals
+    for i in range(t):
+        mask = 1 << i
+        ti = mandated[i]
+        for u in range(n):
+            dp[mask][u] = dist[ti][u]
+            
+    for mask in range(1, num_masks):
+        # Check if mask is power of 2
+        if (mask & (mask - 1)) != 0:
+            sub = (mask - 1) & mask
+            while sub > (mask ^ sub):
+                sub_comp = mask ^ sub
+                dp_sub = dp[sub]
+                dp_sub_comp = dp[sub_comp]
+                dp_mask = dp[mask]
+                for u in range(n):
+                    val = dp_sub[u] + dp_sub_comp[u]
+                    if val < dp_mask[u]:
+                        dp_mask[u] = val
+                sub = (sub - 1) & mask
+                
+            # Relax using shortest paths
+            dp_mask = dp[mask]
+            temp = list(dp_mask)
+            for u in range(n):
+                min_val = INF
+                for v in range(n):
+                    val = temp[v] + dist[v][u]
+                    if val < min_val:
+                        min_val = val
+                dp_mask[u] = min_val
+
+    ans = min(dp[num_masks - 1])
+    print(ans)
+
+if __name__ == '__main__':
+    solve()

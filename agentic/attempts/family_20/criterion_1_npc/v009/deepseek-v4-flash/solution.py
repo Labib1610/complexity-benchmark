@@ -1,0 +1,185 @@
+import sys
+sys.setrecursionlimit(1000000)
+
+def is_bridge(n, adj, u, v):
+    # Check if edge (u,v) is a bridge by removing it and seeing if u and v remain connected
+    # Use DFS from u avoiding edge (u,v)
+    visited = [False] * (n+1)
+    stack = [u]
+    visited[u] = True
+    while stack:
+        x = stack.pop()
+        for y in adj[x]:
+            if (x == u and y == v) or (x == v and y == u):
+                continue
+            if not visited[y]:
+                visited[y] = True
+                stack.append(y)
+    return not visited[v]
+
+def has_bridge(n, adj, edges):
+    for u, v in edges:
+        if is_bridge(n, adj, u, v):
+            return True
+    return False
+
+# Edmonds' blossom algorithm for maximum matching
+def lca(a, b, match, base, p, used, n):
+    used[a] = True
+    used[b] = True
+    while True:
+        a = base[a]
+        if a == 0:
+            break
+        if used[a]:
+            return a
+        used[a] = True
+        a = p[match[a]]
+    return 0
+
+def mark_path(v, b, children, p, base, match):
+    while base[v] != b:
+        children[base[v]] = True
+        v = p[match[base[v]]]
+        if base[v] != b:
+            children[base[v]] = True
+
+def find_path(root, adj, match, p, base, used, n):
+    used = [False] * (n+1)
+    p = [0] * (n+1)
+    base = list(range(n+1))
+    q = [root]
+    used[root] = True
+    for v in q:
+        for u in adj[v]:
+            if base[v] == base[u] or match[v] == u:
+                continue
+            if u == root or (match[u] != 0 and p[match[u]] != 0):
+                curbase = lca(v, u, match, base, p, used, n)
+                children = [False] * (n+1)
+                mark_path(v, curbase, children, p, base, match)
+                mark_path(u, curbase, children, p, base, match)
+                for i in range(1, n+1):
+                    if children[base[i]]:
+                        base[i] = curbase
+                        if not used[i]:
+                            used[i] = True
+                            q.append(i)
+            elif p[u] == 0:
+                p[u] = v
+                if match[u] == 0:
+                    return u, p
+                u = match[u]
+                used[u] = True
+                q.append(u)
+    return 0, p
+
+def max_matching(n, adj):
+    match = [0] * (n+1)
+    p = [0] * (n+1)
+    base = list(range(n+1))
+    used = [False] * (n+1)
+    for i in range(1, n+1):
+        if match[i] == 0:
+            v, p = find_path(i, adj, match, p, base, used, n)
+            while v:
+                pv = p[v]
+                nv = match[pv]
+                match[v] = pv
+                match[pv] = v
+                v = nv
+    return match
+
+def solve():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    edges = []
+    adj = [[] for _ in range(n+1)]
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        edges.append((u, v))
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # Check if graph is bridgeless
+    if has_bridge(n, adj, edges):
+        print("NO")
+        return
+    
+    # Find perfect matching using Edmonds' blossom
+    match = max_matching(n, adj)
+    # Check if perfect matching found
+    if any(match[i] == 0 for i in range(1, n+1)):
+        print("NO")
+        return
+    
+    # Build matching set
+    matching_edges = set()
+    for i in range(1, n+1):
+        if i < match[i]:
+            matching_edges.add((i, match[i]))
+    
+    # Remove matching edges from adjacency to get 2-regular graph
+    adj2 = [[] for _ in range(n+1)]
+    for u, v in edges:
+        if (u, v) in matching_edges or (v, u) in matching_edges:
+            continue
+        adj2[u].append(v)
+        adj2[v].append(u)
+    
+    # Color cycles alternately with 1 and 2
+    color = [0] * m
+    edge_index = {}
+    for idx, (u, v) in enumerate(edges):
+        edge_index[(u, v)] = idx
+        edge_index[(v, u)] = idx
+    
+    visited = [False] * (n+1)
+    for start in range(1, n+1):
+        if not visited[start] and adj2[start]:
+            # traverse cycle
+            path = []
+            prev = 0
+            cur = start
+            while True:
+                visited[cur] = True
+                path.append(cur)
+                nxt = None
+                for nb in adj2[cur]:
+                    if nb != prev:
+                        nxt = nb
+                        break
+                if nxt is None:
+                    break
+                prev, cur = cur, nxt
+                if cur == start:
+                    break
+            # color edges along path
+            for i in range(len(path)-1):
+                u = path[i]
+                v = path[i+1]
+                idx = edge_index[(u, v)]
+                color[idx] = 1 if i % 2 == 0 else 2
+            # close cycle
+            if len(path) > 2:
+                u = path[-1]
+                v = path[0]
+                idx = edge_index[(u, v)]
+                color[idx] = 1 if (len(path)-1) % 2 == 0 else 2
+    
+    # Color matching edges with 3
+    for u, v in matching_edges:
+        idx = edge_index[(u, v)]
+        color[idx] = 3
+    
+    # Output
+    print("YES")
+    print(" ".join(str(c) for c in color))
+
+if __name__ == "__main__":
+    solve()

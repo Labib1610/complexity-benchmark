@@ -13,17 +13,17 @@ def solve():
 
     color = [0] * n
 
-    def is_safe(node, c):
-        for nei in adj[node]:
-            if color[nei] == c:
-                return False
-        return True
-
     def backtrack(idx):
         if idx == n:
             return True
-        for c in range(1, 4):
-            if is_safe(idx, c):
+        # Try colors 1, 2, 3
+        for c in (1, 2, 3):
+            ok = True
+            for nb in adj[idx]:
+                if color[nb] == c:
+                    ok = False
+                    break
+            if ok:
                 color[idx] = c
                 if backtrack(idx + 1):
                     return True

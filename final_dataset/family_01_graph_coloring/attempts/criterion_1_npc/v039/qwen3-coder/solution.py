@@ -1,0 +1,46 @@
+def solve():
+    import sys
+    from itertools import product
+    
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
+    
+    # Build adjacency list representation of conflicts
+    adj = [[] for _ in range(n + 1)]
+    index = 2
+    for _ in range(m):
+        u = int(data[index])
+        v = int(data[index + 1])
+        adj[u].append(v)
+        adj[v].append(u)
+        index += 2
+    
+    # Try all 3^n possible assignments
+    for assignment in product([1, 2, 3], repeat=n):
+        valid = True
+        # Check each technician's conflicts
+        for i in range(1, n + 1):
+            for neighbor in adj[i]:
+                # If both technicians (i and neighbor) are assigned to the same cycle
+                if assignment[i-1] == assignment[neighbor-1]:
+                    valid = False
+                    break
+            if not valid:
+                break
+        
+        if valid:
+            print("YES")
+            print(" ".join(map(str, assignment)))
+            return
+    
+    print("NO")
+
+solve()

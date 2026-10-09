@@ -1,0 +1,37 @@
+import sys
+
+def solve() -> None:
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    it = iter(data)
+    j = int(next(it))
+    T = int(next(it))
+
+    p1 = []
+    p2 = []
+    sum_in = 0
+    sum_out = 0
+    for _ in range(j):
+        a = int(next(it))
+        b = int(next(it))
+        p1.append(a)
+        p2.append(b)
+        sum_in += a
+        sum_out += b
+
+    if sum_in > T:
+        sys.stdout.write("LOAD 1")
+        return
+    if sum_out > T:
+        sys.stdout.write("LOAD 2")
+        return
+
+    # capacity ok, look for causal violation
+    for idx, (a, b) in enumerate(zip(p1, p2), start=1):
+        if a + b > T:
+            sys.stdout.write(f"JOB {idx}")
+            return
+
+if __name__ == "__main__":
+    solve()

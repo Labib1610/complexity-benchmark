@@ -1,0 +1,52 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.read().strip().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    k = int(next(it))
+
+    adj = [0] * n
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u] |= (1 << v)
+        adj[v] |= (1 << u)
+
+    # Try to find an independent set of size k
+    # We'll use backtracking with pruning
+    chosen = []
+    found = False
+
+    def backtrack(start, chosen_mask, chosen_list):
+        nonlocal found
+        if found:
+            return
+        if len(chosen_list) == k:
+            found = True
+            return
+        # Prune: not enough remaining vertices
+        if n - start < k - len(chosen_list):
+            return
+        for v in range(start, n):
+            # Check if v is not adjacent to any chosen
+            if (adj[v] & chosen_mask) == 0:
+                chosen_list.append(v + 1)
+                backtrack(v + 1, chosen_mask | (1 << v), chosen_list)
+                if found:
+                    return
+                chosen_list.pop()
+
+    backtrack(0, 0, [])
+
+    if found:
+        print("YES")
+        print(" ".join(map(str, chosen)))
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()

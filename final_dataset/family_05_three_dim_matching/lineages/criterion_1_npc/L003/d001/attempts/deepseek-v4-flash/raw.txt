@@ -1,0 +1,423 @@
+<think>
+code.
+</think>
+We need to find a perfect matching in a 3-partite hypergraph where each part has size k, and we need to select exactly k hyperedges (certified configurations) such that each vertex appears exactly once.
+
+Since k ≤ 22, we can use a bitmask DP approach over two of the three dimensions, and check the third.
+
+We can represent the problem as:  
+We need to assign each actuator x to a scanner y and processing unit z, such that (x, y, z) is in the list, and each scanner and processing unit is used exactly once.
+
+We can do DP over actuators:  
+`dp[mask_y]` = set of possible masks for processing units used so far, after processing some actuators.  
+But since k is small, we can do DP over two masks: one for scanners, one for processing units.
+
+We can iterate over actuators, and for each actuator, try all certified configurations for that actuator, and update DP.
+
+We can store the DP as a dictionary mapping `(mask_y, mask_z)` to a list of chosen triples (or just store parent pointers for reconstruction).
+
+Let’s implement:
+
+- Read k, t.
+- Store configurations in a list per actuator: `configs[x]` = list of (y, z).
+- DP: `dp` is a dict: key = (mask_y, mask_z), value = list of triples chosen so far (or we can store parent info).
+- Initialize dp[(0,0)] = [].
+- For each actuator x from 1 to k:
+  - new_dp = {}
+  - For each (mask_y, mask_z), path in dp.items():
+    - For each (y,z) in configs[x]:
+      - if not (mask_y & (1<<(y-1))) and not (mask_z & (1<<(z-1))):
+        - new_mask_y = mask_y | (1<<(y-1))
+        - new_mask_z = mask_z | (1<<(z-1))
+        - new_path = path + [(x,y,z)]
+        - store in new_dp[(new_mask_y, new_mask_z)] = new_path
+  - dp = new_dp
+- After processing all actuators, check if ( (1<<k)-1, (1<<k)-1 ) in dp.
+- If yes, print YES and the path. Else NO.
+
+This is O(k * 2^k * 2^k * avg_configs) which might be too large if k=22 (2^22 = 4M, squared is huge). But we can optimize: we only need to track masks for y and z, and we process actuators one by one. The number of states is at most 2^k * 2^k = 2^(2k) = 2^44, which is too large.
+
+We need a better approach.
+
+We can use a matching algorithm for 3-partite hypergraph with small k. Since k ≤ 22, we can use a backtracking with pruning, or use a flow-based approach.
+
+Actually, we can reduce to a bipartite matching problem:  
+We need to assign each actuator to a (scanner, processing unit) pair. That is a matching in a bipartite graph where left side = actuators (size k), right side = all possible (y,z) pairs (size k^2). But we also need each scanner and each processing unit used exactly once. That is a 3D matching problem, which is NP-hard in general, but k is small (22), so we can use backtracking with bitmasks.
+
+We can do recursive search:  
+- Maintain masks for used scanners and processing units.
+- For each actuator in order, try all certified configurations for that actuator that don't conflict.
+- If we reach the end and all masks are full, we have a solution.
+
+Worst-case branching could be large, but with k=22 and t up to k^3 = 10648, we need pruning. We can use bitmask DP with memoization: state = (index of actuator, mask_y, mask_z). But that's still 22 * 2^22 * 2^22 = huge.
+
+We can instead do DP over scanners and processing units, but we need to assign actuators. Since k is small, we can use a recursive backtracking with bitmasks and memoization on (mask_y, mask_z) only, because the number of actuators processed is determined by the number of bits set in mask_y (or mask_z). Actually, we process actuators in order, so the index is just the count of bits set in mask_y (or mask_z). So we can memoize on (mask_y, mask_z) only.
+
+State: (mask_y, mask_z) → whether we can complete from here.  
+We start with (0,0). At each step, we choose the next actuator index = number of bits set in mask_y (or mask_z). Then try all configurations for that actuator.
+
+This reduces states to at most 2^k * 2^k = 2^44, still too large. But we can prune: we only need to consider states where the number of bits in mask_y equals number of bits in mask_z (since each actuator uses one scanner and one processing unit). So the number of states is sum_{i=0}^k C(k,i)^2, which for k=22 is about C(22,11)^2 ≈ 705432^2 ≈ 5e11, still too large.
+
+We need a better approach.
+
+We can use a maximum matching algorithm on a bipartite graph between actuators and (scanner, processing unit) pairs, but we also need to ensure each scanner and each processing unit used exactly once. That's a 3D matching, which is NP-hard, but k=22 is small enough for a backtracking with strong pruning.
+
+We can use a recursive search with bitmasks and ordering heuristics (choose actuator with fewest options first). Since k ≤ 22, the search space might be manageable with good pruning.
+
+Let's implement a backtracking:
+
+- Precompute for each actuator the list of (y,z) options.
+- Use bitmasks for used scanners and processing units.
+- Use recursion: at each step, pick an unused actuator (or process in order), try all its options that don't conflict.
+- If we reach a state where all actuators are assigned, check if all scanners and processing units are used (they will be if we assign exactly k and each uses distinct y and z, but we must ensure we don't reuse y or z).
+
+We can also add a check: if at any point the number of remaining actuators is less than the number of unused scanners or unused processing units, prune.
+
+We can also use a heuristic: choose the actuator with the fewest available options at each step.
+
+Let's implement this backtracking with memoization on (mask_y, mask_z) and the set of remaining actuators? That's too large. But we can process actuators in a fixed order (e.g., by index) and memoize on (mask_y, mask_z) only, because the set of remaining actuators is determined by the number of bits set in mask_y (or mask_z) if we process in order. Actually, if we process actuators in order 0..k-1, then the next actuator index = popcount(mask_y). So state = (mask_y, mask_z) is enough.
+
+But the number of states is still large. However, with pruning and the fact that t is limited, it might be okay for k=22? Let's estimate: worst-case t = k^3 = 10648, but the number of reachable states might be much smaller because we only consider valid assignments.
+
+We can also use a bipartite matching approach:  
+We can model as a flow problem:  
+- Source → each actuator (capacity 1)
+- Actuator → (y,z) pair if certified (capacity 1)
+- (y,z) pair → scanner y (capacity 1) and → processing unit z (capacity 1)
+- Scanner y → sink (capacity 1)
+- Processing unit z → sink (capacity 1)
+
+But this is a flow with intermediate nodes (y,z) pairs, and we need each scanner and processing unit to have flow exactly 1. This is a bipartite matching between actuators and (y,z) pairs, but with additional constraints that each y and each z appears exactly once. This is a 3D matching, which is NP-hard, but we can solve with backtracking.
+
+Given k ≤ 22, we can use a recursive search with bitmask and pruning. Let's implement that.
+
+We'll also use a heuristic: at each step, pick the actuator with the fewest available options (most constrained). This often works well.
+
+Let's code:
+
+```python
+import sys
+
+def solve():
+    input = sys.stdin.readline
+    k, t = map(int, input().split())
+    configs = [[] for _ in range(k)]
+    for _ in range(t):
+        x, y, z = map(int, input().split())
+        configs[x-1].append((y-1, z-1))
+    
+    # Precompute for each actuator the list of options
+    # We'll use bitmasks for y and z
+    
+    full_mask = (1 << k) - 1
+    
+    # Memoization: (mask_y, mask_z) -> bool (whether can complete)
+    memo = {}
+    # To reconstruct, we can store the choice made at each state
+    choice = {}
+    
+    # We'll process actuators in order of index, but we can also reorder for pruning.
+    # Let's first try a simple recursive with order 0..k-1.
+    
+    def dfs(mask_y, mask_z):
+        # number of actuators processed = popcount(mask_y) (should equal popcount(mask_z))
+        idx = bin(mask_y).count('1')
+        if idx == k:
+            return mask_y == full_mask and mask_z == full_mask
+        if (mask_y, mask_z) in memo:
+            return memo[(mask_y, mask_z)]
+        # Try all options for actuator idx
+        for y, z in configs[idx]:
+            if not (mask_y & (1 << y)) and not (mask_z & (1 << z)):
+                if dfs(mask_y | (1 << y), mask_z | (1 << z)):
+                    choice[(mask_y, mask_z)] = (y, z)
+                    memo[(mask_y, mask_z)] = True
+                    return True
+        memo[(mask_y, mask_z)] = False
+        return False
+    
+    if dfs(0, 0):
+        # Reconstruct
+        result = []
+        mask_y, mask_z = 0, 0
+        while mask_y != full_mask:
+            idx = bin(mask_y).count('1')
+            y, z = choice[(mask_y, mask_z)]
+            result.append((idx+1, y+1, z+1))
+            mask_y |= (1 << y)
+            mask_z |= (1 << z)
+        print("YES")
+        for x, y, z in result:
+            print(x, y, z)
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()
+```
+
+But this might be too slow for k=22 if the search space is large. We can improve by ordering actuators by fewest options first. Let's implement a more sophisticated backtracking with dynamic ordering.
+
+We'll maintain a list of remaining actuators, and at each step choose the one with the fewest available options given current masks.
+
+We'll also use memoization on (mask_y, mask_z) but the set of remaining actuators is not determined by masks alone if we reorder. So we need to include the set of remaining actuators in the state, which is too large.
+
+Alternative: We can use a bipartite matching approach with a twist:  
+We can treat it as a perfect matching in a bipartite graph between actuators and (y,z) pairs, but we also need each y and z used exactly once. This is equivalent to finding a perfect matching in a 3-partite hypergraph, which is NP-hard, but k=22 is small enough for a backtracking with pruning.
+
+We can use a recursive search with bitmask for y and z, and process actuators in a fixed order (0..k-1). The memoization on (mask_y, mask_z) is valid because the next actuator index is determined by popcount(mask_y). This is correct because we always process actuators in increasing index order. The number of states is at most 2^k * 2^k, but with pruning it might be okay for k=22? Let's estimate worst-case: if t is large, many states might be reachable. But 2^44 is impossible. However, the number of states where popcount(mask_y) == popcount(mask_z) is sum_{i=0}^k C(k,i)^2 ≈ C(2k,k) ≈ 5e11 for k=22, still too large.
+
+We need a better algorithm.
+
+We can use a maximum matching algorithm on a bipartite graph between actuators and (y,z) pairs, and then check if the matching uses each y and z exactly once. But that's not guaranteed.
+
+Actually, we can reduce to a bipartite matching problem with two stages:  
+First, match actuators to scanners (bipartite matching). Then, for each actuator-scanner pair, we need to assign a processing unit such that each processing unit used once. This is like a bipartite matching between (actuator, scanner) pairs and processing units. But the set of (actuator, scanner) pairs is determined by the first matching. This is a 3D matching, still NP-hard.
+
+Given k ≤ 22, we can use a backtracking with bitmask and pruning, but we need to make it fast enough. We can use a heuristic: at each step, choose the actuator with the fewest available options. This often reduces branching significantly.
+
+We can implement a recursive function that takes:
+- mask_y, mask_z
+- list of remaining actuators (as a bitmask of actuators)
+
+But that state is too large. However, we can use a different approach: we can use a recursive search that picks an unused scanner or processing unit with the fewest options, and tries to assign it to an actuator.
+
+Let's think: We need to assign each actuator to a (y,z) pair. We can view it as a constraint satisfaction problem. We can use a backtracking that picks the variable (actuator) with the smallest domain (fewest possible (y,z) pairs given current masks). This is a common heuristic.
+
+We'll implement:
+
+- Precompute for each actuator the list of (y,z) options.
+- Use bitmasks for used y and z.
+- Use a recursive function that takes:
+  - mask_y, mask_z
+  - remaining_actuators (bitmask)
+- At each step, choose the actuator with the fewest available options (count of (y,z) in its list that don't conflict with mask_y, mask_z).
+- Try each option, recurse.
+
+We can also add memoization on (mask_y, mask_z, remaining_actuators) but that's too large. However, we can use memoization on (mask_y, mask_z) only if we process actuators in a fixed order, but then we lose the heuristic. We can combine: we can process actuators in a fixed order but with a heuristic to choose the next actuator among the remaining ones, and memoize on (mask_y, mask_z, remaining_actuators) but that's too large.
+
+Given k=22, the number of possible remaining_actuators masks is 2^22 = 4M, and mask_y and mask_z each 4M, product is huge. So memoization is not feasible.
+
+We need a different approach.
+
+We can use a maximum matching algorithm on a bipartite graph between actuators and (y,z) pairs, and then check if the matching uses each y and z exactly once. But we can formulate it as a flow problem with lower bounds? Actually, we can model as a bipartite matching between actuators and (y,z) pairs, and then we need to ensure that each y and each z appears exactly once. This is a 3D matching, which is NP-hard, but k=22 is small enough for a backtracking with pruning.
+
+Let's implement a backtracking with the following optimizations:
+
+1. Precompute for each actuator the list of (y,z) options.
+2. Use bitmasks for y and z.
+3. At each step, choose the actuator with the fewest available options.
+4. Use forward checking: if any remaining actuator has zero options, prune.
+5. Use a heuristic: if the number of remaining actuators is less than the number of unused y or unused z, prune.
+
+We'll also use a recursive function that takes:
+- mask_y, mask_z
+- remaining_actuators (bitmask)
+
+We'll not memoize because state space is too large, but with pruning it might be okay for k=22.
+
+Let's implement this.
+
+We'll also precompute for each actuator the list of (y,z) as bitmask pairs? We can store as list of (y,z) indices.
+
+Let's code:
+
+```python
+import sys
+
+def solve():
+    input = sys.stdin.readline
+    k, t = map(int, input().split())
+    configs = [[] for _ in range(k)]
+    for _ in range(t):
+        x, y, z = map(int, input().split())
+        configs[x-1].append((y-1, z-1))
+    
+    full_mask = (1 << k) - 1
+    
+    # Precompute for each actuator the list of (y,z) as bitmask pairs? Not needed.
+    
+    # We'll use a recursive backtracking with dynamic ordering.
+    
+    # To speed up, we can precompute for each actuator the list of (y,z) as (1<<y, 1<<z)
+    options = []
+    for i in range(k):
+        opts = []
+        for y, z in configs[i]:
+            opts.append((1 << y, 1 << z))
+        options.append(opts)
+    
+    # We'll store the solution path
+    solution = []
+    
+    def backtrack(mask_y, mask_z, remaining):
+        if remaining == 0:
+            return mask_y == full_mask and mask_z == full_mask
+        
+        # Choose the actuator with fewest available options
+        best_idx = -1
+        best_count = k+1
+        best_opts = None
+        # Iterate over remaining actuators
+        rem = remaining
+        while rem:
+            # get lowest set bit
+            lsb = rem & -rem
+            idx = (lsb.bit_length() - 1)
+            rem ^= lsb
+            # count available options
+            cnt = 0
+            opts = []
+            for y_mask, z_mask in options[idx]:
+                if not (mask_y & y_mask) and not (mask_z & z_mask):
+                    cnt += 1
+                    opts.append((y_mask, z_mask))
+            if cnt == 0:
+                return False
+            if cnt < best_count:
+                best_count = cnt
+                best_idx = idx
+                best_opts = opts
+                if cnt == 1:
+                    break  # can't do better
+        
+        # Try each option for best_idx
+        for y_mask, z_mask in best_opts:
+            # Add to solution
+            solution.append((best_idx, y_mask, z_mask))
+            if backtrack(mask_y | y_mask, mask_z | z_mask, remaining ^ (1 << best_idx)):
+                return True
+            solution.pop()
+        return False
+    
+    if backtrack(0, 0, full_mask):
+        print("YES")
+        for idx, y_mask, z_mask in solution:
+            y = (y_mask.bit_length() - 1) + 1
+            z = (z_mask.bit_length() - 1) + 1
+            print(idx+1, y, z)
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()
+```
+
+This should work for k=22 with pruning. The worst-case might still be exponential, but with the heuristic of choosing the most constrained actuator, it should be fast enough for the given constraints (t ≤ k^3 = 10648, k ≤ 22).
+
+Let's test with the examples.
+
+Example 1:
+k=2, t=3
+configs: (1,1,1), (1,2,2), (2,2,2)
+Options:
+0: [(1<<0,1<<0), (1<<1,1<<1)] -> (1,1) and (2,2)
+1: [(1<<1,1<<1)] -> (2,2)
+Backtrack:
+remaining = 11 (both)
+Choose actuator with fewest options: actuator 1 has 1 option (2,2), actuator 0 has 2. So pick actuator 1, try (2,2). mask_y=2, mask_z=2, remaining=01.
+Now remaining actuator 0, options: (1,1) available, (2,2) not. So pick (1,1). Done. Solution: (1,1,1) and (2,2,2). Output YES.
+
+Example 2:
+k=2, t=2
+configs: (1,1,1), (2,1,2)
+Options:
+0: [(1,1)]
+1: [(1,2)]
+Backtrack:
+remaining=11
+Actuator 0 has 1 option (1,1), actuator 1 has 1 option (1,2). Pick actuator 0, try (1,1). mask_y=1, mask_z=1, remaining=10.
+Now actuator 1, options: (1,2) but y=1 already used, so no options -> return False. Backtrack, no other options for actuator 0. So NO.
+
+Example 3:
+k=1, t=1
+configs: (1,1,1)
+Options: [(1,1)]
+Backtrack: pick actuator 0, try (1,1), remaining=0, mask_y=1, mask_z=1, full -> YES.
+
+Works.
+
+Now, we need to ensure the output format: print YES then k lines. The order doesn't matter.
+
+Let's also consider performance: For k=22, the recursion depth is at most 22, and branching is limited by the heuristic. Should be fine.
+
+One more optimization: we can precompute for each actuator the list of (y,z) as bitmask pairs, and also precompute for each actuator the list of y masks and z masks separately for faster counting? Not necessary.
+
+We'll also add a quick check: if any actuator has no options, print NO immediately.
+
+Let's finalize the```python
+import sys
+
+def solve():
+    input = sys.stdin.readline
+    k, t = map(int, input().split())
+    configs = [[] for _ in range(k)]
+    for _ in range(t):
+        x, y, z = map(int, input().split())
+        configs[x - 1].append((y - 1, z - 1))
+
+    full_mask = (1 << k) - 1
+
+    # Convert options to bitmasks for fast conflict checking
+    options = []
+    for i in range(k):
+        opts = []
+        for y, z in configs[i]:
+            opts.append((1 << y, 1 << z))
+        if not opts:
+            print("NO")
+            return
+        options.append(opts)
+
+    solution = []
+
+    def backtrack(mask_y, mask_z, remaining):
+        if remaining == 0:
+            return mask_y == full_mask and mask_z == full_mask
+
+        # Choose the actuator with the fewest available options
+        best_idx = -1
+        best_count = k + 1
+        best_opts = None
+
+        rem = remaining
+        while rem:
+            lsb = rem & -rem
+            idx = (lsb.bit_length() - 1)
+            rem ^= lsb
+
+            cnt = 0
+            opts = []
+            for y_mask, z_mask in options[idx]:
+                if not (mask_y & y_mask) and not (mask_z & z_mask):
+                    cnt += 1
+                    opts.append((y_mask, z_mask))
+            if cnt == 0:
+                return False
+            if cnt < best_count:
+                best_count = cnt
+                best_idx = idx
+                best_opts = opts
+                if cnt == 1:
+                    break
+
+        for y_mask, z_mask in best_opts:
+            solution.append((best_idx, y_mask, z_mask))
+            if backtrack(mask_y | y_mask, mask_z | z_mask, remaining ^ (1 << best_idx)):
+                return True
+            solution.pop()
+        return False
+
+    if backtrack(0, 0, full_mask):
+        print("YES")
+        for idx, y_mask, z_mask in solution:
+            y = (y_mask.bit_length() - 1) + 1
+            z = (z_mask.bit_length() - 1) + 1
+            print(idx + 1, y, z)
+    else:
+        print("NO")
+
+
+if __name__ == "__main__":
+    solve()
+```

@@ -1,0 +1,211 @@
+import sys
+
+sys.setrecursionlimit(10000)
+
+data = list(map(int, sys.stdin.buffer.read().split()))
+if not data:
+    sys.exit()
+
+n, m = data[0], data[1]
+adj = [0] * n
+idx = 2
+
+for _ in range(m):
+    u = data[idx] - 1
+    v = data[idx + 1] - 1
+    idx += 2
+    if u != v:
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+
+ALL_COLORS = 0b111
+color = [-1] * n
+available = [ALL_COLORS] * n
+
+root = max(range(n), key=lambda v: adj[v].bit_count())
+color[root] = 0
+active_initial = ((1 << n) - 1) ^ (1 << root)
+
+neighbors = adj[root] & active_initial
+while neighbors:
+    bit = neighbors & -neighbors
+    u = bit.bit_length() - 1
+    available[u] &= 0b110
+    neighbors ^= bit
+
+
+def restore_peeled(peeled):
+    for v in reversed(peeled):
+        used = 0
+        nb = adj[v]
+        while nb:
+            bit = nb & -nb
+            u = bit.bit_length() - 1
+            if color[u] != -1:
+                used |= 1 << color[u]
+            nb ^= bit
+
+        choices = ALL_COLORS & ~used
+        if choices == 0:
+            return False
+        chosen = choices & -choices
+        color[v] = chosen.bit_length() - 1
+    return True
+
+
+def solve(active):
+    peeled = []
+
+    while True:
+        changed = False
+        bits = active
+
+        while bits:
+            bit = bits & -bits
+            v = bit.bit_length() - 1
+            bits ^= bit
+
+            cnt = available[v].bit_count()
+            if cnt == 0:
+                return False
+
+            degree = (adj[v] & active).bit_count()
+            if cnt > degree:
+                active ^= bit
+                peeled.append(v)
+                changed = True
+
+        if not changed:
+            break
+
+    if active == 0:
+        return restore_peeled(peeled)
+
+    # Split independent active components to avoid multiplying their searches.
+    start = active & -active
+    component = 0
+    frontier = start
+    while frontier:
+        component |= frontier
+        expansion = 0
+        f = frontier
+        while f:
+            bit = f & -f
+            v = bit.bit_length() - 1
+            expansion |= adj[v]
+            f ^= bit
+        frontier = expansion & active & ~component
+
+    if component != active:
+        saved_color = color.copy()
+        saved_available = available.copy()
+
+        remaining = active
+        while remaining:
+            start = remaining & -remaining
+            comp = 0
+            frontier = start
+            while frontier:
+                comp |= frontier
+                expansion = 0
+                f = frontier
+                while f:
+                    bit = f & -f
+                    v = bit.bit_length() - 1
+                    expansion |= adj[v]
+                    f ^= bit
+                frontier = expansion & remaining & ~comp
+
+            if not solve(comp):
+                color[:] = saved_color
+                available[:] = saved_available
+                return False
+            remaining &= ~comp
+
+        if not restore_peeled(peeled):
+            color[:] = saved_color
+            available[:] = saved_available
+            return False
+        return True
+
+    # DSATUR-style choice: fewest available colors, then largest active degree.
+    chosen_v = -1
+    best_key = None
+    bits = active
+    while bits:
+        bit = bits & -bits
+        v = bit.bit_length() - 1
+        bits ^= bit
+        key = (available[v].bit_count(), -(adj[v] & active).bit_count())
+        if best_key is None or key < best_key:
+            best_key = key
+            chosen_v = v
+
+    used_colors = 0
+    for c in color:
+        if c != -1:
+            used_colors |= 1 << c
+
+    first_unused = -1
+    for c in range(3):
+        if not (used_colors & (1 << c)):
+            first_unused = c
+            break
+
+    candidates = []
+    mask = available[chosen_v]
+    for c in range(3):
+        bit = 1 << c
+        if mask & bit:
+            if used_colors & bit or c == first_unused:
+                impact = (adj[chosen_v] & active)
+                score = 0
+                while impact:
+                    b = impact & -impact
+                    u = b.bit_length() - 1
+                    if available[u] & bit:
+                        score += 1
+                    impact ^= b
+                candidates.append((score, c))
+
+    candidates.sort()
+
+    remaining_active = active ^ (1 << chosen_v)
+
+    for _, c in candidates:
+        color[chosen_v] = c
+        changed_masks = []
+        valid = True
+        remove_bit = 1 << c
+
+        nb = adj[chosen_v] & remaining_active
+        while nb:
+            bit = nb & -nb
+            u = bit.bit_length() - 1
+            nb ^= bit
+
+            old = available[u]
+            new = old & ~remove_bit
+            if new != old:
+                changed_masks.append((u, old))
+                available[u] = new
+                if new == 0:
+                    valid = False
+                    break
+
+        if valid and solve(remaining_active):
+            if restore_peeled(peeled):
+                return True
+
+        for u, old in reversed(changed_masks):
+            available[u] = old
+        color[chosen_v] = -1
+
+    return False
+
+
+if solve(active_initial):
+    print("YES")
+    print(*(c + 1 for c in color))
+else:
+    print("NO")

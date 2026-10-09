@@ -1,54 +1,42 @@
 import sys
 
 def solve():
-    input = sys.stdin.readline
-    n, m = map(int, input().split())
-    adj = [0] * n
+    input_data = sys.stdin.read().strip().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [[] for _ in range(n)]
     for _ in range(m):
-        u, v = map(int, input().split())
-        u -= 1
-        v -= 1
-        adj[u] |= (1 << v)
-        adj[v] |= (1 << u)
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u].append(v)
+        adj[v].append(u)
     
-    color = [0] * n
+    colors = [0] * n
     
-    # Precompute forbidden mask for each node for each color
-    # forbidden[node][color] = bitmask of neighbors already assigned that color
-    forbidden = [[0]*4 for _ in range(n)]
+    def is_safe(v, c):
+        for u in adj[v]:
+            if colors[u] == c:
+                return False
+        return True
     
-    def backtrack(idx):
-        if idx == n:
+    def backtrack(v):
+        if v == n:
             return True
-        for c in (1, 2, 3):
-            # Check if any neighbor already has color c
-            if forbidden[idx][c] & (1 << idx):
-                continue
-            # Check if any neighbor already assigned c conflicts
-            conflict = False
-            for nb in range(n):
-                if (adj[idx] >> nb) & 1 and color[nb] == c:
-                    conflict = True
-                    break
-            if conflict:
-                continue
-            color[idx] = c
-            # Update forbidden for neighbors
-            for nb in range(n):
-                if (adj[idx] >> nb) & 1:
-                    forbidden[nb][c] |= (1 << idx)
-            if backtrack(idx + 1):
-                return True
-            # Backtrack
-            for nb in range(n):
-                if (adj[idx] >> nb) & 1:
-                    forbidden[nb][c] &= ~(1 << idx)
-            color[idx] = 0
+        for c in range(1, 4):
+            if is_safe(v, c):
+                colors[v] = c
+                if backtrack(v + 1):
+                    return True
+                colors[v] = 0
         return False
     
     if backtrack(0):
         print("YES")
-        print(" ".join(map(str, color)))
+        print(" ".join(str(c) for c in colors))
     else:
         print("NO")
 

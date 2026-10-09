@@ -1,61 +1,68 @@
 import sys
 from collections import defaultdict, deque
 
-def solve():
+def main():
     import sys
     sys.setrecursionlimit(1 << 25)
     
-    input = sys.stdin.read
-    data = input().split()
-    
-    n = int(data[0])
-    m = int(data[1])
+    n, m = map(int, sys.stdin.readline().split())
     
     if m == 0:
         print("YES")
         print(" ".join(["1"] * n))
         return
     
-    graph = defaultdict(list)
-    index = 2
+    # Build adjacency list
+    adj = defaultdict(list)
     for _ in range(m):
-        u = int(data[index]) - 1
-        v = int(data[index+1]) - 1
-        graph[u].append(v)
-        graph[v].append(u)
-        index += 2
-        
-    color = [-1] * n
+        u, v = map(int, sys.stdin.readline().split())
+        adj[u].append(v)
+        adj[v].append(u)
     
+    # Color array: 0 = unvisited, 1 = color 1, 2 = color 2
+    color = [0] * (n + 1)
+    
+    # Check if bipartite using BFS
     def bfs(start):
         queue = deque()
         queue.append(start)
-        color[start] = 0
+        color[start] = 1
         while queue:
-            node = queue.popleft()
-            current_color = color[node]
-            next_color = 1 - current_color
-            for neighbor in graph[node]:
-                if color[neighbor] == -1:
-                    color[neighbor] = next_color
-                    queue.append(neighbor)
-                elif color[neighbor] == current_color:
+            u = queue.popleft()
+            current_color = color[u]
+            next_color = 2 if current_color == 1 else 1
+            for v in adj[u]:
+                if color[v] == 0:
+                    color[v] = next_color
+                    queue.append(v)
+                elif color[v] == current_color:
                     return False
         return True
     
-    for i in range(n):
-        if color[i] == -1:
+    # Process each connected component
+    for i in range(1, n + 1):
+        if color[i] == 0:
             if not bfs(i):
                 print("NO")
                 return
-                
+    
     print("YES")
-    result = []
-    for i in range(n):
-        if color[i] == 0:
-            result.append("1")
-        else:
-            result.append("2")
-    print(" ".join(result))
+    # For lexicographically smallest, we want s[1] = 1 if possible.
+    # Since we can flip colors in each component independently,
+    # we ensure node 1 gets color 1 by flipping the entire component if needed.
+    if n >= 1:
+        # Find component of node 1 and ensure it's colored 1
+        # We'll do this by re-coloring appropriately during output construction
+        # Actually, let's just re-assign colors to make node 1 have color 1
+        if color[1] == 2:
+            # Flip all colors
+            for i in range(1, n + 1):
+                if color[i] == 1:
+                    color[i] = 2
+                elif color[i] == 2:
+                    color[i] = 1
+        
+        print(" ".join(str(color[i]) for i in range(1, n + 1)))
 
-solve()
+if __name__ == "__main__":
+    main()

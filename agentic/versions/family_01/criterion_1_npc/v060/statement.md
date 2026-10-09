@@ -1,23 +1,22 @@
-# Problem A — Asset Portfolio Allocation
+# Artifact Curation
 
-Time limit: 2 s
-Memory limit: 256 MB
+Time limit: 2 s   Memory limit: 256 MB
 
-A wealth management firm is structuring a new portfolio consisting of $n$ distinct financial assets. To distribute risk, every asset must be allocated to exactly one of three available investment vehicles, designated as Fund 1, Fund 2, and Fund 3.
+You are organizing a special exhibition for a museum featuring a collection of rare historical artifacts. The museum has designated exactly three separate climate-controlled display halls (labeled 1, 2, and 3) to house this collection. 
 
-Due to strict antitrust regulations and sector exposure limits, certain pairs of assets cannot be held within the same fund. If two such restricted assets are placed together, the firm will face compliance violations. You must distribute all $n$ assets among the three funds such that no compliance violations occur.
+Before the exhibition opens, the conservation team conducted a chemical analysis of the artifacts. They discovered that certain pairs of items emit trace gases that will degrade each other over time if they share the same enclosed airspace. To prevent irreversible damage, you must ensure that no two reactive artifacts are placed in the same display hall. 
 
-The firm's automated auditing software requires the allocation to be deterministic. Specifically, among all valid allocations, the system mandates the one where the sequence of fund numbers assigned to assets $1, 2, \dots, n$ is lexicographically smallest. This means the system prioritizes placing asset 1 into the lowest-numbered fund possible, then asset 2 into the lowest-numbered fund possible, and so forth, while still maintaining complete regulatory compliance.
+Every artifact must be assigned to exactly one of the three halls. If the conservation constraints make it impossible to display the entire collection safely across the three halls, the exhibition plans must be canceled. 
 
-If it is impossible to allocate the assets without triggering a violation, the portfolio proposal must be rejected.
+Your task is to determine a safe placement for all the artifacts. If a safe arrangement exists, you must provide one. Otherwise, report that the collection cannot be displayed under these conditions.
 
 ## Input
-The first line provides two integers $n$ and $m$ — the total number of assets and the number of regulatory restrictions ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
-The following $m$ lines each contain two integers $u$ and $v$ — a pair of assets that are prohibited from being allocated to the same fund.
+The first line contains two integers $n$ and $m$ — the number of artifacts and the number of reactive pairs ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$). The artifacts are numbered from $1$ to $n$.
+Each of the next $m$ lines contains two integers $u$ and $v$ — a pair of artifacts that are reactive.
 
 ## Output
-If no compliant allocation strategy exists, output `NO` on a single line.
-Otherwise, output `YES` on the first line. On the second line, provide a sequence of $n$ integers $f_1, f_2, \dots, f_n$ (where each $f_i \in \{1, 2, 3\}$), representing the fund assigned to each asset $i$. This sequence must be the lexicographically smallest valid allocation.
+If there is no way to assign the artifacts to the display halls without causing a reaction, print a single line containing `NO`.
+Otherwise, print `YES` on the first line. On the second line, print $n$ integers $h_1, h_2, \dots, h_n$ (each in {1, 2, 3}), where $h_i$ is the display hall assigned to artifact $i$. If there are multiple safe assignments, any safe assignment is accepted.
 
 ## Example 1
 Input:

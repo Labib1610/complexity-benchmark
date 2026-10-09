@@ -1,41 +1,41 @@
+import sys
+from collections import defaultdict
+
 def solve():
     n, m = map(int, input().split())
     
-    # Create adjacency list to represent conflicts
-    conflicts = [[] for _ in range(n + 1)]
+    # Build adjacency list
+    adj = defaultdict(set)
     for _ in range(m):
         u, v = map(int, input().split())
-        conflicts[u].append(v)
-        conflicts[v].append(u)
+        adj[u].add(v)
+        adj[v].add(u)
     
-    # Try all possible assignments with backtracking
-    assignment = [0] * (n + 1)  # assignment[i] represents the storage unit for specimen i
+    # Try to 3-color the graph using backtracking
+    color = [0] * (n + 1)  # color[i] represents the environment for sample i
     
-    def is_valid(specimen, unit):
-        # Check if assigning 'unit' to 'specimen' conflicts with any already assigned neighbors
-        for neighbor in conflicts[specimen]:
-            if assignment[neighbor] == unit:
+    def is_safe(node, c):
+        for neighbor in adj[node]:
+            if color[neighbor] == c:
                 return False
         return True
     
-    def backtrack(specimen):
-        if specimen > n:
+    def backtrack(node):
+        if node > n:
             return True
             
-        # Try units in order 1, 2, 3 to satisfy tie-breaking rule
-        for unit in [1, 2, 3]:
-            if is_valid(specimen, unit):
-                assignment[specimen] = unit
-                if backtrack(specimen + 1):
+        for c in range(1, 4):
+            if is_safe(node, c):
+                color[node] = c
+                if backtrack(node + 1):
                     return True
-                assignment[specimen] = 0  # Backtrack
+                color[node] = 0
         
         return False
     
-    # Start backtracking from specimen 1
     if backtrack(1):
         print("YES")
-        print(*assignment[1:])
+        print(*color[1:])
     else:
         print("NO")
 

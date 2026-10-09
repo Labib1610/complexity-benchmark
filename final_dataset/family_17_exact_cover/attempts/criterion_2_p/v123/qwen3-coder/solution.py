@@ -1,0 +1,89 @@
+import sys
+from collections import defaultdict, deque
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    q = int(data[0])
+    t = int(data[1])
+    
+    index = 2
+    links = []
+    adj = defaultdict(list)
+    
+    for _ in range(t):
+        a = int(data[index])
+        b = int(data[index+1])
+        index += 2
+        links.append((a, b))
+        adj[a].append(b)
+    
+    # We want a perfect matching from 1..q to (q+1)..2q
+    # with the sum of left side = q*(q+1)//2
+    
+    # This is equivalent to finding a maximum matching in a bipartite graph
+    # and checking if it's perfect and satisfies the sum condition
+    
+    # Since we need exactly q edges, and each node appears in exactly one edge,
+    # this is a perfect bipartite matching problem
+    
+    # Build graph for matching
+    # Left side: 1 to q
+    # Right side: q+1 to 2q
+    
+    # Use a greedy approach with constraint checking
+    
+    # Try to model as a flow or use Hopcroft-Karp, but given constraints,
+    # let's try a different approach
+    
+    # The key insight is that we're looking for a perfect matching
+    # in a bipartite graph where left vertices are 1..q and right are (q+1)..2q
+    # and sum of left vertices in matching is q*(q+1)//2
+    
+    # Since sum 1..q = q*(q+1)//2, we need to use each left vertex exactly once
+    # So we just need a perfect matching
+    
+    # Build adjacency for left to right
+    graph = [[] for _ in range(q + 1)]  # 1-based indexing
+    for i in range(len(links)):
+        a, b = links[i]
+        graph[a].append((b, i))  # store the original index of the link
+    
+    # Try to find a maximum matching using DFS
+    match_right = [-1] * (q + 1)  # which left node is matched to this right node
+    match_left = [-1] * (q + 1)   # which right node is matched to this left node
+    used = [False] * (q + 1)
+    
+    def dfs(u):
+        for v, idx in graph[u]:
+            if used[v]:
+                continue
+            used[v] = True
+            if match_right[v] == -1 or dfs(match_right[v]):
+                match_right[v] = u
+                match_left[u] = v
+                return True
+        return False
+    
+    matching = 0
+    for u in range(1, q + 1):
+        used = [False] * (q + 1)
+        if dfs(u):
+            matching += 1
+    
+    if matching != q:
+        print("NO")
+        return
+    
+    print("YES")
+    result = []
+    for u in range(1, q + 1):
+        v = match_left[u]
+        result.append(f"{u} {v}")
+    
+    print("\n".join(result))
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,61 @@
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [set() for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        adj[u].add(v)
+        adj[v].add(u)
+    
+    # Convert adjacency sets to sorted lists for deterministic iteration
+    adj_list = [sorted(s) for s in adj]
+    
+    best = None
+    
+    for a in range(1, n + 1):
+        if best is not None and a >= best[1]:
+            break
+        neighbors_a = adj_list[a]
+        # We need b > a and c > b, both neighbors of a, and edge between b and c
+        # Iterate b in increasing order
+        for b in neighbors_a:
+            if b <= a:
+                continue
+            if best is not None and b >= best[1]:
+                continue
+            # For c, we need c > b, neighbor of a and neighbor of b
+            # Since neighbors_a is sorted, we can iterate and check
+            # But to be efficient, we check intersection
+            # However, we want the smallest c > b
+            # We can iterate neighbors_a from the point where value > b
+            # and check if it's in adj[b]
+            # Since adj[b] is a set, we can use it
+            adj_b = adj[b]
+            for c in neighbors_a:
+                if c <= b:
+                    continue
+                if c in adj_b:
+                    triad = (a, b, c)
+                    if best is None or triad < best:
+                        best = triad
+                    break  # smallest c for this (a,b)
+            if best is not None and best[0] == a and best[1] == b:
+                # Found the best for this a, since b is increasing, we can break to next a
+                # Actually, we need to check if there's a smaller b? No, b is increasing.
+                # Once we find any triad with this a, the first one found has smallest b and smallest c.
+                # But we might find a better one with same a? No, because b is increasing and we break at first c.
+                # So this is the best for this a. We can break to next a.
+                break
+    
+    if best is not None:
+        sys.stdout.write(f"{best[0]} {best[1]} {best[2]}")
+
+solve()

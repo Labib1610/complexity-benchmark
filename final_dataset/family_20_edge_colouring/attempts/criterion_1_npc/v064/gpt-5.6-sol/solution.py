@@ -1,0 +1,217 @@
+import sys
+
+sys.setrecursionlimit(10000)
+
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if len(data) < 2:
+        return
+
+    n, m = data[0], data[1]
+    if len(data) != 2 + 2 * m:
+        print("NO")
+        return
+
+    edges = []
+    adj = [[] for _ in range(n)]
+
+    p = 2
+    valid = True
+    for eid in range(m):
+        u = data[p] - 1
+        v = data[p + 1] - 1
+        p += 2
+        if not (0 <= u < n and 0 <= v < n) or u == v:
+            valid = False
+        edges.append((u, v))
+        if 0 <= u < n and 0 <= v < n:
+            adj[u].append(eid)
+            adj[v].append(eid)
+
+    if not valid or m * 2 != 3 * n or any(len(adj[v]) != 3 for v in range(n)):
+        print("NO")
+        return
+
+    # A cubic graph with a bridge cannot have a proper 3-edge-coloring.
+    tin = [-1] * n
+    low = [0] * n
+    timer = 0
+    has_bridge = False
+    components = []
+
+    def bridge_dfs(v, parent_edge, vertices):
+        nonlocal timer, has_bridge
+        tin[v] = low[v] = timer
+        timer += 1
+        vertices.append(v)
+
+        for eid in adj[v]:
+            if eid == parent_edge:
+                continue
+            a, b = edges[eid]
+            to = b if a == v else a
+            if tin[to] == -1:
+                bridge_dfs(to, eid, vertices)
+                low[v] = min(low[v], low[to])
+                if low[to] > tin[v]:
+                    has_bridge = True
+            else:
+                low[v] = min(low[v], tin[to])
+
+    for start in range(n):
+        if tin[start] == -1:
+            vertices = []
+            bridge_dfs(start, -1, vertices)
+            components.append(vertices)
+
+    if has_bridge:
+        print("NO")
+        return
+
+    color = [-1] * m
+    used = [0] * n
+    colored_degree = [0] * n
+    trail = []
+
+    def rollback(mark):
+        while len(trail) > mark:
+            eid = trail.pop()
+            c = color[eid]
+            bit = 1 << c
+            u, v = edges[eid]
+            color[eid] = -1
+            used[u] ^= bit
+            used[v] ^= bit
+            colored_degree[u] -= 1
+            colored_degree[v] -= 1
+
+    def assign_and_propagate(initial_eid, initial_color):
+        queue = []
+        head = 0
+
+        def assign(eid, c):
+            current = color[eid]
+            if current != -1:
+                return current == c
+
+            bit = 1 << c
+            u, v = edges[eid]
+            if (used[u] & bit) or (used[v] & bit):
+                return False
+
+            color[eid] = c
+            used[u] |= bit
+            used[v] |= bit
+            colored_degree[u] += 1
+            colored_degree[v] += 1
+            trail.append(eid)
+            queue.append(u)
+            queue.append(v)
+            return True
+
+        if not assign(initial_eid, initial_color):
+            return False
+
+        while head < len(queue):
+            x = queue[head]
+            head += 1
+
+            for eid in adj[x]:
+                if color[eid] != -1:
+                    continue
+
+                u, v = edges[eid]
+                available = 7 & ~(used[u] | used[v])
+
+                if available == 0:
+                    return False
+
+                if available & (available - 1) == 0:
+                    c = available.bit_length() - 1
+                    if not assign(eid, c):
+                        return False
+
+        return True
+
+    def solve_component(vertices):
+        root = vertices[0]
+        component_mark = len(trail)
+
+        # Color permutations are globally symmetric inside each component.
+        for c, eid in enumerate(adj[root]):
+            if not assign_and_propagate(eid, c):
+                rollback(component_mark)
+                return False
+
+        def search():
+            chosen = -1
+            chosen_score = -1
+
+            for v in vertices:
+                if colored_degree[v] == 1:
+                    score = 0
+                    for eid in adj[v]:
+                        if color[eid] == -1:
+                            a, b = edges[eid]
+                            other = b if a == v else a
+                            score += colored_degree[other]
+                    if score > chosen_score:
+                        chosen_score = score
+                        chosen = v
+
+            if chosen == -1:
+                return all(colored_degree[v] == 3 for v in vertices)
+
+            branch_edge = -1
+            branch_mask = 0
+            best_options = 4
+
+            for eid in adj[chosen]:
+                if color[eid] != -1:
+                    continue
+                u, v = edges[eid]
+                available = 7 & ~(used[u] | used[v])
+                options = available.bit_count()
+                if options < best_options:
+                    best_options = options
+                    branch_edge = eid
+                    branch_mask = available
+
+            if branch_edge == -1 or branch_mask == 0:
+                return False
+
+            while branch_mask:
+                bit = branch_mask & -branch_mask
+                branch_mask -= bit
+                c = bit.bit_length() - 1
+                mark = len(trail)
+
+                if assign_and_propagate(branch_edge, c) and search():
+                    return True
+
+                rollback(mark)
+
+            return False
+
+        if search():
+            return True
+
+        rollback(component_mark)
+        return False
+
+    for component in components:
+        if not solve_component(component):
+            print("NO")
+            return
+
+    if any(c == -1 for c in color):
+        print("NO")
+        return
+
+    print("YES")
+    print(" ".join(str(c + 1) for c in color))
+
+
+if __name__ == "__main__":
+    main()

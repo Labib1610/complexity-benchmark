@@ -1,0 +1,83 @@
+import sys
+
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+
+    n = int(input_data[0])
+    m = int(input_data[1])
+    B = int(input_data[2])
+
+    if n == 0:
+        return
+
+    adj_mask = [0] * n
+    deg = [0] * n
+
+    idx = 3
+    for _ in range(m):
+        u = int(input_data[idx]) - 1
+        v = int(input_data[idx + 1]) - 1
+        idx += 2
+        if u != v:
+            adj_mask[u] |= 1 << v
+            adj_mask[v] |= 1 << u
+            deg[u] += 1
+            deg[v] += 1
+
+    num_states = 1 << n
+    cut = [0] * num_states
+    for mask in range(1, num_states):
+        lsb = mask & -mask
+        v = lsb.bit_length() - 1
+        prev = mask ^ lsb
+        cut[mask] = cut[prev] + deg[v] - 2 * (adj_mask[v] & prev).bit_count()
+
+    INF = 10**18
+    dp = [INF] * num_states
+    dp[0] = 0
+
+    for mask in range(num_states):
+        c = dp[mask] + cut[mask]
+        rem = ((1 << n) - 1) ^ mask
+        while rem:
+            lsb = rem & -rem
+            v = lsb.bit_length() - 1
+            nmask = mask | lsb
+            if c < dp[nmask]:
+                dp[nmask] = c
+            rem ^= lsb
+
+    full_mask = num_states - 1
+    if dp[full_mask] > B:
+        print("NO")
+        return
+
+    print("YES")
+    # Reconstruct order
+    order = []
+    mask = full_mask
+    while mask > 0:
+        temp = mask
+        while temp:
+            lsb = temp & -temp
+            v = lsb.bit_length() - 1
+            prev = mask ^ lsb
+            if dp[mask] == dp[prev] + cut[prev]:
+                order.append(v)
+                mask = prev
+                break
+            temp ^= lsb
+
+    order.reverse()
+    ans = [0] * n
+    for bay, mod in enumerate(order, 1):
+        ans[mod] = bay
+
+    print(*(ans[i] for i in range(n)))
+
+
+if __name__ == "__main__":
+    solve()

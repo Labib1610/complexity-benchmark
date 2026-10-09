@@ -1,0 +1,180 @@
+import sys
+from array import array
+
+def output_yes(order, n):
+    positions = [0] * n
+    for pos, vertex in enumerate(order, 1):
+        positions[vertex] = pos
+    print("YES")
+    print(*positions)
+
+def arrangement_cost(order, edges, n):
+    positions = [0] * n
+    for pos, vertex in enumerate(order):
+        positions[vertex] = pos
+    return sum(abs(positions[u] - positions[v]) for u, v in edges)
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+
+    n, m, budget = data[0], data[1], data[2]
+    edges = []
+    graph = [[] for _ in range(n)]
+    adjacency_masks = [0] * n
+
+    index = 3
+    for _ in range(m):
+        u = data[index] - 1
+        v = data[index + 1] - 1
+        index += 2
+        edges.append((u, v))
+        graph[u].append(v)
+        graph[v].append(u)
+        adjacency_masks[u] |= 1 << v
+        adjacency_masks[v] |= 1 << u
+
+    if n == 1:
+        print("YES")
+        print(1)
+        return
+
+    if m != n - 1 or budget < n - 1:
+        print("NO")
+        return
+
+    # Try a cheap valid arrangement first, which also avoids exponential work
+    # when the budget is generous.
+    order = []
+    stack = [(0, -1)]
+    while stack:
+        vertex, parent = stack.pop()
+        order.append(vertex)
+        for neighbor in reversed(graph[vertex]):
+            if neighbor != parent:
+                stack.append((neighbor, vertex))
+
+    if len(order) != n:
+        print("NO")
+        return
+
+    if arrangement_cost(order, edges, n) <= budget:
+        output_yes(order, n)
+        return
+
+    degrees = [len(neighbors) for neighbors in graph]
+
+    # Exact handling of paths.
+    if max(degrees) <= 2:
+        start = next(i for i, degree in enumerate(degrees) if degree == 1)
+        path = []
+        previous = -1
+        current = start
+        while current != -1:
+            path.append(current)
+            nxt = -1
+            for neighbor in graph[current]:
+                if neighbor != previous:
+                    nxt = neighbor
+                    break
+            previous, current = current, nxt
+
+        if n - 1 <= budget:
+            output_yes(path, n)
+        else:
+            print("NO")
+        return
+
+    # Exact handling of stars.
+    center = max(range(n), key=lambda x: degrees[x])
+    if degrees[center] == n - 1:
+        leaves = [v for v in range(n) if v != center]
+        center_position = (n + 1) // 2
+        star_order = (
+            leaves[:center_position - 1]
+            + [center]
+            + leaves[center_position - 1:]
+        )
+        star_cost = sum(abs(i + 1 - center_position) for i in range(n)
+                        if i + 1 != center_position)
+        if star_cost <= budget:
+            output_yes(star_order, n)
+        else:
+            print("NO")
+        return
+
+    # Safe degree-based lower bound.
+    endpoint_sum_lower_bound = 0
+    for degree in degrees:
+        q, r = divmod(degree, 2)
+        if r == 0:
+            endpoint_sum_lower_bound += q * (q + 1)
+        else:
+            endpoint_sum_lower_bound += (q + 1) * (q + 1)
+    lower_bound = (endpoint_sum_lower_bound + 1) // 2
+    if lower_bound > budget:
+        print("NO")
+        return
+
+    # Exact subset dynamic programming.
+    # dp[S] is the minimum sum of cut sizes for prefixes ending with set S.
+    total_masks = 1 << n
+    cuts = array('H', [0]) * total_masks
+    dp = array('I', [0]) * total_masks
+
+    deg = degrees
+    adj = adjacency_masks
+    dp_local = dp
+    cuts_local = cuts
+
+    for mask in range(1, total_masks):
+        lowbit = mask & -mask
+        vertex = lowbit.bit_length() - 1
+        rest = mask ^ lowbit
+
+        cut_value = (
+            cuts_local[rest]
+            + deg[vertex]
+            - 2 * ((adj[vertex] & rest).bit_count())
+        )
+        cuts_local[mask] = cut_value
+
+        bits = mask
+        bit = bits & -bits
+        best = dp_local[mask ^ bit]
+        bits ^= bit
+
+        while bits:
+            bit = bits & -bits
+            candidate = dp_local[mask ^ bit]
+            if candidate < best:
+                best = candidate
+            bits ^= bit
+
+        dp_local[mask] = best + cut_value
+
+    full_mask = total_masks - 1
+    if dp_local[full_mask] > budget:
+        print("NO")
+        return
+
+    # Reconstruct an optimal ordering backwards.
+    reversed_order = []
+    mask = full_mask
+    while mask:
+        target = dp_local[mask] - cuts_local[mask]
+        bits = mask
+        while bits:
+            bit = bits & -bits
+            if dp_local[mask ^ bit] == target:
+                reversed_order.append(bit.bit_length() - 1)
+                mask ^= bit
+                break
+            bits ^= bit
+
+    reversed_order.reverse()
+    output_yes(reversed_order, n)
+
+if __name__ == "__main__":
+    main()

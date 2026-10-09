@@ -1,32 +1,131 @@
 import sys
 from collections import deque
 
-input = sys.stdin.readline
+def solve():
+    input = sys.stdin.readline
+    n, m = map(int, input().split())
+    adj = [[] for _ in range(n)]
+    edges = []
+    for _ in range(m):
+        u, v = map(int, input().split())
+        u -= 1
+        v -= 1
+        adj[u].append(v)
+        adj[v].append(u)
+        edges.append((u, v))
+    
+    color = [0] * n
+    visited = [False] * n
+    
+    for start in range(n):
+        if not visited[start]:
+            color[start] = 1
+            visited[start] = True
+            q = deque([start])
+            while q:
+                u = q.popleft()
+                for v in adj[u]:
+                    if not visited[v]:
+                        visited[v] = True
+                        color[v] = 3 - color[u]
+                        q.append(v)
+                    else:
+                        if color[v] == color[u]:
+                            print("NO")
+                            return
+    
+    # Check if all edges have different colors
+    for u, v in edges:
+        if color[u] == color[v]:
+            print("NO")
+            return
+    
+    # Now we have a valid bipartition (if graph is bipartite)
+    # But we need to check if the graph is connected in terms of edges
+    # Actually, the problem requires that for every edge (u,v), color[u] XOR color[v] = 3
+    # Since colors are 1 and 2, this means color[u] != color[v], which is exactly bipartite.
+    # So any bipartite graph works. But we need lexicographically smallest.
+    
+    # For lexicographically smallest, we try to assign 1 to as many early vertices as possible.
+    # Since the graph might be disconnected, we need to handle each component.
+    # For each component, we can try both colorings and pick the lexicographically smaller.
+    
+    color = [0] * n
+    visited = [False] * n
+    
+    for start in range(n):
+        if not visited[start]:
+            # BFS to get component
+            comp = []
+            q = deque([start])
+            visited[start] = True
+            comp.append(start)
+            while q:
+                u = q.popleft()
+                for v in adj[u]:
+                    if not visited[v]:
+                        visited[v] = True
+                        comp.append(v)
+                        q.append(v)
+            
+            # Try both colorings for this component
+            best = None
+            for first_color in [1, 2]:
+                temp_color = [0] * n
+                temp_visited = [False] * n
+                temp_color[start] = first_color
+                temp_visited[start] = True
+                q = deque([start])
+                valid = True
+                while q:
+                    u = q.popleft()
+                    for v in adj[u]:
+                        if not temp_visited[v]:
+                            temp_visited[v] = True
+                            temp_color[v] = 3 - temp_color[u]
+                            q.append(v)
+                        else:
+                            if temp_color[v] == temp_color[u]:
+                                valid = False
+                                break
+                    if not valid:
+                        break
+                if valid:
+                    # Check all edges in component
+                    for u, v in edges:
+                        if temp_visited[u] and temp_visited[v]:
+                            if temp_color[u] == temp_color[v]:
+                                valid = False
+                                break
+                if valid:
+                    # Build the coloring for this component
+                    comp_color = [0] * n
+                    for node in comp:
+                        comp_color[node] = temp_color[node]
+                    if best is None:
+                        best = comp_color
+                    else:
+                        # Compare lexicographically
+                        for node in range(n):
+                            if comp_color[node] != best[node]:
+                                if comp_color[node] < best[node]:
+                                    best = comp_color
+                                break
+            if best is None:
+                print("NO")
+                return
+            for i in range(n):
+                if best[i] != 0:
+                    color[i] = best[i]
+    
+    # Final check
+    for u, v in edges:
+        if color[u] == color[v]:
+            print("NO")
+            return
+    
+    print("YES")
+    print(' '.join(map(str, color)))
 
-n, m = map(int, input().split())
-adj = [[] for _ in range(n)]
-for _ in range(m):
-    u, v = map(int, input().split())
-    u -= 1
-    v -= 1
-    adj[u].append(v)
-    adj[v].append(u)
-
-color = [-1] * n
-
-for i in range(n):
-    if color[i] == -1:
-        color[i] = 1
-        q = deque([i])
-        while q:
-            u = q.popleft()
-            for v in adj[u]:
-                if color[v] == -1:
-                    color[v] = 3 - color[u]
-                    q.append(v)
-                elif color[v] == color[u]:
-                    print("NO")
-                    sys.exit()
-
-print("YES")
-print(" ".join(str(color[i]) for i in range(n)))
+if __name__ == "__main__":
+    solve()

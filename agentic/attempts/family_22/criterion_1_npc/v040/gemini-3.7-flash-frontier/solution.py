@@ -1,0 +1,158 @@
+import sys
+from collections import deque
+import heapq
+import time
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    iterator = iter(input_data)
+    n = int(next(iterator))
+    M = int(next(iterator))
+    T = int(next(iterator))
+    m = int(next(iterator))
+    
+    adj = [[] for _ in range(n + 1)]
+    radj = [[] for _ in range(n + 1)]
+    in_deg_orig = [0] * (n + 1)
+    out_deg_orig = [0] * (n + 1)
+    
+    for _ in range(m):
+        u = int(next(iterator))
+        v = int(next(iterator))
+        adj[u].append(v)
+        radj[v].append(u)
+        in_deg_orig[v] += 1
+        out_deg_orig[u] += 1
+        
+    # Topological sort to find cycle and compute ES, LS, height
+    in_deg = list(in_deg_orig)
+    q = deque([i for i in range(1, n + 1) if in_deg[i] == 0])
+    topo_order = []
+    
+    es = [1] * (n + 1)
+    while q:
+        u = q.popleft()
+        topo_order.append(u)
+        for v in adj[u]:
+            if es[u] + 1 > es[v]:
+                es[v] = es[u] + 1
+            in_deg[v] -= 1
+            if in_deg[v] == 0:
+                q.append(v)
+                
+    if len(topo_order) < n:
+        print("NO")
+        return
+        
+    ls = [T] * (n + 1)
+    height = [1] * (n + 1)
+    for u in reversed(topo_order):
+        for v in adj[u]:
+            if ls[v] - 1 < ls[u]:
+                ls[u] = ls[v] - 1
+            if height[v] + 1 > height[u]:
+                height[u] = height[v] + 1
+                
+    for i in range(1, n + 1):
+        if es[i] > ls[i] or es[i] > T or ls[i] < 1:
+            print("NO")
+            return
+
+    # Backtracking search to assign cycles
+    # Priority for available jobs:
+    # 1. Smaller ls[u]
+    # 2. Larger height[u]
+    # 3. Larger out_degree
+    
+    start_time = time.time()
+    ans = [0] * (n + 1)
+    
+    in_degree = list(in_deg_orig)
+    
+    # Available jobs at current cycle
+    available = [i for i in range(1, n + 1) if in_degree[i] == 0]
+    
+    def search(cycle, available, in_degree):
+        if time.time() - start_time > 4.5:
+            return False
+        
+        # Check if all jobs assigned
+        remaining_jobs = sum(1 for i in range(1, n + 1) if ans[i] == 0)
+        if remaining_jobs == 0:
+            return True
+        
+        if cycle > T:
+            return False
+        
+        # Check if too many remaining jobs for remaining cycles
+        if remaining_jobs > (T - cycle + 1) * M:
+            return False
+            
+        # Any available or unassigned job with ls < cycle is invalid
+        for u in available:
+            if ls[u] < cycle:
+                return False
+                
+        # Must schedule at this cycle: all available u with ls[u] == cycle
+        must_schedule = [u for u in available if ls[u] == cycle]
+        if len(must_schedule) > M:
+            return False
+            
+        other_available = [u for u in available if ls[u] > cycle]
+        
+        # Sort others by urgency: ls ascending, height descending
+        other_available.sort(key=lambda u: (ls[u], -height[u], -out_deg_orig[u]))
+        
+        needed = M - len(must_schedule)
+        
+        # If available jobs count <= M, we can just take all of them
+        if len(available) <= M:
+            choices = [list(available)]
+        else:
+            # We must take `must_schedule`, plus some subset of `other_available` of size `needed`
+            # Heuristic: mostly the first `needed` elements of other_available is optimal
+            best_subset = must_schedule + other_available[:needed]
+            choices = [best_subset]
+            
+            # If needed > 0 and there are more options, generate alternative branches if needed
+            if len(other_available) > needed and needed > 0:
+                # Add a few perturbations if needed for backtracking
+                if needed + 1 <= len(other_available):
+                    alt = must_schedule + other_available[:needed-1] + [other_available[needed]]
+                    choices.append(alt)
+
+        for choice in choices:
+            # Apply choice
+            for u in choice:
+                ans[u] = cycle
+                
+            next_in_degree = list(in_degree)
+            newly_freed = []
+            for u in choice:
+                for v in adj[u]:
+                    next_in_degree[v] -= 1
+                    if next_in_degree[v] == 0:
+                        newly_freed.append(v)
+                        
+            next_available = [u for u in available if u not in choice] + newly_freed
+            
+            if search(cycle + 1, next_available, next_in_degree):
+                return True
+                
+            # Backtrack
+            for u in choice:
+                ans[u] = 0
+                
+        return False
+
+    if search(1, available, in_degree):
+        print("YES")
+        print(*(ans[i] for i in range(1, n + 1)))
+    else:
+        print("NO")
+
+if __name__ == '__main__':
+    solve()

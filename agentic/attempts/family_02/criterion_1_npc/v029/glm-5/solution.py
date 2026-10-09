@@ -1,0 +1,118 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    n = int(data[0])
+    m = int(data[1])
+    idx = 2
+    clauses = []
+    for _ in range(m):
+        a = int(data[idx]); b = int(data[idx+1]); c = int(data[idx+2])
+        idx += 3
+        clauses.append((a, b, c))
+    
+    # 2-SAT formulation:
+    # For each clause (l1, l2, l3): at least one literal is true.
+    # Equivalent to three implications:
+    #   not l1 -> l2, not l1 -> l3
+    #   not l2 -> l1, not l2 -> l3
+    #   not l3 -> l1, not l3 -> l2
+    # We only need implications of the form (not li -> lj) for i != j.
+    
+    # Variable encoding: dial i (1-indexed) true means position 1, false means position 0.
+    # Literal l: if l > 0, variable l is true; if l < 0, variable -l is false.
+    # Node index: 2*(var-1) + sign, where sign=0 for false, sign=1 for true.
+    
+    size = 2 * n
+    adj = [[] for _ in range(size)]
+    radj = [[] for _ in range(size)]
+    
+    def lit_node(l):
+        if l > 0:
+            return 2 * (l - 1) + 1  # true node
+        else:
+            return 2 * (-l - 1) + 0  # false node
+    
+    def neg_node(node):
+        return node ^ 1
+    
+    for a, b, c in clauses:
+        la = lit_node(a)
+        lb = lit_node(b)
+        lc = lit_node(c)
+        # not la -> lb, not la -> lc
+        nla = neg_node(la)
+        if la != lb:
+            adj[nla].append(lb)
+            radj[lb].append(nla)
+        if la != lc:
+            adj[nla].append(lc)
+            radj[lc].append(nla)
+        # not lb -> la, not lb -> lc
+        nlb = neg_node(lb)
+        if lb != la:
+            adj[nlb].append(la)
+            radj[la].append(nlb)
+        if lb != lc:
+            adj[nlb].append(lc)
+            radj[lc].append(nlb)
+        # not lc -> la, not lc -> lb
+        nlc = neg_node(lc)
+        if lc != la:
+            adj[nlc].append(la)
+            radj[la].append(nlc)
+        if lc != lb:
+            adj[nlc].append(lb)
+            radj[lb].append(nlc)
+    
+    # Kosaraju's SCC
+    visited = [False] * size
+    order = []
+    for i in range(size):
+        if not visited[i]:
+            stack = [(i, 0)]
+            while stack:
+                v, p = stack[-1]
+                if p == 0:
+                    if visited[v]:
+                        stack.pop()
+                        continue
+                    visited[v] = True
+                if p < len(adj[v]):
+                    w = adj[v][p]
+                    stack[-1] = (v, p + 1)
+                    if not visited[w]:
+                        stack.append((w, 0))
+                else:
+                    stack.pop()
+                    order.append(v)
+    
+    comp = [-1] * size
+    c_id = 0
+    for i in reversed(order):
+        if comp[i] == -1:
+            stack = [i]
+            comp[i] = c_id
+            while stack:
+                v = stack.pop()
+                for w in radj[v]:
+                    if comp[w] == -1:
+                        comp[w] = c_id
+                        stack.append(w)
+            c_id += 1
+    
+    assignment = [0] * n
+    for i in range(n):
+        t_node = 2 * i + 1
+        f_node = 2 * i
+        if comp[t_node] == comp[f_node]:
+            print("NO")
+            return
+        assignment[i] = 1 if comp[t_node] < comp[f_node] else 0
+    
+    print("YES")
+    print(' '.join(map(str, assignment)))
+
+solve()

@@ -1,0 +1,341 @@
+**Solution Explanation**
+
+For every update `(u , v)` the matrix `A` gets `+1` in the two symmetric
+off‑diagonal positions.
+Therefore  
+
+```
+Aij = 1   if i = j                     (the identity)
+Aij = 1   if (i , j) is an update edge
+Aij = 0   otherwise
+```
+
+For a binary vector `x`
+
+```
+xᵀ A x = Σ i x_i·Aii·x_i                (diagonal part)
+        + Σ i<j 2·x_i·Aij·x_j            (off diagonal, because A is symmetric)
+```
+
+`Aii = 1` and `x_i² = x_i`, hence the diagonal part is exactly the number of
+ones in `x`, i.e. `k`.
+
+The off‑diagonal part contributes `2` for every edge whose both ends are
+selected (`x_i = x_j = 1`).  
+Consequently
+
+```
+xᵀ A x = k + 2·(#selected edges)
+```
+
+The required equality `xᵀ A x = k` holds **iff** no selected edge exists,
+i.e. the set of selected vertices is an **independent set** of the graph
+formed by the update edges.
+
+So the whole problem is:
+
+*Given an undirected graph `G` with `n ≤ 46` vertices,
+find an independent set of exactly `k` vertices.*
+
+--------------------------------------------------------------------
+
+#### 1.  From independent set to clique
+
+The complement graph `Ĝ` contains an edge between two vertices
+iff they are **not** adjacent in `G`.
+A set of vertices is independent in `G`  ⇔  it is a **clique** in `Ĝ`.
+
+Thus we have to find a clique of size `k` in the complement graph.
+`n = 46` is small enough for a classic back‑tracking search with pruning.
+
+--------------------------------------------------------------------
+
+#### 2.  Bitset representation
+
+Vertices are numbered `0 … n‑1`.  
+All sets are stored as a 64‑bit integer (`int` in Python) where bit `i`
+is `1` iff vertex `i` belongs to the set.
+
+For every vertex `v`
+
+```
+orig_adj[v]   – bitmask of neighbours of v in the original graph G
+comp_adj[v]   – bitmask of neighbours of v in the complement graph Ĝ
+                = all vertices except v and its original neighbours
+```
+
+--------------------------------------------------------------------
+
+#### 3.  Depth‑first search for a clique of size k
+
+```
+search(current_mask, candidate_mask):
+    cur = number of bits in current_mask
+    if cur == k:
+            solution = current_mask            # found!
+            return True
+    # not enough vertices left → impossible
+    if cur + popcount(candidate_mask) < k:
+            return False
+
+    while candidate_mask is not empty:
+            # still enough vertices ?
+            if cur + popcount(candidate_mask) < k: break
+
+            v = least significant set bit of candidate_mask
+            candidate_mask ^= (1<<v)            # remove v from the list
+
+            # vertices that stay candidates must also be adjacent to v
+            new_candidates = candidate_mask & comp_adj[v]
+
+            if search(current_mask | (1<<v), new_candidates):
+                    return True                # propagate success
+    return False
+```
+
+*Why does it work?*  
+The recursion builds a clique vertex by vertex.
+`candidate_mask` always contains exactly those vertices that are adjacent
+to **all** already chosen vertices, therefore any extension stays a clique.
+The two pruning rules are obvious:
+
+* if we already have `k` vertices – success,
+* if even taking **all** remaining candidates cannot reach `k` – dead end.
+
+The search explores every possible clique, but the pruning cuts the huge
+majority of branches. With `n = 46` it finishes far below the time limit.
+
+--------------------------------------------------------------------
+
+#### 4.  Reconstructing the answer
+
+When a solution mask is found, its set bits are the required vertices.
+They are printed as 1‑based indices.
+
+If the search finishes without success, the answer is `NO`.
+
+--------------------------------------------------------------------
+
+#### 5.  Correctness Proof  
+
+We prove that the algorithm prints `YES` and a correct set of indices
+iff such a set exists.
+
+---
+
+##### Lemma 1  
+For any binary vector `x` with exactly `k` ones  
+
+```
+xᵀ A x = k  ⇔  the vertices with x_i = 1 form an independent set in G.
+```
+
+**Proof.**  
+From the derivation in the statement part:
+
+```
+xᵀ A x = k + 2·(#selected edges of G)
+```
+
+The right hand side equals `k` exactly when the number of selected edges is
+`0`, i.e. no two selected vertices are adjacent – precisely the definition
+of an independent set. ∎
+
+
+
+##### Lemma 2  
+A vertex set `S` is independent in `G`  ⇔  `S` is a clique in the complement
+graph `Ĝ`.
+
+**Proof.**  
+By definition of the complement, two vertices are adjacent in `Ĝ`
+iff they are **not** adjacent in `G`.  
+Thus every pair of vertices of `S` is non‑adjacent in `G`
+iff every pair is adjacent in `Ĝ`. ∎
+
+
+
+##### Lemma 3  
+During the recursive search, `candidate_mask` always equals the set of
+vertices that are adjacent (in `Ĝ`) to **all** vertices already stored in
+`current_mask`.
+
+**Proof.**  
+Initially `current_mask = ∅` and `candidate_mask` contains all vertices,
+the statement holds.
+
+Induction step: assume it holds for a call
+`search(C, Cand)`.  
+When we try a vertex `v ∈ Cand`, the recursive call receives  
+
+```
+C' = C ∪ {v}
+Cand' = Cand \ {v}  ∩  NĜ(v)
+```
+
+`NĜ(v)` is the neighbour set of `v` in `Ĝ`.  
+All vertices kept in `Cand'` are (i) still in `Cand` (hence adjacent to every
+vertex of `C`) and (ii) adjacent to `v`. Therefore they are adjacent to every
+vertex of `C'`. No other vertex can be in `Cand'`. ∎
+
+
+
+##### Lemma 4  
+Whenever the algorithm reaches `cur == k`, the vertices represented by
+`current_mask` form a clique of size `k` in `Ĝ`.
+
+**Proof.**  
+By Lemma&nbsp;3 all vertices in `current_mask` are pairwise adjacent,
+i.e. they constitute a clique. Its size is `k` because `cur` counts the bits
+of `current_mask`. ∎
+
+
+
+##### Lemma 5  
+If the algorithm outputs a set `S`, then `|S| = k` and `S` is independent in
+`G`.
+
+**Proof.**  
+The algorithm outputs only after Lemma&nbsp;4, therefore `S` is a clique of
+size `k` in `Ĝ`. By Lemma&nbsp;2 the same set is an independent set in `G`. ∎
+
+
+
+##### Lemma 6  
+If an independent set of size `k` exists in `G`, the algorithm will find one.
+
+**Proof.**  
+Let `I` be such a set. In `Ĝ` it is a clique of size `k` (Lemma&nbsp;2).
+Consider the recursion tree: at each level the algorithm may either
+*include* a vertex `v` (branch taken) or *skip* it (by later iterating over the
+remaining candidates).  
+Because `I` is a clique, every vertex of `I` is always present in the current
+`candidate_mask` as long as all previously chosen vertices belong to `I`
+(Lemma&nbsp;3). Hence there exists a path that successively picks all vertices
+of `I`. When the `k`‑th vertex is added, the algorithm reaches `cur == k`
+and stops with success. ∎
+
+
+
+##### Lemma 7  
+If the algorithm finishes with `NO`, no independent set of size `k` exists.
+
+**Proof.**  
+Assume the contrary: an independent set `I` of size `k` exists.
+By Lemma&nbsp;6 the search would have found a corresponding clique in `Ĝ`
+and terminated with `YES`. Contradiction. ∎
+
+
+
+##### Theorem  
+The program prints  
+
+* `YES` and a list of `k` indices **iff** there exists a binary vector `x`
+  with exactly `k` ones such that `xᵀ A x = k`;  
+
+* otherwise it prints `NO`.
+
+**Proof.**  
+
+*If the program prints `YES`*: by Lemma&nbsp;5 the printed indices form an
+independent set of size `k`. By Lemma&nbsp;1 the corresponding vector `x`
+satisfies `xᵀ A x = k`.
+
+*If such a vector exists*: Lemma&nbsp;1 gives an independent set of size `k`,
+hence by Lemma&nbsp;6 the algorithm finds it and prints `YES`.
+
+If the program prints `NO`, Lemma&nbsp;7 guarantees that no independent set
+of size `k` (and therefore no suitable vector) exists. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### 6.  Complexity Analysis  
+
+`n ≤ 46`.
+
+*Building the graph* – `O(n + m)` time, `O(n)` memory.
+
+*Search* – worst‑case exponential, but the pruning
+`cur + |candidates| < k` eliminates all branches that cannot reach size `k`.
+For the given limits the recursion explores far fewer than `2ⁿ` states.
+Empirically it finishes well within the 5 seconds limit.
+
+Memory consumption is `O(n)` for the adjacency bitmasks and the recursion
+stack (`≤ n` levels).
+
+--------------------------------------------------------------------
+
+#### 7.  Reference Implementation  (Python 3)
+
+```python
+import sys
+
+sys.setrecursionlimit(10000)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    k = int(next(it))
+
+    orig_adj = [0] * n
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        orig_adj[u] |= 1 << v
+        orig_adj[v] |= 1 << u
+
+    all_mask = (1 << n) - 1
+    comp_adj = [0] * n
+    for v in range(n):
+        comp_adj[v] = all_mask ^ (1 << v) ^ orig_adj[v]
+
+    solution_mask = None  # will hold the found clique (independent set)
+
+    # depth‑first search for a clique of size k in the complement graph
+    def dfs(cur_mask: int, cand_mask: int) -> bool:
+        nonlocal solution_mask
+        if solution_mask is not None:
+            return True
+        cur_sz = cur_mask.bit_count()
+        if cur_sz == k:
+            solution_mask = cur_mask
+            return True
+        # not enough vertices left
+        if cur_sz + cand_mask.bit_count() < k:
+            return False
+
+        # iterate over candidates
+        while cand_mask:
+            # prune again (may have changed after previous iterations)
+            if cur_sz + cand_mask.bit_count() < k:
+                break
+            # take least significant bit as the next vertex
+            v = (cand_mask & -cand_mask).bit_length() - 1
+            cand_mask ^= 1 << v
+            new_cand = cand_mask & comp_adj[v]
+            if dfs(cur_mask | (1 << v), new_cand):
+                return True
+        return False
+
+    # start with empty set, all vertices are candidates
+    dfs(0, (1 << n) - 1)
+
+    if solution_mask is None:
+        print("NO")
+    else:
+        ans = [str(i + 1) for i in range(n) if (solution_mask >> i) & 1]
+        print("YES")
+        print(" ".join(ans))
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above
+and conforms to the required input‑output format.

@@ -1,0 +1,295 @@
+**Solution Explanation**
+
+For every shard we have to choose one of three zones  
+(we call them *colors* 1, 2, 3).  
+For every given overlap `(u , v)` the two shards must obtain **different**
+colors.  
+So we have to *3‑color* an undirected graph with `n ≤ 40` vertices.
+
+The problem is NP‑complete in general, but with only 40 vertices a
+well‑pruned backtracking search finishes easily.
+
+
+
+--------------------------------------------------------------------
+
+#### 1.   Data structures  
+
+* `adj[v]` – list of neighbours of vertex `v` (0‑based indices).  
+* `color[v]` – assigned color (`0,1,2`) or `-1` if still uncolored.  
+* `possible[v]` – bitmask of still allowed colors for `v`.  
+  bit `0` → color 1, bit `1` → color 2, bit `2` → color 3.  
+  Initially `possible[v] = 0b111 = 7` for every vertex.
+
+`popcnt(x)` – number of set bits (`bin(x).count('1')`).
+
+--------------------------------------------------------------------
+
+#### 2.   Recursive search  
+
+```
+dfs(colored):
+    if colored == n:               # all vertices colored
+        return True
+
+    # ---- choose next vertex (MRV heuristic) ----
+    v = vertex with smallest popcnt(possible[v]) among uncolored ones
+    if popcnt(possible[v]) == 0:    # dead end
+        return False
+
+    # try every still possible color
+    for each color c whose bit is set in possible[v]:
+        assign c to v
+        remove c from possible[neighbour] of every still uncolored neighbour
+        if no neighbour loses its last possible color and dfs(colored+1):
+                return True
+        undo all changes (backtrack)
+
+    return False
+```
+
+*Choosing the vertex with the **minimum remaining values** (MRV)*
+drastically reduces the search tree.
+When a vertex receives a color, that color becomes forbidden for all its
+still uncolored neighbours – this is *forward checking*.
+If a neighbour loses its last possible color we backtrack immediately.
+
+All modifications of `possible[·]` are stored in a small list
+`changes = [(u, old_mask), …]` so they can be restored in O(number of
+changed neighbours).
+
+The recursion depth never exceeds `n = 40`.
+
+--------------------------------------------------------------------
+
+#### 3.   Correctness Proof  
+
+We prove that the algorithm prints `YES` and a correct assignment
+iff such an assignment exists.
+
+---
+
+##### Lemma 1  
+During the execution of `dfs` the invariant holds:
+
+*For every uncolored vertex `v` the set represented by `possible[v]`
+contains exactly the colors that can still be assigned to `v`
+without violating already made assignments.*
+
+**Proof.**  
+Initially all three colors are possible, which is correct.  
+When a vertex `x` is assigned color `c`, the algorithm removes `c`
+from `possible[y]` of each uncolored neighbour `y`.  
+Any future assignment of `c` to `y` would create an edge `(x,y)` with equal
+colors, therefore `c` must indeed be removed.
+No other colors are removed, and no other vertex influences `possible[y]`.
+Thus the invariant is preserved. ∎
+
+
+
+##### Lemma 2  
+If `dfs` reaches the line `return True` (all vertices colored),
+the produced coloring satisfies all constraints.
+
+**Proof.**  
+All vertices are assigned a color, so condition 1 and 2 hold.
+Because of Lemma&nbsp;1, when a vertex received its color,
+none of its already colored neighbours had the same color.
+Therefore every edge connects vertices of different colors,
+i.e. condition 4 holds.
+Conditions 3 and 5 are trivial (they are always true for any assignment). ∎
+
+
+
+##### Lemma 3  
+If `dfs` returns `False` for a call with a certain partial assignment,
+then **no** extension of this partial assignment can satisfy all constraints.
+
+**Proof.**  
+`dfs` returns `False` only after trying **every** color still allowed for the
+chosen vertex `v` and each trial either
+
+* immediately detects a neighbour with empty `possible` (by Lemma 1 this
+  neighbour cannot be colored any more), or
+* recurses and the recursive call returns `False`.
+
+By the induction hypothesis the recursive call’s failure means that
+no completion exists for that deeper partial assignment.
+Consequently, for the current level no color for `v` leads to a feasible
+completion, i.e. the current partial assignment is dead‑ended. ∎
+
+
+
+##### Lemma 4  
+If a feasible 3‑coloring exists, the initial call `dfs(0)` eventually
+returns `True`.
+
+**Proof.**  
+Consider any feasible coloring `C`.  
+During the search, when the algorithm selects a vertex `v`,
+`possible[v]` (Lemma 1) contains at least the color `C(v)`,
+otherwise `C` would already violate a previously made assignment,
+contradiction.  
+Hence the branch where we assign `v` the color `C(v)` is explored.
+Inductively, the recursion can follow the colors of `C` for all vertices,
+never encountering a dead end (Lemma 3).  
+When the last vertex is colored, the algorithm returns `True`
+(Lemma 2). ∎
+
+
+
+##### Lemma 5  
+If `dfs(0)` returns `True`, the algorithm outputs a correct assignment.
+
+**Proof.**  
+`dfs` returns `True` only after all vertices are colored,
+and by Lemma 2 this coloring satisfies every required condition.
+The algorithm prints exactly these colors (converted to 1‑based numbers). ∎
+
+
+
+##### Theorem  
+The program prints  
+
+* `NO` iff the input graph is **not** 3‑colorable,  
+* otherwise `YES` followed by a valid assignment of zones.
+
+**Proof.**  
+
+*If the program prints `YES`*: by Lemma 5 the printed assignment is valid,
+hence the graph is 3‑colorable.
+
+*If the program prints `NO`*: this happens only when the initial call
+`dfs(0)` returns `False`. By Lemma 3 the empty partial assignment (the
+start) cannot be extended to a full coloring, i.e. no 3‑coloring exists.
+
+*If a 3‑coloring exists*: Lemma 4 guarantees that `dfs(0)` returns `True`,
+so the program prints `YES` and a correct assignment.
+
+Thus the output is correct in all cases. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### 4.   Complexity Analysis  
+
+`n ≤ 40`.
+
+*Choosing the next vertex* scans all vertices – `O(n)`.  
+*Updating neighbours* touches each edge at most once per recursion level,
+so the total work over the whole search is `O( m * depth ) ≤ O( m·n )`.
+
+In the worst case the algorithm explores the whole 3‑coloring search tree,
+which is `3^n`.  
+With the MRV heuristic and forward checking the tree is heavily pruned;
+for `n = 40` the program easily finishes within the limits
+(the worst‑case dense graphs become impossible after a few steps).
+
+Memory consumption:
+
+* adjacency lists – `O(n + m)`  
+* arrays `color`, `possible` – `O(n)`  
+* recursion stack – depth `n`
+
+Overall well below the 256 MiB limit.
+
+
+
+--------------------------------------------------------------------
+
+#### 5.   Reference Implementation  (Python 3)
+
+```python
+import sys
+
+sys.setrecursionlimit(10000)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        if u == v:
+            continue
+        adj[u].append(v)
+        adj[v].append(u)
+
+    # 0,1,2 are internal colors, output will be +1
+    color = [-1] * n
+    possible = [0b111] * n          # bits 0,1,2 set
+
+    # pre‑compute popcount for 0..7 (tiny)
+    popcnt = [bin(i).count('1') for i in range(8)]
+
+    def dfs(colored: int) -> bool:
+        if colored == n:
+            return True
+
+        # MRV: vertex with smallest number of possible colors
+        v = -1
+        best = 4
+        for i in range(n):
+            if color[i] == -1:
+                pc = popcnt[possible[i]]
+                if pc < best:
+                    best = pc
+                    v = i
+                    if pc == 1:
+                        break
+        if best == 0:          # dead end
+            return False
+
+        avail = possible[v]
+        # try each possible color
+        for c in range(3):
+            bit = 1 << c
+            if not (avail & bit):
+                continue
+
+            # assign
+            color[v] = c
+            changes = []        # (vertex, old_possible)
+            fail = False
+
+            for nb in adj[v]:
+                if color[nb] == -1 and (possible[nb] & bit):
+                    old = possible[nb]
+                    possible[nb] = old & ~bit
+                    changes.append((nb, old))
+                    if possible[nb] == 0:
+                        fail = True
+                        break
+
+            if not fail and dfs(colored + 1):
+                return True
+
+            # backtrack
+            for nb, old in changes:
+                possible[nb] = old
+            color[v] = -1
+
+        return False
+
+    ok = dfs(0)
+    out = []
+    if ok:
+        out.append("YES")
+        out.append(' '.join(str(c + 1) for c in color))
+    else:
+        out.append("NO")
+    sys.stdout.write('\n'.join(out))
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above
+and conforms to the required input‑output format.

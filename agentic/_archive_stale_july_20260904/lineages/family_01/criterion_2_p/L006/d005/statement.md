@@ -1,0 +1,49 @@
+# Orbital Reflection Synchrony
+
+Time limit: 1 s   Memory limit: 256 MB
+
+A satellite network consists of $n$ orbital modules, numbered $1$ through $n$. You must assign each module an operating mode, represented by the integer $1$ or $2$.
+
+The modes determine how a module transforms incoming telemetry coordinates $(x, y)$:
+- Mode 1 applies a horizontal reflection: $(x, y)$ becomes $(-x, y)$.
+- Mode 2 applies a vertical reflection: $(x, y)$ becomes $(x, -y)$.
+
+The network's synchronization is governed by $m$ telemetry channels. Each channel connects a specific pair of modules. For a channel to function correctly, the combined effect of the two modules' transformations must be exactly a point reflection through the origin. That is, if you take any coordinate $(x, y)$, apply the transformation for the mode assigned to one module, and then apply the transformation for the mode assigned to the other module, the final coordinate must always be $(-x, -y)$. If the combined transformations yield any other result, the channel fails.
+
+Your task is to assign an operating mode ($1$ or $2$) to each of the $n$ modules so that every telemetry channel functions correctly. If multiple valid assignments are possible, you must output the lexicographically smallest valid sequence of modes. If no such assignment is possible, you must report that it cannot be done.
+
+## Input
+The first line provides two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$).
+The following $m$ lines each contain two integers $u$ and $v$ ($1 \le u, v \le n$), representing the indices of a pair of modules connected by a telemetry channel.
+
+## Output
+If it is impossible to configure the modules to satisfy all channels, output a single line with NO.
+If it is possible, output YES on the first line. On the second line, output $n$ integers $p_1 \dots p_n$ (where each $p_i \in \{1,2\}$) giving the lexicographically smallest valid sequence of modes.
+
+## Example 1
+Input:
+```
+4 4
+1 2
+2 3
+3 4
+1 4
+```
+Output:
+```
+YES
+1 2 1 2
+```
+
+## Example 2
+Input:
+```
+3 3
+1 2
+1 3
+2 3
+```
+Output:
+```
+NO
+```

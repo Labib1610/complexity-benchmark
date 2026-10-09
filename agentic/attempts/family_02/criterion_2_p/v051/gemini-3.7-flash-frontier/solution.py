@@ -1,0 +1,96 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    # Map literal to node index
+    # x_i (positive, 1-indexed) -> 2 * (i - 1)
+    # not x_i (negative) -> 2 * (|i| - 1) + 1
+    def get_lit(x):
+        if x > 0:
+            return 2 * (x - 1)
+        else:
+            return 2 * (-x - 1) + 1
+
+    def negate(u):
+        return u ^ 1
+
+    num_nodes = 2 * n
+    adj = [[] for _ in range(num_nodes)]
+    radj = [[] for _ in range(num_nodes)]
+    
+    idx = 2
+    for _ in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx + 1])
+        idx += 2
+        
+        l1 = get_lit(u)
+        l2 = get_lit(v)
+        
+        # (l1 or l2) => (not l1 -> l2) and (not l2 -> l1)
+        adj[negate(l1)].append(l2)
+        adj[negate(l2)].append(l1)
+        radj[l2].append(negate(l1))
+        radj[l1].append(negate(l2))
+        
+    # Kosaraju's Algorithm (Iterative)
+    visited = [False] * num_nodes
+    order = []
+    
+    for i in range(num_nodes):
+        if not visited[i]:
+            stack = [i]
+            visited[i] = True
+            # to simulate post-order traversal
+            edge_idx = [0] * num_nodes
+            while stack:
+                u = stack[-1]
+                if edge_idx[u] < len(adj[u]):
+                    v = adj[u][edge_idx[u]]
+                    edge_idx[u] += 1
+                    if not visited[v]:
+                        visited[v] = True
+                        stack.append(v)
+                else:
+                    order.append(u)
+                    stack.pop()
+                    
+    scc = [-1] * num_nodes
+    scc_id = 0
+    
+    for u in reversed(order):
+        if scc[u] == -1:
+            stack = [u]
+            scc[u] = scc_id
+            while stack:
+                curr = stack.pop()
+                for v in radj[curr]:
+                    if scc[v] == -1:
+                        scc[v] = scc_id
+                        stack.append(v)
+            scc_id += 1
+            
+    assignment = [0] * n
+    for i in range(n):
+        pos = 2 * i
+        neg = 2 * i + 1
+        if scc[pos] == scc[neg]:
+            print("NO")
+            return
+        # In Kosaraju, scc_id is assigned in topological order of the SCC DAG.
+        # u -> v implies scc[u] <= scc[v].
+        # If pos -> neg, scc[pos] <= scc[neg], so pos must be false (0).
+        # Thus, if scc[pos] > scc[neg], pos is true (1).
+        assignment[i] = 1 if scc[pos] > scc[neg] else 0
+        
+    print("YES")
+    print(*(assignment))
+
+if __name__ == '__main__':
+    solve()

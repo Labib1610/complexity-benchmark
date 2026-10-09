@@ -1,22 +1,25 @@
-# Problem B — Harmonic Resonance
+# Problem B — Anti-Glare Arrays
 
-Time limit: 1 s   Memory limit: 256 MB
+Time limit: 1 s
+Memory limit: 256 MB
 
-A facility operates $n$ resonance generators. There are $m$ interference testing links, each connecting a specific pair of generators. You must configure the facility by assigning each generator $i$ a state $s_i \in \{1, 2\}$. 
+An optical instrument contains $n$ crystal lenses. Each lens must be assigned a polarization mode, which must be an integer value of either $1$ or $2$.
 
-For any configuration, the system's overall resonance footprint is determined by calculating the sum of the states for each linked pair, and then taking the product of all $m$ of these sums. Formally, if the links connect pairs $(u_1, v_1), \dots, (u_m, v_m)$, the footprint is defined as $\prod_{j=1}^m (s_{u_j} + s_{v_j})$. (If $m=0$, the footprint is exactly $1$).
+The instrument is equipped with $m$ calibration tubes, each routing data between a pair of lenses. The instrument's diagnostic system validates the configuration by checking the local resonance at each tube.
 
-To ensure system stability, a configuration is only valid if its overall resonance footprint is exactly $3^m$.
+For a calibration tube connecting lens $u$ and lens $v$, its baseline frequency is calculated as the least common multiple ($\text{lcm}$) of the focal values of lens $u$ and lens $v$. The focal value of a lens $i$ is defined as $3 c_i + 1$, where $c_i$ is its assigned polarization mode.
 
-Determine if there is a valid configuration for all $n$ generators.
+To successfully filter out glare, there must exist some valid assignment of polarization modes to all $n$ lenses such that for every calibration tube, its baseline frequency is exactly $28$.
+
+Determine an assignment of polarization modes for all $n$ lenses that makes such a configuration possible, or report that the hardware configuration is flawed.
 
 ## Input
 The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$).
-Each of the next $m$ lines contains two integers $u$ and $v$ — a pair of generators connected by an interference testing link.
+Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$) — the two lenses connected by that calibration tube.
 
 ## Output
-If no valid configuration exists, print a single line `NO`.
-Otherwise, print `YES` on the first line. On the second line, print $n$ integers $s_1, s_2, \ldots, s_n$ (each in $\{1,2\}$) representing the valid configuration. If there are multiple valid configurations, output the one that minimizes the state $s_1$. If there is still a tie, minimize $s_2$, and so on sequentially up to $s_n$.
+If no valid assignment exists, print a single line containing `NO`.
+Otherwise, print `YES`, followed by a second line with $n$ integers $c_1 \dots c_n$ (each in $\{1,2\}$). This sequence must represent the valid assignment. If multiple valid assignments exist, output the lexicographically smallest sequence.
 
 ## Example 1
 Input:

@@ -1,0 +1,58 @@
+import sys
+sys.setrecursionlimit(1 << 25)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(next(it)); v = int(next(it))
+        adj[u].append(v)
+        adj[v].append(u)
+
+    color = [-1] * (n + 1)          # 0/1 bipartite color
+    comp_first = []                 # first vertex (smallest index) of each component
+    comp_id = [-1] * (n + 1)
+
+    from collections import deque
+    comp_cnt = 0
+    for v in range(1, n + 1):
+        if color[v] != -1:
+            continue
+        # start new component, v is the smallest index in it
+        comp_first.append(v)
+        q = deque([v])
+        color[v] = 0
+        comp_id[v] = comp_cnt
+        while q:
+            x = q.popleft()
+            for y in adj[x]:
+                if color[y] == -1:
+                    color[y] = color[x] ^ 1
+                    comp_id[y] = comp_cnt
+                    q.append(y)
+                elif color[y] == color[x]:
+                    print("NO")
+                    return
+        comp_cnt += 1
+
+    # construct answer with minimal lexicographic order
+    ans = [0] * (n + 1)
+    for i in range(1, n + 1):
+        cid = comp_id[i]
+        first = comp_first[cid]
+        # parity of first vertex should map to state 1
+        if color[i] == color[first]:
+            ans[i] = 1
+        else:
+            ans[i] = 2
+
+    print("YES")
+    print(' '.join(str(ans[i]) for i in range(1, n + 1)))
+
+if __name__ == "__main__":
+    solve()

@@ -1,0 +1,49 @@
+import sys
+from collections import deque
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(next(it)); v = int(next(it))
+        adj[u].append(v)
+        adj[v].append(u)
+
+    color = [-1] * (n + 1)          # 0 or 1 during BFS
+    ans = [0] * (n + 1)             # final 1/2 assignment
+
+    for start in range(1, n + 1):
+        if color[start] != -1:
+            continue
+        # BFS this component
+        q = deque([start])
+        color[start] = 0
+        comp_nodes = [start]
+        ok = True
+        while q:
+            u = q.popleft()
+            for v in adj[u]:
+                if color[v] == -1:
+                    color[v] = color[u] ^ 1
+                    q.append(v)
+                    comp_nodes.append(v)
+                elif color[v] == color[u]:
+                    print("NO")
+                    return
+        # decide which color gets filter 1
+        min_node = min(comp_nodes)
+        # color of min_node should map to 1
+        map_to_one = color[min_node]   # 0 or 1
+        for node in comp_nodes:
+            ans[node] = 1 if color[node] == map_to_one else 2
+
+    print("YES")
+    print(' '.join(str(ans[i]) for i in range(1, n + 1)))
+
+if __name__ == "__main__":
+    solve()

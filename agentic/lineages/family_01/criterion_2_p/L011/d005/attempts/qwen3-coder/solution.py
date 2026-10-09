@@ -1,108 +1,91 @@
 import sys
 from collections import defaultdict, deque
 
-def read_input():
-    n, m = map(int, sys.stdin.readline().split())
-    edges = []
-    for _ in range(m):
-        u, v = map(int, sys.stdin.readline().split())
-        edges.append((u-1, v-1))  # Convert to 0-indexed
-    return n, m, edges
-
-def binomial_coefficient(n, k):
-    if k > n or k < 0:
-        return 0
-    if k == 0 or k == n:
-        return 1
-    num = 1
-    den = 1
-    for i in range(k):
-        num *= (n - i)
-        den *= (i + 1)
-    return num // den
-
-def is_balanced(x_u, x_v):
-    # Number of paths from (0,0) to (x_u, x_v) using only (+1,0) and (0,+1) steps
-    # This is C(x_u + x_v, x_u)
-    total_steps = x_u + x_v
-    right_steps = x_u
-    paths = binomial_coefficient(total_steps, right_steps)
-    return paths == 3
-
 def solve():
-    n, m, edges = read_input()
+    import sys
+    input = sys.stdin.read
+    data = input().split()
     
-    # For each edge (u,v), we need C(x_u + x_v, x_u) = 3
-    # Let's find which pairs (x_u, x_v) ∈ {1,2} × {1,2} satisfy this:
-    # C(2,1) = 2  (1,1) - Not valid
-    # C(3,1) = 3  (1,2) and (2,1) - Valid
-    # C(3,2) = 3  (2,1) and (1,2) - Valid
-    # C(4,2) = 6  (2,2) - Not valid
+    n = int(data[0])
+    m = int(data[1])
     
-    # So the only valid assignments for an edge are:
-    # (x_u=1, x_v=2) or (x_u=2, x_v=1)
+    if m == 0:
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
     
-    # This is a 2-SAT problem. Each node is a variable that can be 1 or 2.
-    # For each edge (u,v), we have the constraint:
-    # (x_u=1 AND x_v=2) OR (x_u=2 AND x_v=1)
-    # In terms of boolean variables (True means state 1, False means state 2):
-    # (!u OR !v) AND (u OR v) 
-    # Which is equivalent to u XOR v
-    
-    # We can model this as a graph where each node has two vertices: u_T and u_F
-    # For XOR constraint between u and v:
-    # Add edges: u_T -> v_F, u_F -> v_T, v_T -> u_F, v_F -> u_T
-    
-    # But actually, let's think differently. 
-    # The constraint is that for every edge (u,v): x_u + x_v = 3
-    # That means if x_u = 1 then x_v = 2, and if x_u = 2 then x_v = 1.
-    # This is a bipartite graph constraint!
-    
-    # Build adjacency list
+    edges = []
     adj = defaultdict(list)
-    for u, v in edges:
+    index = 2
+    for _ in range(m):
+        u = int(data[index]) - 1  # Convert to 0-indexed
+        v = int(data[index+1]) - 1
+        edges.append((u, v))
         adj[u].append(v)
         adj[v].append(u)
+        index += 2
     
-    # Color the graph with 2 colors (0 and 1). 
-    # Color 0 will represent state 1, color 1 will represent state 2.
-    # Or vice versa. We'll try both and pick the lexicographically smaller one.
-    colors = [-1] * n  # -1 means unvisited
+    # For each edge (u,v), the stability is 6(p_u + p_v) - (p_u + p_v)^2
+    # We want the sum over all edges to be 9m
+    # Let's analyze what values of (p_u + p_v) give a stability of 9:
+    # 6x - x^2 = 9 => x^2 - 6x + 9 = 0 => (x-3)^2 = 0 => x = 3
+    # So for each edge, we need p_u + p_v = 3
+    # This means for each edge, one endpoint gets 1 and the other gets 2
     
-    def bfs(start):
-        queue = deque([start])
-        colors[start] = 0
-        while queue:
-            node = queue.popleft()
-            for neighbor in adj[node]:
-                if colors[neighbor] == -1:
-                    colors[neighbor] = 1 - colors[node]
-                    queue.append(neighbor)
-                elif colors[neighbor] == colors[node]:
-                    return False  # Not bipartite
-        return True
+    # This is equivalent to 2-coloring the graph where each edge must connect a 1-node and a 2-node
+    # In other words, the graph must be bipartite and each edge must connect nodes from different partitions
+    
+    # But we also need p_u + p_v = 3 for every edge
+    # This means the graph must be bipartite, and we assign 1 to one part and 2 to the other
+    
+    color = [-1] * n  # -1: unvisited, 0: color A (assign 1), 1: color B (assign 2)
+    result = [0] * n
     
     # Check if the graph is bipartite
     for i in range(n):
-        if colors[i] == -1:
-            if not bfs(i):
-                print("NO")
-                return
+        if color[i] == -1:
+            queue = deque()
+            queue.append(i)
+            color[i] = 0
+            while queue:
+                u = queue.popleft()
+                for v in adj[u]:
+                    if color[v] == -1:
+                        color[v] = 1 - color[u]
+                        queue.append(v)
+                    elif color[v] == color[u]:
+                        print("NO")
+                        return
     
-    # The graph is bipartite. Now we need to choose which color represents which state
-    # to get the lexicographically smallest sequence.
+    # If bipartite, assign 1 to color 0 nodes and 2 to color 1 nodes
+    # This ensures p_u + p_v = 3 for every edge
+    for i in range(n):
+        result[i] = 1 if color[i] == 0 else 2
     
-    # Option 1: color 0 -> state 1, color 1 -> state 2
-    option1 = [1 if colors[i] == 0 else 2 for i in range(n)]
+    # To get lexicographically smallest, we need to decide which color gets 1
+    # Try both and pick the lex smaller one
+    # Actually, we can just try assigning 1 to color 0 and see if it's lex smaller than the reverse
+    # But to ensure lex smallest, we can do this:
+    # Among all valid assignments (there are two: color 0 = 1 or color 0 = 2)
+    # We want the lex smallest sequence
     
-    # Option 2: color 0 -> state 2, color 1 -> state 1
-    option2 = [2 if colors[i] == 0 else 1 for i in range(n)]
+    option1 = []
+    option2 = []
+    for i in range(n):
+        option1.append(1 if color[i] == 0 else 2)
+        option2.append(2 if color[i] == 0 else 1)
     
     # Choose the lexicographically smaller one
-    result = option1 if option1 <= option2 else option2
+    chosen = option1
+    for i in range(n):
+        if option1[i] < option2[i]:
+            chosen = option1
+            break
+        elif option2[i] < option1[i]:
+            chosen = option2
+            break
     
     print("YES")
-    print(' '.join(map(str, result)))
+    print(" ".join(map(str, chosen)))
 
-if __name__ == "__main__":
-    solve()
+solve()

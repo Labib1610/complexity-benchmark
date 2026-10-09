@@ -1,0 +1,89 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    k = int(input_data[0])
+    t = int(input_data[1])
+    relays = []
+    idx = 2
+    for _ in range(t):
+        a = int(input_data[idx]); b = int(input_data[idx+1]); c = int(input_data[idx+2])
+        relays.append((a, b, c))
+        idx += 3
+    
+    # We need to select exactly k relays such that:
+    # sum_x (c1(x)^2 + c2(x)^2 + c3(x)^2) = 3k
+    # Since sum of counts = k for each coordinate, the minimum possible sum of squares
+    # for each coordinate is k (when all values are distinct). So total minimum is 3k.
+    # Thus we need each coordinate to have all distinct values.
+    # So we need a set of k relays forming a 3D matching: all a's distinct, all b's distinct, all c's distinct.
+    
+    # This is 3-dimensional matching. k <= 22, t <= k^3 = 10648.
+    # We can model as finding k disjoint triples in a 3-partite hypergraph.
+    # Use backtracking with pruning.
+    
+    # Preprocess: for each a, list of (b, c) pairs
+    from collections import defaultdict
+    a_to_bc = defaultdict(list)
+    for (a, b, c) in relays:
+        a_to_bc[a].append((b, c))
+    
+    # We'll try to assign each a from 1..k exactly once (if possible), but actually we just need k distinct a's.
+    # Since all a's must be distinct and there are k relays, the set of a's must be some subset of size k.
+    # But values are 1..k, so the a's must be exactly 1..k (each exactly once).
+    # Wait, values are 1..k, and we need k distinct values, so yes, a's must be a permutation of 1..k.
+    # Similarly b's and c's must be permutations of 1..k.
+    
+    # So we need to select exactly one relay for each a in 1..k, such that b's are all distinct and c's are all distinct.
+    # This is like finding a perfect matching in a bipartite graph between a's and (b,c) pairs with b,c all distinct.
+    # But it's 3D matching. Let's do backtracking over a from 1 to k.
+    
+    # Order a's by number of available options (MRV heuristic)
+    a_list = sorted(a_to_bc.keys(), key=lambda x: len(a_to_bc[x]))
+    # Only consider a's that have at least one option
+    a_list = [a for a in a_list if len(a_to_bc[a]) > 0]
+    if len(a_list) < k:
+        print("NO")
+        return
+    
+    # We need exactly k a's. Since values are 1..k, and we need k distinct a's, we need all a's from 1..k.
+    # But the catalog might not have all a's. Let's check: the set of a's in catalog must be exactly {1..k} for a solution.
+    # Actually, we need k distinct a's, and a's are in 1..k, so we need all of 1..k.
+    if set(a_to_bc.keys()) != set(range(1, k+1)):
+        print("NO")
+        return
+    
+    # Backtracking
+    used_b = [False] * (k + 1)
+    used_c = [False] * (k + 1)
+    chosen = []
+    
+    # Order a's by number of options for better pruning
+    a_order = sorted(range(1, k+1), key=lambda x: len(a_to_bc[x]))
+    
+    def backtrack(pos):
+        if pos == k:
+            return True
+        a = a_order[pos]
+        for (b, c) in a_to_bc[a]:
+            if not used_b[b] and not used_c[c]:
+                used_b[b] = True
+                used_c[c] = True
+                chosen.append((a, b, c))
+                if backtrack(pos + 1):
+                    return True
+                chosen.pop()
+                used_b[b] = False
+                used_c[c] = False
+        return False
+    
+    if backtrack(0):
+        print("YES")
+        for relay in chosen:
+            print(relay[0], relay[1], relay[2])
+    else:
+        print("NO")
+
+solve()

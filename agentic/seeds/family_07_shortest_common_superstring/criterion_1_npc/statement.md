@@ -4,9 +4,7 @@ Time limit: 5 s   Memory limit: 256 MB
 
 ## Description
 
-A sequencing run produced **k** fragments, each a string of lowercase letters. You must reconstruct the shortest possible single string **S** such that **every** fragment appears in **S** as a contiguous substring.
-
-Among all strings of the shortest possible length that contain every fragment, output the one that is lexicographically smallest.
+A reassembly stage receives **k** text fragments, each a run of lowercase letters, and must rebuild the **shortest single text S** in which **every** fragment occurs as a contiguous block. Overlaps between fragment ends save length — where one fragment's suffix matches another's prefix they can be merged — but choosing which fragments to overlap, and in what order, trades off against every other pair, so a merge that looks best locally can force a longer whole. Provenance and letter frequencies do not matter; only the strings and minimum total length. Output any text of the shortest possible length that contains every fragment as a substring.
 
 ## Input
 
@@ -15,7 +13,7 @@ Each of the next **k** lines contains one fragment: a non-empty string of lowerc
 
 ## Output
 
-Print the shortest string that contains every fragment as a contiguous substring. If several such strings share the shortest length, print the lexicographically smallest of them.
+Print a shortest string that contains every fragment as a contiguous substring. Any string of the minimum possible length that contains all fragments is accepted.
 
 ## Examples
 

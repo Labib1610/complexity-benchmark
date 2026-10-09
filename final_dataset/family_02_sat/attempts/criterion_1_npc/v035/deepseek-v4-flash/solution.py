@@ -1,0 +1,160 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.read().strip().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    clauses = []
+    for _ in range(m):
+        l1 = int(next(it))
+        l2 = int(next(it))
+        l3 = int(next(it))
+        clauses.append((l1, l2, l3))
+    
+    # Variable assignment: 0 = unassigned, 1 = True, -1 = False
+    assignment = [0] * (n + 1)
+    
+    # Convert clause to list of literals (positive = var, negative = -var)
+    clause_list = []
+    for c in clauses:
+        clause_list.append(list(c))
+    
+    # We'll implement DPLL with unit propagation and pure literal elimination
+    def propagate(clauses, assignment):
+        changed = True
+        while changed:
+            changed = False
+            # Unit propagation
+            for clause in clauses:
+                unassigned = []
+                satisfied = False
+                for lit in clause:
+                    var = abs(lit)
+                    val = assignment[var]
+                    if val == 0:
+                        unassigned.append(lit)
+                    elif (lit > 0 and val == 1) or (lit < 0 and val == -1):
+                        satisfied = True
+                        break
+                if satisfied:
+                    continue
+                if len(unassigned) == 0:
+                    return False  # conflict
+                if len(unassigned) == 1:
+                    lit = unassigned[0]
+                    var = abs(lit)
+                    val = 1 if lit > 0 else -1
+                    if assignment[var] == 0:
+                        assignment[var] = val
+                        changed = True
+                    elif assignment[var] != val:
+                        return False
+            # Pure literal elimination
+            # Count occurrences
+            pos_count = {}
+            neg_count = {}
+            for clause in clauses:
+                for lit in clause:
+                    var = abs(lit)
+                    if assignment[var] != 0:
+                        continue
+                    if lit > 0:
+                        pos_count[var] = pos_count.get(var, 0) + 1
+                    else:
+                        neg_count[var] = neg_count.get(var, 0) + 1
+            for var in list(pos_count.keys()):
+                if assignment[var] != 0:
+                    continue
+                if var not in neg_count:
+                    assignment[var] = 1
+                    changed = True
+            for var in list(neg_count.keys()):
+                if assignment[var] != 0:
+                    continue
+                if var not in pos_count:
+                    assignment[var] = -1
+                    changed = True
+        return True
+    
+    def dpll(clauses, assignment):
+        # Remove satisfied clauses and shorten others
+        new_clauses = []
+        for clause in clauses:
+            sat = False
+            new_clause = []
+            for lit in clause:
+                var = abs(lit)
+                val = assignment[var]
+                if val == 0:
+                    new_clause.append(lit)
+                elif (lit > 0 and val == 1) or (lit < 0 and val == -1):
+                    sat = True
+                    break
+            if sat:
+                continue
+            if not new_clause:
+                return False
+            new_clauses.append(new_clause)
+        
+        if not new_clauses:
+            return True
+        
+        # Unit propagation
+        if not propagate(new_clauses, assignment):
+            return False
+        
+        # Rebuild after propagation
+        new_clauses2 = []
+        for clause in new_clauses:
+            sat = False
+            new_clause = []
+            for lit in clause:
+                var = abs(lit)
+                val = assignment[var]
+                if val == 0:
+                    new_clause.append(lit)
+                elif (lit > 0 and val == 1) or (lit < 0 and val == -1):
+                    sat = True
+                    break
+            if sat:
+                continue
+            if not new_clause:
+                return False
+            new_clauses2.append(new_clause)
+        
+        if not new_clauses2:
+            return True
+        
+        # Choose unassigned variable
+        for var in range(1, n + 1):
+            if assignment[var] == 0:
+                # Try True
+                assignment[var] = 1
+                if dpll(new_clauses2, assignment):
+                    return True
+                # Try False
+                assignment[var] = -1
+                if dpll(new_clauses2, assignment):
+                    return True
+                assignment[var] = 0
+                return False
+        return True
+    
+    if dpll(clause_list, assignment):
+        print("YES")
+        res = []
+        for i in range(1, n + 1):
+            if assignment[i] == 1:
+                res.append("1")
+            else:
+                res.append("0")
+        print(" ".join(res))
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()

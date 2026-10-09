@@ -1,0 +1,147 @@
+import sys
+from collections import defaultdict, deque
+
+def main():
+    import sys
+    sys.setrecursionlimit(1000000)
+    
+    R, S, P = map(int, sys.stdin.readline().split())
+    mandated = set(map(int, sys.stdin.readline().split()))
+    
+    # Build adjacency list
+    adj = defaultdict(list)
+    edges = []
+    
+    for _ in range(S):
+        u, v, w = map(int, sys.stdin.readline().split())
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+        edges.append((u, v, w))
+    
+    # If all nodes are mandated, we must activate all, and the cost is sum of all edges
+    if len(mandated) == R:
+        total = sum(w for _, _, w in edges)
+        print(total)
+        return
+    
+    # Find the connected component containing all mandated nodes
+    # Since the graph is a tree, there is a unique minimal connected subgraph containing all mandated nodes
+    # This is the union of all paths between pairs of mandated nodes
+    
+    # To find this, we can do a BFS/DFS from one mandated node and find the minimal subtree
+    # that contains all mandated nodes. This is equivalent to finding the minimal connected
+    # subtree that spans all mandated nodes.
+    
+    # In a tree, the minimal connected subgraph containing a set of nodes is the union
+    # of paths between them. But there's a simpler way: it's the subtree that results
+    # from taking all nodes that lie on some path between two mandated nodes.
+    
+    # An efficient way is to use the fact that in a tree, the minimal connected subgraph
+    # containing a set of nodes is the same as the minimal subtree that contains all of them.
+    # This can be found by starting from one node and doing a DFS/BFS, but only traversing
+    # edges that are necessary to connect to other mandated nodes.
+    
+    # A simpler approach for a tree:
+    # The minimal connected subgraph containing all mandated nodes is the same as
+    # the subgraph induced by all nodes that are on paths between pairs of mandated nodes.
+    # In a tree, this is equivalent to the union of paths between a fixed node and all others.
+    
+    # Even simpler: since it's a tree, we can find the "Steiner tree" which is the
+    # minimal subtree connecting all mandated nodes. For a tree, this can be found by
+    # taking the union of paths. But there's a linear-time algorithm:
+    # Root the tree at any node, find the lowest common ancestor (LCA) concepts, etc.
+    # But for simplicity, we can do the following:
+    # 1. Pick one mandated node as root
+    # 2. Do a DFS to compute for each node whether its subtree contains any mandated node
+    # 3. The minimal connected subgraph is the set of edges where both endpoints have
+    #    mandated nodes in their (respective) subtrees when removing the edge.
+    
+    # Let's implement a clean solution:
+    # Since the graph is a tree, the minimal connected subgraph containing all mandated nodes
+    # is unique. We need to find it and then sum the weights of edges in it.
+    
+    # Algorithm:
+    # 1. Root the tree at an arbitrary node
+    # 2. For each node, compute if its subtree contains any mandated node
+    # 3. An edge is in the minimal subgraph iff removing it separates mandated nodes
+    #    i.e., both components after removal contain mandated nodes
+    #    In tree: an edge (u,v) is in the subgraph iff
+    #    (the subtree of u (when v is parent) contains a mandated node) AND
+    #    (the rest of the tree contains a mandated node)
+    #    OR vice versa.
+    #    Simpler: edge {u,v} is in the minimal subtree iff
+    #    (subtree of u contains >=1 mandated) AND (subtree of v contains >=1 mandated)
+    #    This is not quite right. Let's think again.
+    #    The correct condition: edge {u,v} is in the minimal connected subgraph containing
+    #    all mandated nodes iff in the two subtrees obtained by removing the edge,
+    #    both subtrees contain at least one mandated node.
+    
+    # Implementation:
+    # 1. Pick a root (say node 1)
+    # 2. First DFS: compute for each node, how many mandated nodes are in its subtree
+    # 3. Second DFS: for each edge, check if it's in the minimal subgraph
+    
+    # But we need to be careful about the direction. Let's make node 1 the root.
+    # Ensure node 1 exists
+    root = 1
+    
+    # Build parent relationships and children lists via DFS
+    parent = [-1] * (R + 1)
+    children = defaultdict(list)
+    edge_weights = {}
+    
+    visited = [False] * (R + 1)
+    stack = [root]
+    visited[root] = True
+    
+    while stack:
+        u = stack.pop()
+        for v, w in adj[u]:
+            if not visited[v]:
+                visited[v] = True
+                parent[v] = u
+                children[u].append(v)
+                edge_weights[(u, v)] = w
+                edge_weights[(v, u)] = w
+                stack.append(v)
+    
+    # First DFS: compute count of mandated nodes in subtree of each node
+    # We'll do this bottom-up
+    subtree_mandated_count = [0] * (R + 1)
+    
+    def dfs_count(u):
+        count = 1 if u in mandated else 0
+        for v in children[u]:
+            count += dfs_count(v)
+        subtree_mandated_count[u] = count
+        return count
+    
+    dfs_count(root)
+    
+    # Total mandated nodes
+    total_mandated = len(mandated)
+    
+    # Second pass: calculate the minimum cost
+    # An edge (u,v) where u is parent of v is in the minimal subgraph iff
+    # subtree of v contains at least one mandated node AND
+    # the rest of the tree (including u's other subtrees and u itself if mandated)
+    # also contains at least one mandated node.
+    # The rest contains: (total_mandated - subtree_mandated_count[v]) mandated nodes.
+    
+    total_cost = 0
+    def dfs_cost(u):
+        nonlocal total_cost
+        for v in children[u]:
+            # Edge from u to v
+            # Subtree of v has subtree_mandated_count[v] mandated nodes
+            # Rest of tree has total_mandated - subtree_mandated_count[v] mandated nodes
+            if subtree_mandated_count[v] > 0 and (total_mandated - subtree_mandated_count[v]) > 0:
+                total_cost += edge_weights[(u, v)]
+            dfs_cost(v)
+    
+    dfs_cost(root)
+    
+    print(total_cost)
+
+if __name__ == "__main__":
+    main()

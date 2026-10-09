@@ -1,0 +1,61 @@
+import sys, itertools
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    B = int(next(it))
+    edges = [(int(next(it)) - 1, int(next(it)) - 1) for _ in range(m)]
+
+    # brute force for small n
+    if n <= 9:
+        nodes = list(range(n))
+        for perm in itertools.permutations(range(1, n + 1)):
+            total = 0
+            for u, v in edges:
+                total += abs(perm[u] - perm[v])
+                if total > B:
+                    break
+            if total <= B:
+                print("YES")
+                print(' '.join(map(str, perm)))
+                return
+        print("NO")
+        return
+
+    # simple heuristic for larger n: place nodes by a DFS order
+    sys.setrecursionlimit(10**6)
+    adj = [[] for _ in range(n)]
+    for u, v in edges:
+        adj[u].append(v)
+        adj[v].append(u)
+
+    order = []
+    visited = [False] * n
+    stack = [0]
+    while stack:
+        u = stack.pop()
+        if visited[u]:
+            continue
+        visited[u] = True
+        order.append(u)
+        for v in adj[u]:
+            if not visited[v]:
+                stack.append(v)
+
+    pos = [0] * n
+    for idx, node in enumerate(order):
+        pos[node] = idx + 1
+
+    total = sum(abs(pos[u] - pos[v]) for u, v in edges)
+    if total <= B:
+        print("YES")
+        print(' '.join(map(str, pos)))
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()

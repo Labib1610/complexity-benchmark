@@ -1,0 +1,130 @@
+import sys
+from sys import setrecursionlimit
+
+def main():
+    input_data = sys.stdin.buffer.read().split()
+    idx = 0
+    n = int(input_data[idx]); idx += 1
+    m = int(input_data[idx]); idx += 1
+    
+    # 2-SAT: variable i (1-indexed), literal i = s_i=1, literal ~i = s_i=0
+    # Node 2*i for s_i=1, 2*i+1 for s_i=0
+    # For variable v (1-indexed): node 2*v = true, 2*v+1 = false
+    
+    adj = [[] for _ in range(4*n + 4)]
+    
+    def add_edge(u, v):
+        adj[u].append(v)
+    
+    def add_impl(u, v):
+        add_edge(u ^ 1, v)
+        add_edge(v ^ 1, u)
+    
+    def add_forbid(u, v):
+        # forbid (u, v) means NOT(u AND v)
+        add_impl(u, v ^ 1)
+    
+    def add_unit(u):
+        # force u to be true: forbid u^1
+        add_impl(u ^ 1, u)
+    
+    possible = True
+    
+    for _ in range(m):
+        c1 = int(input_data[idx]); idx += 1
+        c2 = int(input_data[idx]); idx += 1
+        
+        m1 = abs(c1)
+        m2 = abs(c2)
+        
+        if m1 == m2:
+            if (c1 > 0) == (c2 > 0):
+                # same sign: force s = 0 if c1+c2 > 0, s = 1 if c1+c2 < 0
+                if c1 + c2 > 0:
+                    add_unit(2*m1 + 1)  # force false (s=0)
+                else:
+                    add_unit(2*m1)  # force true (s=1)
+            # opposite signs: always stable, no constraint
+        else:
+            if (c1 > 0) == (c2 > 0):
+                # same sign: forbid s_m1=0 AND s_m2=0
+                add_forbid(2*m1 + 1, 2*m2 + 1)
+            else:
+                # opposite signs: forbid s_m1=0 AND s_m2=1
+                # determine which is negative
+                if c1 < 0:
+                    neg_m, pos_m = m1, m2
+                else:
+                    neg_m, pos_m = m2, m1
+                # forbid s_neg=0 AND s_pos=1
+                add_forbid(2*neg_m + 1, 2*pos_m)
+    
+    if not possible:
+        print("NO")
+        return
+    
+    # Kosaraju's SCC
+    N = 4*n + 4
+    visited = [False] * N
+    order = []
+    
+    sys.setrecursionlimit(300000)
+    
+    def dfs1(u):
+        stack = [(u, 0)]
+        while stack:
+            node, i = stack[-1]
+            if i < len(adj[node]):
+                stack[-1] = (node, i + 1)
+                v = adj[node][i]
+                if not visited[v]:
+                    visited[v] = True
+                    stack.append((v, 0))
+            else:
+                order.append(node)
+                stack.pop()
+    
+    for i in range(N):
+        if not visited[i]:
+            visited[i] = True
+            dfs1(i)
+    
+    # Build reverse graph
+    radj = [[] for _ in range(N)]
+    for u in range(N):
+        for v in adj[u]:
+            radj[v].append(u)
+    
+    comp = [-1] * N
+    comp_id = 0
+    
+    def dfs2(u, cid):
+        stack = [u]
+        while stack:
+            node = stack.pop()
+            if comp[node] != -1:
+                continue
+            comp[node] = cid
+            for v in radj[node]:
+                if comp[v] == -1:
+                    stack.append(v)
+    
+    for u in reversed(order):
+        if comp[u] == -1:
+            dfs2(u, comp_id)
+            comp_id += 1
+    
+    # Check satisfiability and assign
+    assignment = [0] * (n + 1)
+    for i in range(1, n + 1):
+        t_node = 2 * i      # s_i = 1
+        f_node = 2 * i + 1  # s_i = 0
+        if comp[t_node] == comp[f_node]:
+            print("NO")
+            return
+        assignment[i] = 1 if comp[t_node] > comp[f_node] else 0
+    
+    print("YES")
+    print(' '.join(str(assignment[i]) for i in range(1, n + 1)))
+
+main()

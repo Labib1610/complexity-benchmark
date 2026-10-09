@@ -1,24 +1,23 @@
 import sys
-from collections import deque
+sys.setrecursionlimit(300000)
 
-input = sys.stdin.readline
-
-n, m = map(int, input().split())
-adj = [[] for _ in range(n)]
-for _ in range(m):
-    u, v = map(int, input().split())
-    u -= 1
-    v -= 1
-    adj[u].append(v)
-    adj[v].append(u)
-
-color = [-1] * n
-possible = True
-
-for i in range(n):
-    if color[i] == -1:
-        color[i] = 0
-        q = deque([i])
+def solve():
+    input = sys.stdin.readline
+    n, m = map(int, input().split())
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u, v = map(int, input().split())
+        u -= 1
+        v -= 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    color = [-1] * n
+    
+    def bfs(start):
+        from collections import deque
+        q = deque([start])
+        color[start] = 0
         while q:
             u = q.popleft()
             for v in adj[u]:
@@ -26,55 +25,42 @@ for i in range(n):
                     color[v] = color[u] ^ 1
                     q.append(v)
                 elif color[v] == color[u]:
-                    possible = False
-                    break
-            if not possible:
-                break
-    if not possible:
-        break
-
-if not possible:
-    print("NO")
-else:
-    # color 0 -> hall 1, color 1 -> hall 2
-    # But we want lexicographically smallest: prefer 1 at earlier indices
-    # We can flip colors in each connected component if it makes earlier nodes 1
+                    return False
+        return True
+    
+    for i in range(n):
+        if color[i] == -1:
+            if not bfs(i):
+                print("NO")
+                return
+    
+    # Now we have a valid bipartition, but we want lexicographically smallest.
+    # We can try to flip colors in each connected component if it makes earlier nodes 1.
     visited = [False] * n
     for i in range(n):
         if not visited[i]:
-            # BFS to collect component
+            # collect component
             comp = []
-            q = deque([i])
+            stack = [i]
             visited[i] = True
-            while q:
-                u = q.popleft()
+            while stack:
+                u = stack.pop()
                 comp.append(u)
                 for v in adj[u]:
                     if not visited[v]:
                         visited[v] = True
-                        q.append(v)
+                        stack.append(v)
             # Check if flipping helps lexicographically
-            # Count how many in comp have color 0 vs 1
-            # If flipping makes earlier index smaller, flip
-            flip = False
-            for u in comp:
-                if color[u] == 1:
-                    # if first differing position would be smaller with flip
-                    if not flip:
-                        # compare: current color[u]=1 means hall2, flip would make hall1
-                        # We want smallest lexicographic, so if first node in comp is 1, flip
-                        if u == min(comp):
-                            flip = True
-                    break
-                elif color[u] == 0:
-                    break
-            # Actually simpler: if the smallest index in comp has color 1, flip
-            if color[min(comp)] == 1:
-                flip = True
-            if flip:
+            # Count how many nodes in comp have color 0 vs 1
+            # We want smallest index to be 1 if possible
+            # If first node in comp (by index) has color 1, we flip
+            first = min(comp)
+            if color[first] == 1:
                 for u in comp:
                     color[u] ^= 1
-
-    res = [1 if c == 0 else 2 for c in color]
+    
     print("YES")
-    print(" ".join(map(str, res)))
+    print(' '.join(str(c + 1) for c in color))
+
+if __name__ == "__main__":
+    solve()

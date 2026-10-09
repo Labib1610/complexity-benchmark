@@ -1,0 +1,32 @@
+import sys
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    j = int(data[0])
+    requests = []
+    index = 1
+    for _ in range(j):
+        p1 = int(data[index])
+        p2 = int(data[index+1])
+        requests.append((p1, p2))
+        index += 2
+    
+    # Sort by p1 ascending, then by p2 descending
+    # This is Johnson's rule for 2-machine flow shop scheduling
+    requests.sort(key=lambda x: (x[0], -x[1]))
+    
+    # Simulate the process
+    time_a = 0  # Time when Phase A finishes current job
+    time_b = 0  # Time when Phase B finishes current job
+    
+    for p1, p2 in requests:
+        time_a += p1
+        time_b = max(time_a, time_b) + p2
+    
+    print(time_b)
+
+if __name__ == "__main__":
+    main()

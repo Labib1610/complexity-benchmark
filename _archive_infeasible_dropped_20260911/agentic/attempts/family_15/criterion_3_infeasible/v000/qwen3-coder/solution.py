@@ -1,0 +1,17 @@
+k = int(input())
+sequences = []
+for _ in range(k):
+    sequences.append(input().strip())
+
+print("BLOCK")
+
+# Get distinct characters from the first sequence
+distinct_chars = list(dict.fromkeys(sequences[0]))  # Preserves order
+
+# For each distinct character in the first sequence
+for char in distinct_chars:
+    # Find a sequence (from index 2 to k) that doesn't contain this character
+    for i in range(1, k):  # Indexes 1 to k-1 correspond to sequences 2 to k
+        if char not in sequences[i]:
+            print(f"{char} {i+1}")
+            break

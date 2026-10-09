@@ -1,0 +1,130 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    B = int(next(it))
+    
+    adj = [[] for _ in range(n)]
+    adj_mask = [0] * n
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+        adj_mask[u] |= (1 << v)
+        adj_mask[v] |= (1 << u)
+        
+    if n == 1:
+        if B >= 0:
+            print("YES")
+            print("1")
+        else:
+            print("NO")
+        return
+
+    # For small n, exact DP gives optimal MinLA
+    if n <= 18:
+        deg = [len(adj[i]) for i in range(n)]
+        size = 1 << n
+        cut = [0] * size
+        dp = [float('inf')] * size
+        parent = [-1] * size
+        dp[0] = 0
+        
+        for mask in range(1, size):
+            lsb = mask & -mask
+            v = (lsb).bit_length() - 1
+            prev = mask ^ lsb
+            cut[mask] = cut[prev] + deg[v] - 2 * (adj_mask[v] & prev).bit_count()
+            
+            # Find min over all u in mask
+            best_val = float('inf')
+            best_u = -1
+            m_temp = mask
+            while m_temp > 0:
+                bit = m_temp & -m_temp
+                u = bit.bit_length() - 1
+                val = dp[mask ^ bit]
+                if val < best_val:
+                    best_val = val
+                    best_u = u
+                m_temp ^= bit
+                
+            dp[mask] = best_val + cut[mask]
+            parent[mask] = best_u
+            
+        opt_cost = dp[(1 << n) - 1] - cut[(1 << n) - 1] # wait, cut[(1<<n)-1] is 0
+        opt_cost = dp[(1 << n) - 1]
+        
+        if opt_cost <= B:
+            # Reconstruct order of vertices
+            order = []
+            curr = (1 << n) - 1
+            while curr > 0:
+                u = parent[curr]
+                order.append(u)
+                curr ^= (1 << u)
+            order.reverse()
+            
+            # pos[v] is 1-based position
+            pos = [0] * n
+            for p, v in enumerate(order, 1):
+                pos[v] = p
+            print("YES")
+            print(*(pos[i] for i in range(n)))
+        else:
+            print("NO")
+        return
+
+    # For larger n: Heuristic approach (Centroid / DFS orders + Local Search)
+    def eval_cost(order):
+        pos = [0] * n
+        for p, v in enumerate(order):
+            pos[v] = p
+        cost = 0
+        for u in range(n):
+            for v in adj[u]:
+                if u < v:
+                    cost += abs(pos[u] - pos[v])
+        return cost
+
+    best_order = None
+    best_cost = float('inf')
+
+    # Try DFS from all vertices
+    for start in range(n):
+        visited = [False] * n
+        order = []
+        stack = [start]
+        visited[start] = True
+        while stack:
+            u = stack.pop()
+            order.append(u)
+            for v in adj[u]:
+                if not visited[v]:
+                    visited[v] = True
+                    stack.append(v)
+        c = eval_cost(order)
+        if c < best_cost:
+            best_cost = c
+            best_order = order
+            if best_cost <= B:
+                break
+
+    if best_cost <= B:
+        pos = [0] * n
+        for p, v in enumerate(best_order, 1):
+            pos[v] = p
+        print("YES")
+        print(*(pos[i] for i in range(n)))
+    else:
+        print("NO")
+
+if __name__ == '__main__':
+    solve()

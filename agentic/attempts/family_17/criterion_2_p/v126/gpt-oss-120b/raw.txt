@@ -1,0 +1,243 @@
+**Solution Explanation**
+
+The modules are divided into two parts  
+
+* left part `L = {1 … q}` (primary tier)  
+* right part `R = {q+1 … 2q}` (secondary tier)
+
+Every potential channel connects one vertex of `L` with one vertex of `R`.  
+We have to choose exactly `q` channels so that every vertex of the whole
+graph is incident to **exactly one** chosen channel.
+
+That is exactly the definition of a *perfect matching* in a bipartite
+graph with the two sides of equal size `q`.  
+So the task is:
+
+*Does the given bipartite graph contain a perfect matching?*  
+If yes, output any one.
+
+The classic algorithm for maximum bipartite matching in
+`O(E·√V)` is **Hopcroft‑Karp**.  
+With `V = 2·q ≤ 2·10⁵` and `E ≤ 4·10⁵` it easily fits into the limits.
+
+
+
+--------------------------------------------------------------------
+
+#### Algorithm
+```
+read q, t
+build adjacency list adj[1…q]   // neighbours are right‑side vertices (q+1 … 2q)
+
+run Hopcroft‑Karp
+    pairU[u] – matched right vertex of left vertex u (0 = unmatched)
+    pairV[v] – matched left vertex of right vertex v (0 = unmatched)
+    dist[u]  – BFS distance used by the algorithm
+
+    while BFS() finds at least one free vertex on the right side:
+        for every free left vertex u:
+            if DFS(u) finds an augmenting path:
+                increase matching size
+
+if matching size == q:
+    print "YES"
+    for u = 1 … q:
+        print u, pairU[u]          // pairU[u] is the matched right vertex
+else:
+    print "NO"
+```
+
+`BFS` builds the layered graph of shortest alternating paths
+starting from all free left vertices.
+`DFS` tries to extend those paths and augment the matching.
+
+--------------------------------------------------------------------
+
+#### Correctness Proof  
+
+We prove that the algorithm prints `YES` and a correct set of channels
+iff a perfect matching exists.
+
+---
+
+##### Lemma 1  
+During Hopcroft‑Karp, after each augmentation the set `pairU`, `pairV`
+represents a matching (no vertex is incident to more than one chosen edge).
+
+**Proof.**  
+Initially all pairs are `0` – empty matching.  
+An augmentation follows an alternating path that starts and ends at a free
+vertex. Flipping the edges along this path adds exactly one new matched
+edge and removes the previously matched edges on the path, never creating
+a conflict. ∎
+
+
+
+##### Lemma 2  
+`BFS` returns *true* iff there exists an augmenting path
+with respect to the current matching.
+
+**Proof.**  
+`BFS` starts from all free left vertices and follows only edges that are
+*unmatched* from left to right and *matched* from right to left, i.e. exactly
+the definition of alternating paths.  
+If it reaches a free right vertex, an alternating path from a free left
+to a free right vertex is found – an augmenting path.  
+Conversely, any augmenting path must respect the same edge directions,
+hence its vertices will be discovered and the free right endpoint will be
+reached, making `BFS` return true. ∎
+
+
+
+##### Lemma 3  
+If `BFS` returns true, the subsequent `DFS` calls find a set of vertex‑disjoint
+shortest augmenting paths whose total number equals the increase of the
+matching size.
+
+**Proof.**  
+Standard property of Hopcroft‑Karp: `DFS` searches only inside the layered
+graph built by `BFS`. Because distances strictly increase, any two found
+paths are vertex‑disjoint. Each successful `DFS` augments the matching by
+one, and the algorithm repeats until no more augmenting path of that length
+exists. ∎
+
+
+
+##### Lemma 4  
+When the algorithm terminates, the matching is maximum.
+
+**Proof.**  
+Termination happens when `BFS` finds no augmenting path.
+By Lemma&nbsp;2 this means *no* augmenting path exists in the whole graph,
+which is exactly the characterization of a maximum matching (Kőnig‑Egérváry
+theorem). ∎
+
+
+
+##### Lemma 5  
+If the algorithm outputs `YES`, the printed edges form a perfect matching.
+
+**Proof.**  
+`YES` is printed only when the matching size equals `q`.  
+By Lemma&nbsp;1 it is a matching, and because both sides contain `q`
+vertices, a matching of size `q` matches every vertex exactly once – a
+perfect matching. The printed edges are precisely the pairs stored in
+`pairU`. ∎
+
+
+
+##### Lemma 6  
+If a perfect matching exists, the algorithm outputs `YES`.
+
+**Proof.**  
+A perfect matching has size `q`.  
+By Lemma&nbsp;4 the algorithm finds a *maximum* matching, whose size is at
+least the size of any matching, therefore at least `q`.  
+Since the graph has only `q` vertices on each side, the maximum size cannot
+exceed `q`. Hence the algorithm obtains size exactly `q` and prints `YES`. ∎
+
+
+
+##### Theorem  
+The program prints `YES` followed by a valid selection of channels
+iff such a selection exists; otherwise it prints `NO`.
+
+**Proof.**  
+*If* part: by Lemma&nbsp;5.  
+*Only if* part: by Lemma&nbsp;6. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### Complexity Analysis  
+
+* `BFS` scans each edge at most once → `O(E)`.
+* Each phase finds at least one augmenting path, and the number of phases
+  is `O(√V)` (standard Hopcroft‑Karp bound).
+* Total time `O(E·√V) ≤ 4·10⁵·√(2·10⁵) ≈ 1.8·10⁸` operations, well inside 2 s in
+  Python with an efficient implementation.
+* Memory: adjacency list `O(E)`, plus a few arrays of size `O(V)`.  
+  ≤ a few MB, far below the limit.
+
+--------------------------------------------------------------------
+
+#### Reference Implementation  (Python 3)
+
+```python
+import sys
+import collections
+
+def solve() -> None:
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    it = iter(data)
+    q = int(next(it))
+    t = int(next(it))
+
+    adj = [[] for _ in range(q + 1)]          # 1‑based left side
+    for _ in range(t):
+        a = int(next(it))
+        b = int(next(it))
+        adj[a].append(b)                     # b is in [q+1, 2q]
+
+    # Hopcroft‑Karp
+    NIL = 0
+    pairU = [NIL] * (q + 1)                  # left -> right
+    pairV = {}                               # right -> left, use dict for sparse
+    dist = [0] * (q + 1)
+
+    def bfs() -> bool:
+        qd = collections.deque()
+        for u in range(1, q + 1):
+            if pairU[u] == NIL:
+                dist[u] = 0
+                qd.append(u)
+            else:
+                dist[u] = -1
+        found = False
+        while qd:
+            u = qd.popleft()
+            for v in adj[u]:
+                pu = pairV.get(v, NIL)
+                if pu == NIL:
+                    found = True               # we can reach a free right vertex
+                elif dist[pu] == -1:
+                    dist[pu] = dist[u] + 1
+                    qd.append(pu)
+        return found
+
+    sys.setrecursionlimit(1 << 25)
+
+    def dfs(u: int) -> bool:
+        for v in adj[u]:
+            pu = pairV.get(v, NIL)
+            if pu == NIL or (dist[pu] == dist[u] + 1 and dfs(pu)):
+                pairU[u] = v
+                pairV[v] = u
+                return True
+        dist[u] = -1
+        return False
+
+    matching = 0
+    while bfs():
+        for u in range(1, q + 1):
+            if pairU[u] == NIL and dfs(u):
+                matching += 1
+
+    out = []
+    if matching == q:
+        out.append(b"YES")
+        for u in range(1, q + 1):
+            out.append(f"{u} {pairU[u]}".encode())
+    else:
+        out.append(b"NO")
+    sys.stdout.buffer.write(b"\n".join(out))
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above
+and conforms to the required input‑output format.

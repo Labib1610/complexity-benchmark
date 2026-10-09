@@ -1,0 +1,106 @@
+import sys
+sys.setrecursionlimit(10000)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    j = int(next(it))
+    m = int(next(it))
+    jobs = []
+    total_ops = 0
+    for _ in range(j):
+        p = int(next(it))
+        ops = []
+        for __ in range(p):
+            fac = int(next(it)) - 1
+            dur = int(next(it))
+            ops.append((fac, dur))
+        jobs.append(ops)
+        total_ops += p
+
+    # precompute remaining time per job from each position
+    rem_job = [[0]*(len(job)+1) for job in jobs]
+    for idx, job in enumerate(jobs):
+        s = 0
+        for pos in range(len(job)-1, -1, -1):
+            s += job[pos][1]
+            rem_job[idx][pos] = s
+        rem_job[idx][len(job)] = 0
+
+    # precompute remaining time per machine from each position (sum of durations of unscheduled ops on that machine)
+    # We'll compute on the fly using remaining ops list.
+
+    best = [float('inf')]
+
+    # initial state
+    job_pos = [0]*j          # next op index for each job
+    mach_ready = [0]*m       # when each machine becomes free
+    job_ready = [0]*j        # when each job becomes ready (end of its last scheduled op)
+
+    # For quick lower bound of machine remaining times, we can precompute total remaining per machine for each job position combination is heavy.
+    # Instead compute at each node: sum of durations of all unscheduled ops per machine.
+    def dfs(scheduled_cnt: int, cur_makespan: int):
+        if cur_makespan >= best[0]:
+            return
+        if scheduled_cnt == total_ops:
+            best[0] = cur_makespan
+            return
+
+        # lower bound: max of (job ready + remaining job time) and (machine ready + remaining machine time)
+        lb = cur_makespan
+        # job bound
+        for idx in range(j):
+            if job_pos[idx] < len(jobs[idx]):
+                lb = max(lb, job_ready[idx] + rem_job[idx][job_pos[idx]])
+        # machine bound
+        # compute remaining per machine
+        rem_mach = [0]*m
+        for idx in range(j):
+            pos = job_pos[idx]
+            for k in range(pos, len(jobs[idx])):
+                fac, dur = jobs[idx][k]
+                rem_mach[fac] += dur
+        for fac in range(m):
+            if rem_mach[fac]:
+                lb = max(lb, mach_ready[fac] + rem_mach[fac])
+        if lb >= best[0]:
+            return
+
+        # choose next operations to schedule: all jobs with remaining ops
+        # heuristic: try jobs with earliest possible start time first
+        candidates = []
+        for idx in range(j):
+            if job_pos[idx] < len(jobs[idx]):
+                fac, dur = jobs[idx][job_pos[idx]]
+                est = max(job_ready[idx], mach_ready[fac])
+                candidates.append((est, idx, fac, dur))
+        candidates.sort()  # try earlier start first
+
+        for est, idx, fac, dur in candidates:
+            # schedule this operation
+            start = est
+            finish = start + dur
+
+            # update state
+            old_job_pos = job_pos[idx]
+            old_job_ready = job_ready[idx]
+            old_mach_ready = mach_ready[fac]
+
+            job_pos[idx] += 1
+            job_ready[idx] = finish
+            mach_ready[fac] = finish
+
+            dfs(scheduled_cnt + 1, max(cur_makespan, finish))
+
+            # revert
+            job_pos[idx] = old_job_pos
+            job_ready[idx] = old_job_ready
+            mach_ready[fac] = old_mach_ready
+
+    dfs(0, 0)
+    print(best[0])
+
+if __name__ == "__main__":
+    solve()
