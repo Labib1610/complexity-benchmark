@@ -12,15 +12,11 @@ answer-preserving), and an independent panel of models is evaluated on the resul
 
 > **Current setup (this is the live configuration).**
 > - **12 families**, **2 criteria** each: `criterion_1_npc` and `criterion_2_p`.
->   The former INFEASIBLE criterion has been **dropped** (it was always 100% and
->   non-discriminating; archived, not deleted).
 > - The released benchmark lives in **`final_dataset/`**: seeds, all hardened statement
 >   versions, full hardening lineages, stored model attempts, and curated tests.
 > - Evaluation is done by **`evaluate.py`** (NPC, with a 1/2/5/10 s time-constraint
 >   sweep) and **`evaluate_p.py`** (P, at each statement's own stated limit), scored by a
->   family of **report scripts**. Results are written to a separate **`../evaluation/`**
->   directory.
-> - Analysis write-ups for the paper are in **`../paper_files/`**.
+>   family of **report scripts**.
 
 ---
 
@@ -69,16 +65,16 @@ I/O contract, and complexity class are provably preserved.
 |---|---|---|---|
 | 01 | graph colouring | 3-colouring | 2-colouring |
 | 02 | satisfiability | 3-SAT | 2-SAT |
-| 05 | matching | 3-D matching | bipartite matching |
-| 09 | clique / independent set | general graphs | interval graphs |
-| 14 | Steiner tree | terminal subset | spanning tree (MST) |
-| 16 | job-shop | makespan | two-machine flow shop |
-| 17 | exact cover | exact cover by 3-sets | exact cover by 2-sets |
-| 18 | linear arrangement | general graphs | trees |
-| 19 | multicommodity flow | k-commodity (integer) | single commodity |
-| 20 | edge colouring | cubic graphs | bipartite graphs |
-| 21 | multiway cut | at least 3 terminals | s-t min cut |
-| 22 | precedence scheduling | at least 2 machines | single machine |
+| 03 | matching | 3-D matching | bipartite matching |
+| 04 | clique / independent set | general graphs | interval graphs |
+| 05 | Steiner tree | terminal subset | spanning tree (MST) |
+| 06 | job-shop | makespan | two-machine flow shop |
+| 07 | exact cover | exact cover by 3-sets | exact cover by 2-sets |
+| 08 | linear arrangement | general graphs | trees |
+| 09 | multicommodity flow | k-commodity (integer) | single commodity |
+| 10 | edge colouring | cubic graphs | bipartite graphs |
+| 11 | multiway cut | at least 3 terminals | s-t min cut |
+| 12 | precedence scheduling | at least 2 machines | single machine |
 
 (Family numbering is the original dataset id; families 03, 04, 06 to 08, 10 to 13, and 15
 exist in `dataset/` but are not part of the released 12-family `final_dataset/`.)
@@ -161,9 +157,10 @@ and the P side of 01), **exact match** against the reference `.out`.
 Per family, per criterion, the pipeline (`agentic/tools/`) runs:
 
 1. **generate_versions**: expand the seed into many paraphrase and structural **versions**.
-2. **gate**: the validity gate runs hard checks `H1` to `H5` (well-posed, solvable,
-   I/O-consistent, round-trip-solvable) plus graded criteria `G1` to `G4` scored by the
-   **verifier**. Accept only if all hard checks pass and `G1>=4, G2>=4, G3>=5, G4>=3`.
+2. **gate**: the validity gate runs hard checks `H1` to `H4` (well-posed, solvable,
+   I/O-consistent) plus graded criteria `G1` to `G4` scored by the **verifier**. Accept
+   only if all hard checks pass and `G1>=4, G2>=4, G3>=5, G4>=3`. (The former H5
+   round-trip LLM solve is disabled in the current configuration.)
 3. **harden_loop**: the hardest versions seed **lineages**. At each depth `d0` to `d10` the
    **teacher** rewrites the statement harder; the **student panel** attempts it; a student
    is *defeated* when it is wrong or too slow (`wrong_or_slow`, 300 s TLE ceiling); an
@@ -292,7 +289,7 @@ To harden a new or updated family end-to-end: `FAM=NN bash run_family_full.sh` (
 - **Hardening**: the teacher rewrites a statement harder while the gate preserves the
   answer, the I/O contract, and the class; a student is *defeated* when wrong or slower
   than the 300 s ceiling.
-- **Validity gate**: hard checks `H1` to `H5` plus graded criteria `G1` to `G4` (scored by
+- **Validity gate**: hard checks `H1` to `H4` plus graded criteria `G1` to `G4` (scored by
   the verifier).
 - **Verdict / why**: PASS, or FAIL tagged `wrong_answer`, `tle`, or `runtime_error`.
 - **Derive mode**: grade once at the max limit, then derive every tighter limit from the
