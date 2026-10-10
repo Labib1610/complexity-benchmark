@@ -1,51 +1,87 @@
-# Complexity-Aware Code Generation Benchmark
+# Adversarial Complexity-Class Benchmark
 
-Benchmarking whether large language models understand **computational complexity
-structure** (P vs NP-complete vs infeasible) when generating code — or whether
-their coding ability is surface-level pattern matching.
+Benchmarking whether large language models understand **computational-complexity
+structure** when they generate code — or whether their coding ability is surface-level
+pattern matching.
 
-Each of **16 problem families** has **3 criteria** — an NP-complete variant, a
-polynomial-time (P) variant, and an infeasible variant — that differ by a *minimal
-semantic change*. A model that truly understands algorithmic difficulty should
-behave differently across the three; a pattern matcher should not. That gap is
-what this benchmark measures.
+Each problem **family** pairs an **NP-complete (NPC)** variant with a **polynomial-time
+(P)** relative posed over the *same surface*, so a single structural change moves the
+instance across the class boundary. Statements are then **adversarially hardened** (a
+teacher LLM rewrites them to be harder while a validity gate keeps them well-posed and
+answer-preserving), and an independent panel of models is evaluated on the result.
 
-**16 families × 3 criteria = 48 problems.**
+> **Current setup (this is the live configuration):**
+> - **12 families**, **2 criteria** each — `criterion_1_npc` and `criterion_2_p`.
+>   The former INFEASIBLE criterion has been **dropped** (it was always 100% and
+>   non-discriminating; archived, not deleted).
+> - The released benchmark lives in **`final_dataset/`** — seeds + all hardened
+>   statement versions + full hardening lineages + stored model attempts + curated tests.
+> - Evaluation is done by **`evaluate.py`** (NPC, with a 1/2/5/10 s time-constraint
+>   sweep) and **`evaluate_p.py`** (P, at each statement's own stated limit), scored by a
+>   family of **report scripts**. Results are written to a separate **`../evaluation/`**
+>   directory.
+> - Analysis write-ups for the paper are in **`../paper_files/`**.
 
 ---
 
 ## Table of contents
-
 - [The core idea](#the-core-idea)
+- [The twelve families](#the-twelve-families)
 - [Repository layout](#repository-layout)
-- [How the benchmark works](#how-the-benchmark-works)
+- [The dataset (`final_dataset/`)](#the-dataset-final_dataset)
+- [How a statement is hardened](#how-a-statement-is-hardened)
+- [Evaluating models](#evaluating-models)
+- [The report variants](#the-report-variants)
+- [Model panel](#model-panel)
 - [Quick start](#quick-start)
-- [Running an experiment](#running-an-experiment)
-- [Understanding the results](#understanding-the-results)
-- [The instruction files (how this repo was built)](#the-instruction-files)
-- [Adding things later](#adding-things-later)
-- [Troubleshooting](#troubleshooting)
+- [Paper analysis docs](#paper-analysis-docs)
 - [Glossary](#glossary)
 
 ---
 
 ## The core idea
 
-For every family we write three problem statements that look almost identical on
-the surface but live in different complexity classes:
+For every family we author two problem statements that look almost identical on the
+surface but live in different complexity classes:
 
-| Criterion | Class | Meaning | Example (Family 1: Graph Coloring) |
-|-----------|-------|---------|------------------------------------|
-| 1 | **NPC** | NP-complete — no known polynomial algorithm | 3-coloring, `n ≤ 20` |
-| 2 | **P** | Polynomial-time solvable | 2-coloring / bipartiteness, `n ≤ 2·10⁵` |
-| 3 | **INFEASIBLE** | No valid solution exists by construction | graph contains a triangle → 2-coloring impossible |
+| Criterion | Class | Meaning | Example (Family 01: graph colouring) |
+|---|---|---|---|
+| `criterion_1_npc` | **NPC** | NP-complete — no known polynomial algorithm | 3-colouring |
+| `criterion_2_p` | **P** | polynomial-time solvable | 2-colouring / bipartiteness |
 
-**Critical rule:** a problem statement **never names its complexity class**. No
-"this is NP-complete", no "this graph is a tree", no "bipartite". The model must
-infer difficulty from the structure and bounds alone. The true label is stored in
-a hidden `meta.yaml` the model never sees. This separation is the entire validity
-of the experiment — if the label leaked into the statement, a model could "pass"
-by reading it instead of understanding the problem.
+**A statement never names its complexity class.** No "NP-complete", no "bipartite", no
+algorithm or reduction name. The model must infer difficulty from structure and bounds
+alone; the hidden truth (class, intended algorithm, reduction) lives in a `meta.yaml` the
+model never sees. A model that truly understands algorithmic difficulty should do markedly
+worse on the NPC side than on its near-identical P twin — that **P → NPC gap** is the
+headline measurement.
+
+On top of that, statements are **hardened** so difficulty cannot come from recognising a
+textbook problem: the problem is disguised as a domain scenario, class vocabulary is
+stripped, and the reduction-critical constraints are embedded in prose — while the answer,
+I/O contract, and complexity class are provably preserved.
+
+---
+
+## The twelve families
+
+| # | Family | NPC criterion | P relative |
+|---|---|---|---|
+| 01 | graph colouring | 3-colouring | 2-colouring |
+| 02 | satisfiability | 3-SAT | 2-SAT |
+| 05 | matching | 3-D matching | bipartite matching |
+| 09 | clique / independent set | general graphs | interval graphs |
+| 14 | Steiner tree | terminal subset | spanning tree (MST) |
+| 16 | job-shop | makespan | two-machine flow shop |
+| 17 | exact cover | exact cover by 3-sets | exact cover by 2-sets |
+| 18 | linear arrangement | general graphs | trees |
+| 19 | multicommodity flow | k-commodity (integer) | single commodity |
+| 20 | edge colouring | cubic graphs | bipartite graphs |
+| 21 | multiway cut | ≥3 terminals | s–t min cut |
+| 22 | precedence scheduling | ≥2 machines | single machine |
+
+(Family numbering is the original dataset id; families 03, 04, 06–08, 10–13, 15 exist in
+`dataset/` but are not part of the released 12-family `final_dataset/`.)
 
 ---
 
@@ -54,272 +90,211 @@ by reading it instead of understanding the problem.
 ```
 complexity-benchmark/
 ├── README.md                     ← you are here
-├── conventions/                  ← the fixed rulebook (read these first)
-│   ├── io_format.md              ← stdin→stdout contract + how output is judged
-│   ├── statement_schema.md       ← what a statement must contain / must NOT reveal
-│   ├── prompt_template.md         ← the single fixed prompt sent to every model
-│   ├── checker_spec.md            ← verdicts, timeouts, validator contract
-│   └── registry_format.md         ← how a model is described
 │
-├── dataset/                      ← THE BENCHMARK (model-agnostic; the answer key)
-│   ├── HOW_TO_FILL_A_FAMILY.md
-│   ├── family_01_graph_coloring/
-│   │   ├── family.yaml
-│   │   ├── criterion_1_npc/
-│   │   │   ├── statement.md       ← shown to the model (no class names)
-│   │   │   ├── meta.yaml          ← hidden truth: class, algorithm, judge, limits
-│   │   │   ├── reference.py       ← GROUND-TRUTH solution
-│   │   │   └── tests/
-│   │   │       ├── 01.in  01.out  ← inputs are ours; outputs generated by reference
-│   │   │       └── 02.in  02.out
-│   │   ├── criterion_2_p/         ← same shape
-│   │   └── criterion_3_infeasible/← same shape (+ validator.py if custom-judged)
-│   └── ... family_02 … family_16
+├── final_dataset/                ← THE RELEASED BENCHMARK (12 families)
+│   └── family_NN_<slug>/
+│       ├── seed/<crit>/          statement.md · reference.py · validator.py · meta.yaml
+│       ├── tests/<crit>/         curated test cases (NN.in/.out, worst_*, corner_*, seed_*)
+│       ├── versions/<crit>/vNNN/ accepted/flagged hardened statements (+ edit.json, gate.json)
+│       ├── lineages/<crit>/LNNN/ hardening chains: dNNN/statement.md + per-depth attempts
+│       ├── attempts/<crit>/vNNN/<model>/  stored generation-time solutions + verdicts
+│       ├── README.md  _manifest.json
 │
-├── models/
-│   └── registry.yaml             ← the models under test (add a model = add lines here)
+├── agentic/                      ← the hardening pipeline
+│   ├── config/
+│   │   ├── models.yaml           teacher / verifier / students / held-out / frontier
+│   │   ├── eval_models.yaml      the EVALUATION panel + time_limits + execution
+│   │   └── run_config.yaml       gate thresholds, lineage/feedback-loop settings
+│   ├── prompts/                  teacher / student / verifier / expert / analyst prompts
+│   ├── tools/                    generate_versions · gate · gen_tests · run_students ·
+│   │                             harden_loop · report · backends.py (LiteLLM) · family modules
+│   ├── seeds/, versions/, lineages/, attempts/, tests/, reports/, logs/
 │
-├── harness/                      ← the machine (written once, never edited per-model)
-│   ├── dataset.py                ← discovers families/criteria/tests automatically
-│   ├── runner.py                 ← runs one solution against one input, safely
-│   ├── checker.py                ← turns a run into PASS/WRONG_ANSWER/TLE/RUNTIME_ERROR
-│   ├── extract.py                ← pulls code out of a reply; strips <think> blocks
-│   ├── backends.py               ← talks to Ollama (local) and the Anthropic API
-│   ├── generate.py               ← Phase 2 driver: ask models, save their code
-│   ├── evaluate.py               ← Phase 3 driver: run the code, score it
-│   ├── aggregate.py              ← rolls verdicts into summary.csv + headline numbers
-│   └── reference_check.py        ← dataset self-test (references + leakage scan)
+├── evaluate.py                   ← NPC evaluation (1/2/5/10 s sweep, derive mode)
+├── evaluate_p.py                 ← P evaluation (statement's own stated limit)
+├── eval_report*.py               ← 6 report variants (see below)
+├── build_final_dataset.py        ← (re)builds final_dataset/ from agentic/ + dataset/
+├── run_family_full.sh            ← per-family hardening driver (FAM=NN)
+├── EVAL_GUIDE.md, RUN_GUIDE.md   ← how to run evaluation / hardening
 │
-├── runs/                         ← one dated, self-contained folder per experiment
-│   └── 2026-07-01_main/
-│       ├── run_config.yaml
-│       ├── generations/<model>/family_XX/criterion_n/{solution.py,raw.txt,gen_meta.json}
-│       └── results/
-│           ├── raw/<model>/family_XX/criterion_n/verdict.json
-│           └── summary.csv        ← the table you analyze
-│
-├── studies/                      ← prompt/config variants (reuse dataset, never edit it)
-│   ├── time_budget/
-│   └── token_budget/
-│
-├── scripts/                      ← convenience launchers (new_run.sh, smoke.sh)
-└── files/                        ← the numbered instruction files (00–24) used to build this
+├── dataset/                      ← original per-family seeds (16-family superset)
+├── tools/                        ← family generators + worst-case witness graders
+├── models/, conventions/, docs/, scripts/, studies/   ← supporting material
+└── _archive_* , *_frozen_*       ← archived earlier states (incl. dropped INFEASIBLE)
 ```
 
-**The one principle that governs everything:** `dataset/` is the benchmark and is
-model-agnostic. Adding a model never touches it. Every experiment writes only under
-`runs/` in its own dated folder, so raw data is never overwritten and every result
-is reproducible.
+Output of the evaluation goes to a **sibling** directory, never inside this repo:
+```
+../evaluation/
+├── grades/   family_NN/criterion_1_npc/<stmt>/<model>/{1,2,5,10}s.json   (NPC)
+├── grades_p/ family_NN/<stmt>/<model>/result.json                        (P)
+├── solutions/ , solutions_p/     cached generated programs
+└── reports/  summary*.{md,json}
+```
 
 ---
 
-## How the benchmark works
+## The dataset (`final_dataset/`)
 
-Three phases, always in this order:
+A *statement* is one problem text a model is evaluated on. The released set contains, per
+family and criterion, **all generated versions plus every hardening-lineage depth**
+(~2,100 statements total). Each family folder has:
 
-1. **Build the dataset** (already done): statements + reference solutions + test
-   cases. Outputs are generated by *running the reference*, never hand-typed.
-2. **Generate** (`harness/generate.py`): each model receives the fixed prompt for
-   each of the 48 problems; its code is extracted and saved.
-3. **Evaluate** (`harness/evaluate.py`): each saved solution is run against its
-   test cases; its stdout is matched against the reference-generated expected
-   output; a verdict is recorded; verdicts aggregate into `summary.csv`.
+- **`seed/`** — the canonical statement, `reference.py` (ground truth), `validator.py`
+  (witness checker, where applicable), `meta.yaml` (hidden class/algorithm/limits).
+- **`tests/`** — curated test cases. Obscure families (17–22) keep all 30 (`01`–`15`
+  anchor+scaled, `16`–`30` worst); curated originals keep `seed_*`, `corner_*`, and
+  `worst_*` cases.
+- **`versions/`** — every ACCEPT/FLAG hardened variant (with its gate score and edit).
+- **`lineages/`** — the hardening chains (`d000 → d0NN`), each depth with the statement
+  and the per-model attempts that drove the next edit.
+- **`attempts/`** — generation-time model solutions + verdicts per version.
 
-**What "correct" means:** a model's output is matched against the expected `.out`
-(the reference's answer for that input). A problem PASSES only if **all** its test
-cases pass. `pass@1` is the fraction of problems fully solved on the single attempt.
+Grading uses either the family's **`validator.py`** (`validate(input, output) -> (ok, msg)`,
+a witness/constraint check) or, for the optimisation families with no validator (14, 16,
+and the P side of 01), **exact match** against the reference `.out`.
+
+---
+
+## How a statement is hardened
+
+Per family, per criterion, the pipeline (`agentic/tools/`) runs:
+
+1. **generate_versions** — expand the seed into many paraphrase/structural **versions**.
+2. **gate** — the validity gate: hard checks `H1–H5` (well-posed, solvable, I/O-consistent,
+   round-trip-solvable) + graded criteria `G1–G4` scored by the **verifier**. Accept iff
+   all hard pass and `G1≥4, G2≥4, G3≥5, G4≥3`.
+3. **harden_loop** — the hardest versions seed **lineages**: at each depth `d0 → d10` the
+   **teacher** rewrites the statement harder; the **student panel** attempts it; a student
+   is *defeated* when it is **wrong or too slow** (`wrong_or_slow`, 300 s TLE ceiling); an
+   **analyst** reads all traces to pick the shared shortcut to remove next. Continue until
+   all students are defeated or depth 10.
+
+Roles are kept on separate providers to avoid self-enhancement bias. All prompts are
+documented verbatim in `../paper_files/prompts.md`.
+
+---
+
+## Evaluating models
+
+Two harnesses write to `../evaluation/` and are **checkpointed, resumable, and
+crash-proof** (a failed family/task is logged and skipped; the run continues).
+
+**NPC (`evaluate.py`)** — the statement's `Time limit:` is set and a strict scoring note
+appended; the model is told its program must finish within the limit or score 0 on that
+test. Default **`derive` mode**: generate one solution per (statement, model), run it once
+at the max limit while recording each test's elapsed time, then **derive** the result at
+every limit (pass at limit L ⇔ correct AND finished within L s). ~4× cheaper than
+regenerating per limit, identical numbers for the hardened tiers.
+
+```bash
+cd complexity-benchmark
+python evaluate.py                         # all families, NPC, limits 1/2/5/10 s
+FAM=17 python evaluate.py                  # one family
+FAM=02,05,09 python evaluate.py            # several
+EVAL_MODELS=gemma-3-4b python evaluate.py  # one model (e.g. local Ollama)
+```
+
+**P (`evaluate_p.py`)** — no time sweep; each P statement is evaluated **once** at the
+limit already written in its statement (the strict note is "only for NP"). Same flags.
+```bash
+python evaluate_p.py          # all families, P
+FAM=17 python evaluate_p.py
+```
+
+Knobs (env): `FAM`, `EVAL_MODELS`, `EVAL_CRIT`, `LIMITS`, `EVAL_WORKERS`, `EVAL_MODE`
+(`derive`|`per_limit`), `EVAL_SCOPE` (`all`|`versions`|`lineages`), `EVAL_MAX_STMTS`.
+Failure handling: API errors / empty replies are **retried** on re-run (not stored);
+genuine wrong/TLE results are kept; after `EVAL_MAX_GEN_RETRIES` (4) a persistent failure
+is stored as a real 0. Stop with `pkill -f evaluate`; re-run the same command to resume.
+See **`EVAL_GUIDE.md`** for the full walkthrough.
+
+---
+
+## The report variants
+
+All are read-only, safe to run mid-run, and write to `../evaluation/reports/`.
+
+| Script | Metric |
+|---|---|
+| `eval_report.py` / `eval_report_p.py` | **test-case** pass % (micro-avg over cases), per family + overall |
+| `eval_report_statement.py` / `_p_statement.py` | **statement** pass % (a statement counts only if *all* its tests pass) |
+| `eval_report_tiered.py` / `_p_tiered.py` | **TEST → WORST → OVERALL** (anchor+scaled vs worst tier; OVERALL = equal-weight average) |
+
+NPC reports show one column per time limit (1/2/5/10 s); P reports are single-column (each
+statement at its own stated limit).
+
+---
+
+## Model panel
+
+Defined in `agentic/config/eval_models.yaml`; decoding is uniform (temperature 0.0,
+top-p 1.0, reasoning off). Current active panel (10 models):
+
+- **OpenRouter:** gemma-3-12b, gemma-3-27b, qwen3.8-flash, qwen3.8-27b, qwen3.8-omni-flash,
+  deepseek-v4.1-flash, mistral-medium-3.5, llama-4-scout
+- **Google API:** gemini-3.8-flash
+- **Local Ollama:** gemma-3-4b (`gemma3:4b`) — moved local because the OpenRouter free pool
+  rate-limited it
+
+Held/commented for budget: `kimi-k3` (held-out transfer model), `qwen3.8-2.4t-a95b`, the
+OpenRouter copy of gemma-3-4b. Keys: `OPENROUTER_API_KEY`, `GEMINI_API_KEY` (in
+`agentic/config/local_secrets.py` or env); Ollama needs none. All calls route through
+LiteLLM (`agentic/tools/backends.py`).
 
 ---
 
 ## Quick start
 
-### Prerequisites
-- Python 3.10+
-- [Ollama](https://ollama.com/) running locally for open-source models
-- `pip install -r requirements.txt` (mainly `pyyaml`; `requests` for backends)
-
-### Setup
 ```bash
-git clone <this-repo>
 cd complexity-benchmark
 python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements.txt        # pyyaml, litellm, ...
+# set OPENROUTER_API_KEY / GEMINI_API_KEY; `ollama pull gemma3:4b` for the local model
+
+# sanity check on a tiny slice (a few cents):
+EVAL_MAX_STMTS=2 FAM=17 python evaluate.py
+
+# full NPC + P (checkpointed; survives restarts):
+nohup python evaluate.py   > ../evaluation/run_np.log 2>&1 &
+nohup python evaluate_p.py > ../evaluation/run_p.log  2>&1 &
+
+# read results anytime:
+python eval_report_tiered.py
+python eval_report_p.py
 ```
 
-### Pull the local models (open-source)
-```bash
-ollama pull qwen3:32b
-ollama pull gemma3:27b
-ollama pull gpt-oss:20b
-ollama list                       # confirm they're present
-```
-
-> **Hardware note.** `qwen3:32b` is heavy; on a 16 GB GPU it may not fully fit and
-> will offload to CPU, becoming very slow. Check with `ollama ps` — if the
-> PROCESSOR column shows CPU offload, prefer `qwen3:14b`, or expect long runtimes.
-> See [Troubleshooting](#troubleshooting).
-
-### Pre-flight (ALWAYS run this before trusting any result)
-```bash
-# 1. The dataset validates: every reference passes its own tests, no statement leaks its class
-for f in dataset/family_*; do python -m harness.reference_check "$f"; done
-
-# 2. Dry-run: references stand in as "model answers" — all 48 must PASS
-scripts/new_run.sh preflight
-# edit runs/<date>_preflight/run_config.yaml → study: main, any one model id
-python -m harness.generate --config runs/<date>_preflight/run_config.yaml --dry-run
-python -m harness.evaluate  --config runs/<date>_preflight/run_config.yaml
-# open runs/<date>_preflight/results/summary.csv → confirm all 48 = PASS
-```
-
-If a problem fails pre-flight, the bug is in **our dataset**, not the model. Fix it
-before running real models — every downstream number depends on the answer key.
+To (re)build the released dataset from the pipeline outputs: `python build_final_dataset.py`.
+To harden a new/updated family end-to-end: `FAM=NN bash run_family_full.sh` (see `RUN_GUIDE.md`).
 
 ---
 
-## Running an experiment
+## Paper analysis docs (`../paper_files/`)
 
-There are three experiments. All share the same two-step rhythm — **generate**, then
-**evaluate** — and differ only by the `study:` field in the run config. The dataset
-is never modified by any of them.
-
-### 1. Main Study (the core result)
-```bash
-scripts/new_run.sh main
-# edit runs/<date>_main/run_config.yaml:
-#   study: main
-#   models: [qwen3-32b, gemma3-27b, gpt-oss-20b]
-#   families: all
-#   criteria: all
-#   evaluation: { global_timeout_s: 600 }
-
-# smoke test first (one model, 3 problems) — confirm models actually answer:
-python -m harness.generate --config runs/<date>_main/run_config.yaml --only gemma3-27b --sample 3
-python -m harness.evaluate  --config runs/<date>_main/run_config.yaml
-
-# then the full sweep (3 models × 48 = 144 generations):
-python -m harness.generate --config runs/<date>_main/run_config.yaml
-python -m harness.evaluate  --config runs/<date>_main/run_config.yaml
-```
-
-Generation is **checkpointed** — if it's interrupted, re-run the same command and it
-resumes, skipping problems already done. Add `--only <id>` for one model, `--reset`
-to regenerate from scratch.
-
-### 2–3. Constraint studies (later)
-- **Time budget:** `study: time_budget`, strict runtime limit + partial credit.
-- **Token budget:** `study: token_budget`, sweep generation-length caps.
-
-Each is created the same way (`scripts/new_run.sh <name>`, set `study:`), and reuses
-the same dataset.
-
----
-
-## Understanding the results
-
-After evaluation, read `runs/<date>_<name>/results/summary.csv`. One row per
-(model, family, criterion):
-
-```
-model, family_id, family_name, criterion_id, class_label, overall_verdict, first_failure, n_cases, n_passed
-```
-
-The metrics computed from it, **per model**:
-
-| Metric | What it answers |
-|--------|-----------------|
-| **pass@1 by class** (P / NPC / INFEASIBLE) | Does performance drop on NP-complete despite near-identical surface text? (the headline) |
-| **Infeasible confident-wrong rate** | How often does the model invent a fake answer to an unsolvable problem instead of saying "NO"? |
-| **NPC verdict composition** (PASS/WRONG_ANSWER/TLE/RUNTIME_ERROR) | *Why* NPC fails — TLE-heavy means it brute-forced an exponential algorithm |
-| **Per-family breakdown** | Which of the 16 domains separate cleanly |
-
-**The result we're looking for:** pass@1 on NPC meaningfully **below** pass@1 on P,
-on problems that look nearly identical. That gap is evidence of complexity-blindness.
-
-Granular per-problem records live in `results/raw/*/verdict.json` (the audit trail).
-The terminal also prints the headline table when evaluation finishes.
-
----
-
-## The instruction files
-
-This repo was built by feeding numbered markdown instruction files (`files/00`–`24`)
-to an agentic coding tool, one at a time. They double as documentation of *why* each
-part exists. Read them in order to understand the build:
-
-| File | Purpose |
-|------|---------|
-| `00` | Project overview & build order |
-| `01` | Directory scaffold |
-| `02` | The five convention documents |
-| `03` | The shared harness |
-| `04` | Family 1 built end-to-end (the template) |
-| `05` | Families 02–16 scaffold + fill guide |
-| `06` | Generation & evaluation drivers + registry |
-| `07` | Constraint studies (time/token budget) |
-| `08` | Start of the family-filling phase |
-| `09`–`23` | One file per family (families 02–16) |
-| `24` | Startup run: Main Study on the three Ollama models |
-
-To reproduce or extend the build, hand the next-numbered file to the coding tool.
-
----
-
-## Adding things later
-
-- **A new model** → add an entry to `models/registry.yaml` (open-source: `backend:
-  ollama`; closed-source: `backend: api` with `ANTHROPIC_API_KEY` / provider key in
-  env). Never edit harness code. Then start a new run.
-- **More test cases** → drop `tests/NN.in` into a criterion and generate its `.out`
-  by running that criterion's `reference.py`. The harness auto-discovers it — no code
-  change. Re-run `reference_check` on that family.
-- **A new family** → copy the shape of `family_01_graph_coloring/` following
-  `dataset/HOW_TO_FILL_A_FAMILY.md`, then validate with `reference_check`.
-
----
-
-## Troubleshooting
-
-**Generation times out, `solution.py` is empty.**
-The backend returns empty on hard failure so the run continues. Usually the model is
-too slow to answer within the request timeout. Diagnose:
-```bash
-ollama ps                         # PROCESSOR column: CPU offload = slow
-time ollama run qwen3:32b "Write a Python add function. Think first."
-```
-Fixes: run the fast model first (`--only gemma3-27b`); raise the timeout in
-`harness/backends.py`; lower the model's `token_budget` in `registry.yaml`; or use a
-smaller model (`qwen3:14b`) that fits in VRAM.
-
-**Reasoning model's `solution.py` looks empty but `raw.txt` is full.**
-The `<think>` block wasn't stripped, or the model never emitted a code fence. Check
-`extract.py` and confirm `thinking: true` is set for that model in the registry.
-
-**A problem fails pre-flight (reference doesn't match its own `.out`).**
-The reference or a test case is wrong. Regenerate the `.out` from the reference and
-re-run `reference_check`. Never hand-edit `.out` files.
-
-**Run got interrupted.**
-Just re-run the same `generate`/`evaluate` command — both are checkpointed and resume.
+| File | Contents |
+|---|---|
+| `dataset_statistics.md` | counts, word-length stats per family + overall (+ `compute_stats.py`, figures via `make_figures.py`) |
+| `evaluation_methodology.md` | metric definitions, grading, time-constraint semantics, full model config |
+| `prompts.md` | every pipeline prompt, verbatim, with role and step |
+| `hardening_effectiveness.md` | before→after accuracy drop per class, with tables |
+| `per_layer_accuracy_drop.md` | per-hardening-depth accuracy curves per family |
+| `failure_taxonomy.md` | wrong-answer / crash / TLE breakdown with measured percentages |
+| `qualitative_examples.md` | annotated real failures (full code, error lines marked) |
 
 ---
 
 ## Glossary
 
-- **pass@1** — fraction of problems solved correctly on the model's single attempt.
-- **P / NPC / INFEASIBLE** — the three complexity classes each family spans.
-- **Criterion** — one of the three variants within a family.
-- **Reference solution** — our correct program; the ground truth.
-- **Judge (exact / custom)** — exact = match text against expected `.out`; custom =
-  a validator re-derives correctness from the input (for "any valid answer" problems).
-- **Verdict** — PASS / WRONG_ANSWER / TLE (too slow) / RUNTIME_ERROR (crashed).
-- **Confident-wrong** — a non-null wrong answer to an infeasible problem (the key
-  failure mode).
-
----
-
-## License & citation
-
-See `LICENSE`. If you use this benchmark, please cite the accompanying proposal
-(*Complexity-Aware Code Generation: Benchmarking LLMs Across P, NP-Complete, and
-Infeasible Problem Instances*).
+- **NPC / P** — the two complexity classes each family spans (`criterion_1_npc`, `criterion_2_p`).
+- **Seed / version / lineage depth** — the base statement, a generated variant, and a
+  rewrite step in the hardening chain (`d0 → d10`).
+- **Hardening** — teacher rewrites a statement harder while the gate preserves answer,
+  I/O contract, and class; a student is *defeated* when wrong or slower than the 300 s ceiling.
+- **Validity gate** — hard checks H1–H5 + graded criteria G1–G4 (scored by the verifier).
+- **Verdict / why** — PASS, or FAIL tagged `wrong_answer` / `tle` / `runtime_error`.
+- **Derive mode** — grade once at the max limit, derive every tighter limit from the
+  recorded elapsed times.
+- **Worst tier** — the large, near-threshold test cases engineered to defeat even 300 s
+  solvers (`worst_*`, or numeric ≥16 for the obscure families).
+- **Held-out model** — `kimi-k3`, never used anywhere in the pipeline; its evaluation is
+  the transfer / anti-overfitting check.
