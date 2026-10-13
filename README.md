@@ -18,20 +18,6 @@ answer-preserving), and an independent panel of models is evaluated on the resul
 >   sweep) and **`evaluate_p.py`** (P, at each statement's own stated limit), scored by a
 >   family of **report scripts**.
 
----
-
-## Table of contents
-- [The core idea](#the-core-idea)
-- [The twelve families](#the-twelve-families)
-- [Repository layout](#repository-layout)
-- [The dataset (`final_dataset/`)](#the-dataset-final_dataset)
-- [How a statement is hardened](#how-a-statement-is-hardened)
-- [Evaluating models](#evaluating-models)
-- [The report variants](#the-report-variants)
-- [Model panel](#model-panel)
-- [Quick start](#quick-start)
-- [Paper analysis docs](#paper-analysis-docs)
-- [Glossary](#glossary)
 
 ---
 
