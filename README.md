@@ -76,8 +76,6 @@ I/O contract, and complexity class are provably preserved.
 | 11 | multiway cut | at least 3 terminals | s-t min cut |
 | 12 | precedence scheduling | at least 2 machines | single machine |
 
-(Family numbering is the original dataset id; families 03, 04, 06 to 08, 10 to 13, and 15
-exist in `dataset/` but are not part of the released 12-family `final_dataset/`.)
 
 ---
 
@@ -120,12 +118,6 @@ complexity-benchmark/
 └── .gitignore                    ← excludes secrets, run intermediates, and evaluation outputs
 ```
 
-> **Note.** This is the cleaned, publishable copy: the raw hardening-run intermediates
-> (`agentic/{seeds,versions,lineages,attempts,tests,reports,logs}`), archived snapshots,
-> and the real `local_secrets.py` have been removed. Their curated forms live in
-> `final_dataset/`; the full working tree is preserved in `../complexity-benchmark-Backup/`,
-> which is what `build_final_dataset.py` needs if you want to rebuild from scratch.
-
 Output of the evaluation goes to a **sibling** directory, never inside this repo:
 ```
 ../evaluation/
@@ -156,26 +148,6 @@ family and criterion, **all generated versions plus every hardening-lineage dept
 Grading uses either the family's **`validator.py`** (`validate(input, output) -> (ok, msg)`,
 a witness/constraint check) or, for the optimisation families with no validator (14, 16,
 and the P side of 01), **exact match** against the reference `.out`.
-
----
-
-## How a statement is hardened
-
-Per family, per criterion, the pipeline (`agentic/tools/`) runs:
-
-1. **generate_versions**: expand the seed into many paraphrase and structural **versions**.
-2. **gate**: the validity gate runs hard checks `H1` to `H4` (well-posed, solvable,
-   I/O-consistent) plus graded criteria `G1` to `G4` scored by the **verifier**. Accept
-   only if all hard checks pass and `G1>=4, G2>=4, G3>=5, G4>=3`. (The former H5
-   round-trip LLM solve is disabled in the current configuration.)
-3. **harden_loop**: the hardest versions seed **lineages**. At each depth `d0` to `d10` the
-   **teacher** rewrites the statement harder; the **student panel** attempts it; a student
-   is *defeated* when it is wrong or too slow (`wrong_or_slow`, 300 s TLE ceiling); an
-   **analyst** reads all traces to pick the shared shortcut to remove next. The loop
-   continues until all students are defeated or depth 10 is reached.
-
-Roles are kept on separate providers to avoid self-enhancement bias. All prompts are
-documented verbatim in `../paper_files/prompts.md`.
 
 ---
 
@@ -214,39 +186,6 @@ genuine wrong/TLE results are kept; after `EVAL_MAX_GEN_RETRIES` (4) a persisten
 is stored as a real 0. Stop with `pkill -f evaluate`; re-run the same command to resume.
 See **`EVAL_GUIDE.md`** for the full walkthrough.
 
----
-
-## The report variants
-
-All are read-only, safe to run mid-run, and write to `../evaluation/reports/`.
-
-| Script | Metric |
-|---|---|
-| `eval_report.py` / `eval_report_p.py` | **test-case** pass % (micro-avg over cases), per family + overall |
-| `eval_report_statement.py` / `_p_statement.py` | **statement** pass % (a statement counts only if all its tests pass) |
-| `eval_report_tiered.py` / `_p_tiered.py` | **TEST, WORST, OVERALL** test-case % (anchor+scaled vs worst tier; OVERALL = equal-weight average) |
-| `eval_report_statement_tiered.py` / `_p_statement_tiered.py` | **TEST, WORST, OVERALL** at the **statement** level (statements fully solved per tier) |
-
-NPC reports show one column per time limit (1/2/5/10 s); P reports are single-column (each
-statement at its own stated limit).
-
----
-
-## Model panel
-
-Defined in `agentic/config/eval_models.yaml`; decoding is uniform (temperature 0.0,
-top-p 1.0, reasoning off). Current active panel (10 models):
-
-- **OpenRouter:** gemma-3-12b, gemma-3-27b, qwen3.8-flash, qwen3.8-27b, qwen3.8-omni-flash,
-  deepseek-v4.1-flash, mistral-medium-3.5, llama-4-scout
-- **Google API:** gemini-3.8-flash
-- **Local Ollama:** gemma-3-4b (`gemma3:4b`), moved local because the OpenRouter free pool
-  rate-limited it
-
-Held or commented for budget: `kimi-k3` (held-out transfer model), `qwen3.8-2.4t-a95b`, and
-the OpenRouter copy of gemma-3-4b. Keys: `OPENROUTER_API_KEY`, `GEMINI_API_KEY` (in
-`agentic/config/local_secrets.py` or env); Ollama needs none. All calls route through
-LiteLLM (`agentic/tools/backends.py`).
 
 ---
 
@@ -272,38 +211,4 @@ python eval_report_p.py
 
 To (re)build the released dataset from the pipeline outputs: `python build_final_dataset.py`.
 To harden a new or updated family end-to-end: `FAM=NN bash run_family_full.sh` (see `RUN_GUIDE.md`).
-
 ---
-
-## Paper analysis docs (`../paper_files/`)
-
-| File | Contents |
-|---|---|
-| `dataset_statistics.md` | counts, word-length stats per family + overall (+ `compute_stats.py`, figures via `make_figures.py`) |
-| `evaluation_methodology.md` | metric definitions, grading, time-constraint semantics, full model config |
-| `prompts.md` | every pipeline prompt, verbatim, with role and step |
-| `hardening_effectiveness.md` | before/after accuracy drop per class, with tables |
-| `per_layer_accuracy_drop.md` | per-hardening-depth accuracy curves per family |
-| `failure_taxonomy.md` | wrong-answer / crash / TLE breakdown with measured percentages |
-| `qualitative_examples.md` | annotated real failures (full code, error lines marked) |
-
----
-
-## Glossary
-
-- **NPC / P**: the two complexity classes each family spans (`criterion_1_npc`, `criterion_2_p`).
-- **Seed / version / lineage depth**: the base statement, a generated variant, and a
-  rewrite step in the hardening chain (`d0` to `d10`).
-- **Hardening**: the teacher rewrites a statement harder while the gate preserves the
-  answer, the I/O contract, and the class; a student is *defeated* when wrong or slower
-  than the 300 s ceiling.
-- **Validity gate**: hard checks `H1` to `H4` plus graded criteria `G1` to `G4` (scored by
-  the verifier).
-- **Verdict / why**: PASS, or FAIL tagged `wrong_answer`, `tle`, or `runtime_error`.
-- **Derive mode**: grade once at the max limit, then derive every tighter limit from the
-  recorded elapsed times.
-- **Worst tier**: the large, near-threshold test cases engineered to defeat even 300 s
-  solvers (`worst_*`, or numeric id at least 16 for the obscure families).
-- **Held-out model**: `kimi-k3`, never used anywhere in the pipeline; its evaluation is the
-  transfer / anti-overfitting check.
-```
