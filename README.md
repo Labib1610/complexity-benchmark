@@ -96,28 +96,35 @@ complexity-benchmark/
 │       ├── attempts/<crit>/vNNN/<model>/  stored generation-time solutions + verdicts
 │       ├── README.md  _manifest.json
 │
-├── agentic/                      ← the hardening pipeline
-│   ├── config/
-│   │   ├── models.yaml           teacher / verifier / students / held-out / frontier
-│   │   ├── eval_models.yaml      the EVALUATION panel + time_limits + execution
-│   │   └── run_config.yaml       gate thresholds, lineage/feedback-loop settings
+├── agentic/                      ← hardening-pipeline code & config (run outputs stripped)
+│   ├── config/                   models.yaml · eval_models.yaml · run_config.yaml
+│   │                             (+ local_secrets.example.py; real keys come from env)
 │   ├── prompts/                  teacher / student / verifier / expert / analyst prompts
 │   ├── tools/                    generate_versions · gate · gen_tests · run_students ·
 │   │                             harden_loop · report · backends.py (LiteLLM) · family modules
-│   ├── seeds/, versions/, lineages/, attempts/, tests/, reports/, logs/
+│   ├── strategies/               edit-strategy library (+ discovered strategies)
+│   └── WORKFLOW.md · README.md · OPERATIONS.md · solve_stats.py
 │
 ├── evaluate.py                   ← NPC evaluation (1/2/5/10 s sweep, derive mode)
 ├── evaluate_p.py                 ← P evaluation (statement's own stated limit)
-├── eval_report*.py               ← 6 report variants (see below)
-├── build_final_dataset.py        ← (re)builds final_dataset/ from agentic/ + dataset/
-├── run_family_full.sh            ← per-family hardening driver (FAM=NN)
+├── eval_report*.py               ← 8 report scripts (4 metrics × NPC/P; see below)
+├── build_final_dataset.py        ← rebuilds final_dataset/ (needs the backup's agentic/ run outputs)
+├── run_family_full.sh            ← per-family hardening driver (FAM=NN); calls the three below
+├── worstcase_probe.py, run_frontier_variants.py, family_report.py
 ├── EVAL_GUIDE.md, RUN_GUIDE.md   ← how to run evaluation / hardening
 │
-├── dataset/                      ← original per-family seeds (16-family superset)
+├── dataset/                      ← per-family source seeds (statements, references, validators, tests)
+├── harness/                      ← shared text utilities (extract.py is imported by backends)
 ├── tools/                        ← family generators + worst-case witness graders
 ├── models/, conventions/, docs/, scripts/, studies/   ← supporting material
-└── _archive_* , *_frozen_*       ← archived earlier states (incl. dropped INFEASIBLE)
+└── .gitignore                    ← excludes secrets, run intermediates, and evaluation outputs
 ```
+
+> **Note.** This is the cleaned, publishable copy: the raw hardening-run intermediates
+> (`agentic/{seeds,versions,lineages,attempts,tests,reports,logs}`), archived snapshots,
+> and the real `local_secrets.py` have been removed. Their curated forms live in
+> `final_dataset/`; the full working tree is preserved in `../complexity-benchmark-Backup/`,
+> which is what `build_final_dataset.py` needs if you want to rebuild from scratch.
 
 Output of the evaluation goes to a **sibling** directory, never inside this repo:
 ```
@@ -217,7 +224,8 @@ All are read-only, safe to run mid-run, and write to `../evaluation/reports/`.
 |---|---|
 | `eval_report.py` / `eval_report_p.py` | **test-case** pass % (micro-avg over cases), per family + overall |
 | `eval_report_statement.py` / `_p_statement.py` | **statement** pass % (a statement counts only if all its tests pass) |
-| `eval_report_tiered.py` / `_p_tiered.py` | **TEST, WORST, OVERALL** (anchor+scaled vs worst tier; OVERALL = equal-weight average) |
+| `eval_report_tiered.py` / `_p_tiered.py` | **TEST, WORST, OVERALL** test-case % (anchor+scaled vs worst tier; OVERALL = equal-weight average) |
+| `eval_report_statement_tiered.py` / `_p_statement_tiered.py` | **TEST, WORST, OVERALL** at the **statement** level (statements fully solved per tier) |
 
 NPC reports show one column per time limit (1/2/5/10 s); P reports are single-column (each
 statement at its own stated limit).
