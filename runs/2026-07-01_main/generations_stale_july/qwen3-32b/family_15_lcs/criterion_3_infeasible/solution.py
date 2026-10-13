@@ -1,4 +1,0 @@
-k = int(input())
-for _ in range(k):
-    input()
-print("NONE")

@@ -1,9 +1,0 @@
-def solve():
-    k = int(input())
-    sequences = []
-    for _ in range(k):
-        sequences.append(input())
-    
-    print("NONE")
-
-solve()

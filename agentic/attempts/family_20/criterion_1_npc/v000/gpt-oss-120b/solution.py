@@ -1,8 +1,0 @@
-import sys
-sys.setrecursionlimit(10000000)
-
-def solve():
-    print("NO")
-
-if __name__ == "__main__":
-    solve()

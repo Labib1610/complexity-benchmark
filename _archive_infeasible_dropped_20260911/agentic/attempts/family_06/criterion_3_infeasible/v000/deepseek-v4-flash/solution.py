@@ -1,7 +1,0 @@
-n, C = map(int, input().split())
-weights = list(map(int, input().split()))
-
-for i in range(n):
-    if weights[i] > C:
-        print(i + 1)
-        break
